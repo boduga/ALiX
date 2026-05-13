@@ -196,3 +196,116 @@ test("all providers support streaming and have stream method", () => {
     assert.ok(typeof p.stream === "function", `${id} should have stream method`);
   }
 });
+
+// --- SSE Streaming Parser Tests ---
+
+// Helper: build a mock ReadableStream that yields encoded chunks
+function makeSSEStream(chunks: string[]): ReadableStream<Uint8Array> {
+  let i = 0;
+  const encoder = new TextEncoder();
+  return new ReadableStream({
+    pull(controller) {
+      if (i >= chunks.length) { controller.close(); return; }
+      controller.enqueue(encoder.encode(chunks[i++]));
+    },
+  });
+}
+
+test("streamSSE accumulates multi-chunk text deltas", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  // Access protected method from BaseProvider.prototype
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; text?: string }>;
+
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream([
+      'data: {"choices":[{"delta":{"content":"Hello"}}]}\n',
+      'data: {"choices":[{"delta":{"content":" world"}}]}\n',
+      'data: [DONE]\n',
+    ]),
+  } as unknown as Response;
+
+  const chunks: Array<{ type: string; text?: string }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    chunks.push(chunk);
+  }
+
+  const textDeltas = chunks.filter((c) => c.type === "text_delta");
+  assert.equal(textDeltas.length, 2, "should have 2 text_delta chunks");
+  assert.equal(textDeltas[0].text, "Hello");
+  assert.equal(textDeltas[1].text, " world");
+  const done = chunks.find((c) => c.type === "done");
+  assert.ok(done, "should yield done");
+});
+
+test("streamSSE handles [DONE] event and stops", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string }>;
+
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream(['data: {"choices":[{"delta":{"content":"Hi"}}]}\n', 'data: [DONE]\n', 'data: unexpected extra event\n']),
+  } as unknown as Response;
+
+  const chunks: Array<{ type: string }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    chunks.push(chunk);
+  }
+
+  const types = chunks.map((c) => c.type);
+  assert.deepEqual(types, ["text_delta", "done"], "should stop at [DONE] and not yield extra");
+});
+
+test("streamSSE propagates error on non-OK response", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; error?: string }>;
+
+  const mockRes = { ok: false, status: 500 } as unknown as Response;
+
+  const chunks: Array<{ type: string; error?: string }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    chunks.push(chunk);
+  }
+
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].type, "error");
+  assert.ok(chunks[0].error?.includes("500"), "should include status code");
+});
+
+test("streamSSE propagates error when body is null", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; error?: string }>;
+
+  const mockRes = { ok: true, body: null } as unknown as Response;
+
+  const chunks: Array<{ type: string; error?: string }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    chunks.push(chunk);
+  }
+
+  assert.equal(chunks.length, 1);
+  assert.equal(chunks[0].type, "error");
+  assert.ok(chunks[0].error?.includes("No response body"));
+});
+
+test("streamSSE yields tool_call events", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; toolCall?: { id: string; name: string; args: Record<string, unknown> } }>;
+
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream([
+      'data: {"choices":[{"delta":{"tool_calls":[{"id":"call_1","function":{"name":"get_weather","arguments":"{}"}}]}}]}\n',
+      'data: [DONE]\n',
+    ]),
+  } as unknown as Response;
+
+  const chunks: Array<{ type: string; toolCall?: { id: string; name: string } }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    chunks.push(chunk);
+  }
+
+  const toolCalls = chunks.filter((c) => c.type === "tool_call");
+  assert.equal(toolCalls.length, 1);
+  assert.equal(toolCalls[0].toolCall?.name, "get_weather");
+});

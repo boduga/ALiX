@@ -118,34 +118,6 @@ export class MiniMaxProvider extends BaseProvider {
     if (request.temperature !== undefined) body.temperature = request.temperature;
 
     const res = await this.fetch(body);
-    if (!res.ok) { yield { type: "error", error: `API error ${res.status}` }; return; }
-    if (!res.body) { yield { type: "error", error: "No response body" }; return; }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) { yield { type: "done" }; return; }
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6);
-        if (data === "[DONE]") { yield { type: "done" }; return; }
-        try {
-          const event = JSON.parse(data);
-          if (event.choices?.[0]?.delta?.content) yield { type: "text_delta", text: event.choices[0].delta.content };
-          if (event.choices?.[0]?.delta?.tool_calls) {
-            for (const tc of event.choices[0].delta.tool_calls) {
-              yield { type: "tool_call", toolCall: { id: tc.id ?? this.safeToolId(null), name: tc.function?.name ?? "", args: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {} } };
-            }
-          }
-          if (event.usage) yield { type: "usage", usage: { inputTokens: event.usage.prompt_tokens, outputTokens: event.usage.completion_tokens } };
-        } catch { /* skip */ }
-      }
-    }
+    yield* this.streamSSE(res);
   }
 }
