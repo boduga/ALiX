@@ -98,3 +98,26 @@ test("minimax provider returns correct capabilities", () => {
   assert.equal(p.capabilities.model, "MiniMax-Text-01");
   assert.equal(p.editFormatPreference, "search_replace");
 });
+
+import { createProvider, listProviders } from "../src/providers/registry.js";
+
+test("createProvider produces correct provider for all ids", () => {
+  const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "zhipuai", "grokai", "deepseek", "mock"] as const;
+  for (const id of ids) {
+    const p = createProvider({ provider: id }, "fake-key");
+    assert.equal(p.id, id);
+  }
+});
+
+test("createProvider throws for unknown provider", () => {
+  assert.throws(() => createProvider({ provider: "unknown" }, "fake-key"), {
+    message: /Unknown provider/,
+  });
+});
+
+test("listProviders returns all 11 providers", () => {
+  const list = listProviders();
+  assert.equal(list.length, 11);
+  assert.ok(list.find((p) => p.id === "deepseek"));
+  assert.ok(list.find((p) => p.id === "grokai"));
+});
