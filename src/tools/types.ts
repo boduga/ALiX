@@ -1,7 +1,7 @@
 export type ToolName = "file.read" | "dir.search" | "shell.run" | "patch.apply";
 
 export type ToolResult =
-  | { kind: "success"; content?: string; output?: string; matches?: FileMatch[]; changedFiles?: string[] }
+  | { kind: "success"; content?: string; output?: string; matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number }
   | { kind: "error"; message: string };
 
 export type FileMatch = {

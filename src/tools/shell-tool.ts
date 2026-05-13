@@ -7,23 +7,28 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
   return new Promise((resolve) => {
     const child = spawn(command, [], { cwd, shell: true });
     let output = "";
+    let settled = false;
+    const finish = (result: ToolResult) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(result);
+    };
 
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
-      resolve({ kind: "error", message: `Command timed out after ${timeoutMs}ms: ${command}` });
+      finish({ kind: "error", message: `Command timed out after ${timeoutMs}ms: ${command}` });
     }, timeoutMs);
 
     child.stdout.on("data", (chunk) => { output += chunk; });
     child.stderr.on("data", (chunk) => { output += chunk; });
 
     child.on("close", (code) => {
-      clearTimeout(timer);
-      resolve({ kind: "success", output, exitCode: code ?? 0 });
+      finish({ kind: "success", output, exitCode: code ?? 0 });
     });
 
     child.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({ kind: "error", message: err.message });
+      finish({ kind: "error", message: `Command failed: ${command} -- ${err.message}` });
     });
   });
 }
