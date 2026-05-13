@@ -4,6 +4,7 @@ import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig } from "./schema.js";
+import { validateConfig } from "./validator.js";
 
 // Test seam — allows tests to override homedir without touching the real OS module
 let homedirOverride: string | undefined;
@@ -37,7 +38,16 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
     }
   }
 
-  return mergeConfig(DEFAULT_CONFIG, userConfig as PartialConfig, projectConfig as PartialConfig);
+  const result = mergeConfig(DEFAULT_CONFIG, userConfig as PartialConfig, projectConfig as PartialConfig);
+
+  const validation = validateConfig(result);
+  if (validation.issues.length > 0) {
+    for (const issue of validation.issues) {
+      const prefix = issue.level === "error" ? "ERROR" : "WARN";
+      console.warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
+    }
+  }
+  return result;
 }
 
 async function readJson(path: string): Promise<PartialConfig> {

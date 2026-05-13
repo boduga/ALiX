@@ -47,3 +47,14 @@ export type AlixConfig = {
   ui: UiConfig;
   apiKeys?: Record<string, string>;
 };
+
+export type ValidationIssue = {
+  path: string;
+  level: "error" | "warning";
+  message: string;
+};
+
+export type ConfigValidationResult = {
+  valid: boolean;
+  issues: ValidationIssue[];
+};
