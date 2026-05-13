@@ -102,8 +102,9 @@ if (command === "config" && args[0] === "set-key") {
     process.exit(0);
   }
   await setApiKey(providerId, key);
-  console.log(`\nDone! ${provider.name} API key saved.`);
-  console.log(`To use it, run: export ${provider.env}=${provider.hint}`);
+  // Inject into current process so the key works immediately
+  process.env[provider.env] = key;
+  console.log(`\nDone! ${provider.name} API key saved and loaded.`);
   process.exit(0);
 }
 
