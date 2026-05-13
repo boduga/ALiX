@@ -114,3 +114,89 @@ h2 {
 #events li:last-child {
   border-bottom: 0;
 }
+
+.connect-panel {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.connect-panel label {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.connect-panel input {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 8px 12px;
+  flex: 1;
+  max-width: 400px;
+}
+
+.connect-panel input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.connect-panel button {
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #0b0e0f;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 20px;
+}
+
+.connect-panel button:hover {
+  opacity: 0.9;
+}
+
+#events li {
+  display: grid;
+  grid-template-columns: 160px 80px 120px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.event-type {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.event-actor {
+  border-radius: 4px;
+  font-size: 11px;
+  padding: 2px 6px;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.actor-agent { background: rgba(208, 255, 115, 0.15); color: var(--accent); }
+.actor-user { background: rgba(100, 149, 237, 0.15); color: #6495ed; }
+.actor-system { background: rgba(168, 160, 140, 0.1); color: var(--muted); }
+.actor-tool { background: rgba(255, 116, 72, 0.1); color: var(--accent-2); }
+.actor-policy { background: rgba(255, 200, 100, 0.1); color: #ffc864; }
+
+.event-meta {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.event-payload {
+  color: #c8c4b8;
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.status.connected {
+  border-color: rgba(208, 255, 115, 0.8);
+}

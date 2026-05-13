@@ -11,12 +11,19 @@
       <header class="masthead">
         <p class="eyebrow">Agentic Lifecycle &amp; Intelligence eXchange</p>
         <h1>ALiX Inspector</h1>
-        <p class="lede">Session events appear here when connected.</p>
+        <p class="lede">Live session event stream and replay.</p>
       </header>
+
+      <section class="connect-panel">
+        <label for="session-id">Session ID</label>
+        <input type="text" id="session-id" placeholder="Paste session ID..." />
+        <button id="connect-btn">Connect</button>
+      </section>
+
       <section class="panel" aria-label="Session timeline">
         <div class="panel-header">
           <h2>Timeline</h2>
-          <span class="status">Local</span>
+          <span class="status" id="connection-status">Disconnected</span>
         </div>
         <ol id="events"></ol>
       </section>
