@@ -1,6 +1,6 @@
 # ALiX MVP Hardening Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Harden patch safety, add live inspector event streaming, and wire a real Anthropic provider.
 
@@ -41,7 +41,7 @@ tests/
 - Modify: `src/patch/patch-engine.ts` (add guard call before each write)
 - Test: `tests/patch-guard.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/patch-guard.test.ts
@@ -77,12 +77,12 @@ test("accepts valid operations", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run build 2>&1`
 Expected: FAIL — `validatePatchOperations` not defined
 
-- [ ] **Step 3: Write minimal patch guard**
+- [x] **Step 3: Write minimal patch guard**
 
 Create `src/patch/patch-guard.ts`:
 
@@ -140,12 +140,12 @@ function isPathSafe(patchPath: string): boolean {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS — all patch-guard tests pass
 
-- [ ] **Step 5: Integrate guard into patch engine**
+- [x] **Step 5: Integrate guard into patch engine**
 
 Modify `src/patch/patch-engine.ts` — add import and guard call at the top of `applyPatch`:
 
@@ -179,12 +179,12 @@ if (!guardResult.valid) {
 
 Note: Read the current `src/patch/patch-engine.ts` first. The guard should be inserted right after the existing size-check (`if (blocks.length === 0)` and `if (patch.files.length === 0)`) but before any file writes.
 
-- [ ] **Step 6: Run tests**
+- [x] **Step 6: Run tests**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: all tests pass
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/patch/patch-guard.ts src/patch/patch-engine.ts tests/patch-guard.test.ts
@@ -201,7 +201,7 @@ git commit -m "feat: add patch safety guardrails"
 - Modify: `src/ui/index.html` (add session input, connect button)
 - Test: `tests/inspector-stream.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/inspector-stream.test.ts
@@ -256,12 +256,12 @@ test("SSE endpoint serves existing events and streams new ones", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check 2>&1`
 Expected: FAIL — `inspector-stream.test.ts` not found or fails
 
-- [ ] **Step 3: Implement SSE live tail**
+- [x] **Step 3: Implement SSE live tail**
 
 Read the current `src/server/server.ts` first. Replace the file with:
 
@@ -368,12 +368,12 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
 
 Fix: add `dirname` import from `node:path`.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS — inspector-stream test passes
 
-- [ ] **Step 5: Rewrite the inspector UI**
+- [x] **Step 5: Rewrite the inspector UI**
 
 Read the current `src/ui/app.js` and `src/ui/index.html` first.
 
@@ -567,16 +567,16 @@ Add to `src/ui/styles.css`:
 
 Note: the HTML already has `#events` list — we add the CSS for grid layout within `#events li`. The new connect panel HTML replaces the existing body content. Read the full existing files first before replacing.
 
-- [ ] **Step 6: Update build script to copy UI files**
+- [x] **Step 6: Update build script to copy UI files**
 
 Check current `package.json` build script. Ensure it copies the UI files to `dist/src/ui/`. The existing build script copies `.html`, `.js`, `.css` files — verify and run build.
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: all tests pass
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/server/server.ts src/ui/app.js src/ui/index.html src/ui/styles.css tests/inspector-stream.test.ts
@@ -594,7 +594,7 @@ git commit -m "feat: add live SSE inspector event streaming"
 - Modify: `src/config/loader.ts` (support `ANTHROPIC_API_KEY` env var)
 - Test: `tests/anthropic-provider.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/anthropic-provider.test.ts
@@ -628,12 +628,12 @@ test("anthropic provider returns a response", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check 2>&1`
 Expected: FAIL — `AnthropicProvider` not found
 
-- [ ] **Step 3: Write Anthropic provider**
+- [x] **Step 3: Write Anthropic provider**
 
 Create `src/providers/anthropic-provider.ts`:
 
@@ -713,12 +713,12 @@ export class AnthropicProvider implements ModelAdapter {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS
 
-- [ ] **Step 5: Update config to allow anthropic provider**
+- [x] **Step 5: Update config to allow anthropic provider**
 
 Read `src/config/defaults.ts` and `src/config/schema.ts` first.
 
@@ -735,7 +735,7 @@ In `src/config/defaults.ts`, add an alternative model config section (commented 
 // },
 ```
 
-- [ ] **Step 6: Wire provider selection in run flow**
+- [x] **Step 6: Wire provider selection in run flow**
 
 Read `src/run.ts` first. Add provider selection based on config:
 
@@ -751,12 +751,12 @@ const provider =
   config.model.provider === "anthropic" ? new AnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY }) : new MockProvider();
 ```
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: all tests pass
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/providers/anthropic-provider.ts src/config/defaults.ts src/run.ts tests/anthropic-provider.test.ts
@@ -773,3 +773,9 @@ git commit -m "feat: add Anthropic provider adapter"
    - Task 3: Anthropic adapter with interface contract, provider selection, env key support — covers real provider
 2. **Placeholder scan:** No TBD/TODO placeholders — all code is complete
 3. **Type consistency:** `PatchOperation` union type used consistently; `PatchGuardConfig`, `AnthropicConfig` all match
+
+---
+
+## Completion
+
+All tasks completed and merged to `main` on 2026-05-12. 41 tests passing.
