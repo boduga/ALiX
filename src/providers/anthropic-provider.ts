@@ -79,7 +79,7 @@ export class AnthropicProvider implements ModelAdapter {
 
   constructor(config: AnthropicConfig = {}) {
     this._apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
-    this._model = config.model ?? "claude-sonnet-4-6-20250514";
+    this._model = config.model ?? "claude-sonnet-4-6";
     this._maxTokens = config.maxTokens ?? 8192;
   }
 
@@ -101,20 +101,33 @@ export class AnthropicProvider implements ModelAdapter {
       throw new Error("ANTHROPIC_API_KEY is not set");
     }
 
-    const tools = request.tools ?? ALIX_TOOLS;
+    // Build messages, injecting toolResults as user messages if provided
+    const buildMessages = () =>
+      request.messages.map((m) => ({
+        role: m.role,
+        content: typeof m.content === "string" ? m.content : m.content.map((p: { text: string }) => p.text).join("")
+      }));
+
+    const messages = buildMessages();
+
+    if (request.toolResults) {
+      for (const tr of request.toolResults) {
+        messages.push({
+          role: "user" as const,
+          content: `<tool_result id="${tr.toolUseId}">\n${tr.content}\n</tool_result>`
+        });
+      }
+    }
 
     const body: Record<string, unknown> = {
       model: this._model,
       max_tokens: this._maxTokens,
       system: request.systemPrompt,
-      messages: request.messages.map((m) => ({
-        role: m.role,
-        content: m.content
-      }))
+      messages
     };
 
-    if (tools.length > 0) {
-      body.tools = tools;
+    if (request.tools) {
+      body.tools = request.tools;
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -129,12 +142,13 @@ export class AnthropicProvider implements ModelAdapter {
     });
 
     if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${body}`);
+      const bodyText = await response.text();
+      throw new Error(`Anthropic API error ${response.status}: ${bodyText}`);
     }
 
     const data = (await response.json()) as {
       content: Array<{ type: string; id?: string; name?: string; input?: Record<string, unknown>; text?: string }>;
+      usage: { input_tokens: number; output_tokens: number };
       stop_reason?: string;
     };
 
@@ -153,6 +167,11 @@ export class AnthropicProvider implements ModelAdapter {
       }
     }
 
-    return { text: text.trim(), toolCalls };
+    return {
+      text: text.trim(),
+      toolCalls,
+      usage: { inputTokens: data.usage.input_tokens, outputTokens: data.usage.output_tokens },
+      finishReason: data.stop_reason
+    };
   }
 }

@@ -10,9 +10,11 @@ export type ModelCapabilities = {
   supportsVision: boolean;
 };
 
+export type ContentPart = { text: string };
+
 export type NormalizedMessage = {
   role: "user" | "assistant";
-  content: string;
+  content: string | ContentPart[];
 };
 
 export type ToolParamBase = {
@@ -37,10 +39,16 @@ export type ToolDef = {
   };
 };
 
+export type ToolResult = {
+  toolUseId: string;
+  content: string;
+};
+
 export type NormalizedRequest = {
   systemPrompt: string;
   messages: NormalizedMessage[];
   tools?: ToolDef[];
+  toolResults?: ToolResult[];
 };
 
 export type ToolCall = {
@@ -49,9 +57,16 @@ export type ToolCall = {
   args: Record<string, unknown>;
 };
 
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
 export type NormalizedResponse = {
   text: string;
   toolCalls: ToolCall[];
+  usage?: TokenUsage;
+  finishReason?: string;
 };
 
 export type ModelAdapter = {
