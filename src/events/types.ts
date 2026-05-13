@@ -25,3 +25,14 @@ export type SessionProjection = {
   changedFiles: string[];
   summary?: string;
 };
+
+// Additional event type unions for full event coverage
+export type ToolEventPayload =
+  | { toolCallId: string; toolName: string; argsPreview: Record<string, unknown>; capability: string }
+  | { toolCallId: string; toolName: string; status: "success" | "error" | "denied"; outputSize?: number; outputPreview?: string; error?: string }
+  | { toolCallId: string; toolName: string };
+
+export type VerificationEventPayload =
+  | { command: string; reason: string }
+  | { command: string; status: "passed" | "failed"; output?: string }
+  | { status: string; results: unknown[] };
