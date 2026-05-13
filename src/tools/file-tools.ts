@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readdir, readFile as fsReadFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join, resolve, relative } from "node:path";
 import type { ToolResult, FileMatch } from "./types.js";
 
 const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".alix"]);
@@ -50,13 +50,13 @@ export async function searchDir(args: { root: string; pattern: string; extension
         const ext = "." + (entry.name.split(".").pop() ?? "");
         if (extensions.length > 0 && !extensions.includes(ext)) continue;
         const filePath = join(dir, entry.name);
-        const relative = filePath.slice(root.length + 1);
+        const rel = relative(root, filePath);
         try {
           const content = await fsReadFile(filePath, "utf8");
           const lines = content.split("\n");
           for (let i = 0; i < lines.length; i++) {
             if (lines[i].includes(pattern)) {
-              matches.push({ path: relative, lineNumber: i + 1, line: lines[i] });
+              matches.push({ path: rel, lineNumber: i + 1, line: lines[i] });
             }
           }
         } catch {

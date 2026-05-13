@@ -29,6 +29,25 @@ test("readFile rejects paths outside workspace", async () => {
   assert.equal(result.kind, "error");
 });
 
+test("searchDir skips ignored directories", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-ignore-"));
+  try {
+    // Create files in both ignored and non-ignored dirs
+    await mkdir(join(dir, "src"));
+    await mkdir(join(dir, "node_modules"));
+    await mkdir(join(dir, ".git"));
+    await writeFile(join(dir, "src/visible.ts"), "TARGET_LINE\n");
+    await writeFile(join(dir, "node_modules/hidden.ts"), "TARGET_LINE\n");
+    await writeFile(join(dir, ".git/hidden.ts"), "TARGET_LINE\n");
+    const result = await searchDir({ root: dir, pattern: "TARGET_LINE", extensions: [".ts"] });
+    assert.equal(result.kind, "success");
+    assert.equal(result.matches?.length, 1);
+    assert.ok(result.matches?.[0].path.includes("src/visible.ts"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("searchDir returns matching files", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-search-"));
   try {
