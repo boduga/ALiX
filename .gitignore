@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+npm-debug.log*
+
+# ALiX runtime state
+.alix/sessions/
+.alix/checkpoints/
+.alix/index/
+.alix/artifacts/
+
+# OS/editor noise
+.DS_Store
+.idea/
+.vscode/
