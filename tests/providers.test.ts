@@ -115,9 +115,9 @@ test("createProvider throws for unknown provider", () => {
   });
 });
 
-test("listProviders returns all 11 providers", () => {
+test("listProviders returns all 12 providers", () => {
   const list = listProviders();
-  assert.equal(list.length, 11);
+  assert.equal(list.length, 12);
   assert.ok(list.find((p) => p.id === "deepseek"));
   assert.ok(list.find((p) => p.id === "grokai"));
 });
