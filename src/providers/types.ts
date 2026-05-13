@@ -97,6 +97,12 @@ export type NormalizedRequest = {
   temperature?: number;
   maxOutputTokens?: number;
   stream?: boolean;  // when true, provider may use streaming response
+  structuredOutputSchema?: {
+    name: string;
+    description?: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
 };
 
 export type ToolCall = {

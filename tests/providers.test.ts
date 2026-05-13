@@ -13,6 +13,7 @@ import { GrokAIProvider } from "../src/providers/grokai-provider.js";
 import { GeminiProvider } from "../src/providers/gemini-provider.js";
 import { ZhipuAIProvider } from "../src/providers/zhipuai-provider.js";
 import { MiniMaxProvider } from "../src/providers/minimax-provider.js";
+import { AnthropicProvider } from "../src/providers/anthropic-provider.js";
 
 test("base provider accepts apiKey and model options", () => {
   const p = new OpenAIProvider({ apiKey: "test-key", model: "gpt-4o" });
@@ -56,6 +57,52 @@ test("deepseek provider returns correct capabilities", () => {
   assert.equal(p.capabilities.provider, "deepseek");
   assert.equal(p.capabilities.model, "deepseek-chat");
   assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("anthropic provider supports structured output", () => {
+  const p = new AnthropicProvider({ apiKey: "sk-test" });
+  assert.equal(p.capabilities.provider, "anthropic");
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("openai provider supports structured output", () => {
+  const p = new OpenAIProvider({ apiKey: "sk-test" });
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("gemini provider supports structured output", () => {
+  const p = new GeminiProvider({ apiKey: "AIza-test" });
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("openrouter provider supports structured output", () => {
+  const p = new OpenRouterProvider({ apiKey: "sk-or-test" });
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("groq provider supports structured output", () => {
+  const p = new GroqProvider({ apiKey: "gsk_test" });
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("ollama provider supports structured output", () => {
+  const p = new OllamaProvider({ apiKey: "" });
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("minimax provider does not support structured output", () => {
+  const p = new MiniMaxProvider({ apiKey: "test-key" });
+  assert.equal(p.capabilities.supportsStructuredOutput, false);
+});
+
+test("zhipuai provider does not support structured output", () => {
+  const p = new ZhipuAIProvider({ apiKey: "test-key" });
+  assert.equal(p.capabilities.supportsStructuredOutput, false);
+});
+
+test("grokai provider does not support structured output", () => {
+  const p = new GrokAIProvider({ apiKey: "test-key" });
+  assert.equal(p.capabilities.supportsStructuredOutput, false);
 });
 
 test("perplexity provider returns correct capabilities", () => {

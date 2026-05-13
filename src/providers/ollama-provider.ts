@@ -28,7 +28,7 @@ export class OllamaProvider extends BaseProvider {
       outputTokenLimit: 8_192,
       supportsTools: true,
       supportsStreaming: true,
-      supportsStructuredOutput: false,
+      supportsStructuredOutput: true,
       supportsVision: false,
     };
   }
@@ -58,6 +58,13 @@ export class OllamaProvider extends BaseProvider {
     }
 
     if (request.temperature !== undefined) body.temperature = request.temperature;
+
+    if (request.structuredOutputSchema) {
+      body.response_format = {
+        type: "json_schema",
+        json_schema: { name: request.structuredOutputSchema.name, schema: request.structuredOutputSchema },
+      };
+    }
 
     const response = await this.post(body);
     if (!response.ok) {

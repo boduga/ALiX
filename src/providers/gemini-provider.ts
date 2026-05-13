@@ -27,7 +27,7 @@ export class GeminiProvider implements ModelAdapter {
       outputTokenLimit: 8_192,
       supportsTools: true,
       supportsStreaming: true,
-      supportsStructuredOutput: false,
+      supportsStructuredOutput: true,
       supportsVision: true,
     };
   }
@@ -59,6 +59,11 @@ export class GeminiProvider implements ModelAdapter {
           parameters: t.input_schema,
         })),
       };
+    }
+
+    if (request.structuredOutputSchema) {
+      body.response_mime_type = "application/json";
+      body.response_schema = request.structuredOutputSchema;
     }
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this._model}:generateContent?key=${this._apiKey}`;

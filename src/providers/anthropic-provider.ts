@@ -92,7 +92,7 @@ export class AnthropicProvider implements ModelAdapter {
       outputTokenLimit: 8192,
       supportsTools: true,
       supportsStreaming: true,
-      supportsStructuredOutput: false,
+      supportsStructuredOutput: true,
       supportsVision: true
     };
   }
@@ -116,6 +116,13 @@ export class AnthropicProvider implements ModelAdapter {
 
     if (tools.length > 0) {
       body.tools = tools;
+    }
+
+    if (request.structuredOutputSchema) {
+      body.output = {
+        type: "json",
+        schema: request.structuredOutputSchema,
+      };
     }
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
