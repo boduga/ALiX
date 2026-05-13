@@ -10,7 +10,15 @@ import { startServer } from "./server/server.js";
 const PROVIDERS = [
   { id: "anthropic", name: "Anthropic", env: "ANTHROPIC_API_KEY", hint: "sk-ant-..." },
   { id: "openai", name: "OpenAI", env: "OPENAI_API_KEY", hint: "sk-..." },
-  { id: "gemini", name: "Google Gemini", env: "GEMINI_API_KEY", hint: "AIza..." }
+  { id: "google", name: "Google Gemini", env: "GEMINI_API_KEY", hint: "AIza..." },
+  { id: "openrouter", name: "OpenRouter", env: "OPENROUTER_API_KEY", hint: "sk-or-..." },
+  { id: "groq", name: "Groq", env: "GROQ_API_KEY", hint: "gsk_..." },
+  { id: "ollama", name: "Ollama", env: "OLLAMA_API_KEY", hint: "(local, may be empty)" },
+  { id: "perplexity", name: "Perplexity", env: "PERPLEXITY_API_KEY", hint: "pplx-..." },
+  { id: "minimax", name: "MiniMax", env: "MINIMAX_API_KEY", hint: "..." },
+  { id: "zhipuai", name: "ZhipuAI", env: "ZHIPUAI_API_KEY", hint: "..." },
+  { id: "grokai", name: "GrokAI", env: "GROKAI_API_KEY", hint: "..." },
+  { id: "deepseek", name: "DeepSeek", env: "DEEPSEEK_API_KEY", hint: "sk-..." }
 ];
 
 async function prompt(question: string): Promise<string> {
@@ -74,7 +82,7 @@ Usage:
   alix run "<task>"
   alix serve
   alix config show
-  alix config set-key     Interactive API key setup
+  alix config set-key     Interactive API key setup for 11 providers
 `);
   process.exit(0);
 }

@@ -8,6 +8,8 @@ export type EditFormatPolicy = {
 };
 
 export function defaultEditFormatForProvider(provider: string): EditFormat {
-  if (provider === "google" || provider === "local") return "search_replace";
+  if (["google", "local", "ollama", "minimax", "zhipuai", "grokai"].includes(provider)) {
+    return "search_replace";
+  }
   return "structured_patch";
 }
