@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { validatePatchOperations, isPathSafe, isProtectedPath } from "../src/patch/patch-guard.js";
+import { validatePatchOperations, isPathSafe, isProtectedPath, DEFAULT_PATCH_GUARD_CONFIG } from "../src/patch/patch-guard.js";
 
 const MAX_FILE_SIZE = 500_000;
 
@@ -73,6 +73,13 @@ test("isPathSafe rejects $ expansion", () => {
 test("isPathSafe accepts normal paths", () => {
   assert.equal(isPathSafe("src/util.ts"), true);
   assert.equal(isPathSafe("src/nested/deep/util.ts"), true);
+});
+
+test("isProtectedPath does not false-match on prefix collision", () => {
+  // .git/** should match .git/config but NOT .github/config
+  assert.equal(isProtectedPath([".git/**"], ".github/config"), false);
+  assert.equal(isProtectedPath([".git/**"], ".git/config"), true);
+  assert.equal(isProtectedPath([".git/**"], ".git"), true);
 });
 
 test("isProtectedPath matches wildcard patterns", () => {

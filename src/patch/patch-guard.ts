@@ -16,7 +16,10 @@ export type ValidationResult = {
 
 export function isProtectedPath(patterns: string[], path: string): boolean {
   return patterns.some((pattern) => {
-    if (pattern.endsWith("/**")) return path.startsWith(pattern.slice(0, -3));
+    if (pattern.endsWith("/**")) {
+      const prefix = pattern.slice(0, -3);
+      return path === prefix || path.startsWith(prefix + "/");
+    }
     if (pattern.endsWith(".*")) return path === pattern.slice(0, -2) || path.startsWith(pattern.slice(0, -1));
     return path === pattern;
   });
@@ -30,6 +33,11 @@ export function isPathSafe(path: string): boolean {
   if (path.startsWith("$")) return false;
   return true;
 }
+
+export const DEFAULT_PATCH_GUARD_CONFIG: PatchGuardConfig = {
+  protectedPaths: [".git/**", ".env", ".env.*", "secrets/**"],
+  maxFileSizeBytes: 10 * 1024 * 1024,
+};
 
 export function validatePatchOperations(ops: PatchOperation[], config: PatchGuardConfig): ValidationResult {
   for (const op of ops) {

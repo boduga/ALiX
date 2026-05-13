@@ -4,7 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { EditFormat } from "./edit-format-policy.js";
 import { applySearchReplace, parseSearchReplace } from "./search-replace.js";
 import { parseStructuredPatch } from "./structured-patch.js";
-import { validatePatchOperations, type PatchOperation } from "./patch-guard.js";
+import { validatePatchOperations, DEFAULT_PATCH_GUARD_CONFIG, type PatchOperation } from "./patch-guard.js";
 
 export type PatchApplyResult = {
   status: "applied" | "invalid";
@@ -16,10 +16,7 @@ export async function applyPatch(root: string, format: EditFormat, patchText: st
     const blocks = parseSearchReplace(patchText);
     if (blocks.length === 0) throw new Error("No patch changes found");
     const ops: PatchOperation[] = blocks.map((b) => ({ path: b.path, operation: "modify" as const, content: b.replace }));
-    const result = validatePatchOperations(ops, {
-      protectedPaths: [".git/**", ".env", ".env.*", "secrets/**"],
-      maxFileSizeBytes: 10 * 1024 * 1024,
-    });
+    const result = validatePatchOperations(ops, DEFAULT_PATCH_GUARD_CONFIG);
     if (!result.valid) throw new Error("Patch blocked by safety guard: " + result.reason);
     const changedFiles: string[] = [];
     for (const block of blocks) {
@@ -40,10 +37,7 @@ export async function applyPatch(root: string, format: EditFormat, patchText: st
       operation: f.operation,
       content: f.content,
     }));
-    const result = validatePatchOperations(ops, {
-      protectedPaths: [".git/**", ".env", ".env.*", "secrets/**"],
-      maxFileSizeBytes: 10 * 1024 * 1024,
-    });
+    const result = validatePatchOperations(ops, DEFAULT_PATCH_GUARD_CONFIG);
     if (!result.valid) throw new Error("Patch blocked by safety guard: " + result.reason);
     const changedFiles: string[] = [];
     for (const file of patch.files) {
