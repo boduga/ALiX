@@ -42,7 +42,7 @@ const TOOLS: ToolDef[] = [
       properties: {
         root: { type: "string", description: "Root directory (defaults to workspace root)" },
         pattern: { type: "string", description: "Text pattern to search for" },
-        extensions: { type: "string[]", description: "File extensions to include, e.g. ['.ts', '.js']" }
+        extensions: { type: "array", items: { type: "string" }, description: "File extensions to include, e.g. ['.ts', '.js']" }
       },
       required: ["pattern"]
     }

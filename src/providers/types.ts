@@ -15,16 +15,26 @@ export type NormalizedMessage = {
   content: string;
 };
 
-export type ToolParam = {
+export type ToolParamBase = {
   type: string;
   description?: string;
   enum?: string[];
 };
 
+export type ToolParam = ToolParamBase | {
+  type: "array";
+  description?: string;
+  items: { type: string; description?: string };
+};
+
 export type ToolDef = {
   name: string;
   description: string;
-  input_schema: { type: "object"; properties: Record<string, ToolParam>; required?: string[] };
+  input_schema: {
+    type: "object";
+    properties: Record<string, ToolParam>;
+    required?: string[];
+  };
 };
 
 export type NormalizedRequest = {
