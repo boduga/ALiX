@@ -1,6 +1,6 @@
 # ALiX MVP Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the ALiX MVP: a local-first CLI agent harness with event logging, RepoMapLite, mock provider, policy-gated tools, patch-safe edits, verification, and a vanilla JavaScript inspector UI.
 
@@ -97,7 +97,7 @@ Responsibilities:
 - Create: `src/cli.ts`
 - Create: `tests/smoke.test.ts`
 
-- [ ] **Step 1: Create `package.json`**
+- [x] **Step 1: Create `package.json`**
 
 ```json
 {
@@ -123,7 +123,7 @@ Responsibilities:
 }
 ```
 
-- [ ] **Step 2: Create `tsconfig.json`**
+- [x] **Step 2: Create `tsconfig.json`**
 
 ```json
 {
@@ -145,13 +145,13 @@ Responsibilities:
 }
 ```
 
-- [ ] **Step 3: Create `src/index.ts`**
+- [x] **Step 3: Create `src/index.ts`**
 
 ```ts
 export const ALIX_VERSION = "0.1.0";
 ```
 
-- [ ] **Step 4: Create `src/cli.ts`**
+- [x] **Step 4: Create `src/cli.ts`**
 
 ```ts
 #!/usr/bin/env node
@@ -179,7 +179,7 @@ console.error(`Unknown command: ${command}`);
 process.exit(1);
 ```
 
-- [ ] **Step 5: Create `tests/smoke.test.ts`**
+- [x] **Step 5: Create `tests/smoke.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -191,7 +191,7 @@ test("exports ALiX version", () => {
 });
 ```
 
-- [ ] **Step 6: Install dependencies**
+- [x] **Step 6: Install dependencies**
 
 Run:
 
@@ -201,7 +201,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm install
 
 Expected: `package-lock.json` is created and dependencies install successfully.
 
-- [ ] **Step 7: Build and test**
+- [x] **Step 7: Build and test**
 
 Run:
 
@@ -211,7 +211,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: TypeScript build succeeds and smoke test passes.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add package.json package-lock.json tsconfig.json src tests
@@ -227,7 +227,7 @@ git commit -m "chore: scaffold ALiX TypeScript CLI"
 - Create: `src/config/loader.ts`
 - Create: `tests/config-loader.test.ts`
 
-- [ ] **Step 1: Create `src/config/schema.ts`**
+- [x] **Step 1: Create `src/config/schema.ts`**
 
 ```ts
 export type Decision = "ask" | "allow" | "deny";
@@ -280,7 +280,7 @@ export type AlixConfig = {
 };
 ```
 
-- [ ] **Step 2: Create `src/config/defaults.ts`**
+- [x] **Step 2: Create `src/config/defaults.ts`**
 
 ```ts
 import type { AlixConfig } from "./schema.js";
@@ -327,7 +327,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
 };
 ```
 
-- [ ] **Step 3: Create `src/config/loader.ts`**
+- [x] **Step 3: Create `src/config/loader.ts`**
 
 ```ts
 import { readFile } from "node:fs/promises";
@@ -377,7 +377,7 @@ function mergeUnique<T>(a: T[], b: T[]): T[] {
 }
 ```
 
-- [ ] **Step 4: Create `tests/config-loader.test.ts`**
+- [x] **Step 4: Create `tests/config-loader.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -417,7 +417,7 @@ test("project config overrides defaults and preserves protected paths", async ()
 });
 ```
 
-- [ ] **Step 5: Build and test**
+- [x] **Step 5: Build and test**
 
 Run:
 
@@ -427,7 +427,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/config tests/config-loader.test.ts
@@ -443,7 +443,7 @@ git commit -m "feat: add ALiX config loader"
 - Create: `src/events/replay.ts`
 - Create: `tests/event-log.test.ts`
 
-- [ ] **Step 1: Create event types**
+- [x] **Step 1: Create event types**
 
 Create `src/events/types.ts`:
 
@@ -477,7 +477,7 @@ export type SessionProjection = {
 };
 ```
 
-- [ ] **Step 2: Create append-only event log**
+- [x] **Step 2: Create append-only event log**
 
 Create `src/events/event-log.ts`:
 
@@ -527,7 +527,7 @@ export class EventLog {
 }
 ```
 
-- [ ] **Step 3: Create replay projection**
+- [x] **Step 3: Create replay projection**
 
 Create `src/events/replay.ts`:
 
@@ -559,7 +559,7 @@ export function replay(events: AlixEvent[]): SessionProjection {
 }
 ```
 
-- [ ] **Step 4: Create `tests/event-log.test.ts`**
+- [x] **Step 4: Create `tests/event-log.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -603,7 +603,7 @@ test("replay reconstructs changed files", () => {
 });
 ```
 
-- [ ] **Step 5: Build and test**
+- [x] **Step 5: Build and test**
 
 Run:
 
@@ -613,7 +613,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/events tests/event-log.test.ts
@@ -630,7 +630,7 @@ git commit -m "feat: add event-sourced session kernel"
 - Create: `fixtures/sample-repo/src/add.ts`
 - Create: `fixtures/sample-repo/src/add.test.ts`
 
-- [ ] **Step 1: Create fixture repo files**
+- [x] **Step 1: Create fixture repo files**
 
 Create `fixtures/sample-repo/package.json`:
 
@@ -661,7 +661,7 @@ if (add(1, 2) !== 3) {
 }
 ```
 
-- [ ] **Step 2: Create `src/repomap/repomap-lite.ts`**
+- [x] **Step 2: Create `src/repomap/repomap-lite.ts`**
 
 ```ts
 import { readdir, readFile, stat } from "node:fs/promises";
@@ -780,7 +780,7 @@ function extractSymbols(path: string, text: string): SymbolSummary[] {
 }
 ```
 
-- [ ] **Step 3: Create `tests/repomap-lite.test.ts`**
+- [x] **Step 3: Create `tests/repomap-lite.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -796,7 +796,7 @@ test("builds a lightweight repo map", async () => {
 });
 ```
 
-- [ ] **Step 4: Build and test**
+- [x] **Step 4: Build and test**
 
 Run:
 
@@ -806,7 +806,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/repomap tests/repomap-lite.test.ts fixtures
@@ -821,7 +821,7 @@ git commit -m "feat: add RepoMapLite"
 - Create: `src/providers/mock-provider.ts`
 - Create: `tests/mock-provider.test.ts`
 
-- [ ] **Step 1: Create provider types**
+- [x] **Step 1: Create provider types**
 
 Create `src/providers/types.ts`:
 
@@ -868,7 +868,7 @@ export type ModelAdapter = {
 };
 ```
 
-- [ ] **Step 2: Create mock provider**
+- [x] **Step 2: Create mock provider**
 
 Create `src/providers/mock-provider.ts`:
 
@@ -900,7 +900,7 @@ export class MockProvider implements ModelAdapter {
 }
 ```
 
-- [ ] **Step 3: Create `tests/mock-provider.test.ts`**
+- [x] **Step 3: Create `tests/mock-provider.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -919,7 +919,7 @@ test("mock provider returns a deterministic plan", async () => {
 });
 ```
 
-- [ ] **Step 4: Build and test**
+- [x] **Step 4: Build and test**
 
 Run:
 
@@ -929,7 +929,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/providers tests/mock-provider.test.ts
@@ -944,7 +944,7 @@ git commit -m "feat: add mock provider adapter"
 - Create: `src/policy/approvals.ts`
 - Create: `tests/policy-engine.test.ts`
 
-- [ ] **Step 1: Create policy engine**
+- [x] **Step 1: Create policy engine**
 
 Create `src/policy/policy-engine.ts`:
 
@@ -989,7 +989,7 @@ function isProtectedPath(patterns: string[], path: string): boolean {
 }
 ```
 
-- [ ] **Step 2: Create approvals queue**
+- [x] **Step 2: Create approvals queue**
 
 Create `src/policy/approvals.ts`:
 
@@ -1028,7 +1028,7 @@ export class ApprovalQueue {
 }
 ```
 
-- [ ] **Step 3: Create policy tests**
+- [x] **Step 3: Create policy tests**
 
 Create `tests/policy-engine.test.ts`:
 
@@ -1058,7 +1058,7 @@ test("tracks pending approvals", () => {
 });
 ```
 
-- [ ] **Step 4: Build and test**
+- [x] **Step 4: Build and test**
 
 Run:
 
@@ -1068,7 +1068,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/policy tests/policy-engine.test.ts
@@ -1085,7 +1085,7 @@ git commit -m "feat: add policy engine and approvals"
 - Create: `src/patch/patch-engine.ts`
 - Create: `tests/patch-engine.test.ts`
 
-- [ ] **Step 1: Create edit format policy**
+- [x] **Step 1: Create edit format policy**
 
 Create `src/patch/edit-format-policy.ts`:
 
@@ -1105,7 +1105,7 @@ export function defaultEditFormatForProvider(provider: string): EditFormat {
 }
 ```
 
-- [ ] **Step 2: Create search/replace parser**
+- [x] **Step 2: Create search/replace parser**
 
 Create `src/patch/search-replace.ts`:
 
@@ -1135,7 +1135,7 @@ export function applySearchReplace(content: string, block: SearchReplaceBlock): 
 }
 ```
 
-- [ ] **Step 3: Create structured patch types**
+- [x] **Step 3: Create structured patch types**
 
 Create `src/patch/structured-patch.ts`:
 
@@ -1160,7 +1160,7 @@ export function parseStructuredPatch(input: string): StructuredPatch {
 }
 ```
 
-- [ ] **Step 4: Create patch engine**
+- [x] **Step 4: Create patch engine**
 
 Create `src/patch/patch-engine.ts`:
 
@@ -1219,7 +1219,7 @@ export function sha256(content: string): string {
 }
 ```
 
-- [ ] **Step 5: Create patch tests**
+- [x] **Step 5: Create patch tests**
 
 Create `tests/patch-engine.test.ts`:
 
@@ -1264,7 +1264,7 @@ test("google provider defaults to search replace", () => {
 });
 ```
 
-- [ ] **Step 6: Build and test**
+- [x] **Step 6: Build and test**
 
 Run:
 
@@ -1274,7 +1274,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/patch tests/patch-engine.test.ts
@@ -1289,7 +1289,7 @@ git commit -m "feat: add patch engine primitives"
 - Create: `src/verifier/verifier.ts`
 - Create: `tests/verifier.test.ts`
 
-- [ ] **Step 1: Create checkpoint manager**
+- [x] **Step 1: Create checkpoint manager**
 
 Create `src/checkpoints/checkpoint-manager.ts`:
 
@@ -1315,7 +1315,7 @@ export async function createFileCheckpoint(root: string, files: string[]): Promi
 }
 ```
 
-- [ ] **Step 2: Create verifier**
+- [x] **Step 2: Create verifier**
 
 Create `src/verifier/verifier.ts`:
 
@@ -1357,7 +1357,7 @@ export async function runVerification(root: string, check: VerificationCheck): P
 }
 ```
 
-- [ ] **Step 3: Create verifier tests**
+- [x] **Step 3: Create verifier tests**
 
 Create `tests/verifier.test.ts`:
 
@@ -1372,7 +1372,7 @@ test("discovers npm test script", async () => {
 });
 ```
 
-- [ ] **Step 4: Build and test**
+- [x] **Step 4: Build and test**
 
 Run:
 
@@ -1382,7 +1382,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/checkpoints src/verifier tests/verifier.test.ts
@@ -1397,7 +1397,7 @@ git commit -m "feat: add checkpoints and verification discovery"
 - Create: `src/run.ts`
 - Create: `tests/run-flow.test.ts`
 
-- [ ] **Step 1: Create `src/run.ts`**
+- [x] **Step 1: Create `src/run.ts`**
 
 ```ts
 import { mkdir } from "node:fs/promises";
@@ -1450,7 +1450,7 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
 }
 ```
 
-- [ ] **Step 2: Modify `src/cli.ts`**
+- [x] **Step 2: Modify `src/cli.ts`**
 
 Replace the file with:
 
@@ -1499,7 +1499,7 @@ console.error(`Unknown command: ${command}`);
 process.exit(1);
 ```
 
-- [ ] **Step 3: Create `tests/run-flow.test.ts`**
+- [x] **Step 3: Create `tests/run-flow.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -1523,7 +1523,7 @@ test("run task creates event log and returns mock plan", async () => {
 });
 ```
 
-- [ ] **Step 4: Build and test**
+- [x] **Step 4: Build and test**
 
 Run:
 
@@ -1533,7 +1533,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/cli.ts src/run.ts tests/run-flow.test.ts
@@ -1551,7 +1551,7 @@ git commit -m "feat: wire CLI run flow"
 - Modify: `src/cli.ts`
 - Create: `tests/server.test.ts`
 
-- [ ] **Step 1: Create `src/server/server.ts`**
+- [x] **Step 1: Create `src/server/server.ts`**
 
 ```ts
 import { createServer } from "node:http";
@@ -1604,7 +1604,7 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
 }
 ```
 
-- [ ] **Step 2: Create UI files**
+- [x] **Step 2: Create UI files**
 
 Create `src/ui/index.html`:
 
@@ -1663,7 +1663,7 @@ h1 {
 }
 ```
 
-- [ ] **Step 3: Modify build script to copy UI assets**
+- [x] **Step 3: Modify build script to copy UI assets**
 
 Update `package.json` scripts:
 
@@ -1675,7 +1675,7 @@ Update `package.json` scripts:
 }
 ```
 
-- [ ] **Step 4: Add serve command to `src/cli.ts`**
+- [x] **Step 4: Add serve command to `src/cli.ts`**
 
 Add import:
 
@@ -1693,7 +1693,7 @@ if (command === "serve") {
 }
 ```
 
-- [ ] **Step 5: Create `tests/server.test.ts`**
+- [x] **Step 5: Create `tests/server.test.ts`**
 
 ```ts
 import test from "node:test";
@@ -1712,7 +1712,7 @@ test("serves inspector html", async () => {
 });
 ```
 
-- [ ] **Step 6: Build and test**
+- [x] **Step 6: Build and test**
 
 Run:
 
@@ -1722,7 +1722,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: all tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add package.json src/server src/ui src/cli.ts tests/server.test.ts
@@ -1735,7 +1735,7 @@ git commit -m "feat: add local inspector server"
 
 - Modify only if a previous task needs small fixes.
 
-- [ ] **Step 1: Run full check**
+- [x] **Step 1: Run full check**
 
 Run:
 
@@ -1745,7 +1745,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
 
 Expected: build and tests pass.
 
-- [ ] **Step 2: Run CLI help**
+- [x] **Step 2: Run CLI help**
 
 Run:
 
@@ -1755,7 +1755,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH node dist/src/cli.js -
 
 Expected: output includes `alix run "<task>"`.
 
-- [ ] **Step 3: Run a mock task**
+- [x] **Step 3: Run a mock task**
 
 Run:
 
@@ -1765,7 +1765,7 @@ PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH node dist/src/cli.js r
 
 Expected: output includes `Plan:` and `Session:`.
 
-- [ ] **Step 4: Check git status**
+- [x] **Step 4: Check git status**
 
 Run:
 
