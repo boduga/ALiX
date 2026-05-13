@@ -6,7 +6,7 @@ test("anthropic provider returns correct capabilities", () => {
   const provider = new AnthropicProvider({ apiKey: "test-key" });
   assert.equal(provider.id, "anthropic");
   assert.equal(provider.capabilities.provider, "anthropic");
-  assert.equal(provider.capabilities.model, "claude-sonnet-4-7-20250514");
+  assert.equal(provider.capabilities.model, "claude-sonnet-4-6");
   assert.equal(provider.capabilities.supportsTools, true);
   assert.equal(provider.capabilities.supportsVision, true);
   assert.equal(provider.editFormatPreference, "search_replace");

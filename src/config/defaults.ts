@@ -4,7 +4,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
   version: 1,
   model: {
     provider: "anthropic",
-    name: "claude-sonnet-4-6-20250514",
+    name: "claude-sonnet-4-6",
     temperature: 0.2
   },
   permissions: {
