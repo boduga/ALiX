@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 
 // BaseProvider is abstract — test through a concrete subclass
 import { OpenAIProvider } from "../src/providers/openai-provider.js";
+import { OpenRouterProvider } from "../src/providers/openrouter-provider.js";
+import { OllamaProvider } from "../src/providers/ollama-provider.js";
+import { DeepSeekProvider } from "../src/providers/deepseek-provider.js";
+import { PerplexityProvider } from "../src/providers/perplexity-provider.js";
+import { GroqProvider } from "../src/providers/groq-provider.js";
 
 test("base provider accepts apiKey and model options", () => {
   const p = new OpenAIProvider({ apiKey: "test-key", model: "gpt-4o" });
@@ -13,4 +18,49 @@ test("base provider uses correct base URL", () => {
   const p = new OpenAIProvider({ apiKey: "test-key" });
   // Check via capabilities — model name confirms URL resolution worked
   assert.equal(p.capabilities.provider, "openai");
+});
+
+test("openrouter provider returns correct capabilities", () => {
+  const p = new OpenRouterProvider({ apiKey: "sk-or-test" });
+  assert.equal(p.capabilities.provider, "openrouter");
+  assert.equal(p.capabilities.model, "anthropic/claude-3.5-sonnet");
+});
+
+test("openrouter provider adds required headers", () => {
+  const p = new OpenRouterProvider({ apiKey: "sk-or-test" });
+  // Access protected method via prototype for testing
+  const headers = (Object.getOwnPropertyDescriptor(Object.getPrototypeOf(p), "extraHeaders")?.value as () => Record<string, string>).call(p);
+  assert.ok(headers["HTTP-Referer"]);
+  assert.ok(headers["X-Title"]);
+});
+
+test("ollama provider returns correct capabilities", () => {
+  const p = new OllamaProvider({ apiKey: "" });
+  assert.equal(p.capabilities.provider, "ollama");
+  assert.equal(p.capabilities.model, "llama3");
+  assert.equal(p.capabilities.supportsTools, false);
+});
+
+test("ollama provider works without api key", async () => {
+  const p = new OllamaProvider({});
+  const c = p.capabilities;
+  assert.ok(c.model);
+});
+test("deepseek provider returns correct capabilities", () => {
+  const p = new DeepSeekProvider({ apiKey: "sk-ds-test" });
+  assert.equal(p.capabilities.provider, "deepseek");
+  assert.equal(p.capabilities.model, "deepseek-chat");
+  assert.equal(p.capabilities.supportsStructuredOutput, true);
+});
+
+test("perplexity provider returns correct capabilities", () => {
+  const p = new PerplexityProvider({ apiKey: "pplx-test" });
+  assert.equal(p.capabilities.provider, "perplexity");
+  assert.equal(p.capabilities.model, "llama-3.1-sonar-small-128k-online");
+});
+
+test("groq provider returns correct capabilities", () => {
+  const p = new GroqProvider({ apiKey: "gsk_test" });
+  assert.equal(p.capabilities.provider, "groq");
+  assert.equal(p.capabilities.model, "llama-3.3-70b-versatile");
 });
