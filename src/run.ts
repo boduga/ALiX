@@ -4,20 +4,31 @@ import { randomUUID } from "node:crypto";
 import { loadConfig } from "./config/loader.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
-import { MockProvider } from "./providers/mock-provider.js";
-import { AnthropicProvider } from "./providers/anthropic-provider.js";
+import { createProvider } from "./providers/registry.js";
 import type { NormalizedMessage, ToolDef } from "./providers/types.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
 
 const MAX_ITERATIONS = 10;
 
-// Map model tool names (alix_*) → executor tool names (file.*)
+// Map model tool names → executor tool names (dot-separated)
+// Handles both naming conventions: alix_* prefix (Anthropic) and plain underscores (OpenAI/Gemini)
 const TOOL_NAME_MAP: Record<string, string> = {
+  // Anthropic: alix_* prefix (to avoid dots in tool names)
   alix_file_read: "file.read",
   alix_dir_search: "dir.search",
   alix_shell_run: "shell.run",
-  alix_patch_apply: "patch.apply"
+  alix_patch_apply: "patch.apply",
+  // OpenAI/Gemini: plain underscores
+  file_read: "file.read",
+  dir_search: "dir.search",
+  shell_run: "shell.run",
+  patch_apply: "patch.apply",
+  // Aliases for tools without prefix
+  alix_file: "file.read",
+  alix_search: "dir.search",
+  alix_run: "shell.run",
+  alix_patch: "patch.apply",
 };
 
 // Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
@@ -100,10 +111,16 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
-  const provider =
-    config.model.provider === "anthropic"
-      ? new AnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY })
-      : new MockProvider();
+  // Pick the right env var for the selected provider
+  const apiKeyForProvider = (() => {
+    switch (config.model.provider) {
+      case "anthropic": return process.env.ANTHROPIC_API_KEY;
+      case "openai": return process.env.OPENAI_API_KEY;
+      case "gemini": return process.env.GEMINI_API_KEY;
+      default: return undefined;
+    }
+  })();
+  const provider = createProvider(config.model, apiKeyForProvider);
   const executor = new ToolExecutor(config, log, cwd);
 
   const messages: NormalizedMessage[] = [{ role: "user", content: task }];

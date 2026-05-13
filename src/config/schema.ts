@@ -1,7 +1,7 @@
 export type Decision = "ask" | "allow" | "deny";
 
 export type ModelConfig = {
-  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "ollama" | "local";
+  provider: "mock" | "anthropic" | "openai" | "gemini" | "google" | "openrouter" | "ollama" | "local";
   name: string;
   temperature?: number;
   maxOutputTokens?: number;
