@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -285,22 +286,24 @@ if (command === "config" && args[0] === "set-default-model") {
 
   const selected = shown[num - 1];
 
-  // Save to user config: update model.provider + model.name
+  // Save to project config (.alix/config.json) if inside a git repo,
+  // otherwise user config (~/.config/alix/config.json)
+  const projectConfigPath = join(process.cwd(), ".alix", "config.json");
   const userConfigDir = join(homedir(), ".config", "alix");
   const userConfigPath = join(userConfigDir, "config.json");
-  await mkdir(userConfigDir, { recursive: true });
+  const configPath = existsSync(join(process.cwd(), ".git")) ? projectConfigPath : userConfigPath;
+
+  await mkdir(configPath.includes("alix") ? userConfigDir : join(process.cwd(), ".alix"), { recursive: true });
   let existing: Record<string, unknown> = {};
-  try {
-    existing = JSON.parse(await readFile(userConfigPath, "utf8"));
-  } catch { /* no config yet */ }
+  try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
 
   const updated = {
     ...existing,
-    model: { ...((existing as any).model ?? {}), provider: providerId, name: selected.id },
+    model: { provider: providerId, name: selected.id },
   };
-  await writeFile(userConfigPath, JSON.stringify(updated, null, 2) + "\n");
+  await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
   console.log(`\nDefault model set to "${selected.id}" for ${provider.name}.`);
-  console.log(`Saved to ${userConfigPath}`);
+  console.log(`Saved to ${configPath}`);
   process.exit(0);
 }
 
