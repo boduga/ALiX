@@ -24,7 +24,7 @@ export type ToolParamBase = {
 export type ToolParam = ToolParamBase | {
   type: "array";
   description?: string;
-  items: { type: string; description?: string };
+  items: { type: string };
 };
 
 export type ToolDef = {
