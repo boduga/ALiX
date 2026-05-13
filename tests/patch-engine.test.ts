@@ -51,7 +51,7 @@ test("rejects path traversal in search replace", async () => {
           "search_replace",
           "<<<<<<< SEARCH path=../outside.ts\nold\n=======\nnew\n>>>>>>> REPLACE"
         ),
-      /outside workspace/
+      /outside workspace|Path is unsafe/
     );
   } finally {
     await rm(dir, { recursive: true, force: true });
