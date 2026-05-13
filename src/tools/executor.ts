@@ -3,6 +3,8 @@ import type { EventLog } from "../events/event-log.js";
 import { decidePolicy } from "../policy/policy-engine.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
+import { applyPatch } from "../patch/patch-engine.js";
+import { createFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
 import type { ToolResult } from "./types.js";
 
 export type ToolCallRequest = {
@@ -65,6 +67,22 @@ export class ToolExecutor {
       case "shell.run": {
         const { command, cwd, timeoutMs } = args as { command: string; cwd: string; timeoutMs?: number };
         result = await runCommand({ command, cwd: cwd ?? this.root, timeoutMs });
+        break;
+      }
+      case "patch.apply": {
+        const { root: r, format, patchText } = args as { root: string; format: string; patchText: string };
+        const changedFiles = [...patchText.matchAll(/path=([^\s\n]+)/g)].map(m => m[1]);
+        if (changedFiles.length > 0) {
+          await createFileCheckpoint(r ?? this.root, changedFiles);
+        }
+        try {
+          const patchResult = await applyPatch(r ?? this.root, format as any, patchText);
+          result = patchResult.status === "applied"
+            ? { kind: "success", changedFiles: patchResult.changedFiles }
+            : { kind: "error", message: "Patch invalid" };
+        } catch (e: unknown) {
+          result = { kind: "error", message: e instanceof Error ? e.message : String(e) };
+        }
         break;
       }
       default:
