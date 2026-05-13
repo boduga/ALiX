@@ -8,6 +8,10 @@ import { OllamaProvider } from "../src/providers/ollama-provider.js";
 import { DeepSeekProvider } from "../src/providers/deepseek-provider.js";
 import { PerplexityProvider } from "../src/providers/perplexity-provider.js";
 import { GroqProvider } from "../src/providers/groq-provider.js";
+import { GrokAIProvider } from "../src/providers/grokai-provider.js";
+import { GeminiProvider } from "../src/providers/gemini-provider.js";
+import { ZhipuAIProvider } from "../src/providers/zhipuai-provider.js";
+import { MiniMaxProvider } from "../src/providers/minimax-provider.js";
 
 test("base provider accepts apiKey and model options", () => {
   const p = new OpenAIProvider({ apiKey: "test-key", model: "gpt-4o" });
@@ -63,4 +67,34 @@ test("groq provider returns correct capabilities", () => {
   const p = new GroqProvider({ apiKey: "gsk_test" });
   assert.equal(p.capabilities.provider, "groq");
   assert.equal(p.capabilities.model, "llama-3.3-70b-versatile");
+});
+
+test("grokai provider returns correct capabilities", () => {
+  const p = new GrokAIProvider({ apiKey: "test-key" });
+  assert.equal(p.capabilities.provider, "grokai");
+  assert.equal(p.capabilities.model, "grok-2");
+  assert.equal(p.editFormatPreference, "search_replace");
+});
+
+test("gemini provider returns correct capabilities", () => {
+  const p = new GeminiProvider({ apiKey: "AIza-test" });
+  const c = p.capabilities;
+  assert.equal(c.provider, "google");
+  assert.equal(c.model, "gemini-2.0-flash");
+  assert.equal(p.editFormatPreference, "search_replace");
+  assert.equal(p.longContextStrategy, "expanded_context");
+});
+
+test("zhipuai provider returns correct capabilities", () => {
+  const p = new ZhipuAIProvider({ apiKey: "test-key" });
+  assert.equal(p.capabilities.provider, "zhipuai");
+  assert.equal(p.capabilities.model, "glm-4-flash");
+  assert.equal(p.editFormatPreference, "search_replace");
+});
+
+test("minimax provider returns correct capabilities", () => {
+  const p = new MiniMaxProvider({ apiKey: "test-key" });
+  assert.equal(p.capabilities.provider, "minimax");
+  assert.equal(p.capabilities.model, "MiniMax-Text-01");
+  assert.equal(p.editFormatPreference, "search_replace");
 });

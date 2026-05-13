@@ -1,0 +1,107 @@
+import { randomUUID } from "node:crypto";
+import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, ToolCall } from "./types.js";
+
+export type MiniMaxConfig = {
+  apiKey?: string;
+  model?: string;
+  groupId?: string;
+};
+
+export class MiniMaxProvider implements ModelAdapter {
+  id = "minimax";
+  editFormatPreference = "search_replace" as const;
+  longContextStrategy = "trimmed_context" as const;
+
+  private _apiKey: string;
+  private _model: string;
+  private _groupId: string;
+
+  constructor(config: MiniMaxConfig = {}) {
+    this._apiKey = config.apiKey ?? process.env.MINIMAX_API_KEY ?? "";
+    this._model = config.model ?? "MiniMax-Text-01";
+    this._groupId = config.groupId ?? "";
+  }
+
+  get capabilities(): ModelCapabilities {
+    return {
+      provider: "minimax",
+      model: this._model,
+      inputTokenLimit: 100_000,
+      outputTokenLimit: 8_192,
+      supportsTools: true,
+      supportsStreaming: false,
+      supportsStructuredOutput: false,
+      supportsVision: false,
+    };
+  }
+
+  async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+    if (!this._apiKey) throw new Error("MINIMAX_API_KEY is not set");
+
+    const messages: Array<{ role: string; content: string }> = request.messages.map((m) => ({
+      role: m.role,
+      content: typeof m.content === "string" ? m.content : String(m.content),
+    }));
+
+    if (request.systemPrompt) {
+      messages.unshift({ role: "system", content: request.systemPrompt });
+    }
+
+    const body: Record<string, unknown> = {
+      model: this._model,
+      messages,
+    };
+
+    if (this._groupId) body.group_id = this._groupId;
+
+    if (request.tools && request.tools.length > 0) {
+      body.tools = request.tools.map((t) => ({
+        type: "function",
+        function: { name: t.name, description: t.description, parameters: t.input_schema },
+      }));
+    }
+
+    if (request.temperature !== undefined) body.temperature = request.temperature;
+
+    const response = await fetch("https://api.minimax.chat/v1/text/chatcompletion_v2", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${this._apiKey}`,
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
+
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(`MiniMax API error ${response.status}: ${err}`);
+    }
+
+    const data = (await response.json()) as {
+      choices?: Array<{
+        message?: {
+          content?: string;
+          tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }>;
+        };
+      }>;
+    };
+
+    const choice = data.choices?.at(-1);
+    let text = "";
+    const toolCalls: ToolCall[] = [];
+
+    if (typeof choice?.message?.content === "string") text = choice.message.content;
+    if (choice?.message?.tool_calls) {
+      for (const tc of choice.message.tool_calls) {
+        toolCalls.push({
+          id: tc.id ?? randomUUID(),
+          name: tc.function.name,
+          args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {},
+        });
+      }
+    }
+
+    return { text: text.trim(), toolCalls };
+  }
+}
