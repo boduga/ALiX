@@ -75,21 +75,10 @@ export class DeepSeekProvider extends BaseProvider {
       usage?: { prompt_tokens: number; completion_tokens: number };
     };
 
-    const choice = data.choices.at(-1);
-    const message = choice?.message as { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } ?? {};
+    const choice = data.choices.at(-1)!;
+    const toolCalls = this.parseChoiceToolCalls(choice as any);
     let text = "";
-    const toolCalls = [];
-
-    if (typeof message.content === "string") text = message.content;
-    if (message.tool_calls) {
-      for (const tc of message.tool_calls) {
-        toolCalls.push({
-          id: tc.id,
-          name: tc.function.name,
-          args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {},
-        });
-      }
-    }
+    if (typeof choice.message?.content === "string") text = choice.message.content;
 
     return {
       text: text.trim(),

@@ -38,25 +38,32 @@ export abstract class BaseProvider implements ModelAdapter {
     return {};
   }
 
+  protected safeToolId(id: string | null | undefined): string {
+    return id ?? `call_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+  }
+
+  protected parseChoiceToolCalls(choice: { message?: { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }): ToolCall[] {
+    const message = choice.message;
+    // Path 1: message.tool_calls (OpenAI-compatible)
+    if (message?.tool_calls?.length) {
+      return message.tool_calls.map((tc) => ({
+        id: this.safeToolId(tc.id),
+        name: tc.function.name ?? "",
+        args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {},
+      }));
+    }
+    // Path 2: message.content as array (OpenAI function-calling in content)
+    return this.parseOpenAIToolCalls(message?.content);
+  }
+
+  // parseOpenAIToolCalls parses content when it's an array of {type:"function", function:{name, arguments}}
   protected parseOpenAIToolCalls(content: unknown): ToolCall[] {
     const toolCalls: ToolCall[] = [];
     if (!Array.isArray(content)) return toolCalls;
     for (const block of content) {
-      if (
-        block &&
-        typeof block === "object" &&
-        "type" in block &&
-        block.type === "function" &&
-        "function" in block &&
-        block.function &&
-        typeof block.function === "object"
-      ) {
+      if (block && typeof block === "object" && "type" in block && block.type === "function" && "function" in block && block.function && typeof block.function === "object") {
         const fn = block.function as { name?: string; arguments?: string };
-        toolCalls.push({
-          id: `call_${Date.now()}_${Math.random().toString(36).slice(2)}`,
-          name: fn.name ?? "",
-          args: fn.arguments ? JSON.parse(fn.arguments) : {},
-        });
+        toolCalls.push({ id: this.safeToolId(null), name: fn.name ?? "", args: fn.arguments ? JSON.parse(fn.arguments) : {} });
       }
     }
     return toolCalls;

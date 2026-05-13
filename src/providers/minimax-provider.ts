@@ -1,5 +1,5 @@
-import { randomUUID } from "node:crypto";
-import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, ToolCall } from "./types.js";
+import type { ModelCapabilities, NormalizedRequest, NormalizedResponse } from "./types.js";
+import { BaseProvider } from "./base.js";
 
 export type MiniMaxConfig = {
   apiKey?: string;
@@ -7,18 +7,19 @@ export type MiniMaxConfig = {
   groupId?: string;
 };
 
-export class MiniMaxProvider implements ModelAdapter {
+export class MiniMaxProvider extends BaseProvider {
   id = "minimax";
   editFormatPreference = "search_replace" as const;
   longContextStrategy = "trimmed_context" as const;
 
-  private _apiKey: string;
-  private _model: string;
   private _groupId: string;
 
   constructor(config: MiniMaxConfig = {}) {
-    this._apiKey = config.apiKey ?? process.env.MINIMAX_API_KEY ?? "";
-    this._model = config.model ?? "MiniMax-Text-01";
+    super({
+      apiKey: config.apiKey ?? process.env.MINIMAX_API_KEY ?? "",
+      model: config.model ?? "MiniMax-Text-01",
+      baseUrl: "https://api.minimax.chat",
+    });
     this._groupId = config.groupId ?? "";
   }
 
@@ -33,6 +34,21 @@ export class MiniMaxProvider implements ModelAdapter {
       supportsStructuredOutput: false,
       supportsVision: false,
     };
+  }
+
+  private async fetch(body: Record<string, unknown>): Promise<Response> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this._apiKey) {
+      headers["Authorization"] = `Bearer ${this._apiKey}`;
+    }
+    return fetch(`${this._baseUrl}/v1/text/chatcompletion_v2`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
   }
 
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
@@ -54,7 +70,7 @@ export class MiniMaxProvider implements ModelAdapter {
 
     if (this._groupId) body.group_id = this._groupId;
 
-    if (request.tools && request.tools.length > 0) {
+    if (request.tools?.length) {
       body.tools = request.tools.map((t) => ({
         type: "function",
         function: { name: t.name, description: t.description, parameters: t.input_schema },
@@ -63,15 +79,7 @@ export class MiniMaxProvider implements ModelAdapter {
 
     if (request.temperature !== undefined) body.temperature = request.temperature;
 
-    const response = await fetch("https://api.minimax.chat/v1/text/chatcompletion_v2", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this._apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
-    });
+    const response = await this.fetch(body);
 
     if (!response.ok) {
       const err = await response.text();
@@ -87,20 +95,10 @@ export class MiniMaxProvider implements ModelAdapter {
       }>;
     };
 
-    const choice = data.choices?.at(-1);
+    const choice = data.choices?.at(-1)!;
+    const toolCalls = this.parseChoiceToolCalls(choice as any);
     let text = "";
-    const toolCalls: ToolCall[] = [];
-
     if (typeof choice?.message?.content === "string") text = choice.message.content;
-    if (choice?.message?.tool_calls) {
-      for (const tc of choice.message.tool_calls) {
-        toolCalls.push({
-          id: tc.id ?? randomUUID(),
-          name: tc.function.name,
-          args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {},
-        });
-      }
-    }
 
     return { text: text.trim(), toolCalls };
   }

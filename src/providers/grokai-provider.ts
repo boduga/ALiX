@@ -1,22 +1,22 @@
-import { randomUUID } from "node:crypto";
-import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, ToolCall } from "./types.js";
+import { BaseProvider } from "./base.js";
+import type { ModelCapabilities, NormalizedRequest, NormalizedResponse } from "./types.js";
 
 export type GrokAIConfig = {
   apiKey?: string;
   model?: string;
 };
 
-export class GrokAIProvider implements ModelAdapter {
+export class GrokAIProvider extends BaseProvider {
   id = "grokai";
   editFormatPreference = "search_replace" as const;
   longContextStrategy = "trimmed_context" as const;
 
-  private _apiKey: string;
-  private _model: string;
-
   constructor(config: GrokAIConfig = {}) {
-    this._apiKey = config.apiKey ?? process.env.GROKAI_API_KEY ?? "";
-    this._model = config.model ?? "grok-2";
+    super({
+      apiKey: config.apiKey ?? process.env.GROKAI_API_KEY ?? "",
+      model: config.model ?? "grok-2",
+      baseUrl: "https://api.grok.ai",
+    });
   }
 
   get capabilities(): ModelCapabilities {
@@ -30,6 +30,21 @@ export class GrokAIProvider implements ModelAdapter {
       supportsStructuredOutput: false,
       supportsVision: false,
     };
+  }
+
+  private async fetch(body: Record<string, unknown>): Promise<Response> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (this._apiKey) {
+      headers["Authorization"] = `Bearer ${this._apiKey}`;
+    }
+    return fetch(`${this._baseUrl}/v1/chat/completions`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
   }
 
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
@@ -49,7 +64,7 @@ export class GrokAIProvider implements ModelAdapter {
       messages,
     };
 
-    if (request.tools && request.tools.length > 0) {
+    if (request.tools?.length) {
       body.tools = request.tools.map((t) => ({
         type: "function",
         function: { name: t.name, description: t.description, parameters: t.input_schema },
@@ -59,15 +74,7 @@ export class GrokAIProvider implements ModelAdapter {
     if (request.temperature !== undefined) body.temperature = request.temperature;
     if (request.maxOutputTokens) body.max_tokens = request.maxOutputTokens;
 
-    const response = await fetch("https://api.grok.ai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${this._apiKey}`,
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(120_000),
-    });
+    const response = await this.fetch(body);
 
     if (!response.ok) {
       const err = await response.text();
@@ -83,20 +90,10 @@ export class GrokAIProvider implements ModelAdapter {
       }>;
     };
 
-    const choice = data.choices.at(-1);
+    const choice = data.choices.at(-1)!;
+    const toolCalls = this.parseChoiceToolCalls(choice as any);
     let text = "";
-    const toolCalls: ToolCall[] = [];
-
-    if (typeof choice?.message?.content === "string") text = choice.message.content;
-    if (choice?.message?.tool_calls) {
-      for (const tc of choice.message.tool_calls) {
-        toolCalls.push({
-          id: tc.id ?? randomUUID(),
-          name: tc.function.name,
-          args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {},
-        });
-      }
-    }
+    if (typeof choice.message?.content === "string") text = choice.message.content;
 
     return { text: text.trim(), toolCalls };
   }

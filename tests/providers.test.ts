@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 // BaseProvider is abstract — test through a concrete subclass
+import { BaseProvider } from "../src/providers/base.js";
 import { OpenAIProvider } from "../src/providers/openai-provider.js";
 import { OpenRouterProvider } from "../src/providers/openrouter-provider.js";
 import { OllamaProvider } from "../src/providers/ollama-provider.js";
@@ -42,7 +43,7 @@ test("ollama provider returns correct capabilities", () => {
   const p = new OllamaProvider({ apiKey: "" });
   assert.equal(p.capabilities.provider, "ollama");
   assert.equal(p.capabilities.model, "llama3");
-  assert.equal(p.capabilities.supportsTools, false);
+  assert.equal(p.capabilities.supportsTools, true);
 });
 
 test("ollama provider works without api key", async () => {
@@ -120,4 +121,69 @@ test("listProviders returns all 12 providers", () => {
   assert.equal(list.length, 12);
   assert.ok(list.find((p) => p.id === "deepseek"));
   assert.ok(list.find((p) => p.id === "grokai"));
+});
+
+test("parseChoiceToolCalls extracts tool calls from message.tool_calls", () => {
+  const p = new OpenAIProvider({ apiKey: "test-key" });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Access from BaseProvider.prototype since the method lives there
+  const parseChoiceToolCalls = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "parseChoiceToolCalls")?.value as (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    choice: any
+  ) => Array<{ id: string; name: string; args: Record<string, unknown> }>;
+
+  const result = parseChoiceToolCalls.call(p, {
+    message: {
+      content: "Hello",
+      tool_calls: [
+        { id: "call_123", function: { name: "get_weather", arguments: '{"city":"NYC"}' } },
+        { id: null, function: { name: "search", arguments: '{"query":"hi"}' } },
+      ],
+    },
+  });
+
+  assert.equal(result.length, 2);
+  assert.equal(result[0].name, "get_weather");
+  assert.deepEqual(result[0].args, { city: "NYC" });
+  assert.equal(result[0].id, "call_123");
+  assert.equal(result[1].name, "search");
+  assert.deepEqual(result[1].args, { query: "hi" });
+  assert.ok(result[1].id.startsWith("call_"));
+});
+
+test("parseChoiceToolCalls falls back to content array when no tool_calls field", () => {
+  const p = new OpenAIProvider({ apiKey: "test-key" });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // Access from BaseProvider.prototype since the method lives there
+  const parseChoiceToolCalls = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "parseChoiceToolCalls")?.value as (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    choice: any
+  ) => Array<{ id: string; name: string; args: Record<string, unknown> }>;
+
+  const result = parseChoiceToolCalls.call(p, {
+    message: {
+      content: [
+        { type: "function", function: { name: "my_tool", arguments: '{"arg":1}' } },
+      ],
+    },
+  });
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].name, "my_tool");
+  assert.deepEqual(result[0].args, { arg: 1 });
+  assert.ok(result[0].id.startsWith("call_"));
+});
+
+test("parseChoiceToolCalls returns empty array when no tool calls present", () => {
+  const p = new OpenAIProvider({ apiKey: "test-key" });
+  // Access from BaseProvider.prototype since the method lives there
+  const parseChoiceToolCalls = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "parseChoiceToolCalls")?.value as (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    choice: any
+  ) => Array<{ id: string; name: string; args: Record<string, unknown> }>;
+
+  assert.equal(parseChoiceToolCalls.call(p, {}).length, 0);
+  assert.equal(parseChoiceToolCalls.call(p, { message: { content: "hello" } }).length, 0);
+  assert.equal(parseChoiceToolCalls.call(p, { message: { content: null } }).length, 0);
+  assert.equal(parseChoiceToolCalls.call(p, { message: { content: "", tool_calls: [] } }).length, 0);
 });

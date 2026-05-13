@@ -26,7 +26,7 @@ export class OllamaProvider extends BaseProvider {
       model: this._model,
       inputTokenLimit: 128_000,
       outputTokenLimit: 8_192,
-      supportsTools: false,
+      supportsTools: true,
       supportsStreaming: false,
       supportsStructuredOutput: false,
       supportsVision: false,
@@ -50,6 +50,13 @@ export class OllamaProvider extends BaseProvider {
       ];
     }
 
+    if (request.tools?.length) {
+      body.tools = request.tools.map((t) => ({
+        type: "function",
+        function: { name: t.name, description: t.description, parameters: t.input_schema },
+      }));
+    }
+
     if (request.temperature !== undefined) body.temperature = request.temperature;
 
     const response = await this.post(body);
@@ -65,8 +72,9 @@ export class OllamaProvider extends BaseProvider {
 
     if (data.error) throw new Error(`Ollama: ${data.error}`);
 
-    const text = data.choices?.[0]?.message?.content ?? "";
-    const toolCalls: NormalizedResponse["toolCalls"] = [];
+    const choice = (data as { choices?: Array<{ message?: { content?: string | null } }> }).choices?.at(-1);
+    const toolCalls = choice ? this.parseChoiceToolCalls(choice as any) : [];
+    const text = typeof choice?.message?.content === "string" ? choice.message.content : "";
 
     return { text: text.trim(), toolCalls };
   }
