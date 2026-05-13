@@ -1,0 +1,6 @@
+{
+  "name": "sample-repo",
+  "scripts": {
+    "test": "node --test"
+  }
+}
