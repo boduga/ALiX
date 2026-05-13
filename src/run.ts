@@ -12,10 +12,18 @@ import { discoverVerification, runVerification } from "./verifier/verifier.js";
 
 const MAX_ITERATIONS = 10;
 
-// Tool schemas exposed to the model
+// Map model tool names (alix_*) → executor tool names (file.*)
+const TOOL_NAME_MAP: Record<string, string> = {
+  alix_file_read: "file.read",
+  alix_dir_search: "dir.search",
+  alix_shell_run: "shell.run",
+  alix_patch_apply: "patch.apply"
+};
+
+// Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
 const TOOLS: ToolDef[] = [
   {
-    name: "file.read",
+    name: "alix_file_read",
     description: "Read the contents of a file from the workspace.",
     input_schema: {
       type: "object",
@@ -27,7 +35,7 @@ const TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "dir.search",
+    name: "alix_dir_search",
     description: "Search for a pattern across files in the workspace.",
     input_schema: {
       type: "object",
@@ -40,7 +48,7 @@ const TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "shell.run",
+    name: "alix_shell_run",
     description: "Run a shell command in the workspace.",
     input_schema: {
       type: "object",
@@ -53,7 +61,7 @@ const TOOLS: ToolDef[] = [
     }
   },
   {
-    name: "patch.apply",
+    name: "alix_patch_apply",
     description: "Apply a code patch using search/replace. Blocks dangerous paths like .git and .env.",
     input_schema: {
       type: "object",
@@ -122,9 +130,10 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
       return { sessionId, summary: response.text };
     }
 
-    // Handle each tool call
+    // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of response.toolCalls) {
-      const execResult = await executor.execute({ toolCallId: toolCall.id, name: toolCall.name, args: toolCall.args });
+      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+      const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
       const resultContent =
         execResult.kind === "success"
