@@ -1,16 +1,10 @@
 import type { AlixConfig } from "./schema.js";
 
-// Uncomment to use real Anthropic:
-// model: {
-//   provider: "anthropic",
-//   name: "claude-sonnet-4-7-20250514",
-//   temperature: 0.7
-// },
 export const DEFAULT_CONFIG: AlixConfig = {
   version: 1,
   model: {
-    provider: "mock",
-    name: "mock-planner",
+    provider: "anthropic",
+    name: "claude-sonnet-4-6-20250514",
     temperature: 0.2
   },
   permissions: {

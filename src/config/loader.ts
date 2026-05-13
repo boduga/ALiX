@@ -1,5 +1,6 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig } from "./schema.js";
@@ -12,10 +13,26 @@ type PartialConfig = Partial<AlixConfig> & {
   ui?: Partial<AlixConfig["ui"]>;
 };
 
+// Load config from user home (~/.config/alix/config.json) and project (.alix/config.json).
+// Precedence: defaults → user config → project config
+// API keys from config are injected as environment variables.
 export async function loadConfig(cwd: string): Promise<AlixConfig> {
-  const projectPath = join(cwd, ".alix", "config.json");
-  const projectConfig = existsSync(projectPath) ? await readJson(projectPath) : {};
-  return mergeConfig(DEFAULT_CONFIG, projectConfig);
+  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
+  const projectConfigPath = join(cwd, ".alix", "config.json");
+
+  const userConfig = existsSync(userConfigPath) ? await readJson(userConfigPath) : {};
+  const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
+
+  // Inject API keys as env vars so providers pick them up
+  const apiKeys = { ...(userConfig as any).apiKeys, ...(projectConfig as any).apiKeys };
+  for (const [provider, key] of Object.entries(apiKeys)) {
+    const envVar = `${provider.toUpperCase()}_API_KEY`;
+    if (typeof key === "string" && key && !process.env[envVar]) {
+      process.env[envVar] = key;
+    }
+  }
+
+  return mergeConfig(DEFAULT_CONFIG, userConfig as PartialConfig, projectConfig as PartialConfig);
 }
 
 async function readJson(path: string): Promise<PartialConfig> {
@@ -23,21 +40,29 @@ async function readJson(path: string): Promise<PartialConfig> {
   return JSON.parse(text) as PartialConfig;
 }
 
-export function mergeConfig(base: AlixConfig, override: PartialConfig): AlixConfig {
-  return {
-    ...base,
-    ...override,
-    model: { ...base.model, ...override.model },
-    permissions: {
-      ...base.permissions,
-      ...override.permissions,
-      tools: { ...base.permissions.tools, ...override.permissions?.tools },
-      protectedPaths: mergeUnique(base.permissions.protectedPaths, override.permissions?.protectedPaths ?? [])
-    },
-    context: { ...base.context, ...override.context },
-    runtime: { ...base.runtime, ...override.runtime },
-    ui: { ...base.ui, ...override.ui }
-  };
+export function mergeConfig(
+  base: AlixConfig,
+  ...overrides: PartialConfig[]
+): AlixConfig {
+  let result = base;
+  for (const override of overrides) {
+    if (!override) continue;
+    result = {
+      ...result,
+      ...override,
+      model: { ...result.model, ...override.model },
+      permissions: {
+        ...result.permissions,
+        ...override.permissions,
+        tools: { ...result.permissions.tools, ...override.permissions?.tools },
+        protectedPaths: mergeUnique(result.permissions.protectedPaths, override.permissions?.protectedPaths ?? [])
+      },
+      context: { ...result.context, ...override.context },
+      runtime: { ...result.runtime, ...override.runtime },
+      ui: { ...result.ui, ...override.ui }
+    };
+  }
+  return result;
 }
 
 function mergeUnique<T>(a: T[], b: T[]): T[] {

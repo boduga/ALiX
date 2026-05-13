@@ -9,7 +9,7 @@ test("loads default config when project config is absent", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
   try {
     const config = await loadConfig(dir);
-    assert.equal(config.model.provider, "mock");
+    assert.equal(config.model.provider, "anthropic");
     assert.equal(config.ui.port, 4137);
   } finally {
     await rm(dir, { recursive: true, force: true });

@@ -45,4 +45,5 @@ export type AlixConfig = {
   context: ContextConfig;
   runtime: RuntimeConfig;
   ui: UiConfig;
+  apiKeys?: Record<string, string>;
 };
