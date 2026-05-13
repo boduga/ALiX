@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { defaultEditFormatForProvider } from "../src/patch/edit-format-policy.js";
@@ -88,16 +89,15 @@ test("creates parent directories for structured create", async () => {
   }
 });
 
-test("rejects structured delete until delete policy exists", async () => {
+test("structured delete actually removes file", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
   try {
     await mkdir(join(dir, "src"));
     await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
-    const patch = JSON.stringify({
-      version: 1,
-      files: [{ path: "src/a.ts", operation: "delete", preimageHash: sha256("const a = 1;\n") }]
-    });
-    await assert.rejects(() => applyPatch(dir, "structured_patch", patch), /Delete operation is not supported/);
+    const patch = JSON.stringify({ version: 1, files: [{ path: "src/a.ts", operation: "delete" }] });
+    const result = await applyPatch(dir, "structured_patch", patch);
+    assert.equal(result.status, "applied");
+    assert.ok(!(await existsSync(join(dir, "src/a.ts"))));
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

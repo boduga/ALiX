@@ -56,7 +56,14 @@ export async function applyPatch(root: string, format: EditFormat, patchText: st
         changedFiles.push(file.path);
       }
       if (file.operation === "delete") {
-        throw new Error(`Delete operation is not supported for ${file.path}`);
+        const path = resolvePatchPath(root, file.path);
+        if (file.preimageHash) {
+          const content = await readFile(path, "utf8");
+          if (sha256(content) !== file.preimageHash) throw new Error(`Preimage validation failed for ${file.path}`);
+        }
+        const { rm } = await import("node:fs/promises");
+        await rm(path);
+        changedFiles.push(file.path);
       }
     }
     return { status: "applied", changedFiles };

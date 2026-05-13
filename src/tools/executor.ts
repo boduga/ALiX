@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import type { AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 import { decidePolicy } from "../policy/policy-engine.js";
@@ -83,6 +85,32 @@ export class ToolExecutor {
         } catch (e: unknown) {
           result = { kind: "error", message: e instanceof Error ? e.message : String(e) };
         }
+        break;
+      }
+      case "file.create": {
+        const { root: r, path, content } = args as { root: string; path: string; content: string };
+        if (!path || content === undefined) { result = { kind: "error", message: "file.create requires path and content" }; break; }
+        const resolvedRoot = resolve(r ?? this.root);
+        const resolvedPath = resolve(resolvedRoot, path);
+        if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
+          result = { kind: "error", message: "Path is outside workspace" }; break;
+        }
+        await mkdir(dirname(resolvedPath), { recursive: true });
+        await writeFile(resolvedPath, content, "utf8");
+        result = { kind: "success", createdPath: path, changedFiles: [path] };
+        break;
+      }
+      case "file.delete": {
+        const { root: r, path } = args as { root: string; path: string };
+        if (!path) { result = { kind: "error", message: "file.delete requires path" }; break; }
+        const resolvedRoot = resolve(r ?? this.root);
+        const resolvedPath = resolve(resolvedRoot, path);
+        if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
+          result = { kind: "error", message: "Path is outside workspace" }; break;
+        }
+        const { rm } = await import("node:fs/promises");
+        try { await rm(resolvedPath); } catch (e) { result = { kind: "error", message: `Delete failed: ${e instanceof Error ? e.message : String(e)}` }; break; }
+        result = { kind: "success", deletedPath: path };
         break;
       }
       default:
