@@ -1,9 +1,14 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig } from "./schema.js";
+
+// Test seam — allows tests to override homedir without touching the real OS module
+let homedirOverride: string | undefined;
+export function _setHomedirOverride(path: string | undefined): void { homedirOverride = path; }
+function homedir(): string { return homedirOverride ?? realHomedir(); }
 
 type PartialConfig = Partial<AlixConfig> & {
   model?: Partial<AlixConfig["model"]>;
