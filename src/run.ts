@@ -3,6 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "./config/loader.js";
 import { EventLog } from "./events/event-log.js";
+import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { MockProvider } from "./providers/mock-provider.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 
@@ -35,7 +36,10 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
     }
   });
 
-  const provider = new MockProvider();
+  const provider =
+    config.model.provider === "anthropic"
+      ? new AnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY })
+      : new MockProvider();
   const response = await provider.complete({
     systemPrompt: "You are ALiX. Produce concise plans.",
     messages: [{ role: "user", content: task }]
