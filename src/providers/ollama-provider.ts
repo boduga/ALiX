@@ -59,13 +59,13 @@ export class OllamaProvider extends BaseProvider {
     }
 
     const data = (await response.json()) as {
-      message?: { content?: string; tool_calls?: unknown[] };
+      choices?: Array<{ message?: { content?: string } }>;
       error?: string;
     };
 
     if (data.error) throw new Error(`Ollama: ${data.error}`);
 
-    const text = data.message?.content ?? "";
+    const text = data.choices?.[0]?.message?.content ?? "";
     const toolCalls: NormalizedResponse["toolCalls"] = [];
 
     return { text: text.trim(), toolCalls };
