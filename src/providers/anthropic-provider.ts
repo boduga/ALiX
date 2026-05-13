@@ -79,7 +79,7 @@ export class AnthropicProvider implements ModelAdapter {
 
   constructor(config: AnthropicConfig = {}) {
     this._apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
-    this._model = config.model ?? "claude-sonnet-4-7-20250514";
+    this._model = config.model ?? "claude-3-5-sonnet-latest";
     this._maxTokens = config.maxTokens ?? 8192;
   }
 
