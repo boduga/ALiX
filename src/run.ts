@@ -4,8 +4,7 @@ import { randomUUID } from "node:crypto";
 import { loadConfig } from "./config/loader.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
-import { MockProvider } from "./providers/mock-provider.js";
-import { AnthropicProvider } from "./providers/anthropic-provider.js";
+import { createProvider } from "./providers/registry.js";
 import type { NormalizedMessage, ToolDef } from "./providers/types.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
@@ -100,10 +99,10 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
-  const provider =
-    config.model.provider === "anthropic"
-      ? new AnthropicProvider({ apiKey: process.env.ANTHROPIC_API_KEY })
-      : new MockProvider();
+  const provider = createProvider(
+    { provider: config.model.provider, model: config.model.name },
+    process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
+  );
   const executor = new ToolExecutor(config, log, cwd);
 
   const messages: NormalizedMessage[] = [{ role: "user", content: task }];
