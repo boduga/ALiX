@@ -160,6 +160,42 @@ async function listModels(providerId: string, apiKey: string): Promise<ModelInfo
       const data = (await response.json()) as { data: Array<{ id: string }> };
       return data.data.map((m) => ({ id: m.id, displayName: m.id }));
     }
+    case "perplexity": {
+      const response = await fetch("https://api.perplexity.ai/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
+    }
+    case "minimax": {
+      const response = await fetch("https://api.minimax.chat/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
+    }
+    case "zhipuai": {
+      const response = await fetch("https://open.bigmodel.cn/api/paas/v4/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string; name?: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.name ?? m.id }));
+    }
+    case "grokai": {
+      const response = await fetch("https://api.grok.ai/v1/models", {
+        headers: { Authorization: `Bearer ${apiKey}` },
+        signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
+      const data = (await response.json()) as { data: Array<{ id: string; display_name?: string }> };
+      return data.data.map((m) => ({ id: m.id, displayName: m.display_name ?? m.id }));
+    }
     default:
       throw new Error(`Model listing not yet implemented for ${providerId}`);
   }
