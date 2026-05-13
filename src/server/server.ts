@@ -32,11 +32,16 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
           return;
         }
 
-        // Send existing events
+        // Honor Last-Event-ID for cursor-based resume on reconnect
+        const rawResumeId = req.headers["last-event-id"];
+        const resumeFromSeq = parseInt(Array.isArray(rawResumeId) ? rawResumeId[0] : (rawResumeId ?? "0"), 10);
+
+        // Send existing events from resume cursor
         const text = await readFile(eventsPath, "utf8");
         for (const line of text.split("\n").filter(Boolean)) {
           try {
             const event = JSON.parse(line) as { seq: number };
+            if (event.seq <= resumeFromSeq) continue;
             res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
           } catch {
             // Skip malformed lines
