@@ -21,9 +21,9 @@ export class ToolExecutor {
   ) {}
 
   private sessionId(): string {
-    // Extract sessionId from EventLog path: .alix/sessions/<sessionId>/events.jsonl
-    const parts = this.log.path.split("sessions/");
-    return parts.length > 1 ? parts[1].split("/")[0] : "unknown";
+    // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
+    const parts = this.log.sessionDir.split("sessions/");
+    return parts.length > 1 ? parts[1] : "unknown";
   }
 
   private async logEvent(type: string, payload: Record<string, unknown>): Promise<void> {
@@ -73,7 +73,8 @@ export class ToolExecutor {
 
     await this.logEvent(result.kind === "success" ? "tool.completed" : "tool.failed", {
       toolCallId, toolName: name, status: result.kind,
-      output: result.kind === "success" ? (result.output ?? result.content ?? "") : "",
+      outputSize: result.kind === "success" ? ((result.output?.length ?? 0) + (result.content?.length ?? 0)) : 0,
+      outputPreview: result.kind === "success" ? ((result.output ?? result.content ?? "").slice(0, 200)) : undefined,
       error: result.kind === "error" ? result.message : undefined
     });
 
