@@ -2,6 +2,7 @@
 import { loadConfig } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
 import { runTask } from "./run.js";
+import { startServer } from "./server/server.js";
 
 const [, , command, ...args] = process.argv;
 
@@ -36,6 +37,13 @@ if (command === "run") {
   console.log(result.summary);
   console.log(`Session: ${result.sessionId}`);
   process.exit(0);
+}
+
+if (command === "serve") {
+  const config = await loadConfig(process.cwd());
+  const server = await startServer(process.cwd(), config.ui.port);
+  console.log(`ALiX inspector running at ${server.url}`);
+  await new Promise(() => undefined);
 }
 
 console.error(`Unknown command: ${command}`);

@@ -7,7 +7,7 @@
     "alix": "./dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui && cp src/ui/index.html src/ui/app.js src/ui/styles.css dist/src/ui/",
     "test": "node --test dist/tests/**/*.test.js",
     "check": "npm run build && npm test"
   },
