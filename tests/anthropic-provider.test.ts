@@ -9,7 +9,7 @@ test("anthropic provider returns correct capabilities", () => {
   assert.equal(provider.capabilities.model, "claude-sonnet-4-7-20250514");
   assert.equal(provider.capabilities.supportsTools, true);
   assert.equal(provider.capabilities.supportsVision, true);
-  assert.equal(provider.editFormatPreference, "structured_patch");
+  assert.equal(provider.editFormatPreference, "search_replace");
   assert.equal(provider.longContextStrategy, "trimmed_context");
 });
 

@@ -1,4 +1,11 @@
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "./types.js";
+import { randomUUID } from "node:crypto";
+import type {
+  ModelAdapter,
+  NormalizedRequest,
+  NormalizedResponse,
+  ToolDef,
+  ToolCall,
+} from "./types.js";
 
 export type AnthropicConfig = {
   apiKey?: string;
@@ -6,9 +13,64 @@ export type AnthropicConfig = {
   maxTokens?: number;
 };
 
+// Built-in tools exposed to the model
+const ALIX_TOOLS: ToolDef[] = [
+  {
+    name: "file.read",
+    description: "Read the contents of a file from the workspace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace)" },
+        path: { type: "string", description: "Relative path to the file" }
+      },
+      required: ["path"]
+    }
+  },
+  {
+    name: "dir.search",
+    description: "Search for a pattern across all files in the workspace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace)" },
+        pattern: { type: "string", description: "Text pattern to search for" },
+        extensions: { type: "string[]", description: "File extensions to include, e.g. ['.ts', '.js']" }
+      },
+      required: ["pattern"]
+    }
+  },
+  {
+    name: "shell.run",
+    description: "Run a shell command in the workspace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        command: { type: "string", description: "The shell command to run" },
+        cwd: { type: "string", description: "Working directory (defaults to workspace)" },
+        timeoutMs: { type: "number", description: "Timeout in milliseconds" }
+      },
+      required: ["command"]
+    }
+  },
+  {
+    name: "patch.apply",
+    description: "Apply a code patch to one or more files using search/replace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace)" },
+        format: { type: "string", description: "Patch format: search_replace or structured_patch" },
+        patchText: { type: "string", description: "The patch content" }
+      },
+      required: ["format", "patchText"]
+    }
+  }
+];
+
 export class AnthropicProvider implements ModelAdapter {
   id = "anthropic";
-  editFormatPreference = "structured_patch" as const;
+  editFormatPreference = "search_replace" as const;
   longContextStrategy = "trimmed_context" as const;
 
   private _apiKey: string;
@@ -39,7 +101,9 @@ export class AnthropicProvider implements ModelAdapter {
       throw new Error("ANTHROPIC_API_KEY is not set");
     }
 
-    const body = {
+    const tools = request.tools ?? ALIX_TOOLS;
+
+    const body: Record<string, unknown> = {
       model: this._model,
       max_tokens: this._maxTokens,
       system: request.systemPrompt,
@@ -49,6 +113,10 @@ export class AnthropicProvider implements ModelAdapter {
       }))
     };
 
+    if (tools.length > 0) {
+      body.tools = tools;
+    }
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -57,7 +125,7 @@ export class AnthropicProvider implements ModelAdapter {
         "anthropic-version": "2023-06-01"
       },
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(60_000)
+      signal: AbortSignal.timeout(120_000)
     });
 
     if (!response.ok) {
@@ -66,11 +134,25 @@ export class AnthropicProvider implements ModelAdapter {
     }
 
     const data = (await response.json()) as {
-      content: Array<{ type: string; text?: string }>;
+      content: Array<{ type: string; id?: string; name?: string; input?: Record<string, unknown>; text?: string }>;
+      stop_reason?: string;
     };
 
-    const text = data.content.filter((c) => c.type === "text").map((c) => c.text ?? "").join("\n");
+    const toolCalls: ToolCall[] = [];
+    let text = "";
 
-    return { text, toolCalls: [] };
+    for (const block of data.content) {
+      if (block.type === "text") {
+        text += block.text ?? "";
+      } else if (block.type === "tool_use") {
+        toolCalls.push({
+          id: block.id ?? randomUUID(),
+          name: block.name ?? "",
+          args: block.input ?? {}
+        });
+      }
+    }
+
+    return { text: text.trim(), toolCalls };
   }
 }

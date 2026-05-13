@@ -15,9 +15,22 @@ export type NormalizedMessage = {
   content: string;
 };
 
+export type ToolParam = {
+  type: string;
+  description?: string;
+  enum?: string[];
+};
+
+export type ToolDef = {
+  name: string;
+  description: string;
+  input_schema: { type: "object"; properties: Record<string, ToolParam>; required?: string[] };
+};
+
 export type NormalizedRequest = {
   systemPrompt: string;
   messages: NormalizedMessage[];
+  tools?: ToolDef[];
 };
 
 export type ToolCall = {

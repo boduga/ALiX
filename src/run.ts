@@ -6,11 +6,66 @@ import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { MockProvider } from "./providers/mock-provider.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
-import type { NormalizedMessage } from "./providers/types.js";
+import type { NormalizedMessage, ToolDef } from "./providers/types.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
 
 const MAX_ITERATIONS = 10;
+
+// Tool schemas exposed to the model
+const TOOLS: ToolDef[] = [
+  {
+    name: "file.read",
+    description: "Read the contents of a file from the workspace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        path: { type: "string", description: "Relative path to the file" }
+      },
+      required: ["path"]
+    }
+  },
+  {
+    name: "dir.search",
+    description: "Search for a pattern across files in the workspace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        pattern: { type: "string", description: "Text pattern to search for" },
+        extensions: { type: "string[]", description: "File extensions to include, e.g. ['.ts', '.js']" }
+      },
+      required: ["pattern"]
+    }
+  },
+  {
+    name: "shell.run",
+    description: "Run a shell command in the workspace.",
+    input_schema: {
+      type: "object",
+      properties: {
+        command: { type: "string", description: "The shell command to execute" },
+        cwd: { type: "string", description: "Working directory (defaults to workspace root)" },
+        timeoutMs: { type: "number", description: "Timeout in milliseconds" }
+      },
+      required: ["command"]
+    }
+  },
+  {
+    name: "patch.apply",
+    description: "Apply a code patch using search/replace. Blocks dangerous paths like .git and .env.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        format: { type: "string", description: "Patch format: 'search_replace' or 'structured_patch'" },
+        patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE" }
+      },
+      required: ["format", "patchText"]
+    }
+  }
+];
 
 export type RunResult = {
   sessionId: string;
@@ -48,7 +103,8 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const response = await provider.complete({
       systemPrompt: "You are ALiX. You have access to tools. Use them to complete the user's request.",
-      messages
+      messages,
+      tools: TOOLS
     });
 
     await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text: response.text } });
