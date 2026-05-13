@@ -1,5 +1,5 @@
 import { BaseProvider } from "./base.js";
-import type { ModelCapabilities, NormalizedRequest, NormalizedResponse } from "./types.js";
+import type { ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type GroqConfig = {
   apiKey?: string;
@@ -26,7 +26,7 @@ export class GroqProvider extends BaseProvider {
       inputTokenLimit: 128_000,
       outputTokenLimit: 8_192,
       supportsTools: true,
-      supportsStreaming: false,
+      supportsStreaming: true,
       supportsStructuredOutput: false,
       supportsVision: false,
     };
@@ -87,5 +87,21 @@ export class GroqProvider extends BaseProvider {
         ? { inputTokens: data.usage.prompt_tokens, outputTokens: data.usage.completion_tokens }
         : undefined,
     };
+  }
+
+  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+    if (!this._apiKey) throw new Error("GROQ_API_KEY is not set");
+
+    const body: Record<string, unknown> = {
+      messages: request.messages.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content })),
+      stream: true,
+    };
+    if (request.systemPrompt) body.messages = [{ role: "system", content: request.systemPrompt }, ...(body.messages as object[])];
+    if (request.tools?.length) body.tools = request.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+    if (request.temperature !== undefined) body.temperature = request.temperature;
+    if (request.maxOutputTokens) body.max_tokens = request.maxOutputTokens;
+
+    const res = await this.post(body);
+    yield* this.streamSSE(res);
   }
 }

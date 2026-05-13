@@ -5,15 +5,31 @@ import { loadConfig } from "./config/loader.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { createProvider } from "./providers/registry.js";
-import type { NormalizedMessage, ToolDef } from "./providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
+
+async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
+  if (!provider.stream) throw new Error("Provider does not support streaming");
+  let text = "";
+  let toolCalls: ToolCall[] = [];
+  let usage: TokenUsage | undefined;
+  for await (const chunk of provider.stream(request)) {
+    if (chunk.type === "text_delta") text += chunk.text;
+    if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+    if (chunk.type === "usage") usage = chunk.usage;
+    if (chunk.type === "error") throw new Error(chunk.error);
+  }
+  return { text, toolCalls, usage };
+}
 
 const MAX_ITERATIONS = 10;
 
 // Map model tool names (alix_*) → executor tool names (file.*)
 const TOOL_NAME_MAP: Record<string, string> = {
   alix_file_read: "file.read",
+  alix_file_create: "file.create",
+  alix_file_delete: "file.delete",
   alix_dir_search: "dir.search",
   alix_shell_run: "shell.run",
   alix_patch_apply: "patch.apply"

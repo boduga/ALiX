@@ -187,3 +187,12 @@ test("parseChoiceToolCalls returns empty array when no tool calls present", () =
   assert.equal(parseChoiceToolCalls.call(p, { message: { content: null } }).length, 0);
   assert.equal(parseChoiceToolCalls.call(p, { message: { content: "", tool_calls: [] } }).length, 0);
 });
+
+test("all providers support streaming and have stream method", () => {
+  const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "deepseek", "minimax", "zhipuai", "grokai"] as const;
+  for (const id of ids) {
+    const p = createProvider({ provider: id }, "fake-key");
+    assert.equal(p.capabilities.supportsStreaming, true, `${id} should support streaming`);
+    assert.ok(typeof p.stream === "function", `${id} should have stream method`);
+  }
+});

@@ -3,6 +3,7 @@ import type {
   ModelAdapter,
   NormalizedRequest,
   NormalizedResponse,
+  StreamChunk,
   ToolDef,
   ToolCall,
 } from "./types.js";
@@ -90,7 +91,7 @@ export class AnthropicProvider implements ModelAdapter {
       inputTokenLimit: 200_000,
       outputTokenLimit: 8192,
       supportsTools: true,
-      supportsStreaming: false,
+      supportsStreaming: true,
       supportsStructuredOutput: false,
       supportsVision: true
     };
@@ -154,5 +155,61 @@ export class AnthropicProvider implements ModelAdapter {
     }
 
     return { text: text.trim(), toolCalls };
+  }
+
+  async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
+    if (!this._apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
+
+    const tools = request.tools ?? ALIX_TOOLS;
+    const body: Record<string, unknown> = {
+      model: this._model,
+      max_tokens: this._maxTokens,
+      system: request.systemPrompt,
+      messages: request.messages.map((m) => ({ role: m.role, content: m.content })),
+      stream: true,
+    };
+    if (tools.length > 0) body.tools = tools;
+
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": this._apiKey,
+        "anthropic-version": "2023-06-01"
+      },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
+
+    if (!res.ok) { yield { type: "error" as const, error: `API error ${res.status}` }; return; }
+    if (!res.body) { yield { type: "error" as const, error: "No response body" }; return; }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) { yield { type: "done" }; return; }
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+
+      for (const part of parts) {
+        const dataLine = part.split("\n").find(l => l.startsWith("data:"));
+        if (!dataLine) continue;
+        const data = dataLine.slice(5);
+        if (data === "[DONE]") { yield { type: "done" }; return; }
+        try {
+          const event = JSON.parse(data);
+          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
+            yield { type: "text_delta", text: event.delta.text };
+          }
+          if (event.type === "message_delta" && event.usage) {
+            yield { type: "usage", usage: { inputTokens: event.usage.input_tokens, outputTokens: event.usage.output_tokens } };
+          }
+        } catch { /* skip */ }
+      }
+    }
   }
 }

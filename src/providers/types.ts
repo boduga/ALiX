@@ -96,6 +96,7 @@ export type NormalizedRequest = {
   toolResults?: NormalizedToolResult[];
   temperature?: number;
   maxOutputTokens?: number;
+  stream?: boolean;  // when true, provider may use streaming response
 };
 
 export type ToolCall = {
