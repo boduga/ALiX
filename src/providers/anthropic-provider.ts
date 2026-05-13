@@ -18,7 +18,7 @@ export class AnthropicProvider implements ModelAdapter {
   constructor(config: AnthropicConfig = {}) {
     this._apiKey = config.apiKey ?? process.env.ANTHROPIC_API_KEY ?? "";
     this._model = config.model ?? "claude-sonnet-4-7-20250514";
-    this._maxTokens = config.maxTokens ?? 4096;
+    this._maxTokens = config.maxTokens ?? 8192;
   }
 
   get capabilities() {
@@ -56,12 +56,13 @@ export class AnthropicProvider implements ModelAdapter {
         "x-api-key": this._apiKey,
         "anthropic-version": "2023-06-01"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(60_000)
     });
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${error}`);
+      const body = await response.text();
+      throw new Error(`Anthropic API error ${response.status}: ${body}`);
     }
 
     const data = (await response.json()) as {

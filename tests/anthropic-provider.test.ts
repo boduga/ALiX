@@ -21,4 +21,5 @@ test("anthropic provider requires API key", async () => {
 test("anthropic provider accepts config overrides", () => {
   const provider = new AnthropicProvider({ apiKey: "my-key", model: "claude-3-5-sonnet", maxTokens: 2048 });
   assert.equal(provider.capabilities.model, "claude-3-5-sonnet");
+  assert.equal(provider.capabilities.outputTokenLimit, 8192); // default, aligns with maxTokens default
 });
