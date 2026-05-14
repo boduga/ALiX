@@ -182,6 +182,10 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
   const mcpManager = new McpManager(config);
   await mcpManager.initialize();
 
+  const { discoverHooks } = await import("./hooks/discover.js");
+  const { runHook } = await import("./hooks/runner.js");
+  const hooks = await discoverHooks(cwd);
+
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
 
   const mcpTools = buildMcpTools(mcpManager.listTools());
@@ -192,6 +196,13 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
   const messages: NormalizedMessage[] = [{ role: "user", content: task }];
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // Run pre_task hooks at the start of each iteration
+    for (const hook of hooks.pre_task ?? []) {
+      await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, reason: hook.reason } });
+      const result = await runHook(hook, cwd);
+      await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
+    }
+
     let text = "";
     let toolCalls: ToolCall[] = [];
     let usage: TokenUsage | undefined;
@@ -229,6 +240,13 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
     await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
 
     if (toolCalls.length === 0) {
+      // Run post_task hooks when no tools were called
+      for (const hook of hooks.post_task ?? []) {
+        await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, reason: hook.reason } });
+        const result = await runHook(hook, cwd);
+        await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
+      }
+
       // Run verification before final response
       const checks = await discoverVerification(cwd);
       for (const check of checks) {
