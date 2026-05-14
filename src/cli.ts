@@ -436,6 +436,7 @@ if (command === "mcp") {
   } finally {
     await mcpManager.closeAll().catch(() => {});
   }
+  process.exit(0);
 }
 
 console.error(`Unknown command: ${command}`);
