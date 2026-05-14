@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig } from "./schema.js";
+import type { AlixConfig, McpServerConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 
 // Test seam — allows tests to override homedir without touching the real OS module
