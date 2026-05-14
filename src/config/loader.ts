@@ -21,18 +21,27 @@ type PartialConfig = Partial<AlixConfig> & {
   mcpServerPaths?: string[];
 };
 
-// Load config from user home (~/.config/alix/config.json) and project (.alix/config.json).
-// Precedence: defaults → user config → project config
+// Load config from three sources (in order of precedence):
+// 1. ~/.config/alix/config.json   — XDG user config (API keys, model settings)
+// 2. ~/.alix/config.json          — global user config (MCP servers, permissions)
+// 3. <cwd>/.alix/config.json     — project config (overrides everything)
+//
 // API keys from config are injected as environment variables.
 export async function loadConfig(cwd: string): Promise<AlixConfig> {
-  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
+  const xdgConfigPath = join(homedir(), ".config", "alix", "config.json");
+  const globalConfigPath = join(homedir(), ".alix", "config.json");
   const projectConfigPath = join(cwd, ".alix", "config.json");
 
-  const userConfig = existsSync(userConfigPath) ? await readJson(userConfigPath) : {};
+  const xdgConfig = existsSync(xdgConfigPath) ? await readJson(xdgConfigPath) : {};
+  const globalConfig = existsSync(globalConfigPath) ? await readJson(globalConfigPath) : {};
   const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
 
   // Inject API keys as env vars so providers pick them up
-  const apiKeys = { ...(userConfig as any).apiKeys, ...(projectConfig as any).apiKeys };
+  const apiKeys = {
+    ...(xdgConfig as any).apiKeys,
+    ...(globalConfig as any).apiKeys,
+    ...(projectConfig as any).apiKeys
+  };
   for (const [provider, key] of Object.entries(apiKeys)) {
     const envVar = `${provider.toUpperCase()}_API_KEY`;
     if (typeof key === "string" && key && !process.env[envVar]) {
@@ -40,7 +49,7 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
     }
   }
 
-  const result = mergeConfig(DEFAULT_CONFIG, userConfig as PartialConfig, projectConfig as PartialConfig);
+  const result = mergeConfig(DEFAULT_CONFIG, xdgConfig as PartialConfig, globalConfig as PartialConfig, projectConfig as PartialConfig);
 
   if (process.env.ALIX_STREAMING !== undefined) {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
@@ -81,7 +90,9 @@ export function mergeConfig(
       context: { ...result.context, ...override.context },
       runtime: { ...result.runtime, ...override.runtime },
       ui: { ...result.ui, ...override.ui },
-      mcpServers: override.mcpServers !== undefined ? override.mcpServers : result.mcpServers,
+      mcpServers: normalizeMcpServers(
+        override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
+      ),
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? [])
     };
   }
@@ -90,4 +101,15 @@ export function mergeConfig(
 
 function mergeUnique<T>(a: T[], b: T[]): T[] {
   return Array.from(new Set([...a, ...b]));
+}
+
+// Normalize mcpServers: convert old `{ name: ..., type: ... }` map format to array format
+function normalizeMcpServers(servers: AlixConfig["mcpServers"]): AlixConfig["mcpServers"] {
+  if (!servers) return [];
+  if (Array.isArray(servers)) return servers;
+  // Convert Record<string, McpServerConfig> to array, injecting name from key
+  return Object.entries(servers as Record<string, McpServerConfig>).map(([name, config]) => ({
+    ...config,
+    name
+  }));
 }

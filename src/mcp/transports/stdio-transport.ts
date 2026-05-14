@@ -20,7 +20,9 @@ export class StdioTransport implements McpTransport {
       console.error(`[MCP:${name} stderr] ${chunk.toString().trim()}`);
     });
 
-    // Read stdout line by line (newline-delimited JSON)
+    // Route ALL stdout data through one handler — send() has its own listener
+    // for response matching, but notifications and stray messages need the handler.
+    // We share readBuffer so neither listener starves the other.
     proc.stdout?.on("data", (chunk: Buffer) => {
       this.readBuffer += chunk.toString();
       const lines = this.readBuffer.split("\n");
@@ -60,39 +62,65 @@ export class StdioTransport implements McpTransport {
         reject(new Error(`Request ${id} timed out after 30s`));
       }, 30_000);
 
-      // Listen for matching response on stdout
-      const handleData = (chunk: Buffer) => {
-        this.readBuffer += chunk.toString();
-        const lines = this.readBuffer.split("\n");
-        this.readBuffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (line.trim()) {
-            try {
-              const msg = JSON.parse(line) as JsonRpcResponse | JsonRpcNotification;
-              if ("id" in msg && msg.id !== undefined && String(msg.id) === id) {
-                clearTimeout(timeout);
-                this.proc.stdout?.off("data", handleData);
-                if ("error" in msg && msg.error) {
-                  reject(new Error(msg.error.message));
-                } else {
-                  resolve(msg as JsonRpcResponse);
-                }
-              }
-            } catch {}
+      // Wrap resolve/reject so we can pass them to the shared handler.
+      // The constructor listener routes responses to them when IDs match.
+      const handlers = {
+        resolve: (msg: JsonRpcResponse) => {
+          clearTimeout(timeout);
+          this.pendingCallbacks.delete(id);
+          if ("error" in msg && msg.error) {
+            reject(new Error(msg.error.message));
+          } else {
+            resolve(msg);
           }
+        },
+        reject: (err: Error) => {
+          clearTimeout(timeout);
+          this.pendingCallbacks.delete(id);
+          reject(err);
         }
       };
+      this.pendingCallbacks.set(id, handlers);
 
-      this.proc.stdout?.on("data", handleData);
+      // Drain any data already in the buffer that matches this request.
+      // This handles the race where the constructor listener hasn't fired yet.
+      this.drainBuffer(id, handlers.resolve, handlers.reject);
 
       const msgStr = JSON.stringify(message) + "\n";
       this.proc.stdin.write(msgStr, (err) => {
         if (err) {
           clearTimeout(timeout);
+          this.pendingCallbacks.delete(id);
           reject(err);
         }
       });
     });
+  }
+
+  // Pending request callbacks keyed by message ID.
+  // The constructor listener calls this to dispatch stray responses.
+  private pendingCallbacks = new Map<string, {
+    resolve: (msg: JsonRpcResponse) => void;
+    reject: (err: Error) => void;
+  }>();
+
+  private drainBuffer(id: string, resolve: (msg: JsonRpcResponse) => void, reject: (err: Error) => void): void {
+    for (const line of this.readBuffer.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const msg = JSON.parse(line) as JsonRpcResponse | JsonRpcNotification;
+        if ("id" in msg && msg.id !== undefined && String(msg.id) === id) {
+          // Remove matched line from buffer
+          this.readBuffer = this.readBuffer.replace(line + "\n", "").replace(line, "");
+          if ("error" in msg && msg.error) {
+            reject(new Error(msg.error.message));
+          } else {
+            resolve(msg as JsonRpcResponse);
+          }
+          return;
+        }
+      } catch {}
+    }
   }
 
   async sendNotification(message: JsonRpcNotification): Promise<void> {
@@ -110,7 +138,25 @@ export class StdioTransport implements McpTransport {
   }
 
   onMessage(handler: (message: JsonRpcResponse | JsonRpcNotification) => void): void {
-    this.messageHandler = handler;
+    const wrapped: typeof handler = (msg) => {
+      // If this message matches a pending request, route it there directly.
+      if ("id" in msg && msg.id !== undefined) {
+        const id = String(msg.id);
+        const pending = this.pendingCallbacks.get(id);
+        if (pending) {
+          clearTimeout; // no-op, timeout is cleared in send's closure
+          this.pendingCallbacks.delete(id);
+          if ("error" in msg && msg.error) {
+            pending.reject(new Error(msg.error.message));
+          } else {
+            pending.resolve(msg as JsonRpcResponse);
+          }
+          return;
+        }
+      }
+      handler(msg);
+    };
+    this.messageHandler = wrapped;
   }
 
   async close(): Promise<void> {
