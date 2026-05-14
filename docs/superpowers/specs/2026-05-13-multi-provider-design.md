@@ -343,12 +343,12 @@ const provider = createProvider(
 
 ## Acceptance Criteria
 
-- [ ] `createProvider` from registry produces correct provider for all 10 provider IDs
-- [ ] Each provider's `complete()` method sends a well-formed API request
-- [ ] Each provider correctly parses tool calls in its native format into `ToolCall[]`
-- [ ] Provider throws when API key is missing and tools are requested
-- [ ] `alix config set-key` lists all 11 providers with correct env var names
-- [ ] Config schema accepts all 12 provider values in `model.provider`
-- [ ] Edit format policy returns correct default per provider
-- [ ] All existing tests continue to pass
-- [ ] Each new provider has at least 3 unit tests
+- [x] `createProvider` from registry produces correct provider for all 10 provider IDs
+- [x] Each provider's `complete()` method sends a well-formed API request
+- [x] Each provider correctly parses tool calls in its native format into `ToolCall[]`
+- [x] Provider throws when API key is missing and tools are requested
+- [x] `alix config set-key` lists all 11 providers with correct env var names
+- [x] Config schema accepts all 12 provider values in `model.provider`
+- [x] Edit format policy returns correct default per provider
+- [x] All existing tests continue to pass
+- [x] Each new provider has at least 3 unit tests
