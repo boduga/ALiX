@@ -38,7 +38,13 @@ export async function buildRepoMapLite(root: string): Promise<RepoMapLite> {
 
   for (const path of paths) {
     const fullPath = join(root, path);
-    const info = await stat(fullPath);
+    let info: Awaited<ReturnType<typeof stat>>;
+    try {
+      info = await stat(fullPath);
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
+      throw err;
+    }
     const text = await readTextIfSmall(fullPath, info.size);
     const lineCount = text ? text.split("\n").length : undefined;
     const kind = classify(path);
