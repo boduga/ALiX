@@ -39,7 +39,13 @@ export class McpManager {
   }
 
   private async connectServer(config: McpServerConfig): Promise<void> {
-    await this.registry.registerServer(config);
+    try {
+      await this.registry.registerServer(config);
+    } catch (err) {
+      // Remove any partial state left behind by a failed registration
+      this.registry.closeServer(config.name);
+      throw err;
+    }
 
     const client = this.registry.getClient(config.name);
     if (!client) return;

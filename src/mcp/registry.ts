@@ -40,6 +40,7 @@ export class McpToolRegistry {
   async registerServer(config: McpServerConfig): Promise<void> {
     const transport = this.createTransport(config);
     const client = new McpClient(transport);
+    // Let errors propagate — McpManager catches them per-server
     await client.initialize();
 
     this.clients.set(config.name, client);
