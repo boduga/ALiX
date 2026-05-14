@@ -8,6 +8,7 @@ import { ALIX_VERSION } from "./index.js";
 import { runTask } from "./run.js";
 import { ApiError } from "./providers/base.js";
 import { startServer } from "./server/server.js";
+import { McpManager } from "./mcp/manager.js";
 
 const PROVIDERS = [
   { id: "anthropic", name: "Anthropic", env: "ANTHROPIC_API_KEY", hint: "sk-ant-..." },
@@ -214,6 +215,11 @@ Usage:
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
+  alix mcp list           List connected MCP servers and their tools
+  alix mcp add            Guide to add an MCP server to config
+  alix mcp remove <name>  Disconnect an MCP server
+  alix mcp discover <pkg> Discover an npm MCP package
+  alix mcp test <name>    Test an MCP server connection
 `);
   process.exit(0);
 }
@@ -347,6 +353,89 @@ if (command === "serve") {
   const server = await startServer(process.cwd(), config.ui.port);
   console.log(`ALiX inspector running at ${server.url}`);
   await new Promise(() => undefined);
+}
+
+if (command === "mcp") {
+  const config = await loadConfig(process.cwd());
+  const mcpManager = new McpManager(config);
+  await mcpManager.initialize();
+
+  try {
+    const subcommand = args[0] ?? "";
+    switch (subcommand) {
+      case "list": {
+        const servers = mcpManager.listServers();
+        const tools = mcpManager.listTools();
+        if (servers.length === 0) {
+          console.log("No MCP servers connected.");
+          console.log("Add servers in .alix/config.json under 'mcpServers'.");
+        } else {
+          console.log(`Connected servers: ${servers.length}`);
+          for (const server of servers) {
+            const serverTools = tools.filter((t) => t.serverName === server);
+            console.log(`  ${server}: ${serverTools.length} tools`);
+            for (const tool of serverTools) {
+              console.log(`    - ${tool.fullName}${tool.description ? ` — ${tool.description}` : ""}`);
+            }
+          }
+        }
+        break;
+      }
+      case "add": {
+        const name = args[1];
+        const type = args[2];
+        if (!name || !type) {
+          console.error("Usage: alix mcp add <name> <stdio|http|websocket>");
+          process.exit(1);
+        }
+        console.log(`To add server '${name}' (type: ${type}), edit .alix/config.json and add:`);
+        console.log(JSON.stringify({ mcpServers: [{ name, type, /* fill in connection details */ }] }, null, 2));
+        break;
+      }
+      case "remove": {
+        const name = args[1];
+        if (!name) {
+          console.error("Usage: alix mcp remove <name>");
+          process.exit(1);
+        }
+        await mcpManager.closeServer(name);
+        console.log(`Server '${name}' disconnected.`);
+        break;
+      }
+      case "discover": {
+        const packageName = args[1];
+        if (!packageName) {
+          console.error("Usage: alix mcp discover <npm-package-name>");
+          process.exit(1);
+        }
+        console.log(`Attempting to discover '${packageName}'...`);
+        console.log("To discover, add to config: mcpServerPaths: ['" + packageName + "']");
+        break;
+      }
+      case "test": {
+        const name = args[1];
+        if (!name) {
+          console.error("Usage: alix mcp test <name>");
+          process.exit(1);
+        }
+        const client = mcpManager.listServers().includes(name) ? name : null;
+        if (!client) {
+          console.error(`Server '${name}' not found. Run 'alix mcp list' to see connected servers.`);
+          process.exit(1);
+        }
+        const tools = mcpManager.listTools().filter((t) => t.serverName === name);
+        console.log(`Server '${name}' — ${tools.length} tools available`);
+        break;
+      }
+      default: {
+        console.error(`Unknown mcp subcommand: '${subcommand}'`);
+        console.error("Available: list, add, remove, discover, test");
+        process.exit(1);
+      }
+    }
+  } finally {
+    await mcpManager.closeAll().catch(() => {});
+  }
 }
 
 console.error(`Unknown command: ${command}`);
