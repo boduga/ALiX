@@ -8,6 +8,7 @@ import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
+import { McpManager } from "./mcp/manager.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
@@ -145,7 +146,12 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
     { provider: config.model.provider, model: config.model.name },
     process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
   );
-  const executor = new ToolExecutor(config, log, cwd);
+
+  // Initialize MCP manager
+  const mcpManager = new McpManager(config);
+  await mcpManager.initialize();
+
+  const executor = new ToolExecutor(config, log, cwd, mcpManager);
 
   const messages: NormalizedMessage[] = [{ role: "user", content: task }];
 
@@ -168,6 +174,7 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
       }
 
       await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: response.text } });
+      await mcpManager.closeAll().catch(() => {});
       return { sessionId, summary: response.text };
     }
 
@@ -197,5 +204,6 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
 
   // Max iterations reached
   await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
+  await mcpManager.closeAll().catch(() => {});
   return { sessionId, summary: "Agent reached maximum iterations" };
 }
