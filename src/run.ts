@@ -217,8 +217,7 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
       toolCalls = resp.toolCalls ?? [];
       usage = resp.usage;
     }
-    if (toolCalls.length) console.error("[DEBUG] toolCalls from streaming:", JSON.stringify(toolCalls));
-
+    
     await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
 
     if (toolCalls.length === 0) {
