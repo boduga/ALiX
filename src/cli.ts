@@ -35,6 +35,16 @@ async function prompt(question: string): Promise<string> {
   });
 }
 
+async function getSavedApiKey(providerId: string): Promise<string | null> {
+  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
+  try {
+    const data = JSON.parse(await readFile(userConfigPath, "utf8")) as Record<string, unknown>;
+    const apiKeys = (data as any).apiKeys ?? {};
+    if (typeof apiKeys[providerId] === "string" && apiKeys[providerId]) return apiKeys[providerId];
+  } catch { /* no config yet */ }
+  return null;
+}
+
 async function setApiKey(providerId: string, key: string): Promise<void> {
   // Try user config first (~/.config/alix/config.json)
   const userConfigDir = join(homedir(), ".config", "alix");
@@ -249,9 +259,9 @@ if (command === "config" && args[0] === "set-default-model") {
   const providerId = await selectProvider();
   const provider = PROVIDERS.find((p) => p.id === providerId)!;
 
-  let apiKey = process.env[provider.env];
+  let apiKey = process.env[provider.env] ?? (await getSavedApiKey(providerId));
   if (!apiKey) {
-    console.log(`\nNo API key found for ${provider.name} in ${provider.env}.`);
+    console.log(`\nNo API key found for ${provider.name} in ${provider.env} or ~/.config/alix/config.json.`);
     const key = await prompt(`Enter API key (${provider.hint}): `);
     if (!key) { console.log("Cancelled."); process.exit(0); }
     await setApiKey(providerId, key);
