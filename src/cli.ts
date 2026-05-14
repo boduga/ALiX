@@ -460,10 +460,23 @@ if (command === "mcp") {
           for (const t of info.toolNames) {
             console.log(`  - ${t}`);
           }
-          console.log(`\nTo add permanently, add to .alix/config.json:`);
-          console.log(JSON.stringify({
-            mcpServers: [{ name: info.name, type: "stdio", command: "uvx", args: [packageName] }]
-          }, null, 2));
+
+          const confirm = await prompt("\nAdd to project config (.alix/config.json)? [y/N]: ");
+          if (confirm.toLowerCase() !== "y") {
+            console.log("Cancelled.");
+            process.exit(0);
+          }
+
+          const projectConfigPath = join(process.cwd(), ".alix", "config.json");
+          await mkdir(join(process.cwd(), ".alix"), { recursive: true });
+          let existing: Record<string, unknown> = {};
+          try { existing = JSON.parse(await readFile(projectConfigPath, "utf8")); } catch { /* no config yet */ }
+
+          const servers: unknown[] = existing.mcpServers ? [...(existing.mcpServers as unknown[])] : [];
+          servers.push({ name: info.name, type: "stdio", command: "uvx", args: [packageName] });
+          const updated = { ...existing, mcpServers: servers };
+          await writeFile(projectConfigPath, JSON.stringify(updated, null, 2) + "\n");
+          console.log(`Added '${info.name}' to .alix/config.json`);
         } catch (err) {
           console.error(`Discovery failed: ${err instanceof Error ? err.message : String(err)}`);
           process.exit(1);
