@@ -261,7 +261,7 @@ if (command === "config" && args[0] === "set-default-model") {
 
   let apiKey = process.env[provider.env] ?? (await getSavedApiKey(providerId));
   if (!apiKey) {
-    console.log(`\nNo API key found for ${provider.name} in ${provider.env} or ~/.config/alix/config.json.`);
+    console.log(`\nNo API key found for ${provider.name}.`);
     const key = await prompt(`Enter API key (${provider.hint}): `);
     if (!key) { console.log("Cancelled."); process.exit(0); }
     await setApiKey(providerId, key);

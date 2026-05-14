@@ -47,11 +47,16 @@ export class McpToolRegistry {
 
     const tools = await client.listTools();
     for (const tool of tools) {
-      const fullName = `${config.name}/${tool.name}`;
+      // MCP servers may prefix tool.name with server name (e.g. "fetch/fetch").
+      // Strip the prefix so fullName is always "server/tool" without duplication.
+      const cleanName = tool.name.startsWith(`${config.name}/`)
+        ? tool.name.slice(config.name.length + 1)
+        : tool.name;
+      const fullName = `${config.name}/${cleanName}`;
       this.tools.set(fullName, {
         fullName,
         serverName: config.name,
-        toolName: tool.name,
+        toolName: cleanName,
         description: tool.description,
         inputSchema: tool.inputSchema as Record<string, unknown>,
         isMcp: true
