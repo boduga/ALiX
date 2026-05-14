@@ -2,7 +2,9 @@ export type ToolName = "file.read" | "file.create" | "file.delete" | "dir.search
 
 export type ToolResult =
   | { kind: "success"; content?: string; output?: string; matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number; createdPath?: string; deletedPath?: string }
-  | { kind: "error"; message: string };
+  | { kind: "error"; message: string; retryable?: boolean; hint?: string };
+// retryable: true = safe to retry. false/undefined = fatal (don't spin).
+// hint: short instruction for the model on how to recover.
 
 export type FileMatch = {
   path: string;

@@ -95,7 +95,7 @@ export class ToolExecutor {
         const resolvedRoot = resolve(r ?? this.root);
         const resolvedPath = resolve(resolvedRoot, path);
         if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
-          result = { kind: "error", message: "Path is outside workspace" }; break;
+          result = { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." }; break;
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
@@ -108,7 +108,7 @@ export class ToolExecutor {
         const resolvedRoot = resolve(r ?? this.root);
         const resolvedPath = resolve(resolvedRoot, path);
         if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
-          result = { kind: "error", message: "Path is outside workspace" }; break;
+          result = { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." }; break;
         }
         const { rm } = await import("node:fs/promises");
         try { await rm(resolvedPath); } catch (e) { result = { kind: "error", message: `Delete failed: ${e instanceof Error ? e.message : String(e)}` }; break; }
@@ -119,17 +119,20 @@ export class ToolExecutor {
         // Check if this is an MCP tool (mcp.server.tool format)
         if (name.startsWith("mcp.")) {
           if (!this.mcpManager) {
-            result = { kind: "error", message: "MCP manager not initialized" };
+            result = { kind: "error", message: "MCP manager not initialized", retryable: false };
           } else {
             const parts = name.split(".");
             const serverName = parts[1];
-            // Tool names from the registry use underscores, not dots
             const toolName = parts.slice(2).join("_");
             const fullName = `${serverName}/${toolName}`;
             result = await this.mcpManager.callTool(fullName, args);
+            // Classify MCP errors with hints
+            if (result.kind === "error") {
+              result = classifyError(result);
+            }
           }
         } else {
-          result = { kind: "error", message: `Unknown tool: ${name}` };
+          result = { kind: "error", message: `Unknown tool: ${name}`, retryable: false };
         }
       }
     }
@@ -143,4 +146,38 @@ export class ToolExecutor {
 
     return result;
   }
+}
+
+type ErrorResult = { kind: "error"; message: string; retryable?: boolean; hint?: string };
+
+function classifyError(result: ErrorResult): ErrorResult {
+  const msg = result.message.toLowerCase();
+
+  // Fatal — don't retry, model can't fix this
+  if (msg.includes("unknown mcp tool") ||
+      msg.includes("not initialized") ||
+      msg.includes("authentication failed") ||
+      msg.includes("401") ||
+      msg.includes("403") ||
+      msg.includes("invalid api key") ||
+      msg.includes("permission denied") ||
+      msg.includes("path is outside")) {
+    return { ...result, retryable: false };
+  }
+
+  // Retryable — transient or server-side
+  if (msg.includes("timed out") ||
+      msg.includes("timeout") ||
+      msg.includes("429") ||
+      msg.includes("rate limit") ||
+      msg.includes("connection") ||
+      msg.includes("econnrefused") ||
+      msg.includes("etimedout") ||
+      msg.includes("503") ||
+      msg.includes("unavailable")) {
+    return { ...result, retryable: true };
+  }
+
+  // Unknown/ambiguous — retry once, model decides
+  return { ...result, retryable: true };
 }

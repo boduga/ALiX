@@ -49,6 +49,14 @@ function mcpToolExecName(serverName: string, toolName: string): string {
   return "mcp." + serverName + "." + toolName;
 }
 
+function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
+  const parts: string[] = [`Error: ${err.message}`];
+  if (err.hint) parts.push(`Hint: ${err.hint}`);
+  if (err.retryable === false) parts.push("This error is fatal — do not retry this tool.");
+  else if (err.retryable === true) parts.push("This error may be transient — retrying may help.");
+  return parts.join(" ");
+}
+
 function buildMcpTools(registered: { serverName: string; toolName: string; description?: string; inputSchema: Record<string, unknown> }[]): ToolDef[] {
   return registered.map(tool => ({
     name: mcpToolName(tool.serverName, tool.toolName),
@@ -234,27 +242,47 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
       return { sessionId, summary: text, streamed: config.model.streaming };
     }
 
+    // Track failed tool names per iteration to prevent spinning
+    const failedTools: string[] = [];
+    const fatalToolErrors: string[] = [];
+
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of toolCalls) {
       const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
+      if (execResult.kind === "error") {
+        const errorResult = execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string };
+        const toolLabel = execName.startsWith("mcp.") ? execName : execName;
+        failedTools.push(toolLabel);
+        if (errorResult.retryable === false) {
+          fatalToolErrors.push(toolLabel);
+        }
+      }
+
       const resultContent =
         execResult.kind === "success"
           ? (execResult.output ?? execResult.content ?? "")
-          : `Error: ${(execResult as { kind: "denied"; reason: string }).reason ?? (execResult as { kind: "error"; message: string }).message}`;
+          : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
 
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
     }
 
-    // After each round, inject state summary so the model knows what succeeded
+    // After each round, inject state summary so the model knows what succeeded/failed
     const created = toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.create").map(tc => tc.args.path as string);
     const deleted = toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.delete").map(tc => tc.args.path as string);
-    if (created.length || deleted.length) {
-      const parts: string[] = [];
-      if (created.length) parts.push(`Created: ${created.join(", ")}`);
-      if (deleted.length) parts.push(`Deleted: ${deleted.join(", ")}`);
-      messages.push({ role: "user", content: `[State] ${parts.join(". ")}. Do not repeat these actions.` });
+
+    const stateParts: string[] = [];
+    if (created.length) stateParts.push(`Created: ${created.join(", ")}`);
+    if (deleted.length) stateParts.push(`Deleted: ${deleted.join(", ")}`);
+    if (fatalToolErrors.length) {
+      stateParts.push(`FATAL (do not retry): ${fatalToolErrors.join(", ")}`);
+    }
+    if (failedTools.length && failedTools.length === toolCalls.length && !fatalToolErrors.length) {
+      stateParts.push(`All tools failed. Consider a different approach.`);
+    }
+    if (stateParts.length) {
+      messages.push({ role: "user", content: `[State] ${stateParts.join(". ")}.` });
     }
   }
 
