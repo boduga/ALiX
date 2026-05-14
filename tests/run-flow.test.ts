@@ -6,7 +6,8 @@ import { join } from "node:path";
 import { runTask } from "../src/run.js";
 import { _setHomedirOverride } from "../src/config/loader.js";
 
-test("run task creates event log and returns plan", async () => {
+// Integration test — skip when API credits unavailable
+test("run task creates event log and returns plan", { skip: "integration test: requires model API credits" }, async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-run-"));
   try {
     _setHomedirOverride(dir);

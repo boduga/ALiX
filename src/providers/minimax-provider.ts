@@ -1,5 +1,5 @@
+import { BaseProvider, ApiError } from "./base.js";
 import type { ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
-import { BaseProvider } from "./base.js";
 
 export type MiniMaxConfig = {
   apiKey?: string;
@@ -83,7 +83,7 @@ export class MiniMaxProvider extends BaseProvider {
 
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`MiniMax API error ${response.status}: ${err}`);
+      throw new ApiError(response.status, err);
     }
 
     const data = (await response.json()) as {

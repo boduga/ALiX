@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { loadConfig } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
 import { runTask } from "./run.js";
+import { ApiError } from "./providers/base.js";
 import { startServer } from "./server/server.js";
 
 const PROVIDERS = [
@@ -318,9 +319,25 @@ if (command === "run") {
     console.error("Usage: alix run \"<task>\"");
     process.exit(1);
   }
-  const result = await runTask(process.cwd(), task);
-  console.log(result.summary);
-  console.log(`Session: ${result.sessionId}`);
+  try {
+    const result = await runTask(process.cwd(), task);
+    console.log(result.summary);
+    console.log(`Session: ${result.sessionId}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (err instanceof ApiError) {
+      if (msg.includes("credit balance") || msg.includes("upgrade")) {
+        console.error(`\n⚠️  API: Insufficient credits.\n    ${err.detail}\n\nFix: Add credits or switch providers:\n     alix config set-default-model openai gpt-4o`);
+      } else if (msg.includes("invalid_request_error") || err.status === 401) {
+        console.error(`\n⚠️  API: Authentication failed.\n    ${err.detail}\n\nFix: Check your API key.`);
+      } else {
+        console.error(`\n⚠️  API error (${err.status}):\n    ${err.detail}`);
+      }
+    } else {
+      console.error(`\n⚠️  ${msg}`);
+    }
+    process.exit(1);
+  }
   process.exit(0);
 }
 

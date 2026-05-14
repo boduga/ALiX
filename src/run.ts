@@ -6,6 +6,7 @@ import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
+import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
 
@@ -150,7 +151,7 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const response = await provider.complete({
-      systemPrompt: "You are ALiX. You have access to tools. Use them to complete the user's request.",
+      systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking any further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
       messages,
       tools: TOOLS
     });
@@ -181,6 +182,16 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
           : `Error: ${(execResult as { kind: "denied"; reason: string }).reason ?? (execResult as { kind: "error"; message: string }).message}`;
 
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
+    }
+
+    // After each round, inject state summary so the model knows what succeeded
+    const created = response.toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.create").map(tc => tc.args.path as string);
+    const deleted = response.toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.delete").map(tc => tc.args.path as string);
+    if (created.length || deleted.length) {
+      const parts: string[] = [];
+      if (created.length) parts.push(`Created: ${created.join(", ")}`);
+      if (deleted.length) parts.push(`Deleted: ${deleted.join(", ")}`);
+      messages.push({ role: "user", content: `[State] ${parts.join(". ")}. Do not repeat these actions.` });
     }
   }
 

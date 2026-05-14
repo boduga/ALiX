@@ -1,4 +1,4 @@
-import { BaseProvider } from "./base.js";
+import { BaseProvider, ApiError } from "./base.js";
 import type { ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
 export type GroqConfig = {
@@ -69,7 +69,7 @@ export class GroqProvider extends BaseProvider {
     const response = await this.post(body);
     if (!response.ok) {
       const err = await response.text();
-      throw new Error(`Groq API error ${response.status}: ${err}`);
+      throw new ApiError(response.status, err);
     }
 
     const data = (await response.json()) as {

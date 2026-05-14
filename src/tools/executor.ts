@@ -97,7 +97,7 @@ export class ToolExecutor {
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
-        result = { kind: "success", createdPath: path, changedFiles: [path] };
+        result = { kind: "success", output: `File created: ${path}`, createdPath: path, changedFiles: [path] };
         break;
       }
       case "file.delete": {
@@ -110,7 +110,7 @@ export class ToolExecutor {
         }
         const { rm } = await import("node:fs/promises");
         try { await rm(resolvedPath); } catch (e) { result = { kind: "error", message: `Delete failed: ${e instanceof Error ? e.message : String(e)}` }; break; }
-        result = { kind: "success", deletedPath: path };
+        result = { kind: "success", output: `File deleted: ${path}`, deletedPath: path };
         break;
       }
       default:

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { TextDecoder } from "node:util";
 import type {
   ModelAdapter,
   NormalizedRequest,
@@ -7,6 +8,7 @@ import type {
   ToolDef,
   ToolCall,
 } from "./types.js";
+import { ApiError } from "./base.js";
 
 export type AnthropicConfig = {
   apiKey?: string;
@@ -138,7 +140,14 @@ export class AnthropicProvider implements ModelAdapter {
 
     if (!response.ok) {
       const body = await response.text();
-      throw new Error(`Anthropic API error ${response.status}: ${body}`);
+      let detail = body;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.error?.type === "invalid_request_error") {
+          detail = parsed.error.message ?? body;
+        }
+      } catch { /* not json */ }
+      throw new ApiError(response.status, detail);
     }
 
     const data = (await response.json()) as {
@@ -188,7 +197,18 @@ export class AnthropicProvider implements ModelAdapter {
       signal: AbortSignal.timeout(120_000),
     });
 
-    if (!res.ok) { yield { type: "error" as const, error: `API error ${res.status}` }; return; }
+    if (!res.ok) {
+      const body = await res.text();
+      let detail = body;
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed.error?.type === "invalid_request_error") {
+          detail = parsed.error.message ?? body;
+        }
+      } catch { /* not json */ }
+      yield { type: "error" as const, error: detail };
+      return;
+    }
     if (!res.body) { yield { type: "error" as const, error: "No response body" }; return; }
 
     const reader = res.body.getReader();

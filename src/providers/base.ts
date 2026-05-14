@@ -1,6 +1,16 @@
 import type { ModelAdapter, ModelCapabilities, NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
 import type { EditFormat } from "../patch/edit-format-policy.js";
 
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    public readonly detail: string
+  ) {
+    super(`API error ${status}: ${detail}`);
+    this.name = "ApiError";
+  }
+}
+
 export abstract class BaseProvider implements ModelAdapter {
   protected _apiKey: string;
   protected _model: string;
