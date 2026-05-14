@@ -267,8 +267,9 @@ if (command === "config" && args[0] === "set-default-model") {
     process.exit(1);
   }
 
-  // Show up to 20 models with token limits if available
-  const shown = models.slice(0, 20);
+  // Show up to 50 models with token limits if available
+  const MAX_SHOWN = 50;
+  const shown = models.slice(0, MAX_SHOWN);
   for (let i = 0; i < shown.length; i++) {
     const m = shown[i];
     const tokens = m.maxInputTokens
@@ -276,7 +277,7 @@ if (command === "config" && args[0] === "set-default-model") {
       : "";
     console.log(`  ${i + 1}. ${m.displayName}${tokens}`);
   }
-  if (models.length > 20) console.log(`  ... and ${models.length - 20} more`);
+  if (models.length > MAX_SHOWN) console.log(`  ... and ${models.length - MAX_SHOWN} more`);
 
   const answer = await prompt(`\nSelect model (1-${shown.length}, 0 to cancel): `);
   const num = parseInt(answer, 10);
