@@ -38,6 +38,13 @@ export type UiConfig = {
   transport: "sse" | "websocket";
 };
 
+export type McpTransportType = "stdio" | "http" | "websocket";
+
+export type McpServerConfig =
+  | { type: "stdio"; name: string; command: string; args?: string[]; env?: Record<string, string> }
+  | { type: "http"; name: string; url: string; headers?: Record<string, string> }
+  | { type: "websocket"; name: string; url: string; headers?: Record<string, string> };
+
 export type AlixConfig = {
   version: 1;
   model: ModelConfig;
@@ -46,6 +53,8 @@ export type AlixConfig = {
   runtime: RuntimeConfig;
   ui: UiConfig;
   apiKeys?: Record<string, string>;
+  mcpServers?: McpServerConfig[];
+  mcpServerPaths?: string[];
 };
 
 export type ValidationIssue = {
