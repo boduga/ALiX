@@ -49,7 +49,7 @@ function mcpToolExecName(serverName: string, toolName: string): string {
   return "mcp." + serverName + "." + toolName;
 }
 
-function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
+export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
   const parts: string[] = [`Error: ${err.message}`];
   if (err.hint) parts.push(`Hint: ${err.hint}`);
   if (err.retryable === false) parts.push("This error is fatal — do not retry this tool.");

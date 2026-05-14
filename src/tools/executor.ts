@@ -150,7 +150,7 @@ export class ToolExecutor {
 
 type ErrorResult = { kind: "error"; message: string; retryable?: boolean; hint?: string };
 
-function classifyError(result: ErrorResult): ErrorResult {
+export function classifyError(result: ErrorResult): ErrorResult {
   const msg = result.message.toLowerCase();
 
   // Fatal — don't retry, model can't fix this
