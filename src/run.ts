@@ -87,6 +87,31 @@ const TOOLS: ToolDef[] = [
       },
       required: ["format", "patchText"]
     }
+  },
+  {
+    name: "alix_file_create",
+    description: "Create a new file with the given content, creating parent directories as needed.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        path: { type: "string", description: "Relative path to the file to create" },
+        content: { type: "string", description: "The file content to write" }
+      },
+      required: ["path", "content"]
+    }
+  },
+  {
+    name: "alix_file_delete",
+    description: "Delete a file from the workspace. Cannot delete directories.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        path: { type: "string", description: "Relative path to the file to delete" }
+      },
+      required: ["path"]
+    }
   }
 ];
 
