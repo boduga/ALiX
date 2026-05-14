@@ -87,6 +87,9 @@ export abstract class BaseProvider implements ModelAdapter {
     const decoder = new TextDecoder();
     let buffer = "";
 
+    // Accumulate tool calls across deltas by index
+    const partialTools: Record<number, { id: string; name: string; args: string }> = {};
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) { yield { type: "done" }; return; }
@@ -100,11 +103,26 @@ export abstract class BaseProvider implements ModelAdapter {
         try {
           const event = JSON.parse(data);
           if (event.choices?.[0]?.delta?.content) yield { type: "text_delta", text: event.choices[0].delta.content };
+
           if (event.choices?.[0]?.delta?.tool_calls) {
             for (const tc of event.choices[0].delta.tool_calls) {
-              yield { type: "tool_call", toolCall: { id: tc.id ?? this.safeToolId(null), name: tc.function?.name ?? "", args: tc.function?.arguments ? JSON.parse(tc.function.arguments) : {} } };
+              const idx = tc.index ?? 0;
+              if (tc.id && !partialTools[idx]) partialTools[idx] = { id: tc.id, name: "", args: "" };
+              if (tc.function?.name) partialTools[idx].name = tc.function.name;
+              if (tc.function?.arguments) partialTools[idx].args += tc.function.arguments;
+              // Yield when arguments JSON is complete (ends with })
+              if (tc.function?.arguments && tc.function.arguments.trim().endsWith("}")) {
+                const t = partialTools[idx];
+                if (t.name) {
+                  try {
+                    yield { type: "tool_call" as const, toolCall: { id: t.id, name: t.name, args: JSON.parse(t.args) } };
+                  } catch { /* incomplete JSON, keep accumulating */ }
+                }
+                delete partialTools[idx];
+              }
             }
           }
+
           if (event.usage) yield { type: "usage", usage: { inputTokens: event.usage.prompt_tokens, outputTokens: event.usage.completion_tokens } };
         } catch { /* skip */ }
       }
