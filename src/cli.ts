@@ -413,6 +413,12 @@ if (command === "mcp") {
           Object.assign(serverConfig, { url });
         }
 
+        const apiKey = await prompt("API key (optional, skip if none): ");
+        if (apiKey.trim()) {
+          const envKey = `${name.toUpperCase().replace(/-/g, "_")}_API_KEY`;
+          Object.assign(serverConfig, { env: { [envKey]: apiKey.trim() } });
+        }
+
         console.log(`\nServer config:`);
         console.log(JSON.stringify(serverConfig, null, 2));
 
