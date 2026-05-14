@@ -61,15 +61,19 @@ export async function buildRepoMapLite(root: string): Promise<RepoMapLite> {
 }
 
 async function walk(root: string, dir = root): Promise<string[]> {
-  const entries = await readdir(dir, { withFileTypes: true });
   const files: string[] = [];
-  for (const entry of entries) {
-    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
-    const fullPath = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      files.push(...(await walk(root, fullPath)));
-    } else if (entry.isFile()) {
-      files.push(relative(root, fullPath));
+  const dirs = [dir];
+  while (dirs.length > 0) {
+    const current = dirs.pop()!;
+    const entries = await readdir(current, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
+      const fullPath = join(current, entry.name);
+      if (entry.isDirectory()) {
+        dirs.push(fullPath);
+      } else if (entry.isFile()) {
+        files.push(relative(root, fullPath));
+      }
     }
   }
   return files.sort();
