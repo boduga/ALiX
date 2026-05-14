@@ -2,6 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
+import type { McpManager } from "../mcp/manager.js";
 import { decidePolicy } from "../policy/policy-engine.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
@@ -21,7 +22,8 @@ export class ToolExecutor {
   constructor(
     private config: AlixConfig,
     private log: EventLog,
-    private root: string
+    private root: string,
+    private mcpManager?: McpManager
   ) {}
 
   private sessionId(): string {
@@ -113,8 +115,23 @@ export class ToolExecutor {
         result = { kind: "success", output: `File deleted: ${path}`, deletedPath: path };
         break;
       }
-      default:
-        result = { kind: "error", message: `Unknown tool: ${name}` };
+      default: {
+        // Check if this is an MCP tool (mcp.server.tool format)
+        if (name.startsWith("mcp.")) {
+          if (!this.mcpManager) {
+            result = { kind: "error", message: "MCP manager not initialized" };
+          } else {
+            const parts = name.split(".");
+            const serverName = parts[1];
+            // e.g., mcp.github.repos_list → github/repos.list
+            const toolName = parts.slice(2).join("_").replace(/_/g, ".");
+            const fullName = `${serverName}/${toolName}`;
+            result = await this.mcpManager.callTool(fullName, args);
+          }
+        } else {
+          result = { kind: "error", message: `Unknown tool: ${name}` };
+        }
+      }
     }
 
     await this.logEvent(result.kind === "success" ? "tool.completed" : "tool.failed", {
