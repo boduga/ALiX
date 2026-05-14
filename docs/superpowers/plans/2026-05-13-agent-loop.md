@@ -38,7 +38,7 @@ tests/
 - Create: `src/tools/file-tools.ts`
 - Test: `tests/file-tools.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/file-tools.test.ts
@@ -90,12 +90,12 @@ test("searchDir returns matching files", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run build 2>&1`
 Expected: FAIL — `src/tools/file-tools.ts` not found
 
-- [ ] **Step 3: Write tool types**
+- [x] **Step 3: Write tool types**
 
 Create `src/tools/types.ts`:
 
@@ -120,7 +120,7 @@ export type ToolArgs = {
 };
 ```
 
-- [ ] **Step 4: Write file tools**
+- [x] **Step 4: Write file tools**
 
 Create `src/tools/file-tools.ts`:
 
@@ -200,12 +200,12 @@ export async function searchDir(args: { root: string; pattern: string; extension
 
 Note: `nodeReadFile` is the sync `fs.readFile` used only for the `existsSync` check — the actual read uses async `readFile`. Read the current `src/tools/` directory state first (it should be empty). Ensure the import alias is handled correctly.
 
-- [ ] **Step 5: Run test to verify it passes**
+- [x] **Step 5: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS — all file-tools tests pass
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/tools/types.ts src/tools/file-tools.ts tests/file-tools.test.ts
@@ -220,7 +220,7 @@ git commit -m "feat: add file read and search tools"
 - Create: `src/tools/shell-tool.ts`
 - Test: `tests/shell-tool.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/shell-tool.test.ts
@@ -248,12 +248,12 @@ test("runCommand respects timeout", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check 2>&1`
 Expected: FAIL — `runCommand` not found
 
-- [ ] **Step 3: Write shell tool**
+- [x] **Step 3: Write shell tool**
 
 Create `src/tools/shell-tool.ts`:
 
@@ -289,12 +289,12 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS — all shell-tool tests pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tools/shell-tool.ts tests/shell-tool.test.ts
@@ -309,7 +309,7 @@ git commit -m "feat: add shell command tool"
 - Create: `src/tools/executor.ts`
 - Test: `tests/executor.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/executor.test.ts
@@ -379,12 +379,12 @@ test("execute logs tool.requested and tool.completed events", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check 2>&1`
 Expected: FAIL — `ToolExecutor` not found
 
-- [ ] **Step 3: Write tool executor**
+- [x] **Step 3: Write tool executor**
 
 Create `src/tools/executor.ts`:
 
@@ -483,12 +483,12 @@ export class ToolExecutor {
 
 Note: Read the current `src/events/event-log.ts` to understand how to get `sessionId` from the `EventLog.path`. The `sessionId` extraction from path is a workaround — ideally the `EventLog` would expose `sessionId`. Make it work with the current interface. Read `src/events/event-log.ts` first.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS — all executor tests pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/tools/executor.ts tests/executor.test.ts
@@ -503,7 +503,7 @@ git commit -m "feat: add tool executor with policy gating and event logging"
 - Rewrite: `src/run.ts` (replace current one-shot implementation)
 - Test: `tests/agent-loop.test.ts`
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/agent-loop.test.ts
@@ -534,12 +534,12 @@ test("runTask loops and returns session with events", async () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check 2>&1`
 Expected: FAIL — the new run.ts won't return same shape
 
-- [ ] **Step 3: Write the agent loop**
+- [x] **Step 3: Write the agent loop**
 
 Read the current `src/run.ts` and `src/events/event-log.ts` first.
 
@@ -631,12 +631,12 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
 
 Note: The `ToolExecutor.execute` expects `args` as `Record<string, unknown>`. The provider's `ToolCall.args` is already `Record<string, unknown>` — this matches. Read the current `src/run.ts` and `src/providers/types.ts` before replacing.
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: PASS — all tests pass
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/run.ts tests/agent-loop.test.ts
@@ -653,7 +653,7 @@ git commit -m "feat: rewrite run.ts as multi-turn agent loop with tool execution
 - Modify: `src/run.ts` (call patch tools after agent loop)
 - Modify: `src/events/types.ts` (add missing event types)
 
-- [ ] **Step 1: Write failing test**
+- [x] **Step 1: Write failing test**
 
 ```ts
 // tests/patch-tools.test.ts
@@ -684,12 +684,12 @@ test("applyPatchWithCheckpoint creates checkpoint and applies patch", async () =
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check 2>&1`
 Expected: FAIL — `applyPatchWithCheckpoint` not found
 
-- [ ] **Step 3: Write patch tools**
+- [x] **Step 3: Write patch tools**
 
 Create `src/tools/patch-tools.ts`:
 
@@ -739,7 +739,7 @@ function extractFilePaths(patchText: string, format: EditFormat): string[] {
 }
 ```
 
-- [ ] **Step 4: Update executor to handle patch.apply**
+- [x] **Step 4: Update executor to handle patch.apply**
 
 Read `src/tools/executor.ts` first. Add to the switch statement:
 
@@ -752,7 +752,7 @@ case "patch.apply": {
 }
 ```
 
-- [ ] **Step 5: Wire verification into run.ts**
+- [x] **Step 5: Wire verification into run.ts**
 
 Read the current `src/run.ts` (after the rewrite from Task 4). After the agent loop completes, add verification:
 
@@ -783,7 +783,7 @@ await log.append({
 
 Place this before the `return { sessionId, summary: response.text };` line in the "final response" branch.
 
-- [ ] **Step 6: Update event types**
+- [x] **Step 6: Update event types**
 
 Read `src/events/types.ts`. Add the missing event type unions:
 
@@ -799,12 +799,12 @@ export type VerificationEventPayload =
   | { status: string; results: VerificationResult[] };
 ```
 
-- [ ] **Step 7: Run tests**
+- [x] **Step 7: Run tests**
 
 Run: `PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check`
 Expected: all tests pass
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add src/tools/patch-tools.ts src/tools/executor.ts src/run.ts src/events/types.ts tests/patch-tools.test.ts
