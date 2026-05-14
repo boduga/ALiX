@@ -38,5 +38,14 @@ export const DEFAULT_CONFIG: AlixConfig = {
     host: "127.0.0.1",
     port: 4137,
     transport: "sse"
-  }
+  },
+  mcpServers: [
+    {
+      type: "stdio",
+      name: "fetch",
+      command: "uvx",
+      args: ["mcp-server-fetch"]
+    }
+  ],
+  mcpServerPaths: []
 };

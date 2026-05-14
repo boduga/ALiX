@@ -17,6 +17,8 @@ type PartialConfig = Partial<AlixConfig> & {
   context?: Partial<AlixConfig["context"]>;
   runtime?: Partial<AlixConfig["runtime"]>;
   ui?: Partial<AlixConfig["ui"]>;
+  mcpServers?: Partial<AlixConfig["mcpServers"]>;
+  mcpServerPaths?: string[];
 };
 
 // Load config from user home (~/.config/alix/config.json) and project (.alix/config.json).
@@ -74,7 +76,9 @@ export function mergeConfig(
       },
       context: { ...result.context, ...override.context },
       runtime: { ...result.runtime, ...override.runtime },
-      ui: { ...result.ui, ...override.ui }
+      ui: { ...result.ui, ...override.ui },
+      mcpServers: override.mcpServers !== undefined ? override.mcpServers : result.mcpServers,
+      mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? [])
     };
   }
   return result;
