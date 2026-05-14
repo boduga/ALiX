@@ -68,3 +68,63 @@ test("reports error for invalid maxRepoMapTokens", async () => {
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("model.streaming defaults to true", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  try {
+    _setHomedirOverride(dir);
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, true);
+  } finally {
+    _setHomedirOverride(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ALIX_STREAMING=false disables streaming", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".alix"));
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({ model: { streaming: true } }));
+    process.env.ALIX_STREAMING = "false";
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, false);
+  } finally {
+    delete process.env.ALIX_STREAMING;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ALIX_STREAMING=0 disables streaming", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".alix"));
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({ model: { streaming: true } }));
+    process.env.ALIX_STREAMING = "0";
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, false);
+  } finally {
+    delete process.env.ALIX_STREAMING;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ALIX_STREAMING=1 enables streaming", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".alix"));
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify({ model: { streaming: false } }));
+    process.env.ALIX_STREAMING = "1";
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, true);
+  } finally {
+    delete process.env.ALIX_STREAMING;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -20,3 +20,20 @@ test("runCommand respects timeout", async () => {
   assert.equal(result.kind, "error");
   assert.ok(result.message?.includes("timed out") || result.message?.includes("SIGKILL"));
 });
+
+test("runCommand rejects empty command string", async () => {
+  const result = await runCommand({ command: "", cwd: "/tmp", timeoutMs: 5000 });
+  assert.equal(result.kind, "error");
+  assert.ok(result.message?.includes("non-empty"));
+});
+
+test("runCommand rejects whitespace-only command", async () => {
+  const result = await runCommand({ command: "   ", cwd: "/tmp", timeoutMs: 5000 });
+  assert.equal(result.kind, "error");
+  assert.ok(result.message?.includes("non-empty"));
+});
+
+test("runCommand rejects null-like command", async () => {
+  const result = await runCommand({ command: "  ", cwd: "/tmp", timeoutMs: 5000 });
+  assert.equal(result.kind, "error");
+});

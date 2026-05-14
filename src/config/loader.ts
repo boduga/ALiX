@@ -42,6 +42,10 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
 
   const result = mergeConfig(DEFAULT_CONFIG, userConfig as PartialConfig, projectConfig as PartialConfig);
 
+  if (process.env.ALIX_STREAMING !== undefined) {
+    result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
+  }
+
   const validation = validateConfig(result);
   if (validation.issues.length > 0) {
     for (const issue of validation.issues) {

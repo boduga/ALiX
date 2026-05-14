@@ -356,3 +356,108 @@ test("streamSSE yields tool_call events", async () => {
   assert.equal(toolCalls.length, 1);
   assert.equal(toolCalls[0].toolCall?.name, "get_weather");
 });
+
+// --- Tool call accumulation tests ---
+
+test("streamSSE accumulates tool call args across multiple deltas", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; toolCall?: { id: string; name: string; args: Record<string, unknown> } }>;
+
+  // JSON arguments arrive across multiple SSE chunks — accumulate before yielding
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_split","function":{"name":"run_shell","arguments":"{"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"command\\": \\"ls"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":" -la\\"}"}}]}}]}\n',
+      'data: [DONE]\n',
+    ]),
+  } as unknown as Response;
+
+  const toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    if (chunk.type === "tool_call" && chunk.toolCall) {
+      toolCalls.push(chunk.toolCall);
+    }
+  }
+
+  assert.equal(toolCalls.length, 1, "should accumulate and yield exactly one tool_call");
+  assert.equal(toolCalls[0].name, "run_shell");
+  assert.equal(toolCalls[0].id, "call_split");
+  assert.equal(toolCalls[0].args.command, "ls -la");
+});
+
+test("streamSSE yields only complete tool calls — not partial", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; toolCall?: { id: string; name: string; args: Record<string, unknown> } }>;
+
+  // Send incomplete JSON (no closing brace yet)
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_incomplete","function":{"name":"get_file","arguments":"{"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\\"path"}}]}}]}\n',
+      // Not yet complete — no closing }
+      'data: [DONE]\n',
+    ]),
+  } as unknown as Response;
+
+  const toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    if (chunk.type === "tool_call" && chunk.toolCall) {
+      toolCalls.push(chunk.toolCall);
+    }
+  }
+
+  assert.equal(toolCalls.length, 0, "should not yield incomplete tool call");
+});
+
+test("streamSSE handles multiple tool calls in same response", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; toolCall?: { id: string; name: string; args: Record<string, unknown> } }>;
+
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_a","function":{"name":"tool_a","arguments":"{\\"x\\":1}"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":1,"id":"call_b","function":{"name":"tool_b","arguments":"{\\"y\\":2}"}}]}}]}\n',
+      'data: [DONE]\n',
+    ]),
+  } as unknown as Response;
+
+  const toolCalls: Array<{ id: string; name: string; args: Record<string, unknown> }> = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) {
+    if (chunk.type === "tool_call" && chunk.toolCall) {
+      toolCalls.push(chunk.toolCall);
+    }
+  }
+
+  assert.equal(toolCalls.length, 2, "should yield both tool calls");
+  assert.equal(toolCalls[0].name, "tool_a");
+  assert.equal(toolCalls[0].args.x, 1);
+  assert.equal(toolCalls[1].name, "tool_b");
+  assert.equal(toolCalls[1].args.y, 2);
+});
+
+test("streamSSE handles text and tool_call interleaved in same response", async () => {
+  const p = new OpenAIProvider({ apiKey: "test" });
+  const streamSSE = Object.getOwnPropertyDescriptor(BaseProvider.prototype, "streamSSE")?.value as (res: Response) => AsyncGenerator<{ type: string; toolCall?: { id: string; name: string; args: Record<string, unknown> } }>;
+
+  const mockRes = {
+    ok: true,
+    body: makeSSEStream([
+      'data: {"choices":[{"delta":{"content":"Thinking..."}}]}\n',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_t","function":{"name":"my_tool","arguments":"{}"}}]}}]}\n',
+      'data: {"choices":[{"delta":{"content":"Done!"}}]}\n',
+      'data: [DONE]\n',
+    ]),
+  } as unknown as Response;
+
+  const chunks = [];
+  for await (const chunk of streamSSE.call(p, mockRes)) chunks.push(chunk);
+
+  const textDeltas = chunks.filter((c) => c.type === "text_delta");
+  const toolCalls = chunks.filter((c) => c.type === "tool_call");
+  assert.ok(textDeltas.length >= 2, "should have text deltas");
+  assert.equal(toolCalls.length, 1, "should have exactly one tool_call");
+});

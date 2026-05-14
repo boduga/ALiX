@@ -216,7 +216,7 @@ Usage:
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
   alix mcp list           List connected MCP servers and their tools
-  alix mcp add            Guide to add an MCP server to config
+  alix mcp add            Add an MCP server (interactive prompts)
   alix mcp remove <name>  Disconnect an MCP server
   alix mcp discover <pkg> Discover an npm MCP package
   alix mcp test <name>    Test an MCP server connection
@@ -384,14 +384,41 @@ if (command === "mcp") {
         break;
       }
       case "add": {
-        const name = args[1];
-        const type = args[2];
-        if (!name || !type) {
-          console.error("Usage: alix mcp add <name> <stdio|http|websocket>");
-          process.exit(1);
+        if (!args[1]) {
+          console.log("Interactive MCP server setup.\n");
         }
-        console.log(`To add server '${name}' (type: ${type}), edit .alix/config.json and add:`);
-        console.log(JSON.stringify({ mcpServers: [{ name, type, /* fill in connection details */ }] }, null, 2));
+        const name = args[1] ?? await prompt("Server name (e.g. fetch): ");
+        const type = (args[2] ?? await prompt("Type [stdio|http|websocket] (default: stdio): ")) || "stdio";
+        if (!name) { console.error("Cancelled."); process.exit(0); }
+
+        const serverConfig: Record<string, unknown> = { name, type };
+
+        if (type === "stdio") {
+          const command = await prompt("Command (e.g. uvx or npx): ");
+          const rawArgs = await prompt("Args (e.g. mcp-server-fetch, comma-separated): ");
+          const argsList = rawArgs ? rawArgs.split(",").map((s: string) => s.trim()) : [];
+          Object.assign(serverConfig, { command, args: argsList });
+        } else if (type === "http" || type === "websocket") {
+          const url = await prompt("URL (e.g. http://localhost:3000): ");
+          Object.assign(serverConfig, { url });
+        }
+
+        console.log(`\nServer config:`);
+        console.log(JSON.stringify(serverConfig, null, 2));
+
+        const confirm = await prompt("\nAdd to project config (.alix/config.json)? [y/N]: ");
+        if (confirm.toLowerCase() !== "y") { console.log("Cancelled."); process.exit(0); }
+
+        const projectConfigPath = join(process.cwd(), ".alix", "config.json");
+        await mkdir(join(process.cwd(), ".alix"), { recursive: true });
+        let existing: Record<string, unknown> = {};
+        try { existing = JSON.parse(await readFile(projectConfigPath, "utf8")); } catch { /* no config yet */ }
+
+        const servers: unknown[] = existing.mcpServers ? [...(existing.mcpServers as unknown[])] : [];
+        servers.push(serverConfig);
+        const updated = { ...existing, mcpServers: servers };
+        await writeFile(projectConfigPath, JSON.stringify(updated, null, 2) + "\n");
+        console.log(`Added '${name}' to .alix/config.json`);
         break;
       }
       case "remove": {
