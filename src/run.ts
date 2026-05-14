@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
+import { createWriteStream } from "node:fs";
 import { loadConfig } from "./config/loader.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
@@ -136,12 +137,15 @@ const TOOLS: ToolDef[] = [
   }
 ];
 
+export type StreamHandler = (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
+
 export type RunResult = {
   sessionId: string;
   summary: string;
+  streamed?: boolean;
 };
 
-export async function runTask(cwd: string, task: string): Promise<RunResult> {
+export async function runTask(cwd: string, task: string, onStream?: StreamHandler): Promise<RunResult> {
   const sessionId = randomUUID();
   const sessionDir = join(cwd, ".alix", "sessions", sessionId);
   await mkdir(sessionDir, { recursive: true });
@@ -180,15 +184,44 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
   const messages: NormalizedMessage[] = [{ role: "user", content: task }];
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
-    const response = await provider.complete({
-      systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
-      messages,
-      tools: [...TOOLS, ...mcpTools]
-    });
+    let text = "";
+    let toolCalls: ToolCall[] = [];
+    let usage: TokenUsage | undefined;
+    if (config.model.streaming && provider.stream) {
+      for await (const chunk of provider.stream({
+        systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
+        messages,
+        tools: [...TOOLS, ...mcpTools]
+      })) {
+        if (chunk.type === "text_delta") {
+          text += chunk.text;
+          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+            await new Promise(resolve => process.stdout.once("drain", resolve));
+          }
+          onStream?.({ type: "text", text: chunk.text });
+        }
+        if (chunk.type === "tool_call") {
+          toolCalls.push(chunk.toolCall);
+          onStream?.({ type: "tool_call", toolCall: chunk.toolCall });
+        }
+        if (chunk.type === "error") throw new Error(chunk.error);
+        if (chunk.type === "usage") usage = chunk.usage;
+      }
+    } else {
+      const resp = await provider.complete({
+        systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
+        messages,
+        tools: [...TOOLS, ...mcpTools]
+      });
+      text = resp.text ?? "";
+      toolCalls = resp.toolCalls ?? [];
+      usage = resp.usage;
+    }
+    if (toolCalls.length) console.error("[DEBUG] toolCalls from streaming:", JSON.stringify(toolCalls));
 
-    await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text: response.text } });
+    await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
 
-    if (response.toolCalls.length === 0) {
+    if (toolCalls.length === 0) {
       // Run verification before final response
       const checks = await discoverVerification(cwd);
       for (const check of checks) {
@@ -197,13 +230,13 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
         await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
       }
 
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: response.text } });
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
       await mcpManager.closeAll().catch(() => {});
-      return { sessionId, summary: response.text };
+      return { sessionId, summary: text, streamed: config.model.streaming };
     }
 
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
-    for (const toolCall of response.toolCalls) {
+    for (const toolCall of toolCalls) {
       const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
@@ -216,8 +249,8 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
     }
 
     // After each round, inject state summary so the model knows what succeeded
-    const created = response.toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.create").map(tc => tc.args.path as string);
-    const deleted = response.toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.delete").map(tc => tc.args.path as string);
+    const created = toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.create").map(tc => tc.args.path as string);
+    const deleted = toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.delete").map(tc => tc.args.path as string);
     if (created.length || deleted.length) {
       const parts: string[] = [];
       if (created.length) parts.push(`Created: ${created.join(", ")}`);
@@ -229,5 +262,5 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
   // Max iterations reached
   await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
   await mcpManager.closeAll().catch(() => {});
-  return { sessionId, summary: "Agent reached maximum iterations" };
+  return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
 }

@@ -328,7 +328,9 @@ if (command === "run") {
   }
   try {
     const result = await runTask(process.cwd(), task);
-    console.log(result.summary);
+    if (!result.streamed) {
+      console.log(result.summary);
+    }
     console.log(`Session: ${result.sessionId}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

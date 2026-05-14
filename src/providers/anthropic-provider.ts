@@ -215,6 +215,8 @@ export class AnthropicProvider implements ModelAdapter {
     const decoder = new TextDecoder();
     let buffer = "";
 
+    let pendingTool: { id: string; name: string; args: string } | null = null;
+
     while (true) {
       const { done, value } = await reader.read();
       if (done) { yield { type: "done" }; return; }
@@ -229,10 +231,27 @@ export class AnthropicProvider implements ModelAdapter {
         if (data === "[DONE]") { yield { type: "done" }; return; }
         try {
           const event = JSON.parse(data);
-          if (event.type === "content_block_delta" && event.delta?.type === "text_delta") {
-            yield { type: "text_delta", text: event.delta.text };
-          }
-          if (event.type === "message_delta" && event.usage) {
+          if (event.type === "content_block_start") {
+            const block = event.content_block;
+            if (block?.type === "tool_use") {
+              pendingTool = { id: block.id, name: block.name, args: "" };
+            }
+          } else if (event.type === "content_block_delta") {
+            if (event.delta?.type === "text_delta") {
+              yield { type: "text_delta", text: event.delta.text };
+            } else if (event.delta?.type === "input_json_delta" && pendingTool) {
+              pendingTool.args += event.delta.partial_json ?? "";
+            }
+          } else if (event.type === "content_block_stop") {
+            if (pendingTool) {
+              const args = pendingTool.args ? JSON.parse(pendingTool.args) : {};
+              yield {
+                type: "tool_call" as const,
+                toolCall: { id: pendingTool.id, name: pendingTool.name, args }
+              };
+              pendingTool = null;
+            }
+          } else if (event.type === "message_delta" && event.usage) {
             yield { type: "usage", usage: { inputTokens: event.usage.input_tokens, outputTokens: event.usage.output_tokens } };
           }
         } catch { /* skip */ }

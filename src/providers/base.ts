@@ -109,9 +109,15 @@ export abstract class BaseProvider implements ModelAdapter {
               const idx = tc.index ?? 0;
               if (tc.id && !partialTools[idx]) partialTools[idx] = { id: tc.id, name: "", args: "" };
               if (tc.function?.name) partialTools[idx].name = tc.function.name;
-              if (tc.function?.arguments) partialTools[idx].args += tc.function.arguments;
+              // arguments can be a string (raw JSON) or already-parsed object
+              const rawArgs = tc.function?.arguments;
+              if (rawArgs !== undefined) {
+                const argsStr = typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs);
+                partialTools[idx].args += argsStr;
+              }
               // Yield when arguments JSON is complete (ends with })
-              if (tc.function?.arguments && tc.function.arguments.trim().endsWith("}")) {
+              const current = partialTools[idx].args.trim();
+              if (current.endsWith("}")) {
                 const t = partialTools[idx];
                 if (t.name) {
                   try {
