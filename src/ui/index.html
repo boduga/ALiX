@@ -18,6 +18,13 @@
         <label for="session-id">Session ID</label>
         <input type="text" id="session-id" placeholder="Paste session ID..." />
         <button id="connect-btn">Connect</button>
+        <label for="event-filter">Filter</label>
+        <select id="event-filter">
+          <option value="all">All events</option>
+          <option value="tool">Tools only</option>
+          <option value="agent">Agent messages</option>
+          <option value="error">Errors only</option>
+        </select>
       </section>
 
       <section class="panel" aria-label="Session timeline">
