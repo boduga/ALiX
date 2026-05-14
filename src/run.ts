@@ -184,6 +184,7 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
 
   const { discoverHooks } = await import("./hooks/discover.js");
   const { runHook } = await import("./hooks/runner.js");
+  const { estimateTokens, truncateToTokenBudget } = await import("./utils/tokens.js");
   const hooks = await discoverHooks(cwd);
 
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
@@ -193,9 +194,23 @@ export async function runTask(cwd: string, task: string, onStream?: StreamHandle
     TOOL_NAME_MAP[mcpToolName(tool.serverName, tool.toolName)] = mcpToolExecName(tool.serverName, tool.toolName);
   }
 
-  const messages: NormalizedMessage[] = [{ role: "user", content: task }];
+  let messages: NormalizedMessage[] = [{ role: "user", content: task }];
+
+  const MAX_CONTEXT_TOKENS = 80_000; // leave room for system prompt + response
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
+    // Truncate messages if token budget exceeded before streaming/completion
+    const msgTokens = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+    if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
+      const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2);
+      if (dropped.length > 0) {
+        messages = [
+          ...(kept as NormalizedMessage[])
+        ];
+        await log.append({ ...session, actor: "system", type: "context.truncated", payload: { droppedCount: dropped.length } });
+      }
+    }
+
     // Run pre_task hooks at the start of each iteration
     for (const hook of hooks.pre_task ?? []) {
       await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, reason: hook.reason } });
