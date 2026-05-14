@@ -408,8 +408,21 @@ if (command === "mcp") {
           console.error("Usage: alix mcp discover <npm-package-name>");
           process.exit(1);
         }
-        console.log(`Attempting to discover '${packageName}'...`);
-        console.log("To discover, add to config: mcpServerPaths: ['" + packageName + "']");
+        try {
+          const info = await mcpManager.discoverServer(packageName);
+          console.log(`Server: ${info.name} v${info.version}`);
+          console.log(`Tools: ${info.toolCount}`);
+          for (const t of info.toolNames) {
+            console.log(`  - ${t}`);
+          }
+          console.log(`\nTo add permanently, add to .alix/config.json:`);
+          console.log(JSON.stringify({
+            mcpServers: [{ name: info.name, type: "stdio", command: "uvx", args: [packageName] }]
+          }, null, 2));
+        } catch (err) {
+          console.error(`Discovery failed: ${err instanceof Error ? err.message : String(err)}`);
+          process.exit(1);
+        }
         break;
       }
       case "test": {
@@ -418,13 +431,20 @@ if (command === "mcp") {
           console.error("Usage: alix mcp test <name>");
           process.exit(1);
         }
-        const client = mcpManager.listServers().includes(name) ? name : null;
-        if (!client) {
+        if (!mcpManager.listServers().includes(name)) {
           console.error(`Server '${name}' not found. Run 'alix mcp list' to see connected servers.`);
           process.exit(1);
         }
+        const client = mcpManager.getClient(name);
         const tools = mcpManager.listTools().filter((t) => t.serverName === name);
-        console.log(`Server '${name}' — ${tools.length} tools available`);
+        console.log(`Server: ${name}`);
+        if (client?.serverInfo) {
+          console.log(`Version: ${client.serverInfo.version}`);
+        }
+        console.log(`Tools: ${tools.length}`);
+        for (const tool of tools) {
+          console.log(`  - ${tool.fullName}${tool.description ? ` — ${tool.description}` : ""}`);
+        }
         break;
       }
       default: {

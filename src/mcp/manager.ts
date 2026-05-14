@@ -91,9 +91,47 @@ export class McpManager {
     return [...this.capabilityRules.values()].flat();
   }
 
+  getClient(serverName: string): McpClient | undefined {
+    return this.registry.getClient(serverName);
+  }
+
   async closeServer(name: string): Promise<void> {
     await this.registry.closeServer(name);
     this.capabilityRules.delete(name);
+  }
+
+    async discoverServer(packageName: string): Promise<{ name: string; version: string; toolCount: number; toolNames: string[] }> {
+    const config: McpServerConfig & { type: "stdio" } = {
+      type: "stdio",
+      name: packageName,
+      command: "uvx",
+      args: [packageName]
+    };
+    try {
+      await this.connectServer(config);
+    } catch {
+      // Fall back to npx
+      const npxConfig: McpServerConfig & { type: "stdio" } = {
+        type: "stdio",
+        name: packageName,
+        command: "npx",
+        args: ["--yes", packageName]
+      };
+      try {
+        await this.connectServer(npxConfig);
+      } catch {
+        throw new Error(`Could not connect to '${packageName}'. Is it a valid MCP server package?`);
+      }
+    }
+    const client = this.registry.getClient(packageName);
+    if (!client?.serverInfo) throw new Error(`Connected but no server info for '${packageName}'`);
+    const tools = await client.listTools();
+    return {
+      name: client.serverInfo.name,
+      version: client.serverInfo.version,
+      toolCount: tools.length,
+      toolNames: tools.map((t) => t.name)
+    };
   }
 
   async closeAll(): Promise<void> {
