@@ -742,18 +742,18 @@ test("reports error for invalid maxRepoMapTokens", async () => {
 
 ## Self-Review Checklist
 
-- [ ] **Spec coverage:** All 5 areas addressed. Task 1 (create/delete), Task 2 (provider tool parsing), Task 3 (streaming), Task 4 (structured output), Task 5 (config validation).
-- [ ] **Placeholder scan:** Clean — no "TBD", "TODO", or "implement later". Every step has exact code.
-- [ ] **Type consistency:**
+- [x] **Spec coverage:** All 5 areas addressed. Task 1 (create/delete), Task 2 (provider tool parsing), Task 3 (streaming), Task 4 (structured output), Task 5 (config validation).
+- [x] **Placeholder scan:** Clean — no "TBD", "TODO", or "implement later". Every step has exact code.
+- [x] **Type consistency:**
   - `ToolName` includes all 6 tool names (file.read, file.create, file.delete, dir.search, shell.run, patch.apply)
   - `ToolResult` includes `createdPath`, `deletedPath` fields
   - `NormalizedRequest` has `stream?: boolean` and `structuredOutputSchema?: {...}`
   - `ConfigValidationResult` / `ValidationIssue` types in schema.ts
   - `parseChoiceToolCalls()` and `safeToolId()` defined once in base.ts, used by all 9 OpenAI-compatible providers
   - Ollama now enables `supportsTools: true` and sends `body.tools`
-- [ ] **Task dependencies:** Task 1 must complete before Task 2 (executor needs new tool names). Task 3, 4, 5 are independent.
-- [ ] **Test files referenced:** All test files already exist. No new test files created.
-- [ ] **SSE formats verified:** Anthropic uses `event: content_block_delta\ndata: {...}` format. OpenAI-compatible uses `data: {...}` format. Gemini uses `data: {...}` with different field paths.
+- [x] **Task dependencies:** Task 1 must complete before Task 2 (executor needs new tool names). Task 3, 4, 5 are independent.
+- [x] **Test files referenced:** All test files already exist. No new test files created.
+- [x] **SSE formats verified:** Anthropic uses `event: content_block_delta\ndata: {...}` format. OpenAI-compatible uses `data: {...}` format. Gemini uses `data: {...}` with different field paths.
 
 ---
 
