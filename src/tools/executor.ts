@@ -123,8 +123,8 @@ export class ToolExecutor {
           } else {
             const parts = name.split(".");
             const serverName = parts[1];
-            // e.g., mcp.github.repos_list → github/repos.list
-            const toolName = parts.slice(2).join("_").replace(/_/g, ".");
+            // Tool names from the registry use underscores, not dots
+            const toolName = parts.slice(2).join("_");
             const fullName = `${serverName}/${toolName}`;
             result = await this.mcpManager.callTool(fullName, args);
           }
