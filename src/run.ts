@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { loadConfig } from "./config/loader.js";
+import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { createProvider } from "./providers/registry.js";
@@ -196,7 +197,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   const { discoverHooks } = await import("./hooks/discover.js");
   const { runHook } = await import("./hooks/runner.js");
-  const { estimateTokens, truncateToTokenBudget } = await import("./utils/tokens.js");
+  const { ensureEncoder, estimateTokens, estimateMessageTokens, truncateToTokenBudget } = await import("./utils/tokens.js");
   const hooks = await discoverHooks(cwd);
 
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
@@ -208,18 +209,40 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   let messages: NormalizedMessage[] = [{ role: "user", content: task }];
 
-  const MAX_CONTEXT_TOKENS = 80_000; // leave room for system prompt + response
+  // Resolve context limit and encoding from config or API
+  const userOverride = config.model.maxContextTokens;
+  let maxTokens: number;
+  let encoding: "cl100k_base" | "o200k_base" | "char4";
+
+  if (userOverride !== undefined) {
+    maxTokens = userOverride;
+    encoding = getEncoding(config.model.provider);
+  } else {
+    const { resolveContextLimit, getEncoding: getEnc } = await import("./config/context-limits.js");
+    const resolved = await resolveContextLimit(config.model.provider, config.model.name, config.apiKeys);
+    maxTokens = resolved.maxTokens;
+    encoding = resolved.encoding;
+  }
+
+  await ensureEncoder(encoding);
+  const MAX_CONTEXT_TOKENS = maxTokens;
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     // Truncate messages if token budget exceeded before streaming/completion
-    const msgTokens = messages.reduce((sum, m) => sum + estimateTokens(m.content), 0);
+    const msgTokens = messages.reduce(
+      (sum, m) => sum + estimateMessageTokens(m, encoding),
+      0
+    );
     if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
-      const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2);
+      const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, encoding);
       if (dropped.length > 0) {
-        messages = [
-          ...(kept as NormalizedMessage[])
-        ];
-        await log.append({ ...session, actor: "system", type: "context.truncated", payload: { droppedCount: dropped.length } });
+        messages = [...(kept as NormalizedMessage[])];
+        await log.append({ ...session, actor: "system", type: "context.truncated", payload: {
+          droppedCount: dropped.length,
+          provider: config.model.provider,
+          maxTokens: MAX_CONTEXT_TOKENS,
+          encoding
+        }});
       }
     }
 
