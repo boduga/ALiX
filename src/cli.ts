@@ -331,13 +331,15 @@ if (command === "config" && args[0] === "show") {
 }
 
 if (command === "run") {
-  const task = args.join(" ").trim();
-  if (!task) {
-    console.error("Usage: alix run \"<task>\"");
+  const taskArgs = args.join(" ").trim();
+  const noStream = taskArgs.includes("--no-stream");
+  const cleanTask = taskArgs.replace(/\s*--no-stream\s*/g, " ").trim();
+  if (!cleanTask) {
+    console.error("Usage: alix run \"<task>\" [--no-stream]");
     process.exit(1);
   }
   try {
-    const result = await runTask(process.cwd(), task);
+    const result = await runTask(process.cwd(), cleanTask, { streaming: noStream ? false : undefined });
     if (!result.streamed) {
       console.log(result.summary);
     }

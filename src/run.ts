@@ -153,12 +153,24 @@ export type RunResult = {
   streamed?: boolean;
 };
 
-export async function runTask(cwd: string, task: string, onStream?: StreamHandler): Promise<RunResult> {
+export type RunOpts = { streaming?: boolean };
+
+export function shouldAutoDisableStreaming(): boolean {
+  if (!process.stdout.isTTY) return true;
+  if (process.env.CI) return true;
+  return false;
+}
+
+export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
   const sessionId = randomUUID();
   const sessionDir = join(cwd, ".alix", "sessions", sessionId);
   await mkdir(sessionDir, { recursive: true });
 
   const config = await loadConfig(cwd);
+  // Auto-disable streaming in non-TTY environments unless explicitly forced
+  if (shouldAutoDisableStreaming() && config.model.streaming && opts?.streaming !== true) {
+    config.model.streaming = false;
+  }
   const log = new EventLog(sessionDir);
   await log.init();
   const session = { sessionId, actor: "system" as const };
