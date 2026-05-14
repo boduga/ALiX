@@ -37,6 +37,25 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_patch_apply: "patch.apply"
 };
 
+function mcpToolName(serverName: string, toolName: string): string {
+  // e.g., "fetch", "fetch" → "mcp_fetch_fetch"
+  // toolName may contain dots: "repos.list" → "mcp_github_repos_list"
+  return "mcp_" + serverName + "_" + toolName.replace(/\./g, "_");
+}
+
+function mcpToolExecName(serverName: string, toolName: string): string {
+  // e.g., "fetch", "fetch" → "mcp.fetch.fetch"
+  return "mcp." + serverName + "." + toolName;
+}
+
+function buildMcpTools(registered: { serverName: string; toolName: string; description?: string; inputSchema: Record<string, unknown> }[]): ToolDef[] {
+  return registered.map(tool => ({
+    name: mcpToolName(tool.serverName, tool.toolName),
+    description: tool.description ?? "",
+    input_schema: tool.inputSchema as ToolDef["input_schema"]
+  }));
+}
+
 // Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
 const TOOLS: ToolDef[] = [
   {
@@ -153,13 +172,18 @@ export async function runTask(cwd: string, task: string): Promise<RunResult> {
 
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
 
+  const mcpTools = buildMcpTools(mcpManager.listTools());
+  for (const tool of mcpManager.listTools()) {
+    TOOL_NAME_MAP[mcpToolName(tool.serverName, tool.toolName)] = mcpToolExecName(tool.serverName, tool.toolName);
+  }
+
   const messages: NormalizedMessage[] = [{ role: "user", content: task }];
 
   for (let i = 0; i < MAX_ITERATIONS; i++) {
     const response = await provider.complete({
-      systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking any further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
+      systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
       messages,
-      tools: TOOLS
+      tools: [...TOOLS, ...mcpTools]
     });
 
     await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text: response.text } });

@@ -45,6 +45,12 @@ export const DEFAULT_CONFIG: AlixConfig = {
       name: "fetch",
       command: "uvx",
       args: ["mcp-server-fetch"]
+    },
+    {
+      type: "stdio",
+      name: "git",
+      command: "uvx",
+      args: ["mcp-server-git"]
     }
   ],
   mcpServerPaths: []
