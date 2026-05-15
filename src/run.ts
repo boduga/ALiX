@@ -218,6 +218,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const { ensureEncoder, estimateTokens, estimateMessageTokens, truncateToTokenBudget } = await import("./utils/tokens.js");
   const hooks = await discoverHooks(cwd);
 
+  // Load skills from ~/.alix/skills/
+  const skillsHome = join(process.env.HOME ?? "/home/babasola", ".alix", "skills");
+  const { loadSkills } = await import("./skills/loader.js");
+  const { buildSkillCatalog } = await import("./skills/catalog.js");
+  const loadedSkills = await loadSkills(skillsHome);
+  const skillCatalog = buildSkillCatalog(loadedSkills);
+
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
 
   const mcpDeferral = mcpManager.getDeferral();
@@ -256,6 +263,18 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const maxIterations = config.model.maxIterations ?? 10;
   let repairCount = 0;
   const maxRepairs = 3;
+
+  // Inject available skills into system prompt
+  function buildSystemPrompt(base: string): string {
+    if (loadedSkills.length === 0) return base;
+    const skillSection = loadedSkills
+      .map(s => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
+      .join("\n\n");
+    return `${base}\n\n## Available Skills\n${skillSection}`;
+  }
+
+  const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.";
+  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE);
 
   for (let i = 0; i < maxIterations; i++) {
     // Truncate messages if token budget exceeded before streaming/completion
@@ -302,7 +321,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     let usage: TokenUsage | undefined;
     if (config.model.streaming && provider.stream) {
       for await (const chunk of provider.stream({
-        systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
+        systemPrompt: SYSTEM_PROMPT,
         messages,
         tools: [...TOOLS, ...mcpToolIndex]
       })) {
@@ -322,7 +341,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       }
     } else {
       const resp = await provider.complete({
-        systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
+        systemPrompt: SYSTEM_PROMPT,
         messages,
         tools: [...TOOLS, ...mcpToolIndex]
       });
