@@ -11,7 +11,7 @@ describe("skill catalog integration in run.ts", () => {
 
   afterEach(() => {
     rmSync(join(skillsDir, "test-skill"), { recursive: true, force: true });
-    rmSync(join(skillsDir, "tdd"), { recursive: true, force: true });
+    rmSync(join(skillsDir, "tdd-skill-cat-test"), { recursive: true, force: true });
   });
 
   it("loads skills from ~/.alix/skills/ at startup", async () => {
@@ -31,9 +31,9 @@ is_core: false
 
   it("buildSkillCatalog routes by trigger", async () => {
     mkdirSync(skillsDir, { recursive: true });
-    mkdirSync(join(skillsDir, "tdd"), { recursive: true });
-    writeFileSync(join(skillsDir, "tdd", "SKILL.md"), `---
-name: tdd
+    mkdirSync(join(skillsDir, "tdd-skill-cat-test"), { recursive: true });
+    writeFileSync(join(skillsDir, "tdd-skill-cat-test", "SKILL.md"), `---
+name: tdd-skill-cat-test
 description: TDD loop
 trigger: /tdd
 version: "1.0.0"
@@ -43,7 +43,7 @@ is_core: false
     const skills = await loadSkills(skillsDir);
     const catalog = buildSkillCatalog(skills);
     const matched = catalog.match("/tdd add login feature");
-    assert.ok(matched.some(s => s.manifest.name === "tdd"));
+    assert.ok(matched.some(s => s.manifest.name === "tdd-skill-cat-test"));
   });
 
   it("skill body is injected into system prompt when matched", () => {
