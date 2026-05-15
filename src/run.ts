@@ -11,6 +11,7 @@ import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, Toke
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
+import { buildSessionDigest } from "./utils/session-digest.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
@@ -79,7 +80,7 @@ function buildStateSummary(state: SessionState): string {
   if (state.changed.size) parts.push(`Changed: ${[...state.changed].join(", ")}`);
   if (state.deleted.size) parts.push(`Deleted: ${[...state.deleted].join(", ")}`);
   if (state.fatalErrors.length) parts.push(`FATAL: ${state.fatalErrors.join("; ")}`);
-  return parts.length ? `[State] ${parts.join(". ")}.` : "";
+  return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
 }
 
 // Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
@@ -260,9 +261,19 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, encoding);
       if (dropped.length > 0) {
         // Remove all [State] messages before truncation, then re-inject one rolling summary
-        messages = messages.filter(m => !String(m.content).startsWith("[State]"));
-        const summary = buildStateSummary(sessionState);
-        if (summary) messages.push({ role: "user", content: summary });
+        messages = messages.filter(m => !String(m.content).startsWith("[Session Digest]"));
+
+        // Build digest from session log — authoritative source of truth
+        const logDir = log.path.replace(/\/events\.jsonl$/, "");
+        const digest = await buildSessionDigest(logDir);
+        if (digest) {
+          messages.push({ role: "user", content: digest });
+        } else {
+          // Fallback to rolling sessionState summary when log isn't available
+          const summary = buildStateSummary(sessionState);
+          if (summary) messages.push({ role: "user", content: summary });
+        }
+
         messages = [...(kept as NormalizedMessage[])];
         await log.append({ ...session, actor: "system", type: "context.truncated", payload: {
           droppedCount: dropped.length,
