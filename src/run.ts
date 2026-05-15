@@ -221,9 +221,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Load skills from ~/.alix/skills/
   const skillsHome = join(process.env.HOME ?? "/home/babasola", ".alix", "skills");
   const { loadSkills } = await import("./skills/loader.js");
-  const { buildSkillCatalog } = await import("./skills/catalog.js");
   const loadedSkills = await loadSkills(skillsHome);
-  const skillCatalog = buildSkillCatalog(loadedSkills);
 
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
 
