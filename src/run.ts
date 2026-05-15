@@ -369,6 +369,16 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (modelSaysDone) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
           await mcpManager.closeAll().catch(() => {});
+          // Fire-and-forget: dispatch skill factory
+          const { skillFactory } = await import("./skills/dispatcher.js");
+          await skillFactory.process({
+            sessionId,
+            sessionDir,
+            summary: text,
+            filesCreated: [...sessionState.created],
+            filesChanged: [...sessionState.changed],
+            config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+          });
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
         // Model didn't signal done, continue
@@ -401,6 +411,16 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (repairCount > maxRepairs) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
           await mcpManager.closeAll().catch(() => {});
+          // Fire-and-forget: dispatch skill factory
+          const { skillFactory } = await import("./skills/dispatcher.js");
+          await skillFactory.process({
+            sessionId,
+            sessionDir,
+            summary: `Repair limit reached: ${failureText}`,
+            filesCreated: [...sessionState.created],
+            filesChanged: [...sessionState.changed],
+            config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+          });
           return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
         }
 
@@ -468,6 +488,16 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (repairCount > maxRepairs) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
           await mcpManager.closeAll().catch(() => {});
+          // Fire-and-forget: dispatch skill factory
+          const { skillFactory } = await import("./skills/dispatcher.js");
+          await skillFactory.process({
+            sessionId,
+            sessionDir,
+            summary: "Repair limit reached",
+            filesCreated: [...sessionState.created],
+            filesChanged: [...sessionState.changed],
+            config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+          });
           return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
         }
         const failureText = failedChecks
@@ -482,5 +512,15 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Max iterations reached
   await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
   await mcpManager.closeAll().catch(() => {});
+  // Fire-and-forget: dispatch skill factory
+  const { skillFactory } = await import("./skills/dispatcher.js");
+  await skillFactory.process({
+    sessionId,
+    sessionDir,
+    summary: "Agent reached maximum iterations",
+    filesCreated: [...sessionState.created],
+    filesChanged: [...sessionState.changed],
+    config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+  });
   return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
 }
