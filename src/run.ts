@@ -58,7 +58,8 @@ function resolveMcpTool(mcpName: string, deferral: { search: (name: string, limi
   // Already in the map — fast path
   if (TOOL_NAME_MAP[mcpName]) return TOOL_NAME_MAP[mcpName];
 
-  // Try fuzzy search
+  // Try fuzzy search — score >= 40 means edit distance ≤ ~30% of max length.
+  // Below 40, the match is too uncertain (e.g., "guthu" vs "github" scores ~36).
   const matches = deferral.search(mcpName, 1);
   if (matches.length > 0 && matches[0].score >= 40) {
     const execName = matches[0].item.execName;
@@ -356,15 +357,15 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of toolCalls) {
+      // Resolve once: check TOOL_NAME_MAP first (fast path), then fuzzy search fallback
       const execName = resolveMcpTool(toolCall.name, mcpDeferral) ?? TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
       if (execResult.kind === "error") {
         const errorResult = execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string };
-        const toolLabel = execName.startsWith("mcp.") ? execName : execName;
-        failedTools.push(toolLabel);
+        failedTools.push(execName);
         if (errorResult.retryable === false) {
-          fatalToolErrors.push(toolLabel);
+          fatalToolErrors.push(execName);
         }
       }
 
@@ -376,12 +377,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
     }
 
-    // Track all file mutations in sessionState for rolling summary
-      for (const tc of toolCalls) {
-        const execName = resolveMcpTool(tc.name, mcpDeferral) ?? TOOL_NAME_MAP[tc.name] ?? tc.name;
-        if (execName === "file.create") sessionState.created.add(tc.args.path as string);
-        if (execName === "file.delete") sessionState.deleted.add(tc.args.path as string);
-        if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(tc.args.path as string);
+    // Track all file mutations in sessionState — reuse execName resolved above
+      for (const toolCall of toolCalls) {
+        const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+        if (execName === "file.create") sessionState.created.add(toolCall.args.path as string);
+        if (execName === "file.delete") sessionState.deleted.add(toolCall.args.path as string);
+        if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(toolCall.args.path as string);
       }
       sessionState.fatalErrors.push(...fatalToolErrors);
       // Also track non-fatal failed tool calls in the state
