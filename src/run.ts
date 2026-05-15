@@ -40,31 +40,12 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_patch_apply: "patch.apply"
 };
 
-function mcpToolName(serverName: string, toolName: string): string {
-  // e.g., "fetch", "fetch" → "mcp_fetch_fetch"
-  // toolName may contain dots: "repos.list" → "mcp_github_repos_list"
-  return "mcp_" + serverName + "_" + toolName.replace(/\./g, "_");
-}
-
-function mcpToolExecName(serverName: string, toolName: string): string {
-  // e.g., "fetch", "fetch" → "mcp.fetch.fetch"
-  return "mcp." + serverName + "." + toolName;
-}
-
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
   const parts: string[] = [`Error: ${err.message}`];
   if (err.hint) parts.push(`Hint: ${err.hint}`);
   if (err.retryable === false) parts.push("This error is fatal — do not retry this tool.");
   else if (err.retryable === true) parts.push("This error may be transient — retrying may help.");
   return parts.join(" ");
-}
-
-function buildMcpTools(registered: { serverName: string; toolName: string; description?: string; inputSchema: Record<string, unknown> }[]): ToolDef[] {
-  return registered.map(tool => ({
-    name: mcpToolName(tool.serverName, tool.toolName),
-    description: tool.description ?? "",
-    input_schema: tool.inputSchema as ToolDef["input_schema"]
-  }));
 }
 
 type SessionState = {
@@ -219,10 +200,16 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
 
-  const mcpTools = buildMcpTools(mcpManager.listTools());
-  for (const tool of mcpManager.listTools()) {
-    TOOL_NAME_MAP[mcpToolName(tool.serverName, tool.toolName)] = mcpToolExecName(tool.serverName, tool.toolName);
+  const mcpDeferral = mcpManager.getDeferral();
+  const mcpToolIndex = mcpDeferral.buildIndex();
+  for (const entry of mcpToolIndex) {
+    TOOL_NAME_MAP[entry.name] = entry.execName;
   }
+  const mcpTools: ToolDef[] = mcpToolIndex.map(e => ({
+    name: e.name,
+    description: e.description,
+    input_schema: { type: "object", properties: {} }
+  }));
 
   const sessionState = {
     created: new Set<string>(),
