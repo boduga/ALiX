@@ -49,6 +49,9 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
   }
 
   // Write to candidates directory
+  // Note: The factory writes candidates to ~/.alix/candidates/, not to the workspace.
+  // If skill verification against the workspace is needed in the future, use
+  // runWithIsolation() from './test-isolation.js' to protect working tree changes.
   const sessionCandidateDir = join(candidatesDir, params.sessionId);
   await mkdir(sessionCandidateDir, { recursive: true });
   await writeFile(join(sessionCandidateDir, "SKILL.md"), skillContent, "utf8");
