@@ -53,6 +53,13 @@ export class ToolExecutor {
       return { kind: "denied", reason: policyDecision.reason };
     }
 
+    // MCP availability check — policy said "ask" or "allow", but is the tool connected?
+    if (name.startsWith("mcp.") && !this.mcpManager) {
+      const msg = "MCP manager not initialized. No MCP servers are connected.";
+      await this.logEvent("tool.failed", { toolCallId, toolName: name, error: msg, status: "unavailable" });
+      return { kind: "denied", reason: msg };
+    }
+
     await this.logEvent("tool.started", { toolCallId, toolName: name });
 
     let result: ToolResult;
