@@ -6,10 +6,13 @@ import { ProcessManager } from "./process-manager.js";
 import { McpClient } from "./client.js";
 import { mapServerCapabilities, type MappedPolicyRule } from "./capability-mapper.js";
 
+import { McpToolDeferral } from "./tool-deferral.js";
+
 export class McpManager {
   private registry: McpToolRegistry;
   private processManager: ProcessManager;
   private capabilityRules = new Map<string, MappedPolicyRule[]>();
+  private _deferral: McpToolDeferral | null = null;
 
   constructor(private config: AlixConfig) {
     this.registry = new McpToolRegistry();
@@ -49,6 +52,10 @@ export class McpManager {
 
     const client = this.registry.getClient(config.name);
     if (!client) return;
+
+    if (this._deferral) {
+      this._deferral.clearServerCache(config.name);
+    }
 
     const tools = await client.listTools();
     if (client.capabilities) {
@@ -101,9 +108,15 @@ export class McpManager {
     return this.registry.getClient(serverName);
   }
 
+  getDeferral(): McpToolDeferral {
+    if (!this._deferral) this._deferral = new McpToolDeferral(this.registry);
+    return this._deferral;
+  }
+
   async closeServer(name: string): Promise<void> {
     await this.registry.closeServer(name);
     this.capabilityRules.delete(name);
+    if (this._deferral) this._deferral.clearServerCache(name);
   }
 
     async discoverServer(packageName: string): Promise<{ name: string; version: string; toolCount: number; toolNames: string[] }> {
