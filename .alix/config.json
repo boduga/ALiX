@@ -1,6 +1,16 @@
 {
   "model": {
-    "provider": "ollama",
-    "name": "llama3.2:3b"
+    "provider": "openai",
+    "name": "gpt-4o-mini"
+  },
+  "skills": {
+    "factory": {
+      "enabled": true,
+      "provider": "ollama",
+      "model": "qwen2.5-coder:7b",
+      "maxStore": 50,
+      "maxCandidates": 20,
+      "autoPromote": true
+    }
   }
 }

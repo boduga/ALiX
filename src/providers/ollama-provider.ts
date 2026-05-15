@@ -34,21 +34,35 @@ export class OllamaProvider extends BaseProvider {
   }
 
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-    // Buffer the SSE stream internally, then post-process for JSON-in-text
-    // fallback. This avoids the qwen non-streaming deadlock while keeping
-    // the complete() API signature simple for callers.
-    const chunks: StreamChunk[] = [];
-    for await (const chunk of this.stream(request)) {
-      chunks.push(chunk);
+    // Try non-streaming v1 request first — more reliable than buffering SSE.
+    const body: Record<string, unknown> = {
+      model: this._model,
+      messages: request.messages.map((m) => ({ role: m.role, content: typeof m.content === "string" ? m.content : m.content })),
+      stream: false,
+    };
+    if (request.systemPrompt) body.messages = [{ role: "system", content: request.systemPrompt }, ...(body.messages as object[])];
+
+    let res = await this.post(body);
+    if (!res.ok) {
+      const errText = await res.clone().text();
+      if (errText.includes("does not support") || errText.includes("not supported")) {
+        delete body.stream;
+        body.stream = false;
+        res = await this.post(body);
+      }
     }
 
-    let text = "";
-    const toolCalls: import("./types.js").ToolCall[] = [];
-    for (const chunk of chunks) {
-      if (chunk.type === "text_delta") text += chunk.text;
-      if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+    if (!res.ok) {
+      const errText = await res.clone().text();
+      throw new Error(`Ollama API error ${res.status}: ${errText}`);
     }
-    return { text: text.trim(), toolCalls };
+
+    const data = await res.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+      message?: { content?: string };
+    };
+    const text = data.choices?.[0]?.message?.content ?? data.message?.content ?? "";
+    return { text: text.trim(), toolCalls: [] };
   }
 
   async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
