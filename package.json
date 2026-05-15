@@ -2,6 +2,11 @@
   "name": "alix",
   "version": "0.1.0",
   "description": "Agentic Lifecycle & Intelligence eXchange",
+  "author": "Babasola Oduga",
+  "license": "MIT",
+  "repository": "github:boduga/ALiX",
+  "homepage": "https://github.com/boduga/ALiX",
+  "keywords": ["ai", "agent", "coding", "cli", "llm", "claude", "openai"],
   "type": "module",
   "bin": {
     "alix": "./dist/cli.js"
