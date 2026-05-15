@@ -437,22 +437,26 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     // After tool calls, run verification every iteration
     const endChecks = await discoverVerification(cwd);
     if (endChecks.length > 0 && taskType !== "docs") {
-      let anyCheckFailed = false;
-      for (const check of endChecks) {
-        await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
-        const verResult = await runVerification(cwd, check);
-        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
-        if (verResult.status === "failed") anyCheckFailed = true;
+      const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
+      for (const endCheck of endChecks) {
+        await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
+        const verResult = await runVerification(cwd, endCheck);
+        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
+        endResults.push({ check: endCheck, result: verResult });
       }
 
-      if (anyCheckFailed) {
+      const failedChecks = endResults.filter((r) => r.result.status === "failed");
+      if (failedChecks.length > 0) {
         repairCount++;
         if (repairCount > maxRepairs) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
           await mcpManager.closeAll().catch(() => {});
           return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
         }
-        const repairPrompt = `\n\n[Verification Failed] One or more verification checks failed after your tool calls.\n\nFix the issues and try again.`;
+        const failureText = failedChecks
+          .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
+          .join("\n\n");
+        const repairPrompt = `\n\n[Verification Failed] ${failureText}\n\nFix the issues and try again.`;
         messages.push({ role: "user", content: repairPrompt });
       }
     }
