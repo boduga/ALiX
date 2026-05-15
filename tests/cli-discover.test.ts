@@ -1,13 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpManager } from "../src/mcp/manager.js";
 import { loadConfig } from "../src/config/loader.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-test("discoverServer returns correct info for mcp-server-fetch", async () => {
+test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_000 }, async () => {
   const config = await loadConfig(__dirname);
   const mcpManager = new McpManager(config);
   await mcpManager.initialize();
@@ -36,7 +35,7 @@ test("discoverServer returns correct info for mcp-server-fetch", async () => {
   }
 });
 
-test("discoverServer throws for unknown package", async () => {
+test("discoverServer throws for unknown package", { timeout: 60_000 }, async () => {
   const config = await loadConfig(__dirname);
   const mcpManager = new McpManager(config);
   await mcpManager.initialize();

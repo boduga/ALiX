@@ -155,5 +155,10 @@ export class McpManager {
 
   async closeAll(): Promise<void> {
     await this.processManager.closeAll();
+    // Close any discoverServer-ad-hoc clients that are tracked in the registry
+    // but not managed by processManager (e.g. discoverServer's temp processes).
+    for (const name of this.registry.listMcpServers()) {
+      await this.registry.closeServer(name);
+    }
   }
 }

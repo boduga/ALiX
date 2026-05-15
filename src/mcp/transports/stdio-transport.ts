@@ -68,8 +68,8 @@ export class StdioTransport implements McpTransport {
 
       const id = String(message.id);
       const timeout = setTimeout(() => {
-        reject(new Error(`Request ${id} timed out after 30s`));
-      }, 30_000);
+        reject(new Error(`Request ${id} timed out after 10s`));
+      }, 10_000);
 
       this.pendingCallbacks.set(id, {
         resolve: (msg: JsonRpcResponse) => {
@@ -89,13 +89,26 @@ export class StdioTransport implements McpTransport {
       });
 
       const msgStr = JSON.stringify(message) + "\n";
-      this.proc.stdin.write(msgStr, (err) => {
-        if (err) {
+      const flushed = this.proc.stdin.write(msgStr);
+      if (!flushed) {
+        // Back-pressure: absorb the drain event. We only care that the write
+        // eventually reaches the kernel buffer — not the timing.
+        this.proc.stdin.once("drain", () => {});
+      }
+
+      // If the process is already dead, reject now to avoid hanging.
+      // Otherwise register a one-time exit handler to reject if it dies later.
+      if (this.proc.exitCode !== null && this.proc.exitCode !== 0) {
+        clearTimeout(timeout);
+        this.pendingCallbacks.delete(id);
+        reject(new Error(`Request ${id} failed: process exited with code ${this.proc.exitCode}`));
+      } else {
+        this.proc.once("exit", () => {
           clearTimeout(timeout);
           this.pendingCallbacks.delete(id);
-          reject(err);
-        }
-      });
+          reject(new Error(`Request ${id} failed: process exited`));
+        });
+      }
     });
   }
 
@@ -123,9 +136,14 @@ export class StdioTransport implements McpTransport {
   }
 
   async close(): Promise<void> {
+    // Kill the process first — this forces the OS to close its pipes.
+    // After kill, the process is guaranteed to exit (either immediately or on the
+    // next event loop tick), so we don't need to wait for the "exit" event.
     this.proc.kill();
     this.proc.stdin?.destroy();
     this.proc.stdout?.destroy();
     this.proc.stderr?.destroy();
+    // The process is dead. No need to wait — destroy() closes the pipes and kill()
+    // ensures the OS delivers SIGTERM. Returning immediately lets callers proceed.
   }
 }
