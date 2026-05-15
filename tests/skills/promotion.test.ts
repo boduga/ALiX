@@ -29,6 +29,16 @@ Follow red-green-refactor.`);
     try { unlinkSync(usagePath); } catch {}
   });
   afterEach(() => {
+    // Clear all skills created by this test
+    try {
+      const entries = readdirSync(skillsDir);
+      for (const entry of entries) {
+        if (entry !== ".usage.json" && entry !== "node_modules") {
+          rmSync(join(skillsDir, entry), { recursive: true });
+        }
+      }
+    } catch {}
+    // Clean up candidates test dir
     try { rmSync(join(candidatesDir, testSessionId), { recursive: true }); } catch {}
   });
 
@@ -62,9 +72,22 @@ Follow red-green-refactor.`);
 describe("LRU eviction", () => {
   const home = process.env.HOME ?? "/home/babasola";
   const skillsDir = join(home, ".alix", "skills");
+  const testSessionId = `lru-test-${Date.now()}`;
 
   beforeEach(() => {
     mkdirSync(skillsDir, { recursive: true });
+    // Clear .usage.json for clean tests
+    const usagePath = join(skillsDir, ".usage.json");
+    try { unlinkSync(usagePath); } catch {}
+    // Clear ALL existing skills to ensure clean state between tests
+    try {
+      const entries = readdirSync(skillsDir);
+      for (const entry of entries) {
+        if (entry !== ".usage.json" && entry !== "node_modules") {
+          rmSync(join(skillsDir, entry), { recursive: true });
+        }
+      }
+    } catch {}
   });
 
   it("evicts least recently used non-core skill when maxStore exceeded", async () => {

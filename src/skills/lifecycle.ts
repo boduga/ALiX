@@ -41,9 +41,9 @@ export function evictIfNeeded(skillsDir: string, config: LifecycleConfig): void 
     return a.mtime - b.mtime;
   });
 
-  const nonCore = skills.filter(s => !s.is_core);
-  if (nonCore.length >= config.maxStore) {
-    const toEvict = nonCore.slice(0, nonCore.length - config.maxStore);
+  const toEvictCount = Math.max(0, skills.length - config.maxStore);
+  if (toEvictCount > 0) {
+    const toEvict = skills.filter(s => !s.is_core).slice(0, toEvictCount);
     for (const skill of toEvict) {
       try {
         rmSync(join(skillsDir, skill.name), { recursive: true });

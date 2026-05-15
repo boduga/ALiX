@@ -1,7 +1,7 @@
 <!-- gitnexus:start -->
 # GitNexus — Code Intelligence
 
-This project is indexed by GitNexus as **Monolith** (1436 symbols, 2442 relationships, 78 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+This project is indexed by GitNexus as **ALiX** (1815 symbols, 3014 relationships, 95 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
@@ -24,10 +24,10 @@ This project is indexed by GitNexus as **Monolith** (1436 symbols, 2442 relation
 
 | Resource | Use for |
 |----------|---------|
-| `gitnexus://repo/Monolith/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/Monolith/clusters` | All functional areas |
-| `gitnexus://repo/Monolith/processes` | All execution flows |
-| `gitnexus://repo/Monolith/process/{name}` | Step-by-step execution trace |
+| `gitnexus://repo/ALiX/context` | Codebase overview, check index freshness |
+| `gitnexus://repo/ALiX/clusters` | All functional areas |
+| `gitnexus://repo/ALiX/processes` | All execution flows |
+| `gitnexus://repo/ALiX/process/{name}` | Step-by-step execution trace |
 
 ## CLI
 
