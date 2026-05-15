@@ -24,6 +24,7 @@ export type DispatchParams = {
  * Returns immediately after queuing the job. Does not wait for Ollama.
  */
 export async function skillFactoryProcess(params: DispatchParams): Promise<{ queued: boolean; sessionId: string }> {
+  if (!params.config.enabled) return { queued: false, sessionId: params.sessionId };
   // Non-blocking: spawn the factory without awaiting it
   void runSkillFactory(params).catch((err) => {
     console.error("[skill-factory] Failed:", err);

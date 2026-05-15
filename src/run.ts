@@ -220,9 +220,14 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const hooks = await discoverHooks(cwd);
 
   // Load skills from ~/.alix/skills/
-  const skillsHome = join(process.env.HOME ?? "/home/babasola", ".alix", "skills");
+  const skillsHome = join(process.env.HOME ?? "", ".alix", "skills");
   const { loadSkills } = await import("./skills/loader.js");
   const loadedSkills = await loadSkills(skillsHome);
+
+  // Enforce store limits
+  const { evictIfNeeded } = await import("./skills/lifecycle.js");
+  const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
+  evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
 
   const executor = new ToolExecutor(config, log, cwd, mcpManager);
 

@@ -4,8 +4,9 @@ import { createProvider } from "../providers/registry.js";
 import type { SkillFactoryConfig } from "../config/schema.js";
 import type { DispatchParams } from "./dispatcher.js";
 import { parseSkillContent } from "./types.js";
+import { promoteIfEligible } from "./promotion.js";
 
-const homeDir = process.env.HOME ?? "/home/babasola";
+const homeDir = process.env.HOME ?? "";
 const candidatesDir = join(homeDir, ".alix", "candidates");
 
 /**
@@ -55,6 +56,16 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
   const sessionCandidateDir = join(candidatesDir, params.sessionId);
   await mkdir(sessionCandidateDir, { recursive: true });
   await writeFile(join(sessionCandidateDir, "SKILL.md"), skillContent, "utf8");
+
+  if (!params.config.autoPromote) return; // skip entirely if not auto-promoting
+  // Try to promote — on first write this will fail (successCount=1),
+  // on second write it will succeed. Call every time to handle re-use.
+  try {
+    await promoteIfEligible(params.sessionId);
+  } catch (err) {
+    // best effort — non-blocking
+    console.warn("[skill-factory] Promotion check failed:", err);
+  }
 }
 
 function buildDistillationPrompt(params: DispatchParams): string {
