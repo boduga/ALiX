@@ -1,4 +1,6 @@
 // Message content parts
+import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
+
 export type TextPart = {
   type: "text";
   text: string;
@@ -76,20 +78,6 @@ export type ToolDef = {
   name: string;
   description: string;
   input_schema: {
-    type: "object";
-    properties: Record<string, ToolParam>;
-    required?: string[];
-  };
-};
-
-/**
- * A lightweight tool entry used for deferred tool descovery.
- * Only name + description are sent to the model at session start — no input_schema.
- */
-export type DeferredToolEntry = {
-  name: string;
-  description: string;
-  input_schema?: {
     type: "object";
     properties: Record<string, ToolParam>;
     required?: string[];
