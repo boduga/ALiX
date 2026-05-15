@@ -117,7 +117,7 @@ export class GeminiProvider implements ModelAdapter {
 
     const body: Record<string, unknown> = { contents };
     if (request.systemPrompt) body.system_instruction = { parts: [{ text: request.systemPrompt }] };
-    if (request.tools?.length) body.tools = { functionDeclarations: request.tools.map((t: { name: string; description: string; input_schema: Record<string, unknown> }) => ({ name: t.name, description: t.description, parameters: t.input_schema })) };
+    if (request.tools?.length) body.tools = { functionDeclarations: request.tools.map((t) => ({ name: t.name, description: t.description, parameters: t.input_schema ?? { type: "object", properties: {} } })) };
 
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${this._model}:generateContent?key=${this._apiKey}&alt=sse`;
     const res = await fetch(url, {

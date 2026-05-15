@@ -7,7 +7,7 @@ import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { createProvider } from "./providers/registry.js";
-import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
+import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef, DeferredToolEntry } from "./providers/types.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
@@ -205,11 +205,6 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   for (const entry of mcpToolIndex) {
     TOOL_NAME_MAP[entry.name] = entry.execName;
   }
-  const mcpTools: ToolDef[] = mcpToolIndex.map(e => ({
-    name: e.name,
-    description: e.description,
-    input_schema: { type: "object", properties: {} }
-  }));
 
   const sessionState = {
     created: new Set<string>(),
@@ -285,7 +280,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       for await (const chunk of provider.stream({
         systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
         messages,
-        tools: [...TOOLS, ...mcpTools]
+        tools: [...TOOLS, ...mcpToolIndex]
       })) {
         if (chunk.type === "text_delta") {
           text += chunk.text;
@@ -305,7 +300,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       const resp = await provider.complete({
         systemPrompt: "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.",
         messages,
-        tools: [...TOOLS, ...mcpTools]
+        tools: [...TOOLS, ...mcpToolIndex]
       });
       text = resp.text ?? "";
       toolCalls = resp.toolCalls ?? [];

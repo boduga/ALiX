@@ -82,6 +82,20 @@ export type ToolDef = {
   };
 };
 
+/**
+ * A lightweight tool entry used for deferred tool descovery.
+ * Only name + description are sent to the model at session start — no input_schema.
+ */
+export type DeferredToolEntry = {
+  name: string;
+  description: string;
+  input_schema?: {
+    type: "object";
+    properties: Record<string, ToolParam>;
+    required?: string[];
+  };
+};
+
 // Tool results (returned from tool executions)
 export type NormalizedToolResult = {
   toolUseId: string;
@@ -92,7 +106,7 @@ export type NormalizedToolResult = {
 export type NormalizedRequest = {
   systemPrompt: string;
   messages: NormalizedMessage[];
-  tools?: ToolDef[];
+  tools?: (ToolDef | DeferredToolEntry)[];
   toolResults?: NormalizedToolResult[];
   temperature?: number;
   maxOutputTokens?: number;
