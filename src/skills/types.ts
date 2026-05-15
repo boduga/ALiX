@@ -39,7 +39,7 @@ export function parseFrontMatter(content: string): SkillManifest | null {
       pattern: raw.pattern != null ? String(raw.pattern) : undefined,
       version: String(raw.version ?? "1.0.0"),
       is_core: raw.is_core === true,
-      tags: raw.tags != null ? String(raw.tags).split(",").map((t) => t.trim()) : undefined,
+      tags: raw.tags != null ? (Array.isArray(raw.tags) ? raw.tags as string[] : String(raw.tags).split(",").map((t) => t.trim())) : undefined,
       created_at: raw.created_at != null ? String(raw.created_at) : undefined,
     };
   } catch {
@@ -54,8 +54,12 @@ function yamlToObject(yaml: string): Record<string, unknown> {
     const colonIdx = line.indexOf(":");
     if (colonIdx === -1) continue;
     const key = line.slice(0, colonIdx).trim();
-    const value = line.slice(colonIdx + 1).trim();
-    if (value === "true") obj[key] = true;
+    let value = line.slice(colonIdx + 1).trim();
+    // Handle YAML arrays like [tag1, tag2]
+    if (value.startsWith("[") && value.endsWith("]")) {
+      const inner = value.slice(1, -1);
+      obj[key] = inner.split(",").map((t: string) => t.trim()).filter(Boolean);
+    } else if (value === "true") obj[key] = true;
     else if (value === "false") obj[key] = false;
     else if (!isNaN(Number(value)) && value !== "") obj[key] = Number(value);
     else obj[key] = value.replace(/^["']|["']$/g, "");

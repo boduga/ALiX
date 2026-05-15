@@ -8,7 +8,7 @@ import type { LoadedSkill } from "./types.js";
  * Discover and load all Hermes-format skills from a directory.
  * Each skill lives in a subdirectory: <root>/<skill-name>/SKILL.md
  */
-export async function loadSkills(root: string): Promise<LoadedSkill[]> {
+export function loadSkills(root: string): LoadedSkill[] {
   const skills: LoadedSkill[] = [];
   let entries: string[] = [];
   try {
@@ -25,7 +25,7 @@ export async function loadSkills(root: string): Promise<LoadedSkill[]> {
       continue;
     }
     const skillFile = join(skillPath, "SKILL.md");
-    let content: string;
+    let content;
     try {
       content = readFileSync(skillFile, "utf8");
     } catch {

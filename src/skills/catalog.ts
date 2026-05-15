@@ -48,11 +48,18 @@ export class SkillCatalog {
   }
 
   getAll(): LoadedSkill[] {
-    return [...this.byTrigger.values(), ...this.byPattern.map(p => p.skill)];
+    const seen = new Set<string>();
+    const result: LoadedSkill[] = [];
+    for (const s of [...this.byTrigger.values(), ...this.byPattern.map(p => p.skill)]) {
+      if (!seen.has(s.manifest.name)) { seen.add(s.manifest.name); result.push(s); }
+    }
+    return result;
   }
 
   get(name: string): LoadedSkill | undefined {
-    return this.byTrigger.get(name) ?? this.byPattern.find(p => p.skill.manifest.name === name)?.skill;
+    return this.byTrigger.get(name)
+      ?? this.byTrigger.get(`/${name}`)
+      ?? this.byPattern.find(p => p.skill.manifest.name === name)?.skill;
   }
 }
 
