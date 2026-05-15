@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -8,6 +8,11 @@ import { buildSkillCatalog } from "../../src/skills/catalog.js";
 describe("skill catalog integration in run.ts", () => {
   const home = process.env.HOME ?? "/home/babasola";
   const skillsDir = join(home, ".alix", "skills");
+
+  afterEach(() => {
+    rmSync(join(skillsDir, "test-skill"), { recursive: true, force: true });
+    rmSync(join(skillsDir, "tdd"), { recursive: true, force: true });
+  });
 
   it("loads skills from ~/.alix/skills/ at startup", async () => {
     mkdirSync(skillsDir, { recursive: true });
@@ -22,7 +27,6 @@ is_core: false
 # Test`);
     const skills = await loadSkills(skillsDir);
     assert.ok(skills.some(s => s.manifest.name === "test-skill"));
-    rmSync(join(skillsDir, "test-skill"), { recursive: true });
   });
 
   it("buildSkillCatalog routes by trigger", async () => {
@@ -40,7 +44,6 @@ is_core: false
     const catalog = buildSkillCatalog(skills);
     const matched = catalog.match("/tdd add login feature");
     assert.ok(matched.some(s => s.manifest.name === "tdd"));
-    rmSync(join(skillsDir, "tdd"), { recursive: true });
   });
 
   it("skill body is injected into system prompt when matched", () => {

@@ -25,7 +25,7 @@ describe("McpToolDeferral", () => {
     assert.strictEqual(index[0].name, "mcp_github_repos_list");
     assert.strictEqual(index[0].execName, "mcp.github.repos.list");
     assert.strictEqual(index[0].description, "List repos");
-    assert.ok(!("input_schema" in index[0]));
+    assert.ok("input_schema" in index[0]);
   });
 
   it("resolve returns full ToolDef from registry", () => {
