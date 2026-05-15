@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Autonomous Task Loop** — Agent runs verification after every tool iteration and autonomously repairs failures by feeding output back to the model. No approval gate. Docs tasks skip verification.
+- **Task Classifier** — Classifies prompts into bugfix/feature/refactor/docs/unknown for task-type-aware loop behavior.
+- **Verification Discovery** — Auto-discovers `test`, `build`, `typecheck`, `lint`, and `check` scripts from `package.json` to use as verification checks.
+- **Autonomous Repair** — Failed verification triggers a repair loop with a configurable budget (default 3 repairs). Verification output is fed directly to the model.
+- **`maxIterations` Configurable** — Model config supports `maxIterations` to override the default 10-iteration limit per session.
 - **MCP Tool Deferral** — On-demand schema resolution with fuzzy search fallback. Tool schemas are no longer injected into every prompt; the model requests full schemas only when needed.
 - **tiktoken Token Counting** — Accurate token counting using tiktoken encoders (`cl100k_base`, `o200k_base`) with encoding-aware budget management.
 - **Context Truncation** — Automatic truncation when token budget is exceeded, with a synthesized session digest replacing removed messages.
