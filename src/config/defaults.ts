@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import type { AlixConfig } from "./schema.js";
 
 export const DEFAULT_CONFIG: AlixConfig = {
@@ -48,5 +49,19 @@ export const DEFAULT_CONFIG: AlixConfig = {
       args: ["mcp-server-fetch"]
     }
   ],
-  mcpServerPaths: []
+  mcpServerPaths: [],
+  skills: {
+    factory: {
+      enabled: false,
+      provider: "ollama",
+      model: "llama3",
+      maxStore: 50,
+      maxCandidates: 20,
+      autoPromote: false
+    },
+    store: {
+      enabled: true,
+      path: `${homedir()}/.alix/skills`
+    }
+  }
 };

@@ -48,6 +48,20 @@ export type McpServerConfig =
   | { type: "http"; name: string; url: string; headers?: Record<string, string> }
   | { type: "websocket"; name: string; url: string; headers?: Record<string, string> };
 
+export type SkillFactoryConfig = {
+  enabled: boolean;
+  provider: "ollama" | string;
+  model: string;
+  maxStore: number;
+  maxCandidates: number;
+  autoPromote: boolean;
+};
+
+export type SkillStoreConfig = {
+  enabled: boolean;
+  path: string;
+};
+
 export type AlixConfig = {
   version: 1;
   model: ModelConfig;
@@ -58,6 +72,10 @@ export type AlixConfig = {
   apiKeys?: Record<string, string>;
   mcpServers?: McpServerConfig[];
   mcpServerPaths?: string[];
+  skills?: {
+    factory?: SkillFactoryConfig;
+    store?: SkillStoreConfig;
+  };
 };
 
 export type ValidationIssue = {
