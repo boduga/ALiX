@@ -48,6 +48,25 @@ export function buildErrorMessage(err: { kind: "error"; message: string; retryab
   return parts.join(" ");
 }
 
+/**
+ * Resolve a tool name that may be misspelled or unknown.
+ * Uses fuzzy search to find the closest match in the MCP tool index.
+ * Returns the execName if found, or null if no match above threshold.
+ */
+function resolveMcpTool(mcpName: string, deferral: { search: (name: string, limit: number) => { item: { execName: string }; score: number }[] }): string | null {
+  // Already in the map — fast path
+  if (TOOL_NAME_MAP[mcpName]) return TOOL_NAME_MAP[mcpName];
+
+  // Try fuzzy search
+  const matches = deferral.search(mcpName, 1);
+  if (matches.length > 0 && matches[0].score >= 40) {
+    const execName = matches[0].item.execName;
+    TOOL_NAME_MAP[mcpName] = execName;
+    return execName;
+  }
+  return null;
+}
+
 type SessionState = {
   created: Set<string>;
   deleted: Set<string>;
@@ -336,7 +355,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of toolCalls) {
-      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+      const execName = resolveMcpTool(toolCall.name, mcpDeferral) ?? TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
       if (execResult.kind === "error") {
@@ -358,7 +377,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
     // Track all file mutations in sessionState for rolling summary
       for (const tc of toolCalls) {
-        const execName = TOOL_NAME_MAP[tc.name] ?? tc.name;
+        const execName = resolveMcpTool(tc.name, mcpDeferral) ?? TOOL_NAME_MAP[tc.name] ?? tc.name;
         if (execName === "file.create") sessionState.created.add(tc.args.path as string);
         if (execName === "file.delete") sessionState.deleted.add(tc.args.path as string);
         if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(tc.args.path as string);
