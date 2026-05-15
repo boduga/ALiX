@@ -66,6 +66,22 @@ function buildMcpTools(registered: { serverName: string; toolName: string; descr
   }));
 }
 
+type SessionState = {
+  created: Set<string>;
+  deleted: Set<string>;
+  changed: Set<string>;
+  fatalErrors: string[];
+};
+
+function buildStateSummary(state: SessionState): string {
+  const parts: string[] = [];
+  if (state.created.size) parts.push(`Created: ${[...state.created].join(", ")}`);
+  if (state.changed.size) parts.push(`Changed: ${[...state.changed].join(", ")}`);
+  if (state.deleted.size) parts.push(`Deleted: ${[...state.deleted].join(", ")}`);
+  if (state.fatalErrors.length) parts.push(`FATAL: ${state.fatalErrors.join("; ")}`);
+  return parts.length ? `[State] ${parts.join(". ")}.` : "";
+}
+
 // Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
 const TOOLS: ToolDef[] = [
   {
@@ -207,6 +223,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     TOOL_NAME_MAP[mcpToolName(tool.serverName, tool.toolName)] = mcpToolExecName(tool.serverName, tool.toolName);
   }
 
+  const sessionState = {
+    created: new Set<string>(),
+    deleted: new Set<string>(),
+    changed: new Set<string>(),
+    fatalErrors: [] as string[],
+  };
+
   let messages: NormalizedMessage[] = [{ role: "user", content: task }];
 
   // Resolve context limit and encoding from config or API
@@ -236,6 +259,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
       const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, encoding);
       if (dropped.length > 0) {
+        // Remove all [State] messages before truncation, then re-inject one rolling summary
+        messages = messages.filter(m => !String(m.content).startsWith("[State]"));
+        const summary = buildStateSummary(sessionState);
+        if (summary) messages.push({ role: "user", content: summary });
         messages = [...(kept as NormalizedMessage[])];
         await log.append({ ...session, actor: "system", type: "context.truncated", payload: {
           droppedCount: dropped.length,
@@ -336,22 +363,20 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
     }
 
-    // After each round, inject state summary so the model knows what succeeded/failed
-    const created = toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.create").map(tc => tc.args.path as string);
-    const deleted = toolCalls.filter(tc => (TOOL_NAME_MAP[tc.name] ?? tc.name) === "file.delete").map(tc => tc.args.path as string);
-
-    const stateParts: string[] = [];
-    if (created.length) stateParts.push(`Created: ${created.join(", ")}`);
-    if (deleted.length) stateParts.push(`Deleted: ${deleted.join(", ")}`);
-    if (fatalToolErrors.length) {
-      stateParts.push(`FATAL (do not retry): ${fatalToolErrors.join(", ")}`);
-    }
-    if (failedTools.length && failedTools.length === toolCalls.length && !fatalToolErrors.length) {
-      stateParts.push(`All tools failed. Consider a different approach.`);
-    }
-    if (stateParts.length) {
-      messages.push({ role: "user", content: `[State] ${stateParts.join(". ")}.` });
-    }
+    // Track all file mutations in sessionState for rolling summary
+      for (const tc of toolCalls) {
+        const execName = TOOL_NAME_MAP[tc.name] ?? tc.name;
+        if (execName === "file.create") sessionState.created.add(tc.args.path as string);
+        if (execName === "file.delete") sessionState.deleted.add(tc.args.path as string);
+        if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(tc.args.path as string);
+      }
+      sessionState.fatalErrors.push(...fatalToolErrors);
+      // Also track non-fatal failed tool calls in the state
+      for (const failed of failedTools) {
+        if (!fatalToolErrors.includes(failed)) {
+          sessionState.fatalErrors.push(failed);
+        }
+      }
   }
 
   // Max iterations reached
