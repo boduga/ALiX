@@ -14,6 +14,8 @@ import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
+import type { VerificationCheck, VerificationResult } from "./verifier/verifier.js";
+import { classifyTask } from "./task-classifier.js";
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
@@ -29,9 +31,6 @@ async function streamToResponse(provider: ModelAdapter, request: NormalizedReque
   return { text, toolCalls, usage };
 }
 
-const MAX_ITERATIONS = 10;
-
-// Map model tool names (alix_*) → executor tool names (file.*)
 const TOOL_NAME_MAP: Record<string, string> = {
   alix_file_read: "file.read",
   alix_file_create: "file.create",
@@ -253,8 +252,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   await ensureEncoder(encoding);
   const MAX_CONTEXT_TOKENS = maxTokens;
+  const taskType = classifyTask(task);
+  const maxIterations = config.model.maxIterations ?? 10;
+  let repairCount = 0;
+  const maxRepairs = 3;
 
-  for (let i = 0; i < MAX_ITERATIONS; i++) {
+  for (let i = 0; i < maxIterations; i++) {
     // Truncate messages if token budget exceeded before streaming/completion
     const msgTokens = messages.reduce(
       (sum, m) => sum + estimateMessageTokens(m, encoding),
@@ -331,24 +334,64 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
 
     if (toolCalls.length === 0) {
-      // Run post_task hooks when no tools were called
+      // No tools called — check if model signals completion
+      const modelSaysDone = /done|complete|finished|resolved/i.test(text);
+
+      // Run post_task hooks
       for (const hook of hooks.post_task ?? []) {
         await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, reason: hook.reason } });
         const result = await runHook(hook, cwd);
         await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
       }
 
-      // Run verification before final response
+      // Get verification checks
       const checks = await discoverVerification(cwd);
-      for (const check of checks) {
-        await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
-        const verResult = await runVerification(cwd, check);
-        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
-      }
 
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
-      await mcpManager.closeAll().catch(() => {});
-      return { sessionId, summary: text, streamed: config.model.streaming };
+      // For docs tasks, skip verification
+      if (taskType === "docs" || checks.length === 0) {
+        if (modelSaysDone) {
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+          await mcpManager.closeAll().catch(() => {});
+          return { sessionId, summary: text, streamed: config.model.streaming };
+        }
+        // Model didn't signal done, continue
+      } else {
+        // Run verification
+        const verResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
+        for (const check of checks) {
+          await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
+          const verResult = await runVerification(cwd, check);
+          await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
+          verResults.push({ check, result: verResult });
+        }
+
+        const allPassed = verResults.every((vr) => vr.result.status === "passed");
+
+        if (allPassed && modelSaysDone) {
+          // Success — verification passed and model signals done
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+          await mcpManager.closeAll().catch(() => {});
+          return { sessionId, summary: text, streamed: config.model.streaming };
+        }
+
+        // Repair loop — verification failed or model didn't signal done
+        const failures = verResults.filter((vr) => vr.result.status === "failed");
+        const failureText = failures.length > 0
+          ? failures.map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`).join("\n\n")
+          : "No tool calls and model did not signal completion.";
+
+        repairCount++;
+        if (repairCount > maxRepairs) {
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
+          await mcpManager.closeAll().catch(() => {});
+          return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
+        }
+
+        const repairPrompt = `\n\n[Verification Result] ${failureText}\n\nRepair the issues above and confirm completion when done.`;
+        messages.push({ role: "user", content: repairPrompt });
+
+        // Don't return — continue the loop
+      }
     }
 
     // Track failed tool names per iteration to prevent spinning
@@ -389,6 +432,28 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       for (const failed of failedTools) {
         if (!fatalToolErrors.includes(failed)) {
           sessionState.fatalErrors.push(failed);
+        }
+      }
+
+      // After tool calls, run verification every iteration
+      const endChecks = await discoverVerification(cwd);
+      if (endChecks.length > 0 && taskType !== "docs") {
+        for (const check of endChecks) {
+          await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
+          const verResult = await runVerification(cwd, check);
+          await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
+
+          if (verResult.status === "failed") {
+            // Feed failure to model for autonomous repair
+            repairCount++;
+            if (repairCount > maxRepairs) {
+              await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
+              await mcpManager.closeAll().catch(() => {});
+              return { sessionId, summary: `Repair limit reached: ${verResult.output ?? ""}`, streamed: config.model.streaming };
+            }
+            const repairPrompt = `\n\n[Verification Failed] ${check.command} failed:\n${verResult.output ?? ""}\n\nFix the issue and try again.`;
+            messages.push({ role: "user", content: repairPrompt });
+          }
         }
       }
   }

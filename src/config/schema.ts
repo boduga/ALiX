@@ -6,6 +6,7 @@ export type ModelConfig = {
   temperature?: number;
   maxOutputTokens?: number;
   maxContextTokens?: number;
+  maxIterations?: number;
   streaming?: boolean;
 };
 
