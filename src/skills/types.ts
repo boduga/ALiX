@@ -26,9 +26,9 @@ export type SkillCandidate = {
 };
 
 export function parseFrontMatter(content: string): SkillManifest | null {
-  const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)/);
-  if (!match) return null;
-  const yaml = match[1];
+  // Support both full content with --- delimiters and raw YAML (no ---)
+  const fullMatch = content.match(/^---\n([\s\S]*?)\n---/);
+  const yaml = fullMatch ? fullMatch[1] : content;
   try {
     const raw = yamlToObject(yaml);
     if (!raw.name || !raw.description) return null;
