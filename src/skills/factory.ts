@@ -23,7 +23,7 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
   // Call Ollama
   const provider = createProvider(
     { provider: params.config.provider, model: params.config.model },
-    process.env.OLLAMA_API_KEY
+    process.env[`${params.config.provider.toUpperCase()}_API_KEY`]
   );
 
   let skillContent = "";
@@ -40,7 +40,10 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
     return;
   }
 
-  if (!skillContent || skillContent.length < 100) return;
+  if (!skillContent || skillContent.length < 100) {
+    console.warn("[skill-factory] Content too short:", skillContent?.length ?? 0, "bytes");
+    return;
+  }
 
   // Validate the skill has front matter
   const { manifest } = parseSkillContent(skillContent);

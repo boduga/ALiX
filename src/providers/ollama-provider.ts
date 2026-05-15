@@ -34,55 +34,20 @@ export class OllamaProvider extends BaseProvider {
   }
 
   async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-    const body: Record<string, unknown> = {
-      model: this._model,
-      messages: request.messages.map((m) => ({
-        role: m.role,
-        content: typeof m.content === "string" ? m.content : m.content,
-      })),
-      stream: false,
-    };
-
-    if (request.systemPrompt) {
-      body.messages = [
-        { role: "system", content: request.systemPrompt },
-        ...(body.messages as object[]),
-      ];
+    // Buffer the SSE stream internally, then post-process for JSON-in-text
+    // fallback. This avoids the qwen non-streaming deadlock while keeping
+    // the complete() API signature simple for callers.
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of this.stream(request)) {
+      chunks.push(chunk);
     }
 
-    if (request.tools?.length) {
-      body.tools = request.tools.map((t) => ({
-        type: "function",
-        function: { name: t.name, description: t.description, parameters: t.input_schema },
-      }));
+    let text = "";
+    const toolCalls: import("./types.js").ToolCall[] = [];
+    for (const chunk of chunks) {
+      if (chunk.type === "text_delta") text += chunk.text;
+      if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
     }
-
-    if (request.temperature !== undefined) body.temperature = request.temperature;
-
-    if (request.structuredOutputSchema) {
-      body.response_format = {
-        type: "json_schema",
-        json_schema: { name: request.structuredOutputSchema.name, schema: request.structuredOutputSchema },
-      };
-    }
-
-    const response = await this.post(body);
-    if (!response.ok) {
-      const err = await response.text();
-      throw new ApiError(response.status, err);
-    }
-
-    const data = (await response.json()) as {
-      choices?: Array<{ message?: { content?: string } }>;
-      error?: string;
-    };
-
-    if (data.error) throw new Error(`Ollama: ${data.error}`);
-
-    const choice = (data as { choices?: Array<{ message?: { content?: string | null } }> }).choices?.at(-1);
-    const toolCalls = choice ? this.parseChoiceToolCalls(choice as any) : [];
-    const text = typeof choice?.message?.content === "string" ? choice.message.content : "";
-
     return { text: text.trim(), toolCalls };
   }
 
@@ -93,10 +58,54 @@ export class OllamaProvider extends BaseProvider {
       stream: true,
     };
     if (request.systemPrompt) body.messages = [{ role: "system", content: request.systemPrompt }, ...(body.messages as object[])];
-    if (request.tools?.length) body.tools = request.tools.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
+    const hasTools = request.tools && request.tools.length > 0;
+    if (hasTools) body.tools = request.tools!.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } }));
     if (request.temperature !== undefined) body.temperature = request.temperature;
 
-    const res = await this.post(body);
-    yield* this.streamSSE(res);
+    let res = await this.post(body);
+
+    if (!res.ok && hasTools) {
+      const errText = await res.clone().text();
+      if (errText.includes("does not support tools")) {
+        delete body.tools;
+        res = await this.post(body);
+      }
+    }
+
+    // Always buffer the SSE stream fully first. This handles two cases:
+    // 1. Models (qwen) where streaming with tools can hang in non-streaming mode.
+    // 2. Ensures the JSON-in-text fallback sees the complete accumulated text.
+    const chunks: StreamChunk[] = [];
+    for await (const chunk of this.streamSSE(res)) {
+      chunks.push(chunk);
+    }
+
+    let text = "";
+    const toolCalls: import("./types.js").ToolCall[] = [];
+    for (const chunk of chunks) {
+      if (chunk.type === "text_delta") text += chunk.text;
+      if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+      if (chunk.type === "error") yield chunk;
+    }
+
+    // JSON-in-text fallback: find the last complete JSON object in the text.
+    if (toolCalls.length === 0 && text) {
+      const lastBrace = text.lastIndexOf("}");
+      const candidate = lastBrace >= 0 ? text.slice(0, lastBrace + 1).trim() : text.trim();
+      if (candidate.startsWith("{")) {
+        try {
+          const parsed = JSON.parse(candidate);
+          const name = parsed.name ?? parsed.function?.name;
+          const args = parsed.arguments ?? parsed.parameters ?? parsed.args ?? {};
+          if (name && typeof name === "string" && args) {
+            toolCalls.push({ id: this.safeToolId(null), name, args });
+            text = "";
+          }
+        } catch { /* not JSON */ }
+      }
+    }
+
+    if (text) yield { type: "text_delta", text };
+    for (const tc of toolCalls) yield { type: "tool_call", toolCall: tc };
   }
 }

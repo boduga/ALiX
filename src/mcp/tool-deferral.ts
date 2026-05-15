@@ -3,16 +3,13 @@ import type { ToolDef } from "../providers/types.js";
 import { SchemaCache } from "./tool-cache.js";
 import { searchTools, type SearchResult } from "./tool-search.js";
 
-/**
- * A tool entry sent to the model at session start.
- * Contains only name + description — no input_schema.
- */
 export interface DeferredToolEntry {
   name: string;       // mcp_github_repos_list — what the model uses
   execName: string;  // mcp.github.repos.list — internal executor name
   serverName: string;
   toolName: string;
   description: string;
+  input_schema?: { type: "object"; properties: Record<string, unknown> };
   [key: string]: string | number | boolean | object | undefined;
 }
 
@@ -43,6 +40,7 @@ export class McpToolDeferral {
       serverName: tool.serverName,
       toolName: tool.toolName,
       description: tool.description ?? "",
+      input_schema: { type: "object" as const, properties: {} },
     }));
     return this._index;
   }
