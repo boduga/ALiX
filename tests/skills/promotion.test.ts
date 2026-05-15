@@ -69,9 +69,9 @@ describe("LRU eviction", () => {
 
   it("evicts least recently used non-core skill when maxStore exceeded", async () => {
     const { evictIfNeeded } = await import("../../src/skills/lifecycle.js");
-    const config = { maxStore: 3, maxCandidates: 10 };
-    // Create 3 non-core skills with different mtimes
-    for (let i = 0; i < 3; i++) {
+    const config = { maxStore: 3 };
+    // Create 4 non-core skills with different mtimes
+    for (let i = 0; i < 4; i++) {
       mkdirSync(join(skillsDir, `skill-${i}`), { recursive: true });
       writeFileSync(join(skillsDir, `skill-${i}`, "SKILL.md"), `---
 name: skill-${i}
@@ -83,8 +83,12 @@ is_core: false
 # Skill ${i}`);
     }
     await evictIfNeeded(skillsDir, config);
-    // After eviction, skill-0 (oldest by mtime) should be gone
+    // After eviction with maxStore=3, skill-0 (oldest by mtime) should be gone
     assert.ok(!existsSync(join(skillsDir, "skill-0")));
+    // skill-1, skill-2, skill-3 should remain
+    assert.ok(existsSync(join(skillsDir, "skill-1")));
+    assert.ok(existsSync(join(skillsDir, "skill-2")));
+    assert.ok(existsSync(join(skillsDir, "skill-3")));
   });
 
   it("protects is_core: true skills from eviction", async () => {

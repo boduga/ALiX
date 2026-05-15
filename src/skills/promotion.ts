@@ -69,6 +69,13 @@ export function resolveNamingCollision(name: string, version: string): string {
   const existing = parseSkillContent(readFileSync(targetPath, "utf8"));
   if (!existing.manifest) return name;
 
+  // If the existing file's name doesn't match our name, it's already suffixed.
+  // Don't overwrite it — create a new suffixed version instead.
+  if (existing.manifest.name !== name) {
+    const suffix = version.replace(/\./g, "-");
+    return `${name}-v${suffix}`;
+  }
+
   const existingVer = existing.manifest.version ?? "1.0.0";
   if (compareVersions(version, existingVer) > 0) {
     return name; // improvement — overwrite

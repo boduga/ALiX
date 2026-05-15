@@ -5,7 +5,7 @@ import { parseSkillContent } from "./types.js";
 
 export type LifecycleConfig = {
   maxStore: number;
-  maxCandidates: number;
+  maxCandidates?: number;
 };
 
 export function evictIfNeeded(skillsDir: string, config: LifecycleConfig): void {
@@ -43,7 +43,7 @@ export function evictIfNeeded(skillsDir: string, config: LifecycleConfig): void 
 
   const nonCore = skills.filter(s => !s.is_core);
   if (nonCore.length >= config.maxStore) {
-    const toEvict = nonCore.slice(0, nonCore.length - config.maxStore + 1);
+    const toEvict = nonCore.slice(0, nonCore.length - config.maxStore);
     for (const skill of toEvict) {
       try {
         rmSync(join(skillsDir, skill.name), { recursive: true });
