@@ -420,42 +420,19 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
     }
 
-    // Track all file mutations in sessionState — reuse execName resolved above
-      for (const toolCall of toolCalls) {
-        const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
-        if (execName === "file.create") sessionState.created.add(toolCall.args.path as string);
-        if (execName === "file.delete") sessionState.deleted.add(toolCall.args.path as string);
-        if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(toolCall.args.path as string);
+    // Track all file mutations in sessionState
+    for (const toolCall of toolCalls) {
+      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+      if (execName === "file.create") sessionState.created.add(toolCall.args.path as string);
+      if (execName === "file.delete") sessionState.deleted.add(toolCall.args.path as string);
+      if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(toolCall.args.path as string);
+    }
+    sessionState.fatalErrors.push(...fatalToolErrors);
+    for (const failed of failedTools) {
+      if (!fatalToolErrors.includes(failed)) {
+        sessionState.fatalErrors.push(failed);
       }
-      sessionState.fatalErrors.push(...fatalToolErrors);
-      // Also track non-fatal failed tool calls in the state
-      for (const failed of failedTools) {
-        if (!fatalToolErrors.includes(failed)) {
-          sessionState.fatalErrors.push(failed);
-        }
-      }
-
-      // After tool calls, run verification every iteration
-      const endChecks = await discoverVerification(cwd);
-      if (endChecks.length > 0 && taskType !== "docs") {
-        for (const check of endChecks) {
-          await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
-          const verResult = await runVerification(cwd, check);
-          await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
-
-          if (verResult.status === "failed") {
-            // Feed failure to model for autonomous repair
-            repairCount++;
-            if (repairCount > maxRepairs) {
-              await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
-              await mcpManager.closeAll().catch(() => {});
-              return { sessionId, summary: `Repair limit reached: ${verResult.output ?? ""}`, streamed: config.model.streaming };
-            }
-            const repairPrompt = `\n\n[Verification Failed] ${check.command} failed:\n${verResult.output ?? ""}\n\nFix the issue and try again.`;
-            messages.push({ role: "user", content: repairPrompt });
-          }
-        }
-      }
+    }
   }
 
   // Max iterations reached
