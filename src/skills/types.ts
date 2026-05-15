@@ -5,7 +5,7 @@ export type SkillManifest = {
   pattern?: string;
   version: string;
   is_core: boolean;
-  tags?: string;
+  tags?: string[];
   created_at?: string;
 };
 
@@ -39,10 +39,11 @@ export function parseFrontMatter(content: string): SkillManifest | null {
       pattern: raw.pattern != null ? String(raw.pattern) : undefined,
       version: String(raw.version ?? "1.0.0"),
       is_core: raw.is_core === true,
-      tags: raw.tags != null ? String(raw.tags) : undefined,
+      tags: raw.tags != null ? String(raw.tags).split(",").map((t) => t.trim()) : undefined,
       created_at: raw.created_at != null ? String(raw.created_at) : undefined,
     };
   } catch {
+    // Returning null is intentional: missing front matter and parse errors are both silent failures.
     return null;
   }
 }
@@ -65,6 +66,6 @@ function yamlToObject(yaml: string): Record<string, unknown> {
 export function parseSkillContent(content: string): { manifest: SkillManifest | null; body: string } {
   const match = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)/);
   if (!match) return { manifest: null, body: content };
-  const manifest = parseFrontMatter(match[0]);
+  const manifest = parseFrontMatter(match[1]);
   return { manifest, body: match[2] ?? "" };
 }

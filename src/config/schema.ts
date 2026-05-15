@@ -50,7 +50,7 @@ export type McpServerConfig =
 
 export type SkillFactoryConfig = {
   enabled: boolean;
-  provider: "ollama" | string;
+  provider: string;
   model: string;
   maxStore: number;
   maxCandidates: number;

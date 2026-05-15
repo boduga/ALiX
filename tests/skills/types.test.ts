@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { parseFrontMatter, parseSkillContent } from "../../src/skills/types.js";
 
-describe("Hermes skill manifest", () => {
+describe("ALiX skill manifest", () => {
   it("parses valid YAML front matter", () => {
     const frontMatter = `---
 name: tdd-loop
@@ -20,6 +20,17 @@ is_core: false
     assert.strictEqual(result?.pattern, "tdd|test.?driven|red.?green");
     assert.strictEqual(result?.version, "1.0.0");
     assert.strictEqual(result?.is_core, false);
+  });
+
+  it("parses is_core: true", () => {
+    const frontMatter = `---
+name: core-skill
+description: A core skill
+version: "1.0.0"
+is_core: true
+---`;
+    const result = parseFrontMatter(frontMatter);
+    assert.strictEqual(result?.is_core, true);
   });
 
   it("rejects manifest without required fields", () => {
