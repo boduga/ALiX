@@ -1,6 +1,15 @@
 import type { SkillFactoryConfig } from "../config/schema.js";
 import { runSkillFactory } from "./factory.js";
 
+export const DEFAULT_FACTORY_CONFIG: SkillFactoryConfig = {
+  enabled: false,
+  provider: "ollama",
+  model: "llama3",
+  maxStore: 50,
+  maxCandidates: 200,
+  autoPromote: true,
+};
+
 export type DispatchParams = {
   sessionId: string;
   sessionDir: string;

@@ -16,6 +16,7 @@ import { buildSessionDigest } from "./utils/session-digest.js";
 import { discoverVerification, runVerification } from "./verifier/verifier.js";
 import type { VerificationCheck, VerificationResult } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
+import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
@@ -371,13 +372,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           await mcpManager.closeAll().catch(() => {});
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
-          await skillFactory.process({
+          void skillFactory.process({
             sessionId,
             sessionDir,
             summary: text,
             filesCreated: [...sessionState.created],
             filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
           });
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
@@ -413,13 +414,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           await mcpManager.closeAll().catch(() => {});
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
-          await skillFactory.process({
+          void skillFactory.process({
             sessionId,
             sessionDir,
             summary: `Repair limit reached: ${failureText}`,
             filesCreated: [...sessionState.created],
             filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
           });
           return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
         }
@@ -490,13 +491,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           await mcpManager.closeAll().catch(() => {});
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
-          await skillFactory.process({
+          void skillFactory.process({
             sessionId,
             sessionDir,
             summary: "Repair limit reached",
             filesCreated: [...sessionState.created],
             filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
           });
           return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
         }
@@ -514,13 +515,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   await mcpManager.closeAll().catch(() => {});
   // Fire-and-forget: dispatch skill factory
   const { skillFactory } = await import("./skills/dispatcher.js");
-  await skillFactory.process({
+  void skillFactory.process({
     sessionId,
     sessionDir,
     summary: "Agent reached maximum iterations",
     filesCreated: [...sessionState.created],
     filesChanged: [...sessionState.changed],
-    config: config.skills?.factory ?? { enabled: false, provider: "ollama", model: "llama3", maxStore: 50, maxCandidates: 200, autoPromote: true },
+    config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
   return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
 }
