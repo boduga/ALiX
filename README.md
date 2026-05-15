@@ -2,141 +2,124 @@
 
 **Agentic Lifecycle & Intelligence eXchange**
 
-ALiX is a local-first agentic coding harness. The MVP provides a TypeScript/Node CLI, event-sourced session logs, RepoMapLite, a mock provider, policy-gated primitives, patch-engine foundations, verification discovery, and a vanilla JavaScript inspector UI.
+A local-first agentic coding harness for developers who want the agent to own a task end-to-end: plan, execute file changes, run verification, and repair failures — without stopping to ask.
 
-## Current MVP Loop
+## What it does
 
-```text
-chat -> repo map lite -> plan -> event log -> inspector
+Give ALiX a task and walk away. It classifies the task, calls tools, runs your `test`/`build`/`typecheck` scripts after every change, and loops until verification passes. It stops after 3 failed repair attempts so you don't come back to a machine gone wrong.
+
+```
+$ alix run "fix the null pointer in user.ts"
 ```
 
-The current provider is deterministic and local-only:
+## Key Features
 
-```text
-provider: mock
-model: mock-planner
-```
+- **Autonomous loop** — runs until verification passes and the model signals done
+- **On-device agents** — works with any OpenAI-compatible API (Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, etc.)
+- **MCP tools** — discover and use MCP servers as first-class tools
+- **Verification discovery** — finds `test`, `build`, `typecheck`, `lint` from `package.json`
+- **Policy gating** — approve dangerous operations before they run
+- **Event log** — every tool call, model response, and verification result is recorded in `.alix/sessions/`
+- **Inspector UI** — local web UI showing session timeline, diff viewer, and live event stream
 
-## Requirements
+## Quick Start
+
+### Requirements
 
 - Node 24+
-- npm
 
-On this machine, Codex should run Node/npm commands with:
-
-```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH
-```
-
-## Install
+### Install
 
 ```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm install
-```
-
-## Build And Test
-
-```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run check
-```
-
-This runs:
-
-```bash
+npm install
 npm run build
-npm test
 ```
 
-## CLI Usage
-
-Build first:
+### Configure an API key
 
 ```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH npm run build
+alix config set-key anthropic
+# paste your API key when prompted
 ```
 
-Show help:
+### Run a task
 
 ```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH node dist/src/cli.js --help
+alix run "add OAuth login to the auth module"
 ```
 
-Run a mock task:
+### Start the inspector
 
 ```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH node dist/src/cli.js run "summarize this repo"
+alix serve
+# open http://127.0.0.1:4137
 ```
 
-Show effective config:
+### MCP servers
 
 ```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH node dist/src/cli.js config show
+alix mcp discover mcp-server-fetch  # install an MCP server
+alix mcp list                       # see connected servers
+alix mcp test github                # test a server works
 ```
 
-Start the inspector:
+## Architecture
+
+```
+task → model → tool calls → executor → file changes
+              ↑                              ↓
+         verification              results back to model
+              ↑                              ↓
+         loop until done or max repairs reached
+```
+
+The agent runs an event-sourced loop backed by an append-only JSONL log (`.alix/sessions/<id>/events.jsonl`). Every tool result, model response, and verification check is recorded.
+
+## Verification
+
+ALiX discovers verification scripts from your `package.json`:
 
 ```bash
-PATH=/home/babasola/.nvm/versions/node/v24.13.0/bin:$PATH node dist/src/cli.js serve
+npm test         # runs first
+npm run build    # runs if present
+npm run typecheck # runs if present
+npm run lint     # runs if present
 ```
 
-Then open:
+Failed checks trigger the repair loop — the output is fed back to the model with a fix prompt. Docs tasks skip verification entirely.
 
-```text
-http://127.0.0.1:4137
-```
+## Configuration
+
+Config files are loaded in priority order:
+
+1. Project: `.alix/config.json`
+2. User: `~/.config/alix/config.json`
+3. Global: `/etc/alix/config.json`
+
+Or use `alix config set-default-model` and `alix config set-key <provider>` for quick setup.
 
 ## Repository Layout
 
-```text
+```
 src/
-  cli.ts                  CLI entrypoint
-  run.ts                  MVP run flow
-  config/                 Config schema/defaults/loader
-  events/                 JSONL event log and replay projection
-  repomap/                RepoMapLite
-  providers/              Provider adapter interface and mock provider
-  policy/                 Policy decisions and approval queue
-  patch/                  Patch-engine primitives
-  checkpoints/            File-copy checkpoint primitive
-  verifier/               Verification discovery/runner
-  server/                 Local inspector server
-  ui/                     Vanilla JS inspector UI
-tests/                    Node test runner tests
-docs/                     Research, architecture specs, and implementation plan
+  cli.ts              CLI entrypoint
+  run.ts              Agent loop
+  config/             Schema, defaults, loaders
+  events/             JSONL event log
+  mcp/                MCP manager, registry, deferral, transports
+  providers/          12 provider adapters
+  policy/             Policy engine
+  patch/              Patch engine
+  verifier/            Verification discovery
+  tools/              Tool executor
+  checkpoints/         File checkpoint
+  server/             Inspector SSE server
+  ui/                 Vanilla JS inspector UI
+  utils/               Shared utilities
+tests/                Node --test suite
+docs/                 Specs, plans, PRDs
 ```
 
-## Runtime Artifacts
+## License
 
-ALiX writes local runtime state under:
-
-```text
-.alix/
-```
-
-These files are ignored by git. Session event logs live under:
-
-```text
-.alix/sessions/<session-id>/events.jsonl
-```
-
-## Development Status
-
-Completed MVP tasks:
-
-- npm/TypeScript scaffold
-- config loader
-- event-sourced session kernel
-- RepoMapLite
-- mock provider adapter
-- policy engine and approvals
-- patch engine primitives
-- checkpoints and verification discovery
-- CLI run flow
-- local inspector server
-- final MVP verification
-
-Recommended next hardening work:
-
-- strengthen patch safety before real providers
-- make the inspector render live session events
-- add the first real provider adapter
+MIT — see [LICENSE](LICENSE)
