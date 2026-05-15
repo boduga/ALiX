@@ -1,0 +1,105 @@
+import type { McpToolRegistry, RegisteredTool } from "./registry.js";
+import type { ToolDef } from "../providers/types.js";
+import { SchemaCache } from "./tool-cache.js";
+import { searchTools, type SearchResult } from "./tool-search.js";
+
+/**
+ * A tool entry sent to the model at session start.
+ * Contains only name + description — no input_schema.
+ */
+export interface DeferredToolEntry {
+  name: string;       // mcp_github_repos_list — what the model uses
+  execName: string;  // mcp.github.repos.list — internal executor name
+  serverName: string;
+  toolName: string;
+  description: string;
+  [key: string]: string | number | boolean | object | undefined;
+}
+
+/**
+ * McpToolDeferral manages lazy loading of MCP tool schemas.
+ *
+ * At session start: only names + descriptions are sent to the model (lightweight).
+ * On tool call: full ToolDef is resolved from cache or registry and cached.
+ * On unknown name: fuzzy search finds the closest match.
+ */
+export class McpToolDeferral {
+  private cache: SchemaCache;
+  private _index: DeferredToolEntry[] | null = null;
+
+  constructor(private registry: McpToolRegistry) {
+    this.cache = new SchemaCache();
+  }
+
+  /**
+   * Build the deferred tool index — names + descriptions only.
+   * Called once at session start; result is sent to the model.
+   */
+  buildIndex(): DeferredToolEntry[] {
+    if (this._index) return this._index;
+    this._index = this.registry.listTools().map(tool => ({
+      name: mcpToolName(tool.serverName, tool.toolName),
+      execName: mcpToolExecName(tool.serverName, tool.toolName),
+      serverName: tool.serverName,
+      toolName: tool.toolName,
+      description: tool.description ?? "",
+    }));
+    return this._index;
+  }
+
+  /**
+   * Resolve the full ToolDef for a tool the model called.
+   * Uses cache first; on miss, builds from registry and caches.
+   */
+  resolve(mcpName: string): ToolDef | undefined {
+    if (this.cache.has(mcpName)) return this.cache.get(mcpName)!;
+
+    const entry = this.findEntry(mcpName);
+    if (!entry) return undefined;
+
+    const tool = this.registry.getTool(`${entry.serverName}/${entry.toolName}`);
+    if (!tool) return undefined;
+
+    const def: ToolDef = {
+      name: entry.name,
+      description: entry.description,
+      input_schema: tool.inputSchema as ToolDef["input_schema"],
+    };
+
+    this.cache.set(mcpName, def);
+    return def;
+  }
+
+  /**
+   * Fallback search when model uses an unknown or misspelled tool name.
+   * Returns top matches from the deferred index.
+   */
+  search(query: string, limit = 3): SearchResult<DeferredToolEntry>[] {
+    return searchTools(query, this.buildIndex()).slice(0, limit);
+  }
+
+  /**
+   * Clear schema cache for a server (called when server reconnects with new schemas).
+   */
+  clearServerCache(serverName: string): void {
+    this.cache.clearPrefix(`mcp_${serverName}_`);
+    this._index = null;
+  }
+
+  private findEntry(name: string): DeferredToolEntry | undefined {
+    const idx = this.buildIndex();
+    return idx.find(e =>
+      e.name === name ||
+      e.execName === name ||
+      `${e.serverName}/${e.toolName}` === name
+    );
+  }
+}
+
+function mcpToolName(serverName: string, toolName: string): string {
+  return "mcp_" + serverName + "_" + toolName.replace(/\./g, "_");
+}
+
+function mcpToolExecName(serverName: string, toolName: string): string {
+  return "mcp." + serverName + "." + toolName;
+}
