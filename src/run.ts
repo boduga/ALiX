@@ -433,6 +433,27 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         sessionState.fatalErrors.push(failed);
       }
     }
+
+    // After tool calls, run verification every iteration
+    const endChecks = await discoverVerification(cwd);
+    if (endChecks.length > 0 && taskType !== "docs") {
+      for (const check of endChecks) {
+        await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
+        const verResult = await runVerification(cwd, check);
+        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
+
+        if (verResult.status === "failed") {
+          repairCount++;
+          if (repairCount > maxRepairs) {
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached: ${verResult.output ?? ""}` } });
+            await mcpManager.closeAll().catch(() => {});
+            return { sessionId, summary: `Repair limit reached: ${verResult.output ?? ""}`, streamed: config.model.streaming };
+          }
+          const repairPrompt = `\n\n[Verification Failed] ${check.command} failed:\n${verResult.output ?? ""}\n\nFix the issue and try again.`;
+          messages.push({ role: "user", content: repairPrompt });
+        }
+      }
+    }
   }
 
   // Max iterations reached
