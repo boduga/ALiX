@@ -1,3 +1,4 @@
+// src/verifier/verifier.ts
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
@@ -14,12 +15,31 @@ export type VerificationResult = {
   output?: string;
 };
 
+const TEST_COMMANDS = ["test", "test:unit", "test:integration"];
+const BUILD_COMMANDS = ["build", "compile"];
+const TYPE_CHECK_COMMANDS = ["typecheck", "type-check", "lint", "check"];
+
 export async function discoverVerification(root: string): Promise<VerificationCheck[]> {
   const packagePath = join(root, "package.json");
   if (!existsSync(packagePath)) return [];
   const pkg = JSON.parse(await readFile(packagePath, "utf8")) as { scripts?: Record<string, string> };
-  if (pkg.scripts?.test) return [{ command: "npm test", reason: "package.json defines test script" }];
-  return [];
+  const scripts = pkg.scripts ?? {};
+  const checks: VerificationCheck[] = [];
+
+  for (const [name, cmd] of Object.entries(scripts)) {
+    if (TEST_COMMANDS.includes(name)) {
+      const fullCmd = name === "test" ? "npm test" : `npm run ${name}`;
+      checks.push({ command: fullCmd, reason: `package.json script: ${name}` });
+    }
+    if (BUILD_COMMANDS.includes(name)) {
+      checks.push({ command: `npm run ${name}`, reason: `package.json script: ${name}` });
+    }
+    if (TYPE_CHECK_COMMANDS.includes(name)) {
+      checks.push({ command: `npm run ${name}`, reason: `package.json script: ${name}` });
+    }
+  }
+
+  return checks;
 }
 
 export async function runVerification(root: string, check: VerificationCheck): Promise<VerificationResult> {
