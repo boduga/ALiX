@@ -32,8 +32,7 @@ function findByToolCallId<T extends { toolCallId?: string }>(items: T[], toolCal
 }
 
 function statusForEndedSession(reason: string | undefined): InspectorSnapshot["summary"]["status"] {
-  if (reason === "completed") return "completed";
-  return "failed";
+  return reason === "completed" ? "completed" : "failed";
 }
 
 function verificationSummary(snapshot: InspectorSnapshot): string {
@@ -134,14 +133,20 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
           }
         }
         if (toolName === "patch.apply") {
-          const diff =
-            findByToolCallId(snapshot.diffs, toolCallId) ??
-            snapshot.diffs[
-              snapshot.diffs.push({ toolCallId, changedFiles: [], checkpointFiles: [], rolledBack: false, status: "checkpointed" }) - 1
-            ];
           const changedFiles = stringArray(payload.changedFiles);
-          diff.changedFiles = changedFiles.length > 0 ? changedFiles : diff.checkpointFiles;
-          diff.status = event.type === "tool.failed" ? "failed" : "applied";
+          const existing = findByToolCallId(snapshot.diffs, toolCallId);
+          if (existing) {
+            existing.changedFiles = changedFiles.length > 0 ? changedFiles : existing.checkpointFiles;
+            existing.status = event.type === "tool.failed" ? "failed" : "applied";
+          } else {
+            snapshot.diffs.push({
+              toolCallId,
+              changedFiles,
+              checkpointFiles: [],
+              rolledBack: false,
+              status: event.type === "tool.failed" ? "failed" : "applied"
+            });
+          }
         }
         break;
       case "patch.checkpoint_created":
