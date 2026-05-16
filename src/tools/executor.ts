@@ -144,10 +144,12 @@ export class ToolExecutor {
         if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
           result = { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." }; break;
         }
-        const exists = existsSync(resolvedPath);
+        if (existsSync(resolvedPath)) {
+          result = { kind: "error", message: `File already exists: ${path}`, retryable: false, hint: `Use file.read to inspect the existing content, then file.patch or file.edit to modify it.` }; break;
+        }
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
-        result = { kind: "success", output: exists ? `File updated: ${path}` : `File created: ${path}`, createdPath: path, changedFiles: [path] };
+        result = { kind: "success", output: `File created: ${path}`, createdPath: path, changedFiles: [path] };
         break;
       }
       case "file.delete": {
