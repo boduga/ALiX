@@ -102,3 +102,32 @@ test("compareInspectorSnapshots reports changed-file differences and verificatio
     tokenDelta: { inputTokens: 30, outputTokens: -5 }
   });
 });
+
+test("buildInspectorSnapshot falls back to checkpoint files when patch apply omits changed files", () => {
+  const snapshot = buildInspectorSnapshot("s1", [
+    event(1, "patch.checkpoint_created", { toolCallId: "patch-1", files: ["src/app.ts", "tests/app.test.ts"] }),
+    event(2, "tool.completed", { toolCallId: "patch-1", toolName: "patch.apply", status: "success" })
+  ]);
+
+  assert.deepEqual(snapshot.diffs[0], {
+    toolCallId: "patch-1",
+    changedFiles: ["src/app.ts", "tests/app.test.ts"],
+    checkpointFiles: ["src/app.ts", "tests/app.test.ts"],
+    rolledBack: false,
+    status: "applied"
+  });
+});
+
+test("buildInspectorSnapshot finishes the latest matching verification command", () => {
+  const snapshot = buildInspectorSnapshot("s1", [
+    event(1, "verification.check_started", { command: "npm test", reason: "first run" }),
+    event(2, "verification.check_finished", { command: "npm test", status: "failed", output: "first failure" }),
+    event(3, "verification.check_started", { command: "npm test", reason: "repair run" }),
+    event(4, "verification.check_finished", { command: "npm test", status: "passed", output: "second pass" })
+  ]);
+
+  assert.deepEqual(snapshot.verification, [
+    { command: "npm test", reason: "first run", status: "failed", output: "first failure" },
+    { command: "npm test", reason: "repair run", status: "passed", output: "second pass" }
+  ]);
+});

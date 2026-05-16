@@ -55,6 +55,11 @@ function sortedValues(values: Iterable<string>): string[] {
   return [...values].sort((left, right) => left.localeCompare(right));
 }
 
+function checkpointFilesFromPayload(payload: UnknownRecord): string[] {
+  const files = stringArray(payload.files);
+  return files.length > 0 ? files : stringArray(payload.checkpointFiles);
+}
+
 export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): InspectorSnapshot {
   const snapshot: InspectorSnapshot = {
     sessionId,
@@ -129,13 +134,13 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
           }
         }
         if (toolName === "patch.apply") {
-          const changedFiles = stringArray(payload.changedFiles);
           const diff =
             findByToolCallId(snapshot.diffs, toolCallId) ??
             snapshot.diffs[
               snapshot.diffs.push({ toolCallId, changedFiles: [], checkpointFiles: [], rolledBack: false, status: "checkpointed" }) - 1
             ];
-          diff.changedFiles = changedFiles;
+          const changedFiles = stringArray(payload.changedFiles);
+          diff.changedFiles = changedFiles.length > 0 ? changedFiles : diff.checkpointFiles;
           diff.status = event.type === "tool.failed" ? "failed" : "applied";
         }
         break;
@@ -143,7 +148,7 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
         snapshot.diffs.push({
           toolCallId,
           changedFiles: [],
-          checkpointFiles: stringArray(payload.files).length > 0 ? stringArray(payload.files) : stringArray(payload.checkpointFiles),
+          checkpointFiles: checkpointFilesFromPayload(payload),
           rolledBack: false,
           status: "checkpointed"
         });
@@ -182,7 +187,7 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
       case "verification.check_finished": {
         const command = optionalString(payload.command);
         if (command) {
-          const check = snapshot.verification.find((item) => item.command === command);
+          const check = snapshot.verification.findLast((item) => item.command === command && item.status === "running");
           const finished = check ?? snapshot.verification[snapshot.verification.push({ command }) - 1];
           finished.status = optionalString(payload.status);
           finished.output = optionalString(payload.output);
