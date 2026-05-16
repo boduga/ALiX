@@ -19,7 +19,8 @@ export const DEFAULT_CONFIG: AlixConfig = {
     },
     protectedPaths: [".git/**", ".env", ".env.*", "secrets/**"],
     allowNetworkDomains: [],
-    denyCommands: ["rm -rf /", "git push --force"]
+    denyCommands: ["rm -rf /", "git push --force"],
+    sessionMode: "ask"
   },
   context: {
     repoMap: true,

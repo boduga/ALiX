@@ -4,6 +4,7 @@ import type { AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 import type { McpManager } from "../mcp/manager.js";
 import { decidePolicy } from "../policy/policy-engine.js";
+import { redactValue } from "../policy/secret-scanner.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { applyPatch } from "../patch/patch-engine.js";
@@ -144,12 +145,19 @@ export class ToolExecutor {
       }
     }
 
-    await this.logEvent(result.kind === "success" ? "tool.completed" : "tool.failed", {
-      toolCallId, toolName: name, status: result.kind,
-      outputSize: result.kind === "success" ? ((result.output?.length ?? 0) + (result.content?.length ?? 0)) : 0,
-      outputPreview: result.kind === "success" ? ((result.output ?? result.content ?? "").slice(0, 200)) : undefined,
-      error: result.kind === "error" ? result.message : undefined
-    });
+    // Build log payload — redact secrets from output/error before logging
+    const logPayload = result.kind === "success"
+      ? redactValue({
+          toolCallId, toolName: name, status: result.kind,
+          outputSize: ((result.output?.length ?? 0) + (result.content?.length ?? 0)),
+          outputPreview: (result.output ?? result.content ?? "").slice(0, 200),
+        })
+      : redactValue({
+          toolCallId, toolName: name, status: result.kind,
+          outputSize: 0,
+          error: result.message,
+        });
+    await this.logEvent(result.kind === "success" ? "tool.completed" : "tool.failed", logPayload.redacted as Record<string, unknown>);
 
     return result;
   }

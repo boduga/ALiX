@@ -333,13 +333,15 @@ if (command === "config" && args[0] === "show") {
 if (command === "run") {
   const taskArgs = args.join(" ").trim();
   const noStream = taskArgs.includes("--no-stream");
-  const cleanTask = taskArgs.replace(/\s*--no-stream\s*/g, " ").trim();
+  const modeMatch = taskArgs.match(/--mode=(\w+)/);
+  const mode = modeMatch ? (modeMatch[1] as "auto" | "ask" | "bypass") : undefined;
+  const cleanTask = taskArgs.replace(/\s*--no-stream\s*/g, " ").replace(/\s*--mode=\w+\s*/g, " ").trim();
   if (!cleanTask) {
-    console.error("Usage: alix run \"<task>\" [--no-stream]");
+    console.error("Usage: alix run \"<task>\" [--no-stream] [--mode=auto|ask|bypass]");
     process.exit(1);
   }
   try {
-    const result = await runTask(process.cwd(), cleanTask, { streaming: noStream ? false : undefined });
+    const result = await runTask(process.cwd(), cleanTask, { streaming: noStream ? false : undefined, sessionMode: mode });
     if (!result.streamed) {
       console.log(result.summary);
     }

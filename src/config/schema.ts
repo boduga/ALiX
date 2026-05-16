@@ -1,3 +1,5 @@
+export type SessionMode = "auto" | "ask" | "bypass";
+
 export type Decision = "ask" | "allow" | "deny";
 
 export type ModelConfig = {
@@ -16,6 +18,7 @@ export type PermissionConfig = {
   protectedPaths: string[];
   allowNetworkDomains: string[];
   denyCommands: string[];
+  sessionMode?: SessionMode; // "auto" | "ask" | "bypass", defaults to "ask"
 };
 
 export type ContextConfig = {

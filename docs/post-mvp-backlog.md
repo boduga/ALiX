@@ -123,6 +123,17 @@ Current state: `src/mcp/tool-deferral.ts` has fuzzy search and caching. MCP mana
 
 **Why P2:** Prevents token waste and model confusion when many MCP tools are available.
 
+#### P2.3: LSP Diagnostics (For Consideration)
+**Section:** `docs/agentic-harness-research.md` — OpenCode borrowing
+
+What: Real-time type errors, symbol navigation (go-to-definition, find-references), and hover info surfaced as agent tools via an MCP adapter for LSP servers.
+
+Current state: None.
+
+**Alternative (preferred):** Run typecheckers in the background via the verifier loop (P1.2). Same diagnostics UX without per-language server management. If the MCP ecosystem produces a good LSP bridge server, revisit this.
+
+**Why listed for consideration:** Useful for IDE-like UX, but high complexity cost (per-language LSP servers, stateful lifecycle management, protocol complexity). Prioritize verifier-based diagnostics first.
+
 ---
 
 ### P3 — Multi-Agent

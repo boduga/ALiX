@@ -1,4 +1,4 @@
-import type { AlixConfig, Decision } from "../config/schema.js";
+import type { AlixConfig, Decision, SessionMode } from "../config/schema.js";
 
 export type ToolRequest = {
   toolCallId: string;
@@ -12,6 +12,15 @@ export type PolicyDecision = {
   reason: string;
 };
 
+function applySessionMode(toolDecision: Decision, mode: SessionMode): Decision {
+  if (toolDecision === "allow") return "allow";
+  if (toolDecision === "deny") return "deny"; // deny always wins, even in bypass
+  // toolDecision === "ask"
+  if (mode === "auto") return "allow";
+  if (mode === "bypass") return "allow";
+  return "ask"; // mode === "ask"
+}
+
 export function decidePolicy(config: AlixConfig, request: ToolRequest): PolicyDecision {
   if (request.path && isProtectedPath(config.permissions.protectedPaths, request.path)) {
     return { decision: "deny", reason: `Path is protected: ${request.path}` };
@@ -22,8 +31,10 @@ export function decidePolicy(config: AlixConfig, request: ToolRequest): PolicyDe
   }
 
   const toolDecision = config.permissions.tools[request.capability];
+  const mode = config.permissions.sessionMode ?? "ask";
   if (toolDecision) {
-    return { decision: toolDecision, reason: `Matched tool policy for ${request.capability}` };
+    const effective = applySessionMode(toolDecision, mode);
+    return { decision: effective, reason: `Matched tool policy for ${request.capability} (mode: ${mode})` };
   }
 
   return { decision: config.permissions.default, reason: "Matched default policy" };

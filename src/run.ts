@@ -177,7 +177,7 @@ export type RunResult = {
   streamed?: boolean;
 };
 
-export type RunOpts = { streaming?: boolean };
+export type RunOpts = { streaming?: boolean; sessionMode?: "auto" | "ask" | "bypass" };
 
 export function shouldAutoDisableStreaming(): boolean {
   if (!process.stdout.isTTY) return true;
@@ -191,6 +191,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   await mkdir(sessionDir, { recursive: true });
 
   const config = await loadConfig(cwd);
+  // CLI flag overrides config for session mode
+  if (opts?.sessionMode) {
+    config.permissions.sessionMode = opts.sessionMode;
+  }
   // Auto-disable streaming in non-TTY environments unless explicitly forced
   if (shouldAutoDisableStreaming() && config.model.streaming && opts?.streaming !== true) {
     config.model.streaming = false;
