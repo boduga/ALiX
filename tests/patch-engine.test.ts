@@ -23,6 +23,22 @@ test("applies exact search replace", async () => {
   }
 });
 
+test("search replace writes replacement text literally when it contains dollar sequences", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"));
+    await writeFile(join(dir, "src/a.ts"), "const value = 'old';\n");
+    await applyPatch(
+      dir,
+      "search_replace",
+      "<<<<<<< SEARCH path=src/a.ts\nconst value = 'old';\n=======\nconst value = '$&';\n>>>>>>> REPLACE"
+    );
+    assert.equal(await readFile(join(dir, "src/a.ts"), "utf8"), "const value = '$&';\n");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("rejects ambiguous search replace", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
   try {

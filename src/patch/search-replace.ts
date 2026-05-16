@@ -16,7 +16,8 @@ export function parseSearchReplace(input: string): SearchReplaceBlock[] {
 
 export function applySearchReplace(content: string, block: SearchReplaceBlock): string {
   validateSearchReplace(content, block);
-  return content.replace(block.search, block.replace);
+  const first = content.indexOf(block.search);
+  return content.slice(0, first) + block.replace + content.slice(first + block.search.length);
 }
 
 export function validateSearchReplace(content: string, block: SearchReplaceBlock): void {
