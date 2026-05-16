@@ -8,6 +8,8 @@ import { redactValue } from "../policy/secret-scanner.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
 import { applyPatch } from "../patch/patch-engine.js";
+import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
+import type { EditFormat, EditFormatPolicy } from "../patch/edit-format-policy.js";
 import { createFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
 import type { ToolResult } from "./types.js";
 
@@ -24,7 +26,8 @@ export class ToolExecutor {
     private config: AlixConfig,
     private log: EventLog,
     private root: string,
-    private mcpManager?: McpManager
+    private mcpManager?: McpManager,
+    private editFormatPolicy?: EditFormatPolicy
   ) {}
 
   private sessionId(): string {
@@ -83,6 +86,23 @@ export class ToolExecutor {
       }
       case "patch.apply": {
         const { root: r, format, patchText } = args as { root: string; format: string; patchText: string };
+        const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: this.config.model.provider });
+        const requestedFormat = format as EditFormat;
+        const allowed = policy.allowed.includes(requestedFormat);
+        await this.logEvent("patch.edit_format_policy", {
+          toolCallId,
+          provider: policy.provider,
+          requestedFormat: format,
+          preferredFormat: policy.preferred,
+          allowedFormats: policy.allowed,
+          matchesPreference: requestedFormat === policy.preferred,
+          allowed,
+          fullFileRewrite: policy.fullFileRewrite,
+        });
+        if (!allowed) {
+          result = { kind: "error", message: `Patch format "${format}" is not allowed by edit format policy. Allowed formats: ${policy.allowed.join(", ")}`, retryable: false };
+          break;
+        }
         const changedFiles = [...patchText.matchAll(/path=([^\s\n]+)/g)].map(m => m[1]);
         if (changedFiles.length > 0) {
           await createFileCheckpoint(r ?? this.root, changedFiles);

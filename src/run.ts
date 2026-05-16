@@ -311,6 +311,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     { provider: config.model.provider, model: config.model.name },
     process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
   );
+  const editFormatPolicy = buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference });
   const providerTools = buildToolsForProvider(provider);
 
   // Initialize MCP manager
@@ -332,7 +333,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
   evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager);
+  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy);
 
   const mcpDeferral = mcpManager.getDeferral();
   const mcpToolIndex = mcpDeferral.buildIndex();
