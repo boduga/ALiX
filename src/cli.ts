@@ -220,7 +220,7 @@ if (!command || command === "--help" || command === "-h") {
   console.log(`ALiX ${ALIX_VERSION}
 
 Usage:
-  alix run "<task>"
+  alix run "<task>" [--no-stream] [--mode=auto|ask|bypass]
   alix serve
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
