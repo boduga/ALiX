@@ -222,6 +222,21 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
   });
 }
 
+export function buildContextBundleEventPayload(contextBundle: import("./repomap/context-compiler.js").ContextBundle) {
+  return {
+    taskType: contextBundle.taskType,
+    budget: contextBundle.budget,
+    primaryFiles: contextBundle.primaryFiles,
+    tests: contextBundle.tests,
+    supportingFiles: contextBundle.supportingFiles,
+    pinned: contextBundle.pinned,
+  };
+}
+
+export function buildModelUsageEventPayload(provider: string, model: string, usage: TokenUsage) {
+  return { provider, model, inputTokens: usage.inputTokens, outputTokens: usage.outputTokens };
+}
+
 export function renderContextBundleForPrompt(contextBundle: import("./repomap/context-compiler.js").ContextBundle): string {
   const lines: string[] = ["## Context Files"];
   if (contextBundle.primaryFiles.length > 0) {
@@ -394,14 +409,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   await log.append({
     ...session,
     type: "context.bundle_compiled",
-    payload: {
-      taskType,
-      budget: contextBundle.budget,
-      primaryCount: contextBundle.primaryFiles.length,
-      testCount: contextBundle.tests.length,
-      supportingCount: contextBundle.supportingFiles.length,
-      pinnedCount: contextBundle.pinned.length,
-    }
+    payload: buildContextBundleEventPayload(contextBundle),
   });
 
   function buildSystemPrompt(base: string, contextBundle: import("./repomap/context-compiler.js").ContextBundle): string {
@@ -501,6 +509,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     }
     
     await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
+
+    if (usage) {
+      await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
+    }
 
     if (toolCalls.length === 0) {
       // No tools called — check if model signals completion
