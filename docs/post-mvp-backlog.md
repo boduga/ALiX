@@ -16,15 +16,20 @@ These must land before multi-agent work is viable.
 
 What: Build a `ContextCompiler` that turns user intent into a ranked, typed bundle of repo context. Classifies task type, builds repo map, ranks files by relevance, respects token budget, distinguishes edit targets from supporting context.
 
-Current state: `src/repomap/repomap-lite.ts` exists with minimal file tree + symbols. No token budget enforcement, no relevance ranking, no test mapping, no intent classification.
+Current state: `ContextCompiler` is wired into `runTask` and produces a ranked `ContextBundle`. It includes task-mentioned files, config files, related tests, pinned files, dependency-related files, symbol-level matches, git activity scoring, and token-budget enforcement. Remaining future upgrades are semantic search, Tree-sitter-grade parsing, and richer snippet extraction.
 
-Key components needed:
-- `IntentClassifier` — classify task as bugfix/feature/refactor/docs/etc
-- `SymbolExtractor` — extract functions/classes from source files
-- `DependencyGraph` — map imports/exports
-- `GitActivityReader` — include recent git history
-- `ContextRanker` — score files by relevance to intent
-- `ContextBudgeter` — enforce token limit on context bundle
+Key components implemented:
+- ✅ `IntentClassifier` — task type classification via `src/task-classifier.ts`
+- ✅ `SymbolExtractor` — top-level exported symbol extraction
+- ✅ `DependencyGraph` — relative import/export graph
+- ✅ `GitActivityReader` — recent git activity scoring
+- ✅ `ContextRanker` — combined scoring for mentions, dependencies, symbols, tests, config, and recency
+- ✅ `ContextBudgeter` — approximate token budget enforcement
+
+Future upgrades:
+- Tree-sitter parser for more precise symbols and references
+- Semantic search over repo content
+- Snippet-level context extraction instead of path-level prompt hints
 
 **Why P0:** Agents fail because they're looking at the wrong slice of the repo. Better context = less repair loops = faster completion.
 
