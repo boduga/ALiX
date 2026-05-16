@@ -500,7 +500,9 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       usage = resp.usage;
     }
     
-    await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
+    if (text.length > 0) {
+      await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
+    }
 
     if (toolCalls.length === 0) {
       // No tools called — check if model signals completion

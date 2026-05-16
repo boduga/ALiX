@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { AlixConfig } from "../config/schema.js";
@@ -143,9 +144,10 @@ export class ToolExecutor {
         if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
           result = { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." }; break;
         }
+        const exists = existsSync(resolvedPath);
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
-        result = { kind: "success", output: `File created: ${path}`, createdPath: path, changedFiles: [path] };
+        result = { kind: "success", output: exists ? `File updated: ${path}` : `File created: ${path}`, createdPath: path, changedFiles: [path] };
         break;
       }
       case "file.delete": {
