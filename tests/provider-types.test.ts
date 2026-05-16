@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { buildToolsForProvider } from "../src/run.js";
+import type { ModelAdapter } from "../src/providers/types.js";
 
 test("StreamChunk union covers all variants", () => {
   const chunk1: import("../src/providers/types.js").StreamChunk = { type: "text_delta", text: "hello" };
@@ -47,4 +49,40 @@ test("ModelAdapter optionally has stream and negotiate", () => {
     complete: async () => ({ text: "", toolCalls: [] })
   };
   assert.ok(adapter.complete);
+});
+
+test("buildToolsForProvider makes search_replace the active provider patch default", () => {
+  const adapter = {
+    editFormatPreference: "search_replace",
+  } as ModelAdapter;
+  const patchTool = buildToolsForProvider(adapter).find((tool) => tool.name === "alix_patch_apply");
+  const properties = patchTool?.input_schema.properties as Record<string, { description?: string; enum?: string[] }>;
+
+  assert.deepEqual(properties.format.enum, ["search_replace", "structured_patch"]);
+  assert.match(properties.format.description ?? "", /Preferred: search_replace/);
+  assert.match(properties.patchText.description ?? "", /<<<<<<< SEARCH path=<file>/);
+});
+
+test("buildToolsForProvider makes structured_patch the active provider patch default", () => {
+  const adapter = {
+    editFormatPreference: "structured_patch",
+  } as ModelAdapter;
+  const patchTool = buildToolsForProvider(adapter).find((tool) => tool.name === "alix_patch_apply");
+  const properties = patchTool?.input_schema.properties as Record<string, { description?: string; enum?: string[] }>;
+
+  assert.deepEqual(properties.format.enum, ["structured_patch", "search_replace"]);
+  assert.match(properties.format.description ?? "", /Preferred: structured_patch/);
+  assert.match(properties.patchText.description ?? "", /JSON object/);
+});
+
+test("buildToolsForProvider never advertises full_file as the default edit format", () => {
+  const adapter = {
+    editFormatPreference: "full_file",
+  } as ModelAdapter;
+  const patchTool = buildToolsForProvider(adapter).find((tool) => tool.name === "alix_patch_apply");
+  const properties = patchTool?.input_schema.properties as Record<string, { description?: string; enum?: string[] }>;
+
+  assert.deepEqual(properties.format.enum, ["search_replace", "structured_patch"]);
+  assert.match(properties.format.description ?? "", /Preferred: search_replace/);
+  assert.doesNotMatch(properties.format.description ?? "", /Preferred: full_file/);
 });

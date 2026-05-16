@@ -92,6 +92,9 @@ type SessionState = {
   fatalErrors: string[];
 };
 
+const SUPPORTED_PATCH_FORMATS = ["search_replace", "structured_patch"] as const;
+type SupportedPatchFormat = typeof SUPPORTED_PATCH_FORMATS[number];
+
 function buildStateSummary(state: SessionState): string {
   const parts: string[] = [];
   if (state.created.size) parts.push(`Created: ${[...state.created].join(", ")}`);
@@ -101,8 +104,24 @@ function buildStateSummary(state: SessionState): string {
   return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
 }
 
+function providerPatchFormatPreference(provider: Pick<ModelAdapter, "editFormatPreference">): SupportedPatchFormat {
+  return provider.editFormatPreference === "structured_patch" ? "structured_patch" : "search_replace";
+}
+
+function patchFormatDescription(preferred: SupportedPatchFormat): string {
+  const alternate = preferred === "search_replace" ? "structured_patch" : "search_replace";
+  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. Do not use full_file for existing files.`;
+}
+
+function patchTextDescription(preferred: SupportedPatchFormat): string {
+  if (preferred === "structured_patch") {
+    return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256>","content":"<full new content>"}]}. Use search_replace only when a small exact replacement is safer.`;
+  }
+  return "The patch content. Preferred search_replace format:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE";
+}
+
 // Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
-const TOOLS: ToolDef[] = [
+const BASE_TOOLS: ToolDef[] = [
   {
     name: "alix_file_read",
     description: "Read the contents of a file from the workspace.",
@@ -180,6 +199,32 @@ const TOOLS: ToolDef[] = [
     }
   }
 ];
+
+export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPreference">): ToolDef[] {
+  const preferred = providerPatchFormatPreference(provider);
+  const alternate: SupportedPatchFormat = preferred === "search_replace" ? "structured_patch" : "search_replace";
+  return BASE_TOOLS.map((tool) => {
+    if (tool.name !== "alix_patch_apply") return tool;
+    return {
+      ...tool,
+      input_schema: {
+        ...tool.input_schema,
+        properties: {
+          ...tool.input_schema.properties,
+          format: {
+            type: "string",
+            enum: [preferred, alternate],
+            description: patchFormatDescription(preferred)
+          },
+          patchText: {
+            type: "string",
+            description: patchTextDescription(preferred)
+          }
+        }
+      }
+    };
+  });
+}
 
 export type StreamHandler = (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
 
@@ -271,6 +316,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     { provider: config.model.provider, model: config.model.name },
     process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
   );
+  const providerTools = buildToolsForProvider(provider);
 
   // Initialize MCP manager
   const mcpManager = new McpManager(config);
@@ -446,7 +492,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       for await (const chunk of provider.stream({
         systemPrompt: SYSTEM_PROMPT,
         messages,
-        tools: [...TOOLS, ...mcpToolIndex]
+        tools: [...providerTools, ...mcpToolIndex]
       })) {
         if (chunk.type === "text_delta") {
           text += chunk.text;
@@ -466,7 +512,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       const resp = await provider.complete({
         systemPrompt: SYSTEM_PROMPT,
         messages,
-        tools: [...TOOLS, ...mcpToolIndex]
+        tools: [...providerTools, ...mcpToolIndex]
       });
       text = resp.text ?? "";
       toolCalls = resp.toolCalls ?? [];
