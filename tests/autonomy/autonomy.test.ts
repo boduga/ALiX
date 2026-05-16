@@ -53,6 +53,13 @@ describe("createScopeTracker", () => {
     tracker.denyScope("/repo/src/other.ts");
     assert.strictEqual(tracker.pendingApproval, null);
   });
+
+  it("returns denied for previously denied files", () => {
+    const tracker = createScopeTracker(["src/auth.ts"], "/repo");
+    tracker.denyScope("/repo/src/evil.ts");
+    const result = tracker.checkMutation("/repo/src/evil.ts");
+    assert.strictEqual(result, "denied");
+  });
 });
 
 describe("TaskStateMachine", () => {

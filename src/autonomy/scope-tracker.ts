@@ -8,7 +8,7 @@ export type ScopeTracker = {
   approvedFiles: Set<string>;
   pendingApproval: string | null;
   transition(newState: AgentState): void;
-  checkMutation(path: string): "allowed" | "scope_expansion" | "approved";
+  checkMutation(path: string): "allowed" | "scope_expansion" | "approved" | "denied";
   approveScope(path: string): void;
   denyScope(path: string): void;
   setPending(path: string): void;
@@ -49,6 +49,7 @@ export function createScopeTracker(
 ): ScopeTracker {
   const initialSet = new Set(initialFiles.map(p => normalize(p, root)));
   const approvedSet = new Set(initialSet); // initial scope is auto-approved
+  const deniedSet = new Set<string>(); // files explicitly denied by user
 
   let currentState: AgentState = "planning";
   let pendingFile: string | null = null;
@@ -65,8 +66,9 @@ export function createScopeTracker(
       pendingFile = null;
     },
 
-    checkMutation(path: string): "allowed" | "scope_expansion" | "approved" {
+    checkMutation(path: string): "allowed" | "scope_expansion" | "approved" | "denied" {
       const n = normalize(path, root);
+      if (deniedSet.has(n)) return "denied";
       if (approvedSet.has(n)) return "approved";
       if (initialSet.has(n)) return "allowed"; // initial scope — auto-approved for mutation
       return "scope_expansion";
@@ -75,10 +77,13 @@ export function createScopeTracker(
     approveScope(path: string) {
       const n = normalize(path, root);
       approvedSet.add(n);
+      deniedSet.delete(n);
       pendingFile = null;
     },
 
-    denyScope(_path: string) {
+    denyScope(path: string) {
+      const n = normalize(path, root);
+      deniedSet.add(n);
       pendingFile = null;
     },
 

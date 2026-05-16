@@ -544,6 +544,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
             messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion requires approval. The agent is attempting to modify "${path}" which is outside the initial scope.\n\nPlease confirm: type "approve" to allow this file, or "deny" to block it.\n</tool_result>` });
             continue;
           }
+        } else if (check === "denied") {
+          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { path, toolCallId: toolCall.id, toolName: execName } });
+          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: This file was denied by the user. Do NOT attempt to modify it again.\n</tool_result>` });
+          continue;
         }
         // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
       }
