@@ -127,3 +127,21 @@ test("rejects session comparison requests missing either session id", async () =
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("serves inspector shell with observability panels", async () => {
+  const server = await startServer(process.cwd(), 0);
+  try {
+    const response = await fetch(server.url);
+    const text = await response.text();
+    assert.match(text, /data-panel="timeline"/);
+    assert.match(text, /data-panel="context"/);
+    assert.match(text, /data-panel="diffs"/);
+    assert.match(text, /data-panel="terminal"/);
+    assert.match(text, /data-panel="approvals"/);
+    assert.match(text, /data-panel="verification"/);
+    assert.match(text, /data-panel="tokens"/);
+    assert.match(text, /id="replay-play"/);
+  } finally {
+    await server.close();
+  }
+});

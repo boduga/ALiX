@@ -18,23 +18,57 @@
         <label for="session-id">Session ID</label>
         <input type="text" id="session-id" placeholder="Paste session ID..." />
         <button id="connect-btn">Connect</button>
-        <label for="event-filter">Filter</label>
-        <select id="event-filter">
-          <option value="all">All events</option>
-          <option value="tool">Tools only</option>
-          <option value="agent">Agent messages</option>
-          <option value="error">Errors only</option>
-        </select>
       </section>
 
-      <section class="panel" aria-label="Session timeline">
-        <div class="panel-header">
-          <h2>Timeline</h2>
-          <span class="status" id="connection-status">Disconnected</span>
-        </div>
-        <ol id="events"></ol>
+      <section class="workspace">
+        <nav class="tabs" aria-label="Inspector views">
+          <button class="tab active" data-panel="timeline">Timeline</button>
+          <button class="tab" data-panel="context">Context</button>
+          <button class="tab" data-panel="diffs">Diffs</button>
+          <button class="tab" data-panel="terminal">Terminal</button>
+          <button class="tab" data-panel="approvals">Approvals</button>
+          <button class="tab" data-panel="verification">Verification</button>
+          <button class="tab" data-panel="tokens">Tokens</button>
+          <button class="tab" data-panel="compare">Compare</button>
+        </nav>
+
+        <section class="replay-bar" aria-label="Replay controls">
+          <button id="replay-start" title="Jump to start">|&lt;</button>
+          <button id="replay-step-back" title="Step back">&lt;</button>
+          <button id="replay-play" title="Play or pause replay">Play</button>
+          <button id="replay-step-forward" title="Step forward">&gt;</button>
+          <button id="replay-end" title="Jump to latest">&gt;|</button>
+          <label for="replay-speed">Speed</label>
+          <input id="replay-speed" type="range" min="150" max="1500" step="150" value="700">
+          <span id="replay-position">0 / 0</span>
+        </section>
+
+        <section class="panel active" id="panel-timeline" aria-label="Session timeline">
+          <div class="panel-header">
+            <h2>Timeline</h2>
+            <span class="status" id="connection-status">Disconnected</span>
+          </div>
+          <ol id="events"></ol>
+        </section>
+
+        <section class="panel" id="panel-context" aria-label="Context bundle"><div class="panel-header"><h2>Context</h2></div><div id="context-view" class="panel-body"></div></section>
+        <section class="panel" id="panel-diffs" aria-label="Diff activity"><div class="panel-header"><h2>Diffs</h2></div><div id="diff-view" class="panel-body"></div></section>
+        <section class="panel" id="panel-terminal" aria-label="Terminal output"><div class="panel-header"><h2>Terminal</h2></div><div id="terminal-view" class="panel-body"></div></section>
+        <section class="panel" id="panel-approvals" aria-label="Approvals"><div class="panel-header"><h2>Approvals</h2></div><div id="approval-view" class="panel-body"></div></section>
+        <section class="panel" id="panel-verification" aria-label="Verification"><div class="panel-header"><h2>Verification</h2></div><div id="verification-view" class="panel-body"></div></section>
+        <section class="panel" id="panel-tokens" aria-label="Token usage"><div class="panel-header"><h2>Tokens</h2></div><div id="token-view" class="panel-body"></div></section>
+        <section class="panel" id="panel-compare" aria-label="Session comparison">
+          <div class="panel-header"><h2>Compare</h2></div>
+          <div class="panel-body compare-form">
+            <input id="compare-left" type="text" placeholder="Left session ID">
+            <input id="compare-right" type="text" placeholder="Right session ID">
+            <button id="compare-btn">Compare</button>
+            <pre id="compare-view" class="event-payload"></pre>
+          </div>
+        </section>
       </section>
     </main>
-    <script src="/app.js"></script>
+    <script type="module" src="/projection.js"></script>
+    <script type="module" src="/app.js"></script>
   </body>
 </html>
