@@ -531,13 +531,21 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         const check = scope.checkMutation(path);
         if (check === "scope_expansion") {
           await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { path, toolCallId: toolCall.id, toolName: execName } });
-          pendingScopeExpansion = { path, toolCallId: toolCall.id };
-          scope.setPending(path);
-          // Deny the tool and ask for scope confirmation
-          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion requires approval. The agent is attempting to modify "${path}" which is outside the initial scope.\n\nPlease confirm: type "approve" to allow this file, or "deny" to block it.\n</tool_result>` });
-          continue;
+          // In auto/bypass mode, auto-approve scope expansion immediately
+          if (config.permissions.sessionMode === "auto" || config.permissions.sessionMode === "bypass") {
+            scope.approveScope(path);
+            await log.append({ ...session, actor: "policy", type: "autonomy.scope_auto_approved", payload: { path, mode: config.permissions.sessionMode } });
+            // Re-check now that scope is approved — fall through to execute below
+          } else {
+            // In ask mode, record pending and block until interactive approval (see below)
+            pendingScopeExpansion = { path, toolCallId: toolCall.id };
+            scope.setPending(path);
+            // Deny the tool and ask for scope confirmation
+            messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion requires approval. The agent is attempting to modify "${path}" which is outside the initial scope.\n\nPlease confirm: type "approve" to allow this file, or "deny" to block it.\n</tool_result>` });
+            continue;
+          }
         }
-        // scope.checkMutation returned "allowed" or "approved" — proceed
+        // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
       }
 
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
