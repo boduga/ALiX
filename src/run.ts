@@ -222,6 +222,27 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
   });
 }
 
+export function renderContextBundleForPrompt(contextBundle: import("./repomap/context-compiler.js").ContextBundle): string {
+  const lines: string[] = ["## Context Files"];
+  if (contextBundle.primaryFiles.length > 0) {
+    const files = contextBundle.primaryFiles.filter(f => f.kind === "file");
+    const symbols = contextBundle.primaryFiles.filter(f => f.kind === "symbol");
+    if (files.length > 0) {
+      lines.push(`Primary files: ${files.map(f => `${f.path} (${f.reason})`).join(", ")}`);
+    }
+    if (symbols.length > 0) {
+      lines.push(`Symbols: ${symbols.map(f => `${f.symbolName}@${f.path}:${f.lineStart} (${f.reason})`).join(", ")}`);
+    }
+  }
+  if (contextBundle.tests.length > 0) {
+    lines.push(`Related tests: ${contextBundle.tests.map(f => `${f.path} (${f.reason})`).join(", ")}`);
+  }
+  if (contextBundle.supportingFiles.length > 0) {
+    lines.push(`Supporting files: ${contextBundle.supportingFiles.map(f => `${f.path} (${f.reason})`).join(", ")}`);
+  }
+  return lines.join("\n");
+}
+
 export type StreamHandler = (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
 
 export type RunResult = {
@@ -395,17 +416,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
     // Inject ranked context bundle if populated
     if (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0) {
-      const ctxLines: string[] = ["## Context Files"];
-      if (contextBundle.primaryFiles.length > 0) {
-        ctxLines.push(`Primary files (ranked by relevance to this task): ${contextBundle.primaryFiles.map(f => f.path).join(", ")}`);
-      }
-      if (contextBundle.tests.length > 0) {
-        ctxLines.push(`Test files (related to your changes): ${contextBundle.tests.map(f => f.path).join(", ")}`);
-      }
-      if (contextBundle.supportingFiles.length > 0) {
-        ctxLines.push(`Supporting files (config): ${contextBundle.supportingFiles.map(f => f.path).join(", ")}`);
-      }
-      parts.push(ctxLines.join("\n"));
+      parts.push(renderContextBundleForPrompt(contextBundle));
     }
 
     return parts.join("\n\n");
