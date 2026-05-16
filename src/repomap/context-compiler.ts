@@ -3,6 +3,10 @@ import { Dirent } from "node:fs";
 import { join, relative } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskType } from "../task-classifier.js";
+import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
+import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
+import { readGitActivity } from "./git-activity.js";
+import { rankContextCandidate } from "./context-ranker.js";
 
 export type ContextKind = "file" | "symbol" | "test" | "config" | "doc";
 
@@ -44,6 +48,9 @@ type RepoMap = {
   configFiles: string[];
   docsFiles: string[];
   fileEntries: Map<string, FileEntry>;
+  dependencyGraph: DependencyGraph;
+  symbols: ExtractedSymbol[];
+  gitActivity: Map<string, number>;
 };
 
 /** Token estimate: ~4 chars per token for English/prose, lower for code. */
@@ -139,7 +146,10 @@ async function buildRepoMap(root: string): Promise<RepoMap> {
     }
   }
 
-  return { sourceFiles, testFiles, configFiles, docsFiles, fileEntries };
+  const dependencyGraph = buildDependencyGraph([...fileEntries.values()].map(e => ({ path: e.path, content: e.content })));
+  const symbols = [...fileEntries.values()].filter(e => e.kind === "source" && e.content).flatMap(e => extractTopLevelSymbols(e.path, e.content ?? ""));
+
+  return { sourceFiles, testFiles, configFiles, docsFiles, fileEntries, dependencyGraph, symbols, gitActivity: new Map() };
 }
 
 /** Score a file for relevance to a task mention. */
@@ -169,7 +179,7 @@ export class ContextCompiler {
     maxTokens: number,
     pinnedPaths: string[] = []
   ): Promise<ContextBundle> {
-    const { fileEntries, sourceFiles, testFiles, configFiles, docsFiles } = this.repoMap ?? await buildRepoMap(process.cwd());
+    const { fileEntries, sourceFiles, testFiles, configFiles, docsFiles, dependencyGraph, symbols } = this.repoMap ?? await buildRepoMap(process.cwd());
 
     const mentions = extractTaskMentions(task);
 
@@ -239,6 +249,58 @@ export class ContextCompiler {
       }
     }
 
+    // 4b. Dependency-related files for mentioned source files
+    const currentPrimaryPaths = new Set(items.filter(i => i.kind === "file").map(i => i.path));
+    for (const primaryPath of currentPrimaryPaths) {
+      for (const relatedPath of [...dependencyGraph.dependenciesOf(primaryPath), ...dependencyGraph.dependentsOf(primaryPath)]) {
+        const entry = fileEntries.get(relatedPath);
+        if (!entry || entry.kind !== "source") continue;
+        const ranked = rankContextCandidate({
+          path: relatedPath,
+          baseKind: entry.kind,
+          mentionScore: 0,
+          dependencyDistance: 1,
+          symbolMatched: false,
+          relatedTest: false,
+          config: false,
+          gitTouches: 0,
+        });
+        items.push({
+          path: relatedPath,
+          kind: "file",
+          score: ranked.score,
+          tokenEstimate: estimateFileTokens(relatedPath, entry.lineCount ?? 100, true),
+          reason: ranked.reasons.join(","),
+        });
+      }
+    }
+
+    // 4c. Symbol matches — when task mentions a symbol name
+    const taskWords = new Set(task.toLowerCase().split(/[^a-zA-Z0-9_$]+/).filter(Boolean));
+    for (const symbol of symbols) {
+      if (!taskWords.has(symbol.name.toLowerCase())) continue;
+      const ranked = rankContextCandidate({
+        path: symbol.path,
+        baseKind: "source",
+        mentionScore: 0,
+        dependencyDistance: null,
+        symbolMatched: true,
+        relatedTest: false,
+        config: false,
+        gitTouches: 0,
+      });
+      items.push({
+        path: symbol.path,
+        kind: "symbol",
+        symbolName: symbol.name,
+        lineStart: symbol.line,
+        lineEnd: symbol.line,
+        score: ranked.score,
+        tokenEstimate: 20,
+        reason: ranked.reasons.join(","),
+      });
+    }
+
     // 5. Task type signal — bugfix needs tests more, docs needs docs more
     if (taskType === "bugfix") {
       for (const tf of testFiles.slice(0, 5)) {
@@ -281,7 +343,7 @@ export class ContextCompiler {
     }
 
     const pinned = budgeted.filter(i => i.reason === "pinned");
-    const primary = budgeted.filter(i => i.kind === "file" && i.reason !== "pinned");
+    const primary = budgeted.filter(i => (i.kind === "file" || i.kind === "symbol") && i.reason !== "pinned");
     const tests = budgeted.filter(i => i.kind === "test");
     const supporting = budgeted.filter(i => i.kind === "config" || i.kind === "doc");
 

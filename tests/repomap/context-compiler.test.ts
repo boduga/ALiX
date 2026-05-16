@@ -139,4 +139,31 @@ describe("ContextCompiler", () => {
       assert.ok(testPaths.length > 0, "Expected test files for bugfix task");
     });
   });
+
+  describe("dependency and symbol signals", () => {
+    it("includes dependency-related files for mentioned source files", async () => {
+      mkdirSync(join(tmpDir, "src"), { recursive: true });
+      writeFileSync(join(tmpDir, "src", "app.ts"), "import { auth } from './auth';\nexport function app() { return auth(); }");
+      writeFileSync(join(tmpDir, "src", "auth.ts"), "export function auth() { return true; }");
+      await warm();
+
+      const bundle = await compiler.compile("fix src/app.ts", "bugfix", 10000, []);
+      const paths = bundle.primaryFiles.map(f => f.path);
+
+      assert.ok(paths.includes("src/app.ts"));
+      assert.ok(paths.includes("src/auth.ts"));
+      assert.ok(bundle.primaryFiles.find(f => f.path === "src/auth.ts")?.reason.includes("dependency_distance:1"));
+    });
+
+    it("includes symbol context when task mentions a symbol", async () => {
+      mkdirSync(join(tmpDir, "src"), { recursive: true });
+      writeFileSync(join(tmpDir, "src", "auth.ts"), "export function login(user: string) { return user; }\nexport function logout() {}");
+      await warm();
+
+      const bundle = await compiler.compile("fix login behavior", "bugfix", 10000, []);
+      const symbols = bundle.primaryFiles.filter(f => f.kind === "symbol");
+
+      assert.ok(symbols.some(symbol => symbol.symbolName === "login"));
+    });
+  });
 });
