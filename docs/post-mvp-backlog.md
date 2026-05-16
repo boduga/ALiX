@@ -38,14 +38,22 @@ Future upgrades:
 
 What: Per-provider edit format preferences from day one. Ollama/qwen defaults to `search_replace`. Claude defaults to `structured_patch` if testing confirms reliability. Gemini defaults to `search_replace` even with large context. Full-file rewrite never default for existing files.
 
-Current state: `src/patch/edit-format-policy.ts` exists but not wired into run.ts. Provider adapters have `editFormatPreference` but it's not used at patch selection time.
+Current state: MVP complete. Provider adapters expose `editFormatPreference`, `run.ts` builds a provider-aware edit format policy, `ToolExecutor` enforces allowed formats before patch application, and patch application now preflights edits, checkpoints touched files, and rolls back failed applications. Gemini/Google and local-style providers default to `search_replace`; unsupported `full_file` and `unified_diff` requests are blocked before execution.
 
-Key work:
-- Wire `provider.editFormatPreference` into `PatchEngine` format selection
-- Add per-model reliability testing to determine which formats work
-- Implement `PreimageValidator` before patch apply
-- Implement `CheckpointManager` (create checkpoint before edits)
-- Implement `RollbackManager` (restore checkpoint on failed patch)
+Key components implemented:
+- ✅ Provider `editFormatPreference` wired into patch tool schema and executor policy
+- ✅ `EditFormatPolicy` defaults and normalization in `src/patch/edit-format-policy.ts`
+- ✅ Preflight validation for `search_replace` and `structured_patch`
+- ✅ Checkpoint creation before patch apply
+- ✅ Rollback on failed patch application
+- ✅ Policy telemetry via `patch.edit_format_policy`
+
+Future upgrades:
+- `FullFileRewriteGuard` with explicit ask/new-generated-file behavior
+- Executable `unified_diff` support
+- Config-level edit format overrides
+- Runtime use of negotiated provider capabilities for edit format selection
+- Per-model reliability test matrix for patch format defaults
 
 **Why P0:** Providers vary in patch reliability. Without format policy, weaker local models produce silent corruption.
 
