@@ -15,9 +15,13 @@ export function parseSearchReplace(input: string): SearchReplaceBlock[] {
 }
 
 export function applySearchReplace(content: string, block: SearchReplaceBlock): string {
+  validateSearchReplace(content, block);
+  return content.replace(block.search, block.replace);
+}
+
+export function validateSearchReplace(content: string, block: SearchReplaceBlock): void {
   const first = content.indexOf(block.search);
   if (first === -1) throw new Error(`Search block not found for ${block.path}`);
   const second = content.indexOf(block.search, first + block.search.length);
   if (second !== -1) throw new Error(`Search block is ambiguous for ${block.path}`);
-  return content.slice(0, first) + block.replace + content.slice(first + block.search.length);
 }

@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { EditFormat } from "./edit-format-policy.js";
-import { applySearchReplace, parseSearchReplace } from "./search-replace.js";
+import { applySearchReplace, parseSearchReplace, validateSearchReplace } from "./search-replace.js";
 import { parseStructuredPatch } from "./structured-patch.js";
 import { validatePatchOperations, DEFAULT_PATCH_GUARD_CONFIG, type PatchOperation } from "./patch-guard.js";
 
@@ -18,15 +18,17 @@ export async function applyPatch(root: string, format: EditFormat, patchText: st
     const ops: PatchOperation[] = blocks.map((b) => ({ path: b.path, operation: "modify" as const, content: b.replace }));
     const result = validatePatchOperations(ops, DEFAULT_PATCH_GUARD_CONFIG);
     if (!result.valid) throw new Error("Patch blocked by safety guard: " + result.reason);
-    const changedFiles: string[] = [];
+    const plannedWrites: Array<{ path: string; content: string }> = [];
     for (const block of blocks) {
       const path = resolvePatchPath(root, block.path);
       const content = await readFile(path, "utf8");
-      const next = applySearchReplace(content, block);
-      await writeFile(path, next, "utf8");
-      changedFiles.push(block.path);
+      validateSearchReplace(content, block);
+      plannedWrites.push({ path, content: applySearchReplace(content, block) });
     }
-    return { status: "applied", changedFiles };
+    for (const write of plannedWrites) {
+      await writeFile(write.path, write.content, "utf8");
+    }
+    return { status: "applied", changedFiles: blocks.map((block) => block.path) };
   }
 
   if (format === "structured_patch") {
@@ -47,6 +49,15 @@ export async function applyPatch(root: string, format: EditFormat, patchText: st
         if (!file.preimageHash || sha256(content) !== file.preimageHash) {
           throw new Error(`Preimage validation failed for ${file.path}`);
         }
+      }
+      if (file.operation === "delete" && file.preimageHash) {
+        const content = await readFile(path, "utf8");
+        if (sha256(content) !== file.preimageHash) throw new Error(`Preimage validation failed for ${file.path}`);
+      }
+    }
+    for (const file of patch.files) {
+      const path = resolvePatchPath(root, file.path);
+      if (file.operation === "modify") {
         await writeFile(path, file.content ?? "", "utf8");
         changedFiles.push(file.path);
       }
@@ -57,10 +68,6 @@ export async function applyPatch(root: string, format: EditFormat, patchText: st
       }
       if (file.operation === "delete") {
         const path = resolvePatchPath(root, file.path);
-        if (file.preimageHash) {
-          const content = await readFile(path, "utf8");
-          if (sha256(content) !== file.preimageHash) throw new Error(`Preimage validation failed for ${file.path}`);
-        }
         const { rm } = await import("node:fs/promises");
         await rm(path);
         changedFiles.push(file.path);

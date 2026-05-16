@@ -42,6 +42,41 @@ test("rejects ambiguous search replace", async () => {
   }
 });
 
+test("search replace validates all blocks before writing any file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"));
+    await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
+    await writeFile(join(dir, "src/b.ts"), "const b = 1;\n");
+
+    await assert.rejects(
+      () =>
+        applyPatch(
+          dir,
+          "search_replace",
+          [
+            "<<<<<<< SEARCH path=src/a.ts",
+            "const a = 1;",
+            "=======",
+            "const a = 2;",
+            ">>>>>>> REPLACE",
+            "<<<<<<< SEARCH path=src/b.ts",
+            "const missing = true;",
+            "=======",
+            "const b = 2;",
+            ">>>>>>> REPLACE"
+          ].join("\n")
+        ),
+      /Search block not found/
+    );
+
+    assert.equal(await readFile(join(dir, "src/a.ts"), "utf8"), "const a = 1;\n");
+    assert.equal(await readFile(join(dir, "src/b.ts"), "utf8"), "const b = 1;\n");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("rejects path traversal in search replace", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
   try {
@@ -84,6 +119,29 @@ test("creates parent directories for structured create", async () => {
     const result = await applyPatch(dir, "structured_patch", patch);
     assert.deepEqual(result.changedFiles, ["src/new/file.ts"]);
     assert.equal(await readFile(join(dir, "src/new/file.ts"), "utf8"), "export const value = 1;\n");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("structured patch validates all file preimages before writing any file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"));
+    await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
+    await writeFile(join(dir, "src/b.ts"), "const b = 1;\n");
+    const patch = JSON.stringify({
+      version: 1,
+      files: [
+        { path: "src/a.ts", operation: "modify", preimageHash: sha256("const a = 1;\n"), content: "const a = 2;\n" },
+        { path: "src/b.ts", operation: "modify", preimageHash: sha256("stale"), content: "const b = 2;\n" }
+      ]
+    });
+
+    await assert.rejects(() => applyPatch(dir, "structured_patch", patch), /Preimage validation failed/);
+
+    assert.equal(await readFile(join(dir, "src/a.ts"), "utf8"), "const a = 1;\n");
+    assert.equal(await readFile(join(dir, "src/b.ts"), "utf8"), "const b = 1;\n");
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
