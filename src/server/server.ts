@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
+import { readSessionComparison, readSessionSnapshot } from "../inspector/session-reader.js";
 
 export function startServer(root: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
   const server = createServer(async (req, res) => {
@@ -13,10 +14,29 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
         res.end(await readFile(join(root, "dist", "src", "ui", "index.html"), "utf8"));
         return;
       }
-      if (url.pathname === "/app.js" || url.pathname === "/styles.css") {
+      if (url.pathname === "/app.js" || url.pathname === "/projection.js" || url.pathname === "/styles.css") {
         const file = join(root, "dist", "src", "ui", url.pathname.slice(1));
         res.setHeader("content-type", url.pathname.endsWith(".js") ? "text/javascript" : "text/css");
         res.end(await readFile(file, "utf8"));
+        return;
+      }
+      if (url.pathname === "/api/sessions/compare") {
+        const left = url.searchParams.get("left");
+        const right = url.searchParams.get("right");
+        if (!left || !right) {
+          res.statusCode = 400;
+          res.end("Missing left or right session id");
+          return;
+        }
+
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify(await readSessionComparison(root, left, right)));
+        return;
+      }
+      if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/snapshot")) {
+        const sessionId = url.pathname.split("/")[3];
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify(await readSessionSnapshot(root, sessionId)));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/events")) {
