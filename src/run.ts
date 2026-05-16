@@ -6,6 +6,7 @@ import { loadConfig } from "./config/loader.js";
 import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
+import { ContextCompiler } from "./repomap/context-compiler.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
@@ -213,6 +214,8 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
+  // Context compiler wired after MAX_CONTEXT_TOKENS and taskType are resolved (see below)
+
   const provider = createProvider(
     { provider: config.model.provider, model: config.model.name },
     process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
@@ -293,16 +296,56 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   });
 
   // Inject available skills into system prompt
-  function buildSystemPrompt(base: string): string {
-    if (loadedSkills.length === 0) return base;
-    const skillSection = loadedSkills
-      .map(s => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
-      .join("\n\n");
-    return `${base}\n\n## Available Skills\n${skillSection}`;
+
+  // Context compiler: warm up and compile context bundle now that MAX_CONTEXT_TOKENS and taskType are resolved
+  const contextCompiler = new ContextCompiler();
+  await contextCompiler.warm(cwd);
+  const CONTEXT_BUDGET = Math.floor(MAX_CONTEXT_TOKENS * 0.3);
+  const pinnedPaths: string[] = [];
+  const contextBundle = await contextCompiler.compile(task, taskType, CONTEXT_BUDGET, pinnedPaths);
+  await log.append({
+    ...session,
+    type: "context.bundle_compiled",
+    payload: {
+      taskType,
+      budget: contextBundle.budget,
+      primaryCount: contextBundle.primaryFiles.length,
+      testCount: contextBundle.tests.length,
+      supportingCount: contextBundle.supportingFiles.length,
+      pinnedCount: contextBundle.pinned.length,
+    }
+  });
+
+  function buildSystemPrompt(base: string, contextBundle: import("./repomap/context-compiler.js").ContextBundle): string {
+    const parts: string[] = [base];
+
+    if (loadedSkills.length > 0) {
+      const skillSection = loadedSkills
+        .map(s => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
+        .join("\n\n");
+      parts.push(`## Available Skills\n${skillSection}`);
+    }
+
+    // Inject ranked context bundle if populated
+    if (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0) {
+      const ctxLines: string[] = ["## Context Files"];
+      if (contextBundle.primaryFiles.length > 0) {
+        ctxLines.push(`Primary files (ranked by relevance to this task): ${contextBundle.primaryFiles.map(f => f.path).join(", ")}`);
+      }
+      if (contextBundle.tests.length > 0) {
+        ctxLines.push(`Test files (related to your changes): ${contextBundle.tests.map(f => f.path).join(", ")}`);
+      }
+      if (contextBundle.supportingFiles.length > 0) {
+        ctxLines.push(`Supporting files (config): ${contextBundle.supportingFiles.map(f => f.path).join(", ")}`);
+      }
+      parts.push(ctxLines.join("\n"));
+    }
+
+    return parts.join("\n\n");
   }
 
   const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.";
-  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE);
+  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle);
 
   for (let i = 0; i < maxIterations; i++) {
     // Truncate messages if token budget exceeded before streaming/completion

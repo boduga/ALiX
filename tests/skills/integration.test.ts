@@ -1,4 +1,4 @@
-import { describe, it, afterEach } from "node:test";
+import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -6,19 +6,18 @@ import { loadSkills } from "../../src/skills/loader.js";
 import { buildSkillCatalog } from "../../src/skills/catalog.js";
 
 describe("skill catalog integration in run.ts", () => {
-  const home = process.env.HOME ?? "/home/babasola";
-  const skillsDir = join(home, ".alix", "skills");
+  // Use temp dirs to avoid ~/.alix/skills/ pollution and cross-test interference
+  const tmpDir1 = join("/tmp", `skills-integration-${Date.now()}-1`);
+  const tmpDir2 = join("/tmp", `skills-integration-${Date.now()}-2`);
 
   afterEach(() => {
-    // Clean up test skills - use unique names to avoid collision with other tests
-    rmSync(join(skillsDir, "skill-test-integration"), { recursive: true, force: true });
-    rmSync(join(skillsDir, "skill-test-cat"), { recursive: true, force: true });
+    rmSync(tmpDir1, { recursive: true, force: true });
+    rmSync(tmpDir2, { recursive: true, force: true });
   });
 
   it("loads skills from ~/.alix/skills/ at startup", async () => {
-    mkdirSync(skillsDir, { recursive: true });
-    mkdirSync(join(skillsDir, "skill-test-integration"), { recursive: true });
-    writeFileSync(join(skillsDir, "skill-test-integration", "SKILL.md"), `---
+    mkdirSync(join(tmpDir1, "skill-test-integration"), { recursive: true });
+    writeFileSync(join(tmpDir1, "skill-test-integration", "SKILL.md"), `---
 name: skill-test-integration
 description: A test skill
 trigger: /test
@@ -26,14 +25,13 @@ version: "1.0.0"
 is_core: false
 ---
 # Test`);
-    const skills = await loadSkills(skillsDir);
+    const skills = await loadSkills(tmpDir1);
     assert.ok(skills.some(s => s.manifest.name === "skill-test-integration"));
   });
 
   it("buildSkillCatalog routes by trigger", async () => {
-    mkdirSync(skillsDir, { recursive: true });
-    mkdirSync(join(skillsDir, "skill-test-cat"), { recursive: true });
-    writeFileSync(join(skillsDir, "skill-test-cat", "SKILL.md"), `---
+    mkdirSync(join(tmpDir2, "skill-test-cat"), { recursive: true });
+    writeFileSync(join(tmpDir2, "skill-test-cat", "SKILL.md"), `---
 name: skill-test-cat
 description: TDD loop
 trigger: /tdd
@@ -41,7 +39,7 @@ version: "1.0.0"
 is_core: false
 ---
 # TDD`);
-    const skills = await loadSkills(skillsDir);
+    const skills = await loadSkills(tmpDir2);
     const catalog = buildSkillCatalog(skills);
     const matched = catalog.match("/tdd add login feature");
     assert.ok(matched.some(s => s.manifest.name === "skill-test-cat"));
