@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { extractInitialScope, createScopeTracker } from "../../src/autonomy/scope-tracker.js";
 import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
+import { extractMutationPaths } from "../../src/run.js";
 
 describe("extractInitialScope", () => {
   it("extracts quoted paths", () => {
@@ -112,5 +113,40 @@ describe("TaskStateMachine", () => {
     const result = limiter.canTransition("repairing", "verifying", ctx);
     assert.strictEqual(result.allowed, false);
     assert.ok(result.reason?.includes("Max repairs"));
+  });
+
+  it("treats zero runtime limit as unlimited", () => {
+    const limiter = new RunLimiter({ maxIterations: 10, maxRepairs: 3, maxFileChanges: 0, maxShellCommands: 0, maxRuntimeMs: 0 });
+    const sm = new TaskStateMachine(limiter);
+    sm.tick(1000);
+    const ctx = { state: "planning" as const, counters: sm.snapshot, scopeExpanded: false, verificationPassed: false, modelSignaledDone: false, pendingScopeFile: null };
+    const result = limiter.canTransition("planning", "executing", ctx);
+    assert.strictEqual(result.allowed, true);
+  });
+
+  it("checkCounter returns false when zero means unlimited", () => {
+    const limiter = new RunLimiter({ maxIterations: 10, maxRepairs: 3, maxFileChanges: 0, maxShellCommands: 0, maxRuntimeMs: 0 });
+    assert.strictEqual(limiter.checkCounter("maxFileChanges", 100), false);
+  });
+});
+
+describe("extractMutationPaths", () => {
+  it("extracts simple file tool path", () => {
+    assert.deepStrictEqual(extractMutationPaths("file.create", { path: "src/a.ts" }), ["src/a.ts"]);
+  });
+
+  it("extracts search_replace patch paths", () => {
+    const patchText = "<<<<<<< SEARCH path=src/a.ts\nold\n=======\nnew\n>>>>>>> REPLACE\n<<<<<<< SEARCH path=src/b.ts\nold\n=======\nnew\n>>>>>>> REPLACE";
+    assert.deepStrictEqual(extractMutationPaths("patch.apply", { format: "search_replace", patchText }), ["src/a.ts", "src/b.ts"]);
+  });
+
+  it("extracts unified diff patch paths and ignores dev null", () => {
+    const patchText = "--- a/src/a.ts\n+++ b/src/a.ts\n@@\n-old\n+new\n--- /dev/null\n+++ b/src/new.ts\n";
+    assert.deepStrictEqual(extractMutationPaths("patch.apply", { format: "unified_diff", patchText }), ["src/a.ts", "src/new.ts"]);
+  });
+
+  it("extracts structured patch paths", () => {
+    const patchText = JSON.stringify({ version: 1, files: [{ path: "src/a.ts" }, { path: "src/b.ts" }] });
+    assert.deepStrictEqual(extractMutationPaths("patch.apply", { format: "structured_patch", patchText }), ["src/a.ts", "src/b.ts"]);
   });
 });

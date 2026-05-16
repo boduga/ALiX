@@ -41,13 +41,13 @@ export class RunLimiter {
   constructor(private limits: RunLimits) {}
 
   canTransition(from: AgentState, to: AgentState, ctx: TransitionContext): { allowed: boolean; reason?: string } {
-    if (ctx.counters.iterations >= this.limits.maxIterations) {
+    if (this.limits.maxIterations > 0 && ctx.counters.iterations >= this.limits.maxIterations) {
       return { allowed: false, reason: `Max iterations reached (${this.limits.maxIterations})` };
     }
-    if (ctx.counters.repairs >= this.limits.maxRepairs) {
+    if (this.limits.maxRepairs > 0 && ctx.counters.repairs >= this.limits.maxRepairs) {
       return { allowed: false, reason: `Max repairs reached (${this.limits.maxRepairs})` };
     }
-    if (ctx.counters.runtimeMs > this.limits.maxRuntimeMs) {
+    if (this.limits.maxRuntimeMs > 0 && ctx.counters.runtimeMs > this.limits.maxRuntimeMs) {
       return { allowed: false, reason: `Max runtime exceeded (${this.limits.maxRuntimeMs}ms)` };
     }
     return { allowed: true };
@@ -55,7 +55,7 @@ export class RunLimiter {
 
   checkCounter(limit: keyof RunLimits, value: number): boolean {
     const max = this.limits[limit] as number;
-    return max > 0 ? value >= max : true;
+    return max > 0 && value >= max;
   }
 }
 

@@ -187,9 +187,49 @@ export type RunResult = {
   sessionId: string;
   summary: string;
   streamed?: boolean;
+  reason?: "completed" | "max_repairs" | "max_iterations" | "rejected_scope_expansion";
 };
 
 export type RunOpts = { streaming?: boolean; sessionMode?: "auto" | "ask" | "bypass" };
+
+export const EXIT_CODES = {
+  REJECTED_SCOPE_EXPANSION: 3,
+} as const;
+
+export function extractPatchPaths(format: string | undefined, patchTextValue: unknown): string[] {
+  const patchText = typeof patchTextValue === "string" ? patchTextValue : "";
+  const paths = new Set<string>();
+
+  if (format === "structured_patch") {
+    try {
+      const parsed = JSON.parse(patchText) as { files?: Array<{ path?: unknown }> };
+      for (const file of parsed.files ?? []) {
+        if (typeof file.path === "string" && file.path.length > 0) paths.add(file.path);
+      }
+    } catch {
+      // Invalid patches are rejected by the patch engine later. Scope extraction should not hide that error.
+    }
+  }
+
+  for (const match of patchText.matchAll(/<<<<<<< SEARCH path=([^\s\n]+)/g)) {
+    paths.add(match[1]);
+  }
+
+  for (const match of patchText.matchAll(/^[+-]{3} (?:[ab]\/)?(.+)$/gm)) {
+    const path = match[1].trim();
+    if (path && path !== "/dev/null") paths.add(path);
+  }
+
+  return [...paths];
+}
+
+export function extractMutationPaths(execName: string, args: Record<string, unknown>): string[] {
+  if (execName === "patch.apply") {
+    return extractPatchPaths(args.format as string | undefined, args.patchText);
+  }
+  const path = args.path;
+  return typeof path === "string" && path.length > 0 ? [path] : [];
+}
 
 export function shouldAutoDisableStreaming(): boolean {
   if (!process.stdout.isTTY) return true;
@@ -303,7 +343,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     maxRuntimeMs: 0,      // 0 = unlimited
   });
   const stateMachine = new TaskStateMachine(limiter, (from, to, reason) => {
-    log.append({ ...session, actor: "system", type: "autonomy.state_transition", payload: { from, to, reason } });
+    void log.append({ ...session, actor: "system", type: "autonomy.state_transition", payload: { from, to, reason } });
   });
 
   // Inject available skills into system prompt
@@ -359,6 +399,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle);
 
   for (let i = 0; i < maxIterations; i++) {
+    stateMachine.tick(0);
     // Truncate messages if token budget exceeded before streaming/completion
     const msgTokens = messages.reduce(
       (sum, m) => sum + estimateMessageTokens(m, encoding),
@@ -518,7 +559,6 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     // Track failed tool names per iteration to prevent spinning
     const failedTools: string[] = [];
     const fatalToolErrors: string[] = [];
-    let pendingScopeExpansion: { path: string; toolCallId: string } | null = null;
 
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of toolCalls) {
@@ -527,27 +567,50 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       // Scope expansion check: intercept mutation tools for files outside initial scope
       const isMutation = execName === "file.create" || execName === "file.write" || execName === "file.delete" || execName === "patch.apply";
       if (isMutation) {
-        const path = (toolCall.args.path as string | undefined) ?? "";
-        const check = scope.checkMutation(path);
-        if (check === "scope_expansion") {
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { path, toolCallId: toolCall.id, toolName: execName } });
+        const pathsToCheck = extractMutationPaths(execName, toolCall.args);
+        const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
+        if (deniedPaths.length > 0) {
+          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: deniedPaths, toolCallId: toolCall.id, toolName: execName } });
+          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: These files were denied by the user: ${deniedPaths.join(", ")}. Do NOT attempt to modify them again.\n</tool_result>` });
+          continue;
+        }
+
+        const expansionPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "scope_expansion");
+        if (expansionPaths.length > 0) {
+          await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { paths: expansionPaths, toolCallId: toolCall.id, toolName: execName } });
           // In auto/bypass mode, auto-approve scope expansion immediately
           if (config.permissions.sessionMode === "auto" || config.permissions.sessionMode === "bypass") {
-            scope.approveScope(path);
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_auto_approved", payload: { path, mode: config.permissions.sessionMode } });
+            for (const path of expansionPaths) scope.approveScope(path);
+            await log.append({ ...session, actor: "policy", type: "autonomy.scope_auto_approved", payload: { paths: expansionPaths, mode: config.permissions.sessionMode } });
             // Re-check now that scope is approved — fall through to execute below
+          } else if (process.stdin.isTTY) {
+            const answer = await promptUser(
+              `Scope expansion: ${expansionPaths.map((path) => `"${path}"`).join(", ")} outside the initial scope. Type "approve" to allow or "deny" to block: `
+            );
+            await log.append({ ...session, actor: "user", type: "autonomy.scope_approval", payload: { answer, paths: expansionPaths } });
+            if (answer.toLowerCase() === "approve") {
+              for (const path of expansionPaths) scope.approveScope(path);
+              await log.append({ ...session, actor: "policy", type: "autonomy.scope_approved", payload: { paths: expansionPaths } });
+              // Approval granted in the same turn. Fall through and execute the original tool call.
+            } else {
+              for (const path of expansionPaths) scope.denyScope(path);
+              await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: expansionPaths } });
+              messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion denied for: ${expansionPaths.join(", ")}. Do NOT attempt to modify these files again.\n</tool_result>` });
+              continue;
+            }
           } else {
-            // In ask mode, record pending and block until interactive approval (see below)
-            pendingScopeExpansion = { path, toolCallId: toolCall.id };
-            scope.setPending(path);
-            // Deny the tool and ask for scope confirmation
-            messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion requires approval. The agent is attempting to modify "${path}" which is outside the initial scope.\n\nPlease confirm: type "approve" to allow this file, or "deny" to block it.\n</tool_result>` });
-            continue;
+            // Non-TTY ask mode cannot prompt. Persist denial and fail fast for this tool call.
+            for (const path of expansionPaths) {
+              scope.setPending(path);
+              scope.denyScope(path);
+            }
+            await log.append({ ...session, actor: "policy", type: "autonomy.scope_skipped", payload: { reason: "non_tty_session", paths: expansionPaths } });
+            await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: expansionPaths } });
+            const summary = `Scope expansion rejected in non-TTY ask mode for: ${expansionPaths.join(", ")}`;
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary } });
+            await mcpManager.closeAll();
+            return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion" };
           }
-        } else if (check === "denied") {
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { path, toolCallId: toolCall.id, toolName: execName } });
-          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: This file was denied by the user. Do NOT attempt to modify it again.\n</tool_result>` });
-          continue;
         }
         // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
       }
@@ -568,28 +631,6 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
 
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
-    }
-
-    // Handle scope expansion approval in ask mode — pause for user input if a scope expansion is pending
-    if (pendingScopeExpansion !== null && config.permissions.sessionMode === "ask") {
-      if (process.stdin.isTTY) {
-        const answer = await promptUser(
-          `Scope expansion: "${pendingScopeExpansion.path}" is outside the initial scope. Type "approve" to allow or "deny" to block: `
-        );
-        await log.append({ ...session, actor: "user", type: "autonomy.scope_approval", payload: { answer, path: pendingScopeExpansion.path } });
-        if (answer.toLowerCase() === "approve") {
-          scope.approveScope(pendingScopeExpansion.path);
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_approved", payload: { path: pendingScopeExpansion.path } });
-        } else {
-          scope.denyScope(pendingScopeExpansion.path);
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { path: pendingScopeExpansion.path } });
-        }
-        pendingScopeExpansion = null;
-      } else {
-        // Non-TTY: skip approval, treat as denied (don't auto-approve in ask mode)
-        await log.append({ ...session, actor: "policy", type: "autonomy.scope_skipped", payload: { reason: "non_tty_session", path: pendingScopeExpansion.path } });
-        pendingScopeExpansion = null;
-      }
     }
 
     // Track all file mutations in sessionState

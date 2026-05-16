@@ -5,7 +5,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
-import { runTask } from "./run.js";
+import { EXIT_CODES, runTask } from "./run.js";
 import { ApiError } from "./providers/base.js";
 import { startServer } from "./server/server.js";
 import { McpManager } from "./mcp/manager.js";
@@ -346,6 +346,9 @@ if (command === "run") {
       console.log(result.summary);
     }
     console.log(`Session: ${result.sessionId}`);
+    if (result.reason === "rejected_scope_expansion") {
+      process.exit(EXIT_CODES.REJECTED_SCOPE_EXPANSION);
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (err instanceof ApiError) {
