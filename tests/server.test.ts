@@ -36,6 +36,25 @@ test("serves inspector html", async () => {
   }
 });
 
+test("serves projection module fallback before projection asset exists", async () => {
+  const root = await mkdtemp(join(tmpdir(), "alix-server-"));
+  try {
+    const server = await startServer(root, 0);
+    try {
+      const response = await fetch(`${server.url}/projection.js`);
+      const text = await response.text();
+
+      assert.equal(response.status, 200);
+      assert.equal(response.headers.get("content-type"), "text/javascript");
+      assert.equal(text.trim(), "export {};");
+    } finally {
+      await server.close();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("serves session snapshot JSON", async () => {
   const root = await mkdtemp(join(tmpdir(), "alix-server-"));
   try {

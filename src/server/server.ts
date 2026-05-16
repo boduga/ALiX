@@ -17,6 +17,10 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
       if (url.pathname === "/app.js" || url.pathname === "/projection.js" || url.pathname === "/styles.css") {
         const file = join(root, "dist", "src", "ui", url.pathname.slice(1));
         res.setHeader("content-type", url.pathname.endsWith(".js") ? "text/javascript" : "text/css");
+        if (url.pathname === "/projection.js" && !existsSync(file)) {
+          res.end("export {};\n");
+          return;
+        }
         res.end(await readFile(file, "utf8"));
         return;
       }
