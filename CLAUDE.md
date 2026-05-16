@@ -55,3 +55,15 @@ Uses canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context layout. Read `CONTEXT.md` at repo root (if it exists) and `docs/adr/` for architectural decisions. See `docs/agents/domain.md`.
+
+## Post-MVP Roadmap
+
+Work deferred past MVP is tracked in `docs/post-mvp-backlog.md`. Key items in dependency order:
+
+- **P0.1:** Context Compiler — ranked repo context bundle with intent classification
+- **P0.2:** Provider edit format policy — per-model patch reliability defaults
+- **P1.1:** Full frontend observability — diff viewer, approval panel, replay controls
+- **P1.2:** Verification planner — test mapping, cost-based ordering, residual risk reporting
+- **P2.1:** Extension registry — unified taxonomy for skills/hooks/recipes/plugins
+- **P3.1:** Multi-agent coordination — read-only subagents first, ownership registry
+- **P3.2:** Memory system — project/user/session/tool/repo memory layers
