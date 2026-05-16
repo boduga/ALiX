@@ -71,18 +71,15 @@ What: Full vanilla JS inspector UI with all views. SSE server exists (`src/serve
 Current state:
 - ✅ Event log → JSONL (working)
 - ✅ SSE server for live streaming (working)
-- ✅ Basic UI timeline (working)
 - ✅ Session replay from disk (working)
-
-Missing:
-- ❌ Diff viewer (show file changes after patch)
-- ❌ Terminal output stream (show shell command results)
-- ❌ Approval panel (show pending approvals with approve/deny buttons)
-- ❌ Context view (show what files/symbols were included in context)
-- ❌ Verification view (show verification results per check)
-- ❌ Token usage display
-- ❌ Replay controls (pause, step, speed)
-- ❌ Session comparison (diff two sessions)
+- ✅ Inspector panels: timeline, context, diffs, terminal, approvals, verification, tokens
+- ✅ Replay controls: start, step back/forward, end, play/pause, speed slider
+- ✅ Session comparison endpoint (`/api/sessions/compare`)
+- ✅ Browser projection helpers (`src/ui/projection.js`)
+- ✅ Server-side projection (`src/inspector/projection.ts`)
+- ✅ Session snapshot endpoint (`/api/sessions/:id/snapshot`)
+- ✅ Context bundle events carry actual items (primaryFiles, tests, supportingFiles, pinned)
+- ✅ Model usage events logged per agent message (provider, model, inputTokens, outputTokens)
 
 **Why P1:** CLI observability is fine for power users. UI makes the system approachable for more people and enables non-technical review of agent work.
 
