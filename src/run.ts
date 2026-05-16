@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
+import { createInterface } from "node:readline";
 import { loadConfig } from "./config/loader.js";
 import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
@@ -22,6 +23,16 @@ import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracke
 import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
 import type { ScopeTracker } from "./autonomy/scope-tracker.js";
 import type { AgentState } from "./autonomy/scope-tracker.js";
+
+async function promptUser(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise<string>((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
+}
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
@@ -545,6 +556,28 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
 
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
+    }
+
+    // Handle scope expansion approval in ask mode — pause for user input if a scope expansion is pending
+    if (pendingScopeExpansion !== null && config.permissions.sessionMode === "ask") {
+      if (process.stdin.isTTY) {
+        const answer = await promptUser(
+          `Scope expansion: "${pendingScopeExpansion.path}" is outside the initial scope. Type "approve" to allow or "deny" to block: `
+        );
+        await log.append({ ...session, actor: "user", type: "autonomy.scope_approval", payload: { answer, path: pendingScopeExpansion.path } });
+        if (answer.toLowerCase() === "approve") {
+          scope.approveScope(pendingScopeExpansion.path);
+          await log.append({ ...session, actor: "policy", type: "autonomy.scope_approved", payload: { path: pendingScopeExpansion.path } });
+        } else {
+          scope.denyScope(pendingScopeExpansion.path);
+          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { path: pendingScopeExpansion.path } });
+        }
+        pendingScopeExpansion = null;
+      } else {
+        // Non-TTY: skip approval, treat as denied (don't auto-approve in ask mode)
+        await log.append({ ...session, actor: "policy", type: "autonomy.scope_skipped", payload: { reason: "non_tty_session", path: pendingScopeExpansion.path } });
+        pendingScopeExpansion = null;
+      }
     }
 
     // Track all file mutations in sessionState
