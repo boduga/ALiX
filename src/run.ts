@@ -194,6 +194,23 @@ const BASE_TOOLS: ToolDef[] = [
       },
       required: ["path"]
     }
+  },
+  {
+    name: "alix_file_exists",
+    description: "Check whether a file exists at the given path without reading its contents.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        path: { type: "string", description: "Relative path to the file" }
+      },
+      required: ["path"]
+    }
+  },
+  {
+    name: "alix_done",
+    description: "Signal that the task is complete. Use this when all requested changes have been made and no further tool calls are needed.",
+    input_schema: { type: "object", properties: {} }
   }
 ];
 
@@ -658,6 +675,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         execResult.kind === "success"
           ? (execResult.output ?? execResult.content ?? "")
           : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+
+      if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+        await mcpManager.closeAll().catch(() => {});
+        return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
+      }
 
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
     }

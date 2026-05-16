@@ -165,6 +165,21 @@ export class ToolExecutor {
         result = { kind: "success", output: `File deleted: ${path}`, deletedPath: path };
         break;
       }
+      case "file.exists": {
+        const { root: r, path } = args as { root: string; path: string };
+        if (!path) { result = { kind: "error", message: "file.exists requires path" }; break; }
+        const resolvedRoot = resolve(r ?? this.root);
+        const resolvedPath = resolve(resolvedRoot, path);
+        if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
+          result = { kind: "error", message: "Path is outside workspace", retryable: false }; break;
+        }
+        result = { kind: "success", output: existsSync(resolvedPath) ? `File exists: ${path}` : `File not found: ${path}`, exists: existsSync(resolvedPath) };
+        break;
+      }
+      case "done": {
+        result = { kind: "success", output: "Task complete.", completed: true };
+        break;
+      }
       default: {
         // Check if this is an MCP tool (mcp.server.tool format)
         if (name.startsWith("mcp.")) {
