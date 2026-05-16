@@ -10,7 +10,9 @@ import { runCommand } from "./shell-tool.js";
 import { applyPatch } from "../patch/patch-engine.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { EditFormat, EditFormatPolicy } from "../patch/edit-format-policy.js";
-import { createFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
+import { extractPatchPaths } from "../patch/patch-paths.js";
+import { createFileCheckpoint, restoreFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
+import type { Checkpoint } from "../checkpoints/checkpoint-manager.js";
 import type { ToolResult } from "./types.js";
 
 export type ToolCallRequest = {
@@ -86,6 +88,7 @@ export class ToolExecutor {
       }
       case "patch.apply": {
         const { root: r, format, patchText } = args as { root: string; format: string; patchText: string };
+        const patchRoot = r ?? this.root;
         const policy = this.editFormatPolicy ?? buildEditFormatPolicy({ provider: this.config.model.provider });
         const requestedFormat = format as EditFormat;
         const allowed = policy.allowed.includes(requestedFormat);
@@ -103,16 +106,31 @@ export class ToolExecutor {
           result = { kind: "error", message: `Patch format "${format}" is not allowed by edit format policy. Allowed formats: ${policy.allowed.join(", ")}`, retryable: false };
           break;
         }
-        const changedFiles = [...patchText.matchAll(/path=([^\s\n]+)/g)].map(m => m[1]);
+        const changedFiles = extractPatchPaths(format, patchText);
+        let checkpoint: Checkpoint | null = null;
         if (changedFiles.length > 0) {
-          await createFileCheckpoint(r ?? this.root, changedFiles);
+          checkpoint = await createFileCheckpoint(patchRoot, changedFiles);
+          await this.logEvent("patch.checkpoint_created", { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files, missingFiles: checkpoint.missingFiles });
         }
         try {
-          const patchResult = await applyPatch(r ?? this.root, format as any, patchText);
+          const patchResult = await applyPatch(patchRoot, format as any, patchText);
           result = patchResult.status === "applied"
             ? { kind: "success", changedFiles: patchResult.changedFiles }
             : { kind: "error", message: "Patch invalid" };
         } catch (e: unknown) {
+          if (checkpoint) {
+            await this.logEvent("patch.rollback_started", { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files });
+            try {
+              await restoreFileCheckpoint(checkpoint);
+              await this.logEvent("patch.rollback_completed", { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files });
+            } catch (rollbackError: unknown) {
+              await this.logEvent("patch.rollback_failed", {
+                toolCallId,
+                checkpointId: checkpoint.id,
+                error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+              });
+            }
+          }
           result = { kind: "error", message: e instanceof Error ? e.message : String(e) };
         }
         break;

@@ -106,3 +106,80 @@ test("patch.apply blocks full_file at the edit format policy layer", async () =>
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("patch.apply checkpoints structured patch paths before applying", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
+    const log = new EventLog(join(dir, "session"));
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
+
+    const result = await executor.execute({
+      toolCallId: "p-structured-checkpoint",
+      name: "patch.apply",
+      args: {
+        root: dir,
+        format: "structured_patch",
+        patchText: JSON.stringify({
+          version: 1,
+          files: [{ path: "src/a.ts", operation: "modify", content: "const a = 2;\n" }]
+        })
+      }
+    });
+
+    assert.equal(result.kind, "error");
+    const events = await log.readAll();
+    const checkpointEvent = events.find((event) => event.type === "patch.checkpoint_created");
+    assert.ok(checkpointEvent);
+    const payload = checkpointEvent.payload as Record<string, unknown>;
+    assert.deepEqual(payload.files, ["src/a.ts"]);
+    assert.equal(await readFile(join(dir, "src/a.ts"), "utf8"), "const a = 1;\n");
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("patch.apply rolls back prior file changes when a later patch block fails", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-patch-"));
+  try {
+    await mkdir(join(dir, "src"), { recursive: true });
+    await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
+    await writeFile(join(dir, "src/b.ts"), "const b = 1;\n");
+    const log = new EventLog(join(dir, "session"));
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, dir);
+
+    const result = await executor.execute({
+      toolCallId: "p-rollback",
+      name: "patch.apply",
+      args: {
+        root: dir,
+        format: "search_replace",
+        patchText: [
+          "<<<<<<< SEARCH path=src/a.ts",
+          "const a = 1;",
+          "=======",
+          "const a = 2;",
+          ">>>>>>> REPLACE",
+          "<<<<<<< SEARCH path=src/b.ts",
+          "const missing = true;",
+          "=======",
+          "const b = 2;",
+          ">>>>>>> REPLACE"
+        ].join("\n")
+      }
+    });
+
+    assert.equal(result.kind, "error");
+    assert.equal(await readFile(join(dir, "src/a.ts"), "utf8"), "const a = 1;\n");
+    assert.equal(await readFile(join(dir, "src/b.ts"), "utf8"), "const b = 1;\n");
+
+    const events = await log.readAll();
+    assert.ok(events.some((event) => event.type === "patch.rollback_started"));
+    assert.ok(events.some((event) => event.type === "patch.rollback_completed"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
