@@ -10,15 +10,16 @@ describe("skill catalog integration in run.ts", () => {
   const skillsDir = join(home, ".alix", "skills");
 
   afterEach(() => {
-    rmSync(join(skillsDir, "test-skill"), { recursive: true, force: true });
-    rmSync(join(skillsDir, "tdd-skill-cat-test"), { recursive: true, force: true });
+    // Clean up test skills - use unique names to avoid collision with other tests
+    rmSync(join(skillsDir, "skill-test-integration"), { recursive: true, force: true });
+    rmSync(join(skillsDir, "skill-test-cat"), { recursive: true, force: true });
   });
 
   it("loads skills from ~/.alix/skills/ at startup", async () => {
     mkdirSync(skillsDir, { recursive: true });
-    mkdirSync(join(skillsDir, "test-skill"), { recursive: true });
-    writeFileSync(join(skillsDir, "test-skill", "SKILL.md"), `---
-name: test-skill
+    mkdirSync(join(skillsDir, "skill-test-integration"), { recursive: true });
+    writeFileSync(join(skillsDir, "skill-test-integration", "SKILL.md"), `---
+name: skill-test-integration
 description: A test skill
 trigger: /test
 version: "1.0.0"
@@ -26,14 +27,14 @@ is_core: false
 ---
 # Test`);
     const skills = await loadSkills(skillsDir);
-    assert.ok(skills.some(s => s.manifest.name === "test-skill"));
+    assert.ok(skills.some(s => s.manifest.name === "skill-test-integration"));
   });
 
   it("buildSkillCatalog routes by trigger", async () => {
     mkdirSync(skillsDir, { recursive: true });
-    mkdirSync(join(skillsDir, "tdd-skill-cat-test"), { recursive: true });
-    writeFileSync(join(skillsDir, "tdd-skill-cat-test", "SKILL.md"), `---
-name: tdd-skill-cat-test
+    mkdirSync(join(skillsDir, "skill-test-cat"), { recursive: true });
+    writeFileSync(join(skillsDir, "skill-test-cat", "SKILL.md"), `---
+name: skill-test-cat
 description: TDD loop
 trigger: /tdd
 version: "1.0.0"
@@ -43,7 +44,7 @@ is_core: false
     const skills = await loadSkills(skillsDir);
     const catalog = buildSkillCatalog(skills);
     const matched = catalog.match("/tdd add login feature");
-    assert.ok(matched.some(s => s.manifest.name === "tdd-skill-cat-test"));
+    assert.ok(matched.some(s => s.manifest.name === "skill-test-cat"));
   });
 
   it("skill body is injected into system prompt when matched", () => {

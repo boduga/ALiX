@@ -14,8 +14,12 @@ const candidatesDir = join(homeDir, ".alix", "candidates");
  * This runs asynchronously and does NOT block the main loop.
  */
 export async function runSkillFactory(params: DispatchParams): Promise<void> {
-  if (!params.config.enabled) return;
-  if (!params.summary && params.filesCreated.length === 0 && params.filesChanged.length === 0) return;
+  if (!params.config.enabled) {
+    return;
+  }
+  if (!params.summary && params.filesCreated.length === 0 && params.filesChanged.length === 0) {
+    return;
+  }
 
   // Build the distillation prompt
   const prompt = buildDistillationPrompt(params);

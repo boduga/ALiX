@@ -1,8 +1,8 @@
 // src/verifier/verifier.ts
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { runWithIsolation } from "../skills/test-isolation.js";
 
 export type VerificationCheck = {
   command: string;
@@ -43,13 +43,10 @@ export async function discoverVerification(root: string): Promise<VerificationCh
 }
 
 export async function runVerification(root: string, check: VerificationCheck): Promise<VerificationResult> {
-  return new Promise((resolve) => {
-    const child = spawn(check.command, { cwd: root, shell: true });
-    let output = "";
-    child.stdout.on("data", (chunk) => (output += chunk));
-    child.stderr.on("data", (chunk) => (output += chunk));
-    child.on("close", (code) => {
-      resolve({ status: code === 0 ? "passed" : "failed", command: check.command, output });
-    });
-  });
+  try {
+    const { passed, output } = await runWithIsolation(root, check.command, 120000);
+    return { status: passed ? "passed" : "failed", command: check.command, output };
+  } catch (err) {
+    return { status: "not_run", command: check.command, output: String(err) };
+  }
 }

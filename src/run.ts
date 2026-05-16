@@ -17,6 +17,10 @@ import { discoverVerification, runVerification } from "./verifier/verifier.js";
 import type { VerificationCheck, VerificationResult } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
+import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracker.js";
+import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
+import type { ScopeTracker } from "./autonomy/scope-tracker.js";
+import type { AgentState } from "./autonomy/scope-tracker.js";
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
@@ -268,6 +272,22 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   let repairCount = 0;
   const maxRepairs = 3;
 
+  // Scope tracking: derive initial scope from task string
+  const initialScope = extractInitialScope(task);
+  const scope: ScopeTracker = createScopeTracker(initialScope, cwd);
+
+  // State machine with hard limits
+  const limiter = new RunLimiter({
+    maxIterations,
+    maxRepairs: 3,
+    maxFileChanges: 0,    // 0 = unlimited
+    maxShellCommands: 0,  // 0 = unlimited
+    maxRuntimeMs: 0,      // 0 = unlimited
+  });
+  const stateMachine = new TaskStateMachine(limiter, (from, to, reason) => {
+    log.append({ ...session, actor: "system", type: "autonomy.state_transition", payload: { from, to, reason } });
+  });
+
   // Inject available skills into system prompt
   function buildSystemPrompt(base: string): string {
     if (loadedSkills.length === 0) return base;
@@ -440,11 +460,28 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     // Track failed tool names per iteration to prevent spinning
     const failedTools: string[] = [];
     const fatalToolErrors: string[] = [];
+    let pendingScopeExpansion: { path: string; toolCallId: string } | null = null;
 
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of toolCalls) {
-      // Resolve once: check TOOL_NAME_MAP first (fast path), then fuzzy search fallback
-      const execName = resolveMcpTool(toolCall.name, mcpDeferral) ?? TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+
+      // Scope expansion check: intercept mutation tools for files outside initial scope
+      const isMutation = execName === "file.create" || execName === "file.write" || execName === "file.delete" || execName === "patch.apply";
+      if (isMutation) {
+        const path = (toolCall.args.path as string | undefined) ?? "";
+        const check = scope.checkMutation(path);
+        if (check === "scope_expansion") {
+          await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { path, toolCallId: toolCall.id, toolName: execName } });
+          pendingScopeExpansion = { path, toolCallId: toolCall.id };
+          scope.setPending(path);
+          // Deny the tool and ask for scope confirmation
+          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion requires approval. The agent is attempting to modify "${path}" which is outside the initial scope.\n\nPlease confirm: type "approve" to allow this file, or "deny" to block it.\n</tool_result>` });
+          continue;
+        }
+        // scope.checkMutation returned "allowed" or "approved" — proceed
+      }
+
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
       if (execResult.kind === "error") {
@@ -491,6 +528,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       const failedChecks = endResults.filter((r) => r.result.status === "failed");
       if (failedChecks.length > 0) {
         repairCount++;
+        stateMachine.recordRepair();
         if (repairCount > maxRepairs) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
           await mcpManager.closeAll().catch(() => {});
