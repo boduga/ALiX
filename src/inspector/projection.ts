@@ -83,7 +83,7 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
     switch (event.type) {
       case "session.started":
         snapshot.summary.status = "running";
-        snapshot.summary.startedAt = event.timestamp;
+        snapshot.summary.startedAt ??= event.timestamp;
         break;
       case "session.ended": {
         const reason = optionalString(payload.reason);
@@ -143,7 +143,7 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
         snapshot.diffs.push({
           toolCallId,
           changedFiles: [],
-          checkpointFiles: stringArray(payload.checkpointFiles),
+          checkpointFiles: stringArray(payload.files).length > 0 ? stringArray(payload.files) : stringArray(payload.checkpointFiles),
           rolledBack: false,
           status: "checkpointed"
         });

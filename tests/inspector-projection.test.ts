@@ -25,29 +25,30 @@ test("buildInspectorSnapshot groups context, shell, diff, approval, verification
       primaryFiles: [{ path: "src/app.ts", kind: "source", symbolName: "run" }],
       pinned: [{ path: "README.md", kind: "doc", reason: "user pinned" }]
     }),
-    event(3, "tool.requested", { toolCallId: "shell-1", toolName: "shell.run", argsPreview: { command: "npm test" } }),
-    event(4, "tool.completed", { toolCallId: "shell-1", toolName: "shell.run", status: "success", outputPreview: "ok" }),
-    event(5, "patch.checkpoint_created", { toolCallId: "patch-1", checkpointFiles: ["src/app.ts"] }),
-    event(6, "tool.completed", { toolCallId: "patch-1", toolName: "patch.apply", changedFiles: ["src/app.ts"], status: "success" }),
-    event(7, "patch.rollback_completed", { toolCallId: "patch-1" }),
-    event(8, "autonomy.scope_expansion", { toolCallId: "approval-1", toolName: "write", paths: ["src/app.ts"] }),
-    event(9, "autonomy.scope_approved", { toolCallId: "approval-1", toolName: "write", paths: ["src/app.ts"] }),
-    event(10, "verification.check_started", { command: "npm run build", reason: "compile" }),
-    event(11, "verification.check_finished", { command: "npm run build", status: "passed", output: "clean" }),
-    event(12, "model.usage", { provider: "openai", model: "gpt", inputTokens: 10, outputTokens: 5 }),
-    event(13, "session.ended", { reason: "completed" })
+    event(3, "session.started", {}),
+    event(4, "tool.requested", { toolCallId: "shell-1", toolName: "shell.run", argsPreview: { command: "npm test" } }),
+    event(5, "tool.completed", { toolCallId: "shell-1", toolName: "shell.run", status: "success", outputPreview: "ok" }),
+    event(6, "patch.checkpoint_created", { toolCallId: "patch-1", files: ["src/app.ts"] }),
+    event(7, "tool.completed", { toolCallId: "patch-1", toolName: "patch.apply", changedFiles: ["src/app.ts"], status: "success" }),
+    event(8, "patch.rollback_completed", { toolCallId: "patch-1" }),
+    event(9, "autonomy.scope_expansion", { toolCallId: "approval-1", toolName: "write", paths: ["src/app.ts"] }),
+    event(10, "autonomy.scope_approved", { toolCallId: "approval-1", toolName: "write", paths: ["src/app.ts"] }),
+    event(11, "verification.check_started", { command: "npm run build", reason: "compile" }),
+    event(12, "verification.check_finished", { command: "npm run build", status: "passed", output: "clean" }),
+    event(13, "model.usage", { provider: "openai", model: "gpt", inputTokens: 10, outputTokens: 5 }),
+    event(14, "session.ended", { reason: "completed" })
   ]);
 
   assert.equal(snapshot.sessionId, "s1");
   assert.deepEqual(snapshot.summary, {
-    eventCount: 13,
+    eventCount: 14,
     status: "completed",
     reason: "completed",
-    latestSeq: 13,
+    latestSeq: 14,
     startedAt: "2026-01-01T00:00:01Z",
-    endedAt: "2026-01-01T00:00:13Z"
+    endedAt: "2026-01-01T00:00:14Z"
   });
-  assert.equal(snapshot.timeline.length, 13);
+  assert.equal(snapshot.timeline.length, 14);
   assert.deepEqual(snapshot.context, {
     taskType: "feature",
     budget: { maxTokens: 1000, usedTokens: 250 },
