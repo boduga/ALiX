@@ -23,6 +23,8 @@ import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracke
 import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
 import type { ScopeTracker } from "./autonomy/scope-tracker.js";
 import type { AgentState } from "./autonomy/scope-tracker.js";
+import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
+import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 
 async function promptUser(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -92,9 +94,6 @@ type SessionState = {
   fatalErrors: string[];
 };
 
-const SUPPORTED_PATCH_FORMATS = ["search_replace", "structured_patch"] as const;
-type SupportedPatchFormat = typeof SUPPORTED_PATCH_FORMATS[number];
-
 function buildStateSummary(state: SessionState): string {
   const parts: string[] = [];
   if (state.created.size) parts.push(`Created: ${[...state.created].join(", ")}`);
@@ -104,16 +103,13 @@ function buildStateSummary(state: SessionState): string {
   return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
 }
 
-function providerPatchFormatPreference(provider: Pick<ModelAdapter, "editFormatPreference">): SupportedPatchFormat {
-  return provider.editFormatPreference === "structured_patch" ? "structured_patch" : "search_replace";
-}
-
-function patchFormatDescription(preferred: SupportedPatchFormat): string {
+function patchFormatDescription(policy: EditFormatPolicy): string {
+  const preferred = policy.preferred;
   const alternate = preferred === "search_replace" ? "structured_patch" : "search_replace";
-  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. Do not use full_file for existing files.`;
+  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. Do not use full_file for existing files. Full-file rewrite policy: ${policy.fullFileRewrite}.`;
 }
 
-function patchTextDescription(preferred: SupportedPatchFormat): string {
+function patchTextDescription(preferred: EditFormatPolicy["preferred"]): string {
   if (preferred === "structured_patch") {
     return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256>","content":"<full new content>"}]}. Use search_replace only when a small exact replacement is safer.`;
   }
@@ -201,8 +197,7 @@ const BASE_TOOLS: ToolDef[] = [
 ];
 
 export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPreference">): ToolDef[] {
-  const preferred = providerPatchFormatPreference(provider);
-  const alternate: SupportedPatchFormat = preferred === "search_replace" ? "structured_patch" : "search_replace";
+  const policy = buildEditFormatPolicy({ provider: "runtime", preferred: provider.editFormatPreference });
   return BASE_TOOLS.map((tool) => {
     if (tool.name !== "alix_patch_apply") return tool;
     return {
@@ -213,12 +208,12 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
           ...tool.input_schema.properties,
           format: {
             type: "string",
-            enum: [preferred, alternate],
-            description: patchFormatDescription(preferred)
+            enum: policy.allowed,
+            description: patchFormatDescription(policy)
           },
           patchText: {
             type: "string",
-            description: patchTextDescription(preferred)
+            description: patchTextDescription(policy.preferred)
           }
         }
       }

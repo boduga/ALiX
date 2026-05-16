@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { defaultEditFormatForProvider } from "../src/patch/edit-format-policy.js";
+import { buildEditFormatPolicy, defaultEditFormatForProvider } from "../src/patch/edit-format-policy.js";
 import { applyPatch, sha256 } from "../src/patch/patch-engine.js";
 
 test("applies exact search replace", async () => {
@@ -123,4 +123,35 @@ test("rejects unsupported full file format", async () => {
 
 test("google provider defaults to search replace", () => {
   assert.equal(defaultEditFormatForProvider("google"), "search_replace");
+});
+
+test("buildEditFormatPolicy uses provider preference as the preferred allowed format", () => {
+  const policy = buildEditFormatPolicy({ provider: "openai", preferred: "structured_patch" });
+
+  assert.equal(policy.provider, "openai");
+  assert.equal(policy.preferred, "structured_patch");
+  assert.deepEqual(policy.allowed, ["structured_patch", "search_replace"]);
+  assert.equal(policy.fullFileRewrite, "deny");
+});
+
+test("buildEditFormatPolicy keeps Gemini on search_replace even with explicit provider policy", () => {
+  const policy = buildEditFormatPolicy({ provider: "google", preferred: "structured_patch" });
+
+  assert.equal(policy.preferred, "search_replace");
+  assert.deepEqual(policy.allowed, ["search_replace", "structured_patch"]);
+});
+
+test("buildEditFormatPolicy falls back to search_replace for unsafe full_file preference", () => {
+  const policy = buildEditFormatPolicy({ provider: "local", preferred: "full_file" });
+
+  assert.equal(policy.preferred, "search_replace");
+  assert.deepEqual(policy.allowed, ["search_replace", "structured_patch"]);
+  assert.equal(policy.fullFileRewrite, "deny");
+});
+
+test("buildEditFormatPolicy does not allow unsupported unified_diff until engine supports it", () => {
+  const policy = buildEditFormatPolicy({ provider: "custom", preferred: "unified_diff" });
+
+  assert.equal(policy.preferred, "structured_patch");
+  assert.deepEqual(policy.allowed, ["structured_patch", "search_replace"]);
 });
