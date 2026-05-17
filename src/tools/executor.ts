@@ -153,7 +153,7 @@ export class ToolExecutor {
           result = { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." }; break;
         }
         if (existsSync(resolvedPath)) {
-          result = { kind: "error", message: `File already exists: ${path}`, retryable: false, hint: `Use file.read to inspect the existing content, then file.patch or file.edit to modify it.` }; break;
+          result = { kind: "error", message: `File already exists: ${path}`, retryable: false, hint: `Use file.read to inspect the existing content, then use patch.apply to modify it.` }; break;
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
