@@ -698,7 +698,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       if (execName === "mcp_search_tools") {
         const query = (toolCall.args.query as string) ?? "";
         const result = await mcpDiscovery.search(query);
-        await log.append({ sessionId, actor: "system", type: "mcp.tool_discovered", payload: { query, result: result.kind } });
+        const matchedTools = result.kind === "success" && result.output
+          ? result.output.split("\n").filter(l => l.startsWith("  - ")).map(l => l.slice(5, l.indexOf(":")))
+          : [];
+        await log.append({ sessionId, actor: "system", type: "mcp.tool_discovered", payload: { query, matchedTools } });
         const output = result.kind === "success" ? result.output ?? "" : result.message;
         messages.push({ role: "user", content: `[Tool Result]\n${output}` });
         continue;

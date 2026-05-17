@@ -108,8 +108,8 @@ export class McpManager {
     return this.registry.getClient(serverName);
   }
 
-  getDeferral(): McpToolDeferral {
-    if (!this._deferral) this._deferral = new McpToolDeferral(this.registry);
+  getDeferral(cacheOptions?: { ttlMs?: number; maxSize?: number }): McpToolDeferral {
+    if (!this._deferral) this._deferral = new McpToolDeferral(this.registry, cacheOptions);
     return this._deferral;
   }
 
