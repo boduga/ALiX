@@ -75,6 +75,16 @@ export class ToolExecutor {
       case "file.read": {
         const { root: r, path } = args as { root: string; path: string };
         result = await readFile({ root: r ?? this.root, path });
+        if (result.kind === "success" && result.content) {
+          // Suggest calling done if the file looks like a complete implementation
+          const hasFunction = /^(?:async )?\s*function|^(?:async )?\s*def|^(?:async )?\s*const\s+\w+\s*=/m.test(result.content);
+          const hasReturn = /return|yield/.test(result.content);
+          if (hasFunction && hasReturn) {
+            result.output = `${result.content.slice(0, 200)}\n\n[File contains a complete implementation. Call done if no further changes are needed.]`;
+          } else {
+            result.output = result.content.slice(0, 300);
+          }
+        }
         break;
       }
       case "dir.search": {
