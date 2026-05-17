@@ -221,12 +221,31 @@ test("subagent roles are loaded from defaults", () => {
   const result = mergeConfig(DEFAULT_CONFIG, {});
   assert.equal(result.subagents!.enabled, true);
   assert.equal(result.subagents!.roles.length, 5);
-  const explorer = result.subagents!.roles.find((r: any) => r.role === "explorer");
-  assert.equal(explorer!.mode, "read_only");
-  assert.equal(explorer!.retryCount, 1);
-  const worker = result.subagents!.roles.find((r: any) => r.role === "worker");
-  assert.equal(worker!.mode, "write");
-  assert.equal(worker!.retryCount, 0);
+
+  // Check each role's mode, retryCount, and fastModel where applicable
+  for (const r of result.subagents!.roles) {
+    if (r.role === "explorer") {
+      assert.equal(r.mode, "read_only");
+      assert.equal(r.retryCount, 1);
+      assert.equal(r.fastModel, "qwen3b");
+    } else if (r.role === "reviewer") {
+      assert.equal(r.mode, "read_only");
+      assert.equal(r.retryCount, 1);
+      assert.equal(r.fastModel, "qwen3b");
+    } else if (r.role === "test_investigator") {
+      assert.equal(r.mode, "read_only");
+      assert.equal(r.retryCount, 1);
+      assert.equal(r.fastModel, undefined); // same as parent
+    } else if (r.role === "docs_researcher") {
+      assert.equal(r.mode, "read_only");
+      assert.equal(r.retryCount, 1);
+      assert.equal(r.fastModel, "qwen3b");
+    } else if (r.role === "worker") {
+      assert.equal(r.mode, "write");
+      assert.equal(r.retryCount, 0);
+      assert.equal(r.fastModel, undefined);
+    }
+  }
 });
 
 test("loadConfig does not override existing env var with config key", async () => {
