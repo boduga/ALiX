@@ -524,5 +524,68 @@ if (command === "mcp") {
   process.exit(0);
 }
 
+if (command === "extension") {
+  const { homedir } = await import("node:os");
+  const { join: pjoin } = await import("node:path");
+  const { ExtensionRegistry } = await import("./extensions/registry.js");
+
+  const storePath = pjoin(homedir(), ".alix", "extensions");
+  const registry = new ExtensionRegistry(storePath);
+
+  const sub = args[0];
+  if (sub === "list") {
+    const typeFilter = args[1] as any;
+    const all = registry.list(typeFilter ? { type: typeFilter } : undefined);
+    console.log(`Installed extensions (${all.length}):`);
+    for (const ext of all) {
+      const m = ext.manifest;
+      const core = m.is_core ? " [core]" : "";
+      const trigger = (m as any).trigger ? ` trigger:${(m as any).trigger}` : "";
+      console.log(`  ${m.type}/${m.name}${core} — ${m.description} (v${m.version})${trigger}`);
+    }
+  } else if (sub === "install") {
+    const src = args[1];
+    if (!src) { console.error("Usage: alix extension install <path>"); process.exit(1); }
+    const installed = await registry.install(src);
+    if (installed) {
+      console.log(`Installed: ${installed.manifest.type}/${installed.manifest.name}`);
+    } else {
+      console.error("Install failed: no EXTENSION.yaml found or manifest invalid");
+      process.exit(1);
+    }
+  } else if (sub === "uninstall") {
+    const id = args[1];
+    if (!id) { console.error("Usage: alix extension uninstall <type>/<name>"); process.exit(1); }
+    const removed = await registry.uninstall(id);
+    if (removed) {
+      console.log(`Uninstalled: ${id}`);
+    } else {
+      console.log(`Failed: ${id} not found or is a core extension`);
+      process.exit(1);
+    }
+  } else if (sub === "search") {
+    const query = (args[1] ?? "").toLowerCase();
+    if (!query) { console.error("Usage: alix extension search <query>"); process.exit(1); }
+    const all = registry.list();
+    const matches = all.filter(e =>
+      e.manifest.name.toLowerCase().includes(query) ||
+      e.manifest.description.toLowerCase().includes(query) ||
+      e.manifest.tags?.some(t => t.toLowerCase().includes(query))
+    );
+    console.log(`Search results for "${query}":`);
+    if (matches.length === 0) { console.log("  (no matches)"); }
+    for (const ext of matches) {
+      console.log(`  ${ext.manifest.type}/${ext.manifest.name} — ${ext.manifest.description}`);
+    }
+  } else {
+    console.log("Usage: alix extension [list|install|uninstall|search]");
+    console.log("  list [type]    — list installed extensions, optionally filter by type");
+    console.log("  install <path> — install extension from a directory");
+    console.log("  uninstall <id> — uninstall by id (e.g. skill/my-skill)");
+    console.log("  search <query> — search by name, description, or tag");
+  }
+  process.exit(0);
+}
+
 console.error(`Unknown command: ${command}`);
 process.exit(1);

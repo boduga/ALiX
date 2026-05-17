@@ -65,6 +65,11 @@ export type SkillStoreConfig = {
   path: string;
 };
 
+export type ExtensionStoreConfig = {
+  enabled: boolean;
+  path: string;
+};
+
 export type AlixConfig = {
   version: 1;
   model: ModelConfig;
@@ -78,6 +83,9 @@ export type AlixConfig = {
   skills?: {
     factory?: SkillFactoryConfig;
     store?: SkillStoreConfig;
+  };
+  extensions?: {
+    store?: ExtensionStoreConfig;
   };
 };
 

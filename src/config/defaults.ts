@@ -64,5 +64,11 @@ export const DEFAULT_CONFIG: AlixConfig = {
       enabled: true,
       path: `${homedir()}/.alix/skills`
     }
+  },
+  extensions: {
+    store: {
+      enabled: true,
+      path: `${homedir()}/.alix/extensions`
+    }
   }
 };
