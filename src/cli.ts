@@ -230,6 +230,10 @@ Usage:
   alix mcp remove <name>  Disconnect an MCP server
   alix mcp discover <pkg> Discover an npm MCP package
   alix mcp test <name>    Test an MCP server connection
+  alix extension list     List installed extensions
+  alix extension install <path>  Install an extension from a directory
+  alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
+  alix extension search <query>  Search extensions by name, description, or tag
 `);
   process.exit(0);
 }
