@@ -50,6 +50,7 @@ export class SchemaCache {
     }
 
     this.cache.set(name, { schema, timestamp: Date.now() });
+    this.accessOrder = this.accessOrder.filter(k => k !== name);
     this.accessOrder.push(name);
   }
 

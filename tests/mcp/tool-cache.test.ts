@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { SchemaCache } from "../../src/mcp/tool-cache.js";
 import type { ToolDef } from "../../src/providers/types.js";
 
@@ -10,9 +11,9 @@ describe("SchemaCache TTL", () => {
   it("evicts entries after TTL expires", async () => {
     const cache = new SchemaCache({ ttlMs: 50 });
     cache.set("tool1", makeDef("tool1"));
-    expect(cache.has("tool1")).toBe(true);
+    assert.ok(cache.has("tool1"));
     await new Promise(r => setTimeout(r, 60));
-    expect(cache.has("tool1")).toBe(false);
+    assert.ok(!cache.has("tool1"));
   });
 
   it("evicts oldest entries when maxSize is exceeded", () => {
@@ -20,18 +21,18 @@ describe("SchemaCache TTL", () => {
     cache.set("t1", makeDef("t1"));
     cache.set("t2", makeDef("t2"));
     cache.set("t3", makeDef("t3"));
-    expect(cache.size).toBe(3);
+    assert.equal(cache.size, 3);
     cache.set("t4", makeDef("t4"));
-    expect(cache.size).toBe(3);
-    expect(cache.has("t1")).toBe(false);
-    expect(cache.has("t4")).toBe(true);
+    assert.equal(cache.size, 3);
+    assert.ok(!cache.has("t1"));
+    assert.ok(cache.has("t4"));
   });
 
   it("supports getSize and maxSize", () => {
     const cache = new SchemaCache({ maxSize: 5 });
-    expect(cache.maxSize).toBe(5);
+    assert.equal(cache.maxSize, 5);
     cache.set("a", makeDef("a"));
     cache.set("b", makeDef("b"));
-    expect(cache.size).toBe(2);
+    assert.equal(cache.size, 2);
   });
 });
