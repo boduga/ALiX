@@ -129,12 +129,15 @@ Future upgrades:
 
 What: Load tools lazily, expose only task-relevant capabilities. MCP tools flood context if loaded eagerly.
 
-Current state: `src/mcp/tool-deferral.ts` has fuzzy search and caching. MCP manager discovers all tools on startup. Missing:
+Current state: All four items implemented:
+- ✅ `ToolSelector` — select tools per task based on intent + keyword overlap scoring + token budget
+- ✅ `ToolDiscovery` meta-tool — `mcp_search_tools` lets agent search catalog mid-session
+- ✅ Schema cache with TTL + LRU eviction (`SchemaCache` with `ttlMs` and `maxSize` options)
+- ✅ Tool provenance tracking — `_usedTools` and `_discoveredTools` tracked in event log
 
-- ❌ `ToolSelector` — select tools per task based on intent
-- ❌ `ToolDiscovery` meta-tool — let agent search catalog for additional tools during run
-- ❌ Schema cache with TTL
-- ❌ Tool provenance tracking in event log
+Future upgrades:
+- Per-model reliability test matrix for tool selection defaults
+- Semantic scoring for tool relevance (embeddings-based)
 
 **Why P2:** Prevents token waste and model confusion when many MCP tools are available.
 
