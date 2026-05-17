@@ -694,6 +694,15 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
 
+      // Track MCP tool provenance
+      if (execResult.kind === "success" && execName.startsWith("mcp.")) {
+        const mcpName = toolCall.name;
+        await log.append({
+          sessionId, actor: "system", type: "mcp.tool_used",
+          payload: { toolName: mcpName, execName, sessionToolsTotal: mcpToolIndex.length, sessionToolsSelected: selectedTools.length }
+        });
+      }
+
       if (execResult.kind === "error") {
         const errorResult = execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string };
         failedTools.push(execName);
