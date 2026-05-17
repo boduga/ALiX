@@ -80,9 +80,7 @@ export class ToolExecutor {
           const hasFunction = /^(?:async )?\s*function|^(?:async )?\s*def|^(?:async )?\s*const\s+\w+\s*=/m.test(result.content);
           const hasReturn = /return|yield/.test(result.content);
           if (hasFunction && hasReturn) {
-            result.output = `${result.content.slice(0, 200)}\n\n[File contains a complete implementation. Call done if no further changes are needed.]`;
-          } else {
-            result.output = result.content.slice(0, 300);
+            result.content = `${result.content.slice(0, 200)}\n\n[File contains a complete implementation. Call done if no further changes are needed.]`;
           }
         }
         break;
