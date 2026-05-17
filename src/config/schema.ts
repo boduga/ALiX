@@ -70,6 +70,22 @@ export type ExtensionStoreConfig = {
   path: string;
 };
 
+export type SubagentRole = "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker";
+
+export type SubagentRoleConfig = {
+  role: SubagentRole;
+  mode: "read_only" | "write";
+  model?: string;
+  retryCount?: number;
+  fastModel?: string;
+  enabled?: boolean;
+};
+
+export type SubagentConfig = {
+  enabled: boolean;
+  roles: SubagentRoleConfig[];
+};
+
 export type AlixConfig = {
   version: 1;
   model: ModelConfig;
@@ -87,6 +103,7 @@ export type AlixConfig = {
   extensions?: {
     store?: ExtensionStoreConfig;
   };
+  subagents?: SubagentConfig;
 };
 
 export type ValidationIssue = {

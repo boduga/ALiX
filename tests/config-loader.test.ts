@@ -217,6 +217,18 @@ test("loadConfig prefers project config API key over global and XDG keys", async
   }
 });
 
+test("subagent roles are loaded from defaults", () => {
+  const result = mergeConfig(DEFAULT_CONFIG, {});
+  assert.equal(result.subagents!.enabled, true);
+  assert.equal(result.subagents!.roles.length, 5);
+  const explorer = result.subagents!.roles.find((r: any) => r.role === "explorer");
+  assert.equal(explorer!.mode, "read_only");
+  assert.equal(explorer!.retryCount, 1);
+  const worker = result.subagents!.roles.find((r: any) => r.role === "worker");
+  assert.equal(worker!.mode, "write");
+  assert.equal(worker!.retryCount, 0);
+});
+
 test("loadConfig does not override existing env var with config key", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
   const restore = withMockedHomedir(dir);

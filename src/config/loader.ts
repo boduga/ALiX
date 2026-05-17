@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig, McpServerConfig } from "./schema.js";
+import type { AlixConfig, McpServerConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 
 // Test seam — allows tests to override homedir without touching the real OS module
@@ -19,6 +19,7 @@ type PartialConfig = Partial<AlixConfig> & {
   ui?: Partial<AlixConfig["ui"]>;
   mcpServers?: Partial<AlixConfig["mcpServers"]>;
   mcpServerPaths?: string[];
+  subagents?: SubagentConfig;
 };
 
 // Load config from three sources (in order of precedence):
@@ -93,7 +94,8 @@ export function mergeConfig(
       mcpServers: normalizeMcpServers(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),
-      mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? [])
+      mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
+      subagents: (result.subagents ?? DEFAULT_CONFIG.subagents) as SubagentConfig,
     };
   }
   return result;

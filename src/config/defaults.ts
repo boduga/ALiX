@@ -70,5 +70,15 @@ export const DEFAULT_CONFIG: AlixConfig = {
       enabled: true,
       path: `${homedir()}/.alix/extensions`
     }
+  },
+  subagents: {
+    enabled: true,
+    roles: [
+      { role: "explorer",         mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
+      { role: "reviewer",          mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
+      { role: "test_investigator", mode: "read_only", retryCount: 1 },
+      { role: "docs_researcher",   mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
+      { role: "worker",            mode: "write",     retryCount: 0 },
+    ],
   }
 };
