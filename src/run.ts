@@ -57,7 +57,8 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_file_delete: "file.delete",
   alix_dir_search: "dir.search",
   alix_shell_run: "shell.run",
-  alix_patch_apply: "patch.apply"
+  alix_patch_apply: "patch.apply",
+  alix_done: "done"
 };
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
