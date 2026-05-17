@@ -15,6 +15,7 @@ import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
+import { ToolDiscovery } from "./mcp/tool-discovery.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
 import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
@@ -59,7 +60,8 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_dir_search: "dir.search",
   alix_shell_run: "shell.run",
   alix_patch_apply: "patch.apply",
-  alix_done: "done"
+  alix_done: "done",
+  mcp_search_tools: "mcp_search_tools",
 };
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
@@ -369,6 +371,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const mcpToolIndex = mcpDeferral.buildIndex();
   const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
   const selectedTools = toolSelector.select(task);
+  const mcpDiscovery = new ToolDiscovery(mcpToolIndex); // full index, not selectedTools
   for (const entry of selectedTools) {
     TOOL_NAME_MAP[entry.name] = entry.execName;
   }
@@ -690,6 +693,15 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           }
         }
         // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
+      }
+
+      if (execName === "mcp_search_tools") {
+        const query = (toolCall.args.query as string) ?? "";
+        const result = await mcpDiscovery.search(query);
+        await log.append({ sessionId, actor: "system", type: "mcp.tool_discovered", payload: { query, result: result.kind } });
+        const output = result.kind === "success" ? result.output ?? "" : result.message;
+        messages.push({ role: "user", content: `[Tool Result]\n${output}` });
+        continue;
       }
 
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
