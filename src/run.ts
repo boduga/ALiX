@@ -11,9 +11,11 @@ import { ContextCompiler } from "./repomap/context-compiler.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
+import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
+import { ToolDiscovery } from "./mcp/tool-discovery.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
 import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
@@ -58,7 +60,8 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_dir_search: "dir.search",
   alix_shell_run: "shell.run",
   alix_patch_apply: "patch.apply",
-  alix_done: "done"
+  alix_done: "done",
+  mcp_search_tools: "mcp_search_tools",
 };
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
@@ -366,9 +369,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   const mcpDeferral = mcpManager.getDeferral();
   const mcpToolIndex = mcpDeferral.buildIndex();
-  for (const entry of mcpToolIndex) {
+  const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
+  const selectedTools = toolSelector.select(task);
+  const mcpDiscovery = new ToolDiscovery(mcpToolIndex); // full index, not selectedTools
+  for (const entry of selectedTools) {
     TOOL_NAME_MAP[entry.name] = entry.execName;
   }
+  await log.append({ sessionId, actor: "system", type: "mcp.tools_selected", payload: { total: mcpToolIndex.length, selected: selectedTools.length, taskPreview: task.slice(0, 100) } });
 
   const sessionState = {
     created: new Set<string>(),
@@ -688,7 +695,28 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
       }
 
+      if (execName === "mcp_search_tools") {
+        const query = (toolCall.args.query as string) ?? "";
+        const result = await mcpDiscovery.search(query);
+        const matchedTools = result.kind === "success" && result.output
+          ? result.output.split("\n").filter(l => l.startsWith("  - ")).map(l => l.slice(5, l.indexOf(":")))
+          : [];
+        await log.append({ sessionId, actor: "system", type: "mcp.tool_discovered", payload: { query, matchedTools } });
+        const output = result.kind === "success" ? result.output ?? "" : result.message;
+        messages.push({ role: "user", content: `[Tool Result]\n${output}` });
+        continue;
+      }
+
       const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+
+      // Track MCP tool provenance
+      if (execResult.kind === "success" && execName.startsWith("mcp.")) {
+        const mcpName = toolCall.name;
+        await log.append({
+          sessionId, actor: "system", type: "mcp.tool_used",
+          payload: { toolName: mcpName, execName, sessionToolsTotal: mcpToolIndex.length, sessionToolsSelected: selectedTools.length }
+        });
+      }
 
       if (execResult.kind === "error") {
         const errorResult = execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string };

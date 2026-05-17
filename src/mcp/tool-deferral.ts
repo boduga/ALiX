@@ -23,9 +23,11 @@ export interface DeferredToolEntry {
 export class McpToolDeferral {
   private cache: SchemaCache;
   private _index: DeferredToolEntry[] | null = null;
+  private _usedTools = new Set<string>();
+  private _discoveredTools = new Set<string>();
 
-  constructor(private registry: McpToolRegistry) {
-    this.cache = new SchemaCache();
+  constructor(private registry: McpToolRegistry, private cacheOptions?: { ttlMs?: number; maxSize?: number }) {
+    this.cache = new SchemaCache(this.cacheOptions);
   }
 
   /**
@@ -65,6 +67,7 @@ export class McpToolDeferral {
     };
 
     this.cache.set(mcpName, def);
+    this._usedTools.add(mcpName);
     return def;
   }
 
@@ -73,7 +76,11 @@ export class McpToolDeferral {
    * Returns top matches from the deferred index.
    */
   search(query: string, limit = 3): SearchResult<DeferredToolEntry>[] {
-    return searchTools(query, this.buildIndex()).slice(0, limit);
+    const results = searchTools(query, this.buildIndex()).slice(0, limit);
+    for (const r of results) {
+      this._discoveredTools.add(r.item.name);
+    }
+    return results;
   }
 
   /**
@@ -83,6 +90,9 @@ export class McpToolDeferral {
     this.cache.clearPrefix(`mcp_${serverName}_`);
     this._index = null;
   }
+
+  getUsedTools(): string[] { return [...this._usedTools]; }
+  getDiscoveredTools(): string[] { return [...this._discoveredTools]; }
 
   private findEntry(name: string): DeferredToolEntry | undefined {
     const idx = this.buildIndex();
