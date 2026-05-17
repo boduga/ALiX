@@ -1,8 +1,6 @@
 import type { DeferredToolEntry } from "./tool-deferral.js";
 
-const SAFE_FALLBACKS = ["filesystem.read", "fetch.get", "files.read", "http.request"];
-// Precomputed safe fallback names with dots replaced by underscores for comparison
-const SAFE_FALLBACK_NAMES = SAFE_FALLBACKS.map(fb => fb.replace(/\./g, "_"));
+const SAFE_FALLBACK_NAMES = ["filesystem_read", "fetch_get", "files_read", "http_request"];
 
 export type ToolSelectorOptions = {
   maxTools: number;
