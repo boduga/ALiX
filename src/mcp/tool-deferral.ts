@@ -24,8 +24,8 @@ export class McpToolDeferral {
   private cache: SchemaCache;
   private _index: DeferredToolEntry[] | null = null;
 
-  constructor(private registry: McpToolRegistry) {
-    this.cache = new SchemaCache();
+  constructor(private registry: McpToolRegistry, private cacheOptions?: { ttlMs?: number; maxSize?: number }) {
+    this.cache = new SchemaCache(this.cacheOptions);
   }
 
   /**
