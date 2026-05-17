@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { AlixConfig } from "../config/schema.js";
@@ -74,6 +75,14 @@ export class ToolExecutor {
       case "file.read": {
         const { root: r, path } = args as { root: string; path: string };
         result = await readFile({ root: r ?? this.root, path });
+        if (result.kind === "success" && result.content) {
+          // Suggest calling done if the file looks like a complete implementation
+          const hasFunction = /^(?:async )?\s*function|^(?:async )?\s*def|^(?:async )?\s*const\s+\w+\s*=/m.test(result.content);
+          const hasReturn = /return|yield/.test(result.content);
+          if (hasFunction && hasReturn) {
+            result.content = `${result.content.slice(0, 200)}\n\n[File contains a complete implementation. Call done if no further changes are needed.]`;
+          }
+        }
         break;
       }
       case "dir.search": {
@@ -143,6 +152,9 @@ export class ToolExecutor {
         if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
           result = { kind: "error", message: "Path is outside workspace", retryable: false, hint: "Check the path is relative and inside the project directory." }; break;
         }
+        if (existsSync(resolvedPath)) {
+          result = { kind: "error", message: `File already exists: ${path}`, retryable: false, hint: `Use file.read to inspect the existing content, then file.patch or file.edit to modify it.` }; break;
+        }
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
         result = { kind: "success", output: `File created: ${path}`, createdPath: path, changedFiles: [path] };
@@ -159,6 +171,21 @@ export class ToolExecutor {
         const { rm } = await import("node:fs/promises");
         try { await rm(resolvedPath); } catch (e) { result = { kind: "error", message: `Delete failed: ${e instanceof Error ? e.message : String(e)}` }; break; }
         result = { kind: "success", output: `File deleted: ${path}`, deletedPath: path };
+        break;
+      }
+      case "file.exists": {
+        const { root: r, path } = args as { root: string; path: string };
+        if (!path) { result = { kind: "error", message: "file.exists requires path" }; break; }
+        const resolvedRoot = resolve(r ?? this.root);
+        const resolvedPath = resolve(resolvedRoot, path);
+        if (!resolvedPath.startsWith(resolvedRoot + "/") && resolvedPath !== resolvedRoot) {
+          result = { kind: "error", message: "Path is outside workspace", retryable: false }; break;
+        }
+        result = { kind: "success", output: existsSync(resolvedPath) ? `File exists: ${path}` : `File not found: ${path}`, exists: existsSync(resolvedPath) };
+        break;
+      }
+      case "done": {
+        result = { kind: "success", output: "Task complete.", completed: true };
         break;
       }
       default: {

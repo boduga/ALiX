@@ -57,7 +57,8 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_file_delete: "file.delete",
   alix_dir_search: "dir.search",
   alix_shell_run: "shell.run",
-  alix_patch_apply: "patch.apply"
+  alix_patch_apply: "patch.apply",
+  alix_done: "done"
 };
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
@@ -194,6 +195,23 @@ const BASE_TOOLS: ToolDef[] = [
       },
       required: ["path"]
     }
+  },
+  {
+    name: "alix_file_exists",
+    description: "Check whether a file exists at the given path without reading its contents.",
+    input_schema: {
+      type: "object",
+      properties: {
+        root: { type: "string", description: "Root directory (defaults to workspace root)" },
+        path: { type: "string", description: "Relative path to the file" }
+      },
+      required: ["path"]
+    }
+  },
+  {
+    name: "alix_done",
+    description: "Signal that the task is complete. Use this when all requested changes have been made and no further tool calls are needed.",
+    input_schema: { type: "object", properties: {} }
   }
 ];
 
@@ -430,7 +448,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     return parts.join("\n\n");
   }
 
-  const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first.";
+  const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved.";
   const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle);
 
   for (let i = 0; i < maxIterations; i++) {
@@ -508,7 +526,9 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       usage = resp.usage;
     }
     
-    await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
+    if (text.length > 0) {
+      await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
+    }
 
     if (usage) {
       await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
@@ -668,6 +688,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         execResult.kind === "success"
           ? (execResult.output ?? execResult.content ?? "")
           : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+
+      if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
+        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+        await mcpManager.closeAll().catch(() => {});
+        return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
+      }
 
       messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
     }
