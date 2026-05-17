@@ -15,8 +15,8 @@ import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
-import { discoverVerification, runVerification } from "./verifier/verifier.js";
-import type { VerificationCheck, VerificationResult } from "./verifier/verifier.js";
+import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
+import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
 import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracker.js";
@@ -94,6 +94,7 @@ type SessionState = {
   deleted: Set<string>;
   changed: Set<string>;
   fatalErrors: string[];
+  pendingScopeExpansion: boolean;
 };
 
 function buildStateSummary(state: SessionState): string {
@@ -374,6 +375,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     deleted: new Set<string>(),
     changed: new Set<string>(),
     fatalErrors: [] as string[],
+    pendingScopeExpansion: false,
   };
 
   let messages: NormalizedMessage[] = [{ role: "user", content: task }];
@@ -545,6 +547,14 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
       }
 
+      // Policy check: skip verification in ask mode unless scope is approved
+      const scopeApprovedNoTools = !sessionState.pendingScopeExpansion;
+      const { skipReason: skipReasonNoTools } = shouldRunVerification(config.permissions.sessionMode ?? "ask", scopeApprovedNoTools);
+
+      if (skipReasonNoTools) {
+        await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReasonNoTools } });
+      }
+
       // Get verification checks
       const checks = await discoverVerification(cwd);
 
@@ -566,7 +576,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
         // Model didn't signal done, continue
-      } else {
+      } else if (!skipReasonNoTools) {
         // Run verification
         const verResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
         for (const check of checks) {
@@ -636,10 +646,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
         const expansionPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "scope_expansion");
         if (expansionPaths.length > 0) {
+          // Track that scope expansion is pending (will be cleared once approved)
+          sessionState.pendingScopeExpansion = true;
           await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { paths: expansionPaths, toolCallId: toolCall.id, toolName: execName } });
           // In auto/bypass mode, auto-approve scope expansion immediately
           if (config.permissions.sessionMode === "auto" || config.permissions.sessionMode === "bypass") {
             for (const path of expansionPaths) scope.approveScope(path);
+            sessionState.pendingScopeExpansion = false;
             await log.append({ ...session, actor: "policy", type: "autonomy.scope_auto_approved", payload: { paths: expansionPaths, mode: config.permissions.sessionMode } });
             // Re-check now that scope is approved — fall through to execute below
           } else if (process.stdin.isTTY) {
@@ -649,6 +662,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
             await log.append({ ...session, actor: "user", type: "autonomy.scope_approval", payload: { answer, paths: expansionPaths } });
             if (answer.toLowerCase() === "approve") {
               for (const path of expansionPaths) scope.approveScope(path);
+              sessionState.pendingScopeExpansion = false;
               await log.append({ ...session, actor: "policy", type: "autonomy.scope_approved", payload: { paths: expansionPaths } });
               // Approval granted in the same turn. Fall through and execute the original tool call.
             } else {
@@ -712,41 +726,67 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       }
     }
 
-    // After tool calls, run verification every iteration
-    const endChecks = await discoverVerification(cwd);
-    if (endChecks.length > 0 && taskType !== "docs") {
-      const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
-      for (const endCheck of endChecks) {
-        await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
-        const verResult = await runVerification(cwd, endCheck);
-        await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
-        endResults.push({ check: endCheck, result: verResult });
-      }
+    // After tool calls, run verification every iteration (if policy allows)
+    const scopeApproved = !sessionState.pendingScopeExpansion;
+    const { skipReason } = shouldRunVerification(config.permissions.sessionMode ?? "ask", scopeApproved);
 
-      const failedChecks = endResults.filter((r) => r.result.status === "failed");
-      if (failedChecks.length > 0) {
-        repairCount++;
-        stateMachine.recordRepair();
-        if (repairCount > maxRepairs) {
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
-          await mcpManager.closeAll().catch(() => {});
-          // Fire-and-forget: dispatch skill factory
-          const { skillFactory } = await import("./skills/dispatcher.js");
-          void skillFactory.process({
-            sessionId,
-            sessionDir,
-            summary: "Repair limit reached",
-            filesCreated: [...sessionState.created],
-            filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
-          });
-          return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
+    if (skipReason) {
+      await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
+    } else {
+      const endChecks = await discoverVerification(cwd);
+      // Supplement with targeted test checks based on changed files
+      const changedFiles = [...sessionState.created, ...sessionState.changed];
+      if (changedFiles.length > 0) {
+        const mappedChecks = mapFilesToTests(cwd, changedFiles);
+        // Deduplicate — avoid running the same command twice
+        const existingCmds = new Set(endChecks.map(c => c.command));
+        for (const mc of mappedChecks) {
+          if (!existingCmds.has(mc.command)) {
+            endChecks.push(mc);
+          }
         }
-        const failureText = failedChecks
-          .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
-          .join("\n\n");
-        const repairPrompt = `\n\n[Verification Failed] ${failureText}\n\nFix the issues and try again.`;
-        messages.push({ role: "user", content: repairPrompt });
+      }
+      if (endChecks.length > 0 && taskType !== "docs") {
+        const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
+        for (const endCheck of endChecks) {
+          await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
+          const verResult = await runVerification(cwd, endCheck);
+          await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
+          endResults.push({ check: endCheck, result: verResult });
+        }
+
+        const riskReport = buildRiskReport(endChecks, endResults);
+
+        const failedChecks = endResults.filter((r) => r.result.status === "failed");
+        if (failedChecks.length > 0) {
+          repairCount++;
+          stateMachine.recordRepair();
+          if (repairCount > maxRepairs) {
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
+            await mcpManager.closeAll().catch(() => {});
+            // Fire-and-forget: dispatch skill factory
+            const { skillFactory } = await import("./skills/dispatcher.js");
+            void skillFactory.process({
+              sessionId,
+              sessionDir,
+              summary: "Repair limit reached",
+              filesCreated: [...sessionState.created],
+              filesChanged: [...sessionState.changed],
+              config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
+            });
+            return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
+          }
+          const failureText = failedChecks
+            .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
+            .join("\n\n");
+
+          const fullPrompt = riskReport
+            ? `${failureText}\n\nResidual risk (not verified):\n${riskReport}`
+            : failureText;
+
+          const repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
+          messages.push({ role: "user", content: repairPrompt });
+        }
       }
     }
   }
