@@ -5,10 +5,10 @@ import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { readSessionComparison, readSessionSnapshot } from "../inspector/session-reader.js";
 
-export function startServer(root: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
+export function startServer(root: string, host: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
   const server = createServer(async (req, res) => {
     try {
-      const url = new URL(req.url ?? "/", `http://127.0.0.1:${port}`);
+      const url = new URL(req.url ?? "/", `http://${host}:${port}`);
       if (url.pathname === "/") {
         res.setHeader("content-type", "text/html");
         res.end(await readFile(join(root, "dist", "src", "ui", "index.html"), "utf8"));
@@ -115,10 +115,10 @@ export function startServer(root: string, port: number): Promise<{ close: () => 
   });
 
   return new Promise((resolve) => {
-    server.listen(port, "127.0.0.1", () => {
+    server.listen(port, host, () => {
       const address = server.address() as AddressInfo;
       resolve({
-        url: `http://127.0.0.1:${address.port}`,
+        url: `http://${host}:${address.port}`,
         close: () => new Promise((done) => server.close(() => done()))
       });
     });

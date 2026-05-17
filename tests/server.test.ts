@@ -26,7 +26,7 @@ async function writeEvents(root: string, sessionId: string, lines: string[]): Pr
 }
 
 test("serves inspector html", async () => {
-  const server = await startServer(process.cwd(), 0);
+  const server = await startServer(process.cwd(), "127.0.0.1", 0);
   try {
     const response = await fetch(server.url);
     const text = await response.text();
@@ -39,7 +39,7 @@ test("serves inspector html", async () => {
 test("serves projection module fallback before projection asset exists", async () => {
   const root = await mkdtemp(join(tmpdir(), "alix-server-"));
   try {
-    const server = await startServer(root, 0);
+    const server = await startServer(root, "127.0.0.1", 0);
     try {
       const response = await fetch(`${server.url}/projection.js`);
       const text = await response.text();
@@ -63,7 +63,7 @@ test("serves session snapshot JSON", async () => {
       eventLine(2, "session.ended", { reason: "completed" })
     ]);
 
-    const server = await startServer(root, 0);
+    const server = await startServer(root, "127.0.0.1", 0);
     try {
       const response = await fetch(`${server.url}/api/sessions/s1/snapshot`);
       const snapshot = (await response.json()) as InspectorSnapshot;
@@ -91,7 +91,7 @@ test("serves session comparison JSON", async () => {
       eventLine(1, "tool.completed", { toolCallId: "right-patch", toolName: "patch.apply", changedFiles: ["right.ts", "both.ts"] }, "right")
     ]);
 
-    const server = await startServer(root, 0);
+    const server = await startServer(root, "127.0.0.1", 0);
     try {
       const response = await fetch(`${server.url}/api/sessions/compare?left=left&right=right`);
       const comparison = (await response.json()) as InspectorComparison;
@@ -113,7 +113,7 @@ test("serves session comparison JSON", async () => {
 test("rejects session comparison requests missing either session id", async () => {
   const root = await mkdtemp(join(tmpdir(), "alix-server-"));
   try {
-    const server = await startServer(root, 0);
+    const server = await startServer(root, "127.0.0.1", 0);
     try {
       const response = await fetch(`${server.url}/api/sessions/compare?left=left`);
       const text = await response.text();
@@ -129,7 +129,7 @@ test("rejects session comparison requests missing either session id", async () =
 });
 
 test("serves inspector shell with observability panels", async () => {
-  const server = await startServer(process.cwd(), 0);
+  const server = await startServer(process.cwd(), "127.0.0.1", 0);
   try {
     const response = await fetch(server.url);
     const text = await response.text();

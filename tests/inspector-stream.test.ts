@@ -13,7 +13,7 @@ describe("Inspector SSE event streaming", () => {
     const eventsPath = join(sessionDir, "events.jsonl");
     writeFileSync(eventsPath, '{"seq":1,"type":"test","actor":"agent","timestamp":"2026-01-01T00:00:00Z","payload":{}}\n');
 
-    const { url, close } = await startServer(tmp, 0);
+    const { url, close } = await startServer(tmp, "127.0.0.1", 0);
     try {
       const res = await fetch(`${url}/api/sessions/test-session/events`);
       assert.strictEqual(res.headers.get("content-type"), "text/event-stream");
@@ -49,7 +49,7 @@ describe("Inspector SSE event streaming", () => {
     // Write initial event
     writeFileSync(eventsPath, '{"seq":1,"type":"session.started","actor":"system","timestamp":"2026-01-01T00:00:00Z","payload":{}}\n');
 
-    const { url, close } = await startServer(tmp, 0);
+    const { url, close } = await startServer(tmp, "127.0.0.1", 0);
     try {
       const res = await fetch(`${url}/api/sessions/test-session/events`);
       assert.strictEqual(res.headers.get("content-type"), "text/event-stream");
@@ -113,7 +113,7 @@ describe("Inspector SSE event streaming", () => {
       ].join("")
     );
 
-    const { url, close } = await startServer(tmp, 0);
+    const { url, close } = await startServer(tmp, "127.0.0.1", 0);
     try {
       // Resume from seq=1 — should only get seq=2 and seq=3
       const res = await fetch(`${url}/api/sessions/test-session/events`, {
@@ -143,7 +143,7 @@ describe("Inspector SSE event streaming", () => {
   it("returns empty response when session does not exist", async () => {
     const tmp = mkdtempSync(join(tmpDir(), "alix-test-"));
 
-    const { url, close } = await startServer(tmp, 0);
+    const { url, close } = await startServer(tmp, "127.0.0.1", 0);
     try {
       const res = await fetch(`${url}/api/sessions/nonexistent/events`);
       assert.strictEqual(res.status, 200);

@@ -369,7 +369,7 @@ if (command === "run") {
 
 if (command === "serve") {
   const config = await loadConfig(process.cwd());
-  const server = await startServer(process.cwd(), config.ui.port);
+  const server = await startServer(process.cwd(), config.ui.host, config.ui.port);
   console.log(`ALiX inspector running at ${server.url}`);
   await new Promise(() => undefined);
 }
