@@ -38,7 +38,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
   },
   ui: {
     enabled: true,
-    host: "127.0.0.1",
+    host: "0.0.0.0",
     port: 4137,
     transport: "sse"
   },
