@@ -11,6 +11,7 @@ import { ContextCompiler } from "./repomap/context-compiler.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
+import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { McpManager } from "./mcp/manager.js";
@@ -366,9 +367,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   const mcpDeferral = mcpManager.getDeferral();
   const mcpToolIndex = mcpDeferral.buildIndex();
-  for (const entry of mcpToolIndex) {
+  const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
+  const selectedTools = toolSelector.select(task);
+  for (const entry of selectedTools) {
     TOOL_NAME_MAP[entry.name] = entry.execName;
   }
+  await log.append({ sessionId, actor: "system", type: "mcp.tools_selected", payload: { total: mcpToolIndex.length, selected: selectedTools.length, taskPreview: task.slice(0, 100) } });
 
   const sessionState = {
     created: new Set<string>(),
