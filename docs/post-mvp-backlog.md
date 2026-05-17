@@ -88,12 +88,12 @@ Current state:
 
 What: `VerificationPlanner` that chooses cheapest useful checks first, maps changed files to likely tests, reports residual risk honestly.
 
-Current state: `src/verifier/verifier.ts` discovers commands from `package.json`. `runWithIsolation` wired in for git stash/restore. Missing:
-
-- ❌ Test mapper — map changed files to related tests (e.g. changing `src/auth.ts` → run `tests/auth.test.ts`)
-- ❌ Cost-based ordering — run cheap checks (typecheck, lint) before expensive checks (full test suite)
-- ❌ Residual risk reporting — summarize what was NOT verified in final report
-- ❌ Policy integration — skip verification when policy says "ask" mode requires approval
+Current state:
+- ✅ `discoverVerification` with cost-based ordering — typecheck/lint → build → test
+- ✅ `mapFilesToTests` — maps `src/foo.ts` → `tests/foo.test.ts` with fallback
+- ✅ `buildRiskReport` — honestly reports skipped/failed checks in repair prompts
+- ✅ `shouldRunVerification` — skips verification in ask mode until scope approved
+- ✅ `alix extension` CLI commands — list, install, uninstall, search
 
 **Why P1:** Better verification = fewer repair loops, honest reporting of what passed and what didn't.
 
@@ -112,10 +112,15 @@ Current state:
 - ✅ Skills system exists (`src/skills/loader.ts`, `catalog.ts`, `dispatcher.ts`, `factory.ts`, `promotion.ts`, `lifecycle.ts`)
 - ✅ Hooks system exists (`src/hooks/discover.ts`, `runner.ts`)
 - ✅ MCP manager exists (`src/mcp/manager.ts`)
-- ❌ Extension registry with manifest schema
-- ❌ Permission bundling per extension
-- ❌ Installation/uninstallation workflow
-- ❌ Extension version management
+- ✅ Extension registry with manifest schema (`src/extensions/manifest.ts`)
+- ✅ `ExtensionRegistry` class with discover/install/list/uninstall (`src/extensions/registry.ts`)
+- ✅ `loadExtensions` groups extensions by type into `ExtensionBundle` (`src/extensions/lifecycle.ts`)
+- ✅ `extensions.store` config integration (schema + defaults)
+- ✅ `alix extension` CLI commands (list/install/uninstall/search)
+
+Future upgrades:
+- Permission bundling per extension
+- Extension version management
 
 **Why P2:** Skills and hooks work in isolation. Extension registry makes them composable and discoverable.
 
