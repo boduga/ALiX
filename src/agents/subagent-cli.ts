@@ -1,5 +1,5 @@
 /**
- * Subagent entry point. Parses CLI args, builds prompt, calls model, exits.
+ * Subagent entry point. Parses CLI args, builds prompt, calls model with tools, exits.
  * Invoked by SubagentManager.spawn() as a child process via `alix run --subagent`.
  */
 import { parseArgs } from "util";
@@ -10,6 +10,15 @@ import { fileURLToPath } from "url";
 import type { AlixConfig, SubagentRole } from "../config/schema.js";
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
+import { ToolExecutor } from "../tools/executor.js";
+import type { ToolDef, ToolCall, NormalizedMessage } from "../providers/types.js";
+import { buildToolsForProvider } from "../run.js";
+import { McpManager } from "../mcp/manager.js";
+import { ToolSelector } from "../mcp/tool-selector.js";
+import { ToolDiscovery } from "../mcp/tool-discovery.js";
+import { getToolPolicy, filterTools } from "./tool-policy.js";
+import { TOOL_NAME_MAP } from "./tool-name-map.js";
+import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 
 const ROLE_INSTRUCTIONS: Record<SubagentRole, string> = {
   explorer:          "You are an explorer subagent. Understand code regions and report your findings concisely. Use file references, summarize structure, identify key symbols.",
@@ -45,6 +54,11 @@ export class SubagentCLI {
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
 
+    if (!taskId || !sessionId || !prompt) {
+      console.error("Missing required args: --task-id, --session-id, --prompt");
+      process.exit(1);
+    }
+
     // Load config from project root (homedir XDG, global, project configs)
     const require = createRequire(import.meta.url);
     const projectRoot = fileURLToPath(new URL("../../../", import.meta.url));
@@ -66,11 +80,6 @@ export class SubagentCLI {
       }
     }
 
-    if (!taskId || !sessionId || !prompt) {
-      console.error("Missing required args: --task-id, --session-id, --prompt");
-      process.exit(1);
-    }
-
     const sessionDir = resolve(process.cwd(), ".alix", "sessions", sessionId);
     await mkdir(sessionDir, { recursive: true });
     const eventLog = new EventLog(sessionDir);
@@ -84,6 +93,45 @@ export class SubagentCLI {
       payload: { subagentId: taskId, role, mode, ownedPaths },
     });
 
+    // Initialize MCP and tools
+    let mcpManager: McpManager | null = null;
+    let mcpDiscovery: ToolDiscovery | null = null;
+    let selectedTools: ToolDef[] = [];
+
+    try {
+      mcpManager = new McpManager(config);
+      await mcpManager.initialize();
+
+      const mcpDeferral = mcpManager.getDeferral();
+      const mcpToolIndex = mcpDeferral.buildIndex();
+      const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 10, tokenBudget: 2000 });
+      selectedTools = toolSelector.select(prompt) as ToolDef[];
+      mcpDiscovery = new ToolDiscovery(mcpToolIndex);
+
+      // Register MCP tool name mappings
+      for (const entry of selectedTools) {
+        TOOL_NAME_MAP[entry.name] = entry.name;
+      }
+    } catch (err) {
+      // MCP init failed — continue without tools (non-fatal)
+      console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
+    }
+
+    const provider = createProvider({ provider: config.model.provider, model: config.model.name });
+    const providerTools = buildToolsForProvider(provider);
+    const roleConfig = config.subagents?.roles.find(r => r.role === role);
+    const roleStyle = roleConfig?.style ?? "fast";
+    const toolPolicy = getToolPolicy(role, roleStyle);
+    const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy);
+
+    const executor = new ToolExecutor(
+      config,
+      eventLog,
+      projectRoot,
+      mcpManager ?? undefined,
+      buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference })
+    );
+
     // Build system prompt with role instructions
     const roleInstructions = ROLE_INSTRUCTIONS[role] ?? "You are a subagent.";
     const systemPrompt = `${roleInstructions}
@@ -93,31 +141,83 @@ Task: ${prompt}
 Work in the current directory. Be concise and focused.`;
 
     try {
-      const provider = createProvider({ provider: config.model.provider, model: config.model.name });
+      const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
+      let iterations = 0;
+      let text = "";
 
-      const response = await provider.complete({
-        systemPrompt,
-        messages: [{ role: "user", content: prompt }],
-      });
+      while (iterations < toolPolicy.maxIterations) {
+        iterations++;
+
+        const resp = await provider.complete({
+          systemPrompt,
+          messages,
+          tools: allowedTools as ToolDef[],
+        });
+
+        text = resp.text ?? "";
+        const toolCalls: ToolCall[] = resp.toolCalls ?? [];
+
+        if (toolCalls.length === 0) {
+          // No tools called — model is done
+          break;
+        }
+
+        // Execute each tool call
+        for (const toolCall of toolCalls) {
+          const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+
+          // Handle mcp_search_tools specially
+          if (execName === "mcp_search_tools") {
+            const query = (toolCall.args.query as string) ?? "";
+            if (mcpDiscovery) {
+              const result = await mcpDiscovery.search(query);
+              const output = result.kind === "success" ? (result.output ?? "") : result.message;
+              messages.push({ role: "user", content: `[Tool Result]\n${output}` });
+            } else {
+              messages.push({ role: "user", content: `[Tool Result]\nMCP tools not available.` });
+            }
+            continue;
+          }
+
+          const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+
+          const resultContent =
+            execResult.kind === "success"
+              ? (execResult.output ?? (execResult as { content?: string }).content ?? "")
+              : `Error: ${(execResult as { kind: "error"; message: string }).message}`;
+
+          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
+
+          // If done tool was called, stop
+          if (execName === "done") {
+            await mcpManager?.closeAll().catch(() => {});
+            console.log(JSON.stringify({
+              id: taskId,
+              role,
+              status: "success" as const,
+              findings: [{ type: "summary", content: text || "Task completed.", confidence: "high" as const }],
+              events: [],
+            }));
+            process.exit(0);
+          }
+        }
+      }
+
+      await mcpManager?.closeAll().catch(() => {});
 
       // Log completion
       await eventLog.append({
         actor: "subagent",
         type: "subagent.completed",
         sessionId,
-        payload: { subagentId: taskId, role, resultLength: response.text.length },
+        payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      // Write structured result to stdout — include response as findings
       console.log(JSON.stringify({
         id: taskId,
         role,
         status: "success" as const,
-        findings: [{
-          type: "summary" as const,
-          content: response.text,
-          confidence: "high" as const,
-        }],
+        findings: text ? [{ type: "summary", content: text, confidence: "high" as const }] : [],
         events: [],
       }));
       process.exit(0);
@@ -130,6 +230,8 @@ Work in the current directory. Be concise and focused.`;
         sessionId,
         payload: { subagentId: taskId, role, error: errorMsg },
       });
+
+      await mcpManager?.closeAll().catch(() => {});
 
       console.error(JSON.stringify({
         id: taskId,
