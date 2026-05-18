@@ -319,8 +319,9 @@ if (command === "config" && args[0] === "set-default-model") {
   const userConfigDir = join(homedir(), ".config", "alix");
   const userConfigPath = join(userConfigDir, "config.json");
   const configPath = existsSync(join(process.cwd(), ".git")) ? projectConfigPath : userConfigPath;
+  const isProjectConfig = configPath === projectConfigPath;
 
-  await mkdir(configPath.includes("alix") ? userConfigDir : join(process.cwd(), ".alix"), { recursive: true });
+  await mkdir(isProjectConfig ? join(process.cwd(), ".alix") : userConfigDir, { recursive: true });
   let existing: Record<string, unknown> = {};
   try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
 
