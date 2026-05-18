@@ -6,6 +6,8 @@ import { buildMemoryContext } from "./memory/recall.js";
 export type ToolEvent = {
   toolName?: string;
   path?: string;
+  createdPath?: string;
+  deletedPath?: string;
   status?: string;
   error?: string;
 };
@@ -48,11 +50,17 @@ export async function buildSessionDigest(sessionDir: string): Promise<string | n
 
         const toolName = p.toolName as string | undefined;
         const path = p.path as string | undefined;
+        const createdPath = p.createdPath as string | undefined;
+        const deletedPath = p.deletedPath as string | undefined;
 
-        if (toolName && path && typeof path === "string") {
-          if (toolName === "file.create") created.add(path);
-          else if (toolName === "file.delete") deleted.add(path);
-          else if (toolName === "patch.apply") changed.add(path);
+        if (toolName === "file.create") {
+          const file = createdPath ?? path;
+          if (file) created.add(file);
+        } else if (toolName === "file.delete") {
+          const file = deletedPath ?? path;
+          if (file) deleted.add(file);
+        } else if ((toolName === "file.write" || toolName === "patch.apply") && path) {
+          changed.add(path);
         }
 
         const changedFilesFromPayload = (event.payload as Record<string, unknown>).changedFiles as string[] | undefined;
