@@ -75,3 +75,22 @@ test("memory list --query filters entries by query text", () => {
   assert.equal(list.status, 0, list.stderr);
   assert.match(list.stdout, /Query Match/);
 });
+
+test("memory add rejects invalid memory type", () => {
+  const cwd = join(tmpdir(), `alix-memory-invalid-type-${Date.now()}`);
+  mkdirSync(cwd, { recursive: true });
+
+  const result = runCli([
+    "memory",
+    "add",
+    "--name",
+    "Invalid Type",
+    "--type",
+    "../escape",
+    "--content",
+    "should not save",
+  ], cwd);
+
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /Invalid memory type/);
+});

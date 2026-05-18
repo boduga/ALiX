@@ -26,6 +26,8 @@ const PROVIDERS = [
   { id: "deepseek", name: "DeepSeek", env: "DEEPSEEK_API_KEY", hint: "sk-..." }
 ];
 
+const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
+
 async function prompt(question: string): Promise<string> {
   const { createInterface } = await import("readline");
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -671,6 +673,10 @@ if (command === "memory") {
 
     if (!name || !content) {
       console.error("Usage: alix memory add --name <name> --content <content> [--type <type>] [--description <desc>]");
+      process.exit(1);
+    }
+    if (!MEMORY_TYPES.has(type as MemoryType)) {
+      console.error("Invalid memory type. Expected one of: user, project, feedback, reference.");
       process.exit(1);
     }
 
