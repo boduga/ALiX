@@ -1,3 +1,7 @@
+html {
+  scroll-behavior: smooth;
+}
+
 :root {
   color-scheme: dark;
   --bg: #0b0e0f;
@@ -71,6 +75,18 @@ h1 {
   border: 1px solid var(--panel-line);
   border-radius: 8px;
   overflow: hidden;
+  position: relative;
+}
+
+/* Subtle noise overlay */
+.panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.03;
+  pointer-events: none;
+  border-radius: 8px;
 }
 
 .panel-header {
@@ -269,7 +285,7 @@ h2 {
   color: var(--muted);
   display: inline-block;
   margin-right: 6px;
-  transition: transform 0.15s;
+  transition: transform 0.2s ease;
 }
 
 .event-payload-wrap[open] summary::before {
@@ -421,7 +437,9 @@ summary:hover {
 
 .empty {
   color: var(--muted);
-  margin: 0;
+  font-style: italic;
+  padding: 16px;
+  text-align: center;
 }
 
 .compare-form input,
