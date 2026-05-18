@@ -121,7 +121,7 @@ export class SubagentCLI {
     const providerTools = buildToolsForProvider(provider);
     const roleConfig = config.subagents?.roles.find(r => r.role === role);
     const roleStyle = roleConfig?.style ?? "fast";
-    const toolPolicy = getToolPolicy(role, roleStyle);
+    const toolPolicy = getToolPolicy(role);
     const allowedTools = filterTools([...providerTools, ...selectedTools], toolPolicy);
 
     const executor = new ToolExecutor(

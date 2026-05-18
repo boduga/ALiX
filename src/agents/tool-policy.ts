@@ -1,4 +1,4 @@
-import type { SubagentRole, SubagentStyle } from "../config/schema.js";
+import type { SubagentRole } from "../config/schema.js";
 
 export type ToolCategory = "read" | "write" | "mcp";
 
@@ -19,7 +19,7 @@ const READ_ONLY_ROLES: SubagentRole[] = [
 
 const WRITE_ROLES: SubagentRole[] = ["worker"];
 
-export function getToolPolicy(role: SubagentRole, style: SubagentStyle): ToolPolicy {
+export function getToolPolicy(role: SubagentRole): ToolPolicy {
   if (READ_ONLY_ROLES.includes(role)) {
     return {
       allowedCategories: ["read", "mcp"],
