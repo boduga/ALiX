@@ -5,7 +5,8 @@
 import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
-import { mergeConfig, DEFAULT_CONFIG } from "../config/loader.js";
+import { createRequire } from "module";
+import { fileURLToPath } from "url";
 import type { AlixConfig, SubagentRole } from "../config/schema.js";
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
@@ -43,7 +44,12 @@ export class SubagentCLI {
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean);
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
-    const config = mergeConfig(DEFAULT_CONFIG, {}) as AlixConfig;
+
+    // Load config from project root (homedir XDG, global, project configs)
+    const require = createRequire(import.meta.url);
+    const projectRoot = fileURLToPath(new URL("../../../", import.meta.url));
+    const { loadConfig } = require("../config/loader.js");
+    const config = await loadConfig(projectRoot) as AlixConfig;
 
     // Apply overrides (provider from role config takes priority)
     if (modelOverride) config.model.name = modelOverride;
@@ -51,7 +57,8 @@ export class SubagentCLI {
 
     // Use role config to set provider if not overridden
     if (!providerOverride) {
-      const roleStyle = (config.subagents as any)?.[role] ?? "fast";
+      const roleConfig = config.subagents?.roles.find(r => r.role === role);
+      const roleStyle = roleConfig?.style ?? "fast";
       const tier = (config.subagents as any)?.[roleStyle];
       if (tier) {
         config.model.provider = tier.provider as any;
@@ -101,12 +108,16 @@ Work in the current directory. Be concise and focused.`;
         payload: { subagentId: taskId, role, resultLength: response.text.length },
       });
 
-      // Write structured result to stdout
+      // Write structured result to stdout — include response as findings
       console.log(JSON.stringify({
         id: taskId,
         role,
         status: "success" as const,
-        findings: [],
+        findings: [{
+          type: "summary" as const,
+          content: response.text,
+          confidence: "high" as const,
+        }],
         events: [],
       }));
       process.exit(0);
