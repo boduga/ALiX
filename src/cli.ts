@@ -3,7 +3,8 @@ import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { loadConfig } from "./config/loader.js";
+import { loadConfig, DEFAULT_CONFIG } from "./config/loader.js";
+import type { ModelTierConfig } from "./config/schema.js";
 import { ALIX_VERSION } from "./index.js";
 import { EXIT_CODES, runTask } from "./run.js";
 import { ApiError } from "./providers/base.js";
@@ -597,6 +598,11 @@ const agentRole = process.argv[3];
 if (command === "agent" && agentRole) {
   const prompt = process.argv.slice(4).join(" ");
   if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
+  const roleConfig = DEFAULT_CONFIG.subagents?.roles.find(r => r.role === agentRole as any);
+  const style = roleConfig?.style ?? "fast";
+  const tier = (DEFAULT_CONFIG.subagents as any)[style] as ModelTierConfig;
+  const provider = tier?.provider ?? "ollama";
+  const model = tier?.name ?? "llama3.2:3b";
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
   const extraArgs = process.argv.slice(6);
   await SubagentCLI.main([
@@ -605,6 +611,8 @@ if (command === "agent" && agentRole) {
     "--prompt", prompt,
     "--mode", "read_only",
     "--session-id", `cli-${Date.now()}`,
+    "--provider", provider,
+    "--model", model,
     ...extraArgs,
   ]);
   // SubagentCLI.main() exits the process itself — if we reach here, something went wrong
