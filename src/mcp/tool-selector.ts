@@ -11,6 +11,25 @@ export type ToolSelectorOptions = {
 const MIN_TOKENS_PER_TOOL = 25;
 
 export class ToolSelector {
+  private computeNgrams(text: string, n: number = 2): Set<string> {
+    const words = text.toLowerCase().split(/\W+/).filter(w => w.length >= 2);
+    const ngrams = new Set<string>();
+    for (let i = 0; i <= words.length - n; i++) {
+      ngrams.add(words.slice(i, i + n).join(" "));
+    }
+    return ngrams;
+  }
+
+  private jaccardSimilarity(a: Set<string>, b: Set<string>): number {
+    if (a.size === 0 && b.size === 0) return 0;
+    let intersection = 0;
+    for (const item of a) {
+      if (b.has(item)) intersection++;
+    }
+    const union = a.size + b.size - intersection;
+    return union === 0 ? 0 : intersection / union;
+  }
+
   constructor(
     private tools: DeferredToolEntry[],
     private options: ToolSelectorOptions
@@ -42,6 +61,13 @@ export class ToolSelector {
         }
         if (descWords.has(word)) score += 1;
       }
+
+      // Semantic scoring using n-gram similarity
+      const taskNgrams = this.computeNgrams(taskDescription);
+      const descNgrams = this.computeNgrams(tool.description);
+      const semanticScore = this.jaccardSimilarity(taskNgrams, descNgrams);
+      score += Math.round(semanticScore * 2);
+
       return { tool, score };
     });
 
