@@ -87,6 +87,10 @@ export class SubagentManager {
 
       this.running.set(task.id, { task, process: child, resolve: resolvePromise, reject });
 
+      let stdoutData = "";
+      if (child.stdout) {
+        child.stdout.on("data", (chunk: Buffer) => { stdoutData += chunk.toString(); });
+      }
       let stderr = "";
 
       if (child.stderr) {
@@ -98,13 +102,14 @@ export class SubagentManager {
         this.releaseOwnership(task);
 
         const exitCode = code ?? 1;
+        const parsed = stdoutData.trim() ? JSON.parse(stdoutData) as Partial<SubagentResult> : null;
         const result: SubagentResult = {
           id: task.id,
           role: task.role,
           status: exitCode === 0 ? "success" : "failed",
-          findings: [],
-          events: [],
-          error: exitCode !== 0 ? (stderr || `Exit code ${exitCode}`) : undefined,
+          findings: parsed?.findings ?? [],
+          events: parsed?.events ?? [],
+          error: exitCode !== 0 ? (stderr || parsed?.error || `Exit code ${exitCode}`) : undefined,
         };
 
         for (const cb of this.callbacks) cb(result);
