@@ -141,6 +141,47 @@ describe("ExtensionRegistry", () => {
     assert.strictEqual(registry.count(), 0);
   });
 
+  it("getVersionInfo returns null for non-existent extension", async () => {
+    const registry = new ExtensionRegistry("/tmp/test-ext-registry");
+    const info = registry.getVersionInfo("skill/nonexistent");
+    assert.strictEqual(info, null);
+  });
+
+  it("updateVersion returns false for non-existent extension", async () => {
+    const store = await mkdtemp(join(tmpdir(), "ext-update-none-"));
+    const registry = new ExtensionRegistry(store);
+    const result = await registry.updateVersion("skill/nonexistent", "2.0.0");
+    assert.strictEqual(result, false);
+  });
+
+  it("updateVersion returns false for core extensions", async () => {
+    const store = await mkdtemp(join(tmpdir(), "ext-update-core-"));
+    await mkdir(join(store, "skill-core-test"), { recursive: true });
+    await writeFile(join(store, "skill-core-test", "EXTENSION.yaml"),
+      "name: core-test\ntype: skill\nversion: 1.0.0\ndescription: Core extension\nis_core: true");
+
+    const registry = new ExtensionRegistry(store);
+    const result = await registry.updateVersion("skill/core-test", "2.0.0");
+    assert.strictEqual(result, false);
+  });
+
+  it("updateVersion updates extension version", async () => {
+    const store = await mkdtemp(join(tmpdir(), "ext-update-"));
+    await mkdir(join(store, "skill-updatable"), { recursive: true });
+    await writeFile(join(store, "skill-updatable", "EXTENSION.yaml"),
+      "name: updatable\ntype: skill\nversion: 1.0.0\ndescription: Will be updated\ntrigger: /update");
+
+    const registry = new ExtensionRegistry(store);
+    const before = registry.getVersionInfo("skill/updatable");
+    assert.strictEqual(before?.version, "1.0.0");
+
+    const updated = await registry.updateVersion("skill/updatable", "2.0.0");
+    assert.strictEqual(updated, true);
+
+    const after = registry.getVersionInfo("skill/updatable");
+    assert.strictEqual(after?.version, "2.0.0");
+  });
+
   it("install fails gracefully without EXTENSION.yaml", async () => {
     const store = await mkdtemp(join(tmpdir(), "ext-install-fail-"));
     const noManifestDir = await mkdtemp(join(tmpdir(), "no-manifest-"));

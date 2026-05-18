@@ -12,7 +12,6 @@ export type LoadedExtension = {
 export type VersionInfo = {
   version: string;
   installedAt: string;
-  isOutdated?: boolean;
 };
 
 export type ListOptions = {
@@ -141,18 +140,12 @@ export class ExtensionRegistry {
 
   count(): number { return this.extensions.size; }
 
-  canCheckVersion(id: string): boolean {
-    const ext = this.extensions.get(id);
-    return ext !== undefined;
-  }
-
   getVersionInfo(id: string): VersionInfo | null {
     const ext = this.extensions.get(id);
     if (!ext) return null;
     return {
       version: ext.manifest.version,
       installedAt: ext.installedAt,
-      isOutdated: false,
     };
   }
 
@@ -166,7 +159,18 @@ export class ExtensionRegistry {
       content = readFileSync(manifestPath, "utf8");
     } catch { return false; }
 
-    const updated = content.replace(/version:\s*[\d.]+/, `version: ${newVersion}`);
+    const lines = content.split("\n");
+    const updatedLines = lines.map(line => {
+      const trimmed = line.trim();
+      if (trimmed === `version:` || trimmed.startsWith("version:")) {
+        // Only update top-level version (no leading spaces)
+        if (!line.startsWith(" ") && !line.startsWith("\t")) {
+          return `version: ${newVersion}`;
+        }
+      }
+      return line;
+    });
+    const updated = updatedLines.join("\n");
     writeFileSync(manifestPath, updated, "utf8");
     this.load();
     return true;
