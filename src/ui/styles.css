@@ -302,9 +302,10 @@ summary:hover {
 }
 
 /* Scrollbar */
-#events::-webkit-scrollbar { width: 6px; }
-#events::-webkit-scrollbar-track { background: transparent; }
-#events::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 3px; }
+#events::-webkit-scrollbar { width: 8px; }
+#events::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
+#events::-webkit-scrollbar-thumb { background: var(--panel-line); border-radius: 4px; }
+#events::-webkit-scrollbar-thumb:hover { background: rgba(184, 224, 96, 0.3); }
 
 /* Workspace, tabs, replay */
 .workspace {
@@ -489,3 +490,20 @@ h3 {
 .badge.explorer { background: #3498db; color: white; }
 .badge.reviewer { background: #9b59b6; color: white; }
 .badge.docs_researcher { background: #1abc9c; color: white; }
+
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  background: var(--accent);
+  color: #0b0e0f;
+  padding: 8px 16px;
+  z-index: 1000;
+  text-decoration: none;
+  font-weight: 600;
+  border-radius: 0 0 6px 0;
+}
+
+.skip-link:focus {
+  top: 0;
+}

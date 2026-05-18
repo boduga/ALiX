@@ -94,6 +94,8 @@ compareBtn.addEventListener("click", async () => {
   compareView.textContent = JSON.stringify(await response.json(), null, 2);
 });
 
+connectBtn.setAttribute("aria-label", "Connect to session");
+
 // Connect
 connectBtn.addEventListener("click", () => {
   const sessionId = sessionInput.value.trim();
