@@ -43,12 +43,13 @@ export async function consolidate(store: MemoryStore): Promise<ConsolidateResult
       const createdAt = new Date(entry.createdAt);
       if (createdAt < thirtyDaysAgo && entry.confidence < 0.9) {
         // Decay confidence by 10%
-        const newConfidence = Math.max(0, entry.confidence - 0.1);
+        const oldConfidence = entry.confidence;
+        const newConfidence = Math.max(0, oldConfidence - 0.1);
         entry.confidence = newConfidence;
         entry.modifiedAt = new Date().toISOString();
 
         // Update file if confidence dropped significantly
-        if (newConfidence < entry.confidence) {
+        if (newConfidence < oldConfidence) {
           const updatedContent = updateEntryFrontmatter(content, entry);
           fs.writeFileSync(filePath, updatedContent);
           result.updated++;
