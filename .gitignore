@@ -20,6 +20,7 @@ npm-debug.log*
 .alix/checkpoints/
 .alix/index/
 .alix/artifacts/
+.alix/context-cache.json
 
 # OS/editor noise
 .DS_Store
