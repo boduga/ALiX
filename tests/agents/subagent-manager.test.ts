@@ -1,8 +1,7 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
-import type { SubagentRole } from "../../src/config/schema.js";
-import type { SubagentTask } from "../../src/agents/subagent-manager.js";
+import type { SubagentRole, SubagentTask } from "../../src/config/schema.js";
 
 function makeTask(overrides: Partial<SubagentTask> = {}): SubagentTask {
   return {
@@ -36,9 +35,11 @@ describe("SubagentManager", () => {
   });
 
   it("rejects overlapping owned paths at spawn time", async () => {
+    // Manually register ownership for task1 without spawning (avoids exit race)
     const task1 = makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-1", ownedPaths: ["src/foo.ts"] });
+    (manager as any).ownershipRegistry.set("src/foo.ts", task1.id);
+
     const task2 = makeTask({ role: "worker" as SubagentRole, mode: "write" as const, id: "overlap-task-2", ownedPaths: ["src/foo.ts"] });
-    await manager.spawn(task1);
     await assert.rejects(async () => manager.spawn(task2), /overlapping ownership/i);
   });
 

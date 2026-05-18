@@ -86,6 +86,32 @@ export type SubagentConfig = {
   roles: SubagentRoleConfig[];
 };
 
+export type SubagentTask = {
+  id: string;
+  role: SubagentRole;
+  prompt: string;
+  mode: "read_only" | "write";
+  ownedPaths?: string[];
+  expectedOutput?: string;
+  contextBundle?: string; // serialized context from ContextCompiler
+};
+
+export type SubagentResult = {
+  id: string;
+  role: SubagentRole;
+  status: "success" | "failed" | "rejected";
+  findings: SubagentFinding[];
+  events: string[]; // serialized session events
+  error?: string;
+};
+
+export type SubagentFinding = {
+  type: "file_ref" | "code_location" | "summary" | "risk_flag";
+  content: string;
+  confidence: "high" | "medium" | "low";
+  refs?: string[];
+};
+
 export type AlixConfig = {
   version: 1;
   model: ModelConfig;

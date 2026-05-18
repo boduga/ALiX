@@ -1,30 +1,16 @@
 import { spawn, type ChildProcess } from "child_process";
 import { resolve } from "path";
-import type { SubagentRole, SubagentRoleConfig } from "../config/schema.js";
+import { fileURLToPath } from "url";
+import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig } from "../config/schema.js";
+
+// Re-export types for consumers
+export type { SubagentTask, SubagentResult };
 
 export type SubagentManagerOptions = {
   sessionId: string;
+  config?: AlixConfig;
   /** Override the spawned command for testing. Defaults to the alix CLI. */
   spawnOverride?: { command: string; args?: string[] };
-};
-
-export type SubagentTask = {
-  id: string;
-  role: SubagentRole;
-  mode: string;
-  prompt: string;
-  ownedPaths?: string[];
-  expectedOutput?: unknown;
-  contextBundle?: unknown;
-};
-
-export type SubagentResult = {
-  id: string;
-  role: SubagentRole;
-  status: "success" | "failed" | "rejected";
-  findings: unknown[];
-  events: unknown[];
-  error?: string;
 };
 
 type RunningSubagent = {
@@ -65,9 +51,7 @@ export class SubagentManager {
         }
       }
 
-      const roleConfig = this.getRoleConfig(task.role);
-      void roleConfig; // model selection deferred to CLI entry point
-
+      // model selection deferred to CLI entry point
       const args = [
         "--subagent", task.role,
         "--task-id", task.id,
@@ -111,6 +95,7 @@ export class SubagentManager {
 
       child.on("exit", (code: number | null) => {
         this.running.delete(task.id);
+        this.releaseOwnership(task);
 
         const exitCode = code ?? 1;
         const result: SubagentResult = {
@@ -146,14 +131,15 @@ export class SubagentManager {
     this.ownershipRegistry.clear();
   }
 
-  getRoleConfig(role: SubagentRole): SubagentRoleConfig {
-    const defaults: Record<SubagentRole, SubagentRoleConfig> = {
-      explorer:           { role: "explorer",           mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
-      reviewer:           { role: "reviewer",            mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
-      test_investigator:  { role: "test_investigator", mode: "read_only", retryCount: 1 },
-      docs_researcher:    { role: "docs_researcher",    mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
-      worker:             { role: "worker",             mode: "write",     retryCount: 0 },
-    };
-    return defaults[role];
+  private releaseOwnership(task: SubagentTask): void {
+    if (task.mode === "write" && task.ownedPaths?.length) {
+      for (const path of task.ownedPaths) {
+        this.ownershipRegistry.delete(path);
+      }
+    }
+  }
+
+  getRoleConfig(role: SubagentRole): SubagentRoleConfig | undefined {
+    return this.options.config?.subagents?.roles.find((r: SubagentRoleConfig) => r.role === role);
   }
 }
