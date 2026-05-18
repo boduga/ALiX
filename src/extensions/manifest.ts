@@ -4,6 +4,20 @@ export type ExtensionType = typeof EXTENSION_TYPES[number];
 export const HOOK_TRIGGERS = ["pre_task", "post_task", "on_change"] as const;
 export type HookTrigger = typeof HOOK_TRIGGERS[number];
 
+// --- Permission types ---
+export type PermissionLevel = "none" | "read" | "write" | "dangerous";
+
+export type ExtensionPermission = {
+  level: PermissionLevel;
+  description: string;
+  reason?: string;
+};
+
+export type ExtensionManifestV2 = {
+  permissions?: ExtensionPermission[];
+  requires_confirmation?: boolean;
+};
+
 // --- Shared fields ---
 type BaseExtension = {
   name: string;
@@ -12,6 +26,8 @@ type BaseExtension = {
   author?: string;
   tags?: string[];
   is_core?: boolean;
+  permissions?: ExtensionPermission[];
+  requires_confirmation?: boolean;
   license?: string;
   homepage?: string;
   installed_at?: string;
