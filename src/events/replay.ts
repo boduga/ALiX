@@ -14,6 +14,12 @@ export function replay(events: AlixEvent[]): SessionProjection {
       const payload = event.payload as { changedFiles?: string[] };
       projection.changedFiles.push(...(payload.changedFiles ?? []));
     }
+    if (event.type === "tool.completed") {
+      const payload = event.payload as { toolName?: string; changedFiles?: string[] };
+      if (payload.toolName === "patch.apply") {
+        projection.changedFiles.push(...(payload.changedFiles ?? []));
+      }
+    }
     if (event.type === "session.ended") {
       const payload = event.payload as { summary?: string };
       projection.summary = payload.summary;

@@ -37,3 +37,20 @@ test("replay reconstructs changed files", () => {
 
   assert.deepEqual(projection.changedFiles, ["a.ts", "b.ts"]);
 });
+
+test("replay reconstructs changed files from current patch tool events", () => {
+  const projection = replay([
+    {
+      id: "1",
+      seq: 1,
+      version: 1,
+      sessionId: "s1",
+      timestamp: new Date().toISOString(),
+      type: "tool.completed",
+      actor: "system",
+      payload: { toolName: "patch.apply", changedFiles: ["a.ts", "a.ts", "b.ts"] }
+    }
+  ]);
+
+  assert.deepEqual(projection.changedFiles, ["a.ts", "b.ts"]);
+});
