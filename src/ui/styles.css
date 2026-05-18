@@ -5,8 +5,8 @@
   --panel-line: #2f3a36;
   --text: #f5f0df;
   --muted: #a59f90;
-  --accent: #d0ff73;
-  --accent-2: #ff7448;
+  --accent: #b8e060;
+  --accent-2: #e06840;
   --error-bg: rgba(255, 72, 72, 0.08);
   --error-border: rgba(255, 72, 72, 0.3);
   --success-bg: rgba(80, 220, 130, 0.06);
@@ -21,8 +21,8 @@ body {
   margin: 0;
   min-height: 100vh;
   background:
-    linear-gradient(90deg, rgba(208,255,115,0.05) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(208,255,115,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(184,224,96,0.05) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(184,224,96,0.04) 1px, transparent 1px),
     var(--bg);
   background-size: 32px 32px;
   color: var(--text);
@@ -89,7 +89,7 @@ h2 {
 }
 
 .status {
-  border: 1px solid rgba(208,255,115,0.5);
+  border: 1px solid rgba(184,224,96,0.5);
   border-radius: 999px;
   color: var(--accent);
   font-size: 12px;
@@ -163,7 +163,7 @@ h2 {
 }
 
 .connect-panel button:hover {
-  background: #d8ff88;
+  background: #c0e870;
   box-shadow: 0 4px 12px rgba(208, 255, 115, 0.25);
   transform: translateY(-1px);
   transition: all 0.15s ease;
@@ -214,7 +214,7 @@ h2 {
 
 /* Tool start subtle highlight */
 #events li[data-type="tool.started"] {
-  border-left: 3px solid rgba(208,255,115,0.2);
+  border-left: 3px solid rgba(184,224,96,0.2);
 }
 
 /* Type badge */
@@ -234,7 +234,7 @@ h2 {
   text-transform: uppercase;
 }
 
-.actor-agent   { background: rgba(208,255,115,0.15); color: var(--accent); }
+.actor-agent   { background: rgba(184,224,96,0.15); color: var(--accent); }
 .actor-user     { background: rgba(100,149,237,0.15); color: #6495ed; }
 .actor-system   { background: rgba(168,160,140,0.1); color: var(--muted); }
 .actor-tool     { background: rgba(255,116,72,0.1); color: var(--accent-2); }
@@ -297,7 +297,7 @@ summary:hover {
 }
 
 .status.connected {
-  border-color: rgba(208,255,115,0.8);
+  border-color: rgba(184,224,96,0.8);
 }
 
 /* Scrollbar */
