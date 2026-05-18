@@ -613,6 +613,7 @@ if (command === "agent" && agentRole) {
     "--session-id", `cli-${Date.now()}`,
     "--provider", provider,
     "--model", model,
+    "--output", "text",
     ...extraArgs,
   ]);
   // SubagentCLI.main() exits the process itself — if we reach here, something went wrong

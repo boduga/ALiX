@@ -7,7 +7,7 @@ import { resolve } from "path";
 import { mkdir } from "fs/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
-import type { AlixConfig, SubagentFinding, SubagentRole } from "../config/schema.js";
+import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole } from "../config/schema.js";
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
@@ -51,6 +51,15 @@ export function buildSubagentFindings(text: string, toolOutputs: string[]): Suba
     : [];
 }
 
+export type SubagentOutputFormat = "json" | "text";
+
+export function formatSubagentResult(result: SubagentResult, format: SubagentOutputFormat): string {
+  if (format === "json") return JSON.stringify(result);
+  if (result.status !== "success") return result.error ?? "Subagent failed.";
+  const content = result.findings.map((finding) => finding.content.trim()).filter(Boolean).join("\n\n");
+  return content || "(no findings)";
+}
+
 export class SubagentCLI {
   static async main(argv: string[]): Promise<void> {
     const args = parseArgs({
@@ -64,6 +73,7 @@ export class SubagentCLI {
         mode: { type: "string" },
         "session-id": { type: "string" },
         "owned-paths": { type: "string" },
+        output: { type: "string" },
       },
       allowPositionals: false,
     });
@@ -76,6 +86,7 @@ export class SubagentCLI {
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean);
     const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
+    const outputFormat = args.values.output === "text" ? "text" : "json";
 
     if (!taskId || !sessionId || !prompt) {
       console.error("Missing required args: --task-id, --session-id, --prompt");
@@ -229,13 +240,14 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           // If done tool was called, stop
           if (execName === "done") {
             await mcpManager?.closeAll().catch(() => {});
-            console.log(JSON.stringify({
+            const result: SubagentResult = {
               id: taskId,
               role,
               status: "success" as const,
               findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
               events: [],
-            }));
+            };
+            console.log(formatSubagentResult(result, outputFormat));
             process.exit(0);
           }
         }
@@ -251,13 +263,14 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         payload: { subagentId: taskId, role, iterations, textLength: text.length },
       });
 
-      console.log(JSON.stringify({
+      const result: SubagentResult = {
         id: taskId,
         role,
         status: "success" as const,
         findings: buildSubagentFindings(text, toolOutputs),
         events: [],
-      }));
+      };
+      console.log(formatSubagentResult(result, outputFormat));
       process.exit(0);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : String(err);
@@ -271,14 +284,15 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
 
       await mcpManager?.closeAll().catch(() => {});
 
-      console.error(JSON.stringify({
+      const result: SubagentResult = {
         id: taskId,
         role,
         status: "failed" as const,
         findings: [],
         events: [],
         error: errorMsg,
-      }));
+      };
+      console.error(formatSubagentResult(result, outputFormat));
       process.exit(1);
     }
   }

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { appendSubagentResponseText, buildSubagentFindings, SubagentCLI } from "../../src/agents/subagent-cli.js";
+import { appendSubagentResponseText, buildSubagentFindings, formatSubagentResult, SubagentCLI } from "../../src/agents/subagent-cli.js";
 
 describe("SubagentCLI", () => {
   it("exposes static main method", () => {
@@ -50,5 +50,29 @@ describe("SubagentCLI", () => {
     );
 
     assert.equal(findings[0].content, "babasola\nlinuxbrew");
+  });
+
+  it("formats direct CLI output as plain text", () => {
+    const output = formatSubagentResult({
+      id: "task-1",
+      role: "explorer",
+      status: "success",
+      findings: [{ type: "summary", content: "babasola\nlinuxbrew", confidence: "high" }],
+      events: [],
+    }, "text");
+
+    assert.equal(output, "babasola\nlinuxbrew");
+  });
+
+  it("keeps JSON output for machine consumers", () => {
+    const output = formatSubagentResult({
+      id: "task-1",
+      role: "explorer",
+      status: "success",
+      findings: [{ type: "summary", content: "babasola", confidence: "high" }],
+      events: [],
+    }, "json");
+
+    assert.deepEqual(JSON.parse(output).findings[0].content, "babasola");
   });
 });
