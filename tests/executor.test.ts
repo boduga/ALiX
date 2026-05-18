@@ -34,6 +34,23 @@ test("shell.run with denied command returns denied", async () => {
   }
 });
 
+test("shell.run uses root as cwd when cwd is omitted", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
+  try {
+    await writeFile(join(dir, "root-marker.txt"), "marker");
+    const log = new EventLog(dir);
+    await log.init();
+    const executor = new ToolExecutor(DEFAULT_CONFIG, log, "/tmp");
+    const result = await executor.execute({ toolCallId: "3", name: "shell.run", args: { root: dir, command: "pwd && ls", timeoutMs: 5000 } });
+
+    assert.equal(result.kind, "success");
+    assert.ok((result as any).output.includes(dir));
+    assert.ok((result as any).output.includes("root-marker.txt"));
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("file.create creates file at correct path", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-exec-"));
   try {

@@ -26,6 +26,13 @@ test("runCommand normalizes nullish, string, and zero timeouts", async () => {
   assert.equal(zeroTimeout.kind, "success");
 });
 
+test("runCommand normalizes string array commands", async () => {
+  const result = await runCommand({ command: ["echo", "array-command"] as any, cwd: "/tmp", timeoutMs: 5000 });
+
+  assert.equal(result.kind, "success");
+  assert.ok(result.output?.includes("array-command"));
+});
+
 test("runCommand respects timeout", async () => {
   const result = await runCommand({ command: "sleep 10", cwd: "/tmp", timeoutMs: 500 });
   assert.equal(result.kind, "error");

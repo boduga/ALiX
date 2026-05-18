@@ -42,4 +42,13 @@ describe("SubagentCLI", () => {
 
     assert.equal(findings[0].content, "same output");
   });
+
+  it("prefers real tool output over tool-call-shaped model text", () => {
+    const findings = buildSubagentFindings(
+      "{\"name\": \"alix_file_read\", \"parameters\": {\"root\": \"/home/\"}}",
+      ["babasola\nlinuxbrew"]
+    );
+
+    assert.equal(findings[0].content, "babasola\nlinuxbrew");
+  });
 });

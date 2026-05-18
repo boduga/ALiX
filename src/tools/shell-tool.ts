@@ -11,6 +11,12 @@ function normalizeTimeoutMs(timeoutMs: unknown): number {
     : DEFAULT_TIMEOUT_MS;
 }
 
+function normalizeCommand(command: unknown): string {
+  return Array.isArray(command) && command.every((part) => typeof part === "string")
+    ? command.join(" ")
+    : String(command ?? "");
+}
+
 function truncate(text: string, maxBytes: number): string {
   if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
   let result = "";
@@ -31,7 +37,8 @@ function truncate(text: string, maxBytes: number): string {
 }
 
 export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number }): Promise<ToolResult> {
-  const { command, cwd } = args;
+  const command = normalizeCommand(args.command);
+  const { cwd } = args;
   const timeoutMs = normalizeTimeoutMs(args.timeoutMs);
 
   if (!command || typeof command !== "string" || !command.trim()) {

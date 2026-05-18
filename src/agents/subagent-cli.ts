@@ -34,9 +34,18 @@ export function appendSubagentResponseText(existing: string, next: string | unde
   return existing ? `${existing}\n\n${trimmed}` : trimmed;
 }
 
+function isToolCallText(text: string): boolean {
+  return /["']name["']\s*:\s*["'](?:alix_|mcp_|file\.|dir\.|shell\.|patch\.|done|delegate)/.test(text) ||
+    /["']parameters["']\s*:/.test(text) ||
+    /["']arguments["']\s*:/.test(text);
+}
+
 export function buildSubagentFindings(text: string, toolOutputs: string[]): SubagentFinding[] {
   const uniqueToolOutputs = Array.from(new Set(toolOutputs.map((output) => output.trim()).filter(Boolean)));
-  const content = text.trim() || uniqueToolOutputs.join("\n\n");
+  const trimmedText = text.trim();
+  const content = trimmedText && !(uniqueToolOutputs.length > 0 && isToolCallText(trimmedText))
+    ? trimmedText
+    : uniqueToolOutputs.join("\n\n");
   return content
     ? [{ type: "summary", content, confidence: "high" }]
     : [];

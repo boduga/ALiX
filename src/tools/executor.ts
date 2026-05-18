@@ -92,8 +92,8 @@ export class ToolExecutor {
         break;
       }
       case "shell.run": {
-        const { command, cwd, timeoutMs } = args as { command: string; cwd: string; timeoutMs?: number };
-        result = await runCommand({ command, cwd: cwd ?? this.root, timeoutMs });
+        const { root: r, command, cwd, timeoutMs } = args as { root?: string; command: string; cwd?: string; timeoutMs?: number };
+        result = await runCommand({ command, cwd: cwd ?? r ?? this.root, timeoutMs });
         break;
       }
       case "patch.apply": {
