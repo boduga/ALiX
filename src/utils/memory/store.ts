@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import type { MemoryEntry, MemoryConfig, MemoryType } from "./types.js";
 import { DEFAULT_MEMORY_CONFIG } from "./types.js";
@@ -15,38 +15,49 @@ export class MemoryStore {
   }
 
   /**
+   * Get the base path of the memory store
+   */
+  getBasePath(): string {
+    return this.basePath;
+  }
+
+  /**
    * Initialize memory store - create all directories and config file
    */
-  init(): void {
+  async init(): Promise<void> {
     const types: MemoryType[] = ["user", "project", "feedback", "reference"];
 
     // Create base directory
-    fs.mkdirSync(this.basePath, { recursive: true });
+    await fs.mkdir(this.basePath, { recursive: true });
 
     // Create type directories
     for (const type of types) {
-      fs.mkdirSync(path.join(this.basePath, type), { recursive: true });
+      await fs.mkdir(path.join(this.basePath, type), { recursive: true });
     }
 
     // Create logs directory
-    fs.mkdirSync(path.join(this.basePath, "logs"), { recursive: true });
+    await fs.mkdir(path.join(this.basePath, "logs"), { recursive: true });
 
     // Create config file
     const configPath = path.join(this.basePath, "config.json");
-    if (!fs.existsSync(configPath)) {
-      fs.writeFileSync(configPath, JSON.stringify(this.config, null, 2));
+    try {
+      await fs.access(configPath);
+    } catch {
+      await fs.writeFile(configPath, JSON.stringify(this.config, null, 2));
     }
 
     // Create initial index
-    if (!fs.existsSync(this.indexPath)) {
-      fs.writeFileSync(this.indexPath, "# ALiX Memory Index\n\n");
+    try {
+      await fs.access(this.indexPath);
+    } catch {
+      await fs.writeFile(this.indexPath, "# ALiX Memory Index\n\n");
     }
   }
 
   /**
    * Save a memory entry with frontmatter to a .md file
    */
-  save(entry: Omit<MemoryEntry, "createdAt" | "modifiedAt">): MemoryEntry {
+  async save(entry: Omit<MemoryEntry, "createdAt" | "modifiedAt">): Promise<MemoryEntry> {
     const now = new Date().toISOString();
     const fullEntry: MemoryEntry = {
       ...entry,
@@ -60,8 +71,8 @@ export class MemoryStore {
     const frontmatter = this.buildFrontmatter(fullEntry);
     const content = `${frontmatter}\n${entry.content}`;
 
-    fs.writeFileSync(filePath, content);
-    this.updateIndex(fullEntry, filePath);
+    await fs.writeFile(filePath, content);
+    await this.updateIndex(fullEntry, filePath);
 
     return fullEntry;
   }
@@ -69,21 +80,25 @@ export class MemoryStore {
   /**
    * Search entries by text query
    */
-  find(query: string, limit: number = 10): MemoryEntry[] {
+  async find(query: string, limit: number = 10): Promise<MemoryEntry[]> {
     const results: MemoryEntry[] = [];
     const types: MemoryType[] = ["user", "project", "feedback", "reference"];
     const queryLower = query.toLowerCase();
 
     for (const type of types) {
       const typeDir = path.join(this.basePath, type);
-      if (!fs.existsSync(typeDir)) continue;
+      try {
+        await fs.access(typeDir);
+      } catch {
+        continue;
+      }
 
-      const files = fs.readdirSync(typeDir).filter((f) => f.endsWith(".md"));
+      const files = (await fs.readdir(typeDir)).filter((f) => f.endsWith(".md"));
 
       for (const file of files) {
         if (results.length >= limit) break;
 
-        const content = fs.readFileSync(path.join(typeDir, file), "utf-8");
+        const content = await fs.readFile(path.join(typeDir, file), "utf-8");
         if (content.toLowerCase().includes(queryLower)) {
           const entry = this.parseEntry(content);
           if (entry) {
@@ -99,17 +114,19 @@ export class MemoryStore {
   /**
    * Load memory index
    */
-  loadIndex(): string {
-    if (!fs.existsSync(this.indexPath)) {
+  async loadIndex(): Promise<string> {
+    try {
+      await fs.access(this.indexPath);
+      return await fs.readFile(this.indexPath, "utf-8");
+    } catch {
       return "";
     }
-    return fs.readFileSync(this.indexPath, "utf-8");
   }
 
   /**
    * Rebuild index from all entries
    */
-  buildIndex(): void {
+  async buildIndex(): Promise<void> {
     const indexLines: string[] = ["# ALiX Memory Index\n", ""];
     const types: MemoryType[] = ["user", "project", "feedback", "reference"];
 
@@ -117,12 +134,14 @@ export class MemoryStore {
       indexLines.push(`## ${type.charAt(0).toUpperCase() + type.slice(1)}`);
       const typeDir = path.join(this.basePath, type);
 
-      if (!fs.existsSync(typeDir)) {
+      try {
+        await fs.access(typeDir);
+      } catch {
         indexLines.push("- No entries", "");
         continue;
       }
 
-      const files = fs.readdirSync(typeDir).filter((f) => f.endsWith(".md"));
+      const files = (await fs.readdir(typeDir)).filter((f) => f.endsWith(".md"));
 
       if (files.length === 0) {
         indexLines.push("- No entries", "");
@@ -130,7 +149,7 @@ export class MemoryStore {
       }
 
       for (const file of files) {
-        const content = fs.readFileSync(path.join(typeDir, file), "utf-8");
+        const content = await fs.readFile(path.join(typeDir, file), "utf-8");
         const entry = this.parseEntry(content);
         if (entry) {
           indexLines.push(`- [${entry.name}](${type}/${file}) - ${entry.description}`);
@@ -139,23 +158,24 @@ export class MemoryStore {
       indexLines.push("");
     }
 
-    fs.writeFileSync(this.indexPath, indexLines.join("\n"));
+    await fs.writeFile(this.indexPath, indexLines.join("\n"));
   }
 
   /**
    * Append to daily log
    */
-  logSession(content: string): void {
+  async logSession(content: string): Promise<void> {
     const today = new Date().toISOString().split("T")[0];
     const logPath = path.join(this.basePath, "logs", `${today}.md`);
 
     const timestamp = new Date().toISOString();
     const logEntry = `\n## ${timestamp}\n\n${content}\n`;
 
-    if (fs.existsSync(logPath)) {
-      fs.appendFileSync(logPath, logEntry);
-    } else {
-      fs.writeFileSync(logPath, `# Session Log - ${today}\n${logEntry}`);
+    try {
+      const existing = await fs.readFile(logPath, "utf-8");
+      await fs.writeFile(logPath, existing + logEntry);
+    } catch {
+      await fs.writeFile(logPath, `# Session Log - ${today}\n${logEntry}`);
     }
   }
 
@@ -215,11 +235,15 @@ ${entry.source ? `source: ${entry.source}` : ""}
       .slice(0, 50);
   }
 
-  private updateIndex(entry: MemoryEntry, filePath: string): void {
-    if (!fs.existsSync(this.indexPath)) return;
+  private async updateIndex(entry: MemoryEntry, filePath: string): Promise<void> {
+    try {
+      await fs.access(this.indexPath);
+    } catch {
+      return;
+    }
 
     const relativePath = path.relative(this.basePath, filePath);
-    const indexContent = fs.readFileSync(this.indexPath, "utf-8");
+    const indexContent = await fs.readFile(this.indexPath, "utf-8");
     const link = `- [${entry.name}](${relativePath}) - ${entry.description}\n`;
 
     // Add to appropriate section
@@ -231,7 +255,7 @@ ${entry.source ? `source: ${entry.source}` : ""}
       const insertIdx = nextSection !== -1 ? nextSection : indexContent.length;
       const newContent =
         indexContent.slice(0, insertIdx) + link + indexContent.slice(insertIdx);
-      fs.writeFileSync(this.indexPath, newContent);
+      await fs.writeFile(this.indexPath, newContent);
     }
   }
 }

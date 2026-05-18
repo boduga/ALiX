@@ -12,8 +12,8 @@ export type ConsolidateResult = {
 /**
  * Sleep cycle processing - consolidate memories after session
  */
-export function consolidate(store: MemoryStore): ConsolidateResult {
-  const decisions = extractDecisionsFromLogs(store);
+export async function consolidate(store: MemoryStore): Promise<ConsolidateResult> {
+  const decisions = await extractDecisionsFromLogs(store);
   const result: ConsolidateResult = {
     decisions,
     archived: 0,
@@ -27,7 +27,7 @@ export function consolidate(store: MemoryStore): ConsolidateResult {
   const types = ["user", "project", "feedback", "reference"] as const;
 
   for (const type of types) {
-    const typeDir = path.join(store["basePath"], type);
+    const typeDir = path.join(store.getBasePath(), type);
     if (!fs.existsSync(typeDir)) continue;
 
     const files = fs.readdirSync(typeDir).filter((f) => f.endsWith(".md"));
@@ -56,7 +56,7 @@ export function consolidate(store: MemoryStore): ConsolidateResult {
 
         // Archive entries with very low confidence
         if (newConfidence < 0.2) {
-          const archiveDir = path.join(store["basePath"], "archived");
+          const archiveDir = path.join(store.getBasePath(), "archived");
           fs.mkdirSync(archiveDir, { recursive: true });
           const archivePath = path.join(archiveDir, `${type}-${file}`);
           fs.renameSync(filePath, archivePath);
@@ -67,7 +67,7 @@ export function consolidate(store: MemoryStore): ConsolidateResult {
   }
 
   // Rebuild index after consolidation
-  store.buildIndex();
+  await store.buildIndex();
 
   return result;
 }
@@ -107,8 +107,8 @@ export function extractDecisions(content: string): string[] {
   return decisions;
 }
 
-function extractDecisionsFromLogs(store: MemoryStore): string[] {
-  const logsDir = path.join(store["basePath"], "logs");
+async function extractDecisionsFromLogs(store: MemoryStore): Promise<string[]> {
+  const logsDir = path.join(store.getBasePath(), "logs");
   if (!fs.existsSync(logsDir)) return [];
 
   const allDecisions: string[] = [];

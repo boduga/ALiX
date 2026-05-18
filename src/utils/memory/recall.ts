@@ -19,11 +19,11 @@ export type RecallResult = {
 /**
  * Progressive recall - retrieves memories at different levels of detail
  */
-export function recall(
+export async function recall(
   query: string,
   store: MemoryStore,
   options: RecallOptions = {}
-): RecallResult {
+): Promise<RecallResult> {
   const {
     level = "standard",
     types,
@@ -32,7 +32,7 @@ export function recall(
   } = options;
 
   // Find matching entries
-  let entries = store.find(query, limit * 2);
+  let entries = await store.find(query, limit * 2);
 
   // Filter by types if specified
   if (types && types.length > 0) {
@@ -59,8 +59,8 @@ export function recall(
 /**
  * Build context string for system prompt based on recall level
  */
-export function buildMemoryContext(store: MemoryStore): string {
-  const index = store.loadIndex();
+export async function buildMemoryContext(store: MemoryStore): Promise<string> {
+  const index = await store.loadIndex();
   if (!index) {
     return "No memory entries found.";
   }
