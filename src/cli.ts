@@ -237,6 +237,8 @@ Usage:
   alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
   alix extension search <query>  Search extensions by name, description, or tag
   alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
+  alix memory list [--query <text>]  List memory entries
+  alix memory add --name <n> --content <c>  Add a memory entry
 `);
   process.exit(0);
 }
@@ -641,7 +643,8 @@ if (command === "memory") {
   const sub = args[0];
 
   if (sub === "list") {
-    const query = args.slice(1).join(" ");
+    const queryIdx = args.indexOf("--query");
+    const query = queryIdx !== -1 ? args.slice(queryIdx + 1).join(" ") : args.slice(1).join(" ");
     const store = new MemoryStore(memoryDir);
     await store.init();
     const results = await store.find(query, 20);

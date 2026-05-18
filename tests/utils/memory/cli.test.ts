@@ -1,8 +1,21 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MemoryStore } from "../../../src/utils/memory/store.js";
+import { spawnSync } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const distRoot = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+const cliPath = join(distRoot, "src", "cli.js");
+
+function runCli(args: string[], cwd: string) {
+  return spawnSync(process.execPath, [cliPath, ...args], {
+    cwd,
+    encoding: "utf8",
+  });
+}
 
 test("MemoryStore init works with temp directory", async () => {
   const store = new MemoryStore(join(tmpdir(), "test-memory-cli"));
@@ -30,4 +43,35 @@ test("MemoryStore can save and find entries", async () => {
 
   const results = await store.find("CLI", 10);
   assert.ok(results.length > 0);
+});
+
+test("CLI help lists memory commands", () => {
+  const result = runCli(["--help"], tmpdir());
+
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /alix memory list/);
+  assert.match(result.stdout, /alix memory add/);
+});
+
+test("memory list --query filters entries by query text", () => {
+  const cwd = join(tmpdir(), `alix-memory-cli-${Date.now()}`);
+  mkdirSync(cwd, { recursive: true });
+
+  const add = runCli([
+    "memory",
+    "add",
+    "--name",
+    "Query Match",
+    "--type",
+    "project",
+    "--content",
+    "contains specialneedle token",
+  ], cwd);
+
+  assert.equal(add.status, 0, add.stderr);
+
+  const list = runCli(["memory", "list", "--query", "specialneedle"], cwd);
+
+  assert.equal(list.status, 0, list.stderr);
+  assert.match(list.stdout, /Query Match/);
 });
