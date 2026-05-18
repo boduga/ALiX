@@ -393,10 +393,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Initialize subagent infrastructure before ToolExecutor
   const { SubagentManager } = await import("./agents/subagent-manager.js");
   const { OwnershipRegistry } = await import("./agents/ownership-registry.js");
+  const { MergeCoordinator } = await import("./agents/merge-coordinator.js");
   const { createDelegateHandler } = await import("./agents/delegate-tool.js");
   const ownershipRegistry = new OwnershipRegistry();
+  const mergeCoordinator = new MergeCoordinator();
   const subagentManager = new SubagentManager({ sessionId, config });
   subagentManager.onResult((result) => {
+    mergeCoordinator.enqueue(result);
     void log.append({ ...session, actor: "subagent", type: "subagent.result", payload: result });
   });
   const delegateHandler = createDelegateHandler(subagentManager, (opts) => {
