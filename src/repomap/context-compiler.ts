@@ -225,11 +225,15 @@ export class ContextCompiler {
       const entries = await readdir(root, { withFileTypes: true });
       const cacheMtime = data._cacheTime || 0;
 
-      // If any src file is newer than cache, invalidate
-      for (const entry of entries) {
-        if (entry.name === "src" && entry.isDirectory()) {
-          const srcMtime = (await statSync(join(root, "src"))).mtimeMs;
-          if (srcMtime > cacheMtime) return null;
+      // Check if any source file is newer than cache
+      for (const sf of data.sourceFiles) {
+        try {
+          const filePath = join(root, sf);
+          const fileMtime = (await statSync(filePath)).mtimeMs;
+          if (fileMtime > cacheMtime) return null; // stale
+        } catch {
+          // File deleted, cache stale
+          return null;
         }
       }
 
