@@ -138,11 +138,15 @@ export class SubagentCLI {
 
 Task: ${prompt}
 
-## Instructions
-- Use ONLY the tools listed below. Do NOT make up tool calls or responses.
+## Critical Rules
+- alix_file_read reads the CONTENT of a SINGLE FILE. It does NOT list directories.
+- To list files in a directory, you MUST use alix_shell_run with: ls <path>
+- NEVER call alix_file_read with a directory path (it will fail with "EISDIR")
+- Do NOT invent file names or paths. Report only what the tools return.
 - Call ONE tool at a time. Wait for the result before calling the next.
-- Do NOT call the same tool twice with the same arguments.
-- When you have completed the task using the tools, output your findings and stop.
+- When the tools return output, copy it EXACTLY into a code block. Do NOT interpret it.
+- Stop after copying the tool output.
+- Report the EXACT output from each tool call. Do NOT summarize or rephrase.
 
 Available tools:
 ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;

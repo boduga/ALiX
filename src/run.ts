@@ -117,12 +117,12 @@ function patchTextDescription(preferred: EditFormatPolicy["preferred"]): string 
 const BASE_TOOLS: ToolDef[] = [
   {
     name: "alix_file_read",
-    description: "Read the contents of a file from the workspace.",
+    description: "Read the contents of a file. To LIST files in a directory, use alix_shell_run with: ls <directory>. This tool reads a SINGLE FILE's content.",
     input_schema: {
       type: "object",
       properties: {
         root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        path: { type: "string", description: "Relative path to the file" }
+        path: { type: "string", description: "Relative path to the FILE to read (NOT a directory)" }
       },
       required: ["path"]
     }

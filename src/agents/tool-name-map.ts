@@ -8,6 +8,7 @@ export const TOOL_NAME_MAP: ToolNameMap = {
   alix_file_write:   "file.write",
   alix_file_create:  "file.create",
   alix_file_delete:  "file.delete",
+  alix_file_exists:  "file.exists",
   alix_dir_search:   "dir.search",
   alix_shell_run:    "shell.run",
   alix_patch_apply:  "patch.apply",

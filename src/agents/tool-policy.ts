@@ -66,6 +66,7 @@ const WRITE_TOOLS = new Set([
   "alix_file_write",
   "alix_file_create",
   "alix_file_delete",
+  "alix_file_exists",
   "alix_patch_preview",
   "alix_patch_apply",
 ]);
