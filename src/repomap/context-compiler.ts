@@ -225,8 +225,14 @@ export class ContextCompiler {
       const entries = await readdir(root, { withFileTypes: true });
       const cacheMtime = data._cacheTime || 0;
 
-      // Check if any source file is newer than cache
-      for (const sf of data.sourceFiles) {
+      // Check if any cached file is newer than cache
+      const cachedPaths = [
+        ...(data.sourceFiles ?? []),
+        ...(data.testFiles ?? []),
+        ...(data.configFiles ?? []),
+        ...(data.docsFiles ?? []),
+      ];
+      for (const sf of cachedPaths) {
         try {
           const filePath = join(root, sf);
           const fileMtime = (await statSync(filePath)).mtimeMs;

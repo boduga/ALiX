@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
 import { ContextCompiler } from "../../src/repomap/context-compiler.js";
 
@@ -28,6 +28,24 @@ describe("ContextCompiler", () => {
       await warm();
       const bundle = await compiler.compile("fix bug", "bugfix", 10000, []);
       assert.ok(bundle.id.startsWith("bundle-"));
+    });
+
+    it("invalidates cache when a config file is newer than the cache", async () => {
+      await warm();
+      const cachePath = join(tmpDir, ".alix", "context-cache.json");
+      const firstCache = JSON.parse(readFileSync(cachePath, "utf8")) as { _cacheTime: number };
+      const staleCacheTime = firstCache._cacheTime - 10_000;
+      writeFileSync(cachePath, JSON.stringify({ ...firstCache, _cacheTime: staleCacheTime }), "utf8");
+
+      writeFileSync(join(tmpDir, "package.json"), '{"name":"changed"}');
+      const future = new Date(staleCacheTime + 20_000);
+      utimesSync(join(tmpDir, "package.json"), future, future);
+
+      const nextCompiler = new ContextCompiler();
+      await nextCompiler.warm(tmpDir);
+      const secondCache = JSON.parse(readFileSync(cachePath, "utf8")) as { _cacheTime: number };
+
+      assert.notStrictEqual(secondCache._cacheTime, staleCacheTime);
     });
   });
 
