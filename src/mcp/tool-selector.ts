@@ -37,7 +37,7 @@ export class ToolSelector {
   ) {}
 
   select(taskDescription: string): DeferredToolEntry[] {
-    const { maxTools, tokenBudget } = this.options;
+    const { maxTools, tokenBudget, preferKeywordScoring } = this.options;
     const maxByBudget = Math.floor(tokenBudget / MIN_TOKENS_PER_TOOL);
     const effectiveMax = Math.min(maxTools, maxByBudget, this.tools.length);
 
@@ -63,11 +63,13 @@ export class ToolSelector {
         if (descWords.has(word)) score += 1;
       }
 
-      // Semantic scoring using n-gram similarity
-      const taskNgrams = this.computeNgrams(taskDescription);
-      const descNgrams = this.computeNgrams(tool.description);
-      const semanticScore = this.jaccardSimilarity(taskNgrams, descNgrams);
-      score += Math.round(semanticScore * 2);
+      // Semantic scoring using n-gram similarity (disabled when preferKeywordScoring)
+      if (!preferKeywordScoring) {
+        const taskNgrams = this.computeNgrams(taskDescription);
+        const descNgrams = this.computeNgrams(tool.description);
+        const semanticScore = this.jaccardSimilarity(taskNgrams, descNgrams);
+        score += Math.round(semanticScore * 2);
+      }
 
       return { tool, score };
     });
