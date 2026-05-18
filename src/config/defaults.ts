@@ -81,7 +81,7 @@ export const DEFAULT_CONFIG: AlixConfig = {
     enabled: true,
     thinking: { provider: "ollama", name: "phi4-mini-reasoning" },
     coding: { provider: "ollama", name: "qwen2.5-coder:7b" },
-    fast: { provider: "ollama", name: "qwen3b" },
+    fast: { provider: "ollama", name: "llama3.2:3b" },
     roles: [
       { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },
       { role: "reviewer",          mode: "read_only", style: "thinking", retryCount: 1 },
