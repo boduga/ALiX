@@ -8,6 +8,7 @@ import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { ContextCompiler } from "./repomap/context-compiler.js";
+import { TOOL_NAME_MAP } from "./agents/tool-name-map.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
@@ -53,17 +54,6 @@ async function streamToResponse(provider: ModelAdapter, request: NormalizedReque
   return { text, toolCalls, usage };
 }
 
-const TOOL_NAME_MAP: Record<string, string> = {
-  alix_file_read: "file.read",
-  alix_file_create: "file.create",
-  alix_file_delete: "file.delete",
-  alix_dir_search: "dir.search",
-  alix_shell_run: "shell.run",
-  alix_patch_apply: "patch.apply",
-  alix_done: "done",
-  alix_delegate: "delegate",
-  mcp_search_tools: "mcp_search_tools",
-};
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
   const parts: string[] = [`Error: ${err.message}`];
