@@ -6,11 +6,9 @@ import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
 import { mergeConfig, DEFAULT_CONFIG } from "../config/loader.js";
-import type { AlixConfig } from "../config/schema.js";
+import type { AlixConfig, SubagentRole } from "../config/schema.js";
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
-
-type SubagentRole = "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker";
 
 const ROLE_INSTRUCTIONS: Record<SubagentRole, string> = {
   explorer:          "You are an explorer subagent. Understand code regions and report your findings concisely. Use file references, summarize structure, identify key symbols.",

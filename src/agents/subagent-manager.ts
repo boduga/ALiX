@@ -123,6 +123,7 @@ export class SubagentManager {
 
       child.on("error", (err: Error) => {
         this.running.delete(task.id);
+        this.releaseOwnership(task);
         reject(err);
       });
     });
