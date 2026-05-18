@@ -43,13 +43,13 @@ export class ToolSelector {
     if (effectiveMax >= this.tools.length) return [...this.tools];
 
     const taskWords = new Set(
-      taskDescription.toLowerCase().split(/\W+/).filter(w => w.length > 2)
+      taskDescription.toLowerCase().split(/\W+/).filter(w => w.length >= 2)
     );
 
     const scored = this.tools.map(tool => {
       const nameParts = tool.name.toLowerCase().split(/[_\.]/);
       const descWords = new Set(
-        tool.description.toLowerCase().split(/\W+/).filter(w => w.length > 2)
+        tool.description.toLowerCase().split(/\W+/).filter(w => w.length >= 2)
       );
 
       let score = 0;
