@@ -19,6 +19,7 @@ import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { getToolPolicy, filterTools } from "./tool-policy.js";
 import { TOOL_NAME_MAP } from "./tool-name-map.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
+import { ContextCompiler } from "../repomap/context-compiler.js";
 
 const ROLE_INSTRUCTIONS: Record<SubagentRole, string> = {
   explorer:          "You are an explorer subagent. Understand code regions and report your findings concisely. Use file references, summarize structure, identify key symbols.",
@@ -119,6 +120,10 @@ export class SubagentCLI {
     const eventLog = new EventLog(sessionDir);
     await eventLog.init();
 
+    // Warm up context compiler for this subagent
+    const contextCompiler = new ContextCompiler();
+    await contextCompiler.warm(projectRoot);
+
     // Log subagent start
     await eventLog.append({
       actor: "subagent",
@@ -188,11 +193,25 @@ export class SubagentCLI {
       buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference })
     );
 
-    // Build system prompt with role instructions
+    // Build system prompt with role instructions and context
     const roleInstructions = ROLE_INSTRUCTIONS[role] ?? "You are a subagent.";
+
+    // Compile context bundle for this task
+    const contextBundle = await contextCompiler.compile(
+      prompt,
+      "unknown", // subagents don't classify task type
+      4000,     // max tokens for context
+      []         // no pinned paths for subagents
+    );
+
+    // Build context section from primary files
+    const contextSection = contextBundle.primaryFiles.length > 0
+      ? `\n## Relevant Files\n${contextBundle.primaryFiles.map(f => `- ${f.path}`).join("\n")}`
+      : "";
+
     const systemPrompt = `${roleInstructions}
 
-Task: ${prompt}
+Task: ${prompt}${contextSection}
 
 ## Critical Rules
 - alix_file_read reads the CONTENT of a SINGLE FILE. It does NOT list directories.
