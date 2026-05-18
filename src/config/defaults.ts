@@ -79,8 +79,8 @@ export const DEFAULT_CONFIG: AlixConfig = {
   },
   subagents: {
     enabled: true,
-    thinking: { provider: "anthropic", name: "claude-sonnet-4-6" },
-    coding: { provider: "anthropic", name: "claude-sonnet-4-6" },
+    thinking: { provider: "ollama", name: "phi4-mini-reasoning" },
+    coding: { provider: "ollama", name: "qwen2.5-coder:7b" },
     fast: { provider: "ollama", name: "qwen3b" },
     roles: [
       { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },

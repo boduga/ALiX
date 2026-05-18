@@ -19,7 +19,7 @@ test("loadConfig applies defaults when no config files exist", async () => {
   try {
     _setHomedirOverride(dir);
     const config = await loadConfig(dir);
-    assert.equal(config.model.provider, "anthropic");
+    assert.equal(config.model.provider, "ollama");
     assert.equal(config.ui.port, 4137);
     assert.ok(config.permissions.protectedPaths.includes(".git/**"));
   } finally {
@@ -39,7 +39,7 @@ test("loadConfig merges global user config on top of defaults", async () => {
     );
     const config = await loadConfig(dir);
     assert.equal(config.model.name, "claude-custom");
-    assert.equal(config.model.provider, "anthropic"); // inherited from defaults
+    assert.equal(config.model.provider, "ollama"); // inherited from defaults
     assert.equal(config.ui.port, 4137); // inherited from defaults
   } finally {
     restore();
@@ -231,11 +231,11 @@ test("subagent roles are loaded from defaults", () => {
     } else if (r.role === "reviewer") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.style, "fast");
+      assert.equal(r.style, "thinking");
     } else if (r.role === "test_investigator") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.style, undefined); // same as parent
+      assert.equal(r.style, "thinking"); // same as parent
     } else if (r.role === "docs_researcher") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
@@ -243,15 +243,15 @@ test("subagent roles are loaded from defaults", () => {
     } else if (r.role === "worker") {
       assert.equal(r.mode, "write");
       assert.equal(r.retryCount, 0);
-      assert.equal(r.style, undefined);
+      assert.equal(r.style, "coding");
     }
   }
 
   // Check tier configs exist
   assert.ok(result.subagents!.thinking);
-  assert.equal(result.subagents!.thinking.provider, "anthropic");
+  assert.equal(result.subagents!.thinking.provider, "ollama");
   assert.ok(result.subagents!.coding);
-  assert.equal(result.subagents!.coding.provider, "anthropic");
+  assert.equal(result.subagents!.coding.provider, "ollama");
   assert.ok(result.subagents!.fast);
   assert.equal(result.subagents!.fast.provider, "ollama");
   assert.equal(result.subagents!.fast.name, "qwen3b");
