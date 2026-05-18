@@ -108,7 +108,7 @@ These unlock the skill/recipe/MCP extension model.
 
 What: Clear extension taxonomy with separate trust and packaging rules. Extensions: tools, skills, hooks, recipes, subagents, plugins, MCP.
 
-Current state:
+Current state: All items implemented:
 - ✅ Skills system exists (`src/skills/loader.ts`, `catalog.ts`, `dispatcher.ts`, `factory.ts`, `promotion.ts`, `lifecycle.ts`)
 - ✅ Hooks system exists (`src/hooks/discover.ts`, `runner.ts`)
 - ✅ MCP manager exists (`src/mcp/manager.ts`)
@@ -117,10 +117,8 @@ Current state:
 - ✅ `loadExtensions` groups extensions by type into `ExtensionBundle` (`src/extensions/lifecycle.ts`)
 - ✅ `extensions.store` config integration (schema + defaults)
 - ✅ `alix extension` CLI commands (list/install/uninstall/search)
-
-Future upgrades:
-- Permission bundling per extension
-- Extension version management
+- ✅ **Permission bundling** — `PermissionLevel`, `ExtensionPermission` types added to manifest
+- ✅ **Version management** — `getVersionInfo()`, `updateVersion()` methods on `ExtensionRegistry`
 
 **Why P2:** Skills and hooks work in isolation. Extension registry makes them composable and discoverable.
 
@@ -129,15 +127,16 @@ Future upgrades:
 
 What: Load tools lazily, expose only task-relevant capabilities. MCP tools flood context if loaded eagerly.
 
-Current state: All four items implemented:
+Current state: All items implemented:
 - ✅ `ToolSelector` — select tools per task based on intent + keyword overlap scoring + token budget
 - ✅ `ToolDiscovery` meta-tool — `mcp_search_tools` lets agent search catalog mid-session
 - ✅ Schema cache with TTL + LRU eviction (`SchemaCache` with `ttlMs` and `maxSize` options)
 - ✅ Tool provenance tracking — `_usedTools` and `_discoveredTools` tracked in event log
+- ✅ **Semantic scoring** — n-gram Jaccard similarity in `ToolSelector.select()`
+- ✅ **Per-model reliability config** — `ToolConfig`, `ModelToolReliability`, `preferKeywordScoring`
 
 Future upgrades:
 - Per-model reliability test matrix for tool selection defaults
-- Semantic scoring for tool relevance (embeddings-based)
 
 **Why P2:** Prevents token waste and model confusion when many MCP tools are available.
 
