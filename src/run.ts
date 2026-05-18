@@ -19,6 +19,8 @@ import { McpManager } from "./mcp/manager.js";
 import { ToolDiscovery } from "./mcp/tool-discovery.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
+import { MemoryStore } from "./utils/memory/store.js";
+import { buildMemoryContext } from "./utils/memory/recall.js";
 import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
@@ -345,6 +347,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   await log.append({ ...session, type: "session.started", payload: { cwd, configHash: "mvp" } });
   await log.append({ ...session, actor: "user", type: "user.message", payload: { text: task, attachments: [] } });
 
+  // Load memory context for injection into system prompt
+  const memoryStore = new MemoryStore(join(cwd, ".alix", "memory"));
+  const memoryContext = await buildMemoryContext(memoryStore);
+
   const repoMap = config.context.repoMap ? await buildRepoMapLite(cwd) : undefined;
   await log.append({
     ...session,
@@ -474,7 +480,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     payload: buildContextBundleEventPayload(contextBundle),
   });
 
-  function buildSystemPrompt(base: string, contextBundle: import("./repomap/context-compiler.js").ContextBundle): string {
+  function buildSystemPrompt(base: string, contextBundle: import("./repomap/context-compiler.js").ContextBundle, memoryContext: string): string {
     const parts: string[] = [base];
 
     if (loadedSkills.length > 0) {
@@ -489,11 +495,16 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       parts.push(renderContextBundleForPrompt(contextBundle));
     }
 
+    // Inject memory context if available
+    if (memoryContext) {
+      parts.push(`## Memory\n${memoryContext}`);
+    }
+
     return parts.join("\n\n");
   }
 
   const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved.";
-  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle);
+  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle, memoryContext);
 
   for (let i = 0; i < maxIterations; i++) {
     stateMachine.tick(0);
