@@ -104,7 +104,7 @@ export class SubagentCLI {
 
       const mcpDeferral = mcpManager.getDeferral();
       const mcpToolIndex = mcpDeferral.buildIndex();
-      const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 10, tokenBudget: 2000 });
+      const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 3, tokenBudget: 1500 });
       selectedTools = toolSelector.select(prompt) as ToolDef[];
       mcpDiscovery = new ToolDiscovery(mcpToolIndex);
 
@@ -138,7 +138,14 @@ export class SubagentCLI {
 
 Task: ${prompt}
 
-Work in the current directory. Be concise and focused.`;
+## Instructions
+- Use ONLY the tools listed below. Do NOT make up tool calls or responses.
+- Call ONE tool at a time. Wait for the result before calling the next.
+- Do NOT call the same tool twice with the same arguments.
+- When you have completed the task using the tools, output your findings and stop.
+
+Available tools:
+${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).join("\n")}`;
 
     try {
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];

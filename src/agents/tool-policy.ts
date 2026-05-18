@@ -22,10 +22,10 @@ const WRITE_ROLES: SubagentRole[] = ["worker"];
 export function getToolPolicy(role: SubagentRole): ToolPolicy {
   if (READ_ONLY_ROLES.includes(role)) {
     return {
-      allowedCategories: ["read", "mcp"],
+      allowedCategories: ["read"],
       maxIterations: 5,
       maxShellCommandsPerIteration: 3,
-      allowMcpTools: true,
+      allowMcpTools: false,
     };
   }
   if (WRITE_ROLES.includes(role)) {
@@ -72,8 +72,11 @@ const WRITE_TOOLS = new Set([
 
 export function filterTools(tools: Array<{ name: string; description?: string }>, policy: ToolPolicy): Array<{ name: string; description?: string }> {
   return tools.filter((tool) => {
-    // Allow done and mcp_search_tools always
-    if (tool.name === "alix_done" || tool.name === "mcp_search_tools") return true;
+    // done is always allowed
+    if (tool.name === "alix_done") return true;
+
+    // mcp_search_tools only allowed when MCP tools are permitted
+    if (tool.name === "mcp_search_tools") return policy.allowMcpTools;
 
     // MCP tools
     if (tool.name.startsWith("mcp_") || tool.name.startsWith("mcp.")) {

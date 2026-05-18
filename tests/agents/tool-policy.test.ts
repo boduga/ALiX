@@ -5,7 +5,7 @@ import type { ToolDef } from "../../src/providers/types.js";
 
 test("getToolPolicy returns read-only for explorer role", () => {
   const policy = getToolPolicy("explorer");
-  assert.deepEqual(policy.allowedCategories, ["read", "mcp"]);
+  assert.deepEqual(policy.allowedCategories, ["read"]);
   assert.equal(policy.maxIterations, 5);
 });
 
@@ -17,17 +17,17 @@ test("getToolPolicy returns write access for worker role", () => {
 
 test("getToolPolicy returns read-only for reviewer", () => {
   const policy = getToolPolicy("reviewer");
-  assert.deepEqual(policy.allowedCategories, ["read", "mcp"]);
+  assert.deepEqual(policy.allowedCategories, ["read"]);
 });
 
 test("getToolPolicy returns read-only for test_investigator", () => {
   const policy = getToolPolicy("test_investigator");
-  assert.deepEqual(policy.allowedCategories, ["read", "mcp"]);
+  assert.deepEqual(policy.allowedCategories, ["read"]);
 });
 
 test("getToolPolicy returns read-only for docs_researcher", () => {
   const policy = getToolPolicy("docs_researcher");
-  assert.deepEqual(policy.allowedCategories, ["read", "mcp"]);
+  assert.deepEqual(policy.allowedCategories, ["read"]);
 });
 
 test("filterTools removes write tools for read-only roles", () => {
@@ -56,24 +56,30 @@ test("filterTools includes write tools for worker role", () => {
   assert.ok(names.includes("alix_file_write"));
 });
 
-test("filterTools allows MCP tools when allowMcpTools is true", () => {
+test("filterTools blocks MCP tools for read-only roles", () => {
   const tools: ToolDef[] = [
     { name: "mcp_github_search", description: "github", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
   const filtered = filterTools(tools, policy);
-  assert.equal(filtered.length, 1);
-  assert.equal(filtered[0].name, "mcp_github_search");
+  assert.equal(filtered.length, 0, "MCP tools should be blocked for read-only roles");
 });
 
-test("filterTools always allows alix_done and mcp_search_tools", () => {
+test("filterTools always allows alix_done", () => {
   const tools: ToolDef[] = [
     { name: "alix_done", description: "", input_schema: { type: "object", properties: {} } },
-    { name: "mcp_search_tools", description: "", input_schema: { type: "object", properties: {} } },
   ];
   const policy = getToolPolicy("explorer");
   const filtered = filterTools(tools, policy);
-  assert.equal(filtered.length, 2);
+  assert.equal(filtered.length, 1);
+});
+
+test("filterTools allows mcp_search_tools only when MCP tools allowed", () => {
+  const tools = [{ name: "mcp_search_tools", description: "", input_schema: { type: "object", properties: {} } }];
+  const explorerPolicy = getToolPolicy("explorer");
+  const workerPolicy = getToolPolicy("worker");
+  assert.equal(filterTools(tools, explorerPolicy).length, 0, "blocked for explorer");
+  assert.equal(filterTools(tools, workerPolicy).length, 1, "allowed for worker");
 });
 
 test("filterTools allows git and shell tools for read-only roles", () => {
