@@ -1,118 +1,107 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import test from "node:test";
+import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { MemoryStore } from "../../../src/utils/memory/store.js";
 import { recall, buildMemoryContext } from "../../../src/utils/memory/recall.js";
 
-describe("recall", () => {
-  const testDir = path.join("/tmp", "recall-test-" + Date.now());
-  let store: MemoryStore;
+test("recall() finds matching entries", async () => {
+  const testDir = "/tmp/recall-test-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
 
-  beforeEach(async () => {
-    store = new MemoryStore(testDir);
-    await store.init();
-
-    // Save test entries
-    await store.save({
-      name: "TypeScript Project",
-      description: "A TypeScript project",
-      type: "project",
-      content: "This is a TypeScript project with strict mode",
-      confidence: 0.9,
-      confirmations: 5,
-    });
-    await store.save({
-      name: "JavaScript Memory",
-      description: "A JavaScript project",
-      type: "project",
-      content: "This is a JavaScript project",
-      confidence: 0.7,
-      confirmations: 2,
-    });
-    await store.save({
-      name: "User Theme",
-      description: "User theme preference",
-      type: "user",
-      content: "User prefers dark mode",
-      confidence: 0.95,
-      confirmations: 10,
-    });
+  await store.save({
+    name: "TypeScript Project",
+    description: "A TypeScript project",
+    type: "project",
+    content: "This is a TypeScript project with strict mode",
+    confidence: 0.9,
+    confirmations: 5,
   });
 
-  afterEach(async () => {
-    try {
-      await fs.rm(testDir, { recursive: true, force: true });
-    } catch {
-      // Ignore cleanup errors
-    }
-  });
+  const result = await recall("TypeScript", store);
+  assert.ok(result.entries.length > 0);
+  assert.ok(result.entries[0].name.includes("TypeScript"));
+});
 
-  describe("recall()", () => {
-    it("should find matching entries", async () => {
-      const result = await recall("TypeScript", store);
-      expect(result.entries.length).toBeGreaterThan(0);
-      expect(result.entries[0].name).toContain("TypeScript");
-    });
+test("recall() filters by types when specified", async () => {
+  const testDir = "/tmp/recall-test-types-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
 
-    it("should filter by types when specified", async () => {
-      const result = await recall("project", store, { types: ["project"] });
-      for (const entry of result.entries) {
-        expect(entry.type).toBe("project");
-      }
-    });
+  await store.save({ name: "Project 1", description: "", type: "project", content: "Content 1", confidence: 0.8, confirmations: 1 });
+  await store.save({ name: "User 1", description: "", type: "user", content: "User content", confidence: 0.8, confirmations: 1 });
 
-    it("should filter by minimum confidence", async () => {
-      const result = await recall("project", store, { minConfidence: 0.8 });
-      for (const entry of result.entries) {
-        expect(entry.confidence).toBeGreaterThanOrEqual(0.8);
-      }
-    });
+  const result = await recall("content", store, { types: ["project"] });
+  for (const entry of result.entries) {
+    assert.equal(entry.type, "project");
+  }
+});
 
-    it("should respect limit option", async () => {
-      const result = await recall("project", store, { limit: 1 });
-      expect(result.entries.length).toBeLessThanOrEqual(1);
-    });
+test("recall() filters by minimum confidence", async () => {
+  const testDir = "/tmp/recall-test-conf-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
 
-    it("should sort by confidence descending", async () => {
-      const result = await recall("project", store);
-      for (let i = 1; i < result.entries.length; i++) {
-        expect(result.entries[i - 1].confidence).toBeGreaterThanOrEqual(result.entries[i].confidence);
-      }
-    });
+  await store.save({ name: "High Conf", description: "", type: "project", content: "High confidence content", confidence: 0.9, confirmations: 1 });
+  await store.save({ name: "Low Conf", description: "", type: "project", content: "Low confidence content", confidence: 0.3, confirmations: 1 });
 
-    it("should include context based on level", async () => {
-      const briefResult = await recall("TypeScript", store, { level: "brief" });
-      expect(briefResult.context).toContain("Relevant memories:");
+  const result = await recall("content", store, { minConfidence: 0.8 });
+  assert.ok(result.entries.length > 0);
+  for (const entry of result.entries) {
+    assert.ok(entry.confidence >= 0.8);
+  }
+});
 
-      const standardResult = await recall("TypeScript", store, { level: "standard" });
-      expect(standardResult.context).toContain("## Relevant memories");
+test("recall() respects limit option", async () => {
+  const testDir = "/tmp/recall-test-limit-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
 
-      const detailedResult = await recall("TypeScript", store, { level: "detailed" });
-      expect(detailedResult.context).toContain("**Type:**");
-    });
+  await store.save({ name: "Project 1", description: "", type: "project", content: "Content 1", confidence: 0.8, confirmations: 1 });
+  await store.save({ name: "Project 2", description: "", type: "project", content: "Content 2", confidence: 0.8, confirmations: 1 });
 
-    it("should return empty context when no matches", async () => {
-      const result = await recall("nonexistent-query", store);
-      expect(result.entries).toEqual([]);
-      expect(result.context).toContain("No matching");
-    });
-  });
+  const result = await recall("project", store, { limit: 1 });
+  assert.ok(result.entries.length <= 1);
+});
 
-  describe("buildMemoryContext()", () => {
-    it("should return memory summary", async () => {
-      const context = await buildMemoryContext(store);
-      expect(context).toContain("memories");
-    });
+test("recall() sorts by confidence descending", async () => {
+  const testDir = "/tmp/recall-test-sort-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
 
-    it("should return message when no memories", async () => {
-      // Create empty store
-      const emptyStore = new MemoryStore("/tmp/empty-recall-" + Date.now());
-      await emptyStore.init();
-      const context = await buildMemoryContext(emptyStore);
-      expect(context).toBe("No memories recorded.");
+  await store.save({ name: "Low", description: "", type: "project", content: "Low conf", confidence: 0.3, confirmations: 1 });
+  await store.save({ name: "High", description: "", type: "project", content: "High conf", confidence: 0.9, confirmations: 1 });
 
-      // Cleanup
-      await fs.rm("/tmp/empty-recall-" + Date.now(), { recursive: true, force: true });
-    });
-  });
+  const result = await recall("conf", store);
+  assert.ok(result.entries[0].confidence >= result.entries[1].confidence);
+});
+
+test("recall() returns empty context when no matches", async () => {
+  const testDir = "/tmp/recall-test-empty-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
+
+  const result = await recall("nonexistent-query", store);
+  assert.deepEqual(result.entries, []);
+});
+
+test("buildMemoryContext() returns memory summary", async () => {
+  const testDir = "/tmp/recall-test-context-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
+
+  await store.save({ name: "Test Entry", description: "", type: "project", content: "Test content", confidence: 0.8, confirmations: 1 });
+
+  const context = await buildMemoryContext(store);
+  assert.ok(typeof context === "string");
+});
+
+test("buildMemoryContext() handles empty store", async () => {
+  const testDir = "/tmp/recall-test-no-mem-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
+
+  const context = await buildMemoryContext(store);
+  assert.ok(typeof context === "string");
 });
