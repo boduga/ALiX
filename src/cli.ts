@@ -598,27 +598,31 @@ if (command === "agent" && agentRole) {
   const prompt = process.argv.slice(4).join(" ");
   if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
+  // Pass through any extra args (e.g. --model, --owned-paths)
+  const extraArgs = process.argv.slice(6);
   SubagentCLI.main([
     "--subagent", agentRole,
     "--task-id", crypto.randomUUID(),
     "--prompt", prompt,
     "--mode", "read_only",
     "--session-id", `cli-${Date.now()}`,
-  ]).catch(err => { console.error(err.message); process.exit(1); });
-  process.exit(0);
+    ...extraArgs,
+  ]).then(() => process.exit(0)).catch(err => { console.error(err.message); process.exit(1); });
 }
 
 // --- alix run --subagent <role> --- subagent process entry point (called by parent) ---
 if (command === "run" && args[0] === "--subagent") {
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
+  // Pass through any extra args (e.g. --model, --owned-paths)
+  const extraArgs = process.argv.slice(7);
   const subagentArgs = ["--subagent", args[1],
     "--task-id", args[2] ?? crypto.randomUUID(),
     "--prompt", args[3] ?? "",
     "--mode", args[4] ?? "read_only",
     "--session-id", args[5] ?? `cli-${Date.now()}`,
+    ...extraArgs,
   ];
-  SubagentCLI.main(subagentArgs).catch(err => { console.error(err.message); process.exit(1); });
-  process.exit(0);
+  SubagentCLI.main(subagentArgs).then(() => process.exit(0)).catch(err => { console.error(err.message); process.exit(1); });
 }
 
 console.error(`Unknown command: ${command}`);
