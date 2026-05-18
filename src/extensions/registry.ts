@@ -9,6 +9,12 @@ export type LoadedExtension = {
   installedAt: string;
 };
 
+export type VersionInfo = {
+  version: string;
+  installedAt: string;
+  isOutdated?: boolean;
+};
+
 export type ListOptions = {
   type?: ExtensionType;
   tag?: string;
@@ -134,6 +140,37 @@ export class ExtensionRegistry {
   }
 
   count(): number { return this.extensions.size; }
+
+  canCheckVersion(id: string): boolean {
+    const ext = this.extensions.get(id);
+    return ext !== undefined;
+  }
+
+  getVersionInfo(id: string): VersionInfo | null {
+    const ext = this.extensions.get(id);
+    if (!ext) return null;
+    return {
+      version: ext.manifest.version,
+      installedAt: ext.installedAt,
+      isOutdated: false,
+    };
+  }
+
+  async updateVersion(id: string, newVersion: string): Promise<boolean> {
+    const ext = this.extensions.get(id);
+    if (!ext || isCoreExtension(ext.manifest)) return false;
+
+    const manifestPath = join(this.storePath, `${ext.manifest.type}-${ext.manifest.name}`, "EXTENSION.yaml");
+    let content: string;
+    try {
+      content = readFileSync(manifestPath, "utf8");
+    } catch { return false; }
+
+    const updated = content.replace(/version:\s*[\d.]+/, `version: ${newVersion}`);
+    writeFileSync(manifestPath, updated, "utf8");
+    this.load();
+    return true;
+  }
 }
 
 function copyDirRecursive(src: string, dst: string): void {
