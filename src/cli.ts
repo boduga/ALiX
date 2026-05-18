@@ -234,6 +234,7 @@ Usage:
   alix extension install <path>  Install an extension from a directory
   alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
   alix extension search <query>  Search extensions by name, description, or tag
+  alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
 `);
   process.exit(0);
 }
@@ -588,6 +589,35 @@ if (command === "extension") {
     console.log("  uninstall <id> — uninstall by id (e.g. skill/my-skill)");
     console.log("  search <query> — search by name, description, or tag");
   }
+  process.exit(0);
+}
+
+// --- alix agent <role> "prompt" --- runs subagent in same process (no recursion)
+const agentRole = process.argv[2];
+if (command === "agent" && agentRole) {
+  const prompt = process.argv.slice(4).join(" ");
+  if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
+  const { SubagentCLI } = await import("./agents/subagent-cli.js");
+  SubagentCLI.main([
+    "--subagent", agentRole,
+    "--task-id", crypto.randomUUID(),
+    "--prompt", prompt,
+    "--mode", "read_only",
+    "--session-id", `cli-${Date.now()}`,
+  ]).catch(err => { console.error(err.message); process.exit(1); });
+  process.exit(0);
+}
+
+// --- alix run --subagent <role> --- subagent process entry point (called by parent) ---
+if (command === "run" && args[0] === "--subagent") {
+  const { SubagentCLI } = await import("./agents/subagent-cli.js");
+  const subagentArgs = ["--subagent", args[1],
+    "--task-id", args[2] ?? crypto.randomUUID(),
+    "--prompt", args[3] ?? "",
+    "--mode", args[4] ?? "read_only",
+    "--session-id", args[5] ?? `cli-${Date.now()}`,
+  ];
+  SubagentCLI.main(subagentArgs).catch(err => { console.error(err.message); process.exit(1); });
   process.exit(0);
 }
 

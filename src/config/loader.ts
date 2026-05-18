@@ -28,6 +28,7 @@ type PartialConfig = Partial<AlixConfig> & {
 // 3. <cwd>/.alix/config.json     — project config (overrides everything)
 //
 // API keys from config are injected as environment variables.
+export { DEFAULT_CONFIG } from "./defaults.js";
 export async function loadConfig(cwd: string): Promise<AlixConfig> {
   const xdgConfigPath = join(homedir(), ".config", "alix", "config.json");
   const globalConfigPath = join(homedir(), ".alix", "config.json");

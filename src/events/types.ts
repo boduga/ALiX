@@ -1,4 +1,4 @@
-export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier";
+export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier" | "subagent";
 
 export type AlixEvent<TType extends string = string, TPayload = unknown> = {
   id: string;
