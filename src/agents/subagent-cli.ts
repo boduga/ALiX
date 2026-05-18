@@ -28,7 +28,7 @@ export class SubagentCLI {
         prompt: { type: "string" },
         model: { type: "string" },
         mode: { type: "string" },
-        sessionId: { type: "string" },
+        "session-id": { type: "string" },
         "owned-paths": { type: "string" },
       },
       allowPositionals: false,
@@ -38,7 +38,7 @@ export class SubagentCLI {
     const taskId = args.values["task-id"];
     const prompt = args.values.prompt ?? "";
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
-    const sessionId = args.values.sessionId;
+    const sessionId = args.values["session-id"];
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean);
     const modelOverride = args.values.model;
 
