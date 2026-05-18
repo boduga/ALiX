@@ -4,6 +4,32 @@ import { join, relative } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskType } from "../task-classifier.js";
 import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
+
+type SerializedDependencyGraph = {
+  dependencies: [string, string[]][];
+  dependents: [string, string[]][];
+};
+
+function buildDependencyGraphFromCache(serialized: SerializedDependencyGraph): DependencyGraph {
+  const dependencies = new Map<string, Set<string>>();
+  const dependents = new Map<string, Set<string>>();
+
+  for (const [path, deps] of serialized.dependencies) {
+    dependencies.set(path, new Set(deps));
+  }
+  for (const [path, deps] of serialized.dependents) {
+    dependents.set(path, new Set(deps));
+  }
+
+  return {
+    dependenciesOf(path: string) {
+      return [...(dependencies.get(path) ?? [])];
+    },
+    dependentsOf(path: string) {
+      return [...(dependents.get(path) ?? [])];
+    },
+  };
+}
 import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
 import { readGitActivity } from "./git-activity.js";
 import { rankContextCandidate } from "./context-ranker.js";
@@ -213,7 +239,7 @@ export class ContextCompiler {
         configFiles: data.configFiles,
         docsFiles: data.docsFiles,
         fileEntries: new Map(data.fileEntries),
-        dependencyGraph: data.dependencyGraph,
+        dependencyGraph: buildDependencyGraphFromCache(data.dependencyGraph),
         symbols: data.symbols,
         gitActivity: new Map(data.gitActivity),
       };
@@ -226,6 +252,19 @@ export class ContextCompiler {
     if (!this.repoMap || !this.cachePath) return;
     try {
       await mkdir(join(root, ".alix"), { recursive: true });
+      const deps: [string, string[]][] = [];
+      const depFn = this.repoMap.dependencyGraph.dependenciesOf.bind(this.repoMap.dependencyGraph);
+      const allDeps = new Set([...this.repoMap.sourceFiles, ...this.repoMap.testFiles]);
+      for (const path of allDeps) {
+        const d = depFn(path);
+        if (d.length > 0) deps.push([path, d]);
+      }
+      const depRets: [string, string[]][] = [];
+      const retFn = this.repoMap.dependencyGraph.dependentsOf.bind(this.repoMap.dependencyGraph);
+      for (const path of allDeps) {
+        const d = retFn(path);
+        if (d.length > 0) depRets.push([path, d]);
+      }
       const data = {
         _cacheTime: Date.now(),
         sourceFiles: this.repoMap.sourceFiles,
@@ -233,7 +272,7 @@ export class ContextCompiler {
         configFiles: this.repoMap.configFiles,
         docsFiles: this.repoMap.docsFiles,
         fileEntries: [...this.repoMap.fileEntries.entries()],
-        dependencyGraph: this.repoMap.dependencyGraph,
+        dependencyGraph: { dependencies: deps, dependents: depRets },
         symbols: this.repoMap.symbols,
         gitActivity: [...this.repoMap.gitActivity.entries()],
       };
