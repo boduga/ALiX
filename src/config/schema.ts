@@ -82,6 +82,21 @@ export type SubagentRoleConfig = {
 
 export type SubagentStyle = "thinking" | "coding" | "fast";
 
+export type ToolReliabilityTier = "stable" | "unstable" | "experimental";
+
+export type ModelToolReliability = {
+  modelPattern: string;  // regex pattern to match model name
+  tier: ToolReliabilityTier;
+  defaultMaxTools: number;
+  preferKeywordScoring: boolean;
+};
+
+export type ToolConfig = {
+  maxTools: number;
+  tokenBudget: number;
+  reliabilityDefaults: ModelToolReliability[];
+};
+
 export type ModelTierConfig = {
   provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek";
   name: string;
@@ -139,6 +154,7 @@ export type AlixConfig = {
     store?: ExtensionStoreConfig;
   };
   subagents?: SubagentConfig;
+  toolConfig?: ToolConfig;
 };
 
 export type ValidationIssue = {

@@ -5,6 +5,7 @@ const SAFE_FALLBACK_NAMES = ["filesystem_read", "fetch_get", "files_read", "http
 export type ToolSelectorOptions = {
   maxTools: number;
   tokenBudget: number;
+  preferKeywordScoring?: boolean;
 };
 
 // Floor estimate — individual tools may exceed this for complex schemas.
