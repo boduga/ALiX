@@ -110,6 +110,60 @@ test("serves session comparison JSON", async () => {
   }
 });
 
+test("rejects unsafe session id for snapshot requests", async () => {
+  const root = await mkdtemp(join(tmpdir(), "alix-server-"));
+  try {
+    const server = await startServer(root, "127.0.0.1", 0);
+    try {
+      const response = await fetch(`${server.url}/api/sessions/..%2Fescape/snapshot`);
+      const text = await response.text();
+
+      assert.equal(response.status, 400);
+      assert.equal(text, "Invalid session id");
+    } finally {
+      await server.close();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects unsafe session id for event streams", async () => {
+  const root = await mkdtemp(join(tmpdir(), "alix-server-"));
+  try {
+    const server = await startServer(root, "127.0.0.1", 0);
+    try {
+      const response = await fetch(`${server.url}/api/sessions/..%2Fescape/events`);
+      const text = await response.text();
+
+      assert.equal(response.status, 400);
+      assert.equal(text, "Invalid session id");
+    } finally {
+      await server.close();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("rejects unsafe session id for comparison requests", async () => {
+  const root = await mkdtemp(join(tmpdir(), "alix-server-"));
+  try {
+    const server = await startServer(root, "127.0.0.1", 0);
+    try {
+      const response = await fetch(`${server.url}/api/sessions/compare?left=..%2Fescape&right=s1`);
+      const text = await response.text();
+
+      assert.equal(response.status, 400);
+      assert.equal(text, "Invalid session id");
+    } finally {
+      await server.close();
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("rejects session comparison requests missing either session id", async () => {
   const root = await mkdtemp(join(tmpdir(), "alix-server-"));
   try {

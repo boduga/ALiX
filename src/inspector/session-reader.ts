@@ -3,8 +3,26 @@ import { join } from "node:path";
 import type { AlixEvent, InspectorComparison, InspectorSnapshot } from "../events/types.js";
 import { buildInspectorSnapshot, compareInspectorSnapshots } from "./projection.js";
 
-function sessionEventsPath(root: string, sessionId: string): string {
-  return join(root, ".alix", "sessions", sessionId, "events.jsonl");
+const SESSION_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+
+export class InvalidSessionIdError extends Error {
+  constructor(readonly sessionId: string) {
+    super("Invalid session id");
+    this.name = "InvalidSessionIdError";
+  }
+}
+
+export function isValidSessionId(sessionId: string): boolean {
+  return SESSION_ID_PATTERN.test(sessionId) && !sessionId.includes("..");
+}
+
+export function assertValidSessionId(sessionId: string): string {
+  if (!isValidSessionId(sessionId)) throw new InvalidSessionIdError(sessionId);
+  return sessionId;
+}
+
+export function sessionEventsPath(root: string, sessionId: string): string {
+  return join(root, ".alix", "sessions", assertValidSessionId(sessionId), "events.jsonl");
 }
 
 export async function readSessionEvents(root: string, sessionId: string): Promise<AlixEvent[]> {

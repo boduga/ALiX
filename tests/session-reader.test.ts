@@ -66,6 +66,17 @@ test("readSessionEvents returns an empty list for a missing session file", async
   }
 });
 
+test("readSessionEvents rejects unsafe session ids before reading from disk", async () => {
+  const root = await mkdtemp(join(tmpdir(), "alix-session-reader-"));
+  try {
+    for (const unsafe of ["", "../escape", "foo/bar", "foo\\bar", "foo..bar", ".hidden"]) {
+      await assert.rejects(() => readSessionEvents(root, unsafe), /Invalid session id/);
+    }
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("readSessionComparison compares sessions with different changed files", async () => {
   const root = await mkdtemp(join(tmpdir(), "alix-session-reader-"));
   try {

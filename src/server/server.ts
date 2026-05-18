@@ -1,9 +1,29 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
-import { readSessionComparison, readSessionSnapshot } from "../inspector/session-reader.js";
+import {
+  InvalidSessionIdError,
+  isValidSessionId,
+  readSessionComparison,
+  readSessionSnapshot,
+  sessionEventsPath
+} from "../inspector/session-reader.js";
+
+function decodePathSegment(segment: string | undefined): string {
+  if (!segment) return "";
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return "";
+  }
+}
+
+function rejectInvalidSessionId(res: ServerResponse): void {
+  res.statusCode = 400;
+  res.end("Invalid session id");
+}
 
 export function startServer(root: string, host: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
   const server = createServer(async (req, res) => {
@@ -32,20 +52,32 @@ export function startServer(root: string, host: string, port: number): Promise<{
           res.end("Missing left or right session id");
           return;
         }
+        if (!isValidSessionId(left) || !isValidSessionId(right)) {
+          rejectInvalidSessionId(res);
+          return;
+        }
 
         res.setHeader("content-type", "application/json");
         res.end(JSON.stringify(await readSessionComparison(root, left, right)));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/snapshot")) {
-        const sessionId = url.pathname.split("/")[3];
+        const sessionId = decodePathSegment(url.pathname.split("/")[3]);
+        if (!isValidSessionId(sessionId)) {
+          rejectInvalidSessionId(res);
+          return;
+        }
         res.setHeader("content-type", "application/json");
         res.end(JSON.stringify(await readSessionSnapshot(root, sessionId)));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/events")) {
-        const sessionId = url.pathname.split("/")[3];
-        const eventsPath = join(root, ".alix", "sessions", sessionId, "events.jsonl");
+        const sessionId = decodePathSegment(url.pathname.split("/")[3]);
+        if (!isValidSessionId(sessionId)) {
+          rejectInvalidSessionId(res);
+          return;
+        }
+        const eventsPath = sessionEventsPath(root, sessionId);
 
         res.setHeader("content-type", "text/event-stream");
         res.setHeader("cache-control", "no-cache");
@@ -109,6 +141,10 @@ export function startServer(root: string, host: string, port: number): Promise<{
       res.statusCode = 404;
       res.end("Not found");
     } catch (error) {
+      if (error instanceof InvalidSessionIdError) {
+        rejectInvalidSessionId(res);
+        return;
+      }
       res.statusCode = 500;
       res.end(error instanceof Error ? error.message : "Internal server error");
     }
