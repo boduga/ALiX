@@ -1,5 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { MemoryStore } from "./memory/store.js";
+import { buildMemoryContext } from "./memory/recall.js";
 
 export type ToolEvent = {
   toolName?: string;
@@ -75,4 +77,26 @@ export async function buildSessionDigest(sessionDir: string): Promise<string | n
   if (errors.length) parts.push(`Errors: ${errors.join("; ")}`);
 
   return `[Session Digest] ${parts.join(". ")}`;
+}
+
+/**
+ * Build a session digest that includes memory context.
+ * Combines session events digest with memory index for comprehensive context.
+ */
+export async function buildSessionDigestWithMemory(
+  sessionDir: string,
+  memoryDir: string = ".alix/memory"
+): Promise<string | null> {
+  // Build existing session digest
+  const digest = await buildSessionDigest(sessionDir);
+
+  // Load memory context
+  const store = new MemoryStore(memoryDir);
+  const memoryContext = await buildMemoryContext(store);
+
+  const parts: string[] = [];
+  if (digest) parts.push(digest);
+  if (memoryContext) parts.push(`\n# Context\n${memoryContext}`);
+
+  return parts.join("\n") || null;
 }

@@ -2,7 +2,7 @@
 import { existsSync } from "node:fs";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { loadConfig, DEFAULT_CONFIG } from "./config/loader.js";
 import type { ModelTierConfig } from "./config/schema.js";
 import { ALIX_VERSION } from "./index.js";
@@ -10,6 +10,8 @@ import { EXIT_CODES, runTask } from "./run.js";
 import { ApiError } from "./providers/base.js";
 import { startServer } from "./server/server.js";
 import { McpManager } from "./mcp/manager.js";
+import { MemoryStore } from "./utils/memory/store.js";
+import type { MemoryType } from "./utils/memory/types.js";
 
 const PROVIDERS = [
   { id: "anthropic", name: "Anthropic", env: "ANTHROPIC_API_KEY", hint: "sk-ant-..." },
@@ -634,6 +636,83 @@ if (command === "run" && args[0] === "--subagent") {
   ];
   await SubagentCLI.main(subagentArgs);
   process.exit(1);
+}
+
+// --- alix memory --- memory management commands ---
+if (command === "memory") {
+  const memoryDir = resolve(process.cwd(), ".alix/memory");
+  const sub = args[0];
+
+  if (sub === "list") {
+    const query = args.slice(1).join(" ");
+    const store = new MemoryStore(memoryDir);
+    await store.init();
+    const results = await store.find(query, 20);
+    if (results.length === 0) {
+      console.log("No memory entries found.");
+    } else {
+      for (const entry of results) {
+        console.log(`[${entry.type}] ${entry.name} (confidence: ${entry.confidence})`);
+        console.log(`  ${entry.content.slice(0, 100)}${entry.content.length > 100 ? "..." : ""}`);
+        console.log();
+      }
+    }
+  } else if (sub === "add") {
+    const nameIdx = args.indexOf("--name");
+    const typeIdx = args.indexOf("--type");
+    const contentIdx = args.indexOf("--content");
+    const descIdx = args.indexOf("--description");
+
+    const name = nameIdx !== -1 ? args[nameIdx + 1] : null;
+    const type = typeIdx !== -1 ? args[typeIdx + 1] : "project";
+    const content = contentIdx !== -1 ? args[contentIdx + 1] : null;
+    const description = descIdx !== -1 ? args[descIdx + 1] ?? "" : "";
+
+    if (!name || !content) {
+      console.error("Usage: alix memory add --name <name> --content <content> [--type <type>] [--description <desc>]");
+      process.exit(1);
+    }
+
+    const store = new MemoryStore(memoryDir);
+    await store.init();
+    await store.save({
+      name,
+      description,
+      type: type as MemoryType,
+      content,
+      confidence: 0.7,
+      confirmations: 1,
+    });
+    await store.buildIndex();
+    console.log("Memory entry saved.");
+  } else if (sub === "search") {
+    const query = args.slice(1).join(" ");
+    if (!query) {
+      console.error("Usage: alix memory search <query>");
+      process.exit(1);
+    }
+    const store = new MemoryStore(memoryDir);
+    await store.init();
+    const results = await store.find(query, 10);
+    console.log(`Found ${results.length} entries:`);
+    for (const entry of results) {
+      console.log(`  [${entry.type}] ${entry.name} (confidence: ${entry.confidence})`);
+    }
+  } else if (sub === "stats") {
+    const { readdir } = await import("node:fs/promises");
+    const dirs: MemoryType[] = ["user", "project", "feedback", "reference"];
+    for (const dir of dirs) {
+      const files = await readdir(join(memoryDir, dir)).catch(() => []);
+      console.log(`${dir}: ${files.length} entries`);
+    }
+  } else {
+    console.log("Usage: alix memory [list|add|search|stats]");
+    console.log("  list [--query <text>]  - List memory entries, optionally filter by query");
+    console.log("  add --name <n> --content <c> [--type <t>] [--description <d>] - Add a memory entry");
+    console.log("  search <query>         - Search memory entries");
+    console.log("  stats                  - Show memory statistics");
+  }
+  process.exit(0);
 }
 
 console.error(`Unknown command: ${command}`);
