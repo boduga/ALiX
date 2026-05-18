@@ -52,7 +52,14 @@ export async function buildSessionDigest(sessionDir: string): Promise<string | n
         if (toolName && path && typeof path === "string") {
           if (toolName === "file.create") created.add(path);
           else if (toolName === "file.delete") deleted.add(path);
-          else if (toolName === "file.write" || toolName === "file.edit" || toolName === "file.patch_apply") changed.add(path);
+          else if (toolName === "patch.apply") changed.add(path);
+        }
+
+        const changedFilesFromPayload = (event.payload as Record<string, unknown>).changedFiles as string[] | undefined;
+        if (changedFilesFromPayload && Array.isArray(changedFilesFromPayload)) {
+          for (const file of changedFilesFromPayload) {
+            changed.add(file);
+          }
         }
 
         if (event.type === "tool.failed" && p.error) {

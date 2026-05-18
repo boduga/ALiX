@@ -226,6 +226,9 @@ export class ToolExecutor {
           toolCallId, toolName: name, status: result.kind,
           outputSize: ((result.output?.length ?? 0) + (result.content?.length ?? 0)),
           outputPreview: (result.output ?? result.content ?? "").slice(0, 200),
+          changedFiles: (result as { changedFiles?: string[] }).changedFiles,
+          createdPath: (result as { createdPath?: string }).createdPath,
+          deletedPath: (result as { deletedPath?: string }).deletedPath,
         })
       : redactValue({
           toolCallId, toolName: name, status: result.kind,
