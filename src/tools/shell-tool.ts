@@ -2,6 +2,14 @@ import { spawn } from "node:child_process";
 import type { ToolResult } from "./types.js";
 
 const MAX_BYTES = 80_000;
+const DEFAULT_TIMEOUT_MS = 120_000;
+
+function normalizeTimeoutMs(timeoutMs: unknown): number {
+  const value = typeof timeoutMs === "string" ? Number(timeoutMs) : timeoutMs;
+  return typeof value === "number" && Number.isFinite(value) && value > 0
+    ? value
+    : DEFAULT_TIMEOUT_MS;
+}
 
 function truncate(text: string, maxBytes: number): string {
   if (Buffer.byteLength(text, "utf8") <= maxBytes) return text;
@@ -23,7 +31,8 @@ function truncate(text: string, maxBytes: number): string {
 }
 
 export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number }): Promise<ToolResult> {
-  const { command, cwd, timeoutMs = 120_000 } = args;
+  const { command, cwd } = args;
+  const timeoutMs = normalizeTimeoutMs(args.timeoutMs);
 
   if (!command || typeof command !== "string" || !command.trim()) {
     return { kind: "error", message: "shell.run requires a non-empty command string" };
@@ -50,8 +59,12 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
     child.stderr.on("data", (chunk) => { stderr += chunk; });
 
     child.on("close", (code) => {
-      const combined = stdout + "\n--- stderr ---\n" + stderr;
+      const combined = stderr ? `${stdout}\n--- stderr ---\n${stderr}` : stdout;
       const output = truncate(combined, MAX_BYTES);
+      if ((code ?? 0) !== 0) {
+        finish({ kind: "error", message: `Command exited with code ${code}: ${command}\n${output}` });
+        return;
+      }
       finish({ kind: "success", output, exitCode: code ?? 0 });
     });
 

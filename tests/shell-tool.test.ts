@@ -6,13 +6,24 @@ test("runCommand returns output and exit code 0", async () => {
   const result = await runCommand({ command: "echo hello", cwd: "/tmp", timeoutMs: 5000 });
   assert.equal(result.kind, "success");
   assert.ok(result.output?.includes("hello"));
+  assert.ok(!result.output?.includes("--- stderr ---"));
   assert.equal(result.exitCode, 0);
 });
 
 test("runCommand captures non-zero exit code", async () => {
   const result = await runCommand({ command: "exit 1", cwd: "/tmp", timeoutMs: 5000 });
-  assert.equal(result.kind, "success");
-  assert.equal(result.exitCode, 1);
+  assert.equal(result.kind, "error");
+  assert.ok(result.message.includes("code 1"));
+});
+
+test("runCommand normalizes nullish, string, and zero timeouts", async () => {
+  const nullTimeout = await runCommand({ command: "echo null-timeout", cwd: "/tmp", timeoutMs: null as any });
+  const stringTimeout = await runCommand({ command: "echo string-timeout", cwd: "/tmp", timeoutMs: "5000" as any });
+  const zeroTimeout = await runCommand({ command: "echo zero-timeout", cwd: "/tmp", timeoutMs: 0 });
+
+  assert.equal(nullTimeout.kind, "success");
+  assert.equal(stringTimeout.kind, "success");
+  assert.equal(zeroTimeout.kind, "success");
 });
 
 test("runCommand respects timeout", async () => {

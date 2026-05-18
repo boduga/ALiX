@@ -7,7 +7,7 @@ import { resolve } from "path";
 import { mkdir } from "fs/promises";
 import { createRequire } from "module";
 import { fileURLToPath } from "url";
-import type { AlixConfig, SubagentRole } from "../config/schema.js";
+import type { AlixConfig, SubagentFinding, SubagentRole } from "../config/schema.js";
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
 import { ToolExecutor } from "../tools/executor.js";
@@ -32,6 +32,14 @@ export function appendSubagentResponseText(existing: string, next: string | unde
   const trimmed = next?.trim();
   if (!trimmed) return existing;
   return existing ? `${existing}\n\n${trimmed}` : trimmed;
+}
+
+export function buildSubagentFindings(text: string, toolOutputs: string[]): SubagentFinding[] {
+  const uniqueToolOutputs = Array.from(new Set(toolOutputs.map((output) => output.trim()).filter(Boolean)));
+  const content = text.trim() || uniqueToolOutputs.join("\n\n");
+  return content
+    ? [{ type: "summary", content, confidence: "high" }]
+    : [];
 }
 
 export class SubagentCLI {
@@ -161,6 +169,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
       const messages: NormalizedMessage[] = [{ role: "user", content: prompt }];
       let iterations = 0;
       let text = "";
+      const toolOutputs: string[] = [];
 
       while (iterations < toolPolicy.maxIterations) {
         iterations++;
@@ -202,6 +211,9 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
             execResult.kind === "success"
               ? (execResult.output ?? (execResult as { content?: string }).content ?? "")
               : `Error: ${(execResult as { kind: "error"; message: string }).message}`;
+          if (execResult.kind === "success" && resultContent.trim()) {
+            toolOutputs.push(resultContent);
+          }
 
           messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
 
@@ -212,7 +224,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
               id: taskId,
               role,
               status: "success" as const,
-              findings: [{ type: "summary", content: text || "Task completed.", confidence: "high" as const }],
+              findings: buildSubagentFindings(text || "Task completed.", toolOutputs),
               events: [],
             }));
             process.exit(0);
@@ -234,7 +246,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
         id: taskId,
         role,
         status: "success" as const,
-        findings: text ? [{ type: "summary", content: text, confidence: "high" as const }] : [],
+        findings: buildSubagentFindings(text, toolOutputs),
         events: [],
       }));
       process.exit(0);

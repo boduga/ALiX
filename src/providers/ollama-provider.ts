@@ -7,6 +7,57 @@ export type OllamaConfig = {
   baseUrl?: string;
 };
 
+function parseTextToolCall(text: string): { name: string; args: Record<string, unknown> } | null {
+  for (let start = text.indexOf("{"); start >= 0; start = text.indexOf("{", start + 1)) {
+    let depth = 0;
+    let inString = false;
+    let escaped = false;
+
+    for (let end = start; end < text.length; end++) {
+      const char = text[end];
+
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (char === "\\") {
+        escaped = inString;
+        continue;
+      }
+      if (char === "\"") {
+        inString = !inString;
+        continue;
+      }
+      if (inString) continue;
+
+      if (char === "{") depth++;
+      if (char === "}") depth--;
+
+      if (depth === 0) {
+        const toolCall = parseToolCallJson(text.slice(start, end + 1));
+        if (toolCall) return toolCall;
+        break;
+      }
+    }
+  }
+
+  return null;
+}
+
+function parseToolCallJson(candidate: string): { name: string; args: Record<string, unknown> } | null {
+  try {
+    const parsed = JSON.parse(candidate.trim());
+    const name = parsed.name ?? parsed.function?.name;
+    const rawArgs = parsed.arguments ?? parsed.parameters ?? parsed.args ?? {};
+    const args = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;
+    if (name && typeof name === "string" && args && typeof args === "object" && !Array.isArray(args)) {
+      return { name, args: args as Record<string, unknown> };
+    }
+  } catch { /* not a JSON tool call */ }
+
+  return null;
+}
+
 export class OllamaProvider extends BaseProvider {
   id = "ollama";
   editFormatPreference = "search_replace" as const;
@@ -41,11 +92,19 @@ export class OllamaProvider extends BaseProvider {
       stream: false,
     };
     if (request.systemPrompt) body.messages = [{ role: "system", content: request.systemPrompt }, ...(body.messages as object[])];
+    const hasTools = request.tools && request.tools.length > 0;
+    if (hasTools) {
+      body.tools = request.tools!.map((t) => ({
+        type: "function",
+        function: { name: t.name, description: t.description, parameters: t.input_schema },
+      }));
+    }
 
     let res = await this.post(body);
     if (!res.ok) {
       const errText = await res.clone().text();
       if (errText.includes("does not support") || errText.includes("not supported")) {
+        delete body.tools;
         delete body.stream;
         body.stream = false;
         res = await this.post(body);
@@ -58,11 +117,27 @@ export class OllamaProvider extends BaseProvider {
     }
 
     const data = await res.json() as {
-      choices?: Array<{ message?: { content?: string } }>;
+      choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ id: string; function: { name: string; arguments: string } }> } }>;
       message?: { content?: string };
+      usage?: { prompt_tokens: number; completion_tokens: number };
     };
-    const text = data.choices?.[0]?.message?.content ?? data.message?.content ?? "";
-    return { text: text.trim(), toolCalls: [] };
+    const choice = data.choices?.at(-1);
+    const toolCalls = choice ? this.parseChoiceToolCalls(choice) : [];
+    let text = choice?.message?.content ?? data.message?.content ?? "";
+    if (toolCalls.length === 0 && text) {
+      const parsedToolCall = parseTextToolCall(text);
+      if (parsedToolCall) {
+        toolCalls.push({ id: this.safeToolId(null), name: parsedToolCall.name, args: parsedToolCall.args });
+        text = "";
+      }
+    }
+    return {
+      text: text.trim(),
+      toolCalls,
+      usage: data.usage
+        ? { inputTokens: data.usage.prompt_tokens, outputTokens: data.usage.completion_tokens }
+        : undefined,
+    };
   }
 
   async *stream(request: NormalizedRequest): AsyncGenerator<StreamChunk> {
@@ -104,18 +179,10 @@ export class OllamaProvider extends BaseProvider {
 
     // JSON-in-text fallback: find the last complete JSON object in the text.
     if (toolCalls.length === 0 && text) {
-      const lastBrace = text.lastIndexOf("}");
-      const candidate = lastBrace >= 0 ? text.slice(0, lastBrace + 1).trim() : text.trim();
-      if (candidate.startsWith("{")) {
-        try {
-          const parsed = JSON.parse(candidate);
-          const name = parsed.name ?? parsed.function?.name;
-          const args = parsed.arguments ?? parsed.parameters ?? parsed.args ?? {};
-          if (name && typeof name === "string" && args) {
-            toolCalls.push({ id: this.safeToolId(null), name, args });
-            text = "";
-          }
-        } catch { /* not JSON */ }
+      const parsedToolCall = parseTextToolCall(text);
+      if (parsedToolCall) {
+        toolCalls.push({ id: this.safeToolId(null), name: parsedToolCall.name, args: parsedToolCall.args });
+        text = "";
       }
     }
 
