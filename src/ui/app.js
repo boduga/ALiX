@@ -1,4 +1,4 @@
-import { buildUiProjection, createReplayState, visibleEventsForReplay } from "./projection.js";
+import { buildUiProjection, createReplayState, visibleEventsForReplay, projectSubagentEvents } from "./projection.js";
 
 const sessionInput = document.getElementById("session-id");
 const connectBtn = document.getElementById("connect-btn");
@@ -12,6 +12,7 @@ const terminalView = document.getElementById("terminal-view");
 const approvalView = document.getElementById("approval-view");
 const verificationView = document.getElementById("verification-view");
 const tokenView = document.getElementById("token-view");
+const subagentView = document.getElementById("subagent-view");
 const replayPlay = document.getElementById("replay-play");
 const replayStart = document.getElementById("replay-start");
 const replayEnd = document.getElementById("replay-end");
@@ -141,6 +142,7 @@ function renderAll() {
   renderList(approvalView, projection.approvals, renderApproval);
   renderList(verificationView, projection.verification, renderVerification);
   renderTokens(projection.tokens);
+  renderSubagentTimeline(visibleEvents);
   replayPosition.textContent = `${visibleEvents.length} / ${replayState.events.length}`;
 }
 
@@ -190,11 +192,24 @@ function renderTokens(tokens) {
   tokenView.innerHTML = `<div class="metric-grid"><div><span>Input</span><strong>${tokens.totalInputTokens}</strong></div><div><span>Output</span><strong>${tokens.totalOutputTokens}</strong></div></div>`;
 }
 
-function renderEventsFrom(events) {
-  eventsEl.innerHTML = "";
-  for (const ev of [...events].reverse()) {
-    addEventRow(ev, eventsEl, true);
+function renderSubagentTimeline(events) {
+  const subagentEvents = projectSubagentEvents(events);
+
+  if (subagentEvents.length === 0) {
+    subagentView.innerHTML = `<p class="empty">No subagent activity</p>`;
+    return;
   }
+
+  const items = subagentEvents.map(e => `
+    <div class="timeline-item ${e.status ?? ''}">
+      <span class="timestamp">${formatTime(e.timestamp)}</span>
+      <span class="role badge ${e.role}">${e.role}</span>
+      <span class="type">${e.type.replace('subagent.', '')}</span>
+      ${e.duration ? `<span class="duration">${e.duration}ms</span>` : ''}
+    </div>
+  `).join('');
+
+  subagentView.innerHTML = `<div class="timeline">${items}</div>`;
 }
 
 function addEventRow(event, container, prepend = false) {
@@ -254,6 +269,10 @@ function addEventRow(event, container, prepend = false) {
 
 function formatType(type) {
   return type.replace(/\./g, " › ").replace(/_/g, " ");
+}
+
+function formatTime(timestamp) {
+  return timestamp ? new Date(timestamp).toLocaleTimeString() : "";
 }
 
 function escapeHtml(value) {

@@ -424,3 +424,30 @@ h3 {
   text-transform: uppercase;
   color: var(--muted);
 }
+
+#subagent-view {
+  border-left: 3px solid var(--subagent-color, #9b59b6);
+}
+
+.timeline-item {
+  display: flex;
+  gap: 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  background: var(--bg-secondary);
+}
+
+.timeline-item.success { border-left: 3px solid #27ae60; }
+.timeline-item.failed { border-left: 3px solid #e74c3c; }
+
+.badge {
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 0.75em;
+  font-weight: bold;
+}
+.badge.worker { background: #e67e22; color: white; }
+.badge.explorer { background: #3498db; color: white; }
+.badge.reviewer { background: #9b59b6; color: white; }
+.badge.docs_researcher { background: #1abc9c; color: white; }

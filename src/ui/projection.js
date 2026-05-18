@@ -1,3 +1,18 @@
+export function projectSubagentEvents(events) {
+  return events
+    .filter(e => e.actor === "subagent" && e.type.startsWith("subagent."))
+    .map(e => ({
+      type: e.type,
+      subagentId: e.payload?.subagentId ?? "",
+      role: e.payload?.role ?? "",
+      timestamp: e.timestamp,
+      duration: e.type === "subagent.completed"
+        ? new Date(e.timestamp).getTime() - new Date(events.find(x => x.type === "subagent.started" && x.payload?.subagentId === e.payload?.subagentId)?.timestamp ?? e.timestamp).getTime()
+        : undefined,
+      status: e.type === "subagent.completed" ? "success" : e.type === "subagent.failed" ? "failed" : undefined,
+    }));
+}
+
 export function buildUiProjection(events) {
   const ordered = [...events].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
   const summary = {
@@ -105,5 +120,6 @@ if (typeof window !== "undefined") {
     buildUiProjection,
     createReplayState,
     visibleEventsForReplay,
+    projectSubagentEvents,
   };
 }

@@ -218,6 +218,33 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
   return snapshot;
 }
 
+export type SubagentEvent = {
+  type: "subagent.started" | "subagent.completed" | "subagent.failed";
+  subagentId: string;
+  role: string;
+  timestamp: string;
+  duration?: number;
+  status?: "success" | "failed";
+};
+
+export function projectSubagentEvents(events: AlixEvent[]): SubagentEvent[] {
+  return events
+    .filter(e => e.actor === "subagent" && e.type.startsWith("subagent."))
+    .map(e => {
+      const payload = e.payload as Record<string, unknown>;
+      return {
+        type: e.type as SubagentEvent["type"],
+        subagentId: String(payload?.subagentId ?? ""),
+        role: String(payload?.role ?? ""),
+        timestamp: e.timestamp,
+        duration: e.type === "subagent.completed"
+          ? new Date(e.timestamp).getTime() - new Date(events.find(x => x.type === "subagent.started" && (x.payload as Record<string, unknown>)?.subagentId === payload?.subagentId)?.timestamp ?? e.timestamp).getTime()
+          : undefined,
+        status: e.type === "subagent.completed" ? "success" : e.type === "subagent.failed" ? "failed" : undefined,
+      };
+    });
+}
+
 export function compareInspectorSnapshots(left: InspectorSnapshot, right: InspectorSnapshot): InspectorComparison {
   const leftFiles = changedFileSet(left);
   const rightFiles = changedFileSet(right);
