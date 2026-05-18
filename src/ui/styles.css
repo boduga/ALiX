@@ -27,6 +27,7 @@ body {
   background-size: 32px 32px;
   color: var(--text);
   font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+  line-height: 1.55;
 }
 
 main {
@@ -83,9 +84,9 @@ h1 {
 
 h2 {
   font-size: 15px;
+  font-weight: 500;
   letter-spacing: 0;
   margin: 0;
-  text-transform: uppercase;
 }
 
 .status {
@@ -456,9 +457,9 @@ summary:hover {
 
 h3 {
   font-size: 13px;
-  letter-spacing: 0.02em;
+  font-weight: 500;
+  letter-spacing: 0;
   margin: 16px 0 8px;
-  text-transform: uppercase;
   color: var(--muted);
 }
 
