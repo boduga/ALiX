@@ -27,6 +27,7 @@ export class SubagentCLI {
         "task-id": { type: "string" },
         prompt: { type: "string" },
         model: { type: "string" },
+        provider: { type: "string" },
         mode: { type: "string" },
         "session-id": { type: "string" },
         "owned-paths": { type: "string" },
@@ -40,23 +41,33 @@ export class SubagentCLI {
     const mode = (args.values.mode ?? "read_only") as "read_only" | "write";
     const sessionId = args.values["session-id"];
     const ownedPaths = args.values["owned-paths"]?.split(",").filter(Boolean);
+    const providerOverride = args.values.provider;
     const modelOverride = args.values.model;
+    const config = mergeConfig(DEFAULT_CONFIG, {}) as AlixConfig;
+
+    // Apply overrides (provider from role config takes priority)
+    if (modelOverride) config.model.name = modelOverride;
+    if (providerOverride) config.model.provider = providerOverride as any;
+
+    // Use role config to set provider if not overridden
+    if (!providerOverride) {
+      const roleStyle = (config.subagents as any)?.[role] ?? "fast";
+      const tier = (config.subagents as any)?.[roleStyle];
+      if (tier) {
+        config.model.provider = tier.provider as any;
+        if (!modelOverride) config.model.name = tier.name;
+      }
+    }
 
     if (!taskId || !sessionId || !prompt) {
       console.error("Missing required args: --task-id, --session-id, --prompt");
       process.exit(1);
     }
 
-    const config = mergeConfig(DEFAULT_CONFIG, {}) as AlixConfig;
     const sessionDir = resolve(process.cwd(), ".alix", "sessions", sessionId);
     await mkdir(sessionDir, { recursive: true });
     const eventLog = new EventLog(sessionDir);
     await eventLog.init();
-
-    // Apply model override from SubagentManager
-    if (modelOverride) {
-      config.model.name = modelOverride;
-    }
 
     // Log subagent start
     await eventLog.append({
