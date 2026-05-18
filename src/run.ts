@@ -312,12 +312,40 @@ export const EXIT_CODES = {
   REJECTED_SCOPE_EXPANSION: 3,
 } as const;
 
+export type MutationSessionState = {
+  created: Set<string>;
+  changed: Set<string>;
+  deleted: Set<string>;
+};
+
 export function extractMutationPaths(execName: string, args: Record<string, unknown>): string[] {
   if (execName === "patch.apply") {
     return extractPatchPaths(args.format as string | undefined, args.patchText);
   }
   const path = args.path;
   return typeof path === "string" && path.length > 0 ? [path] : [];
+}
+
+function validMutationPaths(execName: string, args: Record<string, unknown>): string[] {
+  return extractMutationPaths(execName, args)
+    .filter((path): path is string => typeof path === "string" && path.length > 0);
+}
+
+export function recordMutationInSessionState(
+  state: MutationSessionState,
+  execName: string,
+  args: Record<string, unknown>
+): void {
+  const paths = validMutationPaths(execName, args);
+  if (execName === "file.create") {
+    for (const path of paths) state.created.add(path);
+  }
+  if (execName === "file.delete") {
+    for (const path of paths) state.deleted.add(path);
+  }
+  if (execName === "file.write" || execName === "patch.apply") {
+    for (const path of paths) state.changed.add(path);
+  }
 }
 
 export function shouldAutoDisableStreaming(): boolean {
@@ -789,9 +817,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     // Track all file mutations in sessionState
     for (const toolCall of toolCalls) {
       const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
-      if (execName === "file.create") sessionState.created.add(toolCall.args.path as string);
-      if (execName === "file.delete") sessionState.deleted.add(toolCall.args.path as string);
-      if (execName === "file.write" || execName === "patch.apply") sessionState.changed.add(toolCall.args.path as string);
+      recordMutationInSessionState(sessionState, execName, toolCall.args);
     }
     sessionState.fatalErrors.push(...fatalToolErrors);
     for (const failed of failedTools) {

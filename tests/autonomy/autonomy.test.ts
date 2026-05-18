@@ -2,7 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert";
 import { extractInitialScope, createScopeTracker } from "../../src/autonomy/scope-tracker.js";
 import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
-import { extractMutationPaths } from "../../src/run.js";
+import { extractMutationPaths, recordMutationInSessionState } from "../../src/run.js";
 
 describe("extractInitialScope", () => {
   it("extracts quoted paths", () => {
@@ -148,5 +148,21 @@ describe("extractMutationPaths", () => {
   it("extracts structured patch paths", () => {
     const patchText = JSON.stringify({ version: 1, files: [{ path: "src/a.ts" }, { path: "src/b.ts" }] });
     assert.deepStrictEqual(extractMutationPaths("patch.apply", { format: "structured_patch", patchText }), ["src/a.ts", "src/b.ts"]);
+  });
+});
+
+describe("recordMutationInSessionState", () => {
+  it("records patch.apply paths from patchText", () => {
+    const state = {
+      created: new Set<string>(),
+      changed: new Set<string>(),
+      deleted: new Set<string>(),
+    };
+    const patchText = "<<<<<<< SEARCH path=src/a.ts\nold\n=======\nnew\n>>>>>>> REPLACE\n<<<<<<< SEARCH path=src/b.ts\nold\n=======\nnew\n>>>>>>> REPLACE";
+
+    recordMutationInSessionState(state, "patch.apply", { format: "search_replace", patchText });
+
+    assert.deepStrictEqual([...state.changed].sort(), ["src/a.ts", "src/b.ts"]);
+    assert.equal(state.changed.has(undefined as unknown as string), false);
   });
 });
