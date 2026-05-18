@@ -1,11 +1,17 @@
 import { homedir } from "node:os";
 import type { AlixConfig } from "./schema.js";
 
+export const MODEL_TIERS = {
+  thinking: { provider: "ollama", name: "phi4-mini-reasoning" },
+  coding:   { provider: "ollama", name: "qwen2.5-coder:7b" },
+  fast:     { provider: "ollama", name: "llama3.2:3b" },
+} as const;
+
 export const DEFAULT_CONFIG: AlixConfig = {
   version: 1,
   model: {
-    provider: "anthropic",
-    name: "claude-sonnet-4-6",
+    provider: MODEL_TIERS.coding.provider,
+    name: MODEL_TIERS.coding.name,
     temperature: 0.2,
     streaming: true
   },
