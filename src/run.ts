@@ -216,8 +216,8 @@ const BASE_TOOLS: ToolDef[] = [
       properties: {
         role: {
           type: "string",
-          enum: ["explorer", "reviewer", "test_investigator", "docs_researcher", "worker"],
-          description: "The role of the subagent to spawn"
+          enum: ["auto", "explorer", "reviewer", "test_investigator", "docs_researcher", "worker"],
+          description: "The role of the subagent to spawn (use 'auto' for intent-based selection)"
         },
         prompt: {
           type: "string",

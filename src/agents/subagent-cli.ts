@@ -22,6 +22,7 @@ import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
 
 const ROLE_INSTRUCTIONS: Record<SubagentRole, string> = {
+  auto:              "You are an autonomous subagent. Adapt your behavior based on context — read files, analyze code, and apply changes as needed. Be efficient and self-directed.",
   explorer:          "You are an explorer subagent. Understand code regions and report your findings concisely. Use file references, summarize structure, identify key symbols.",
   reviewer:           "You are a code reviewer. Analyze code quality, style, and potential issues. Be constructive and specific. Flag risks and suggest improvements.",
   test_investigator:  "You are a test investigator. Map tests to code, diagnose failures, and suggest fixes. Be precise. Use test names and file paths.",

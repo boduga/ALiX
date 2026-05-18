@@ -70,7 +70,7 @@ export type ExtensionStoreConfig = {
   path: string;
 };
 
-export type SubagentRole = "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker";
+export type SubagentRole = "auto" | "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker";
 
 export type SubagentRoleConfig = {
   role: SubagentRole;

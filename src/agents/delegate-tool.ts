@@ -6,16 +6,32 @@ import { randomUUID } from "crypto";
 import type { SubagentRole, SubagentTask, SubagentResult } from "../config/schema.js";
 import type { SubagentManager } from "./subagent-manager.js";
 import type { ToolResult } from "../tools/types.js";
+import { classifyTask } from "../task-classifier.js";
+import { recommendRole } from "./role-mapper.js";
+
+type AutoRole = SubagentRole | "auto";
 
 export function createDelegateHandler(
   subagentManager: SubagentManager,
   buildTask: (opts: { role: SubagentRole; prompt: string; ownedPaths?: string[]; mode?: "read_only" | "write" }) => SubagentTask,
   onResult?: (result: SubagentResult) => void,
+  log?: (msg: string) => void,
 ): (args: Record<string, unknown>) => Promise<ToolResult> {
   return async (args: Record<string, unknown>): Promise<ToolResult> => {
-    const role = args.role as SubagentRole;
+    const roleArg = args.role as AutoRole | undefined;
     const prompt = args.prompt as string;
     const ownedPaths = (args.ownedPaths as string[] | undefined) ?? [];
+
+    // Resolve role: "auto" or missing → infer from task content
+    let role: SubagentRole;
+    if (!roleArg || roleArg === "auto") {
+      const taskType = classifyTask(prompt);
+      const rec = recommendRole(taskType, prompt);
+      role = rec.role;
+      log?.(`[delegate] auto-selected role=${role} (${rec.confidence}) for taskType=${taskType}: ${rec.reason}`);
+    } else {
+      role = roleArg;
+    }
 
     if (role === "worker" && ownedPaths.length === 0) {
       return { kind: "error", message: "Worker subagent requires ownedPaths", retryable: false };
