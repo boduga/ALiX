@@ -164,17 +164,23 @@ These require P0 and P1 to be stable first. A shaky single-agent loop does not b
 
 What: Read-only subagents first (explorer, reviewer, test investigator, docs researcher). Controlled write-capable workers with explicit ownership. Parent owns final decisions.
 
-Key components:
-- `SubagentManager` — spawn and manage subagent processes
-- `TaskDelegator` — assign tasks to subagents with clear contracts
-- `OwnershipRegistry` — track which subagent owns which file paths
-- `SubagentEventBridge` — bridge subagent events into parent event log
-- `ResultContractValidator` — validate subagent output against expected format
-- `MergeCoordinator` — handle conflicting edits from multiple subagents
+Current state: All components implemented ✅
+- ✅ SubagentManager — spawn/track/terminate child processes
+- ✅ SubagentCLI — entry point with MCP integration, semantic scoring, tool policy, context compiler
+- ✅ delegate-tool — parent spawns subagents via tool call
+- ✅ OwnershipRegistry — prevents overlapping write ownership
+- ✅ MergeCoordinator — merges findings, detects conflicts
+- ✅ ResultContractValidator — validates subagent output format
+- ✅ tool-policy.ts — role-based tool restrictions (read-only vs write)
+- ✅ tool-name-map.ts — model to executor name mapping
+- ✅ ContextCompiler integration — injects context bundle into subagent prompt
 
-MVP behavior: Support read-only subagents only. No subagent writes files in first implementation.
+**Dependencies:** P0.1 ✅ P1.1 ✅
 
-**Dependencies:** Requires Context Compiler (P0.1) for subagent prompt construction. Requires Frontend Observability (P1.1) for subagent timeline in UI.
+Future upgrades:
+- Subagent timeline in UI (Frontend Observability already complete, could show subagent progress)
+- Parent approval step for worker writes
+- Intent-based role auto-selection
 
 #### P3.2: Memory System (Spec Gap #11)
 **Section:** `docs/agentic-harness-research.md` — "### 11. Memory"
