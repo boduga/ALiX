@@ -45,8 +45,28 @@ function parseTextToolCall(text: string): { name: string; args: Record<string, u
 }
 
 function parseToolCallJson(candidate: string): { name: string; args: Record<string, unknown> } | null {
+  const trimmed = candidate.trim();
   try {
-    const parsed = JSON.parse(candidate.trim());
+    return parseToolCallObject(JSON.parse(trimmed));
+  } catch { /* try constrained repair below */ }
+
+  const repaired = trimmed.replace(
+    /(["']name["']\s*:\s*)([A-Za-z_][A-Za-z0-9_.-]*)(\s*[,}])/,
+    "$1\"$2\"$3"
+  ).replace(/:\s*None(\s*[,}])/g, ": null$1")
+    .replace(/:\s*True(\s*[,}])/g, ": true$1")
+    .replace(/:\s*False(\s*[,}])/g, ": false$1");
+  if (repaired === trimmed) return null;
+
+  try {
+    return parseToolCallObject(JSON.parse(repaired));
+  } catch { /* not a JSON tool call */ }
+
+  return null;
+}
+
+function parseToolCallObject(parsed: any): { name: string; args: Record<string, unknown> } | null {
+  try {
     const name = parsed.name ?? parsed.function?.name;
     const rawArgs = parsed.arguments ?? parsed.parameters ?? parsed.args ?? {};
     const args = typeof rawArgs === "string" ? JSON.parse(rawArgs) : rawArgs;

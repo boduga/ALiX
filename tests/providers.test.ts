@@ -223,6 +223,86 @@ test("ollama complete parses first embedded JSON tool call from prose", async ()
     globalThis.fetch = originalFetch;
   }
 });
+
+test("ollama complete parses unquoted tool name fallback", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: "{\"name\": alix_shell_run, \"parameters\": {\"command\": \"ls\", \"cwd\": \"/home\"}}",
+        },
+      }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    const p = new OllamaProvider({ model: "llama3.2:3b" });
+    const resp = await p.complete({
+      systemPrompt: "Use tools.",
+      messages: [{ role: "user", content: "List files" }],
+      tools: [{
+        name: "alix_shell_run",
+        description: "Run shell command",
+        input_schema: {
+          type: "object",
+          properties: { command: { type: "string" } },
+          required: ["command"],
+        },
+      }],
+    });
+
+    assert.equal(resp.text, "");
+    assert.deepEqual(resp.toolCalls, [{
+      id: resp.toolCalls[0].id,
+      name: "alix_shell_run",
+      args: { command: "ls", cwd: "/home" },
+    }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("ollama complete parses Python-style None in tool arguments", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () => {
+    return new Response(JSON.stringify({
+      choices: [{
+        message: {
+          content: "{\"name\": \"alix_shell_run\", \"parameters\": {\"command\": \"ls /home\", \"cwd\": \"/home\", \"timeoutMs\": None}}",
+        },
+      }],
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  }) as typeof fetch;
+
+  try {
+    const p = new OllamaProvider({ model: "llama3.2:3b" });
+    const resp = await p.complete({
+      systemPrompt: "Use tools.",
+      messages: [{ role: "user", content: "List files" }],
+      tools: [{
+        name: "alix_shell_run",
+        description: "Run shell command",
+        input_schema: {
+          type: "object",
+          properties: { command: { type: "string" } },
+          required: ["command"],
+        },
+      }],
+    });
+
+    assert.equal(resp.text, "");
+    assert.deepEqual(resp.toolCalls, [{
+      id: resp.toolCalls[0].id,
+      name: "alix_shell_run",
+      args: { command: "ls /home", cwd: "/home", timeoutMs: null },
+    }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 test("deepseek provider returns correct capabilities", () => {
   const p = new DeepSeekProvider({ apiKey: "sk-ds-test" });
   assert.equal(p.capabilities.provider, "deepseek");
