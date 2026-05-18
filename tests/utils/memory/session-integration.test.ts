@@ -1,51 +1,76 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { MemoryStore } from "../../../src/utils/memory/store.js";
-import { buildMemoryContext, recall } from "../../../src/utils/memory/recall.js";
-import { tmpdir } from "node:os";
+import { mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
+import { buildSessionDigestWithMemory } from "../../../src/utils/session-digest.js";
 
-test("MemoryStore can init and save entry", async () => {
-  const store = new MemoryStore(join(tmpdir(), "test-memory"));
-  await store.init();
+test("buildSessionDigestWithMemory exists and can be called", async () => {
+  const sessionDir = join(process.env.TMPDIR || "/tmp", "test-session-" + Date.now());
+  await mkdir(sessionDir, { recursive: true });
 
-  await store.save({
-    name: "Test preference",
-    description: "Testing memory store",
-    type: "user",
-    content: "User prefers concise responses",
-    confidence: 0.5,
-    confirmations: 0,
-  });
-
-  const found = await store.find("preference", 5);
-  assert.ok(found.length > 0);
-  assert.equal(found[0].type, "user");
+  try {
+    const result = await buildSessionDigestWithMemory(sessionDir);
+    // Should return null or string, not throw
+    assert.ok(result === null || typeof result === "string");
+  } finally {
+    await rm(sessionDir, { recursive: true }).catch(() => {});
+  }
 });
 
-test("buildMemoryContext returns index content", async () => {
-  const store = new MemoryStore(join(tmpdir(), "test-memory-context"));
-  await store.init();
-  await store.buildIndex();
+test("buildSessionDigestWithMemory combines session digest with memory context", async () => {
+  const sessionDir = join(process.env.TMPDIR || "/tmp", "test-session-digest-" + Date.now());
+  await mkdir(sessionDir, { recursive: true });
 
-  const context = await buildMemoryContext(store);
-  assert.ok(typeof context === "string");
+  // Write a session event file
+  await writeFile(
+    join(sessionDir, "events.jsonl"),
+    JSON.stringify({ type: "tool.completed", payload: { toolName: "file.create", path: "/test/foo.ts" } }) + "\n"
+  );
+
+  try {
+    const result = await buildSessionDigestWithMemory(sessionDir);
+    assert.ok(result !== null, "Expected result to not be null when session has events");
+    assert.ok(typeof result === "string");
+    assert.ok(result.includes("[Session Digest]"), "Result should contain session digest section");
+  } finally {
+    await rm(sessionDir, { recursive: true }).catch(() => {});
+  }
 });
 
-test("recall finds entries by query", async () => {
-  const store = new MemoryStore(join(tmpdir(), "test-memory-recall"));
-  await store.init();
+test("buildSessionDigestWithMemory returns string containing both sections", async () => {
+  const sessionDir = join(process.env.TMPDIR || "/tmp", "test-session-both-" + Date.now());
+  await mkdir(sessionDir, { recursive: true });
 
-  await store.save({
-    name: "Preferred language",
-    description: "User's preferred coding language",
-    type: "user",
-    content: "User prefers TypeScript over JavaScript",
-    confidence: 0.8,
-    confirmations: 2,
-  });
+  // Write session events
+  await writeFile(
+    join(sessionDir, "events.jsonl"),
+    JSON.stringify({ type: "tool.completed", payload: { toolName: "file.write", path: "/src/bar.ts" } }) + "\n"
+  );
 
-  const result = await recall("TypeScript", store);
-  assert.ok(result.entries.length > 0);
-  assert.equal(result.level, "standard");
+  try {
+    const result = await buildSessionDigestWithMemory(sessionDir);
+    assert.ok(result !== null);
+    assert.ok(typeof result === "string");
+
+    // Verify the result has both session and memory sections
+    assert.ok(
+      result.includes("[Session Digest]") && result.includes("# Context"),
+      "Result should contain both session digest and memory context sections"
+    );
+  } finally {
+    await rm(sessionDir, { recursive: true }).catch(() => {});
+  }
+});
+
+test("buildSessionDigestWithMemory handles empty session gracefully", async () => {
+  const sessionDir = join(process.env.TMPDIR || "/tmp", "test-session-empty-" + Date.now());
+  await mkdir(sessionDir, { recursive: true });
+
+  try {
+    const result = await buildSessionDigestWithMemory(sessionDir);
+    // Empty session should return memory context only or null
+    assert.ok(result === null || typeof result === "string");
+  } finally {
+    await rm(sessionDir, { recursive: true }).catch(() => {});
+  }
 });
