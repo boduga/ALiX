@@ -254,7 +254,7 @@ test("subagent roles are loaded from defaults", () => {
   assert.equal(result.subagents!.coding.provider, "ollama");
   assert.ok(result.subagents!.fast);
   assert.equal(result.subagents!.fast.provider, "ollama");
-  assert.equal(result.subagents!.fast.name, "qwen3b");
+  assert.equal(result.subagents!.fast.name, "llama3.2:3b");
 });
 
 test("loadConfig does not override existing env var with config key", async () => {
@@ -272,6 +272,112 @@ test("loadConfig does not override existing env var with config key", async () =
   } finally {
     restore();
     delete process.env.OPENAI_API_KEY;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// --- modelTiers config file override tests ---
+
+test("loadConfig applies modelTiers from XDG config", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".config", "alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".config", "alix", "config.json"),
+      JSON.stringify({
+        modelTiers: {
+          thinking: { provider: "openai", name: "gpt-4o" },
+          coding: { provider: "openai", name: "gpt-4o-mini" }
+        }
+      })
+    );
+    const config = await loadConfig(dir);
+    assert.equal(config.subagents!.thinking.provider, "openai");
+    assert.equal(config.subagents!.thinking.name, "gpt-4o");
+    assert.equal(config.subagents!.coding.provider, "openai");
+    assert.equal(config.subagents!.coding.name, "gpt-4o-mini");
+    assert.equal(config.subagents!.fast.provider, "ollama"); // untouched from defaults
+  } finally {
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig applies modelTiers from global config overriding XDG", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".config", "alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".config", "alix", "config.json"),
+      JSON.stringify({
+        modelTiers: { thinking: { provider: "openai", name: "gpt-4o" } }
+      })
+    );
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({
+        modelTiers: { thinking: { provider: "google", name: "gemini-2.5-flash" } }
+      })
+    );
+    const config = await loadConfig(dir);
+    assert.equal(config.subagents!.thinking.provider, "google");
+    assert.equal(config.subagents!.thinking.name, "gemini-2.5-flash");
+  } finally {
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig applies modelTiers from project config overriding global and XDG", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".config", "alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".config", "alix", "config.json"),
+      JSON.stringify({ modelTiers: { coding: { provider: "xdg", name: "xdg-model" } } })
+    );
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({ modelTiers: { coding: { provider: "global", name: "global-model" } } })
+    );
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({ modelTiers: { coding: { provider: "anthropic", name: "claude-sonnet-4" } } })
+    );
+    const config = await loadConfig(dir);
+    assert.equal(config.subagents!.coding.provider, "anthropic");
+    assert.equal(config.subagents!.coding.name, "claude-sonnet-4");
+  } finally {
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("modelTiers config file override is overridden by env vars", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    await mkdir(join(dir, ".config", "alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".config", "alix", "config.json"),
+      JSON.stringify({
+        modelTiers: { thinking: { provider: "openai", name: "gpt-4o" } }
+      })
+    );
+    process.env.ALIX_THINKING_PROVIDER = "google";
+    process.env.ALIX_THINKING_MODEL = "gemini-2.5-flash";
+    const config = await loadConfig(dir);
+    assert.equal(config.subagents!.thinking.provider, "google");
+    assert.equal(config.subagents!.thinking.name, "gemini-2.5-flash");
+  } finally {
+    restore();
+    delete process.env.ALIX_THINKING_PROVIDER;
+    delete process.env.ALIX_THINKING_MODEL;
     await rm(dir, { recursive: true, force: true });
   }
 });

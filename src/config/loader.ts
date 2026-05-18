@@ -29,6 +29,11 @@ type PartialConfig = Partial<AlixConfig> & {
   mcpServers?: Partial<AlixConfig["mcpServers"]>;
   mcpServerPaths?: string[];
   subagents?: SubagentConfig;
+  modelTiers?: {
+    thinking?: Partial<ModelTierConfig>;
+    coding?: Partial<ModelTierConfig>;
+    fast?: Partial<ModelTierConfig>;
+  };
 };
 
 // Load config from three sources (in order of precedence):
@@ -60,7 +65,18 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
     }
   }
 
-  const result = mergeConfig(DEFAULT_CONFIG, xdgConfig as PartialConfig, globalConfig as PartialConfig, projectConfig as PartialConfig);
+  // Collect modelTiers overrides from config files (xdg → global → project)
+  const modelTiers: PartialConfig["modelTiers"] = {
+    ...(xdgConfig as any).modelTiers,
+    ...(globalConfig as any).modelTiers,
+    ...(projectConfig as any).modelTiers
+  };
+
+  const result = mergeConfig(
+    DEFAULT_CONFIG,
+    ...([xdgConfig, globalConfig, projectConfig] as PartialConfig[]),
+    { modelTiers } as PartialConfig
+  );
 
   if (process.env.ALIX_STREAMING !== undefined) {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
@@ -107,17 +123,28 @@ export function mergeConfig(
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
       subagents: (result.subagents ?? DEFAULT_CONFIG.subagents) as SubagentConfig,
     };
-    // Apply env var overrides for model tiers
-    if (result.subagents) {
-      const tiers: ("thinking" | "coding" | "fast")[] = ["thinking", "coding", "fast"];
+    // Apply config-file modelTiers overrides to subagent tier configs
+    // This runs inside the override loop so config precedence works (later configs win)
+    const tiers: ("thinking" | "coding" | "fast")[] = ["thinking", "coding", "fast"];
+    if ((override as any).modelTiers) {
       for (const tier of tiers) {
-        const envOverride = getEnvTier(tier);
-        if (envOverride) {
-          (result.subagents[tier] as ModelTierConfig) = {
-            ...(result.subagents as any)[tier],
-            ...envOverride,
+        const tierOverride = (override as any).modelTiers[tier];
+        if (tierOverride) {
+          (result.subagents![tier] as ModelTierConfig) = {
+            ...result.subagents![tier],
+            ...tierOverride,
           };
         }
+      }
+    }
+    // Apply env var overrides for model tiers (highest priority)
+    for (const tier of tiers) {
+      const envOverride = getEnvTier(tier);
+      if (envOverride) {
+        (result.subagents![tier] as ModelTierConfig) = {
+          ...result.subagents![tier],
+          ...envOverride,
+        };
       }
     }
   }
