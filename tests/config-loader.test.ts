@@ -222,30 +222,39 @@ test("subagent roles are loaded from defaults", () => {
   assert.equal(result.subagents!.enabled, true);
   assert.equal(result.subagents!.roles.length, 5);
 
-  // Check each role's mode, retryCount, and fastModel where applicable
+  // Check each role's mode, retryCount, and style where applicable
   for (const r of result.subagents!.roles) {
     if (r.role === "explorer") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.fastModel, "qwen3b");
+      assert.equal(r.style, "fast");
     } else if (r.role === "reviewer") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.fastModel, "qwen3b");
+      assert.equal(r.style, "fast");
     } else if (r.role === "test_investigator") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.fastModel, undefined); // same as parent
+      assert.equal(r.style, undefined); // same as parent
     } else if (r.role === "docs_researcher") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.fastModel, "qwen3b");
+      assert.equal(r.style, "fast");
     } else if (r.role === "worker") {
       assert.equal(r.mode, "write");
       assert.equal(r.retryCount, 0);
-      assert.equal(r.fastModel, undefined);
+      assert.equal(r.style, undefined);
     }
   }
+
+  // Check tier configs exist
+  assert.ok(result.subagents!.thinking);
+  assert.equal(result.subagents!.thinking.provider, "anthropic");
+  assert.ok(result.subagents!.coding);
+  assert.equal(result.subagents!.coding.provider, "anthropic");
+  assert.ok(result.subagents!.fast);
+  assert.equal(result.subagents!.fast.provider, "ollama");
+  assert.equal(result.subagents!.fast.name, "qwen3b");
 });
 
 test("loadConfig does not override existing env var with config key", async () => {

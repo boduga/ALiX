@@ -75,14 +75,23 @@ export type SubagentRole = "explorer" | "reviewer" | "test_investigator" | "docs
 export type SubagentRoleConfig = {
   role: SubagentRole;
   mode: "read_only" | "write";
-  model?: string;
+  style?: SubagentStyle;  // references MODEL_TIERS bucket
   retryCount?: number;
-  fastModel?: string;
   enabled?: boolean;
+};
+
+export type SubagentStyle = "thinking" | "coding" | "fast";
+
+export type ModelTierConfig = {
+  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek";
+  name: string;
 };
 
 export type SubagentConfig = {
   enabled: boolean;
+  thinking: ModelTierConfig;
+  coding: ModelTierConfig;
+  fast: ModelTierConfig;
   roles: SubagentRoleConfig[];
 };
 

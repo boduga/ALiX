@@ -73,11 +73,14 @@ export const DEFAULT_CONFIG: AlixConfig = {
   },
   subagents: {
     enabled: true,
+    thinking: { provider: "anthropic", name: "claude-sonnet-4-6" },
+    coding: { provider: "anthropic", name: "claude-sonnet-4-6" },
+    fast: { provider: "ollama", name: "qwen3b" },
     roles: [
-      { role: "explorer",         mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
-      { role: "reviewer",          mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
+      { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },
+      { role: "reviewer",          mode: "read_only", style: "fast", retryCount: 1 },
       { role: "test_investigator", mode: "read_only", retryCount: 1 },
-      { role: "docs_researcher",   mode: "read_only", retryCount: 1, fastModel: "qwen3b" },
+      { role: "docs_researcher",   mode: "read_only", style: "fast", retryCount: 1 },
       { role: "worker",            mode: "write",     retryCount: 0 },
     ],
   }
