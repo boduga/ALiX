@@ -1,7 +1,7 @@
 import { spawn, type ChildProcess } from "child_process";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
-import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig } from "../config/schema.js";
+import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../config/schema.js";
 
 // Re-export types for consumers
 export type { SubagentTask, SubagentResult };
@@ -51,18 +51,19 @@ export class SubagentManager {
         }
       }
 
-      // model selection deferred to CLI entry point
-      const args = [
+      // model selection via getRoleModel (resolves style → provider+model)
+      const { provider, name } = this.getRoleModel(task.role);
+      // Build CLI args array
+      const cliArgs = [
         "--subagent", task.role,
         "--task-id", task.id,
         "--prompt", task.prompt,
         "--mode", task.mode,
-        "--session-id", this.options.sessionId,
+        "--session-id", task.contextBundle ?? `sub-${Date.now()}`,
+        "--provider", provider,
+        "--model", name,
+        ...(task.ownedPaths?.length ? ["--owned-paths", task.ownedPaths.join(",")] : []),
       ];
-
-      if (task.ownedPaths?.length) {
-        args.push("--owned-paths", task.ownedPaths.join(","));
-      }
 
       // Use spawnOverride for testing, otherwise use alix CLI
       const spawnOverride = this.options.spawnOverride;
@@ -70,14 +71,14 @@ export class SubagentManager {
       let commandArgs: string[];
       if (spawnOverride) {
         command = spawnOverride.command;
-        commandArgs = spawnOverride.args ?? args;
+        commandArgs = spawnOverride.args ?? cliArgs;
       } else {
         // Resolve to the alix CLI entry point
         const { fileURLToPath } = require("url");
         const thisFile = fileURLToPath(import.meta.url);
         const repoRoot = resolve(thisFile, "..", "..", "..", "..");
         command = String(process.execPath);
-        commandArgs = [resolve(repoRoot, "dist", "src", "cli.js"), ...args];
+        commandArgs = [resolve(repoRoot, "dist", "src", "cli.js"), ...cliArgs];
       }
 
       const child = spawn(command, commandArgs, {
@@ -147,5 +148,13 @@ export class SubagentManager {
 
   getRoleConfig(role: SubagentRole): SubagentRoleConfig | undefined {
     return this.options.config?.subagents?.roles.find((r: SubagentRoleConfig) => r.role === role);
+  }
+
+  getRoleModel(role: SubagentRole): { provider: string; name: string } {
+    const roleConfig = this.getRoleConfig(role);
+    const style = roleConfig?.style ?? "fast";
+    const tier = this.options.config?.subagents?.[style] as ModelTierConfig | undefined;
+    if (!tier) return { provider: "ollama", name: "llama3.2:3b" }; // safe fallback
+    return { provider: tier.provider, name: tier.name };
   }
 }
