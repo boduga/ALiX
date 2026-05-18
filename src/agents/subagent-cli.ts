@@ -28,6 +28,12 @@ const ROLE_INSTRUCTIONS: Record<SubagentRole, string> = {
   worker:             "You are a worker subagent. Apply changes to owned files only. Wait for confirmation before writing. Always explain what you changed.",
 };
 
+export function appendSubagentResponseText(existing: string, next: string | undefined): string {
+  const trimmed = next?.trim();
+  if (!trimmed) return existing;
+  return existing ? `${existing}\n\n${trimmed}` : trimmed;
+}
+
 export class SubagentCLI {
   static async main(argv: string[]): Promise<void> {
     const args = parseArgs({
@@ -165,7 +171,7 @@ ${allowedTools.map(t => `- ${t.name}: ${t.description ?? "(no description)"}`).j
           tools: allowedTools as ToolDef[],
         });
 
-        text = resp.text ?? "";
+        text = appendSubagentResponseText(text, resp.text);
         const toolCalls: ToolCall[] = resp.toolCalls ?? [];
 
         if (toolCalls.length === 0) {
