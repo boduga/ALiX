@@ -138,7 +138,29 @@ export class SubagentCLI {
 
       const mcpDeferral = mcpManager.getDeferral();
       const mcpToolIndex = mcpDeferral.buildIndex();
-      const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 3, tokenBudget: 1500 });
+
+      // Resolve tool selector options from config
+      const toolConfig = config.toolConfig;
+      let maxTools = 3;
+      let tokenBudget = 1500;
+      let preferKeywordScoring = false;
+
+      if (toolConfig) {
+        maxTools = toolConfig.maxTools;
+        tokenBudget = toolConfig.tokenBudget;
+        // Match model against reliability patterns
+        const modelName = config.model.name;
+        for (const reliability of toolConfig.reliabilityDefaults) {
+          const regex = new RegExp(reliability.modelPattern, "i");
+          if (regex.test(modelName)) {
+            maxTools = reliability.defaultMaxTools;
+            preferKeywordScoring = reliability.preferKeywordScoring;
+            break;
+          }
+        }
+      }
+
+      const toolSelector = new ToolSelector(mcpToolIndex, { maxTools, tokenBudget, preferKeywordScoring });
       selectedTools = toolSelector.select(prompt) as ToolDef[];
       mcpDiscovery = new ToolDiscovery(mcpToolIndex);
 
