@@ -187,13 +187,12 @@ Future upgrades:
 
 What: Split memory into explicit, inspectable layers. Project memory (git-tracked), user memory (optional, private), session memory (current run summary), tool memory (cached command results), repo memory (generated indexes).
 
-Current state: `src/utils/session-digest.ts` generates rolling summaries. `src/repomap/repomap-lite.ts` generates file indexes. Missing:
-
-- ❌ `ProjectMemoryStore` — read/write project memory file
-- ❌ `UserPreferenceStore` — optional private user memory
-- ❌ `ToolCache` — cache command results and indexes
-- ❌ `MemoryInspector` — CLI command to inspect all memory layers
-- ❌ Memory expiry/eviction policy
+Current state: Implementation complete
+- ✅ MemoryStore — file-based with 4-type taxonomy
+- ✅ Progressive recall — level-based search with confidence
+- ✅ Session integration — memory context in system prompt
+- ✅ CLI commands — list, add, search, stats
+- ✅ Consolidation — sleep cycle for nightly processing
 
 **Why P3:** Multi-agent subagents need shared memory context. Single-agent loop can function with minimal memory (current session digest is sufficient for MVP).
 
