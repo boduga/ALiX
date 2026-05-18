@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, stat as statSync, mkdir } from "node:fs/promises";
 import { Dirent } from "node:fs";
 import { join, relative } from "node:path";
 import { existsSync } from "node:fs";
@@ -168,9 +168,79 @@ function scoreMention(file: string, mentions: string[]): number {
 
 export class ContextCompiler {
   private repoMap?: RepoMap;
+  private cachePath?: string;
+  private cacheTimestamp = 0;
 
   async warm(root: string): Promise<void> {
+    // Check for valid cache first
+    this.cachePath = join(root, ".alix", "context-cache.json");
+    const cached = await this.loadFromCache(root);
+    if (cached) {
+      this.repoMap = cached;
+      return;
+    }
+    // Build fresh and cache
     this.repoMap = await buildRepoMap(root);
+    await this.saveToCache(root);
+  }
+
+  private async loadFromCache(root: string): Promise<RepoMap | null> {
+    const cachePath = join(root, ".alix", "context-cache.json");
+    try {
+      const mtime = (await statSync(cachePath)).mtimeMs;
+      const rootMtime = (await statSync(root)).mtimeMs;
+      if (mtime < rootMtime) return null; // stale
+
+      const content = await readFile(cachePath, "utf8");
+      const data = JSON.parse(content);
+
+      // Verify repo hasn't changed significantly (check top-level dirs)
+      const { readdir } = await import("node:fs/promises");
+      const entries = await readdir(root, { withFileTypes: true });
+      const cacheMtime = data._cacheTime || 0;
+
+      // If any src file is newer than cache, invalidate
+      for (const entry of entries) {
+        if (entry.name === "src" && entry.isDirectory()) {
+          const srcMtime = (await statSync(join(root, "src"))).mtimeMs;
+          if (srcMtime > cacheMtime) return null;
+        }
+      }
+
+      return {
+        sourceFiles: data.sourceFiles,
+        testFiles: data.testFiles,
+        configFiles: data.configFiles,
+        docsFiles: data.docsFiles,
+        fileEntries: new Map(data.fileEntries),
+        dependencyGraph: data.dependencyGraph,
+        symbols: data.symbols,
+        gitActivity: new Map(data.gitActivity),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private async saveToCache(root: string): Promise<void> {
+    if (!this.repoMap || !this.cachePath) return;
+    try {
+      await mkdir(join(root, ".alix"), { recursive: true });
+      const data = {
+        _cacheTime: Date.now(),
+        sourceFiles: this.repoMap.sourceFiles,
+        testFiles: this.repoMap.testFiles,
+        configFiles: this.repoMap.configFiles,
+        docsFiles: this.repoMap.docsFiles,
+        fileEntries: [...this.repoMap.fileEntries.entries()],
+        dependencyGraph: this.repoMap.dependencyGraph,
+        symbols: this.repoMap.symbols,
+        gitActivity: [...this.repoMap.gitActivity.entries()],
+      };
+      await writeFile(this.cachePath, JSON.stringify(data), "utf8");
+    } catch {
+      // ignore cache write failures
+    }
   }
 
   async compile(
