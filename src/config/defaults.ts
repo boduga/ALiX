@@ -78,10 +78,10 @@ export const DEFAULT_CONFIG: AlixConfig = {
     fast: { provider: "ollama", name: "qwen3b" },
     roles: [
       { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },
-      { role: "reviewer",          mode: "read_only", style: "fast", retryCount: 1 },
-      { role: "test_investigator", mode: "read_only", retryCount: 1 },
+      { role: "reviewer",          mode: "read_only", style: "thinking", retryCount: 1 },
+      { role: "test_investigator", mode: "read_only", style: "thinking", retryCount: 1 },
       { role: "docs_researcher",   mode: "read_only", style: "fast", retryCount: 1 },
-      { role: "worker",            mode: "write",     retryCount: 0 },
+      { role: "worker",            mode: "write",     style: "coding",  retryCount: 0 },
     ],
   }
 };
