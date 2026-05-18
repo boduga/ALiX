@@ -791,7 +791,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
       if (execName === "file.create") sessionState.created.add(toolCall.args.path as string);
       if (execName === "file.delete") sessionState.deleted.add(toolCall.args.path as string);
-      if (execName === "file.write" || execName === "file.patch_apply") sessionState.changed.add(toolCall.args.path as string);
+      if (execName === "file.write" || execName === "patch.apply") sessionState.changed.add(toolCall.args.path as string);
     }
     sessionState.fatalErrors.push(...fatalToolErrors);
     for (const failed of failedTools) {
