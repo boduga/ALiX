@@ -30,7 +30,8 @@ export class ToolExecutor {
     private log: EventLog,
     private root: string,
     private mcpManager?: McpManager,
-    private editFormatPolicy?: EditFormatPolicy
+    private editFormatPolicy?: EditFormatPolicy,
+    private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>
   ) {}
 
   private sessionId(): string {
@@ -186,6 +187,15 @@ export class ToolExecutor {
       }
       case "done": {
         result = { kind: "success", output: "Task complete.", completed: true };
+        break;
+      }
+      case "delegate": {
+        const handler = this.extraHandlers?.delegate;
+        if (!handler) {
+          result = { kind: "error", message: "Delegate handler not initialized", retryable: false };
+        } else {
+          result = await handler(args as Record<string, unknown>);
+        }
         break;
       }
       default: {

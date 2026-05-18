@@ -61,6 +61,7 @@ const TOOL_NAME_MAP: Record<string, string> = {
   alix_shell_run: "shell.run",
   alix_patch_apply: "patch.apply",
   alix_done: "done",
+  alix_delegate: "delegate",
   mcp_search_tools: "mcp_search_tools",
 };
 
@@ -216,6 +217,30 @@ const BASE_TOOLS: ToolDef[] = [
     name: "alix_done",
     description: "Signal that the task is complete. Use this when all requested changes have been made and no further tool calls are needed.",
     input_schema: { type: "object", properties: {} }
+  },
+  {
+    name: "alix_delegate",
+    description: "Delegate a task to a subagent. Spawns a focused subagent (explorer/reviewer/test_investigator/docs_researcher/worker) that runs in a separate process and returns structured findings.",
+    input_schema: {
+      type: "object",
+      properties: {
+        role: {
+          type: "string",
+          enum: ["explorer", "reviewer", "test_investigator", "docs_researcher", "worker"],
+          description: "The role of the subagent to spawn"
+        },
+        prompt: {
+          type: "string",
+          description: "The task instruction for the subagent"
+        },
+        ownedPaths: {
+          type: "array",
+          items: { type: "string" },
+          description: "File paths this subagent is allowed to write (required for worker role)"
+        }
+      },
+      required: ["role", "prompt"]
+    }
   }
 ];
 
@@ -365,7 +390,24 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
   evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy);
+  // Initialize subagent infrastructure before ToolExecutor
+  const { SubagentManager } = await import("./agents/subagent-manager.js");
+  const { OwnershipRegistry } = await import("./agents/ownership-registry.js");
+  const { createDelegateHandler } = await import("./agents/delegate-tool.js");
+  const ownershipRegistry = new OwnershipRegistry();
+  const subagentManager = new SubagentManager({ sessionId, config });
+  subagentManager.onResult((result) => {
+    void log.append({ ...session, actor: "subagent", type: "subagent.result", payload: result });
+  });
+  const delegateHandler = createDelegateHandler(subagentManager, (opts) => {
+    const taskId = crypto.randomUUID();
+    if (opts.mode === "write" && opts.ownedPaths?.length) {
+      ownershipRegistry.claim(taskId, opts.ownedPaths);
+    }
+    return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
+  });
+
+  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, { delegate: delegateHandler });
 
   const mcpDeferral = mcpManager.getDeferral();
   const mcpToolIndex = mcpDeferral.buildIndex();
