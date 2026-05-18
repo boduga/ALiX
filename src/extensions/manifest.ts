@@ -13,11 +13,6 @@ export type ExtensionPermission = {
   reason?: string;
 };
 
-export type ExtensionManifestV2 = {
-  permissions?: ExtensionPermission[];
-  requires_confirmation?: boolean;
-};
-
 // --- Shared fields ---
 type BaseExtension = {
   name: string;
@@ -137,6 +132,8 @@ export function parseExtensionManifest(yaml: string, type: ExtensionType): Exten
     license: raw.license != null ? String(raw.license) : undefined,
     homepage: raw.homepage != null ? String(raw.homepage) : undefined,
     installed_at: raw.installed_at != null ? String(raw.installed_at) : undefined,
+    permissions: raw.permissions as ExtensionPermission[] | undefined,
+    requires_confirmation: raw.requires_confirmation === true,
   };
 
   switch (type) {
