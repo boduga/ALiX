@@ -3,8 +3,17 @@ import { readFile } from "node:fs/promises";
 import { homedir as realHomedir } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
-import type { AlixConfig, McpServerConfig, SubagentConfig } from "./schema.js";
+import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
+
+function getEnvTier(name: "thinking" | "coding" | "fast"): Partial<ModelTierConfig> | undefined {
+  const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
+  const model = process.env[`ALIX_${name.toUpperCase()}_MODEL`];
+  if (provider || model) {
+    return { ...(provider ? { provider: provider as ModelTierConfig["provider"] } : {}), ...(model ? { name: model } : {}) };
+  }
+  return undefined;
+}
 
 // Test seam — allows tests to override homedir without touching the real OS module
 let homedirOverride: string | undefined;
@@ -98,6 +107,19 @@ export function mergeConfig(
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
       subagents: (result.subagents ?? DEFAULT_CONFIG.subagents) as SubagentConfig,
     };
+    // Apply env var overrides for model tiers
+    if (result.subagents) {
+      const tiers: ("thinking" | "coding" | "fast")[] = ["thinking", "coding", "fast"];
+      for (const tier of tiers) {
+        const envOverride = getEnvTier(tier);
+        if (envOverride) {
+          (result.subagents[tier] as ModelTierConfig) = {
+            ...(result.subagents as any)[tier],
+            ...envOverride,
+          };
+        }
+      }
+    }
   }
   return result;
 }
