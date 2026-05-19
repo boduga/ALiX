@@ -1,4 +1,4 @@
-import type { ToolCategory } from "./tool-catalog.js";
+type ToolCategory = "file" | "shell" | "git" | "network" | "browser" | "mcp" | "custom";
 type TrustLevel = "builtin" | "project" | "user" | "remote";
 
 export type ProvenanceEntry = {
