@@ -1,7 +1,5 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { access } from "node:fs/promises";
-import { constants } from "node:fs";
 
 export type ValidationResult = {
   valid: boolean;
@@ -16,17 +14,6 @@ export class PreimageValidator {
    * Used to detect stale patches where the file has been modified since it was read.
    */
   async validate(filePath: string, expectedHash: string): Promise<ValidationResult> {
-    // Check if file exists first
-    try {
-      await access(filePath, constants.F_OK);
-    } catch {
-      return {
-        valid: false,
-        reason: `File not found: ${filePath}`,
-        expectedHash,
-      };
-    }
-
     try {
       const content = await readFile(filePath, "utf8");
       const actualHash = this.hashContent(content);
@@ -62,7 +49,11 @@ export class PreimageValidator {
    * Used to capture the file state before patching.
    */
   async generateCheckpoint(filePath: string): Promise<string> {
-    const content = await readFile(filePath, "utf8");
-    return this.hashContent(content);
+    try {
+      const content = await readFile(filePath, "utf8");
+      return this.hashContent(content);
+    } catch (error) {
+      throw new Error(`Failed to generate checkpoint for ${filePath}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 }

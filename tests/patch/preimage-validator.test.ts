@@ -54,7 +54,7 @@ describe("PreimageValidator", () => {
     const result = await validator.validate(nonExistentFile, expectedHash);
 
     assert.equal(result.valid, false);
-    assert.ok(result.reason?.toLowerCase().includes("not found") || result.reason?.toLowerCase().includes("exist"));
+    assert.ok(result.reason?.toLowerCase().includes("not found") || result.reason?.toLowerCase().includes("no such file"));
   });
 
   it("generates checkpoint hash for file", async () => {
