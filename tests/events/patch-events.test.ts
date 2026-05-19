@@ -50,7 +50,7 @@ describe("Patch Event Payload Types", () => {
       errors: ["Invalid search pattern", "Unclosed bracket"],
     };
     assert.equal(payload.validated, false);
-    assert.equal(payload.errors.length, 2);
+    assert.equal(payload.errors && payload.errors.length, 2);
   });
 
   it("PatchRejectedPayload provides rejection reason", () => {
