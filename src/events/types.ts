@@ -244,3 +244,32 @@ export const CONTEXT_EVENT_TYPES = {
   FILE_PINNED: "context.file_pinned",
   FILE_UNPINNED: "context.file_unpinned",
 } as const;
+
+// Policy event payload types
+export type PolicyDecisionPayload = {
+  toolCallId: string;
+  capability: string;
+  decision: "allow" | "ask" | "deny";
+  reason: string;
+  matchedRuleId?: string;
+};
+
+export type ApprovalRequestedPayload = {
+  approvalId: string;
+  toolCallId?: string;
+  patchProposalId?: string;
+  prompt: string;
+  choices: Array<"approve" | "deny" | "edit">;
+};
+
+export type ApprovalResolvedPayload = {
+  approvalId: string;
+  decision: "approved" | "denied" | "edited";
+  reason?: string;
+};
+
+export const POLICY_EVENT_TYPES = {
+  DECISION: "policy.decision",
+  APPROVAL_REQUESTED: "approval.requested",
+  APPROVAL_RESOLVED: "approval.resolved",
+} as const;
