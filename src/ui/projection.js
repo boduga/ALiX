@@ -19,18 +19,25 @@ export function buildUiProjection(events) {
     eventCount: ordered.length,
     toolCount: ordered.filter((event) => event.type?.startsWith("tool.")).length,
     errorCount: ordered.filter((event) => event.type === "tool.failed").length,
+    policyDecisionCount: ordered.filter((event) => event.type === "policy.decision").length,
+    patchCount: ordered.filter((event) => event.type?.startsWith("patch.")).length,
+    approvalCount: ordered.filter((event) => event.type?.startsWith("approval.")).length,
+    contextEventCount: ordered.filter((event) => event.type?.startsWith("context.")).length,
+    verificationCount: ordered.filter((event) => event.type?.startsWith("verification.")).length,
     latestSeq: ordered.at(-1)?.seq ?? 0,
   };
 
   return {
     summary,
     timeline: ordered,
-    context: latestPayload(ordered, "context.bundle_compiled"),
+    context: buildContext(ordered),
     terminal: buildTerminal(ordered),
     diffs: buildDiffs(ordered),
     approvals: buildApprovals(ordered),
     verification: buildVerification(ordered),
     tokens: buildTokens(ordered),
+    patches: buildPatches(ordered),
+    policyDecisions: buildPolicyDecisions(ordered),
   };
 }
 
@@ -112,6 +119,50 @@ function buildTokens(events) {
     entries,
     totalInputTokens: entries.reduce((sum, entry) => sum + (entry.inputTokens ?? 0), 0),
     totalOutputTokens: entries.reduce((sum, entry) => sum + (entry.outputTokens ?? 0), 0),
+  };
+}
+
+function buildPolicyDecisions(events) {
+  return events
+    .filter((event) => event.type === "policy.decision")
+    .map((event) => ({
+      toolCallId: event.payload?.toolCallId ?? "",
+      decision: event.payload?.decision ?? "unknown",
+      reason: event.payload?.reason ?? "",
+      capability: event.payload?.capability ?? "",
+      matchedRuleId: event.payload?.matchedRuleId,
+      timestamp: event.timestamp,
+    }));
+}
+
+function buildPatches(events) {
+  return events
+    .filter((event) => event.type?.startsWith("patch."))
+    .map((event) => ({
+      type: event.type,
+      proposalId: event.payload?.proposalId ?? "",
+      status: getPatchStatus(event.type),
+      changedFiles: event.payload?.changedFiles ?? [],
+      timestamp: event.timestamp,
+    }));
+}
+
+function getPatchStatus(type) {
+  switch (type) {
+    case "patch.proposed": return "proposed";
+    case "patch.applied": return "applied";
+    case "patch.rolled_back": return "rolled_back";
+    case "patch.rejected": return "rejected";
+    default: return "pending";
+  }
+}
+
+function buildContext(events) {
+  const latestBundle = latestPayload(events, "context.bundle_created");
+  const latestRepoMap = latestPayload(events, "context.repo_map_created");
+  return {
+    bundle: latestBundle ? { bundleId: latestBundle.bundleId, primaryFiles: latestBundle.primaryFiles ?? [] } : null,
+    repoMap: latestRepoMap ? { repoId: latestRepoMap.repoId, repoName: latestRepoMap.repoName } : null,
   };
 }
 
