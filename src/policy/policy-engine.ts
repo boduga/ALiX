@@ -2,12 +2,31 @@ import type { AlixConfig, Decision, SessionMode } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
 import { POLICY_EVENT_TYPES } from "../events/types.js";
 import type { PolicyDecisionPayload } from "../events/types.js";
+import type { CommandClassifier } from "./command-classifier.js";
+import { NetworkPolicyMatcher } from "./network-policy-matcher.js";
+import type { NetworkPolicy } from "./network-policy-matcher.js";
+
+export type Capability = "shell.readonly" | "shell.mutating" | "file.read" | "file.write" | "network.fetch" | "tool.use";
+
+export type ToolCallArgs = {
+  command?: string;
+  url?: string;
+  path?: string;
+};
 
 export type ToolRequest = {
   toolCallId: string;
   capability: string;
   path?: string;
   command?: string;
+};
+
+export type ToolCallRequest = {
+  toolCallId: string;
+  toolName: string;
+  args: ToolCallArgs;
+  capability: string;
+  sessionMode: SessionMode;
 };
 
 export type PolicyDecision = {
@@ -21,10 +40,89 @@ export type PolicyEngineOptions = {
 };
 
 export class PolicyEngine {
+  private commandClassifier?: CommandClassifier;
+  private networkMatcher?: NetworkPolicyMatcher;
+
   constructor(
     private config: AlixConfig,
     private options: PolicyEngineOptions = {}
   ) {}
+
+  setCommandClassifier(classifier: CommandClassifier): void {
+    this.commandClassifier = classifier;
+  }
+
+  setNetworkPolicy(policy: NetworkPolicy): void {
+    this.networkMatcher = new NetworkPolicyMatcher(policy);
+  }
+
+  check(request: ToolCallRequest): PolicyDecision & { toolCallId: string; capability: Capability } {
+    const { toolCallId, toolName, args, capability, sessionMode } = request;
+
+    // Check shell command risk
+    if (toolName === "shell.run" && this.commandClassifier) {
+      const command = args.command;
+      if (command) {
+        const classification = this.commandClassifier.classify(command);
+        if (classification.risk === "critical") {
+          return {
+            toolCallId,
+            capability: capability as Capability,
+            decision: "deny",
+            reason: `Critical risk command: ${classification.category}`,
+          };
+        }
+      }
+    }
+
+    // Check network destination
+    if (toolName === "network.fetch" && this.networkMatcher) {
+      const url = args.url;
+      if (url) {
+        const match = this.networkMatcher.match(url);
+        if (match.decision === "deny") {
+          return {
+            toolCallId,
+            capability: capability as Capability,
+            decision: "deny",
+            reason: `Network destination denied: ${match.reason}`,
+          };
+        }
+        if (match.decision === "allow") {
+          return {
+            toolCallId,
+            capability: capability as Capability,
+            decision: "allow",
+            reason: `Network destination allowed: ${match.domain}`,
+          };
+        }
+        if (match.decision === "ask") {
+          return {
+            toolCallId,
+            capability: capability as Capability,
+            decision: "ask",
+            reason: `Network destination requires approval: ${match.domain}`,
+          };
+        }
+      }
+    }
+
+    // Fall through to existing policy evaluation using the request fields
+    const internalRequest: ToolRequest = {
+      toolCallId,
+      capability,
+      path: args.path,
+      command: args.command,
+    };
+    const decision = this.decide(internalRequest);
+
+    return {
+      toolCallId,
+      capability: capability as Capability,
+      decision: decision.decision,
+      reason: decision.reason,
+    };
+  }
 
   decide(request: ToolRequest): PolicyDecision {
     const decision = this.evaluatePolicy(request);
