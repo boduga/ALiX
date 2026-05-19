@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { inferCapability, isReadonlyCapability } from "../../src/tools/capability-map.js";
+import { inferCapability, isReadonlyCapability, requiresApproval } from "../../src/tools/capability-map.js";
 
 describe("Capability Map", () => {
   it("maps file tools to file.read", () => {
@@ -20,5 +20,14 @@ describe("Capability Map", () => {
     assert.ok(isReadonlyCapability("shell.readonly"));
     assert.ok(!isReadonlyCapability("shell.run"));
     assert.ok(!isReadonlyCapability("file.write"));
+  });
+
+  it("requiresApproval returns tool policy or default", () => {
+    const policy: import("../../src/tools/capability-map.js").PolicyConfig = {
+      tools: { "file.write": "ask" },
+      default: "deny",
+    };
+    assert.equal(requiresApproval("file.write", policy), "ask");
+    assert.equal(requiresApproval("file.read", policy), "deny");
   });
 });

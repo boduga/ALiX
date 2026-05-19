@@ -36,12 +36,10 @@ export function inferCapability(toolName: string): Capability {
   return TOOL_CAPABILITY_MAP[toolName] ?? "tool.invoke";
 }
 
+const READONLY_CAPABILITIES: readonly Capability[] = ["file.read", "shell.readonly", "git.diff"];
+
 export function isReadonlyCapability(capability: Capability): boolean {
-  return (
-    capability === "file.read" ||
-    capability === "shell.readonly" ||
-    capability === "git.diff"
-  );
+  return READONLY_CAPABILITIES.includes(capability);
 }
 
 export function requiresApproval(capability: Capability, policy: PolicyConfig): ApprovalLevel {
