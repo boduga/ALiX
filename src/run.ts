@@ -542,7 +542,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Inject available skills into system prompt
 
   // Context compiler: warm up and compile context bundle now that MAX_CONTEXT_TOKENS and taskType are resolved
-  const contextCompiler = new ContextCompiler({ root: cwd });
+  const contextCompiler = new ContextCompiler({
+    root: cwd,
+    maxTokens: MAX_CONTEXT_TOKENS,
+    eventLog: log,
+    sessionId,
+  });
   await contextCompiler.warm();
   const contextBundle = await contextCompiler.compileContext(task, taskType, []);
   await log.append({
