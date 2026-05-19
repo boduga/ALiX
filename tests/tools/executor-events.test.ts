@@ -7,7 +7,7 @@ import { ToolExecutor } from "../../src/tools/executor.js";
 import type { AlixConfig } from "../../src/config/schema.js";
 
 describe("Tool Executor Events", () => {
-  const testDir = join(process.cwd(), ".test-tool-executor-events");
+  const testDir = join(process.cwd(), `.test-tool-executor-events-${Date.now()}`);
   let eventLog: EventLog;
 
   const config: AlixConfig = {
@@ -125,6 +125,42 @@ describe("Tool Executor Events", () => {
     assert.ok(failed, "Should have tool.failed event");
     const payload = failed.payload as any;
     assert.ok(payload.error);
+  });
+
+  it("emits tool.output on success", async () => {
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    const request = {
+      toolCallId: `tool_${Date.now()}_abc1239`,
+      name: "file.read",
+      args: { path: "test.txt" },
+    };
+
+    await executor.execute(request);
+
+    const events = await eventLog.readAll();
+    const outputEvent = events.find((e) => e.type === "tool.output");
+    assert.ok(outputEvent, "tool.output event should be emitted");
+    const payload = outputEvent.payload as any;
+    assert.ok(payload.outputSize > 0);
+  });
+
+  it("sanitizes sensitive args in tool.requested", async () => {
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    const request = {
+      toolCallId: `tool_${Date.now()}_abc1240`,
+      name: "shell.run",
+      args: { command: "ls", password: "secret123", apiKey: "key123" },
+    };
+
+    await executor.execute(request);
+
+    const events = await eventLog.readAll();
+    const requested = events.find((e) => e.type === "tool.requested");
+    assert.ok(requested, "Should have tool.requested event");
+    const payload = requested.payload as any;
+    assert.equal(payload.argsPreview.password, "[REDACTED]");
+    assert.equal(payload.argsPreview.apiKey, "[REDACTED]");
+    assert.equal(payload.argsPreview.command, "ls");
   });
 
   it("emits all 5 lifecycle events in order", async () => {

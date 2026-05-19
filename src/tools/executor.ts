@@ -21,6 +21,16 @@ import type { ToolResult } from "./types.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
+function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const sensitive = ["password", "token", "secret", "key"];
+  return Object.fromEntries(
+    Object.entries(args).map(([k, v]) => [
+      k,
+      sensitive.some((s) => k.toLowerCase().includes(s)) ? "[REDACTED]" : v,
+    ])
+  );
+}
+
 export type ToolCallRequest = {
   toolCallId: string;
   name: string;
@@ -54,7 +64,7 @@ export class ToolExecutor {
     const { toolCallId, name, args } = request;
     const capability = inferCapability(name);
 
-    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, argsPreview: args });
+    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, argsPreview: sanitizeArgs(args) });
 
     const policyDecision = decidePolicy(this.config, {
       toolCallId,
