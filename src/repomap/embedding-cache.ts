@@ -10,7 +10,7 @@ export type SearchResult = {
   symbolName?: string;
 };
 
-// Use `any` for the pipeline type since the @xenova/transformers types don't perfectly align with runtime
+// EmbeddingModel - the return type of the transformers pipeline
 type EmbeddingModel = Awaited<ReturnType<typeof pipeline>>;
 
 /** EmbeddingCache — stores per-file embeddings in .alix/embeddings/ */
@@ -27,10 +27,9 @@ export class EmbeddingCache {
     if (!this.modelPromise) {
       // Use the smallest, fastest embedding model (all-MiniLM-L6-v2)
       this.modelPromise = pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
-        // @ts-ignore - types may not align with runtime options
         pooling: "mean",
         normalize: true,
-      });
+      } as Parameters<typeof pipeline>[2]);
     }
     return this.modelPromise;
   }
@@ -41,24 +40,25 @@ export class EmbeddingCache {
   }
 
   /** Load cached embedding from disk */
-  private async loadCached(path: string): Promise<number[] | null> {
+  private async loadCached(key: string): Promise<number[] | null> {
     try {
-      const cacheFile = join(this.embeddingDir, `${this.hashText(path)}.json`);
+      const cacheFile = join(this.embeddingDir, `${key}.json`);
       const content = await readFile(cacheFile, "utf8");
       return JSON.parse(content);
-    } catch {
+    } catch (err) {
+      console.warn(`[EmbeddingCache] Failed to load cached embedding: ${err}`);
       return null;
     }
   }
 
   /** Save embedding to disk cache */
-  private async saveCached(path: string, embedding: number[]): Promise<void> {
+  private async saveCached(key: string, embedding: number[]): Promise<void> {
     try {
       await mkdir(this.embeddingDir, { recursive: true });
-      const cacheFile = join(this.embeddingDir, `${this.hashText(path)}.json`);
+      const cacheFile = join(this.embeddingDir, `${key}.json`);
       await writeFile(cacheFile, JSON.stringify(embedding), "utf8");
-    } catch {
-      // ignore write failures
+    } catch (err) {
+      console.warn(`[EmbeddingCache] Failed to save embedding: ${err}`);
     }
   }
 
@@ -69,8 +69,8 @@ export class EmbeddingCache {
     if (cached) return cached;
 
     const model = await this.initModel();
-    // @ts-ignore - types don't align perfectly with runtime options
-    const output = await model(text, { pooling: "mean", normalize: true });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const output = await (model as any)(text, { pooling: "mean", normalize: true });
 
     // Extract the embedding data from the Tensor object
     let flat: number[];
@@ -96,17 +96,27 @@ export class EmbeddingCache {
   ): Promise<SearchResult[]> {
     const queryEmbedding = await this.getEmbedding(query);
 
-    // Compute cosine similarity and rank
+    const BATCH_SIZE = 10;
     const results: SearchResult[] = [];
-    for (const file of files) {
-      if (!file.content) continue;
-      const fileEmbedding = await this.getEmbedding(file.content.slice(0, 2000)); // limit content length
-      const similarity = this.cosineSimilarity(queryEmbedding, fileEmbedding);
-      results.push({
-        path: file.path,
-        score: similarity,
-        kind: file.kind,
-      });
+
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batch = files.slice(i, i + BATCH_SIZE);
+      const embeddings = await Promise.all(
+        batch
+          .filter(f => f.content)
+          .map(f => this.getEmbedding(f.content!.slice(0, 2000)))
+      );
+
+      for (let j = 0; j < batch.length; j++) {
+        const file = batch[j];
+        if (!file.content) continue;
+        const similarity = this.cosineSimilarity(queryEmbedding, embeddings[j]);
+        results.push({
+          path: file.path,
+          score: similarity,
+          kind: file.kind,
+        });
+      }
     }
 
     // Sort by score descending and return top K
