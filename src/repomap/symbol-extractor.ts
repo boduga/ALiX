@@ -1,18 +1,30 @@
 import Parser from "tree-sitter";
 import TypeScript from "tree-sitter-typescript";
 
-export type ExtractedSymbolKind = "function" | "class" | "interface" | "type" | "const";
+export type ExtractedSymbolKind = "function" | "class" | "interface" | "type" | "const" | "method";
 
 export type ExtractedSymbol = {
   path: string;
   name: string;
   kind: ExtractedSymbolKind;
   line: number;
+  startByte: number;
+  endByte: number;
   signature: string;
 };
 
 const parser = new Parser();
 parser.setLanguage(TypeScript.typescript);
+
+// Compute byte offset from a Point (row, column) within a given content string
+function byteOffset(content: string, row: number, column: number): number {
+  let offset = 0;
+  const lines = content.split("\n");
+  for (let i = 0; i < row && i < lines.length; i++) {
+    offset += lines[i].length + 1; // +1 for newline
+  }
+  return offset + column;
+}
 
 export function extractTopLevelSymbols(path: string, content: string): ExtractedSymbol[] {
   const symbols: ExtractedSymbol[] = [];
@@ -30,6 +42,9 @@ export function extractTopLevelSymbols(path: string, content: string): Extracted
   function traverse(node: Parser.SyntaxNode) {
     const nodeType = node.type;
     const startLine = node.startPosition.row + 1;
+    // Compute byte offsets from content string
+    const startByte = byteOffset(content, node.startPosition.row, node.startPosition.column);
+    const endByte = byteOffset(content, node.endPosition.row, node.endPosition.column);
 
     if (nodeType === "function_declaration") {
       const nameNode = node.childForFieldName("name");
@@ -41,7 +56,22 @@ export function extractTopLevelSymbols(path: string, content: string): Extracted
           name: nameNode.text,
           kind: "function",
           line: startLine,
+          startByte,
+          endByte,
           signature: signatureText,
+        });
+      }
+    } else if (nodeType === "method_definition") {
+      const nameNode = node.childForFieldName("name");
+      if (nameNode) {
+        symbols.push({
+          path,
+          name: nameNode.text,
+          kind: "method",
+          line: startLine,
+          startByte,
+          endByte,
+          signature: node.text,
         });
       }
     } else if (nodeType === "class_declaration") {
@@ -53,6 +83,8 @@ export function extractTopLevelSymbols(path: string, content: string): Extracted
           name: nameNode.text,
           kind: "class",
           line: startLine,
+          startByte,
+          endByte,
           signature: signatureText,
         });
       }
@@ -65,6 +97,8 @@ export function extractTopLevelSymbols(path: string, content: string): Extracted
           name: nameNode.text,
           kind: "interface",
           line: startLine,
+          startByte,
+          endByte,
           signature: signatureText,
         });
       }
@@ -77,6 +111,8 @@ export function extractTopLevelSymbols(path: string, content: string): Extracted
           name: nameNode.text,
           kind: "type",
           line: startLine,
+          startByte,
+          endByte,
           signature: signatureText,
         });
       }
@@ -92,6 +128,8 @@ export function extractTopLevelSymbols(path: string, content: string): Extracted
             name: nameNode.text,
             kind: "const",
             line: startLine,
+            startByte,
+            endByte,
             signature: signatureText,
           });
         }
