@@ -20,7 +20,13 @@ import { ToolDiscovery } from "./mcp/tool-discovery.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
 import { MemoryStore } from "./utils/memory/store.js";
+<<<<<<< Updated upstream
 import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
+=======
+import type { MemoryEntry } from "./utils/memory/types.js";
+import { buildMemoryContext } from "./utils/memory/recall.js";
+import { extractDecisions, promptDecisionConfirmation } from "./utils/memory/decision-extractor.js";
+>>>>>>> Stashed changes
 import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
@@ -40,6 +46,42 @@ async function promptUser(question: string): Promise<string> {
       resolve(answer.trim());
     });
   });
+}
+
+/**
+ * Extract decisions from session events and save confirmed ones to memory.
+ * Wraps memoryStore.save() in try/catch to prevent crashes during cleanup.
+ */
+async function saveDecisionsToMemory(sessionEvents: Awaited<ReturnType<EventLog["readAll"]>>, memoryStore: MemoryStore): Promise<void> {
+  const decisions = extractDecisions(sessionEvents);
+  if (decisions.length === 0) {
+    console.log("[Memory] No decisions found to save.");
+    return;
+  }
+
+  const confirmedDecisions = await promptDecisionConfirmation(decisions);
+  if (confirmedDecisions.length === 0) {
+    console.log("[Memory] No decisions saved.");
+    return;
+  }
+
+  console.log(`[Memory] Saving ${confirmedDecisions.length} decision(s) to memory:`);
+  for (const decision of confirmedDecisions) {
+    try {
+      await memoryStore.save({
+        name: decision.name,
+        description: decision.description,
+        type: decision.type,
+        content: decision.content,
+        confidence: decision.confidence,
+        confirmations: decision.confirmations,
+        source: decision.source,
+      });
+      console.log(`  - [${decision.type}] ${decision.content}`);
+    } catch (err) {
+      console.error(`[Memory] Failed to save decision "${decision.name}": ${(err as Error).message}`);
+    }
+  }
 }
 
 async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
@@ -650,6 +692,14 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (modelSaysDone) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
           await mcpManager.closeAll().catch(() => {});
+<<<<<<< Updated upstream
+=======
+
+          // Extract decisions from session events and save confirmed ones to memory
+          const sessionEvents = await log.readAll();
+          await saveDecisionsToMemory(sessionEvents, memoryStore);
+
+>>>>>>> Stashed changes
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
           void skillFactory.process({
@@ -692,6 +742,14 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (repairCount > maxRepairs) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
           await mcpManager.closeAll().catch(() => {});
+<<<<<<< Updated upstream
+=======
+
+          // Extract decisions from session events and save confirmed ones to memory
+          const sessionEvents = await log.readAll();
+          await saveDecisionsToMemory(sessionEvents, memoryStore);
+
+>>>>>>> Stashed changes
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
           void skillFactory.process({
@@ -814,6 +872,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
         await mcpManager.closeAll().catch(() => {});
+
+        // Extract decisions from session events and save confirmed ones to memory
+        const sessionEvents = await log.readAll();
+        await saveDecisionsToMemory(sessionEvents, memoryStore);
+
         return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
       }
 
@@ -900,6 +963,14 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Max iterations reached
   await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
   await mcpManager.closeAll().catch(() => {});
+<<<<<<< Updated upstream
+=======
+
+  // Extract decisions from session events and save confirmed ones to memory
+  const sessionEvents = await log.readAll();
+  await saveDecisionsToMemory(sessionEvents, memoryStore);
+
+>>>>>>> Stashed changes
   // Fire-and-forget: dispatch skill factory
   const { skillFactory } = await import("./skills/dispatcher.js");
   void skillFactory.process({
