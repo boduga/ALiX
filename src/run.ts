@@ -6,6 +6,8 @@ import { createInterface } from "node:readline";
 import { loadConfig } from "./config/loader.js";
 import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
+import { PolicyEngine } from "./policy/policy-engine.js";
+import { ApprovalManager } from "./policy/approvals.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { ContextCompiler } from "./repomap/context-compiler.js";
 import { TOOL_NAME_MAP } from "./agents/tool-name-map.js";
@@ -409,6 +411,18 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   }
   const log = new EventLog(sessionDir);
   await log.init();
+
+  // Create policy engine with event log
+  const policyEngine = new PolicyEngine(config, {
+    eventLog: log,
+    sessionId,
+  });
+
+  // Create approval manager with event log
+  const approvalManager = new ApprovalManager({
+    eventLog: log,
+    sessionId,
+  });
 
   // Initialize CheckpointManager for the session
   const checkpointManager = new CheckpointManager(join(sessionDir, "checkpoints"));
