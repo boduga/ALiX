@@ -20,13 +20,9 @@ import { ToolDiscovery } from "./mcp/tool-discovery.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
 import { MemoryStore } from "./utils/memory/store.js";
-<<<<<<< Updated upstream
-import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
-=======
 import type { MemoryEntry } from "./utils/memory/types.js";
-import { buildMemoryContext } from "./utils/memory/recall.js";
+import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
 import { extractDecisions, promptDecisionConfirmation } from "./utils/memory/decision-extractor.js";
->>>>>>> Stashed changes
 import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
@@ -37,6 +33,7 @@ import type { AgentState } from "./autonomy/scope-tracker.js";
 import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
 import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
+import { CheckpointManager } from "./patch/checkpoint.js";
 
 async function promptUser(question: string): Promise<string> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -412,6 +409,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   }
   const log = new EventLog(sessionDir);
   await log.init();
+
+  // Initialize CheckpointManager for the session
+  const checkpointManager = new CheckpointManager(join(sessionDir, "checkpoints"));
+  await checkpointManager.init();
+
   const session = { sessionId, actor: "system" as const };
 
   await log.append({ ...session, type: "session.started", payload: { cwd, configHash: "mvp" } });
@@ -477,7 +479,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
   });
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, { delegate: delegateHandler });
+  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, { delegate: delegateHandler }, checkpointManager);
 
   const mcpDeferral = mcpManager.getDeferral();
   const mcpToolIndex = mcpDeferral.buildIndex();
@@ -641,7 +643,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         }
         if (chunk.type === "tool_call") {
           toolCalls.push(chunk.toolCall);
-          onStream?.({ type: "tool_call", toolCall: chunk.toolCall });
+          // tool.requested event is emitted by ToolExecutor, not streamed directly
         }
         if (chunk.type === "error") throw new Error(chunk.error);
         if (chunk.type === "usage") usage = chunk.usage;
@@ -692,14 +694,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (modelSaysDone) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
           await mcpManager.closeAll().catch(() => {});
-<<<<<<< Updated upstream
-=======
 
           // Extract decisions from session events and save confirmed ones to memory
           const sessionEvents = await log.readAll();
           await saveDecisionsToMemory(sessionEvents, memoryStore);
 
->>>>>>> Stashed changes
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
           void skillFactory.process({
@@ -742,14 +741,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
         if (repairCount > maxRepairs) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
           await mcpManager.closeAll().catch(() => {});
-<<<<<<< Updated upstream
-=======
 
           // Extract decisions from session events and save confirmed ones to memory
           const sessionEvents = await log.readAll();
           await saveDecisionsToMemory(sessionEvents, memoryStore);
 
->>>>>>> Stashed changes
           // Fire-and-forget: dispatch skill factory
           const { skillFactory } = await import("./skills/dispatcher.js");
           void skillFactory.process({
@@ -963,14 +959,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Max iterations reached
   await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
   await mcpManager.closeAll().catch(() => {});
-<<<<<<< Updated upstream
-=======
 
   // Extract decisions from session events and save confirmed ones to memory
   const sessionEvents = await log.readAll();
   await saveDecisionsToMemory(sessionEvents, memoryStore);
 
->>>>>>> Stashed changes
   // Fire-and-forget: dispatch skill factory
   const { skillFactory } = await import("./skills/dispatcher.js");
   void skillFactory.process({
