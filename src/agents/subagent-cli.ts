@@ -16,6 +16,7 @@ import { buildToolsForProvider } from "../run.js";
 import { McpManager } from "../mcp/manager.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
+import { ReliabilityMatrix } from "../config/reliability-matrix.js";
 import { getToolPolicy, filterTools } from "./tool-policy.js";
 import { TOOL_NAME_MAP } from "./tool-name-map.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
@@ -166,7 +167,22 @@ export class SubagentCLI {
         }
       }
 
-      const toolSelector = new ToolSelector(mcpToolIndex, { maxTools, tokenBudget, preferKeywordScoring });
+      // Load reliability matrix for model-aware tool ranking
+      let reliabilityMatrix: ReliabilityMatrix | undefined;
+      try {
+        reliabilityMatrix = ReliabilityMatrix.load();
+      } catch {
+        // Non-fatal: continue without reliability weighting
+      }
+
+      const toolSelector = new ToolSelector(mcpToolIndex, {
+        maxTools,
+        tokenBudget,
+        preferKeywordScoring,
+        model: config.model.name,
+        provider: config.model.provider,
+        reliabilityMatrix,
+      });
       selectedTools = toolSelector.select(prompt) as ToolDef[];
       mcpDiscovery = new ToolDiscovery(mcpToolIndex);
 
