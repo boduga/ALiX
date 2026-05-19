@@ -32,6 +32,48 @@ export type ToolEventPayload =
   | { toolCallId: string; toolName: string; status: "success" | "error" | "denied"; outputSize?: number; outputPreview?: string; error?: string }
   | { toolCallId: string; toolName: string };
 
+// Standardized tool event payload types for lifecycle events
+export type ToolRequestPayload = {
+  toolCallId: string;
+  toolName: string;
+  capability: string;
+  argsPreview: Record<string, unknown>;
+};
+
+export type ToolStartedPayload = {
+  toolCallId: string;
+  toolName: string;
+};
+
+export type ToolOutputPayload = {
+  toolCallId: string;
+  outputRef?: string;
+  outputPreview?: string;
+  outputSize: number;
+};
+
+export type ToolCompletedPayload = {
+  toolCallId: string;
+  toolName: string;
+  status: "success" | "cancelled";
+  durationMs: number;
+};
+
+export type ToolFailedPayload = {
+  toolCallId: string;
+  toolName: string;
+  error: string;
+  durationMs: number;
+};
+
+export const TOOL_EVENT_TYPES = {
+  REQUESTED: "tool.requested",
+  STARTED: "tool.started",
+  OUTPUT: "tool.output",
+  COMPLETED: "tool.completed",
+  FAILED: "tool.failed",
+} as const;
+
 export type PatchProposalPayload = {
   proposalId: string;
   format: "structured_patch" | "unified_diff" | "search_replace" | "full_file";
