@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "entries": [
+    {
+      "model": "qwen2.5-coder:7b",
+      "provider": "ollama",
+      "editFormats": {
+        "search_replace": 0.92,
+        "structured_patch": 0.88,
+        "inline": 0.85,
+        "whole_file": 0.95
+      },
+      "toolCalls": {
+        "file.read": 0.99,
+        "file.write": 0.97,
+        "patch.apply": 0.90,
+        "shell.run": 0.95
+      },
+      "avgLatencyMs": 350
+    },
+    {
+      "model": "llama3.2:3b",
+      "provider": "ollama",
+      "editFormats": {
+        "search_replace": 0.88,
+        "structured_patch": 0.82,
+        "inline": 0.80,
+        "whole_file": 0.92
+      },
+      "toolCalls": {
+        "file.read": 0.98,
+        "file.write": 0.94,
+        "patch.apply": 0.86,
+        "shell.run": 0.92
+      },
+      "avgLatencyMs": 280
+    },
+    {
+      "model": "phi4-mini-reasoning",
+      "provider": "ollama",
+      "editFormats": {
+        "search_replace": 0.90,
+        "structured_patch": 0.85,
+        "inline": 0.82,
+        "whole_file": 0.93
+      },
+      "toolCalls": {
+        "file.read": 0.99,
+        "file.write": 0.96,
+        "patch.apply": 0.88,
+        "shell.run": 0.94
+      },
+      "avgLatencyMs": 420
+    },
+    {
+      "model": "claude-sonnet-4",
+      "provider": "anthropic",
+      "editFormats": {
+        "search_replace": 0.95,
+        "structured_patch": 0.92,
+        "inline": 0.90,
+        "whole_file": 0.97
+      },
+      "toolCalls": {
+        "file.read": 0.99,
+        "file.write": 0.98,
+        "patch.apply": 0.94,
+        "shell.run": 0.97
+      },
+      "avgLatencyMs": 450
+    },
+    {
+      "model": "gpt-4o",
+      "provider": "openai",
+      "editFormats": {
+        "search_replace": 0.93,
+        "structured_patch": 0.90,
+        "inline": 0.88,
+        "whole_file": 0.96
+      },
+      "toolCalls": {
+        "file.read": 0.99,
+        "file.write": 0.97,
+        "patch.apply": 0.92,
+        "shell.run": 0.95
+      },
+      "avgLatencyMs": 400
+    },
+    {
+      "model": "*",
+      "provider": "*",
+      "editFormats": {
+        "search_replace": 0.85,
+        "structured_patch": 0.80,
+        "inline": 0.75,
+        "whole_file": 0.90
+      },
+      "toolCalls": {
+        "file.read": 0.98,
+        "file.write": 0.95,
+        "patch.apply": 0.85,
+        "shell.run": 0.90
+      },
+      "avgLatencyMs": 500
+    }
+  ]
+}
