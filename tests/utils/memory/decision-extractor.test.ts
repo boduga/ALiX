@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { extractDecisions, DECISION_PATTERNS } from "../../../src/utils/memory/decision-extractor.js";
+import { extractDecisions, DECISION_PATTERNS, promptDecisionConfirmation } from "../../../src/utils/memory/decision-extractor.js";
 import type { AlixEvent } from "../../../src/events/types.js";
+import type { MemoryEntry } from "../../../src/utils/memory/types.js";
 
 function makeEvent(type: string, payload: Record<string, unknown>, sessionId = "test-session"): AlixEvent {
   return {
@@ -167,4 +168,43 @@ test("extractDecisions() is case insensitive", () => {
 
   const decisions = extractDecisions(events);
   assert.ok(decisions.length > 0, "Should be case insensitive");
+});
+
+test("promptDecisionConfirmation() skips non-interactive environments", async () => {
+  const decisions: MemoryEntry[] = [
+    {
+      name: "test decision",
+      description: "A test decision",
+      type: "project",
+      content: "chose TypeScript for the project",
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+      confidence: 0.5,
+      confirmations: 0,
+    },
+  ];
+
+  // In non-TTY, should auto-confirm with confidence 0.6
+  const confirmed = await promptDecisionConfirmation(decisions);
+  assert.equal(confirmed.length, 1, "Should return confirmed decision");
+  assert.equal(confirmed[0].confidence, 0.6, "Should set confidence to 0.6");
+});
+
+test("promptDecisionConfirmation() sets confirmations to 1 on confirmed entry", async () => {
+  const decisions: MemoryEntry[] = [
+    {
+      name: "test decision",
+      description: "A test decision",
+      type: "project",
+      content: "chose TypeScript for the project",
+      createdAt: new Date().toISOString(),
+      modifiedAt: new Date().toISOString(),
+      confidence: 0.5,
+      confirmations: 0,
+    },
+  ];
+
+  // In non-TTY, confirmations should be set to 1
+  const confirmed = await promptDecisionConfirmation(decisions);
+  assert.equal(confirmed[0].confirmations, 1, "Confirmations should be 1");
 });

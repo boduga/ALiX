@@ -1,3 +1,4 @@
+import { createInterface } from "node:readline";
 import type { AlixEvent } from "../../events/types.js";
 import type { MemoryEntry } from "./types.js";
 
@@ -100,4 +101,50 @@ function generateName(content: string, type: "project" | "user" | "feedback"): s
   const base = words.join(" ");
   const suffix = type === "project" ? "decision" : type === "user" ? "preference" : "lesson";
   return `${base}... (${suffix})`;
+}
+
+/**
+ * Prompt user to confirm each detected decision before saving to memory.
+ * Returns only the decisions the user confirmed.
+ *
+ * @param decisions Array of auto-extracted decisions
+ * @returns Only confirmed decisions (with confidence 0.6 for new entries)
+ */
+export async function promptDecisionConfirmation(decisions: MemoryEntry[]): Promise<MemoryEntry[]> {
+  // Skip in non-interactive environments
+  if (!process.stdin.isTTY) {
+    return decisions.map(d => ({ ...d, confidence: 0.6 }));
+  }
+
+  const confirmed: MemoryEntry[] = [];
+
+  for (const decision of decisions) {
+    const answer = await promptUser(
+      `[Memory] I noticed this decision: "${decision.content}"\nSave to memory? [y/n/q] `
+    );
+
+    const normalized = answer.toLowerCase().trim();
+
+    if (normalized === "q") {
+      break;
+    }
+
+    if (normalized === "y") {
+      // New confirmed decisions get confidence 0.6 (higher than auto-extracted 0.5)
+      confirmed.push({ ...decision, confidence: 0.6, confirmations: 1 });
+    }
+    // "n" means skip - don't add to confirmed list
+  }
+
+  return confirmed;
+}
+
+async function promptUser(question: string): Promise<string> {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise<string>((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim());
+    });
+  });
 }
