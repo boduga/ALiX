@@ -32,7 +32,7 @@ export function buildVerificationPlan(checks: VerificationCheck[]): Verification
   });
 
   return {
-    id: `plan_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+    id: `plan_${Date.now()}`,
     changedFiles: [],
     checks: sorted,
     skipped: [],
