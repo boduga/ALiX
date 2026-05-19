@@ -32,6 +32,96 @@ export type ToolEventPayload =
   | { toolCallId: string; toolName: string; status: "success" | "error" | "denied"; outputSize?: number; outputPreview?: string; error?: string }
   | { toolCallId: string; toolName: string };
 
+// Standardized tool event payload types for lifecycle events
+export type ToolRequestPayload = {
+  toolCallId: string;
+  toolName: string;
+  capability: string;
+  argsPreview: Record<string, unknown>;
+};
+
+export type ToolStartedPayload = {
+  toolCallId: string;
+  toolName: string;
+};
+
+export type ToolOutputPayload = {
+  toolCallId: string;
+  outputRef?: string;
+  outputPreview?: string;
+  outputSize: number;
+};
+
+export type ToolCompletedPayload = {
+  toolCallId: string;
+  toolName: string;
+  status: "success" | "cancelled";
+  durationMs: number;
+};
+
+export type ToolFailedPayload = {
+  toolCallId: string;
+  toolName: string;
+  error: string;
+  durationMs: number;
+};
+
+export const TOOL_EVENT_TYPES = {
+  REQUESTED: "tool.requested",
+  STARTED: "tool.started",
+  OUTPUT: "tool.output",
+  COMPLETED: "tool.completed",
+  FAILED: "tool.failed",
+} as const;
+
+export type PatchProposalPayload = {
+  proposalId: string;
+  format: "structured_patch" | "unified_diff" | "search_replace" | "full_file";
+  provider: string;
+  model: string;
+  files: Array<{ path: string; operation: "create" | "modify" | "delete" | "rename"; preimageHash?: string }>;
+  requiresApproval: boolean;
+};
+
+export type PatchParsedPayload = {
+  proposalId: string;
+  validated: boolean;
+  errors?: string[];
+};
+
+export type PatchRejectedPayload = {
+  proposalId: string;
+  reason: string;
+};
+
+export type PatchCheckpointCreatedPayload = {
+  checkpointId: string;
+  proposalId: string;
+  files: string[];
+};
+
+export type PatchAppliedPayload = {
+  proposalId: string;
+  checkpointId: string;
+  changedFiles: string[];
+  diffRef?: string;
+};
+
+export type PatchRolledBackPayload = {
+  proposalId: string;
+  checkpointId: string;
+  reason: string;
+};
+
+export const PATCH_EVENT_TYPES = {
+  PROPOSED: "patch.proposed",
+  PARSED: "patch.parsed",
+  REJECTED: "patch.rejected",
+  CHECKPOINT_CREATED: "patch.checkpoint_created",
+  APPLIED: "patch.applied",
+  ROLLED_BACK: "patch.rolled_back",
+} as const;
+
 export type VerificationEventPayload =
   | { command: string; reason: string }
   | { command: string; status: "passed" | "failed"; output?: string }
