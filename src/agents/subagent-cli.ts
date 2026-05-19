@@ -123,8 +123,8 @@ export class SubagentCLI {
     await eventLog.init();
 
     // Warm up context compiler for this subagent
-    const contextCompiler = new ContextCompiler();
-    await contextCompiler.warm(projectRoot);
+    const contextCompiler = new ContextCompiler({ root: projectRoot });
+    await contextCompiler.warm();
 
     // Log subagent start
     await eventLog.append({

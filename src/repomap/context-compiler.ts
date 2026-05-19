@@ -4,6 +4,9 @@ import { join, relative } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskType } from "../task-classifier.js";
 import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
+import type { EventLog } from "../events/event-log.js";
+import { CONTEXT_EVENT_TYPES } from "../events/types.js";
+import type { RepoMapCreatedPayload, ContextBundleCreatedPayload, ContextItemRef } from "../events/types.js";
 
 type SerializedDependencyGraph = {
   dependencies: [string, string[]][];
@@ -193,28 +196,58 @@ function scoreMention(file: string, mentions: string[]): number {
   return best;
 }
 
+export type ContextCompilerOptions = {
+  root: string;
+  maxTokens?: number;
+  eventLog?: EventLog;
+  sessionId?: string;
+};
+
 export class ContextCompiler {
   private repoMap?: RepoMap;
   private cachePath?: string;
   private cacheTimestamp = 0;
   private embeddingCache?: EmbeddingCache;
+  private pinnedFiles = new Set<string>();
 
-  async warm(root: string): Promise<void> {
+  constructor(private options: ContextCompilerOptions) {}
+
+  async warm(): Promise<RepoMap> {
+    const root = this.options.root;
     // Check for valid cache first
     this.cachePath = join(root, ".alix", "context-cache.json");
     this.embeddingCache = new EmbeddingCache(root);
     const cached = await this.loadFromCache(root);
+    let repoMap: RepoMap;
     if (cached) {
-      this.repoMap = cached;
+      repoMap = cached;
       // Build embeddings for source files in background after cache load
       this.buildEmbeddings(root).catch(() => {}); // non-blocking
-      return;
+    } else {
+      // Build fresh and cache
+      repoMap = await buildRepoMap(root);
+      await this.saveToCache(root);
+      // Build embeddings for source files
+      await this.buildEmbeddings(root);
     }
-    // Build fresh and cache
-    this.repoMap = await buildRepoMap(root);
-    await this.saveToCache(root);
-    // Build embeddings for source files
-    await this.buildEmbeddings(root);
+    this.repoMap = repoMap;
+
+    // Emit context.repo_map_created
+    if (this.options.eventLog && this.options.sessionId) {
+      await this.options.eventLog.append({
+        sessionId: this.options.sessionId,
+        actor: "system",
+        type: CONTEXT_EVENT_TYPES.REPO_MAP_CREATED,
+        payload: {
+          sourceFileCount: repoMap.sourceFiles.length,
+          testFileCount: repoMap.testFiles.length,
+          symbolCount: repoMap.symbols.length,
+          dependencyCount: this.countDependencies(repoMap),
+        } as RepoMapCreatedPayload,
+      });
+    }
+
+    return repoMap;
   }
 
   private async buildEmbeddings(root: string): Promise<void> {
@@ -305,6 +338,14 @@ export class ContextCompiler {
     } catch {
       // ignore cache write failures
     }
+  }
+
+  private countDependencies(repoMap: RepoMap): number {
+    let count = 0;
+    for (const file of repoMap.sourceFiles) {
+      count += repoMap.dependencyGraph.dependenciesOf(file).length;
+    }
+    return count;
   }
 
   async compile(
@@ -491,4 +532,70 @@ export class ContextCompiler {
       pinned,
     };
   }
+
+  async compileContext(
+    task: string,
+    taskType: TaskType,
+    pinned?: string[]
+  ): Promise<ContextBundle> {
+    const maxTokens = this.options.maxTokens ?? 20000;
+    const bundle = await this.compile(task, taskType, maxTokens, pinned ?? []);
+
+    // Emit context.bundle_created
+    if (this.options.eventLog && this.options.sessionId) {
+      await this.options.eventLog.append({
+        sessionId: this.options.sessionId,
+        actor: "system",
+        type: CONTEXT_EVENT_TYPES.BUNDLE_CREATED,
+        payload: {
+          bundleId: bundle.id,
+          taskType: bundle.taskType,
+          usedTokens: bundle.budget.usedTokens,
+          maxTokens: bundle.budget.maxTokens,
+          primaryFiles: bundle.primaryFiles.map(toContextItemRef),
+          supportingFiles: bundle.supportingFiles.map(toContextItemRef),
+          tests: bundle.tests.map(toContextItemRef),
+          omittedCount: 0,
+        } as ContextBundleCreatedPayload,
+      });
+    }
+
+    return bundle;
+  }
+
+  async pinFile(path: string, reason: string): Promise<void> {
+    this.pinnedFiles.add(path);
+    if (this.options.eventLog && this.options.sessionId) {
+      await this.options.eventLog.append({
+        sessionId: this.options.sessionId,
+        actor: "user",
+        type: CONTEXT_EVENT_TYPES.FILE_PINNED,
+        payload: { path, reason },
+      });
+    }
+  }
+
+  async unpinFile(path: string): Promise<void> {
+    this.pinnedFiles.delete(path);
+    if (this.options.eventLog && this.options.sessionId) {
+      await this.options.eventLog.append({
+        sessionId: this.options.sessionId,
+        actor: "user",
+        type: CONTEXT_EVENT_TYPES.FILE_UNPINNED,
+        payload: { path },
+      });
+    }
+  }
+}
+
+function toContextItemRef(item: ContextItem): ContextItemRef {
+  return {
+    path: item.path,
+    kind: item.kind,
+    score: item.score,
+    reason: item.reason,
+    symbolName: item.symbolName,
+    lineStart: item.lineStart,
+    lineEnd: item.lineEnd,
+  };
 }

@@ -5,11 +5,11 @@ import { ContextCompiler } from "../../src/repomap/context-compiler.js";
 describe("ContextCompiler.warm() overhead", () => {
   it("measures warm() and compile() timing", async () => {
     const projectRoot = process.cwd();
-    const compiler = new ContextCompiler();
+    const compiler = new ContextCompiler({ root: projectRoot });
 
     // Warm up: time the initial warm() call
     const warmStart = performance.now();
-    await compiler.warm(projectRoot);
+    await compiler.warm();
     const warmEnd = performance.now();
     const warmMs = warmEnd - warmStart;
 

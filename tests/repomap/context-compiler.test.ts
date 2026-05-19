@@ -19,8 +19,8 @@ describe("ContextCompiler", () => {
   });
 
   async function warm() {
-    compiler = new ContextCompiler();
-    await compiler.warm(tmpDir);
+    compiler = new ContextCompiler({ root: tmpDir });
+    await compiler.warm();
   }
 
   describe("warm()", () => {
@@ -41,8 +41,8 @@ describe("ContextCompiler", () => {
       const future = new Date(staleCacheTime + 20_000);
       utimesSync(join(tmpDir, "package.json"), future, future);
 
-      const nextCompiler = new ContextCompiler();
-      await nextCompiler.warm(tmpDir);
+      const nextCompiler = new ContextCompiler({ root: tmpDir });
+      await nextCompiler.warm();
       const secondCache = JSON.parse(readFileSync(cachePath, "utf8")) as { _cacheTime: number };
 
       assert.notStrictEqual(secondCache._cacheTime, staleCacheTime);
