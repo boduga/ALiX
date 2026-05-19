@@ -11,7 +11,7 @@ describe("Inspector SSE event streaming", () => {
     const sessionDir = join(tmp, ".alix", "sessions", "test-session");
     mkdirSync(sessionDir, { recursive: true });
     const eventsPath = join(sessionDir, "events.jsonl");
-    writeFileSync(eventsPath, '{"seq":1,"type":"test","actor":"agent","timestamp":"2026-01-01T00:00:00Z","payload":{}}\n');
+    writeFileSync(eventsPath, '{"seq":1,"type":"tool.started","actor":"agent","timestamp":"2026-01-01T00:00:00Z","payload":{}}\n');
 
     const { url, close } = await startServer(tmp, "127.0.0.1", 0);
     try {
@@ -47,7 +47,7 @@ describe("Inspector SSE event streaming", () => {
     const eventsPath = join(sessionDir, "events.jsonl");
 
     // Write initial event
-    writeFileSync(eventsPath, '{"seq":1,"type":"session.started","actor":"system","timestamp":"2026-01-01T00:00:00Z","payload":{}}\n');
+    writeFileSync(eventsPath, '{"seq":1,"type":"tool.started","actor":"agent","timestamp":"2026-01-01T00:00:00Z","payload":{"name":"test"}}\n');
 
     const { url, close } = await startServer(tmp, "127.0.0.1", 0);
     try {
@@ -72,7 +72,7 @@ describe("Inspector SSE event streaming", () => {
       // Write a second event while the connection is open
       writeFileSync(
         eventsPath,
-        '{"seq":2,"type":"agent.plan_proposed","actor":"agent","timestamp":"2026-01-01T00:00:01Z","payload":{"text":"hello"}}\n',
+        '{"seq":2,"type":"tool.completed","actor":"agent","timestamp":"2026-01-01T00:00:01Z","payload":{"name":"test","output":"hello"}}\n',
         { flag: "a" }
       );
 
@@ -107,9 +107,9 @@ describe("Inspector SSE event streaming", () => {
     writeFileSync(
       eventsPath,
       [
-        '{"seq":1,"type":"session.started","actor":"system","timestamp":"2026-01-01T00:00:00Z","payload":{}}\n',
-        '{"seq":2,"type":"user.message","actor":"user","timestamp":"2026-01-01T00:00:01Z","payload":{}}\n',
-        '{"seq":3,"type":"agent.plan_proposed","actor":"agent","timestamp":"2026-01-01T00:00:02Z","payload":{}}\n',
+        '{"seq":1,"type":"tool.requested","actor":"system","timestamp":"2026-01-01T00:00:00Z","payload":{"name":"readFile"}}\n',
+        '{"seq":2,"type":"tool.started","actor":"agent","timestamp":"2026-01-01T00:00:01Z","payload":{"name":"readFile"}}\n',
+        '{"seq":3,"type":"tool.output","actor":"agent","timestamp":"2026-01-01T00:00:02Z","payload":{"name":"readFile","output":"file contents"}}\n',
       ].join("")
     );
 

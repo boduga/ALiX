@@ -11,6 +11,15 @@ import {
   sessionEventsPath
 } from "../inspector/session-reader.js";
 
+// Tool event types to include in SSE stream
+const TOOL_EVENT_FILTER = [
+  "tool.requested",
+  "tool.started",
+  "tool.output",
+  "tool.completed",
+  "tool.failed",
+];
+
 function decodePathSegment(segment: string | undefined): string {
   if (!segment) return "";
   try {
@@ -96,8 +105,10 @@ export function startServer(root: string, host: string, port: number): Promise<{
         const text = await readFile(eventsPath, "utf8");
         for (const line of text.split("\n").filter(Boolean)) {
           try {
-            const event = JSON.parse(line) as { seq: number };
+            const event = JSON.parse(line) as { seq: number; type: string };
             if (event.seq <= resumeFromSeq) continue;
+            // Only emit tool events to SSE
+            if (!TOOL_EVENT_FILTER.includes(event.type)) continue;
             res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
           } catch {
             // Skip malformed lines
@@ -119,7 +130,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
               lastSize = currentSize;
               for (const line of newText.split("\n").filter(Boolean)) {
                 try {
-                  const event = JSON.parse(line) as { seq: number };
+                  const event = JSON.parse(line) as { seq: number; type: string };
+                  // Only emit tool events to SSE
+                  if (!TOOL_EVENT_FILTER.includes(event.type)) continue;
                   res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
                 } catch {
                   // Skip malformed lines
