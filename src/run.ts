@@ -544,9 +544,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Context compiler: warm up and compile context bundle now that MAX_CONTEXT_TOKENS and taskType are resolved
   const contextCompiler = new ContextCompiler({ root: cwd });
   await contextCompiler.warm();
-  const CONTEXT_BUDGET = Math.floor(MAX_CONTEXT_TOKENS * 0.3);
-  const pinnedPaths: string[] = [];
-  const contextBundle = await contextCompiler.compile(task, taskType, CONTEXT_BUDGET, pinnedPaths);
+  const contextBundle = await contextCompiler.compileContext(task, taskType, []);
   await log.append({
     ...session,
     type: "context.bundle_compiled",
