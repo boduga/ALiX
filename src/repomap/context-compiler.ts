@@ -33,6 +33,7 @@ function buildDependencyGraphFromCache(serialized: SerializedDependencyGraph): D
 import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
 import { readGitActivity } from "./git-activity.js";
 import { rankContextCandidate } from "./context-ranker.js";
+import { EmbeddingCache } from "./embedding-cache.js";
 
 export type ContextKind = "file" | "symbol" | "test" | "config" | "doc";
 
@@ -196,18 +197,32 @@ export class ContextCompiler {
   private repoMap?: RepoMap;
   private cachePath?: string;
   private cacheTimestamp = 0;
+  private embeddingCache?: EmbeddingCache;
 
   async warm(root: string): Promise<void> {
     // Check for valid cache first
     this.cachePath = join(root, ".alix", "context-cache.json");
+    this.embeddingCache = new EmbeddingCache(root);
     const cached = await this.loadFromCache(root);
     if (cached) {
       this.repoMap = cached;
+      // Build embeddings for source files in background after cache load
+      this.buildEmbeddings(root).catch(() => {}); // non-blocking
       return;
     }
     // Build fresh and cache
     this.repoMap = await buildRepoMap(root);
     await this.saveToCache(root);
+    // Build embeddings for source files
+    await this.buildEmbeddings(root);
+  }
+
+  private async buildEmbeddings(root: string): Promise<void> {
+    if (!this.repoMap || !this.embeddingCache) return;
+    const files = [...this.repoMap.fileEntries.values()]
+      .filter(e => e.kind === "source" && e.content)
+      .map(e => ({ path: e.path, content: e.content, kind: e.kind }));
+    await this.embeddingCache.buildEmbeddings(files);
   }
 
   private async loadFromCache(root: string): Promise<RepoMap | null> {
