@@ -2,9 +2,9 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, rm, writeFile } from "node:fs/promises";
-import { EventLog } from "../../dist/src/events/event-log.js";
-import { CheckpointManager } from "../../dist/src/patch/checkpoint.js";
-import { applyPatch } from "../../dist/src/patch/patch-engine.js";
+import { EventLog } from "../../src/events/event-log.js";
+import { CheckpointManager } from "../../src/patch/checkpoint.js";
+import { applyPatch } from "../../src/patch/patch-engine.js";
 
 describe("Patch Events Emission", () => {
   const testDir = join(process.cwd(), ".test-patch-events");

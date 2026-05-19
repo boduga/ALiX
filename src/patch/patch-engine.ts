@@ -21,6 +21,8 @@ import type { CheckpointManager } from "./checkpoint.js";
 export type PatchApplyResult = {
   status: "applied" | "invalid";
   changedFiles: string[];
+  proposalId?: string;
+  checkpointId?: string;
 };
 
 export type PatchEngineOptions = {
@@ -135,7 +137,7 @@ export async function applyPatch(
   }
 
   // Apply patch (existing logic)
-  const result = await applyPatchBody(root, format, parsedBlocks);
+  const result = await applyPatchBody(root, format, parsedBlocks, proposalId, checkpointId);
 
   // Emit patch.applied
   if (eventLog && sessionId) {
@@ -180,7 +182,7 @@ export async function rollbackPatch(
 }
 
 // Original applyPatch logic extracted here
-async function applyPatchBody(root: string, format: EditFormat, patchData: unknown): Promise<PatchApplyResult> {
+async function applyPatchBody(root: string, format: EditFormat, patchData: unknown, proposalId?: string, checkpointId?: string): Promise<PatchApplyResult> {
   if (format === "search_replace") {
     const blocks = patchData as Array<{ path: string; search: string; replace: string }>;
     if (blocks.length === 0) throw new Error("No patch changes found");
@@ -197,7 +199,7 @@ async function applyPatchBody(root: string, format: EditFormat, patchData: unkno
     for (const write of plannedWrites) {
       await writeFile(write.path, write.content, "utf8");
     }
-    return { status: "applied", changedFiles: blocks.map((block) => block.path) };
+    return { status: "applied", changedFiles: blocks.map((block) => block.path), proposalId: proposalId as string, checkpointId: checkpointId as string | undefined };
   }
 
   if (format === "structured_patch") {
@@ -242,7 +244,7 @@ async function applyPatchBody(root: string, format: EditFormat, patchData: unkno
         changedFiles.push(file.path);
       }
     }
-    return { status: "applied", changedFiles };
+    return { status: "applied", changedFiles, proposalId: undefined, checkpointId: undefined };
   }
 
   throw new Error(`Unsupported edit format: ${format}`);

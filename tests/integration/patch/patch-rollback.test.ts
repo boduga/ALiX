@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { join } from "node:path";
 import { mkdir, rm, writeFile, readFile } from "node:fs/promises";
-import { CheckpointManager } from "../../../../dist/src/patch/checkpoint.js";
+import { CheckpointManager } from "../../../src/patch/checkpoint.js";
 
 describe("Patch Rollback Integration", () => {
   const testDir = join(process.cwd(), ".test-rollback");
