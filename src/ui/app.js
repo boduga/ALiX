@@ -187,7 +187,13 @@ function renderApproval(item) {
 }
 
 function renderVerification(item) {
-  return `<article class="inspector-card"><strong>${escapeHtml(item.command)}</strong><span>${escapeHtml(item.status ?? "unknown")}</span></article>`;
+  const statusClass = item.status === "passed" ? "passed" : item.status === "failed" ? "failed" : "not_run";
+  const statusLabel = item.status?.toUpperCase() ?? "NOT RUN";
+  return `<article class="inspector-card verification-item ${statusClass}">
+    <span class="status-badge">${escapeHtml(statusLabel)}</span>
+    <code>${escapeHtml(item.command ?? "")}</code>
+    ${item.output ? `<pre class="output">${escapeHtml(item.output).slice(0, 300)}</pre>` : ""}
+  </article>`;
 }
 
 function renderTokens(tokens) {
