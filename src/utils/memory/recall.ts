@@ -1,3 +1,5 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { MemoryStore } from "./store.js";
 import type { MemoryEntry } from "./types.js";
 
@@ -10,11 +12,98 @@ export type RecallOptions = {
   minConfidence?: number;
 };
 
+/**
+ * Build stats summary of all memories — lightweight, no full content loading.
+ * Groups by type, shows confirmation counts, sorted by confidence.
+ */
+export async function buildMemoryStats(store: MemoryStore): Promise<string> {
+  const types: MemoryEntry["type"][] = ["user", "project", "feedback", "reference"];
+  const allEntries: MemoryEntry[] = [];
+
+  for (const type of types) {
+    const typeDir = path.join(store.getBasePath(), type);
+    try {
+      const files = await fs.readdir(typeDir);
+      for (const file of files.filter(f => f.endsWith(".md"))) {
+        const content = await fs.readFile(path.join(typeDir, file), "utf-8");
+        const entry = parseEntry(content);
+        if (entry) allEntries.push(entry);
+      }
+    } catch {
+      // Directory doesn't exist or empty
+    }
+  }
+
+  if (allEntries.length === 0) {
+    return "";
+  }
+
+  // Group by type
+  const byType: Record<string, MemoryEntry[]> = {};
+  for (const entry of allEntries) {
+    if (!byType[entry.type]) byType[entry.type] = [];
+    byType[entry.type].push(entry);
+  }
+
+  // Sort each type by confidence descending
+  for (const type of Object.keys(byType)) {
+    byType[type].sort((a, b) => b.confidence - a.confidence);
+  }
+
+  const total = allEntries.length;
+  const lines: string[] = [`Loaded ${total} memories:`];
+
+  for (const type of types) {
+    const entries = byType[type];
+    if (!entries || entries.length === 0) continue;
+    for (const entry of entries) {
+      const confirmed = entry.confirmations > 0 ? ` (confirmed ${entry.confirmations}x)` : "";
+      lines.push(`- [${type}] ${entry.name} - ${entry.description}${confirmed}`);
+    }
+  }
+
+  return lines.join("\n");
+}
+
 export type RecallResult = {
   level: RecallLevel;
   entries: MemoryEntry[];
   context: string;
 };
+
+function parseEntry(content: string): MemoryEntry | null {
+  const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
+  if (!match) return null;
+
+  try {
+    const frontmatter = match[1];
+
+    const lines = frontmatter.split("\n");
+    const data: Record<string, string> = {};
+
+    for (const line of lines) {
+      const colonIdx = line.indexOf(":");
+      if (colonIdx === -1) continue;
+      const key = line.slice(0, colonIdx).trim();
+      const value = line.slice(colonIdx + 1).trim();
+      data[key] = value;
+    }
+
+    return {
+      name: data.name || "",
+      description: data.description || "",
+      type: (data.type as MemoryEntry["type"]) || "project",
+      content: "",
+      createdAt: data.createdAt || "",
+      modifiedAt: data.modifiedAt || "",
+      confidence: parseFloat(data.confidence) || 0.5,
+      confirmations: parseInt(data.confirmations) || 0,
+      source: data.source,
+    };
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Progressive recall - retrieves memories at different levels of detail
