@@ -1,4 +1,7 @@
 import type { AlixConfig, Decision, SessionMode } from "../config/schema.js";
+import type { EventLog } from "../events/event-log.js";
+import { POLICY_EVENT_TYPES } from "../events/types.js";
+import type { PolicyDecisionPayload } from "../events/types.js";
 
 export type ToolRequest = {
   toolCallId: string;
@@ -11,6 +14,72 @@ export type PolicyDecision = {
   decision: Decision;
   reason: string;
 };
+
+export type PolicyEngineOptions = {
+  eventLog?: EventLog;
+  sessionId?: string;
+};
+
+export class PolicyEngine {
+  constructor(
+    private config: AlixConfig,
+    private options: PolicyEngineOptions = {}
+  ) {}
+
+  decide(request: ToolRequest): PolicyDecision {
+    const decision = this.evaluatePolicy(request);
+
+    // Emit policy.decision event
+    if (this.options.eventLog && this.options.sessionId) {
+      this.options.eventLog.append({
+        sessionId: this.options.sessionId,
+        actor: "policy",
+        type: POLICY_EVENT_TYPES.DECISION,
+        payload: {
+          toolCallId: request.toolCallId,
+          capability: request.capability,
+          decision: decision.decision,
+          reason: decision.reason,
+          matchedRuleId: this.extractMatchedRuleId(request),
+        } as PolicyDecisionPayload,
+      }).catch(err => console.error("Failed to emit policy event:", err));
+    }
+
+    return decision;
+  }
+
+  private evaluatePolicy(request: ToolRequest): PolicyDecision {
+    if (request.path && isProtectedPath(this.config.permissions.protectedPaths, request.path)) {
+      return { decision: "deny", reason: `Path is protected: ${request.path}` };
+    }
+
+    if (request.command && this.config.permissions.denyCommands.includes(request.command)) {
+      return { decision: "deny", reason: `Command is denied: ${request.command}` };
+    }
+
+    const toolDecision = this.config.permissions.tools[request.capability];
+    const mode = this.config.permissions.sessionMode ?? "ask";
+    if (toolDecision) {
+      const effective = applySessionMode(toolDecision, mode);
+      return { decision: effective, reason: `Matched tool policy for ${request.capability} (mode: ${mode})` };
+    }
+
+    return { decision: this.config.permissions.default, reason: "Matched default policy" };
+  }
+
+  private extractMatchedRuleId(request: ToolRequest): string | undefined {
+    if (request.path && isProtectedPath(this.config.permissions.protectedPaths, request.path)) {
+      return "protected-path-rule";
+    }
+    if (request.command && this.config.permissions.denyCommands.includes(request.command)) {
+      return "deny-command-rule";
+    }
+    if (this.config.permissions.tools[request.capability]) {
+      return `tool-policy-${request.capability}`;
+    }
+    return "default-policy";
+  }
+}
 
 function applySessionMode(toolDecision: Decision, mode: SessionMode): Decision {
   if (toolDecision === "allow") return "allow";
