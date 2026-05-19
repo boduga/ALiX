@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { MemoryStore } from "../../../src/utils/memory/store.js";
-import { recall, buildMemoryContext } from "../../../src/utils/memory/recall.js";
+import { recall, buildMemoryContext, buildMemoryStats } from "../../../src/utils/memory/recall.js";
 
 test("recall() finds matching entries", async () => {
   const testDir = "/tmp/recall-test-" + Date.now();
@@ -104,4 +104,45 @@ test("buildMemoryContext() handles empty store", async () => {
 
   const context = await buildMemoryContext(store);
   assert.ok(typeof context === "string");
+});
+
+test("buildMemoryStats() returns stats summary with count", async () => {
+  const testDir = "/tmp/recall-test-stats-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
+
+  await store.save({ name: "TypeScript Preference", description: "Prefers TypeScript", type: "user", content: "User prefers TS", confidence: 0.9, confirmations: 5 });
+  await store.save({ name: "File Storage", description: "We chose file-based storage", type: "project", content: "File storage", confidence: 0.8, confirmations: 2 });
+
+  const stats = await buildMemoryStats(store);
+  assert.ok(stats.includes("Loaded 2 memories:"));
+  assert.ok(stats.includes("[user] TypeScript Preference"));
+  assert.ok(stats.includes("(confirmed 5x)"));
+  assert.ok(stats.includes("[project] File Storage"));
+  assert.ok(stats.includes("(confirmed 2x)"));
+});
+
+test("buildMemoryStats() returns empty string for empty store", async () => {
+  const testDir = "/tmp/recall-test-no-stats-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
+
+  const stats = await buildMemoryStats(store);
+  assert.equal(stats, "");
+});
+
+test("buildMemoryStats() groups by type and sorts by confidence", async () => {
+  const testDir = "/tmp/recall-test-group-" + Date.now();
+  const store = new MemoryStore(testDir);
+  await store.init();
+
+  await store.save({ name: "Low Priority", description: "Low", type: "feedback", content: "Content", confidence: 0.3, confirmations: 1 });
+  await store.save({ name: "High Priority", description: "High", type: "feedback", content: "Content", confidence: 0.9, confirmations: 1 });
+  await store.save({ name: "Another User", description: "User pref", type: "user", content: "Content", confidence: 0.7, confirmations: 2 });
+
+  const stats = await buildMemoryStats(store);
+  // High should appear before Low within feedback type
+  const highIdx = stats.indexOf("High Priority");
+  const lowIdx = stats.indexOf("Low Priority");
+  assert.ok(highIdx < lowIdx, "Entries should be sorted by confidence within type");
 });
