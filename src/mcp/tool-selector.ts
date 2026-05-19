@@ -1,4 +1,5 @@
 import type { DeferredToolEntry } from "./tool-deferral.js";
+import { ReliabilityMatrix } from "../config/reliability-matrix.js";
 
 const SAFE_FALLBACK_NAMES = ["filesystem_read", "fetch_get", "files_read", "http_request"];
 
@@ -6,6 +7,9 @@ export type ToolSelectorOptions = {
   maxTools: number;
   tokenBudget: number;
   preferKeywordScoring?: boolean;
+  model?: string;
+  provider?: string;
+  reliabilityMatrix?: ReliabilityMatrix;
 };
 
 // Floor estimate — individual tools may exceed this for complex schemas.
@@ -29,6 +33,17 @@ export class ToolSelector {
     }
     const union = a.size + b.size - intersection;
     return union === 0 ? 0 : intersection / union;
+  }
+
+  private getReliabilityBonus(tool: DeferredToolEntry): number {
+    const { model, provider, reliabilityMatrix } = this.options;
+    if (!reliabilityMatrix || !model || !provider) return 0;
+    try {
+      // Use toolCallSuccessRate which expects toolName like "file.read"
+      return reliabilityMatrix.getToolCallSuccessRate(model, provider, tool.toolName);
+    } catch {
+      return 0;
+    }
   }
 
   constructor(
@@ -70,6 +85,9 @@ export class ToolSelector {
         const semanticScore = this.jaccardSimilarity(taskNgrams, descNgrams);
         score += Math.round(semanticScore * 2);
       }
+
+      // Add reliability bonus (non-breaking, fault-tolerant)
+      score += this.getReliabilityBonus(tool);
 
       return { tool, score };
     });
