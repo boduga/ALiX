@@ -199,3 +199,48 @@ export type InspectorComparison = {
   verificationStatus: { left: string; right: string };
   tokenDelta: { inputTokens: number; outputTokens: number };
 };
+
+// Context event payload types
+export type ContextItemRef = {
+  path: string;
+  kind: string;
+  score: number;
+  reason: string;
+  symbolName?: string;
+  lineStart?: number;
+  lineEnd?: number;
+};
+
+export type RepoMapCreatedPayload = {
+  sourceFileCount: number;
+  testFileCount: number;
+  symbolCount: number;
+  dependencyCount: number;
+};
+
+export type ContextBundleCreatedPayload = {
+  bundleId: string;
+  taskType: string;
+  usedTokens: number;
+  maxTokens: number;
+  primaryFiles: ContextItemRef[];
+  supportingFiles: ContextItemRef[];
+  tests: ContextItemRef[];
+  omittedCount: number;
+};
+
+export type FilePinnedPayload = {
+  path: string;
+  reason: string;
+};
+
+export type FileUnpinnedPayload = {
+  path: string;
+};
+
+export const CONTEXT_EVENT_TYPES = {
+  REPO_MAP_CREATED: "context.repo_map_created",
+  BUNDLE_CREATED: "context.bundle_created",
+  FILE_PINNED: "context.file_pinned",
+  FILE_UNPINNED: "context.file_unpinned",
+} as const;
