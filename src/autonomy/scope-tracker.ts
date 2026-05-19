@@ -1,102 +1,102 @@
-import { resolve } from "node:path";
-
-export type AgentState = "planning" | "executing" | "verifying" | "repairing" | "summarizing" | "stopped";
-
-export type ScopeTracker = {
-  state: AgentState;
-  initialFiles: Set<string>;
-  approvedFiles: Set<string>;
-  pendingApproval: string | null;
-  transition(newState: AgentState): void;
-  checkMutation(path: string): "allowed" | "scope_expansion" | "approved" | "denied";
-  approveScope(path: string): void;
-  denyScope(path: string): void;
-  setPending(path: string): void;
-  clearPending(): void;
-  getDeniedMessage(): string | null;
+export type TaskScope = {
+  goal: string;
+  files: string[];
+  approvedAt?: string;
 };
 
-/**
- * Parse file paths mentioned in the task string.
- * Detects patterns like: src/foo.ts, "file.ts", `file.ts`
- */
-export function extractInitialScope(task: string): string[] {
-  const paths: string[] = [];
-  // Match quoted or backtick paths, or paths with slashes that look like file references
-  const patterns = [
-    /["'`]([^\s`]+?\.(?:ts|tsx|js|jsx|py|go|rs|java|kt|cs|rb|php|swift|c|cpp|h|hpp|json|md|toml|yaml|yml))["'`]/g,
-    /(?:^|\s)([\w./-]+\.(?:ts|tsx|js|jsx|py|go|rs|java|kt|cs|rb|php|swift|c|cpp|h|hpp|json|md|toml|yaml|yml))(?=\s|$)/gm,
-  ];
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(task)) !== null) {
-      paths.push(match[1]);
-    }
+export type Expansion = {
+  detectedAt: string;
+  originalFiles: string[];
+  newFiles: string[];
+  additionalFiles: string[];
+};
+
+export type ChangeEvaluation = {
+  approved: boolean;
+  reason: string;
+  requiresConfirmation?: boolean;
+  newFiles?: string[];
+};
+
+export class ScopeTracker {
+  private scope: TaskScope | undefined;
+  private expansions: Expansion[] = [];
+
+  setInitialScope(scope: TaskScope): void {
+    this.scope = { ...scope };
+    this.expansions = [];
   }
-  return [...new Set(paths)];
-}
 
-/**
- * Normalize a path for comparison (relative to root, trailing slashes removed).
- */
-function normalize(path: string, root: string): string {
-  try { return resolve(root, path); } catch { return path; }
-}
+  getCurrentScope(): TaskScope | undefined {
+    return this.scope;
+  }
 
-export function createScopeTracker(
-  initialFiles: string[],
-  root: string
-): ScopeTracker {
-  const initialSet = new Set(initialFiles.map(p => normalize(p, root)));
-  const approvedSet = new Set(initialSet); // initial scope is auto-approved
-  const deniedSet = new Set<string>(); // files explicitly denied by user
+  checkExpansion(current: { files?: string[] }): void {
+    if (!this.scope || !current.files) return;
 
-  let currentState: AgentState = "planning";
-  let pendingFile: string | null = null;
+    const originalFiles = [...this.scope.files];
+    const currentFiles = [...current.files];
 
-  return {
-    get state() { return currentState; },
+    const initialSet = new Set(originalFiles);
+    const additionalFiles = currentFiles.filter(f => !initialSet.has(f));
 
-    get initialFiles() { return initialSet; },
-    get approvedFiles() { return approvedSet; },
-    get pendingApproval() { return pendingFile; },
+    if (additionalFiles.length === 0) return;
 
-    transition(newState: AgentState) {
-      currentState = newState;
-      pendingFile = null;
-    },
+    const expansion: Expansion = {
+      detectedAt: new Date().toISOString(),
+      originalFiles,
+      newFiles: currentFiles,
+      additionalFiles,
+    };
 
-    checkMutation(path: string): "allowed" | "scope_expansion" | "approved" | "denied" {
-      const n = normalize(path, root);
-      if (deniedSet.has(n)) return "denied";
-      if (approvedSet.has(n)) return "approved";
-      if (initialSet.has(n)) return "allowed"; // initial scope — auto-approved for mutation
-      return "scope_expansion";
-    },
+    this.expansions.push(expansion);
+  }
 
-    approveScope(path: string) {
-      const n = normalize(path, root);
-      approvedSet.add(n);
-      deniedSet.delete(n);
-      pendingFile = null;
-    },
+  getExpansions(): Expansion[] {
+    return [...this.expansions];
+  }
 
-    denyScope(path: string) {
-      const n = normalize(path, root);
-      deniedSet.add(n);
-      pendingFile = null;
-    },
+  needsConfirmation(current: { files?: string[] }): boolean {
+    if (!this.scope || !current.files) return false;
+    if (this.scope.approvedAt) return false;
 
-    setPending(path: string) {
-      pendingFile = path;
-    },
+    const initialSet = new Set(this.scope.files);
+    const hasExpansion = current.files.some(f => !initialSet.has(f));
+    return hasExpansion;
+  }
 
-    clearPending() {
-      pendingFile = null;
-    },
+  evaluateChange(change: { files?: string[] }): ChangeEvaluation {
+    if (!this.scope) {
+      // No scope established - any change is allowed
+      return { approved: true, reason: "No scope established - change allowed", requiresConfirmation: false };
+    }
 
-    getDeniedMessage() {
-      return pendingFile ? `Scope expansion denied for: ${pendingFile}` : null;
-    },
-  };
+    if (!change.files) {
+      return { approved: true, reason: "No files specified", requiresConfirmation: false };
+    }
+
+    const initialSet = new Set(this.scope.files);
+    const additionalFiles = change.files.filter(f => !initialSet.has(f));
+
+    if (additionalFiles.length === 0) {
+      return { approved: true, reason: "Change is within scope", requiresConfirmation: false };
+    }
+
+    if (this.scope.approvedAt) {
+      return { approved: true, reason: "Scope already approved", requiresConfirmation: false };
+    }
+
+    return {
+      approved: false,
+      reason: `Scope expansion detected: ${additionalFiles.length} new file(s) accessed`,
+      requiresConfirmation: true,
+      newFiles: additionalFiles,
+    };
+  }
+
+  confirmExpansion(): void {
+    if (!this.scope) return;
+    this.scope.approvedAt = new Date().toISOString();
+    this.expansions = [];
+  }
 }
