@@ -3,6 +3,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import type { AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
+import { TOOL_EVENT_TYPES } from "../events/types.js";
+import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload } from "../events/types.js";
 import type { McpManager } from "../mcp/manager.js";
 import { decidePolicy } from "../policy/policy-engine.js";
 import { redactValue } from "../policy/secret-scanner.js";
@@ -14,7 +16,10 @@ import type { EditFormat, EditFormatPolicy } from "../patch/edit-format-policy.j
 import { extractPatchPaths } from "../patch/patch-paths.js";
 import { createFileCheckpoint, restoreFileCheckpoint } from "../checkpoints/checkpoint-manager.js";
 import type { Checkpoint } from "../checkpoints/checkpoint-manager.js";
+import { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult } from "./types.js";
+
+const LARGE_OUTPUT_THRESHOLD = 10000;
 
 export type ToolCallRequest = {
   toolCallId: string;
@@ -31,7 +36,8 @@ export class ToolExecutor {
     private root: string,
     private mcpManager?: McpManager,
     private editFormatPolicy?: EditFormatPolicy,
-    private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>
+    private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
+    private checkpointManager?: CheckpointManager
   ) {}
 
   private sessionId(): string {
@@ -46,9 +52,9 @@ export class ToolExecutor {
 
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
     const { toolCallId, name, args } = request;
-    const capability = name;
+    const capability = inferCapability(name);
 
-    await this.logEvent("tool.requested", { toolCallId, toolName: name, argsPreview: args, capability });
+    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, argsPreview: args });
 
     const policyDecision = decidePolicy(this.config, {
       toolCallId,
@@ -57,18 +63,18 @@ export class ToolExecutor {
     });
 
     if (policyDecision.decision === "deny") {
-      await this.logEvent("tool.failed", { toolCallId, toolName: name, error: policyDecision.reason, status: "denied" });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: policyDecision.reason, durationMs: 0 });
       return { kind: "denied", reason: policyDecision.reason };
     }
 
     // MCP availability check — policy said "ask" or "allow", but is the tool connected?
     if (name.startsWith("mcp.") && !this.mcpManager) {
       const msg = "MCP manager not initialized. No MCP servers are connected.";
-      await this.logEvent("tool.failed", { toolCallId, toolName: name, error: msg, status: "unavailable" });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0 });
       return { kind: "denied", reason: msg };
     }
 
-    await this.logEvent("tool.started", { toolCallId, toolName: name });
+    await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name });
 
     let result: ToolResult;
 
@@ -118,17 +124,49 @@ export class ToolExecutor {
         }
         const changedFiles = extractPatchPaths(format, patchText);
         let checkpoint: Checkpoint | null = null;
+        let checkpointId: string | undefined;
+        let proposalId: string | undefined;
+        // Create checkpoint using CheckpointManager if available, otherwise use legacy approach
         if (changedFiles.length > 0) {
-          checkpoint = await createFileCheckpoint(patchRoot, changedFiles);
-          await this.logEvent("patch.checkpoint_created", { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files, missingFiles: checkpoint.missingFiles });
+          if (this.checkpointManager) {
+            try {
+              const cp = await this.checkpointManager.create("patch", changedFiles.map(f => resolve(patchRoot, f)));
+              checkpointId = cp.id;
+              await this.logEvent("patch.checkpoint_created", { toolCallId, checkpointId: cp.id, files: changedFiles });
+            } catch (e) {
+              // Continue without checkpoint
+            }
+          } else {
+            checkpoint = await createFileCheckpoint(patchRoot, changedFiles);
+            await this.logEvent("patch.checkpoint_created", { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files, missingFiles: checkpoint.missingFiles });
+          }
         }
         try {
-          const patchResult = await applyPatch(patchRoot, format as any, patchText);
+          const patchResult = await applyPatch(patchRoot, format as any, patchText, {
+            eventLog: this.log,
+            sessionId: this.sessionId(),
+            checkpointManager: this.checkpointManager,
+          });
+          proposalId = patchResult.proposalId;
+          checkpointId = patchResult.checkpointId ?? checkpointId;
           result = patchResult.status === "applied"
             ? { kind: "success", changedFiles: patchResult.changedFiles }
             : { kind: "error", message: "Patch invalid" };
         } catch (e: unknown) {
-          if (checkpoint) {
+          const cpToRestore = checkpoint ?? (checkpointId && this.checkpointManager ? { id: checkpointId } : null);
+          if (cpToRestore && this.checkpointManager) {
+            await this.logEvent("patch.rollback_started", { toolCallId, checkpointId: cpToRestore.id, files: changedFiles });
+            try {
+              await this.checkpointManager.restore(cpToRestore.id);
+              await this.logEvent("patch.rollback_completed", { toolCallId, checkpointId: cpToRestore.id, files: changedFiles });
+            } catch (rollbackError: unknown) {
+              await this.logEvent("patch.rollback_failed", {
+                toolCallId,
+                checkpointId: cpToRestore.id,
+                error: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+              });
+            }
+          } else if (checkpoint) {
             await this.logEvent("patch.rollback_started", { toolCallId, checkpointId: checkpoint.id, files: checkpoint.files });
             try {
               await restoreFileCheckpoint(checkpoint);
@@ -220,22 +258,49 @@ export class ToolExecutor {
       }
     }
 
-    // Build log payload — redact secrets from output/error before logging
-    const logPayload = result.kind === "success"
-      ? redactValue({
-          toolCallId, toolName: name, status: result.kind,
-          outputSize: ((result.output?.length ?? 0) + (result.content?.length ?? 0)),
-          outputPreview: (result.output ?? result.content ?? "").slice(0, 200),
-          changedFiles: (result as { changedFiles?: string[] }).changedFiles,
-          createdPath: (result as { createdPath?: string }).createdPath,
-          deletedPath: (result as { deletedPath?: string }).deletedPath,
-        })
-      : redactValue({
-          toolCallId, toolName: name, status: result.kind,
-          outputSize: 0,
-          error: result.message,
-        });
-    await this.logEvent(result.kind === "success" ? "tool.completed" : "tool.failed", logPayload.redacted as Record<string, unknown>);
+    // Calculate duration from start time in toolCallId
+    const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
+    const durationMs = Date.now() - startTime;
+
+    // Handle large outputs by writing to file
+    const outputSize = (result.kind === "success")
+      ? ((result.output?.length ?? 0) + (result.content?.length ?? 0))
+      : 0;
+    let outputRef: string | undefined;
+
+    if (result.kind === "success" && outputSize > LARGE_OUTPUT_THRESHOLD) {
+      outputRef = await writeOutputToFile(result.output ?? result.content);
+    }
+
+    // Build and emit tool.output event for success
+    if (result.kind === "success") {
+      const outputPayload: ToolOutputPayload = {
+        toolCallId,
+        outputRef,
+        outputPreview: truncateOutput(result.output ?? result.content ?? ""),
+        outputSize,
+      };
+      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, outputPayload);
+    }
+
+    // Build and emit tool.completed or tool.failed event
+    if (result.kind === "success") {
+      const completedPayload: ToolCompletedPayload = {
+        toolCallId,
+        toolName: name,
+        status: "success",
+        durationMs,
+      };
+      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, completedPayload);
+    } else {
+      const failedPayload: ToolFailedPayload = {
+        toolCallId,
+        toolName: name,
+        error: result.message,
+        durationMs,
+      };
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, failedPayload);
+    }
 
     return result;
   }
@@ -273,4 +338,39 @@ export function classifyError(result: ErrorResult): ErrorResult {
 
   // Unknown/ambiguous — retry once, model decides
   return { ...result, retryable: true };
+}
+
+function inferCapability(toolName: string): string {
+  if (toolName.startsWith("mcp.")) return "mcp.invoke";
+  if (toolName === "file.read") return "file.read";
+  if (toolName === "file.create") return "file.write";
+  if (toolName === "file.delete") return "file.write";
+  if (toolName === "file.exists") return "file.read";
+  if (toolName === "dir.search") return "file.search";
+  if (toolName === "shell.run") return "shell.run";
+  if (toolName === "patch.apply") return "patch.apply";
+  if (toolName === "done") return "task.complete";
+  if (toolName === "delegate") return "delegate";
+  return "tool.invoke";
+}
+
+function truncateOutput(output: unknown, maxLen = 200): string {
+  const str = typeof output === "string" ? output : JSON.stringify(output);
+  return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
+}
+
+async function writeOutputToFile(output: unknown): Promise<string> {
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const { writeFile, mkdir } = await import("node:fs/promises");
+  const { randomUUID } = await import("node:crypto");
+
+  const outputDir = join(tmpdir(), "alix-tool-outputs");
+  await mkdir(outputDir, { recursive: true });
+
+  const filePath = join(outputDir, `${randomUUID()}.json`);
+  const content = typeof output === "string" ? output : JSON.stringify(output, null, 2);
+  await writeFile(filePath, content, "utf8");
+
+  return filePath;
 }
