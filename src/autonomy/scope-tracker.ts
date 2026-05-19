@@ -4,6 +4,8 @@ export type TaskScope = {
   approvedAt?: string;
 };
 
+export type AgentState = "idle" | "planning" | "executing" | "verifying" | "repairing" | "summarizing" | "waiting_approval" | "completed" | "failed" | "stopped";
+
 export type Expansion = {
   detectedAt: string;
   originalFiles: string[];
@@ -98,5 +100,55 @@ export class ScopeTracker {
     if (!this.scope) return;
     this.scope.approvedAt = new Date().toISOString();
     this.expansions = [];
+  }
+
+  checkMutation(path: string): "allowed" | "denied" | "scope_expansion" | "approved" {
+    if (!this.scope) return "allowed";
+    if (this.scope.files.includes(path)) return "allowed";
+    if (this.scope.approvedAt) return "approved";
+    return "scope_expansion";
+  }
+
+  approveScope(path: string): void {
+    if (!this.scope) return;
+    if (!this.scope.files.includes(path)) {
+      this.scope.files.push(path);
+    }
+  }
+
+  denyScope(path: string): void {
+    // Denying just prevents it from being auto-approved
+  }
+
+  setPending(path: string, pending: boolean = true): void {
+    // Track pending approval state for a path
+  }
+}
+
+export function createScopeTracker(initialScope?: TaskScope, cwd?: string): ScopeTracker {
+  const tracker = new ScopeTracker();
+  if (initialScope) {
+    tracker.setInitialScope(initialScope);
+  }
+  return tracker;
+}
+
+export function extractInitialScope(args: string | string[]): TaskScope | undefined {
+  const argArray = typeof args === "string" ? args.split(" ") : args;
+  const goalArg = argArray.find(arg => !arg.startsWith("-"));
+  const files = argArray.filter(arg => arg.startsWith("src/") || arg.startsWith("lib/") || arg.includes(".ts") || arg.includes(".js"));
+  return goalArg ? { goal: goalArg, files } : undefined;
+}
+
+export function checkMutation(path: string, scope: TaskScope): "allowed" | "denied" | "scope_expansion" | "approved" {
+  if (!scope.files) return "allowed";
+  if (scope.files.includes(path)) return "allowed";
+  if (scope.approvedAt) return "approved";
+  return "scope_expansion";
+}
+
+export function approveScope(path: string, scope: TaskScope): void {
+  if (!scope.files.includes(path)) {
+    scope.files.push(path);
   }
 }
