@@ -3,7 +3,7 @@ import { Dirent } from "node:fs";
 import { join, relative } from "node:path";
 import { existsSync } from "node:fs";
 import type { TaskType } from "../task-classifier.js";
-import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
+import { buildDependencyGraph, DependencyGraph } from "./dependency-graph.js";
 import type { EventLog } from "../events/event-log.js";
 import { CONTEXT_EVENT_TYPES } from "../events/types.js";
 import type { RepoMapCreatedPayload, ContextBundleCreatedPayload, ContextItemRef } from "../events/types.js";
@@ -24,14 +24,81 @@ function buildDependencyGraphFromCache(serialized: SerializedDependencyGraph): D
     dependents.set(path, new Set(deps));
   }
 
-  return {
+  const graph = {
     dependenciesOf(path: string) {
       return [...(dependencies.get(path) ?? [])];
     },
     dependentsOf(path: string) {
       return [...(dependents.get(path) ?? [])];
     },
+    transitiveDependenciesOf(path: string, maxDepth = 10): string[] {
+      const visited = new Set<string>();
+      const queue: { file: string; depth: number }[] = [{ file: path, depth: 0 }];
+
+      while (queue.length > 0) {
+        const { file: current, depth } = queue.shift()!;
+        if (visited.has(current) || depth > maxDepth) continue;
+        visited.add(current);
+
+        const deps = [...(dependencies.get(current) ?? [])];
+        for (const dep of deps) {
+          if (!visited.has(dep)) {
+            queue.push({ file: dep, depth: depth + 1 });
+          }
+        }
+      }
+
+      visited.delete(path);
+      return [...visited];
+    },
+    findCycles(): string[][] {
+      const cycles: string[][] = [];
+      const visited = new Set<string>();
+      const stack: string[] = [];
+
+      const dfs = (node: string): void => {
+        if (stack.includes(node)) {
+          const cycleStartIndex = stack.indexOf(node);
+          const cycle = [...stack.slice(cycleStartIndex), node];
+          cycles.push(cycle);
+          return;
+        }
+        if (visited.has(node)) return;
+
+        visited.add(node);
+        stack.push(node);
+
+        for (const dep of [...(dependencies.get(node) ?? [])]) {
+          dfs(dep);
+        }
+
+        stack.pop();
+      };
+
+      for (const [node] of serialized.dependencies) {
+        dfs(node);
+      }
+
+      return cycles;
+    },
+    impactScore(path: string): number {
+      const directDependents = [...(dependents.get(path) ?? [])].length;
+      const transitiveDependents = graph.transitiveDependenciesOf(path, 5).length;
+      return directDependents + (transitiveDependents * 0.5);
+    },
+    get files(): string[] {
+      const fileSet = new Set<string>();
+      for (const [path] of serialized.dependencies) {
+        fileSet.add(path);
+      }
+      for (const [path] of serialized.dependents) {
+        fileSet.add(path);
+      }
+      return [...fileSet];
+    },
   };
+
+  return graph as unknown as DependencyGraph;
 }
 import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
 import { readGitActivity } from "./git-activity.js";

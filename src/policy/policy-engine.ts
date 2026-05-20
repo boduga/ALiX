@@ -5,6 +5,10 @@ import type { PolicyDecisionPayload } from "../events/types.js";
 import type { CommandClassifier } from "./command-classifier.js";
 import { NetworkPolicyMatcher } from "./network-policy-matcher.js";
 import type { NetworkPolicy } from "./network-policy-matcher.js";
+import type { CapabilityRegistry } from "./capability-registry.js";
+import type { RiskLevel } from "./capability-registry.js";
+import { SecretScanner } from "../security/secret-scanner.js";
+import type { SecretFinding } from "../security/secret-scanner.js";
 
 export type Capability = "shell.readonly" | "shell.mutating" | "file.read" | "file.write" | "network.fetch" | "tool.use";
 
@@ -37,11 +41,20 @@ export type PolicyDecision = {
 export type PolicyEngineOptions = {
   eventLog?: EventLog;
   sessionId?: string;
+  capabilityRegistry?: CapabilityRegistry;
+  secretScanner?: SecretScanner;
 };
+
+export interface SecretScanResult {
+  hasSecret: boolean;
+  findings: SecretFinding[];
+}
 
 export class PolicyEngine {
   private commandClassifier?: CommandClassifier;
   private networkMatcher?: NetworkPolicyMatcher;
+  private capabilityRegistry?: CapabilityRegistry;
+  private secretScanner?: SecretScanner;
 
   constructor(
     private config: AlixConfig,
@@ -56,8 +69,42 @@ export class PolicyEngine {
     this.networkMatcher = new NetworkPolicyMatcher(policy);
   }
 
+  setCapabilityRegistry(registry: CapabilityRegistry): void {
+    this.capabilityRegistry = registry;
+  }
+
+  setSecretScanner(scanner: SecretScanner): void {
+    this.secretScanner = scanner;
+  }
+
+  getCapabilityRisk(capability: string): RiskLevel | undefined {
+    return this.capabilityRegistry?.getRiskLevel(capability);
+  }
+
+  requiresCapabilityApproval(capability: string): boolean {
+    return this.capabilityRegistry?.requiresApproval(capability) ?? false;
+  }
+
+  checkSecretExposure(content: string): SecretScanResult {
+    const findings = this.secretScanner?.scan(content) ?? [];
+    return {
+      hasSecret: findings.length > 0,
+      findings,
+    };
+  }
+
   check(request: ToolCallRequest): PolicyDecision & { toolCallId: string; capability: Capability } {
     const { toolCallId, toolName, args, capability, sessionMode } = request;
+
+    // Check capability approval requirement via CapabilityRegistry
+    if (this.capabilityRegistry?.requiresApproval(capability)) {
+      return {
+        toolCallId,
+        capability: capability as Capability,
+        decision: "ask",
+        reason: `Capability '${capability}' requires approval (${this.capabilityRegistry.getRiskLevel(capability)} risk)`,
+      };
+    }
 
     // Check shell command risk
     if (toolName === "shell.run" && this.commandClassifier) {

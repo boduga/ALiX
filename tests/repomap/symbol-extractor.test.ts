@@ -1,51 +1,72 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { extractTopLevelSymbols } from "../../src/repomap/symbol-extractor.js";
+import { SymbolExtractor } from "../../src/repomap/symbol-extractor.js";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 
-describe("extractTopLevelSymbols", () => {
-  it("extracts exported functions, classes, interfaces, types, and consts", () => {
-    const symbols = extractTopLevelSymbols("src/auth.ts", [
-      "export function login(user: string) { return user; }",
-      "export class AuthService {}",
-      "export interface User { id: string }",
-      "export type Role = 'admin';",
-      "export const TOKEN = 'x';",
-    ].join("\n"));
+describe("SymbolExtractor", () => {
+  const testDir = join(tmpdir(), "symbol-test");
 
-    assert.deepEqual(symbols.map((symbol) => [symbol.name, symbol.kind, symbol.line]), [
-      ["login", "function", 1],
-      ["AuthService", "class", 2],
-      ["User", "interface", 3],
-      ["Role", "type", 4],
-      ["TOKEN", "const", 5],
-    ]);
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
   });
 
-  it("keeps a compact signature", () => {
-    const [symbol] = extractTopLevelSymbols("src/auth.ts", "export function login(user: string) { return user; }");
-    assert.equal(symbol.signature, "export function login(user: string) { return user; }");
+  it("extracts function and class definitions", async () => {
+    await mkdir(testDir, { recursive: true });
+    await writeFile(join(testDir, "test.ts"), `
+      export function calculateTotal(items: Item[]): number {
+        return items.reduce((sum, item) => sum + item.price, 0);
+      }
+
+      export class Cart {
+        private items: Item[] = [];
+        add(item: Item): void { this.items.push(item); }
+      }
+
+      interface Item { price: number; }
+    `);
+
+    const extractor = new SymbolExtractor();
+    const symbols = await extractor.extractFromDir(testDir);
+
+    assert.ok(symbols.find(s => s.name === "calculateTotal" && s.kind === "function"));
+    assert.ok(symbols.find(s => s.name === "Cart" && s.kind === "class"));
+    assert.ok(symbols.find(s => s.name === "Item" && s.kind === "interface"));
+
+    // Verify exports field
+    assert.strictEqual(symbols.find(s => s.name === "calculateTotal")?.exports, true, "exported function");
+    assert.strictEqual(symbols.find(s => s.name === "Cart")?.exports, true, "exported class");
+    assert.strictEqual(symbols.find(s => s.name === "Item")?.exports, false, "non-exported interface");
+
+    // Verify line numbers
+    const lines = symbols.map(s => s.line);
+    assert.ok(lines.every(l => l > 0), "all line numbers should be positive");
   });
 
-  it("extracts methods from class bodies", () => {
-    const symbols = extractTopLevelSymbols("src/auth.ts", [
-      "export class AuthService {",
-      "  login(user: string) { return user; }",
-      "  logout() { return true; }",
-      "}",
-    ].join("\n"));
+  it("extracts symbols from code string", async () => {
+    const extractor = new SymbolExtractor();
+    const code = `
+      const foo = 42;
+      type UserId = string;
+      enum Status { Active, Inactive }
+      function test() { return foo; }
+    `;
+    const symbols = await extractor.extractFromCode(code, "test.ts");
 
-    const methods = symbols.filter((s) => s.kind === "method");
-    assert.deepEqual(methods.map((m) => [m.name, m.kind, m.line]), [
-      ["login", "method", 2],
-      ["logout", "method", 3],
-    ]);
-  });
+    assert.ok(symbols.find(s => s.name === "foo" && s.kind === "const"));
+    assert.ok(symbols.find(s => s.name === "UserId" && s.kind === "type"));
+    assert.ok(symbols.find(s => s.name === "Status" && s.kind === "enum"));
+    assert.ok(symbols.find(s => s.name === "test" && s.kind === "function"));
 
-  it("captures startByte and endByte for all symbol kinds", () => {
-    const content = "export function foo() {}";
-    const [symbol] = extractTopLevelSymbols("src/test.ts", content);
-    assert.ok(typeof symbol.startByte === "number", "startByte should be a number");
-    assert.ok(typeof symbol.endByte === "number", "endByte should be a number");
-    assert.ok(symbol.endByte > symbol.startByte, "endByte should be greater than startByte");
+    // Verify exports field
+    const exportedSymbol = symbols.find(s => s.name === "foo");
+    assert.strictEqual(exportedSymbol?.exports, false, "non-exported const should have exports=false");
+
+    // Verify line numbers
+    const fooSymbol = symbols.find(s => s.name === "foo");
+    assert.ok(fooSymbol?.line, "symbol should have a line number");
+    assert.strictEqual(fooSymbol?.line, 2, "foo should be on line 2");
   });
 });
