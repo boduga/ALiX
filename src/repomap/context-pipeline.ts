@@ -3,6 +3,8 @@ import { readFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.js";
 import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
+import { rankContextCandidate } from "./context-ranker.js";
+import type { TaskType } from "../task-classifier.js";
 
 /**
  * A stage in the context compilation pipeline.
@@ -126,5 +128,136 @@ export class RepoMapStage implements ContextStage<{ root: string }, RepoMapOutpu
 
   async process(input: { root: string }): Promise<RepoMapOutput> {
     return buildRepoMap(input.root);
+  }
+}
+
+// ─── RankingStage ─────────────────────────────────────────────────────────────
+
+export type ContextItem = {
+  path: string;
+  kind: "file" | "symbol" | "test" | "config" | "doc";
+  symbolName?: string;
+  lineStart?: number;
+  lineEnd?: number;
+  score: number;
+  tokenEstimate: number;
+  reason: string;
+};
+
+export type RankingInput = RepoMapOutput;
+export type RankingOutput = {
+  items: ContextItem[];
+  repoMap: RepoMapOutput;
+  task: string;
+  taskType: TaskType;
+};
+
+/** Extract file paths mentioned in the task string. */
+function extractTaskMentions(task: string): string[] {
+  const paths: string[] = [];
+  const patterns = [
+    /["'`]([^\s`]+?\.(?:ts|tsx|js|jsx|py|go|rs|java|kt|json|md|toml|yaml|yml))["'`]/g,
+    /(?:^|\s)([\w./-]+\.(?:ts|tsx|js|jsx|py|go|rs|java|kt|cs|rb|php|swift|c|cpp|h|hpp|json|md|toml|yaml|yml))(?=\s|$)/gm,
+  ];
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(task)) !== null) {
+      paths.push(match[1]);
+    }
+  }
+  return [...new Set(paths)];
+}
+
+/** Score a file for relevance to a task mention. */
+function scoreMention(file: string, mentions: string[]): number {
+  const normalized = file.replace(/^\.\//, "");
+  let best = 0;
+  for (const mention of mentions) {
+    if (normalized === mention) return 100;
+    if (normalized.includes(mention) || mention.includes(normalized)) best = Math.max(best, 70);
+    const mentionBase = mention.replace(/\.[^.]+$/, "");
+    const fileBase = normalized.replace(/\.[^.]+$/, "");
+    if (fileBase === mentionBase) best = Math.max(best, 60);
+  }
+  return best;
+}
+
+/** Map a source file to its corresponding test file(s) by naming convention. */
+function findTestsFor(path: string, testFiles: string[]): string[] {
+  const normalized = path.replace(/^\.\//, "").replace(/\.(ts|tsx|js|jsx)$/, "");
+  const candidates = [
+    normalized.replace(/^src\//, "tests/"),
+    normalized.replace(/^src\//, "test/"),
+  ];
+  return testFiles.filter(tf => {
+    const tn = tf.replace(/\.(test|spec)\.(ts|tsx|js|jsx)$/, "").replace(/^tests?\//, "");
+    return candidates.some(c => tn.includes(c) || c.includes(tn));
+  });
+}
+
+function estimateFileTokens(path: string, lineCount: number, isSource: boolean): number {
+  const base = isSource ? lineCount * 2 : lineCount * 1.5;
+  return Math.ceil(base);
+}
+
+export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
+  name = "ranking";
+
+  constructor(private options: { task: string; taskType: TaskType; pinnedPaths?: string[] } = { task: "", taskType: "unknown" }) {}
+
+  async process(input: RankingInput): Promise<RankingOutput> {
+    const { task, taskType, pinnedPaths = [] } = this.options;
+    const mentions = extractTaskMentions(task);
+    const items: ContextItem[] = [];
+
+    // 1. Task-mentioned files
+    for (const sf of input.sourceFiles) {
+      const entry = input.fileEntries.get(sf);
+      if (!entry) continue;
+      const score = scoreMention(sf, mentions);
+      if (score > 0) {
+        items.push({
+          path: sf,
+          kind: "file",
+          score,
+          tokenEstimate: estimateFileTokens(sf, entry.lineCount ?? 100, true),
+          reason: score >= 100 ? "task_mention_exact" : "task_mention_fuzzy",
+        });
+      }
+    }
+
+    // 2. Config files
+    for (const cf of input.configFiles) {
+      const entry = input.fileEntries.get(cf);
+      if (!entry) continue;
+      items.push({
+        path: cf,
+        kind: "config",
+        score: 10,
+        tokenEstimate: estimateFileTokens(cf, entry.lineCount ?? 20, false),
+        reason: "config_file",
+      });
+    }
+
+    // 3. Pinned files
+    for (const pinned of pinnedPaths) {
+      if (!items.some(i => i.path === pinned)) {
+        const entry = input.fileEntries.get(pinned);
+        if (entry) {
+          items.push({
+            path: pinned,
+            kind: entry.kind === "test" ? "test" : entry.kind === "config" ? "config" : "file",
+            score: 200,
+            tokenEstimate: estimateFileTokens(pinned, entry.lineCount ?? 100, entry.kind === "source"),
+            reason: "pinned",
+          });
+        }
+      }
+    }
+
+    // Sort by score descending
+    items.sort((a, b) => b.score - a.score);
+
+    return { items, repoMap: input, task, taskType };
   }
 }
