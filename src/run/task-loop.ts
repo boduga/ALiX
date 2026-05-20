@@ -69,6 +69,7 @@ export interface TaskLoopDeps {
   memoryStore: MemoryStore;
   sessionId: string;
   sessionDir: string;
+  systemPrompt: string;
   onStream?: (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
 }
 
@@ -99,6 +100,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     memoryStore,
     sessionId,
     sessionDir,
+    systemPrompt,
     onStream,
   } = deps;
 
@@ -107,6 +109,9 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
   let repairCount = 0;
   const maxRepairs = 3;
+
+  // Get the McpManager from executor (executor holds a reference)
+  const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
 
   for (let i = 0; i < maxIterations; i++) {
     stateMachine.tick(0);
@@ -148,15 +153,13 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     const { runHook } = await import("../hooks/runner.js");
     for (const hook of hooks.pre_task ?? []) {
       await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, reason: hook.reason } });
-      const result = await runHook(hook, deps.config.model.provider === "test" ? "." : deps.sessionId); // cwd placeholder
+      const result = await runHook(hook, deps.sessionId);
       await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
     }
 
     let text = "";
     let toolCalls: ToolCall[] = [];
     let usage: TokenUsage | undefined;
-
-    const systemPrompt = buildSystemPrompt(encoding, messages);
 
     if (config.model.streaming && provider.stream) {
       const result = await streamToResponse(provider, {
@@ -193,7 +196,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       // Run post_task hooks
       for (const hook of hooks.post_task ?? []) {
         await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, reason: hook.reason } });
-        const result = await runHook(hook, ".");
+        const result = await runHook(hook, deps.sessionId);
         await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
       }
 
@@ -267,7 +270,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       // Prepare event handler dependencies (created once per iteration)
       const eventHandlerDeps: EventHandlerDeps = {
         executor,
-        mcpManager: deps.executor as unknown as import("../mcp/manager.js").McpManager,
+        mcpManager,
         mcpDiscovery,
         scope,
         session,
@@ -292,7 +295,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         if (scopeResult.handled) {
           if (scopeResult.continue === false) {
             if (scopeResult.denied) {
-              const execName = deps.executor?.constructor?.name ?? toolCall.name;
+              const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
               // Check if we have paths to report denial for
               const pathsToCheck = extractMutationPaths(execName, toolCall.args);
               const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
@@ -330,7 +333,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
       // Track all file mutations in sessionState
       for (const toolCall of toolCalls) {
-        const execName = deps.selectedTools?.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+        const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
         recordMutationInSessionState(sessionState, execName, toolCall.args);
       }
       sessionState.fatalErrors.push(...fatalToolErrors);
