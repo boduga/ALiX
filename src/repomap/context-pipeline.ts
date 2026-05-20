@@ -5,6 +5,7 @@ import { buildDependencyGraph, type DependencyGraph } from "./dependency-graph.j
 import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor.js";
 import { rankContextCandidate } from "./context-ranker.js";
 import type { TaskType } from "../task-classifier.js";
+import { SemanticSearchIndex, type SearchResult } from "../context/semantic-search.js";
 
 /**
  * A stage in the context compilation pipeline.
@@ -131,6 +132,36 @@ export class RepoMapStage implements ContextStage<{ root: string }, RepoMapOutpu
   }
 }
 
+export class SemanticSearchStage implements ContextStage<RepoMapOutput, RepoMapOutput> {
+  name = "semantic-search";
+  private searchIndex: SemanticSearchIndex;
+  private indexed: boolean = false;
+
+  constructor(private options: { root: string; task: string }) {
+    this.searchIndex = new SemanticSearchIndex(options.root);
+  }
+
+  async process(input: RepoMapOutput): Promise<RepoMapOutput> {
+    await this.searchIndex.init();
+    if (!this.indexed) {
+      for (const [relPath, entry] of input.fileEntries) {
+        if (entry.kind === "source" && entry.content) {
+          try {
+            const fullPath = join(input.root, relPath);
+            await this.searchIndex.indexFile(fullPath, entry.content);
+          } catch { /* skip indexing errors */ }
+        }
+      }
+      this.indexed = true;
+    }
+    return input;
+  }
+
+  getSearchIndex(): SemanticSearchIndex {
+    return this.searchIndex;
+  }
+}
+
 // ─── RankingStage ─────────────────────────────────────────────────────────────
 
 export type ContextItem = {
@@ -246,7 +277,7 @@ function estimateFileTokens(path: string, lineCount: number, isSource: boolean):
 export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
   name = "ranking";
 
-  constructor(private options: { task: string; taskType: TaskType; pinnedPaths?: string[] } = { task: "", taskType: "unknown" }) {}
+  constructor(private options: { task: string; taskType: TaskType; pinnedPaths?: string[]; semanticSearchStage?: SemanticSearchStage } = { task: "", taskType: "unknown" }) {}
 
   async process(input: RankingInput): Promise<RankingOutput> {
     const { task, taskType, pinnedPaths = [] } = this.options;
@@ -277,6 +308,29 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
               score: score - 10, // Slightly lower than source file
               tokenEstimate: estimateFileTokens(rt, testEntry.lineCount ?? 30, false),
               reason: `test_for:${sf}`,
+            });
+          }
+        }
+      }
+    }
+
+    // Add semantic search results
+    if (this.options.semanticSearchStage) {
+      const searchIndex = this.options.semanticSearchStage.getSearchIndex();
+      const searchResults = await searchIndex.search(task, 20);
+      for (const result of searchResults) {
+        if (!items.some(i => i.path === result.path)) {
+          const entry = input.fileEntries.get(result.path);
+          if (entry) {
+            items.push({
+              path: result.path,
+              kind: entry.kind === "test" ? "test" : entry.kind === "config" ? "config" : "file",
+              symbolName: result.symbolName,
+              lineStart: result.lineStart,
+              lineEnd: result.lineEnd,
+              score: result.score,
+              tokenEstimate: estimateFileTokens(result.path, entry.lineCount ?? 100, entry.kind === "source"),
+              reason: `semantic_match:${result.symbolName}`,
             });
           }
         }

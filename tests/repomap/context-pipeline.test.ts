@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, BudgetingStage, type RankingOutput, type ContextItem } from "../../src/repomap/context-pipeline.js";
+import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, BudgetingStage, SemanticSearchStage, type RankingOutput, type ContextItem } from "../../src/repomap/context-pipeline.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
@@ -197,5 +197,46 @@ describe("BudgetingStage", () => {
     // Config files should be in supportingFiles
     const hasConfig = result.bundle.supportingFiles.some(i => i.kind === "config");
     assert.ok(hasConfig, "Config files should be in supportingFiles");
+  });
+});
+
+describe("SemanticSearchStage", () => {
+  it("semantic search stage indexes source files", async () => {
+    const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const tmpDir = await mkdtemp("/tmp/semantic-stage-test-");
+    const testFile = join(tmpDir, "test.ts");
+    await writeFile(testFile, "export function hello() { return 'hi'; }");
+
+    const repoMap = await buildRepoMap(tmpDir);
+    const stage = new SemanticSearchStage({ root: tmpDir, task: tmpDir });
+    const result = await stage.process(repoMap);
+
+    assert.ok(result.fileEntries.has("test.ts"));
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("ranking stage includes semantic search results", async () => {
+    const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const tmpDir = await mkdtemp("/tmp/semantic-ranking-test-");
+    await writeFile(join(tmpDir, "service.ts"), "export class UserService { greet() {} }");
+
+    const repoMap = await buildRepoMap(tmpDir);
+    const semanticStage = new SemanticSearchStage({ root: tmpDir, task: "UserService" });
+    await semanticStage.process(repoMap);
+
+    const rankingStage = new RankingStage({
+      task: "UserService",
+      taskType: "feature",
+      semanticSearchStage: semanticStage,
+    });
+
+    const result = await rankingStage.process(repoMap);
+    const semanticMatch = result.items.find(i => i.reason.startsWith("semantic_match:"));
+    assert.ok(semanticMatch, "Should include semantic search match");
+    assert.equal(semanticMatch!.symbolName, "UserService");
+
+    await rm(tmpDir, { recursive: true, force: true });
   });
 });
