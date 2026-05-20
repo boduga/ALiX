@@ -3,7 +3,7 @@
 > **Status: ✅ MVP Complete** — All items below have been implemented. This document is preserved for historical reference.
 
 Generated: 2026-05-15
-Updated: 2026-05-19
+Updated: 2026-05-20
 
 This file captures all work deferred past the MVP loop (`chat → repo map → plan → approve → patch → verify → diff → summarize`). Items are cross-referenced to `docs/agentic-harness-research.md` and organized by dependency order.
 
@@ -18,15 +18,19 @@ These must land before multi-agent work is viable.
 
 What: Build a `ContextCompiler` that turns user intent into a ranked, typed bundle of repo context. Classifies task type, builds repo map, ranks files by relevance, respects token budget, distinguishes edit targets from supporting context.
 
-Current state: `ContextCompiler` is wired into `runTask` and produces a ranked `ContextBundle`. It includes task-mentioned files, config files, related tests, pinned files, dependency-related files, symbol-level matches, git activity scoring, and token-budget enforcement. Remaining future upgrades are semantic search, Tree-sitter-grade parsing, and richer snippet extraction.
+Current state: `ContextCompiler` is wired into `runTask` and produces a ranked `ContextBundle`. It includes task-mentioned files, config files, related tests, pinned files, dependency-related files, symbol-level matches, and token-budget enforcement. **Pending:** git activity boosting and semantic search. Remaining future upgrades are Tree-sitter-grade parsing, snippet-level extraction, and git activity scoring.
 
 Key components implemented:
 - ✅ `IntentClassifier` — task type classification via `src/task-classifier.ts`
 - ✅ `SymbolExtractor` — top-level exported symbol extraction
 - ✅ `DependencyGraph` — relative import/export graph
-- ✅ `GitActivityReader` — recent git activity scoring
 - ✅ `ContextRanker` — combined scoring for mentions, dependencies, symbols, tests, config, and recency
 - ✅ `ContextBudgeter` — approximate token budget enforcement
+- ✅ Context pipeline tests — dependency files, symbol matches, pinned, budget coverage
+
+Pending (not yet implemented):
+- Git activity boosting (git activity scoring not wired into ranking)
+- Semantic search over repo content
 
 Future upgrades:
 - Tree-sitter parser for more precise symbols and references
@@ -40,7 +44,7 @@ Future upgrades:
 
 What: Per-provider edit format preferences from day one. Ollama/qwen defaults to `search_replace`. Claude defaults to `structured_patch` if testing confirms reliability. Gemini defaults to `search_replace` even with large context. Full-file rewrite never default for existing files.
 
-Current state: MVP complete. Provider adapters expose `editFormatPreference`, `run.ts` builds a provider-aware edit format policy, `ToolExecutor` enforces allowed formats before patch application, and patch application now preflights edits, checkpoints touched files, and rolls back failed applications. Gemini/Google and local-style providers default to `search_replace`; unsupported `full_file` and `unified_diff` requests are blocked before execution.
+Current state: MVP complete. Provider adapters expose `editFormatPreference`, `run.ts` has been split into focused modules (`helpers.ts`, `event-handlers.ts`, `task-loop.ts`), lazy imports are implemented, and router event emission added. `ToolExecutor` enforces allowed formats before patch application, and patch application now preflights edits, checkpoints touched files, and rolls back failed applications. Gemini/Google and local-style providers default to `search_replace`; unsupported `full_file` and `unified_diff` requests are blocked before execution.
 
 Key components implemented:
 - ✅ Provider `editFormatPreference` wired into patch tool schema and executor policy
@@ -244,4 +248,4 @@ Current state: Implementation complete
 
 ---
 
-*Updated 2026-05-19: All components implemented. Document preserved for historical reference. See `docs/architecture/implementation-readiness.md` for current status.*
+*Updated 2026-05-20: All components implemented. Document preserved for historical reference. See `docs/architecture/implementation-readiness.md` for current status.*
