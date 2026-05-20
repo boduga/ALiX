@@ -51,8 +51,12 @@ export class FileToolRouter implements ToolRouter {
         if (!path || content === undefined) {
           return { kind: "error", message: "file.create requires path and content" };
         }
-        const baseRoot = r ?? this.root;
+        const baseRoot = resolve(r ?? this.root);
         const resolvedPath = resolve(baseRoot, path);
+        // CRITICAL: validate path stays within workspace
+        if (!resolvedPath.startsWith(baseRoot + "/") && resolvedPath !== baseRoot) {
+          return { kind: "error", message: "Path is outside workspace", retryable: false };
+        }
         if (existsSync(resolvedPath)) {
           return { kind: "error", message: "File already exists", retryable: false };
         }

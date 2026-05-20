@@ -250,3 +250,15 @@ test("FileToolRouter.execute handles file.exists", async () => {
   assert.strictEqual(notExistsResult.exists, false);
   await rm("/tmp/exists-test.txt", { force: true });
 });
+
+test("FileToolRouter.execute blocks path traversal on file.create", async () => {
+  const router = new FileToolRouter("/tmp");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path: "../../etc/passwd", content: "malicious content" },
+  });
+  assert.strictEqual(result.kind, "error");
+  assert.strictEqual(result.message, "Path is outside workspace");
+  assert.strictEqual(result.retryable, false);
+});
