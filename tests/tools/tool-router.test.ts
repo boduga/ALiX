@@ -10,6 +10,7 @@ import {
   DelegateToolRouter,
   CompositeToolRouter,
 } from "../../src/tools/tool-router.js";
+import type { ToolResult } from "../../src/tools/types.js";
 
 test("ToolRouter interface exists", () => {
   const router = new CompositeToolRouter([]);
@@ -70,12 +71,12 @@ test("ShellToolRouter.canHandle returns false for others", () => {
 });
 
 test("PatchToolRouter.canHandle returns true for patch.apply", () => {
-  const router = new PatchToolRouter();
+  const router = new PatchToolRouter("/tmp", { version: 1, model: { provider: "anthropic", name: "claude" }, permissions: { default: "ask", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 8080, transport: "sse" } });
   assert.strictEqual(router.canHandle("patch.apply"), true);
 });
 
 test("PatchToolRouter.canHandle returns false for others", () => {
-  const router = new PatchToolRouter();
+  const router = new PatchToolRouter("/tmp", { version: 1, model: { provider: "anthropic", name: "claude" }, permissions: { default: "ask", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 8080, transport: "sse" } });
   assert.strictEqual(router.canHandle("file.read"), false);
   assert.strictEqual(router.canHandle("shell.run"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
@@ -83,14 +84,14 @@ test("PatchToolRouter.canHandle returns false for others", () => {
 });
 
 test("McpToolRouter.canHandle returns true for mcp.* tools", () => {
-  const router = new McpToolRouter();
+  const router = new McpToolRouter({ callTool: async () => ({ kind: "success", output: "" }) } as any);
   assert.strictEqual(router.canHandle("mcp.some"), true);
   assert.strictEqual(router.canHandle("mcp.github-mcp__list_issues"), true);
   assert.strictEqual(router.canHandle("mcp.filesystem.read"), true);
 });
 
 test("McpToolRouter.canHandle returns false for non-mcp tools", () => {
-  const router = new McpToolRouter();
+  const router = new McpToolRouter({ callTool: async () => ({ kind: "success", output: "" }) } as any);
   assert.strictEqual(router.canHandle("file.read"), false);
   assert.strictEqual(router.canHandle("shell.run"), false);
   assert.strictEqual(router.canHandle("patch.apply"), false);
@@ -321,5 +322,97 @@ test("PatchToolRouter.execute rejects disallowed format", async () => {
   });
   assert.strictEqual(result.kind, "error");
   assert.ok(result.message.includes('Patch format "search_replace" is not allowed'));
+  assert.strictEqual(result.retryable, false);
+});
+
+test("McpToolRouter.execute delegates to mcpManager.callTool", async () => {
+  const mockMcpManager = {
+    callTool: async (fullName: string, args: Record<string, unknown>): Promise<ToolResult> => {
+      assert.strictEqual(fullName, "github/repos_list");
+      assert.deepStrictEqual(args, { owner: "test", page: 1 });
+      return { kind: "success", output: "mock response" };
+    },
+  };
+
+  const router = new McpToolRouter(mockMcpManager as any);
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "mcp.github.repos.list",
+    args: { owner: "test", page: 1 },
+  });
+
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.output, "mock response");
+});
+
+test("McpToolRouter.execute parses tool name correctly", async () => {
+  let receivedFullName = "";
+  const mockMcpManager = {
+    callTool: async (fullName: string, _args: Record<string, unknown>): Promise<ToolResult> => {
+      receivedFullName = fullName;
+      return { kind: "success", output: "ok" };
+    },
+  };
+
+  const router = new McpToolRouter(mockMcpManager as any);
+
+  // mcp.github.repos.list -> github/repos_list
+  await router.execute({
+    toolCallId: "1",
+    name: "mcp.github.repos.list",
+    args: {},
+  });
+
+  assert.strictEqual(receivedFullName, "github/repos_list");
+});
+
+test("DelegateToolRouter.execute calls the delegate handler", async () => {
+  const mockResult: ToolResult = { kind: "success", output: "delegated result" };
+  const handlers = {
+    delegate: async (_args: Record<string, unknown>): Promise<ToolResult> => {
+      return mockResult;
+    },
+  };
+
+  const router = new DelegateToolRouter(handlers);
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "delegate",
+    args: { arg1: "value1" },
+  });
+
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.output, "delegated result");
+});
+
+test("DelegateToolRouter.execute passes args to handler", async () => {
+  let receivedArgs: Record<string, unknown> = {};
+  const handlers = {
+    delegate: async (args: Record<string, unknown>): Promise<ToolResult> => {
+      receivedArgs = args;
+      return { kind: "success", output: "ok" };
+    },
+  };
+
+  const router = new DelegateToolRouter(handlers);
+  await router.execute({
+    toolCallId: "1",
+    name: "delegate",
+    args: { custom: "args", number: 42 },
+  });
+
+  assert.deepStrictEqual(receivedArgs, { custom: "args", number: 42 });
+});
+
+test("DelegateToolRouter.execute returns error if handler not initialized", async () => {
+  const router = new DelegateToolRouter();
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "delegate",
+    args: {},
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.strictEqual(result.message, "Delegate handler not initialized");
   assert.strictEqual(result.retryable, false);
 });

@@ -10,6 +10,7 @@ import { extractPatchPaths } from "../patch/patch-paths.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
 import type { AlixConfig } from "../config/schema.js";
+import type { McpManager } from "../mcp/manager.js";
 
 export interface ToolRouter {
   canHandle(name: string): boolean;
@@ -168,22 +169,35 @@ export class PatchToolRouter implements ToolRouter {
 }
 
 export class McpToolRouter implements ToolRouter {
+  constructor(private mcpManager: McpManager) {}
+
   canHandle(name: string): boolean {
     return name.startsWith("mcp.");
   }
 
-  async execute(_request: ToolCallRequest): Promise<ToolResult> {
-    throw new Error("Not implemented yet");
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    // Parse mcp.server.tool format: mcp.github.repos.list -> github/repos_list
+    const parts = request.name.split(".");
+    const serverName = parts[1];
+    const toolName = parts.slice(2).join("_");
+    const fullName = `${serverName}/${toolName}`;
+    return this.mcpManager.callTool(fullName, request.args);
   }
 }
 
 export class DelegateToolRouter implements ToolRouter {
+  constructor(private handlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>) {}
+
   canHandle(name: string): boolean {
     return name === "delegate";
   }
 
-  async execute(_request: ToolCallRequest): Promise<ToolResult> {
-    throw new Error("Not implemented yet");
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    const handler = this.handlers?.delegate;
+    if (!handler) {
+      return { kind: "error", message: "Delegate handler not initialized", retryable: false };
+    }
+    return handler(request.args);
   }
 }
 
