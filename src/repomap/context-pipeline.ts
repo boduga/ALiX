@@ -377,6 +377,29 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
     // Re-sort after adding dependencies and symbols
     items.sort((a, b) => b.score - a.score);
 
+    // 7. Add reverse dependents for mentioned source files (callers that may break)
+    const allPaths = new Set(items.map(i => i.path));
+    for (const mentioned of mentionedPaths) {
+      const dependents = input.dependencyGraph.dependentsOf(mentioned);
+      for (const dep of dependents) {
+        if (!allPaths.has(dep) && !items.some(i => i.path === dep)) {
+          const depEntry = input.fileEntries.get(dep);
+          if (depEntry) {
+            items.push({
+              path: dep,
+              kind: depEntry.kind === "test" ? "test" : depEntry.kind === "config" ? "config" : "file",
+              score: 8, // Lower than forward dependencies; callers are indirect context
+              tokenEstimate: estimateFileTokens(dep, depEntry.lineCount ?? 100, depEntry.kind === "source"),
+              reason: `reverse_dependent_distance:1`,
+            });
+          }
+        }
+      }
+    }
+
+    // Re-sort after adding dependents
+    items.sort((a, b) => b.score - a.score);
+
     return { items, repoMap: input, task, taskType };
   }
 }

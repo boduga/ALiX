@@ -82,13 +82,21 @@ function buildTerminal(events) {
 }
 
 function buildDiffs(events) {
-  return events
+  const fromToolCompleted = events
     .filter((event) => event.type === "tool.completed" && event.payload?.toolName === "patch.apply")
     .map((event) => ({
       toolCallId: event.payload.toolCallId,
       changedFiles: event.payload.changedFiles ?? [],
       status: "applied",
     }));
+  const fromDomainEvent = events
+    .filter((event) => event.type === "patch.changed_files")
+    .map((event) => ({
+      toolCallId: event.payload.toolCallId,
+      changedFiles: event.payload.changedFiles ?? [],
+      status: "applied",
+    }));
+  return [...fromToolCompleted, ...fromDomainEvent];
 }
 
 function buildApprovals(events) {

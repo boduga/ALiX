@@ -149,6 +149,17 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
           }
         }
         break;
+      case "patch.changed_files": {
+        const changedFiles = stringArray(payload.changedFiles);
+        snapshot.diffs.push({
+          toolCallId,
+          changedFiles,
+          checkpointFiles: [],
+          rolledBack: false,
+          status: "applied"
+        });
+        break;
+      }
       case "patch.checkpoint_created":
         snapshot.diffs.push({
           toolCallId,

@@ -76,6 +76,22 @@ export async function buildSessionDigest(sessionDir: string): Promise<string | n
           errors.push(`${toolName ?? "tool"}: ${short}`);
         }
       }
+
+      // Also consume domain events for forward compatibility
+      if (event.type === "file.created") {
+        const p = event.payload as { path?: string };
+        if (p.path) created.add(p.path);
+      }
+      if (event.type === "file.deleted") {
+        const p = event.payload as { path?: string };
+        if (p.path) deleted.add(p.path);
+      }
+      if (event.type === "patch.changed_files") {
+        const p = event.payload as { changedFiles?: string[] };
+        if (p.changedFiles) {
+          for (const file of p.changedFiles) changed.add(file);
+        }
+      }
     } catch {
       // Skip malformed lines
     }
