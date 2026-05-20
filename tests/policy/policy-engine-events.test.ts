@@ -10,14 +10,19 @@ describe("Policy Engine Events", () => {
   const testDir = join(process.cwd(), ".test-policy-events");
   let eventLog: EventLog;
   let policyEngine: PolicyEngine;
+  // Test config with minimal required fields - using unknown to bypass strict type checking
   const testConfig: AlixConfig = {
+    version: 1,
     model: { provider: "openai", name: "gpt-4" },
     permissions: {
       default: "ask",
       tools: { "file.read": "allow", "file.write": "ask" },
       protectedPaths: [".env", ".git"],
     },
-  } as AlixConfig;
+    context: { maxTokens: 100000 },
+    runtime: { provider: "process" },
+    ui: { enabled: false, port: 3000 },
+  };
 
   beforeEach(async () => {
     await mkdir(testDir, { recursive: true });
