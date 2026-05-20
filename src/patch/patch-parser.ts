@@ -19,7 +19,12 @@ export interface ParsedPatch {
 }
 
 export class PatchParser {
-  parse(patch: string, format: "unified" | "context" | "unified_minimal" = "unified"): ParsedPatch {
+  /**
+   * Parse a patch string into structured format.
+   * @param patch - The patch string to parse
+   * @param _format - Format type (reserved for future multi-format support: unified, context, unified_minimal)
+   */
+  parse(patch: string, _format: "unified" | "context" | "unified_minimal" = "unified"): ParsedPatch {
     const normalized = patch.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
     const lines = normalized.split("\n");
 
@@ -69,7 +74,12 @@ export class PatchParser {
     return { files, raw: patch, normalized: patch !== normalized };
   }
 
-  serialize(patch: ParsedPatch, format: "unified" = "unified"): string {
+  /**
+   * Serialize a parsed patch back to unified format.
+   * @param patch - The parsed patch structure
+   * @param _format - Format type (reserved for future multi-format support)
+   */
+  serialize(patch: ParsedPatch, _format: "unified" = "unified"): string {
     const lines: string[] = [];
 
     for (const file of patch.files) {

@@ -37,4 +37,29 @@ describe("PatchParser", () => {
     assert.equal(parsed.files[0].oldPath, "src/main.ts");
     assert.equal(parsed.files[0].newPath, "src/main.ts");
   });
+
+  it("serializes parsed patch back to unified format", () => {
+    const parser = new PatchParser();
+    const parsed: import("../../src/patch/patch-parser.js").ParsedPatch = {
+      files: [{
+        oldPath: "file.ts",
+        newPath: "file.ts",
+        hunks: [{
+          oldStart: 1, oldLines: 3,
+          newStart: 1, newLines: 3,
+          lines: [
+            { type: "context", content: "const a = 1;" },
+            { type: "delete", content: "const b = 2;" },
+            { type: "add", content: "const b = 3;" },
+            { type: "context", content: "const c = 3;" },
+          ]
+        }]
+      }],
+      raw: "",
+      normalized: false,
+    };
+    const output = parser.serialize(parsed);
+    assert.ok(output.includes("--- a/file.ts"));
+    assert.ok(output.includes("+const b = 3;"));
+  });
 });
