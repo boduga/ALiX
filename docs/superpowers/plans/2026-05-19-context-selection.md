@@ -1,616 +1,887 @@
-# Context Selection Enhancement Plan
+# Context Selection Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Complete ContextCompiler with semantic search, full intent classification, and budget enforcement per research spec.
+**Goal:** Implement context selection components to rank and prioritize code artifacts for LLM context windows
 
-**Architecture:** Build on existing RepoMapLite and ContextCompiler. Add semantic search index, full intent classifier, and token budget enforcement.
+**Architecture:** RepoMapIndexer discovers files, SymbolExtractor and DependencyGraph analyze relationships, GitActivityReader tracks recent changes, ContextRanker scores relevance, ContextBundleBuilder assembles the final bundle.
 
-**Tech Stack:** TypeScript, existing context compiler, tree-sitter or basic text search
-
----
-
-## File Structure
-
-| File | Responsibility |
-|------|----------------|
-| `src/context/intent-classifier.ts` | Classify user intent into task types |
-| `src/context/semantic-search.ts` | Semantic search for code symbols |
-| `src/context/context-budgeter.ts` | Enforce token budgets on context bundles |
-| `src/context/context-ranker.ts` | Rank files by relevance to intent |
-| `tests/context/intent-classifier.test.ts` | Intent classification tests |
-| `tests/context/semantic-search.test.ts` | Semantic search tests |
-| `tests/context/context-budgeter.test.ts` | Budget enforcement tests |
+**Tech Stack:** TypeScript, GitNexus knowledge graph, existing src/repomap/ and src/events/ modules
 
 ---
 
-## Task 1: Add IntentClassifier
+## Context Selection Components
+
+### Task 1: RepoMapIndexer Enhancement
 
 **Files:**
-- Create: `src/context/intent-classifier.ts`
-- Test: `tests/context/intent-classifier.test.ts`
+- Modify: `src/repomap/repomap-lite.ts` - existing implementation
+- Test: `tests/repomap/repomap-lite.test.ts`
 
-- [ ] **Step 1: Write failing test**
-
-```typescript
-import { describe, it } from "node:test";
-import assert from "node:assert";
-import { IntentClassifier, type TaskType } from "../../src/context/intent-classifier.js";
-
-describe("IntentClassifier", () => {
-  const classifier = new IntentClassifier();
-
-  it("classifies bugfix intent", () => {
-    const type = classifier.classify("fix the login bug where users can't authenticate");
-    assert.equal(type, "bugfix");
-  });
-
-  it("classifies feature intent", () => {
-    const type = classifier.classify("add user profile page with avatar upload");
-    assert.equal(type, "feature");
-  });
-
-  it("classifies refactor intent", () => {
-    const type = classifier.classify("extract the auth logic into a separate module");
-    assert.equal(type, "refactor");
-  });
-
-  it("classifies test intent", () => {
-    const type = classifier.classify("add tests for the payment processing module");
-    assert.equal(type, "test");
-  });
-
-  it("classifies docs intent", () => {
-    const type = classifier.classify("document the API endpoints for the new feature");
-    assert.equal(type, "docs");
-  });
-
-  it("returns unknown for unclear intents", () => {
-    const type = classifier.classify("what does this codebase do");
-    assert.equal(type, "unknown");
-  });
-
-  it("extracts mentioned files from intent", () => {
-    const result = classifier.classifyWithFiles("fix bug in src/auth/login.ts");
-    assert.ok(result.files?.includes("src/auth/login.ts"));
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npm test -- tests/context/intent-classifier.test.ts`
-Expected: FAIL with "Cannot find module"
-
-- [ ] **Step 3: Implement IntentClassifier**
+- [ ] **Step 1: Add filter capabilities to RepoMapLite**
 
 ```typescript
-// src/context/intent-classifier.ts
-
-export type TaskType =
-  | "bugfix"
-  | "feature"
-  | "refactor"
-  | "explanation"
-  | "test"
-  | "docs"
-  | "review"
-  | "unknown";
-
-export type ClassificationResult = {
-  type: TaskType;
-  confidence: number;
-  files?: string[];
-  keywords: string[];
-};
-
-const TASK_PATTERNS: Record<TaskType, RegExp[]> = {
-  bugfix: [
-    /fix/i,
-    /bug/i,
-    /error/i,
-    /crash/i,
-    /broken/i,
-    /fail/i,
-  ],
-  feature: [
-    /add/i,
-    /implement/i,
-    /create/i,
-    /new/i,
-    /build/i,
-  ],
-  refactor: [
-    /refactor/i,
-    /extract/i,
-    /simplify/i,
-    /restructure/i,
-    /clean/i,
-  ],
-  explanation: [
-    /what is/i,
-    /how does/i,
-    /explain/i,
-    /understand/i,
-    /what does/i,
-  ],
-  test: [
-    /test/i,
-    /spec/i,
-    /coverage/i,
-    /unit/i,
-  ],
-  docs: [
-    /document/i,
-    /doc/i,
-    /readme/i,
-    /comment/i,
-    /api/i,
-  ],
-  review: [
-    /review/i,
-    /audit/i,
-    /check/i,
-    /analyze/i,
-  ],
-  unknown: [],
-};
-
-const FILE_PATTERN = /(?:src|lib|app|tests?|dist|build|\w+\.(ts|js|py|go|rs|java))[\/\\][^\s]+/gi;
-
-export class IntentClassifier {
-  classify(input: string): TaskType {
-    const result = this.classifyWithFiles(input);
-    return result.type;
-  }
-
-  classifyWithFiles(input: string): ClassificationResult {
-    const scores: Record<TaskType, number> = {
-      bugfix: 0,
-      feature: 0,
-      refactor: 0,
-      explanation: 0,
-      test: 0,
-      docs: 0,
-      review: 0,
-      unknown: 0,
-    };
-
-    // Score each task type
-    for (const [type, patterns] of Object.entries(TASK_PATTERNS)) {
-      for (const pattern of patterns) {
-        if (pattern.test(input)) {
-          scores[type as TaskType]++;
-        }
-      }
+// Add to RepoMapLite class
+filter(predicate: (file: FileNode) => boolean): RepoMapLite {
+  const filtered = new Map<string, FileNode>();
+  for (const [path, node] of this.files) {
+    if (predicate(node)) {
+      filtered.set(path, node);
     }
-
-    // Find highest score
-    let bestType: TaskType = "unknown";
-    let bestScore = 0;
-    for (const [type, score] of Object.entries(scores)) {
-      if (score > bestScore) {
-        bestScore = score;
-        bestType = type as TaskType;
-      }
-    }
-
-    // Extract files
-    const files = input.match(FILE_PATTERN) || [];
-
-    // Extract keywords
-    const words = input.toLowerCase().split(/\s+/);
-    const keywords = words.filter(w => w.length > 3).slice(0, 10);
-
-    return {
-      type: bestType,
-      confidence: bestScore > 0 ? Math.min(bestScore / 3, 1) : 0,
-      files: files.length > 0 ? files : undefined,
-      keywords,
-    };
   }
+  return new RepoMapLite(filtered, this.config);
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 2: Add glob pattern matching**
 
-Run: `npm test -- tests/context/intent-classifier.test.ts`
-Expected: PASS
+```typescript
+matchGlob(patterns: string[]): RepoMapLite {
+  const { minimatch } = await import('minimatch');
+  return this.filter(node => 
+    patterns.some(p => minimatch(node.path, p))
+  );
+}
+```
+
+- [ ] **Step 3: Add dependency-aware filtering**
+
+```typescript
+filterByDependencyScope(depth: number, roots: string[]): RepoMapLite {
+  const graph = new DependencyGraph(this);
+  const reachable = new Set<string>();
+  
+  const queue = [...roots];
+  let currentDepth = 0;
+  
+  while (queue.length > 0 && currentDepth < depth) {
+    const nextLevel = [];
+    for (const file of queue) {
+      if (!reachable.has(file)) {
+        reachable.add(file);
+        nextLevel.push(...graph.dependenciesOf(file));
+      }
+    }
+    queue.length = 0;
+    queue.push(...nextLevel);
+    currentDepth++;
+  }
+  
+  return this.filter(node => reachable.has(node.path));
+}
+```
+
+- [ ] **Step 4: Run tests to verify changes**
+
+Run: `npm test -- tests/repomap/repomap-lite.test.ts`
+Expected: PASS (existing tests + new filter tests)
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/context/intent-classifier.ts tests/context/intent-classifier.test.ts
-git commit -m "feat(context): add IntentClassifier for task type detection"
+git add src/repomap/repomap-lite.ts tests/repomap/repomap-lite.test.ts
+git commit -m "feat(context-selection): add filtering to RepoMapLite"
 ```
 
 ---
 
-## Task 2: Add SemanticSearch
+### Task 2: SymbolExtractor
 
 **Files:**
-- Create: `src/context/semantic-search.ts`
-- Test: `tests/context/semantic-search.test.ts`
+- Create: `src/repomap/symbol-extractor.ts`
+- Create: `tests/repomap/symbol-extractor.test.ts`
 
 - [ ] **Step 1: Write failing test**
 
 ```typescript
-import { describe, it, beforeEach } from "node:test";
+// tests/repomap/symbol-extractor.test.ts
+import { describe, it } from "node:test";
 import assert from "node:assert";
-import { SemanticSearchIndex } from "../../src/context/semantic-search.js";
-import { writeFile, mkdir } from "node:fs/promises";
+import { SymbolExtractor } from "../../src/repomap/symbol-extractor.js";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
 
-describe("SemanticSearchIndex", () => {
-  const testDir = join(process.cwd(), ".test-semantic");
-  let index: SemanticSearchIndex;
-
-  beforeEach(async () => {
-    await mkdir(testDir, { recursive: true });
-    index = new SemanticSearchIndex(testDir);
-    await index.init();
-  });
-
-  afterEach(async () => {
-    await rm(testDir, { recursive: true, force: true });
-  });
-
-  it("indexes function declarations", async () => {
-    await index.indexFile(join(testDir, "test.ts"), `
-      export function validateUser(id: string) {
-        return users.find(u => u.id === id);
+describe("SymbolExtractor", () => {
+  it("extracts function and class definitions", async () => {
+    const dir = await mkdir(join(tmpdir(), "symbol-test"), { recursive: true });
+    await writeFile(join(dir, "test.ts"), `
+      export function calculateTotal(items: Item[]): number {
+        return items.reduce((sum, item) => sum + item.price, 0);
       }
-    `);
-
-    const results = await index.search("validate user authentication");
-    assert.ok(results.length > 0);
-    assert.ok(results[0].symbolName?.includes("validateUser"));
-  });
-
-  it("indexes class declarations", async () => {
-    await index.indexFile(join(testDir, "test.ts"), `
-      class UserService {
-        async getUser(id: string) { }
+      
+      export class Cart {
+        private items: Item[] = [];
+        add(item: Item): void { this.items.push(item); }
       }
+      
+      interface Item { price: number; }
     `);
-
-    const results = await index.search("user service");
-    assert.ok(results.some(r => r.symbolName?.includes("UserService")));
+    
+    const extractor = new SymbolExtractor();
+    const symbols = await extractor.extractFromDir(dir);
+    
+    assert.ok(symbols.find(s => s.name === "calculateTotal" && s.kind === "function"));
+    assert.ok(symbols.find(s => s.name === "Cart" && s.kind === "class"));
+    assert.ok(symbols.find(s => s.name === "Item" && s.kind === "interface"));
   });
 
-  it("ranks by relevance", async () => {
-    await index.indexFile(join(testDir, "auth.ts"), `
-      function authenticate() { }
-    `);
-    await index.indexFile(join(testDir, "other.ts"), `
-      function process() { }
-    `);
-
-    const results = await index.search("authenticate");
-    assert.ok(results[0].path.includes("auth.ts"));
+  it("extracts symbols from file with AST", async () => {
+    const extractor = new SymbolExtractor();
+    const code = `
+      const foo = 42;
+      type UserId = string;
+      enum Status { Active, Inactive }
+    `;
+    const symbols = await extractor.extractFromCode(code, "test.ts");
+    
+    assert.ok(symbols.find(s => s.name === "foo"));
+    assert.ok(symbols.find(s => s.name === "UserId"));
+    assert.ok(symbols.find(s => s.name === "Status"));
   });
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
 
-Run: `npm test -- tests/context/semantic-search.test.ts`
-Expected: FAIL
+Run: `npm test -- tests/repomap/symbol-extractor.test.ts`
+Expected: FAIL with "Cannot find module"
 
-- [ ] **Step 3: Implement SemanticSearchIndex**
+- [ ] **Step 3: Implement SymbolExtractor**
 
 ```typescript
-// src/context/semantic-search.ts
-
+// src/repomap/symbol-extractor.ts
+import { parse } from "@typescript-eslint/parser";
+import type { TSESTree } from "@typescript-eslint/types";
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
 
-export type IndexedSymbol = {
-  path: string;
-  symbolName: string;
-  kind: "function" | "class" | "method" | "interface" | "type" | "const";
-  lineStart: number;
-  lineEnd: number;
-  keywords: string[];
-};
+export interface ExtractedSymbol {
+  name: string;
+  kind: "function" | "class" | "interface" | "type" | "enum" | "const" | "variable";
+  file: string;
+  line: number;
+  exports: boolean;
+}
 
-export type SearchResult = IndexedSymbol & {
-  score: number;
-};
-
-const SYMBOL_PATTERNS = [
-  { kind: "function", pattern: /(?:export\s+)?function\s+(\w+)/g },
-  { kind: "class", pattern: /(?:export\s+)?class\s+(\w+)/g },
-  { kind: "method", pattern: /(?:async\s+)?(\w+)\s*\([^)]*\)\s*\{/g },
-  { kind: "interface", pattern: /(?:export\s+)?interface\s+(\w+)/g },
-  { kind: "type", pattern: /(?:export\s+)?type\s+(\w+)/g },
-  { kind: "const", pattern: /(?:export\s+)?const\s+(\w+)/g },
-];
-
-export class SemanticSearchIndex {
-  private symbols: Map<string, IndexedSymbol[]> = new Map();
-  private indexPath: string;
-
-  constructor(
-    private baseDir: string,
-    indexPath?: string
-  ) {
-    this.indexPath = indexPath ?? join(baseDir, ".alix", "symbol-index.json");
-  }
-
-  async init(): Promise<void> {
-    // Load existing index or create empty
-    // Implementation loads from disk
-  }
-
-  async indexFile(filePath: string, content?: string): Promise<void> {
-    const fileContent = content ?? await readFile(filePath, "utf8");
-    const symbols = this.extractSymbols(filePath, fileContent);
-    this.symbols.set(filePath, symbols);
-  }
-
-  async search(query: string, limit = 20): Promise<SearchResult[]> {
-    const queryWords = query.toLowerCase().split(/\s+/);
-    const results: SearchResult[] = [];
-
-    for (const [path, symbols] of this.symbols.entries()) {
-      for (const symbol of symbols) {
-        const score = this.calculateScore(symbol, queryWords);
-        if (score > 0) {
-          results.push({ ...symbol, path, score });
-        }
-      }
+export class SymbolExtractor {
+  async extractFromDir(dir: string, extensions = [".ts", ".tsx", ".js", ".jsx"]): Promise<ExtractedSymbol[]> {
+    const symbols: ExtractedSymbol[] = [];
+    const files = await this.findFiles(dir, extensions);
+    
+    for (const file of files) {
+      const content = await readFile(file, "utf-8");
+      const fileSymbols = await this.extractFromCode(content, file);
+      symbols.push(...fileSymbols);
     }
-
-    return results
-      .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
-  }
-
-  private extractSymbols(filePath: string, content: string): IndexedSymbol[] {
-    const symbols: IndexedSymbol[] = [];
-    const lines = content.split("\n");
-
-    for (const { kind, pattern } of SYMBOL_PATTERNS) {
-      let match;
-      pattern.lastIndex = 0;
-      while ((match = pattern.exec(content)) !== null) {
-        const lineNum = content.substring(0, match.index).split("\n").length;
-        const keywords = this.extractKeywords(match[1]);
-        
-        symbols.push({
-          path: filePath,
-          symbolName: match[1],
-          kind,
-          lineStart: lineNum,
-          lineEnd: lineNum,
-          keywords,
-        });
-      }
-    }
-
+    
     return symbols;
   }
 
-  private calculateScore(symbol: IndexedSymbol, queryWords: string[]): number {
-    let score = 0;
-    const nameLower = symbol.symbolName.toLowerCase();
+  async extractFromCode(code: string, filename: string): Promise<ExtractedSymbol[]> {
+    const ast = parse(code, { sourceType: "module", ecmaVersion: "latest" });
+    const symbols: ExtractedSymbol[] = [];
     
-    for (const word of queryWords) {
-      if (nameLower.includes(word)) {
-        score += 10;
-      }
-      for (const kw of symbol.keywords) {
-        if (kw.includes(word) || word.includes(kw)) {
-          score += 5;
+    this.traverse(ast, (node) => {
+      const symbol = this.extractSymbol(node, filename);
+      if (symbol) symbols.push(symbol);
+    });
+    
+    return symbols;
+  }
+
+  private traverse(node: TSESTree.Node, visitor: (node: TSESTree.Node) => void): void {
+    visitor(node);
+    for (const key in node) {
+      const child = (node as any)[key];
+      if (child && typeof child === "object") {
+        if (Array.isArray(child)) {
+          for (const item of child) {
+            if (item && typeof item === "object" && "type" in item) {
+              this.traverse(item as TSESTree.Node, visitor);
+            }
+          }
+        } else if ("type" in child) {
+          this.traverse(child as TSESTree.Node, visitor);
         }
       }
     }
-    
-    return score;
   }
 
-  private extractKeywords(name: string): string[] {
-    // Split camelCase and snake_case
-    return name
-      .split(/([A-Z]|[_])/)
-      .filter(s => s.length > 1)
-      .map(s => s.toLowerCase());
+  private extractSymbol(node: TSESTree.Node, filename: string): ExtractedSymbol | null {
+    const line = node.loc?.start.line ?? 0;
+    
+    switch (node.type) {
+      case "FunctionDeclaration":
+        return {
+          name: (node as any).id?.name ?? "anonymous",
+          kind: "function",
+          file: filename,
+          line,
+          exports: this.isExported(node),
+        };
+      case "ClassDeclaration":
+        return {
+          name: (node as any).id?.name ?? "AnonymousClass",
+          kind: "class",
+          file: filename,
+          line,
+          exports: this.isExported(node),
+        };
+      case "TSInterfaceDeclaration":
+        return {
+          name: (node as any).id?.name ?? "AnonymousInterface",
+          kind: "interface",
+          file: filename,
+          line,
+          exports: this.isExported(node),
+        };
+      case "TSTypeAliasDeclaration":
+        return {
+          name: (node as any).id?.name ?? "AnonymousType",
+          kind: "type",
+          file: filename,
+          line,
+          exports: this.isExported(node),
+        };
+      case "TSEnumDeclaration":
+        return {
+          name: (node as any).id?.name ?? "AnonymousEnum",
+          kind: "enum",
+          file: filename,
+          line,
+          exports: this.isExported(node),
+        };
+      default:
+        return null;
+    }
+  }
+
+  private isExported(node: TSESTree.Node): boolean {
+    const parent = (node as any).parent;
+    return parent?.type === "ExportNamedDeclaration";
+  }
+
+  private async findFiles(dir: string, extensions: string[]): Promise<string[]> {
+    const files: string[] = [];
+    const entries = await readdir(dir, { withFileTypes: true });
+    
+    for (const entry of entries) {
+      const fullPath = join(dir, entry.name);
+      if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+        files.push(...await this.findFiles(fullPath, extensions));
+      } else if (extensions.some(ext => entry.name.endsWith(ext))) {
+        files.push(fullPath);
+      }
+    }
+    
+    return files;
   }
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
-Run: `npm test -- tests/context/semantic-search.test.ts`
+Run: `npm test -- tests/repomap/symbol-extractor.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/context/semantic-search.ts tests/context/semantic-search.test.ts
-git commit -m "feat(context): add SemanticSearchIndex for symbol search"
+git add src/repomap/symbol-extractor.ts tests/repomap/symbol-extractor.test.ts
+git commit -m "feat(context-selection): add SymbolExtractor for AST-based symbol discovery"
 ```
 
 ---
 
-## Task 3: Add ContextBudgeter
+### Task 3: DependencyGraph Enhancement
 
 **Files:**
-- Create: `src/context/context-budgeter.ts`
-- Test: `tests/context/context-budgeter.test.ts`
+- Modify: `src/repomap/dependency-graph.ts` - extend existing
+- Test: `tests/repomap/dependency-graph.test.ts`
+
+- [ ] **Step 1: Add test for new features**
+
+```typescript
+it("finds transitive dependencies", () => {
+  const graph = new DependencyGraph(repoMap);
+  const transitive = graph.transitiveDependenciesOf("src/main.ts", 3);
+  assert.ok(transitive.length >= graph.dependenciesOf("src/main.ts").length);
+});
+
+it("detects circular dependencies", () => {
+  const graph = new DependencyGraph(repoMap);
+  const cycles = graph.findCycles();
+  assert.ok(Array.isArray(cycles));
+});
+
+it("calculates impact score", () => {
+  const graph = new DependencyGraph(repoMap);
+  const score = graph.impactScore("src/utils.ts");
+  assert.ok(score >= 0);
+});
+```
+
+- [ ] **Step 2: Implement new methods**
+
+```typescript
+transitiveDependenciesOf(file: string, maxDepth = 10): string[] {
+  const visited = new Set<string>();
+  const queue: { file: string; depth: number }[] = [{ file, depth: 0 }];
+  
+  while (queue.length > 0) {
+    const { file: current, depth } = queue.shift()!;
+    if (visited.has(current) || depth > maxDepth) continue;
+    visited.add(current);
+    
+    const deps = this.dependenciesOf(current);
+    for (const dep of deps) {
+      if (!visited.has(dep)) {
+        queue.push({ file: dep, depth: depth + 1 });
+      }
+    }
+  }
+  
+  visited.delete(file);
+  return [...visited];
+}
+
+findCycles(): string[][] {
+  const cycles: string[][] = [];
+  const visited = new Set<string>();
+  const stack = new Set<string>();
+  
+  const dfs = (node: string): boolean => {
+    if (stack.has(node)) {
+      const cycle = [...stack].slice(stack.has(node) ? [...stack].indexOf(node) : 0);
+      cycle.push(node);
+      cycles.push(cycle);
+      return true;
+    }
+    if (visited.has(node)) return false;
+    
+    visited.add(node);
+    stack.add(node);
+    
+    for (const dep of this.dependenciesOf(node)) {
+      dfs(dep);
+    }
+    
+    stack.delete(node);
+    return false;
+  };
+  
+  for (const file of this.files) {
+    dfs(file);
+  }
+  
+  return cycles;
+}
+
+impactScore(file: string): number {
+  const directDependents = this.dependentsOf(file).length;
+  const transitiveDependents = this.transitiveDependenciesOf(file, 5).length;
+  return directDependents + (transitiveDependents * 0.5);
+}
+```
+
+- [ ] **Step 3: Run tests to verify they pass**
+
+Run: `npm test -- tests/repomap/dependency-graph.test.ts`
+Expected: PASS
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add src/repomap/dependency-graph.ts tests/repomap/dependency-graph.test.ts
+git commit -m "feat(context-selection): add transitive deps, cycle detection, impact scoring"
+```
+
+---
+
+### Task 4: GitActivityReader
+
+**Files:**
+- Create: `src/events/git-activity-reader.ts`
+- Create: `tests/events/git-activity-reader.test.ts`
 
 - [ ] **Step 1: Write failing test**
 
 ```typescript
+// tests/events/git-activity-reader.test.ts
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ContextBudgeter, type BudgetResult } from "../../src/context/context-budgeter.js";
+import { GitActivityReader } from "../../src/events/git-activity-reader.js";
 
-describe("ContextBudgeter", () => {
-  const budgeter = new ContextBudgeter({ maxTokens: 2000 });
-
-  it("reports used tokens vs limit", () => {
-    const result = budgeter.calculate({
-      primaryFiles: 500,
-      supportingFiles: 300,
-      tests: 200,
-      history: 100,
-    });
-    assert.equal(result.totalTokens, 1100);
-    assert.equal(result.remainingTokens, 900);
+describe("GitActivityReader", () => {
+  it("reads recent commits", async () => {
+    const reader = new GitActivityReader({ cwd: process.cwd() });
+    const commits = await reader.getRecentCommits({ limit: 5 });
+    assert.ok(Array.isArray(commits));
+    assert.ok(commits.length <= 5);
+    if (commits.length > 0) {
+      assert.ok("hash" in commits[0]);
+      assert.ok("message" in commits[0]);
+    }
   });
 
-  it("flags when budget exceeded", () => {
-    const result = budgeter.calculate({
-      primaryFiles: 1500,
-      supportingFiles: 800,
-    });
-    assert.equal(result.exceeded, true);
-    assert.ok(result.overflow > 0);
+  it("gets changed files from recent commits", async () => {
+    const reader = new GitActivityReader({ cwd: process.cwd() });
+    const commits = await reader.getRecentCommits({ limit: 3 });
+    if (commits.length > 0) {
+      const files = await reader.getChangedFiles(commits[0].hash);
+      assert.ok(Array.isArray(files));
+    }
   });
 
-  it("prioritizes primary files over supporting", () => {
-    const result = budgeter.calculate({
-      primaryFiles: 1200,
-      supportingFiles: 1000,
-    });
-    // Should trim supporting to fit
-    assert.ok(result.trimmed.length > 0);
-  });
-
-  it("includes pinned files in primary", () => {
-    const result = budgeter.calculate({
-      primaryFiles: 1000,
-      pinned: [{ tokens: 300, path: "pinned.ts" }],
-    });
-    assert.equal(result.pinnedTokens, 300);
+  it("detects hot paths by frequency", async () => {
+    const reader = new GitActivityReader({ cwd: process.cwd() });
+    const hotPaths = await reader.getHotPaths({ days: 30, minChanges: 2 });
+    assert.ok(Array.isArray(hotPaths));
   });
 });
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
-
-Run: `npm test -- tests/context/context-budgeter.test.ts`
+Run: `npm test -- tests/events/git-activity-reader.test.ts`
 Expected: FAIL
 
-- [ ] **Step 3: Implement ContextBudgeter**
+- [ ] **Step 3: Implement GitActivityReader**
 
 ```typescript
-// src/context/context-budgeter.ts
+// src/events/git-activity-reader.ts
+import { exec } from "node:child_process";
+import { promisify } from "node:util";
 
-export type TokenEstimate = {
+const execAsync = promisify(exec);
+
+export interface CommitInfo {
+  hash: string;
+  message: string;
+  author: string;
+  date: Date;
+  filesChanged: number;
+}
+
+export interface HotPath {
   path: string;
-  tokens: number;
-  pinned?: boolean;
-};
+  changeCount: number;
+  lastChanged: Date;
+}
 
-export type BudgetInput = {
-  primaryFiles?: number;
-  supportingFiles?: number;
-  tests?: number;
-  history?: number;
-  pinned?: TokenEstimate[];
-};
+export interface GitActivityReaderOptions {
+  cwd?: string;
+  author?: string;
+}
 
-export type BudgetResult = {
-  totalTokens: number;
-  maxTokens: number;
-  remainingTokens: number;
-  exceeded: boolean;
-  overflow: number;
-  pinnedTokens: number;
-  trimmed: string[];
-};
+export class GitActivityReader {
+  private cwd: string;
 
-export class ContextBudgeter {
-  constructor(
-    private options: {
-      maxTokens: number;
-      reservedTokens?: number;
-    }
-  ) {}
-
-  calculate(input: BudgetInput): BudgetResult {
-    const reserved = this.options.reservedTokens ?? 200;
-    const effectiveMax = this.options.maxTokens - reserved;
-
-    const primaryTokens = input.primaryFiles ?? 0;
-    const supportingTokens = input.supportingFiles ?? 0;
-    const testTokens = input.tests ?? 0;
-    const historyTokens = input.history ?? 0;
-    const pinnedTokens = (input.pinned ?? []).reduce((sum, p) => sum + p.tokens, 0);
-
-    const totalTokens = primaryTokens + supportingTokens + testTokens + historyTokens + pinnedTokens;
-    const remainingTokens = Math.max(0, effectiveMax - totalTokens);
-    const exceeded = totalTokens > effectiveMax;
-    const overflow = exceeded ? totalTokens - effectiveMax : 0;
-
-    // Trim supporting files if over budget
-    const trimmed: string[] = [];
-    let adjustedTotal = totalTokens;
-    
-    if (exceeded && supportingTokens > 0) {
-      const toTrim = overflow;
-      trimmed.push("supportingFiles");
-      adjustedTotal -= toTrim;
-    }
-
-    return {
-      totalTokens,
-      maxTokens: effectiveMax,
-      remainingTokens,
-      exceeded,
-      overflow,
-      pinnedTokens,
-      trimmed,
-    };
+  constructor(options: GitActivityReaderOptions = {}) {
+    this.cwd = options.cwd ?? process.cwd();
   }
 
-  formatSummary(result: BudgetResult): string {
-    const lines = [
-      `Context budget: ${result.totalTokens}/${result.maxTokens} tokens`,
-    ];
+  async getRecentCommits(options: { limit?: number; author?: string } = {}): Promise<CommitInfo[]> {
+    const limit = options.limit ?? 10;
+    const authorFilter = options.author ? `--author="${options.author}"` : "";
     
-    if (result.exceeded) {
-      lines.push(`⚠️  Exceeded by ${result.overflow} tokens`);
-      lines.push(`Trimmed: ${result.trimmed.join(", ")}`);
-    } else {
-      lines.push(`✅ ${result.remainingTokens} tokens remaining`);
+    const { stdout } = await execAsync(
+      `git log ${authorFilter} --format="%H|%s|%an|%ad|%ct" -n ${limit}`,
+      { cwd: this.cwd }
+    );
+    
+    return stdout.trim().split("\n")
+      .filter(line => line.trim())
+      .map(line => {
+        const [hash, message, author, dateStr, timestamp] = line.split("|");
+        return {
+          hash,
+          message,
+          author,
+          date: new Date(dateStr),
+          filesChanged: 0,
+        };
+      });
+  }
+
+  async getChangedFiles(ref: string): Promise<string[]> {
+    const { stdout } = await execAsync(
+      `git diff-tree --no-commit-id --name-only -r ${ref}`,
+      { cwd: this.cwd }
+    );
+    
+    return stdout.trim().split("\n").filter(line => line.trim());
+  }
+
+  async getHotPaths(options: { days?: number; minChanges?: number } = {}): Promise<HotPath[]> {
+    const days = options.days ?? 30;
+    const sinceDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    
+    const { stdout } = await execAsync(
+      `git log --since="${sinceDate}" --name-only --format=""`,
+      { cwd: this.cwd }
+    );
+    
+    const counts = new Map<string, number>();
+    const lastChanged = new Map<string, Date>();
+    
+    const lines = stdout.trim().split("\n").filter(line => line.trim());
+    for (const path of lines) {
+      counts.set(path, (counts.get(path) ?? 0) + 1);
     }
     
-    if (result.pinnedTokens > 0) {
-      lines.push(`📌 ${result.pinnedTokens} tokens pinned`);
+    const result: HotPath[] = [];
+    for (const [path, count] of counts) {
+      if (count >= (options.minChanges ?? 1)) {
+        result.push({
+          path,
+          changeCount: count,
+          lastChanged: lastChanged.get(path) ?? new Date(),
+        });
+      }
     }
     
-    return lines.join("\n");
+    return result.sort((a, b) => b.changeCount - a.changeCount);
   }
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
-
-Run: `npm test -- tests/context/context-budgeter.test.ts`
+Run: `npm test -- tests/events/git-activity-reader.test.ts`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/context/context-budgeter.ts tests/context/context-budgeter.test.ts
-git commit -m "feat(context): add ContextBudgeter for token budget enforcement"
+git add src/events/git-activity-reader.ts tests/events/git-activity-reader.test.ts
+git commit -m "feat(context-selection): add GitActivityReader for git history analysis"
 ```
 
 ---
 
-## Verification
+### Task 5: ContextRanker
 
-```bash
-npm test -- tests/context/intent-classifier.test.ts tests/context/semantic-search.test.ts tests/context/context-budgeter.test.ts
+**Files:**
+- Create: `src/context/context-ranker.ts`
+- Create: `tests/context/context-ranker.test.ts`
+
+- [ ] **Step 1: Write failing test**
+
+```typescript
+// tests/context/context-ranker.test.ts
+import { describe, it } from "node:test";
+import assert from "node:assert";
+import { ContextRanker } from "../../src/context/context-ranker.js";
+import type { ExtractedSymbol } from "../../src/repomap/symbol-extractor.js";
+
+describe("ContextRanker", () => {
+  it("ranks files by relevance score", () => {
+    const ranker = new ContextRanker();
+    const files = [
+      { path: "src/main.ts", score: 0.5 },
+      { path: "src/utils.ts", score: 0.8 },
+      { path: "tests/main.test.ts", score: 0.3 },
+    ];
+    
+    const ranked = ranker.rankFiles(files);
+    assert.equal(ranked[0].path, "src/utils.ts");
+    assert.equal(ranked[2].path, "tests/main.test.ts");
+  });
+
+  it("boosts recently modified files", () => {
+    const ranker = new ContextRanker({ recencyBoost: 0.3 });
+    const now = Date.now();
+    const files = [
+      { path: "old.ts", score: 0.5, modifiedAt: new Date(now - 86400000 * 30) },
+      { path: "recent.ts", score: 0.5, modifiedAt: new Date(now - 86400000) },
+    ];
+    
+    const ranked = ranker.rankFiles(files);
+    assert.ok(ranked[0].path === "recent.ts");
+  });
+});
 ```
 
-All tests should pass. Manual verification:
-- [ ] IntentClassifier detects task type from natural language
-- [ ] SemanticSearchIndex indexes and finds symbols
-- [ ] ContextBudgeter enforces token limits
-- [ ] ContextCompiler uses these components
+- [ ] **Step 2: Run test to verify it fails**
+Run: `npm test -- tests/context/context-ranker.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: Implement ContextRanker**
+
+```typescript
+// src/context/context-ranker.ts
+export interface RankableFile {
+  path: string;
+  score?: number;
+  modifiedAt?: Date;
+  changeCount?: number;
+  exports?: number;
+}
+
+export interface RankedFile extends RankableFile {
+  finalScore: number;
+  rank: number;
+  factors: { name: string; value: number; weight: number }[];
+}
+
+export interface ContextRankerOptions {
+  recencyBoost?: number;
+  recencyWindowDays?: number;
+  hotPathBoost?: number;
+  exportBoost?: number;
+  maxFiles?: number;
+}
+
+export class ContextRanker {
+  private options: Required<ContextRankerOptions>;
+
+  constructor(options: ContextRankerOptions = {}) {
+    this.options = {
+      recencyBoost: options.recencyBoost ?? 0.2,
+      recencyWindowDays: options.recencyWindowDays ?? 30,
+      hotPathBoost: options.hotPathBoost ?? 0.15,
+      exportBoost: options.exportBoost ?? 0.1,
+      maxFiles: options.maxFiles ?? 100,
+    };
+  }
+
+  rankFiles(files: RankableFile[]): RankedFile[] {
+    const now = Date.now();
+    const maxAge = this.options.recencyWindowDays * 24 * 60 * 60 * 1000;
+    
+    const scored = files.map(file => {
+      const factors: { name: string; value: number; weight: number }[] = [];
+      
+      const baseScore = file.score ?? 0.5;
+      factors.push({ name: "base", value: baseScore, weight: 1 });
+      
+      if (file.modifiedAt) {
+        const age = now - file.modifiedAt.getTime();
+        const recency = Math.max(0, 1 - age / maxAge);
+        const recencyScore = 1 + (recency * this.options.recencyBoost);
+        factors.push({ name: "recency", value: recencyScore, weight: this.options.recencyBoost });
+      }
+      
+      if (file.changeCount && file.changeCount > 1) {
+        const hotScore = 1 + Math.min(0.5, file.changeCount * this.options.hotPathBoost);
+        factors.push({ name: "hotPath", value: hotScore, weight: this.options.hotPathBoost });
+      }
+      
+      if (file.exports && file.exports > 5) {
+        const exportScore = 1 + (Math.min(0.3, file.exports * this.options.exportBoost));
+        factors.push({ name: "exports", value: exportScore, weight: this.options.exportBoost });
+      }
+      
+      const finalScore = factors.reduce((sum, f) => sum + f.value * f.weight, 0) /
+        factors.reduce((sum, f) => sum + f.weight, 0);
+      
+      return { ...file, finalScore, rank: 0, factors };
+    });
+    
+    return scored
+      .sort((a, b) => b.finalScore - a.finalScore)
+      .slice(0, this.options.maxFiles)
+      .map((file, index) => ({ ...file, rank: index + 1 }));
+  }
+
+  rankSymbols(symbols: ExtractedSymbol[]): ExtractedSymbol[] {
+    const symbolMap = new Map<string, ExtractedSymbol[]>();
+    for (const symbol of symbols) {
+      const existing = symbolMap.get(symbol.file) ?? [];
+      existing.push(symbol);
+      symbolMap.set(symbol.file, existing);
+    }
+    
+    const files = [...symbolMap.entries()].map(([path, syms]) => ({
+      path,
+      exports: syms.length,
+    }));
+    
+    const ranked = this.rankFiles(files);
+    const fileRanks = new Map(ranked.map(f => [f.path, f.rank]));
+    
+    return symbols.sort((a, b) => {
+      const rankA = fileRanks.get(a.file) ?? 999;
+      const rankB = fileRanks.get(b.file) ?? 999;
+      return rankA - rankB;
+    });
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+Run: `npm test -- tests/context/context-ranker.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/context/context-ranker.ts tests/context/context-ranker.test.ts
+git commit -m "feat(context-selection): add ContextRanker for relevance-based file ranking"
+```
+
+---
+
+### Task 6: ContextBundleBuilder
+
+**Files:**
+- Create: `src/context/context-bundle-builder.ts`
+- Create: `tests/context/context-bundle-builder.test.ts`
+
+- [ ] **Step 1: Write failing test**
+
+```typescript
+// tests/context/context-bundle-builder.test.ts
+import { describe, it } from "node:test";
+import assert from "node:assert";
+import { ContextBundleBuilder } from "../../src/context/context-bundle-builder.js";
+import { RepoMapLite } from "../../src/repomap/repomap-lite.js";
+import { ContextRanker } from "../../src/context/context-ranker.js";
+
+describe("ContextBundleBuilder", () => {
+  it("builds context bundle within token limit", async () => {
+    const builder = new ContextBundleBuilder({ maxTokens: 50000 });
+    const repoMap = new RepoMapLite(/* ... */);
+    const bundle = await builder.buildBundle(repoMap);
+    
+    assert.ok(bundle.files.length > 0);
+    assert.ok(bundle.totalTokens <= 50000);
+    assert.ok(bundle.metadata);
+  });
+
+  it("prioritizes high-rank files", async () => {
+    const builder = new ContextBundleBuilder({ maxTokens: 10000 });
+    const repoMap = new RepoMapLite(/* ... */);
+    const bundle = await builder.buildBundle(repoMap);
+    
+    assert.ok(bundle.files[0].rank <= bundle.files[1].rank);
+  });
+});
+```
+
+- [ ] **Step 2: Run test to verify it fails**
+Run: `npm test -- tests/context/context-bundle-builder.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: Implement ContextBundleBuilder**
+
+```typescript
+// src/context/context-bundle-builder.ts
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+import { RepoMapLite } from "../repomap/repomap-lite.js";
+import { ContextRanker } from "./context-ranker.js";
+import { DependencyGraph } from "../repomap/dependency-graph.js";
+
+export interface ContextBundle {
+  files: {
+    path: string;
+    content: string;
+    tokens: number;
+    rank: number;
+  }[];
+  totalTokens: number;
+  metadata: {
+    generatedAt: Date;
+    maxTokens: number;
+    fileCount: number;
+    excludedFiles: string[];
+  };
+}
+
+export interface ContextBundleBuilderOptions {
+  maxTokens?: number;
+  priorityExtensions?: string[];
+  excludePatterns?: string[];
+}
+
+export class ContextBundleBuilder {
+  private options: Required<ContextBundleBuilderOptions>;
+  private ranker: ContextRanker;
+
+  constructor(options: ContextBundleBuilderOptions = {}) {
+    this.options = {
+      maxTokens: options.maxTokens ?? 100000,
+      priorityExtensions: options.priorityExtensions ?? [".ts", ".tsx", ".js", ".jsx"],
+      excludePatterns: options.excludePatterns ?? ["node_modules", ".test.", ".spec."],
+    };
+    this.ranker = new ContextRanker();
+  }
+
+  async buildBundle(repoMap: RepoMapLite, context?: string): Promise<ContextBundle> {
+    const files = repoMap.getAllFiles();
+    const ranked = this.ranker.rankFiles(files);
+    
+    const selected: ContextBundle["files"] = [];
+    let totalTokens = 0;
+    const excluded: string[] = [];
+    
+    for (const file of ranked) {
+      if (this.shouldExclude(file.path)) {
+        excluded.push(file.path);
+        continue;
+      }
+      
+      const content = await this.readFileContent(repoMap, file.path);
+      const tokens = this.estimateTokens(content);
+      
+      if (totalTokens + tokens <= this.options.maxTokens) {
+        selected.push({
+          path: file.path,
+          content,
+          tokens,
+          rank: file.rank,
+        });
+        totalTokens += tokens;
+      } else {
+        excluded.push(file.path);
+      }
+    }
+    
+    return {
+      files: selected,
+      totalTokens,
+      metadata: {
+        generatedAt: new Date(),
+        maxTokens: this.options.maxTokens,
+        fileCount: selected.length,
+        excludedFiles: excluded,
+      },
+    };
+  }
+
+  private async readFileContent(repoMap: RepoMapLite, filePath: string): Promise<string> {
+    const fullPath = join(repoMap.rootDir, filePath);
+    return readFile(fullPath, "utf-8").catch(() => "");
+  }
+
+  private estimateTokens(content: string): number {
+    return Math.ceil(content.length / 4);
+  }
+
+  private shouldExclude(path: string): boolean {
+    return this.options.excludePatterns.some(pattern => path.includes(pattern));
+  }
+}
+```
+
+- [ ] **Step 4: Run test to verify it passes**
+Run: `npm test -- tests/context/context-bundle-builder.test.ts`
+Expected: PASS
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/context/context-bundle-builder.ts tests/context/context-bundle-builder.test.ts
+git commit -m "feat(context-selection): add ContextBundleBuilder for token-aware context assembly"
+```
+
+---
+
+## Execution Options
+
+**1. Subagent-Driven (recommended)** - I dispatch a fresh subagent per task, review between tasks, fast iteration
+
+**2. Inline Execution** - Execute tasks in this session using executing-plans, batch execution with checkpoints
+
+**Which approach?**
