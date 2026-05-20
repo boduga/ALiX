@@ -7,6 +7,9 @@ import { PolicyEngine } from "../policy/policy-engine.js";
 import { PolicyEngineBuilder } from "../policy/policy-engine.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
+import { ContextCompiler } from "../repomap/context-compiler.js";
+import { createScopeTracker, type ScopeTracker } from "../autonomy/scope-tracker.js";
+import { SubagentManager } from "../agents/subagent-manager.js";
 import type { Runtime } from "./runtime.js";
 
 export class RuntimeBuilder {
@@ -17,6 +20,9 @@ export class RuntimeBuilder {
   private _policyEngine?: PolicyEngine;
   private _toolExecutor?: ToolExecutor;
   private _checkpointManager?: CheckpointManager;
+  private _contextCompiler?: ContextCompiler;
+  private _scopeTracker?: ScopeTracker;
+  private _subagentManager?: SubagentManager;
 
   constructor(root: string) {
     this._root = root;
@@ -51,15 +57,37 @@ export class RuntimeBuilder {
     await this._checkpointManager.init();
     this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root);
 
+    // Build context compiler
+    this._contextCompiler = new ContextCompiler({
+      root: this._root,
+      maxTokens: config.model?.maxContextTokens,
+      eventLog: this._eventLog,
+      sessionId,
+    });
+
+    // Build scope tracker
+    this._scopeTracker = createScopeTracker([], this._root);
+
+    // Build subagent manager (optional - only if enabled in config)
+    let subagentManager: SubagentManager | undefined;
+    if (config.subagents?.enabled) {
+      subagentManager = new SubagentManager({ sessionId, config });
+    }
+    this._subagentManager = subagentManager;
+
     return {
       close: async () => {
         // Clean up in reverse order of creation
+        this._subagentManager?.shutdown();
         await this._checkpointManager?.close();
         await this._eventLog?.close();
       },
       eventLog: this._eventLog!,
       policyEngine: this._policyEngine!,
       toolExecutor: this._toolExecutor!,
+      contextCompiler: this._contextCompiler!,
+      scopeTracker: this._scopeTracker!,
+      subagentManager: this._subagentManager,
     };
   }
 }

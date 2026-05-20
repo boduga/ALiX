@@ -26,6 +26,20 @@ describe("RuntimeBuilder", () => {
       assert.ok(runtime.eventLog);
       assert.ok(runtime.policyEngine);
       assert.ok(runtime.toolExecutor);
+      assert.ok(runtime.contextCompiler);
+      assert.ok(runtime.scopeTracker);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  });
+
+  it("Runtime has optional subagentManager when enabled in config", async () => {
+    const tmp = mkdtempSync(join(tmpdir(), "runtime-test-"));
+    try {
+      const builder = new RuntimeBuilder(tmp);
+      const runtime = await builder.build();
+      // subagentManager is undefined by default (no config with enableSubagents)
+      assert.equal(runtime.subagentManager, undefined);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
