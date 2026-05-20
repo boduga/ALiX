@@ -277,7 +277,7 @@ function estimateFileTokens(path: string, lineCount: number, isSource: boolean):
 export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
   name = "ranking";
 
-  constructor(private options: { task: string; taskType: TaskType; pinnedPaths?: string[]; semanticSearchStage?: SemanticSearchStage } = { task: "", taskType: "unknown" }) {}
+  constructor(private options: { task: string; taskType: TaskType; pinnedPaths?: string[]; semanticSearchStage?: SemanticSearchStage; gitActivity?: Map<string, number> } = { task: "", taskType: "unknown" }) {}
 
   async process(input: RankingInput): Promise<RankingOutput> {
     const { task, taskType, pinnedPaths = [] } = this.options;
@@ -290,10 +290,17 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
       if (!entry) continue;
       const score = scoreMention(sf, mentions);
       if (score > 0) {
+        let finalScore = score;
+        if (this.options.gitActivity && this.options.gitActivity.size > 0) {
+          const gitScore = this.options.gitActivity.get(sf) ?? 0;
+          if (gitScore > 0) {
+            finalScore += Math.min(gitScore * 2, 20); // Up to 20 point boost
+          }
+        }
         items.push({
           path: sf,
           kind: "file",
-          score,
+          score: finalScore,
           tokenEstimate: estimateFileTokens(sf, entry.lineCount ?? 100, true),
           reason: score >= 100 ? "task_mention_exact" : "task_mention_fuzzy",
         });

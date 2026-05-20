@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir, stat as statSync, readFile, writeFile } from "node:fs/promises";
 import { rankContextCandidate } from "./context-ranker.js";
+import { readGitActivity } from "./git-activity.js";
 
 // Re-export types from pipeline for backward compatibility
 export type ContextKind = "file" | "symbol" | "test" | "config" | "doc";
@@ -34,6 +35,11 @@ export class ContextCompiler {
     // Use RepoMapStage from the pipeline
     const stage = new RepoMapStage();
     this.repoMap = await stage.process({ root: this.options.root });
+
+    // Read git activity for recency boosting
+    const gitActivity = await readGitActivity(this.options.root);
+    this.repoMap.gitActivity = gitActivity;
+
     this.embeddingCache = new EmbeddingCache(this.options.root);
 
     // Build embeddings in background (non-blocking)
@@ -87,7 +93,7 @@ export class ContextCompiler {
     }
 
     const pipeline = new ContextPipeline([
-      new RankingStage({ task, taskType, pinnedPaths: pinnedPaths ?? [] }),
+      new RankingStage({ task, taskType, pinnedPaths: pinnedPaths ?? [], gitActivity: this.repoMap?.gitActivity }),
       new BudgetingStage({ maxTokens }),
     ]);
 

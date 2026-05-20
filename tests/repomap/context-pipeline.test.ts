@@ -200,6 +200,67 @@ describe("BudgetingStage", () => {
   });
 });
 
+describe("GitActivity Boosting", () => {
+  it("ranking stage boosts files by git activity", async () => {
+    const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const tmpDir = await mkdtemp("/tmp/git-activity-test-");
+    await writeFile(join(tmpDir, "recent.ts"), "export const a = 1;");
+    await writeFile(join(tmpDir, "old.ts"), "export const b = 2;");
+
+    const repoMap = await buildRepoMap(tmpDir);
+    const gitActivity = new Map<string, number>([
+      ["recent.ts", 5],  // 5 appearances in git log
+      ["old.ts", 0],     // not recently touched
+    ]);
+    repoMap.gitActivity = gitActivity;
+
+    const rankingStage = new RankingStage({
+      task: "recent.ts old.ts",
+      taskType: "feature",
+      gitActivity,
+    });
+
+    const result = await rankingStage.process(repoMap);
+    const recentItem = result.items.find(i => i.path === "recent.ts");
+    const oldItem = result.items.find(i => i.path === "old.ts");
+
+    assert.ok(recentItem, "recent.ts should be included");
+    assert.ok(oldItem, "old.ts should be included");
+    assert.ok(recentItem!.score > oldItem!.score, "Recent file should score higher with git activity boost");
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("git activity boost caps at 20 points", async () => {
+    const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const tmpDir = await mkdtemp("/tmp/git-activity-cap-test-");
+    await writeFile(join(tmpDir, "high-activity.ts"), "export const x = 1;");
+
+    const repoMap = await buildRepoMap(tmpDir);
+    const gitActivity = new Map<string, number>([
+      ["high-activity.ts", 15],  // 15 appearances = potential 30 boost, capped at 20
+    ]);
+    repoMap.gitActivity = gitActivity;
+
+    const rankingStage = new RankingStage({
+      task: "high-activity.ts",
+      taskType: "feature",
+      gitActivity,
+    });
+
+    const result = await rankingStage.process(repoMap);
+    const item = result.items.find(i => i.path === "high-activity.ts");
+
+    assert.ok(item, "high-activity.ts should be included");
+    // Base score for exact match is 100, git boost is capped at 20 = 120 max
+    assert.ok(item!.score <= 120, "Score should be capped at 120 (100 base + 20 max boost)");
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+});
+
 describe("SemanticSearchStage", () => {
   it("semantic search stage indexes source files", async () => {
     const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
