@@ -1,20 +1,16 @@
 /**
  * run.ts — ALiX main task runner
  *
- * This file will be split into focused modules:
+ * This file has been split into focused modules:
  *
  * ┌─────────────────────────────────────────────────────────────────────────────┐
- * │ SECTION                          │ EXTRACT TO                               │
+ * │ SECTION                          │ EXTRACTED TO                            │
  * ├─────────────────────────────────────────────────────────────────────────────┤
  * │ 1. Imports (21-59)               │ STAYS in run.ts                         │
- * │ 2. Helper functions (60-177)    │ src/run/helpers.ts                      │
- * │ 3. Tool schemas (180-298)        │ src/run/tool-schemas.ts                 │
- * │ 4. Tool builders (300-323)       │ src/run/tool-schemas.ts                 │
- * │ 5. Types & exports (326-416)    │ src/run/types.ts                        │
- * │ 6. runTask function (418-1015)   │ Split into init/task-loop/cleanup       │
- * │    - Session init (418-571)      │   → src/run/initialization.ts           │
- * │    - Main loop (624-993)         │   → src/run/task-loop.ts                │
- * │    - Cleanup/exit (996-1015)     │   → src/run/cleanup.ts                  │
+ * │ 2. Helper functions (60-177)     │ src/run/helpers.ts                      │
+ * │ 3. Event handlers (180-323)      │ src/run/event-handlers.ts                │
+ * │ 4. Task loop (624-993)           │ src/run/task-loop.ts                     │
+ * │ 5. Session init / cleanup        │ STAYS in run.ts                         │
  * └─────────────────────────────────────────────────────────────────────────────┘
  */
 
