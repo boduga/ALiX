@@ -144,6 +144,49 @@ export type ContextItem = {
   reason: string;
 };
 
+export type ContextBundle = {
+  id: string;
+  taskType: TaskType;
+  budget: {
+    maxTokens: number;
+    usedTokens: number;
+  };
+  primaryFiles: ContextItem[];
+  supportingFiles: ContextItem[];
+  tests: ContextItem[];
+  pinned: ContextItem[];
+};
+
+export class BudgetingStage implements ContextStage<RankingOutput, { bundle: ContextBundle }> {
+  name = "budgeting";
+
+  constructor(private options: { maxTokens: number } = { maxTokens: 20000 }) {}
+
+  async process(input: RankingOutput): Promise<{ bundle: ContextBundle }> {
+    const { maxTokens } = this.options;
+    let usedTokens = 0;
+    const budgeted: ContextItem[] = [];
+
+    for (const item of input.items) {
+      if (usedTokens + item.tokenEstimate > maxTokens && budgeted.length > 0) break;
+      budgeted.push(item);
+      usedTokens += item.tokenEstimate;
+    }
+
+    return {
+      bundle: {
+        id: `bundle-${Date.now()}`,
+        taskType: input.taskType,
+        budget: { maxTokens, usedTokens },
+        primaryFiles: budgeted.filter(i => i.kind === "file" || i.kind === "symbol"),
+        supportingFiles: budgeted.filter(i => i.kind === "config" || i.kind === "doc"),
+        tests: budgeted.filter(i => i.kind === "test"),
+        pinned: budgeted.filter(i => i.reason === "pinned"),
+      },
+    };
+  }
+}
+
 export type RankingInput = RepoMapOutput;
 export type RankingOutput = {
   items: ContextItem[];

@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, type RankingOutput, type ContextItem } from "../../src/repomap/context-pipeline.js";
+import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, BudgetingStage, type RankingOutput, type ContextItem } from "../../src/repomap/context-pipeline.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
@@ -133,5 +133,69 @@ describe("RankingStage", () => {
     const configItem = result.items.find(i => i.kind === "config");
     assert.ok(configItem, "Config file should be included");
     assert.ok(result.items.some(i => i.reason === "config_file"), "Config item should have reason 'config_file'");
+  });
+});
+
+describe("BudgetingStage", () => {
+  async function createTestRepo(): Promise<{ root: string; repoMap: import("../../src/repomap/context-pipeline.js").RepoMapOutput }> {
+    const dir = join(tmpdir(), `budgeting-test-${Date.now()}`);
+    await mkdir(dir, { recursive: true });
+    await mkdir(join(dir, "src"), { recursive: true });
+    await mkdir(join(dir, "tests"), { recursive: true });
+    await writeFile(join(dir, "package.json"), '{"name": "test"}');
+    await writeFile(join(dir, "src", "index.ts"), "export const foo = 1;");
+    await writeFile(join(dir, "src", "utils.ts"), "export const bar = 2;");
+    await writeFile(join(dir, "tests", "index.test.ts"), "import { foo } from '../src/index';\nassert.equal(foo, 1);");
+    const repoMap: import("../../src/repomap/context-pipeline.js").RepoMapOutput = await buildRepoMap(dir);
+    return { root: dir, repoMap };
+  }
+
+  it("respects maxTokens budget", async () => {
+    const { repoMap } = await createTestRepo();
+    const rankingStage = new RankingStage({ task: "src/index.ts", taskType: "feature" });
+    const rankingResult = await rankingStage.process(repoMap);
+
+    // Use a very low budget to force filtering
+    const budgetingStage = new BudgetingStage({ maxTokens: 10 });
+    const result = await budgetingStage.process(rankingResult);
+
+    assert.ok(result.bundle.budget.maxTokens === 10);
+    assert.ok(result.bundle.budget.usedTokens <= 10);
+  });
+
+  it("stops adding items when budget exceeded", async () => {
+    const { repoMap } = await createTestRepo();
+    const rankingStage = new RankingStage({ task: "src/index.ts src/utils.ts", taskType: "feature" });
+    const rankingResult = await rankingStage.process(repoMap);
+
+    // Use a budget that will fit at least one item but not all
+    const budgetingStage = new BudgetingStage({ maxTokens: 50 });
+    const result = await budgetingStage.process(rankingResult);
+
+    // Budget should be respected - at least some items should be filtered
+    assert.ok(result.bundle.budget.usedTokens <= result.bundle.budget.maxTokens);
+  });
+
+  it("categorizes items into primaryFiles, supportingFiles, tests, pinned", async () => {
+    const { repoMap } = await createTestRepo();
+    const rankingStage = new RankingStage({
+      task: "src/index.ts",
+      taskType: "feature",
+      pinnedPaths: ["src/index.ts"]
+    });
+    const rankingResult = await rankingStage.process(repoMap);
+
+    const budgetingStage = new BudgetingStage({ maxTokens: 20000 });
+    const result = await budgetingStage.process(rankingResult);
+
+    // Pinned items should be in the pinned array
+    assert.ok(Array.isArray(result.bundle.pinned));
+    // Items should be categorized
+    assert.ok(Array.isArray(result.bundle.primaryFiles));
+    assert.ok(Array.isArray(result.bundle.supportingFiles));
+    assert.ok(Array.isArray(result.bundle.tests));
+    // Config files should be in supportingFiles
+    const hasConfig = result.bundle.supportingFiles.some(i => i.kind === "config");
+    assert.ok(hasConfig, "Config files should be in supportingFiles");
   });
 });
