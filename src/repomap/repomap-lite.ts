@@ -1,5 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
+import { minimatch } from "minimatch";
+import { buildDependencyGraph } from "./dependency-graph.js";
 
 export type RepoFileKind = "source" | "test" | "config" | "docs" | "asset" | "unknown";
 
@@ -125,4 +127,67 @@ function extractSymbols(path: string, text: string): SymbolSummary[] {
     }
   });
   return symbols;
+}
+
+export class RepoMapLiteIndexer {
+  private _files: RepoFileSummary[];
+  private _topLevelSymbols: SymbolSummary[];
+
+  constructor(private data: RepoMapLite) {
+    this._files = [...data.files];
+    this._topLevelSymbols = [...data.topLevelSymbols];
+  }
+
+  filter(predicate: (file: RepoFileSummary) => boolean): RepoMapLiteIndexer {
+    const filteredFiles = this._files.filter(predicate);
+    const filteredPaths = new Set(filteredFiles.map((f) => f.path));
+    const filteredSymbols = this._topLevelSymbols.filter((s) => filteredPaths.has(s.path));
+    const result = this.buildResult(filteredFiles, filteredSymbols);
+    return new RepoMapLiteIndexer(result);
+  }
+
+  matchGlob(patterns: string[]): RepoMapLiteIndexer {
+    return this.filter((file) => patterns.some((p) => minimatch(file.path, p)));
+  }
+
+  filterByDependencyScope(depth: number, roots: string[]): RepoMapLiteIndexer {
+    const inputFiles = this._files.map((f) => ({ path: f.path }));
+    const graph = buildDependencyGraph(inputFiles);
+    const reachable = new Set<string>();
+
+    const queue = [...roots];
+    let currentDepth = 0;
+
+    while (queue.length > 0 && currentDepth < depth) {
+      const nextLevel: string[] = [];
+      for (const file of queue) {
+        if (!reachable.has(file)) {
+          reachable.add(file);
+          nextLevel.push(...graph.dependenciesOf(file));
+        }
+      }
+      queue.length = 0;
+      queue.push(...nextLevel);
+      currentDepth++;
+    }
+
+    return this.filter((node) => reachable.has(node.path));
+  }
+
+  toRepoMapLite(): RepoMapLite {
+    return this.buildResult(this._files, this._topLevelSymbols);
+  }
+
+  private buildResult(files: RepoFileSummary[], symbols: SymbolSummary[]): RepoMapLite {
+    return {
+      root: this.data.root,
+      generatedAt: new Date().toISOString(),
+      files,
+      configFiles: files.filter((f) => f.kind === "config").map((f) => f.path),
+      docsFiles: files.filter((f) => f.kind === "docs").map((f) => f.path),
+      testFiles: files.filter((f) => f.kind === "test").map((f) => f.path),
+      sourceFiles: files.filter((f) => f.kind === "source").map((f) => f.path),
+      topLevelSymbols: symbols,
+    };
+  }
 }
