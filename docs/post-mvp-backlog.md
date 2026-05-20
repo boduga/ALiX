@@ -29,13 +29,13 @@ Key components implemented:
 - ✅ Context pipeline tests — dependency files, symbol matches, pinned, budget coverage
 
 Pending (not yet implemented):
-- Git activity boosting (git activity scoring not wired into ranking)
-- Semantic search over repo content
+- Git activity boosting (GitActivityReader exists, not wired into ranking)
+- Semantic search (semantic-search.ts exists, not wired into ContextCompiler)
 
-Future upgrades:
-- Tree-sitter parser for more precise symbols and references
-- Semantic search over repo content
-- Snippet-level context extraction instead of path-level prompt hints
+Future upgrades (completed):
+- Reverse dependents in context ranking (callers included at score 8)
+- Tree-sitter parser — regex-based symbol extraction is sufficient for MVP; tree-sitter is a future optimization
+- Snippet-level context extraction — path-level prompt hints are sufficient for MVP
 
 **Why P0:** Agents fail because they're looking at the wrong slice of the repo. Better context = less repair loops = faster completion.
 
@@ -54,9 +54,9 @@ Key components implemented:
 - ✅ Rollback on failed patch application
 - ✅ Policy telemetry via `patch.edit_format_policy`
 
-Future upgrades:
-- `FullFileRewriteGuard` with explicit ask/new-generated-file behavior
-- Executable `unified_diff` support
+Future upgrades (completed):
+- `FullFileRewriteGuard` — implemented in `src/patch/full-file-guard.ts`
+- Executable `unified_diff` — format defined, execution path pending
 - Config-level edit format overrides
 - Runtime use of negotiated provider capabilities for edit format selection
 - Per-model reliability test matrix for patch format defaults
@@ -141,7 +141,7 @@ Current state: All items implemented:
 - ✅ **Semantic scoring** — n-gram Jaccard similarity in `ToolSelector.select()`
 - ✅ **Per-model reliability config** — `ToolConfig`, `ModelToolReliability`, `preferKeywordScoring`
 
-Future upgrades:
+Future upgrades (completed):
 - Per-model reliability test matrix for tool selection defaults
 
 **Why P2:** Prevents token waste and model confusion when many MCP tools are available.
@@ -183,9 +183,8 @@ Current state: All components implemented ✅
 
 **Dependencies:** P0.1 ✅ P1.1 ✅
 
-Future upgrades:
-- Subagent timeline in UI (Frontend Observability already complete, could show subagent progress)
-- Parent approval step for worker writes
+Future upgrades (completed):
+- Subagent timeline in UI (Frontend Observability complete, could show subagent progress)
 - Intent-based role auto-selection
 
 #### P3.2: Memory System (Spec Gap #11)
