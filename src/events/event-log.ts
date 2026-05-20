@@ -40,4 +40,9 @@ export class EventLog {
       .filter(Boolean)
       .map((line) => JSON.parse(line) as AlixEvent);
   }
+
+  async close(): Promise<void> {
+    // No-op: all file operations are already complete after append
+    // Keep for interface compatibility
+  }
 }
