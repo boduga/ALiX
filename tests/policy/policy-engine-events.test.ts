@@ -7,7 +7,7 @@ import { PolicyEngine } from "../../src/policy/policy-engine.js";
 import type { AlixConfig } from "../../src/config/schema.js";
 
 describe("Policy Engine Events", () => {
-  const testDir = join(process.cwd(), ".test-policy-events");
+  const testDir = join("/tmp", `.test-policy-events-${Date.now()}`);
   let eventLog: EventLog;
   let policyEngine: PolicyEngine;
   // Test config with minimal required fields

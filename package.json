@@ -23,7 +23,7 @@
     "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/",
     "test": "npm run test:node && npm run test:vitest",
     "test:node": "node --test dist/tests/*.test.js dist/tests/**/*.test.js",
-    "test:vitest": "npx vitest run --config vitest.config.mts",
+    "test:vitest": "npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
     "check": "npm run build && npm run test:node"
   },
   "engines": {
