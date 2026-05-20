@@ -246,13 +246,16 @@ export class PatchToolRouter implements ToolRouter {
 }
 
 export class McpToolRouter implements ToolRouter {
-  constructor(private mcpManager: McpManager) {}
+  constructor(private mcpManager: McpManager | null) {}
 
   canHandle(name: string): boolean {
-    return name.startsWith("mcp.");
+    return name.startsWith("mcp.") && this.mcpManager !== null;
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
+    if (!this.mcpManager) {
+      return { kind: "error", message: "MCP manager not available", retryable: false };
+    }
     // Parse mcp.server.tool format: mcp.github.repos.list -> github/repos_list
     const parts = request.name.split(".");
     if (parts.length < 3) {
