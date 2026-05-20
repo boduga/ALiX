@@ -61,4 +61,9 @@ export class CheckpointManager {
     const checkpointDir = join(this.checkpointsDir, checkpointId);
     await rm(checkpointDir, { recursive: true, force: true });
   }
+
+  async close(): Promise<void> {
+    // No-op: CheckpointManager doesn't hold open resources
+    // Kept for interface consistency with other managers
+  }
 }

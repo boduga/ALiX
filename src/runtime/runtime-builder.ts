@@ -38,25 +38,28 @@ export class RuntimeBuilder {
     const sessionDir = join(this._root, ".alix", "sessions", sessionId);
 
     // Initialize event log
-    const eventLog = new EventLog(sessionDir);
-    await eventLog.init();
+    this._eventLog = new EventLog(sessionDir);
+    await this._eventLog.init();
 
     // Build policy engine
-    const policyEngine = new PolicyEngineBuilder(config)
-      .withEventLog(eventLog, sessionId)
+    this._policyEngine = new PolicyEngineBuilder(config)
+      .withEventLog(this._eventLog, sessionId)
       .build();
 
-    // Build tool executor
-    const checkpointManager = new CheckpointManager(sessionDir);
-    const toolExecutor = new ToolExecutor(config, eventLog, this._root);
+    // Build checkpoint manager and tool executor
+    this._checkpointManager = new CheckpointManager(sessionDir);
+    await this._checkpointManager.init();
+    this._toolExecutor = new ToolExecutor(config, this._eventLog, this._root);
 
     return {
       close: async () => {
-        await eventLog.close();
+        // Clean up in reverse order of creation
+        await this._checkpointManager?.close();
+        await this._eventLog?.close();
       },
-      eventLog,
-      policyEngine,
-      toolExecutor,
+      eventLog: this._eventLog!,
+      policyEngine: this._policyEngine!,
+      toolExecutor: this._toolExecutor!,
     };
   }
 }
