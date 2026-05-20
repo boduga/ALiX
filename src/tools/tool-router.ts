@@ -1,5 +1,6 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
 import { readFile, searchDir } from "./file-tools.js";
+import { runCommand } from "./shell-tool.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -81,12 +82,18 @@ export class FileToolRouter implements ToolRouter {
 }
 
 export class ShellToolRouter implements ToolRouter {
+  constructor(private readonly root: string = "") {}
+
   canHandle(name: string): boolean {
     return name === "shell.run";
   }
 
-  async execute(_request: ToolCallRequest): Promise<ToolResult> {
-    throw new Error("Not implemented yet");
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    const { command, cwd, timeoutMs } = request.args as { command?: string; cwd?: string; timeoutMs?: number };
+    if (!command) {
+      return { kind: "error", message: "shell.run requires command" };
+    }
+    return runCommand({ command, cwd: cwd ?? this.root, timeoutMs });
   }
 }
 

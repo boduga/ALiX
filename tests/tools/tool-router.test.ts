@@ -251,6 +251,29 @@ test("FileToolRouter.execute handles file.exists", async () => {
   await rm("/tmp/exists-test.txt", { force: true });
 });
 
+test("ShellToolRouter.execute handles shell.run with echo", async () => {
+  const router = new ShellToolRouter("/tmp");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "shell.run",
+    args: { command: "echo hello" },
+  });
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.exitCode, 0);
+  assert.ok(result.output?.includes("hello"));
+});
+
+test("ShellToolRouter.execute returns error for missing command", async () => {
+  const router = new ShellToolRouter("/tmp");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "shell.run",
+    args: {},
+  });
+  assert.strictEqual(result.kind, "error");
+  assert.strictEqual(result.message, "shell.run requires command");
+});
+
 test("FileToolRouter.execute blocks path traversal on file.create", async () => {
   const router = new FileToolRouter("/tmp");
   const result = await router.execute({
