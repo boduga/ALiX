@@ -61,8 +61,8 @@ import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
 import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
-import { McpManager } from "./mcp/manager.js"; // LAZY: conditional on config.mcpServers?.length > 0
 import { ToolDiscovery } from "./mcp/tool-discovery.js";
+import type { McpManager } from "./mcp/manager.js"; // LAZY: conditional on config.mcpServers?.length > 0
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { MemoryStore } from "./utils/memory/store.js"; // LAZY: conditional on memory features enabled
 import type { MemoryEntry } from "./utils/memory/types.js";
@@ -441,9 +441,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const editFormatPolicy = buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference });
   const providerTools = buildToolsForProvider(provider);
 
-  // Initialize MCP manager
-  const mcpManager = new McpManager(config);
-  await mcpManager.initialize();
+  // Initialize MCP manager (lazy - only needed if config.mcpServers?.length > 0)
+  let mcpManager: McpManager | null = null;
+  if (config.mcpServers?.length) {
+    const { McpManager: McpManagerClass } = await import("./mcp/manager.js");
+    mcpManager = new McpManagerClass(config);
+    await mcpManager.initialize();
+  }
 
   const { discoverHooks } = await import("./hooks/discover.js");
   const { runHook } = await import("./hooks/runner.js");
@@ -480,13 +484,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
   });
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, { delegate: delegateHandler }, checkpointManager);
+  const executor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, { delegate: delegateHandler }, checkpointManager);
 
-  const mcpDeferral = mcpManager.getDeferral();
-  const mcpToolIndex = mcpDeferral.buildIndex();
+  const mcpDeferral = mcpManager?.getDeferral();
+  const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
   const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
   const selectedTools = toolSelector.select(task);
-  const mcpDiscovery = new ToolDiscovery(mcpToolIndex); // full index, not selectedTools
+  const mcpDiscovery = mcpManager ? new ToolDiscovery(mcpToolIndex) : null; // full index, not selectedTools
   for (const entry of selectedTools) {
     TOOL_NAME_MAP[entry.name] = entry.execName;
   }

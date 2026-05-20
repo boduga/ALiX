@@ -55,7 +55,7 @@ export interface TaskLoopDeps {
   session: { sessionId: string; actor: "system" };
   log: EventLog;
   executor: import("../tools/executor.js").ToolExecutor;
-  mcpDiscovery: import("../mcp/tool-discovery.js").ToolDiscovery;
+  mcpDiscovery: import("../mcp/tool-discovery.js").ToolDiscovery | null;
   selectedTools: { name: string; execName: string }[];
   hooks: {
     pre_task?: { command: string; reason: string }[];

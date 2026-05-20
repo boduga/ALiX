@@ -24,8 +24,8 @@ import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 
 export type EventHandlerDeps = {
   executor: ToolExecutor;
-  mcpManager: McpManager;
-  mcpDiscovery: ToolDiscovery;
+  mcpManager: McpManager | null;
+  mcpDiscovery: ToolDiscovery | null;
   scope: ScopeTracker;
   session: { sessionId: string; actor: "system" };
   sessionState: MutationSessionState;
@@ -52,6 +52,9 @@ export async function handleMcpToolSearch(
   }
 
   const query = (toolCall.args.query as string) ?? "";
+  if (!deps.mcpDiscovery) {
+    return { handled: true, message: { role: "assistant", content: "MCP tools are not configured." } };
+  }
   const result = await deps.mcpDiscovery.search(query);
   const matchedTools =
     result.kind === "success" && result.output
