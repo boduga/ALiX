@@ -118,7 +118,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
     // Truncate messages if token budget exceeded before streaming/completion
     const msgTokens = messages.reduce(
-      (sum, m) => sum + estimateMessageTokens(m, encoding),
+      (sum, m) => sum + estimateMessageTokens(m),
       0
     );
     if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
@@ -425,13 +425,19 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
 // Helper functions used by the task loop
 
-function estimateMessageTokens(m: NormalizedMessage, encoding: "cl100k_base" | "o200k_base" | "char4"): number {
+/**
+ * Estimates token count for a message using character-based approximation.
+ * For production use, replace with tiktoken or similar library.
+ */
+function estimateMessageTokens(m: NormalizedMessage): number {
   const content = typeof m.content === "string" ? m.content : JSON.stringify(m.content);
-  if (encoding === "char4") return Math.ceil(content.length / 4);
-  // Rough approximation for token encodings
   return Math.ceil(content.length / 4);
 }
 
+/**
+ * Builds a session digest from the event log directory.
+ * Returns null if digest generation fails.
+ */
 async function buildSessionDigest(logDir: string): Promise<string | null> {
   try {
     const { buildSessionDigest: build } = await import("../utils/session-digest.js");
@@ -441,6 +447,9 @@ async function buildSessionDigest(logDir: string): Promise<string | null> {
   }
 }
 
+/**
+ * Builds a summary string of files created, changed, and deleted in this session.
+ */
 function buildStateSummary(state: MutationSessionState): string {
   const parts: string[] = [];
   if (state.created.size) parts.push(`Created: ${[...state.created].join(", ")}`);
@@ -448,9 +457,4 @@ function buildStateSummary(state: MutationSessionState): string {
   if (state.deleted.size) parts.push(`Deleted: ${[...state.deleted].join(", ")}`);
   if (state.fatalErrors.length) parts.push(`FATAL: ${state.fatalErrors.join("; ")}`);
   return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
-}
-
-function buildSystemPrompt(encoding: "cl100k_base" | "o200k_base" | "char4", messages: NormalizedMessage[]): string {
-  // This is a placeholder - the actual system prompt is built in run.ts before calling the loop
-  return "You are ALiX, an AI coding agent.";
 }
