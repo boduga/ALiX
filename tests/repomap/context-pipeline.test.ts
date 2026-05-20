@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { ContextStage, ContextPipeline } from "../../src/repomap/context-pipeline.js";
+import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, type RepoMapOutput } from "../../src/repomap/context-pipeline.js";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
 
 describe("ContextPipeline", () => {
   it("has a run method", () => {
@@ -31,5 +34,59 @@ describe("ContextPipeline", () => {
       { name: "two", process: async () => {} },
     ]);
     assert.deepEqual(pipeline.stageNames, ["one", "two"]);
+  });
+});
+
+describe("RepoMapStage", () => {
+  async function createTestDir(): Promise<string> {
+    const dir = join(tmpdir(), `repo-map-test-${Date.now()}`);
+    await mkdir(dir, { recursive: true });
+    await mkdir(join(dir, "src"), { recursive: true });
+    await mkdir(join(dir, "tests"), { recursive: true });
+    await writeFile(join(dir, "package.json"), '{"name": "test"}');
+    await writeFile(join(dir, "src", "index.ts"), "export const foo = 1;");
+    await writeFile(join(dir, "tests", "index.test.ts"), "import { foo } from '../src/index';\nassert.equal(foo, 1);");
+    return dir;
+  }
+
+  it("builds repo map for a directory", async () => {
+    const dir = await createTestDir();
+    const result = await buildRepoMap(dir);
+
+    assert.ok(Array.isArray(result.sourceFiles));
+    assert.ok(Array.isArray(result.testFiles));
+    assert.ok(Array.isArray(result.configFiles));
+    assert.ok(Array.isArray(result.docsFiles));
+    assert.ok(result.fileEntries instanceof Map);
+    assert.ok(result.dependencyGraph !== null);
+    assert.ok(Array.isArray(result.symbols));
+    assert.ok(result.gitActivity instanceof Map);
+    assert.equal(result.root, dir);
+  });
+
+  it("returns sourceFiles, testFiles, configFiles arrays", async () => {
+    const dir = await createTestDir();
+    const result = await buildRepoMap(dir);
+
+    assert.ok(result.sourceFiles.includes("src/index.ts"));
+    assert.ok(result.testFiles.includes("tests/index.test.ts"));
+    assert.ok(result.configFiles.includes("package.json"));
+  });
+
+  it("RepoMapStage implements ContextStage interface", () => {
+    const stage = new RepoMapStage();
+    assert.equal(typeof stage.name, "string");
+    assert.equal(typeof stage.process, "function");
+    assert.equal(stage.name, "repo-map");
+  });
+
+  it("RepoMapStage builds repo map", async () => {
+    const dir = await createTestDir();
+    const stage = new RepoMapStage();
+    const result = await stage.process({ root: dir });
+
+    assert.ok(Array.isArray(result.sourceFiles));
+    assert.ok(result.sourceFiles.length > 0);
+    assert.ok(result.sourceFiles.includes("src/index.ts"));
   });
 });
