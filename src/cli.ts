@@ -378,6 +378,10 @@ if (command === "run") {
 
 if (command === "serve") {
   const config = await loadConfig(process.cwd());
+  if (!config.ui?.enabled) {
+    console.error("UI inspector is not enabled. Set ui.enabled=true in your config.");
+    process.exit(1);
+  }
   const { startServer } = await import("./server/server.js");
   const server = await startServer(process.cwd(), config.ui.host, config.ui.port);
   console.log(`ALiX inspector running at ${server.url}`);
