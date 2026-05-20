@@ -15,19 +15,31 @@ const PROJECT_TYPE_FILES: [string, string][] = [
   ["pom.xml", "Java"],
 ];
 
-export async function runInit(cwd: string): Promise<void> {
-  const alixDir = join(cwd, ".alix");
-  const gitignorePath = join(cwd, ".gitignore");
-  const agentsPath = join(cwd, "AGENTS.md");
+export interface InitDependencies {
+  yesNo: (question: string, defaultYes?: boolean) => Promise<boolean>;
+  prompt: (question: string) => Promise<string>;
+  cwd: string;
+}
+
+export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Promise<void> {
+  const {
+    yesNo: yesNoFn = yesNo,
+    prompt: promptFn = prompt,
+    cwd: workDir = cwd,
+  } = deps ?? {};
+
+  const alixDir = join(workDir, ".alix");
+  const gitignorePath = join(workDir, ".gitignore");
+  const agentsPath = join(workDir, "AGENTS.md");
   const projectConfigPath = join(alixDir, "config.json");
 
   // Step 0: Git check
-  const isGitRepo = existsSync(join(cwd, ".git"));
+  const isGitRepo = existsSync(join(workDir, ".git"));
   if (!isGitRepo) {
-    const initGit = await yesNo("Initialize git repository? [Y/n]: ", true);
+    const initGit = await yesNoFn("Initialize git repository? [Y/n]: ", true);
     if (initGit) {
       try {
-        execSync("git init --initial-branch=main", { cwd, stdio: "inherit" });
+        execSync("git init --initial-branch=main", { cwd: workDir, stdio: "inherit" });
         const alixIgnore = "\n# ALiX\n.alix/\n";
         if (existsSync(gitignorePath)) {
           const existing = await readFile(gitignorePath, "utf8");
@@ -37,7 +49,7 @@ export async function runInit(cwd: string): Promise<void> {
         } else {
           await writeFile(gitignorePath, alixIgnore.trimStart());
         }
-      } catch (err) {
+      } catch {
         console.warn("Warning: git init failed, continuing anyway");
       }
     }
@@ -46,7 +58,7 @@ export async function runInit(cwd: string): Promise<void> {
   // Step 1: Project type detection
   let projectType = "Generic";
   for (const [file, type] of PROJECT_TYPE_FILES) {
-    if (existsSync(join(cwd, file))) {
+    if (existsSync(join(workDir, file))) {
       projectType = type;
       break;
     }
@@ -60,10 +72,10 @@ export async function runInit(cwd: string): Promise<void> {
   console.log(`Model: ${selectedModel} (default)`);
 
   // Step 3: Feature toggles
-  const enableUi = await yesNo("Enable UI inspector? [Y/n]: ", true);
-  const enableMcp = await yesNo("Enable MCP servers? [Y/n]: ", true);
-  const enableSkills = await yesNo("Enable skills? [Y/n]: ", true);
-  const enableSubagents = await yesNo("Enable subagents? [Y/n]: ", true);
+  const enableUi = await yesNoFn("Enable UI inspector? [Y/n]: ", true);
+  const enableMcp = await yesNoFn("Enable MCP servers? [Y/n]: ", true);
+  const enableSkills = await yesNoFn("Enable skills? [Y/n]: ", true);
+  const enableSubagents = await yesNoFn("Enable subagents? [Y/n]: ", true);
 
   // Build config
   const config = {
@@ -121,7 +133,7 @@ npm test
 `;
   await writeFile(agentsPath, agentsContent);
 
-  console.log(`\n✓ ALiX initialized in ${cwd}`);
+  console.log(`\n✓ ALiX initialized in ${workDir}`);
   console.log(`\nNext steps:`);
   console.log(`  alix run "your first task"`);
   console.log(`  alix serve    # start UI inspector`);

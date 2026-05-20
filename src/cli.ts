@@ -222,6 +222,7 @@ Usage:
   alix mcp remove <name>  Disconnect an MCP server
   alix mcp discover <pkg> Discover an npm MCP package
   alix mcp test <name>    Test an MCP server connection
+  alix init              Initialize project with git, config, and sensible defaults
   alix extension list     List installed extensions
   alix extension install <path>  Install an extension from a directory
   alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
@@ -235,6 +236,12 @@ Usage:
 
 if (command === "--version" || command === "-v") {
   console.log(ALIX_VERSION);
+  process.exit(0);
+}
+
+if (command === "init") {
+  const { runInit } = await import("./cli/commands/init.js");
+  await runInit(process.cwd());
   process.exit(0);
 }
 
