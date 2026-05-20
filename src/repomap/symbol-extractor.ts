@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 export interface ExtractedSymbol {
   name: string;
-  kind: "function" | "class" | "interface" | "type" | "enum" | "const" | "variable" | "method";
+  kind: "function" | "class" | "interface" | "type" | "enum" | "const" | "variable";
   file: string;
   path: string;  // Alias for file (used by context-compiler)
   line: number;
