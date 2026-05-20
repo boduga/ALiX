@@ -1,6 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+const Priority = {
+  CRITICAL: 1,
+  HIGH: 2,
+  MEDIUM: 3,
+  LOW: 4,
+  DEFAULT: 5,
+} as const;
+
 export interface DiscoveredCommand {
   name: string;
   command: string;
@@ -9,18 +17,13 @@ export interface DiscoveredCommand {
   priority: number;
 }
 
-export interface CommandDiscoveryOptions {
-  frameworks?: string[];
-  prioritizeFastFirst?: boolean;
-}
+export interface CommandDiscoveryOptions {}
 
 export class CommandDiscovery {
   private rootDir: string;
-  private frameworks: string[];
 
-  constructor(rootDir: string, options: CommandDiscoveryOptions = {}) {
+  constructor(rootDir: string, _options: CommandDiscoveryOptions = {}) {
     this.rootDir = rootDir;
-    this.frameworks = options.frameworks ?? ["npm", "pytest", "jest", "mocha", "go", "make"];
   }
 
   async findTestCommands(): Promise<DiscoveredCommand[]> {
@@ -51,7 +54,7 @@ export class CommandDiscovery {
           name: "test",
           command: "npm test",
           framework: "npm",
-          priority: 1,
+          priority: Priority.CRITICAL,
         });
       }
 
@@ -60,7 +63,7 @@ export class CommandDiscovery {
           name: "unit",
           command: "npm run test:unit",
           framework: "npm",
-          priority: 2,
+          priority: Priority.HIGH,
         });
       }
 
@@ -69,7 +72,7 @@ export class CommandDiscovery {
           name: "integration",
           command: "npm run test:integration",
           framework: "npm",
-          priority: 3,
+          priority: Priority.MEDIUM,
         });
       }
 
@@ -96,7 +99,7 @@ export class CommandDiscovery {
               name: target,
               command: `make ${target}`,
               framework: "make",
-              priority: target === "test" ? 1 : 5,
+              priority: target === "test" ? Priority.CRITICAL : Priority.DEFAULT,
             });
           }
         }
@@ -121,14 +124,14 @@ export class CommandDiscovery {
           name: "pytest",
           command: "pytest",
           framework: "pytest",
-          priority: 1,
+          priority: Priority.CRITICAL,
         });
 
         commands.push({
           name: "pytest-unit",
           command: "pytest tests/unit",
           framework: "pytest",
-          priority: 2,
+          priority: Priority.HIGH,
         });
       }
 
@@ -138,7 +141,7 @@ export class CommandDiscovery {
           name: "tox",
           command: "tox",
           framework: "tox",
-          priority: 4,
+          priority: Priority.LOW,
         });
       }
 
@@ -159,9 +162,6 @@ export class CommandDiscovery {
 
   async detectFramework(): Promise<string | null> {
     const commands = await this.findTestCommands();
-    if (commands.length === 0) return null;
-
-    const sorted = [...commands].sort((a, b) => a.priority - b.priority);
-    return sorted[0].framework ?? null;
+    return commands[0]?.framework ?? null;
   }
 }
