@@ -54,7 +54,7 @@ import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
 import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
 import { CheckpointManager } from "./patch/checkpoint.js";
-import { promptUser, saveDecisionsToMemory } from "./run/helpers.js";
+import { promptUser, saveDecisionsToMemory, streamToResponse } from "./run/helpers.js";
 
 
 
@@ -606,25 +606,14 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     let toolCalls: ToolCall[] = [];
     let usage: TokenUsage | undefined;
     if (config.model.streaming && provider.stream) {
-      for await (const chunk of provider.stream({
+      const result = await streamToResponse(provider, {
         systemPrompt: SYSTEM_PROMPT,
         messages,
         tools: [...providerTools, ...mcpToolIndex]
-      })) {
-        if (chunk.type === "text_delta") {
-          text += chunk.text;
-          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-            await new Promise(resolve => process.stdout.once("drain", resolve));
-          }
-          onStream?.({ type: "text", text: chunk.text });
-        }
-        if (chunk.type === "tool_call") {
-          toolCalls.push(chunk.toolCall);
-          // tool.requested event is emitted by ToolExecutor, not streamed directly
-        }
-        if (chunk.type === "error") throw new Error(chunk.error);
-        if (chunk.type === "usage") usage = chunk.usage;
-      }
+      }, { onStream });
+      text = result.text;
+      toolCalls = result.toolCalls;
+      usage = result.usage;
     } else {
       const resp = await provider.complete({
         systemPrompt: SYSTEM_PROMPT,

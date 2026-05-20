@@ -57,17 +57,25 @@ export async function saveDecisionsToMemory(
 
 /**
  * Stream a request to the provider and collect the response.
+ * Handles stdout writing and stream callbacks.
  */
 export async function streamToResponse(
   provider: ModelAdapter,
-  request: NormalizedRequest
+  request: NormalizedRequest,
+  options?: { onStream?: (chunk: { type: "text"; text: string }) => void }
 ): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
   if (!provider.stream) throw new Error("Provider does not support streaming");
   let text = "";
   let toolCalls: ToolCall[] = [];
   let usage: TokenUsage | undefined;
   for await (const chunk of provider.stream(request)) {
-    if (chunk.type === "text_delta") text += chunk.text;
+    if (chunk.type === "text_delta") {
+      text += chunk.text;
+      if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+        await new Promise(resolve => process.stdout.once("drain", resolve));
+      }
+      options?.onStream?.({ type: "text", text: chunk.text });
+    }
     if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
     if (chunk.type === "usage") usage = chunk.usage;
     if (chunk.type === "error") throw new Error(chunk.error);
