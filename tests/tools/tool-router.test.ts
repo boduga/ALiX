@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { writeFile, mkdir, rm } from "node:fs/promises";
+import { join } from "node:path";
 import {
   FileToolRouter,
   ShellToolRouter,
@@ -16,12 +18,17 @@ test("ToolRouter interface exists", () => {
 });
 
 test("CompositeToolRouter finds matching router and delegates", async () => {
-  const fileRouter = new FileToolRouter();
+  const fileRouter = new FileToolRouter("/tmp");
   const shellRouter = new ShellToolRouter();
   const composite = new CompositeToolRouter([fileRouter, shellRouter]);
 
-  const request = { toolCallId: "1", name: "file.read", args: {} };
-  await assert.rejects(composite.execute(request), /Not implemented yet/);
+  // Create a temp file to test file.read works
+  await writeFile("/tmp/test-router-delegate.txt", "hello");
+  const request = { toolCallId: "1", name: "file.read", args: { path: "test-router-delegate.txt" } };
+  const result = await composite.execute(request);
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.content, "hello");
+  await rm("/tmp/test-router-delegate.txt", { force: true });
 });
 
 test("CompositeToolRouter returns error when no router handles tool", async () => {
@@ -160,16 +167,86 @@ test("CompositeToolRouter delegates to correct router when order is reversed", a
 });
 
 test("CompositeToolRouter prioritizes FileToolRouter over ShellToolRouter for file.read", async () => {
-  const fileRouter = new FileToolRouter();
+  const fileRouter = new FileToolRouter("/tmp");
   const shellRouter = new ShellToolRouter();
 
-  // FileToolRouter first - it should handle file.read (not ShellToolRouter)
+  // Create a temp file to test file.read works
+  await writeFile("/tmp/test-priority.txt", "priority-test");
   const composite = new CompositeToolRouter([fileRouter, shellRouter]);
-  const request = { toolCallId: "1", name: "file.read", args: {} };
+  const request = { toolCallId: "1", name: "file.read", args: { path: "test-priority.txt" } };
 
-  // FileToolRouter throws "Not implemented yet" - this proves it was selected
-  await assert.rejects(composite.execute(request), /Not implemented yet/);
+  const result = await composite.execute(request);
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.content, "priority-test");
+  await rm("/tmp/test-priority.txt", { force: true });
+});
 
-  // If ShellToolRouter was selected instead, it would also throw, but with same error
-  // The key point is that for file.read, FileToolRouter (first in order) handles it
+test("FileToolRouter.execute handles file.read", async () => {
+  const router = new FileToolRouter("/tmp");
+  await writeFile("/tmp/test-read-file.txt", "file read content");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.read",
+    args: { path: "test-read-file.txt" },
+  });
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.content, "file read content");
+  await rm("/tmp/test-read-file.txt", { force: true });
+});
+
+test("FileToolRouter.execute handles dir.search", async () => {
+  const router = new FileToolRouter("/tmp");
+  await mkdir("/tmp/test-search-dir", { recursive: true });
+  await writeFile("/tmp/test-search-dir/test.txt", "search keyword unique xyz");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "dir.search",
+    args: { pattern: "search keyword unique xyz", extensions: [] },
+  });
+  assert.strictEqual(result.kind, "success");
+  assert.ok(result.matches && result.matches.length > 0);
+  // Verify the match path ends with our test file
+  assert.ok(result.matches![0].path.endsWith("test-search-dir/test.txt"));
+  await rm("/tmp/test-search-dir", { recursive: true, force: true });
+});
+
+test("FileToolRouter.execute handles file.create", async () => {
+  const router = new FileToolRouter("/tmp");
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "file.create",
+    args: { path: "new-file.txt", content: "new content" },
+  });
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.createdPath, "new-file.txt");
+  // Verify file was created
+  const readResult = await router.execute({
+    toolCallId: "2",
+    name: "file.read",
+    args: { path: "new-file.txt" },
+  });
+  assert.strictEqual(readResult.kind, "success");
+  assert.strictEqual(readResult.content, "new content");
+  await rm("/tmp/new-file.txt", { force: true });
+});
+
+test("FileToolRouter.execute handles file.exists", async () => {
+  const router = new FileToolRouter("/tmp");
+  await writeFile("/tmp/exists-test.txt", "exists");
+  const existsResult = await router.execute({
+    toolCallId: "1",
+    name: "file.exists",
+    args: { path: "exists-test.txt" },
+  });
+  assert.strictEqual(existsResult.kind, "success");
+  assert.strictEqual(existsResult.exists, true);
+
+  const notExistsResult = await router.execute({
+    toolCallId: "2",
+    name: "file.exists",
+    args: { path: "nonexistent-file.txt" },
+  });
+  assert.strictEqual(notExistsResult.kind, "success");
+  assert.strictEqual(notExistsResult.exists, false);
+  await rm("/tmp/exists-test.txt", { force: true });
 });

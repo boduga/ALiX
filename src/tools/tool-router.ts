@@ -1,10 +1,8 @@
-import type { ToolResult } from "./types.js";
-
-export type ToolCallRequest = {
-  toolCallId: string;
-  name: string;
-  args: Record<string, unknown>;
-};
+import type { ToolResult, ToolCallRequest } from "./types.js";
+import { readFile, searchDir } from "./file-tools.js";
+import { existsSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { mkdir, writeFile } from "node:fs/promises";
 
 export interface ToolRouter {
   canHandle(name: string): boolean;
@@ -20,12 +18,61 @@ export class FileToolRouter implements ToolRouter {
     "dir.search",
   ];
 
+  constructor(private readonly root: string = "") {}
+
   canHandle(name: string): boolean {
     return FileToolRouter.SUPPORTED_TOOLS.includes(name);
   }
 
-  async execute(_request: ToolCallRequest): Promise<ToolResult> {
-    throw new Error("Not implemented yet");
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    const args = request.args as {
+      root?: string;
+      path?: string;
+      pattern?: string;
+      extensions?: string[];
+      content?: string;
+    };
+
+    switch (request.name) {
+      case "file.read": {
+        if (!args.path) return { kind: "error", message: "file.read requires path" };
+        return readFile({ root: args.root ?? this.root, path: args.path });
+      }
+      case "dir.search": {
+        if (!args.pattern) return { kind: "error", message: "dir.search requires pattern" };
+        return searchDir({
+          root: args.root ?? this.root,
+          pattern: args.pattern,
+          extensions: args.extensions ?? [],
+        });
+      }
+      case "file.create": {
+        const { root: r, path, content } = args;
+        if (!path || content === undefined) {
+          return { kind: "error", message: "file.create requires path and content" };
+        }
+        const baseRoot = r ?? this.root;
+        const resolvedPath = resolve(baseRoot, path);
+        if (existsSync(resolvedPath)) {
+          return { kind: "error", message: "File already exists", retryable: false };
+        }
+        await mkdir(dirname(resolvedPath), { recursive: true });
+        await writeFile(resolvedPath, content, "utf8");
+        return {
+          kind: "success",
+          output: `File created: ${path}`,
+          createdPath: path,
+          changedFiles: [path],
+        };
+      }
+      case "file.exists": {
+        if (!args.path) return { kind: "error", message: "file.exists requires path" };
+        const exists = existsSync(resolve(args.root ?? this.root, args.path));
+        return { kind: "success", output: exists ? "exists" : "not found", exists };
+      }
+      default:
+        return { kind: "error", message: `Unhandled: ${request.name}`, retryable: false };
+    }
   }
 }
 
