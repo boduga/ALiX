@@ -7,9 +7,6 @@ import { loadConfig, DEFAULT_CONFIG } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
 import { EXIT_CODES, runTask } from "./run.js";
 import { ApiError } from "./providers/base.js";
-import { startServer } from "./server/server.js";
-import { McpManager } from "./mcp/manager.js";
-import { MemoryStore } from "./utils/memory/store.js";
 import type { MemoryType } from "./utils/memory/types.js";
 
 const PROVIDERS = [
@@ -381,6 +378,11 @@ if (command === "run") {
 
 if (command === "serve") {
   const config = await loadConfig(process.cwd());
+  if (!config.ui?.enabled) {
+    console.error("UI inspector is not enabled. Set ui.enabled=true in your config.");
+    process.exit(1);
+  }
+  const { startServer } = await import("./server/server.js");
   const server = await startServer(process.cwd(), config.ui.host, config.ui.port);
   console.log(`ALiX inspector running at ${server.url}`);
   await new Promise(() => undefined);
@@ -388,6 +390,7 @@ if (command === "serve") {
 
 if (command === "mcp") {
   const config = await loadConfig(process.cwd());
+  const { McpManager } = await import("./mcp/manager.js");
   const mcpManager = new McpManager(config);
   await mcpManager.initialize();
 
@@ -643,6 +646,7 @@ if (command === "run" && args[0] === "--subagent") {
 // --- alix memory --- memory management commands ---
 if (command === "memory") {
   const memoryDir = resolve(process.cwd(), ".alix/memory");
+  const { MemoryStore } = await import("./utils/memory/store.js");
   const sub = args[0];
 
   if (sub === "list") {

@@ -9,8 +9,8 @@ html {
   --panel-line: #2f3a36;
   --text: #f5f0df;
   --muted: #a59f90;
-  --accent: #b8e060;
-  --accent-2: #e06840;
+  --accent: #8fb845;
+  --accent-2: #c05530;
   --error-bg: rgba(255, 72, 72, 0.08);
   --error-border: rgba(255, 72, 72, 0.3);
   --success-bg: rgba(80, 220, 130, 0.06);
@@ -47,11 +47,12 @@ main {
 }
 
 .eyebrow {
-  color: var(--accent);
+  color: var(--muted);
   font-size: 12px;
-  letter-spacing: 0;
+  font-weight: 500;
+  letter-spacing: 0.05em;
   margin: 0 0 12px;
-  text-transform: uppercase;
+  text-transform: lowercase;
 }
 
 h1, h2, p { margin-top: 0; }
@@ -180,10 +181,10 @@ h2 {
 }
 
 .connect-panel button:hover {
-  background: #c0e870;
-  box-shadow: 0 4px 12px rgba(208, 255, 115, 0.25);
+  background: #9ec040;
+  box-shadow: 0 4px 16px rgba(143, 184, 69, 0.25);
   transform: translateY(-1px);
-  transition: all 0.15s ease;
+  transition: all 0.2s ease;
 }
 
 .connect-panel button:active {
@@ -206,6 +207,11 @@ h2 {
   grid-template-columns: 160px 80px 110px 1fr;
   gap: 12px;
   align-items: start;
+  transition: background-color 0.15s ease;
+}
+
+#events li:hover {
+  background: rgba(184,224,96,0.04);
 }
 
 #events li:last-child { border-bottom: 0; }
@@ -524,6 +530,34 @@ h3 {
 
 .skip-link:focus {
   top: 0;
+}
+
+/* Empty state */
+.empty-state {
+  padding: 48px 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 14px;
+  border-bottom: none;
+}
+
+.empty-state span {
+  display: block;
+  opacity: 0.7;
+}
+
+.loading-state {
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.error-state {
+  border-left: 3px solid var(--accent-2);
+  background: var(--error-bg);
 }
 
 /* Verification panel styles */

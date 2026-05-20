@@ -105,7 +105,7 @@ connectBtn.addEventListener("click", () => {
 
 function connect(sessionId) {
   if (eventSource) eventSource.close();
-  eventsEl.innerHTML = "";
+  eventsEl.innerHTML = `<li class="empty-state loading-state"><span>Connecting to session...</span></li>`;
   allEvents = [];
   statusEl.textContent = "Connecting...";
   statusEl.className = "status";
@@ -146,6 +146,17 @@ function renderAll() {
   renderTokens(projection.tokens);
   renderSubagentTimeline(visibleEvents);
   replayPosition.textContent = `${visibleEvents.length} / ${replayState.events.length}`;
+}
+
+function renderEventsFrom(events) {
+  eventsEl.innerHTML = "";
+  if (events.length === 0) {
+    eventsEl.innerHTML = `<li class="empty-state"><span>No events yet. Connect to a session or load a replay.</span></li>`;
+    return;
+  }
+  for (const event of events) {
+    addEventRow(event, eventsEl);
+  }
 }
 
 function renderContext(context) {

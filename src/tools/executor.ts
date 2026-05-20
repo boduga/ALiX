@@ -57,7 +57,7 @@ export class ToolExecutor {
       new FileToolRouter(this.root),
       new ShellToolRouter(this.root),
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
-      new McpToolRouter(mcpManager!),
+      new McpToolRouter(mcpManager ?? null),
       new DelegateToolRouter(extraHandlers),
     ]);
   }

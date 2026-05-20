@@ -1,15 +1,59 @@
+/**
+ * run.ts — ALiX main task runner
+ *
+ * This file has been split into focused modules:
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │ SECTION                          │ EXTRACTED TO                            │
+ * ├─────────────────────────────────────────────────────────────────────────────┤
+ * │ 1. Imports (21-59)               │ STAYS in run.ts                         │
+ * │ 2. Helper functions (60-177)     │ src/run/helpers.ts                      │
+ * │ 3. Event handlers (180-323)      │ src/run/event-handlers.ts                │
+ * │ 4. Task loop (624-993)           │ src/run/task-loop.ts                     │
+ * │ 5. Session init / cleanup        │ STAYS in run.ts                         │
+ * └─────────────────────────────────────────────────────────────────────────────┘
+ */
+
+// =============================================================================
+// LAZY IMPORT CANDIDATES — These imports are used conditionally and should be
+// converted to dynamic imports to reduce startup time:
+// =============================================================================
+//
+// - McpManager (line 35): Only needed if config.mcpServers?.length > 0
+//   Current: always imported
+//   Location in code: line 416 (mcpManager.initialize())
+//   Conditional on: config.mcpServers?.length
+//
+// - SubagentManager (line 439): Only needed if config.subagents?.enabled
+//   Current: dynamic import already (line 435)
+//   Location in code: lines 435-445
+//   Conditional on: config.subagents?.enabled
+//
+// - MemoryStore (line 38): Only needed if memory features are enabled
+//   Current: always imported
+//   Location in code: lines 395-397
+//   Conditional on: config.memory?.enabled or similar feature flag
+//
+// - ContextCompiler (line 27): Only needed when context compilation is enabled
+//   Current: always imported
+//   Location in code: lines 517-524
+//   Conditional on: config.context?.enabled
+//
+// - Inspector SSE server: Only needed if config.ui?.enabled
+//   (currently inline in CLI, not imported from run.ts)
+// =============================================================================
+
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { createInterface } from "node:readline";
 import { loadConfig } from "./config/loader.js";
 import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
 import { PolicyEngine } from "./policy/policy-engine.js";
 import { ApprovalManager } from "./policy/approvals.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
-import { ContextCompiler } from "./repomap/context-compiler.js";
+import { ContextCompiler } from "./repomap/context-compiler.js"; // LAZY: conditional on config.context?.enabled
 import { TOOL_NAME_MAP } from "./agents/tool-name-map.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
@@ -17,86 +61,26 @@ import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
 import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
-import { McpManager } from "./mcp/manager.js";
 import { ToolDiscovery } from "./mcp/tool-discovery.js";
+import type { McpManager } from "./mcp/manager.js"; // LAZY: conditional on config.mcpServers?.length > 0
 import { buildSessionDigest } from "./utils/session-digest.js";
-import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
-import { MemoryStore } from "./utils/memory/store.js";
+import { MemoryStore } from "./utils/memory/store.js"; // LAZY: conditional on memory features enabled
 import type { MemoryEntry } from "./utils/memory/types.js";
 import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
-import { extractDecisions, promptDecisionConfirmation } from "./utils/memory/decision-extractor.js";
-import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
 import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracker.js";
 import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
 import type { ScopeTracker } from "./autonomy/scope-tracker.js";
 import type { AgentState } from "./autonomy/scope-tracker.js";
-import type { SubagentRole, SubagentTask } from "./config/schema.js";
 import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
 import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
 import { CheckpointManager } from "./patch/checkpoint.js";
+import { promptUser, saveDecisionsToMemory, streamToResponse } from "./run/helpers.js";
+import { handleToolCall, handleMcpToolSearch, handleScopeExpansion, buildScopeDenialMessage, buildScopeRejectionSummary, type EventHandlerDeps } from "./run/event-handlers.js";
+import { runTaskLoop, type TaskLoopDeps } from "./run/task-loop.js";
 
-async function promptUser(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise<string>((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-/**
- * Extract decisions from session events and save confirmed ones to memory.
- * Wraps memoryStore.save() in try/catch to prevent crashes during cleanup.
- */
-async function saveDecisionsToMemory(sessionEvents: Awaited<ReturnType<EventLog["readAll"]>>, memoryStore: MemoryStore): Promise<void> {
-  const decisions = extractDecisions(sessionEvents);
-  if (decisions.length === 0) {
-    console.log("[Memory] No decisions found to save.");
-    return;
-  }
-
-  const confirmedDecisions = await promptDecisionConfirmation(decisions);
-  if (confirmedDecisions.length === 0) {
-    console.log("[Memory] No decisions saved.");
-    return;
-  }
-
-  console.log(`[Memory] Saving ${confirmedDecisions.length} decision(s) to memory:`);
-  for (const decision of confirmedDecisions) {
-    try {
-      await memoryStore.save({
-        name: decision.name,
-        description: decision.description,
-        type: decision.type,
-        content: decision.content,
-        confidence: decision.confidence,
-        confirmations: decision.confirmations,
-        source: decision.source,
-      });
-      console.log(`  - [${decision.type}] ${decision.content}`);
-    } catch (err) {
-      console.error(`[Memory] Failed to save decision "${decision.name}": ${(err as Error).message}`);
-    }
-  }
-}
-
-async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
-  if (!provider.stream) throw new Error("Provider does not support streaming");
-  let text = "";
-  let toolCalls: ToolCall[] = [];
-  let usage: TokenUsage | undefined;
-  for await (const chunk of provider.stream(request)) {
-    if (chunk.type === "text_delta") text += chunk.text;
-    if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-    if (chunk.type === "usage") usage = chunk.usage;
-    if (chunk.type === "error") throw new Error(chunk.error);
-  }
-  return { text, toolCalls, usage };
-}
 
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
@@ -358,6 +342,8 @@ export type MutationSessionState = {
   created: Set<string>;
   changed: Set<string>;
   deleted: Set<string>;
+  fatalErrors: string[];
+  pendingScopeExpansion: boolean;
 };
 
 export function extractMutationPaths(execName: string, args: Record<string, unknown>): string[] {
@@ -455,9 +441,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const editFormatPolicy = buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference });
   const providerTools = buildToolsForProvider(provider);
 
-  // Initialize MCP manager
-  const mcpManager = new McpManager(config);
-  await mcpManager.initialize();
+  // Initialize MCP manager (lazy - only needed if config.mcpServers?.length > 0)
+  let mcpManager: McpManager | null = null;
+  if (config.mcpServers?.length) {
+    const { McpManager: McpManagerClass } = await import("./mcp/manager.js");
+    mcpManager = new McpManagerClass(config);
+    await mcpManager.initialize();
+  }
 
   const { discoverHooks } = await import("./hooks/discover.js");
   const { runHook } = await import("./hooks/runner.js");
@@ -474,40 +464,41 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
   evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
 
-  // Initialize subagent infrastructure before ToolExecutor (lazy, conditional on config)
+  // Initialize subagent infrastructure only if enabled
   let ownershipRegistry: import("./agents/ownership-registry.js").OwnershipRegistry | undefined;
   let mergeCoordinator: import("./agents/merge-coordinator.js").MergeCoordinator | undefined;
   let subagentManager: import("./agents/subagent-manager.js").SubagentManager | undefined;
-  let delegateHandler: ReturnType<typeof import("./agents/delegate-tool.js").createDelegateHandler> | undefined;
+  let delegateHandler: ((args: Record<string, unknown>) => Promise<import("./tools/types.js").ToolResult>) | undefined;
 
   if (config.subagents?.enabled) {
-    const { SubagentManager } = await import("./agents/subagent-manager.js");
-    const { OwnershipRegistry } = await import("./agents/ownership-registry.js");
-    const { MergeCoordinator } = await import("./agents/merge-coordinator.js");
-    const { createDelegateHandler } = await import("./agents/delegate-tool.js");
-    ownershipRegistry = new OwnershipRegistry();
-    mergeCoordinator = new MergeCoordinator();
-    subagentManager = new SubagentManager({ sessionId, config });
+    const { SubagentManager: SubagentManagerClass } = await import("./agents/subagent-manager.js");
+    const { OwnershipRegistry: OwnershipRegistryClass } = await import("./agents/ownership-registry.js");
+    const { MergeCoordinator: MergeCoordinatorClass } = await import("./agents/merge-coordinator.js");
+    const { createDelegateHandler: createDelegateHandlerFn } = await import("./agents/delegate-tool.js");
+
+    ownershipRegistry = new OwnershipRegistryClass();
+    mergeCoordinator = new MergeCoordinatorClass();
+    subagentManager = new SubagentManagerClass({ sessionId, config });
     subagentManager.onResult((result) => {
       mergeCoordinator!.enqueue(result);
       void log.append({ ...session, actor: "subagent", type: "subagent.result", payload: result });
     });
-    delegateHandler = createDelegateHandler(subagentManager, (opts: { role: SubagentRole; prompt: string; ownedPaths?: string[]; mode?: "read_only" | "write" }) => {
+    delegateHandler = createDelegateHandlerFn(subagentManager, (opts) => {
       const taskId = crypto.randomUUID();
       if (opts.mode === "write" && opts.ownedPaths?.length) {
         ownershipRegistry!.claim(taskId, opts.ownedPaths);
       }
-      return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths } as SubagentTask;
+      return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
     });
   }
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : {}, checkpointManager);
+  const executor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager);
 
-  const mcpDeferral = mcpManager.getDeferral();
-  const mcpToolIndex = mcpDeferral.buildIndex();
+  const mcpDeferral = mcpManager?.getDeferral();
+  const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
   const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
   const selectedTools = toolSelector.select(task);
-  const mcpDiscovery = new ToolDiscovery(mcpToolIndex); // full index, not selectedTools
+  const mcpDiscovery = mcpManager ? new ToolDiscovery(mcpToolIndex) : null; // full index, not selectedTools
   for (const entry of selectedTools) {
     TOOL_NAME_MAP[entry.name] = entry.execName;
   }
@@ -606,398 +597,49 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     return parts.join("\n\n");
   }
 
+  const { skillFactory } = await import("./skills/dispatcher.js");
+
   const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved.";
   const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle, memoryContext, memoryStats);
 
-  for (let i = 0; i < maxIterations; i++) {
-    stateMachine.tick(0);
-    // Truncate messages if token budget exceeded before streaming/completion
-    const msgTokens = messages.reduce(
-      (sum, m) => sum + estimateMessageTokens(m, encoding),
-      0
-    );
-    if (msgTokens > MAX_CONTEXT_TOKENS / 2) {
-      const { kept, dropped } = truncateToTokenBudget(messages, MAX_CONTEXT_TOKENS / 2, encoding);
-      if (dropped.length > 0) {
-        // Remove all [State] messages before truncation, then re-inject one rolling summary
-        messages = messages.filter(m => !String(m.content).startsWith("[Session Digest]"));
-
-        // Build digest from session log — authoritative source of truth
-        const logDir = log.path.replace(/\/events\.jsonl$/, "");
-        const digest = await buildSessionDigest(logDir);
-        if (digest) {
-          messages.push({ role: "user", content: digest });
-        } else {
-          // Fallback to rolling sessionState summary when log isn't available
-          const summary = buildStateSummary(sessionState);
-          if (summary) messages.push({ role: "user", content: summary });
-        }
-
-        messages = [...(kept as NormalizedMessage[])];
-        await log.append({ ...session, actor: "system", type: "context.truncated", payload: {
-          droppedCount: dropped.length,
-          provider: config.model.provider,
-          maxTokens: MAX_CONTEXT_TOKENS,
-          encoding
-        }});
-      }
-    }
-
-    // Run pre_task hooks at the start of each iteration
-    for (const hook of hooks.pre_task ?? []) {
-      await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, reason: hook.reason } });
-      const result = await runHook(hook, cwd);
-      await log.append({ ...session, actor: "system", type: "hook.pre_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
-    }
-
-    let text = "";
-    let toolCalls: ToolCall[] = [];
-    let usage: TokenUsage | undefined;
-    if (config.model.streaming && provider.stream) {
-      for await (const chunk of provider.stream({
-        systemPrompt: SYSTEM_PROMPT,
-        messages,
-        tools: [...providerTools, ...mcpToolIndex]
-      })) {
-        if (chunk.type === "text_delta") {
-          text += chunk.text;
-          if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-            await new Promise(resolve => process.stdout.once("drain", resolve));
-          }
-          onStream?.({ type: "text", text: chunk.text });
-        }
-        if (chunk.type === "tool_call") {
-          toolCalls.push(chunk.toolCall);
-          // tool.requested event is emitted by ToolExecutor, not streamed directly
-        }
-        if (chunk.type === "error") throw new Error(chunk.error);
-        if (chunk.type === "usage") usage = chunk.usage;
-      }
-    } else {
-      const resp = await provider.complete({
-        systemPrompt: SYSTEM_PROMPT,
-        messages,
-        tools: [...providerTools, ...mcpToolIndex]
-      });
-      text = resp.text ?? "";
-      toolCalls = resp.toolCalls ?? [];
-      usage = resp.usage;
-    }
-    
-    if (text.length > 0) {
-      await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
-    }
-
-    if (usage) {
-      await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
-    }
-
-    if (toolCalls.length === 0) {
-      // No tools called — check if model signals completion
-      const modelSaysDone = /done|complete|finished|resolved/i.test(text);
-
-      // Run post_task hooks
-      for (const hook of hooks.post_task ?? []) {
-        await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, reason: hook.reason } });
-        const result = await runHook(hook, cwd);
-        await log.append({ ...session, actor: "system", type: "hook.post_task", payload: { command: hook.command, passed: result.passed, output: result.output.slice(0, 500) } });
-      }
-
-      // Policy check: skip verification in ask mode unless scope is approved
-      const scopeApprovedNoTools = !sessionState.pendingScopeExpansion;
-      const { skipReason: skipReasonNoTools } = shouldRunVerification(config.permissions.sessionMode ?? "ask", scopeApprovedNoTools);
-
-      if (skipReasonNoTools) {
-        await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReasonNoTools } });
-      }
-
-      // Get verification checks
-      const checks = await discoverVerification(cwd);
-
-      // For docs tasks, skip verification
-      if (taskType === "docs" || checks.length === 0) {
-        if (modelSaysDone) {
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
-          await mcpManager.closeAll().catch(() => {});
-
-          // Extract decisions from session events and save confirmed ones to memory
-          const sessionEvents = await log.readAll();
-          await saveDecisionsToMemory(sessionEvents, memoryStore);
-
-          // Fire-and-forget: dispatch skill factory
-          const { skillFactory } = await import("./skills/dispatcher.js");
-          void skillFactory.process({
-            sessionId,
-            sessionDir,
-            summary: text,
-            filesCreated: [...sessionState.created],
-            filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
-          });
-          return { sessionId, summary: text, streamed: config.model.streaming };
-        }
-        // Model didn't signal done, continue
-      } else if (!skipReasonNoTools) {
-        // Run verification
-        const verResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
-        for (const check of checks) {
-          await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: check.command, reason: check.reason } });
-          const verResult = await runVerification(cwd, check);
-          await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: check.command, status: verResult.status } });
-          verResults.push({ check, result: verResult });
-        }
-
-        const allPassed = verResults.every((vr) => vr.result.status === "passed");
-
-        if (allPassed && modelSaysDone) {
-          // Success — verification passed and model signals done
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
-          await mcpManager.closeAll().catch(() => {});
-          return { sessionId, summary: text, streamed: config.model.streaming };
-        }
-
-        // Repair loop — verification failed or model didn't signal done
-        const failures = verResults.filter((vr) => vr.result.status === "failed");
-        const failureText = failures.length > 0
-          ? failures.map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`).join("\n\n")
-          : "No tool calls and model did not signal completion.";
-
-        repairCount++;
-        if (repairCount > maxRepairs) {
-          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
-          await mcpManager.closeAll().catch(() => {});
-
-          // Extract decisions from session events and save confirmed ones to memory
-          const sessionEvents = await log.readAll();
-          await saveDecisionsToMemory(sessionEvents, memoryStore);
-
-          // Fire-and-forget: dispatch skill factory
-          const { skillFactory } = await import("./skills/dispatcher.js");
-          void skillFactory.process({
-            sessionId,
-            sessionDir,
-            summary: `Repair limit reached: ${failureText}`,
-            filesCreated: [...sessionState.created],
-            filesChanged: [...sessionState.changed],
-            config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
-          });
-          return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
-        }
-
-        const repairPrompt = `\n\n[Verification Result] ${failureText}\n\nRepair the issues above and confirm completion when done.`;
-        messages.push({ role: "user", content: repairPrompt });
-
-        // Don't return — continue the loop
-      }
-    }
-
-    // Track failed tool names per iteration to prevent spinning
-    const failedTools: string[] = [];
-    const fatalToolErrors: string[] = [];
-
-    // Handle each tool call (model names like alix_file_read → executor names like file.read)
-    for (const toolCall of toolCalls) {
-      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
-
-      // Scope expansion check: intercept mutation tools for files outside initial scope
-      const isMutation = execName === "file.create" || execName === "file.write" || execName === "file.delete" || execName === "patch.apply";
-      if (isMutation) {
-        const pathsToCheck = extractMutationPaths(execName, toolCall.args);
-        const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
-        if (deniedPaths.length > 0) {
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: deniedPaths, toolCallId: toolCall.id, toolName: execName } });
-          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: These files were denied by the user: ${deniedPaths.join(", ")}. Do NOT attempt to modify them again.\n</tool_result>` });
-          continue;
-        }
-
-        const expansionPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "scope_expansion");
-        if (expansionPaths.length > 0) {
-          // Track that scope expansion is pending (will be cleared once approved)
-          sessionState.pendingScopeExpansion = true;
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { paths: expansionPaths, toolCallId: toolCall.id, toolName: execName } });
-          // In auto/bypass mode, auto-approve scope expansion immediately
-          if (config.permissions.sessionMode === "auto" || config.permissions.sessionMode === "bypass") {
-            for (const path of expansionPaths) scope.approveScope(path);
-            sessionState.pendingScopeExpansion = false;
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_auto_approved", payload: { paths: expansionPaths, mode: config.permissions.sessionMode } });
-            // Re-check now that scope is approved — fall through to execute below
-          } else if (process.stdin.isTTY) {
-            const answer = await promptUser(
-              `Scope expansion: ${expansionPaths.map((path) => `"${path}"`).join(", ")} outside the initial scope. Type "approve" to allow or "deny" to block: `
-            );
-            await log.append({ ...session, actor: "user", type: "autonomy.scope_approval", payload: { answer, paths: expansionPaths } });
-            if (answer.toLowerCase() === "approve") {
-              for (const path of expansionPaths) scope.approveScope(path);
-              sessionState.pendingScopeExpansion = false;
-              await log.append({ ...session, actor: "policy", type: "autonomy.scope_approved", payload: { paths: expansionPaths } });
-              // Approval granted in the same turn. Fall through and execute the original tool call.
-            } else {
-              for (const path of expansionPaths) scope.denyScope(path);
-              await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: expansionPaths } });
-              messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion denied for: ${expansionPaths.join(", ")}. Do NOT attempt to modify these files again.\n</tool_result>` });
-              continue;
-            }
-          } else {
-            // Non-TTY ask mode cannot prompt. Persist denial and fail fast for this tool call.
-            for (const path of expansionPaths) {
-              scope.setPending(path);
-              scope.denyScope(path);
-            }
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_skipped", payload: { reason: "non_tty_session", paths: expansionPaths } });
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: expansionPaths } });
-            const summary = `Scope expansion rejected in non-TTY ask mode for: ${expansionPaths.join(", ")}`;
-            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary } });
-            await mcpManager.closeAll();
-            return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion" };
-          }
-        }
-        // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
-      }
-
-      if (execName === "mcp_search_tools") {
-        const query = (toolCall.args.query as string) ?? "";
-        const result = await mcpDiscovery.search(query);
-        const matchedTools = result.kind === "success" && result.output
-          ? result.output.split("\n").filter(l => l.startsWith("  - ")).map(l => l.slice(5, l.indexOf(":")))
-          : [];
-        await log.append({ sessionId, actor: "system", type: "mcp.tool_discovered", payload: { query, matchedTools } });
-        const output = result.kind === "success" ? result.output ?? "" : result.message;
-        messages.push({ role: "user", content: `[Tool Result]\n${output}` });
-        continue;
-      }
-
-      const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
-
-      // Track MCP tool provenance
-      if (execResult.kind === "success" && execName.startsWith("mcp.")) {
-        const mcpName = toolCall.name;
-        await log.append({
-          sessionId, actor: "system", type: "mcp.tool_used",
-          payload: { toolName: mcpName, execName, sessionToolsTotal: mcpToolIndex.length, sessionToolsSelected: selectedTools.length }
-        });
-      }
-
-      if (execResult.kind === "error") {
-        const errorResult = execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string };
-        failedTools.push(execName);
-        if (errorResult.retryable === false) {
-          fatalToolErrors.push(execName);
-        }
-      }
-
-      const resultContent =
-        execResult.kind === "success"
-          ? (execResult.output ?? execResult.content ?? "")
-          : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
-
-      if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
-        await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
-        await mcpManager.closeAll().catch(() => {});
-
-        // Extract decisions from session events and save confirmed ones to memory
-        const sessionEvents = await log.readAll();
-        await saveDecisionsToMemory(sessionEvents, memoryStore);
-
-        return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
-      }
-
-      messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
-    }
-
-    // Track all file mutations in sessionState
-    for (const toolCall of toolCalls) {
-      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
-      recordMutationInSessionState(sessionState, execName, toolCall.args);
-    }
-    sessionState.fatalErrors.push(...fatalToolErrors);
-    for (const failed of failedTools) {
-      if (!fatalToolErrors.includes(failed)) {
-        sessionState.fatalErrors.push(failed);
-      }
-    }
-
-    // After tool calls, run verification every iteration (if policy allows)
-    const scopeApproved = !sessionState.pendingScopeExpansion;
-    const { skipReason } = shouldRunVerification(config.permissions.sessionMode ?? "ask", scopeApproved);
-
-    if (skipReason) {
-      await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
-    } else {
-      const endChecks = await discoverVerification(cwd);
-      // Supplement with targeted test checks based on changed files
-      const changedFiles = [...sessionState.created, ...sessionState.changed];
-      if (changedFiles.length > 0) {
-        const mappedChecks = mapFilesToTests(cwd, changedFiles);
-        // Deduplicate — avoid running the same command twice
-        const existingCmds = new Set(endChecks.map(c => c.command));
-        for (const mc of mappedChecks) {
-          if (!existingCmds.has(mc.command)) {
-            endChecks.push(mc);
-          }
-        }
-      }
-      if (endChecks.length > 0 && taskType !== "docs") {
-        const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
-        for (const endCheck of endChecks) {
-          await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
-          const verResult = await runVerification(cwd, endCheck);
-          await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
-          endResults.push({ check: endCheck, result: verResult });
-        }
-
-        const riskReport = buildRiskReport(endChecks, endResults);
-
-        const failedChecks = endResults.filter((r) => r.result.status === "failed");
-        if (failedChecks.length > 0) {
-          repairCount++;
-          stateMachine.recordRepair();
-          if (repairCount > maxRepairs) {
-            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
-            await mcpManager.closeAll().catch(() => {});
-            // Fire-and-forget: dispatch skill factory
-            const { skillFactory } = await import("./skills/dispatcher.js");
-            void skillFactory.process({
-              sessionId,
-              sessionDir,
-              summary: "Repair limit reached",
-              filesCreated: [...sessionState.created],
-              filesChanged: [...sessionState.changed],
-              config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
-            });
-            return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
-          }
-          const failureText = failedChecks
-            .map((f) => `${f.check.command} failed:\n${f.result.output ?? ""}`)
-            .join("\n\n");
-
-          const fullPrompt = riskReport
-            ? `${failureText}\n\nResidual risk (not verified):\n${riskReport}`
-            : failureText;
-
-          const repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
-          messages.push({ role: "user", content: repairPrompt });
-        }
-      }
-    }
-  }
-
-  // Max iterations reached
-  await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
-  await mcpManager.closeAll().catch(() => {});
-
-  // Extract decisions from session events and save confirmed ones to memory
-  const sessionEvents = await log.readAll();
-  await saveDecisionsToMemory(sessionEvents, memoryStore);
-
-  // Fire-and-forget: dispatch skill factory
-  const { skillFactory } = await import("./skills/dispatcher.js");
-  void skillFactory.process({
+  // Build deps for the task loop
+  const taskLoopDeps: TaskLoopDeps = {
+    config: {
+      model: {
+        provider: config.model.provider,
+        name: config.model.name,
+        streaming: config.model.streaming ?? false,
+      },
+      permissions: {
+        sessionMode: config.permissions.sessionMode,
+      },
+      skills: config.skills,
+    },
+    provider,
+    providerTools,
+    mcpToolIndex,
+    messages,
+    sessionState,
+    stateMachine,
+    scope,
+    session,
+    log,
+    executor,
+    mcpDiscovery,
+    selectedTools,
+    hooks,
+    maxIterations,
+    MAX_CONTEXT_TOKENS,
+    encoding,
+    task,
+    taskType,
+    memoryStore,
     sessionId,
     sessionDir,
-    summary: "Agent reached maximum iterations",
-    filesCreated: [...sessionState.created],
-    filesChanged: [...sessionState.changed],
-    config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
-  });
-  return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
+    systemPrompt: SYSTEM_PROMPT,
+    onStream,
+  };
+
+  // Run the task loop
+  return await runTaskLoop(taskLoopDeps);
 }
