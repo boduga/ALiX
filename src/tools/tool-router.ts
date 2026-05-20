@@ -178,10 +178,20 @@ export class McpToolRouter implements ToolRouter {
   async execute(request: ToolCallRequest): Promise<ToolResult> {
     // Parse mcp.server.tool format: mcp.github.repos.list -> github/repos_list
     const parts = request.name.split(".");
+    if (parts.length < 3) {
+      return { kind: "error", message: `Invalid MCP tool name: ${request.name}`, retryable: false };
+    }
     const serverName = parts[1];
     const toolName = parts.slice(2).join("_");
+    if (!serverName || !toolName) {
+      return { kind: "error", message: `Invalid MCP tool name: ${request.name}`, retryable: false };
+    }
     const fullName = `${serverName}/${toolName}`;
-    return this.mcpManager.callTool(fullName, request.args);
+    try {
+      return await this.mcpManager.callTool(fullName, request.args);
+    } catch (e: unknown) {
+      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
+    }
   }
 }
 
@@ -197,7 +207,11 @@ export class DelegateToolRouter implements ToolRouter {
     if (!handler) {
       return { kind: "error", message: "Delegate handler not initialized", retryable: false };
     }
-    return handler(request.args);
+    try {
+      return await handler(request.args);
+    } catch (e: unknown) {
+      return { kind: "error", message: e instanceof Error ? e.message : String(e) };
+    }
   }
 }
 

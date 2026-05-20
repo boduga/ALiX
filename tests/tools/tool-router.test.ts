@@ -416,3 +416,81 @@ test("DelegateToolRouter.execute returns error if handler not initialized", asyn
   assert.strictEqual(result.message, "Delegate handler not initialized");
   assert.strictEqual(result.retryable, false);
 });
+
+test("McpToolRouter.execute returns error for invalid tool name (too few parts)", async () => {
+  const router = new McpToolRouter({ callTool: async () => ({ kind: "success", output: "" }) } as any);
+
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "mcp.github",
+    args: {},
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.ok(result.message.includes("Invalid MCP tool name: mcp.github"));
+  assert.strictEqual(result.retryable, false);
+});
+
+test("McpToolRouter.execute returns error for empty server name", async () => {
+  const router = new McpToolRouter({ callTool: async () => ({ kind: "success", output: "" }) } as any);
+
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "mcp..tool",
+    args: {},
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.ok(result.message.includes("Invalid MCP tool name"));
+  assert.strictEqual(result.retryable, false);
+});
+
+test("McpToolRouter.execute returns error for empty tool name", async () => {
+  const router = new McpToolRouter({ callTool: async () => ({ kind: "success", output: "" }) } as any);
+
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "mcp.github.",
+    args: {},
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.ok(result.message.includes("Invalid MCP tool name"));
+  assert.strictEqual(result.retryable, false);
+});
+
+test("McpToolRouter.execute handles callTool errors gracefully", async () => {
+  const mockMcpManager = {
+    callTool: async (): Promise<ToolResult> => {
+      throw new Error("Connection failed");
+    },
+  };
+
+  const router = new McpToolRouter(mockMcpManager as any);
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "mcp.github.repos.list",
+    args: {},
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.strictEqual(result.message, "Connection failed");
+});
+
+test("DelegateToolRouter.execute handles handler errors gracefully", async () => {
+  const handlers = {
+    delegate: async (): Promise<ToolResult> => {
+      throw new Error("Handler crashed");
+    },
+  };
+
+  const router = new DelegateToolRouter(handlers);
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "delegate",
+    args: {},
+  });
+
+  assert.strictEqual(result.kind, "error");
+  assert.strictEqual(result.message, "Handler crashed");
+});
