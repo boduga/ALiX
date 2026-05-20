@@ -23,18 +23,9 @@ const PROVIDERS = [
   { id: "deepseek", name: "DeepSeek", env: "DEEPSEEK_API_KEY", hint: "sk-..." }
 ];
 
-const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
+import { prompt } from "./cli/commands/prompt.js";
 
-async function prompt(question: string): Promise<string> {
-  const { createInterface } = await import("readline");
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise<string>((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
+const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
 
 async function getSavedApiKey(providerId: string): Promise<string | null> {
   const userConfigPath = join(homedir(), ".config", "alix", "config.json");
