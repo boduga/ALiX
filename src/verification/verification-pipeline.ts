@@ -18,6 +18,19 @@ export interface VerificationPipelineOptions {
   verbose?: boolean;
 }
 
+/**
+ * Orchestrates discovery and execution of verification commands.
+ *
+ * The pipeline discovers commands (e.g., test scripts), executes them via
+ * CommandRunner, and aggregates results through VerificationReporter.
+ *
+ * @example
+ * const pipeline = new VerificationPipeline({ cwd: "/path/to/project" });
+ * const result = await pipeline.run();
+ * if (!result.success) {
+ *   console.error("Verification failed:", result.reporter.getSummary());
+ * }
+ */
 export class VerificationPipeline {
   private discovery: CommandDiscovery;
   private runner: CommandRunner;
