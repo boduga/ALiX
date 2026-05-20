@@ -32,6 +32,7 @@ import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracke
 import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
 import type { ScopeTracker } from "./autonomy/scope-tracker.js";
 import type { AgentState } from "./autonomy/scope-tracker.js";
+import type { SubagentRole, SubagentTask } from "./config/schema.js";
 import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
 import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
@@ -473,27 +474,34 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const { maxStore, maxCandidates } = config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
   evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
 
-  // Initialize subagent infrastructure before ToolExecutor
-  const { SubagentManager } = await import("./agents/subagent-manager.js");
-  const { OwnershipRegistry } = await import("./agents/ownership-registry.js");
-  const { MergeCoordinator } = await import("./agents/merge-coordinator.js");
-  const { createDelegateHandler } = await import("./agents/delegate-tool.js");
-  const ownershipRegistry = new OwnershipRegistry();
-  const mergeCoordinator = new MergeCoordinator();
-  const subagentManager = new SubagentManager({ sessionId, config });
-  subagentManager.onResult((result) => {
-    mergeCoordinator.enqueue(result);
-    void log.append({ ...session, actor: "subagent", type: "subagent.result", payload: result });
-  });
-  const delegateHandler = createDelegateHandler(subagentManager, (opts) => {
-    const taskId = crypto.randomUUID();
-    if (opts.mode === "write" && opts.ownedPaths?.length) {
-      ownershipRegistry.claim(taskId, opts.ownedPaths);
-    }
-    return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
-  });
+  // Initialize subagent infrastructure before ToolExecutor (lazy, conditional on config)
+  let ownershipRegistry: import("./agents/ownership-registry.js").OwnershipRegistry | undefined;
+  let mergeCoordinator: import("./agents/merge-coordinator.js").MergeCoordinator | undefined;
+  let subagentManager: import("./agents/subagent-manager.js").SubagentManager | undefined;
+  let delegateHandler: ReturnType<typeof import("./agents/delegate-tool.js").createDelegateHandler> | undefined;
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, { delegate: delegateHandler }, checkpointManager);
+  if (config.subagents?.enabled) {
+    const { SubagentManager } = await import("./agents/subagent-manager.js");
+    const { OwnershipRegistry } = await import("./agents/ownership-registry.js");
+    const { MergeCoordinator } = await import("./agents/merge-coordinator.js");
+    const { createDelegateHandler } = await import("./agents/delegate-tool.js");
+    ownershipRegistry = new OwnershipRegistry();
+    mergeCoordinator = new MergeCoordinator();
+    subagentManager = new SubagentManager({ sessionId, config });
+    subagentManager.onResult((result) => {
+      mergeCoordinator!.enqueue(result);
+      void log.append({ ...session, actor: "subagent", type: "subagent.result", payload: result });
+    });
+    delegateHandler = createDelegateHandler(subagentManager, (opts: { role: SubagentRole; prompt: string; ownedPaths?: string[]; mode?: "read_only" | "write" }) => {
+      const taskId = crypto.randomUUID();
+      if (opts.mode === "write" && opts.ownedPaths?.length) {
+        ownershipRegistry!.claim(taskId, opts.ownedPaths);
+      }
+      return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths } as SubagentTask;
+    });
+  }
+
+  const executor = new ToolExecutor(config, log, cwd, mcpManager, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : {}, checkpointManager);
 
   const mcpDeferral = mcpManager.getDeferral();
   const mcpToolIndex = mcpDeferral.buildIndex();
