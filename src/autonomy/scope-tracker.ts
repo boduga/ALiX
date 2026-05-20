@@ -23,6 +23,13 @@ export type ChangeEvaluation = {
 export class ScopeTracker {
   private scope: TaskScope | undefined;
   private expansions: Expansion[] = [];
+  private approvedPaths: Set<string> = new Set();
+  private deniedPaths: Set<string> = new Set();
+  private _pendingApproval: string | null = null;
+
+  get pendingApproval(): string | null {
+    return this._pendingApproval;
+  }
 
   setInitialScope(scope: TaskScope): void {
     this.scope = { ...scope };
@@ -31,6 +38,31 @@ export class ScopeTracker {
 
   getCurrentScope(): TaskScope | undefined {
     return this.scope;
+  }
+
+  checkMutation(path: string): "allowed" | "denied" | "scope_expansion" | "approved" {
+    if (!this.scope?.files) return "allowed";
+
+    if (this.approvedPaths.has(path)) return "approved";
+    if (this.deniedPaths.has(path)) return "denied";
+    if (this.scope.files.includes(path)) return "allowed";
+
+    this._pendingApproval = path;
+    return "scope_expansion";
+  }
+
+  approveScope(path: string): void {
+    this.approvedPaths.add(path);
+    this._pendingApproval = null;
+  }
+
+  denyScope(path: string): void {
+    this.deniedPaths.add(path);
+    this._pendingApproval = null;
+  }
+
+  setPending(path: string, pending: boolean = true): void {
+    this._pendingApproval = pending ? path : null;
   }
 
   checkExpansion(current: { files?: string[] }): void {
@@ -101,34 +133,18 @@ export class ScopeTracker {
     this.scope.approvedAt = new Date().toISOString();
     this.expansions = [];
   }
-
-  checkMutation(path: string): "allowed" | "denied" | "scope_expansion" | "approved" {
-    if (!this.scope) return "allowed";
-    if (this.scope.files.includes(path)) return "allowed";
-    if (this.scope.approvedAt) return "approved";
-    return "scope_expansion";
-  }
-
-  approveScope(path: string): void {
-    if (!this.scope) return;
-    if (!this.scope.files.includes(path)) {
-      this.scope.files.push(path);
-    }
-  }
-
-  denyScope(path: string): void {
-    // Denying just prevents it from being auto-approved
-  }
-
-  setPending(path: string, pending: boolean = true): void {
-    // Track pending approval state for a path
-  }
 }
 
-export function createScopeTracker(initialScope?: TaskScope, cwd?: string): ScopeTracker {
+export function createScopeTracker(initialFiles: string[] = [], cwd?: string): ScopeTracker {
   const tracker = new ScopeTracker();
-  if (initialScope) {
-    tracker.setInitialScope(initialScope);
+  const files = cwd
+    ? initialFiles.map(f => f.startsWith("/") ? f : `${cwd.replace(/\/$/, "")}/${f}`)
+    : initialFiles;
+  if (files.length > 0) {
+    tracker.setInitialScope({ goal: "", files });
+    for (const f of files) {
+      tracker.approveScope(f);
+    }
   }
   return tracker;
 }
@@ -136,7 +152,15 @@ export function createScopeTracker(initialScope?: TaskScope, cwd?: string): Scop
 export function extractInitialScope(args: string | string[]): TaskScope | undefined {
   const argArray = typeof args === "string" ? args.split(" ") : args;
   const goalArg = argArray.find(arg => !arg.startsWith("-"));
-  const files = argArray.filter(arg => arg.startsWith("src/") || arg.startsWith("lib/") || arg.includes(".ts") || arg.includes(".js"));
+  // Match paths: starts with src/, lib/, ./, ../, or ends with .ts/.js/.tsx/.jsx
+  // Also handles quoted paths by stripping quotes
+  const files = argArray
+    .map(arg => arg.replace(/^["']|["']$/g, "")) // strip quotes
+    .filter(arg =>
+      arg.startsWith("src/") || arg.startsWith("lib/") ||
+      arg.startsWith("./") || arg.startsWith("../") ||
+      arg.includes(".ts") || arg.includes(".js")
+    );
   return goalArg ? { goal: goalArg, files } : undefined;
 }
 

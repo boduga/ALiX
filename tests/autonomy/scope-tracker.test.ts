@@ -145,9 +145,9 @@ describe("ScopeTracker", () => {
     it("should update approvedAt on confirmation", () => {
       tracker.setInitialScope({ goal: "Test", files: ["a.ts"] });
       tracker.checkExpansion({ files: ["a.ts", "b.ts"] });
-      expect(tracker.getCurrentScope().approvedAt).toBeUndefined();
+      expect(tracker.getCurrentScope()?.approvedAt).toBeUndefined();
       tracker.confirmExpansion();
-      expect(tracker.getCurrentScope().approvedAt).toBeDefined();
+      expect(tracker.getCurrentScope()?.approvedAt).toBeDefined();
     });
 
     it("should clear pending expansions after confirmation", () => {

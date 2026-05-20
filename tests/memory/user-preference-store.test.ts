@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { UserPreferenceStore } from '../../src/memory/user-preference-store';
+import { UserPreferenceStore } from '../../src/memory/user-preference-store.js';
 import { existsSync, mkdirSync, rmSync } from 'fs';
 import { join } from 'path';
 

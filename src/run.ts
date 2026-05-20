@@ -539,7 +539,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   // Scope tracking: derive initial scope from task string
   const initialScope = extractInitialScope(task);
-  const scope: ScopeTracker = createScopeTracker(initialScope, cwd);
+  const scope: ScopeTracker = createScopeTracker(initialScope?.files ?? [], cwd);
 
   // State machine with hard limits
   const limiter = new RunLimiter({

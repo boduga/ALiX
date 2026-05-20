@@ -21,6 +21,11 @@ npm-debug.log*
 .alix/index/
 .alix/artifacts/
 .alix/context-cache.json
+.alix/embeddings/
+
+# Test artifacts
+.test-*
+vitest.config.mts
 
 # OS/editor noise
 .DS_Store
@@ -30,4 +35,3 @@ npm-debug.log*
 # Worktrees
 .worktrees/
 .gitnexus
-.worktrees/

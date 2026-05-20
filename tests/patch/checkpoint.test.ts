@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { CheckpointManager } from "../../src/patch/checkpoint.js";
 
 describe("CheckpointManager", () => {
-  const testDir = join(process.cwd(), ".test-checkpoints");
+  const testDir = join("/tmp", `.test-checkpoints-${Date.now()}`);
   let manager: CheckpointManager;
 
   beforeEach(async () => {

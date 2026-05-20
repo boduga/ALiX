@@ -10,7 +10,7 @@ describe("Policy Engine Events", () => {
   const testDir = join(process.cwd(), ".test-policy-events");
   let eventLog: EventLog;
   let policyEngine: PolicyEngine;
-  // Test config with minimal required fields - using unknown to bypass strict type checking
+  // Test config with minimal required fields
   const testConfig: AlixConfig = {
     version: 1,
     model: { provider: "openai", name: "gpt-4" },
@@ -18,10 +18,19 @@ describe("Policy Engine Events", () => {
       default: "ask",
       tools: { "file.read": "allow", "file.write": "ask" },
       protectedPaths: [".env", ".git"],
+      allowNetworkDomains: [],
+      denyCommands: [],
     },
-    context: { maxTokens: 100000 },
-    runtime: { provider: "process" },
-    ui: { enabled: false, port: 3000 },
+    context: {
+      repoMap: true,
+      repoMapMode: "lite",
+      maxRepoMapTokens: 50000,
+      semanticSearch: false,
+      includeGitStatus: true,
+      pinnedFiles: [],
+    },
+    runtime: { provider: "process", shell: "/bin/bash", commandTimeoutMs: 30000, envAllowlist: [] },
+    ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" },
   };
 
   beforeEach(async () => {
@@ -61,8 +70,8 @@ describe("Policy Engine Events", () => {
     await new Promise(resolve => setTimeout(resolve, 10)); // wait for async append
     const events = await eventLog.readAll();
     const decisionEvent = events.find((e) => e.type === "policy.decision");
-    assert.equal((decisionEvent.payload as any).decision, "deny");
-    assert.ok((decisionEvent.payload as any).reason.includes("protected"));
+    assert.equal((decisionEvent!.payload as any).decision, "deny");
+    assert.ok((decisionEvent!.payload as any).reason.includes("protected"));
   });
 
   it("includes matched rule id in event", async () => {
@@ -73,6 +82,6 @@ describe("Policy Engine Events", () => {
     await new Promise(resolve => setTimeout(resolve, 10)); // wait for async append
     const events = await eventLog.readAll();
     const decisionEvent = events.find((e) => e.type === "policy.decision");
-    assert.ok((decisionEvent.payload as any).matchedRuleId);
+    assert.ok((decisionEvent!.payload as any).matchedRuleId);
   });
 });

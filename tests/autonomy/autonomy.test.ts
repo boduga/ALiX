@@ -1,30 +1,30 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
-import { extractInitialScope, createScopeTracker } from "../../src/autonomy/scope-tracker.js";
+import { extractInitialScope, createScopeTracker, ScopeTracker } from "../../src/autonomy/scope-tracker.js";
 import { TaskStateMachine, RunLimiter } from "../../src/autonomy/state-machine.js";
 import { extractMutationPaths, recordMutationInSessionState } from "../../src/run.js";
 
 describe("extractInitialScope", () => {
   it("extracts quoted paths", () => {
-    const paths = extractInitialScope('Fix "src/foo.ts" and "lib/bar.ts"');
-    assert.ok(paths.includes("src/foo.ts"), paths.join(", "));
-    assert.ok(paths.includes("lib/bar.ts"), paths.join(", "));
+    const scope = extractInitialScope('Fix "src/foo.ts" and "lib/bar.ts"');
+    assert.ok(scope?.files.includes("src/foo.ts"), scope?.files.join(", "));
+    assert.ok(scope?.files.includes("lib/bar.ts"), scope?.files.join(", "));
   });
 
   it("extracts paths with slashes", () => {
-    const paths = extractInitialScope("Update src/config.ts with new defaults");
-    assert.ok(paths.some(p => p.includes("src/config.ts")), paths.join(", "));
+    const scope = extractInitialScope("Update src/config.ts with new defaults");
+    assert.ok(scope?.files.some(p => p.includes("src/config.ts")), scope?.files.join(", "));
   });
 
   it("extracts multiple file types", () => {
-    const paths = extractInitialScope("Refactor auth/auth.ts and auth/routes.ts");
-    assert.ok(paths.some(p => p.includes("auth/auth.ts")), paths.join(", "));
-    assert.ok(paths.some(p => p.includes("auth/routes.ts")), paths.join(", "));
+    const scope = extractInitialScope("Refactor auth/auth.ts and auth/routes.ts");
+    assert.ok(scope?.files.some(p => p.includes("auth/auth.ts")), scope?.files.join(", "));
+    assert.ok(scope?.files.some(p => p.includes("auth/routes.ts")), scope?.files.join(", "));
   });
 
   it("returns empty for no files", () => {
-    const paths = extractInitialScope("Write a test for the login feature");
-    assert.strictEqual(paths.length, 0);
+    const scope = extractInitialScope("Write a test for the login feature");
+    assert.strictEqual(scope?.files.length, 0);
   });
 });
 

@@ -244,7 +244,7 @@ async function buildRepoMap(root: string): Promise<RepoMap> {
   }
 
   const dependencyGraph = buildDependencyGraph([...fileEntries.values()].map(e => ({ path: e.path, content: e.content })));
-  const symbols = [...fileEntries.values()].filter(e => e.kind === "source" && e.content).flatMap(e => extractTopLevelSymbols(e.path, e.content ?? ""));
+  const symbols = [...fileEntries.values()].filter(e => e.kind === "source" && e.content).flatMap(e => extractTopLevelSymbols(e.content ?? "", e.path));
 
   return { sourceFiles, testFiles, configFiles, docsFiles, fileEntries, dependencyGraph, symbols, gitActivity: new Map() };
 }
@@ -288,16 +288,16 @@ export class ContextCompiler {
     let repoMap: RepoMap;
     if (cached) {
       repoMap = cached;
+      this.repoMap = repoMap; // Set before async operations
       // Build embeddings for source files in background after cache load
       this.buildEmbeddings(root).catch(() => {}); // non-blocking
     } else {
       // Build fresh and cache
       repoMap = await buildRepoMap(root);
+      this.repoMap = repoMap; // Set BEFORE saveToCache - this was the bug
       await this.saveToCache(root);
-      // Build embeddings for source files
       await this.buildEmbeddings(root);
     }
-    this.repoMap = repoMap;
 
     // Emit context.repo_map_created
     if (this.options.eventLog && this.options.sessionId) {
@@ -401,9 +401,12 @@ export class ContextCompiler {
         symbols: this.repoMap.symbols,
         gitActivity: [...this.repoMap.gitActivity.entries()],
       };
+      const cacheDir = join(root, ".alix");
+      await mkdir(cacheDir, { recursive: true });
       await writeFile(this.cachePath, JSON.stringify(data), "utf8");
-    } catch {
-      // ignore cache write failures
+    } catch (err) {
+      // Log but don't throw - cache write failures are non-fatal
+      console.warn("[ContextCompiler] Failed to save cache:", err);
     }
   }
 

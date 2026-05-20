@@ -68,6 +68,11 @@ export async function applyPatch(
   let validationFailed = false;
   let validationErrors: string[] = [];
 
+  // Reject unsupported edit formats
+  if (format !== "search_replace" && format !== "structured_patch") {
+    throw new Error(`Unsupported edit format: ${format}`);
+  }
+
   try {
     if (format === "search_replace") {
       parsedBlocks = parseSearchReplace(patchText);
