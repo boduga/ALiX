@@ -14,6 +14,19 @@ export {
   runTask,
 } from "../run.js";
 
+// Re-export helpers for internal use
+export {
+  promptUser,
+  saveDecisionsToMemory,
+  streamToResponse,
+  resolveMcpTool,
+  validMutationPaths,
+  patchFormatDescription,
+  patchTextDescription,
+  BASE_TOOLS,
+  buildStateSummary,
+} from "./helpers.js";
+
 export type {
   StreamHandler,
   RunResult,

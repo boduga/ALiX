@@ -54,9 +54,8 @@ import { PolicyEngine } from "./policy/policy-engine.js";
 import { ApprovalManager } from "./policy/approvals.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
 import { ContextCompiler } from "./repomap/context-compiler.js"; // LAZY: conditional on config.context?.enabled
-import { TOOL_NAME_MAP } from "./agents/tool-name-map.js";
 import { createProvider } from "./providers/registry.js";
-import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
+import type { ModelAdapter, NormalizedMessage, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
 import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
 import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
@@ -74,10 +73,10 @@ import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
 import type { ScopeTracker } from "./autonomy/scope-tracker.js";
 import type { AgentState } from "./autonomy/scope-tracker.js";
 import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
-import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
 import { CheckpointManager } from "./patch/checkpoint.js";
-import { promptUser, saveDecisionsToMemory, streamToResponse } from "./run/helpers.js";
+import { promptUser, saveDecisionsToMemory, streamToResponse, resolveMcpTool, validMutationPaths, BASE_TOOLS, patchFormatDescription, patchTextDescription } from "./run/helpers.js";
+import { TOOL_NAME_MAP } from "./agents/tool-name-map.js";
 import { handleToolCall, handleMcpToolSearch, handleScopeExpansion, buildScopeDenialMessage, buildScopeRejectionSummary, type EventHandlerDeps } from "./run/event-handlers.js";
 import { runTaskLoop, type TaskLoopDeps } from "./run/task-loop.js";
 
@@ -90,177 +89,6 @@ export function buildErrorMessage(err: { kind: "error"; message: string; retryab
   else if (err.retryable === true) parts.push("This error may be transient — retrying may help.");
   return parts.join(" ");
 }
-
-/**
- * Resolve a tool name that may be misspelled or unknown.
- * Uses fuzzy search to find the closest match in the MCP tool index.
- * Returns the execName if found, or null if no match above threshold.
- */
-function resolveMcpTool(mcpName: string, deferral: { search: (name: string, limit: number) => { item: { execName: string }; score: number }[] }): string | null {
-  // Already in the map — fast path
-  if (TOOL_NAME_MAP[mcpName]) return TOOL_NAME_MAP[mcpName];
-
-  // Try fuzzy search — score >= 40 means edit distance ≤ ~30% of max length.
-  // Below 40, the match is too uncertain (e.g., "guthu" vs "github" scores ~36).
-  const matches = deferral.search(mcpName, 1);
-  if (matches.length > 0 && matches[0].score >= 40) {
-    const execName = matches[0].item.execName;
-    TOOL_NAME_MAP[mcpName] = execName;
-    return execName;
-  }
-  return null;
-}
-
-type SessionState = {
-  created: Set<string>;
-  deleted: Set<string>;
-  changed: Set<string>;
-  fatalErrors: string[];
-  pendingScopeExpansion: boolean;
-};
-
-function buildStateSummary(state: SessionState): string {
-  const parts: string[] = [];
-  if (state.created.size) parts.push(`Created: ${[...state.created].join(", ")}`);
-  if (state.changed.size) parts.push(`Changed: ${[...state.changed].join(", ")}`);
-  if (state.deleted.size) parts.push(`Deleted: ${[...state.deleted].join(", ")}`);
-  if (state.fatalErrors.length) parts.push(`FATAL: ${state.fatalErrors.join("; ")}`);
-  return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
-}
-
-function patchFormatDescription(policy: EditFormatPolicy): string {
-  const preferred = policy.preferred;
-  const alternate = preferred === "search_replace" ? "structured_patch" : "search_replace";
-  return `Patch format. Preferred: ${preferred}. Use ${preferred} unless the user explicitly asks for ${alternate}. Do not use full_file for existing files. Full-file rewrite policy: ${policy.fullFileRewrite}.`;
-}
-
-function patchTextDescription(preferred: EditFormatPolicy["preferred"]): string {
-  if (preferred === "structured_patch") {
-    return `The patch content. Preferred structured_patch format is a JSON object: {"version":1,"files":[{"path":"src/file.ts","operation":"modify","preimageHash":"<sha256>","content":"<full new content>"}]}. Use search_replace only when a small exact replacement is safer.`;
-  }
-  return "The patch content. Preferred search_replace format:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE";
-}
-
-// Tool schemas exposed to the model (underscores only — no dots per Anthropic spec)
-const BASE_TOOLS: ToolDef[] = [
-  {
-    name: "alix_file_read",
-    description: "Read the contents of a file. To LIST files in a directory, use alix_shell_run with: ls <directory>. This tool reads a SINGLE FILE's content.",
-    input_schema: {
-      type: "object",
-      properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        path: { type: "string", description: "Relative path to the FILE to read (NOT a directory)" }
-      },
-      required: ["path"]
-    }
-  },
-  {
-    name: "alix_dir_search",
-    description: "Search for a pattern across files in the workspace.",
-    input_schema: {
-      type: "object",
-      properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        pattern: { type: "string", description: "Text pattern to search for" },
-        extensions: { type: "array", items: { type: "string" } }
-      },
-      required: ["pattern"]
-    }
-  },
-  {
-    name: "alix_shell_run",
-    description: "Run a shell command in the workspace.",
-    input_schema: {
-      type: "object",
-      properties: {
-        command: { type: "string", description: "The shell command to execute" },
-        cwd: { type: "string", description: "Working directory (defaults to workspace root)" },
-        timeoutMs: { type: "number", description: "Timeout in milliseconds" }
-      },
-      required: ["command"]
-    }
-  },
-  {
-    name: "alix_patch_apply",
-    description: "Apply a code patch using search/replace. Blocks dangerous paths like .git and .env.",
-    input_schema: {
-      type: "object",
-      properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        format: { type: "string", description: "Patch format: 'search_replace' or 'structured_patch'" },
-        patchText: { type: "string", description: "The patch content. For search_replace, use:\n<<<<<<< SEARCH path=<file>\n<original>\n=======\n<replacement>\n>>>>>>> REPLACE" }
-      },
-      required: ["format", "patchText"]
-    }
-  },
-  {
-    name: "alix_file_create",
-    description: "Create a new file with the given content, creating parent directories as needed.",
-    input_schema: {
-      type: "object",
-      properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        path: { type: "string", description: "Relative path to the file to create" },
-        content: { type: "string", description: "The file content to write" }
-      },
-      required: ["path", "content"]
-    }
-  },
-  {
-    name: "alix_file_delete",
-    description: "Delete a file from the workspace. Cannot delete directories.",
-    input_schema: {
-      type: "object",
-      properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        path: { type: "string", description: "Relative path to the file to delete" }
-      },
-      required: ["path"]
-    }
-  },
-  {
-    name: "alix_file_exists",
-    description: "Check whether a file exists at the given path without reading its contents.",
-    input_schema: {
-      type: "object",
-      properties: {
-        root: { type: "string", description: "Root directory (defaults to workspace root)" },
-        path: { type: "string", description: "Relative path to the file" }
-      },
-      required: ["path"]
-    }
-  },
-  {
-    name: "alix_done",
-    description: "Signal that the task is complete. Use this when all requested changes have been made and no further tool calls are needed.",
-    input_schema: { type: "object", properties: {} }
-  },
-  {
-    name: "alix_delegate",
-    description: "Delegate a task to a subagent. Spawns a focused subagent (explorer/reviewer/test_investigator/docs_researcher/worker) that runs in a separate process and returns structured findings.",
-    input_schema: {
-      type: "object",
-      properties: {
-        role: {
-          type: "string",
-          enum: ["auto", "explorer", "reviewer", "test_investigator", "docs_researcher", "worker"],
-          description: "The role of the subagent to spawn (use 'auto' for intent-based selection)"
-        },
-        prompt: {
-          type: "string",
-          description: "The task instruction for the subagent"
-        },
-        ownedPaths: {
-          type: "array",
-          items: { type: "string" },
-          description: "File paths this subagent is allowed to write (required for worker role)"
-        }
-      },
-      required: ["role", "prompt"]
-    }
-  }
-];
 
 export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPreference">): ToolDef[] {
   const policy = buildEditFormatPolicy({ provider: "runtime", preferred: provider.editFormatPreference });
@@ -352,11 +180,6 @@ export function extractMutationPaths(execName: string, args: Record<string, unkn
   }
   const path = args.path;
   return typeof path === "string" && path.length > 0 ? [path] : [];
-}
-
-function validMutationPaths(execName: string, args: Record<string, unknown>): string[] {
-  return extractMutationPaths(execName, args)
-    .filter((path): path is string => typeof path === "string" && path.length > 0);
 }
 
 export function recordMutationInSessionState(
