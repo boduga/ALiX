@@ -1,25 +1,40 @@
 # Implementation Readiness
 
-## Status
+## Implementation Status
 
-The research is complete enough to begin implementation planning after these specs are accepted.
+**MVP: ✅ Complete**
 
-The implementation should start with one high-quality single-agent loop:
+All 12 feature areas from the research doc have been implemented:
 
-```text
-chat -> repo map lite -> plan -> approve -> patch -> verify -> diff -> summarize
-```
+| # | Feature | Components |
+|---|---------|------------|
+| 1 | Context Selection | `ContextBundleBuilder`, `ContextRanker`, `GitActivityReader`, `RepoMapLite`, `SymbolExtractor`, `DependencyGraph` |
+| 2 | Tool Security | `PolicyEngine`, `CapabilityRegistry`, `SecretScanner` |
+| 3 | Patch Reliability | `EditFormatSelector`, `PatchParser`, `StructuredPatchApplier`, `DiffRenderer`, `RollbackManager` |
+| 4 | Verification Quality | `CommandDiscovery`, `CommandRunner`, `VerificationReporter`, `VerificationPipeline`, `ChangeClassifier`, `TestMapper`, `VerificationPlanner` |
+| 5 | Frontend Observability | `EventLog`, `Replay`, `SessionReader`, `Projection`, UI components |
+| 6 | Provider Neutrality | 13 providers (Anthropic, OpenAI, Gemini, Groq, Deepseek, Ollama, etc.) |
+| 7 | Autonomy Control | `TaskStateMachine`, `RunLimiter`, `ScopeTracker`, `CheckpointManager` |
+| 8 | Extension Model | `ExtensionRegistry`, `SkillLoader`, `HookRunner`, `MCP Manager`, `Skills catalog` |
+| 9 | Tool Schema Explosion | `ToolCatalog`, `ToolDiscovery`, `ToolSelector`, `ToolCache`, `MetaTool` |
+| 10 | Multi-Agent | `SubagentManager`, `OwnershipRegistry`, `MergeCoordinator`, `ResultContractValidator` |
+| 11 | Memory | `RepoIndexStore`, `UserPreferenceStore`, `MemoryInspector`, `ToolCache` |
+| 12 | Server/Transport | `Server`, `SSE` transport |
 
-## Required Specs
+## MVP Definition Of Done — Complete
 
-- [Event Kernel Schema](./event-kernel-schema.md)
-- [Patch Engine Protocol](./patch-engine-protocol.md)
-- [Configuration Format](./config-format.md)
-- [Provider Adapter Interface](./provider-adapter-interface.md)
-- [RepoMapLite](./repomap-lite.md)
-- [Frontend Transport Design](./frontend-transport.md)
+- ✅ User can start a session from CLI.
+- ✅ ALiX creates an event log.
+- ✅ ALiX builds RepoMapLite before planning.
+- ✅ ALiX can request a model response through an adapter.
+- ✅ ALiX can request approval for risky tool calls.
+- ✅ ALiX can apply a validated patch.
+- ✅ ALiX creates a checkpoint before edits.
+- ✅ ALiX can run at least one verifier command.
+- ✅ ALiX shows final diff and verification status.
+- ✅ Local UI can replay the session timeline.
 
-## Recommended Implementation Order
+## Implementation Order (How It Was Built)
 
 1. Project skeleton and CLI entrypoint.
 2. Config loader and merged effective config.
@@ -35,41 +50,42 @@ chat -> repo map lite -> plan -> approve -> patch -> verify -> diff -> summarize
 12. Local server and SSE stream.
 13. Vanilla JS inspector UI.
 14. Real provider adapters.
-15. MCP, skills, hooks, and subagents after MVP.
+15. MCP, skills, hooks, and subagents.
 
-## MVP Definition Of Done
+## Source Structure
 
-- User can start a session from CLI.
-- ALiX creates an event log.
-- ALiX builds RepoMapLite before planning.
-- ALiX can request a model response through an adapter.
-- ALiX can request approval for risky tool calls.
-- ALiX can apply a validated patch.
-- ALiX creates a checkpoint before edits.
-- ALiX can run at least one verifier command.
-- ALiX shows final diff and verification status.
-- Local UI can replay the session timeline.
+```
+src/
+  agents/       # Multi-agent coordination (SubagentManager, MergeCoordinator, OwnershipRegistry)
+  autonomy/     # State machine and run limits
+  checkpoints/  # Git/file checkpoints and rollback
+  config/       # Config loading and schema
+  context/      # Context building (ContextBundleBuilder, ContextRanker)
+  events/       # Event log, replay, types
+  extensions/   # Extension registry and manifest
+  hooks/        # Lifecycle hooks
+  inspector/    # Session inspection and projection
+  mcp/          # MCP client, tool catalog, discovery, selection
+  memory/       # Memory stores (repo index, user preferences)
+  patch/        # Patch engine (format selection, parsing, applying, rollback)
+  policy/       # Policy engine and capability registry
+  providers/    # 13 provider adapters
+  repomap/      # Repo mapping (RepoMapLite, SymbolExtractor, DependencyGraph)
+  security/      # Secret scanning
+  server/       # SSE server for UI
+  skills/       # Skills system (loader, catalog, dispatcher, factory)
+  tools/        # Built-in tools (file, shell, git, etc.)
+  ui/           # Vanilla JS inspector UI
+  utils/        # Utilities (tokens, session digest)
+  verification/ # Verification system (discovery, runner, reporter, pipeline)
+  verifier/     # Verifier planner (change classifier, test mapper, risk report)
+```
 
 ## Known Deferred Work
 
-- Full Tree-sitter/PageRank repo map.
-- Semantic search.
-- LSP diagnostics.
-- Browser automation.
-- Docker and remote runtimes.
-- MCP extension ecosystem.
-- Skills and recipes.
-- Subagents.
-- ACP compatibility.
-
-## Open Decisions Before Coding
-
-1. Runtime language: TypeScript/Node remains the assumed stack.
-2. Package manager: choose `pnpm`, `npm`, or `bun`.
-3. CLI package name: `alix`.
-4. First real provider adapter: choose Anthropic, OpenAI, or Gemini.
-5. Git repo initialization: this workspace is not currently a git repository.
-
-## Recommendation
-
-Start implementation planning only after choosing the package manager and first real provider adapter. Until then, use a mock provider to develop the kernel, policy, patch, and UI layers without burning API calls.
+The following remain as future considerations:
+- Semantic/symbolic search index (Tree-sitter-based repo map)
+- LSP diagnostics (via MCP adapter)
+- Browser automation
+- Docker and remote runtimes
+- ACP compatibility

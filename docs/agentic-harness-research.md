@@ -1,6 +1,9 @@
 # ALiX Agentic Harness Research Notes
 
+> **Implementation Status: ✅ MVP Complete** — All 12 feature areas have been implemented.
+
 Date: 2026-05-12
+Updated: 2026-05-19
 
 ## Goal
 
@@ -1274,3 +1277,34 @@ That gives:
 - Goose-like extension ecosystem.
 
 The first milestone should avoid multi-agent complexity. Start with one excellent coding loop that can understand a repo, edit files safely, run tests, show diffs, and recover from failure.
+
+---
+
+## Implementation Status Summary
+
+**All 12 feature areas have been implemented:**
+
+| # | Feature | Status | Key Components |
+|---|---------|--------|----------------|
+| 1 | Context Selection | ✅ | `ContextBundleBuilder`, `ContextRanker`, `GitActivityReader`, `RepoMapLite`, `SymbolExtractor`, `DependencyGraph` |
+| 2 | Tool Security | ✅ | `PolicyEngine`, `CapabilityRegistry`, `SecretScanner` |
+| 3 | Patch Reliability | ✅ | `EditFormatSelector`, `PatchParser`, `StructuredPatchApplier`, `DiffRenderer`, `RollbackManager` |
+| 4 | Verification Quality | ✅ | `CommandDiscovery`, `CommandRunner`, `VerificationReporter`, `VerificationPipeline`, `ChangeClassifier`, `TestMapper`, `VerificationPlanner` |
+| 5 | Frontend Observability | ✅ | `EventLog`, `Replay`, `SessionReader`, `Projection`, UI (`app.js`, `index.html`) |
+| 6 | Provider Neutrality | ✅ | 13 providers (Anthropic, OpenAI, Gemini, Groq, Deepseek, Ollama, etc.) |
+| 7 | Autonomy Control | ✅ | `TaskStateMachine`, `RunLimiter`, `ScopeTracker`, `CheckpointManager` |
+| 8 | Extension Model | ✅ | `ExtensionRegistry`, `SkillLoader`, `HookRunner`, `MCP Manager`, `Skills catalog` |
+| 9 | Tool Schema Explosion | ✅ | `ToolCatalog`, `ToolDiscovery`, `ToolSelector`, `ToolCache`, `MetaTool` |
+| 10 | Multi-Agent Coordination | ✅ | `SubagentManager`, `OwnershipRegistry`, `MergeCoordinator`, `ResultContractValidator` |
+| 11 | Memory | ✅ | `RepoIndexStore`, `UserPreferenceStore`, `MemoryInspector`, `ToolCache` |
+| 12 | Server/Transport | ✅ | `Server`, `SSE` transport |
+
+**Remaining (deferred):**
+- Semantic/symbolic search index
+- Tree-sitter-based repo map
+- LSP diagnostics
+- Browser automation
+- Docker/remote runtimes
+- ACP compatibility
+
+See `docs/architecture/implementation-readiness.md` for full source structure.

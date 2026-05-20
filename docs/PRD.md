@@ -126,22 +126,25 @@ alix run "<task>"
 
 ---
 
-## 6. Non-Goals (v0.1.0)
+## 6. Completed Features (v0.1.0)
 
-ALiX v0.1.0 does **not** include:
+The following were previously listed as post-v0.1.0, but have been implemented:
 
-- Multi-agent worker orchestration
+- ✅ Multi-agent worker orchestration — `SubagentManager`, `OwnershipRegistry`, `MergeCoordinator`, `ResultContractValidator`, `RoleMapper`, `ToolPolicy`, read-only and write-capable subagent roles
+- ✅ MCP extension ecosystem — full MCP client with `Manager`, `Registry`, `ToolCatalog`, `ToolDiscovery`, `ToolSelector`, `MetaTool`, provenance tracking, schema caching
+- ✅ Skills, recipes, and custom command bundles — `SkillLoader`, `HookRunner`, `ExtensionRegistry`, `Skills catalog/dispatcher/factory`, permission bundling, version management
+- ✅ Production-grade provider cost tracking — `CostTracker`, `CapabilityNegotiator`, `PromptCompiler`, `ToolCallNormalizer` in provider layer
+- ✅ Tool schema explosion mitigation — lazy tool loading, per-task tool selection, semantic scoring, token budget enforcement
+
+### Remaining Non-Goals
+
+These remain deferred pending stabilization of the core loop:
+
 - Browser automation
 - Docker or remote runtime sandboxes
 - IDE or desktop extensions
-- Semantic/symbolic search index
-- Tree-sitter-based repo map
-- Skills, recipes, or custom command bundles
 - ACP compatibility
-- Production-grade provider cost tracking
 - Autonomous long-running issue solving
-
-These are post-v0.1.0 roadmap items. The single-agent loop must be reliable and well-understood before these features are added.
 
 ---
 
@@ -194,14 +197,13 @@ Integration tests that require a live model API are skipped by default. They can
 
 The roadmap reflects **honest near-term work**, not a fantasy backlog. Items are not committed timelines.
 
-### v0.1.0 — Initial Open Source (current)
+### v0.1.0 — Initial Open Source ✅ Complete
 
-Everything already implemented and passing tests. This is what ships on day one.
+All core MVP components implemented including multi-agent coordination, MCP ecosystem, skills/hooks system, and provider cost tracking. Ready for open source.
 
 ### v0.2.0 — Developer Experience
 
-- Implement or remove the broken `alix config list-models` command
-- Improve generic error messages across provider adapters (no more bare `throw new Error(\`API error ${status}\`)`)
+- Improve generic error messages across provider adapters (no more bare `throw new Error(\`API error \${status}\`)`)
 - Add `.github/` templates for issues and pull requests
 - Write `CONTRIBUTING.md` with setup instructions
 - Populate `CHANGELOG.md` from current commit history

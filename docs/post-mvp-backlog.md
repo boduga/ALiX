@@ -1,7 +1,9 @@
 # ALiX Post-MVP Backlog
 
+> **Status: ✅ MVP Complete** — All items below have been implemented. This document is preserved for historical reference.
+
 Generated: 2026-05-15
-Status: tracking
+Updated: 2026-05-19
 
 This file captures all work deferred past the MVP loop (`chat → repo map → plan → approve → patch → verify → diff → summarize`). Items are cross-referenced to `docs/agentic-harness-research.md` and organized by dependency order.
 
@@ -201,23 +203,34 @@ Current state: Implementation complete
 ## Dependency Map
 
 ```
-P0.1 Context Compiler
-  └─ enables P3.1 Multi-Agent (subagent prompts)
-P0.2 Edit Format Policy
-  └─ prevents silent corruption in P3.1 write-capable subagents
-P1.1 Full Frontend
-  └─ enables P3.1 (subagent timeline in UI)
-P1.2 Verification Planner
-  └─ reduces repair loops (works independently)
-P2.1 Extension Registry
-  └─ enables P2.2 (extension taxonomy)
-P2.2 Tool Schema Fix
-  └─ works independently
-P3.1 Multi-Agent
-  └─ requires P0.1, P0.2, P1.1
-P3.2 Memory System
-  └─ works independently, enables P3.1
+✅ P0.1 Context Compiler — COMPLETE
+   └─ enables P3.1 Multi-Agent ✅
+✅ P0.2 Edit Format Policy — COMPLETE
+   └─ prevents silent corruption in P3.1 write-capable subagents ✅
+✅ P1.1 Full Frontend — COMPLETE
+   └─ enables P3.1 (subagent timeline in UI) ✅
+✅ P1.2 Verification Planner — COMPLETE
+   └─ reduces repair loops (works independently) ✅
+✅ P2.1 Extension Registry — COMPLETE
+   └─ enables P2.2 (extension taxonomy) ✅
+✅ P2.2 Tool Schema Fix — COMPLETE
+   └─ works independently ✅
+✅ P3.1 Multi-Agent — COMPLETE
+✅ P3.2 Memory System — COMPLETE
 ```
+
+## Final Status: All Components Implemented
+
+| Priority | Item | Status |
+|----------|------|--------|
+| P0.1 | Context Compiler | ✅ Complete |
+| P0.2 | Edit Format Policy | ✅ Complete |
+| P1.1 | Frontend Observability | ✅ Complete |
+| P1.2 | Verification Planner | ✅ Complete |
+| P2.1 | Extension Registry | ✅ Complete |
+| P2.2 | Tool Schema Explosion Fix | ✅ Complete |
+| P3.1 | Multi-Agent Coordination | ✅ Complete |
+| P3.2 | Memory System | ✅ Complete |
 
 ## Captured Decisions (from grill-me session)
 
@@ -231,4 +244,4 @@ P3.2 Memory System
 
 ---
 
-*Regenerate this file after major implementation milestones. Cross-check against `docs/agentic-harness-research.md` gaps #1-12.*
+*Updated 2026-05-19: All components implemented. Document preserved for historical reference. See `docs/architecture/implementation-readiness.md` for current status.*
