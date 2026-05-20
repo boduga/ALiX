@@ -14,6 +14,35 @@
  * └─────────────────────────────────────────────────────────────────────────────┘
  */
 
+// =============================================================================
+// LAZY IMPORT CANDIDATES — These imports are used conditionally and should be
+// converted to dynamic imports to reduce startup time:
+// =============================================================================
+//
+// - McpManager (line 35): Only needed if config.mcpServers?.length > 0
+//   Current: always imported
+//   Location in code: line 416 (mcpManager.initialize())
+//   Conditional on: config.mcpServers?.length
+//
+// - SubagentManager (line 439): Only needed if config.subagents?.enabled
+//   Current: dynamic import already (line 435)
+//   Location in code: lines 435-445
+//   Conditional on: config.subagents?.enabled
+//
+// - MemoryStore (line 38): Only needed if memory features are enabled
+//   Current: always imported
+//   Location in code: lines 395-397
+//   Conditional on: config.memory?.enabled or similar feature flag
+//
+// - ContextCompiler (line 27): Only needed when context compilation is enabled
+//   Current: always imported
+//   Location in code: lines 517-524
+//   Conditional on: config.context?.enabled
+//
+// - Inspector SSE server: Only needed if config.ui?.enabled
+//   (currently inline in CLI, not imported from run.ts)
+// =============================================================================
+
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -24,7 +53,7 @@ import { EventLog } from "./events/event-log.js";
 import { PolicyEngine } from "./policy/policy-engine.js";
 import { ApprovalManager } from "./policy/approvals.js";
 import { buildRepoMapLite } from "./repomap/repomap-lite.js";
-import { ContextCompiler } from "./repomap/context-compiler.js";
+import { ContextCompiler } from "./repomap/context-compiler.js"; // LAZY: conditional on config.context?.enabled
 import { TOOL_NAME_MAP } from "./agents/tool-name-map.js";
 import { createProvider } from "./providers/registry.js";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "./providers/types.js";
@@ -32,10 +61,10 @@ import type { DeferredToolEntry } from "./mcp/tool-deferral.js";
 import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
-import { McpManager } from "./mcp/manager.js";
+import { McpManager } from "./mcp/manager.js"; // LAZY: conditional on config.mcpServers?.length > 0
 import { ToolDiscovery } from "./mcp/tool-discovery.js";
 import { buildSessionDigest } from "./utils/session-digest.js";
-import { MemoryStore } from "./utils/memory/store.js";
+import { MemoryStore } from "./utils/memory/store.js"; // LAZY: conditional on memory features enabled
 import type { MemoryEntry } from "./utils/memory/types.js";
 import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
 import { classifyTask } from "./task-classifier.js";
