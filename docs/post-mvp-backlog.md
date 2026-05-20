@@ -18,7 +18,7 @@ These must land before multi-agent work is viable.
 
 What: Build a `ContextCompiler` that turns user intent into a ranked, typed bundle of repo context. Classifies task type, builds repo map, ranks files by relevance, respects token budget, distinguishes edit targets from supporting context.
 
-Current state: `ContextCompiler` is wired into `runTask` and produces a ranked `ContextBundle`. It includes task-mentioned files, config files, related tests, pinned files, dependency-related files, symbol-level matches, and token-budget enforcement. **Pending:** git activity boosting and semantic search. Remaining future upgrades are Tree-sitter-grade parsing, snippet-level extraction, and git activity scoring.
+Current state: `ContextCompiler` is wired into `runTask` and produces a ranked `ContextBundle`. It includes task-mentioned files, config files, related tests, pinned files, dependency-related files, symbol-level matches, reverse dependents, semantic search, git activity boosting, and token-budget enforcement.
 
 Key components implemented:
 - ✅ `IntentClassifier` — task type classification via `src/task-classifier.ts`
@@ -29,10 +29,11 @@ Key components implemented:
 - ✅ Context pipeline tests — dependency files, symbol matches, pinned, budget coverage
 
 Pending (not yet implemented):
-- Git activity boosting (GitActivityReader exists, not wired into ranking)
-- Semantic search (semantic-search.ts exists, not wired into ContextCompiler)
+- None — all context signals are wired
 
 Future upgrades (completed):
+- Semantic search — SemanticSearchIndex wired via SemanticSearchStage
+- Git activity boosting — readGitActivity wired into warm(), scores passed to RankingStage
 - Reverse dependents in context ranking (callers included at score 8)
 - Tree-sitter parser — regex-based symbol extraction is sufficient for MVP; tree-sitter is a future optimization
 - Snippet-level context extraction — path-level prompt hints are sufficient for MVP
