@@ -285,3 +285,41 @@ test("FileToolRouter.execute blocks path traversal on file.create", async () => 
   assert.strictEqual(result.message, "Path is outside workspace");
   assert.strictEqual(result.retryable, false);
 });
+
+test("PatchToolRouter.execute returns error for missing format", async () => {
+  const router = new PatchToolRouter("/tmp", { version: 1, model: { provider: "anthropic", name: "claude" }, permissions: { default: "ask", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 8080, transport: "sse" } });
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "patch.apply",
+    args: { patchText: "some patch" },
+  });
+  assert.strictEqual(result.kind, "error");
+  assert.ok(result.message.includes("patch.apply requires format and patchText"));
+});
+
+test("PatchToolRouter.execute returns error for missing patchText", async () => {
+  const router = new PatchToolRouter("/tmp", { version: 1, model: { provider: "anthropic", name: "claude" }, permissions: { default: "ask", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 8080, transport: "sse" } });
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "patch.apply",
+    args: { format: "search_replace" },
+  });
+  assert.strictEqual(result.kind, "error");
+  assert.ok(result.message.includes("patch.apply requires format and patchText"));
+});
+
+test("PatchToolRouter.execute rejects disallowed format", async () => {
+  const router = new PatchToolRouter(
+    "/tmp",
+    { version: 1, model: { provider: "anthropic", name: "claude" }, permissions: { default: "ask", tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process", shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 8080, transport: "sse" } },
+    { provider: "anthropic", preferred: "structured_patch", allowed: ["structured_patch"], fullFileRewrite: "deny" }
+  );
+  const result = await router.execute({
+    toolCallId: "1",
+    name: "patch.apply",
+    args: { format: "search_replace", patchText: "some patch" },
+  });
+  assert.strictEqual(result.kind, "error");
+  assert.ok(result.message.includes('Patch format "search_replace" is not allowed'));
+  assert.strictEqual(result.retryable, false);
+});
