@@ -2,7 +2,7 @@ import type { TaskType } from "../task-classifier.js";
 import type { EventLog } from "../events/event-log.js";
 import { CONTEXT_EVENT_TYPES } from "../events/types.js";
 import type { RepoMapCreatedPayload, ContextBundleCreatedPayload, ContextItemRef } from "../events/types.js";
-import { ContextPipeline, RepoMapStage, RankingStage, BudgetingStage } from "./context-pipeline.js";
+import { ContextPipeline, RankingStage, BudgetingStage } from "./context-pipeline.js";
 import type { RepoMapOutput, ContextBundle as PipelineContextBundle, ContextItem as PipelineContextItem } from "./context-pipeline.js";
 import { EmbeddingCache } from "./embedding-cache.js";
 import { join } from "node:path";
@@ -74,32 +74,25 @@ export class ContextCompiler {
     return count;
   }
 
-  async compile(
-    task: string,
-    taskType: TaskType,
-    maxTokens: number,
-    pinnedPaths: string[] = []
-  ): Promise<ContextBundle> {
-    const maxTokensToUse = maxTokens ?? this.options.maxTokens ?? 20000;
-
-    // Build pipeline for compile
-    const pipeline = new ContextPipeline([
-      new RepoMapStage(),
-      new RankingStage({ task, taskType, pinnedPaths }),
-      new BudgetingStage({ maxTokens: maxTokensToUse }),
-    ]);
-
-    const result = await pipeline.run({ root: this.options.root }) as { bundle: ContextBundle };
-    return result.bundle;
-  }
-
   async compileContext(
     task: string,
     taskType: TaskType,
-    pinned?: string[]
+    pinnedPaths?: string[]
   ): Promise<ContextBundle> {
     const maxTokens = this.options.maxTokens ?? 20000;
-    const bundle = await this.compile(task, taskType, maxTokens, pinned ?? []);
+
+    // Reuse warm() cache if available
+    if (!this.repoMap) {
+      await this.warm();
+    }
+
+    const pipeline = new ContextPipeline([
+      new RankingStage({ task, taskType, pinnedPaths: pinnedPaths ?? [] }),
+      new BudgetingStage({ maxTokens }),
+    ]);
+
+    const result = await pipeline.run(this.repoMap!) as { bundle: ContextBundle };
+    const bundle = result.bundle;
 
     // Emit context.bundle_created
     if (this.options.eventLog && this.options.sessionId) {
@@ -113,8 +106,6 @@ export class ContextCompiler {
           usedTokens: bundle.budget.usedTokens,
           maxTokens: bundle.budget.maxTokens,
           primaryFiles: bundle.primaryFiles.map(toContextItemRef),
-          supportingFiles: bundle.supportingFiles.map(toContextItemRef),
-          tests: bundle.tests.map(toContextItemRef),
           omittedCount: 0,
         } as ContextBundleCreatedPayload,
       });
