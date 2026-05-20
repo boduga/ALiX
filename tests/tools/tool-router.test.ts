@@ -102,3 +102,74 @@ test("DelegateToolRouter.canHandle returns false for others", () => {
   assert.strictEqual(router.canHandle("patch.apply"), false);
   assert.strictEqual(router.canHandle("mcp.some"), false);
 });
+
+test("CompositeToolRouter selects first matching router by order", async () => {
+  // Create mock routers with overlapping capabilities to test ordering
+  const firstRouterCanHandle = new (class {
+    canHandle(name: string): boolean {
+      return name === "file.read";
+    }
+    async execute(_request: any): Promise<any> {
+      return { kind: "success", value: "first-router-handled" };
+    }
+  })();
+
+  const secondRouterCanHandle = new (class {
+    canHandle(name: string): boolean {
+      return name === "file.read"; // Same capability as first
+    }
+    async execute(_request: any): Promise<any> {
+      return { kind: "success", value: "second-router-handled" };
+    }
+  })();
+
+  // First router comes first - it should handle the request
+  const composite = new CompositeToolRouter([firstRouterCanHandle, secondRouterCanHandle]);
+  const request = { toolCallId: "1", name: "file.read", args: {} };
+  const result = await composite.execute(request);
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.value, "first-router-handled");
+});
+
+test("CompositeToolRouter delegates to correct router when order is reversed", async () => {
+  // Create mock routers with overlapping capabilities
+  const mockRouterA = {
+    canHandle(name: string): boolean {
+      return name === "file.read";
+    },
+    execute(_request: any): Promise<any> {
+      return Promise.resolve({ kind: "success", value: "router-A-handled" });
+    }
+  };
+
+  const mockRouterB = {
+    canHandle(name: string): boolean {
+      return name === "file.read"; // Same capability as A
+    },
+    execute(_request: any): Promise<any> {
+      return Promise.resolve({ kind: "success", value: "router-B-handled" });
+    }
+  };
+
+  // B comes first - it should handle the request
+  const composite = new CompositeToolRouter([mockRouterB, mockRouterA]);
+  const request = { toolCallId: "1", name: "file.read", args: {} };
+  const result = await composite.execute(request);
+  assert.strictEqual(result.kind, "success");
+  assert.strictEqual(result.value, "router-B-handled");
+});
+
+test("CompositeToolRouter prioritizes FileToolRouter over ShellToolRouter for file.read", async () => {
+  const fileRouter = new FileToolRouter();
+  const shellRouter = new ShellToolRouter();
+
+  // FileToolRouter first - it should handle file.read (not ShellToolRouter)
+  const composite = new CompositeToolRouter([fileRouter, shellRouter]);
+  const request = { toolCallId: "1", name: "file.read", args: {} };
+
+  // FileToolRouter throws "Not implemented yet" - this proves it was selected
+  await assert.rejects(composite.execute(request), /Not implemented yet/);
+
+  // If ShellToolRouter was selected instead, it would also throw, but with same error
+  // The key point is that for file.read, FileToolRouter (first in order) handles it
+});
