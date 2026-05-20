@@ -492,7 +492,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     });
   }
 
-  const executor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, { delegate: delegateHandler }, checkpointManager);
+  const executor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager);
 
   const mcpDeferral = mcpManager?.getDeferral();
   const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
