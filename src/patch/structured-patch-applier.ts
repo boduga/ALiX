@@ -15,6 +15,12 @@ export interface StructuredPatchApplierOptions {
   fuzzFactor?: number;
 }
 
+interface HunkApplyResult {
+  result?: string[];
+  conflict: boolean;
+  conflicts?: ApplyResult["conflicts"];
+}
+
 export class StructuredPatchApplier {
   private parser: PatchParser;
   private strict: boolean;
@@ -31,7 +37,7 @@ export class StructuredPatchApplier {
   apply(original: string, patch: string): ApplyResult {
     const parsed = this.parser.parse(patch);
 
-    if (parsed.files.length === 0) {
+    if (!parsed.files.length) {
       return { success: false, hunksApplied: 0, hunksTotal: 0, error: "No files in patch" };
     }
 
@@ -74,7 +80,7 @@ export class StructuredPatchApplier {
   private applyHunk(
     lines: string[],
     hunk: ParsedHunk
-  ): { result?: string[]; conflict?: boolean; conflicts?: ApplyResult["conflicts"] } {
+  ): HunkApplyResult {
     // Find leading context length
     let leadingContext = 0;
     for (const line of hunk.lines) {
@@ -129,7 +135,8 @@ export class StructuredPatchApplier {
       result.push(lines[i]);
     }
 
-    // Add leading context lines (they are matched but not in result yet when matchStart=0)
+    // When matchStart=0, we need to add leading context explicitly since pre-match copied nothing
+    // When matchStart>0, the pre-match loop already added those lines
     if (matchStart === 0 && leadingContext > 0) {
       for (let i = 0; i < leadingContext; i++) {
         result.push(hunk.lines[i].content);
@@ -170,15 +177,12 @@ export class StructuredPatchApplier {
       }
     }
 
-    // Skip trailing context in hunk and continue copying from source
-    hunkIdx = hunk.lines.length - trailingContext;
-
-    // Copy remaining source lines
+    // Copy remaining source lines (all lines after the last hunk line processed)
     while (lineIdx < lines.length) {
       result.push(lines[lineIdx]);
       lineIdx++;
     }
 
-    return { result };
+    return { result, conflict: false };
   }
 }
