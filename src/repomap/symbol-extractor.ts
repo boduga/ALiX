@@ -1,148 +1,93 @@
-import Parser from "tree-sitter";
-import TypeScript from "tree-sitter-typescript";
+import { readdir, readFile } from "node:fs/promises";
+import { join } from "node:path";
 
-export type ExtractedSymbolKind = "function" | "class" | "interface" | "type" | "const" | "method";
-
-export type ExtractedSymbol = {
-  path: string;
+export interface ExtractedSymbol {
   name: string;
-  kind: ExtractedSymbolKind;
+  kind: "function" | "class" | "interface" | "type" | "enum" | "const" | "variable" | "method";
+  file: string;
+  path: string;  // Alias for file (used by context-compiler)
   line: number;
-  startByte: number;
-  endByte: number;
-  signature: string;
-};
-
-const parser = new Parser();
-parser.setLanguage(TypeScript.typescript);
-
-// Compute byte offset from a Point (row, column) within a given content string
-function byteOffset(content: string, row: number, column: number): number {
-  let offset = 0;
-  const lines = content.split("\n");
-  for (let i = 0; i < row && i < lines.length; i++) {
-    offset += lines[i].length + 1; // +1 for newline
-  }
-  return offset + column;
+  exports: boolean;
 }
 
-export function extractTopLevelSymbols(path: string, content: string): ExtractedSymbol[] {
-  const symbols: ExtractedSymbol[] = [];
+export class SymbolExtractor {
+  private patterns = [
+    { kind: "function" as const, regex: /(?:export\s+)?function\s+(\w+)/g },
+    { kind: "class" as const, regex: /(?:export\s+)?class\s+(\w+)/g },
+    { kind: "interface" as const, regex: /(?:export\s+)?interface\s+(\w+)/g },
+    { kind: "type" as const, regex: /(?:export\s+)?type\s+(\w+)/g },
+    { kind: "enum" as const, regex: /(?:export\s+)?enum\s+(\w+)/g },
+    { kind: "const" as const, regex: /(?:export\s+)?const\s+(\w+)/g },
+    { kind: "variable" as const, regex: /(?:let|var)\s+(\w+)/g },
+  ];
 
-  let tree;
-  try {
-    tree = parser.parse(content);
-  } catch (e) {
-    // If tree-sitter parsing fails, return empty array
+  async extractFromDir(dir: string): Promise<ExtractedSymbol[]> {
+    const symbols: ExtractedSymbol[] = [];
+    const files = await this.findFiles(dir, [".ts", ".tsx", ".js", ".jsx"]);
+
+    for (const file of files) {
+      const content = await readFile(file, "utf-8");
+      const fileSymbols = this.extractFromCode(content, file);
+      symbols.push(...fileSymbols);
+    }
+
     return symbols;
   }
 
-  const rootNode = tree.rootNode;
+  extractFromCode(code: string, filename: string): ExtractedSymbol[] {
+    const symbols: ExtractedSymbol[] = [];
+    const lines = code.split("\n");
 
-  function traverse(node: Parser.SyntaxNode) {
-    const nodeType = node.type;
-    const startLine = node.startPosition.row + 1;
-    // Compute byte offsets from content string
-    const startByte = byteOffset(content, node.startPosition.row, node.startPosition.column);
-    const endByte = byteOffset(content, node.endPosition.row, node.endPosition.column);
+    for (let lineNum = 0; lineNum < lines.length; lineNum++) {
+      const line = lines[lineNum];
 
-    if (nodeType === "function_declaration") {
-      const nameNode = node.childForFieldName("name");
-      if (nameNode) {
-        // Use parent (export_statement) text to include "export " prefix
-        const signatureText = node.parent ? node.parent.text : node.text;
-        symbols.push({
-          path,
-          name: nameNode.text,
-          kind: "function",
-          line: startLine,
-          startByte,
-          endByte,
-          signature: signatureText,
-        });
-      }
-    } else if (nodeType === "method_definition") {
-      const nameNode = node.childForFieldName("name");
-      if (nameNode) {
-        symbols.push({
-          path,
-          name: nameNode.text,
-          kind: "method",
-          line: startLine,
-          startByte,
-          endByte,
-          signature: node.text,
-        });
-      }
-    } else if (nodeType === "class_declaration") {
-      const nameNode = node.childForFieldName("name");
-      if (nameNode) {
-        const signatureText = node.parent ? node.parent.text : node.text;
-        symbols.push({
-          path,
-          name: nameNode.text,
-          kind: "class",
-          line: startLine,
-          startByte,
-          endByte,
-          signature: signatureText,
-        });
-      }
-    } else if (nodeType === "interface_declaration") {
-      const nameNode = node.childForFieldName("name");
-      if (nameNode) {
-        const signatureText = node.parent ? node.parent.text : node.text;
-        symbols.push({
-          path,
-          name: nameNode.text,
-          kind: "interface",
-          line: startLine,
-          startByte,
-          endByte,
-          signature: signatureText,
-        });
-      }
-    } else if (nodeType === "type_alias_declaration") {
-      const nameNode = node.childForFieldName("name");
-      if (nameNode) {
-        const signatureText = node.parent ? node.parent.text : node.text;
-        symbols.push({
-          path,
-          name: nameNode.text,
-          kind: "type",
-          line: startLine,
-          startByte,
-          endByte,
-          signature: signatureText,
-        });
-      }
-    } else if (nodeType === "lexical_declaration") {
-      const declList = node.namedChild(0);
-      if (declList?.type === "variable_declarator") {
-        const nameNode = declList.childForFieldName("name");
-        if (nameNode) {
-          // Use parent (export_statement) text to include "export " prefix
-          const signatureText = node.parent ? node.parent.text : node.text;
+      for (const { kind, regex } of this.patterns) {
+        regex.lastIndex = 0;
+        const match = regex.exec(line);
+        if (match) {
+          const isExport = line.trim().startsWith("export");
           symbols.push({
-            path,
-            name: nameNode.text,
-            kind: "const",
-            line: startLine,
-            startByte,
-            endByte,
-            signature: signatureText,
+            name: match[1],
+            kind,
+            file: filename,
+            path: filename,  // Alias for file
+            line: lineNum + 1,
+            exports: isExport,
           });
         }
       }
     }
 
-    for (let i = 0; i < node.namedChildCount; i++) {
-      const child = node.namedChild(i);
-      if (child) traverse(child);
-    }
+    return symbols;
   }
 
-  traverse(rootNode);
+  private async findFiles(dir: string, extensions: string[]): Promise<string[]> {
+    const files: string[] = [];
 
-  return symbols;
+    try {
+      const entries = await readdir(dir, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const fullPath = join(dir, entry.name);
+        if (entry.isDirectory() && !entry.name.startsWith(".") && entry.name !== "node_modules") {
+          files.push(...await this.findFiles(fullPath, extensions));
+        } else if (extensions.some(ext => entry.name.endsWith(ext))) {
+          files.push(fullPath);
+        }
+      }
+    } catch {
+      // Directory doesn't exist, return empty
+    }
+
+    return files;
+  }
+}
+
+/**
+ * Standalone function for extracting top-level symbols from code.
+ * Used by context-compiler.ts
+ */
+export function extractTopLevelSymbols(code: string, filename: string): ExtractedSymbol[] {
+  const extractor = new SymbolExtractor();
+  return extractor.extractFromCode(code, filename);
 }

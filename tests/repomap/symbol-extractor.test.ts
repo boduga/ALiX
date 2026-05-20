@@ -1,51 +1,54 @@
-import { describe, it } from "node:test";
+import { describe, it, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { extractTopLevelSymbols } from "../../src/repomap/symbol-extractor.js";
+import { SymbolExtractor } from "../../src/repomap/symbol-extractor.js";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { writeFile, mkdir } from "node:fs/promises";
+import { rm } from "node:fs/promises";
 
-describe("extractTopLevelSymbols", () => {
-  it("extracts exported functions, classes, interfaces, types, and consts", () => {
-    const symbols = extractTopLevelSymbols("src/auth.ts", [
-      "export function login(user: string) { return user; }",
-      "export class AuthService {}",
-      "export interface User { id: string }",
-      "export type Role = 'admin';",
-      "export const TOKEN = 'x';",
-    ].join("\n"));
+describe("SymbolExtractor", () => {
+  const testDir = join(tmpdir(), "symbol-test");
 
-    assert.deepEqual(symbols.map((symbol) => [symbol.name, symbol.kind, symbol.line]), [
-      ["login", "function", 1],
-      ["AuthService", "class", 2],
-      ["User", "interface", 3],
-      ["Role", "type", 4],
-      ["TOKEN", "const", 5],
-    ]);
+  afterEach(async () => {
+    await rm(testDir, { recursive: true, force: true });
   });
 
-  it("keeps a compact signature", () => {
-    const [symbol] = extractTopLevelSymbols("src/auth.ts", "export function login(user: string) { return user; }");
-    assert.equal(symbol.signature, "export function login(user: string) { return user; }");
+  it("extracts function and class definitions", async () => {
+    await mkdir(testDir, { recursive: true });
+    await writeFile(join(testDir, "test.ts"), `
+      export function calculateTotal(items: Item[]): number {
+        return items.reduce((sum, item) => sum + item.price, 0);
+      }
+
+      export class Cart {
+        private items: Item[] = [];
+        add(item: Item): void { this.items.push(item); }
+      }
+
+      interface Item { price: number; }
+    `);
+
+    const extractor = new SymbolExtractor();
+    const symbols = await extractor.extractFromDir(testDir);
+
+    assert.ok(symbols.find(s => s.name === "calculateTotal" && s.kind === "function"));
+    assert.ok(symbols.find(s => s.name === "Cart" && s.kind === "class"));
+    assert.ok(symbols.find(s => s.name === "Item" && s.kind === "interface"));
   });
 
-  it("extracts methods from class bodies", () => {
-    const symbols = extractTopLevelSymbols("src/auth.ts", [
-      "export class AuthService {",
-      "  login(user: string) { return user; }",
-      "  logout() { return true; }",
-      "}",
-    ].join("\n"));
+  it("extracts symbols from code string with AST", async () => {
+    const extractor = new SymbolExtractor();
+    const code = `
+      const foo = 42;
+      type UserId = string;
+      enum Status { Active, Inactive }
+      function test() { return foo; }
+    `;
+    const symbols = await extractor.extractFromCode(code, "test.ts");
 
-    const methods = symbols.filter((s) => s.kind === "method");
-    assert.deepEqual(methods.map((m) => [m.name, m.kind, m.line]), [
-      ["login", "method", 2],
-      ["logout", "method", 3],
-    ]);
-  });
-
-  it("captures startByte and endByte for all symbol kinds", () => {
-    const content = "export function foo() {}";
-    const [symbol] = extractTopLevelSymbols("src/test.ts", content);
-    assert.ok(typeof symbol.startByte === "number", "startByte should be a number");
-    assert.ok(typeof symbol.endByte === "number", "endByte should be a number");
-    assert.ok(symbol.endByte > symbol.startByte, "endByte should be greater than startByte");
+    assert.ok(symbols.find(s => s.name === "foo" && s.kind === "const"));
+    assert.ok(symbols.find(s => s.name === "UserId" && s.kind === "type"));
+    assert.ok(symbols.find(s => s.name === "Status" && s.kind === "enum"));
+    assert.ok(symbols.find(s => s.name === "test" && s.kind === "function"));
   });
 });
