@@ -80,6 +80,16 @@ await runtime.close();
 - Refactor `run.ts` to use `RuntimeBuilder` (tracked in post-MVP backlog)
 - Add `McpManager` wiring when cache manager work is complete
 
+## Current Scope
+
+`RuntimeBuilder` is intended for **alternate entrypoints** (CLI variants, testing), not the main `run.ts` entrypoint. The main `run.ts` retains inline component construction because:
+
+1. **Different composition needs** — run.ts requires additional components not wired by RuntimeBuilder (ApprovalManager, MemoryStore, hooks, skills, delegateHandler, ToolSelector, ownershipRegistry, mergeCoordinator)
+2. **Task execution coupling** — run.ts builds `TaskLoopDeps` and executes the task loop, not just constructs a runtime
+3. **Incremental adoption** — RuntimeBuilder will be extended incrementally; full run.ts adoption is post-MVP
+
+This decision will be revisited when RuntimeBuilder has been extended to wire all required components and the post-MVP refactoring is prioritized.
+
 ## Alternatives Considered
 
 **Pure DI container** (e.g., `tsyringe` or `awilix`): Rejected because the runtime modules are heterogeneous (event log, checkpoint manager, policy engine) and don't fit a generic container model well. The builder pattern is explicit and TypeScript-friendly.
