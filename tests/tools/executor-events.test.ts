@@ -163,6 +163,33 @@ describe("Tool Executor Events", () => {
     assert.equal(payload.argsPreview.command, "ls");
   });
 
+  it("emits file.created through FileToolRouter", async () => {
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    const request = {
+      toolCallId: `tool_${Date.now()}_abc1241`,
+      name: "file.create",
+      args: {
+        path: "new-file.txt",
+        content: "Hello from regression test",
+      },
+    };
+
+    await executor.execute(request);
+
+    const events = await eventLog.readAll();
+
+    // Generic tool.completed must exist (baseline)
+    const completed = events.find((e) => e.type === "tool.completed");
+    assert.ok(completed, "Should have tool.completed event");
+
+    // Domain-specific file.created must also exist (router provenance)
+    const fileCreated = events.find((e) => e.type === "file.created");
+    assert.ok(fileCreated, "FileToolRouter should emit file.created event when constructed with EventLog");
+
+    const payload = fileCreated.payload as any;
+    assert.equal(payload.path, "new-file.txt", "file.created payload should include path");
+  });
+
   it("emits all 5 lifecycle events in order", async () => {
     const executor = new ToolExecutor(config, eventLog, testDir);
     const request = {

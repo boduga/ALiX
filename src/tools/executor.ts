@@ -54,10 +54,10 @@ export class ToolExecutor {
   ) {
     // Create router with all handlers
     this.router = new CompositeToolRouter([
-      new FileToolRouter(this.root),
+      new FileToolRouter(this.root, log, this.sessionId()),
       new ShellToolRouter(this.root),
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
-      new McpToolRouter(mcpManager ?? null),
+      new McpToolRouter(mcpManager ?? null, log, this.sessionId()),
       new DelegateToolRouter(extraHandlers),
     ]);
   }

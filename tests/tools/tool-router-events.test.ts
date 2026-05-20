@@ -1,22 +1,22 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, beforeEach, afterEach } from "node:test";
+import assert from "node:assert";
 import { EventLog } from "../../src/events/event-log.js";
 import { FileToolRouter, PatchToolRouter } from "../../src/tools/tool-router.js";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 
-// Test helper: create a temp directory with auto-cleanup
-async function withTempDir(fn: (dir: string) => Promise<void>): Promise<void> {
-  const dir = join("/tmp", `tool-router-test-${randomUUID()}`);
-  await mkdir(dir, { recursive: true });
-  try {
-    await fn(dir);
-  } finally {
-    await rm(dir, { recursive: true, force: true });
-  }
-}
-
 describe("ToolRouter event emission", () => {
+  async function withTempDir(fn: (dir: string) => Promise<void>): Promise<void> {
+    const dir = join("/tmp", `tool-router-test-${randomUUID()}`);
+    await mkdir(dir, { recursive: true });
+    try {
+      await fn(dir);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
   it("file.create returns createdPath in result", async () => {
     await withTempDir(async (dir) => {
       const router = new FileToolRouter(dir);
@@ -27,9 +27,9 @@ describe("ToolRouter event emission", () => {
         args: { path: "new-file.txt", content: "hello world" },
       });
 
-      expect(result.kind).toBe("success");
+      assert.equal(result.kind, "success");
       const typedResult = result as { createdPath?: string; changedFiles?: string[] };
-      expect(typedResult.createdPath).toBe("new-file.txt");
+      assert.equal(typedResult.createdPath, "new-file.txt");
     });
   });
 
@@ -37,7 +37,6 @@ describe("ToolRouter event emission", () => {
     await withTempDir(async (dir) => {
       const router = new FileToolRouter(dir);
 
-      // Create a file first
       const testFile = join(dir, "to-delete.txt");
       await writeFile(testFile, "delete me");
 
@@ -47,9 +46,9 @@ describe("ToolRouter event emission", () => {
         args: { path: "to-delete.txt" },
       });
 
-      expect(result.kind).toBe("success");
+      assert.equal(result.kind, "success");
       const typedResult = result as { deletedPath?: string };
-      expect(typedResult.deletedPath).toBe("to-delete.txt");
+      assert.equal(typedResult.deletedPath, "to-delete.txt");
     });
   });
 
@@ -59,11 +58,9 @@ describe("ToolRouter event emission", () => {
       const eventLog = new EventLog(sessionDir);
       await eventLog.init();
 
-      // Create a file to patch
       const targetFile = join(dir, "example.txt");
       await writeFile(targetFile, "line 1\nline 2\nline 3\n");
 
-      // Use search_replace format (marker format)
       const patchText = `<<<<<<< SEARCH path=example.txt
 line 3
 =======
@@ -74,9 +71,9 @@ line 4
       const router = new PatchToolRouter(
         dir,
         { model: { provider: "anthropic" } } as any,
-        undefined, // editFormatPolicy
-        undefined, // checkpointManager
-        eventLog,  // eventLog
+        undefined,
+        undefined,
+        eventLog,
         "test-session"
       );
 
@@ -90,9 +87,9 @@ line 4
         },
       });
 
-      expect(result.kind).toBe("success");
+      assert.equal(result.kind, "success");
       const typedResult = result as { changedFiles?: string[] };
-      expect(typedResult.changedFiles).toContain("example.txt");
+      assert.ok(typedResult.changedFiles?.includes("example.txt"));
     });
   });
 
@@ -127,12 +124,11 @@ modified
         args: { format: "search_replace", patchText, root: dir },
       });
 
-      expect(result.kind).toBe("success");
+      assert.equal(result.kind, "success");
 
       const events = await eventLog.readAll();
-      // Check for any patch-related events (checkpoint_created, applied, etc.)
       const patchEvents = events.filter((e) => e.type.startsWith("patch."));
-      expect(patchEvents.length).toBeGreaterThan(0);
+      assert.ok(patchEvents.length > 0, "Should have patch events");
     });
   });
 
@@ -140,7 +136,6 @@ modified
     await withTempDir(async (dir) => {
       const router = new FileToolRouter(dir);
 
-      // Test existing file
       const testFile = join(dir, "exists.txt");
       await writeFile(testFile, "content");
 
@@ -150,9 +145,9 @@ modified
         args: { path: "exists.txt" },
       });
 
-      expect(result.kind).toBe("success");
+      assert.equal(result.kind, "success");
       const typedResult = result as { exists?: boolean };
-      expect(typedResult.exists).toBe(true);
+      assert.equal(typedResult.exists, true);
     });
   });
 
@@ -160,7 +155,6 @@ modified
     await withTempDir(async (dir) => {
       const router = new FileToolRouter(dir);
 
-      // Create test files
       await writeFile(join(dir, "a.txt"), "a");
       await writeFile(join(dir, "b.txt"), "b");
 
@@ -170,7 +164,7 @@ modified
         args: { pattern: "*.txt" },
       });
 
-      expect(result.kind).toBe("success");
+      assert.equal(result.kind, "success");
     });
   });
 });
