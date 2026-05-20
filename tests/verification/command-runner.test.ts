@@ -34,4 +34,18 @@ describe("CommandRunner", () => {
     assert.ok(result.durationMs >= 0);
     assert.ok(result.durationMs < 5000);
   });
+
+  it("runWithStreaming captures output via callback", async () => {
+    const runner = new CommandRunner();
+    let output = "";
+
+    const result = await runner.runWithStreaming(
+      "echo hello world",
+      { timeout: 5000 },
+      (data) => { output += data; }
+    );
+
+    assert.ok(result.success);
+    assert.ok(output.includes("hello"));
+  });
 });

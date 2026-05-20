@@ -89,7 +89,8 @@ export class CommandRunner {
       const child = spawn(command, {
         cwd: options.cwd ?? process.cwd(),
         env: { ...process.env, ...options.env },
-              });
+        shell: true,
+      });
 
       const timer = setTimeout(() => {
         child.kill("SIGTERM");
