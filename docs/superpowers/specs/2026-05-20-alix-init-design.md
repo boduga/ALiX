@@ -83,7 +83,9 @@ For MCP, if yes: ask whether to install the `fetch` MCP server (available by def
 
 ## Output
 
-Write `.alix/config.json` with:
+### `.alix/config.json`
+
+Write with selected options, using `DEFAULT_CONFIG` as base:
 
 ```json
 {
@@ -94,82 +96,139 @@ Write `.alix/config.json` with:
     "temperature": 0.2,
     "streaming": true
   },
-  "permissions": {
-    "default": "ask",
-    "tools": {
-      "file.read": "allow",
-      "file.write": "ask",
-      "shell.run": "ask",
-      "git.diff": "allow"
-    },
-    "protectedPaths": [".git/**", ".env", ".env.*", "secrets/**"],
-    "allowNetworkDomains": [],
-    "denyCommands": ["rm -rf /", "git push --force"],
-    "sessionMode": "ask"
-  },
-  "context": {
-    "repoMap": true,
-    "repoMapMode": "lite",
-    "maxRepoMapTokens": 4000,
-    "semanticSearch": false,
-    "includeGitStatus": true,
-    "pinnedFiles": []
-  },
-  "runtime": {
-    "provider": "process",
-    "shell": "bash",
-    "commandTimeoutMs": 120000,
-    "envAllowlist": ["PATH", "HOME", "SHELL"]
-  },
-  "ui": {
-    "enabled": true,
-    "host": "0.0.0.0",
-    "port": 4137,
-    "transport": "sse"
-  },
-  "mcpServers": [
-    { "type": "stdio", "name": "fetch", "command": "uvx", "args": ["mcp-server-fetch"] }
-  ],
-  "skills": {
-    "factory": { "enabled": false, "provider": "ollama", "model": "llama3", "maxStore": 50, "maxCandidates": 20, "autoPromote": false },
-    "store": { "enabled": true, "path": "<homedir>/.alix/skills" }
-  },
-  "extensions": {
-    "store": { "enabled": true, "path": "<homedir>/.alix/extensions" }
-  },
-  "subagents": {
-    "enabled": true,
-    "thinking": { "provider": "ollama", "name": "phi4-mini-reasoning" },
-    "coding": { "provider": "ollama", "name": "qwen2.5-coder:7b" },
-    "fast": { "provider": "ollama", "name": "llama3.2:3b" },
-    "roles": [
-      { "role": "explorer", "mode": "read_only", "style": "fast", "retryCount": 1 },
-      { "role": "reviewer", "mode": "read_only", "style": "thinking", "retryCount": 1 },
-      { "role": "test_investigator", "mode": "read_only", "style": "thinking", "retryCount": 1 },
-      { "role": "docs_researcher", "mode": "read_only", "style": "fast", "retryCount": 1 },
-      { "role": "worker", "mode": "write", "style": "coding", "retryCount": 0 }
-    ]
-  }
+  ...
 }
 ```
 
-Only non-default values need to be written. Use `DEFAULT_CONFIG` as the base and override selected fields.
+### `AGENTS.md`
 
----
+Create `AGENTS.md` at project root (not inside `.alix/`). This is the onboarding doc for any AI agent working in the codebase.
 
-## File Structure
+**Contents:**
 
-- New: `src/cli/commands/init.ts` — wizard logic, self-contained
-- Modify: `src/cli.ts` — add `if (command === "init")` branch
+```markdown
+# ALiX — Agentic Coding Harness
 
----
+> Powered by ALiX. See `.alix/` for configuration.
 
-## Error Handling
+## Quick Start
 
-- If cwd is not writable, exit with error
-- If API key is missing and model fetch fails, offer to skip model selection
-- If git init fails, warn but continue with config write
-- If `.alix/config.json` already exists, prompt: `Update existing config? [y/N]:` — if yes, overwrite; if no, exit
+```bash
+# Run a task
+alix run "fix the login bug"
+
+# Start the UI inspector
+alix serve
+
+# Plan a task without executing
+alix plan "add user authentication"
+
+# Review pending plan
+alix review
+
+# Apply reviewed plan
+alix apply
+```
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `alix run "<task>"` | Classify intent → build context → run agent loop → patch → verify → repair |
+| `alix init` | Initialize project with git, config, and sensible defaults |
+| `alix plan "<task>"` | Generate a machine-readable plan without executing |
+| `alix review` | Review pending plan — show diffs, affected files, risk |
+| `alix apply` | Execute patches from reviewed plan |
+| `alix serve` | Start the SSE inspector UI |
+| `alix config show` | Show current configuration |
+| `alix config set-key` | Set API key for a provider |
+| `alix config set-default-model` | Select default model interactively |
+| `alix mcp list` | List connected MCP servers |
+| `alix mcp add` | Add an MCP server |
+| `alix agent <role> "<prompt>"` | Spawn a read-only subagent |
+| `alix memory list` | List memory entries |
+| `alix memory add` | Add a memory entry |
+
+## Task Loop
+
+1. **Classify** — IntentClassifier determines task type (code, bugfix, refactor, docs, test, config)
+2. **Context** — ContextCompiler builds ranked context bundle (mentioned files, deps, tests, config, semantic matches)
+3. **Plan** — Model proposes edits to files based on intent
+4. **Approve** — If scope expansion detected (files outside initial scope), user is prompted in `ask` mode
+5. **Patch** — EditFormatPolicy selects provider-appropriate format (search_replace / structured_patch)
+6. **Verify** — VerificationPlanner runs cheapest checks first (typecheck → lint → build → test)
+7. **Repair** — If verification fails, model gets residual risk report and retries (up to 3 loops)
+8. **Summarize** — Session digest saved to memory
+
+## State Machine
+
+```
+idle → planning → executing → verifying → repairing → summarizing → completed
+                    ↑
+                    └── (scope expansion) ──→ wait for approval
+```
+
+- `idle` — waiting for task
+- `planning` — model thinking about approach
+- `executing` — running tool calls, applying patches
+- `verifying` — running verification checks
+- `repairing` — fixing verification failures
+- `summarizing` — saving session digest
+
+## Session Modes
+
+- `ask` — Prompt for confirmation on scope expansion (default)
+- `auto` — Auto-approve safe scope expansions
+- `bypass` — Skip all approvals (use with caution)
+
+Pass with `--mode=auto` or `--mode=ask` or `--mode=bypass`.
+
+## Context Compilation
+
+Context is ranked by:
+1. Task-mentioned files (exact match = 100, fuzzy = 70, base match = 60)
+2. Semantic search matches (symbol-level)
+3. Dependency graph traversal (forward + reverse)
+4. Git activity boosting (recently modified files get up to +20 score)
+5. Pinned files (score: 200, always included)
+6. Config files (score: 10, always included)
+7. Test files for bugfix tasks (score: 5)
+
+Token budget enforced. If budget exceeded, lowest-scoring items are dropped.
+
+## MCP Servers
+
+MCP servers are lazy-loaded per task via ToolSelector. Only task-relevant tools (scored by keyword + semantic overlap) are loaded, up to `toolConfig.maxTools`. Full catalog available via `mcp_search_tools` meta-tool.
+
+## Configuration
+
+See `.alix/config.json`. Precedence: project config > global config > XDG config.
+
+## Features
+
+- **Patch reliability** — Per-provider edit format policy. Full-file rewrite blocked for existing files.
+- **Checkpoint + rollback** — Files checkpointed before patch, rolled back on failure.
+- **Verification** — Cost-ordered (typecheck → lint → build → test), residual risk reported honestly.
+- **Memory** — Session digests saved to `.alix/memory/`. Project/user/feedback/reference types.
+- **Subagents** — Read-only roles (explorer, reviewer, test_investigator, docs_researcher). Write-capable worker role.
+- **Skills** — Loaded from `~/.alix/skills` or project path. SkillFactory for auto-promotion.
+- **Extensions** — Unified taxonomy: skills, hooks, recipes, subagents, plugins, MCP.
+
+## Architecture
+
+See `docs/agentic-harness-research.md` for the full research spec.
+
+Key files:
+- `src/run.ts` — Task loop entry point
+- `src/repomap/context-compiler.ts` — Context compilation pipeline
+- `src/autonomy/scope-tracker.ts` — Scope tracking and expansion detection
+- `src/tools/executor.ts` — Tool execution with policy enforcement
+- `src/patch/` — Patch application, format policy, checkpointing
+- `src/verifier/` — Verification discovery and execution
+- `src/events/` — Event log and session replay
+```
+
+**Note:** If `CLAUDE.md` already exists at project root, ALiX respects it. `AGENTS.md` is the fallback for non-Claude AI agents. Both can coexist — `AGENTS.md` is framework-agnostic.
 
 ---
 
@@ -180,4 +239,5 @@ On success: `✓ ALiX initialized in <cwd>` + brief next steps:
 Next steps:
   alix run "your first task"
   alix serve    # start UI inspector
+  alix plan     # plan without executing
 ```
