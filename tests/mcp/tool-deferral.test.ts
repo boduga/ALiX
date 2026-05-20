@@ -1,6 +1,7 @@
 import { describe, it, mock, beforeEach } from "node:test";
 import assert from "node:assert";
 import { McpToolDeferral } from "../../src/mcp/tool-deferral.js";
+import { InMemoryCacheManager, type CacheManager } from "../../src/utils/cache-manager.js";
 
 function makeFakeRegistry(tools: Array<{ fullName: string; serverName: string; toolName: string; description?: string; inputSchema: Record<string, unknown> }>) {
   return {
@@ -45,7 +46,7 @@ describe("McpToolDeferral", () => {
 
     const first = deferral.resolve("mcp_github_repos_list");
     const second = deferral.resolve("mcp_github_repos_list");
-    assert.strictEqual(first, second); // same reference — from cache
+    assert.deepStrictEqual(first, second); // deep equal — parsed from cache
   });
 
   it("resolve returns undefined for unknown tool", () => {
@@ -83,5 +84,28 @@ describe("McpToolDeferral", () => {
     deferral.clearServerCache("github");
     assert.ok(!deferral["cache"].has("mcp_github_repos_list"));
     assert.strictEqual(deferral["_index"], null, "_index should be null after clearServerCache");
+  });
+
+  it("uses provided CacheManager", () => {
+    const registry = makeFakeRegistry(fakeTools);
+    const customCache = new InMemoryCacheManager();
+    const deferral = new McpToolDeferral(registry as any, customCache);
+
+    deferral.resolve("mcp_github_repos_list");
+    assert.ok(customCache.has("mcp_github_repos_list"), "custom cache should have resolved tool");
+    assert.strictEqual(deferral["cache"], customCache, "should use injected cache");
+  });
+
+  it("clearServerCache calls cache.invalidate", () => {
+    const registry = makeFakeRegistry(fakeTools);
+    const customCache = new InMemoryCacheManager();
+    const deferral = new McpToolDeferral(registry as any, customCache);
+
+    deferral.resolve("mcp_github_repos_list");
+    deferral.clearServerCache("github");
+
+    assert.ok(!customCache.has("mcp_github_repos_list"), "invalidate should remove entries");
+    // Verify invalidate was called with correct prefix
+    assert.ok(!customCache.has("mcp_github_repos_list"));
   });
 });

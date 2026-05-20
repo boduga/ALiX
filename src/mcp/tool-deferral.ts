@@ -1,6 +1,6 @@
 import type { McpToolRegistry, RegisteredTool } from "./registry.js";
 import type { ToolDef } from "../providers/types.js";
-import { SchemaCache } from "./tool-cache.js";
+import { InMemoryCacheManager, type CacheManager } from "../utils/cache-manager.js";
 import { searchTools, type SearchResult } from "./tool-search.js";
 
 export interface DeferredToolEntry {
@@ -21,14 +21,15 @@ export interface DeferredToolEntry {
  * On unknown name: fuzzy search finds the closest match.
  */
 export class McpToolDeferral {
-  private cache: SchemaCache;
   private _index: DeferredToolEntry[] | null = null;
   private _usedTools = new Set<string>();
   private _discoveredTools = new Set<string>();
 
-  constructor(private registry: McpToolRegistry, private cacheOptions?: { ttlMs?: number; maxSize?: number }) {
-    this.cache = new SchemaCache(this.cacheOptions);
-  }
+  constructor(
+    private registry: McpToolRegistry,
+    private cache: CacheManager = new InMemoryCacheManager(),
+    private cacheOptions?: { ttlMs?: number; maxSize?: number }
+  ) {}
 
   /**
    * Build the deferred tool index — names + descriptions only.
@@ -52,7 +53,10 @@ export class McpToolDeferral {
    * Uses cache first; on miss, builds from registry and caches.
    */
   resolve(mcpName: string): ToolDef | undefined {
-    if (this.cache.has(mcpName)) return this.cache.get(mcpName)!;
+    if (this.cache.has(mcpName)) {
+      const cached = this.cache.get(mcpName);
+      if (cached) return JSON.parse(cached) as ToolDef;
+    }
 
     const entry = this.findEntry(mcpName);
     if (!entry) return undefined;
@@ -66,7 +70,7 @@ export class McpToolDeferral {
       input_schema: tool.inputSchema as ToolDef["input_schema"],
     };
 
-    this.cache.set(mcpName, def);
+    this.cache.set(mcpName, JSON.stringify(def));
     this._usedTools.add(mcpName);
     return def;
   }
@@ -87,7 +91,7 @@ export class McpToolDeferral {
    * Clear schema cache for a server (called when server reconnects with new schemas).
    */
   clearServerCache(serverName: string): void {
-    this.cache.clearPrefix(`mcp_${serverName}_`);
+    this.cache.invalidate(`mcp_${serverName}_`);
     this._index = null;
   }
 
