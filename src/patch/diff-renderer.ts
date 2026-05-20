@@ -3,6 +3,10 @@ export type DiffFormat = "unified" | "side-by-side" | "raw";
 export interface DiffRendererOptions {
   format?: DiffFormat;
   color?: boolean;
+  /**
+   * Reserved for future implementation - limits context lines around changes.
+   * Currently unused but maintained for API compatibility.
+   */
   contextLines?: number;
 }
 
@@ -11,6 +15,10 @@ export interface DiffInput {
   newContent: string;
   oldLabel?: string;
   newLabel?: string;
+  /**
+   * Reserved for future implementation - file path for additional context.
+   * Currently unused.
+   */
   file?: string;
 }
 
@@ -69,13 +77,32 @@ export class DiffRenderer {
     for (let i = 0; i < maxLines; i++) {
       const oldLine = oldLines[i] ?? "";
       const newLine = newLines[i] ?? "";
-      const marker = oldLine !== newLine ? "│" : " ";
+      const isOldDeleted = oldLine !== "" && newLine === "";
+      const isNewAdded = oldLine === "" && newLine !== "";
+      const hasChanged = oldLine !== newLine && oldLine !== "" && newLine !== "";
+
+      // Determine marker and colors based on line state
+      let marker = " ";
+      let leftType: "add" | "delete" | "context" = "context";
+      let rightType: "add" | "delete" | "context" = "context";
+
+      if (isOldDeleted) {
+        marker = "-";
+        leftType = "delete";
+      } else if (isNewAdded) {
+        marker = "+";
+        rightType = "add";
+      } else if (hasChanged) {
+        marker = "~";
+        leftType = "delete";
+        rightType = "add";
+      }
 
       const left = oldLine.padEnd(maxWidth).slice(0, maxWidth);
       const right = newLine.padEnd(maxWidth).slice(0, maxWidth);
 
       if (this.color) {
-        lines.push(`${this.colorize(marker, "context")} ${this.colorize(left, oldLine !== newLine ? "delete" : "context")} ${this.colorize("│", "context")} ${this.colorize(right, newLine !== oldLine ? "add" : "context")}`);
+        lines.push(`${this.colorize(marker, leftType)} ${this.colorize(left, leftType)} ${this.colorize("│", "context")} ${this.colorize(right, rightType)}`);
       } else {
         lines.push(`${marker} ${left} │ ${right}`);
       }

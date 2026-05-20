@@ -9,14 +9,20 @@ interface Snapshot {
 export class RollbackManager {
   private snapshots = new Map<string, Snapshot[]>();
   private maxSnapshots: number;
-  private counter = 0;
+  private counters = new Map<string, number>();
 
   constructor(options: { maxSnapshots?: number } = {}) {
     this.maxSnapshots = options.maxSnapshots ?? 10;
   }
 
+  private getNextId(file: string): string {
+    const c = (this.counters.get(file) ?? 0) + 1;
+    this.counters.set(file, c);
+    return `${file}-${c}-${Date.now()}`;
+  }
+
   async snapshot(file: string, content: string): Promise<string> {
-    const id = `${file}-${++this.counter}-${Date.now()}`;
+    const id = this.getNextId(file);
     const fileSnapshots = this.snapshots.get(file) ?? [];
 
     fileSnapshots.push({
@@ -47,6 +53,11 @@ export class RollbackManager {
     return fileSnapshots[fileSnapshots.length - 1];
   }
 
+  /**
+   * Rollback to a previous version.
+   * @param file The file to rollback
+   * @param steps Number of snapshots to go back (1 = most recent before current)
+   */
   async rollback(file: string, steps = 1): Promise<string | null> {
     const fileSnapshots = this.snapshots.get(file) ?? [];
     const targetIndex = fileSnapshots.length - steps - 1;
