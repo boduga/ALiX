@@ -22,7 +22,6 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { createInterface } from "node:readline";
 import { loadConfig } from "./config/loader.js";
 import { getEncoding } from "./config/context-limits.js";
 import { EventLog } from "./events/event-log.js";
@@ -44,7 +43,6 @@ import { buildRiskReport, mapFilesToTests } from "./verifier/index.js";
 import { MemoryStore } from "./utils/memory/store.js";
 import type { MemoryEntry } from "./utils/memory/types.js";
 import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
-import { extractDecisions, promptDecisionConfirmation } from "./utils/memory/decision-extractor.js";
 import { discoverVerification, runVerification, shouldRunVerification, type VerificationCheck, type VerificationResult, type VerificationPolicy } from "./verifier/verifier.js";
 import { classifyTask } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
@@ -56,66 +54,8 @@ import { buildEditFormatPolicy } from "./patch/edit-format-policy.js";
 import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
 import { CheckpointManager } from "./patch/checkpoint.js";
+import { promptUser, saveDecisionsToMemory } from "./run/helpers.js";
 
-async function promptUser(question: string): Promise<string> {
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
-  return new Promise<string>((resolve) => {
-    rl.question(question, (answer) => {
-      rl.close();
-      resolve(answer.trim());
-    });
-  });
-}
-
-/**
- * Extract decisions from session events and save confirmed ones to memory.
- * Wraps memoryStore.save() in try/catch to prevent crashes during cleanup.
- */
-async function saveDecisionsToMemory(sessionEvents: Awaited<ReturnType<EventLog["readAll"]>>, memoryStore: MemoryStore): Promise<void> {
-  const decisions = extractDecisions(sessionEvents);
-  if (decisions.length === 0) {
-    console.log("[Memory] No decisions found to save.");
-    return;
-  }
-
-  const confirmedDecisions = await promptDecisionConfirmation(decisions);
-  if (confirmedDecisions.length === 0) {
-    console.log("[Memory] No decisions saved.");
-    return;
-  }
-
-  console.log(`[Memory] Saving ${confirmedDecisions.length} decision(s) to memory:`);
-  for (const decision of confirmedDecisions) {
-    try {
-      await memoryStore.save({
-        name: decision.name,
-        description: decision.description,
-        type: decision.type,
-        content: decision.content,
-        confidence: decision.confidence,
-        confirmations: decision.confirmations,
-        source: decision.source,
-      });
-      console.log(`  - [${decision.type}] ${decision.content}`);
-    } catch (err) {
-      console.error(`[Memory] Failed to save decision "${decision.name}": ${(err as Error).message}`);
-    }
-  }
-}
-
-async function streamToResponse(provider: ModelAdapter, request: NormalizedRequest): Promise<{ text: string; toolCalls: ToolCall[]; usage?: TokenUsage }> {
-  if (!provider.stream) throw new Error("Provider does not support streaming");
-  let text = "";
-  let toolCalls: ToolCall[] = [];
-  let usage: TokenUsage | undefined;
-  for await (const chunk of provider.stream(request)) {
-    if (chunk.type === "text_delta") text += chunk.text;
-    if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-    if (chunk.type === "usage") usage = chunk.usage;
-    if (chunk.type === "error") throw new Error(chunk.error);
-  }
-  return { text, toolCalls, usage };
-}
 
 
 export function buildErrorMessage(err: { kind: "error"; message: string; retryable?: boolean; hint?: string }): string {
