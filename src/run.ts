@@ -6,15 +6,15 @@
  * ┌─────────────────────────────────────────────────────────────────────────────┐
  * │ SECTION                          │ EXTRACT TO                               │
  * ├─────────────────────────────────────────────────────────────────────────────┤
- * │ 1. Imports (lines 1-38)          │ STAYS in run.ts                         │
- * │ 2. Helper functions (40-157)     │ src/run/helpers.ts                      │
- * │ 3. Tool schemas (159-278)        │ src/run/tool-schemas.ts                 │
- * │ 4. Tool builders (280-339)      │ src/run/tool-schemas.ts                 │
- * │ 5. Types & exports (341-396)     │ src/run/types.ts                        │
- * │ 6. runTask function (398-995)    │ Split into init/task-loop/cleanup       │
- * │    - Session init (398-571)      │   → src/run/initialization.ts           │
- * │    - Main loop (604-973)         │   → src/run/task-loop.ts                │
- * │    - Cleanup/exit (976-995)      │   → src/run/cleanup.ts                  │
+ * │ 1. Imports (21-59)               │ STAYS in run.ts                         │
+ * │ 2. Helper functions (60-177)    │ src/run/helpers.ts                      │
+ * │ 3. Tool schemas (180-298)        │ src/run/tool-schemas.ts                 │
+ * │ 4. Tool builders (300-323)       │ src/run/tool-schemas.ts                 │
+ * │ 5. Types & exports (326-416)    │ src/run/types.ts                        │
+ * │ 6. runTask function (418-1015)   │ Split into init/task-loop/cleanup       │
+ * │    - Session init (418-571)      │   → src/run/initialization.ts           │
+ * │    - Main loop (624-993)         │   → src/run/task-loop.ts                │
+ * │    - Cleanup/exit (996-1015)     │   → src/run/cleanup.ts                  │
  * └─────────────────────────────────────────────────────────────────────────────┘
  */
 
