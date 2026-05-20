@@ -1,3 +1,23 @@
+/**
+ * run.ts — ALiX main task runner
+ *
+ * This file will be split into focused modules:
+ *
+ * ┌─────────────────────────────────────────────────────────────────────────────┐
+ * │ SECTION                          │ EXTRACT TO                               │
+ * ├─────────────────────────────────────────────────────────────────────────────┤
+ * │ 1. Imports (lines 1-38)          │ STAYS in run.ts                         │
+ * │ 2. Helper functions (40-157)     │ src/run/helpers.ts                      │
+ * │ 3. Tool schemas (159-278)        │ src/run/tool-schemas.ts                 │
+ * │ 4. Tool builders (280-339)      │ src/run/tool-schemas.ts                 │
+ * │ 5. Types & exports (341-396)     │ src/run/types.ts                        │
+ * │ 6. runTask function (398-995)    │ Split into init/task-loop/cleanup       │
+ * │    - Session init (398-571)      │   → src/run/initialization.ts           │
+ * │    - Main loop (604-973)         │   → src/run/task-loop.ts                │
+ * │    - Cleanup/exit (976-995)      │   → src/run/cleanup.ts                  │
+ * └─────────────────────────────────────────────────────────────────────────────┘
+ */
+
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
