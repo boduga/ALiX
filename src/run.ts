@@ -55,6 +55,7 @@ import type { EditFormatPolicy } from "./patch/edit-format-policy.js";
 import { extractPatchPaths } from "./patch/patch-paths.js";
 import { CheckpointManager } from "./patch/checkpoint.js";
 import { promptUser, saveDecisionsToMemory, streamToResponse } from "./run/helpers.js";
+import { handleToolCall, handleMcpToolSearch, handleScopeExpansion, buildScopeDenialMessage, buildScopeRejectionSummary, type EventHandlerDeps } from "./run/event-handlers.js";
 
 
 
@@ -317,6 +318,8 @@ export type MutationSessionState = {
   created: Set<string>;
   changed: Set<string>;
   deleted: Set<string>;
+  fatalErrors: string[];
+  pendingScopeExpansion: boolean;
 };
 
 export function extractMutationPaths(execName: string, args: Record<string, unknown>): string[] {
@@ -736,113 +739,70 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     const failedTools: string[] = [];
     const fatalToolErrors: string[] = [];
 
+    // Prepare event handler dependencies (created once per iteration)
+    const eventHandlerDeps: EventHandlerDeps = {
+      executor,
+      mcpManager,
+      mcpDiscovery,
+      scope,
+      session,
+      sessionState,
+      log,
+      selectedTools,
+      mcpToolIndex,
+      config,
+    };
+
     // Handle each tool call (model names like alix_file_read → executor names like file.read)
     for (const toolCall of toolCalls) {
-      const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
-
-      // Scope expansion check: intercept mutation tools for files outside initial scope
-      const isMutation = execName === "file.create" || execName === "file.write" || execName === "file.delete" || execName === "patch.apply";
-      if (isMutation) {
-        const pathsToCheck = extractMutationPaths(execName, toolCall.args);
-        const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
-        if (deniedPaths.length > 0) {
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: deniedPaths, toolCallId: toolCall.id, toolName: execName } });
-          messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: These files were denied by the user: ${deniedPaths.join(", ")}. Do NOT attempt to modify them again.\n</tool_result>` });
-          continue;
-        }
-
-        const expansionPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "scope_expansion");
-        if (expansionPaths.length > 0) {
-          // Track that scope expansion is pending (will be cleared once approved)
-          sessionState.pendingScopeExpansion = true;
-          await log.append({ ...session, actor: "policy", type: "autonomy.scope_expansion", payload: { paths: expansionPaths, toolCallId: toolCall.id, toolName: execName } });
-          // In auto/bypass mode, auto-approve scope expansion immediately
-          if (config.permissions.sessionMode === "auto" || config.permissions.sessionMode === "bypass") {
-            for (const path of expansionPaths) scope.approveScope(path);
-            sessionState.pendingScopeExpansion = false;
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_auto_approved", payload: { paths: expansionPaths, mode: config.permissions.sessionMode } });
-            // Re-check now that scope is approved — fall through to execute below
-          } else if (process.stdin.isTTY) {
-            const answer = await promptUser(
-              `Scope expansion: ${expansionPaths.map((path) => `"${path}"`).join(", ")} outside the initial scope. Type "approve" to allow or "deny" to block: `
-            );
-            await log.append({ ...session, actor: "user", type: "autonomy.scope_approval", payload: { answer, paths: expansionPaths } });
-            if (answer.toLowerCase() === "approve") {
-              for (const path of expansionPaths) scope.approveScope(path);
-              sessionState.pendingScopeExpansion = false;
-              await log.append({ ...session, actor: "policy", type: "autonomy.scope_approved", payload: { paths: expansionPaths } });
-              // Approval granted in the same turn. Fall through and execute the original tool call.
-            } else {
-              for (const path of expansionPaths) scope.denyScope(path);
-              await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: expansionPaths } });
-              messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion denied for: ${expansionPaths.join(", ")}. Do NOT attempt to modify these files again.\n</tool_result>` });
-              continue;
-            }
-          } else {
-            // Non-TTY ask mode cannot prompt. Persist denial and fail fast for this tool call.
-            for (const path of expansionPaths) {
-              scope.setPending(path);
-              scope.denyScope(path);
-            }
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_skipped", payload: { reason: "non_tty_session", paths: expansionPaths } });
-            await log.append({ ...session, actor: "policy", type: "autonomy.scope_denied", payload: { paths: expansionPaths } });
-            const summary = `Scope expansion rejected in non-TTY ask mode for: ${expansionPaths.join(", ")}`;
-            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary } });
-            await mcpManager.closeAll();
-            return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion" };
-          }
-        }
-        // scope.checkMutation returned "allowed" or "approved" (or auto-approved above) — proceed
-      }
-
-      if (execName === "mcp_search_tools") {
-        const query = (toolCall.args.query as string) ?? "";
-        const result = await mcpDiscovery.search(query);
-        const matchedTools = result.kind === "success" && result.output
-          ? result.output.split("\n").filter(l => l.startsWith("  - ")).map(l => l.slice(5, l.indexOf(":")))
-          : [];
-        await log.append({ sessionId, actor: "system", type: "mcp.tool_discovered", payload: { query, matchedTools } });
-        const output = result.kind === "success" ? result.output ?? "" : result.message;
-        messages.push({ role: "user", content: `[Tool Result]\n${output}` });
+      // Handle MCP tool search first
+      const mcpSearchResult = await handleMcpToolSearch(toolCall, eventHandlerDeps);
+      if (mcpSearchResult.handled && mcpSearchResult.message) {
+        messages.push(mcpSearchResult.message);
         continue;
       }
 
-      const execResult = await executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
-
-      // Track MCP tool provenance
-      if (execResult.kind === "success" && execName.startsWith("mcp.")) {
-        const mcpName = toolCall.name;
-        await log.append({
-          sessionId, actor: "system", type: "mcp.tool_used",
-          payload: { toolName: mcpName, execName, sessionToolsTotal: mcpToolIndex.length, sessionToolsSelected: selectedTools.length }
-        });
-      }
-
-      if (execResult.kind === "error") {
-        const errorResult = execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string };
-        failedTools.push(execName);
-        if (errorResult.retryable === false) {
-          fatalToolErrors.push(execName);
+      // Handle scope expansion check
+      const scopeResult = await handleScopeExpansion(toolCall, eventHandlerDeps);
+      if (scopeResult.handled) {
+        if (scopeResult.continue === false) {
+          if (scopeResult.denied) {
+            const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+            // Check if we have paths to report denial for
+            const pathsToCheck = extractMutationPaths(execName, toolCall.args);
+            const deniedPaths = pathsToCheck.filter((path) => scope.checkMutation(path) === "denied");
+            if (deniedPaths.length > 0) {
+              messages.push(buildScopeDenialMessage(toolCall.id, deniedPaths));
+            } else if (process.stdin.isTTY) {
+              // Scope was manually denied by user in TTY mode
+              messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\nError: Scope expansion denied. Do NOT attempt to modify these files again.\n</tool_result>` });
+            } else {
+              // Non-TTY mode - scope was denied, return early
+              const summary = buildScopeRejectionSummary(pathsToCheck);
+              await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "rejected_scope_expansion", summary } });
+              await mcpManager.closeAll();
+              return { sessionId, summary, streamed: config.model.streaming, reason: "rejected_scope_expansion" };
+            }
+          }
+          continue;
         }
+        // continue: scope was auto-approved or user approved, fall through to execute
       }
 
-      const resultContent =
-        execResult.kind === "success"
-          ? (execResult.output ?? execResult.content ?? "")
-          : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+      // Handle tool execution
+      const toolResult = await handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors);
 
-      if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
+      if (toolResult.completed) {
         await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
         await mcpManager.closeAll().catch(() => {});
-
-        // Extract decisions from session events and save confirmed ones to memory
         const sessionEvents = await log.readAll();
         await saveDecisionsToMemory(sessionEvents, memoryStore);
-
         return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
       }
 
-      messages.push({ role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` });
+      if (toolResult.message) {
+        messages.push(toolResult.message);
+      }
     }
 
     // Track all file mutations in sessionState

@@ -153,10 +153,12 @@ describe("extractMutationPaths", () => {
 
 describe("recordMutationInSessionState", () => {
   it("records patch.apply paths from patchText", () => {
-    const state = {
+    const state: Parameters<typeof recordMutationInSessionState>[0] = {
       created: new Set<string>(),
       changed: new Set<string>(),
       deleted: new Set<string>(),
+      fatalErrors: [] as string[],
+      pendingScopeExpansion: false,
     };
     const patchText = "<<<<<<< SEARCH path=src/a.ts\nold\n=======\nnew\n>>>>>>> REPLACE\n<<<<<<< SEARCH path=src/b.ts\nold\n=======\nnew\n>>>>>>> REPLACE";
 
