@@ -2,7 +2,7 @@ import type { TaskType } from "../task-classifier.js";
 import type { EventLog } from "../events/event-log.js";
 import { CONTEXT_EVENT_TYPES } from "../events/types.js";
 import type { RepoMapCreatedPayload, ContextBundleCreatedPayload, ContextItemRef } from "../events/types.js";
-import { ContextPipeline, RankingStage, BudgetingStage, RepoMapStage } from "./context-pipeline.js";
+import { ContextPipeline, RankingStage, BudgetingStage, RepoMapStage, SemanticSearchStage } from "./context-pipeline.js";
 import type { RepoMapOutput, ContextBundle as PipelineContextBundle, ContextItem as PipelineContextItem } from "./context-pipeline.js";
 import { EmbeddingCache } from "./embedding-cache.js";
 import { join } from "node:path";
@@ -92,8 +92,17 @@ export class ContextCompiler {
       await this.warm();
     }
 
+    const semanticStage = new SemanticSearchStage({ root: this.options.root, task });
+
     const pipeline = new ContextPipeline([
-      new RankingStage({ task, taskType, pinnedPaths: pinnedPaths ?? [], gitActivity: this.repoMap?.gitActivity }),
+      semanticStage,
+      new RankingStage({
+        task,
+        taskType,
+        pinnedPaths: pinnedPaths ?? [],
+        gitActivity: this.repoMap?.gitActivity,
+        semanticSearchStage: semanticStage,
+      }),
       new BudgetingStage({ maxTokens }),
     ]);
 

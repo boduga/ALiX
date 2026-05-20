@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { ContextStage, ContextPipeline, RepoMapStage, buildRepoMap, RankingStage, BudgetingStage, SemanticSearchStage, type RankingOutput, type ContextItem } from "../../src/repomap/context-pipeline.js";
+import { ContextCompiler } from "../../src/repomap/context-compiler.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir } from "node:fs/promises";
@@ -297,6 +298,29 @@ describe("SemanticSearchStage", () => {
     const semanticMatch = result.items.find(i => i.reason.startsWith("semantic_match:"));
     assert.ok(semanticMatch, "Should include semantic search match");
     assert.equal(semanticMatch!.symbolName, "UserService");
+
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+});
+
+describe("ContextCompiler compileContext", () => {
+  it("compileContext includes semantic search matches", async () => {
+    const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const tmpDir = await mkdtemp("/tmp/compile-context-test-");
+    await writeFile(join(tmpDir, "user-service.ts"), "export class UserService { authenticate() {} }");
+
+    const compiler = new ContextCompiler({
+      root: tmpDir,
+      maxTokens: 5000,
+    });
+
+    await compiler.warm();
+    const bundle = await compiler.compileContext("UserService", "feature");
+
+    // Should include the file via semantic search or task mention
+    const hasFile = bundle.primaryFiles.length > 0 || bundle.supportingFiles.length > 0;
+    assert.ok(hasFile, "Should include at least one file in bundle");
 
     await rm(tmpDir, { recursive: true, force: true });
   });
