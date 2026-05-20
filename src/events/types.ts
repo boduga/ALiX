@@ -120,6 +120,18 @@ export const PATCH_EVENT_TYPES = {
   CHECKPOINT_CREATED: "patch.checkpoint_created",
   APPLIED: "patch.applied",
   ROLLED_BACK: "patch.rolled_back",
+  CHANGED_FILES: "patch.changed_files",
+  CREATED_PATH: "patch.created_path",
+  DELETED_PATH: "patch.deleted_path",
+} as const;
+
+export const FILE_EVENT_TYPES = {
+  CREATED: "file.created",
+  DELETED: "file.deleted",
+} as const;
+
+export const MCP_EVENT_TYPES = {
+  TOOL_INVOKED: "mcp.tool_invoked",
 } as const;
 
 export type VerificationEventPayload =

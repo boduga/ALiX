@@ -11,6 +11,7 @@ import { createFileCheckpoint, restoreFileCheckpoint } from "../checkpoints/chec
 import type { Checkpoint } from "../checkpoints/checkpoint-manager.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
+import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/types.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 
@@ -28,7 +29,11 @@ export class FileToolRouter implements ToolRouter {
     "dir.search",
   ];
 
-  constructor(private readonly root: string = "") {}
+  constructor(
+    private readonly root: string = "",
+    private eventLog?: EventLog,
+    private sessionId?: string
+  ) {}
 
   canHandle(name: string): boolean {
     return FileToolRouter.SUPPORTED_TOOLS.includes(name);
@@ -72,6 +77,14 @@ export class FileToolRouter implements ToolRouter {
         }
         await mkdir(dirname(resolvedPath), { recursive: true });
         await writeFile(resolvedPath, content, "utf8");
+        if (this.eventLog) {
+          await this.eventLog.append({
+            sessionId: this.sessionId ?? "unknown",
+            actor: "system",
+            type: FILE_EVENT_TYPES.CREATED,
+            payload: { path },
+          });
+        }
         return {
           kind: "success",
           output: `File created: ${path}`,
@@ -90,6 +103,14 @@ export class FileToolRouter implements ToolRouter {
         const { rm } = await import("node:fs/promises");
         try {
           await rm(resolvedPath);
+          if (this.eventLog) {
+            await this.eventLog.append({
+              sessionId: this.sessionId ?? "unknown",
+              actor: "system",
+              type: FILE_EVENT_TYPES.DELETED,
+              payload: { path },
+            });
+          }
         } catch (e) {
           return { kind: "error", message: `Delete failed: ${e instanceof Error ? e.message : String(e)}` };
         }
@@ -205,9 +226,18 @@ export class PatchToolRouter implements ToolRouter {
         checkpointManager: this.checkpointManager,
       });
 
-      return patchResult.status === "applied"
-        ? { kind: "success", changedFiles: patchResult.changedFiles }
-        : { kind: "error", message: "Patch invalid" };
+      if (patchResult.status === "applied") {
+        if (this.eventLog) {
+          await this.eventLog.append({
+            sessionId: this.sessionId ?? "unknown",
+            actor: "system",
+            type: PATCH_EVENT_TYPES.CHANGED_FILES,
+            payload: { changedFiles: patchResult.changedFiles },
+          });
+        }
+        return { kind: "success", changedFiles: patchResult.changedFiles };
+      }
+      return { kind: "error", message: "Patch invalid" };
     } catch (e: unknown) {
       // Rollback on failure
       const cpToRestore = checkpointId && this.checkpointManager ? { id: checkpointId } : checkpoint;
@@ -246,7 +276,11 @@ export class PatchToolRouter implements ToolRouter {
 }
 
 export class McpToolRouter implements ToolRouter {
-  constructor(private mcpManager: McpManager | null) {}
+  constructor(
+    private mcpManager: McpManager | null,
+    private eventLog?: EventLog,
+    private sessionId?: string
+  ) {}
 
   canHandle(name: string): boolean {
     return name.startsWith("mcp.") && this.mcpManager !== null;
@@ -267,8 +301,19 @@ export class McpToolRouter implements ToolRouter {
       return { kind: "error", message: `Invalid MCP tool name: ${request.name}`, retryable: false };
     }
     const fullName = `${serverName}/${toolName}`;
+    const startTime = Date.now();
     try {
-      return await this.mcpManager.callTool(fullName, request.args);
+      const result = await this.mcpManager.callTool(fullName, request.args);
+      const durationMs = Date.now() - startTime;
+      if (this.eventLog) {
+        await this.eventLog.append({
+          sessionId: this.sessionId ?? "unknown",
+          actor: "system",
+          type: MCP_EVENT_TYPES.TOOL_INVOKED,
+          payload: { serverName, toolName: fullName, durationMs },
+        });
+      }
+      return result;
     } catch (e: unknown) {
       return { kind: "error", message: e instanceof Error ? e.message : String(e) };
     }
