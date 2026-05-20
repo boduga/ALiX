@@ -20,6 +20,7 @@ import { promptUser } from "./helpers.js";
 import type { EventLog } from "../events/event-log.js";
 import type { VerificationCheck, VerificationResult } from "../verifier/verifier.js";
 import { buildRiskReport } from "../verifier/index.js";
+import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 
 export type EventHandlerDeps = {
   executor: ToolExecutor;
@@ -30,7 +31,7 @@ export type EventHandlerDeps = {
   sessionState: MutationSessionState;
   log: EventLog;
   selectedTools: { name: string; execName: string }[];
-  mcpToolIndex: { name: string; execName: string }[];
+  mcpToolIndex: DeferredToolEntry[];
   config: { permissions: { sessionMode?: "auto" | "ask" | "bypass" } };
 };
 
