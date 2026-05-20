@@ -27,8 +27,7 @@ export class McpToolDeferral {
 
   constructor(
     private registry: McpToolRegistry,
-    private cache: CacheManager = new InMemoryCacheManager(),
-    private cacheOptions?: { ttlMs?: number; maxSize?: number }
+    private cache: CacheManager = new InMemoryCacheManager()
   ) {}
 
   /**

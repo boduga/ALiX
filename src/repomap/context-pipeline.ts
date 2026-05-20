@@ -266,6 +266,20 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
           tokenEstimate: estimateFileTokens(sf, entry.lineCount ?? 100, true),
           reason: score >= 100 ? "task_mention_exact" : "task_mention_fuzzy",
         });
+        // Also add related test files for mentioned source files
+        const relatedTests = findTestsFor(sf, input.testFiles);
+        for (const rt of relatedTests) {
+          const testEntry = input.fileEntries.get(rt);
+          if (testEntry) {
+            items.push({
+              path: rt,
+              kind: "test",
+              score: score - 10, // Slightly lower than source file
+              tokenEstimate: estimateFileTokens(rt, testEntry.lineCount ?? 30, false),
+              reason: `test_for:${sf}`,
+            });
+          }
+        }
       }
     }
 
@@ -282,7 +296,22 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
       });
     }
 
-    // 3. Pinned files
+    // 3. Bugfix hint: include test files even without explicit mentions
+    if (taskType === "bugfix") {
+      for (const tf of input.testFiles) {
+        const entry = input.fileEntries.get(tf);
+        if (!entry) continue;
+        items.push({
+          path: tf,
+          kind: "test",
+          score: 5,
+          tokenEstimate: estimateFileTokens(tf, entry.lineCount ?? 30, false),
+          reason: "bugfix_hint",
+        });
+      }
+    }
+
+    // 4. Pinned files
     for (const pinned of pinnedPaths) {
       if (!items.some(i => i.path === pinned)) {
         const entry = input.fileEntries.get(pinned);
@@ -299,6 +328,53 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
     }
 
     // Sort by score descending
+    items.sort((a, b) => b.score - a.score);
+
+    // 5. Add dependencies for mentioned source files
+    const mentionedPaths = new Set(
+      items.filter(i => i.kind === "file" || i.kind === "symbol").map(i => i.path)
+    );
+    for (const mentioned of mentionedPaths) {
+      const deps = input.dependencyGraph.dependenciesOf(mentioned);
+      for (const dep of deps) {
+        if (!mentionedPaths.has(dep) && !items.some(i => i.path === dep)) {
+          const depEntry = input.fileEntries.get(dep);
+          if (depEntry) {
+            items.push({
+              path: dep,
+              kind: depEntry.kind === "test" ? "test" : depEntry.kind === "config" ? "config" : "file",
+              score: 15, // Lower score for dependencies
+              tokenEstimate: estimateFileTokens(dep, depEntry.lineCount ?? 100, depEntry.kind === "source"),
+              reason: `dependency_distance:1`,
+            });
+          }
+        }
+      }
+    }
+
+    // 6. Extract symbols mentioned in task
+    if (input.symbols.length > 0) {
+      const taskLower = task.toLowerCase();
+      for (const sym of input.symbols) {
+        if (sym.name.toLowerCase().includes(taskLower) || taskLower.includes(sym.name.toLowerCase())) {
+          const fileEntry = input.fileEntries.get(sym.file);
+          if (fileEntry && fileEntry.content) {
+            items.push({
+              path: sym.file,
+              kind: "symbol",
+              symbolName: sym.name,
+              lineStart: sym.line,
+              lineEnd: sym.line,
+              score: 80,
+              tokenEstimate: estimateFileTokens(sym.file, 10, false), // Just symbol context
+              reason: `symbol_match:${sym.name}`,
+            });
+          }
+        }
+      }
+    }
+
+    // Re-sort after adding dependencies and symbols
     items.sort((a, b) => b.score - a.score);
 
     return { items, repoMap: input, task, taskType };

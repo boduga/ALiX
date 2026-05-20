@@ -214,11 +214,9 @@ export class SubagentCLI {
     const roleInstructions = ROLE_INSTRUCTIONS[role] ?? "You are a subagent.";
 
     // Compile context bundle for this task
-    const contextBundle = await contextCompiler.compile(
+    const contextBundle = await contextCompiler.compileContext(
       prompt,
-      "unknown", // subagents don't classify task type
-      4000,     // max tokens for context
-      []         // no pinned paths for subagents
+      "unknown" // subagents don't classify task type
     );
 
     // Build context section from primary files

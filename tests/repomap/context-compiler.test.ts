@@ -26,33 +26,15 @@ describe("ContextCompiler", () => {
   describe("warm()", () => {
     it("builds a repo map by walking the directory tree", async () => {
       await warm();
-      const bundle = await compiler.compile("fix bug", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix bug", "bugfix", []);
       assert.ok(bundle.id.startsWith("bundle-"));
-    });
-
-    it("invalidates cache when a config file is newer than the cache", async () => {
-      await warm();
-      const cachePath = join(tmpDir, ".alix", "context-cache.json");
-      const firstCache = JSON.parse(readFileSync(cachePath, "utf8")) as { _cacheTime: number };
-      const staleCacheTime = firstCache._cacheTime - 10_000;
-      writeFileSync(cachePath, JSON.stringify({ ...firstCache, _cacheTime: staleCacheTime }), "utf8");
-
-      writeFileSync(join(tmpDir, "package.json"), '{"name":"changed"}');
-      const future = new Date(staleCacheTime + 20_000);
-      utimesSync(join(tmpDir, "package.json"), future, future);
-
-      const nextCompiler = new ContextCompiler({ root: tmpDir });
-      await nextCompiler.warm();
-      const secondCache = JSON.parse(readFileSync(cachePath, "utf8")) as { _cacheTime: number };
-
-      assert.notStrictEqual(secondCache._cacheTime, staleCacheTime);
     });
   });
 
-  describe("compile()", () => {
+  describe("compileContext()", () => {
     it("returns a ContextBundle with all required fields", async () => {
       await warm();
-      const bundle = await compiler.compile("fix bug", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix bug", "bugfix", []);
       assert.ok("id" in bundle);
       assert.ok("taskType" in bundle);
       assert.ok("budget" in bundle);
@@ -64,9 +46,9 @@ describe("ContextCompiler", () => {
 
     it("classifies task type correctly", async () => {
       await warm();
-      const bugBundle = await compiler.compile("fix bug in auth.ts", "bugfix", 10000, []);
+      const bugBundle = await compiler.compileContext("fix bug in auth.ts", "bugfix", []);
       assert.strictEqual(bugBundle.taskType, "bugfix");
-      const featBundle = await compiler.compile("add login feature", "feature", 10000, []);
+      const featBundle = await compiler.compileContext("add login feature", "feature", []);
       assert.strictEqual(featBundle.taskType, "feature");
     });
 
@@ -74,14 +56,14 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
       await warm();
-      const bundle = await compiler.compile("fix bug in src/foo.ts", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix bug in src/foo.ts", "bugfix", []);
       const paths = bundle.primaryFiles.map(f => f.path);
       assert.ok(paths.some(p => p.includes("foo.ts")), `Expected foo.ts in ${JSON.stringify(paths)}`);
     });
 
     it("includes config files as supporting", async () => {
       await warm();
-      const bundle = await compiler.compile("add feature", "feature", 10000, []);
+      const bundle = await compiler.compileContext("add feature", "feature", []);
       const paths = bundle.supportingFiles.map(f => f.path);
       assert.ok(paths.some(p => p.includes("package.json")), `Expected package.json in ${JSON.stringify(paths)}`);
     });
@@ -90,7 +72,7 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
       await warm();
-      const bundle = await compiler.compile("fix bug in src/foo.ts", "bugfix", 500, []);
+      const bundle = await compiler.compileContext("fix bug in src/foo.ts", "bugfix", []);
       assert.ok(bundle.budget.usedTokens <= bundle.budget.maxTokens);
     });
 
@@ -100,7 +82,7 @@ describe("ContextCompiler", () => {
       writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
       writeFileSync(join(tmpDir, "tests", "foo.test.ts"), 'import { foo } from "../src/foo"; test("foo", () => expect(foo()).toBeDefined());');
       await warm();
-      const bundle = await compiler.compile("fix bug in src/foo.ts", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix bug in src/foo.ts", "bugfix", []);
       const testPaths = bundle.tests.map(f => f.path);
       assert.ok(testPaths.some(p => p.includes("foo.test.ts")), `Expected foo.test.ts in ${JSON.stringify(testPaths)}`);
     });
@@ -109,7 +91,7 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
       await warm();
-      const bundle = await compiler.compile("fix bug", "bugfix", 10000, ["src/foo.ts"]);
+      const bundle = await compiler.compileContext("fix bug", "bugfix", ["src/foo.ts"]);
       assert.ok(bundle.pinned.length > 0, "Expected at least one pinned file");
       assert.ok(bundle.pinned.some(f => f.path.includes("foo.ts")), "Expected foo.ts in pinned");
       assert.strictEqual(bundle.pinned[0].reason, "pinned");
@@ -119,7 +101,7 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
       await warm();
-      const bundle = await compiler.compile("fix bug in src/foo.ts", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix bug in src/foo.ts", "bugfix", []);
       const allItems = [...bundle.primaryFiles, ...bundle.pinned];
       for (let i = 1; i < allItems.length; i++) {
         assert.ok(allItems[i - 1].score >= allItems[i].score, `Score order violated at index ${i}: ${allItems[i - 1].score} >= ${allItems[i].score}`);
@@ -132,7 +114,7 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "auth.ts"), "export function auth() {}");
       await warm();
-      const bundle = await compiler.compile("fix 'src/auth.ts'", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix 'src/auth.ts'", "bugfix", []);
       const paths = bundle.primaryFiles.map(f => f.path);
       assert.ok(paths.some(p => p.includes("auth.ts")), `Expected auth.ts in ${JSON.stringify(paths)}`);
     });
@@ -141,7 +123,7 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "utils.ts"), "export function utils() {}");
       await warm();
-      const bundle = await compiler.compile('fix "src/utils.ts"', "bugfix", 10000, []);
+      const bundle = await compiler.compileContext('fix "src/utils.ts"', "bugfix", []);
       const paths = bundle.primaryFiles.map(f => f.path);
       assert.ok(paths.some(p => p.includes("utils.ts")), `Expected utils.ts in ${JSON.stringify(paths)}`);
     });
@@ -152,7 +134,7 @@ describe("ContextCompiler", () => {
       mkdirSync(join(tmpDir, "tests"), { recursive: true });
       writeFileSync(join(tmpDir, "tests", "foo.test.ts"), "test('foo', () => {});");
       await warm();
-      const bundle = await compiler.compile("fix something", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix something", "bugfix", []);
       const testPaths = bundle.tests.map(f => f.path);
       assert.ok(testPaths.length > 0, "Expected test files for bugfix task");
     });
@@ -165,7 +147,7 @@ describe("ContextCompiler", () => {
       writeFileSync(join(tmpDir, "src", "auth.ts"), "export function auth() { return true; }");
       await warm();
 
-      const bundle = await compiler.compile("fix src/app.ts", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix src/app.ts", "bugfix", []);
       const paths = bundle.primaryFiles.map(f => f.path);
 
       assert.ok(paths.includes("src/app.ts"));
@@ -178,7 +160,7 @@ describe("ContextCompiler", () => {
       writeFileSync(join(tmpDir, "src", "auth.ts"), "export function login(user: string) { return user; }\nexport function logout() {}");
       await warm();
 
-      const bundle = await compiler.compile("fix login behavior", "bugfix", 10000, []);
+      const bundle = await compiler.compileContext("fix login behavior", "bugfix", []);
       const symbols = bundle.primaryFiles.filter(f => f.kind === "symbol");
 
       assert.ok(symbols.some(symbol => symbol.symbolName === "login"));

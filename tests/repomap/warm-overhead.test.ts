@@ -15,13 +15,13 @@ describe("ContextCompiler.warm() overhead", () => {
 
     // First compile call (uses cached repoMap)
     const compile1Start = performance.now();
-    await compiler.compile("test task", "feature", 5000, []);
+    await compiler.compileContext("test task", "feature", []);
     const compile1End = performance.now();
     const compile1Ms = compile1End - compile1Start;
 
     // Second compile call (should be similar timing)
     const compile2Start = performance.now();
-    await compiler.compile("another task", "bugfix", 3000, []);
+    await compiler.compileContext("another task", "bugfix", []);
     const compile2End = performance.now();
     const compile2Ms = compile2End - compile2Start;
 

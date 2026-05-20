@@ -7,6 +7,7 @@ import { McpClient } from "./client.js";
 import { mapServerCapabilities, type MappedPolicyRule } from "./capability-mapper.js";
 
 import { McpToolDeferral } from "./tool-deferral.js";
+import type { CacheManager } from "../utils/cache-manager.js";
 
 export class McpManager {
   private registry: McpToolRegistry;
@@ -108,8 +109,8 @@ export class McpManager {
     return this.registry.getClient(serverName);
   }
 
-  getDeferral(cacheOptions?: { ttlMs?: number; maxSize?: number }): McpToolDeferral {
-    if (!this._deferral) this._deferral = new McpToolDeferral(this.registry, cacheOptions);
+  getDeferral(cache?: CacheManager): McpToolDeferral {
+    if (!this._deferral) this._deferral = new McpToolDeferral(this.registry, cache);
     return this._deferral;
   }
 

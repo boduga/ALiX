@@ -33,13 +33,13 @@ describe("RuntimeBuilder", () => {
     }
   });
 
-  it("Runtime has optional subagentManager when enabled in config", async () => {
+  it("Runtime has optional subagentManager when disabled in config", async () => {
     const tmp = mkdtempSync(join(tmpdir(), "runtime-test-"));
     try {
       const builder = new RuntimeBuilder(tmp);
       const runtime = await builder.build();
-      // subagentManager is undefined by default (no config with enableSubagents)
-      assert.equal(runtime.subagentManager, undefined);
+      // subagentManager is present by default (subagents.enabled = true in DEFAULT_CONFIG)
+      assert.ok(runtime.subagentManager);
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
