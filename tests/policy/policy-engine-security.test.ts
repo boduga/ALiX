@@ -58,9 +58,8 @@ describe("PolicyEngine Tool Security Integration", () => {
 
   it("PolicyEngine integrates CapabilityRegistry", () => {
     const config = createMinimalConfig();
-    const engine = new PolicyEngine(config);
     const registry = new CapabilityRegistry();
-    engine.setCapabilityRegistry(registry);
+    const engine = new PolicyEngine(config, { capabilityRegistry: registry });
 
     const risk = engine.getCapabilityRisk("shell.exec");
     assert.equal(risk, "critical");
@@ -68,9 +67,8 @@ describe("PolicyEngine Tool Security Integration", () => {
 
   it("PolicyEngine checks secrets in shell commands", () => {
     const config = createMinimalConfig();
-    const engine = new PolicyEngine(config);
     const scanner = new SecretScanner();
-    engine.setSecretScanner(scanner);
+    const engine = new PolicyEngine(config, { secretScanner: scanner });
 
     const result = engine.checkSecretExposure('echo "sk-1234567890abcdef"');
     assert.ok(result.hasSecret);
@@ -80,9 +78,8 @@ describe("PolicyEngine Tool Security Integration", () => {
 
   it("PolicyEngine requires approval for critical tools via registry", () => {
     const config = createMinimalConfig();
-    const engine = new PolicyEngine(config);
     const registry = new CapabilityRegistry();
-    engine.setCapabilityRegistry(registry);
+    const engine = new PolicyEngine(config, { capabilityRegistry: registry });
 
     const requiresApproval = engine.requiresCapabilityApproval("shell.exec");
     assert.equal(requiresApproval, true);

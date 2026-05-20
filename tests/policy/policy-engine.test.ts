@@ -1,9 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import type { AlixConfig } from "../../src/config/schema.js";
-import { PolicyEngine } from "../../src/policy/policy-engine.js";
+import { PolicyEngine, PolicyEngineBuilder } from "../../src/policy/policy-engine.js";
 import { CommandClassifier } from "../../src/policy/command-classifier.js";
-import { type NetworkPolicy } from "../../src/policy/network-policy-matcher.js";
+import { NetworkPolicyMatcher, type NetworkPolicy } from "../../src/policy/network-policy-matcher.js";
 
 function createTestConfig(): AlixConfig {
   return {
@@ -36,9 +36,9 @@ function createTestConfig(): AlixConfig {
 
 describe("PolicyEngine integration", () => {
   it("uses CommandClassifier for shell commands - read-only commands fall through to default policy", () => {
-    const engine = new PolicyEngine(createTestConfig());
-    const classifier = new CommandClassifier();
-    engine.setCommandClassifier(classifier);
+    const engine = new PolicyEngine(createTestConfig(), {
+      commandClassifier: new CommandClassifier(),
+    });
 
     const result = engine.check({
       toolCallId: "test-1",
@@ -54,9 +54,9 @@ describe("PolicyEngine integration", () => {
   });
 
   it("uses CommandClassifier to deny critical commands", () => {
-    const engine = new PolicyEngine(createTestConfig());
-    const classifier = new CommandClassifier();
-    engine.setCommandClassifier(classifier);
+    const engine = new PolicyEngine(createTestConfig(), {
+      commandClassifier: new CommandClassifier(),
+    });
 
     const result = engine.check({
       toolCallId: "test-2",
@@ -71,13 +71,14 @@ describe("PolicyEngine integration", () => {
   });
 
   it("uses NetworkPolicyMatcher for network commands - allowlisted domains", () => {
-    const engine = new PolicyEngine(createTestConfig());
     const networkPolicy: NetworkPolicy = {
       defaultAction: "ask",
       allowlist: ["api.github.com"],
       blocklist: [],
     };
-    engine.setNetworkPolicy(networkPolicy);
+    const engine = new PolicyEngine(createTestConfig(), {
+      networkMatcher: new NetworkPolicyMatcher(networkPolicy),
+    });
 
     const result = engine.check({
       toolCallId: "test-3",
@@ -91,13 +92,14 @@ describe("PolicyEngine integration", () => {
   });
 
   it("uses NetworkPolicyMatcher to deny blocklisted domains", () => {
-    const engine = new PolicyEngine(createTestConfig());
     const networkPolicy: NetworkPolicy = {
       defaultAction: "ask",
       allowlist: [],
       blocklist: ["malicious.com"],
     };
-    engine.setNetworkPolicy(networkPolicy);
+    const engine = new PolicyEngine(createTestConfig(), {
+      networkMatcher: new NetworkPolicyMatcher(networkPolicy),
+    });
 
     const result = engine.check({
       toolCallId: "test-4",
@@ -108,5 +110,30 @@ describe("PolicyEngine integration", () => {
     });
 
     assert.equal(result.decision, "deny");
+  });
+});
+
+describe("PolicyEngineBuilder", () => {
+  it("creates engine with all deps", () => {
+    const engine = new PolicyEngineBuilder(createTestConfig())
+      .withCommandClassifier(new CommandClassifier())
+      .withCapabilityRegistry({ getRiskLevel: () => "low", requiresApproval: () => false } as any)
+      .withNetworkPolicy({ defaultAction: "ask", allowlist: [], blocklist: [] })
+      .withSecretScanner({ scan: () => [] } as any)
+      .build();
+
+    assert.ok(engine instanceof PolicyEngine);
+    assert.strictEqual(engine.getCapabilityRisk("shell.readonly"), "low");
+  });
+
+  it("creates engine with minimal config", () => {
+    const engine = new PolicyEngineBuilder(createTestConfig()).build();
+    assert.ok(engine instanceof PolicyEngine);
+  });
+
+  it("builder chain methods return this for chaining", () => {
+    const builder = new PolicyEngineBuilder(createTestConfig());
+    const result = builder.withCommandClassifier(new CommandClassifier());
+    assert.strictEqual(result, builder);
   });
 });

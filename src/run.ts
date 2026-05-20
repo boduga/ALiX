@@ -413,7 +413,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   await log.init();
 
   // Create policy engine with event log
-  const policyEngine = new PolicyEngine(config, {
+  const policyEngine = new PolicyEngine(config, {}, {
     eventLog: log,
     sessionId,
   });

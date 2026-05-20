@@ -41,7 +41,12 @@ export type PolicyDecision = {
 export type PolicyEngineOptions = {
   eventLog?: EventLog;
   sessionId?: string;
+};
+
+export type PolicyEngineSubsystems = {
   capabilityRegistry?: CapabilityRegistry;
+  commandClassifier?: CommandClassifier;
+  networkMatcher?: NetworkPolicyMatcher;
   secretScanner?: SecretScanner;
 };
 
@@ -51,42 +56,22 @@ export interface SecretScanResult {
 }
 
 export class PolicyEngine {
-  private commandClassifier?: CommandClassifier;
-  private networkMatcher?: NetworkPolicyMatcher;
-  private capabilityRegistry?: CapabilityRegistry;
-  private secretScanner?: SecretScanner;
-
   constructor(
     private config: AlixConfig,
+    private subsystems: PolicyEngineSubsystems = {},
     private options: PolicyEngineOptions = {}
   ) {}
 
-  setCommandClassifier(classifier: CommandClassifier): void {
-    this.commandClassifier = classifier;
-  }
-
-  setNetworkPolicy(policy: NetworkPolicy): void {
-    this.networkMatcher = new NetworkPolicyMatcher(policy);
-  }
-
-  setCapabilityRegistry(registry: CapabilityRegistry): void {
-    this.capabilityRegistry = registry;
-  }
-
-  setSecretScanner(scanner: SecretScanner): void {
-    this.secretScanner = scanner;
-  }
-
   getCapabilityRisk(capability: string): RiskLevel | undefined {
-    return this.capabilityRegistry?.getRiskLevel(capability);
+    return this.subsystems.capabilityRegistry?.getRiskLevel(capability);
   }
 
   requiresCapabilityApproval(capability: string): boolean {
-    return this.capabilityRegistry?.requiresApproval(capability) ?? false;
+    return this.subsystems.capabilityRegistry?.requiresApproval(capability) ?? false;
   }
 
   checkSecretExposure(content: string): SecretScanResult {
-    const findings = this.secretScanner?.scan(content) ?? [];
+    const findings = this.subsystems.secretScanner?.scan(content) ?? [];
     return {
       hasSecret: findings.length > 0,
       findings,
@@ -97,20 +82,20 @@ export class PolicyEngine {
     const { toolCallId, toolName, args, capability, sessionMode } = request;
 
     // Check capability approval requirement via CapabilityRegistry
-    if (this.capabilityRegistry?.requiresApproval(capability)) {
+    if (this.subsystems.capabilityRegistry?.requiresApproval(capability)) {
       return {
         toolCallId,
         capability: capability as Capability,
         decision: "ask",
-        reason: `Capability '${capability}' requires approval (${this.capabilityRegistry.getRiskLevel(capability)} risk)`,
+        reason: `Capability '${capability}' requires approval (${this.subsystems.capabilityRegistry.getRiskLevel(capability)} risk)`,
       };
     }
 
     // Check shell command risk
-    if (toolName === "shell.run" && this.commandClassifier) {
+    if (toolName === "shell.run" && this.subsystems.commandClassifier) {
       const command = args.command;
       if (command) {
-        const classification = this.commandClassifier.classify(command);
+        const classification = this.subsystems.commandClassifier.classify(command);
         if (classification.risk === "critical") {
           return {
             toolCallId,
@@ -123,10 +108,10 @@ export class PolicyEngine {
     }
 
     // Check network destination
-    if (toolName === "network.fetch" && this.networkMatcher) {
+    if (toolName === "network.fetch" && this.subsystems.networkMatcher) {
       const url = args.url;
       if (url) {
-        const match = this.networkMatcher.match(url);
+        const match = this.subsystems.networkMatcher.match(url);
         if (match.decision === "deny") {
           return {
             toolCallId,
@@ -260,4 +245,56 @@ function isProtectedPath(patterns: string[], path: string): boolean {
     if (pattern.endsWith(".*")) return path === pattern.slice(0, -2) || path.startsWith(pattern.slice(0, -1));
     return path === pattern;
   });
+}
+
+export class PolicyEngineBuilder {
+  private _config: AlixConfig;
+  private _capabilityRegistry?: CapabilityRegistry;
+  private _commandClassifier?: CommandClassifier;
+  private _networkMatcher?: NetworkPolicyMatcher;
+  private _secretScanner?: SecretScanner;
+  private _eventLog?: EventLog;
+  private _sessionId?: string;
+
+  constructor(config: AlixConfig) {
+    this._config = config;
+  }
+
+  withCapabilityRegistry(registry: CapabilityRegistry): this {
+    this._capabilityRegistry = registry;
+    return this;
+  }
+
+  withCommandClassifier(classifier: CommandClassifier): this {
+    this._commandClassifier = classifier;
+    return this;
+  }
+
+  withNetworkPolicy(policy: NetworkPolicy): this {
+    this._networkMatcher = new NetworkPolicyMatcher(policy);
+    return this;
+  }
+
+  withSecretScanner(scanner: SecretScanner): this {
+    this._secretScanner = scanner;
+    return this;
+  }
+
+  withEventLog(log: EventLog, sessionId: string): this {
+    this._eventLog = log;
+    this._sessionId = sessionId;
+    return this;
+  }
+
+  build(): PolicyEngine {
+    return new PolicyEngine(this._config, {
+      capabilityRegistry: this._capabilityRegistry,
+      commandClassifier: this._commandClassifier,
+      networkMatcher: this._networkMatcher,
+      secretScanner: this._secretScanner,
+    }, {
+      eventLog: this._eventLog,
+      sessionId: this._sessionId,
+    });
+  }
 }

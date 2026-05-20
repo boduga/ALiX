@@ -37,7 +37,7 @@ describe("Policy Engine Events", () => {
     await mkdir(testDir, { recursive: true });
     eventLog = new EventLog(testDir);
     await eventLog.init();
-    policyEngine = new PolicyEngine(testConfig, {
+    policyEngine = new PolicyEngine(testConfig, {}, {
       eventLog,
       sessionId: "test-session",
     });
