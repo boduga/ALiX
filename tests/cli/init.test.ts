@@ -17,18 +17,6 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
-// Always-decline answers for all prompts
-const declineAll = {
-  yesNo: async (_question: string, _defaultYes?: boolean) => false,
-  prompt: async (_question: string) => "",
-};
-
-// Always-accept answers
-const acceptAll = {
-  yesNo: async (_question: string, defaultYes?: boolean) => defaultYes ?? true,
-  prompt: async (_question: string) => "",
-};
-
 test("runInit is exported and callable", { timeout: 10_000 }, async () => {
   const mod = await import("../../src/cli/commands/init.js");
   assert.ok("runInit" in mod, "runInit should be exported from init.js");
@@ -41,7 +29,7 @@ test("runInit creates .alix/config.json", { timeout: 10_000 }, async () => {
     assert.ok(!existsSync(configPath));
 
     const { runInit } = await import("../../src/cli/commands/init.js");
-    await runInit(dir, declineAll);
+    await runInit(dir);
 
     assert.ok(existsSync(configPath), ".alix/config.json should be created");
     const content = JSON.parse(await readFileAsync(configPath, "utf8"));
@@ -56,7 +44,7 @@ test("runInit detects project type when package.json exists", { timeout: 10_000 
     await writeFileAsync(join(dir, "package.json"), '{"name":"test"}');
 
     const { runInit } = await import("../../src/cli/commands/init.js");
-    await runInit(dir, declineAll);
+    await runInit(dir);
 
     assert.ok(existsSync(join(dir, ".alix", "config.json")));
   });
@@ -69,22 +57,55 @@ test("runInit completes when existing .alix/config.json is present", { timeout: 
     await writeFileAsync(configPath, JSON.stringify({ model: { provider: "anthropic" } }), "utf8");
 
     const { runInit } = await import("../../src/cli/commands/init.js");
-    // Current implementation overwrites. This test verifies it runs without error.
-    await runInit(dir, declineAll);
+    await runInit(dir);
     assert.ok(existsSync(configPath));
   });
 });
 
-test("runInit gitignore handling: accepts git init and skips duplication", { timeout: 10_000 }, async () => {
+test("runInit auto-inits git and creates .gitignore with .alix/", { timeout: 10_000 }, async () => {
   await withTempDir(async (dir) => {
     const gitignorePath = join(dir, ".gitignore");
+    const gitDir = join(dir, ".git");
     assert.ok(!existsSync(gitignorePath), "should start with no .gitignore");
+    assert.ok(!existsSync(gitDir), "should start with no .git");
 
     const { runInit } = await import("../../src/cli/commands/init.js");
-    await runInit(dir, acceptAll);
+    await runInit(dir);
 
-    assert.ok(existsSync(gitignorePath), ".gitignore should be created when git init is accepted");
+    assert.ok(existsSync(gitDir), ".git should be created");
+    assert.ok(existsSync(gitignorePath), ".gitignore should be created");
     const content = await readFileAsync(gitignorePath, "utf8");
     assert.ok(content.includes(".alix/"), ".gitignore should contain .alix/");
+  });
+});
+
+test("runInit creates AGENTS.md", { timeout: 10_000 }, async () => {
+  await withTempDir(async (dir) => {
+    const agentsPath = join(dir, "AGENTS.md");
+    assert.ok(!existsSync(agentsPath), "should start with no AGENTS.md");
+
+    const { runInit } = await import("../../src/cli/commands/init.js");
+    await runInit(dir);
+
+    assert.ok(existsSync(agentsPath), "AGENTS.md should be created");
+    const content = await readFileAsync(agentsPath, "utf8");
+    assert.ok(content.includes("ALiX"), "AGENTS.md should mention ALiX");
+  });
+});
+
+test("runInit detects provider from environment", { timeout: 10_000 }, async () => {
+  await withTempDir(async (dir) => {
+    // Set a fake API key to test provider detection
+    process.env.ANTHROPIC_API_KEY = "test-key";
+
+    const { runInit } = await import("../../src/cli/commands/init.js");
+    await runInit(dir);
+
+    const configPath = join(dir, ".alix", "config.json");
+    const content = JSON.parse(await readFileAsync(configPath, "utf8"));
+    assert.strictEqual(content.model.provider, "anthropic", "should detect anthropic from env");
+
+    // Clean up
+    delete process.env.ANTHROPIC_API_KEY;
   });
 });
