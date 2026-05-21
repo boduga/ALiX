@@ -749,5 +749,16 @@ if (command === "chat") {
   process.exit(0);
 }
 
+if (command === "plan") {
+  const { runPlan } = await import("./cli/commands/plan.js");
+  if (args[0] === "--list" || args[0] === "-l") {
+    await runPlan({ task: "", list: true });
+  } else {
+    const task = args.join(" ").replace(/^["']|["']$/g, "");
+    await runPlan({ task });
+  }
+  process.exit(0);
+}
+
 console.error(`Unknown command: ${command}`);
 process.exit(1);
