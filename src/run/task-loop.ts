@@ -22,6 +22,7 @@ import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
 import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
 import { streamToResponse } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
+import { buildRefinePrompt, selectStrategy } from "../orchestrator/refine-strategies.js";
 import {
   handleToolCall,
   handleMcpToolSearch,
@@ -259,8 +260,10 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
           return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
         }
 
-        const repairPrompt = `\n\n[Verification Result] ${failureText}\n\nRepair the issues above and confirm completion when done.`;
-        messages.push({ role: "user", content: repairPrompt });
+        // Use Fabric-style refine strategy
+        const { prompt: refinedPrompt, strategy: usedStrategy } = await buildRefinePrompt(failureText, taskType);
+        await log.append({ ...session, actor: "system", type: "refine.strategy_applied", payload: { strategy: usedStrategy, failureType: selectStrategy(failureText, taskType) } });
+        messages.push({ role: "user", content: refinedPrompt });
       }
     } else {
       // Track failed tool names per iteration to prevent spinning
