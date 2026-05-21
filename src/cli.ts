@@ -760,5 +760,13 @@ if (command === "plan") {
   process.exit(0);
 }
 
+if (command === "review") {
+  const { runReview } = await import("./cli/commands/review.js");
+  const planId = args[0];
+  if (!planId) { console.error("Usage: alix review <plan-id>"); process.exit(1); }
+  await runReview({ planId });
+  process.exit(0);
+}
+
 console.error(`Unknown command: ${command}`);
 process.exit(1);
