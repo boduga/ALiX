@@ -47,7 +47,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     : [];
 
   console.log(`\nChat session: ${id}`);
-  console.log("Type /exit to end, /clear to clear, /help for commands\n");
+  console.log("Type /exit or /quit to end, /clear to clear, /help for commands\n");
 
   const config = await loadConfig(process.cwd());
   const provider = createProvider(config.model);
