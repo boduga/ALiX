@@ -72,6 +72,16 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       input = await prompt();
       continue;
     }
+    if (input === "/context") {
+      console.log(`Messages: ${messages.length}`);
+      input = await prompt();
+      continue;
+    }
+    if (input === "/model") {
+      console.log(`Model: ${config.model.provider}/${config.model.name}`);
+      input = await prompt();
+      continue;
+    }
 
     // Add user message
     messages.push({ role: "user", content: input });
