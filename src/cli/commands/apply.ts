@@ -23,10 +23,21 @@ interface YamlPlan {
   };
 }
 
-export async function runApply(opts: ApplyOptions): Promise<void> {
-  const planPath = join(process.cwd(), ".alix", "plans", `${opts.planId}.yaml`);
+async function findPlanFile(dir: string, planId: string): Promise<string | null> {
+  if (!existsSync(dir)) return null;
+  const exactPath = join(dir, `${planId}.yaml`);
+  if (existsSync(exactPath)) return exactPath;
+  const { readdir } = await import("node:fs/promises");
+  const files = await readdir(dir);
+  const match = files.find(f => f.startsWith(planId) && f.endsWith(".yaml"));
+  return match ? join(dir, match) : null;
+}
 
-  if (!existsSync(planPath)) {
+export async function runApply(opts: ApplyOptions): Promise<void> {
+  const plansDir = join(process.cwd(), ".alix", "plans");
+  const planPath = await findPlanFile(plansDir, opts.planId);
+
+  if (!planPath) {
     console.error(`Plan not found: ${opts.planId}`);
     process.exit(1);
   }

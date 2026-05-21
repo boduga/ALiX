@@ -33,10 +33,25 @@ const RISK_COLORS: Record<string, string> = {
   high: "\x1b[31m",
 };
 
-export async function runReview(opts: ReviewOptions): Promise<void> {
-  const planPath = join(process.cwd(), ".alix", "plans", `${opts.planId}.yaml`);
+async function findPlanFile(dir: string, planId: string): Promise<string | null> {
+  if (!existsSync(dir)) return null;
 
-  if (!existsSync(planPath)) {
+  // Try exact match first
+  const exactPath = join(dir, `${planId}.yaml`);
+  if (existsSync(exactPath)) return exactPath;
+
+  // Try prefix match (uuid that got truncated in listing)
+  const { readdir } = await import("node:fs/promises");
+  const files = await readdir(dir);
+  const match = files.find(f => f.startsWith(planId) && f.endsWith(".yaml"));
+  return match ? join(dir, match) : null;
+}
+
+export async function runReview(opts: ReviewOptions): Promise<void> {
+  const plansDir = join(process.cwd(), ".alix", "plans");
+  const planPath = await findPlanFile(plansDir, opts.planId);
+
+  if (!planPath) {
     console.error(`Plan not found: ${opts.planId}`);
     process.exit(1);
   }
