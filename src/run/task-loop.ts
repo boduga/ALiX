@@ -261,8 +261,8 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         }
 
         // Use Fabric-style refine strategy
-        const { prompt: refinedPrompt, strategy: usedStrategy } = await buildRefinePrompt(failureText, taskType);
-        await log.append({ ...session, actor: "system", type: "refine.strategy_applied", payload: { strategy: usedStrategy, failureType: selectStrategy(failureText, taskType) } });
+        const { prompt: refinedPrompt, strategy: usedStrategy } = await buildRefinePrompt(failureText, taskType, repairCount);
+        await log.append({ ...session, actor: "system", type: "refine.strategy_applied", payload: { strategy: usedStrategy, repairCount, failureType: selectStrategy(failureText, taskType) } });
         messages.push({ role: "user", content: refinedPrompt });
       }
     } else {

@@ -10,8 +10,9 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
+import { recommendStrategy } from "./strategy-learner.js";
 
-export type RefineStrategyName = "retry" | "decompose" | "simplify" | "verify_only" | "analyze";
+export type RefineStrategyName = "retry" | "decompose" | "simplify" | "verify_only" | "analyze" | "escalate";
 
 export interface RefineStrategy {
   name: RefineStrategyName;
@@ -108,7 +109,7 @@ export function selectStrategy(failureOutput: string, taskType: string): RefineS
   }
 
   // Test failures - verify_only
-  if (/test|assert|fail/i.test(failureOutput) && /pass|fail/i.test(failureOutput)) {
+  if (/test|assert/i.test(failureOutput)) {
     return "verify_only";
   }
 
@@ -147,9 +148,21 @@ export function applyStrategy(
 export async function buildRefinePrompt(
   failureOutput: string,
   taskType: string,
-  strategyName?: string
+  repairCount: number = 1
 ): Promise<{ prompt: string; strategy: string; temperature: number }> {
-  const name = strategyName ?? selectStrategy(failureOutput, taskType);
+  // If multiple repairs, use escalate
+  if (repairCount >= 3) {
+    const strategy = await getStrategy("escalate");
+    const prompt = applyStrategy(strategy, failureOutput, "[Previous context is in the conversation above]");
+    return {
+      prompt,
+      strategy: "escalate",
+      temperature: strategy.temperature,
+    };
+  }
+
+  // Use learned strategy if available (falls back to heuristic)
+  const name = await recommendStrategy(failureOutput, taskType);
   const strategy = await getStrategy(name);
 
   const prompt = applyStrategy(strategy, failureOutput, "[Previous context is in the conversation above]");
