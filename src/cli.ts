@@ -24,6 +24,8 @@ const PROVIDERS = [
 ];
 
 import { prompt } from "./cli/commands/prompt.js";
+import { runChat } from "./cli/commands/chat.js";
+import type { ChatOptions } from "./cli/commands/chat.js";
 
 const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
 
@@ -721,6 +723,56 @@ if (command === "memory") {
     console.log("  search <query>         - Search memory entries");
     console.log("  stats                  - Show memory statistics");
   }
+  process.exit(0);
+}
+
+function parseChatArgs(args: string[]): ChatOptions {
+  const opts: ChatOptions = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--resume" || arg === "-r") {
+      opts.resume = true;
+      opts.sessionId = args[++i];
+    } else if (arg === "--list" || arg === "-l") {
+      opts.list = true;
+    } else if (arg === "--delete" || arg === "-d") {
+      opts.delete = args[++i];
+    } else if (!arg.startsWith("-")) {
+      opts.sessionId = arg;
+    }
+  }
+  return opts;
+}
+
+if (command === "chat") {
+  await runChat(parseChatArgs(args));
+  process.exit(0);
+}
+
+if (command === "plan") {
+  const { runPlan } = await import("./cli/commands/plan.js");
+  if (args[0] === "--list" || args[0] === "-l") {
+    await runPlan({ task: "", list: true });
+  } else {
+    const task = args.join(" ").replace(/^["']|["']$/g, "");
+    await runPlan({ task });
+  }
+  process.exit(0);
+}
+
+if (command === "review") {
+  const { runReview } = await import("./cli/commands/review.js");
+  const planId = args[0];
+  if (!planId) { console.error("Usage: alix review <plan-id>"); process.exit(1); }
+  await runReview({ planId });
+  process.exit(0);
+}
+
+if (command === "apply") {
+  const { runApply } = await import("./cli/commands/apply.js");
+  const planId = args[0];
+  if (!planId) { console.error("Usage: alix apply <plan-id>"); process.exit(1); }
+  await runApply({ planId });
   process.exit(0);
 }
 
