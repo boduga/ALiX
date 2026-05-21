@@ -36,3 +36,4 @@ vitest.config.mts
 .worktrees/
 .worktrees
 .gitnexus
+.worktrees/
