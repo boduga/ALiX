@@ -24,6 +24,8 @@ const PROVIDERS = [
 ];
 
 import { prompt } from "./cli/commands/prompt.js";
+import { runChat } from "./cli/commands/chat.js";
+import type { ChatOptions } from "./cli/commands/chat.js";
 
 const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
 
@@ -721,6 +723,29 @@ if (command === "memory") {
     console.log("  search <query>         - Search memory entries");
     console.log("  stats                  - Show memory statistics");
   }
+  process.exit(0);
+}
+
+function parseChatArgs(args: string[]): ChatOptions {
+  const opts: ChatOptions = {};
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === "--resume" || arg === "-r") {
+      opts.resume = true;
+      opts.sessionId = args[++i];
+    } else if (arg === "--list" || arg === "-l") {
+      opts.list = true;
+    } else if (arg === "--delete" || arg === "-d") {
+      opts.delete = args[++i];
+    } else if (!arg.startsWith("-")) {
+      opts.sessionId = arg;
+    }
+  }
+  return opts;
+}
+
+if (command === "chat") {
+  await runChat(parseChatArgs(args));
   process.exit(0);
 }
 
