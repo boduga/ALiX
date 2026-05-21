@@ -3,7 +3,6 @@ import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
-import { prompt, yesNo } from "./prompt.js";
 
 const PROJECT_TYPE_FILES: [string, string][] = [
   ["package.json", "Node.js"],
@@ -15,55 +14,76 @@ const PROJECT_TYPE_FILES: [string, string][] = [
   ["pom.xml", "Java"],
 ];
 
-export async function runInit(cwd: string): Promise<void> {
-  const alixDir = join(cwd, ".alix");
-  const gitignorePath = join(cwd, ".gitignore");
-  const agentsPath = join(cwd, "AGENTS.md");
+const PROVIDER_DEFAULTS: [string, string, string][] = [
+  ["anthropic", "ANTHROPIC_API_KEY", "claude-sonnet-4-20250514"],
+  ["openai", "OPENAI_API_KEY", "gpt-4o"],
+  ["google", "GEMINI_API_KEY", "gemini-2.5-flash"],
+  ["openrouter", "OPENROUTER_API_KEY", "gpt-4o"],
+  ["ollama", "OLLAMA_API_KEY", "qwen2.5-coder:7b"],
+];
+
+function detectProvider(): { provider: string; model: string } {
+  for (const [id, env, defaultModel] of PROVIDER_DEFAULTS) {
+    if (process.env[env]) {
+      return { provider: id, model: defaultModel };
+    }
+  }
+  return { provider: "ollama", model: "qwen2.5-coder:7b" };
+}
+
+export interface InitDependencies {
+  cwd: string;
+}
+
+export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Promise<void> {
+  const {
+    cwd: workDir = cwd,
+  } = deps ?? {};
+
+  const alixDir = join(workDir, ".alix");
+  const gitignorePath = join(workDir, ".gitignore");
+  const agentsPath = join(workDir, "AGENTS.md");
   const projectConfigPath = join(alixDir, "config.json");
 
-  // Step 0: Git check
-  const isGitRepo = existsSync(join(cwd, ".git"));
+  // Step 0: Git check (auto-init if not present)
+  const isGitRepo = existsSync(join(workDir, ".git"));
   if (!isGitRepo) {
-    const initGit = await yesNo("Initialize git repository? [Y/n]: ", true);
-    if (initGit) {
-      try {
-        execSync("git init --initial-branch=main", { cwd, stdio: "inherit" });
-        const alixIgnore = "\n# ALiX\n.alix/\n";
-        if (existsSync(gitignorePath)) {
-          const existing = await readFile(gitignorePath, "utf8");
-          if (!existing.includes(".alix/")) {
-            await appendFile(gitignorePath, alixIgnore);
-          }
-        } else {
-          await writeFile(gitignorePath, alixIgnore.trimStart());
+    try {
+      execSync("git init --initial-branch=main", { cwd: workDir, stdio: "inherit" });
+      console.log("Git initialized");
+      const alixIgnore = "\n# ALiX\n.alix/\n";
+      if (existsSync(gitignorePath)) {
+        const existing = await readFile(gitignorePath, "utf8");
+        if (!existing.includes(".alix/")) {
+          await appendFile(gitignorePath, alixIgnore);
         }
-      } catch (err) {
-        console.warn("Warning: git init failed, continuing anyway");
+      } else {
+        await writeFile(gitignorePath, alixIgnore.trimStart());
       }
+    } catch {
+      console.warn("Warning: git init failed, continuing anyway");
     }
   }
 
   // Step 1: Project type detection
   let projectType = "Generic";
   for (const [file, type] of PROJECT_TYPE_FILES) {
-    if (existsSync(join(cwd, file))) {
+    if (existsSync(join(workDir, file))) {
       projectType = type;
       break;
     }
   }
   console.log(`Detected: ${projectType} project`);
 
-  // Step 2: Provider + Model (defaults for MVP)
-  const selectedProvider = "ollama";
-  const selectedModel = "qwen2.5-coder:7b";
-  console.log(`Provider: ${selectedProvider} (default)`);
-  console.log(`Model: ${selectedModel} (default)`);
+  // Step 2: Provider + Model (auto-detect from environment)
+  const { provider: selectedProvider, model: selectedModel } = detectProvider();
+  console.log(`Using: ${selectedProvider} / ${selectedModel} (auto-detected)`);
 
-  // Step 3: Feature toggles
-  const enableUi = await yesNo("Enable UI inspector? [Y/n]: ", true);
-  const enableMcp = await yesNo("Enable MCP servers? [Y/n]: ", true);
-  const enableSkills = await yesNo("Enable skills? [Y/n]: ", true);
-  const enableSubagents = await yesNo("Enable subagents? [Y/n]: ", true);
+  // Step 3: Feature toggles (all enabled by default)
+  const enableUi = true;
+  const enableMcp = true;
+  const enableSkills = true;
+  const enableSubagents = true;
 
   // Build config
   const config = {
@@ -93,35 +113,45 @@ export async function runInit(cwd: string): Promise<void> {
   await writeFile(projectConfigPath, JSON.stringify(config, null, 2) + "\n");
 
   // Create AGENTS.md
-  const agentsContent = `# ALiX Project
+  const agentsContent = `# Project
 
 > Powered by ALiX. See \`.alix/\` for configuration.
 
-## Setup
+## Stack
 
-\`\`\`bash
-npm install
-\`\`\`
+Define your tech stack here:
+- Language:
+- Framework:
+- Database:
+
+## Rules
+
+- Prefer explicit over implicit
+- Add tests for new functionality
+- Run lint before commit
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| \`alix run "<task>"\` | Run a task |
-| \`alix init\` | Initialize project |
-| \`alix serve\` | Start the UI inspector |
-| \`alix config show\` | Show configuration |
+| \`alix run "<task>"\` | Run a task with the agent |
 
 ## Build & Test
 
 \`\`\`bash
+# Install dependencies
+npm install
+
+# Build
 npm run build
+
+# Test
 npm test
 \`\`\`
 `;
   await writeFile(agentsPath, agentsContent);
 
-  console.log(`\n✓ ALiX initialized in ${cwd}`);
+  console.log(`\n✓ ALiX initialized in ${workDir}`);
   console.log(`\nNext steps:`);
   console.log(`  alix run "your first task"`);
   console.log(`  alix serve    # start UI inspector`);
