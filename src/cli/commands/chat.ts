@@ -34,7 +34,7 @@ export async function runChat(opts: ChatOptions = {}): Promise<void> {
 }
 
 async function runChatLoop(sessionDir: string, sessionId?: string, resume = false) {
-  const id = sessionId ?? randomUUID();
+  const id = sessionId ? await findSession(sessionDir, sessionId) : randomUUID();
   const dir = join(sessionDir, id);
   const messagesPath = join(dir, "messages.jsonl");
   const metadataPath = join(dir, "metadata.json");
@@ -47,6 +47,14 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     : [];
 
   console.log(`\nChat session: ${id}`);
+  if (messages.length > 0) {
+    console.log(`(Resuming with ${messages.length} previous messages)\n`);
+    for (const msg of messages.slice(-4)) {
+      const role = msg.role === "user" ? "You" : "ALiX";
+      console.log(`${role}: ${msg.content.slice(0, 100)}${msg.content.length > 100 ? "..." : ""}`);
+    }
+    console.log();
+  }
   console.log("Type /exit or /quit to end, /clear to clear, /help for commands\n");
 
   const config = await loadConfig(process.cwd());
@@ -139,6 +147,16 @@ async function loadMessages(path: string): Promise<NormalizedMessage[]> {
     const content = await readFile(path, "utf8");
     return content.split("\n").filter(Boolean).map((line) => JSON.parse(line));
   } catch { return []; }
+}
+
+async function findSession(dir: string, id: string): Promise<string> {
+  const exactPath = join(dir, id);
+  if (existsSync(exactPath)) return id;
+
+  const { readdir } = await import("node:fs/promises");
+  const entries = await readdir(dir);
+  const match = entries.find(e => e.startsWith(id));
+  return match ?? randomUUID();
 }
 
 async function appendMessage(path: string, msg: NormalizedMessage): Promise<void> {
