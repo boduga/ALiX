@@ -5,7 +5,7 @@ import { mkdir, appendFile, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "../../config/loader.js";
 import { createProvider } from "../../providers/registry.js";
-import type { NormalizedMessage } from "../../providers/types.js";
+import type { NormalizedMessage, StreamChunk } from "../../providers/types.js";
 
 export interface ChatOptions {
   sessionId?: string;
@@ -87,14 +87,36 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     messages.push({ role: "user", content: input });
     await appendMessage(messagesPath, { role: "user", content: input });
 
-    // Call model
-    const resp = await provider.complete({ systemPrompt, messages });
-
     // Stream response
-    if (resp.text) {
-      console.log(resp.text);
-      messages.push({ role: "assistant", content: resp.text });
-      await appendMessage(messagesPath, { role: "assistant", content: resp.text });
+    process.stdout.write("\n");
+    let fullResponse = "";
+
+    if (provider.stream) {
+      const stream = provider.stream({ systemPrompt, messages });
+      for await (const chunk of stream) {
+        if (chunk.type === "text_delta") {
+          process.stdout.write(chunk.text);
+          fullResponse += chunk.text;
+        } else if (chunk.type === "done") {
+          break;
+        } else if (chunk.type === "error") {
+          console.error(`\nError: ${chunk.error}`);
+          break;
+        }
+      }
+      process.stdout.write("\n");
+    } else {
+      const resp = await provider.complete({ systemPrompt, messages });
+      if (resp.text) {
+        console.log(resp.text);
+        fullResponse = resp.text;
+      }
+    }
+
+    // Save assistant response
+    if (fullResponse) {
+      messages.push({ role: "assistant", content: fullResponse });
+      await appendMessage(messagesPath, { role: "assistant", content: fullResponse });
     }
 
     input = await prompt();
