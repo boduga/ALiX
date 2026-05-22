@@ -1,6 +1,6 @@
 import { createInterface } from "node:readline/promises";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, appendFile, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { loadConfig } from "../../config/loader.js";
@@ -38,6 +38,8 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   const dir = join(sessionDir, id);
   const messagesPath = join(dir, "messages.jsonl");
   const metadataPath = join(dir, "metadata.json");
+  const taskSummaryPath = join(dir, "task.txt");
+  const decisionsPath = join(dir, "decisions.jsonl");
 
   await mkdir(dir, { recursive: true });
 
@@ -46,12 +48,46 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     ? await loadMessages(messagesPath)
     : [];
 
+  let taskSummary = "";
+  if (resume && existsSync(taskSummaryPath)) {
+    taskSummary = await readFile(taskSummaryPath, "utf8").catch(() => "");
+  }
+
+  let recentDecisions: string[] = [];
+  if (resume && existsSync(decisionsPath)) {
+    try {
+      const content = await readFile(decisionsPath, "utf8");
+      const lines = content.split("\n").filter(Boolean);
+      recentDecisions = lines.slice(-3).map(l => {
+        try { return JSON.parse(l).decision; } catch { return l; }
+      });
+    } catch { /* ignore */ }
+  }
+
   console.log(`\nChat session: ${id}`);
+  if (taskSummary) {
+    console.log(`Task: ${taskSummary}`);
+  }
   if (messages.length > 0) {
     console.log(`(Resuming with ${messages.length} previous messages)\n`);
     for (const msg of messages.slice(-4)) {
       const role = msg.role === "user" ? "You" : "ALiX";
       console.log(`${role}: ${msg.content.slice(0, 100)}${msg.content.length > 100 ? "..." : ""}`);
+    }
+    console.log();
+  }
+  if (messages.length > 0) {
+    console.log(`(Resuming with ${messages.length} previous messages)\n`);
+    for (const msg of messages.slice(-4)) {
+      const role = msg.role === "user" ? "You" : "ALiX";
+      console.log(`${role}: ${msg.content.slice(0, 100)}${msg.content.length > 100 ? "..." : ""}`);
+    }
+    console.log();
+  }
+  if (recentDecisions.length > 0) {
+    console.log("Recent decisions:");
+    for (const d of recentDecisions) {
+      console.log(`  - ${d.slice(0, 80)}${d.length > 80 ? "..." : ""}`);
     }
     console.log();
   }
@@ -76,7 +112,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       continue;
     }
     if (input === "/help") {
-      console.log("Commands: /exit, /quit, /clear, /context, /model");
+      console.log("Commands: /exit, /quit, /clear, /context, /model, /remember <note>, /task <desc>, /decision <note>");
       input = await prompt();
       continue;
     }
@@ -87,6 +123,32 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     }
     if (input === "/model") {
       console.log(`Model: ${config.model.provider}/${config.model.name}`);
+      input = await prompt();
+      continue;
+    }
+    if (input.startsWith("/remember ")) {
+      const note = input.slice(10).trim();
+      await saveProjectMemory(note);
+      console.log("Saved to project memory.");
+      input = await prompt();
+      continue;
+    }
+    if (input.startsWith("/task ")) {
+      const task = input.slice(5).trim();
+      await writeFile(taskSummaryPath, task);
+      console.log(`Task set: ${task}`);
+      input = await prompt();
+      continue;
+    }
+    if (input.startsWith("/decision ")) {
+      const decision = input.slice(10).trim();
+      const entry = JSON.stringify({
+        decision,
+        timestamp: new Date().toISOString(),
+        context: messages.slice(-2).map(m => m.content.slice(0, 200))
+      });
+      await appendFile(decisionsPath, entry + "\n");
+      console.log("Decision recorded.");
       input = await prompt();
       continue;
     }
@@ -199,5 +261,45 @@ async function deleteSession(dir: string, id: string): Promise<void> {
 }
 
 function buildChatSystemPrompt(): string {
-  return `You are ALiX, an AI coding assistant. Be concise and helpful.`;
+  const base = `You are ALiX, an AI coding assistant. Be concise and helpful.`;
+  const projectMemory = loadProjectMemory();
+  if (projectMemory) {
+    return `${base}\n\n## Project Memory\n${projectMemory}`;
+  }
+  return base;
+}
+
+function loadProjectMemory(): string {
+  const memoryPath = join(process.cwd(), ".alix", "memory", "project.md");
+  try {
+    if (existsSync(memoryPath)) {
+      const content = readFileSync(memoryPath, "utf8");
+      // Skip frontmatter
+      const match = content.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/);
+      return match ? match[1].trim() : content.trim();
+    }
+  } catch { /* ignore */ }
+  return "";
+}
+
+async function saveProjectMemory(note: string): Promise<void> {
+  const memoryDir = join(process.cwd(), ".alix", "memory");
+  const memoryPath = join(memoryDir, "project.md");
+  await mkdir(memoryDir, { recursive: true });
+
+  const frontmatter = `---
+name: project-context
+description: Project context and notes
+type: project
+---
+
+# Project Context
+
+`;
+
+  // Append as bullet point
+  const newEntry = `- ${note}\n`;
+  const existing = existsSync(memoryPath) ? await readFile(memoryPath, "utf8") : frontmatter;
+  const updated = existing.endsWith("\n") ? existing + newEntry : existing + "\n" + newEntry;
+  await writeFile(memoryPath, updated);
 }
