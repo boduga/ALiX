@@ -76,14 +76,6 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     }
     console.log();
   }
-  if (messages.length > 0) {
-    console.log(`(Resuming with ${messages.length} previous messages)\n`);
-    for (const msg of messages.slice(-4)) {
-      const role = msg.role === "user" ? "You" : "ALiX";
-      console.log(`${role}: ${msg.content.slice(0, 100)}${msg.content.length > 100 ? "..." : ""}`);
-    }
-    console.log();
-  }
   if (recentDecisions.length > 0) {
     console.log("Recent decisions:");
     for (const d of recentDecisions) {
