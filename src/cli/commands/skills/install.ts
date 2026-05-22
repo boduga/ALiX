@@ -4,14 +4,34 @@ import { existsSync } from "node:fs";
 
 export interface InstallOptions {
   list?: boolean;
+  available?: boolean;
   name?: string;
   all?: boolean;
 }
+
+const CORE_SKILLS: Record<string, string> = {
+  tdd: "Test-driven development with red-green-refactor loop",
+  debug: "Systematic debugging with reproduce-minimize-hypothesize-fix loop",
+  review: "Code review with security, performance, and quality checklist",
+  refactor: "Safe refactoring using GitNexus blast radius analysis",
+  architect: "Architecture reviews and deepening opportunities",
+  simplify: "Code cleanup removing dead code and fixing hacky patterns",
+  document: "Auto-generates docstrings, README, and API docs",
+  migrate: "Safe migrations with expand-contract and dual-write patterns",
+  "test-suite": "Test suite auditing and coverage improvement",
+  optimize: "Performance profiling and caching strategies",
+};
 
 export async function runInstall(opts: InstallOptions): Promise<void> {
   const homeDir = process.env.HOME ?? "";
   const alixDir = join(homeDir, ".alix");
   const skillsDir = join(alixDir, "skills");
+
+  // Show available skills (bundled)
+  if (opts.available) {
+    await listAvailableSkills();
+    return;
+  }
 
   // Ensure .alix directory exists
   if (!existsSync(alixDir)) {
@@ -19,6 +39,12 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
   }
   if (!existsSync(skillsDir)) {
     await mkdir(skillsDir, { recursive: true });
+  }
+
+  // Show available skills (bundled)
+  if (opts.available) {
+    await listAvailableSkills();
+    return;
   }
 
   // List installed skills
@@ -33,29 +59,21 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
     return;
   }
 
-  // Install specific skill
-  if (opts.name) {
-    await installSkill(opts.name, skillsDir);
-    return;
-  }
-
   // Default: show help
   console.log(`ALiX Skills Installer
 
 Usage:
-  alix skills install --all    Install all core skills
-  alix skills install <name>    Install specific skill
-  alix skills install --list   List installed skills
+  alix skills available          List all available skills to install
+  alix skills install --all      Install all core skills
+  alix skills install <name>     Install specific skill
+  alix skills install --list     List installed skills
 
-Core skills available:
-  tdd     - Test-driven development
-  debug   - Systematic debugging
-  review  - Code review checklist
+Run 'alix skills available' to see all skills you can install.
 `);
 }
 
 async function installAllCoreSkills(skillsDir: string): Promise<void> {
-  const coreSkills = ["tdd", "debug", "review"];
+  const coreSkills = Object.keys(CORE_SKILLS);
   console.log("Installing core skills...\n");
 
   for (const name of coreSkills) {
@@ -103,4 +121,12 @@ async function listInstalledSkills(dir: string): Promise<void> {
       console.log(`  ${name}`);
     }
   }
+}
+
+async function listAvailableSkills(): Promise<void> {
+  console.log("Available skills to install:\n");
+  for (const [name, description] of Object.entries(CORE_SKILLS)) {
+    console.log(`  ${name.padEnd(12)} ${description}`);
+  }
+  console.log(`\nRun 'alix skills install <name>' to install one, or 'alix skills install --all' for all.`);
 }

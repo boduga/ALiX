@@ -783,14 +783,15 @@ if (command === "apply") {
 }
 
 if (command === "skills") {
-  const { runInstall } = await import("./cli/commands/skills/install.js");
-  await runInstall({
-    list: args.includes("--list"),
-    all: args.includes("--all"),
-    name: args.find(a => !a.startsWith("--")),
-  });
-  process.exit(0);
-}
+	  const { runInstall } = await import("./cli/commands/skills/install.js");
+	  await runInstall({
+	    available: args.includes("--available"),
+	    list: args.includes("--list"),
+	    all: args.includes("--all"),
+	    name: args.find(a => !a.startsWith("--")),
+	  });
+	  process.exit(0);
+	}
 
 console.error(`Unknown command: ${command}`);
 process.exit(1);
