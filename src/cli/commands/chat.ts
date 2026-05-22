@@ -38,6 +38,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   const dir = join(sessionDir, id);
   const messagesPath = join(dir, "messages.jsonl");
   const metadataPath = join(dir, "metadata.json");
+  const taskSummaryPath = join(dir, "task.txt");
 
   await mkdir(dir, { recursive: true });
 
@@ -46,7 +47,23 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     ? await loadMessages(messagesPath)
     : [];
 
+  let taskSummary = "";
+  if (resume && existsSync(taskSummaryPath)) {
+    taskSummary = await readFile(taskSummaryPath, "utf8").catch(() => "");
+  }
+
   console.log(`\nChat session: ${id}`);
+  if (taskSummary) {
+    console.log(`Task: ${taskSummary}`);
+  }
+  if (messages.length > 0) {
+    console.log(`(Resuming with ${messages.length} previous messages)\n`);
+    for (const msg of messages.slice(-4)) {
+      const role = msg.role === "user" ? "You" : "ALiX";
+      console.log(`${role}: ${msg.content.slice(0, 100)}${msg.content.length > 100 ? "..." : ""}`);
+    }
+    console.log();
+  }
   if (messages.length > 0) {
     console.log(`(Resuming with ${messages.length} previous messages)\n`);
     for (const msg of messages.slice(-4)) {
@@ -76,7 +93,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       continue;
     }
     if (input === "/help") {
-      console.log("Commands: /exit, /quit, /clear, /context, /model, /remember <note>");
+      console.log("Commands: /exit, /quit, /clear, /context, /model, /remember <note>, /task <desc>");
       input = await prompt();
       continue;
     }
@@ -94,6 +111,13 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       const note = input.slice(10).trim();
       await saveProjectMemory(note);
       console.log("Saved to project memory.");
+      input = await prompt();
+      continue;
+    }
+    if (input.startsWith("/task ")) {
+      const task = input.slice(5).trim();
+      await writeFile(taskSummaryPath, task);
+      console.log(`Task set: ${task}`);
       input = await prompt();
       continue;
     }
