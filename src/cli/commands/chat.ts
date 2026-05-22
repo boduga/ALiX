@@ -150,19 +150,19 @@ async function loadMessages(path: string): Promise<NormalizedMessage[]> {
 }
 
 async function findSession(dir: string, id: string): Promise<string> {
-  const exactPath = join(dir, id);
-  if (existsSync(exactPath)) return id;
-
   const { readdir } = await import("node:fs/promises");
   const entries = await readdir(dir);
   const needle = id.toLowerCase();
-  // Check if any session starts with the provided id (supports prefix matching)
-  const match = entries.find(e => e.toLowerCase().startsWith(needle));
-  if (match) return match;
-  // Also try matching the first UUID segment
+  // First try exact prefix match
+  for (const e of entries) {
+    if (e.toLowerCase().startsWith(needle)) return e;
+  }
+  // Then try first segment match (UUID first part)
   const firstSeg = id.split("-")[0].toLowerCase();
-  const segMatch = entries.find(e => e.toLowerCase().startsWith(firstSeg));
-  return segMatch ?? id;
+  for (const e of entries) {
+    if (e.toLowerCase().startsWith(firstSeg)) return e;
+  }
+  return id;
 }
 
 async function appendMessage(path: string, msg: NormalizedMessage): Promise<void> {

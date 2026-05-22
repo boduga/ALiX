@@ -728,17 +728,23 @@ if (command === "memory") {
 
 function parseChatArgs(args: string[]): ChatOptions {
   const opts: ChatOptions = {};
-  for (let i = 0; i < args.length; i++) {
+  let i = 0;
+  while (i < args.length) {
     const arg = args[i];
     if (arg === "--resume" || arg === "-r") {
       opts.resume = true;
-      opts.sessionId = args[++i];
+      i++;
     } else if (arg === "--list" || arg === "-l") {
       opts.list = true;
+      i++;
     } else if (arg === "--delete" || arg === "-d") {
       opts.delete = args[++i];
+      i++;
     } else if (!arg.startsWith("-")) {
       opts.sessionId = arg;
+      i++;
+    } else {
+      i++;
     }
   }
   return opts;
