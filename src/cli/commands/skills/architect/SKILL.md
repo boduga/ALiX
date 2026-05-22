@@ -37,11 +37,24 @@ Multiple adapters confirm the abstraction is useful.
 
 ## The Process
 
-1. **Explore** — Read CONTEXT.md, explore codebase with GitNexus
+1. **Explore** — Read codebase structure, understand modules
 2. **Find candidates** — Look for shallow modules, tight coupling
 3. **Apply deletion test** — Would deleting this concentrate or scatter complexity?
 4. **Propose deepening** — How could this module earn its keep?
 5. **Write ADR** — Document significant architectural decisions
+
+## How to Explore
+
+```bash
+# List directory structure
+find src -type f -name "*.ts" | head -20
+
+# Find related files
+grep -rn "import" src/module/ | head -10
+
+# Check module size
+wc -l src/module/*.ts
+```
 
 ## When to Write ADRs
 
