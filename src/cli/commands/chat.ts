@@ -39,6 +39,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   const messagesPath = join(dir, "messages.jsonl");
   const metadataPath = join(dir, "metadata.json");
   const taskSummaryPath = join(dir, "task.txt");
+  const decisionsPath = join(dir, "decisions.jsonl");
 
   await mkdir(dir, { recursive: true });
 
@@ -50,6 +51,17 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   let taskSummary = "";
   if (resume && existsSync(taskSummaryPath)) {
     taskSummary = await readFile(taskSummaryPath, "utf8").catch(() => "");
+  }
+
+  let recentDecisions: string[] = [];
+  if (resume && existsSync(decisionsPath)) {
+    try {
+      const content = await readFile(decisionsPath, "utf8");
+      const lines = content.split("\n").filter(Boolean);
+      recentDecisions = lines.slice(-3).map(l => {
+        try { return JSON.parse(l).decision; } catch { return l; }
+      });
+    } catch { /* ignore */ }
   }
 
   console.log(`\nChat session: ${id}`);
@@ -69,6 +81,13 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
     for (const msg of messages.slice(-4)) {
       const role = msg.role === "user" ? "You" : "ALiX";
       console.log(`${role}: ${msg.content.slice(0, 100)}${msg.content.length > 100 ? "..." : ""}`);
+    }
+    console.log();
+  }
+  if (recentDecisions.length > 0) {
+    console.log("Recent decisions:");
+    for (const d of recentDecisions) {
+      console.log(`  - ${d.slice(0, 80)}${d.length > 80 ? "..." : ""}`);
     }
     console.log();
   }
@@ -93,7 +112,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       continue;
     }
     if (input === "/help") {
-      console.log("Commands: /exit, /quit, /clear, /context, /model, /remember <note>, /task <desc>");
+      console.log("Commands: /exit, /quit, /clear, /context, /model, /remember <note>, /task <desc>, /decision <note>");
       input = await prompt();
       continue;
     }
@@ -118,6 +137,18 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       const task = input.slice(5).trim();
       await writeFile(taskSummaryPath, task);
       console.log(`Task set: ${task}`);
+      input = await prompt();
+      continue;
+    }
+    if (input.startsWith("/decision ")) {
+      const decision = input.slice(10).trim();
+      const entry = JSON.stringify({
+        decision,
+        timestamp: new Date().toISOString(),
+        context: messages.slice(-2).map(m => m.content.slice(0, 200))
+      });
+      await appendFile(decisionsPath, entry + "\n");
+      console.log("Decision recorded.");
       input = await prompt();
       continue;
     }
