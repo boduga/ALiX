@@ -16,6 +16,7 @@ import { ToolSelector } from "./mcp/tool-selector.js";
 import { ApiError } from "./providers/base.js";
 import { ToolExecutor } from "./tools/executor.js";
 import { ToolDiscovery } from "./mcp/tool-discovery.js";
+import type { LoadedSkill } from "./skills/types.js";
 import type { McpManager } from "./mcp/manager.js"; // LAZY: conditional on config.mcpServers?.length > 0
 import { buildSessionDigest } from "./utils/session-digest.js";
 import { MemoryStore } from "./utils/memory/store.js"; // LAZY: conditional on memory features enabled
@@ -232,10 +233,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const { ensureEncoder, estimateTokens, estimateMessageTokens, truncateToTokenBudget } = await import("./utils/tokens.js");
   const hooks = await discoverHooks(cwd);
 
-  // Load skills from ~/.alix/skills/
+  // Load skills (manifests only at startup, bodies lazy-loaded on match)
   const skillsHome = join(process.env.HOME ?? "", ".alix", "skills");
-  const { loadSkills } = await import("./skills/loader.js");
-  const loadedSkills = await loadSkills(skillsHome);
+  const { loadSkillManifests } = await import("./skills/loader.js");
+  const { buildSkillCatalog } = await import("./skills/catalog.js");
+  const skillManifests = await loadSkillManifests(skillsHome);
+  const skillCatalog = buildSkillCatalog(skillManifests);
 
   // Enforce store limits
   const { evictIfNeeded } = await import("./skills/lifecycle.js");
@@ -347,11 +350,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     payload: buildContextBundleEventPayload(contextBundle),
   });
 
-  function buildSystemPrompt(base: string, contextBundle: import("./repomap/context-compiler.js").ContextBundle, memoryContext: string, memoryStats: string): string {
+  function buildSystemPrompt(base: string, contextBundle: import("./repomap/context-compiler.js").ContextBundle, memoryContext: string, memoryStats: string, matchedSkills?: LoadedSkill[]): string {
     const parts: string[] = [base];
 
-    if (loadedSkills.length > 0) {
-      const skillSection = loadedSkills
+    if (matchedSkills && matchedSkills.length > 0) {
+      const skillSection = matchedSkills
         .map(s => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
         .join("\n\n");
       parts.push(`## Available Skills\n${skillSection}`);
@@ -377,8 +380,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   const { skillFactory } = await import("./skills/dispatcher.js");
 
+  // Lazy-load matched skill content (only load bodies for skills that match the task)
+  const matchedSkills = await skillCatalog.getMatchedContent(task);
+
   const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved.";
-  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle, memoryContext, memoryStats);
+  const SYSTEM_PROMPT = buildSystemPrompt(SYSTEM_PROMPT_BASE, contextBundle, memoryContext, memoryStats, matchedSkills);
 
   // Build deps for the task loop
   const taskLoopDeps: TaskLoopDeps = {

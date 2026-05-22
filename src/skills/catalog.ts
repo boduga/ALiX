@@ -1,11 +1,19 @@
 // src/skills/catalog.ts
-import type { LoadedSkill } from "./types.js";
+import type { SkillManifest, LoadedSkill } from "./types.js";
+import { loadSkillContent } from "./loader.js";
+import type { SkillManifestOnly } from "./loader.js";
+
+export interface SkillEntry {
+  manifest: SkillManifest;
+  path: string;
+  body?: string; // lazy-loaded on match
+}
 
 export class SkillCatalog {
-  private byTrigger: Map<string, LoadedSkill> = new Map();
-  private byPattern: Array<{ pattern: RegExp; skill: LoadedSkill }> = [];
+  private byTrigger: Map<string, SkillEntry> = new Map();
+  private byPattern: Array<{ pattern: RegExp; entry: SkillEntry }> = [];
 
-  constructor(skills: LoadedSkill[]) {
+  constructor(skills: SkillEntry[]) {
     for (const skill of skills) {
       if (skill.manifest.trigger) {
         this.byTrigger.set(skill.manifest.trigger, skill);
@@ -14,7 +22,7 @@ export class SkillCatalog {
         try {
           this.byPattern.push({
             pattern: new RegExp(skill.manifest.pattern, "i"),
-            skill,
+            entry: skill,
           });
         } catch {
           // skip invalid regex
@@ -25,10 +33,10 @@ export class SkillCatalog {
 
   /**
    * Match a user prompt against skill triggers and patterns.
-   * Returns matched skills ordered by specificity (trigger > pattern).
+   * Returns matched skill entries (body is lazy-loaded via getMatchedContent).
    */
-  match(prompt: string): LoadedSkill[] {
-    const results: LoadedSkill[] = [];
+  match(prompt: string): SkillEntry[] {
+    const results: SkillEntry[] = [];
 
     // Exact trigger match (e.g., "/tdd add feature")
     const triggerMatch = prompt.match(/^\/(\w+)/);
@@ -38,10 +46,38 @@ export class SkillCatalog {
     }
 
     // Pattern match
-    for (const { pattern, skill } of this.byPattern) {
-      if (pattern.test(prompt) && !results.includes(skill)) {
-        results.push(skill);
+    for (const { pattern, entry } of this.byPattern) {
+      if (pattern.test(prompt) && !results.includes(entry)) {
+        results.push(entry);
       }
+    }
+
+    return results;
+  }
+
+  /**
+   * Return matched skill entries with body content lazy-loaded.
+   * Only loads body content for skills that match the prompt.
+   */
+  async getMatchedContent(prompt: string): Promise<LoadedSkill[]> {
+    const matched = this.match(prompt);
+    const results: LoadedSkill[] = [];
+
+    for (const entry of matched) {
+      // Lazy-load body if not already loaded
+      if (!entry.body) {
+        const content = await loadSkillContent(entry.path);
+        if (content) {
+          entry.body = content.body;
+        } else {
+          continue; // skip if we can't load content
+        }
+      }
+      results.push({
+        manifest: entry.manifest,
+        body: entry.body!,
+        path: entry.path,
+      });
     }
 
     return results;
@@ -50,19 +86,24 @@ export class SkillCatalog {
   getAll(): LoadedSkill[] {
     const seen = new Set<string>();
     const result: LoadedSkill[] = [];
-    for (const s of [...this.byTrigger.values(), ...this.byPattern.map(p => p.skill)]) {
-      if (!seen.has(s.manifest.name)) { seen.add(s.manifest.name); result.push(s); }
+    for (const s of [...this.byTrigger.values(), ...this.byPattern.map(p => p.entry)]) {
+      if (!seen.has(s.manifest.name)) {
+        seen.add(s.manifest.name);
+        result.push({ manifest: s.manifest, body: s.body ?? "", path: s.path });
+      }
     }
     return result;
   }
 
   get(name: string): LoadedSkill | undefined {
-    return this.byTrigger.get(name)
+    const entry = this.byTrigger.get(name)
       ?? this.byTrigger.get(`/${name}`)
-      ?? this.byPattern.find(p => p.skill.manifest.name === name)?.skill;
+      ?? this.byPattern.find(p => p.entry.manifest.name === name)?.entry;
+    if (!entry) return undefined;
+    return { manifest: entry.manifest, body: entry.body ?? "", path: entry.path };
   }
 }
 
-export function buildSkillCatalog(skills: LoadedSkill[]): SkillCatalog {
+export function buildSkillCatalog(skills: SkillEntry[]): SkillCatalog {
   return new SkillCatalog(skills);
 }
