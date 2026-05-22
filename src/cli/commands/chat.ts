@@ -155,8 +155,14 @@ async function findSession(dir: string, id: string): Promise<string> {
 
   const { readdir } = await import("node:fs/promises");
   const entries = await readdir(dir);
-  const match = entries.find(e => e.startsWith(id));
-  return match ?? randomUUID();
+  const needle = id.toLowerCase();
+  // Check if any session starts with the provided id (supports prefix matching)
+  const match = entries.find(e => e.toLowerCase().startsWith(needle));
+  if (match) return match;
+  // Also try matching the first UUID segment
+  const firstSeg = id.split("-")[0].toLowerCase();
+  const segMatch = entries.find(e => e.toLowerCase().startsWith(firstSeg));
+  return segMatch ?? id;
 }
 
 async function appendMessage(path: string, msg: NormalizedMessage): Promise<void> {
