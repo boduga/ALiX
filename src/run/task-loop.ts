@@ -36,6 +36,51 @@ import {
   type EventHandlerDeps,
 } from "./event-handlers.js";
 
+function extractErrors(output: string): string[] {
+  const errors: string[] = [];
+  const patterns = [
+    /TypeError:\s*(.+)/gi,
+    /Error:\s*(.+)/gi,
+    /SyntaxError:\s*(.+)/gi,
+    /ReferenceError:\s*(.+)/gi,
+    /AssertionError:\s*(.+)/gi,
+    /(?:FAIL|FAILURE|ERROR):\s*(.+)/gi,
+    /Failed:\s*(.+)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(output)) !== null) {
+      errors.push(match[1]?.trim() ?? match[0]);
+    }
+  }
+
+  return [...new Set(errors)];
+}
+
+async function getHistoricalSuggestions(
+  enhancedVerifier: EnhancedVerifier,
+  failures: Array<{ result: { output?: string } }>,
+  sessionState: { changed: Set<string> },
+  session: { actor: string; sessionId: string },
+  log: EventLog
+): Promise<string[]> {
+  const failedErrors = failures.flatMap(f => extractErrors(f.result.output ?? ""));
+  const failedFiles = [...sessionState.changed];
+
+  const suggestions = await enhancedVerifier.suggestFixes({
+    errors: failedErrors,
+    files: failedFiles,
+  });
+
+  if (suggestions.length > 0) {
+    await log.append({ ...session, actor: "system", type: "embedder.suggestions_found", payload: { count: suggestions.length } });
+    return suggestions.map(s => `  - [${(s.confidence * 100).toFixed(0)}%] ${s.resolution}`);
+  }
+
+  return [];
+}
+
 const RESEARCH_LIMITS = {
   quick: { maxIterations: 3, maxSearchCalls: 3 },
   deep: { maxIterations: 15, maxSearchCalls: 10 },
@@ -310,7 +355,20 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         // Use Fabric-style refine strategy
         const { prompt: refinedPrompt, strategy: usedStrategy } = await buildRefinePrompt(failureText, taskType, repairCount);
         await log.append({ ...session, actor: "system", type: "refine.strategy_applied", payload: { strategy: usedStrategy, repairCount, failureType: selectStrategy(failureText, taskType) } });
-        messages.push({ role: "user", content: refinedPrompt });
+
+        // Get historical suggestions for similar failures
+        const historicalSuggestions = enhancedVerifier
+          ? await getHistoricalSuggestions(enhancedVerifier, failures, sessionState, session, log)
+          : [];
+
+        // Append historical suggestions if available
+        let finalPrompt = refinedPrompt;
+        if (historicalSuggestions.length > 0) {
+          finalPrompt += "\n\n**Similar failures that were resolved:**\n" + historicalSuggestions.join("\n");
+        }
+
+        // Update the message with enhanced prompt
+        messages.push({ role: "user", content: finalPrompt });
       }
     } else {
       // Track failed tool names per iteration to prevent spinning
@@ -456,7 +514,15 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
               ? `${failureText}\n\nResidual risk (not verified):\n${riskReport}`
               : failureText;
 
-            const repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
+            // Get historical suggestions for similar failures
+            const historicalSuggestions = enhancedVerifier
+              ? await getHistoricalSuggestions(enhancedVerifier, failedChecks, sessionState, session, log)
+              : [];
+
+            let repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
+            if (historicalSuggestions.length > 0) {
+              repairPrompt += "\n\n**Similar failures that were resolved:**\n" + historicalSuggestions.join("\n");
+            }
             messages.push({ role: "user", content: repairPrompt });
           }
         }
