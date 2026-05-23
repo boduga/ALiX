@@ -8,6 +8,7 @@
  * - Manages the repair loop
  */
 
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
@@ -22,6 +23,7 @@ import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
 import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
+import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
 import { buildRefinePrompt, selectStrategy } from "../orchestrator/refine-strategies.js";
@@ -75,6 +77,7 @@ export interface TaskLoopDeps {
   task: string;
   taskType: string;
   depth: "quick" | "deep";
+  embedderDbPath?: string;
   memoryStore: MemoryStore;
   sessionId: string;
   sessionDir: string;
@@ -113,6 +116,21 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     systemPrompt,
     onStream,
   } = deps;
+
+  // Initialize EnhancedVerifier for historical failure matching
+  const embedderDbPath = deps.embedderDbPath ?? join(homedir(), ".alix", "failures.db");
+  let enhancedVerifier: EnhancedVerifier | null = null;
+
+  try {
+    enhancedVerifier = new EnhancedVerifier({
+      cwd: ".",
+      embedderDb: embedderDbPath,
+    });
+    await enhancedVerifier.init();
+    await log.append({ ...session, actor: "system", type: "embedder.initialized", payload: { dbPath: embedderDbPath } });
+  } catch (err) {
+    await log.append({ ...session, actor: "system", type: "embedder.init_failed", payload: { error: String(err) } });
+  }
 
   // Track search calls for research tasks
   let searchCalls = 0;
