@@ -269,9 +269,24 @@ function findTestsFor(path: string, testFiles: string[]): string[] {
   });
 }
 
+// Minimum score threshold — ignore anything below this
+const MIN_SCORE_THRESHOLD = 50;
+
+// Only add dependencies for high-confidence matches
+const DEPENDENCY_THRESHOLD = 80;
+
 function estimateFileTokens(path: string, lineCount: number, isSource: boolean): number {
   const base = isSource ? lineCount * 2 : lineCount * 1.5;
   return Math.ceil(base);
+}
+
+// Semantic search: max results and minimum score
+const SEMANTIC_MAX_RESULTS = 3;
+const SEMANTIC_MIN_SCORE = 70;
+
+// Skip semantic search only when task explicitly mentions a file (file-mention wins)
+function shouldSkipSemanticSearch(task: string): boolean {
+  return /\.(ts|tsx|js|jsx|py|go|rs|java|kt|json|md)(?=\s|$)/.test(task);
 }
 
 export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
@@ -321,11 +336,13 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
       }
     }
 
-    // Add semantic search results
-    if (this.options.semanticSearchStage) {
+    // Skip semantic search when task explicitly mentions a file
+    if (this.options.semanticSearchStage && !shouldSkipSemanticSearch(task)) {
       const searchIndex = this.options.semanticSearchStage.getSearchIndex();
-      const searchResults = await searchIndex.search(task, 20);
+      const searchResults = await searchIndex.search(task, SEMANTIC_MAX_RESULTS);
       for (const result of searchResults) {
+        // Filter by minimum score
+        if (result.score < SEMANTIC_MIN_SCORE) continue;
         if (!items.some(i => i.path === result.path)) {
           const entry = input.fileEntries.get(result.path);
           if (entry) {
@@ -344,17 +361,22 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
       }
     }
 
-    // 2. Config files
-    for (const cf of input.configFiles) {
-      const entry = input.fileEntries.get(cf);
-      if (!entry) continue;
-      items.push({
-        path: cf,
-        kind: "config",
-        score: 10,
-        tokenEstimate: estimateFileTokens(cf, entry.lineCount ?? 20, false),
-        reason: "config_file",
-      });
+    // 2. Config files (only if task explicitly mentions them)
+    const taskMentionsConfig = mentions.some(m =>
+      /package\.json|tsconfig|pyproject|go\.mod|Cargo\.toml/i.test(m)
+    );
+    if (taskMentionsConfig) {
+      for (const cf of input.configFiles) {
+        const entry = input.fileEntries.get(cf);
+        if (!entry) continue;
+        items.push({
+          path: cf,
+          kind: "config",
+          score: 10,
+          tokenEstimate: estimateFileTokens(cf, entry.lineCount ?? 20, false),
+          reason: "config_file",
+        });
+      }
     }
 
     // 3. Bugfix hint: include test files even without explicit mentions
@@ -391,14 +413,14 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
     // Sort by score descending
     items.sort((a, b) => b.score - a.score);
 
-    // 5. Add dependencies for mentioned source files
-    const mentionedPaths = new Set(
-      items.filter(i => i.kind === "file" || i.kind === "symbol").map(i => i.path)
+    // 5. Add dependencies only for high-confidence matches (score > DEPENDENCY_THRESHOLD)
+    const highConfidencePaths = new Set(
+      items.filter(i => (i.kind === "file" || i.kind === "symbol") && i.score >= DEPENDENCY_THRESHOLD).map(i => i.path)
     );
-    for (const mentioned of mentionedPaths) {
+    for (const mentioned of highConfidencePaths) {
       const deps = input.dependencyGraph.dependenciesOf(mentioned);
       for (const dep of deps) {
-        if (!mentionedPaths.has(dep) && !items.some(i => i.path === dep)) {
+        if (!highConfidencePaths.has(dep) && !items.some(i => i.path === dep)) {
           const depEntry = input.fileEntries.get(dep);
           if (depEntry) {
             items.push({
@@ -413,11 +435,14 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
       }
     }
 
-    // 6. Extract symbols mentioned in task
-    if (input.symbols.length > 0) {
-      const taskLower = task.toLowerCase();
+    // 6. Extract symbols (only when task doesn't explicitly mention a file)
+    if (input.symbols.length > 0 && !shouldSkipSemanticSearch(task)) {
+      // Extract "words" from task (symbols must match a task word, not just a substring)
+      const taskWords = new Set(task.toLowerCase().match(/\b[a-z][a-z0-9]{2,}\b/g) || []);
       for (const sym of input.symbols) {
-        if (sym.name.toLowerCase().includes(taskLower) || taskLower.includes(sym.name.toLowerCase())) {
+        const symLower = sym.name.toLowerCase();
+        // Symbol matches if it's a full word in the task
+        if (taskWords.has(symLower) || symLower === task.toLowerCase().replace(/\s+/g, '_')) {
           const fileEntry = input.fileEntries.get(sym.file);
           if (fileEntry && fileEntry.content) {
             items.push({
@@ -427,7 +452,7 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
               lineStart: sym.line,
               lineEnd: sym.line,
               score: 80,
-              tokenEstimate: estimateFileTokens(sym.file, 10, false), // Just symbol context
+              tokenEstimate: estimateFileTokens(sym.file, 10, false),
               reason: `symbol_match:${sym.name}`,
             });
           }
@@ -438,29 +463,9 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
     // Re-sort after adding dependencies and symbols
     items.sort((a, b) => b.score - a.score);
 
-    // 7. Add reverse dependents for mentioned source files (callers that may break)
-    const allPaths = new Set(items.map(i => i.path));
-    for (const mentioned of mentionedPaths) {
-      const dependents = input.dependencyGraph.dependentsOf(mentioned);
-      for (const dep of dependents) {
-        if (!allPaths.has(dep) && !items.some(i => i.path === dep)) {
-          const depEntry = input.fileEntries.get(dep);
-          if (depEntry) {
-            items.push({
-              path: dep,
-              kind: depEntry.kind === "test" ? "test" : depEntry.kind === "config" ? "config" : "file",
-              score: 8, // Lower than forward dependencies; callers are indirect context
-              tokenEstimate: estimateFileTokens(dep, depEntry.lineCount ?? 100, depEntry.kind === "source"),
-              reason: `reverse_dependent_distance:1`,
-            });
-          }
-        }
-      }
-    }
+    // 7. Filter to minimum score threshold
+    const filteredItems = items.filter(i => i.score >= MIN_SCORE_THRESHOLD);
 
-    // Re-sort after adding dependents
-    items.sort((a, b) => b.score - a.score);
-
-    return { items, repoMap: input, task, taskType };
+    return { items: filteredItems, repoMap: input, task, taskType };
   }
 }

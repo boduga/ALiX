@@ -1,7 +1,14 @@
 <!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+<!--
+  GitNexus is a 3rd-party Claude Code MCP skill (npx gitnexus).
+  It's a DEVELOPMENT ENVIRONMENT tool, not part of ALiX itself.
+  See: https://github.com/anthropics/claude-code-mcp
+-->
+# GitNexus — Dev Environment Code Intelligence
 
-This project is indexed by GitNexus as **ALiX** (5228 symbols, 8530 relationships, 187 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+> **Note:** GitNexus is a Claude Code MCP skill, not part of ALiX. It's installed via `npx gitnexus analyze` and provides code intelligence for developers working on this project. The rules below apply to Claude Code's development workflow.
+
+This project is indexed by GitNexus as **ALiX** (5967 symbols, 9452 relationships, 214 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
 
 > If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
 
