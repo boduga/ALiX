@@ -80,7 +80,7 @@ export type SubagentRoleConfig = {
   enabled?: boolean;
 };
 
-export type SubagentStyle = "thinking" | "coding" | "fast";
+export type SubagentStyle = "thinking" | "coding" | "fast" | "critic" | "tiny";
 
 export type ToolReliabilityTier = "stable" | "unstable" | "experimental";
 
@@ -104,9 +104,11 @@ export type ModelTierConfig = {
 
 export type SubagentConfig = {
   enabled: boolean;
-  thinking: ModelTierConfig;
-  coding: ModelTierConfig;
-  fast: ModelTierConfig;
+  thinking: ModelTierConfig;  // Strategic reasoning, planning, complex logic
+  coding: ModelTierConfig;     // Code generation, tool execution, patches
+  fast: ModelTierConfig;       // Quick classification, routing, simple tasks
+  critic: ModelTierConfig;     // Verification, validation, hallucination checks
+  tiny: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
   roles: SubagentRoleConfig[];
 };
 

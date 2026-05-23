@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 
-function getEnvTier(name: "thinking" | "coding" | "fast"): Partial<ModelTierConfig> | undefined {
+function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny"): Partial<ModelTierConfig> | undefined {
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
   const model = process.env[`ALIX_${name.toUpperCase()}_MODEL`];
   if (provider || model) {
@@ -125,7 +125,7 @@ export function mergeConfig(
     };
     // Apply config-file modelTiers overrides to subagent tier configs
     // This runs inside the override loop so config precedence works (later configs win)
-    const tiers: ("thinking" | "coding" | "fast")[] = ["thinking", "coding", "fast"];
+    const tiers: ("thinking" | "coding" | "fast" | "critic" | "tiny")[] = ["thinking", "coding", "fast", "critic", "tiny"];
     if ((override as any).modelTiers) {
       for (const tier of tiers) {
         const tierOverride = (override as any).modelTiers[tier];

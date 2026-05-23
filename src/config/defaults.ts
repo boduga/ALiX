@@ -2,9 +2,11 @@ import { homedir } from "node:os";
 import type { AlixConfig } from "./schema.js";
 
 export const MODEL_TIERS = {
-  thinking: { provider: "ollama", name: "phi4-mini-reasoning" },
-  coding:   { provider: "ollama", name: "qwen2.5-coder:7b" },
-  fast:     { provider: "ollama", name: "llama3.2:3b" },
+  thinking: { provider: "ollama", name: "phi4-mini-reasoning" },  // Strategic reasoning, planning
+  coding:   { provider: "ollama", name: "qwen2.5-coder:7b" },   // Code generation, tool execution
+  fast:     { provider: "ollama", name: "llama3.2:3b" },          // Quick classification, routing
+  critic:   { provider: "ollama", name: "llama3.2:3b" },         // Verification, validation (reused for MVP)
+  tiny:     { provider: "ollama", name: "llama3.2:3b" },         // Embeddings, reranking, intent (reused for MVP)
 } as const;
 
 export const DEFAULT_CONFIG: AlixConfig = {
@@ -82,9 +84,11 @@ export const DEFAULT_CONFIG: AlixConfig = {
     thinking: { provider: "ollama", name: "phi4-mini-reasoning" },
     coding: { provider: "ollama", name: "qwen2.5-coder:7b" },
     fast: { provider: "ollama", name: "llama3.2:3b" },
+    critic: { provider: "ollama", name: "llama3.2:3b" },   // Verification loops
+    tiny: { provider: "ollama", name: "llama3.2:3b" },      // Embeddings, intent classification
     roles: [
       { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },
-      { role: "reviewer",          mode: "read_only", style: "thinking", retryCount: 1 },
+      { role: "reviewer",          mode: "read_only", style: "critic", retryCount: 1 },  // Now uses critic
       { role: "test_investigator", mode: "read_only", style: "thinking", retryCount: 1 },
       { role: "docs_researcher",   mode: "read_only", style: "fast", retryCount: 1 },
       { role: "worker",            mode: "write",     style: "coding",  retryCount: 0 },
