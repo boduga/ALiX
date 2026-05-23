@@ -324,6 +324,22 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         if (allPassed && modelSaysDone) {
           // Success — verification passed and model signals done
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+
+          // Record successful resolution if we have files that were changed
+          if (enhancedVerifier && sessionState.changed.size > 0) {
+            try {
+              await enhancedVerifier.recordFailure({
+                task: task,
+                errorSummary: "Verification passed",
+                fileChanges: [...sessionState.changed],
+                resolution: "Applied fix successfully",
+              });
+              await log.append({ ...session, actor: "system", type: "embedder.resolution_recorded", payload: { fileCount: sessionState.changed.size } });
+            } catch (err) {
+              await log.append({ ...session, actor: "system", type: "embedder.record_failed", payload: { error: String(err) } });
+            }
+          }
+
           await evaluatePattern(log, session, sessionDir, taskType);
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
