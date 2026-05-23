@@ -1,9 +1,9 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { EnhancedVerifier } from "../../src/verifier/enhanced-verifier.js";
+import { EnhancedVerifier } from "../../../src/verifier/enhanced-verifier.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { writeFile, mkdir, unlink, rmdir } from "node:fs/promises";
+import { writeFile, mkdir, unlink } from "node:fs/promises";
 
 describe("EnhancedVerifier Integration", () => {
   const testDir = join(tmpdir(), "enhanced-verifier-test");
@@ -19,7 +19,6 @@ describe("EnhancedVerifier Integration", () => {
   afterEach(async () => {
     try {
       await unlink(dbPath);
-      await rmdir(testDir);
     } catch {}
   });
 
@@ -30,10 +29,11 @@ describe("EnhancedVerifier Integration", () => {
     });
 
     await verifier.init();
+
     const result = await verifier.verifyAndScore();
 
     assert.ok(result.score >= 0 && result.score <= 1);
-    assert.ok(result.checks.length >= 0);
+    assert.ok(result.existingChecks.length >= 0);
 
     await verifier.close();
   });
