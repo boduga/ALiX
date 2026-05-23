@@ -3,66 +3,42 @@
     "symbols": [
       {
         "path": "src/cli.ts",
-        "symbolName": "PROVIDERS",
-        "kind": "const",
-        "lineStart": 12,
-        "lineEnd": 12,
-        "keywords": []
-      },
-      {
-        "path": "src/cli.ts",
         "symbolName": "MEMORY_TYPES",
         "kind": "const",
-        "lineStart": 30,
-        "lineEnd": 30,
+        "lineStart": 17,
+        "lineEnd": 17,
         "keywords": []
       },
       {
         "path": "src/cli.ts",
         "symbolName": "getSavedApiKey",
         "kind": "function",
-        "lineStart": 32,
-        "lineEnd": 40,
+        "lineStart": 19,
+        "lineEnd": 27,
         "keywords": []
       },
       {
         "path": "src/cli.ts",
         "symbolName": "setApiKey",
         "kind": "function",
-        "lineStart": 42,
-        "lineEnd": 62,
+        "lineStart": 29,
+        "lineEnd": 49,
         "keywords": []
       },
       {
         "path": "src/cli.ts",
         "symbolName": "selectProvider",
         "kind": "function",
-        "lineStart": 64,
-        "lineEnd": 81,
-        "keywords": []
-      },
-      {
-        "path": "src/cli.ts",
-        "symbolName": "ModelInfo",
-        "kind": "interface",
-        "lineStart": 83,
-        "lineEnd": 88,
-        "keywords": []
-      },
-      {
-        "path": "src/cli.ts",
-        "symbolName": "listModels",
-        "kind": "function",
-        "lineStart": 90,
-        "lineEnd": 209,
+        "lineStart": 51,
+        "lineEnd": 68,
         "keywords": []
       },
       {
         "path": "src/cli.ts",
         "symbolName": "agentRole",
         "kind": "const",
-        "lineStart": 606,
-        "lineEnd": 606,
+        "lineStart": 465,
+        "lineEnd": 465,
         "keywords": [
           "alix",
           "agent",
@@ -79,8 +55,8 @@
         "path": "src/cli.ts",
         "symbolName": "parseChatArgs",
         "kind": "function",
-        "lineStart": 729,
-        "lineEnd": 751,
+        "lineStart": 588,
+        "lineEnd": 610,
         "keywords": []
       }
     ]
@@ -8379,40 +8355,24 @@
         "path": "src/cli/commands/init.ts",
         "symbolName": "PROJECT_TYPE_FILES",
         "kind": "const",
-        "lineStart": 7,
-        "lineEnd": 7,
-        "keywords": []
-      },
-      {
-        "path": "src/cli/commands/init.ts",
-        "symbolName": "PROVIDER_DEFAULTS",
-        "kind": "const",
-        "lineStart": 17,
-        "lineEnd": 17,
-        "keywords": []
-      },
-      {
-        "path": "src/cli/commands/init.ts",
-        "symbolName": "detectProvider",
-        "kind": "function",
-        "lineStart": 25,
-        "lineEnd": 25,
+        "lineStart": 8,
+        "lineEnd": 8,
         "keywords": []
       },
       {
         "path": "src/cli/commands/init.ts",
         "symbolName": "InitDependencies",
         "kind": "interface",
-        "lineStart": 34,
-        "lineEnd": 36,
+        "lineStart": 18,
+        "lineEnd": 20,
         "keywords": []
       },
       {
         "path": "src/cli/commands/init.ts",
         "symbolName": "runInit",
         "kind": "function",
-        "lineStart": 38,
-        "lineEnd": 158,
+        "lineStart": 22,
+        "lineEnd": 142,
         "keywords": []
       }
     ]
@@ -9429,6 +9389,81 @@
     ]
   },
   ".worktrees/provider-neutrality/src/providers/types.ts": {
+    "symbols": []
+  },
+  "src/providers/catalog.ts": {
+    "symbols": [
+      {
+        "path": "src/providers/catalog.ts",
+        "symbolName": "ProviderInfo",
+        "kind": "interface",
+        "lineStart": 6,
+        "lineEnd": 11,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/catalog.ts",
+        "symbolName": "ModelInfo",
+        "kind": "interface",
+        "lineStart": 13,
+        "lineEnd": 18,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/catalog.ts",
+        "symbolName": "PROVIDERS",
+        "kind": "const",
+        "lineStart": 20,
+        "lineEnd": 20,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/catalog.ts",
+        "symbolName": "listModels",
+        "kind": "function",
+        "lineStart": 34,
+        "lineEnd": 152,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/catalog.ts",
+        "symbolName": "getDefaultModel",
+        "kind": "function",
+        "lineStart": 157,
+        "lineEnd": 172,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/catalog.ts",
+        "symbolName": "detectProvider",
+        "kind": "function",
+        "lineStart": 177,
+        "lineEnd": 177,
+        "keywords": []
+      }
+    ]
+  },
+  ".alix/sessions/032854ab-ec09-431d-8334-6e423e21ccf1/checkpoints/53a6c7d7-0bbe-461c-9148-c8ffe551957b/test-server.ts": {
+    "symbols": [
+      {
+        "path": ".alix/sessions/032854ab-ec09-431d-8334-6e423e21ccf1/checkpoints/53a6c7d7-0bbe-461c-9148-c8ffe551957b/test-server.ts",
+        "symbolName": "app",
+        "kind": "const",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "keywords": []
+      },
+      {
+        "path": ".alix/sessions/032854ab-ec09-431d-8334-6e423e21ccf1/checkpoints/53a6c7d7-0bbe-461c-9148-c8ffe551957b/test-server.ts",
+        "symbolName": "PORT",
+        "kind": "const",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "keywords": []
+      }
+    ]
+  },
+  ".alix/checkpoints/27500311-6cda-4dfa-afa9-80f7a179e890/fibonacci.py": {
     "symbols": []
   }
 }
