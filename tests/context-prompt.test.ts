@@ -6,7 +6,7 @@ test("renderContextBundleForPrompt includes reasons and symbol locations", () =>
   const rendered = renderContextBundleForPrompt({
     id: "bundle-test",
     taskType: "bugfix",
-    budget: { maxTokens: 1000, usedTokens: 100 },
+    budget: { maxTokens: 1000, usedTokens: 100, primaryWeight: 0.6, supportingWeight: 0.3, testsWeight: 0.1 },
     primaryFiles: [
       { path: "src/auth.ts", kind: "file", score: 100, tokenEstimate: 80, reason: "task_mention:100" },
       { path: "src/auth.ts", kind: "symbol", symbolName: "login", lineStart: 3, lineEnd: 3, score: 25, tokenEstimate: 20, reason: "symbol_match" },
@@ -29,7 +29,7 @@ test("renderContextBundleForPrompt omits empty sections", () => {
   const rendered = renderContextBundleForPrompt({
     id: "bundle-empty",
     taskType: "feature",
-    budget: { maxTokens: 1000, usedTokens: 0 },
+    budget: { maxTokens: 1000, usedTokens: 0, primaryWeight: 0.6, supportingWeight: 0.3, testsWeight: 0.1 },
     primaryFiles: [],
     supportingFiles: [],
     tests: [],
@@ -45,7 +45,7 @@ test("renderContextBundleForPrompt renders only files when no symbols", () => {
   const rendered = renderContextBundleForPrompt({
     id: "bundle-files-only",
     taskType: "bugfix",
-    budget: { maxTokens: 1000, usedTokens: 50 },
+    budget: { maxTokens: 1000, usedTokens: 50, primaryWeight: 0.6, supportingWeight: 0.3, testsWeight: 0.1 },
     primaryFiles: [
       { path: "src/auth.ts", kind: "file", score: 100, tokenEstimate: 80, reason: "task_mention:100" },
     ],

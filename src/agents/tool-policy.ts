@@ -19,6 +19,8 @@ const READ_ONLY_ROLES: SubagentRole[] = [
 
 const WRITE_ROLES: SubagentRole[] = ["worker"];
 
+const RESEARCH_ROLES: SubagentRole[] = ["researcher"];
+
 export function getToolPolicy(role: SubagentRole): ToolPolicy {
   if (READ_ONLY_ROLES.includes(role)) {
     return {
@@ -33,6 +35,14 @@ export function getToolPolicy(role: SubagentRole): ToolPolicy {
       allowedCategories: ["read", "write", "mcp"],
       maxIterations: 5,
       maxShellCommandsPerIteration: 5,
+      allowMcpTools: true,
+    };
+  }
+  if (RESEARCH_ROLES.includes(role)) {
+    return {
+      allowedCategories: ["read", "mcp"],
+      maxIterations: 5,
+      maxShellCommandsPerIteration: 3,
       allowMcpTools: true,
     };
   }

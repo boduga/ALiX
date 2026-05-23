@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 
-function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny"): Partial<ModelTierConfig> | undefined {
+function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "image"): Partial<ModelTierConfig> | undefined {
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
   const model = process.env[`ALIX_${name.toUpperCase()}_MODEL`];
   if (provider || model) {
@@ -53,13 +53,26 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
   const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
 
   // Inject API keys as env vars so providers pick them up
+  // Map provider names to their expected env var names
+  const PROVIDER_ENV_MAP: Record<string, string> = {
+    google: "GEMINI_API_KEY",
+    openai: "OPENAI_API_KEY",
+    anthropic: "ANTHROPIC_API_KEY",
+    openrouter: "OPENROUTER_API_KEY",
+    groq: "GROQ_API_KEY",
+    perplexity: "PERPLEXITY_API_KEY",
+    minimax: "MINIMAX_API_KEY",
+    zhipuai: "ZHIPUAI_API_KEY",
+    grokai: "GROKAI_API_KEY",
+    deepseek: "DEEPSEEK_API_KEY",
+  };
   const apiKeys = {
     ...(xdgConfig as any).apiKeys,
     ...(globalConfig as any).apiKeys,
     ...(projectConfig as any).apiKeys
   };
   for (const [provider, key] of Object.entries(apiKeys)) {
-    const envVar = `${provider.toUpperCase()}_API_KEY`;
+    const envVar = PROVIDER_ENV_MAP[provider] ?? `${provider.toUpperCase()}_API_KEY`;
     if (typeof key === "string" && key && !process.env[envVar]) {
       process.env[envVar] = key;
     }
@@ -125,7 +138,7 @@ export function mergeConfig(
     };
     // Apply config-file modelTiers overrides to subagent tier configs
     // This runs inside the override loop so config precedence works (later configs win)
-    const tiers: ("thinking" | "coding" | "fast" | "critic" | "tiny")[] = ["thinking", "coding", "fast", "critic", "tiny"];
+    const tiers: ("thinking" | "coding" | "fast" | "critic" | "tiny" | "image")[] = ["thinking", "coding", "fast", "critic", "tiny", "image"];
     if ((override as any).modelTiers) {
       for (const tier of tiers) {
         const tierOverride = (override as any).modelTiers[tier];

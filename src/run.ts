@@ -22,7 +22,7 @@ import { buildSessionDigest } from "./utils/session-digest.js";
 import { MemoryStore } from "./utils/memory/store.js"; // LAZY: conditional on memory features enabled
 import type { MemoryEntry } from "./utils/memory/types.js";
 import { buildMemoryContext, buildMemoryStats } from "./utils/memory/recall.js";
-import { classifyTask } from "./task-classifier.js";
+import { classifyTask, detectResearchDepth } from "./task-classifier.js";
 import { DEFAULT_FACTORY_CONFIG } from "./skills/dispatcher.js";
 import { extractInitialScope, createScopeTracker } from "./autonomy/scope-tracker.js";
 import { TaskStateMachine, RunLimiter } from "./autonomy/state-machine.js";
@@ -312,6 +312,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   await ensureEncoder(encoding);
   const MAX_CONTEXT_TOKENS = maxTokens;
   const taskType = classifyTask(task);
+  const depth = detectResearchDepth(task);
   const maxIterations = config.model.maxIterations ?? 10;
   let repairCount = 0;
   const maxRepairs = 3;
@@ -416,6 +417,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     encoding,
     task,
     taskType,
+    depth,
     memoryStore,
     sessionId,
     sessionDir,

@@ -3,10 +3,11 @@ import type { AlixConfig } from "./schema.js";
 
 export const MODEL_TIERS = {
   thinking: { provider: "ollama", name: "phi4-mini-reasoning" },  // Strategic reasoning, planning
-  coding:   { provider: "ollama", name: "qwen2.5-coder:7b" },   // Code generation, tool execution
+  coding:   { provider: "google", name: "gemini-3.5-flash" },   // Code generation, tool execution
   fast:     { provider: "ollama", name: "llama3.2:3b" },          // Quick classification, routing
   critic:   { provider: "ollama", name: "llama3.2:3b" },         // Verification, validation (reused for MVP)
   tiny:     { provider: "ollama", name: "llama3.2:3b" },         // Embeddings, reranking, intent (reused for MVP)
+  image:    { provider: "google", name: "gemini-3-pro-image-preview" },  // Image generation, multimodal
 } as const;
 
 export const DEFAULT_CONFIG: AlixConfig = {
@@ -82,10 +83,11 @@ export const DEFAULT_CONFIG: AlixConfig = {
   subagents: {
     enabled: true,
     thinking: { provider: "ollama", name: "phi4-mini-reasoning" },
-    coding: { provider: "ollama", name: "qwen2.5-coder:7b" },
+    coding: { provider: "google", name: "gemini-3.5-flash" },
     fast: { provider: "ollama", name: "llama3.2:3b" },
     critic: { provider: "ollama", name: "llama3.2:3b" },   // Verification loops
     tiny: { provider: "ollama", name: "llama3.2:3b" },      // Embeddings, intent classification
+    image: { provider: "google", name: "gemini-3-pro-image-preview" },  // Image generation
     roles: [
       { role: "explorer",         mode: "read_only", style: "fast", retryCount: 1 },
       { role: "reviewer",          mode: "read_only", style: "critic", retryCount: 1 },  // Now uses critic

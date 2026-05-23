@@ -181,6 +181,9 @@ export type ContextBundle = {
   budget: {
     maxTokens: number;
     usedTokens: number;
+    primaryWeight: number;
+    supportingWeight: number;
+    testsWeight: number;
   };
   primaryFiles: ContextItem[];
   supportingFiles: ContextItem[];
@@ -198,8 +201,41 @@ export class BudgetingStage implements ContextStage<RankingOutput, { bundle: Con
     let usedTokens = 0;
     const budgeted: ContextItem[] = [];
 
+    // Default budget weights
+    let primaryWeight = 0.6;
+    let supportingWeight = 0.3;
+    let testsWeight = 0.1;
+
+    // Research tasks need more doc coverage, less code
+    if (input.taskType === "research") {
+      primaryWeight = 0.4;
+      supportingWeight = 0.4;
+      testsWeight = 0.1;
+    }
+
+    const maxPrimary = Math.floor(maxTokens * primaryWeight);
+    const maxSupporting = Math.floor(maxTokens * supportingWeight);
+    const maxTests = Math.floor(maxTokens * testsWeight);
+
+    let primaryTokens = 0;
+    let supportingTokens = 0;
+    let testTokens = 0;
+
     for (const item of input.items) {
       if (usedTokens + item.tokenEstimate > maxTokens && budgeted.length > 0) break;
+
+      // Check category-specific budget limits
+      if (item.kind === "file" || item.kind === "symbol") {
+        if (primaryTokens + item.tokenEstimate > maxPrimary) continue;
+        primaryTokens += item.tokenEstimate;
+      } else if (item.kind === "config" || item.kind === "doc") {
+        if (supportingTokens + item.tokenEstimate > maxSupporting) continue;
+        supportingTokens += item.tokenEstimate;
+      } else if (item.kind === "test") {
+        if (testTokens + item.tokenEstimate > maxTests) continue;
+        testTokens += item.tokenEstimate;
+      }
+
       budgeted.push(item);
       usedTokens += item.tokenEstimate;
     }
@@ -208,7 +244,7 @@ export class BudgetingStage implements ContextStage<RankingOutput, { bundle: Con
       bundle: {
         id: `bundle-${Date.now()}`,
         taskType: input.taskType,
-        budget: { maxTokens, usedTokens },
+        budget: { maxTokens, usedTokens, primaryWeight, supportingWeight, testsWeight },
         primaryFiles: budgeted.filter(i => i.kind === "file" || i.kind === "symbol"),
         supportingFiles: budgeted.filter(i => i.kind === "config" || i.kind === "doc"),
         tests: budgeted.filter(i => i.kind === "test"),

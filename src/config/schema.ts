@@ -70,7 +70,7 @@ export type ExtensionStoreConfig = {
   path: string;
 };
 
-export type SubagentRole = "auto" | "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker";
+export type SubagentRole = "auto" | "explorer" | "reviewer" | "test_investigator" | "docs_researcher" | "worker" | "researcher";
 
 export type SubagentRoleConfig = {
   role: SubagentRole;
@@ -80,7 +80,7 @@ export type SubagentRoleConfig = {
   enabled?: boolean;
 };
 
-export type SubagentStyle = "thinking" | "coding" | "fast" | "critic" | "tiny";
+export type SubagentStyle = "thinking" | "coding" | "fast" | "critic" | "tiny" | "image";
 
 export type ToolReliabilityTier = "stable" | "unstable" | "experimental";
 
@@ -109,6 +109,7 @@ export type SubagentConfig = {
   fast: ModelTierConfig;       // Quick classification, routing, simple tasks
   critic: ModelTierConfig;     // Verification, validation, hallucination checks
   tiny: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
+  image: ModelTierConfig;     // Image generation, multimodal analysis
   roles: SubagentRoleConfig[];
 };
 
@@ -132,10 +133,26 @@ export type SubagentResult = {
 };
 
 export type SubagentFinding = {
-  type: "file_ref" | "code_location" | "summary" | "risk_flag";
+  type: "file_ref" | "code_location" | "summary" | "risk_flag" | "web_source" | "synthesis";
   content: string;
   confidence: "high" | "medium" | "low";
   refs?: string[];
+};
+
+export type WebSourceFinding = {
+  type: "web_source";
+  content: string;
+  url: string;
+  title: string;
+  confidence: "high" | "medium" | "low";
+  refs?: string[];
+};
+
+export type SynthesisFinding = {
+  type: "synthesis";
+  content: string;
+  sources: string[];
+  confidence: "high" | "medium" | "low";
 };
 
 export type AlixConfig = {

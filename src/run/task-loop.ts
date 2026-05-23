@@ -34,6 +34,11 @@ import {
   type EventHandlerDeps,
 } from "./event-handlers.js";
 
+const RESEARCH_LIMITS = {
+  quick: { maxIterations: 3, maxSearchCalls: 3 },
+  deep: { maxIterations: 15, maxSearchCalls: 10 },
+} as const;
+
 export interface TaskLoopDeps {
   config: {
     model: {
@@ -69,6 +74,7 @@ export interface TaskLoopDeps {
   encoding: "cl100k_base" | "o200k_base" | "char4";
   task: string;
   taskType: string;
+  depth: "quick" | "deep";
   memoryStore: MemoryStore;
   sessionId: string;
   sessionDir: string;
@@ -100,12 +106,16 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     encoding,
     task,
     taskType,
+    depth,
     memoryStore,
     sessionId,
     sessionDir,
     systemPrompt,
     onStream,
   } = deps;
+
+  // Track search calls for research tasks
+  let searchCalls = 0;
 
   // Use a mutable variable for messages since we need to reassign during truncation
   let messages = deps.messages;
@@ -214,8 +224,22 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       // Get verification checks
       const checks = await discoverVerification(".");
 
-      // For docs tasks, skip verification
-      if (taskType === "docs" || checks.length === 0) {
+      // For docs and research tasks, skip verification
+      if (taskType === "docs" || taskType === "research" || checks.length === 0) {
+        // Check research-specific limits
+        if (taskType === "research") {
+          const limits = RESEARCH_LIMITS[depth];
+          if (searchCalls >= limits.maxSearchCalls) {
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_search_calls", summary: `Research reached limit of ${searchCalls} search calls` } });
+            await evaluatePattern(log, session, sessionDir, taskType);
+            return { sessionId, summary: text || "Research completed (max search calls)", streamed: config.model.streaming };
+          }
+          if (i >= limits.maxIterations) {
+            await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: `Research reached limit of ${limits.maxIterations} iterations` } });
+            await evaluatePattern(log, session, sessionDir, taskType);
+            return { sessionId, summary: text || "Research completed (max iterations)", streamed: config.model.streaming };
+          }
+        }
         if (modelSaysDone) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
           await evaluatePattern(log, session, sessionDir, taskType);
@@ -338,6 +362,11 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         if (toolResult.message) {
           messages.push(toolResult.message);
         }
+
+        // Track search calls for research tasks (any tool call counts as research activity)
+        if (taskType === "research") {
+          searchCalls++;
+        }
       }
 
       // Track all file mutations in sessionState
@@ -372,7 +401,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
             }
           }
         }
-        if (endChecks.length > 0 && taskType !== "docs") {
+        if (endChecks.length > 0 && taskType !== "docs" && taskType !== "research") {
           const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
           for (const endCheck of endChecks) {
             await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
