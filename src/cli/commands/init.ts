@@ -3,6 +3,7 @@ import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
+import { detectProvider } from "../../providers/catalog.js";
 
 const PROJECT_TYPE_FILES: [string, string][] = [
   ["package.json", "Node.js"],
@@ -13,23 +14,6 @@ const PROJECT_TYPE_FILES: [string, string][] = [
   ["Makefile", "Generic/C"],
   ["pom.xml", "Java"],
 ];
-
-const PROVIDER_DEFAULTS: [string, string, string][] = [
-  ["anthropic", "ANTHROPIC_API_KEY", "claude-sonnet-4-20250514"],
-  ["openai", "OPENAI_API_KEY", "gpt-4o"],
-  ["google", "GEMINI_API_KEY", "gemini-2.5-flash"],
-  ["openrouter", "OPENROUTER_API_KEY", "gpt-4o"],
-  ["ollama", "OLLAMA_API_KEY", "qwen2.5-coder:7b"],
-];
-
-function detectProvider(): { provider: string; model: string } {
-  for (const [id, env, defaultModel] of PROVIDER_DEFAULTS) {
-    if (process.env[env]) {
-      return { provider: id, model: defaultModel };
-    }
-  }
-  return { provider: "ollama", model: "qwen2.5-coder:7b" };
-}
 
 export interface InitDependencies {
   cwd: string;

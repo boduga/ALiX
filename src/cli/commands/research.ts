@@ -18,11 +18,11 @@ export async function research(args: string[]): Promise<void> {
   console.log();
 
   try {
-    const result = await runTask(process.cwd(), query);
-    if (!result.streamed) {
+    const result = await runTask(process.cwd(), query, { streaming: false });
+    if (result.summary) {
       console.log(result.summary);
     }
-    console.log(`Session: ${result.sessionId}`);
+    console.log(`\nSession: ${result.sessionId}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error(`\nError: ${msg}`);
