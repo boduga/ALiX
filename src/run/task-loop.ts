@@ -177,19 +177,20 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     await log.append({ ...session, actor: "system", type: "embedder.init_failed", payload: { error: String(err) } });
   }
 
-  // Track search calls for research tasks
-  let searchCalls = 0;
+  try {
+    // Track search calls for research tasks
+    let searchCalls = 0;
 
-  // Use a mutable variable for messages since we need to reassign during truncation
-  let messages = deps.messages;
+    // Use a mutable variable for messages since we need to reassign during truncation
+    let messages = deps.messages;
 
-  let repairCount = 0;
-  const maxRepairs = 3;
+    let repairCount = 0;
+    const maxRepairs = 3;
 
-  // Get the McpManager from executor (executor holds a reference)
-  const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
+    // Get the McpManager from executor (executor holds a reference)
+    const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
 
-  for (let i = 0; i < maxIterations; i++) {
+    for (let i = 0; i < maxIterations; i++) {
     stateMachine.tick(0);
 
     // Truncate messages if token budget exceeded before streaming/completion
@@ -561,6 +562,16 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
   });
   await evaluatePattern(log, session, sessionDir, taskType);
   return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
+  } finally {
+    // Cleanup EnhancedVerifier
+    if (enhancedVerifier) {
+      try {
+        await enhancedVerifier.close();
+      } catch (err) {
+        await log.append({ ...session, actor: "system", type: "embedder.close_failed", payload: { error: String(err) } });
+      }
+    }
+  }
 }
 
 // Helper functions used by the task loop
