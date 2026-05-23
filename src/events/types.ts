@@ -250,11 +250,19 @@ export type FileUnpinnedPayload = {
   path: string;
 };
 
+export type PatternEvaluatedPayload = {
+  taskType: string;
+  success: boolean;
+  iterations: number;
+  tokenUsage: number;
+};
+
 export const CONTEXT_EVENT_TYPES = {
   REPO_MAP_CREATED: "context.repo_map_created",
   BUNDLE_CREATED: "context.bundle_created",
   FILE_PINNED: "context.file_pinned",
   FILE_UNPINNED: "context.file_unpinned",
+  PATTERN_EVALUATED: "context.pattern_evaluated",
 } as const;
 
 // Policy event payload types

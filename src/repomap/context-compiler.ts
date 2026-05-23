@@ -10,6 +10,7 @@ import { existsSync } from "node:fs";
 import { mkdir, stat as statSync, readFile, writeFile } from "node:fs/promises";
 import { rankContextCandidate } from "./context-ranker.js";
 import { readGitActivity } from "./git-activity.js";
+import { PatternRegistry } from "../context/pattern-registry.js";
 
 // Re-export types from pipeline for backward compatibility
 export type ContextKind = "file" | "symbol" | "test" | "config" | "doc";
@@ -94,6 +95,20 @@ export class ContextCompiler {
 
     const semanticStage = new SemanticSearchStage({ root: this.options.root, task });
 
+    // Load pattern stats for threshold adjustment
+    let thresholdBias = 0;
+    const patternsDir = join(this.options.root, ".alix", "patterns");
+    try {
+      const registry = new PatternRegistry(patternsDir);
+      await registry.init();
+      const stats = registry.getStats(taskType);
+      if (stats) {
+        thresholdBias = registry.getThresholdBias(taskType);
+      }
+    } catch {
+      // No registry yet - use default threshold
+    }
+
     const pipeline = new ContextPipeline([
       semanticStage,
       new RankingStage({
@@ -102,6 +117,7 @@ export class ContextCompiler {
         pinnedPaths: pinnedPaths ?? [],
         gitActivity: this.repoMap?.gitActivity,
         semanticSearchStage: semanticStage,
+        thresholdBias,
       }),
       new BudgetingStage({ maxTokens }),
     ]);

@@ -292,7 +292,14 @@ function shouldSkipSemanticSearch(task: string): boolean {
 export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
   name = "ranking";
 
-  constructor(private options: { task: string; taskType: TaskType; pinnedPaths?: string[]; semanticSearchStage?: SemanticSearchStage; gitActivity?: Map<string, number> } = { task: "", taskType: "unknown" }) {}
+  constructor(private options: {
+    task: string;
+    taskType: TaskType;
+    pinnedPaths?: string[];
+    semanticSearchStage?: SemanticSearchStage;
+    gitActivity?: Map<string, number>;
+    thresholdBias?: number; // Adjust min threshold based on stats
+  } = { task: "", taskType: "unknown" }) {}
 
   async process(input: RankingInput): Promise<RankingOutput> {
     const { task, taskType, pinnedPaths = [] } = this.options;
@@ -463,8 +470,9 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
     // Re-sort after adding dependencies and symbols
     items.sort((a, b) => b.score - a.score);
 
-    // 7. Filter to minimum score threshold
-    const filteredItems = items.filter(i => i.score >= MIN_SCORE_THRESHOLD);
+    // 7. Filter to minimum score threshold (with optional bias from pattern registry)
+    const effectiveThreshold = MIN_SCORE_THRESHOLD + (this.options.thresholdBias ?? 0);
+    const filteredItems = items.filter(i => i.score >= effectiveThreshold);
 
     return { items: filteredItems, repoMap: input, task, taskType };
   }

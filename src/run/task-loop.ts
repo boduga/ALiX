@@ -8,12 +8,14 @@
  * - Manages the repair loop
  */
 
+import { join } from "node:path";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { EventLog } from "../events/event-log.js";
 import type { MemoryStore } from "../utils/memory/store.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { TaskStateMachine } from "../autonomy/state-machine.js";
+import type { TaskType } from "../task-classifier.js";
 import type { MutationSessionState, RunResult } from "../run.js";
 import { recordMutationInSessionState, extractMutationPaths } from "../run.js";
 import { buildModelUsageEventPayload } from "../run.js";
@@ -216,6 +218,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       if (taskType === "docs" || checks.length === 0) {
         if (modelSaysDone) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+          await evaluatePattern(log, session, sessionDir, taskType);
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
         // Model didn't signal done, continue
@@ -234,6 +237,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         if (allPassed && modelSaysDone) {
           // Success — verification passed and model signals done
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+          await evaluatePattern(log, session, sessionDir, taskType);
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
 
@@ -257,6 +261,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
             filesChanged: [...sessionState.changed],
             config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
           });
+          await evaluatePattern(log, session, sessionDir, taskType);
           return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
         }
 
@@ -326,6 +331,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
           const sessionEvents = await log.readAll();
           await saveDecisionsToMemory(sessionEvents, memoryStore);
+          await evaluatePattern(log, session, sessionDir, taskType);
           return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
         }
 
@@ -392,6 +398,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
                 filesChanged: [...sessionState.changed],
                 config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
               });
+              await evaluatePattern(log, session, sessionDir, taskType);
               return { sessionId, summary: "Repair limit reached", streamed: config.model.streaming };
             }
             const failureText = failedChecks
@@ -423,6 +430,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     filesChanged: [...sessionState.changed],
     config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
+  await evaluatePattern(log, session, sessionDir, taskType);
   return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
 }
 
@@ -460,4 +468,44 @@ function buildStateSummary(state: MutationSessionState): string {
   if (state.deleted.size) parts.push(`Deleted: ${[...state.deleted].join(", ")}`);
   if (state.fatalErrors.length) parts.push(`FATAL: ${state.fatalErrors.join("; ")}`);
   return parts.length ? `[Session Digest] ${parts.join(". ")}.` : "";
+}
+
+/**
+ * Evaluates the pattern for the completed task and records the outcome.
+ * Uses the pattern registry to track which context selection strategies work best.
+ */
+async function evaluatePattern(
+  log: EventLog,
+  session: { sessionId: string; actor: "system" },
+  sessionDir: string,
+  taskType: string
+): Promise<void> {
+  try {
+    const { extractSessionOutcome } = await import("../context/session-outcome.js");
+    const { PatternRegistry } = await import("../context/pattern-registry.js");
+
+    const patternsDir = join(sessionDir, "..", ".alix", "patterns");
+    const registry = new PatternRegistry(patternsDir);
+
+    const outcome = await extractSessionOutcome(sessionDir);
+    await registry.recordOutcome(taskType as TaskType, {
+      success: outcome.success,
+      iterations: outcome.iterations,
+      totalTokens: outcome.totalTokens,
+    });
+
+    await log.append({
+      sessionId: session.sessionId,
+      actor: "system",
+      type: "context.pattern_evaluated",
+      payload: {
+        taskType,
+        success: outcome.success,
+        iterations: outcome.iterations,
+        tokenUsage: outcome.totalTokens,
+      },
+    });
+  } catch {
+    // Pattern evaluation is best-effort - don't fail the task loop
+  }
 }
