@@ -1,6 +1,7 @@
 # ALiX Memory Index
 
 
+- [resolved the points above,... (lesson)](feedback/resolved-the-points-above-lesson.md) - Auto-extracted feedback decision: resolved
 ## User
 - [Prefers TypeScript](user/prefers-typescript.md) - 
 

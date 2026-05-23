@@ -229,7 +229,6 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   }
 
   const { discoverHooks } = await import("./hooks/discover.js");
-  const { runHook } = await import("./hooks/runner.js");
   const { ensureEncoder, estimateTokens, estimateMessageTokens, truncateToTokenBudget } = await import("./utils/tokens.js");
   const hooks = await discoverHooks(cwd);
 

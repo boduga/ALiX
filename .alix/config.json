@@ -1,7 +1,7 @@
 {
   "model": {
-    "provider": "openai",
-    "name": "gpt-4o-mini"
+    "provider": "google",
+    "name": "gemini-3.5-flash"
   },
   "skills": {
     "factory": {
