@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
-import { EnhancedVerifier } from "../../../src/verifier/enhanced-verifier.js";
+import { EnhancedVerifier } from "../../src/verifier/enhanced-verifier.js";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFile, mkdir, unlink } from "node:fs/promises";
@@ -33,7 +33,7 @@ describe("EnhancedVerifier Integration", () => {
     const result = await verifier.verifyAndScore();
 
     assert.ok(result.score >= 0 && result.score <= 1);
-    assert.ok(result.existingChecks.length >= 0);
+    assert.ok(typeof result.existingChecks === "boolean");
 
     await verifier.close();
   });

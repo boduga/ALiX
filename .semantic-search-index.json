@@ -353,42 +353,102 @@
       },
       {
         "path": "src/verifier/enhanced-verifier.ts",
+        "symbolName": "PASS_RATE_WEIGHT",
+        "kind": "const",
+        "lineStart": 28,
+        "lineEnd": 28,
+        "keywords": [
+          "scoring",
+          "weights",
+          "confidence",
+          "calculation"
+        ]
+      },
+      {
+        "path": "src/verifier/enhanced-verifier.ts",
+        "symbolName": "COVERAGE_WEIGHT",
+        "kind": "const",
+        "lineStart": 29,
+        "lineEnd": 29,
+        "keywords": [
+          "scoring",
+          "weights",
+          "confidence",
+          "calculation"
+        ]
+      },
+      {
+        "path": "src/verifier/enhanced-verifier.ts",
+        "symbolName": "HISTORY_WEIGHT",
+        "kind": "const",
+        "lineStart": 30,
+        "lineEnd": 30,
+        "keywords": [
+          "scoring",
+          "weights",
+          "confidence",
+          "calculation"
+        ]
+      },
+      {
+        "path": "src/verifier/enhanced-verifier.ts",
+        "symbolName": "MIN_CHECKS_FOR_FULL_COVERAGE",
+        "kind": "const",
+        "lineStart": 31,
+        "lineEnd": 31,
+        "keywords": [
+          "scoring",
+          "weights",
+          "confidence",
+          "calculation"
+        ]
+      },
+      {
+        "path": "src/verifier/enhanced-verifier.ts",
         "symbolName": "EnhancedVerifier",
         "kind": "class",
-        "lineStart": 27,
-        "lineEnd": 149,
+        "lineStart": 33,
+        "lineEnd": 189,
+        "keywords": []
+      },
+      {
+        "path": "src/verifier/enhanced-verifier.ts",
+        "symbolName": "getHistoryScore",
+        "kind": "method",
+        "lineStart": 71,
+        "lineEnd": 74,
         "keywords": []
       },
       {
         "path": "src/verifier/enhanced-verifier.ts",
         "symbolName": "init",
         "kind": "method",
-        "lineStart": 42,
-        "lineEnd": 44,
+        "lineStart": 80,
+        "lineEnd": 86,
         "keywords": []
       },
       {
         "path": "src/verifier/enhanced-verifier.ts",
         "symbolName": "verifyAndScore",
         "kind": "method",
-        "lineStart": 46,
-        "lineEnd": 78,
+        "lineStart": 93,
+        "lineEnd": 125,
         "keywords": []
       },
       {
         "path": "src/verifier/enhanced-verifier.ts",
         "symbolName": "suggestFixes",
         "kind": "method",
-        "lineStart": 99,
-        "lineEnd": 99,
+        "lineStart": 132,
+        "lineEnd": 132,
         "keywords": []
       },
       {
         "path": "src/verifier/enhanced-verifier.ts",
         "symbolName": "close",
         "kind": "method",
-        "lineStart": 146,
-        "lineEnd": 148,
+        "lineStart": 186,
+        "lineEnd": 188,
         "keywords": []
       }
     ]
@@ -630,7 +690,7 @@
         "symbolName": "FailureDatabase",
         "kind": "class",
         "lineStart": 12,
-        "lineEnd": 174,
+        "lineEnd": 185,
         "keywords": []
       },
       {
@@ -675,10 +735,18 @@
       },
       {
         "path": "src/verifier/embedder/failure-db.ts",
-        "symbolName": "close",
+        "symbolName": "countFailures",
         "kind": "method",
         "lineStart": 167,
-        "lineEnd": 173,
+        "lineEnd": 176,
+        "keywords": []
+      },
+      {
+        "path": "src/verifier/embedder/failure-db.ts",
+        "symbolName": "close",
+        "kind": "method",
+        "lineStart": 178,
+        "lineEnd": 184,
         "keywords": []
       }
     ]

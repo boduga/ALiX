@@ -164,6 +164,17 @@ export class FailureDatabase {
     return Math.min(score, 1);
   }
 
+  async countFailures(): Promise<number> {
+    try {
+      const row = this.db.prepare(
+        "SELECT COUNT(*) as count FROM failure_records"
+      ).get() as { count: number };
+      return row.count;
+    } catch (err) {
+      throw new FailureDatabaseError("Failed to count failures", err as Error);
+    }
+  }
+
   async close(): Promise<void> {
     try {
       this.db.close();

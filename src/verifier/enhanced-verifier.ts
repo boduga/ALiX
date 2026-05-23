@@ -24,6 +24,12 @@ export interface FixSuggestion {
   source: string;
 }
 
+// Scoring weights for confidence calculation
+const PASS_RATE_WEIGHT = 0.6;
+const COVERAGE_WEIGHT = 0.2;
+const HISTORY_WEIGHT = 0.2;
+const MIN_CHECKS_FOR_FULL_COVERAGE = 3;
+
 export class EnhancedVerifier {
   private db: FailureDatabase;
   private scorer: EmbeddingScorer;
@@ -39,10 +45,51 @@ export class EnhancedVerifier {
     this.matcher = new ExemplarMatcher(this.db);
   }
 
-  async init(): Promise<void> {
-    await this.db.init();
+  private async calculateConfidenceScore(
+    checks: VerificationCheck[],
+    results: VerificationResult[]
+  ): Promise<number> {
+    // Base score from verification results
+    const passRate = results.length > 0
+      ? results.filter(r => r.status === "passed").length / results.length
+      : 0;
+    const baseScore = passRate * PASS_RATE_WEIGHT;
+
+    // Factor from check coverage
+    const coverageScore = Math.min(checks.length / MIN_CHECKS_FOR_FULL_COVERAGE, 1) * COVERAGE_WEIGHT;
+
+    // Historical confidence (if we have past failures)
+    const historyScore = await this.getHistoryScore();
+
+    return Math.max(0, Math.min(1, baseScore + coverageScore + historyScore));
   }
 
+  /**
+   * Retrieves the historical confidence score based on past failure records.
+   * Returns 0.2 if historical records exist, 0.1 otherwise (no history penalty).
+   */
+  private async getHistoryScore(): Promise<number> {
+    const count = await this.db.countFailures();
+    return count > 0 ? HISTORY_WEIGHT : 0.1;
+  }
+
+  /**
+   * Initializes the verifier's database connection.
+   * @throws Error if database initialization fails
+   */
+  async init(): Promise<void> {
+    try {
+      await this.db.init();
+    } catch (error) {
+      throw new Error(`Failed to initialize database: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  /**
+   * Runs verification checks and calculates a confidence score based on
+   * pass rate, coverage, and historical data.
+   * @returns VerificationWithScore containing checks, results, and overall score
+   */
   async verifyAndScore(): Promise<VerificationWithScore> {
     const checks = await discoverVerification(this.options.cwd);
 
@@ -77,25 +124,11 @@ export class EnhancedVerifier {
     };
   }
 
-  private async calculateConfidenceScore(
-    checks: VerificationCheck[],
-    results: VerificationResult[]
-  ): Promise<number> {
-    // Base score from verification results
-    const passRate = results.length > 0
-      ? results.filter(r => r.status === "passed").length / results.length
-      : 0;
-    const baseScore = passRate * 0.6;
-
-    // Factor from check coverage
-    const coverageScore = Math.min(checks.length / 3, 1) * 0.2;
-
-    // Historical confidence (if we have past failures)
-    const historyScore = 0.2; // Placeholder
-
-    return Math.max(0, Math.min(1, baseScore + coverageScore + historyScore));
-  }
-
+  /**
+   * Suggests fixes based on similar historical failures.
+   * @param context - Object containing errors and files related to the failure
+   * @returns Array of fix suggestions with confidence scores and matched patterns
+   */
   async suggestFixes(context: { errors: string[]; files: string[] }): Promise<FixSuggestion[]> {
     const similar = await this.matcher.findSimilar({
       task: "",
@@ -111,6 +144,10 @@ export class EnhancedVerifier {
     }));
   }
 
+  /**
+   * Records a verification failure for future similarity matching.
+   * @param failure - The failure details including task, error, file changes, and resolution
+   */
   async recordFailure(failure: {
     task: string;
     errorSummary: string;
@@ -143,6 +180,9 @@ export class EnhancedVerifier {
     });
   }
 
+  /**
+   * Closes the verifier's database connection and releases resources.
+   */
   async close(): Promise<void> {
     await this.db.close();
   }
