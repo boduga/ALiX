@@ -11,6 +11,11 @@ import { SecretScanner } from "../security/secret-scanner.js";
 import type { SecretFinding } from "../security/secret-scanner.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 
+function logShellEdgeCase(command: string): void {
+  // Log to stderr for filtering - helps identify commands that should become explicit tools
+  console.warn(`[ShellEdgeCase] Unknown command: ${command}`);
+}
+
 export type Capability = "shell.readonly" | "shell.mutating" | "file.read" | "file.write" | "network.fetch" | "tool.use";
 
 export type ToolCallArgs = {
@@ -354,6 +359,11 @@ export function decidePolicy(config: AlixConfig, request: ToolRequest): PolicyDe
   if (toolDecision) {
     const effective = applySessionMode(toolDecision, mode);
     return { decision: effective, reason: `Matched tool policy for ${request.capability} (mode: ${mode})` };
+  }
+
+  // Log commands that pass through to help with future SafeShell additions
+  if (request.command) {
+    logShellEdgeCase(request.command);
   }
 
   return { decision: config.permissions.default, reason: "Matched default policy" };

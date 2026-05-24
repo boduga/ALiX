@@ -30,13 +30,15 @@
 
 ## In Progress
 
-*None*
+| Feature | Date | Commit | Notes |
+|---------|------|--------|-------|
+| Level 5 Shell Security | 2026-05-24 | (in worktree) | SafeShell whitelist, edge case logging |
 
 ---
 
 ## Next Up
 
-1. **Level 5 Shell Security** - Replace shell.run with explicit tools (NoShellRouter)
+*None*
 
 ---
 
