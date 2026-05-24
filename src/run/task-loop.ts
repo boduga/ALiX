@@ -193,6 +193,9 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     for (let i = 0; i < maxIterations; i++) {
     stateMachine.tick(0);
 
+    // Track if any mutations occurred in this iteration
+    const hasMutations = sessionState.created.size > 0 || sessionState.changed.size > 0 || sessionState.deleted.size > 0;
+
     // Truncate messages if token budget exceeded before streaming/completion
     const msgTokens = messages.reduce(
       (sum, m) => sum + estimateMessageTokens(m),
@@ -289,6 +292,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       const checks = await discoverVerification(".");
 
       // For docs and research tasks, skip verification
+      // Also skip if no file mutations occurred (nothing to verify)
       if (taskType === "docs" || taskType === "research" || checks.length === 0) {
         // Check research-specific limits
         if (taskType === "research") {
@@ -494,7 +498,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
             }
           }
         }
-        if (endChecks.length > 0 && taskType !== "docs" && taskType !== "research") {
+        if (endChecks.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
           const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
           for (const endCheck of endChecks) {
             await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
