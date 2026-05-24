@@ -96,11 +96,11 @@ export const BASE_TOOLS: ToolDef[] = [
   },
   {
     name: "alix_shell_run",
-    description: "Run a shell command in the workspace.",
+    description: "Run a shell command in the workspace. IMPORTANT: To change directory within a command, chain with &&. Examples:\n  - cd myfolder && pwd  # Change dir and show new path\n  - cd api && ls -la    # List files in api folder\n  - mkdir test && cd test && echo done  # Create folder, enter it, confirm\nEach call runs in isolation — use && to chain commands that must run together.",
     input_schema: {
       type: "object",
       properties: {
-        command: { type: "string", description: "The shell command to execute" },
+        command: { type: "string", description: "Shell command to execute. Use && to chain commands that need to run together (e.g., cd dir && ls)." },
         cwd: { type: "string", description: "Working directory (defaults to workspace root)" },
         timeoutMs: { type: "number", description: "Timeout in milliseconds" }
       },
