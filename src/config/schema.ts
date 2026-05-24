@@ -19,6 +19,11 @@ export type PermissionConfig = {
   allowNetworkDomains: string[];
   denyCommands: string[];
   sessionMode?: SessionMode; // "auto" | "ask" | "bypass", defaults to "ask"
+  shellWhitelist?: {
+    enabled: boolean;
+    commands: string[];
+    allowUnmatched?: boolean;  // true = approval, false = deny
+  };
 };
 
 export type ContextConfig = {
