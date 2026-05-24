@@ -9,6 +9,7 @@
 
 | Feature | Date | Commit | Notes |
 |---------|------|--------|-------|
+| P1.2 Verification planner | 2026-05-24 | `bed09a3` | Cost ordering, dependency graph, smart test selection |
 | Shell security Levels 3-4 | 2026-05-24 | `4833a7a` | Blacklist + whitelist, evasion detection |
 | Critical-risk patterns | 2026-05-24 | `d8ca04f` | CommandClassifier with inline-exec, pipe-shell, rm-rf |
 | Evasion detection | 2026-05-24 | `8aa34c0` | PolicyEngine blocks base64, reverse shells, nohup |
@@ -35,8 +36,7 @@
 
 ## Next Up
 
-1. **P1.2 Verification planner** - Test mapping (file changes → relevant tests), cost-based ordering
-2. **Level 5 Shell Security** - Replace shell.run with explicit tools (NoShellRouter)
+1. **Level 5 Shell Security** - Replace shell.run with explicit tools (NoShellRouter)
 
 ---
 
