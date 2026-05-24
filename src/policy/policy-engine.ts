@@ -9,6 +9,7 @@ import type { CapabilityRegistry } from "./capability-registry.js";
 import type { RiskLevel } from "./capability-registry.js";
 import { SecretScanner } from "../security/secret-scanner.js";
 import type { SecretFinding } from "../security/secret-scanner.js";
+import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 
 export type Capability = "shell.readonly" | "shell.mutating" | "file.read" | "file.write" | "network.fetch" | "tool.use";
 
@@ -187,6 +188,40 @@ export class PolicyEngine {
       return { decision: "deny", reason: `Command is denied: ${request.command}` };
     }
 
+    // Check shell whitelist if enabled
+    if (this.config.permissions.shellWhitelist?.enabled && request.command) {
+      const whitelist = this.config.permissions.shellWhitelist;
+      const commands = whitelist.commands.length > 0
+        ? whitelist.commands
+        : parseWhitelistEnv(process.env.ALIX_SHELL_WHITELIST ?? "");
+
+      const baseCmd = request.command.split(/\s+/)[0];
+
+      // Block critical commands regardless of whitelist
+      if (BLOCKED_COMMANDS.includes(baseCmd)) {
+        return { decision: "deny", reason: `Command '${baseCmd}' is blocked for security reasons` };
+      }
+
+      // Check whitelist
+      if (!commands.includes(baseCmd)) {
+        if (whitelist.allowUnmatched) {
+          return { decision: "ask", reason: `Command '${baseCmd}' requires approval (not in whitelist)` };
+        }
+        return { decision: "deny", reason: `Command '${baseCmd}' is not in the allowed whitelist` };
+      }
+    }
+
+    // Evasion detection
+    if (request.command) {
+      const evasionResult = detectEvasion(request.command);
+      if (evasionResult.blocked) {
+        return { decision: "deny", reason: evasionResult.reason! };
+      }
+      if (evasionResult.ask) {
+        return { decision: "ask", reason: evasionResult.reason! };
+      }
+    }
+
     const toolDecision = this.config.permissions.tools[request.capability];
     const mode = this.config.permissions.sessionMode ?? "ask";
     if (toolDecision) {
@@ -220,6 +255,57 @@ function applySessionMode(toolDecision: Decision, mode: SessionMode): Decision {
   return "ask"; // mode === "ask"
 }
 
+type EvasionPattern = {
+  pattern: RegExp;
+  severity: "deny" | "ask";
+  reason: string;
+};
+
+const EVASION_PATTERNS: EvasionPattern[] = [
+  // Obscured command execution
+  { pattern: /\|.*base64.*-d\s*\|.*sh/si, severity: "deny", reason: "Base64 encoded command execution" },
+  { pattern: /xxd.*-r.*-p.*\|.*sh/si, severity: "deny", reason: "Hex encoded command execution" },
+  { pattern: /\$(?:\[[^\]]+\]|\([^)]+\)|\{[^}]+\}).*rm/si, severity: "ask", reason: "Variable expansion with rm - need approval" },
+
+  // Reverse shell patterns
+  { pattern: /\/dev\/tcp\//, severity: "deny", reason: "Network socket /dev/tcp detected" },
+  { pattern: /nc\s+-[eEv]\s+.*\/(bash|sh|bin)/, severity: "deny", reason: "Netcat reverse shell detected" },
+  { pattern: /bash\s+-i\s*>&.*\/dev\/tcp\//, severity: "deny", reason: "Bash reverse shell detected" },
+  { pattern: /curl\s+.*\|.*(bash|sh)\s*$/smi, severity: "deny", reason: "Download and execute pipe detected" },
+  { pattern: /wget.*-O-.*\|.*(bash|sh)\s*$/smi, severity: "deny", reason: "Wget pipe execute detected" },
+  { pattern: /python.*-c.*import\s+socket/s, severity: "ask", reason: "Python socket creation - manual review recommended" },
+  { pattern: /php.*exec.*socket_create/s, severity: "ask", reason: "PHP socket creation - manual review recommended" },
+
+  // Persistence mechanisms
+  { pattern: /crontab\s+-r/, severity: "ask", reason: "Crontab manipulation detected" },
+  { pattern: /authorized_keys|ssh.*key.*>>/, severity: "ask", reason: "SSH key injection detected" },
+  { pattern: /\.bashrc|\.bash_profile.*rm/si, severity: "ask", reason: "Shell profile modification detected" },
+
+  // Environment manipulation
+  { pattern: /export\s+PATH=.*:\/\$PATH/, severity: "ask", reason: "PATH manipulation detected" },
+  { pattern: /alias\s+rm=/, severity: "ask", reason: "Alias manipulation detected" },
+
+  // Background execution hiding
+  { pattern: /nohup\s+.*rm\s/si, severity: "deny", reason: "Background execution of destructive command" },
+  { pattern: /disown\s+.*rm/si, severity: "deny", reason: "Disowned destructive command" },
+  { pattern: /setsid\s+.*rm/si, severity: "deny", reason: "Setsid background destructive command" },
+  { pattern: /\&\&.*rm\s+-rf/si, severity: "deny", reason: "Chained destructive rm command" },
+
+  // System file manipulation
+  { pattern: /sudo\s+su\s+-/, severity: "ask", reason: "Privilege escalation attempt" },
+  { pattern: /passwd\s+root/, severity: "deny", reason: "Root password modification" },
+  { pattern: /chmod\s+777.*\/(etc|usr|var|bin)/, severity: "deny", reason: "Permission escalation on system directories" },
+];
+
+function detectEvasion(command: string): { blocked: boolean; ask: boolean; reason?: string } {
+  for (const p of EVASION_PATTERNS) {
+    if (p.pattern.test(command)) {
+      return { blocked: p.severity === "deny", ask: p.severity === "ask", reason: p.reason };
+    }
+  }
+  return { blocked: false, ask: false };
+}
+
 export function decidePolicy(config: AlixConfig, request: ToolRequest): PolicyDecision {
   if (request.path && isProtectedPath(config.permissions.protectedPaths, request.path)) {
     return { decision: "deny", reason: `Path is protected: ${request.path}` };
@@ -227,6 +313,40 @@ export function decidePolicy(config: AlixConfig, request: ToolRequest): PolicyDe
 
   if (request.command && config.permissions.denyCommands.includes(request.command)) {
     return { decision: "deny", reason: `Command is denied: ${request.command}` };
+  }
+
+  // Check shell whitelist if enabled
+  if (config.permissions.shellWhitelist?.enabled && request.command) {
+    const whitelist = config.permissions.shellWhitelist;
+    const commands = whitelist.commands.length > 0
+      ? whitelist.commands
+      : parseWhitelistEnv(process.env.ALIX_SHELL_WHITELIST ?? "");
+
+    const baseCmd = request.command.split(/\s+/)[0];
+
+    // Block critical commands regardless of whitelist
+    if (BLOCKED_COMMANDS.includes(baseCmd)) {
+      return { decision: "deny", reason: `Command '${baseCmd}' is blocked for security reasons` };
+    }
+
+    // Check whitelist
+    if (!commands.includes(baseCmd)) {
+      if (whitelist.allowUnmatched) {
+        return { decision: "ask", reason: `Command '${baseCmd}' requires approval (not in whitelist)` };
+      }
+      return { decision: "deny", reason: `Command '${baseCmd}' is not in the allowed whitelist` };
+    }
+  }
+
+  // Evasion detection
+  if (request.command) {
+    const evasionResult = detectEvasion(request.command);
+    if (evasionResult.blocked) {
+      return { decision: "deny", reason: evasionResult.reason! };
+    }
+    if (evasionResult.ask) {
+      return { decision: "ask", reason: evasionResult.reason! };
+    }
   }
 
   const toolDecision = config.permissions.tools[request.capability];

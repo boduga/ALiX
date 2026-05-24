@@ -379,7 +379,7 @@ test("gemini provider returns correct capabilities", () => {
   const p = new GeminiProvider({ apiKey: "AIza-test" });
   const c = p.capabilities;
   assert.equal(c.provider, "google");
-  assert.equal(c.model, "gemini-2.0-flash");
+  assert.equal(c.model, "gemini-3.5-flash");
   assert.equal(p.editFormatPreference, "search_replace");
   assert.equal(p.longContextStrategy, "expanded_context");
 });

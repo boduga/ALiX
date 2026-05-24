@@ -25,9 +25,7 @@ const MODEL_OVERRIDES: Record<string, ContextResult> = {
   "claude-sonnet-4-6":  { maxTokens: 1_000_000, encoding: "cl100k_base" },
   "claude-haiku-4-5":   { maxTokens: 200_000,  encoding: "cl100k_base" },
   "gemini-2.5-pro":    { maxTokens: 1_000_000, encoding: "o200k_base" },
-  "gemini-2.0-flash":  { maxTokens: 1_000_000, encoding: "o200k_base" },
-  "gemini-1.5-pro":    { maxTokens: 2_000_000, encoding: "o200k_base" },
-  "gemini-1.5-flash":  { maxTokens: 1_000_000, encoding: "o200k_base" },
+  "gemini-3.5-flash": { maxTokens: 1_000_000, encoding: "o200k_base" },
   "gpt-4o":            { maxTokens: 128_000,  encoding: "cl100k_base" },
   "gpt-4-turbo":       { maxTokens: 128_000,  encoding: "cl100k_base" },
 };

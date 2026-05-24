@@ -18,7 +18,7 @@ export class GeminiProvider implements ModelAdapter {
 
   constructor(config: GeminiConfig = {}) {
     this._apiKey = config.apiKey ?? process.env.GEMINI_API_KEY ?? "";
-    this._model = config.model ?? "gemini-2.0-flash";
+    this._model = config.model ?? "gemini-3.5-flash";
   }
 
   get capabilities(): ModelCapabilities {

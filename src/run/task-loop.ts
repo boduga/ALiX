@@ -8,6 +8,7 @@
  * - Manages the repair loop
  */
 
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, TokenUsage, ToolDef } from "../providers/types.js";
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
@@ -22,6 +23,7 @@ import { buildModelUsageEventPayload } from "../run.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { buildRiskReport, mapFilesToTests } from "../verifier/index.js";
 import { shouldRunVerification, discoverVerification, runVerification, type VerificationCheck, type VerificationResult } from "../verifier/verifier.js";
+import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
 import { buildRefinePrompt, selectStrategy } from "../orchestrator/refine-strategies.js";
@@ -33,6 +35,51 @@ import {
   buildScopeRejectionSummary,
   type EventHandlerDeps,
 } from "./event-handlers.js";
+
+function extractErrors(output: string): string[] {
+  const errors: string[] = [];
+  const patterns = [
+    /TypeError:\s*(.+)/gi,
+    /Error:\s*(.+)/gi,
+    /SyntaxError:\s*(.+)/gi,
+    /ReferenceError:\s*(.+)/gi,
+    /AssertionError:\s*(.+)/gi,
+    /(?:FAIL|FAILURE|ERROR):\s*(.+)/gi,
+    /Failed:\s*(.+)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(output)) !== null) {
+      errors.push(match[1]?.trim() ?? match[0]);
+    }
+  }
+
+  return [...new Set(errors)];
+}
+
+async function getHistoricalSuggestions(
+  enhancedVerifier: EnhancedVerifier,
+  failures: Array<{ result: { output?: string } }>,
+  sessionState: { changed: Set<string> },
+  session: { actor: string; sessionId: string },
+  log: EventLog
+): Promise<string[]> {
+  const failedErrors = failures.flatMap(f => extractErrors(f.result.output ?? ""));
+  const failedFiles = [...sessionState.changed];
+
+  const suggestions = await enhancedVerifier.suggestFixes({
+    errors: failedErrors,
+    files: failedFiles,
+  });
+
+  if (suggestions.length > 0) {
+    await log.append({ ...session, actor: "system", type: "embedder.suggestions_found", payload: { count: suggestions.length } });
+    return suggestions.map(s => `  - [${(s.confidence * 100).toFixed(0)}%] ${s.resolution}`);
+  }
+
+  return [];
+}
 
 const RESEARCH_LIMITS = {
   quick: { maxIterations: 3, maxSearchCalls: 3 },
@@ -75,6 +122,7 @@ export interface TaskLoopDeps {
   task: string;
   taskType: string;
   depth: "quick" | "deep";
+  embedderDbPath?: string;
   memoryStore: MemoryStore;
   sessionId: string;
   sessionDir: string;
@@ -114,20 +162,39 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
     onStream,
   } = deps;
 
-  // Track search calls for research tasks
-  let searchCalls = 0;
+  // Initialize EnhancedVerifier for historical failure matching
+  const embedderDbPath = deps.embedderDbPath ?? join(homedir(), ".alix", "failures.db");
+  let enhancedVerifier: EnhancedVerifier | null = null;
 
-  // Use a mutable variable for messages since we need to reassign during truncation
-  let messages = deps.messages;
+  try {
+    enhancedVerifier = new EnhancedVerifier({
+      cwd: ".",
+      embedderDb: embedderDbPath,
+    });
+    await enhancedVerifier.init();
+    await log.append({ ...session, actor: "system", type: "embedder.initialized", payload: { dbPath: embedderDbPath } });
+  } catch (err) {
+    await log.append({ ...session, actor: "system", type: "embedder.init_failed", payload: { error: String(err) } });
+  }
 
-  let repairCount = 0;
-  const maxRepairs = 3;
+  try {
+    // Track search calls for research tasks
+    let searchCalls = 0;
 
-  // Get the McpManager from executor (executor holds a reference)
-  const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
+    // Use a mutable variable for messages since we need to reassign during truncation
+    let messages = deps.messages;
 
-  for (let i = 0; i < maxIterations; i++) {
+    let repairCount = 0;
+    const maxRepairs = 3;
+
+    // Get the McpManager from executor (executor holds a reference)
+    const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
+
+    for (let i = 0; i < maxIterations; i++) {
     stateMachine.tick(0);
+
+    // Track if any mutations occurred in this iteration
+    const hasMutations = sessionState.created.size > 0 || sessionState.changed.size > 0 || sessionState.deleted.size > 0;
 
     // Truncate messages if token budget exceeded before streaming/completion
     const msgTokens = messages.reduce(
@@ -225,6 +292,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       const checks = await discoverVerification(".");
 
       // For docs and research tasks, skip verification
+      // Also skip if no file mutations occurred (nothing to verify)
       if (taskType === "docs" || taskType === "research" || checks.length === 0) {
         // Check research-specific limits
         if (taskType === "research") {
@@ -261,6 +329,22 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         if (allPassed && modelSaysDone) {
           // Success — verification passed and model signals done
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+
+          // Record successful resolution if we have files that were changed
+          if (enhancedVerifier && sessionState.changed.size > 0) {
+            try {
+              await enhancedVerifier.recordFailure({
+                task: task,
+                errorSummary: "Verification passed",
+                fileChanges: [...sessionState.changed],
+                resolution: "Applied fix successfully",
+              });
+              await log.append({ ...session, actor: "system", type: "embedder.resolution_recorded", payload: { fileCount: sessionState.changed.size } });
+            } catch (err) {
+              await log.append({ ...session, actor: "system", type: "embedder.record_failed", payload: { error: String(err) } });
+            }
+          }
+
           await evaluatePattern(log, session, sessionDir, taskType);
           return { sessionId, summary: text, streamed: config.model.streaming };
         }
@@ -292,7 +376,20 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         // Use Fabric-style refine strategy
         const { prompt: refinedPrompt, strategy: usedStrategy } = await buildRefinePrompt(failureText, taskType, repairCount);
         await log.append({ ...session, actor: "system", type: "refine.strategy_applied", payload: { strategy: usedStrategy, repairCount, failureType: selectStrategy(failureText, taskType) } });
-        messages.push({ role: "user", content: refinedPrompt });
+
+        // Get historical suggestions for similar failures
+        const historicalSuggestions = enhancedVerifier
+          ? await getHistoricalSuggestions(enhancedVerifier, failures, sessionState, session, log)
+          : [];
+
+        // Append historical suggestions if available
+        let finalPrompt = refinedPrompt;
+        if (historicalSuggestions.length > 0) {
+          finalPrompt += "\n\n**Similar failures that were resolved:**\n" + historicalSuggestions.join("\n");
+        }
+
+        // Update the message with enhanced prompt
+        messages.push({ role: "user", content: finalPrompt });
       }
     } else {
       // Track failed tool names per iteration to prevent spinning
@@ -311,6 +408,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         selectedTools,
         mcpToolIndex,
         config,
+        verbose: true, // Stream tool outputs to stdout
       };
 
       // Handle each tool call (model names like alix_file_read → executor names like file.read)
@@ -401,7 +499,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
             }
           }
         }
-        if (endChecks.length > 0 && taskType !== "docs" && taskType !== "research") {
+        if (endChecks.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
           const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
           for (const endCheck of endChecks) {
             await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
@@ -438,7 +536,15 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
               ? `${failureText}\n\nResidual risk (not verified):\n${riskReport}`
               : failureText;
 
-            const repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
+            // Get historical suggestions for similar failures
+            const historicalSuggestions = enhancedVerifier
+              ? await getHistoricalSuggestions(enhancedVerifier, failedChecks, sessionState, session, log)
+              : [];
+
+            let repairPrompt = `\n\n[Verification Failed] ${fullPrompt}\n\nFix the issues and try again.`;
+            if (historicalSuggestions.length > 0) {
+              repairPrompt += "\n\n**Similar failures that were resolved:**\n" + historicalSuggestions.join("\n");
+            }
             messages.push({ role: "user", content: repairPrompt });
           }
         }
@@ -461,6 +567,16 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
   });
   await evaluatePattern(log, session, sessionDir, taskType);
   return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
+  } finally {
+    // Cleanup EnhancedVerifier
+    if (enhancedVerifier) {
+      try {
+        await enhancedVerifier.close();
+      } catch (err) {
+        await log.append({ ...session, actor: "system", type: "embedder.close_failed", payload: { error: String(err) } });
+      }
+    }
+  }
 }
 
 // Helper functions used by the task loop

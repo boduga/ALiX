@@ -36,20 +36,17 @@ type PartialConfig = Partial<AlixConfig> & {
   };
 };
 
-// Load config from three sources (in order of precedence):
-// 1. ~/.config/alix/config.json   — XDG user config (API keys, model settings)
-// 2. ~/.alix/config.json          — global user config (MCP servers, permissions)
-// 3. <cwd>/.alix/config.json     — project config (overrides everything)
+// Load config from two sources (in order of precedence):
+// 1. ~/.config/alix/config.json   — user config (API keys, model settings, MCP servers)
+// 2. <cwd>/.alix/config.json       — project config (overrides everything)
 //
 // API keys from config are injected as environment variables.
 export { DEFAULT_CONFIG } from "./defaults.js";
 export async function loadConfig(cwd: string): Promise<AlixConfig> {
-  const xdgConfigPath = join(homedir(), ".config", "alix", "config.json");
-  const globalConfigPath = join(homedir(), ".alix", "config.json");
+  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
   const projectConfigPath = join(cwd, ".alix", "config.json");
 
-  const xdgConfig = existsSync(xdgConfigPath) ? await readJson(xdgConfigPath) : {};
-  const globalConfig = existsSync(globalConfigPath) ? await readJson(globalConfigPath) : {};
+  const userConfig = existsSync(userConfigPath) ? await readJson(userConfigPath) : {};
   const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
 
   // Inject API keys as env vars so providers pick them up
@@ -67,8 +64,7 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
     deepseek: "DEEPSEEK_API_KEY",
   };
   const apiKeys = {
-    ...(xdgConfig as any).apiKeys,
-    ...(globalConfig as any).apiKeys,
+    ...(userConfig as any).apiKeys,
     ...(projectConfig as any).apiKeys
   };
   for (const [provider, key] of Object.entries(apiKeys)) {
@@ -78,16 +74,15 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
     }
   }
 
-  // Collect modelTiers overrides from config files (xdg → global → project)
+  // Collect modelTiers overrides from config files (user → project)
   const modelTiers: PartialConfig["modelTiers"] = {
-    ...(xdgConfig as any).modelTiers,
-    ...(globalConfig as any).modelTiers,
+    ...(userConfig as any).modelTiers,
     ...(projectConfig as any).modelTiers
   };
 
   const result = mergeConfig(
     DEFAULT_CONFIG,
-    ...([xdgConfig, globalConfig, projectConfig] as PartialConfig[]),
+    ...([userConfig, projectConfig] as PartialConfig[]),
     { modelTiers } as PartialConfig
   );
 
