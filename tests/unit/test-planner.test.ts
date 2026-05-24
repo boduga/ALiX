@@ -25,12 +25,10 @@ describe("TestPlanner", () => {
   });
 
   it("filters to minimal test set for changed files", async () => {
-    // Mock changed files
     const planner = new TestPlanner();
-    planner.setChangedFiles(["src/auth/user.ts"]);
 
     // Mock test mappings
-    const planned = await planner.plan(["src/auth/user.ts"], {
+    const planned = await planner.plan(".", ["src/auth/user.ts"], {
       baseCommands: [{ command: "npm run typecheck", reason: "typecheck" }],
     });
 
@@ -41,7 +39,7 @@ describe("TestPlanner", () => {
 
   it("includes cost estimate in plan", async () => {
     const planner = new TestPlanner();
-    const plan = await planner.plan(["src/auth/user.ts"], {
+    const plan = await planner.plan(".", ["src/auth/user.ts"], {
       baseCommands: [{ command: "npm test", reason: "full suite" }],
     });
 
@@ -51,7 +49,7 @@ describe("TestPlanner", () => {
 
   it("marks files as needing verification", async () => {
     const planner = new TestPlanner();
-    const plan = await planner.plan(["src/auth/user.ts"], {
+    const plan = await planner.plan(".", ["src/auth/user.ts"], {
       baseCommands: [],
     });
 
