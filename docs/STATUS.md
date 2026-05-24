@@ -35,9 +35,8 @@
 
 ## Next Up
 
-1. **P1.1 Frontend observability** - Wire up diff viewer, approval panel, replay controls, test UI
-2. **P1.2 Verification planner** - Test mapping (file changes → relevant tests), cost-based ordering
-3. **Level 5 Shell Security** - Replace shell.run with explicit tools (NoShellRouter)
+1. **P1.2 Verification planner** - Test mapping (file changes → relevant tests), cost-based ordering
+2. **Level 5 Shell Security** - Replace shell.run with explicit tools (NoShellRouter)
 
 ---
 

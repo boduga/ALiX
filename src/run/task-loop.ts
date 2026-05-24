@@ -486,29 +486,32 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       if (skipReason) {
         await log.append({ ...session, actor: "verifier", type: "verification.skipped", payload: { reason: skipReason } });
       } else {
-        const endChecks = await discoverVerification(".");
-        // Supplement with targeted test checks based on changed files
         const changedFiles = [...sessionState.created, ...sessionState.changed];
-        if (changedFiles.length > 0) {
-          const mappedChecks = mapFilesToTests(".", changedFiles);
-          // Deduplicate — avoid running the same command twice
-          const existingCmds = new Set(endChecks.map(c => c.command));
-          for (const mc of mappedChecks) {
-            if (!existingCmds.has(mc.command)) {
-              endChecks.push(mc);
-            }
-          }
-        }
-        if (endChecks.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
+        if (changedFiles.length > 0 && taskType !== "docs" && taskType !== "research" && hasMutations) {
+          // Use TestPlanner for smart verification selection
+          const { createTestPlan } = await import("../verifier/test-planner.js");
+
+          const plan = await createTestPlan(".", changedFiles);
+
+          await log.append({ ...session, actor: "verifier", type: "verification.plan_created", payload: {
+            strategy: plan.strategy,
+            totalCost: plan.totalCost,
+            checkCount: plan.checks.length,
+            verifiedFiles: plan.verifiedFiles,
+            unverifiedFiles: plan.unverifiedFiles,
+          }});
+
           const endResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];
-          for (const endCheck of endChecks) {
+
+          // Run checks in cost order
+          for (const endCheck of plan.checks) {
             await log.append({ ...session, actor: "verifier", type: "verification.check_started", payload: { command: endCheck.command, reason: endCheck.reason } });
             const verResult = await runVerification(".", endCheck);
             await log.append({ ...session, actor: "verifier", type: "verification.check_finished", payload: { command: endCheck.command, status: verResult.status } });
             endResults.push({ check: endCheck, result: verResult });
           }
 
-          const riskReport = buildRiskReport(endChecks, endResults);
+          const riskReport = buildRiskReport(plan.checks, endResults);
 
           const failedChecks = endResults.filter((r) => r.result.status === "failed");
           if (failedChecks.length > 0) {
