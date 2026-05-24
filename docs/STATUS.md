@@ -9,6 +9,7 @@
 
 | Feature | Date | Commit | Notes |
 |---------|------|--------|-------|
+| Level 5 Shell Security | 2026-05-24 | `a632c18` | SafeShell whitelist, edge case logging |
 | P1.2 Verification planner | 2026-05-24 | `bed09a3` | Cost ordering, dependency graph, smart test selection |
 | Shell security Levels 3-4 | 2026-05-24 | `4833a7a` | Blacklist + whitelist, evasion detection |
 | Critical-risk patterns | 2026-05-24 | `d8ca04f` | CommandClassifier with inline-exec, pipe-shell, rm-rf |
@@ -25,14 +26,6 @@
 | Research task type | 2026-05-22 | `bb81066` | Web search for non-coding prompts |
 | Provider consolidation | 2026-05-22 | `f0f5f28` | Shared catalog |
 | P0.1 Context Compiler | 2026-05-20 | `b59640e` | Ranked repo context bundle with intent classification |
-
----
-
-## In Progress
-
-| Feature | Date | Commit | Notes |
-|---------|------|--------|-------|
-| Level 5 Shell Security | 2026-05-24 | (in worktree) | SafeShell whitelist, edge case logging |
 
 ---
 
