@@ -1,6 +1,7 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
+import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -128,6 +129,8 @@ export class FileToolRouter implements ToolRouter {
 }
 
 export class ShellToolRouter implements ToolRouter {
+  private shellPool?: ShellPool;
+
   constructor(private readonly root: string = "") {}
 
   canHandle(name: string): boolean {
@@ -135,11 +138,33 @@ export class ShellToolRouter implements ToolRouter {
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
-    const { command, cwd, timeoutMs, root: r } = request.args as { command?: string; cwd?: string; timeoutMs?: number; root?: string };
+    const { command, cwd, timeoutMs, root: r, persistent } = request.args as {
+      command?: string;
+      cwd?: string;
+      timeoutMs?: number;
+      root?: string;
+      persistent?: boolean;
+    };
+
     if (!command) {
       return { kind: "error", message: "shell.run requires command" };
     }
-    return runCommand({ command, cwd: cwd ?? r ?? this.root, timeoutMs });
+
+    const workingDir = cwd ?? r ?? this.root;
+
+    if (persistent) {
+      if (!this.shellPool) {
+        this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs });
+      }
+      try {
+        const result = await this.shellPool.run(command, timeoutMs);
+        return { kind: "success", output: result.output };
+      } catch (err) {
+        return { kind: "error", message: String(err) };
+      }
+    }
+
+    return runCommand({ command, cwd: workingDir, timeoutMs });
   }
 }
 
