@@ -138,25 +138,28 @@
 
 | Pattern | Source | Priority | Status |
 |---------|--------|----------|--------|
-| Shell command chaining examples | Claude Code | HIGH | TODO: Plan exists |
-| Sandboxed execution | Codex CLI | MEDIUM | Partially done |
+| Shell command chaining examples | Claude Code | HIGH | ✅ Done (2026-05-23) |
+| ShellPool persistence | Claude Code | MEDIUM | ✅ Done (2026-05-23) |
+| Tool output streaming | ALiX | HIGH | ✅ Done (2026-05-23) |
+| Sandboxed execution | Codex CLI | MEDIUM | ✅ Partially done |
 | Multiple runtime modes | OpenHands | LOW | Not needed now |
 | Tree-sitter repo map | Aider | MEDIUM | Could enhance |
-| Token budget | Aider | HIGH | Done |
-| Git checkpoints | Aider | HIGH | Done |
-| MCP-first extensions | Goose | MEDIUM | Done |
-| Lazy tool discovery | Goose | MEDIUM | Done |
+| Token budget | Aider | HIGH | ✅ Done |
+| Git checkpoints | Aider | HIGH | ✅ Done |
+| MCP-first extensions | Goose | MEDIUM | ✅ Done |
+| Lazy tool discovery | Goose | MEDIUM | ✅ Done |
 | LSP diagnostics | OpenCode | LOW | Not needed now |
-| Built-in dev tools | OpenCode | LOW | Mostly done |
+| Built-in dev tools | OpenCode | LOW | ✅ Done |
 
 ---
 
-## Implementation Priority
+## Implementation Priority (Future Work)
 
-1. **Do first:** Shell tool description (quick win)
-2. **Consider:** LSP diagnostics for TypeScript
-3. **Consider:** Enhanced graph ranking in ContextCompiler
+1. ~~Shell tool description~~ — ✅ Complete
+2. **Tree-sitter repo map** — Enhance symbol extraction with AST parsing
+3. **Enhanced graph ranking** — PageRank-style file relevance
 4. **Skip for now:** Multiple runtime modes (complex, not needed)
+5. **Skip for now:** LSP diagnostics (TypeScript already works)
 
 ---
 
