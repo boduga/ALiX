@@ -134,22 +134,17 @@
 
 ---
 
-## Summary: What to Borrow
+## Shell Security (Based on IndyDevDan)
 
-| Pattern | Source | Priority | Status |
-|---------|--------|----------|--------|
-| Shell command chaining examples | Claude Code | HIGH | ✅ Done (2026-05-23) |
-| ShellPool persistence | Claude Code | MEDIUM | ✅ Done (2026-05-23) |
-| Tool output streaming | ALiX | HIGH | ✅ Done (2026-05-23) |
-| Sandboxed execution | Codex CLI | MEDIUM | ✅ Partially done |
-| Multiple runtime modes | OpenHands | LOW | Not needed now |
-| Tree-sitter repo map | Aider | MEDIUM | Could enhance |
-| Token budget | Aider | HIGH | ✅ Done |
-| Git checkpoints | Aider | HIGH | ✅ Done |
-| MCP-first extensions | Goose | MEDIUM | ✅ Done |
-| Lazy tool discovery | Goose | MEDIUM | ✅ Done |
-| LSP diagnostics | OpenCode | LOW | Not needed now |
-| Built-in dev tools | OpenCode | LOW | ✅ Done |
+Based on [IndyDevDan's "Five Levels of Bash Security"](https://www.youtube.com/watch?v=yBcmIoA-vGs) video.
+
+| Level | Description | Status | Plan |
+|-------|-------------|--------|------|
+| Level 1 | User prompt/skill | ✅ Done | N/A |
+| Level 2 | System prompt | ✅ Done | N/A |
+| Level 3 | Bash + Blacklist | ✅ Done | `2026-05-24-shell-security-blacklist.md` |
+| Level 4 | Bash + Whitelist | 📋 Planned | `2026-05-24-shell-security-whitelist.md` |
+| Level 5 | No Bash Tool | 📋 Planned | `2026-05-24-shell-security-no-bash.md` |
 
 ---
 
