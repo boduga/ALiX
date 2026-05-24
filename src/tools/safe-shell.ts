@@ -5,6 +5,15 @@
  * without additional prompts or restrictions.
  */
 
+// Buffer and timeout limits for safe shell operations
+// 1MB = 1024 * 1024 bytes - sufficient for typical command output
+// (git diff, log, status, file contents, directory listings)
+const SAFE_SHELL_MAX_BUFFER_BYTES = 1024 * 1024;
+
+// 30 seconds - long enough for git operations, network queries,
+// or file reading; short enough to prevent runaway processes
+const SAFE_SHELL_TIMEOUT_MS = 30_000;
+
 export const SAFE_SHELL_COMMANDS = [
   // Navigation & info
   "pwd",           // Print working directory
@@ -139,8 +148,8 @@ export async function executeSafeShell(command: string): Promise<{
     const { execSync } = await import("child_process");
     const output = execSync(trimmed, {
       encoding: "utf-8",
-      maxBuffer: 1024 * 1024,  // 1MB limit for read operations
-      timeout: 30000,          // 30s timeout
+      maxBuffer: SAFE_SHELL_MAX_BUFFER_BYTES,
+      timeout: SAFE_SHELL_TIMEOUT_MS,
     });
 
     return { allowed: true, output };
