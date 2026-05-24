@@ -1,6 +1,7 @@
 import type { ToolResult, ToolCallRequest } from "./types.js";
 import { readFile, searchDir } from "./file-tools.js";
 import { runCommand } from "./shell-tool.js";
+import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
 import { ShellPool } from "./shell-pool.js";
 import { existsSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -148,6 +149,18 @@ export class ShellToolRouter implements ToolRouter {
 
     if (!command) {
       return { kind: "error", message: "shell.run requires command" };
+    }
+
+    // Level 5: Check if command is safe shell (runs before policy decision)
+    if (isSafeShellCommand(command)) {
+      const result = await executeSafeShell(command);
+      if (result.allowed) {
+        return {
+          kind: "success",
+          output: result.output ?? result.error ?? "",
+        };
+      }
+      return { kind: "error", message: result.error ?? "SafeShell validation failed" };
     }
 
     const workingDir = cwd ?? r ?? this.root;
