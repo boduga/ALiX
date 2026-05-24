@@ -652,5 +652,11 @@ if (command === "skills") {
 	  process.exit(0);
 	}
 
+if (command === "research") {
+  const { research } = await import("./cli/commands/research.js");
+  await research(args);
+  process.exit(0);
+}
+
 console.error(`Unknown command: ${command}`);
 process.exit(1);
