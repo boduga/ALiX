@@ -52,17 +52,19 @@ export class DependencyGraph {
   }
 
   private isTestFile(path: string): boolean {
-    return /test|spec/i.test(path);
+    return /\.test\.ts$|\.spec\.ts$/i.test(path);
   }
 }
 
-const IMPORT_PATTERN = /import\s+(?:(?:\{[^}]+\}|\*\s+as\s+\w+|\w+)\s+from\s+)?['"]([^'"]+)['"]/g;
+const IMPORT_PATTERN = /(?:import\s+(?:(?:\{[^}]+\}|\*\s+as\s+\w+|\w+)\s+from\s+)?['"]([^'"]+)['"]|require\s*\(\s*['"]([^'"]+)['"]\s*\))|import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 function extractImports(content: string): string[] {
   const imports: string[] = [];
   let match;
   while ((match = IMPORT_PATTERN.exec(content)) !== null) {
-    imports.push(match[1]);
+    // Match group 1 = ES import, group 2 = require, group 3 = dynamic import
+    const imp = match[1] || match[2] || match[3];
+    if (imp) imports.push(imp);
   }
   return imports;
 }

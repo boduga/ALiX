@@ -52,7 +52,7 @@ describe("DependencyGraph", () => {
     assert.ok(affected.some(t => t.includes("module.test")), "Should include module test");
   });
 
-  it("orders tests by dependency distance", async () => {
+  it("finds affected tests across dependency chain", async () => {
     // Files: a.ts (top), b.ts (depends on a), c.ts (depends on b), tests for each
     const files = {
       "src/a.ts": "export const a = 1;",
@@ -73,6 +73,5 @@ describe("DependencyGraph", () => {
     const testNames = affected.map(t => t.split("/").pop());
 
     assert.ok(testNames.includes("c.test.ts"), "Should include c.test");
-    // Note: current impl only goes one level deep for tests
   });
 });
