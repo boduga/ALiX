@@ -98,6 +98,7 @@ export const DEFAULT_ALLOWED_COMMANDS: string[] = [
 export const BLOCKED_COMMANDS: string[] = [
   "sudo",
   "su",
+  "rm",
   "passwd",
   "useradd",
   "userdel",

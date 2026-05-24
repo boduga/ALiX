@@ -9,6 +9,7 @@ import type { CapabilityRegistry } from "./capability-registry.js";
 import type { RiskLevel } from "./capability-registry.js";
 import { SecretScanner } from "../security/secret-scanner.js";
 import type { SecretFinding } from "../security/secret-scanner.js";
+import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 
 export type Capability = "shell.readonly" | "shell.mutating" | "file.read" | "file.write" | "network.fetch" | "tool.use";
 
@@ -187,6 +188,40 @@ export class PolicyEngine {
       return { decision: "deny", reason: `Command is denied: ${request.command}` };
     }
 
+    // Check shell whitelist if enabled
+    if (this.config.permissions.shellWhitelist?.enabled && request.command) {
+      const whitelist = this.config.permissions.shellWhitelist;
+      const commands = whitelist.commands.length > 0
+        ? whitelist.commands
+        : parseWhitelistEnv(process.env.ALIX_SHELL_WHITELIST ?? "");
+
+      const baseCmd = request.command.split(/\s+/)[0];
+
+      // Block critical commands regardless of whitelist
+      if (BLOCKED_COMMANDS.includes(baseCmd)) {
+        return { decision: "deny", reason: `Command '${baseCmd}' is blocked for security reasons` };
+      }
+
+      // Check whitelist
+      if (!commands.includes(baseCmd)) {
+        if (whitelist.allowUnmatched) {
+          return { decision: "ask", reason: `Command '${baseCmd}' requires approval (not in whitelist)` };
+        }
+        return { decision: "deny", reason: `Command '${baseCmd}' is not in the allowed whitelist` };
+      }
+    }
+
+    // Evasion detection
+    if (request.command) {
+      const evasionResult = detectEvasion(request.command);
+      if (evasionResult.blocked) {
+        return { decision: "deny", reason: evasionResult.reason! };
+      }
+      if (evasionResult.ask) {
+        return { decision: "ask", reason: evasionResult.reason! };
+      }
+    }
+
     const toolDecision = this.config.permissions.tools[request.capability];
     const mode = this.config.permissions.sessionMode ?? "ask";
     if (toolDecision) {
@@ -280,7 +315,30 @@ export function decidePolicy(config: AlixConfig, request: ToolRequest): PolicyDe
     return { decision: "deny", reason: `Command is denied: ${request.command}` };
   }
 
-  // Evasion detection: check for obscured/encoded dangerous commands
+  // Check shell whitelist if enabled
+  if (config.permissions.shellWhitelist?.enabled && request.command) {
+    const whitelist = config.permissions.shellWhitelist;
+    const commands = whitelist.commands.length > 0
+      ? whitelist.commands
+      : parseWhitelistEnv(process.env.ALIX_SHELL_WHITELIST ?? "");
+
+    const baseCmd = request.command.split(/\s+/)[0];
+
+    // Block critical commands regardless of whitelist
+    if (BLOCKED_COMMANDS.includes(baseCmd)) {
+      return { decision: "deny", reason: `Command '${baseCmd}' is blocked for security reasons` };
+    }
+
+    // Check whitelist
+    if (!commands.includes(baseCmd)) {
+      if (whitelist.allowUnmatched) {
+        return { decision: "ask", reason: `Command '${baseCmd}' requires approval (not in whitelist)` };
+      }
+      return { decision: "deny", reason: `Command '${baseCmd}' is not in the allowed whitelist` };
+    }
+  }
+
+  // Evasion detection
   if (request.command) {
     const evasionResult = detectEvasion(request.command);
     if (evasionResult.blocked) {
