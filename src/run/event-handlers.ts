@@ -33,6 +33,7 @@ export type EventHandlerDeps = {
   selectedTools: { name: string; execName: string }[];
   mcpToolIndex: DeferredToolEntry[];
   config: { permissions: { sessionMode?: "auto" | "ask" | "bypass" } };
+  verbose?: boolean; // Print tool outputs to stdout
 };
 
 /**
@@ -259,6 +260,16 @@ export async function handleToolCall(
     execResult.kind === "success"
       ? (execResult.output ?? execResult.content ?? "")
       : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+
+  // Stream tool output to stdout if verbose mode - only for read-only tools
+  if (deps.verbose && execResult.kind === "success" && resultContent) {
+    const isReadOnly = ["file.read", "dir.search", "file.exists"].includes(execName);
+    const isPwd = execName === "shell.run" && (toolCall.args.command as string)?.includes("pwd");
+    if (isReadOnly || isPwd) {
+      const truncated = resultContent.length > 200 ? resultContent.slice(0, 200) + "\n[...truncated]" : resultContent;
+      console.log(`\n> ${execName}: ${truncated}\n`);
+    }
+  }
 
   if (execResult.kind === "success" && (execResult as { completed?: boolean }).completed) {
     return {

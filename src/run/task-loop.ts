@@ -408,6 +408,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         selectedTools,
         mcpToolIndex,
         config,
+        verbose: true, // Stream tool outputs to stdout
       };
 
       // Handle each tool call (model names like alix_file_read → executor names like file.read)
