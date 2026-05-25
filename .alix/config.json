@@ -3,6 +3,9 @@
     "provider": "google",
     "name": "gemini-3.5-flash"
   },
+  "subagents": {
+    "enabled": true
+  },
   "skills": {
     "factory": {
       "enabled": true,
