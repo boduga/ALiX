@@ -116,7 +116,17 @@ export type RunResult = {
   reason?: "completed" | "max_repairs" | "max_iterations" | "rejected_scope_expansion";
 };
 
-export type RunOpts = { streaming?: boolean; sessionMode?: "auto" | "ask" | "bypass" };
+export interface SharedSession {
+  sessionId: string;
+  sessionDir: string;
+  eventLog: EventLog;
+}
+
+export type RunOpts = {
+  streaming?: boolean;
+  sessionMode?: "auto" | "ask" | "bypass";
+  sharedSession?: SharedSession;
+};
 
 export const EXIT_CODES = {
   REJECTED_SCOPE_EXPANSION: 3,
@@ -162,9 +172,22 @@ export function shouldAutoDisableStreaming(): boolean {
 }
 
 export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
-  const sessionId = randomUUID();
-  const sessionDir = join(cwd, ".alix", "sessions", sessionId);
-  await mkdir(sessionDir, { recursive: true });
+  let sessionId: string;
+  let sessionDir: string;
+  let log: EventLog;
+
+  // Use shared session if provided (for TUI integration)
+  if (opts?.sharedSession) {
+    sessionId = opts.sharedSession.sessionId;
+    sessionDir = opts.sharedSession.sessionDir;
+    log = opts.sharedSession.eventLog;
+  } else {
+    sessionId = randomUUID();
+    sessionDir = join(cwd, ".alix", "sessions", sessionId);
+    await mkdir(sessionDir, { recursive: true });
+    log = new EventLog(sessionDir);
+    await log.init();
+  }
 
   const config = await loadConfig(cwd);
   // CLI flag overrides config for session mode
@@ -175,8 +198,6 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   if (shouldAutoDisableStreaming() && config.model.streaming && opts?.streaming !== true) {
     config.model.streaming = false;
   }
-  const log = new EventLog(sessionDir);
-  await log.init();
 
   // Create policy engine with event log
   const policyEngine = new PolicyEngine(config, {}, {
@@ -331,6 +352,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   });
   const stateMachine = new TaskStateMachine(limiter, (from, to, reason) => {
     void log.append({ ...session, actor: "system", type: "autonomy.state_transition", payload: { from, to, reason } });
+    void log.append({ ...session, actor: "system", type: "agent.state_changed", payload: { state: to, reason } });
   });
 
   // Inject available skills into system prompt

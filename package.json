@@ -36,12 +36,13 @@
     "@types/node": "^24.0.0",
     "c8": "^11.0.0",
     "minimatch": "^10.2.5",
-    "typescript": "^5.9.0",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.6"
   },
   "dependencies": {
     "@xenova/transformers": "^2.17.2",
     "better-sqlite3": "^12.10.0",
+    "cli-spinners": "^3.4.0",
     "tiktoken": "^1.0.22",
     "tree-sitter": "^0.21.1",
     "tree-sitter-typescript": "^0.23.2",

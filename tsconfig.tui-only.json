@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "dist",
+    "lib": ["ES2024", "DOM"]
+  },
+  "include": ["src/tui/**/*.ts"],
+  "exclude": ["dist", "src/**/*.test.ts"]
+}
