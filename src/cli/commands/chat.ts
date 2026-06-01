@@ -87,7 +87,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
 
   const config = await loadConfig(process.cwd());
   const apiKey = config.apiKeys?.[config.model.provider] ?? process.env[`${config.model.provider.toUpperCase()}_API_KEY`] ?? "";
-  const provider = createProvider(config.model, apiKey);
+  const provider = await createProvider(config.model, apiKey);
   const systemPrompt = buildChatSystemPrompt();
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });

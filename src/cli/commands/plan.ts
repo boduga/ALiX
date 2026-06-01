@@ -55,7 +55,7 @@ export async function runPlan(opts: PlanOptions): Promise<void> {
   console.log("Generating plan...\n");
 
   const config = await loadConfig(process.cwd());
-  const provider = createProvider(config.model);
+  const provider = await createProvider(config.model);
 
   const systemPrompt = `You are a project planner. Generate a YAML plan for the given task.
 
