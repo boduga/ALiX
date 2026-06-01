@@ -21,6 +21,16 @@ export const moveDown = (n: number) => `\x1b[${n}B`;
 export const moveRight = (n: number) => `\x1b[${n}C`;
 export const moveLeft = (n: number) => `\x1b[${n}D`;
 
+/** Move cursor to absolute line N (0-indexed, from top of viewport) */
+export function moveToLine(n: number): string {
+  return `\x1b[${n + 1};1H`;
+}
+
+/** Clear from cursor to end of line */
+export function clearToEndOfLine(): string {
+  return "\x1b[K";
+}
+
 export function panel(content: string, opts: { width: number } = { width: 60 }): string {
   const { width } = opts;
   const inner = " ".repeat(width - 2);
