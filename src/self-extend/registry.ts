@@ -18,7 +18,7 @@ export function registerInProcess(ext: InProcessExtension): void {
   if (store.has(k)) {
     throw new Error(`Extension already exists: ${ext.type}/${ext.name}`);
   }
-  store.set(k, { ...ext, registeredAt: Date.now() });
+  store.set(k, { ...ext, registeredAt: ext.registeredAt ?? Date.now() });
 }
 
 export function unregisterInProcess(type: string, name: string): void {
