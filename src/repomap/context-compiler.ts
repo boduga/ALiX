@@ -26,6 +26,10 @@ export type ContextCompilerOptions = {
   sessionId?: string;
 };
 
+// Simple in-memory cache for compiled context bundles (60s TTL)
+const contextCache = new Map<string, { result: ContextBundle; timestamp: number }>();
+const CONTEXT_CACHE_TTL_MS = 60_000;
+
 export class ContextCompiler {
   private repoMap?: RepoMapOutput;
   private embeddingCache?: EmbeddingCache;
@@ -86,6 +90,13 @@ export class ContextCompiler {
     taskType: TaskType,
     pinnedPaths?: string[]
   ): Promise<ContextBundle> {
+    // Check cache first
+    const cacheKey = `${taskType}::${task}::${JSON.stringify(pinnedPaths ?? [])}`;
+    const cached = contextCache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CONTEXT_CACHE_TTL_MS) {
+      return cached.result;
+    }
+
     const maxTokens = this.options.maxTokens ?? 20000;
 
     // Reuse warm() cache if available
@@ -141,6 +152,9 @@ export class ContextCompiler {
         } as ContextBundleCreatedPayload,
       });
     }
+
+    // Cache the result
+    contextCache.set(cacheKey, { result: bundle, timestamp: Date.now() });
 
     return bundle;
   }
