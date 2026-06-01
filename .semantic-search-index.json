@@ -2526,56 +2526,56 @@
         "path": "src/tui/render.ts",
         "symbolName": "TuiRenderer",
         "kind": "class",
-        "lineStart": 9,
-        "lineEnd": 125,
+        "lineStart": 10,
+        "lineEnd": 126,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "start",
         "kind": "method",
-        "lineStart": 32,
-        "lineEnd": 34,
+        "lineStart": 33,
+        "lineEnd": 35,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "renderInitial",
         "kind": "method",
-        "lineStart": 36,
-        "lineEnd": 43,
+        "lineStart": 37,
+        "lineEnd": 44,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "stop",
         "kind": "method",
-        "lineStart": 45,
-        "lineEnd": 50,
+        "lineStart": 46,
+        "lineEnd": 51,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "scheduleRender",
         "kind": "method",
-        "lineStart": 52,
-        "lineEnd": 65,
+        "lineStart": 53,
+        "lineEnd": 66,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "doRender",
         "kind": "method",
-        "lineStart": 67,
-        "lineEnd": 79,
+        "lineStart": 68,
+        "lineEnd": 80,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "buildOutput",
         "kind": "method",
-        "lineStart": 81,
-        "lineEnd": 124,
+        "lineStart": 82,
+        "lineEnd": 125,
         "keywords": []
       }
     ]
@@ -2866,56 +2866,64 @@
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "BudgetBarWidget",
         "kind": "class",
-        "lineStart": 3,
-        "lineEnd": 58,
+        "lineStart": 4,
+        "lineEnd": 62,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "setTokens",
         "kind": "method",
-        "lineStart": 9,
-        "lineEnd": 12,
+        "lineStart": 10,
+        "lineEnd": 13,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "setFiles",
         "kind": "method",
-        "lineStart": 14,
-        "lineEnd": 16,
+        "lineStart": 15,
+        "lineEnd": 17,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "setSearches",
         "kind": "method",
-        "lineStart": 18,
-        "lineEnd": 20,
+        "lineStart": 19,
+        "lineEnd": 21,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "getPercentage",
         "kind": "method",
-        "lineStart": 22,
-        "lineEnd": 24,
+        "lineStart": 23,
+        "lineEnd": 25,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/widgets/budget-bar.ts",
+        "symbolName": "getColor",
+        "kind": "method",
+        "lineStart": 27,
+        "lineEnd": 32,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "renderBar",
         "kind": "method",
-        "lineStart": 26,
-        "lineEnd": 36,
+        "lineStart": 34,
+        "lineEnd": 39,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/budget-bar.ts",
         "symbolName": "render",
         "kind": "method",
-        "lineStart": 38,
-        "lineEnd": 57,
+        "lineStart": 41,
+        "lineEnd": 61,
         "keywords": []
       }
     ]
@@ -3180,39 +3188,47 @@
     "symbols": [
       {
         "path": "src/tui/widgets/spinner.ts",
+        "symbolName": "SpinnerPhase",
+        "kind": "type",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/widgets/spinner.ts",
         "symbolName": "SpinnerOptions",
         "kind": "interface",
-        "lineStart": 4,
-        "lineEnd": 8,
+        "lineStart": 6,
+        "lineEnd": 11,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
         "symbolName": "SpinnerWidget",
         "kind": "class",
-        "lineStart": 10,
-        "lineEnd": 63,
+        "lineStart": 13,
+        "lineEnd": 77,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
-        "symbolName": "getLabel",
+        "symbolName": "getPhase",
         "kind": "method",
-        "lineStart": 28,
-        "lineEnd": 30,
+        "lineStart": 33,
+        "lineEnd": 33,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
-        "symbolName": "setLabel",
+        "symbolName": "setPhase",
         "kind": "method",
-        "lineStart": 32,
+        "lineStart": 34,
         "lineEnd": 34,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
-        "symbolName": "tick",
+        "symbolName": "getLabel",
         "kind": "method",
         "lineStart": 36,
         "lineEnd": 38,
@@ -3220,34 +3236,50 @@
       },
       {
         "path": "src/tui/widgets/spinner.ts",
-        "symbolName": "render",
+        "symbolName": "setLabel",
         "kind": "method",
         "lineStart": 40,
-        "lineEnd": 43,
+        "lineEnd": 42,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/widgets/spinner.ts",
+        "symbolName": "tick",
+        "kind": "method",
+        "lineStart": 44,
+        "lineEnd": 46,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/widgets/spinner.ts",
+        "symbolName": "render",
+        "kind": "method",
+        "lineStart": 48,
+        "lineEnd": 57,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
         "symbolName": "start",
         "kind": "method",
-        "lineStart": 45,
-        "lineEnd": 50,
+        "lineStart": 59,
+        "lineEnd": 64,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
         "symbolName": "stop",
         "kind": "method",
-        "lineStart": 52,
-        "lineEnd": 58,
+        "lineStart": 66,
+        "lineEnd": 72,
         "keywords": []
       },
       {
         "path": "src/tui/widgets/spinner.ts",
         "symbolName": "isRunning",
         "kind": "method",
-        "lineStart": 60,
-        "lineEnd": 62,
+        "lineStart": 74,
+        "lineEnd": 76,
         "keywords": []
       }
     ]
@@ -3478,64 +3510,64 @@
         "path": "src/tools/executor.ts",
         "symbolName": "LARGE_OUTPUT_THRESHOLD",
         "kind": "const",
-        "lineStart": 23,
-        "lineEnd": 23,
+        "lineStart": 24,
+        "lineEnd": 24,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "sanitizeArgs",
         "kind": "function",
-        "lineStart": 25,
-        "lineEnd": 33,
+        "lineStart": 26,
+        "lineEnd": 34,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "ToolExecutor",
         "kind": "class",
-        "lineStart": 43,
-        "lineEnd": 165,
+        "lineStart": 44,
+        "lineEnd": 167,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "sessionId",
         "kind": "method",
-        "lineStart": 65,
-        "lineEnd": 69,
+        "lineStart": 67,
+        "lineEnd": 71,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "logEvent",
         "kind": "method",
-        "lineStart": 71,
-        "lineEnd": 73,
+        "lineStart": 73,
+        "lineEnd": 75,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "execute",
         "kind": "method",
-        "lineStart": 75,
-        "lineEnd": 164,
+        "lineStart": 77,
+        "lineEnd": 166,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "classifyError",
         "kind": "function",
-        "lineStart": 169,
-        "lineEnd": 199,
+        "lineStart": 171,
+        "lineEnd": 201,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "inferCapability",
         "kind": "function",
-        "lineStart": 201,
-        "lineEnd": 213,
+        "lineStart": 203,
+        "lineEnd": 215,
         "keywords": [
           "unknownambiguous",
           "retry",
@@ -3548,16 +3580,16 @@
         "path": "src/tools/executor.ts",
         "symbolName": "truncateOutput",
         "kind": "function",
-        "lineStart": 215,
-        "lineEnd": 218,
+        "lineStart": 217,
+        "lineEnd": 220,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "writeOutputToFile",
         "kind": "function",
-        "lineStart": 220,
-        "lineEnd": 234,
+        "lineStart": 222,
+        "lineEnd": 236,
         "keywords": []
       }
     ]
@@ -3916,10 +3948,10 @@
       },
       {
         "path": "src/tools/tool-router.ts",
-        "symbolName": "CompositeToolRouter",
+        "symbolName": "SelfExtendToolRouter",
         "kind": "class",
         "lineStart": 381,
-        "lineEnd": 398,
+        "lineEnd": 406,
         "keywords": []
       },
       {
@@ -3935,7 +3967,31 @@
         "symbolName": "execute",
         "kind": "method",
         "lineStart": 388,
-        "lineEnd": 397,
+        "lineEnd": 405,
+        "keywords": []
+      },
+      {
+        "path": "src/tools/tool-router.ts",
+        "symbolName": "CompositeToolRouter",
+        "kind": "class",
+        "lineStart": 408,
+        "lineEnd": 425,
+        "keywords": []
+      },
+      {
+        "path": "src/tools/tool-router.ts",
+        "symbolName": "canHandle",
+        "kind": "method",
+        "lineStart": 411,
+        "lineEnd": 413,
+        "keywords": []
+      },
+      {
+        "path": "src/tools/tool-router.ts",
+        "symbolName": "execute",
+        "kind": "method",
+        "lineStart": 415,
+        "lineEnd": 424,
         "keywords": []
       }
     ]
@@ -39303,6 +39359,114 @@
         "kind": "function",
         "lineStart": 3,
         "lineEnd": 7,
+        "keywords": []
+      }
+    ]
+  },
+  "src/tui/layout.ts": {
+    "symbols": [
+      {
+        "path": "src/tui/layout.ts",
+        "symbolName": "LAYOUT",
+        "kind": "const",
+        "lineStart": 1,
+        "lineEnd": 1,
+        "keywords": []
+      }
+    ]
+  },
+  "src/self-extend/create-skill.ts": {
+    "symbols": [
+      {
+        "path": "src/self-extend/create-skill.ts",
+        "symbolName": "createSkillTool",
+        "kind": "function",
+        "lineStart": 14,
+        "lineEnd": 64,
+        "keywords": []
+      }
+    ]
+  },
+  "src/self-extend/inspect-extension.ts": {
+    "symbols": [
+      {
+        "path": "src/self-extend/inspect-extension.ts",
+        "symbolName": "inspectExtensionTool",
+        "kind": "function",
+        "lineStart": 11,
+        "lineEnd": 40,
+        "keywords": []
+      }
+    ]
+  },
+  "src/self-extend/list-extensions.ts": {
+    "symbols": [
+      {
+        "path": "src/self-extend/list-extensions.ts",
+        "symbolName": "listExtensionsTool",
+        "kind": "function",
+        "lineStart": 14,
+        "lineEnd": 57,
+        "keywords": []
+      }
+    ]
+  },
+  "src/self-extend/registry.ts": {
+    "symbols": [
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "store",
+        "kind": "const",
+        "lineStart": 10,
+        "lineEnd": 10,
+        "keywords": []
+      },
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "key",
+        "kind": "function",
+        "lineStart": 12,
+        "lineEnd": 14,
+        "keywords": []
+      },
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "registerInProcess",
+        "kind": "function",
+        "lineStart": 16,
+        "lineEnd": 22,
+        "keywords": []
+      },
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "unregisterInProcess",
+        "kind": "function",
+        "lineStart": 24,
+        "lineEnd": 26,
+        "keywords": []
+      },
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "listInProcess",
+        "kind": "function",
+        "lineStart": 28,
+        "lineEnd": 30,
+        "keywords": []
+      },
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "getInProcess",
+        "kind": "function",
+        "lineStart": 32,
+        "lineEnd": 34,
+        "keywords": []
+      },
+      {
+        "path": "src/self-extend/registry.ts",
+        "symbolName": "_clearInProcessForTesting",
+        "kind": "function",
+        "lineStart": 36,
+        "lineEnd": 38,
         "keywords": []
       }
     ]
