@@ -4,6 +4,7 @@ import { AgentTreeWidget } from "./widgets/agent-tree.js";
 import { BudgetBarWidget } from "./widgets/budget-bar.js";
 import { SpinnerWidget } from "./widgets/spinner.js";
 import { moveUp, clearLine } from "./ansi.js";
+import { renderDiff } from "./diff-render.js";
 
 export class TuiRenderer {
   private store: TuiStore;
@@ -66,17 +67,14 @@ export class TuiRenderer {
   private doRender(): void {
     const output = this.buildOutput();
 
-    // Clear previous output line by line
-    if (this.lastRender) {
-      const prevLines = this.lastRender.split("\n").length;
-      for (let i = 0; i < prevLines; i++) {
-        process.stdout.write(moveUp(1));
-        process.stdout.write(clearLine());
-      }
+    if (!this.initialPrinted) {
+      process.stdout.write(output + "\n");
+      this.lastRender = output;
+      this.initialPrinted = true;
+      return;
     }
 
-    // Print new output
-    process.stdout.write(output + "\r");
+    renderDiff(this.lastRender, output);
     this.lastRender = output;
   }
 

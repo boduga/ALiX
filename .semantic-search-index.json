@@ -77,90 +77,18 @@
     "symbols": [
       {
         "path": "src/run.ts",
-        "symbolName": "buildErrorMessage",
-        "kind": "function",
-        "lineStart": 41,
-        "lineEnd": 41,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "buildToolsForProvider",
-        "kind": "function",
-        "lineStart": 49,
-        "lineEnd": 72,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "buildContextBundleEventPayload",
-        "kind": "function",
-        "lineStart": 74,
-        "lineEnd": 83,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "buildModelUsageEventPayload",
-        "kind": "function",
-        "lineStart": 85,
-        "lineEnd": 87,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "renderContextBundleForPrompt",
-        "kind": "function",
-        "lineStart": 89,
-        "lineEnd": 108,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
         "symbolName": "SharedSession",
         "kind": "interface",
-        "lineStart": 119,
-        "lineEnd": 123,
+        "lineStart": 7,
+        "lineEnd": 11,
         "keywords": []
       },
       {
         "path": "src/run.ts",
         "symbolName": "EXIT_CODES",
         "kind": "const",
-        "lineStart": 131,
-        "lineEnd": 131,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "extractMutationPaths",
-        "kind": "function",
-        "lineStart": 143,
-        "lineEnd": 149,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "recordMutationInSessionState",
-        "kind": "function",
-        "lineStart": 151,
-        "lineEnd": 166,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "shouldAutoDisableStreaming",
-        "kind": "function",
-        "lineStart": 168,
-        "lineEnd": 172,
-        "keywords": []
-      },
-      {
-        "path": "src/run.ts",
-        "symbolName": "runTask",
-        "kind": "function",
-        "lineStart": 174,
-        "lineEnd": 452,
+        "lineStart": 26,
+        "lineEnd": 26,
         "keywords": []
       }
     ]
@@ -2388,18 +2316,34 @@
       },
       {
         "path": "src/tui/ansi.ts",
+        "symbolName": "moveToLine",
+        "kind": "function",
+        "lineStart": 25,
+        "lineEnd": 27,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/ansi.ts",
+        "symbolName": "clearToEndOfLine",
+        "kind": "function",
+        "lineStart": 30,
+        "lineEnd": 32,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/ansi.ts",
         "symbolName": "panel",
         "kind": "function",
-        "lineStart": 24,
-        "lineEnd": 24,
+        "lineStart": 34,
+        "lineEnd": 34,
         "keywords": []
       },
       {
         "path": "src/tui/ansi.ts",
         "symbolName": "border",
         "kind": "function",
-        "lineStart": 42,
-        "lineEnd": 44,
+        "lineStart": 52,
+        "lineEnd": 54,
         "keywords": []
       }
     ]
@@ -2582,56 +2526,56 @@
         "path": "src/tui/render.ts",
         "symbolName": "TuiRenderer",
         "kind": "class",
-        "lineStart": 8,
-        "lineEnd": 127,
+        "lineStart": 9,
+        "lineEnd": 125,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "start",
         "kind": "method",
-        "lineStart": 31,
-        "lineEnd": 33,
+        "lineStart": 32,
+        "lineEnd": 34,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "renderInitial",
         "kind": "method",
-        "lineStart": 35,
-        "lineEnd": 42,
+        "lineStart": 36,
+        "lineEnd": 43,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "stop",
         "kind": "method",
-        "lineStart": 44,
-        "lineEnd": 49,
+        "lineStart": 45,
+        "lineEnd": 50,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "scheduleRender",
         "kind": "method",
-        "lineStart": 51,
-        "lineEnd": 64,
+        "lineStart": 52,
+        "lineEnd": 65,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "doRender",
         "kind": "method",
-        "lineStart": 66,
-        "lineEnd": 81,
+        "lineStart": 67,
+        "lineEnd": 79,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "buildOutput",
         "kind": "method",
-        "lineStart": 83,
-        "lineEnd": 126,
+        "lineStart": 81,
+        "lineEnd": 124,
         "keywords": []
       }
     ]
@@ -39229,6 +39173,136 @@
         "kind": "const",
         "lineStart": 3,
         "lineEnd": 3,
+        "keywords": []
+      }
+    ]
+  },
+  "src/tui/diff-render.ts": {
+    "symbols": [
+      {
+        "path": "src/tui/diff-render.ts",
+        "symbolName": "DiffOp",
+        "kind": "type",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "keywords": [
+          "srctuidiffrenderts"
+        ]
+      },
+      {
+        "path": "src/tui/diff-render.ts",
+        "symbolName": "diffLines",
+        "kind": "function",
+        "lineStart": 14,
+        "lineEnd": 103,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/diff-render.ts",
+        "symbolName": "renderDiff",
+        "kind": "function",
+        "lineStart": 109,
+        "lineEnd": 137,
+        "keywords": []
+      }
+    ]
+  },
+  "src/agent/agent-loop.ts": {
+    "symbols": [
+      {
+        "path": "src/agent/agent-loop.ts",
+        "symbolName": "runTask",
+        "kind": "function",
+        "lineStart": 20,
+        "lineEnd": 183,
+        "keywords": []
+      }
+    ]
+  },
+  "src/agent/agent.ts": {
+    "symbols": [
+      {
+        "path": "src/agent/agent.ts",
+        "symbolName": "initAgent",
+        "kind": "function",
+        "lineStart": 54,
+        "lineEnd": 196,
+        "keywords": []
+      }
+    ]
+  },
+  "src/agent/messages.ts": {
+    "symbols": [
+      {
+        "path": "src/agent/messages.ts",
+        "symbolName": "buildErrorMessage",
+        "kind": "function",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "keywords": []
+      },
+      {
+        "path": "src/agent/messages.ts",
+        "symbolName": "buildToolsForProvider",
+        "kind": "function",
+        "lineStart": 14,
+        "lineEnd": 37,
+        "keywords": []
+      },
+      {
+        "path": "src/agent/messages.ts",
+        "symbolName": "buildContextBundleEventPayload",
+        "kind": "function",
+        "lineStart": 39,
+        "lineEnd": 48,
+        "keywords": []
+      },
+      {
+        "path": "src/agent/messages.ts",
+        "symbolName": "buildModelUsageEventPayload",
+        "kind": "function",
+        "lineStart": 50,
+        "lineEnd": 50,
+        "keywords": []
+      },
+      {
+        "path": "src/agent/messages.ts",
+        "symbolName": "renderContextBundleForPrompt",
+        "kind": "function",
+        "lineStart": 54,
+        "lineEnd": 73,
+        "keywords": []
+      }
+    ]
+  },
+  "src/agent/mutations.ts": {
+    "symbols": [
+      {
+        "path": "src/agent/mutations.ts",
+        "symbolName": "extractMutationPaths",
+        "kind": "function",
+        "lineStart": 12,
+        "lineEnd": 18,
+        "keywords": []
+      },
+      {
+        "path": "src/agent/mutations.ts",
+        "symbolName": "recordMutationInSessionState",
+        "kind": "function",
+        "lineStart": 20,
+        "lineEnd": 35,
+        "keywords": []
+      }
+    ]
+  },
+  "src/agent/stream.ts": {
+    "symbols": [
+      {
+        "path": "src/agent/stream.ts",
+        "symbolName": "shouldAutoDisableStreaming",
+        "kind": "function",
+        "lineStart": 3,
+        "lineEnd": 7,
         "keywords": []
       }
     ]
