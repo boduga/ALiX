@@ -378,6 +378,33 @@ export class DelegateToolRouter implements ToolRouter {
   }
 }
 
+export class SelfExtendToolRouter implements ToolRouter {
+  private static readonly SUPPORTED_TOOLS = ["create_skill", "list_extensions", "inspect_extension"];
+
+  canHandle(name: string): boolean {
+    return SelfExtendToolRouter.SUPPORTED_TOOLS.includes(name);
+  }
+
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    // Lazy imports to avoid circular dependency
+    const { createSkillTool } = await import("../self-extend/create-skill.js");
+    const { listExtensionsTool } = await import("../self-extend/list-extensions.js");
+    const { inspectExtensionTool } = await import("../self-extend/inspect-extension.js");
+
+    const tool = request.name === "create_skill" ? createSkillTool()
+      : request.name === "list_extensions" ? listExtensionsTool()
+      : inspectExtensionTool();
+
+    const result = await tool.execute(request.args);
+
+    // Convert to ToolResult format
+    if (result.ok) {
+      return { kind: "success", output: JSON.stringify(result.data) };
+    }
+    return { kind: "error", message: result.error ?? "Unknown error" };
+  }
+}
+
 export class CompositeToolRouter implements ToolRouter {
   constructor(private readonly routers: ToolRouter[]) {}
 
