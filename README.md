@@ -123,3 +123,20 @@ docs/                 Specs, plans, PRDs
 ## License
 
 MIT — see [LICENSE](LICENSE)
+
+## Supply-Chain Policy
+
+ALiX follows a strict supply-chain hardening policy to protect against dependency attacks:
+
+- **All direct dependencies are pinned to exact versions** — no `^` or `~` ranges
+- **`.npmrc` enforces `save-exact=true`** — future installs will also pin
+- **`.npmrc` enforces `min-release-age=2`** — new versions must be 2+ days old before install
+- **`npm run verify:deps`** — checks all direct deps are pinned (run via `npm run check`)
+- **`package-lock.json` is the source of truth** — exact versions for transitive deps
+
+This matches the supply-chain hardening patterns from [earendil-works/pi](https://github.com/earendil-works/pi).
+
+To verify your local install meets the policy:
+```bash
+npm run verify:deps
+```
