@@ -1,10 +1,13 @@
 import cliSpinners from "cli-spinners";
 import { cyan, green, red, yellow } from "../ansi.js";
 
+export type SpinnerPhase = "thinking" | "writing" | "verifying" | "idle";
+
 export interface SpinnerOptions {
   label?: string;
   spinner?: keyof typeof cliSpinners;
   color?: "cyan" | "green" | "red" | "yellow";
+  phase?: SpinnerPhase;
 }
 
 export class SpinnerWidget {
@@ -14,6 +17,7 @@ export class SpinnerWidget {
   private running = false;
   private intervalId?: NodeJS.Timeout;
   private colorFn: (text: string) => string;
+  private phase: SpinnerPhase = "thinking";
 
   constructor(options: SpinnerOptions = {}) {
     this.label = options.label ?? "";
@@ -23,7 +27,11 @@ export class SpinnerWidget {
                  : options.color === "red" ? red
                  : options.color === "yellow" ? yellow
                  : cyan;
+    if (options.phase) this.phase = options.phase;
   }
+
+  getPhase(): SpinnerPhase { return this.phase; }
+  setPhase(phase: SpinnerPhase): void { this.phase = phase; }
 
   getLabel(): string {
     return this.label;
@@ -38,8 +46,14 @@ export class SpinnerWidget {
   }
 
   render(): string {
+    if (this.phase === "idle") return "";
     const frame = this.frames[this.frameIndex];
-    return `${this.colorFn(frame)} ${this.label}`;
+    const phaseLabel = {
+      thinking: "Thinking",
+      writing: "Writing",
+      verifying: "Verifying",
+    }[this.phase];
+    return `${this.colorFn(frame)} ${phaseLabel} ${this.label}`;
   }
 
   start(): void {
@@ -58,6 +72,6 @@ export class SpinnerWidget {
   }
 
   isRunning(): boolean {
-    return this.running;
+    return this.phase !== "idle";
   }
 }

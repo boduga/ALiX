@@ -5,6 +5,7 @@ import { BudgetBarWidget } from "./widgets/budget-bar.js";
 import { SpinnerWidget } from "./widgets/spinner.js";
 import { moveUp, clearLine } from "./ansi.js";
 import { renderDiff } from "./diff-render.js";
+import { LAYOUT } from "./layout.js";
 
 export class TuiRenderer {
   private store: TuiStore;
@@ -105,15 +106,15 @@ export class TuiRenderer {
 
     // State theater
     lines.push(this.stateTheater.render());
-    lines.push("");
+    lines.push("".repeat(LAYOUT.sectionGap));
 
     // Budget bar
     lines.push(this.budgetBar.render());
-    lines.push("");
+    lines.push("".repeat(LAYOUT.sectionGap));
 
     // Agent tree
     lines.push(this.agentTree.render());
-    lines.push("");
+    lines.push("".repeat(LAYOUT.sectionGap));
 
     // Spinner (if running)
     if (this.spinner.isRunning()) {
