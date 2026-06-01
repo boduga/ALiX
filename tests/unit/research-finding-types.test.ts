@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert";
 import { SubagentFinding, WebSourceFinding, SynthesisFinding } from "../../src/config/schema.js";
 
 describe("ResearchFinding types", () => {
@@ -10,9 +11,9 @@ describe("ResearchFinding types", () => {
       title: "OAuth 2.0 Best Practices",
       confidence: "high",
     };
-    expect(finding.type).toBe("web_source");
-    expect(finding.url).toBe("https://auth.example.com/guide");
-    expect(finding.title).toBe("OAuth 2.0 Best Practices");
+    assert.strictEqual(finding.type, "web_source");
+    assert.strictEqual(finding.url, "https://auth.example.com/guide");
+    assert.strictEqual(finding.title, "OAuth 2.0 Best Practices");
   });
 
   it("SynthesisFinding has required fields", () => {
@@ -22,8 +23,8 @@ describe("ResearchFinding types", () => {
       sources: ["https://auth.example.com", "src/auth/oauth.ts"],
       confidence: "high",
     };
-    expect(finding.type).toBe("synthesis");
-    expect(finding.sources).toHaveLength(2);
+    assert.strictEqual(finding.type, "synthesis");
+    assert.strictEqual(finding.sources.length, 2);
   });
 
   it("SubagentFinding supports research types", () => {
@@ -39,7 +40,7 @@ describe("ResearchFinding types", () => {
       confidence: "medium",
       refs: ["url1"],
     };
-    expect(webSource.type).toBe("web_source");
-    expect(synthesis.type).toBe("synthesis");
+    assert.strictEqual(webSource.type, "web_source");
+    assert.strictEqual(synthesis.type, "synthesis");
   });
 });

@@ -32,9 +32,11 @@ vitest.config.mts
 .idea/
 .vscode/
 
+# Claude Code
+.claude/
+
+# GitNexus index
+.gitnexus/
+
 # Worktrees
-.worktrees/
-.worktrees
-.gitnexus
-.worktrees/
 .worktrees/

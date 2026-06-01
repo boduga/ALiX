@@ -1,11 +1,23 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, beforeEach } from "node:test";
+import assert from "node:assert";
 import { extractSessionOutcome } from '../../src/context/session-outcome.js';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 
 describe('extractSessionOutcome', () => {
+  const testDirs: string[] = [];
+
+  beforeEach(async () => {
+    // Clean up any previous test dirs
+    for (const dir of testDirs) {
+      await rm(dir, { force: true, recursive: true }).catch(() => {});
+    }
+    testDirs.length = 0;
+  });
+
   it('extracts outcome from completed session', async () => {
     const sessionDir = '/tmp/test-session';
+    testDirs.push(sessionDir);
     await mkdir(sessionDir, { recursive: true });
     await writeFile(join(sessionDir, 'events.jsonl'), JSON.stringify({
       type: 'session.started', sessionId: 'test', timestamp: new Date().toISOString(),
@@ -21,13 +33,14 @@ describe('extractSessionOutcome', () => {
     }) + '\n');
 
     const outcome = await extractSessionOutcome(sessionDir);
-    expect(outcome.success).toBe(true);
-    expect(outcome.reason).toBe('completed');
-    expect(outcome.totalTokens).toBe(1500);
+    assert.strictEqual(outcome.success, true);
+    assert.strictEqual(outcome.reason, 'completed');
+    assert.strictEqual(outcome.totalTokens, 1500);
   });
 
   it('extracts iteration count', async () => {
     const sessionDir = '/tmp/test-session-iterations';
+    testDirs.push(sessionDir);
     await mkdir(sessionDir, { recursive: true });
     await writeFile(join(sessionDir, 'events.jsonl'),
       JSON.stringify({ type: 'session.started', sessionId: 'test', timestamp: new Date().toISOString(), actor: 'system', seq: 1, id: '1', version: 1, payload: {} }) + '\n' +
@@ -38,11 +51,12 @@ describe('extractSessionOutcome', () => {
     );
 
     const outcome = await extractSessionOutcome(sessionDir);
-    expect(outcome.iterations).toBe(3);
+    assert.strictEqual(outcome.iterations, 3);
   });
 
   it('extracts outcome from failed session', async () => {
     const sessionDir = '/tmp/test-session-failed';
+    testDirs.push(sessionDir);
     await mkdir(sessionDir, { recursive: true });
     await writeFile(join(sessionDir, 'events.jsonl'),
       JSON.stringify({ type: 'session.started', sessionId: 'test', timestamp: new Date().toISOString(), actor: 'system', seq: 1, id: '1', version: 1, payload: {} }) + '\n' +
@@ -50,7 +64,7 @@ describe('extractSessionOutcome', () => {
     );
 
     const outcome = await extractSessionOutcome(sessionDir);
-    expect(outcome.success).toBe(false);
-    expect(outcome.reason).toBe('error');
+    assert.strictEqual(outcome.success, false);
+    assert.strictEqual(outcome.reason, 'error');
   });
 });

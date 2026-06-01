@@ -19,7 +19,7 @@ test("loadConfig applies defaults when no config files exist", async () => {
   try {
     _setHomedirOverride(dir);
     const config = await loadConfig(dir);
-    assert.equal(config.model.provider, "ollama");
+    assert.equal(config.model.provider, "google");
     assert.equal(config.ui.port, 4137);
     assert.ok(config.permissions.protectedPaths.includes(".git/**"));
   } finally {
@@ -39,7 +39,7 @@ test("loadConfig merges global user config on top of defaults", async () => {
     );
     const config = await loadConfig(dir);
     assert.equal(config.model.name, "claude-custom");
-    assert.equal(config.model.provider, "ollama"); // inherited from defaults
+    assert.equal(config.model.provider, "google"); // inherited from defaults (google, not ollama)
     assert.equal(config.ui.port, 4137); // inherited from defaults
   } finally {
     restore();
@@ -178,12 +178,12 @@ test("loadConfig injects API key from project config as env var", async () => {
       join(dir, ".alix", "config.json"),
       JSON.stringify({ apiKeys: { google: "project-key-789" } })
     );
-    delete process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
     await loadConfig(dir);
-    assert.equal(process.env.GOOGLE_API_KEY, "project-key-789");
+    assert.equal(process.env.GEMINI_API_KEY, "project-key-789");
   } finally {
     restore();
-    delete process.env.GOOGLE_API_KEY;
+    delete process.env.GEMINI_API_KEY;
     await rm(dir, { recursive: true, force: true });
   }
 });
@@ -231,11 +231,11 @@ test("subagent roles are loaded from defaults", () => {
     } else if (r.role === "reviewer") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.style, "thinking");
+      assert.equal(r.style, "critic"); // uses critic tier
     } else if (r.role === "test_investigator") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.style, "thinking"); // same as parent
+      assert.equal(r.style, "thinking"); // uses thinking tier
     } else if (r.role === "docs_researcher") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
@@ -251,7 +251,7 @@ test("subagent roles are loaded from defaults", () => {
   assert.ok(result.subagents!.thinking);
   assert.equal(result.subagents!.thinking.provider, "ollama");
   assert.ok(result.subagents!.coding);
-  assert.equal(result.subagents!.coding.provider, "ollama");
+  assert.equal(result.subagents!.coding.provider, "google"); // defaults to google
   assert.ok(result.subagents!.fast);
   assert.equal(result.subagents!.fast.provider, "ollama");
   assert.equal(result.subagents!.fast.name, "llama3.2:3b");
