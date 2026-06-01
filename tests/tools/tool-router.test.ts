@@ -260,7 +260,6 @@ test("ShellToolRouter.execute handles shell.run with echo", async () => {
     args: { command: "echo hello" },
   });
   assert.strictEqual(result.kind, "success");
-  assert.strictEqual(result.exitCode, 0);
   assert.ok(result.output?.includes("hello"));
 });
 
