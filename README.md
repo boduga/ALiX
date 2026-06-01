@@ -63,6 +63,14 @@ alix mcp list                       # see connected servers
 alix mcp test github                # test a server works
 ```
 
+## Documentation
+
+- **[Getting Started](docs/getting-started.md)** — install and run your first task
+- **[Features](docs/features.md)** — tour of all capabilities
+- **[Configuration](docs/configuration.md)** — config file reference
+- **[Examples](examples/)** — worked task examples
+- **[Architecture](docs/architecture/)** — how ALiX is built
+
 ## Architecture
 
 ```
