@@ -18,6 +18,7 @@ import {
   PatchToolRouter,
   McpToolRouter,
   DelegateToolRouter,
+  SelfExtendToolRouter,
 } from "./tool-router.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
@@ -59,6 +60,7 @@ export class ToolExecutor {
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
       new McpToolRouter(mcpManager ?? null, log, this.sessionId()),
       new DelegateToolRouter(extraHandlers),
+      new SelfExtendToolRouter(),
     ]);
   }
 
