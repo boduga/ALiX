@@ -8,6 +8,7 @@ import { mapServerCapabilities, type MappedPolicyRule } from "./capability-mappe
 
 import { McpToolDeferral } from "./tool-deferral.js";
 import type { CacheManager } from "../utils/cache-manager.js";
+import { classifyMcpError, formatMcpError, type McpError } from "./error-format.js";
 
 export class McpManager {
   private registry: McpToolRegistry;
@@ -26,8 +27,10 @@ export class McpManager {
     for (const serverConfig of servers) {
       try {
         await this.connectServer(serverConfig);
-      } catch (err) {
-        console.error(`[McpManager] Failed to connect to server '${serverConfig.name}':`, err instanceof Error ? err.message : String(err));
+      } catch (e: any) {
+        const kind = classifyMcpError(e);
+        const mcpErr: McpError = { kind, server: serverConfig.name, cause: e.message };
+        console.error(`[McpManager] Failed to connect to server '${serverConfig.name}':`, formatMcpError(mcpErr));
       }
     }
 
@@ -35,8 +38,10 @@ export class McpManager {
       for (const path of this.config.mcpServerPaths) {
         try {
           await this.autoDiscoverServer(path);
-        } catch (err) {
-          console.error(`[McpManager] Auto-discover failed for '${path}':`, err instanceof Error ? err.message : String(err));
+        } catch (e: any) {
+          const kind = classifyMcpError(e);
+          const mcpErr: McpError = { kind, server: path, cause: e.message };
+          console.error(`[McpManager] Auto-discover failed for '${path}':`, formatMcpError(mcpErr));
         }
       }
     }
@@ -139,8 +144,10 @@ export class McpManager {
       };
       try {
         await this.connectServer(npxConfig);
-      } catch {
-        throw new Error(`Could not connect to '${packageName}'. Is it a valid MCP server package?`);
+      } catch (e: any) {
+        const kind = classifyMcpError(e);
+        const mcpErr: McpError = { kind, server: packageName, cause: e.message };
+        throw new Error(formatMcpError(mcpErr));
       }
     }
     const client = this.registry.getClient(packageName);
