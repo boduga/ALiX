@@ -4831,58 +4831,98 @@
       },
       {
         "path": "src/repomap/context-compiler.ts",
+        "symbolName": "contextCache",
+        "kind": "const",
+        "lineStart": 30,
+        "lineEnd": 30,
+        "keywords": [
+          "simple",
+          "inmemory",
+          "cache",
+          "compiled",
+          "context",
+          "bundles",
+          "ttl"
+        ]
+      },
+      {
+        "path": "src/repomap/context-compiler.ts",
+        "symbolName": "CONTEXT_CACHE_TTL_MS",
+        "kind": "const",
+        "lineStart": 31,
+        "lineEnd": 31,
+        "keywords": [
+          "simple",
+          "inmemory",
+          "cache",
+          "compiled",
+          "context",
+          "bundles",
+          "ttl"
+        ]
+      },
+      {
+        "path": "src/repomap/context-compiler.ts",
         "symbolName": "ContextCompiler",
         "kind": "class",
-        "lineStart": 29,
-        "lineEnd": 169,
-        "keywords": []
+        "lineStart": 33,
+        "lineEnd": 183,
+        "keywords": [
+          "simple",
+          "inmemory",
+          "cache",
+          "compiled",
+          "context",
+          "bundles",
+          "ttl"
+        ]
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "warm",
         "kind": "method",
-        "lineStart": 35,
-        "lineEnd": 65,
+        "lineStart": 39,
+        "lineEnd": 69,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "buildEmbeddings",
         "kind": "method",
-        "lineStart": 67,
-        "lineEnd": 73,
+        "lineStart": 71,
+        "lineEnd": 77,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "countDependencies",
         "kind": "method",
-        "lineStart": 75,
-        "lineEnd": 82,
+        "lineStart": 79,
+        "lineEnd": 86,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "pinFile",
         "kind": "method",
-        "lineStart": 148,
-        "lineEnd": 157,
+        "lineStart": 162,
+        "lineEnd": 171,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "unpinFile",
         "kind": "method",
-        "lineStart": 159,
-        "lineEnd": 168,
+        "lineStart": 173,
+        "lineEnd": 182,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "toContextItemRef",
         "kind": "function",
-        "lineStart": 171,
-        "lineEnd": 181,
+        "lineStart": 185,
+        "lineEnd": 195,
         "keywords": []
       }
     ]
@@ -5888,18 +5928,57 @@
     "symbols": [
       {
         "path": "src/providers/registry.ts",
+        "symbolName": "lazyProviders",
+        "kind": "const",
+        "lineStart": 18,
+        "lineEnd": 18,
+        "keywords": [
+          "lazyload",
+          "heavy",
+          "provider",
+          "modules",
+          "first",
+          "use"
+        ]
+      },
+      {
+        "path": "src/providers/registry.ts",
+        "symbolName": "ProviderId",
+        "kind": "type",
+        "lineStart": 33,
+        "lineEnd": 33,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/registry.ts",
+        "symbolName": "providerCache",
+        "kind": "const",
+        "lineStart": 36,
+        "lineEnd": 36,
+        "keywords": [
+          "cache",
+          "provider",
+          "instances"
+        ]
+      },
+      {
+        "path": "src/providers/registry.ts",
         "symbolName": "createProvider",
         "kind": "function",
-        "lineStart": 15,
-        "lineEnd": 15,
-        "keywords": []
+        "lineStart": 38,
+        "lineEnd": 38,
+        "keywords": [
+          "cache",
+          "provider",
+          "instances"
+        ]
       },
       {
         "path": "src/providers/registry.ts",
         "symbolName": "listProviders",
         "kind": "function",
-        "lineStart": 33,
-        "lineEnd": 33,
+        "lineStart": 57,
+        "lineEnd": 57,
         "keywords": []
       }
     ]
@@ -7697,104 +7776,104 @@
         "path": "src/mcp/manager.ts",
         "symbolName": "McpManager",
         "kind": "class",
-        "lineStart": 12,
-        "lineEnd": 165,
+        "lineStart": 13,
+        "lineEnd": 172,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "initialize",
         "kind": "method",
-        "lineStart": 23,
-        "lineEnd": 43,
+        "lineStart": 24,
+        "lineEnd": 48,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "connectServer",
         "kind": "method",
-        "lineStart": 45,
-        "lineEnd": 66,
+        "lineStart": 50,
+        "lineEnd": 71,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "autoDiscoverServer",
         "kind": "method",
-        "lineStart": 68,
-        "lineEnd": 90,
+        "lineStart": 73,
+        "lineEnd": 95,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "callTool",
         "kind": "method",
-        "lineStart": 92,
-        "lineEnd": 94,
+        "lineStart": 97,
+        "lineEnd": 99,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "listTools",
         "kind": "method",
-        "lineStart": 96,
-        "lineEnd": 98,
+        "lineStart": 101,
+        "lineEnd": 103,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "listServers",
         "kind": "method",
-        "lineStart": 100,
-        "lineEnd": 102,
+        "lineStart": 105,
+        "lineEnd": 107,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "getCapabilityRules",
         "kind": "method",
-        "lineStart": 104,
-        "lineEnd": 106,
+        "lineStart": 109,
+        "lineEnd": 111,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "getClient",
         "kind": "method",
-        "lineStart": 108,
-        "lineEnd": 110,
+        "lineStart": 113,
+        "lineEnd": 115,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "getDeferral",
         "kind": "method",
-        "lineStart": 112,
-        "lineEnd": 115,
+        "lineStart": 117,
+        "lineEnd": 120,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "closeServer",
         "kind": "method",
-        "lineStart": 117,
-        "lineEnd": 121,
+        "lineStart": 122,
+        "lineEnd": 126,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "discoverServer",
         "kind": "method",
-        "lineStart": 123,
-        "lineEnd": 123,
+        "lineStart": 128,
+        "lineEnd": 128,
         "keywords": []
       },
       {
         "path": "src/mcp/manager.ts",
         "symbolName": "closeAll",
         "kind": "method",
-        "lineStart": 157,
-        "lineEnd": 164,
+        "lineStart": 164,
+        "lineEnd": 171,
         "keywords": []
       }
     ]
@@ -39468,6 +39547,134 @@
         "lineStart": 36,
         "lineEnd": 38,
         "keywords": []
+      }
+    ]
+  },
+  "src/utils/lazy-import.ts": {
+    "symbols": [
+      {
+        "path": "src/utils/lazy-import.ts",
+        "symbolName": "Loader",
+        "kind": "type",
+        "lineStart": 1,
+        "lineEnd": 1,
+        "keywords": []
+      },
+      {
+        "path": "src/utils/lazy-import.ts",
+        "symbolName": "lazy",
+        "kind": "function",
+        "lineStart": 4,
+        "lineEnd": 30,
+        "keywords": []
+      }
+    ]
+  },
+  "src/mcp/error-format.ts": {
+    "symbols": [
+      {
+        "path": "src/mcp/error-format.ts",
+        "symbolName": "McpErrorKind",
+        "kind": "type",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "keywords": [
+          "srcmcperrorformatts"
+        ]
+      },
+      {
+        "path": "src/mcp/error-format.ts",
+        "symbolName": "formatMcpError",
+        "kind": "function",
+        "lineStart": 20,
+        "lineEnd": 35,
+        "keywords": []
+      },
+      {
+        "path": "src/mcp/error-format.ts",
+        "symbolName": "classifyMcpError",
+        "kind": "function",
+        "lineStart": 37,
+        "lineEnd": 52,
+        "keywords": []
+      }
+    ]
+  },
+  "src/mcp/retry.ts": {
+    "symbols": [
+      {
+        "path": "src/mcp/retry.ts",
+        "symbolName": "defaultIsRetryable",
+        "kind": "const",
+        "lineStart": 9,
+        "lineEnd": 9,
+        "keywords": []
+      },
+      {
+        "path": "src/mcp/retry.ts",
+        "symbolName": "withRetry",
+        "kind": "function",
+        "lineStart": 17,
+        "lineEnd": 38,
+        "keywords": []
+      }
+    ]
+  },
+  "src/mcp/server-registry.ts": {
+    "symbols": [
+      {
+        "path": "src/mcp/server-registry.ts",
+        "symbolName": "KNOWN_MCP_SERVERS",
+        "kind": "const",
+        "lineStart": 12,
+        "lineEnd": 12,
+        "keywords": []
+      },
+      {
+        "path": "src/mcp/server-registry.ts",
+        "symbolName": "findServer",
+        "kind": "function",
+        "lineStart": 67,
+        "lineEnd": 69,
+        "keywords": []
+      }
+    ]
+  },
+  "bench/startup.ts": {
+    "symbols": [
+      {
+        "path": "bench/startup.ts",
+        "symbolName": "start",
+        "kind": "const",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "keywords": []
+      },
+      {
+        "path": "bench/startup.ts",
+        "symbolName": "end",
+        "kind": "const",
+        "lineStart": 12,
+        "lineEnd": 12,
+        "keywords": [
+          "cli",
+          "exit",
+          "error",
+          "thats"
+        ]
+      },
+      {
+        "path": "bench/startup.ts",
+        "symbolName": "elapsed",
+        "kind": "const",
+        "lineStart": 13,
+        "lineEnd": 13,
+        "keywords": [
+          "cli",
+          "exit",
+          "error",
+          "thats"
+        ]
       }
     ]
   }

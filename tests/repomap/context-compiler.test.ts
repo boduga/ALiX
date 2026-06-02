@@ -44,6 +44,24 @@ describe("ContextCompiler", () => {
       assert.ok(Array.isArray(bundle.pinned));
     });
 
+    it("caches results for identical tasks within TTL", async () => {
+      await warm();
+      const bundle1 = await compiler.compileContext("fix bug", "bugfix", []);
+      const bundle2 = await compiler.compileContext("fix bug", "bugfix", []);
+      // Same task should return same bundle (cached)
+      assert.equal(bundle1.id, bundle2.id);
+    });
+
+    it("computes fresh result when pinnedPaths differ", async () => {
+      await warm();
+      mkdirSync(join(tmpDir, "src"), { recursive: true });
+      writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
+      const bundle1 = await compiler.compileContext("fix bug", "bugfix", []);
+      const bundle2 = await compiler.compileContext("fix bug", "bugfix", ["src/foo.ts"]);
+      // Different pinnedPaths should produce different result
+      assert.notEqual(bundle1.id, bundle2.id);
+    });
+
     it("classifies task type correctly", async () => {
       await warm();
       const bugBundle = await compiler.compileContext("fix bug in auth.ts", "bugfix", []);

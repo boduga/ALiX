@@ -25,7 +25,7 @@ export async function runSkillFactory(params: DispatchParams): Promise<void> {
   const prompt = buildDistillationPrompt(params);
 
   // Call Ollama
-  const provider = createProvider(
+  const provider = await createProvider(
     { provider: params.config.provider, model: params.config.model },
     process.env[`${params.config.provider.toUpperCase()}_API_KEY`]
   );

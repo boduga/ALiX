@@ -196,7 +196,7 @@ export class SubagentCLI {
       console.error(`[SubagentCLI] MCP init failed: ${(err as Error).message}. Continuing without MCP tools.`);
     }
 
-    const provider = createProvider({ provider: config.model.provider, model: config.model.name });
+    const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
     const providerTools = buildToolsForProvider(provider);
     const roleConfig = config.subagents?.roles.find(r => r.role === role);
     const roleStyle = roleConfig?.style ?? "fast";
