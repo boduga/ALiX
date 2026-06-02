@@ -1,15 +1,20 @@
 import { performance } from "node:perf_hooks";
-import { writeFileSync } from "node:fs";
 
-process.argv = ["node", "bench/startup.ts", "agent", "explorer", "test"];
+// Simple benchmark: measure time to import CLI module
+let printed = false;
+const startRef = performance.now();
 
-const start = performance.now();
-try {
-  await import("../dist/src/cli.js");
-} catch (e) {
-  // CLI may exit with error, that's ok
-}
-const end = performance.now();
-const elapsed = (end - start).toFixed(0);
-writeFileSync("/tmp/bench_output.txt", `CLI load time: ${elapsed}ms\n`);
-console.log(`CLI load time: ${elapsed}ms`);
+// Monkey-patch process.exit to intercept and measure
+const origExit = process.exit;
+(process as any).exit = ((code: number) => {
+  const end = performance.now();
+  const ms = (end - startRef).toFixed(0);
+  if (!printed) {
+    console.log(`CLI load time: ${ms}ms`);
+    printed = true;
+  }
+  // Don't actually exit - let benchmark complete
+}) as typeof process.exit;
+
+// Import CLI - it will run but exit won't actually exit
+await import("../dist/src/cli.js");
