@@ -11,6 +11,7 @@ import { minimaxSpec } from "./specs/minimax-spec.js";
 import { zhipuaiSpec } from "./specs/zhipuai-spec.js";
 import { grokaiSpec } from "./specs/grokai-spec.js";
 import { openrouterSpec } from "./specs/openrouter-spec.js";
+import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 
@@ -27,6 +28,7 @@ const SPECS = new Map<string, ProviderSpec>([
   ["zhipuai", zhipuaiSpec],
   ["grokai", grokaiSpec],
   ["openrouter", openrouterSpec],
+  ["local-llama", localLlamaSpec],
 ]);
 
 const PROVIDER_KEY_ENV: Record<string, string> = {
@@ -42,6 +44,7 @@ const PROVIDER_KEY_ENV: Record<string, string> = {
   grokai: "GROKAI_API_KEY",
   openrouter: "OPENROUTER_API_KEY",
   mock: "",
+  local_llama: "",
 };
 
 let _fetch: typeof fetch = globalThis.fetch;

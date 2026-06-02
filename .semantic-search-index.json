@@ -4866,7 +4866,7 @@
         "symbolName": "ContextCompiler",
         "kind": "class",
         "lineStart": 33,
-        "lineEnd": 183,
+        "lineEnd": 184,
         "keywords": [
           "simple",
           "inmemory",
@@ -4882,47 +4882,47 @@
         "symbolName": "warm",
         "kind": "method",
         "lineStart": 39,
-        "lineEnd": 69,
+        "lineEnd": 70,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "buildEmbeddings",
         "kind": "method",
-        "lineStart": 71,
-        "lineEnd": 77,
+        "lineStart": 72,
+        "lineEnd": 78,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "countDependencies",
         "kind": "method",
-        "lineStart": 79,
-        "lineEnd": 86,
+        "lineStart": 80,
+        "lineEnd": 87,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "pinFile",
         "kind": "method",
-        "lineStart": 162,
-        "lineEnd": 171,
+        "lineStart": 163,
+        "lineEnd": 172,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "unpinFile",
         "kind": "method",
-        "lineStart": 173,
-        "lineEnd": 182,
+        "lineStart": 174,
+        "lineEnd": 183,
         "keywords": []
       },
       {
         "path": "src/repomap/context-compiler.ts",
         "symbolName": "toContextItemRef",
         "kind": "function",
-        "lineStart": 185,
-        "lineEnd": 195,
+        "lineStart": 186,
+        "lineEnd": 196,
         "keywords": []
       }
     ]
@@ -39110,48 +39110,48 @@
         "path": "src/providers/unified-complete.ts",
         "symbolName": "SPECS",
         "kind": "const",
-        "lineStart": 17,
-        "lineEnd": 17,
+        "lineStart": 18,
+        "lineEnd": 18,
         "keywords": []
       },
       {
         "path": "src/providers/unified-complete.ts",
         "symbolName": "PROVIDER_KEY_ENV",
         "kind": "const",
-        "lineStart": 32,
-        "lineEnd": 32,
+        "lineStart": 34,
+        "lineEnd": 34,
         "keywords": []
       },
       {
         "path": "src/providers/unified-complete.ts",
         "symbolName": "_setFetchForTesting",
         "kind": "function",
-        "lineStart": 48,
-        "lineEnd": 48,
+        "lineStart": 51,
+        "lineEnd": 51,
         "keywords": []
       },
       {
         "path": "src/providers/unified-complete.ts",
         "symbolName": "resolveApiKey",
         "kind": "function",
-        "lineStart": 50,
-        "lineEnd": 55,
+        "lineStart": 53,
+        "lineEnd": 58,
         "keywords": []
       },
       {
         "path": "src/providers/unified-complete.ts",
         "symbolName": "fetchWithRetry",
         "kind": "function",
-        "lineStart": 57,
-        "lineEnd": 74,
+        "lineStart": 60,
+        "lineEnd": 77,
         "keywords": []
       },
       {
         "path": "src/providers/unified-complete.ts",
         "symbolName": "complete",
         "kind": "function",
-        "lineStart": 76,
-        "lineEnd": 80,
+        "lineStart": 79,
+        "lineEnd": 83,
         "keywords": []
       }
     ]
@@ -39644,37 +39644,103 @@
     "symbols": [
       {
         "path": "bench/startup.ts",
-        "symbolName": "start",
+        "symbolName": "startRef",
         "kind": "const",
-        "lineStart": 6,
-        "lineEnd": 6,
+        "lineStart": 5,
+        "lineEnd": 5,
+        "keywords": [
+          "simple",
+          "benchmark",
+          "measure",
+          "time",
+          "cli",
+          "module"
+        ]
+      },
+      {
+        "path": "bench/startup.ts",
+        "symbolName": "origExit",
+        "kind": "const",
+        "lineStart": 8,
+        "lineEnd": 8,
+        "keywords": [
+          "simple",
+          "benchmark",
+          "measure",
+          "time",
+          "cli",
+          "module",
+          "monkeypatch",
+          "processexit",
+          "intercept"
+        ]
+      }
+    ]
+  },
+  "bin/alix.js": {
+    "symbols": [
+      {
+        "path": "bin/alix.js",
+        "symbolName": "__dirname",
+        "kind": "const",
+        "lineStart": 10,
+        "lineEnd": 10,
+        "keywords": [
+          "recommended",
+          "default",
+          "override",
+          "alixmaxheap",
+          "env",
+          "var"
+        ]
+      },
+      {
+        "path": "bin/alix.js",
+        "symbolName": "maxMem",
+        "kind": "const",
+        "lineStart": 11,
+        "lineEnd": 11,
         "keywords": []
       },
       {
-        "path": "bench/startup.ts",
-        "symbolName": "end",
+        "path": "bin/alix.js",
+        "symbolName": "cliPath",
         "kind": "const",
         "lineStart": 12,
         "lineEnd": 12,
-        "keywords": [
-          "cli",
-          "exit",
-          "error",
-          "thats"
-        ]
+        "keywords": []
       },
       {
-        "path": "bench/startup.ts",
-        "symbolName": "elapsed",
+        "path": "bin/alix.js",
+        "symbolName": "child",
         "kind": "const",
-        "lineStart": 13,
-        "lineEnd": 13,
-        "keywords": [
-          "cli",
-          "exit",
-          "error",
-          "thats"
-        ]
+        "lineStart": 14,
+        "lineEnd": 14,
+        "keywords": []
+      }
+    ]
+  },
+  "src/providers/specs/_tool-schema.ts": {
+    "symbols": [
+      {
+        "path": "src/providers/specs/_tool-schema.ts",
+        "symbolName": "buildToolCallSchema",
+        "kind": "function",
+        "lineStart": 11,
+        "lineEnd": 15,
+        "keywords": []
+      }
+    ]
+  },
+  "src/providers/specs/local-llama-spec.ts": {
+    "symbols": [
+      {
+        "path": "src/providers/specs/local-llama-spec.ts",
+        "symbolName": "localLlamaSpec",
+        "kind": "const",
+        "lineStart": 18,
+        "lineEnd": 18,
+        "keywords": []
       }
     ]
   }
