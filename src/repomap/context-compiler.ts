@@ -47,8 +47,9 @@ export class ContextCompiler {
 
     this.embeddingCache = new EmbeddingCache(this.options.root);
 
-    // Build embeddings in background (non-blocking)
-    this.buildEmbeddings().catch(() => {});
+    // Note: Embeddings are built lazily on first use (saves 68MB ONNX model load
+    // for tasks that don't need semantic search). Call ensureEmbeddings() explicitly
+    // if needed.
 
     // Emit context.repo_map_created
     if (this.options.eventLog && this.options.sessionId) {
