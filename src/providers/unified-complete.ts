@@ -84,7 +84,8 @@ export async function complete(
 
   const apiKey = resolveApiKey(provider, options.apiKey);
   const body = spec.toRequestBody({ ...request, model });
-  const res = await fetchWithRetry(spec.baseUrl, {
+  const url = spec.baseUrl.replace("{model}", encodeURIComponent(model));
+  const res = await fetchWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
     body: JSON.stringify(body),
@@ -109,7 +110,8 @@ export async function* stream(
 
   const apiKey = resolveApiKey(provider, options.apiKey);
   const body = spec.toRequestBody({ ...request, model, stream: true });
-  const res = await _fetch(spec.baseUrl, {
+  const url = spec.baseUrl.replace("{model}", encodeURIComponent(model));
+  const res = await _fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
     body: JSON.stringify(body),
