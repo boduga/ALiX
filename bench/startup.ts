@@ -1,11 +1,15 @@
 import { performance } from "node:perf_hooks";
+import { writeFileSync } from "node:fs";
 
-async function main() {
-  // Measure CLI startup time by importing the compiled CLI
-  const start = performance.now();
+process.argv = ["node", "bench/startup.ts", "agent", "explorer", "test"];
+
+const start = performance.now();
+try {
   await import("../dist/src/cli.js");
-  const end = performance.now();
-  console.log(`CLI load time: ${(end - start).toFixed(0)}ms`);
+} catch (e) {
+  // CLI may exit with error, that's ok
 }
-
-main().catch(console.error);
+const end = performance.now();
+const elapsed = (end - start).toFixed(0);
+writeFileSync("/tmp/bench_output.txt", `CLI load time: ${elapsed}ms\n`);
+console.log(`CLI load time: ${elapsed}ms`);
