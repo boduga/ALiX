@@ -17,7 +17,7 @@
   ],
   "type": "module",
   "bin": {
-    "alix": "./dist/cli.js"
+    "alix": "./bin/alix.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/",
