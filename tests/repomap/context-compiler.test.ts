@@ -61,7 +61,6 @@ describe("ContextCompiler", () => {
       // Different pinnedPaths should produce different result
       assert.notEqual(bundle1.id, bundle2.id);
     });
-  });
 
     it("classifies task type correctly", async () => {
       await warm();

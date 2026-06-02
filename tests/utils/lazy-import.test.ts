@@ -7,7 +7,8 @@ describe("lazy", () => {
     let called = 0;
     const m = lazy(() => { called++; return { x: 1 }; });
     assert.equal(called, 0);
-    assert.equal(m().x, 1);
+    const result = m();
+    assert.equal((result as { x: number }).x, 1);
     assert.equal(called, 1);
   });
 
