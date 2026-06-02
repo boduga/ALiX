@@ -31,7 +31,7 @@ export type RepoMapLite = {
   topLevelSymbols: SymbolSummary[];
 };
 
-const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next"]);
+const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".worktrees", ".alix", "test-folder"]);
 
 export async function buildRepoMapLite(root: string): Promise<RepoMapLite> {
   const paths = await walk(root);

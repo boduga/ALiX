@@ -80,7 +80,7 @@ function classifyKind(path: string): FileEntry["kind"] {
 
 export async function buildRepoMap(root: string): Promise<RepoMapOutput> {
   const { readdir, stat } = await import("node:fs/promises");
-  const ignoredDirs = new Set([".git", "node_modules", "dist", "build", "coverage", ".next"]);
+  const ignoredDirs = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".worktrees", ".alix", "test-folder"]);
   const fileEntries = new Map<string, FileEntry>();
   const sourceFiles: string[] = [];
   const testFiles: string[] = [];
