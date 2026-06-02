@@ -1,7 +1,7 @@
 # Sub-Project #1: Unified LLM API Abstraction
 
 **Date:** 2026-05-31
-**Status:** Approved
+**Status:** Completed (2026-05-31)
 **Parent Project:** What ALiX Can Learn From Pi Agent
 **Source:** Comparison with [earendil-works/pi](https://github.com/earendil-works/pi) (`@earendil-works/pi-ai`)
 

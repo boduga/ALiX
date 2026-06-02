@@ -1,7 +1,7 @@
 # Sub-Project #4: Supply-Chain Hardening
 
 **Date:** 2026-05-31
-**Status:** Draft
+**Status:** Completed (2026-05-31)
 **Parent Project:** What ALiX Can Learn From Pi Agent
 **Source:** [earendil-works/pi](https://github.com/earendil-works/pi) supply-chain hardening patterns
 

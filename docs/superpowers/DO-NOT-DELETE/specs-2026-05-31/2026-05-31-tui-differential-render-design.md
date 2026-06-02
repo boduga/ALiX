@@ -1,7 +1,7 @@
 # Sub-Project #3: TUI Differential Rendering
 
 **Date:** 2026-05-31
-**Status:** Draft
+**Status:** Completed (2026-05-31)
 **Parent Project:** What ALiX Can Learn From Pi Agent
 **Source:** [earendil-works/pi-tui](https://github.com/earendil-works/pi/tree/main/packages/tui) — uses differential rendering to only redraw changed lines
 

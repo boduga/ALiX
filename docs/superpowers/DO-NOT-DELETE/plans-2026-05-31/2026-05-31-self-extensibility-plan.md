@@ -1,3 +1,5 @@
+**Status:** ✅ COMPLETED (2026-05-31) — all tasks implemented and merged to main
+
 # Self-Extensibility Improvements Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
