@@ -41,6 +41,10 @@ export class Tui {
     return this.bridge;
   }
 
+  appendOutput(text: string): void {
+    this.renderer?.appendOutput(text);
+  }
+
   destroy(): void {
     this.renderer?.stop();
   }
