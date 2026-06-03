@@ -193,6 +193,86 @@ if (command === "config" && args[0] === "set-default-model") {
   process.exit(0);
 }
 
+if (command === "config" && args[0] === "set-tier") {
+  const TIERS = ["thinking", "coding", "fast", "critic", "tiny", "image"] as const;
+  let tierName: string = args[1];
+
+  if (!tierName || !TIERS.includes(tierName as any)) {
+    console.log("\nSelect a subagent tier to configure:");
+    for (let i = 0; i < TIERS.length; i++) {
+      const desc: Record<string, string> = {
+        thinking: "Strategic reasoning, planning, complex logic",
+        coding: "Code generation, tool execution, patches",
+        fast: "Quick classification, routing, simple tasks",
+        critic: "Verification, validation, hallucination checks",
+        tiny: "Embeddings, reranking, memory compression",
+        image: "Image generation, multimodal analysis",
+      };
+      console.log(`  ${i + 1}. ${TIERS[i]} - ${desc[TIERS[i]]}`);
+    }
+    const answer = await prompt(`\nSelect tier (1-${TIERS.length}, 0 to cancel): `);
+    const num = parseInt(answer, 10);
+    if (num === 0 || isNaN(num) || num > TIERS.length) { console.log("Cancelled."); process.exit(0); }
+    tierName = TIERS[num - 1];
+  }
+
+  const providerId = await selectProvider();
+  const provider = PROVIDERS.find((p) => p.id === providerId)!;
+
+  let apiKey = process.env[provider.env] ?? (await getSavedApiKey(providerId));
+  if (!apiKey) {
+    console.log(`\nNo API key found for ${provider.name}.`);
+    const key = await prompt(`Enter API key (${provider.hint}): `);
+    if (!key) { console.log("Cancelled."); process.exit(0); }
+    await setApiKey(providerId, key);
+    apiKey = key;
+    process.env[provider.env] = key;
+  }
+
+  console.log(`\nFetching available models for ${provider.name}...\n`);
+  let models: ModelInfo[];
+  try {
+    models = await listModels(providerId, apiKey);
+  } catch (err) {
+    console.error(`Failed to fetch models: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+  if (models.length === 0) { console.log("No models found."); process.exit(1); }
+
+  const MAX_SHOWN = 50;
+  const shown = models.slice(0, MAX_SHOWN);
+  for (let i = 0; i < shown.length; i++) {
+    const m = shown[i];
+    const tokens = m.maxInputTokens ? ` (in: ${(m.maxInputTokens / 1000).toFixed(0)}k)` : "";
+    console.log(`  ${i + 1}. ${m.displayName}${tokens}`);
+  }
+  if (models.length > MAX_SHOWN) console.log(`  ... and ${models.length - MAX_SHOWN} more`);
+
+  const answer = await prompt(`\nSelect model (1-${shown.length}, 0 to cancel): `);
+  const num = parseInt(answer, 10);
+  if (num === 0 || isNaN(num) || num > shown.length) { console.log("Cancelled."); process.exit(0); }
+  const selected = shown[num - 1];
+
+  const projectConfigPath = join(process.cwd(), ".alix", "config.json");
+  const userConfigDir = join(homedir(), ".config", "alix");
+  const userConfigPath = join(userConfigDir, "config.json");
+  const configPath = existsSync(join(process.cwd(), ".git")) ? projectConfigPath : userConfigPath;
+  const isProjectConfig = configPath === projectConfigPath;
+
+  await mkdir(isProjectConfig ? join(process.cwd(), ".alix") : userConfigDir, { recursive: true });
+  let existing: Record<string, unknown> = {};
+  try { existing = JSON.parse(await readFile(configPath, "utf8")); } catch { /* no config yet */ }
+
+  const subagents = (existing.subagents as Record<string, unknown>) ?? {};
+  subagents[tierName] = { provider: providerId, name: selected.id };
+
+  const updated = { ...existing, subagents: { ...(existing.subagents as any), ...subagents } };
+  await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
+  console.log(`\nTier "${tierName}" set to ${providerId}/${selected.id}.`);
+  console.log(`Saved to ${configPath}`);
+  process.exit(0);
+}
+
 if (command === "config" && args[0] === "show") {
   console.log(JSON.stringify(await loadConfig(process.cwd()), null, 2));
   process.exit(0);
