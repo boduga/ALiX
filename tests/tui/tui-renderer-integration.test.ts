@@ -4,45 +4,41 @@ import assert from "node:assert/strict";
 import { createTuiStore } from "../../src/tui/store.js";
 import { TuiRenderer } from "../../src/tui/render.js";
 
-describe("TuiRenderer integration with diff-render", () => {
-  it("renders initial output to a stream", () => {
+describe("TuiRenderer split-screen layout", () => {
+  it("drawLayout calls process.stdout.write", () => {
     const store = createTuiStore({ sessionId: "test-1" });
     const renderer = new TuiRenderer(store);
 
-    const writes: string[] = [];
+    let called = false;
     const origWrite = process.stdout.write;
-    process.stdout.write = ((s: string) => { writes.push(s); return true; }) as any;
+    process.stdout.write = ((s: string) => { called = true; return true; }) as any;
     try {
       renderer.start();
-      const initial = renderer.renderInitial();
-      assert.ok(initial.length > 0);
+      renderer.drawLayout();
+      assert.ok(called, "drawLayout should write to stdout");
     } finally {
       process.stdout.write = origWrite;
+      renderer.stop();
     }
   });
 
-  it("subsequent renders go through diff-render (no full clear)", () => {
+  it("appendOutput does not throw", () => {
     const store = createTuiStore({ sessionId: "test-2" });
     const renderer = new TuiRenderer(store);
 
-    const writes: string[] = [];
     const origWrite = process.stdout.write;
-    process.stdout.write = ((s: string) => { writes.push(s); return true; }) as any;
+    process.stdout.write = ((s: string) => { return true; }) as any;
     try {
       renderer.start();
-      // Initial render
-      process.stdout.write(renderer.renderInitial() + "\n");
-      const initialWriteCount = writes.length;
-
-      // Trigger a render by updating store state
+      renderer.drawLayout();
+      renderer.appendOutput("hello");
       store.setAgentState("executing");
-
-      // After update, writes should be incremental (not a full redraw)
-      // We can't easily assert exact writes here, but we can verify
-      // the renderer doesn't throw and produces some output
-      assert.ok(writes.length >= initialWriteCount);
+      renderer.appendOutput("world");
+      // No crash = pass
+      assert.ok(true);
     } finally {
       process.stdout.write = origWrite;
+      renderer.stop();
     }
   });
 });

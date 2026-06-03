@@ -24,7 +24,7 @@ export class Tui {
   async init(): Promise<void> {
     this.renderer = new TuiRenderer(this.store);
     this.renderer.start();
-    process.stdout.write(this.renderer.renderInitial());
+    this.renderer.drawLayout();
 
     if (this.options.eventLog) {
       this.options.eventLog.watch((event) => {
