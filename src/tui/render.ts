@@ -1,32 +1,40 @@
+// src/tui/render.ts -- Split-screen TUI renderer with bottom-pinned status bar.
+//
+// Layout:
+//   Lines 0 to (terminalHeight - 5):  Append-only output buffer
+//   Line (terminalHeight - 5):        Divider (─)
+//   Line (terminalHeight - 4):        State theater (currently active state)
+//   Line (terminalHeight - 3):        Budget bar (tokens used / max)
+//   Line (terminalHeight - 2):        Spinner / status message
+//   Last line:                        Reserved (terminal edge)
+
 import { TuiStore } from "./store.js";
 import { StateTheaterWidget } from "./widgets/state-theater.js";
-import { AgentTreeWidget } from "./widgets/agent-tree.js";
 import { BudgetBarWidget } from "./widgets/budget-bar.js";
 import { SpinnerWidget } from "./widgets/spinner.js";
-import { moveUp, clearLine } from "./ansi.js";
-import { renderDiff } from "./diff-render.js";
+import { moveToLine, clearToEndOfLine, getTerminalHeight } from "./ansi.js";
 import { LAYOUT } from "./layout.js";
+
+const STATUS_LINES = 5;  // divider + state + budget + spinner + gap
+const MAX_OUTPUT_LINES = 1000;
 
 export class TuiRenderer {
   private store: TuiStore;
   private stateTheater: StateTheaterWidget;
-  private agentTree: AgentTreeWidget;
   private budgetBar: BudgetBarWidget;
   private spinner: SpinnerWidget;
   private running = false;
   private timerId?: NodeJS.Timeout;
-  private lastRender = "";
   private lastRenderTime = 0;
   private initialPrinted = false;
+  private outputBuffer: string[] = [];
+  private statusLineStart = 0;  // computed on first render
 
   constructor(store: TuiStore) {
     this.store = store;
     this.stateTheater = new StateTheaterWidget();
-    this.agentTree = new AgentTreeWidget();
     this.budgetBar = new BudgetBarWidget();
     this.spinner = new SpinnerWidget({ label: "Thinking..." });
-
-    // Subscribe to store changes
     this.store.subscribe(() => this.scheduleRender());
   }
 
@@ -34,93 +42,96 @@ export class TuiRenderer {
     this.running = true;
   }
 
-  renderInitial(): string {
-    if (this.initialPrinted) {
-      return "";
-    }
-    this.initialPrinted = true;
-    this.lastRender = this.buildOutput();
-    return this.lastRender;
-  }
-
   stop(): void {
     this.running = false;
-    if (this.timerId) {
-      clearTimeout(this.timerId);
+    if (this.timerId) clearTimeout(this.timerId);
+  }
+
+  /** Append a line to the output buffer and write it to the terminal. */
+  appendOutput(text: string): void {
+    this.outputBuffer.push(text);
+    if (this.outputBuffer.length > MAX_OUTPUT_LINES) {
+      this.outputBuffer.splice(0, this.outputBuffer.length - MAX_OUTPUT_LINES);
     }
+    if (!this.initialPrinted) return;
+
+    // Write the line right above the status block
+    const h = this.statusLineStart;
+    // Only re-render the new content (the last line in buffer)
+    process.stdout.write(moveToLine(h - 1));
+    process.stdout.write(text + "\n");
+    // Since we added a line, the status block shifted down. Re-render it.
+    this.renderStatus();
+  }
+
+  /** Render the initial layout: empty output area + status block. */
+  renderInitial(): string {
+    if (this.initialPrinted) return "";
+    this.initialPrinted = true;
+
+    const h = getTerminalHeight();
+    this.statusLineStart = h - STATUS_LINES;  // 0-indexed
+
+    // Calculate output area height
+    const outputHeight = this.statusLineStart;
+    const outputArea = "\n".repeat(outputHeight);
+
+    // Print output area + initial status block (the status renders inline)
+    this.lastRenderTime = performance.now();
+    const result = outputArea + this.buildStatusBlock();
+    return result;
   }
 
   private scheduleRender(): void {
     if (!this.running) return;
-
     const now = performance.now();
-    const elapsed = now - this.lastRenderTime;
-
-    // Render at 10fps for updates
-    if (elapsed >= 100) {
+    if (now - this.lastRenderTime >= 100) {
       this.doRender();
       this.lastRenderTime = now;
     }
-
     this.timerId = setTimeout(() => this.scheduleRender(), 100);
   }
 
   private doRender(): void {
-    const output = this.buildOutput();
-
-    if (!this.initialPrinted) {
-      process.stdout.write(output + "\n");
-      this.lastRender = output;
-      this.initialPrinted = true;
-      return;
-    }
-
-    renderDiff(this.lastRender, output);
-    this.lastRender = output;
+    if (!this.initialPrinted) return;
+    // Only re-render the status block (bottom STATUS_LINES lines)
+    this.renderStatus();
   }
 
-  private buildOutput(): string {
+  private renderStatus(): void {
+    const block = this.buildStatusBlock();
+    const h = this.statusLineStart;
+    // Write status block starting at statusLineStart
+    process.stdout.write(moveToLine(h));
+    process.stdout.write(block);
+  }
+
+  private buildStatusBlock(): string {
     const state = this.store.getState();
-
-    // Update widgets from store state
     this.stateTheater.setState(state.agentState);
-    if (state.agentReasoning) {
-      this.stateTheater.setReasoning(state.agentReasoning);
-    }
-
+    if (state.agentReasoning) this.stateTheater.setReasoning(state.agentReasoning);
     this.budgetBar.setTokens(state.tokenBudget.used, state.tokenBudget.max);
     this.budgetBar.setFiles(state.tokenBudget.files);
 
-    // Sync subagents to tree
-    for (const subagent of state.subagents) {
-      const existing = this.agentTree["nodes"].get(subagent.id);
-      if (!existing) {
-        this.agentTree.addNode(subagent);
-      } else {
-        this.agentTree.updateNode(subagent.id, subagent);
-      }
-    }
-
-    // Build output
     const lines: string[] = [];
 
-    // State theater
+    // Divider
+    const termWidth = process.stdout.columns || 80;
+    lines.push("─".repeat(termWidth));
+
+    // State theater line
     lines.push(this.stateTheater.render());
-    lines.push("".repeat(LAYOUT.sectionGap));
 
-    // Budget bar
+    // Budget bar line
     lines.push(this.budgetBar.render());
-    lines.push("".repeat(LAYOUT.sectionGap));
 
-    // Agent tree
-    lines.push(this.agentTree.render());
-    lines.push("".repeat(LAYOUT.sectionGap));
-
-    // Spinner (if running)
+    // Spinner / status line
     if (this.spinner.isRunning()) {
       lines.push(this.spinner.render());
+    } else {
+      lines.push("");
     }
 
-    return lines.join("\n");
+    return lines.join("\n") + "\n";
   }
 }
