@@ -52,3 +52,8 @@ export function panel(content: string, opts: { width: number } = { width: 60 }):
 export function border(width: number): string {
   return "─".repeat(width);
 }
+
+/** Get the current terminal height in lines */
+export function getTerminalHeight(): number {
+  return process.stdout.rows || 24;
+}
