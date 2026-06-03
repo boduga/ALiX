@@ -41,6 +41,15 @@ export class TuiRenderer {
   start(): void { this.running = true; }
   stop(): void { this.running = false; }
 
+  /** Reset cursor to a safe position in the output area after task. */
+  resetCursor(): void {
+    if (!this.started) return;
+    // Place cursor at statusTop - 2 (the line just above the gap before status).
+    // This is always safe regardless of how much the agent loop streamed.
+    const safeLine = Math.max(1, this.statusTop - 2);
+    process.stdout.write(`\x1b[${safeLine};1H`);
+  }
+
   /** Draw the full layout once. */
   drawLayout(): void {
     if (this.started) return;
@@ -65,7 +74,8 @@ export class TuiRenderer {
     if (this.outputLineCount >= this.statusTop - 1) return;
 
     process.stdout.write(text + "\n");
-    this.outputLineCount += text.split("\n").length;
+    this.outputLineCount += 1;  // count lines written, not \n occurrences
+    // Cap: if we've filled the output area, stop writing (cursor is at status bar edge)
   }
 
   /** Re-draw the 4 status lines in place (event-driven, no timer). */

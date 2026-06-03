@@ -63,16 +63,19 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           streaming: true,
           sharedSession,
         }, (chunk) => {
-          if (chunk.type === "text" && typeof chunk.text === "string") {
-            tui.appendOutput(chunk.text);
-          }
+          // Streaming text is already written to stdout by the agent loop.
+          // We only track it in the TUI buffer, don't write it again.
         });
 
         // Replay final events to ensure sync
         await replayEvents(result.sessionId, bridge);
 
-        // Print a blank line separator (NOT console.log — use appendOutput)
+        // Print a blank line separator
         tui.appendOutput("");
+
+        // Reset cursor to output area after streaming (agent loop may have
+        // written past the output area, which would break the next readline prompt)
+        tui.resetCursor();
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
         tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`);
