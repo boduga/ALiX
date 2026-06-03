@@ -64,7 +64,7 @@ export class TuiRenderer {
     this.renderStatus();
   }
 
-  /** Render the initial layout: empty output area + status block. */
+  /** Render the initial layout: empty output area + status block pinned to bottom. */
   renderInitial(): string {
     if (this.initialPrinted) return "";
     this.initialPrinted = true;
@@ -72,13 +72,10 @@ export class TuiRenderer {
     const h = getTerminalHeight();
     this.statusLineStart = h - STATUS_LINES;  // 0-indexed
 
-    // Calculate output area height
-    const outputHeight = this.statusLineStart;
-    const outputArea = "\n".repeat(outputHeight);
-
-    // Print output area + initial status block (the status renders inline)
+    // Fill screen with newlines to push everything down, then jump to
+    // the status line position and write the status block at the bottom.
     this.lastRenderTime = performance.now();
-    const result = outputArea + this.buildStatusBlock();
+    const result = "\n".repeat(h) + moveToLine(this.statusLineStart) + this.buildStatusBlock();
     return result;
   }
 
