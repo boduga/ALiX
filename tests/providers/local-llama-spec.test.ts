@@ -13,7 +13,7 @@ describe("localLlamaSpec", () => {
   });
 
   describe("toRequestBody with tools", () => {
-    it("adds response_format.json_schema when tools provided", () => {
+    it("uses native OpenAI tools format when tools provided", () => {
       const body = localLlamaSpec.toRequestBody({
         systemPrompt: "You are helpful",
         messages: [{ role: "user", content: "read foo.ts" }],
@@ -22,12 +22,12 @@ describe("localLlamaSpec", () => {
           { name: "file.read", description: "Read a file", input_schema: { type: "object", properties: { path: { type: "string" } } } },
         ],
       });
-      assert.ok((body as any).response_format);
-      assert.equal((body as any).response_format.type, "json_schema");
-      assert.ok((body as any).response_format.json_schema);
+      assert.ok((body as any).tools, "tools should be present");
+      assert.equal((body as any).tools[0].type, "function");
+      assert.equal((body as any).tools[0].function.name, "file.read");
     });
 
-    it("json_schema includes tool name enum", () => {
+    it("includes multiple tools", () => {
       const body = localLlamaSpec.toRequestBody({
         systemPrompt: "",
         messages: [],
@@ -37,29 +37,34 @@ describe("localLlamaSpec", () => {
           { name: "shell.run", description: "y", input_schema: { type: "object", properties: {} } },
         ],
       });
-      const schema = (body as any).response_format.json_schema.schema;
-      assert.deepEqual(schema.properties.name.enum, ["file.read", "shell.run"]);
-      assert.deepEqual(schema.properties.type.enum, ["text", "tool"]);
+      assert.equal((body as any).tools.length, 2);
+      assert.equal((body as any).tools[1].function.name, "shell.run");
     });
 
-    it("no response_format when no tools", () => {
+    it("no tools field when no tools provided", () => {
       const body = localLlamaSpec.toRequestBody({
         systemPrompt: "",
         messages: [],
         model: "tinyllama",
       });
-      assert.equal((body as any).response_format, undefined);
+      assert.equal((body as any).tools, undefined);
     });
   });
 
-  describe("fromResponse", () => {
-    it("parses JSON tool call from model output (new format with type)", () => {
+  describe("fromResponse with native tool calls", () => {
+    it("parses native OpenAI tool_calls from response (--jinja mode)", () => {
       const resp = localLlamaSpec.fromResponse({
         choices: [{
           message: {
-            content: '{"type": "tool", "name": "file.read", "arguments": {"path": "src/foo.ts"}}',
+            role: "assistant",
+            content: null,
+            tool_calls: [{
+              id: "call_1",
+              type: "function",
+              function: { name: "file.read", arguments: '{"path":"src/foo.ts"}' },
+            }],
           },
-          finish_reason: "stop",
+          finish_reason: "tool_calls",
         }],
         usage: { prompt_tokens: 10, completion_tokens: 5 },
       });
@@ -69,48 +74,58 @@ describe("localLlamaSpec", () => {
       assert.equal(resp.text, "");
     });
 
-    it("parses text response from model output", () => {
+    it("parses multiple tool calls", () => {
       const resp = localLlamaSpec.fromResponse({
         choices: [{
           message: {
-            content: '{"type": "text", "content": "The president of Nigeria is Bola Tinubu."}',
+            tool_calls: [
+              { id: "c1", type: "function", function: { name: "file.read", arguments: '{"path":"a.ts"}' } },
+              { id: "c2", type: "function", function: { name: "file.read", arguments: '{"path":"b.ts"}' } },
+            ],
           },
         }],
       });
-      assert.equal(resp.toolCalls.length, 0);
-      assert.equal(resp.text, "The president of Nigeria is Bola Tinubu.");
+      assert.equal(resp.toolCalls.length, 2);
     });
 
-    it("handles backward-compat (old format without type field)", () => {
+    it("returns text content when no tool_calls in response", () => {
       const resp = localLlamaSpec.fromResponse({
         choices: [{
-          message: {
-            content: '{"name": "file.read", "arguments": {"path": "src/foo.ts"}}',
-          },
+          message: { content: "Hello, I can help with that." },
+        }],
+      });
+      assert.equal(resp.toolCalls.length, 0);
+      assert.equal(resp.text, "Hello, I can help with that.");
+    });
+  });
+
+  describe("fromResponse legacy fallback (JSON schema format)", () => {
+    it("parses JSON tool call from model output (legacy)", () => {
+      const resp = localLlamaSpec.fromResponse({
+        choices: [{
+          message: { content: '{"type": "tool", "name": "file.read", "arguments": {"path": "src/foo.ts"}}' },
         }],
       });
       assert.equal(resp.toolCalls.length, 1);
       assert.equal(resp.toolCalls[0].name, "file.read");
     });
 
-    it("treats plain text as text response (not tool call)", () => {
+    it("parses text response from JSON schema format (legacy)", () => {
       const resp = localLlamaSpec.fromResponse({
         choices: [{
-          message: { content: "Hello, how can I help?" },
+          message: { content: '{"type": "text", "content": "The answer is 42."}' },
         }],
       });
       assert.equal(resp.toolCalls.length, 0);
-      assert.equal(resp.text, "Hello, how can I help?");
+      assert.equal(resp.text, "The answer is 42.");
     });
 
-    it("handles invalid JSON gracefully", () => {
+    it("treats plain text as text response", () => {
       const resp = localLlamaSpec.fromResponse({
-        choices: [{
-          message: { content: "{invalid json" },
-        }],
+        choices: [{ message: { content: "Hi there" } }],
       });
       assert.equal(resp.toolCalls.length, 0);
-      assert.equal(resp.text, "{invalid json");
+      assert.equal(resp.text, "Hi there");
     });
 
     it("extracts usage when present", () => {
@@ -119,6 +134,19 @@ describe("localLlamaSpec", () => {
         usage: { prompt_tokens: 100, completion_tokens: 50 },
       });
       assert.deepEqual(resp.usage, { inputTokens: 100, outputTokens: 50 });
+    });
+
+    it("finish_reason tool_calls is preserved", () => {
+      const resp = localLlamaSpec.fromResponse({
+        choices: [{
+          message: {
+            content: null,
+            tool_calls: [{ id: "x", type: "function", function: { name: "web_search", arguments: '{"query":"test"}' } }],
+          },
+          finish_reason: "tool_calls",
+        }],
+      });
+      assert.equal(resp.finishReason, "tool_calls");
     });
   });
 });

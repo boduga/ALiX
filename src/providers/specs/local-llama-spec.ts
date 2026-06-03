@@ -1,16 +1,18 @@
 import type { ProviderSpec } from "../spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, ToolCall, TokenUsage } from "../types.js";
-import { buildToolCallSchema } from "./_tool-schema.js";
 
 /**
  * Provider spec for llama-server (local LLM inference).
  *
  * Uses llama-server's OpenAI-compat endpoint at /v1/chat/completions.
- * For tool calling, leverages the `response_format.json_schema` field
- * to force the model to output valid JSON tool calls via grammar-constrained
- * generation.
+ * Requires llama-server started with --jinja flag for native tool calling.
  *
- * The output is parsed back to ALiX's ToolCall[] format.
+ * Tools are passed as native OpenAI tools: [...] format. The model
+ * (with --jinja enabled) outputs proper tool_calls in the response.
+ * Our fromResponse parses native tool_calls from the OpenAI response.
+ *
+ * For models without native tool support, ALiX's schema workaround
+ * is available as a separate code path (see local-llama-schema.ts).
  *
  * Default base URL assumes llama-server running locally on port 8080.
  * Override at provider creation time for custom URLs (e.g., Tailscale IP).
@@ -32,16 +34,16 @@ export const localLlamaSpec: ProviderSpec = {
     if (req.maxOutputTokens !== undefined) body.max_tokens = req.maxOutputTokens;
     if (req.stream) body.stream = true;
 
-    // If tools are provided, force structured tool-call output via JSON schema
+    // Use native OpenAI tool format (requires llama-server --jinja)
     if (req.tools && req.tools.length > 0) {
-      const toolSchema = buildToolCallSchema(req.tools);
-      body.response_format = {
-        type: "json_schema",
-        json_schema: {
-          name: "tool_call",
-          schema: toolSchema,
+      body.tools = req.tools.map((t) => ({
+        type: "function",
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: t.input_schema,
         },
-      };
+      }));
     }
 
     return body;
@@ -50,42 +52,51 @@ export const localLlamaSpec: ProviderSpec = {
   fromResponse: (res) => {
     const r = res as any;
     const choice = r.choices?.[0];
-    const content = choice?.message?.content ?? "";
+    const message = choice?.message ?? {};
+    const content = message?.content ?? "";
 
-    // Try to parse the JSON response (now either text or tool)
     const toolCalls: ToolCall[] = [];
     let text = content;
 
-    if (content.trim().startsWith("{")) {
+    // Parse native tool_calls from OpenAI response (--jinja mode)
+    if (message.tool_calls && Array.isArray(message.tool_calls)) {
+      for (const tc of message.tool_calls) {
+        // Support both object and function wrapping shapes
+        const fn = tc.function || tc;
+        toolCalls.push({
+          id: tc.id ?? `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: fn.name,
+          args: typeof fn.arguments === "string" ? JSON.parse(fn.arguments || "{}") : fn.arguments,
+        });
+      }
+      // Tool calls were made; suppress text output
+      text = "";
+    }
+
+    // Legacy fallback: parse JSON schema output (for models without --jinja)
+    if (toolCalls.length === 0 && content.trim().startsWith("{")) {
       try {
         const parsed = JSON.parse(content);
-
         if (parsed?.type === "text" && typeof parsed.content === "string") {
-          // Model chose to respond with text
           text = parsed.content;
-        } else if (parsed?.type === "tool" && typeof parsed.name === "string" && parsed.arguments && typeof parsed.arguments === "object") {
-          // Model chose to call a tool
+        } else if (parsed?.type === "tool" && typeof parsed.name === "string") {
           toolCalls.push({
             id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name: parsed.name,
-            args: parsed.arguments,
+            args: parsed.arguments ?? {},
           });
-          // Tool call; suppress text
           text = "";
-        } else if (typeof parsed.name === "string" && parsed.arguments && typeof parsed.arguments === "object") {
-          // Backward-compat: old format without `type` field
+        } else if (typeof parsed.name === "string") {
+          // Old format without type field
           toolCalls.push({
             id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name: parsed.name,
-            args: parsed.arguments,
+            args: parsed.arguments ?? {},
           });
           text = "";
-        } else {
-          // Unknown JSON shape; treat as text
-          text = content;
         }
       } catch {
-        // Not valid JSON — treat as plain text
+        // Not JSON — keep as text
       }
     }
 
