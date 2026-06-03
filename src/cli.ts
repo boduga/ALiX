@@ -78,6 +78,7 @@ Usage:
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
+  alix config set-tier [tier]    Set model for a subagent tier (interactive, fetches from provider API)
   alix mcp list           List connected MCP servers and their tools
   alix mcp add            Add an MCP server (interactive prompts)
   alix mcp remove <name>  Disconnect an MCP server
