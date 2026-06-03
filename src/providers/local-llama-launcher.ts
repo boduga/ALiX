@@ -20,8 +20,6 @@ export type LlamaServerOptions = {
   ubatchSize?: number;
   /** llama-server binary path (auto-detected if not set) */
   serverPath?: string;
-  /** Working directory to find .alix/llama-mcp.json (default: cwd) */
-  cwd?: string;
 };
 
 type LauncherResult = {
@@ -112,13 +110,6 @@ export async function ensureLlamaServer(
     "--host", host,
     "--port", String(port),
   ];
-
-  // Auto-detect .alix/llama-mcp.json for native MCP proxy support
-  const cwd = options?.cwd ?? process.cwd();
-  const mcpConfigPath = join(cwd, ".alix", "llama-mcp.json");
-  if (existsSync(mcpConfigPath)) {
-    args.push("--webui-mcp-proxy", mcpConfigPath);
-  }
 
   const child = spawn(serverBin, args, {
     detached: false,

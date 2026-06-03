@@ -68,7 +68,6 @@ export class LocalLlamaProvider extends BaseProvider {
 
     const result = await ensureLlamaServer(this.baseUrl, {
       modelPath: this.localModelPath,
-      cwd: process.cwd(),
     });
 
     if (result.process) {
