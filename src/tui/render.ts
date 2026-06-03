@@ -1,106 +1,48 @@
-// src/tui/render.ts — Bottom-pinned status bar with append-only output.
-//
-// Key design decisions:
-// 1. NO timer-based re-render — only redraw status when store state changes
-//    (via subscribe callback). This eliminates the cursor save/restore race
-//    between the timer and sequential appendOutput writes.
-// 2. Maximum output lines capped at statusTop - 1 to prevent cursor from
-//    ever entering the status area.
-// 3. Divider is a fixed 40 chars (not terminal-width) to prevent line wrapping.
-
 import { TuiStore } from "./store.js";
-import { StateTheaterWidget } from "./widgets/state-theater.js";
-import { BudgetBarWidget } from "./widgets/budget-bar.js";
-import { SpinnerWidget } from "./widgets/spinner.js";
-import { getTerminalHeight } from "./ansi.js";
 
-const STATUS_LINES = 4;
-const MAX_OUTPUT = 1000;
-const DIVIDER = "─".repeat(40);
+const STATE_BULLET: Record<string, string> = {
+  idle: "○", understanding: "●", planning: "●",
+  executing: "●", verifying: "●", repairing: "●",
+  summarizing: "●", done: "✓", error: "✗",
+};
+
+const STATE_LABEL: Record<string, string> = {
+  idle: "IDLE", understanding: "UNDERSTANDING", planning: "PLANNING",
+  executing: "EXECUTING", verifying: "VERIFYING", repairing: "REPAIRING",
+  summarizing: "SUMMARIZING", done: "DONE", error: "ERROR",
+};
 
 export class TuiRenderer {
   private store: TuiStore;
-  private stateTheater: StateTheaterWidget;
-  private budgetBar: BudgetBarWidget;
-  private spinner: SpinnerWidget;
   private running = false;
-  private lines: string[] = [];
-  private statusTop = 0;
-  private started = false;
-  private outputLineCount = 0;  // tracks cursor position line
 
   constructor(store: TuiStore) {
     this.store = store;
-    this.stateTheater = new StateTheaterWidget();
-    this.budgetBar = new BudgetBarWidget();
-    this.spinner = new SpinnerWidget({ label: "Thinking..." });
-    // Event-driven: only re-render on actual state changes
-    this.store.subscribe(() => this.onStateChange());
+    this.store.subscribe(() => this.onStoreChange());
   }
 
   start(): void { this.running = true; }
   stop(): void { this.running = false; }
 
-  /** Reset cursor to a safe position in the output area after task. */
-  resetCursor(): void {
-    if (!this.started) return;
-    // Place cursor at statusTop - 2 (the line just above the gap before status).
-    // This is always safe regardless of how much the agent loop streamed.
-    const safeLine = Math.max(1, this.statusTop - 2);
-    process.stdout.write(`\x1b[${safeLine};1H`);
-  }
+  /** Nothing to draw at startup — output + status appear as the agent runs. */
+  drawLayout(): void {}
 
-  /** Draw the full layout once. */
-  drawLayout(): void {
-    if (this.started) return;
-    this.started = true;
-    const h = getTerminalHeight();
-    this.statusTop = h - STATUS_LINES;
-    // Fill screen, draw status at bottom, leave cursor at line 1
-    for (let i = 0; i < h - 1; i++) process.stdout.write("\n");
-    this.writeStatus();
-    process.stdout.write(`\x1b[1;1H`);
-  }
-
-  /** Add a line of output. Cap at (statusTop - 1) lines. */
+  /** Write a line of output. */
   appendOutput(text: string): void {
-    this.lines.push(text);
-    if (this.lines.length > MAX_OUTPUT) {
-      this.lines.splice(0, this.lines.length - MAX_OUTPUT);
-    }
-    if (!this.started) return;
-
-    // Cap output lines to stay above the status bar
-    if (this.outputLineCount >= this.statusTop - 1) return;
-
     process.stdout.write(text + "\n");
-    this.outputLineCount += 1;  // count lines written, not \n occurrences
-    // Cap: if we've filled the output area, stop writing (cursor is at status bar edge)
   }
 
-  /** Re-draw the 4 status lines in place (event-driven, no timer). */
-  private onStateChange(): void {
-    if (!this.running || !this.started) return;
-    // Jump to status area, overwrite, return cursor to where it was
-    process.stdout.write("\x1b[s");
-    this.writeStatus();
-    process.stdout.write("\x1b[u");
-  }
-
-  private writeStatus(): void {
-    const state = this.store.getState();
-    this.stateTheater.setState(state.agentState);
-    if (state.agentReasoning) this.stateTheater.setReasoning(state.agentReasoning);
-    this.budgetBar.setTokens(state.tokenBudget.used, state.tokenBudget.max);
-    this.budgetBar.setFiles(state.tokenBudget.files);
-
-    const s = DIVIDER + "\n" +
-      this.stateTheater.render() + "\n" +
-      this.budgetBar.render() + "\n" +
-      (this.spinner.isRunning() ? this.spinner.render() : "");
-
-    process.stdout.write(`\x1b[${this.statusTop + 1};1H`);
-    process.stdout.write(s);
-    process.stdout.write("\x1b[J");
+  /** On every store change, write a status line. */
+  private onStoreChange(): void {
+    if (!this.running) return;
+    const s = this.store.getState();
+    const bullet = STATE_BULLET[s.agentState] ?? "○";
+    const label = STATE_LABEL[s.agentState] ?? s.agentState.toUpperCase();
+    const pct = s.tokenBudget.max > 0
+      ? Math.round((s.tokenBudget.used / s.tokenBudget.max) * 100)
+      : 0;
+    const msg = s.agentReasoning ? s.agentReasoning.slice(0, 50) : "";
+    const line = `${bullet} ${label}  │  Tokens: ${pct}%${msg ? `  │  ${msg}` : ""}`;
+    process.stdout.write(line + "\n");
   }
 }

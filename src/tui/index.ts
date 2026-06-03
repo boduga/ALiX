@@ -45,10 +45,6 @@ export class Tui {
     this.renderer?.appendOutput(text);
   }
 
-  resetCursor(): void {
-    this.renderer?.resetCursor();
-  }
-
   destroy(): void {
     this.renderer?.stop();
   }

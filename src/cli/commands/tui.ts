@@ -72,10 +72,6 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
         // Print a blank line separator
         tui.appendOutput("");
-
-        // Reset cursor to output area after streaming (agent loop may have
-        // written past the output area, which would break the next readline prompt)
-        tui.resetCursor();
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
         tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`);

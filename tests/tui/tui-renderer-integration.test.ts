@@ -4,40 +4,37 @@ import assert from "node:assert/strict";
 import { createTuiStore } from "../../src/tui/store.js";
 import { TuiRenderer } from "../../src/tui/render.js";
 
-describe("TuiRenderer split-screen layout", () => {
-  it("drawLayout calls process.stdout.write", () => {
+describe("TuiRenderer single-line status", () => {
+  it("appendOutput writes to stdout", () => {
     const store = createTuiStore({ sessionId: "test-1" });
     const renderer = new TuiRenderer(store);
 
-    let called = false;
-    const origWrite = process.stdout.write;
-    process.stdout.write = ((s: string) => { called = true; return true; }) as any;
+    let written = "";
+    const orig = process.stdout.write;
+    process.stdout.write = ((s: string) => { written += s; return true; }) as any;
     try {
       renderer.start();
-      renderer.drawLayout();
-      assert.ok(called, "drawLayout should write to stdout");
+      renderer.appendOutput("hello");
+      assert.ok(written.includes("hello"), "appendOutput should write to stdout");
     } finally {
-      process.stdout.write = origWrite;
+      process.stdout.write = orig;
       renderer.stop();
     }
   });
 
-  it("appendOutput does not throw", () => {
+  it("store change triggers status line", () => {
     const store = createTuiStore({ sessionId: "test-2" });
     const renderer = new TuiRenderer(store);
 
-    const origWrite = process.stdout.write;
-    process.stdout.write = ((s: string) => { return true; }) as any;
+    let written = "";
+    const orig = process.stdout.write;
+    process.stdout.write = ((s: string) => { written += s; return true; }) as any;
     try {
       renderer.start();
-      renderer.drawLayout();
-      renderer.appendOutput("hello");
       store.setAgentState("executing");
-      renderer.appendOutput("world");
-      // No crash = pass
-      assert.ok(true);
+      assert.ok(written.includes("EXECUTING"), "status should show agent state");
     } finally {
-      process.stdout.write = origWrite;
+      process.stdout.write = orig;
       renderer.stop();
     }
   });
