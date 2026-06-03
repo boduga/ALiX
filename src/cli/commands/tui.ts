@@ -56,10 +56,15 @@ export async function runTui(opts: TuiOptions): Promise<void> {
             sharedSession,
           });
 
+          // Print the response summary
+          if (result.summary) {
+            console.log(`\n${result.summary}\n`);
+          }
+
           // Replay final events to ensure sync
           await replayEvents(result.sessionId, bridge);
 
-          console.log("\nSession continues. Type another task or 'exit' to quit.\n");
+          console.log("Session continues. Type another task or 'exit' to quit.\n");
         } catch (err) {
           if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
           throw err;
