@@ -19,6 +19,7 @@ import {
   McpToolRouter,
   DelegateToolRouter,
   SelfExtendToolRouter,
+  WebToolsRouter,
 } from "./tool-router.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
@@ -61,6 +62,7 @@ export class ToolExecutor {
       new McpToolRouter(mcpManager ?? null, log, this.sessionId()),
       new DelegateToolRouter(extraHandlers),
       new SelfExtendToolRouter(),
+      new WebToolsRouter(),
     ]);
   }
 
@@ -211,6 +213,8 @@ function inferCapability(toolName: string): string {
   if (toolName === "patch.apply") return "patch.apply";
   if (toolName === "done") return "task.complete";
   if (toolName === "delegate") return "delegate";
+  if (toolName === "web_search") return "web.search";
+  if (toolName === "web_fetch") return "web.fetch";
   return "tool.invoke";
 }
 

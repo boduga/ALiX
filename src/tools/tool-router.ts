@@ -378,6 +378,27 @@ export class DelegateToolRouter implements ToolRouter {
   }
 }
 
+export class WebToolsRouter implements ToolRouter {
+  private static readonly SUPPORTED_TOOLS = ["web_search", "web_fetch"];
+
+  canHandle(name: string): boolean {
+    return WebToolsRouter.SUPPORTED_TOOLS.includes(name);
+  }
+
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    const { webSearchTool } = await import("./web-search.js");
+    const { webFetchTool } = await import("./web-fetch.js");
+
+    const tool = request.name === "web_search" ? webSearchTool() : webFetchTool();
+    const result = await tool.execute(request.args as any);
+
+    if (result.ok) {
+      return { kind: "success", output: JSON.stringify(result.data) };
+    }
+    return { kind: "error", message: result.error ?? "Unknown error" };
+  }
+}
+
 export class SelfExtendToolRouter implements ToolRouter {
   private static readonly SUPPORTED_TOOLS = ["create_skill", "list_extensions", "inspect_extension"];
 
