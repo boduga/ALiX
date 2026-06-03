@@ -1,7 +1,7 @@
 {
   "model": {
-    "provider": "google",
-    "name": "gemini-3.5-flash"
+    "provider": "local-llama",
+    "name": "Phi-3-mini-4k-instruct-q4.gguf"
   },
   "subagents": {
     "enabled": true
@@ -9,8 +9,8 @@
   "skills": {
     "factory": {
       "enabled": true,
-      "provider": "ollama",
-      "model": "qwen2.5-coder:7b",
+      "provider": "local-llama",
+      "model": "Phi-3-mini-4k-instruct-q4.gguf",
       "maxStore": 50,
       "maxCandidates": 20,
       "autoPromote": true
