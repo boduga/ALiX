@@ -39,6 +39,7 @@ describe("localLlamaSpec", () => {
       });
       const schema = (body as any).response_format.json_schema.schema;
       assert.deepEqual(schema.properties.name.enum, ["file.read", "shell.run"]);
+      assert.deepEqual(schema.properties.type.enum, ["text", "tool"]);
     });
 
     it("no response_format when no tools", () => {
@@ -52,11 +53,11 @@ describe("localLlamaSpec", () => {
   });
 
   describe("fromResponse", () => {
-    it("parses JSON tool call from model output", () => {
+    it("parses JSON tool call from model output (new format with type)", () => {
       const resp = localLlamaSpec.fromResponse({
         choices: [{
           message: {
-            content: '{"name": "file.read", "arguments": {"path": "src/foo.ts"}}',
+            content: '{"type": "tool", "name": "file.read", "arguments": {"path": "src/foo.ts"}}',
           },
           finish_reason: "stop",
         }],
@@ -66,6 +67,30 @@ describe("localLlamaSpec", () => {
       assert.equal(resp.toolCalls[0].name, "file.read");
       assert.deepEqual(resp.toolCalls[0].args, { path: "src/foo.ts" });
       assert.equal(resp.text, "");
+    });
+
+    it("parses text response from model output", () => {
+      const resp = localLlamaSpec.fromResponse({
+        choices: [{
+          message: {
+            content: '{"type": "text", "content": "The president of Nigeria is Bola Tinubu."}',
+          },
+        }],
+      });
+      assert.equal(resp.toolCalls.length, 0);
+      assert.equal(resp.text, "The president of Nigeria is Bola Tinubu.");
+    });
+
+    it("handles backward-compat (old format without type field)", () => {
+      const resp = localLlamaSpec.fromResponse({
+        choices: [{
+          message: {
+            content: '{"name": "file.read", "arguments": {"path": "src/foo.ts"}}',
+          },
+        }],
+      });
+      assert.equal(resp.toolCalls.length, 1);
+      assert.equal(resp.toolCalls[0].name, "file.read");
     });
 
     it("treats plain text as text response (not tool call)", () => {

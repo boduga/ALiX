@@ -52,21 +52,37 @@ export const localLlamaSpec: ProviderSpec = {
     const choice = r.choices?.[0];
     const content = choice?.message?.content ?? "";
 
-    // Try to parse as a tool call
+    // Try to parse the JSON response (now either text or tool)
     const toolCalls: ToolCall[] = [];
     let text = content;
 
     if (content.trim().startsWith("{")) {
       try {
         const parsed = JSON.parse(content);
-        if (parsed && typeof parsed.name === "string" && parsed.arguments && typeof parsed.arguments === "object") {
+
+        if (parsed?.type === "text" && typeof parsed.content === "string") {
+          // Model chose to respond with text
+          text = parsed.content;
+        } else if (parsed?.type === "tool" && typeof parsed.name === "string" && parsed.arguments && typeof parsed.arguments === "object") {
+          // Model chose to call a tool
           toolCalls.push({
             id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
             name: parsed.name,
             args: parsed.arguments,
           });
-          // Tool call succeeded; suppress text output
+          // Tool call; suppress text
           text = "";
+        } else if (typeof parsed.name === "string" && parsed.arguments && typeof parsed.arguments === "object") {
+          // Backward-compat: old format without `type` field
+          toolCalls.push({
+            id: `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+            name: parsed.name,
+            args: parsed.arguments,
+          });
+          text = "";
+        } else {
+          // Unknown JSON shape; treat as text
+          text = content;
         }
       } catch {
         // Not valid JSON — treat as plain text

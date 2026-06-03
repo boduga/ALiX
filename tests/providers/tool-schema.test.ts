@@ -10,7 +10,14 @@ describe("buildToolCallSchema", () => {
     assert.equal(schema.type, "object");
   });
 
-  it("includes all tool names in enum", () => {
+  it("includes text and tool as type options", () => {
+    const schema = buildToolCallSchema([
+      { name: "file.read", description: "x", input_schema: { type: "object", properties: {} } },
+    ]);
+    assert.deepEqual((schema.properties as any).type.enum, ["text", "tool"]);
+  });
+
+  it("includes all tool names in name enum", () => {
     const schema = buildToolCallSchema([
       { name: "file.read", description: "x", input_schema: { type: "object", properties: {} } },
       { name: "shell.run", description: "y", input_schema: { type: "object", properties: {} } },
@@ -18,14 +25,21 @@ describe("buildToolCallSchema", () => {
     assert.deepEqual((schema.properties as any).name.enum, ["file.read", "shell.run"]);
   });
 
-  it("requires name and arguments fields", () => {
+  it("requires type field", () => {
     const schema = buildToolCallSchema([
       { name: "file.read", description: "x", input_schema: { type: "object", properties: {} } },
     ]);
-    assert.deepEqual(schema.required, ["name", "arguments"]);
+    assert.deepEqual(schema.required, ["type"]);
   });
 
-  it("arguments is an object type", () => {
+  it("content is a string type for text responses", () => {
+    const schema = buildToolCallSchema([
+      { name: "file.read", description: "x", input_schema: { type: "object", properties: {} } },
+    ]);
+    assert.equal((schema.properties as any).content.type, "string");
+  });
+
+  it("arguments is an object type for tool calls", () => {
     const schema = buildToolCallSchema([
       { name: "file.read", description: "x", input_schema: { type: "object", properties: {} } },
     ]);
