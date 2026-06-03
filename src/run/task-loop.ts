@@ -293,7 +293,7 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
       // For docs and research tasks, skip verification
       // Also skip if no file mutations occurred (nothing to verify)
-      if (taskType === "docs" || taskType === "research" || checks.length === 0) {
+      if (taskType === "docs" || taskType === "research" || !hasMutations || checks.length === 0) {
         // Check research-specific limits
         if (taskType === "research") {
           const limits = RESEARCH_LIMITS[depth];
