@@ -153,22 +153,10 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
 
 /**
  * Get default model for a provider (for init command).
+ * No longer ships hardcoded defaults — returns undefined so callers derive a value.
  */
-export function getDefaultModel(providerId: string): string {
-  const defaults: Record<string, string> = {
-    anthropic: "claude-sonnet-4-20250514",
-    openai: "gpt-4o",
-    google: "gemini-2.5-flash",
-    openrouter: "gpt-4o",
-    groq: "llama-3.3-70b-versatile",
-    ollama: "qwen2.5-coder:7b",
-    perplexity: "sonar",
-    minimax: "abab6.5s-chat",
-    zhipuai: "glm-4-flash",
-    grokai: "grok-2",
-    deepseek: "deepseek-chat",
-  };
-  return defaults[providerId] ?? "default";
+export function getDefaultModel(_providerId: string): string | undefined {
+  return undefined;
 }
 
 /**
@@ -177,9 +165,9 @@ export function getDefaultModel(providerId: string): string {
 export function detectProvider(): { provider: string; model: string } {
   for (const p of PROVIDERS) {
     if (process.env[p.env]) {
-      return { provider: p.id, model: getDefaultModel(p.id) };
+      return { provider: p.id, model: getDefaultModel(p.id) ?? "" };
     }
   }
-  // Fallback to ollama
-  return { provider: "ollama", model: "qwen2.5-coder:7b" };
+  // Fallback to ollama with empty model name
+  return { provider: "ollama", model: "" };
 }
