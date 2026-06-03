@@ -56,7 +56,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
             sharedSession,
           });
 
-          // Print the response summary
+          // Print the response summary (streaming writes to stdout during execution)
           if (result.summary) {
             console.log(`\n${result.summary}\n`);
           }
