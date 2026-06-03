@@ -10,7 +10,7 @@ function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
   const model = process.env[`ALIX_${name.toUpperCase()}_MODEL`];
   if (provider || model) {
-    return { ...(provider ? { provider: provider as ModelTierConfig["provider"] } : {}), ...(model ? { name: model } : {}) };
+    return { ...(provider ? { provider: provider as string } : {}), ...(model ? { name: model } : {}) };
   }
   return undefined;
 }
@@ -88,6 +88,26 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
 
   if (process.env.ALIX_STREAMING !== undefined) {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
+  }
+
+  // Validate that a model is configured — no hardcoded defaults
+  if (!result.model?.provider || !result.model?.name) {
+    throw new Error(
+      "No model configured. Run: alix config set-default-model\n" +
+      "Example: alix config set-default-model deepseek deepseek-v4-flash"
+    );
+  }
+
+  // Fill unset subagent tiers from the main model
+  const TIERS = ["thinking", "coding", "fast", "critic", "tiny", "image"] as const;
+  for (const tier of TIERS) {
+    if (!result.subagents?.[tier]) {
+      if (!result.subagents) (result as any).subagents = {};
+      (result.subagents as any)[tier] = {
+        provider: result.model.provider,
+        name: result.model.name,
+      };
+    }
   }
 
   const validation = validateConfig(result);
