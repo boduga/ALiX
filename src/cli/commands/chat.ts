@@ -188,6 +188,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
 
       // Execute tool calls
       for (const tc of response.toolCalls) {
+        if (!tc || !tc.name || tc.name === "undefined") continue; // skip malformed
         console.log(`  [Calling ${tc.name}...]`);
         const result = await executeChatTool(tc.name, tc.args);
         console.log(`  [Done]\n`);
