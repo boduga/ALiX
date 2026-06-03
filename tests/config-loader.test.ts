@@ -293,11 +293,11 @@ test("loadConfig applies modelTiers from XDG config", async () => {
       })
     );
     const config = await loadConfig(dir);
-    assert.equal(config.subagents!.thinking.provider, "openai");
-    assert.equal(config.subagents!.thinking.name, "gpt-4o");
-    assert.equal(config.subagents!.coding.provider, "openai");
-    assert.equal(config.subagents!.coding.name, "gpt-4o-mini");
-    assert.equal(config.subagents!.fast.provider, "ollama"); // untouched from defaults
+    assert.equal(config.subagents!.thinking!.provider, "openai");
+    assert.equal(config.subagents!.thinking!.name, "gpt-4o");
+    assert.equal(config.subagents!.coding!.provider, "openai");
+    assert.equal(config.subagents!.coding!.name, "gpt-4o-mini");
+    assert.equal(config.subagents!.fast!.provider, "ollama"); // untouched from defaults
   } finally {
     restore();
     await rm(dir, { recursive: true, force: true });
@@ -323,8 +323,8 @@ test("loadConfig applies modelTiers from global config overriding XDG", async ()
       })
     );
     const config = await loadConfig(dir);
-    assert.equal(config.subagents!.thinking.provider, "google");
-    assert.equal(config.subagents!.thinking.name, "gemini-2.5-flash");
+    assert.equal(config.subagents!.thinking!.provider, "google");
+    assert.equal(config.subagents!.thinking!.name, "gemini-2.5-flash");
   } finally {
     restore();
     await rm(dir, { recursive: true, force: true });
@@ -350,8 +350,8 @@ test("loadConfig applies modelTiers from project config overriding global and XD
       JSON.stringify({ modelTiers: { coding: { provider: "anthropic", name: "claude-sonnet-4" } } })
     );
     const config = await loadConfig(dir);
-    assert.equal(config.subagents!.coding.provider, "anthropic");
-    assert.equal(config.subagents!.coding.name, "claude-sonnet-4");
+    assert.equal(config.subagents!.coding!.provider, "anthropic");
+    assert.equal(config.subagents!.coding!.name, "claude-sonnet-4");
   } finally {
     restore();
     await rm(dir, { recursive: true, force: true });
@@ -372,8 +372,8 @@ test("modelTiers config file override is overridden by env vars", async () => {
     process.env.ALIX_THINKING_PROVIDER = "google";
     process.env.ALIX_THINKING_MODEL = "gemini-2.5-flash";
     const config = await loadConfig(dir);
-    assert.equal(config.subagents!.thinking.provider, "google");
-    assert.equal(config.subagents!.thinking.name, "gemini-2.5-flash");
+    assert.equal(config.subagents!.thinking!.provider, "google");
+    assert.equal(config.subagents!.thinking!.name, "gemini-2.5-flash");
   } finally {
     restore();
     delete process.env.ALIX_THINKING_PROVIDER;

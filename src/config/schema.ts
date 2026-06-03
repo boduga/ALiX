@@ -3,7 +3,7 @@ export type SessionMode = "auto" | "ask" | "bypass";
 export type Decision = "ask" | "allow" | "deny";
 
 export type ModelConfig = {
-  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek" | "local" | "local-llama";
+  provider: string;
   name: string;
   temperature?: number;
   maxOutputTokens?: number;
@@ -103,18 +103,18 @@ export type ToolConfig = {
 };
 
 export type ModelTierConfig = {
-  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek" | "local-llama";
+  provider: string;
   name: string;
 };
 
 export type SubagentConfig = {
   enabled: boolean;
-  thinking: ModelTierConfig;  // Strategic reasoning, planning, complex logic
-  coding: ModelTierConfig;     // Code generation, tool execution, patches
-  fast: ModelTierConfig;       // Quick classification, routing, simple tasks
-  critic: ModelTierConfig;     // Verification, validation, hallucination checks
-  tiny: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
-  image: ModelTierConfig;     // Image generation, multimodal analysis
+  thinking?: ModelTierConfig;  // Strategic reasoning, planning, complex logic
+  coding?: ModelTierConfig;     // Code generation, tool execution, patches
+  fast?: ModelTierConfig;       // Quick classification, routing, simple tasks
+  critic?: ModelTierConfig;     // Verification, validation, hallucination checks
+  tiny?: ModelTierConfig;       // Embeddings, reranking, memory compression, intent
+  image?: ModelTierConfig;     // Image generation, multimodal analysis
   roles: SubagentRoleConfig[];
 };
 

@@ -170,7 +170,7 @@ export function mergeConfig(
       const envOverride = getEnvTier(tier);
       if (envOverride) {
         (result.subagents![tier] as ModelTierConfig) = {
-          ...result.subagents![tier],
+          ...(result.subagents![tier] ?? { provider: "", name: "" }),
           ...envOverride,
         };
       }
