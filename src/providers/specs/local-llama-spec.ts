@@ -31,10 +31,20 @@ export const localLlamaSpec: ProviderSpec = {
     if (req.maxOutputTokens !== undefined) body.max_tokens = req.maxOutputTokens;
     if (req.stream) body.stream = true;
     if (req.tools && req.tools.length > 0) {
-      body.response_format = {
-        type: "json_schema",
-        json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(req.tools) },
-      };
+      // Filter out MCP tools — local models shouldn't call them directly
+      const localTools = req.tools.filter((t) => !t.name.startsWith("mcp.") && !t.name.startsWith("mcp_"));
+      if (localTools.length > 0) {
+        // Add a system hint to discourage unnecessary tool use (common with small models)
+        const toolNames = localTools.map(t => t.name).join(", ");
+        const toolHint = `\n\nYou have access to these tools: ${toolNames}. For simple chat like greetings, use {"type":"text","content":"..."}. Only call a tool when you need to read files, search code, or take an action. Don't call tools for casual conversation.`;
+        if (body.messages[0]?.role === "system") {
+          body.messages[0].content += toolHint;
+        }
+        body.response_format = {
+          type: "json_schema",
+          json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(localTools) },
+        };
+      }
     }
     return body;
   },
