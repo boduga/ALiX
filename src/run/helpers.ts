@@ -185,6 +185,30 @@ export const BASE_TOOLS: ToolDef[] = [
       },
       required: ["role", "prompt"]
     }
+  },
+  {
+    name: "web_search",
+    description: "Search the web for current information. Use for questions about current events, recent data, or facts beyond the model's training cutoff. Requires BRAVE_API_KEY env var.",
+    input_schema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "The search query" },
+        count: { type: "integer", description: "Number of results (1-10, default 5)" }
+      },
+      required: ["query"]
+    }
+  },
+  {
+    name: "web_fetch",
+    description: "Fetch a URL and return its text content. Use after web_search to read full articles. HTML is automatically stripped.",
+    input_schema: {
+      type: "object",
+      properties: {
+        url: { type: "string", description: "The URL to fetch (must be http:// or https://)" },
+        maxLength: { type: "integer", description: "Maximum content length in characters (default 10000)" }
+      },
+      required: ["url"]
+    }
   }
 ];
 
