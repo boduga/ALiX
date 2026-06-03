@@ -28,68 +28,59 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const tui = new Tui({ sessionId, eventLog: tuiLog });
   await tui.init();
 
+  // Print header above the TUI status area
+  tui.appendOutput("ALiX TUI - Interactive Session");
+  tui.appendOutput("Type 'exit' to quit.\n");
+
   const bridge = tui.getBridge();
 
-  if (!opts.sessionName) {
-    console.log("\nALiX TUI - Interactive Session");
-    console.log("Type your task below. Press Ctrl+C to exit.\n");
+  if (opts.sessionName) {
+    // Single-shot mode for named sessions (TUI dashboard view)
+    return;
+  }
 
-    const { createInterface } = await import("node:readline/promises");
-    const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
 
-    try {
-      while (true) {
-        try {
-          const task = await rl.question("alix> ");
-          if (!task.trim()) continue;
-          if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
+  try {
+    while (true) {
+      try {
+        const task = await rl.question("");
+        if (!task.trim()) continue;
+        if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
 
-          // Create shared session for real-time event streaming
-          const sharedSession: SharedSession = {
-            sessionId,
-            sessionDir,
-            eventLog: tuiLog,
-          };
+        // Echo the task in the output area
+        tui.appendOutput(`> ${task}`);
 
-          const result = await runTask(cwd, task, {
-            streaming: true,
-            sharedSession,
-          }, (chunk) => {
-            if (chunk.type === "text" && typeof chunk.text === "string") {
-              tui.appendOutput(chunk.text);
-            }
-          });
+        // Create shared session for real-time event streaming
+        const sharedSession: SharedSession = {
+          sessionId,
+          sessionDir,
+          eventLog: tuiLog,
+        };
 
-          // Print the response summary (streaming writes to stdout during execution)
-          if (result.summary) {
-            console.log(`\n${result.summary}\n`);
+        const result = await runTask(cwd, task, {
+          streaming: true,
+          sharedSession,
+        }, (chunk) => {
+          if (chunk.type === "text" && typeof chunk.text === "string") {
+            tui.appendOutput(chunk.text);
           }
+        });
 
-          // Replay final events to ensure sync
-          await replayEvents(result.sessionId, bridge);
+        // Replay final events to ensure sync
+        await replayEvents(result.sessionId, bridge);
 
-          console.log("Session continues. Type another task or 'exit' to quit.\n");
-        } catch (err) {
-          if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
-          throw err;
-        }
+        // Print a blank line separator (NOT console.log — use appendOutput)
+        tui.appendOutput("");
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
+        tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`);
       }
-    } finally {
-      rl.close();
     }
+  } finally {
+    rl.close();
   }
 
   tui.destroy();
-  console.log("\nGoodbye!");
-}
-
-async function replayEvents(taskSessionId: string, bridge: EventLogBridge): Promise<void> {
-  const path = join(process.cwd(), ".alix", "sessions", taskSessionId, "events.jsonl");
-  try {
-    const content = await readFile(path, "utf-8");
-    for (const line of content.split("\n").filter(Boolean)) {
-      const event = JSON.parse(line);
-      bridge.applyEvent(event.type, event.payload as Record<string, unknown>);
-    }
-  } catch { /* ok */ }
 }

@@ -29,6 +29,7 @@ export class TuiRenderer {
   private initialPrinted = false;
   private outputBuffer: string[] = [];
   private statusLineStart = 0;  // computed on first render
+  private outputCursor = 0;
 
   constructor(store: TuiStore) {
     this.store = store;
@@ -47,7 +48,7 @@ export class TuiRenderer {
     if (this.timerId) clearTimeout(this.timerId);
   }
 
-  /** Append a line to the output buffer and write it to the terminal. */
+  /** Append a line to the output buffer and write it above the status bar. */
   appendOutput(text: string): void {
     this.outputBuffer.push(text);
     if (this.outputBuffer.length > MAX_OUTPUT_LINES) {
@@ -55,12 +56,13 @@ export class TuiRenderer {
     }
     if (!this.initialPrinted) return;
 
-    // Write the line right above the status block
-    const h = this.statusLineStart;
-    // Only re-render the new content (the last line in buffer)
-    process.stdout.write(moveToLine(h - 1));
-    process.stdout.write(text + "\n");
-    // Since we added a line, the status block shifted down. Re-render it.
+    // Write the line at the current output cursor position, then advance
+    const line = this.outputCursor;
+    this.outputCursor = Math.min(this.outputCursor + 1, this.statusLineStart - 1);
+
+    process.stdout.write(moveToLine(line));
+    process.stdout.write(clearToEndOfLine());
+    process.stdout.write(text);
     this.renderStatus();
   }
 
@@ -72,10 +74,9 @@ export class TuiRenderer {
     const h = getTerminalHeight();
     this.statusLineStart = h - STATUS_LINES;  // 0-indexed
 
-    // Fill screen with newlines to push everything down, then jump to
-    // the status line position and write the status block at the bottom.
+    // Fill screen, write status at bottom, then place cursor above it
     this.lastRenderTime = performance.now();
-    const result = "\n".repeat(h) + moveToLine(this.statusLineStart) + this.buildStatusBlock();
+    const result = "\n".repeat(h) + moveToLine(this.statusLineStart) + this.buildStatusBlock() + moveToLine(this.statusLineStart - 1);
     return result;
   }
 
