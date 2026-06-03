@@ -63,6 +63,24 @@ alix mcp list                       # see connected servers
 alix mcp test github                # test a server works
 ```
 
+## Web Tools
+
+ALiX can search the web and fetch page content for current information.
+
+### Setup
+
+Get a free Brave Search API key: https://api.search.brave.com/app/dashboard
+
+```bash
+export BRAVE_API_KEY="BSA..."
+```
+
+The agent can then call:
+- `web_search("current events topic")` — returns top 5 results
+- `web_fetch("https://article-url")` — returns article text (HTML stripped)
+
+Especially useful for local LLMs with old knowledge cutoffs.
+
 ## Documentation
 
 - **[Getting Started](docs/getting-started.md)** — install and run your first task
