@@ -149,7 +149,7 @@ export function mergeConfig(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
-      subagents: (result.subagents ?? DEFAULT_CONFIG.subagents) as SubagentConfig,
+      subagents: { ...(result.subagents ?? DEFAULT_CONFIG.subagents) } as SubagentConfig,
     };
     // Apply config-file modelTiers overrides to subagent tier configs
     // This runs inside the override loop so config precedence works (later configs win)

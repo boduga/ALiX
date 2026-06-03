@@ -14,14 +14,14 @@ function withMockedHomedir(dir: string): () => void {
 
 // --- Config merge order tests ---
 
-test("loadConfig applies defaults when no config files exist", async () => {
+test("loadConfig throws when no config files exist (model is required)", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
   try {
     _setHomedirOverride(dir);
-    const config = await loadConfig(dir);
-    assert.equal(config.model.provider, "google");
-    assert.equal(config.ui.port, 4137);
-    assert.ok(config.permissions.protectedPaths.includes(".git/**"));
+    await assert.rejects(
+      () => loadConfig(dir),
+      /No model configured/
+    );
   } finally {
     _setHomedirOverride(undefined);
     await rm(dir, { recursive: true, force: true });
@@ -35,11 +35,11 @@ test("loadConfig merges global user config on top of defaults", async () => {
     await mkdir(join(dir, ".alix"), { recursive: true });
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ model: { name: "claude-custom" } })
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-custom" } })
     );
     const config = await loadConfig(dir);
     assert.equal(config.model.name, "claude-custom");
-    assert.equal(config.model.provider, "google"); // inherited from defaults (google, not ollama)
+    assert.equal(config.model.provider, "anthropic");
     assert.equal(config.ui.port, 4137); // inherited from defaults
   } finally {
     restore();
@@ -138,7 +138,7 @@ test("loadConfig injects API key from XDG user config as env var", async () => {
     await mkdir(join(dir, ".config", "alix"), { recursive: true });
     await writeFile(
       join(dir, ".config", "alix", "config.json"),
-      JSON.stringify({ apiKeys: { openai: "xdg-key-123" } })
+      JSON.stringify({ model: { provider: "openai", name: "gpt-4o" }, apiKeys: { openai: "xdg-key-123" } })
     );
     delete process.env.OPENAI_API_KEY;
     await loadConfig(dir);
@@ -157,7 +157,7 @@ test("loadConfig injects API key from global user config as env var", async () =
     await mkdir(join(dir, ".alix"), { recursive: true });
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ apiKeys: { anthropic: "global-key-456" } })
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-3-5-sonnet" }, apiKeys: { anthropic: "global-key-456" } })
     );
     delete process.env.ANTHROPIC_API_KEY;
     await loadConfig(dir);
@@ -176,7 +176,7 @@ test("loadConfig injects API key from project config as env var", async () => {
     await mkdir(join(dir, ".alix"), { recursive: true });
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ apiKeys: { google: "project-key-789" } })
+      JSON.stringify({ model: { provider: "google", name: "gemini-2.5-flash" }, apiKeys: { google: "project-key-789" } })
     );
     delete process.env.GEMINI_API_KEY;
     await loadConfig(dir);
@@ -195,16 +195,16 @@ test("loadConfig prefers project config API key over global and XDG keys", async
     await mkdir(join(dir, ".config", "alix"), { recursive: true });
     await writeFile(
       join(dir, ".config", "alix", "config.json"),
-      JSON.stringify({ apiKeys: { anthropic: "xdg-key" } })
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-3-5-sonnet" }, apiKeys: { anthropic: "xdg-key" } })
     );
     await mkdir(join(dir, ".alix"), { recursive: true });
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ apiKeys: { anthropic: "global-key" } })
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-3-5-sonnet" }, apiKeys: { anthropic: "global-key" } })
     );
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ apiKeys: { anthropic: "project-key" } })
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-3-5-sonnet" }, apiKeys: { anthropic: "project-key" } })
     );
     delete process.env.ANTHROPIC_API_KEY;
     await loadConfig(dir);
@@ -231,11 +231,11 @@ test("subagent roles are loaded from defaults", () => {
     } else if (r.role === "reviewer") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.style, "critic"); // uses critic tier
+      assert.equal(r.style, "critic");
     } else if (r.role === "test_investigator") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
-      assert.equal(r.style, "thinking"); // uses thinking tier
+      assert.equal(r.style, "thinking");
     } else if (r.role === "docs_researcher") {
       assert.equal(r.mode, "read_only");
       assert.equal(r.retryCount, 1);
@@ -247,14 +247,8 @@ test("subagent roles are loaded from defaults", () => {
     }
   }
 
-  // Check tier configs exist
-  assert.ok(result.subagents!.thinking);
-  assert.equal(result.subagents!.thinking.provider, "ollama");
-  assert.ok(result.subagents!.coding);
-  assert.equal(result.subagents!.coding.provider, "google"); // defaults to google
-  assert.ok(result.subagents!.fast);
-  assert.equal(result.subagents!.fast.provider, "ollama");
-  assert.equal(result.subagents!.fast.name, "llama3.2:3b");
+  // Tier configs are no longer in DEFAULT_CONFIG — they are
+  // inherited from the main model by loadConfig at runtime.
 });
 
 test("loadConfig does not override existing env var with config key", async () => {
@@ -264,7 +258,7 @@ test("loadConfig does not override existing env var with config key", async () =
     await mkdir(join(dir, ".alix"), { recursive: true });
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ apiKeys: { openai: "config-key" } })
+      JSON.stringify({ model: { provider: "openai", name: "gpt-4o" }, apiKeys: { openai: "config-key" } })
     );
     process.env.OPENAI_API_KEY = "already-set-key";
     await loadConfig(dir);
@@ -286,6 +280,7 @@ test("loadConfig applies modelTiers from XDG config", async () => {
     await writeFile(
       join(dir, ".config", "alix", "config.json"),
       JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
         modelTiers: {
           thinking: { provider: "openai", name: "gpt-4o" },
           coding: { provider: "openai", name: "gpt-4o-mini" }
@@ -297,7 +292,9 @@ test("loadConfig applies modelTiers from XDG config", async () => {
     assert.equal(config.subagents!.thinking!.name, "gpt-4o");
     assert.equal(config.subagents!.coding!.provider, "openai");
     assert.equal(config.subagents!.coding!.name, "gpt-4o-mini");
-    assert.equal(config.subagents!.fast!.provider, "ollama"); // untouched from defaults
+    // fast is not in modelTiers, so it inherits from the main model
+    assert.equal(config.subagents!.fast!.provider, "openai");
+    assert.equal(config.subagents!.fast!.name, "gpt-4o");
   } finally {
     restore();
     await rm(dir, { recursive: true, force: true });
@@ -312,6 +309,7 @@ test("loadConfig applies modelTiers from global config overriding XDG", async ()
     await writeFile(
       join(dir, ".config", "alix", "config.json"),
       JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
         modelTiers: { thinking: { provider: "openai", name: "gpt-4o" } }
       })
     );
@@ -319,6 +317,7 @@ test("loadConfig applies modelTiers from global config overriding XDG", async ()
     await writeFile(
       join(dir, ".alix", "config.json"),
       JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
         modelTiers: { thinking: { provider: "google", name: "gemini-2.5-flash" } }
       })
     );
@@ -338,16 +337,16 @@ test("loadConfig applies modelTiers from project config overriding global and XD
     await mkdir(join(dir, ".config", "alix"), { recursive: true });
     await writeFile(
       join(dir, ".config", "alix", "config.json"),
-      JSON.stringify({ modelTiers: { coding: { provider: "xdg", name: "xdg-model" } } })
+      JSON.stringify({ model: { provider: "openai", name: "gpt-4o" }, modelTiers: { coding: { provider: "xdg", name: "xdg-model" } } })
     );
     await mkdir(join(dir, ".alix"), { recursive: true });
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ modelTiers: { coding: { provider: "global", name: "global-model" } } })
+      JSON.stringify({ model: { provider: "openai", name: "gpt-4o" }, modelTiers: { coding: { provider: "global", name: "global-model" } } })
     );
     await writeFile(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({ modelTiers: { coding: { provider: "anthropic", name: "claude-sonnet-4" } } })
+      JSON.stringify({ model: { provider: "openai", name: "gpt-4o" }, modelTiers: { coding: { provider: "anthropic", name: "claude-sonnet-4" } } })
     );
     const config = await loadConfig(dir);
     assert.equal(config.subagents!.coding!.provider, "anthropic");
@@ -366,6 +365,7 @@ test("modelTiers config file override is overridden by env vars", async () => {
     await writeFile(
       join(dir, ".config", "alix", "config.json"),
       JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
         modelTiers: { thinking: { provider: "openai", name: "gpt-4o" } }
       })
     );

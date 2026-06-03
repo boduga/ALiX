@@ -1,7 +1,20 @@
 import { describe, it, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { SubagentManager } from "../../src/agents/subagent-manager.js";
-import type { SubagentRole, SubagentTask } from "../../src/config/schema.js";
+import type { AlixConfig, SubagentRole, SubagentTask } from "../../src/config/schema.js";
+
+/** Minimal subagent tier config so getRoleModel doesn't throw. */
+const TEST_SUBAGENT_CFG: AlixConfig["subagents"] = {
+  enabled: true,
+  roles: [
+    { role: "explorer", mode: "read_only", style: "fast", retryCount: 1 },
+    { role: "worker", mode: "write", style: "coding", retryCount: 0 },
+  ],
+  fast: { provider: "ollama", name: "llama3.2:3b" },
+  coding: { provider: "ollama", name: "llama3.2:3b" },
+  thinking: { provider: "ollama", name: "llama3.2:3b" },
+  critic: { provider: "ollama", name: "llama3.2:3b" },
+};
 
 function makeTask(overrides: Partial<SubagentTask> = {}): SubagentTask {
   return {
@@ -22,6 +35,7 @@ describe("SubagentManager", () => {
   beforeEach(() => {
     manager = new SubagentManager({
       sessionId: "test-session",
+      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
       // Use node -e which exits immediately with code 0 — no real CLI needed
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
     });
@@ -65,6 +79,7 @@ describe("SubagentManager", () => {
     // After shutdown, new tasks can claim the same paths
     const fresh = new SubagentManager({
       sessionId: "fresh-session",
+      config: { subagents: TEST_SUBAGENT_CFG } as AlixConfig,
       spawnOverride: { command: process.execPath, args: ["-e", "process.exit(0)"] },
     });
     const result = await fresh.spawn(makeTask({ role: "worker" as SubagentRole, ownedPaths: ["src/bar.ts"] }));
