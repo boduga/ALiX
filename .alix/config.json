@@ -1,7 +1,7 @@
 {
   "model": {
     "provider": "local-llama",
-    "name": "Phi-3-mini-4k-instruct-q4.gguf"
+    "name": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M"
   },
   "subagents": {
     "enabled": true
@@ -10,7 +10,7 @@
     "factory": {
       "enabled": true,
       "provider": "local-llama",
-      "model": "Phi-3-mini-4k-instruct-q4.gguf",
+      "model": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M",
       "maxStore": 50,
       "maxCandidates": 20,
       "autoPromote": true
