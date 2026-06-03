@@ -28,20 +28,16 @@ export function buildToolCallSchema(tools: ToolDef[]): {
       type: {
         type: "string",
         enum: ["text", "tool"],
-        description: "Whether to respond with text or call a tool",
       },
       content: {
         type: "string",
-        description: "The text content (only used when type=text)",
       },
       name: {
         type: "string",
         enum: tools.map((t) => t.name),
-        description: "The tool name to call (only used when type=tool)",
       },
       arguments: {
         type: "object",
-        description: "The tool arguments (only used when type=tool)",
       },
     },
     required: ["type"],
