@@ -1,8 +1,10 @@
 // src/tui/render.ts — Bottom-pinned status bar with append-only output.
 //
 // Status block (4 lines) is drawn at the bottom of the terminal.
-// Output writes above it, line by line, and never repeats.
+// Output writes from line 1 downward. Cursor advances with output.
 // On re-render (10fps), only the status block updates in place.
+// The cursor is always left at the last output line + 1, so
+// readline prompts and other sequential writes appear in order.
 
 import { TuiStore } from "./store.js";
 import { StateTheaterWidget } from "./widgets/state-theater.js";
@@ -11,7 +13,7 @@ import { SpinnerWidget } from "./widgets/spinner.js";
 import { getTerminalHeight } from "./ansi.js";
 
 const STATUS_LINES = 4;
-const MAX_OUTPUT_LINES = 1000;
+const MAX_OUTPUT = 1000;
 
 export class TuiRenderer {
   private store: TuiStore;
@@ -20,8 +22,8 @@ export class TuiRenderer {
   private spinner: SpinnerWidget;
   private running = false;
   private timerId?: NodeJS.Timeout;
-  private lastRenderTime = 0;
-  private outputBuffer: string[] = [];
+  private lastRender = 0;
+  private lines: string[] = [];
   private statusTop = 0;
   private started = false;
 
@@ -30,80 +32,70 @@ export class TuiRenderer {
     this.stateTheater = new StateTheaterWidget();
     this.budgetBar = new BudgetBarWidget();
     this.spinner = new SpinnerWidget({ label: "Thinking..." });
-    this.store.subscribe(() => this.scheduleRender());
+    this.store.subscribe(() => this.schedule());
   }
 
   start(): void { this.running = true; }
+  stop(): void { this.running = false; if (this.timerId) clearTimeout(this.timerId); }
 
-  stop(): void {
-    this.running = false;
-    if (this.timerId) clearTimeout(this.timerId);
-  }
-
-  /** Draw the full layout directly to stdout. Call once after start(). */
+  /** Draw the full layout once. */
   drawLayout(): void {
     if (this.started) return;
     this.started = true;
-
     const h = getTerminalHeight();
     this.statusTop = h - STATUS_LINES;
-
-    // Fill screen so scrollback is clear, then draw status at bottom
-    for (let i = 0; i < h; i++) process.stdout.write("\n");
-    this.writeStatus();
-    // Place cursor at the first output line
-    process.stdout.write(`\x1b[${1};1H`);
-    this.lastRenderTime = performance.now();
+    for (let i = 0; i < h - 1; i++) process.stdout.write("\n");
+    this.renderStatus();
+    // Cursor is now at line h (bottom). Move it to line 1.
+    process.stdout.write(`\x1b[1;1H`);
+    this.lastRender = performance.now();
   }
 
-  /** Write a line of text into the output area, one line at a time. */
+  /** Add a line of output. Writes at cursor position then advances. */
   appendOutput(text: string): void {
-    this.outputBuffer.push(text);
-    if (this.outputBuffer.length > MAX_OUTPUT_LINES) {
-      this.outputBuffer.splice(0, this.outputBuffer.length - MAX_OUTPUT_LINES);
-    }
+    this.lines.push(text);
+    if (this.lines.length > MAX_OUTPUT) this.lines.splice(0, this.lines.length - MAX_OUTPUT);
     if (!this.started) return;
 
-    // Jump to the next output line from the top
-    const line = Math.min(1 + this.outputBuffer.length, this.statusTop);
-    process.stdout.write(`\x1b[${line};1H`);
-    process.stdout.write(text);
-    process.stdout.write(`\x1b[J`);
-    this.writeStatus();
-    // Place cursor back in output area
-    const maxLine = Math.min(this.statusTop, 1 + this.outputBuffer.length);
-    process.stdout.write(`\x1b[${maxLine};1H`);
+    process.stdout.write(text + "\n");
+    // If we just wrote past the status area, jump back up
+    // The cursor is now on the next line after text.
+    // We don't need to move it — it's already in the right place.
   }
 
-  /** Overwrite the status block in place. */
-  private writeStatus(): void {
+  /** Re-draw the 4 status lines in place. */
+  private renderStatus(): void {
     const state = this.store.getState();
     this.stateTheater.setState(state.agentState);
     if (state.agentReasoning) this.stateTheater.setReasoning(state.agentReasoning);
     this.budgetBar.setTokens(state.tokenBudget.used, state.tokenBudget.max);
     this.budgetBar.setFiles(state.tokenBudget.files);
 
-    const w = process.stdout.columns || 80;
-    const lines: string[] = [];
-    lines.push("─".repeat(w));
-    lines.push(this.stateTheater.render());
-    lines.push(this.budgetBar.render());
-    lines.push(this.spinner.isRunning() ? this.spinner.render() : "");
+    // Build status block
+    const w = (process.stdout.columns || 80);
+    const s = "─".repeat(w) + "\n" +
+      this.stateTheater.render() + "\n" +
+      this.budgetBar.render() + "\n" +
+      (this.spinner.isRunning() ? this.spinner.render() : "");
 
-    const s = lines.join("\n") + "\n";
-    process.stdout.write(`\x1b[${this.statusTop + 1};1H`);
+    // Save cursor, write status, restore cursor
+    process.stdout.write("\x1b[s");                                    // save
+    process.stdout.write(`\x1b[${this.statusTop + 1};1H`);              // move to status start
     process.stdout.write(s);
+    process.stdout.write("\x1b[J");                                    // clear below
+    process.stdout.write("\x1b[u");                                    // restore
   }
 
-  private scheduleRender(): void {
+  private schedule(): void {
     if (!this.running) return;
     const now = performance.now();
-    if (now - this.lastRenderTime >= 100) {
-      this.writeStatus();
-      // Move cursor back to output area
-      process.stdout.write(`\x1b[${1 + this.outputBuffer.length};1H`);
-      this.lastRenderTime = now;
+    if (now - this.lastRender >= 100) {
+      // Save cursor, re-draw status, restore
+      process.stdout.write("\x1b[s");
+      this.renderStatus();
+      process.stdout.write("\x1b[u");
+      this.lastRender = now;
     }
-    this.timerId = setTimeout(() => this.scheduleRender(), 100);
+    this.timerId = setTimeout(() => this.schedule(), 100);
   }
 }
