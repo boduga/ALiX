@@ -1,6 +1,6 @@
 import type { AlixConfig, ConfigValidationResult, ValidationIssue } from "./schema.js";
 
-const VALID_PROVIDERS = ["mock","anthropic","openai","google","openrouter","groq","ollama","perplexity","minimax","zhipuai","grokai","deepseek"] as const;
+const VALID_PROVIDERS = ["mock","anthropic","openai","google","openrouter","groq","ollama","perplexity","minimax","zhipuai","grokai","deepseek","local-llama"] as const;
 
 export function validateConfig(config: AlixConfig): ConfigValidationResult {
   const issues: ValidationIssue[] = [];

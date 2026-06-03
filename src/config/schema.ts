@@ -3,7 +3,7 @@ export type SessionMode = "auto" | "ask" | "bypass";
 export type Decision = "ask" | "allow" | "deny";
 
 export type ModelConfig = {
-  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek" | "local";
+  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek" | "local" | "local-llama";
   name: string;
   temperature?: number;
   maxOutputTokens?: number;
@@ -103,7 +103,7 @@ export type ToolConfig = {
 };
 
 export type ModelTierConfig = {
-  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek";
+  provider: "mock" | "anthropic" | "openai" | "google" | "openrouter" | "groq" | "ollama" | "perplexity" | "minimax" | "zhipuai" | "grokai" | "deepseek" | "local-llama";
   name: string;
 };
 

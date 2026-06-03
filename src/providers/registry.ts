@@ -27,6 +27,7 @@ const lazyProviders = {
   zhipuai: lazy(() => import("./zhipuai-provider.js").then(m => m.ZhipuAIProvider)),
   grokai: lazy(() => import("./grokai-provider.js").then(m => m.GrokAIProvider)),
   deepseek: lazy(() => import("./deepseek-provider.js").then(m => m.DeepSeekProvider)),
+  "local-llama": lazy(() => import("./local-llama-provider.js").then(m => m.LocalLlamaProvider)),
   mock: lazy(() => import("./mock-provider.js").then(m => m.MockProvider)),
 } as const;
 
@@ -68,5 +69,6 @@ export function listProviders(): Array<{ id: string; name: string; envKey: strin
     { id: "zhipuai", name: "ZhipuAI", envKey: "ZHIPUAI_API_KEY" },
     { id: "grokai", name: "GrokAI", envKey: "GROKAI_API_KEY" },
     { id: "deepseek", name: "DeepSeek", envKey: "DEEPSEEK_API_KEY" },
+    { id: "local-llama", name: "Local Llama.cpp (llama-server)", envKey: "ALIX_LLAMA_BASE_URL" },
   ];
 }
