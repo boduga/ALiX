@@ -154,7 +154,13 @@ export class SubagentManager {
     const roleConfig = this.getRoleConfig(role);
     const style = roleConfig?.style ?? "fast";
     const tier = this.options.config?.subagents?.[style] as ModelTierConfig | undefined;
-    if (!tier) return { provider: "ollama", name: "llama3.2:3b" }; // safe fallback
+    if (!tier) {
+      throw new Error(
+        `Subagent tier "${style}" is unconfigured. ` +
+        `This should not happen because loadConfig fills unset tiers from the main model. ` +
+        `Please file a bug report.`
+      );
+    }
     return { provider: tier.provider, name: tier.name };
   }
 }

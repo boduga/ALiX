@@ -21,14 +21,6 @@ describe("validateConfig", () => {
     assert.equal(result.issues.length, 0);
   });
 
-  it("reports error for unknown provider", () => {
-    const config = makeValidConfig();
-    config.model.provider = "unknown-provider" as any;
-    const result = validateConfig(config);
-    assert.equal(result.valid, false);
-    assert.ok(result.issues.some(i => i.path === "model.provider" && i.level === "error"));
-  });
-
   it("reports error when model.name is empty", () => {
     const config = makeValidConfig();
     config.model.name = "" as any;

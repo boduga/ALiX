@@ -10,7 +10,7 @@ function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
   const model = process.env[`ALIX_${name.toUpperCase()}_MODEL`];
   if (provider || model) {
-    return { ...(provider ? { provider: provider as ModelTierConfig["provider"] } : {}), ...(model ? { name: model } : {}) };
+    return { ...(provider ? { provider: provider as string } : {}), ...(model ? { name: model } : {}) };
   }
   return undefined;
 }
@@ -90,6 +90,26 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
   }
 
+  // Validate that a model is configured — no hardcoded defaults
+  if (!result.model?.provider || !result.model?.name) {
+    throw new Error(
+      "No model configured. Run: alix config set-default-model\n" +
+      "Example: alix config set-default-model deepseek deepseek-v4-flash"
+    );
+  }
+
+  // Fill unset subagent tiers from the main model
+  const TIERS = ["thinking", "coding", "fast", "critic", "tiny", "image"] as const;
+  for (const tier of TIERS) {
+    if (!result.subagents?.[tier]) {
+      if (!result.subagents) (result as any).subagents = {};
+      (result.subagents as any)[tier] = {
+        provider: result.model.provider,
+        name: result.model.name,
+      };
+    }
+  }
+
   const validation = validateConfig(result);
   if (validation.issues.length > 0) {
     for (const issue of validation.issues) {
@@ -129,7 +149,7 @@ export function mergeConfig(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),
       mcpServerPaths: mergeUnique(result.mcpServerPaths ?? [], override.mcpServerPaths ?? []),
-      subagents: (result.subagents ?? DEFAULT_CONFIG.subagents) as SubagentConfig,
+      subagents: { ...(result.subagents ?? DEFAULT_CONFIG.subagents) } as SubagentConfig,
     };
     // Apply config-file modelTiers overrides to subagent tier configs
     // This runs inside the override loop so config precedence works (later configs win)
@@ -150,7 +170,7 @@ export function mergeConfig(
       const envOverride = getEnvTier(tier);
       if (envOverride) {
         (result.subagents![tier] as ModelTierConfig) = {
-          ...result.subagents![tier],
+          ...(result.subagents![tier] ?? { provider: "", name: "" }),
           ...envOverride,
         };
       }

@@ -1,14 +1,7 @@
 import type { AlixConfig, ConfigValidationResult, ValidationIssue } from "./schema.js";
 
-const VALID_PROVIDERS = ["mock","anthropic","openai","google","openrouter","groq","ollama","perplexity","minimax","zhipuai","grokai","deepseek","local-llama"] as const;
-
 export function validateConfig(config: AlixConfig): ConfigValidationResult {
   const issues: ValidationIssue[] = [];
-
-  // model.provider must be valid
-  if (!VALID_PROVIDERS.includes(config.model.provider as any)) {
-    issues.push({ path: "model.provider", level: "error", message: `Unknown provider "${config.model.provider}"` });
-  }
 
   // model.name must be a non-empty string
   if (!config.model.name || typeof config.model.name !== "string") {
