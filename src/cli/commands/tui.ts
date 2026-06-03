@@ -54,6 +54,10 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           const result = await runTask(cwd, task, {
             streaming: true,
             sharedSession,
+          }, (chunk) => {
+            if (chunk.type === "text" && typeof chunk.text === "string") {
+              tui.appendOutput(chunk.text);
+            }
           });
 
           // Print the response summary (streaming writes to stdout during execution)
