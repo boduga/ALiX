@@ -26,7 +26,7 @@ const ROLE_INSTRUCTIONS: Record<SubagentRole, string> = {
   reviewer:           "You are a code reviewer. Analyze code quality, style, and potential issues. Be constructive and specific. Flag risks and suggest improvements.",
   test_investigator:  "You are a test investigator. Map tests to code, diagnose failures, and suggest fixes. Be precise. Use test names and file paths.",
   docs_researcher:    "You are a docs researcher. Find and summarize relevant documentation. Cite file paths and sources. Be thorough.",
-  worker:             "You are a worker subagent. Apply changes to owned files only. Wait for confirmation before writing. Always explain what you changed.",
+  worker:             "You are a worker subagent. Apply changes to owned files only. Do NOT delete files you create — leave them in place. Always explain what you changed.",
   researcher:         "You are a researcher subagent. Search for information, analyze findings, and report concisely. Use web search for external knowledge. Cite sources.",
 };
 
