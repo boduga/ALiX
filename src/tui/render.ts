@@ -1,3 +1,10 @@
+// src/tui/render.ts — Single-line status bar (Claude Code pattern).
+//
+// Output writes normally with process.stdout.write. Status is a line
+// appended after each state change. It scrolls naturally — the most
+// recent status is always the last visible line. No ANSI codes, no
+// cursor positioning, no redraw loop.
+
 import { TuiStore } from "./store.js";
 
 const STATE_BULLET: Record<string, string> = {
@@ -11,22 +18,9 @@ const STATE_LABEL: Record<string, string> = {
   summarizing: "SUMMARIZING", done: "DONE", error: "ERROR",
 };
 
-const ALT_SCREEN = "\x1b[?1049h";
-const MAIN_SCREEN = "\x1b[?1049l";
-const HOME = "\x1b[H";
-const ERASE_DOWN = "\x1b[J";
-const HIDE_CURSOR = "\x1b[?25l";
-const SHOW_CURSOR = "\x1b[?25h";
-const DIVIDER = "────────────────────────────────────────";
-const MAX_LINES = 1000;
-
 export class TuiRenderer {
   private store: TuiStore;
   private running = false;
-  private enteredAlt = false;
-  private output: string[] = [];
-  /** Accumulates streaming chunks. Flushed to output when stream ends. */
-  private streamBuf = "";
 
   constructor(store: TuiStore) {
     this.store = store;
@@ -34,79 +28,31 @@ export class TuiRenderer {
   }
 
   start(): void { this.running = true; }
-  stop(): void {
-    this.running = false;
-    if (this.enteredAlt) {
-      process.stdout.write(SHOW_CURSOR + MAIN_SCREEN);
-      this.enteredAlt = false;
-    }
-  }
+  stop(): void { this.running = false; }
 
-  drawLayout(): void {
-    if (this.enteredAlt) return;
-    this.enteredAlt = true;
-    process.stdout.write(HIDE_CURSOR + ALT_SCREEN);
-  }
+  /** Nothing to draw at startup. */
+  drawLayout(): void {}
 
-  /** Add a line or streaming chunk to the output buffer. */
+  /** Write output. If streaming, accumulate on current line. */
   appendOutput(text: string, streaming = false): void {
     if (streaming) {
-      // Streaming chunks accumulate on the current line
-      this.streamBuf += text;
-      this.redraw();
+      process.stdout.write(text);
     } else {
-      // Non-streaming: flush any accumulated stream, then add new line
-      this.flushStream();
-      this.output.push(text);
-      if (this.output.length > MAX_LINES) {
-        this.output.splice(0, this.output.length - MAX_LINES);
-      }
-      this.redraw();
+      process.stdout.write(text + "\n");
     }
   }
 
-  /** Push the accumulated streaming buffer as one complete line. */
-  private flushStream(): void {
-    if (this.streamBuf.length > 0) {
-      this.output.push(this.streamBuf);
-      if (this.output.length > MAX_LINES) {
-        this.output.splice(0, this.output.length - MAX_LINES);
-      }
-      this.streamBuf = "";
-    }
-  }
-
-  /** Called when store state changes — just redraw. */
+  /** On store change, write a status line. */
   private onStoreChange(): void {
     if (!this.running) return;
-    this.redraw();
-  }
-
-  private redraw(): void {
-    if (!this.enteredAlt) return;
-    const state = this.store.getState();
-    const bullet = STATE_BULLET[state.agentState] ?? "○";
-    const label = STATE_LABEL[state.agentState] ?? state.agentState.toUpperCase();
-    const pct = state.tokenBudget.max > 0
-      ? Math.round((state.tokenBudget.used / state.tokenBudget.max) * 100)
+    const s = this.store.getState();
+    const bullet = STATE_BULLET[s.agentState] ?? "○";
+    const label = STATE_LABEL[s.agentState] ?? s.agentState.toUpperCase();
+    const pct = s.tokenBudget.max > 0
+      ? Math.round((s.tokenBudget.used / s.tokenBudget.max) * 100)
       : 0;
-    const msg = state.agentReasoning ? state.agentReasoning.slice(0, 50) : "";
-
-    const h = (process.stdout.rows || 24) - 4;
-
-    // Build visible lines: accumulated output + streaming buffer
-    const allLines = [...this.output];
-    if (this.streamBuf.length > 0) {
-      allLines.push(this.streamBuf);
-    }
-
-    const visible = allLines.length > h
-      ? allLines.slice(allLines.length - h)
-      : allLines;
-
-    const footer = `${DIVIDER}\n${bullet} ${label}  │  Tokens: ${pct}%${msg ? `  │  ${msg}` : ""}\n`;
-    const frame = HOME + ERASE_DOWN + visible.join("\n") + "\n" + footer;
-
-    process.stdout.write(frame);
+    const msg = s.agentReasoning ? s.agentReasoning.slice(0, 50) : "";
+    const line = `${bullet} ${label}  │  Tokens: ${pct}%${msg ? `  │  ${msg}` : ""}`;
+    process.stdout.write(line + "\n");
   }
 }
