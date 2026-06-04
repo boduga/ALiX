@@ -11,13 +11,22 @@ import {
   sessionEventsPath
 } from "../inspector/session-reader.js";
 
-// Tool event types to include in SSE stream
-const TOOL_EVENT_FILTER = [
-  "tool.requested",
-  "tool.started",
-  "tool.output",
-  "tool.completed",
-  "tool.failed",
+// Event types to include in SSE stream
+const VISIBLE_EVENTS = [
+  // Tools
+  "tool.requested", "tool.started", "tool.output", "tool.completed", "tool.failed",
+  // Agent state
+  "agent.message",
+  // Context
+  "context.repo_map_created", "context.bundle_compiled",
+  // Sessions
+  "session.started", "session.ended",
+  // Subagents
+  "subagent.started", "subagent.result",
+  // Files
+  "file.created",
+  // Patches
+  "patch.applied", "patch.rolled_back",
 ];
 
 function decodePathSegment(segment: string | undefined): string {
@@ -108,7 +117,7 @@ export function startServer(root: string, host: string, port: number): Promise<{
             const event = JSON.parse(line) as { seq: number; type: string };
             if (event.seq <= resumeFromSeq) continue;
             // Only emit tool events to SSE
-            if (!TOOL_EVENT_FILTER.includes(event.type)) continue;
+            if (!VISIBLE_EVENTS.includes(event.type)) continue;
             res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
           } catch {
             // Skip malformed lines
@@ -132,7 +141,7 @@ export function startServer(root: string, host: string, port: number): Promise<{
                 try {
                   const event = JSON.parse(line) as { seq: number; type: string };
                   // Only emit tool events to SSE
-                  if (!TOOL_EVENT_FILTER.includes(event.type)) continue;
+                  if (!VISIBLE_EVENTS.includes(event.type)) continue;
                   res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
                 } catch {
                   // Skip malformed lines

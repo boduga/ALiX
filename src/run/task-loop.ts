@@ -269,6 +269,31 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
     }
 
+    // Emit reasoning trail
+    if (text && text.length > 0) {
+      await log.append({
+        ...session,
+        actor: "agent",
+        type: "agent.reasoning",
+        payload: {
+          text: text.slice(0, 500),
+          toolCalls: toolCalls.map(tc => tc.name),
+          iteration: i,
+        },
+      });
+    }
+
+    // Emit decision for tool selection
+    if (toolCalls.length > 0) {
+      await log.append({
+        ...session, actor: "agent", type: "agent.decision",
+        payload: { kind: "tool_selection", iteration: i,
+          description: `Called ${toolCalls.map(t => t.name).join(", ")}`,
+          outcome: "executed",
+        },
+      });
+    }
+
     if (toolCalls.length === 0) {
       // No tools called — check if model signals completion
       const modelSaysDone = /done|complete|finished|resolved/i.test(text);
@@ -425,6 +450,14 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         if (scopeResult.handled) {
           if (scopeResult.continue === false) {
             if (scopeResult.denied) {
+              // Emit decision for scope expansion denial
+              await log.append({
+                ...session, actor: "agent", type: "agent.decision",
+                payload: { kind: "scope_expansion", iteration: i,
+                  description: `Scope expansion denied for file changes`,
+                  outcome: "rejected",
+                },
+              });
               const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
               // Check if we have paths to report denial for
               const pathsToCheck = extractMutationPaths(execName, toolCall.args);
@@ -516,6 +549,14 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
           const failedChecks = endResults.filter((r) => r.result.status === "failed");
           if (failedChecks.length > 0) {
             repairCount++;
+            // Emit decision for repair
+            await log.append({
+              ...session, actor: "agent", type: "agent.decision",
+              payload: { kind: "repair", iteration: i,
+                description: `Entering repair loop (attempt ${repairCount}/${maxRepairs})`,
+                outcome: "executed",
+              },
+            });
             stateMachine.recordRepair();
             if (repairCount > maxRepairs) {
               await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
@@ -556,6 +597,13 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
   }
 
   // Max iterations reached
+  await log.append({
+    ...session, actor: "agent", type: "agent.decision",
+    payload: { kind: "completion", iteration: maxIterations,
+      description: `Reached maximum iterations (${maxIterations})`,
+      outcome: "accepted",
+    },
+  });
   await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
   const sessionEvents = await log.readAll();
   await saveDecisionsToMemory(sessionEvents, memoryStore);

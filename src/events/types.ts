@@ -130,8 +130,32 @@ export const FILE_EVENT_TYPES = {
   DELETED: "file.deleted",
 } as const;
 
+export const AGENT_EVENT_TYPES = {
+  MESSAGE: "agent.message",
+  REASONING: "agent.reasoning",
+  DECISION: "agent.decision",
+} as const;
+
 export const MCP_EVENT_TYPES = {
   TOOL_INVOKED: "mcp.tool_invoked",
+} as const;
+
+export type SubagentStartedPayload = {
+  role: string;
+  taskId: string;
+  prompt: string;
+};
+
+export type SubagentResultPayload = {
+  role: string;
+  taskId: string;
+  status: string;
+  findings: string[];
+};
+
+export const SUBAGENT_EVENT_TYPES = {
+  STARTED: "subagent.started",
+  RESULT: "subagent.result",
 } as const;
 
 export type VerificationEventPayload =
@@ -198,7 +222,7 @@ export type InspectorSnapshot = {
   tokens: {
     totalInputTokens: number;
     totalOutputTokens: number;
-    entries: Array<{ provider?: string; model?: string; inputTokens: number; outputTokens: number }>;
+    entries: Array<{ provider?: string; model?: string; inputTokens: number; outputTokens: number; cost?: number }>;
   };
 };
 
