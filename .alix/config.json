@@ -1,7 +1,7 @@
 {
   "model": {
-    "provider": "deepseek",
-    "name": "deepseek-v4-flash"
+    "provider": "google",
+    "name": "gemini-3.5-flash"
   },
   "subagents": {
     "enabled": true
@@ -9,8 +9,8 @@
   "skills": {
     "factory": {
       "enabled": true,
-      "provider": "local-llama",
-      "model": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M",
+      "provider": "google",
+      "model": "gemini-3.5-flash",
       "maxStore": 50,
       "maxCandidates": 20,
       "autoPromote": true
