@@ -208,6 +208,20 @@ function renderVerification(item) {
 }
 
 function renderTokens(tokens) {
+  const lastEntry = tokens.entries?.[tokens.entries.length - 1];
+  const costStr = lastEntry?.cost != null ? `$${lastEntry.cost.toFixed(6)}` : "—";
+  tokenView.innerHTML = `
+    <div class="metric-grid">
+      <div><span>Input</span><strong>${tokens.totalInputTokens}</strong></div>
+      <div><span>Output</span><strong>${tokens.totalOutputTokens}</strong></div>
+      <div><span>Total</span><strong>${tokens.totalInputTokens + tokens.totalOutputTokens}</strong></div>
+      <div><span>Last Cost</span><strong>${costStr}</strong></div>
+    </div>
+    ${tokens.entries?.length > 0 ? `<div class="token-entries">${tokens.entries.slice(-10).map(e =>
+      `<div class="token-entry"><span>${e.provider ?? ""} ${e.model ?? ""}</span><span>in:${e.inputTokens} out:${e.outputTokens}${e.cost != null ? " $" + e.cost.toFixed(6) : ""}</span></div>`
+    ).join("")}</div>` : ""}
+  `;
+}
   tokenView.innerHTML = `<div class="metric-grid"><div><span>Input</span><strong>${tokens.totalInputTokens}</strong></div><div><span>Output</span><strong>${tokens.totalOutputTokens}</strong></div></div>`;
 }
 

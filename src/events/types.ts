@@ -222,7 +222,7 @@ export type InspectorSnapshot = {
   tokens: {
     totalInputTokens: number;
     totalOutputTokens: number;
-    entries: Array<{ provider?: string; model?: string; inputTokens: number; outputTokens: number }>;
+    entries: Array<{ provider?: string; model?: string; inputTokens: number; outputTokens: number; cost?: number }>;
   };
 };
 
