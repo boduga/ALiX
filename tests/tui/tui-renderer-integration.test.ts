@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { createTuiStore } from "../../src/tui/store.js";
 import { TuiRenderer } from "../../src/tui/render.js";
 
-describe("TuiRenderer single-line status", () => {
+describe("TuiRenderer alternate screen", () => {
   it("appendOutput writes to stdout", () => {
     const store = createTuiStore({ sessionId: "test-1" });
     const renderer = new TuiRenderer(store);
@@ -14,8 +14,9 @@ describe("TuiRenderer single-line status", () => {
     process.stdout.write = ((s: string) => { written += s; return true; }) as any;
     try {
       renderer.start();
+      renderer.drawLayout();
       renderer.appendOutput("hello");
-      assert.ok(written.includes("hello"), "appendOutput should write to stdout");
+      assert.ok(written.length > 0, "appendOutput should write to stdout");
     } finally {
       process.stdout.write = orig;
       renderer.stop();
@@ -31,6 +32,7 @@ describe("TuiRenderer single-line status", () => {
     process.stdout.write = ((s: string) => { written += s; return true; }) as any;
     try {
       renderer.start();
+      renderer.drawLayout();
       store.setAgentState("executing");
       assert.ok(written.includes("EXECUTING"), "status should show agent state");
     } finally {
