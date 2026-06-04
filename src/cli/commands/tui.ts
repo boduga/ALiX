@@ -57,18 +57,18 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         // Echo the task in the output area
         tui.appendOutput(`> ${task}`);
 
-        await runTask(cwd, task, {
+        const result = await runTask(cwd, task, {
           streaming: true,
           sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
-        }, (chunk) => {
-          // Stream text into TUI's streaming buffer (accumulates on one line)
-          if (chunk.type === "text" && typeof chunk.text === "string") {
-            tui.appendOutput(chunk.text, true);
-          }
+        }, (_chunk) => {
+          // Don't write streaming text here — streamToResponse in
+          // the agent loop already writes it directly to stdout.
         });
 
-        // Print a blank line separator
-        tui.appendOutput("");
+        // Print summary (covers both streaming and non-streaming modes)
+        if (result.summary) {
+          process.stdout.write(result.summary + "\n\n");
+        }
       } catch (err) {
         if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
         tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`);
