@@ -10,6 +10,17 @@ export interface TuiOptions {
   sessionName?: string;
 }
 
+function readLine(): Promise<string | null> {
+  return new Promise((resolve) => {
+    process.stdin.once("data", (buffer: Buffer) => {
+      const text = buffer.toString("utf-8").replace(/\r?\n$/, "");
+      if (text === "") { resolve(null); return; }
+      resolve(text);
+    });
+    process.stdout.write("> ");
+  });
+}
+
 export async function runTui(opts: TuiOptions): Promise<void> {
   const cwd = process.cwd();
 
@@ -27,55 +38,39 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const tui = new Tui({ sessionId, eventLog: tuiLog });
   await tui.init();
 
-  // Ensure cleanup on Ctrl+C
   process.on("SIGINT", () => {
     tui.destroy();
     process.exit(0);
   });
 
-  // Print header above the TUI status area
-  tui.appendOutput("ALiX TUI - Interactive Session");
-  tui.appendOutput("Type 'exit' to quit.\n");
+  console.log("ALiX TUI - Interactive Session");
+  console.log("Type 'exit' to quit.\n");
 
-  if (opts.sessionName) {
-    // Single-shot mode for named sessions (TUI dashboard view)
-    return;
-  }
+  if (opts.sessionName) return;
 
-  const { createInterface } = await import("node:readline/promises");
-  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  while (true) {
+    const task = await readLine();
+    if (task === null) break;
+    if (!task.trim()) continue;
+    if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
+    if (task.trim().length < 3) continue;
 
-  try {
-    while (true) {
-      try {
-        const task = await rl.question("> ");
-        if (!task.trim()) continue;
-        if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
-        // Skip very short inputs that are likely stray keystrokes (1-2 chars)
-        if (task.trim().length < 3) continue;
+    console.log(`> ${task}`);
 
-        // Echo the task in the output area
-        tui.appendOutput(`> ${task}`);
+    try {
+      const result = await runTask(cwd, task, {
+        streaming: true,
+        sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
+      });
 
-        const result = await runTask(cwd, task, {
-          streaming: true,
-          sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
-        }, (_chunk) => {
-          // Don't write streaming text here — streamToResponse in
-          // the agent loop already writes it directly to stdout.
-        });
-
-        // Print summary (covers both streaming and non-streaming modes)
-        if (result.summary) {
-          process.stdout.write(result.summary + "\n\n");
-        }
-      } catch (err) {
-        if ((err as NodeJS.ErrnoException).code === "ERR_USE_AFTER_CLOSE") break;
-        tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      // Print the full result summary. In non-TTY mode streaming is
+      // auto-disabled, so the text comes only via result.summary.
+      if (result.summary) process.stdout.write(result.summary + "\n");
+      console.log("");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
-  } finally {
-    rl.close();
   }
 
   tui.destroy();
