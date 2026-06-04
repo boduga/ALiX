@@ -103,7 +103,15 @@ export class SubagentManager {
           this.releaseOwnership(task);
 
           const exitCode = code ?? 1;
-          const parsed = stdoutData.trim() ? JSON.parse(stdoutData) as Partial<SubagentResult> : null;
+          // The subagent may write streaming output to stdout before
+          // its final JSON result. Take only the last JSON line.
+          let parsed: Partial<SubagentResult> | null = null;
+          if (stdoutData.trim()) {
+            const lines = stdoutData.trim().split("\n").filter(Boolean);
+            for (let i = lines.length - 1; i >= 0; i--) {
+              try { parsed = JSON.parse(lines[i]) as Partial<SubagentResult>; break; } catch { /* skip non-JSON lines */ }
+            }
+          }
           const result: SubagentResult = {
             id: task.id,
             role: task.role,
