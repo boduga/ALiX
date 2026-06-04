@@ -27,6 +27,12 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const tui = new Tui({ sessionId, eventLog: tuiLog });
   await tui.init();
 
+  // Ensure cleanup on Ctrl+C
+  process.on("SIGINT", () => {
+    tui.destroy();
+    process.exit(0);
+  });
+
   // Print header above the TUI status area
   tui.appendOutput("ALiX TUI - Interactive Session");
   tui.appendOutput("Type 'exit' to quit.\n");
