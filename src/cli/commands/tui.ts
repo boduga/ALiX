@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
-import { mkdir, readFile } from "node:fs/promises";
+import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { Tui, EventLogBridge } from "../../tui/index.js";
+import { Tui } from "../../tui/index.js";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
 import { runTask } from "../../run.js";
-import type { SharedSession } from "../../run.js";
 
 export interface TuiOptions {
   sessionName?: string;
@@ -32,8 +31,6 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   tui.appendOutput("ALiX TUI - Interactive Session");
   tui.appendOutput("Type 'exit' to quit.\n");
 
-  const bridge = tui.getBridge();
-
   if (opts.sessionName) {
     // Single-shot mode for named sessions (TUI dashboard view)
     return;
@@ -52,23 +49,15 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         // Echo the task in the output area
         tui.appendOutput(`> ${task}`);
 
-        // Create shared session for real-time event streaming
-        const sharedSession: SharedSession = {
-          sessionId,
-          sessionDir,
-          eventLog: tuiLog,
-        };
-
-        const result = await runTask(cwd, task, {
+        await runTask(cwd, task, {
           streaming: true,
-          sharedSession,
+          sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
         }, (chunk) => {
-          // Streaming text is already written to stdout by the agent loop.
-          // We only track it in the TUI buffer, don't write it again.
+          // Stream text into the TUI buffer so it persists through redraws
+          if (chunk.type === "text" && typeof chunk.text === "string") {
+            tui.appendOutput(chunk.text);
+          }
         });
-
-        // Replay final events to ensure sync
-        await replayEvents(result.sessionId, bridge);
 
         // Print a blank line separator
         tui.appendOutput("");
