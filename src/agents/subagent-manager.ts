@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "child_process";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 import type { SubagentRole, SubagentTask, SubagentResult, SubagentRoleConfig, AlixConfig, ModelTierConfig } from "../config/schema.js";
+import type { EventLog } from "../events/event-log.js";
 
 // Re-export types for consumers
 export type { SubagentTask, SubagentResult };
@@ -11,6 +12,8 @@ export type SubagentManagerOptions = {
   config?: AlixConfig;
   /** Override the spawned command for testing. Defaults to the alix CLI. */
   spawnOverride?: { command: string; args?: string[] };
+  /** Event log for emitting subagent lifecycle events into the session stream. */
+  eventLog?: EventLog;
 };
 
 type RunningSubagent = {
@@ -52,6 +55,14 @@ export class SubagentManager {
       }
 
       try {
+        // Emit subagent.started event
+        this.options.eventLog?.append({
+          sessionId: this.options.sessionId,
+          actor: "system",
+          type: "subagent.started",
+          payload: { role: task.role, taskId: task.id, prompt: task.prompt.slice(0, 200) },
+        });
+
         // model selection via getRoleModel (resolves style → provider+model)
         const { provider, name } = this.getRoleModel(task.role);
         // Build CLI args array
@@ -122,6 +133,14 @@ export class SubagentManager {
           };
 
           for (const cb of this.callbacks) cb(result);
+
+          // Emit subagent.result event
+          this.options.eventLog?.append({
+            sessionId: this.options.sessionId,
+            actor: "system",
+            type: "subagent.result",
+            payload: { role: task.role, taskId: task.id, status: result.status, findings: result.findings },
+          });
 
           if (exitCode === 0) {
             resolvePromise(result);
