@@ -41,8 +41,8 @@ export class Tui {
     return this.bridge;
   }
 
-  appendOutput(text: string): void {
-    this.renderer?.appendOutput(text);
+  appendOutput(text: string, streaming = false): void {
+    this.renderer?.appendOutput(text, streaming);
   }
 
   destroy(): void {

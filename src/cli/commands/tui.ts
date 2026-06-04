@@ -61,9 +61,9 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           streaming: true,
           sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
         }, (chunk) => {
-          // Stream text into the TUI buffer so it persists through redraws
+          // Stream text into TUI's streaming buffer (accumulates on one line)
           if (chunk.type === "text" && typeof chunk.text === "string") {
-            tui.appendOutput(chunk.text);
+            tui.appendOutput(chunk.text, true);
           }
         });
 

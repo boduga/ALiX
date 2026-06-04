@@ -1,16 +1,4 @@
-// src/tui/render.ts — Full-screen TUI using the alternate screen buffer.
-//
-// On start: enters alternate screen (\x1b[?1049h), maintains a buffer
-// of output lines, and redraws everything on every state change:
-//   Output area  — all accumulated lines, top to bottom
-//   Divider      ────
-//   State line   ● EXECUTING
-//   Budget line  Tokens: 23%
-//
-// On stop: exits alternate screen (\x1b[?1049l), restoring the user's
-// terminal to its state before the TUI started.
-
-import { TuiStore, type AgentState } from "./store.js";
+import { TuiStore } from "./store.js";
 
 const STATE_BULLET: Record<string, string> = {
   idle: "○", understanding: "●", planning: "●",
@@ -30,13 +18,15 @@ const ERASE_DOWN = "\x1b[J";
 const HIDE_CURSOR = "\x1b[?25l";
 const SHOW_CURSOR = "\x1b[?25h";
 const DIVIDER = "────────────────────────────────────────";
+const MAX_LINES = 1000;
 
 export class TuiRenderer {
   private store: TuiStore;
   private running = false;
   private enteredAlt = false;
-  /** Accumulated output lines */
   private output: string[] = [];
+  /** Accumulates streaming chunks. Flushed to output when stream ends. */
+  private streamBuf = "";
 
   constructor(store: TuiStore) {
     this.store = store;
@@ -58,11 +48,35 @@ export class TuiRenderer {
     process.stdout.write(HIDE_CURSOR + ALT_SCREEN);
   }
 
-  appendOutput(text: string): void {
-    this.output.push(text);
-    this.redraw();
+  /** Add a line or streaming chunk to the output buffer. */
+  appendOutput(text: string, streaming = false): void {
+    if (streaming) {
+      // Streaming chunks accumulate on the current line
+      this.streamBuf += text;
+      this.redraw();
+    } else {
+      // Non-streaming: flush any accumulated stream, then add new line
+      this.flushStream();
+      this.output.push(text);
+      if (this.output.length > MAX_LINES) {
+        this.output.splice(0, this.output.length - MAX_LINES);
+      }
+      this.redraw();
+    }
   }
 
+  /** Push the accumulated streaming buffer as one complete line. */
+  private flushStream(): void {
+    if (this.streamBuf.length > 0) {
+      this.output.push(this.streamBuf);
+      if (this.output.length > MAX_LINES) {
+        this.output.splice(0, this.output.length - MAX_LINES);
+      }
+      this.streamBuf = "";
+    }
+  }
+
+  /** Called when store state changes — just redraw. */
   private onStoreChange(): void {
     if (!this.running) return;
     this.redraw();
@@ -78,24 +92,21 @@ export class TuiRenderer {
       : 0;
     const msg = state.agentReasoning ? state.agentReasoning.slice(0, 50) : "";
 
-    // Determine available screen height
-    const h = (process.stdout.rows || 24) - 4;  // leave 4 lines for footer
+    const h = (process.stdout.rows || 24) - 4;
 
-    // Take the last h lines of output
-    const visible = this.output.length > h
-      ? this.output.slice(this.output.length - h)
-      : this.output;
+    // Build visible lines: accumulated output + streaming buffer
+    const allLines = [...this.output];
+    if (this.streamBuf.length > 0) {
+      allLines.push(this.streamBuf);
+    }
 
-    // Build full frame
+    const visible = allLines.length > h
+      ? allLines.slice(allLines.length - h)
+      : allLines;
+
     const footer = `${DIVIDER}\n${bullet} ${label}  │  Tokens: ${pct}%${msg ? `  │  ${msg}` : ""}\n`;
-
-    // Write it all at once from home position
     const frame = HOME + ERASE_DOWN + visible.join("\n") + "\n" + footer;
 
     process.stdout.write(frame);
-
-    // Position cursor right above the divider
-    const cursorLine = visible.length + 1;
-    process.stdout.write(`\x1b[${cursorLine};1H`);
   }
 }
