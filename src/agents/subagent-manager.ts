@@ -56,7 +56,7 @@ export class SubagentManager {
         const { provider, name } = this.getRoleModel(task.role);
         // Build CLI args array
         const cliArgs = [
-          "--subagent", task.role,
+          "run", "--subagent", task.role,
           "--task-id", task.id,
           "--prompt", task.prompt,
           "--mode", task.mode,
