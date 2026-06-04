@@ -58,6 +58,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     try {
       const result = await runTask(cwd, task, {
         streaming: true,
+        sessionMode: "bypass",
         sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
       });
 
