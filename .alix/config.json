@@ -1,7 +1,7 @@
 {
   "model": {
-    "provider": "local-llama",
-    "name": "Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M"
+    "provider": "deepseek",
+    "name": "deepseek-v4-flash"
   },
   "subagents": {
     "enabled": true

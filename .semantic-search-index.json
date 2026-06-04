@@ -37,8 +37,8 @@
         "path": "src/cli.ts",
         "symbolName": "agentRole",
         "kind": "const",
-        "lineStart": 465,
-        "lineEnd": 465,
+        "lineStart": 553,
+        "lineEnd": 553,
         "keywords": [
           "alix",
           "agent",
@@ -55,8 +55,8 @@
         "path": "src/cli.ts",
         "symbolName": "parseChatArgs",
         "kind": "function",
-        "lineStart": 588,
-        "lineEnd": 610,
+        "lineStart": 676,
+        "lineEnd": 698,
         "keywords": []
       }
     ]
@@ -2365,6 +2365,14 @@
         "lineStart": 52,
         "lineEnd": 54,
         "keywords": []
+      },
+      {
+        "path": "src/tui/ansi.ts",
+        "symbolName": "getTerminalHeight",
+        "kind": "function",
+        "lineStart": 57,
+        "lineEnd": 59,
+        "keywords": []
       }
     ]
   },
@@ -2533,7 +2541,7 @@
         "symbolName": "Tui",
         "kind": "class",
         "lineStart": 12,
-        "lineEnd": 47,
+        "lineEnd": 51,
         "keywords": []
       },
       {
@@ -2562,10 +2570,18 @@
       },
       {
         "path": "src/tui/index.ts",
-        "symbolName": "destroy",
+        "symbolName": "appendOutput",
         "kind": "method",
         "lineStart": 44,
         "lineEnd": 46,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/index.ts",
+        "symbolName": "destroy",
+        "kind": "method",
+        "lineStart": 48,
+        "lineEnd": 50,
         "keywords": []
       }
     ]
@@ -2588,56 +2604,61 @@
         "path": "src/tui/render.ts",
         "symbolName": "TuiRenderer",
         "kind": "class",
-        "lineStart": 10,
-        "lineEnd": 126,
-        "keywords": []
+        "lineStart": 7,
+        "lineEnd": 19,
+        "keywords": [
+          "just",
+          "writes",
+          "normal",
+          "output",
+          "status",
+          "lines",
+          "ansi",
+          "codes",
+          "cursor",
+          "math",
+          "tui",
+          "command",
+          "thin",
+          "wrapper",
+          "around",
+          "runtask",
+          "streaming",
+          "going",
+          "directly",
+          "stdout"
+        ]
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "start",
         "kind": "method",
-        "lineStart": 33,
-        "lineEnd": 35,
-        "keywords": []
-      },
-      {
-        "path": "src/tui/render.ts",
-        "symbolName": "renderInitial",
-        "kind": "method",
-        "lineStart": 37,
-        "lineEnd": 44,
+        "lineStart": 12,
+        "lineEnd": 12,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
         "symbolName": "stop",
         "kind": "method",
-        "lineStart": 46,
-        "lineEnd": 51,
+        "lineStart": 13,
+        "lineEnd": 13,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
-        "symbolName": "scheduleRender",
+        "symbolName": "drawLayout",
         "kind": "method",
-        "lineStart": 53,
-        "lineEnd": 66,
+        "lineStart": 14,
+        "lineEnd": 14,
         "keywords": []
       },
       {
         "path": "src/tui/render.ts",
-        "symbolName": "doRender",
+        "symbolName": "appendOutput",
         "kind": "method",
-        "lineStart": 68,
-        "lineEnd": 80,
-        "keywords": []
-      },
-      {
-        "path": "src/tui/render.ts",
-        "symbolName": "buildOutput",
-        "kind": "method",
-        "lineStart": 82,
-        "lineEnd": 125,
+        "lineStart": 15,
+        "lineEnd": 18,
         "keywords": []
       }
     ]
@@ -4866,56 +4887,56 @@
         "path": "src/run/helpers.ts",
         "symbolName": "extractMutationPaths",
         "kind": "function",
-        "lineStart": 195,
-        "lineEnd": 201,
+        "lineStart": 219,
+        "lineEnd": 225,
         "keywords": []
       },
       {
         "path": "src/run/helpers.ts",
         "symbolName": "validMutationPaths",
         "kind": "function",
-        "lineStart": 206,
-        "lineEnd": 209,
+        "lineStart": 230,
+        "lineEnd": 233,
         "keywords": []
       },
       {
         "path": "src/run/helpers.ts",
         "symbolName": "promptUser",
         "kind": "function",
-        "lineStart": 218,
-        "lineEnd": 226,
+        "lineStart": 242,
+        "lineEnd": 250,
         "keywords": []
       },
       {
         "path": "src/run/helpers.ts",
         "symbolName": "saveDecisionsToMemory",
         "kind": "function",
-        "lineStart": 232,
-        "lineEnd": 265,
+        "lineStart": 256,
+        "lineEnd": 289,
         "keywords": []
       },
       {
         "path": "src/run/helpers.ts",
         "symbolName": "streamToResponse",
         "kind": "function",
-        "lineStart": 271,
-        "lineEnd": 274,
+        "lineStart": 295,
+        "lineEnd": 298,
         "keywords": []
       },
       {
         "path": "src/run/helpers.ts",
         "symbolName": "buildToolsForProvider",
         "kind": "function",
-        "lineStart": 298,
-        "lineEnd": 321,
+        "lineStart": 322,
+        "lineEnd": 345,
         "keywords": []
       },
       {
         "path": "src/run/helpers.ts",
         "symbolName": "shouldAutoDisableStreaming",
         "kind": "function",
-        "lineStart": 327,
-        "lineEnd": 331,
+        "lineStart": 351,
+        "lineEnd": 355,
         "keywords": []
       }
     ]
@@ -5924,16 +5945,16 @@
         "path": "src/providers/catalog.ts",
         "symbolName": "getDefaultModel",
         "kind": "function",
-        "lineStart": 157,
-        "lineEnd": 172,
+        "lineStart": 158,
+        "lineEnd": 160,
         "keywords": []
       },
       {
         "path": "src/providers/catalog.ts",
         "symbolName": "detectProvider",
         "kind": "function",
-        "lineStart": 177,
-        "lineEnd": 177,
+        "lineStart": 165,
+        "lineEnd": 165,
         "keywords": []
       }
     ]
@@ -6024,16 +6045,24 @@
         "path": "src/providers/local-llama-provider.ts",
         "symbolName": "LocalLlamaProvider",
         "kind": "class",
-        "lineStart": 20,
-        "lineEnd": 46,
+        "lineStart": 28,
+        "lineEnd": 94,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/local-llama-provider.ts",
+        "symbolName": "ensureRunning",
+        "kind": "method",
+        "lineStart": 66,
+        "lineEnd": 83,
         "keywords": []
       },
       {
         "path": "src/providers/local-llama-provider.ts",
         "symbolName": "complete",
         "kind": "method",
-        "lineStart": 37,
-        "lineEnd": 41,
+        "lineStart": 85,
+        "lineEnd": 88,
         "keywords": []
       }
     ]
@@ -10607,18 +10636,10 @@
     "symbols": [
       {
         "path": "src/config/defaults.ts",
-        "symbolName": "MODEL_TIERS",
+        "symbolName": "DEFAULT_CONFIG",
         "kind": "const",
         "lineStart": 4,
         "lineEnd": 4,
-        "keywords": []
-      },
-      {
-        "path": "src/config/defaults.ts",
-        "symbolName": "DEFAULT_CONFIG",
-        "kind": "const",
-        "lineStart": 13,
-        "lineEnd": 13,
         "keywords": []
       }
     ]
@@ -10676,7 +10697,7 @@
         "symbolName": "loadConfig",
         "kind": "function",
         "lineStart": 45,
-        "lineEnd": 101,
+        "lineEnd": 121,
         "keywords": [
           "configalixconfigjson",
           "user",
@@ -10700,32 +10721,32 @@
         "path": "src/config/loader.ts",
         "symbolName": "readJson",
         "kind": "function",
-        "lineStart": 103,
-        "lineEnd": 106,
+        "lineStart": 123,
+        "lineEnd": 126,
         "keywords": []
       },
       {
         "path": "src/config/loader.ts",
         "symbolName": "mergeConfig",
         "kind": "function",
-        "lineStart": 108,
-        "lineEnd": 160,
+        "lineStart": 128,
+        "lineEnd": 180,
         "keywords": []
       },
       {
         "path": "src/config/loader.ts",
         "symbolName": "mergeUnique",
         "kind": "function",
-        "lineStart": 162,
-        "lineEnd": 164,
+        "lineStart": 182,
+        "lineEnd": 184,
         "keywords": []
       },
       {
         "path": "src/config/loader.ts",
         "symbolName": "normalizeMcpServers",
         "kind": "function",
-        "lineStart": 167,
-        "lineEnd": 175,
+        "lineStart": 187,
+        "lineEnd": 195,
         "keywords": [
           "normalize",
           "mcpservers",
@@ -10889,18 +10910,10 @@
     "symbols": [
       {
         "path": "src/config/validator.ts",
-        "symbolName": "VALID_PROVIDERS",
-        "kind": "const",
-        "lineStart": 3,
-        "lineEnd": 3,
-        "keywords": []
-      },
-      {
-        "path": "src/config/validator.ts",
         "symbolName": "validateConfig",
         "kind": "function",
-        "lineStart": 5,
-        "lineEnd": 59,
+        "lineStart": 3,
+        "lineEnd": 52,
         "keywords": []
       }
     ]
@@ -10955,74 +10968,94 @@
         "path": "src/cli/commands/chat.ts",
         "symbolName": "ChatOptions",
         "kind": "interface",
-        "lineStart": 10,
-        "lineEnd": 15,
+        "lineStart": 12,
+        "lineEnd": 17,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/commands/chat.ts",
+        "symbolName": "CHAT_TOOLS",
+        "kind": "const",
+        "lineStart": 20,
+        "lineEnd": 20,
+        "keywords": [
+          "shared",
+          "chat",
+          "tools",
+          "lazily",
+          "constructed",
+          "once"
+        ]
+      },
+      {
+        "path": "src/cli/commands/chat.ts",
+        "symbolName": "executeChatTool",
+        "kind": "function",
+        "lineStart": 26,
+        "lineEnd": 44,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "runChat",
         "kind": "function",
-        "lineStart": 17,
-        "lineEnd": 17,
+        "lineStart": 46,
+        "lineEnd": 46,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "runChatLoop",
         "kind": "function",
-        "lineStart": 36,
-        "lineEnd": 198,
-        "keywords": [
-          "startresume",
-          "chat"
-        ]
+        "lineStart": 55,
+        "lineEnd": 206,
+        "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "loadMessages",
         "kind": "function",
-        "lineStart": 200,
-        "lineEnd": 205,
+        "lineStart": 208,
+        "lineEnd": 213,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "findSession",
         "kind": "function",
-        "lineStart": 207,
-        "lineEnd": 221,
+        "lineStart": 215,
+        "lineEnd": 223,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "appendMessage",
         "kind": "function",
-        "lineStart": 223,
-        "lineEnd": 225,
+        "lineStart": 225,
+        "lineEnd": 227,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "listSessions",
         "kind": "function",
-        "lineStart": 227,
-        "lineEnd": 243,
+        "lineStart": 229,
+        "lineEnd": 242,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "deleteSession",
         "kind": "function",
-        "lineStart": 245,
-        "lineEnd": 254,
+        "lineStart": 244,
+        "lineEnd": 250,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "buildChatSystemPrompt",
         "kind": "function",
-        "lineStart": 256,
+        "lineStart": 252,
         "lineEnd": 263,
         "keywords": []
       },
@@ -11031,15 +11064,15 @@
         "symbolName": "loadProjectMemory",
         "kind": "function",
         "lineStart": 265,
-        "lineEnd": 276,
+        "lineEnd": 275,
         "keywords": []
       },
       {
         "path": "src/cli/commands/chat.ts",
         "symbolName": "saveProjectMemory",
         "kind": "function",
-        "lineStart": 278,
-        "lineEnd": 298,
+        "lineStart": 277,
+        "lineEnd": 294,
         "keywords": []
       }
     ]
@@ -11206,24 +11239,24 @@
         "path": "src/cli/commands/tui.ts",
         "symbolName": "TuiOptions",
         "kind": "interface",
-        "lineStart": 10,
-        "lineEnd": 12,
+        "lineStart": 9,
+        "lineEnd": 11,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/commands/tui.ts",
+        "symbolName": "readLine",
+        "kind": "function",
+        "lineStart": 13,
+        "lineEnd": 22,
         "keywords": []
       },
       {
         "path": "src/cli/commands/tui.ts",
         "symbolName": "runTui",
         "kind": "function",
-        "lineStart": 14,
-        "lineEnd": 75,
-        "keywords": []
-      },
-      {
-        "path": "src/cli/commands/tui.ts",
-        "symbolName": "replayEvents",
-        "kind": "function",
-        "lineStart": 77,
-        "lineEnd": 86,
+        "lineStart": 24,
+        "lineEnd": 77,
         "keywords": []
       }
     ]
@@ -11827,7 +11860,7 @@
         "symbolName": "SubagentManager",
         "kind": "class",
         "lineStart": 25,
-        "lineEnd": 160,
+        "lineEnd": 166,
         "keywords": []
       },
       {
@@ -12204,6 +12237,42 @@
           "processexit",
           "intercept"
         ]
+      }
+    ]
+  },
+  "src/providers/local-llama-launcher.ts": {
+    "symbols": [
+      {
+        "path": "src/providers/local-llama-launcher.ts",
+        "symbolName": "LLAMA_SERVER_DEFAULT",
+        "kind": "const",
+        "lineStart": 32,
+        "lineEnd": 32,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/local-llama-launcher.ts",
+        "symbolName": "PROBE_TIMEOUT_MS",
+        "kind": "const",
+        "lineStart": 36,
+        "lineEnd": 36,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/local-llama-launcher.ts",
+        "symbolName": "probeUrl",
+        "kind": "function",
+        "lineStart": 42,
+        "lineEnd": 54,
+        "keywords": []
+      },
+      {
+        "path": "src/providers/local-llama-launcher.ts",
+        "symbolName": "ensureLlamaServer",
+        "kind": "function",
+        "lineStart": 60,
+        "lineEnd": 140,
+        "keywords": []
       }
     ]
   }
