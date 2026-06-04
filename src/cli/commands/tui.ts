@@ -55,8 +55,6 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
     if (task.trim().length < 3) continue;
 
-    console.log(`> ${task}`);
-
     try {
       const result = await runTask(cwd, task, {
         streaming: true,
