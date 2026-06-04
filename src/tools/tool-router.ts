@@ -84,7 +84,7 @@ export class FileToolRouter implements ToolRouter {
             sessionId: this.sessionId ?? "unknown",
             actor: "system",
             type: FILE_EVENT_TYPES.CREATED,
-            payload: { path },
+            payload: { path, resolvedPath, root: this.root },
           });
         }
         return {
