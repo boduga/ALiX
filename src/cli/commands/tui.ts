@@ -48,9 +48,11 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   try {
     while (true) {
       try {
-        const task = await rl.question("");
+        const task = await rl.question("> ");
         if (!task.trim()) continue;
         if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
+        // Skip very short inputs that are likely stray keystrokes (1-2 chars)
+        if (task.trim().length < 3) continue;
 
         // Echo the task in the output area
         tui.appendOutput(`> ${task}`);
