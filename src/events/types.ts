@@ -130,8 +130,31 @@ export const FILE_EVENT_TYPES = {
   DELETED: "file.deleted",
 } as const;
 
+export const AGENT_EVENT_TYPES = {
+  MESSAGE: "agent.message",
+  REASONING: "agent.reasoning",
+} as const;
+
 export const MCP_EVENT_TYPES = {
   TOOL_INVOKED: "mcp.tool_invoked",
+} as const;
+
+export type SubagentStartedPayload = {
+  role: string;
+  taskId: string;
+  prompt: string;
+};
+
+export type SubagentResultPayload = {
+  role: string;
+  taskId: string;
+  status: string;
+  findings: string[];
+};
+
+export const SUBAGENT_EVENT_TYPES = {
+  STARTED: "subagent.started",
+  RESULT: "subagent.result",
 } as const;
 
 export type VerificationEventPayload =

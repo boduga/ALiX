@@ -269,6 +269,20 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
       await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
     }
 
+    // Emit reasoning trail
+    if (text && text.length > 0) {
+      await log.append({
+        ...session,
+        actor: "agent",
+        type: "agent.reasoning",
+        payload: {
+          text: text.slice(0, 500),
+          toolCalls: toolCalls.map(tc => tc.name),
+          iteration: i,
+        },
+      });
+    }
+
     if (toolCalls.length === 0) {
       // No tools called — check if model signals completion
       const modelSaysDone = /done|complete|finished|resolved/i.test(text);
