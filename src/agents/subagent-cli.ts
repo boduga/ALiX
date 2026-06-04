@@ -5,8 +5,6 @@
 import { parseArgs } from "util";
 import { resolve } from "path";
 import { mkdir } from "fs/promises";
-import { createRequire } from "module";
-import { fileURLToPath } from "url";
 import type { AlixConfig, SubagentFinding, SubagentResult, SubagentRole } from "../config/schema.js";
 import { EventLog } from "../events/event-log.js";
 import { createProvider } from "../providers/registry.js";
@@ -97,10 +95,9 @@ export class SubagentCLI {
       process.exit(1);
     }
 
-    // Load config from project root (homedir XDG, global, project configs)
-    const require = createRequire(import.meta.url);
-    const projectRoot = fileURLToPath(new URL("../../../", import.meta.url));
-    const { loadConfig } = require("../config/loader.js");
+    // Load config from current working directory (user's project, not ALiX source tree)
+    const projectRoot = process.cwd();
+    const loadConfig = (await import("../config/loader.js")).loadConfig;
     const config = await loadConfig(projectRoot) as AlixConfig;
 
     // Apply overrides (provider from role config takes priority)
