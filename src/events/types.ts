@@ -133,6 +133,7 @@ export const FILE_EVENT_TYPES = {
 export const AGENT_EVENT_TYPES = {
   MESSAGE: "agent.message",
   REASONING: "agent.reasoning",
+  DECISION: "agent.decision",
 } as const;
 
 export const MCP_EVENT_TYPES = {
