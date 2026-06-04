@@ -22,7 +22,7 @@ export class Tui {
   }
 
   async init(): Promise<void> {
-    this.renderer = new TuiRenderer(this.store);
+    this.renderer = new TuiRenderer();
     this.renderer.start();
     this.renderer.drawLayout();
 
