@@ -342,6 +342,23 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
     const mentions = extractTaskMentions(task);
     const items: ContextItem[] = [];
 
+    // Compute kernel scores from dependency graph (feature B)
+    // Files with high connectivity get a boost, surfacing 'grounding set' files.
+    const kernelScores = new Map<string, number>();
+    if (input.dependencyGraph && input.sourceFiles.length > 0) {
+      let maxScore = 0;
+      for (const sf of input.sourceFiles) {
+        const score = input.dependencyGraph.impactScore(sf);
+        kernelScores.set(sf, score);
+        if (score > maxScore) maxScore = score;
+      }
+      if (maxScore > 0) {
+        for (const [f, s] of kernelScores) {
+          kernelScores.set(f, Math.round((s / maxScore) * 15));
+        }
+      }
+    }
+
     // 1. Task-mentioned files
     for (const sf of input.sourceFiles) {
       const entry = input.fileEntries.get(sf);
@@ -353,6 +370,11 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
           const gitScore = this.options.gitActivity.get(sf) ?? 0;
           if (gitScore > 0) {
             finalScore += Math.min(gitScore * 2, 20); // Up to 20 point boost
+          }
+          // Kernel/grounding-set boost (feature B)
+          const kernelBoost = kernelScores.get(sf) ?? 0;
+          if (kernelBoost > 0) {
+            finalScore += kernelBoost;
           }
         }
         items.push({
@@ -393,9 +415,10 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
               path: result.path,
               kind: entry.kind === "test" ? "test" : entry.kind === "config" ? "config" : "file",
               symbolName: result.symbolName,
+
               lineStart: result.lineStart,
               lineEnd: result.lineEnd,
-              score: result.score,
+              score: result.score + (kernelScores.get(entry.path) ?? 0),
               tokenEstimate: estimateFileTokens(result.path, entry.lineCount ?? 100, entry.kind === "source"),
               reason: `semantic_match:${result.symbolName}`,
             });
@@ -469,7 +492,7 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
             items.push({
               path: dep,
               kind: depEntry.kind === "test" ? "test" : depEntry.kind === "config" ? "config" : "file",
-              score: 15, // Lower score for dependencies
+              score: (kernelScores.get(dep) ?? 0) > 10 ? 25 : 15, // Lower score for dependencies (+kernel boost)
               tokenEstimate: estimateFileTokens(dep, depEntry.lineCount ?? 100, depEntry.kind === "source"),
               reason: `dependency_distance:1`,
             });
