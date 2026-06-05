@@ -70,7 +70,8 @@ export class EmbeddingCache {
       const content = await readFile(cacheFile, "utf8");
       return JSON.parse(content);
     } catch (err) {
-      console.warn(`[EmbeddingCache] Failed to load cached embedding: ${err}`);
+      // Cache miss — first time seeing this text, computing fresh
+      console.debug(`[EmbeddingCache] Cache miss for hash, computing fresh`);
       return null;
     }
   }
