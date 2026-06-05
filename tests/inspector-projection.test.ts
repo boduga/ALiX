@@ -75,7 +75,7 @@ test("buildInspectorSnapshot groups context, shell, diff, approval, verification
   assert.deepEqual(snapshot.tokens, {
     totalInputTokens: 10,
     totalOutputTokens: 5,
-    entries: [{ provider: "openai", model: "gpt", inputTokens: 10, outputTokens: 5 }]
+    entries: [{ provider: "openai", model: "gpt", inputTokens: 10, outputTokens: 5, cost: 0.00007500000000000001 }]
   });
 });
 

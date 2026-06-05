@@ -30,6 +30,10 @@ export type ContextCompilerOptions = {
 const contextCache = new Map<string, { result: ContextBundle; timestamp: number }>();
 const CONTEXT_CACHE_TTL_MS = 60_000;
 
+export function _clearCacheForTesting(): void {
+  contextCache.clear();
+}
+
 export class ContextCompiler {
   private repoMap?: RepoMapOutput;
   private embeddingCache?: EmbeddingCache;

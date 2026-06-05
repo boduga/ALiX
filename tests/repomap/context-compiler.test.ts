@@ -2,13 +2,14 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, readFileSync, writeFileSync, rmSync, utimesSync } from "node:fs";
 import { join } from "node:path";
-import { ContextCompiler } from "../../src/repomap/context-compiler.js";
+import { ContextCompiler, _clearCacheForTesting } from "../../src/repomap/context-compiler.js";
 
 describe("ContextCompiler", () => {
   const tmpDir = join("/tmp", `context-compiler-test-${Date.now()}`);
   let compiler: ContextCompiler;
 
   beforeEach(() => {
+    _clearCacheForTesting();
     mkdirSync(tmpDir, { recursive: true });
     // Create minimal package.json so classifyKind recognizes it as config
     writeFileSync(join(tmpDir, "package.json"), '{"name":"test"}');
@@ -53,9 +54,9 @@ describe("ContextCompiler", () => {
     });
 
     it("computes fresh result when pinnedPaths differ", async () => {
-      await warm();
       mkdirSync(join(tmpDir, "src"), { recursive: true });
       writeFileSync(join(tmpDir, "src", "foo.ts"), "export function foo() {}");
+      await warm();
       const bundle1 = await compiler.compileContext("fix bug", "bugfix", []);
       const bundle2 = await compiler.compileContext("fix bug", "bugfix", ["src/foo.ts"]);
       // Different pinnedPaths should produce different result

@@ -1,3 +1,4 @@
+import type { ToolDef } from "../types.js";
 import type { ProviderSpec } from "../spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, ToolCall } from "../types.js";
 import { buildToolCallSchema } from "./_tool-schema.js";
@@ -42,7 +43,7 @@ export const localLlamaSpec: ProviderSpec = {
         }
         body.response_format = {
           type: "json_schema",
-          json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(localTools) },
+          json_schema: { name: "agent_response", strict: true, schema: buildToolCallSchema(localTools as ToolDef[]) },
         };
       }
     }

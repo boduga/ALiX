@@ -214,7 +214,7 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
         const inputTokens = typeof payload.inputTokens === "number" ? payload.inputTokens : 0;
         const outputTokens = typeof payload.outputTokens === "number" ? payload.outputTokens : 0;
         const provider = optionalString(payload.provider) ?? "";
-        const entryRates = { google: { inputPerM: 0.15, outputPerM: 0.60 }, deepseek: { inputPerM: 0.014, outputPerM: 0.028 }, openai: { inputPerM: 2.5, outputPerM: 10.0 }, anthropic: { inputPerM: 3.0, outputPerM: 15.0 }, ollama: { inputPerM: 0, outputPerM: 0 }, "local-llama": { inputPerM: 0, outputPerM: 0 } };
+        const entryRates: Record<string, { inputPerM: number; outputPerM: number }> = { google: { inputPerM: 0.15, outputPerM: 0.60 }, deepseek: { inputPerM: 0.014, outputPerM: 0.028 }, openai: { inputPerM: 2.5, outputPerM: 10.0 }, anthropic: { inputPerM: 3.0, outputPerM: 15.0 }, ollama: { inputPerM: 0, outputPerM: 0 }, "local-llama": { inputPerM: 0, outputPerM: 0 } };
         const rate = entryRates[provider] ?? { inputPerM: 0, outputPerM: 0 };
         const cost = ((inputTokens / 1_000_000) * rate.inputPerM) + ((outputTokens / 1_000_000) * rate.outputPerM);
         snapshot.tokens.totalInputTokens += inputTokens;

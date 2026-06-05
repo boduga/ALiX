@@ -393,25 +393,26 @@ test("minimax provider returns correct capabilities", () => {
 
 import { createProvider, listProviders } from "../src/providers/registry.js";
 
-test("createProvider produces correct provider for all ids", () => {
+test("createProvider produces correct provider for all ids", async () => {
   const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "minimax", "zhipuai", "grokai", "deepseek", "mock"] as const;
   for (const id of ids) {
-    const p = createProvider({ provider: id }, "fake-key");
+    const p = await createProvider({ provider: id }, "fake-key");
     assert.equal(p.id, id);
   }
 });
 
-test("createProvider throws for unknown provider", () => {
-  assert.throws(() => createProvider({ provider: "unknown" }, "fake-key"), {
+test("createProvider throws for unknown provider", async () => {
+  await assert.rejects(createProvider({ provider: "unknown" }, "fake-key"), {
     message: /Unknown provider/,
   });
 });
 
-test("listProviders returns all 12 providers", () => {
+test("listProviders returns all providers", () => {
   const list = listProviders();
-  assert.equal(list.length, 12);
+  assert.ok(list.length >= 12);
   assert.ok(list.find((p) => p.id === "deepseek"));
   assert.ok(list.find((p) => p.id === "grokai"));
+  assert.ok(list.find((p) => p.id === "local-llama"));
 });
 
 test("parseChoiceToolCalls extracts tool calls from message.tool_calls", () => {
@@ -479,10 +480,10 @@ test("parseChoiceToolCalls returns empty array when no tool calls present", () =
   assert.equal(parseChoiceToolCalls.call(p, { message: { content: "", tool_calls: [] } }).length, 0);
 });
 
-test("all providers support streaming and have stream method", () => {
+test("all providers support streaming and have stream method", async () => {
   const ids = ["anthropic", "openai", "google", "openrouter", "groq", "ollama", "perplexity", "deepseek", "minimax", "zhipuai", "grokai"] as const;
   for (const id of ids) {
-    const p = createProvider({ provider: id }, "fake-key");
+    const p = await createProvider({ provider: id }, "fake-key");
     assert.equal(p.capabilities.supportsStreaming, true, `${id} should support streaming`);
     assert.ok(typeof p.stream === "function", `${id} should have stream method`);
   }
