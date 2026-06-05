@@ -6,8 +6,9 @@ import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
-import { classifyTask, detectResearchDepth } from "../task-classifier.js";
+import { classifyTask, detectResearchDepth, isReadOnlyTask } from "../task-classifier.js";
 import { runPlanPhase } from "../run/plan-phase.js";
+import { READ_ONLY_TOOL_NAMES } from "../run/helpers.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
@@ -103,7 +104,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     }
   }
 
-  const providerTools = buildToolsForProvider(ctx.provider);
+  const baseTools = buildToolsForProvider(ctx.provider);
+  const providerTools = isReadOnlyTask(task)
+    ? baseTools.filter((t) => READ_ONLY_TOOL_NAMES.has(t.name))
+    : baseTools;
 
   // Setup MCP tool index
   const mcpDeferral = ctx.mcpManager?.getDeferral();
