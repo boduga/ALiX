@@ -94,4 +94,8 @@ export class HookRunner {
   getRegisteredHooks(): string[] {
     return Array.from(this.hooks.keys());
   }
+
+  listHooks(): Array<{ name: string; count: number }> {
+    return Array.from(this.hooks.entries()).map(([name, fns]) => ({ name, count: fns.length }));
+  }
 }
