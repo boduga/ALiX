@@ -36,6 +36,7 @@ export type AgentContext = {
   mergeCoordinator?: import("../agents/merge-coordinator.js").MergeCoordinator;
   subagentManager?: import("../agents/subagent-manager.js").SubagentManager;
   scope: ScopeTracker;
+  hookRunner: import("../extensions/hook-runner.js").HookRunner;
 };
 
 export type InitAgentOpts = {
@@ -156,10 +157,9 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
 
     ownershipRegistry = new OwnershipRegistryClass();
     mergeCoordinator = new MergeCoordinatorClass();
-    subagentManager = new SubagentManagerClass({ sessionId, config });
+    subagentManager = new SubagentManagerClass({ sessionId, config, eventLog: log });
     subagentManager.onResult((result) => {
       mergeCoordinator!.enqueue(result);
-      void log.append({ ...session, actor: "subagent", type: "subagent.result", payload: result });
     });
     delegateHandler = createDelegateHandlerFn(subagentManager, (opts) => {
       const taskId = crypto.randomUUID();
@@ -169,6 +169,10 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
       return { id: taskId, role: opts.role, mode: opts.mode ?? "read_only", prompt: opts.prompt, ownedPaths: opts.ownedPaths };
     });
   }
+
+  // Initialize HookRunner for runtime-registered hooks
+  const { HookRunner } = await import("../extensions/hook-runner.js");
+  const hookRunner = new HookRunner();
 
   const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager);
 
@@ -192,5 +196,6 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     mergeCoordinator,
     subagentManager,
     scope,
+    hookRunner,
   };
 }
