@@ -125,7 +125,7 @@ export class EmbeddingCache {
   }
 
   /** Cosine similarity between two vectors */
-  private cosineSimilarity(a: number[], b: number[]): number {
+  public cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) return 0;
     let dotProduct = 0;
     let normA = 0;
@@ -151,4 +151,20 @@ export class EmbeddingCache {
       })
     );
   }
+
+
+  /** Check if proposed content is within cosine similarity guardrail of original.
+   * Feature C: Cosine guardrails — prevents wildly divergent edits.
+   * Returns { passed, similarity, threshold } */
+  async checkGuardrail(
+    originalContent: string,
+    proposedContent: string,
+    threshold: number = 0.85
+  ): Promise<{ passed: boolean; similarity: number; threshold: number }> {
+    const original = await this.getEmbedding(originalContent.slice(0, 2000));
+    const proposed = await this.getEmbedding(proposedContent.slice(0, 2000));
+    const similarity = this.cosineSimilarity(original, proposed);
+    return { passed: similarity >= threshold, similarity, threshold };
+  }
+
 }

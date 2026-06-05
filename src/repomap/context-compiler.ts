@@ -105,7 +105,7 @@ export class ContextCompiler {
       await this.warm();
     }
 
-    const semanticStage = new SemanticSearchStage({ root: this.options.root, task });
+    const semanticStage = new SemanticSearchStage({ root: this.options.root, task, embedder: this.embeddingCache });
 
     // Load pattern stats for threshold adjustment
     let thresholdBias = 0;

@@ -6,6 +6,7 @@ import { extractTopLevelSymbols, type ExtractedSymbol } from "./symbol-extractor
 import { rankContextCandidate } from "./context-ranker.js";
 import type { TaskType } from "../task-classifier.js";
 import { SemanticSearchIndex, type SearchResult } from "../context/semantic-search.js";
+import type { EmbeddingCache } from "./embedding-cache.js";
 
 /**
  * A stage in the context compilation pipeline.
@@ -137,7 +138,7 @@ export class SemanticSearchStage implements ContextStage<RepoMapOutput, RepoMapO
   private searchIndex: SemanticSearchIndex;
   private indexed: boolean = false;
 
-  constructor(private options: { root: string; task: string }) {
+  constructor(private options: { root: string; task: string; embedder?: EmbeddingCache }) {
     this.searchIndex = new SemanticSearchIndex(options.root);
   }
 
@@ -154,6 +155,26 @@ export class SemanticSearchStage implements ContextStage<RepoMapOutput, RepoMapO
       }
       this.indexed = true;
     }
+
+    // Also run vector search if an embedder is available (Feature C)
+    if (this.options.embedder) {
+      try {
+        const sourceFiles = [...input.fileEntries.values()]
+          .filter(e => e.kind === "source" && e.content)
+          .map(e => ({ path: e.path, content: e.content, kind: e.kind }));
+        if (sourceFiles.length > 0) {
+          const vectorResults = await this.options.embedder.search(
+            this.options.task, 5, sourceFiles
+          );
+          (input as any).vectorScores = new Map(
+            vectorResults.map(r => [r.path, r.score])
+          );
+        }
+      } catch {
+        // Vector search is optional — fail silently
+      }
+    }
+
     return input;
   }
 
