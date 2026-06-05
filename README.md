@@ -16,7 +16,7 @@ alix run "fix the null pointer in user.ts"
 
 | Feature | What it does |
 |---------|-------------|
-| **Autonomous loop** | Plans, executes, verifies, repairs — up to 3 repair attempts then stops |
+| **Autonomous loop** | Plans first, then executes. Reviews the plan with you before touching files. Approve, reject, or edit — or skip with `--no-plan` |
 | **12 LLM providers** | Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, Perplexity, MiniMax, ZhipuAI, GrokAI, OpenRouter, Mock |
 | **Multi-embedder context** | Semantic + code embedding models fused with task-type-aware weights. Kernel/grounding-set file prioritization based on dependency graph connectivity |
 | **Web search** | Built-in `web_search` and `web_fetch` tools via Brave Search API |
@@ -77,7 +77,7 @@ alix serve
 
 | Command | Description |
 |---------|-------------|
-| `alix run "<task>"` | Run a task with optional `--no-stream`, `--session-mode bypass` |
+| `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--no-stream`, `--mode=bypass` |
 | `alix chat` | Interactive chat with web search tools |
 | `alix tui` | Multi-task terminal UI (continuous session) |
 | `alix serve` | Start the inspector web UI |
@@ -95,13 +95,17 @@ alix serve
 ## Examples
 
 ```bash
-# Fix a bug
+# Fix a bug (plan mode is default — you approve before any file changes)
 alix run "fix the TS2322 error in src/auth.ts"
+# → Plan prints, you approve: [Y/n/e/d]
 
-# Add a feature
-alix run "add a GET /healthz endpoint"
+# Approve plan non-interactively
+echo "y" | alix run "fix the TS2322 error"
 
-# Research question
+# Skip plan mode entirely for quick tasks
+alix run "list files in src/" --no-plan
+
+# Research question (auto-approves plan — read-only task)
 alix run "who is the current president of Nigeria" --session-mode bypass
 
 # Multi-task in TUI

@@ -73,7 +73,10 @@ if (!command || command === "--help" || command === "-h") {
   console.log(`ALiX ${ALIX_VERSION}
 
 Usage:
-  alix run "<task>" [--no-stream] [--no-plan] [--mode=auto|ask|bypass]
+  alix run "<task>"        Plans first, then executes (approve/reject/edit the plan)
+  alix run "<task>" --no-plan  Execute directly without planning phase
+  alix run "<task>" --no-stream  Disable streaming output
+  alix run "<task>" --mode=auto|ask|bypass  Set session permission mode
   alix serve
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
