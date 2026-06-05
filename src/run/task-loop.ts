@@ -128,6 +128,7 @@ export interface TaskLoopDeps {
   sessionDir: string;
   systemPrompt: string;
   onStream?: (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
+  hookRunner?: import("../extensions/hook-runner.js").HookRunner;
 }
 
 /**
@@ -479,8 +480,20 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
           // continue: scope was auto-approved or user approved, fall through to execute
         }
 
+        // Run registered hooks before tool execution
+        if (deps.hookRunner) {
+          const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+          await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
+        }
+
         // Handle tool execution
         const toolResult = await handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors);
+
+        // Run registered hooks after tool execution
+        if (deps.hookRunner) {
+          const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+          await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
+        }
 
         if (toolResult.completed) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });

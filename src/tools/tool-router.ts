@@ -400,13 +400,22 @@ export class WebToolsRouter implements ToolRouter {
 }
 
 export class SelfExtendToolRouter implements ToolRouter {
-  private static readonly SUPPORTED_TOOLS = ["create_skill", "list_extensions", "inspect_extension"];
+  private static readonly SUPPORTED_TOOLS = ["create_skill", "list_extensions", "inspect_extension", "create_hook"];
 
   canHandle(name: string): boolean {
     return SelfExtendToolRouter.SUPPORTED_TOOLS.includes(name);
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
+    // Handle create_hook specially — it needs a HookRunner instance
+    if (request.name === "create_hook") {
+      const { createHookTool } = await import("../self-extend/create-hook.js");
+      const { HookRunner } = await import("../extensions/hook-runner.js");
+      const runner = new HookRunner();
+      const tool = createHookTool(runner);
+      return tool.execute(request.args as import("../self-extend/create-hook.js").CreateHookArgs);
+    }
+
     // Lazy imports to avoid circular dependency
     const { createSkillTool } = await import("../self-extend/create-skill.js");
     const { listExtensionsTool } = await import("../self-extend/list-extensions.js");
