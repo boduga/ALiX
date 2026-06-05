@@ -13,14 +13,21 @@ export type PlanPhaseResult =
 
 /**
  * Run the plan phase: generate plan → save → print → prompt → return result.
- * If the task is read-only (research), auto-approves after printing.
- * If not a TTY (pipe), auto-approves after printing.
+ * If the task is read-only (research, shell commands), skips plan generation entirely
+ * and returns immediately — no model call, no tokens wasted.
+ * If not a TTY (pipe), also skips plan generation.
  */
 export async function runPlanPhase(
   ctx: AgentContext,
   bundle: ContextBundle,
   task: string,
 ): Promise<PlanPhaseResult> {
+  // Skip plan generation for read-only tasks (flux commands, research questions)
+  // and non-TTY sessions. These don't need planning — just execute.
+  if (isReadOnlyTask(task) || !process.stdout.isTTY) {
+    return { action: "approved", planContent: "" };
+  }
+
   // 1. Generate plan
   const planContent = await generatePlan(ctx, bundle, task);
 
@@ -34,12 +41,7 @@ export async function runPlanPhase(
   // 3. Print plan to stdout
   console.log("\n" + planContent);
 
-  // 4. Auto-skip if read-only or not a TTY
-  if (isReadOnlyTask(task) || !process.stdout.isTTY) {
-    return { action: "approved", planContent };
-  }
-
-  // 5. Prompt for approval
+  // 4. Prompt for approval
   return await promptForPlanApproval(planPath, planContent);
 }
 
