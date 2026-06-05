@@ -60,6 +60,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const depth = detectResearchDepth(task);
   const maxIterations = ctx.config.model.maxIterations ?? 10;
 
+  // Read-only tasks (flux commands, research) cap at 2 iterations
+  const readOnlyTask = isReadOnlyTask(task);
+  const cappedIterations = readOnlyTask ? Math.min(maxIterations, 2) : maxIterations;
+
   // State machine with hard limits
   const limiter = new RunLimiter({
     maxIterations,
@@ -105,7 +109,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   }
 
   const baseTools = buildToolsForProvider(ctx.provider);
-  const providerTools = isReadOnlyTask(task)
+  const providerTools = readOnlyTask
     ? baseTools.filter((t) => READ_ONLY_TOOL_NAMES.has(t.name))
     : baseTools;
 
@@ -138,6 +142,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
   ];
+
+  // For read-only tasks (shell commands), inject a mode instruction
+  if (readOnlyTask) {
+    lines.push(`## Read-Only Mode
+The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+  }
 
   if (matchedSkills && matchedSkills.length > 0) {
     const skillSection = matchedSkills
@@ -195,12 +205,13 @@ ${approvedPlanContent}`);
     mcpDiscovery,
     selectedTools,
     hooks,
-    maxIterations,
+    maxIterations: cappedIterations,
     MAX_CONTEXT_TOKENS,
     encoding,
     task,
     taskType,
     depth,
+    readOnly: readOnlyTask,
     memoryStore: ctx.memoryStore,
     sessionId: ctx.sessionId,
     sessionDir: ctx.sessionDir,

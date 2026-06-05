@@ -122,6 +122,7 @@ export interface TaskLoopDeps {
   task: string;
   taskType: string;
   depth: "quick" | "deep";
+  readOnly?: boolean;
   embedderDbPath?: string;
   memoryStore: MemoryStore;
   sessionId: string;
@@ -507,6 +508,18 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
         if (toolResult.message) {
           messages.push(toolResult.message);
+        }
+
+        // Auto-complete for read-only tasks after a successful tool call
+        if (deps.readOnly && !toolResult.completed && !toolResult.continue) {
+          // Extract clean output from tool result message (strip XML tags)
+          const raw = typeof toolResult.message?.content === "string" ? toolResult.message.content : "";
+          const output = raw.replace(/<[^>]+>/g, "").trim();
+          await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: output || text } });
+          const sessionEvents = await log.readAll();
+          await saveDecisionsToMemory(sessionEvents, memoryStore);
+          await evaluatePattern(log, session, sessionDir, taskType);
+          return { sessionId, summary: output || text, streamed: config.model.streaming };
         }
 
         // Track search calls for research tasks (any tool call counts as research activity)

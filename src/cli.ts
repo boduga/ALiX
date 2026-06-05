@@ -288,8 +288,14 @@ if (command === "run") {
   const noStream = taskArgs.includes("--no-stream");
   const noPlan = taskArgs.includes("--no-plan");
   const modeMatch = taskArgs.match(/--mode=(\w+)/);
-  const mode = modeMatch ? (modeMatch[1] as "auto" | "ask" | "bypass") : undefined;
-  const cleanTask = taskArgs.replace(/\s*--no-stream\s*/g, " ").replace(/\s*--no-plan\s*/g, " ").replace(/\s*--mode=\w+\s*/g, " ").trim();
+  const sessionModeMatch = taskArgs.match(/--session-mode[= ](\w+)/);
+  const mode = (modeMatch?.[1] ?? sessionModeMatch?.[1]) as "auto" | "ask" | "bypass" | undefined;
+  const cleanTask = taskArgs
+    .replace(/\s*--no-stream\s*/g, " ")
+    .replace(/\s*--no-plan\s*/g, " ")
+    .replace(/\s*--mode=\w+\s*/g, " ")
+    .replace(/\s*--session-mode[= ]\w+\s*/g, " ")
+    .trim();
   if (!cleanTask) {
     console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass]");
     process.exit(1);
