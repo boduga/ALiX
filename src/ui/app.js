@@ -222,8 +222,6 @@ function renderTokens(tokens) {
     ).join("")}</div>` : ""}
   `;
 }
-  tokenView.innerHTML = `<div class="metric-grid"><div><span>Input</span><strong>${tokens.totalInputTokens}</strong></div><div><span>Output</span><strong>${tokens.totalOutputTokens}</strong></div></div>`;
-}
 
 function renderSubagentTimeline(events) {
   const subagentEvents = projectSubagentEvents(events);
