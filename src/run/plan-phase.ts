@@ -5,12 +5,11 @@ import { existsSync } from "node:fs";
 import type { AgentContext } from "../agent/agent.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import { prompt } from "../cli/commands/prompt.js";
-import { isReadOnlyTask, type TaskType } from "../task-classifier.js";
+import { isReadOnlyTask } from "../task-classifier.js";
 
 export type PlanPhaseResult =
   | { action: "approved"; planContent: string }
-  | { action: "rejected" }
-  | { action: "skipped" };
+  | { action: "rejected" };
 
 /**
  * Run the plan phase: generate plan → save → print → prompt → return result.
@@ -21,7 +20,6 @@ export async function runPlanPhase(
   ctx: AgentContext,
   bundle: ContextBundle,
   task: string,
-  taskType: TaskType,
 ): Promise<PlanPhaseResult> {
   // 1. Generate plan
   const planContent = await generatePlan(ctx, bundle, task);
@@ -169,9 +167,10 @@ async function promptForPlanApproval(
 
     if (key === "d" || key === "detail") {
       console.log("\n--- Expanded Details ---\n");
-      const createCount = (planContent.match(/\*\*Create\*\*/g) ?? []).length;
-      const modifyCount = (planContent.match(/\*\*Modify\*\*/g) ?? []).length;
-      const deleteCount = (planContent.match(/\*\*Delete\*\*/g) ?? []).length;
+      // Count changes by looking for **Action:** lines (format from buildPlanSystemPrompt)
+      const createCount = (planContent.match(/-\s+\*\*Action:\*\*\s*create/gi) ?? []).length;
+      const modifyCount = (planContent.match(/-\s+\*\*Action:\*\*\s*modify/gi) ?? []).length;
+      const deleteCount = (planContent.match(/-\s+\*\*Action:\*\*\s*delete/gi) ?? []).length;
       console.log(`Files to create: ${createCount}`);
       console.log(`Files to modify: ${modifyCount}`);
       console.log(`Files to delete: ${deleteCount}`);

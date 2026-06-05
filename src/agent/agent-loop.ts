@@ -90,7 +90,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Plan phase — generate plan, get approval, inject into system prompt
   let approvedPlanContent: string | undefined;
   if (opts?.planMode !== false) {
-    const planResult = await runPlanPhase(ctx, contextBundle, task, taskType);
+    const planResult = await runPlanPhase(ctx, contextBundle, task);
     if (planResult.action === "rejected") {
       return {
         sessionId: ctx.sessionId,
