@@ -483,7 +483,8 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         // Run registered hooks before tool execution
         if (deps.hookRunner) {
           const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-          await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
+          const hr = await deps.hookRunner.execute("on_pre_tool", { type: "tool_call", data: { toolName: execName, args: toolCall.args } });
+          if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_pre_tool", toolName: execName } });
         }
 
         // Handle tool execution
@@ -492,7 +493,8 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         // Run registered hooks after tool execution
         if (deps.hookRunner) {
           const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
-          await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
+          const hr = await deps.hookRunner.execute("on_post_tool", { type: "tool_result", data: { toolName: execName, args: toolCall.args, result: toolResult } });
+          if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
         }
 
         if (toolResult.completed) {
