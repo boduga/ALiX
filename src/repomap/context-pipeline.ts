@@ -138,7 +138,7 @@ export class SemanticSearchStage implements ContextStage<RepoMapOutput, RepoMapO
   private searchIndex: SemanticSearchIndex;
   private indexed: boolean = false;
 
-  constructor(private options: { root: string; task: string; embedder?: EmbeddingCache }) {
+  constructor(private options: { root: string; task: string; embedder?: EmbeddingCache; codeEmbedder?: EmbeddingCache }) {
     this.searchIndex = new SemanticSearchIndex(options.root);
   }
 
@@ -172,6 +172,25 @@ export class SemanticSearchStage implements ContextStage<RepoMapOutput, RepoMapO
         }
       } catch {
         // Vector search is optional — fail silently
+      }
+    }
+
+    // Run code-specific vector search (Feature A)
+    if (this.options.codeEmbedder) {
+      try {
+        const sourceFiles = [...input.fileEntries.values()]
+          .filter(e => e.kind === "source" && e.content)
+          .map(e => ({ path: e.path, content: e.content, kind: e.kind }));
+        if (sourceFiles.length > 0) {
+          const codeResults = await this.options.codeEmbedder.search(
+            this.options.task, 5, sourceFiles
+          );
+          (input as any).codeScores = new Map(
+            codeResults.map(r => [r.path, r.score])
+          );
+        }
+      } catch {
+        // Code search is optional
       }
     }
 
@@ -380,6 +399,23 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
       }
     }
 
+
+    // Compute fusion weights (Feature A: multi-embedder weighted fusion)
+    // Weights adapt based on task type for optimal signal blend
+    function computeWeights(taskType: string): { keyword: number; semantic: number; code: number } {
+      const w = { keyword: 0.4, semantic: 0.3, code: 0.3 };
+      if (["bugfix", "refactor"].includes(taskType)) w.code += 0.15;
+      if (["research", "docs"].includes(taskType)) w.semantic += 0.15;
+      const total = w.keyword + w.semantic + w.code;
+      w.keyword /= total; w.semantic /= total; w.code /= total;
+      return w;
+    }
+    const weights = computeWeights(taskType);
+    
+    // Store vector scores for fusion in scoring below
+    const vectorScores = (input as any).vectorScores as Map<string, number> | undefined;
+    const codeScores = (input as any).codeScores as Map<string, number> | undefined;
+
     // 1. Task-mentioned files
     for (const sf of input.sourceFiles) {
       const entry = input.fileEntries.get(sf);
@@ -396,6 +432,15 @@ export class RankingStage implements ContextStage<RankingInput, RankingOutput> {
           const kernelBoost = kernelScores.get(sf) ?? 0;
           if (kernelBoost > 0) {
             finalScore += kernelBoost;
+          }
+          // Multi-embedder vector boost (Feature A)
+          const vecScore = vectorScores?.get(sf) ?? 0;
+          if (vecScore > 0.3) {
+            finalScore += Math.round(vecScore * 80 * weights.semantic);
+          }
+          const codeScore = codeScores?.get(sf) ?? 0;
+          if (codeScore > 0.3) {
+            finalScore += Math.round(codeScore * 80 * weights.code);
           }
         }
         items.push({

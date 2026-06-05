@@ -3,6 +3,30 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 
+
+export type EmbedderConfig = {
+  /** HuggingFace model name (e.g. "Xenova/all-MiniLM-L6-v2") */
+  modelName: string;
+  /** Human-readable label for this embedder ("semantic", "code", etc.) */
+  label: string;
+  /** Pooling strategy */
+  pooling?: "mean" | "cls";
+  /** Whether to normalize output vectors */
+  normalize?: boolean;
+};
+
+/** Default config for semantic embeddings */
+export const SEMANTIC_EMBEDDER: EmbedderConfig = {
+  modelName: "Xenova/all-MiniLM-L6-v2",
+  label: "semantic",
+};
+
+/** Config for code-specific embeddings */
+export const CODE_EMBEDDER: EmbedderConfig = {
+  modelName: "microsoft/codebert-base",
+  label: "code",
+};
+
 export type SearchResult = {
   path: string;
   score: number;
@@ -18,15 +42,15 @@ export class EmbeddingCache {
   private modelPromise: Promise<EmbeddingModel> | null = null;
   private embeddingDir: string;
 
-  constructor(root: string) {
-    this.embeddingDir = join(root, ".alix", "embeddings");
+  constructor(root: string, private config: EmbedderConfig = SEMANTIC_EMBEDDER) {
+    this.embeddingDir = join(root, ".alix", "embeddings", config.label);
   }
 
   /** Lazily initialize the embedding model */
   private async initModel(): Promise<EmbeddingModel> {
     if (!this.modelPromise) {
       // Use the smallest, fastest embedding model (all-MiniLM-L6-v2)
-      this.modelPromise = pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2", {
+      this.modelPromise = pipeline("feature-extraction", this.config.modelName, {
         pooling: "mean",
         normalize: true,
       } as Parameters<typeof pipeline>[2]);

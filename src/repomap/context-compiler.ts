@@ -4,7 +4,7 @@ import { CONTEXT_EVENT_TYPES } from "../events/types.js";
 import type { RepoMapCreatedPayload, ContextBundleCreatedPayload, ContextItemRef } from "../events/types.js";
 import { ContextPipeline, RankingStage, BudgetingStage, RepoMapStage, SemanticSearchStage } from "./context-pipeline.js";
 import type { RepoMapOutput, ContextBundle as PipelineContextBundle, ContextItem as PipelineContextItem } from "./context-pipeline.js";
-import { EmbeddingCache } from "./embedding-cache.js";
+import { EmbeddingCache, SEMANTIC_EMBEDDER, CODE_EMBEDDER } from "./embedding-cache.js";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir, stat as statSync, readFile, writeFile } from "node:fs/promises";
@@ -33,6 +33,7 @@ const CONTEXT_CACHE_TTL_MS = 60_000;
 export class ContextCompiler {
   private repoMap?: RepoMapOutput;
   private embeddingCache?: EmbeddingCache;
+  private codeEmbedder?: EmbeddingCache;
 
   constructor(private options: ContextCompilerOptions) {}
 
@@ -45,7 +46,8 @@ export class ContextCompiler {
     const gitActivity = await readGitActivity(this.options.root);
     this.repoMap.gitActivity = gitActivity;
 
-    this.embeddingCache = new EmbeddingCache(this.options.root);
+    this.embeddingCache = new EmbeddingCache(this.options.root, SEMANTIC_EMBEDDER);
+    this.codeEmbedder = new EmbeddingCache(this.options.root, CODE_EMBEDDER);
 
     // Note: Embeddings are built lazily on first use (saves 68MB ONNX model load
     // for tasks that don't need semantic search). Call ensureEmbeddings() explicitly
@@ -105,7 +107,7 @@ export class ContextCompiler {
       await this.warm();
     }
 
-    const semanticStage = new SemanticSearchStage({ root: this.options.root, task, embedder: this.embeddingCache });
+    const semanticStage = new SemanticSearchStage({ root: this.options.root, task, embedder: this.embeddingCache, codeEmbedder: this.codeEmbedder });
 
     // Load pattern stats for threshold adjustment
     let thresholdBias = 0;
