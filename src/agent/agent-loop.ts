@@ -87,6 +87,22 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     payload: buildContextBundleEventPayload(contextBundle),
   });
 
+  // Plan phase — generate plan, get approval, inject into system prompt
+  let approvedPlanContent: string | undefined;
+  if (opts?.planMode !== false) {
+    const planResult = await runPlanPhase(ctx, contextBundle, task, taskType);
+    if (planResult.action === "rejected") {
+      return {
+        sessionId: ctx.sessionId,
+        summary: "Plan rejected. Task cancelled.",
+        streamed: opts?.streaming,
+      };
+    }
+    if (planResult.action === "approved") {
+      approvedPlanContent = planResult.planContent;
+    }
+  }
+
   const providerTools = buildToolsForProvider(ctx.provider);
 
   // Setup MCP tool index
@@ -128,6 +144,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   if (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0) {
     lines.push(renderContextBundleForPrompt(contextBundle));
+  }
+
+  if (approvedPlanContent) {
+    lines.push(`## Approved Plan
+${approvedPlanContent}`);
   }
 
   if (memoryStats) {
