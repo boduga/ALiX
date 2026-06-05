@@ -2,167 +2,227 @@
 
 **Agentic Lifecycle & Intelligence eXchange**
 
-A local-first agentic coding harness for developers who want the agent to own a task end-to-end: plan, execute file changes, run verification, and repair failures — without stopping to ask.
+A local-first, CLI-driven coding agent harness. Give it a task and walk away — it plans, edits files, runs verification, and repairs failures autonomously.
 
-## What it does
-
-Give ALiX a task and walk away. It classifies the task, calls tools, runs your `test`/`build`/`typecheck` scripts after every change, and loops until verification passes. It stops after 3 failed repair attempts so you don't come back to a machine gone wrong.
-
-```
-$ alix run "fix the null pointer in user.ts"
+```bash
+npm install -g alix
+alix config set-default-model deepseek deepseek-v4-flash
+alix run "fix the null pointer in user.ts"
 ```
 
-## Key Features
+---
 
-- **Autonomous loop** — runs until verification passes and the model signals done
-- **On-device agents** — works with any OpenAI-compatible API (Anthropic, OpenAI, Google, Groq, Ollama, DeepSeek, etc.)
-- **MCP tools** — discover and use MCP servers as first-class tools
-- **Verification discovery** — finds `test`, `build`, `typecheck`, `lint` from `package.json`
-- **Policy gating** — approve dangerous operations before they run
-- **Event log** — every tool call, model response, and verification result is recorded in `.alix/sessions/`
-- **Inspector UI** — local web UI showing session timeline, diff viewer, and live event stream
+## Features
+
+| Feature | What it does |
+|---------|-------------|
+| **Autonomous loop** | Plans, executes, verifies, repairs — up to 3 repair attempts then stops |
+| **12 LLM providers** | Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, Perplexity, MiniMax, ZhipuAI, GrokAI, OpenRouter, Mock |
+| **Multi-embedder context** | Semantic + code embedding models fused with task-type-aware weights. Kernel/grounding-set file prioritization based on dependency graph connectivity |
+| **Web search** | Built-in `web_search` and `web_fetch` tools via Brave Search API |
+| **MCP support** | Full Model Context Protocol client — tool discovery, deferral, caching, transport |
+| **Subagent delegation** | Role-based subagents (explorer, reviewer, worker, etc.) with file ownership tracking |
+| **Self-extensible hooks** | `create_hook` generates TypeScript hook code from plain language — the agent extends its own harness (Pi Agent pattern) |
+| **Patch engine** | Structured patches with preimage validation, git-aware checkpoints, and automatic rollback on failure |
+| **Policy engine** | Allow/ask/deny for every tool call. Session modes: auto, ask, bypass. Secret scanning |
+| **Inspector UI** | Local web dashboard at `localhost:4137` with live SSE event stream, session replay, cost tracking, decision timeline |
+| **Local llama.cpp** | Auto-starts `llama-server` on demand. Grammar-constrained tool calling via JSON schema |
+| **TUI mode** | `alix tui` — multi-task terminal UI with continuous session and streaming output |
+| **Verification** | Auto-discovers `npm test`, `build`, `typecheck`, `lint`. Runs after every change. Skips on read-only tasks |
+| **Event log** | Append-only JSONL per session in `.alix/sessions/<id>/events.jsonl`. Replay any session |
+
+---
 
 ## Quick Start
 
 ### Requirements
 
 - Node 24+
+- An API key from one of the supported providers (free tier available on Google, DeepSeek)
 
 ### Install
 
 ```bash
+npm install -g alix
+# or from source:
+git clone https://github.com/boduga/ALiX.git
+cd ALiX
 npm install
 npm run build
 ```
 
-### Configure an API key
+### Set up a provider
 
 ```bash
-alix config set-key anthropic
-# paste your API key when prompted
+alix config set-default-model
+# Follow the interactive menu — picks provider, sets API key, downloads model list
 ```
 
-### Run a task
+### Run your first task
 
 ```bash
-alix run "add OAuth login to the auth module"
+alix run "list the files in src/" --session-mode bypass
 ```
 
-### Start the inspector
+### Open the inspector
 
 ```bash
 alix serve
-# open http://127.0.0.1:4137
+# Visit http://127.0.0.1:4137
 ```
 
-### MCP servers
+---
+
+## Commands
+
+| Command | Description |
+|---------|-------------|
+| `alix run "<task>"` | Run a task with optional `--no-stream`, `--session-mode bypass` |
+| `alix chat` | Interactive chat with web search tools |
+| `alix tui` | Multi-task terminal UI (continuous session) |
+| `alix serve` | Start the inspector web UI |
+| `alix config show` | Show current configuration |
+| `alix config set-default-model` | Interactive provider + model selection (live API) |
+| `alix config set-tier [tier]` | Set model for a subagent tier |
+| `alix config set-key` | Set an API key |
+| `alix mcp list` | List connected MCP servers |
+| `alix mcp add` | Add an MCP server |
+| `alix agent <role> "<prompt>"` | Spawn a subagent directly |
+| `alix memory list` | List memory entries |
+
+---
+
+## Examples
 
 ```bash
-alix mcp discover mcp-server-fetch  # install an MCP server
-alix mcp list                       # see connected servers
-alix mcp test github                # test a server works
+# Fix a bug
+alix run "fix the TS2322 error in src/auth.ts"
+
+# Add a feature
+alix run "add a GET /healthz endpoint"
+
+# Research question
+alix run "who is the current president of Nigeria" --session-mode bypass
+
+# Multi-task in TUI
+alix tui
+> list files in src/
+> fix the null pointer in user.ts
+> who is the current president
+
+# Create a hook (Pi-style self-extensibility)
+alix run "use create_hook to register a hook that logs every file.delete to audit.txt"
+
+# Use web search
+alix run "what are the latest developments in AI agents" --session-mode bypass
 ```
 
-## Web Tools
-
-ALiX can search the web and fetch page content for current information.
-
-### Setup
-
-Get a free Brave Search API key: https://api.search.brave.com/app/dashboard
-
-```bash
-export BRAVE_API_KEY="BSA..."
-```
-
-The agent can then call:
-- `web_search("current events topic")` — returns top 5 results
-- `web_fetch("https://article-url")` — returns article text (HTML stripped)
-
-Especially useful for local LLMs with old knowledge cutoffs.
-
-## Documentation
-
-- **[Getting Started](docs/getting-started.md)** — install and run your first task
-- **[Features](docs/features.md)** — tour of all capabilities
-- **[Configuration](docs/configuration.md)** — config file reference
-- **[Examples](examples/)** — worked task examples
-- **[Architecture](docs/architecture/)** — how ALiX is built
-
-## Architecture
-
-```
-task → model → tool calls → executor → file changes
-              ↑                              ↓
-         verification              results back to model
-              ↑                              ↓
-         loop until done or max repairs reached
-```
-
-The agent runs an event-sourced loop backed by an append-only JSONL log (`.alix/sessions/<id>/events.jsonl`). Every tool result, model response, and verification check is recorded.
-
-## Verification
-
-ALiX discovers verification scripts from your `package.json`:
-
-```bash
-npm test         # runs first
-npm run build    # runs if present
-npm run typecheck # runs if present
-npm run lint     # runs if present
-```
-
-Failed checks trigger the repair loop — the output is fed back to the model with a fix prompt. Docs tasks skip verification entirely.
+---
 
 ## Configuration
 
 Config files are loaded in priority order:
 
-1. Project: `.alix/config.json`
-2. User: `~/.config/alix/config.json`
-3. Global: `/etc/alix/config.json`
+1. **Project**: `.alix/config.json` (in your project root)
+2. **User**: `~/.config/alix/config.json` (homedir XDG)
+3. **Global**: `/etc/alix/config.json`
 
-Or use `alix config set-default-model` and `alix config set-key <provider>` for quick setup.
+### Subagent tiers
 
-## Repository Layout
+Subagent roles use model tiers that you can set independently:
 
-```
-src/
-  cli.ts              CLI entrypoint
-  run.ts              Agent loop
-  config/             Schema, defaults, loaders
-  events/             JSONL event log
-  mcp/                MCP manager, registry, deferral, transports
-  providers/          12 provider adapters
-  policy/             Policy engine
-  patch/              Patch engine
-  verifier/            Verification discovery
-  tools/              Tool executor
-  checkpoints/         File checkpoint
-  server/             Inspector SSE server
-  ui/                 Vanilla JS inspector UI
-  utils/               Shared utilities
-tests/                Node --test suite
-docs/                 Specs, plans, PRDs
+```bash
+alix config set-tier thinking   # Strategic reasoning, planning
+alix config set-tier coding     # Code generation, tool execution
+alix config set-tier fast       # Quick classification, routing
 ```
 
-## License
+Each tier inherits from the main model if not explicitly configured.
 
-MIT — see [LICENSE](LICENSE)
+See `docs/configuration.md` for the full reference.
+
+---
+
+## Architecture
+
+```
+task → classify → context bundle → model → tool calls → execute → verify
+                 ↑                                          |
+                 └──────────────── repair (max 3) ──────────┘
+```
+
+The agent runs an event-sourced loop backed by an append-only JSONL log. Every model response, tool result, and verification check is recorded and replayable.
+
+### Seven modules
+
+| Module | Responsibility |
+|--------|---------------|
+| `src/providers/` | 12 provider specs + unified dispatcher |
+| `src/agent/` | Agent loop, initialization, streaming |
+| `src/run/` | Task loop (tool execution, verification, repair) |
+| `src/tools/` | File, shell, patch, web, MCP tool routers |
+| `src/repomap/` | Repo mapping, context compilation, multi-embedder search |
+| `src/extensions/` | Extension registry, hook runner, skill lifecycle |
+| `src/tui/` | Terminal UI (split-screen, event-driven status) |
+
+---
+
+## Web Tools
+
+ALiX can search the web and fetch page content with built-in tools.
+
+```bash
+export BRAVE_API_KEY="BSA..."
+```
+
+Free key at [api.search.brave.com/app/dashboard](https://api.search.brave.com/app/dashboard)
+
+---
+
+## Local Inference
+
+ALiX can run entirely locally with llama.cpp:
+
+```bash
+export ALIX_LLAMA_MODEL_PATH="~/llama.cpp/models/your-model.gguf"
+
+# ALiX auto-starts llama-server on demand — no manual server management
+alix run "explain the dependency injection pattern" --session-mode bypass
+```
+
+Grammar-constrained tool calling ensures the local model produces valid tool call JSON. Supports Phi-3, Qwen2.5-Coder, DeepSeek Coder, and any GGUF model.
+
+---
+
+## Development
+
+```bash
+npm run build          # TypeScript compilation
+npm test               # Full test suite (node:test + vitest)
+npm run check          # Build + test + verify:deps
+npm run verify:deps    # Check all deps are pinned
+```
+
+### Project structure
+
+```
+src/          — Source code
+tests/        — Test suite (node:test)
+dist/         — Compiled output
+docs/         — Specs, plans, architecture
+.alix/        — Agent config, sessions, embeddings
+```
+
+---
 
 ## Supply-Chain Policy
 
-ALiX follows a strict supply-chain hardening policy to protect against dependency attacks:
+- All direct dependencies are pinned to exact versions
+- `.npmrc` enforces `save-exact=true` and `min-release-age=2`
+- `npm run verify:deps` checks all deps are pinned
 
-- **All direct dependencies are pinned to exact versions** — no `^` or `~` ranges
-- **`.npmrc` enforces `save-exact=true`** — future installs will also pin
-- **`.npmrc` enforces `min-release-age=2`** — new versions must be 2+ days old before install
-- **`npm run verify:deps`** — checks all direct deps are pinned (run via `npm run check`)
-- **`package-lock.json` is the source of truth** — exact versions for transitive deps
+---
 
-This matches the supply-chain hardening patterns from [earendil-works/pi](https://github.com/earendil-works/pi).
+## License
 
-To verify your local install meets the policy:
-```bash
-npm run verify:deps
-```
+MIT
