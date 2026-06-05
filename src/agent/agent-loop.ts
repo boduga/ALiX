@@ -7,6 +7,7 @@ import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { classifyTask, detectResearchDepth } from "../task-classifier.js";
+import { runPlanPhase } from "../run/plan-phase.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
