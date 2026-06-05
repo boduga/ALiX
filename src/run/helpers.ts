@@ -163,6 +163,19 @@ export const BASE_TOOLS: ToolDef[] = [
     input_schema: { type: "object", properties: {} }
   },
   {
+    name: "create_hook",
+    description: "Create a hook that runs before or after tool calls or events. Hooks can log, audit, or modify behavior. For example: 'log every file deletion to audit.log'. Describe what you want in the prompt parameter and provide valid JavaScript code in the body.",
+    input_schema: {
+      type: "object",
+      properties: {
+        description: { type: "string", description: "What should this hook do? e.g. 'log every file.delete to audit.log'" },
+        trigger: { type: "string", enum: ["on_pre_tool", "on_post_tool", "on_tool_complete", "on_tool_error", "on_pre_patch", "on_post_patch", "on_approval_request", "on_session_start", "on_session_end"], description: "When should this hook fire? on_pre_tool = before tool, on_post_tool = after tool, etc." },
+        body: { type: "string", description: "JavaScript code for the hook body. Use `data` for tool call info: data.toolName, data.args, data.result." },
+      },
+      required: ["description", "trigger", "body"],
+    }
+  },
+  {
     name: "alix_delegate",
     description: "Delegate a task to a subagent. Spawns a focused subagent (explorer/reviewer/test_investigator/docs_researcher/worker) that runs in a separate process and returns structured findings.",
     input_schema: {
