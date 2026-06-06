@@ -1,3 +1,14 @@
+# Automated Test Runner
+
+```bash
+npm run build && node --test dist/tests/manual/suite-*.test.js
+```
+
+Runs all 10 suites (57 tests). Results in ~5 minutes.
+Some tests skip if no API key or TTY is available.
+
+---
+
 ### Test Suite A: Basic CLI (`alix run`)
 
 | ID | Test | Expected | Status |

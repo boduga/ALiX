@@ -3,6 +3,11 @@
 > **Purpose:** Manual test scripts for ALiX v0.2.0-rc.1
 > **Tester:** Run each test step-by-step and mark results
 > **Setup:** `cd <project-root> && npm run build` before running tests
+>
+> **Automated tests also available:** See `tests/manual/suite-*.test.ts`. Run all with:
+> ```bash
+> npm run build && node --test dist/tests/manual/suite-*.test.js
+> ```
 
 ---
 
@@ -12,6 +17,7 @@
 2. Run the command listed, observe the output
 3. Mark `[PASS]` or `[FAIL]` after each test
 4. If a test fails, note the actual output in the **Notes** section
+5. Most tests have an equivalent automated version in `suite-*.test.ts`
 
 ---
 
