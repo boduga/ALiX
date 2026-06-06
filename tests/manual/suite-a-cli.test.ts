@@ -36,7 +36,7 @@ describe("Suite A: Basic CLI (alix run)", () => {
 
   // ── A.4: Development task executes in non-TTY (plan auto-approved) ──
   it("A.4: development task produces session ID and output", () => {
-    const r = runCli([...BASE, "add a healthz endpoint"], { timeoutMs: 60_000 });
+    const r = runCli([...BASE, "add a healthz endpoint"], { timeoutMs: 120_000 });
     assertSuccess(r);
     assert.ok(r.stdout.includes("Session:"), "should produce a session ID");
   });

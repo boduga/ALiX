@@ -3,14 +3,29 @@
  * Uses the dist/src/cli.js entry point directly (bypasses heap wrapper).
  */
 import { execSync, type ExecSyncOptions } from "node:child_process";
-import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 
 // Resolve paths relative to project root (CWD for all tests)
 export const PROJECT_ROOT = process.cwd();
 export const CLI_PATH = join(PROJECT_ROOT, "dist", "src", "cli.js");
+
+/** Map provider ID to its env var name */
+const PROVIDER_ENV_VARS: Record<string, string> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  openai: "OPENAI_API_KEY",
+  google: "GEMINI_API_KEY",
+  deepseek: "DEEPSEEK_API_KEY",
+  openrouter: "OPENROUTER_API_KEY",
+  groq: "GROQ_API_KEY",
+  ollama: "OLLAMA_API_KEY",
+  perplexity: "PERPLEXITY_API_KEY",
+  minimax: "MINIMAX_API_KEY",
+  zhipuai: "ZHIPUAI_API_KEY",
+  grokai: "GROKAI_API_KEY",
+};
 
 export interface CliResult {
   exitCode: number;
@@ -73,8 +88,58 @@ export function pathExists(dir: string, ...paths: string[]): boolean {
   return existsSync(join(dir, ...paths));
 }
 
+/** Resolve the API key for the configured provider from env or config files */
+export function resolveApiKey(): string | undefined {
+  try {
+    const homeConfig = join(homedir(), ".config", "alix", "config.json");
+    const projectConfig = join(PROJECT_ROOT, ".alix", "config.json");
+
+    // Read both configs
+    const project = existsSync(projectConfig) ? JSON.parse(readFileSync(projectConfig, "utf8")) : {};
+    const home = existsSync(homeConfig) ? JSON.parse(readFileSync(homeConfig, "utf8")) : {};
+
+    // Find the active provider from project config (or home as fallback)
+    const provider = project.model?.provider ?? home.model?.provider;
+    if (!provider) return undefined;
+
+    // Check env var first (always wins)
+    const envVar = PROVIDER_ENV_VARS[provider];
+    if (envVar && process.env[envVar]) return process.env[envVar];
+
+    // Check project config for the key
+    if (project.apiKeys?.[provider]) return project.apiKeys[provider];
+
+    // Check home config for the key
+    if (home.apiKeys?.[provider]) return home.apiKeys[provider];
+
+    return undefined;
+  } catch { return undefined; }
+}
+
+/** Resolve the configured provider name */
+export function resolveProvider(): string | undefined {
+  try {
+    const homeConfig = join(homedir(), ".config", "alix", "config.json");
+    const projectConfig = join(PROJECT_ROOT, ".alix", "config.json");
+    const project = existsSync(projectConfig) ? JSON.parse(readFileSync(projectConfig, "utf8")) : {};
+    const home = existsSync(homeConfig) ? JSON.parse(readFileSync(homeConfig, "utf8")) : {};
+    return project.model?.provider ?? home.model?.provider ?? undefined;
+  } catch { return undefined; }
+}
+
 /** Skip integration tests that need a real model */
-export const needsModel = { skip: "requires model API credentials" } as const;
+export const needsModel = resolveApiKey() ? undefined : { skip: "requires model API key" } as const;
+
+/** Build env object with the configured provider's API key set */
+export function withApiKey(extraEnv?: Record<string, string>): Record<string, string> {
+  const apiKey = resolveApiKey();
+  const provider = resolveProvider();
+  if (apiKey && provider) {
+    const envVar = PROVIDER_ENV_VARS[provider];
+    if (envVar) return { ...extraEnv, [envVar]: apiKey };
+  }
+  return { ...extraEnv };
+}
 
 /** Skip tests that need interactive terminal */
 export const needsTty = { skip: "requires interactive TTY" } as const;
