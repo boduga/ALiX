@@ -6,7 +6,9 @@ import type { RunResult, RunOpts, MutationSessionState } from "../run.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
-import { classifyTask, detectResearchDepth } from "../task-classifier.js";
+import { classifyTask, detectResearchDepth, isReadOnlyTask } from "../task-classifier.js";
+import { runPlanPhase } from "../run/plan-phase.js";
+import { READ_ONLY_TOOL_NAMES } from "../run/helpers.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
@@ -58,6 +60,10 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   const depth = detectResearchDepth(task);
   const maxIterations = ctx.config.model.maxIterations ?? 10;
 
+  // Read-only tasks (flux commands, research) cap at 2 iterations
+  const readOnlyTask = isReadOnlyTask(task);
+  const cappedIterations = readOnlyTask ? Math.min(maxIterations, 2) : maxIterations;
+
   // State machine with hard limits
   const limiter = new RunLimiter({
     maxIterations,
@@ -86,7 +92,26 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     payload: buildContextBundleEventPayload(contextBundle),
   });
 
-  const providerTools = buildToolsForProvider(ctx.provider);
+  // Plan phase — generate plan, get approval, inject into system prompt
+  let approvedPlanContent: string | undefined;
+  if (opts?.planMode !== false) {
+    const planResult = await runPlanPhase(ctx, contextBundle, task);
+    if (planResult.action === "rejected") {
+      return {
+        sessionId: ctx.sessionId,
+        summary: "Plan rejected. Task cancelled.",
+        streamed: opts?.streaming,
+      };
+    }
+    if (planResult.action === "approved") {
+      approvedPlanContent = planResult.planContent;
+    }
+  }
+
+  const baseTools = buildToolsForProvider(ctx.provider);
+  const providerTools = readOnlyTask
+    ? baseTools.filter((t) => READ_ONLY_TOOL_NAMES.has(t.name))
+    : baseTools;
 
   // Setup MCP tool index
   const mcpDeferral = ctx.mcpManager?.getDeferral();
@@ -118,6 +143,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
   ];
 
+  // For read-only tasks (shell commands), inject a mode instruction
+  if (readOnlyTask) {
+    lines.push(`## Read-Only Mode
+The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+  }
+
   if (matchedSkills && matchedSkills.length > 0) {
     const skillSection = matchedSkills
       .map(s => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
@@ -127,6 +158,11 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   if (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0) {
     lines.push(renderContextBundleForPrompt(contextBundle));
+  }
+
+  if (approvedPlanContent) {
+    lines.push(`## Approved Plan
+${approvedPlanContent}`);
   }
 
   if (memoryStats) {
@@ -169,12 +205,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     mcpDiscovery,
     selectedTools,
     hooks,
-    maxIterations,
+    maxIterations: cappedIterations,
     MAX_CONTEXT_TOKENS,
     encoding,
     task,
     taskType,
     depth,
+    readOnly: readOnlyTask,
     memoryStore: ctx.memoryStore,
     sessionId: ctx.sessionId,
     sessionDir: ctx.sessionDir,

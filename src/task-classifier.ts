@@ -68,3 +68,83 @@ export function classifyTask(prompt: string): TaskType {
   if (RESEARCH_PATTERNS.some((p) => p.test(prompt))) return "research";
   return "unknown";
 }
+
+const READ_ONLY_PATTERNS = [
+  /\b(?:read|view|show|display|list|get|fetch)\b/i,
+  /\b(?:research|study|investigate|analyze)\b/i,
+  /\bfind all\b/i,
+  /\bsearch for\b/i,
+  /\blook up\b/i,
+  /\blook into\b/i,
+  /\bcompare\b/i,
+  /\bevaluate\b/i,
+  /\bassess\b/i,
+  /\bwhat is\b/i,
+  /\bhow does\b/i,
+  /\bexplain\b/i,
+  /\bunderstand\b/i,
+  /\breview\b/i,
+  /\bdoc\b/i,
+  /\bREADME\b/i,
+  /\bcomment\b/i,
+  /\bdescribe\b/i,
+  // Read-only shell commands — both bare and with args
+  /^ls(?:\s|$)/i,
+  /^pwd(?:\s|$)/i,
+  /^cat(?:\s|$)/i,
+  /^grep(?:\s|$)/i,
+  /^find(?:\s|$)/i,
+  /^head(?:\s|$)/i,
+  /^tail(?:\s|$)/i,
+  /^wc(?:\s|$)/i,
+  /^sort(?:\s|$)/i,
+  /^uniq(?:\s|$)/i,
+  /^stat(?:\s|$)/i,
+  /^du(?:\s|$)/i,
+  /^df(?:\s|$)/i,
+  /^which(?:\s|$)/i,
+  /^whoami(?:\s|$)/i,
+  /^env(?:\s|$)/i,
+  /^echo(?:\s|$)/i,
+  /^printf(?:\s|$)/i,
+  /^who(?:\s|$)/i,
+  /^type(?:\s|$)/i,
+  /^curl(?:\s|$)/i,
+  /^ping(?:\s|$)/i,
+];
+
+const WRITE_PATTERNS = [
+  /\b(?:create|add|implement|build|write|edit|update|modify|change|delete|remove|fix|refactor|rewrite|extract)\b/i,
+  /\bnew\s+(?:feature|option|setting|button|tab|page|component|module)\b/i,
+  /\bclean up\b/i,
+  /\brestructure\b/i,
+  /\bsplit\b/i,
+  /\bdecouple\b/i,
+  /\bmove\b/i,
+  /\breorganize\b/i,
+  /\bbug\b/i,
+  /\bcrash\b/i,
+  /\berror\b/i,
+  /\bexception\b/i,
+  /\bnull\b/i,
+  /\bundefined\b/i,
+  /\bfails?\b/i,
+  /\bbroken\b/i,
+  /\bnot working\b/i,
+];
+
+/**
+ * Returns true if the task prompt describes a read-only operation
+ * (research, question, docs review) that doesn't need a plan prompt.
+ */
+export function isReadOnlyTask(prompt: string): boolean {
+  const hasReadSignal = READ_ONLY_PATTERNS.some((p) => p.test(prompt));
+  const hasWriteSignal = WRITE_PATTERNS.some((p) => p.test(prompt));
+
+  if (hasReadSignal && !hasWriteSignal) return true;
+  if (hasWriteSignal && !hasReadSignal) return false;
+
+  // Ambiguous — fall back to classifier-based heuristic
+  const type = classifyTask(prompt);
+  return type === "research" || type === "docs";
+}

@@ -21,6 +21,7 @@ export type RunOpts = {
   streaming?: boolean;
   sessionMode?: "auto" | "ask" | "bypass";
   sharedSession?: SharedSession;
+  planMode?: boolean;
 };
 
 export const EXIT_CODES = {

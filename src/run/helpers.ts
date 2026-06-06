@@ -226,6 +226,21 @@ export const BASE_TOOLS: ToolDef[] = [
 ];
 
 /**
+ * Subset of BASE_TOOLS available for read-only tasks (research, flux commands).
+ * Only reading, searching, shell commands, and file-exists checks.
+ * No patch apply, file create/delete, hook creation, or delegation.
+ */
+export const READ_ONLY_TOOL_NAMES = new Set([
+  "alix_file_read",
+  "alix_dir_search",
+  "alix_shell_run",
+  "alix_file_exists",
+  "alix_done",
+  "web_search",
+  "web_fetch",
+]);
+
+/**
  * Extract mutation paths from tool arguments.
  * Returns array of file paths affected by the tool call.
  */
