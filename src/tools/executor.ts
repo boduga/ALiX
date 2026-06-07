@@ -11,6 +11,7 @@ import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult } from "./types.js";
+import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import {
   CompositeToolRouter,
   FileToolRouter,
@@ -44,6 +45,7 @@ export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 
 export class ToolExecutor {
   private router: CompositeToolRouter;
+  private repair: AlixToolRepair | null = null;
 
   constructor(
     private config: AlixConfig,
@@ -64,6 +66,13 @@ export class ToolExecutor {
       new SelfExtendToolRouter(),
       new WebToolsRouter(),
     ]);
+
+    // Initialize tool repair layer
+    try {
+      this.repair = new AlixToolRepair(config.model.provider, config.model.name);
+    } catch {
+      this.repair = null;
+    }
   }
 
   private sessionId(): string {
@@ -111,9 +120,27 @@ export class ToolExecutor {
       return { kind: "denied", reason: msg };
     }
 
+    // === TOOL REPAIR LAYER ===
+    let repairHint: string | undefined;
+    if (this.repair && name !== "done" && !name.startsWith("mcp.")) {
+      const result = this.repair.process(name, args);
+      if (result.repaired) {
+        repairHint = result.hint;
+        (request as Record<string, unknown>).args = result.args;
+      }
+    }
+    // === END TOOL REPAIR ===
+
     await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name });
 
     let result = await this.router.execute(request);
+
+    // Append repair hint to success output
+    if (repairHint && result.kind === "success") {
+      const hintBlock = `\n\n[Tool Repair Hint] ${repairHint}`;
+      if (result.output) result.output += hintBlock;
+      else if (result.content) result.content += hintBlock;
+    }
 
     // Classify MCP errors with hints
     if (name.startsWith("mcp.") && result.kind === "error") {
