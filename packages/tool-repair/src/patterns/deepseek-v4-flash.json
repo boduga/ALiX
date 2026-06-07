@@ -72,27 +72,12 @@
       "deprecated": null
     },
     {
-      "id": "ds4f-empty-object-arg",
-      "category": "extra_junk_in_arg",
-      "description": "Sends empty object {} for a param that should be omitted entirely",
-      "tools": ["*"],
-      "params": {
-        "*": { "repair": "remove" }
-      },
-      "match": { "null_fields": [] },
-      "hint": "An empty object was sent where no value was needed. I removed it.",
-      "severity": "warning",
-      "confidence": 0.80,
-      "since": "2026-05-10",
-      "deprecated": null
-    },
-    {
       "id": "ds4f-shell-command-stringify",
       "category": "wrong_arg_format",
       "description": "Wraps shell command in JSON.stringify format with escaped quotes",
       "tools": ["Bash", "shell.run"],
       "params": {
-        "command": { "repair": "strip_markdown_links" }
+        "command": { "repair": "strip_outer_quotes" }
       },
       "match": { "pattern": "^\"[^\"]*\"$" },
       "hint": "The command was double-escaped as a JSON string. I unescaped it.",

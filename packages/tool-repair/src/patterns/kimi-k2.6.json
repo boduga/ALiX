@@ -12,7 +12,7 @@
         "description": { "repair": "remove" }
       },
       "match": { "null_fields": ["timeout"] },
-      "hint": "I removed the undefined optional parameter. Omit instead of sending null.",
+      "hint": "I removed the undefined optional parameters. Omit them instead of sending null.",
       "severity": "error",
       "confidence": 0.85,
       "since": "2026-05-01",

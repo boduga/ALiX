@@ -26,7 +26,8 @@
       "tools": ["Read", "file.read", "Glob", "dir.search"],
       "params": {
         "file_path": { "repair": "strip_markdown_links" },
-        "path": { "repair": "strip_markdown_links" }
+        "path": { "repair": "strip_markdown_links" },
+        "pattern": { "repair": "strip_markdown_links" }
       },
       "match": { "pattern": "\\[.*\\]\\(.*\\)" },
       "hint": "Plain file paths only. Stripped markdown link syntax.",
