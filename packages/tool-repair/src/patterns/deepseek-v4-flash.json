@@ -85,6 +85,56 @@
       "confidence": 0.85,
       "since": "2026-05-15",
       "deprecated": null
+    },
+    {
+      "id": "ds4f-edit-null-replacement",
+      "category": "null_in_optional_field",
+      "description": "Sends null for Edit new_string/old_string when content should be provided",
+      "tools": ["Edit", "patch.apply"],
+      "params": {
+        "new_string": { "repair": "remove" },
+        "old_string": { "repair": "remove" }
+      },
+      "match": { "null_fields": ["new_string", "old_string"] },
+      "hint": "The replacement string was null. The model should provide the correct content to replace.",
+      "severity": "error",
+      "confidence": 0.85,
+      "since": "2026-06-06",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-double-quoted-content",
+      "category": "wrong_arg_format",
+      "description": "Wraps content strings in extra double quotes like '\"content\"' instead of 'content'",
+      "tools": ["Edit", "Write", "patch.apply", "file.create"],
+      "params": {
+        "new_string": { "repair": "strip_outer_quotes" },
+        "old_string": { "repair": "strip_outer_quotes" },
+        "content": { "repair": "strip_outer_quotes" }
+      },
+      "match": { "pattern": "^\"[^\"]*\"$" },
+      "hint": "Content was wrapped in extra double quotes. I unescaped it.",
+      "severity": "warning",
+      "confidence": 0.80,
+      "since": "2026-06-06",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-readfile-empty-path",
+      "category": "extra_junk_in_arg",
+      "description": "Sends empty string as file path for Read operations",
+      "tools": ["Read", "file.read", "Glob", "dir.search"],
+      "params": {
+        "file_path": { "repair": "remove" },
+        "path": { "repair": "remove" },
+        "pattern": { "repair": "remove" }
+      },
+      "match": { "null_fields": ["file_path", "path"] },
+      "hint": "The file path was empty. The model should specify a valid file path.",
+      "severity": "error",
+      "confidence": 0.85,
+      "since": "2026-06-06",
+      "deprecated": null
     }
   ]
 }

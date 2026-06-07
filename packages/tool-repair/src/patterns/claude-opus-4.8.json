@@ -3,21 +3,6 @@
   "model": "claude-opus-4.8",
   "patterns": [
     {
-      "id": "opus-missing-bash-cwd",
-      "category": "missing_required_param",
-      "description": "Claude occasionally omits the cwd for shell commands (needs smart default)",
-      "tools": ["Bash", "shell.run"],
-      "params": {
-        "cwd": { "repair": "replace_with_value", "value": "." }
-      },
-      "match": { "missing_fields": ["cwd"] },
-      "hint": "I added cwd='.' for the shell command. Specify if a different directory.",
-      "severity": "warning",
-      "confidence": 0.70,
-      "since": "2026-05-01",
-      "deprecated": null
-    },
-    {
       "id": "opus-readfile-overlong-limit",
       "category": "wrong_arg_format",
       "description": "Claude sometimes sets limit extremely high (5000+), causing context waste",
