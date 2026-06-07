@@ -12,8 +12,8 @@ export function repairToolCall(
   for (const pattern of patterns) {
     let patternChanged = false;
 
+    // Apply wildcard "*" transform to ALL keys first (if present)
     if (pattern.params["*"]) {
-      // Apply "*" transform to all keys
       for (const key of Object.keys(currentArgs)) {
         const result = applyTransform(
           pattern.params["*"].repair,
@@ -26,19 +26,20 @@ export function repairToolCall(
           patternChanged = true;
         }
       }
-    } else {
-      // Apply per-param transforms
-      for (const [paramName, paramRepair] of Object.entries(pattern.params)) {
-        const result = applyTransform(
-          paramRepair.repair,
-          currentArgs,
-          paramName,
-          paramRepair.value
-        );
-        if (result.changed) {
-          currentArgs = result.args;
-          patternChanged = true;
-        }
+    }
+
+    // Apply per-param transforms (overrides wildcard for specific params)
+    for (const [paramName, paramRepair] of Object.entries(pattern.params)) {
+      if (paramName === "*") continue; // Already handled above
+      const result = applyTransform(
+        paramRepair.repair,
+        currentArgs,
+        paramName,
+        paramRepair.value
+      );
+      if (result.changed) {
+        currentArgs = result.args;
+        patternChanged = true;
       }
     }
 

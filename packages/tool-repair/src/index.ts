@@ -38,6 +38,7 @@ export class ToolRepair {
 
   setModel(modelId: string): void {
     this.modelId = modelId;
+    this.registry.reloadAll();
   }
 
   reloadPatterns(): void {
