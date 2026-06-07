@@ -1,0 +1,22 @@
+{
+  "schema": 1,
+  "model": "kimi-k2.6",
+  "patterns": [
+    {
+      "id": "kimi-missing-timeout",
+      "category": "null_in_optional_field",
+      "description": "Kimi sends explicit undefined where optional params expected",
+      "tools": ["Bash", "shell.run", "shell"],
+      "params": {
+        "timeout": { "repair": "remove" },
+        "description": { "repair": "remove" }
+      },
+      "match": { "null_fields": ["timeout"] },
+      "hint": "I removed the undefined optional parameter. Omit instead of sending null.",
+      "severity": "error",
+      "confidence": 0.85,
+      "since": "2026-05-01",
+      "deprecated": null
+    }
+  ]
+}

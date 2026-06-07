@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "model": "deepseek-v4-pro",
+  "patterns": [
+    {
+      "id": "ds4p-shell-null-optional",
+      "category": "null_in_optional_field",
+      "description": "Same as Flash — DeepSeek lineage issue with null optional params",
+      "tools": ["Bash", "shell.run", "shell"],
+      "params": {
+        "timeout": { "repair": "remove" },
+        "description": { "repair": "remove" },
+        "dangerouslyDisableSandbox": { "repair": "remove" }
+      },
+      "match": { "null_fields": ["timeout", "description"] },
+      "hint": "Optional parameters should be omitted, not null. Fixed for you.",
+      "severity": "error",
+      "confidence": 0.90,
+      "since": "2026-04-01",
+      "deprecated": null
+    },
+    {
+      "id": "ds4p-readfile-markdown-link",
+      "category": "markdown_in_path",
+      "description": "File paths wrapped in markdown links, same family as Flash",
+      "tools": ["Read", "file.read", "Glob", "dir.search"],
+      "params": {
+        "file_path": { "repair": "strip_markdown_links" },
+        "path": { "repair": "strip_markdown_links" }
+      },
+      "match": { "pattern": "\\[.*\\]\\(.*\\)" },
+      "hint": "Plain file paths only. Stripped markdown link syntax.",
+      "severity": "error",
+      "confidence": 0.95,
+      "since": "2026-04-15",
+      "deprecated": null
+    },
+    {
+      "id": "ds4p-json-string-vs-array",
+      "category": "type_mismatch",
+      "description": "DeepSeek family trait: JSON string where array expected",
+      "tools": ["*"],
+      "params": {
+        "*": { "repair": "parse_json_string_to_array" }
+      },
+      "match": {
+        "expected_type": "array",
+        "actual_type": "string",
+        "pattern": "^\\s*\\[.*\\]\\s*$"
+      },
+      "hint": "Parsed the JSON string into an array for you.",
+      "severity": "error",
+      "confidence": 0.85,
+      "since": "2026-04-10",
+      "deprecated": null
+    }
+  ]
+}

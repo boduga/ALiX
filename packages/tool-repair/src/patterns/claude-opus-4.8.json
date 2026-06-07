@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "model": "claude-opus-4.8",
+  "patterns": [
+    {
+      "id": "opus-missing-bash-cwd",
+      "category": "missing_required_param",
+      "description": "Claude occasionally omits the cwd for shell commands (needs smart default)",
+      "tools": ["Bash", "shell.run"],
+      "params": {
+        "cwd": { "repair": "replace_with_value", "value": "." }
+      },
+      "match": { "missing_fields": ["cwd"] },
+      "hint": "I added cwd='.' for the shell command. Specify if a different directory.",
+      "severity": "warning",
+      "confidence": 0.70,
+      "since": "2026-05-01",
+      "deprecated": null
+    },
+    {
+      "id": "opus-readfile-overlong-limit",
+      "category": "wrong_arg_format",
+      "description": "Claude sometimes sets limit extremely high (5000+), causing context waste",
+      "tools": ["Read", "file.read"],
+      "params": {
+        "limit": { "repair": "replace_with_value", "value": 200 }
+      },
+      "match": {
+        "expected_type": "number",
+        "actual_type": "number"
+      },
+      "hint": "The read limit was capped at 200 lines to preserve context. Use multiple reads if needed.",
+      "severity": "info",
+      "confidence": 0.65,
+      "since": "2026-06-01",
+      "deprecated": null
+    }
+  ]
+}

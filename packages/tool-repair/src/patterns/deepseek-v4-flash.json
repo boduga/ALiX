@@ -1,0 +1,105 @@
+{
+  "schema": 1,
+  "model": "deepseek-v4-flash",
+  "patterns": [
+    {
+      "id": "ds4f-shell-null-optional",
+      "category": "null_in_optional_field",
+      "description": "Sends null for optional Shell params (timeout, description) instead of omitting",
+      "tools": ["Bash", "shell.run", "shell"],
+      "params": {
+        "timeout": { "repair": "remove" },
+        "description": { "repair": "remove" },
+        "dangerouslyDisableSandbox": { "repair": "remove" }
+      },
+      "match": { "null_fields": ["timeout", "description"] },
+      "hint": "Optional tool parameters should be omitted entirely, not set to null. I removed the null fields for you.",
+      "severity": "error",
+      "confidence": 0.95,
+      "since": "2026-04-01",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-readfile-markdown-link",
+      "category": "markdown_in_path",
+      "description": "Wraps file paths in markdown link syntax: [text](path) or trailing parenthesis",
+      "tools": ["Read", "file.read", "Glob", "dir.search"],
+      "params": {
+        "file_path": { "repair": "strip_markdown_links" },
+        "path": { "repair": "strip_markdown_links" },
+        "pattern": { "repair": "strip_markdown_links" }
+      },
+      "match": { "pattern": "\\[.*\\]\\(.*\\)|.*\\)$" },
+      "hint": "File paths must be plain text. I stripped markdown link syntax from the path.",
+      "severity": "error",
+      "confidence": 0.99,
+      "since": "2026-04-15",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-json-string-vs-array",
+      "category": "type_mismatch",
+      "description": "Emits JSON-encoded string where array expected (e.g. extensions field)",
+      "tools": ["*"],
+      "params": {
+        "*": { "repair": "parse_json_string_to_array" }
+      },
+      "match": {
+        "expected_type": "array",
+        "actual_type": "string",
+        "pattern": "^\\s*\\[.*\\]\\s*$"
+      },
+      "hint": "I received a JSON string but expected an array. I've parsed it for you.",
+      "severity": "error",
+      "confidence": 0.90,
+      "since": "2026-04-10",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-readfile-no-offset",
+      "category": "missing_required_param",
+      "description": "Omits offset/limit when reading files; smart-default based on first read",
+      "tools": ["Read", "file.read"],
+      "params": {
+        "offset": { "repair": "default_first_read" },
+        "limit": { "repair": "default_first_read" }
+      },
+      "match": { "missing_fields": ["offset", "limit"] },
+      "hint": "I defaulted to offset=0, limit=100 for this first read. Adjust if the log/target is near the end of the file.",
+      "severity": "warning",
+      "confidence": 0.85,
+      "since": "2026-05-01",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-empty-object-arg",
+      "category": "extra_junk_in_arg",
+      "description": "Sends empty object {} for a param that should be omitted entirely",
+      "tools": ["*"],
+      "params": {
+        "*": { "repair": "remove" }
+      },
+      "match": { "null_fields": [] },
+      "hint": "An empty object was sent where no value was needed. I removed it.",
+      "severity": "warning",
+      "confidence": 0.80,
+      "since": "2026-05-10",
+      "deprecated": null
+    },
+    {
+      "id": "ds4f-shell-command-stringify",
+      "category": "wrong_arg_format",
+      "description": "Wraps shell command in JSON.stringify format with escaped quotes",
+      "tools": ["Bash", "shell.run"],
+      "params": {
+        "command": { "repair": "strip_markdown_links" }
+      },
+      "match": { "pattern": "^\"[^\"]*\"$" },
+      "hint": "The command was double-escaped as a JSON string. I unescaped it.",
+      "severity": "error",
+      "confidence": 0.85,
+      "since": "2026-05-15",
+      "deprecated": null
+    }
+  ]
+}
