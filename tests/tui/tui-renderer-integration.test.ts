@@ -1,20 +1,16 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { TuiRenderer } from "../../src/tui/render.js";
 
-describe("TuiRenderer", () => {
-  it("appendOutput writes to stdout", () => {
-    const renderer = new TuiRenderer();
-    let written = "";
-    const orig = process.stdout.write;
-    process.stdout.write = ((s: string) => { written += s; return true; }) as any;
-    try {
-      renderer.start();
-      renderer.appendOutput("hello");
-      assert.ok(written.includes("hello"));
-    } finally {
-      process.stdout.write = orig;
-      renderer.stop();
-    }
+describe("Tui", () => {
+
+  it("appendOutput, resetOutput, updateTokenUsage exist as functions", async () => {
+    const { Tui } = await import("../../src/tui/index.js");
+    const tui = new Tui({ sessionId: "test", maxTokens: 100000 });
+    assert.ok(typeof tui.appendOutput === "function", "appendOutput exists");
+    assert.ok(typeof tui.resetOutput === "function", "resetOutput exists");
+    assert.ok(typeof tui.updateTokenUsage === "function", "updateTokenUsage exists");
+    assert.ok(typeof tui.destroy === "function", "destroy exists");
+    assert.ok(typeof tui.init === "function", "init exists");
   });
+
 });

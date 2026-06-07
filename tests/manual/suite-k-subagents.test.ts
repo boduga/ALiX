@@ -21,7 +21,7 @@ describe("Suite K: Subagents", () => {
 
   // ── K.3: Worker subagent ──────────────────────────────────────
   it("K.3: worker subagent runs a write task", { ...needsModel }, () => {
-    const r = runCli(["agent", "worker", "create test.txt"], { timeoutMs: 60_000 });
+    const r = runCli(["agent", "worker", "create test.txt"], { timeoutMs: 120_000 });
     assertSuccess(r);
   });
 

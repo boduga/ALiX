@@ -26,6 +26,7 @@ import { shouldRunVerification, discoverVerification, runVerification, type Veri
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
+import { saveSessionState } from "../session/index.js";
 import { buildRefinePrompt, selectStrategy } from "../orchestrator/refine-strategies.js";
 import {
   handleToolCall,
@@ -188,6 +189,9 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
 
     let repairCount = 0;
     const maxRepairs = 3;
+
+    // Track last saved message count for incremental persistence
+    let lastSavedMessages = 0;
 
     // Get the McpManager from executor (executor holds a reference)
     const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
@@ -622,6 +626,22 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
         }
       }
     }
+
+      // Persist session state at the end of each iteration for crash resilience
+      try {
+        await saveSessionState(
+          sessionDir,
+          {
+            messages,
+            scope: scope.toJSON(),
+            stateMachine: stateMachine.toJSON(),
+          }
+        );
+        lastSavedMessages = messages.length;
+      } catch (saveErr) {
+        // Non-fatal — session state is best-effort
+        await log.append({ ...session, actor: "system", type: "session.state_persist_failed", payload: { error: String(saveErr) } });
+      }
   }
 
   // Max iterations reached

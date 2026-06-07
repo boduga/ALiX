@@ -21,15 +21,17 @@ export async function runPlanPhase(
   ctx: AgentContext,
   bundle: ContextBundle,
   task: string,
+  planFilePath?: string,
 ): Promise<PlanPhaseResult> {
-  // Skip plan generation for read-only tasks (flux commands, research questions)
-  // and non-TTY sessions. These don't need planning — just execute.
+  // Skip plan generation for read-only tasks and non-TTY sessions
   if (isReadOnlyTask(task) || !process.stdout.isTTY) {
     return { action: "approved", planContent: "" };
   }
 
-  // 1. Generate plan
-  const planContent = await generatePlan(ctx, bundle, task);
+  // 1. Generate plan (or load from file if provided — fast path for testing)
+  const planContent = planFilePath
+    ? await readFile(planFilePath, "utf-8")
+    : await generatePlan(ctx, bundle, task);
 
   // 2. Save plan to disk
   const projectRoot = (ctx.config as any).projectRoot ?? process.cwd();

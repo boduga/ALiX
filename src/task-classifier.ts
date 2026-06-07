@@ -102,7 +102,6 @@ const READ_ONLY_PATTERNS = [
   /^stat(?:\s|$)/i,
   /^du(?:\s|$)/i,
   /^df(?:\s|$)/i,
-  /^which(?:\s|$)/i,
   /^whoami(?:\s|$)/i,
   /^env(?:\s|$)/i,
   /^echo(?:\s|$)/i,
@@ -111,6 +110,8 @@ const READ_ONLY_PATTERNS = [
   /^type(?:\s|$)/i,
   /^curl(?:\s|$)/i,
   /^ping(?:\s|$)/i,
+  // Note: 'which' intentionally omitted — too common as natural language
+  // ("which model are you using?"). Users can prefix with "run" for shell.
 ];
 
 const WRITE_PATTERNS = [
@@ -138,7 +139,9 @@ const WRITE_PATTERNS = [
  * (research, question, docs review) that doesn't need a plan prompt.
  */
 export function isReadOnlyTask(prompt: string): boolean {
-  const hasReadSignal = READ_ONLY_PATTERNS.some((p) => p.test(prompt));
+  // Strip surrounding quotes so 'ls' and "ls" match shell command patterns
+  const stripped = prompt.replace(/^['"]|['"]$/g, "");
+  const hasReadSignal = READ_ONLY_PATTERNS.some((p) => p.test(stripped));
   const hasWriteSignal = WRITE_PATTERNS.some((p) => p.test(prompt));
 
   if (hasReadSignal && !hasWriteSignal) return true;

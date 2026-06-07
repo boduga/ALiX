@@ -28,6 +28,8 @@ const MODEL_OVERRIDES: Record<string, ContextResult> = {
   "gemini-3.5-flash": { maxTokens: 1_000_000, encoding: "o200k_base" },
   "gpt-4o":            { maxTokens: 128_000,  encoding: "cl100k_base" },
   "gpt-4-turbo":       { maxTokens: 128_000,  encoding: "cl100k_base" },
+  "deepseek-chat":     { maxTokens: 64_000,   encoding: "cl100k_base" },
+  "deepseek-v4-flash": { maxTokens: 1_000_000, encoding: "cl100k_base" },
 };
 
 /**

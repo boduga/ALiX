@@ -77,7 +77,7 @@ alix serve
 
 | Command | Description |
 |---------|-------------|
-| `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--no-stream`, `--mode=bypass` |
+| `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--no-stream`, `--mode=bypass`, `--resume <id>` |
 | `alix chat` | Interactive chat with web search tools |
 | `alix tui` | Multi-task terminal UI (continuous session) |
 | `alix serve` | Start the inspector web UI |
@@ -88,6 +88,8 @@ alix serve
 | `alix mcp list` | List connected MCP servers |
 | `alix mcp add` | Add an MCP server |
 | `alix agent <role> "<prompt>"` | Spawn a subagent directly |
+| `alix session list` | List past sessions (newest first) |
+| `alix session show <id>` | Show session details and status |
 | `alix memory list` | List memory entries |
 
 ---
@@ -119,6 +121,85 @@ alix run "use create_hook to register a hook that logs every file.delete to audi
 
 # Use web search
 alix run "what are the latest developments in AI agents" --session-mode bypass
+```
+
+---
+
+## Walkthrough: Plan → Approve → Execute
+
+When you run `alix run "<task>"`, plan mode is the default. Here's what happens:
+
+### 1. Task classification
+
+ALiX classifies your task type (feature, bugfix, refactor, docs, research) and selects relevant context.
+
+### 2. Context compilation
+
+The repo is analyzed — related files, tests, symbol definitions, and git activity are ranked by relevance to your task within your token budget.
+
+### 3. Plan generation
+
+The model generates a structured plan without calling any tools:
+
+```
+$ alix run "add a healthz endpoint to src/server.ts"
+
+## Plan: Add /healthz endpoint
+**Type:** feature | **Complexity:** low | **Risk:** low
+
+### Changes
+1. **Create** `src/routes/health.ts`
+   - GET handler returning `{ status: "ok", timestamp: Date.now() }`
+2. **Modify** `src/server.ts`
+   - Import and register `/healthz` route
+
+### Verification
+- `npm run build` passes
+- `curl localhost:3000/healthz` returns 200
+
+### Impact
+- No callers affected
+- No breaking changes
+
+Approve plan? [Y/n/e/d] _
+```
+
+### 4. Approval
+
+| Key | Action |
+|-----|--------|
+| **Y** / Enter | Approve and execute |
+| **n** | Reject — cancels the task |
+| **e** | Edit — opens `$EDITOR` to modify the plan before approving |
+| **d** | Detail — shows full context and expanded plan |
+
+Once approved, the plan is injected into the agent's system prompt as a shared commitment.
+
+### 5. Execution
+
+The agent executes the plan step by step, calling tools (file read, search, edit, shell) as needed. Each tool call is logged and the output is shown. On completion, verification runs automatically.
+
+### 6. Resume Interrupted Sessions
+
+If a session is interrupted (max iterations, crash, Ctrl+C), you can resume it:
+
+```bash
+# List all sessions to find the interrupted one
+alix session list
+
+# Resume it
+alix run --resume <session-id>
+```
+
+The agent picks up from where it left off — prior context, scope approvals, and plan are restored. No tool calls are re-executed.
+
+```bash
+# Short read-only tasks skip plan generation automatically
+alix run "list files in src/" --session-mode bypass
+
+# Development task with plan
+alix run "fix the TS2322 error in src/auth.ts"
+# → Plan prints, approve with Y
 ```
 
 ---

@@ -22,6 +22,8 @@ export type RunOpts = {
   sessionMode?: "auto" | "ask" | "bypass";
   sharedSession?: SharedSession;
   planMode?: boolean;
+  resumeSessionId?: string;
+  planFilePath?: string;
 };
 
 export const EXIT_CODES = {

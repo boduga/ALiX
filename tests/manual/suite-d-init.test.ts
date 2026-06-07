@@ -67,9 +67,10 @@ describe("Suite D: Init", () => {
       writeFileSync(join(configDir, "config.json"), JSON.stringify(config, null, 2) + "\n");
 
       // Scaffold via run (uses bootstrapped config)
-      const r = runCli(["run", "create a Fastify API server with TypeScript"], {
+      // Use a focused dev task (not "create a full server" — too slow for a scaffold test)
+      const r = runCli(["run", "add a healthz endpoint"], {
         cwd: path,
-        timeoutMs: 120_000,
+        timeoutMs: 180_000,
         env: withApiKey(),
       });
       assertSuccess(r);

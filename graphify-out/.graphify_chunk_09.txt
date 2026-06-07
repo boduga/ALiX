@@ -1,0 +1,17 @@
+/home/babasola/Projects/Monolith/src/cli/commands/skills/refactor/SKILL.md
+/home/babasola/Projects/Monolith/src/cli/commands/skills/review/SKILL.md
+/home/babasola/Projects/Monolith/src/cli/commands/skills/simplify/SKILL.md
+/home/babasola/Projects/Monolith/src/cli/commands/skills/tdd/SKILL.md
+/home/babasola/Projects/Monolith/src/cli/commands/skills/test-suite/SKILL.md
+/home/babasola/Projects/Monolith/src/orchestrator/refine-strategies/analyze.md
+/home/babasola/Projects/Monolith/src/orchestrator/refine-strategies/decompose.md
+/home/babasola/Projects/Monolith/src/orchestrator/refine-strategies/escalate.md
+/home/babasola/Projects/Monolith/src/orchestrator/refine-strategies/retry.md
+/home/babasola/Projects/Monolith/src/orchestrator/refine-strategies/simplify.md
+/home/babasola/Projects/Monolith/src/orchestrator/refine-strategies/verify_only.md
+/home/babasola/Projects/Monolith/src/ui/index.html
+/home/babasola/Projects/Monolith/test-folder/test-mutate.txt
+/home/babasola/Projects/Monolith/test.txt
+/home/babasola/Projects/Monolith/tests/manual/QUICK_REFERENCE.md
+/home/babasola/Projects/Monolith/tests/manual/README.md
+/home/babasola/Projects/Monolith/tests/manual/test-plan-canned.md

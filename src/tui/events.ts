@@ -70,6 +70,13 @@ export class EventLogBridge {
           timestamp: Date.now(),
         });
         break;
+
+      case "model.usage":
+        this.store.setTokenBudget({
+          used: this.store.getState().tokenBudget.used + (payload.inputTokens as number) + (payload.outputTokens as number),
+          max: this.store.getState().tokenBudget.max,
+        });
+        break;
     }
   }
 }

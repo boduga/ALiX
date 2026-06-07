@@ -77,6 +77,9 @@ Usage:
   alix run "<task>" --no-plan  Execute directly without planning phase
   alix run "<task>" --no-stream  Disable streaming output
   alix run "<task>" --mode=auto|ask|bypass  Set session permission mode
+  alix run --resume <id>  Resume an interrupted session
+  alix session list       List past sessions
+  alix session show <id>  Show session details
   alix serve
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
@@ -289,19 +292,25 @@ if (command === "run") {
   const noPlan = taskArgs.includes("--no-plan");
   const modeMatch = taskArgs.match(/--mode=(\w+)/);
   const sessionModeMatch = taskArgs.match(/--session-mode[= ](\w+)/);
+  const resumeMatch = taskArgs.match(/--resume[= ](\S+)/);
+  const planFileMatch = taskArgs.match(/--plan-file[= ](\S+)/);
   const mode = (modeMatch?.[1] ?? sessionModeMatch?.[1]) as "auto" | "ask" | "bypass" | undefined;
+  const resumeSessionId = resumeMatch?.[1];
+  const planFilePath = planFileMatch?.[1];
   const cleanTask = taskArgs
     .replace(/\s*--no-stream\s*/g, " ")
     .replace(/\s*--no-plan\s*/g, " ")
     .replace(/\s*--mode=\w+\s*/g, " ")
     .replace(/\s*--session-mode[= ]\w+\s*/g, " ")
+    .replace(/\s*--resume[= ]\S+\s*/g, " ")
+    .replace(/\s*--plan-file[= ]\S+\s*/g, " ")
     .trim();
-  if (!cleanTask) {
-    console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass]");
+  if (!cleanTask && !resumeSessionId) {
+    console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>]");
     process.exit(1);
   }
   try {
-    const result = await runTask(process.cwd(), cleanTask, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode: mode });
+    const result = await runTask(process.cwd(), cleanTask, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode: mode, resumeSessionId, planFilePath });
     if (!result.streamed) {
       console.log(result.summary);
     }
@@ -562,13 +571,27 @@ if (command === "extension") {
 // --- alix agent <role> "prompt" --- runs subagent in same process (no recursion)
 const agentRole = process.argv[3];
 if (command === "agent" && agentRole) {
-  const prompt = process.argv.slice(4).join(" ");
+  // Separate flags (--flag) from prompt words after position 3
+  const restArgs = process.argv.slice(4);
+  const promptWords: string[] = [];
+  const extraArgs: string[] = [];
+  for (let i = 0; i < restArgs.length; i++) {
+    if (restArgs[i].startsWith("--") && !restArgs[i].startsWith("--prompt")) {
+      // Flag arg; collect it and its value (if next arg isn't a flag)
+      extraArgs.push(restArgs[i]);
+      if (i + 1 < restArgs.length && !restArgs[i + 1].startsWith("--")) {
+        extraArgs.push(restArgs[++i]);
+      }
+    } else {
+      promptWords.push(restArgs[i]);
+    }
+  }
+  const prompt = promptWords.join(" ");
   if (!prompt) { console.error("Usage: alix agent <role> <prompt>"); process.exit(1); }
   const config = await loadConfig(process.cwd());
   const provider = config.model.provider;
   const model = config.model.name;
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
-  const extraArgs = process.argv.slice(6);
   await SubagentCLI.main([
     "--subagent", agentRole,
     "--task-id", crypto.randomUUID(),
@@ -585,9 +608,10 @@ if (command === "agent" && agentRole) {
 }
 
 // --- alix run --subagent <role> --- subagent process entry point (called by parent) ---
+// Contract: args[1]=role, args[2]=task-id, args[3]=prompt, args[4]=mode, args[5]=session-id
+// args[6..n] = extra flags (e.g. --model, --owned-paths)
 if (command === "run" && args[0] === "--subagent") {
   const { SubagentCLI } = await import("./agents/subagent-cli.js");
-  // Pass through any extra args (e.g. --model, --owned-paths)
   const extraArgs = process.argv.slice(7);
   const subagentArgs = ["--subagent", args[1],
     "--task-id", args[2] ?? crypto.randomUUID(),
@@ -680,6 +704,54 @@ if (command === "memory") {
     console.log("  search <query>         - Search memory entries");
     console.log("  stats                  - Show memory statistics");
   }
+  process.exit(0);
+}
+
+// --- alix session --- session management commands ---
+if (command === "session") {
+  const { listSessions, sessionInfo } = await import("./session/resume.js");
+
+  if (args[0] === "list") {
+    const sessions = await listSessions(process.cwd());
+    if (sessions.length === 0) {
+      console.log("No sessions found.");
+    } else {
+      console.log(`${"ID".padEnd(38)} ${"Task".padEnd(50)} ${"Status".padEnd(14)} ${"Iters".padEnd(6)} Date`);
+      console.log("-".repeat(120));
+      for (const s of sessions) {
+        const date = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "";
+        console.log(`${s.sessionId.padEnd(38)} ${s.task.slice(0, 48).padEnd(50)} ${s.status.padEnd(14)} ${String(s.iterations).padEnd(6)} ${date}`);
+      }
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "show" && args[1]) {
+    const info = await sessionInfo(process.cwd(), args[1]);
+    if (!info) {
+      console.error(`Session not found: ${args[1]}`);
+      process.exit(1);
+    }
+    console.log(`Session:    ${info.sessionId}`);
+    console.log(`Task:       ${info.task}`);
+    console.log(`Status:     ${info.status}`);
+    console.log(`Iterations: ${info.iterations}`);
+    console.log(`Repairs:    ${info.repairs}`);
+    console.log(`File changes: ${info.fileChanges}`);
+    console.log(`Shell cmds: ${info.shellCommands}`);
+    console.log(`Created:    ${info.createdAt ? new Date(info.createdAt).toLocaleString() : "unknown"}`);
+    console.log(`Updated:    ${info.updatedAt ? new Date(info.updatedAt).toLocaleString() : "unknown"}`);
+    process.exit(0);
+  }
+
+  if (args[0] === "show" && !args[1]) {
+    console.error("Usage: alix session show <session-id>");
+    process.exit(1);
+  }
+
+  console.log("Usage: alix session [list|show <id>]");
+  console.log("  list             - List all sessions (newest first)");
+  console.log("  show <id>        - Show session details");
   process.exit(0);
 }
 

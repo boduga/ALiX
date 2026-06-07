@@ -10,17 +10,6 @@ export interface TuiOptions {
   sessionName?: string;
 }
 
-function readLine(): Promise<string | null> {
-  return new Promise((resolve) => {
-    process.stdin.once("data", (buffer: Buffer) => {
-      const text = buffer.toString("utf-8").replace(/\r?\n$/, "");
-      if (text === "") { resolve(null); return; }
-      resolve(text);
-    });
-    process.stdout.write("> ");
-  });
-}
-
 export async function runTui(opts: TuiOptions): Promise<void> {
   const cwd = process.cwd();
 
@@ -30,47 +19,64 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
   const sessionDir = join(cwd, ".alix", "sessions", sessionId);
   await mkdir(sessionDir, { recursive: true });
-  await loadConfig(cwd);
 
+  const config = await loadConfig(cwd);
   const tuiLog = new EventLog(sessionDir);
   await tuiLog.init();
 
-  const tui = new Tui({ sessionId, eventLog: tuiLog });
-  await tui.init();
+  const { resolveContextLimit } = await import("../../config/context-limits.js");
+  const contextInfo = await resolveContextLimit(config.model.provider, config.model.name, config.apiKeys);
 
-  process.on("SIGINT", () => {
-    tui.destroy();
-    process.exit(0);
-  });
+  const tui = new Tui({ sessionId, maxTokens: contextInfo.maxTokens });
 
-  console.log("ALiX TUI - Interactive Session");
-  console.log("Type 'exit' to quit.\n");
-
-  if (opts.sessionName) return;
-
-  while (true) {
-    const task = await readLine();
-    if (task === null) break;
-    if (!task.trim()) continue;
-    if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
-    if (task.trim().length < 3) continue;
-
+  tui.onTask = async (task: string) => {
     try {
       const result = await runTask(cwd, task, {
         streaming: true,
         sessionMode: "bypass",
         sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
+      }, (chunk) => {
+        if (chunk.type === "text" && typeof chunk.text === "string") {
+          tui.appendOutput(chunk.text, true);
+        }
       });
 
-      // Print the full result summary. In non-TTY mode streaming is
-      // auto-disabled, so the text comes only via result.summary.
-      if (result.summary) process.stdout.write(result.summary + "\n");
-      console.log("");
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
-      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
-    }
-  }
+      if (result.summary) {
+        tui.appendOutput(result.summary, false);
+      }
 
-  tui.destroy();
+      // Track token usage from model.usage events
+      if (contextInfo.maxTokens) {
+        const events = await tuiLog.readAll();
+        let totalTokens = 0;
+        for (const ev of events) {
+          if (ev.type === "model.usage" && typeof (ev.payload as any)?.inputTokens === "number") {
+            totalTokens += (ev.payload as any).inputTokens + ((ev.payload as any).outputTokens ?? 0);
+          }
+        }
+        if (totalTokens > 0) tui.updateTokenUsage(totalTokens);
+      }
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") return;
+      tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`, false);
+    }
+  };
+
+  tui.onExit = () => {
+    tui.destroy();
+    process.exit(0);
+  };
+
+  await tui.init();
+
+  // Welcome messages
+  tui.appendOutput("ALiX · Interactive Session", false);
+  tui.appendOutput(`session: ${sessionId.slice(0, 16)}…`, false);
+  tui.appendOutput(`context: ${(contextInfo.maxTokens ?? 0).toLocaleString()} tokens`, false);
+  tui.appendOutput(`model: ${config.model.provider}/${config.model.name}`, false);
+  tui.appendOutput('type "exit" or Ctrl+C to quit', false);
+  tui.appendOutput("", false);
+
+  // Keep alive
+  await new Promise<void>(() => {});
 }

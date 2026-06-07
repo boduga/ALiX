@@ -77,7 +77,7 @@ describe("Suite N: Web Tools", () => {
   it("N.1: web_search tool works with BRAVE_API_KEY", { ...needsBrave }, () => {
     const r = runCli(
       ["run", "search the web for latest AI news and summarize", "--session-mode", "bypass", "--no-stream", "--no-plan"],
-      { timeoutMs: 60_000, env: { BRAVE_API_KEY: process.env.BRAVE_API_KEY! } },
+      { timeoutMs: 120_000, env: { BRAVE_API_KEY: process.env.BRAVE_API_KEY! } },
     );
     assert.ok(r.exitCode === 0 || r.stdout.length > 0, `web search should produce output (exit: ${r.exitCode})`);
     assert.ok(

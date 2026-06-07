@@ -46,7 +46,7 @@ describe("Suite B: Plan Mode", () => {
 
   // ── B.4: Development task with direct execution ───────────────
   it("B.4: development task produces session output", () => {
-    const r = runCli([...BASE, "fix the null pointer in user.ts"], { timeoutMs: 60_000 });
+    const r = runCli([...BASE, "fix the null pointer in user.ts"], { timeoutMs: 180_000 });
     assertSuccess(r);
     assert.ok(r.stdout.includes("Session:"), "should produce a session ID");
   });

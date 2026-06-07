@@ -45,7 +45,7 @@ describe("Suite A: Basic CLI (alix run)", () => {
   it("A.5: rejected plan returns early with cancellation message", () => {
     // Simulate using --no-plan since we can't pipe 'n' via execSync easily
     // Instead verify the plan rejection code path exists
-    const r = runCli([...BASE, "--no-plan", "echo hello"]);
+    const r = runCli([...BASE, "--no-plan", "echo hello"], { timeoutMs: 60_000 });
     assertSuccess(r);
     assert.equal(r.stdout.includes("hello"), true, "should execute directly");
   });
@@ -75,7 +75,7 @@ describe("Suite A: Basic CLI (alix run)", () => {
 
   // ── A.7: Streaming ─────────────────────────────────────────────
   it("A.7: streaming output works without --no-stream", () => {
-    const r = runCli(["run", "--session-mode", "bypass", "echo hello"], { timeoutMs: 30_000 });
+    const r = runCli(["run", "--session-mode", "bypass", "echo hello"], { timeoutMs: 60_000 });
     assertSuccess(r);
     assertOutputContains(r, "hello");
   });

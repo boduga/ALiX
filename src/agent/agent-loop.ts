@@ -24,6 +24,34 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   const session = { sessionId: ctx.sessionId, actor: "system" as const };
 
+  // Resume path — reconstruct state from a prior session
+  if (opts?.resumeSessionId) {
+    const { reconstructSession } = await import("../session/resume.js");
+    const reconstructed = await reconstructSession(cwd, opts.resumeSessionId);
+
+    if (reconstructed.completed) {
+      return {
+        sessionId: ctx.sessionId,
+        summary: `Session ${opts.resumeSessionId} is already completed. Use a different session or start a new task.`,
+        streamed: opts?.streaming,
+      };
+    }
+
+    // Override task with the original task from the persisted session
+    const originalTask = reconstructed.messages.find(m => m.role === "user");
+    if (originalTask && typeof originalTask.content === "string") {
+      task = originalTask.content;
+    }
+
+    // Store reconstructed state on context for downstream use
+    (ctx as any)._resumedMessages = reconstructed.messages;
+    (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
+    (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
+    (ctx as any)._planContent = reconstructed.planContent;
+
+    await ctx.log.append({ ...session, actor: "system", type: "session.resumed", payload: { priorSessionId: opts.resumeSessionId, task } });
+  }
+
   // Build memory context for injection into system prompt
   const memoryContext = await buildMemoryContext(ctx.memoryStore);
   const memoryStats = await buildMemoryStats(ctx.memoryStore);
@@ -77,6 +105,36 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     void ctx.log.append({ ...session, actor: "system", type: "agent.state_changed", payload: { state: to, reason } });
   });
 
+  // Restore state machine counters on resume
+  if (opts?.resumeSessionId) {
+    const stateSnapshot = (ctx as any)._stateSnapshot;
+    if (stateSnapshot) {
+      stateMachine._setState(stateSnapshot.state);
+      // Restore counters by calling tick an appropriate number of times
+      for (let c = 0; c < stateSnapshot.counters.iterations; c++) {
+        stateMachine.tick(0);
+      }
+      for (let c = 0; c < stateSnapshot.counters.repairs; c++) {
+        stateMachine.recordRepair();
+      }
+      for (let c = 0; c < stateSnapshot.counters.fileChanges; c++) {
+        stateMachine.recordFileChange();
+      }
+      for (let c = 0; c < stateSnapshot.counters.shellCommands; c++) {
+        stateMachine.recordShellCommand();
+      }
+    }
+
+    // Restore scope from snapshot if available
+    const scopeSnapshot = (ctx as any)._scopeSnapshot;
+    if (scopeSnapshot) {
+      const { ScopeTracker } = await import("../autonomy/scope-tracker.js");
+      const restored = ScopeTracker.fromJSON(scopeSnapshot);
+      // Replace the scope on ctx so downstream code uses the restored one
+      (ctx as any)._restoredScope = restored;
+    }
+  }
+
   // Context compiler: warm up and compile context bundle
   const contextCompiler = new ContextCompiler({
     root: cwd,
@@ -94,8 +152,13 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   // Plan phase — generate plan, get approval, inject into system prompt
   let approvedPlanContent: string | undefined;
-  if (opts?.planMode !== false) {
-    const planResult = await runPlanPhase(ctx, contextBundle, task);
+
+  // On resume, use the existing plan instead of generating a new one
+  const resumedPlan = (ctx as any)._planContent;
+  if (resumedPlan) {
+    approvedPlanContent = resumedPlan;
+  } else if (opts?.planMode !== false) {
+    const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
     if (planResult.action === "rejected") {
       return {
         sessionId: ctx.sessionId,
@@ -195,10 +258,10 @@ ${approvedPlanContent}`);
     provider: ctx.provider,
     providerTools,
     mcpToolIndex,
-    messages: [{ role: "user" as const, content: task }],
+    messages: (ctx as any)._resumedMessages ?? [{ role: "user" as const, content: task }],
     sessionState,
     stateMachine,
-    scope: ctx.scope,
+    scope: (ctx as any)._restoredScope ?? ctx.scope,
     session,
     log: ctx.log,
     executor: ctx.toolExecutor,

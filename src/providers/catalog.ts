@@ -152,11 +152,28 @@ export async function listModels(providerId: string, apiKey: string): Promise<Mo
 }
 
 /**
- * Get default model for a provider (for init command).
- * No longer ships hardcoded defaults — returns undefined so callers derive a value.
+ * Default models per provider (for `alix init` command).
+ * Chosen for broad capability coverage at each provider's best price/performance tier.
  */
-export function getDefaultModel(_providerId: string): string | undefined {
-  return undefined;
+const DEFAULT_MODELS: Record<string, string> = {
+  anthropic: "claude-sonnet-4-6",
+  openai: "gpt-4o",
+  google: "gemini-2.5-flash",
+  openrouter: "openrouter/auto",
+  groq: "llama-3.3-70b-versatile",
+  ollama: "qwen2.5-coder:7b",
+  perplexity: "sonar-pro",
+  minimax: "minimax-text-01",
+  zhipuai: "glm-4-flash",
+  grokai: "grok-2-latest",
+  deepseek: "deepseek-chat",
+};
+
+/**
+ * Get default model for a provider (for init command).
+ */
+export function getDefaultModel(providerId: string): string | undefined {
+  return DEFAULT_MODELS[providerId];
 }
 
 /**

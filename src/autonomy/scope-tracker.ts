@@ -20,6 +20,14 @@ export type ChangeEvaluation = {
   newFiles?: string[];
 };
 
+export type ScopeSnapshot = {
+  scope: TaskScope | undefined;
+  expansions: Expansion[];
+  approvedPaths: string[];
+  deniedPaths: string[];
+  pendingApproval: string | null;
+};
+
 export class ScopeTracker {
   private scope: TaskScope | undefined;
   private expansions: Expansion[] = [];
@@ -132,6 +140,28 @@ export class ScopeTracker {
     if (!this.scope) return;
     this.scope.approvedAt = new Date().toISOString();
     this.expansions = [];
+  }
+
+  /** Serialize state for persistence (session resume). */
+  toJSON(): ScopeSnapshot {
+    return {
+      scope: this.scope ? { ...this.scope } : undefined,
+      expansions: [...this.expansions],
+      approvedPaths: [...this.approvedPaths],
+      deniedPaths: [...this.deniedPaths],
+      pendingApproval: this._pendingApproval,
+    };
+  }
+
+  /** Restore state from a snapshot. */
+  static fromJSON(snapshot: ScopeSnapshot): ScopeTracker {
+    const st = new ScopeTracker();
+    if (snapshot.scope) st.scope = { ...snapshot.scope };
+    st.expansions = snapshot.expansions.map(e => ({ ...e }));
+    st.approvedPaths = new Set(snapshot.approvedPaths);
+    st.deniedPaths = new Set(snapshot.deniedPaths);
+    st._pendingApproval = snapshot.pendingApproval;
+    return st;
   }
 }
 

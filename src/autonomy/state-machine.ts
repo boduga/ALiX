@@ -16,6 +16,11 @@ export type RunCounters = {
   runtimeMs: number;
 };
 
+export type StateSnapshot = {
+  state: AgentState;
+  counters: RunCounters;
+};
+
 export type RunResult = {
   success: boolean;
   reason: string;
@@ -217,4 +222,20 @@ export class TaskStateMachine {
 
   /** @internal - for testing only */
   _setState(to: AgentState) { this.state = to; }
+
+  /** Serialize state for persistence (session resume). */
+  toJSON(): StateSnapshot {
+    return {
+      state: this.state,
+      counters: this.snapshot,
+    };
+  }
+
+  /** Restore state from a snapshot. */
+  static fromJSON(snapshot: StateSnapshot, limiter: RunLimiter, onTransition?: (from: AgentState, to: AgentState, reason?: string) => void): TaskStateMachine {
+    const sm = new TaskStateMachine(limiter, onTransition);
+    sm.state = snapshot.state;
+    sm.counters = { ...snapshot.counters };
+    return sm;
+  }
 }
