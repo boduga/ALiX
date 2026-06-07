@@ -3,7 +3,9 @@
     "target": "ES2024",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "lib": ["ES2024"],
+    "lib": [
+      "ES2024"
+    ],
     "rootDir": ".",
     "outDir": "dist",
     "strict": true,
@@ -11,9 +13,14 @@
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
     "declaration": true,
-    "sourceMap": true
+    "sourceMap": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "react"
   },
-  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "include": [
+    "src/**/*.ts",
+    "tests/**/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",
