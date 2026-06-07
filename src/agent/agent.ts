@@ -15,6 +15,7 @@ import { CheckpointManager } from "../patch/checkpoint.js";
 import { buildSessionDigest } from "../utils/session-digest.js";
 import { MemoryStore } from "../utils/memory/store.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
+import { createToolRepairHooks } from "../../packages/tool-repair/src/adapters/alix-hook.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { extractInitialScope, createScopeTracker } from "../autonomy/scope-tracker.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
@@ -173,6 +174,13 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   // Initialize HookRunner for runtime-registered hooks
   const { HookRunner } = await import("../extensions/hook-runner.js");
   const hookRunner = new HookRunner();
+
+  // Register tool-repair hooks for monitoring and error recovery
+  const modelKey = `${config.model.provider}-${config.model.name}`;
+  const repairHooks = createToolRepairHooks(modelKey);
+  for (const hook of repairHooks) {
+    hookRunner.register(hook.name, hook.fn);
+  }
 
   const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager);
 
