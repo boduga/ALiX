@@ -1,0 +1,24 @@
+{
+  "name": "@alix/tool-repair",
+  "version": "0.1.0",
+  "description": "Model-keyed deterministic tool-call repair engine for AI coding agents",
+  "private": true,
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": "./dist/src/index.js",
+    "./miner": "./dist/src/miner/index.js",
+    "./patterns/*": "./dist/src/patterns/*"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "node --experimental-strip-types --test tests/*.test.ts tests/**/*.test.ts",
+    "mine": "node --experimental-strip-types bin/tool-repair.js mine"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "24.0.0",
+    "typescript": "5.9.3"
+  }
+}

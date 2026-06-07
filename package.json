@@ -16,6 +16,7 @@
     "openai"
   ],
   "type": "module",
+  "workspaces": ["packages/tool-repair"],
   "bin": {
     "alix": "./bin/alix.js"
   },
