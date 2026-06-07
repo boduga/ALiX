@@ -1,0 +1,3 @@
+{"toolCallId": "call_1", "name": "Bash", "args": {"command": "ls", "timeout": null}, "expected": {"command": "ls"}, "expectedPattern": "ds4f-shell-null-optional"}
+{"toolCallId": "call_2", "name": "Read", "args": {"file_path": "[README](src/README.md)"}, "expected": {"file_path": "src/README.md"}, "expectedPattern": "ds4f-readfile-markdown-link"}
+{"toolCallId": "call_3", "name": "Bash", "args": {"command": "ls -la", "timeout": null, "description": null}, "expected": {"command": "ls -la"}, "expectedPattern": "ds4f-shell-null-optional"}
