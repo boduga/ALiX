@@ -228,6 +228,7 @@ export async function handleToolCall(
   continue?: boolean;
   completed?: boolean;
   summary?: string;
+  error?: { message: string; retryable?: boolean };
 }> {
   const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
 
@@ -280,6 +281,7 @@ export async function handleToolCall(
 
   return {
     message: { role: "user", content: `<tool_result id="${toolCall.id}">\n${resultContent}\n</tool_result>` },
+    ...(execResult.kind === "error" ? { error: { message: execResult.message, retryable: execResult.retryable } } : {}),
   };
 }
 

@@ -124,6 +124,7 @@ export interface TaskLoopDeps {
   taskType: string;
   depth: "quick" | "deep";
   readOnly?: boolean;
+  shellTask?: boolean;
   embedderDbPath?: string;
   memoryStore: MemoryStore;
   sessionId: string;
@@ -502,6 +503,28 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
           if (hr.handled) await log.append({ ...session, actor: "system", type: "hook.executed", payload: { hookName: "on_post_tool", toolName: execName } });
         }
 
+        // Fire on_tool_error hook when tool fails
+        if (deps.hookRunner && toolResult.error) {
+          const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
+          const hr = await deps.hookRunner.execute("on_tool_error", {
+            type: "tool_error",
+            data: {
+              toolName: execName,
+              args: toolCall.args,
+              error: toolResult.error.message,
+              retryable: toolResult.error.retryable,
+            },
+          });
+          if (hr.handled) {
+            await log.append({
+              ...session,
+              actor: "system",
+              type: "hook.executed",
+              payload: { hookName: "on_tool_error", toolName: execName, handled: true },
+            });
+          }
+        }
+
         if (toolResult.completed) {
           await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
           const sessionEvents = await log.readAll();
@@ -514,8 +537,8 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
           messages.push(toolResult.message);
         }
 
-        // Auto-complete for read-only tasks after a successful tool call
-        if (deps.readOnly && !toolResult.completed && !toolResult.continue) {
+        // Auto-complete for shell tasks after a successful tool call
+        if (deps.shellTask && !toolResult.completed && !toolResult.continue) {
           // Extract clean output from tool result message (strip XML tags)
           const raw = typeof toolResult.message?.content === "string" ? toolResult.message.content : "";
           const output = raw.replace(/<[^>]+>/g, "").trim();
