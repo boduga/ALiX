@@ -32,7 +32,8 @@ export type TransformName =
   | "parse_json_string_to_array"
   | "default_first_read"
   | "default_last_read"
-  | "replace_with_value";
+  | "replace_with_value"
+  | "strip_outer_quotes";
 
 export type MatchCondition = {
   null_fields?: string[];
