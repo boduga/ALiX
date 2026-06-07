@@ -9,12 +9,12 @@
   "exports": {
     ".": "./dist/src/index.js",
     "./miner": "./dist/src/miner/index.js",
-    "./patterns/*": "./dist/src/patterns/*"
+    "./patterns/*": "./dist/src/patterns/*.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test tests/*.test.ts tests/**/*.test.ts",
-    "mine": "node --experimental-strip-types bin/tool-repair.js mine"
+    "mine": "node --experimental-strip-types bin/tool-repair.ts mine"
   },
   "dependencies": {},
   "devDependencies": {
