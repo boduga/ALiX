@@ -522,6 +522,16 @@ export async function runTaskLoop(deps: TaskLoopDeps): Promise<RunResult> {
               type: "hook.executed",
               payload: { hookName: "on_tool_error", toolName: execName, handled: true },
             });
+            // Inject repair hint into the message the model will see
+            if (hr.reason && toolResult.message?.content) {
+              const content = toolResult.message.content;
+              if (typeof content === "string") {
+                toolResult.message.content = content.replace(
+                  "</tool_result>",
+                  `\n<tool_repair_hint>\n${hr.reason}\n</tool_repair_hint>\n</tool_result>`
+                );
+              }
+            }
           }
         }
 
