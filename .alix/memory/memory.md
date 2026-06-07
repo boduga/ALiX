@@ -1,7 +1,9 @@
 # ALiX Memory Index
 
 
+- [rather than interpolating them... (preference)](user/rather-than-interpolating-them-preference.md) - Auto-extracted user decision: rather
 ## User
+- [favorite due to its... (preference)](user/favorite-due-to-its-preference.md) - Auto-extracted user decision: favorite
 - [Prefers TypeScript](user/prefers-typescript.md) - 
 
 ## Project

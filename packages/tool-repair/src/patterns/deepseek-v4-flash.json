@@ -66,8 +66,8 @@
       },
       "match": { "missing_fields": ["offset", "limit"] },
       "hint": "I defaulted to offset=0, limit=100 for this first read. Adjust if the log/target is near the end of the file.",
-      "severity": "warning",
-      "confidence": 0.85,
+      "severity": "info",
+      "confidence": 0.60,
       "since": "2026-05-01",
       "deprecated": null
     },

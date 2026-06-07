@@ -189,7 +189,7 @@
       },
       {
         "path": "src/task-classifier.ts",
-        "symbolName": "READ_ONLY_PATTERNS",
+        "symbolName": "SHELL_PATTERNS",
         "kind": "const",
         "lineStart": 72,
         "lineEnd": 72,
@@ -197,34 +197,34 @@
       },
       {
         "path": "src/task-classifier.ts",
+        "symbolName": "READ_ONLY_PATTERNS",
+        "kind": "const",
+        "lineStart": 96,
+        "lineEnd": 96,
+        "keywords": []
+      },
+      {
+        "path": "src/task-classifier.ts",
         "symbolName": "WRITE_PATTERNS",
         "kind": "const",
-        "lineStart": 117,
-        "lineEnd": 117,
-        "keywords": [
-          "note",
-          "which",
-          "intentionally",
-          "omitted",
-          "too",
-          "common",
-          "natural",
-          "language",
-          "model",
-          "you",
-          "using",
-          "users",
-          "prefix",
-          "run",
-          "shell"
-        ]
+        "lineStart": 118,
+        "lineEnd": 118,
+        "keywords": []
+      },
+      {
+        "path": "src/task-classifier.ts",
+        "symbolName": "isShellTask",
+        "kind": "function",
+        "lineStart": 142,
+        "lineEnd": 145,
+        "keywords": []
       },
       {
         "path": "src/task-classifier.ts",
         "symbolName": "isReadOnlyTask",
         "kind": "function",
-        "lineStart": 141,
-        "lineEnd": 153,
+        "lineStart": 151,
+        "lineEnd": 164,
         "keywords": []
       }
     ]
@@ -2225,85 +2225,6 @@
       }
     ]
   },
-  "src/tui/AlixApp.tsx": {
-    "symbols": [
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "OutputLine",
-        "kind": "interface",
-        "lineStart": 7,
-        "lineEnd": 11,
-        "keywords": [
-          "types"
-        ]
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "AlixAppApi",
-        "kind": "interface",
-        "lineStart": 13,
-        "lineEnd": 18,
-        "keywords": []
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "AlixAppProps",
-        "kind": "interface",
-        "lineStart": 20,
-        "lineEnd": 26,
-        "keywords": []
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "nextId",
-        "kind": "const",
-        "lineStart": 31,
-        "lineEnd": 31,
-        "keywords": [
-          "helpers"
-        ]
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "DIVIDER",
-        "kind": "const",
-        "lineStart": 33,
-        "lineEnd": 33,
-        "keywords": [
-          "helpers"
-        ]
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "dividerLine",
-        "kind": "function",
-        "lineStart": 34,
-        "lineEnd": 36,
-        "keywords": []
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "TokenBar",
-        "kind": "function",
-        "lineStart": 40,
-        "lineEnd": 40,
-        "keywords": [
-          "tokenbar"
-        ]
-      },
-      {
-        "path": "src/tui/AlixApp.tsx",
-        "symbolName": "AlixApp",
-        "kind": "function",
-        "lineStart": 64,
-        "lineEnd": 64,
-        "keywords": [
-          "main",
-          "component"
-        ]
-      }
-    ]
-  },
   "src/tui/ansi.ts": {
     "symbols": [
       {
@@ -2661,18 +2582,18 @@
     "symbols": [
       {
         "path": "src/tui/index.ts",
-        "symbolName": "TuiConstructorOptions",
+        "symbolName": "TuiOptions",
         "kind": "interface",
-        "lineStart": 5,
-        "lineEnd": 8,
+        "lineStart": 6,
+        "lineEnd": 11,
         "keywords": []
       },
       {
         "path": "src/tui/index.ts",
         "symbolName": "Tui",
         "kind": "class",
-        "lineStart": 10,
-        "lineEnd": 67,
+        "lineStart": 13,
+        "lineEnd": 57,
         "keywords": []
       },
       {
@@ -2680,39 +2601,47 @@
         "symbolName": "init",
         "kind": "method",
         "lineStart": 25,
-        "lineEnd": 44,
+        "lineEnd": 35,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/index.ts",
+        "symbolName": "getStore",
+        "kind": "method",
+        "lineStart": 37,
+        "lineEnd": 39,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/index.ts",
+        "symbolName": "getBridge",
+        "kind": "method",
+        "lineStart": 41,
+        "lineEnd": 43,
         "keywords": []
       },
       {
         "path": "src/tui/index.ts",
         "symbolName": "appendOutput",
         "kind": "method",
-        "lineStart": 46,
-        "lineEnd": 49,
+        "lineStart": 45,
+        "lineEnd": 47,
         "keywords": []
       },
       {
         "path": "src/tui/index.ts",
         "symbolName": "resetOutput",
         "kind": "method",
-        "lineStart": 51,
-        "lineEnd": 54,
-        "keywords": []
-      },
-      {
-        "path": "src/tui/index.ts",
-        "symbolName": "updateTokenUsage",
-        "kind": "method",
-        "lineStart": 56,
-        "lineEnd": 60,
+        "lineStart": 50,
+        "lineEnd": 52,
         "keywords": []
       },
       {
         "path": "src/tui/index.ts",
         "symbolName": "destroy",
         "kind": "method",
-        "lineStart": 62,
-        "lineEnd": 66,
+        "lineStart": 54,
+        "lineEnd": 56,
         "keywords": []
       }
     ]
@@ -2725,6 +2654,106 @@
         "kind": "const",
         "lineStart": 1,
         "lineEnd": 1,
+        "keywords": []
+      }
+    ]
+  },
+  "src/tui/render.ts": {
+    "symbols": [
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "STATUS",
+        "kind": "const",
+        "lineStart": 21,
+        "lineEnd": 21,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "LINE",
+        "kind": "const",
+        "lineStart": 22,
+        "lineEnd": 22,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "TuiRenderer",
+        "kind": "class",
+        "lineStart": 24,
+        "lineEnd": 137,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "start",
+        "kind": "method",
+        "lineStart": 37,
+        "lineEnd": 37,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "stop",
+        "kind": "method",
+        "lineStart": 39,
+        "lineEnd": 43,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "drawLayout",
+        "kind": "method",
+        "lineStart": 46,
+        "lineEnd": 56,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "resetOutput",
+        "kind": "method",
+        "lineStart": 59,
+        "lineEnd": 64,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "appendOutput",
+        "kind": "method",
+        "lineStart": 67,
+        "lineEnd": 75,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "requestRender",
+        "kind": "method",
+        "lineStart": 79,
+        "lineEnd": 87,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "putStatus",
+        "kind": "method",
+        "lineStart": 90,
+        "lineEnd": 104,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "renderStatus",
+        "kind": "method",
+        "lineStart": 106,
+        "lineEnd": 121,
+        "keywords": []
+      },
+      {
+        "path": "src/tui/render.ts",
+        "symbolName": "buildBlock",
+        "kind": "method",
+        "lineStart": 123,
+        "lineEnd": 136,
         "keywords": []
       }
     ]
@@ -3659,64 +3688,64 @@
         "path": "src/tools/executor.ts",
         "symbolName": "LARGE_OUTPUT_THRESHOLD",
         "kind": "const",
-        "lineStart": 25,
-        "lineEnd": 25,
+        "lineStart": 26,
+        "lineEnd": 26,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "sanitizeArgs",
         "kind": "function",
-        "lineStart": 27,
-        "lineEnd": 35,
+        "lineStart": 28,
+        "lineEnd": 36,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "ToolExecutor",
         "kind": "class",
-        "lineStart": 45,
-        "lineEnd": 169,
+        "lineStart": 46,
+        "lineEnd": 196,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "sessionId",
         "kind": "method",
-        "lineStart": 69,
-        "lineEnd": 73,
+        "lineStart": 78,
+        "lineEnd": 82,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "logEvent",
         "kind": "method",
-        "lineStart": 75,
-        "lineEnd": 77,
+        "lineStart": 84,
+        "lineEnd": 86,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "execute",
         "kind": "method",
-        "lineStart": 79,
-        "lineEnd": 168,
+        "lineStart": 88,
+        "lineEnd": 195,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "classifyError",
         "kind": "function",
-        "lineStart": 173,
-        "lineEnd": 203,
+        "lineStart": 200,
+        "lineEnd": 230,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "inferCapability",
         "kind": "function",
-        "lineStart": 205,
-        "lineEnd": 219,
+        "lineStart": 232,
+        "lineEnd": 246,
         "keywords": [
           "unknownambiguous",
           "retry",
@@ -3729,16 +3758,16 @@
         "path": "src/tools/executor.ts",
         "symbolName": "truncateOutput",
         "kind": "function",
-        "lineStart": 221,
-        "lineEnd": 224,
+        "lineStart": 248,
+        "lineEnd": 251,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "writeOutputToFile",
         "kind": "function",
-        "lineStart": 226,
-        "lineEnd": 240,
+        "lineStart": 253,
+        "lineEnd": 267,
         "keywords": []
       }
     ]
@@ -5281,47 +5310,47 @@
         "symbolName": "TaskLoopDeps",
         "kind": "interface",
         "lineStart": 90,
-        "lineEnd": 134,
+        "lineEnd": 135,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "runTaskLoop",
         "kind": "function",
-        "lineStart": 140,
-        "lineEnd": 679,
+        "lineStart": 141,
+        "lineEnd": 680,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "estimateMessageTokens",
         "kind": "function",
-        "lineStart": 687,
-        "lineEnd": 690,
+        "lineStart": 688,
+        "lineEnd": 691,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "buildSessionDigest",
         "kind": "function",
-        "lineStart": 696,
-        "lineEnd": 703,
+        "lineStart": 697,
+        "lineEnd": 704,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "buildStateSummary",
         "kind": "function",
-        "lineStart": 708,
-        "lineEnd": 715,
+        "lineStart": 709,
+        "lineEnd": 716,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "evaluatePattern",
         "kind": "function",
-        "lineStart": 721,
-        "lineEnd": 723,
+        "lineStart": 722,
+        "lineEnd": 724,
         "keywords": []
       }
     ]
@@ -11717,10 +11746,26 @@
       },
       {
         "path": "src/cli/commands/tui.ts",
-        "symbolName": "runTui",
+        "symbolName": "readLine",
         "kind": "function",
         "lineStart": 13,
-        "lineEnd": 82,
+        "lineEnd": 24,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/commands/tui.ts",
+        "symbolName": "echoTask",
+        "kind": "function",
+        "lineStart": 26,
+        "lineEnd": 33,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/commands/tui.ts",
+        "symbolName": "runTui",
+        "kind": "function",
+        "lineStart": 35,
+        "lineEnd": 96,
         "keywords": []
       }
     ]
@@ -12535,7 +12580,7 @@
         "symbolName": "runTask",
         "kind": "function",
         "lineStart": 22,
-        "lineEnd": 287,
+        "lineEnd": 289,
         "keywords": []
       }
     ]
@@ -12624,6 +12669,416 @@
         "kind": "function",
         "lineStart": 3,
         "lineEnd": 7,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/index.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/index.ts",
+        "symbolName": "ToolRepair",
+        "kind": "class",
+        "lineStart": 10,
+        "lineEnd": 47,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/index.ts",
+        "symbolName": "process",
+        "kind": "method",
+        "lineStart": 20,
+        "lineEnd": 37,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/index.ts",
+        "symbolName": "setModel",
+        "kind": "method",
+        "lineStart": 39,
+        "lineEnd": 42,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/index.ts",
+        "symbolName": "reloadPatterns",
+        "kind": "method",
+        "lineStart": 44,
+        "lineEnd": 46,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/types.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/types.ts",
+        "symbolName": "TransformName",
+        "kind": "type",
+        "lineStart": 29,
+        "lineEnd": 29,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/transforms/index.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/transforms/index.ts",
+        "symbolName": "TRANSFORMS",
+        "kind": "const",
+        "lineStart": 10,
+        "lineEnd": 10,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/transforms/index.ts",
+        "symbolName": "getTransform",
+        "kind": "function",
+        "lineStart": 20,
+        "lineEnd": 22,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/transforms/index.ts",
+        "symbolName": "applyTransform",
+        "kind": "function",
+        "lineStart": 24,
+        "lineEnd": 24,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/transforms/parse-json-array.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/transforms/parse-json-array.ts",
+        "symbolName": "parseJsonArray",
+        "kind": "function",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/transforms/remove-null-field.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/transforms/remove-null-field.ts",
+        "symbolName": "removeNullField",
+        "kind": "function",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/transforms/smart-default.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/transforms/smart-default.ts",
+        "symbolName": "DEFAULT_OFFSET",
+        "kind": "const",
+        "lineStart": 5,
+        "lineEnd": 5,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/transforms/smart-default.ts",
+        "symbolName": "DEFAULT_LIMIT",
+        "kind": "const",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/transforms/smart-default.ts",
+        "symbolName": "smartDefault",
+        "kind": "function",
+        "lineStart": 8,
+        "lineEnd": 8,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/transforms/strip-markdown-links.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/transforms/strip-markdown-links.ts",
+        "symbolName": "stripMarkdownLinks",
+        "kind": "function",
+        "lineStart": 7,
+        "lineEnd": 7,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/transforms/strip-outer-quotes.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/transforms/strip-outer-quotes.ts",
+        "symbolName": "stripOuterQuotes",
+        "kind": "function",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/miner/alix-session.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/miner/alix-session.ts",
+        "symbolName": "parseAlixSession",
+        "kind": "function",
+        "lineStart": 24,
+        "lineEnd": 27,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/miner/alix-session.ts",
+        "symbolName": "findAlixSessions",
+        "kind": "function",
+        "lineStart": 54,
+        "lineEnd": 69,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/miner/claude-session.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/miner/claude-session.ts",
+        "symbolName": "parseClaudeSession",
+        "kind": "function",
+        "lineStart": 27,
+        "lineEnd": 30,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/miner/claude-session.ts",
+        "symbolName": "findClaudeSessions",
+        "kind": "function",
+        "lineStart": 83,
+        "lineEnd": 92,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/miner/index.ts": {
+    "symbols": []
+  },
+  "packages/tool-repair/src/miner/pattern-candidate.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/miner/pattern-candidate.ts",
+        "symbolName": "generateCandidates",
+        "kind": "function",
+        "lineStart": 5,
+        "lineEnd": 10,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/miner/pattern-candidate.ts",
+        "symbolName": "errorSignature",
+        "kind": "function",
+        "lineStart": 59,
+        "lineEnd": 80,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/engine/hint-formatter.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/engine/hint-formatter.ts",
+        "symbolName": "formatHint",
+        "kind": "function",
+        "lineStart": 11,
+        "lineEnd": 30,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/engine/registry.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "__dirname",
+        "kind": "const",
+        "lineStart": 6,
+        "lineEnd": 6,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "PATTERNS_DIR",
+        "kind": "const",
+        "lineStart": 7,
+        "lineEnd": 7,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "DEFAULT_CONFIDENCE_THRESHOLD",
+        "kind": "const",
+        "lineStart": 9,
+        "lineEnd": 9,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "PatternRegistry",
+        "kind": "class",
+        "lineStart": 11,
+        "lineEnd": 69,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "loadModel",
+        "kind": "method",
+        "lineStart": 19,
+        "lineEnd": 36,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "getPatterns",
+        "kind": "method",
+        "lineStart": 38,
+        "lineEnd": 43,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "getPatternsForTool",
+        "kind": "method",
+        "lineStart": 45,
+        "lineEnd": 49,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "registerPatterns",
+        "kind": "method",
+        "lineStart": 51,
+        "lineEnd": 53,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "reloadAll",
+        "kind": "method",
+        "lineStart": 62,
+        "lineEnd": 64,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/registry.ts",
+        "symbolName": "getThreshold",
+        "kind": "method",
+        "lineStart": 66,
+        "lineEnd": 68,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/engine/repairer.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/engine/repairer.ts",
+        "symbolName": "repairToolCall",
+        "kind": "function",
+        "lineStart": 4,
+        "lineEnd": 66,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/engine/validator.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/engine/validator.ts",
+        "symbolName": "validateToolCall",
+        "kind": "function",
+        "lineStart": 9,
+        "lineEnd": 32,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/engine/validator.ts",
+        "symbolName": "matchCondition",
+        "kind": "function",
+        "lineStart": 34,
+        "lineEnd": 38,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/adapters/alix.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/adapters/alix.ts",
+        "symbolName": "AlixToolRepair",
+        "kind": "class",
+        "lineStart": 9,
+        "lineEnd": 23,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/adapters/alix.ts",
+        "symbolName": "process",
+        "kind": "method",
+        "lineStart": 20,
+        "lineEnd": 22,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/src/adapters/alix.ts",
+        "symbolName": "normalizeModelKey",
+        "kind": "function",
+        "lineStart": 25,
+        "lineEnd": 46,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/scripts/analyze-claude.py": {
+    "symbols": []
+  },
+  "packages/tool-repair/bin/tool-repair.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/bin/tool-repair.ts",
+        "symbolName": "command",
+        "kind": "const",
+        "lineStart": 17,
+        "lineEnd": 17,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/bin/tool-repair.ts",
+        "symbolName": "processCommand",
+        "kind": "function",
+        "lineStart": 29,
+        "lineEnd": 63,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/bin/tool-repair.ts",
+        "symbolName": "mineCommand",
+        "kind": "function",
+        "lineStart": 65,
+        "lineEnd": 139,
+        "keywords": []
+      },
+      {
+        "path": "packages/tool-repair/bin/tool-repair.ts",
+        "symbolName": "checkCommand",
+        "kind": "function",
+        "lineStart": 141,
+        "lineEnd": 143,
         "keywords": []
       }
     ]

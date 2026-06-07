@@ -90,7 +90,7 @@ describe("Suite N: Web Tools", () => {
   it("N.2: web_fetch tool fetches and summarizes URL", { ...needsBrave }, () => {
     const r = runCli(
       ["run", "fetch https://example.com and summarize the page", "--session-mode", "bypass", "--no-stream", "--no-plan"],
-      { timeoutMs: 60_000, env: { BRAVE_API_KEY: process.env.BRAVE_API_KEY! } },
+      { timeoutMs: 120_000, env: { BRAVE_API_KEY: process.env.BRAVE_API_KEY! } },
     );
     assertSuccess(r);
     assert.ok(

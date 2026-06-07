@@ -10,6 +10,28 @@ export interface TuiOptions {
   sessionName?: string;
 }
 
+function readLine(): Promise<string | null> {
+  return new Promise((resolve) => {
+    // Register listener first so no keystrokes are missed
+    process.stdin.once("data", (buffer: Buffer) => {
+      const text = buffer.toString("utf-8").replace(/\r?\n$/, "");
+      if (text === "") { resolve(null); return; }
+      resolve(text);
+    });
+
+    process.stdout.write("> ");
+  });
+}
+
+function echoTask(task: string): void {
+  const w = process.stdout.columns || 80;
+  // Move up one line (past the Enter newline) and clear the "> " prompt
+  process.stdout.write("\x1b[1A\x1b[K");
+  process.stdout.write("\x1b[2m" + "─".repeat(w) + "\x1b[22m\n");
+  process.stdout.write("\x1b[36m\x1b[1m" + task + "\x1b[22m\x1b[39m\n");
+  process.stdout.write("\x1b[2m" + "─".repeat(w) + "\x1b[22m\n");
+}
+
 export async function runTui(opts: TuiOptions): Promise<void> {
   const cwd = process.cwd();
 
@@ -19,18 +41,40 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
   const sessionDir = join(cwd, ".alix", "sessions", sessionId);
   await mkdir(sessionDir, { recursive: true });
-
   const config = await loadConfig(cwd);
+
   const tuiLog = new EventLog(sessionDir);
   await tuiLog.init();
 
+  // Resolve model context limit for the TUI token budget display
   const { resolveContextLimit } = await import("../../config/context-limits.js");
   const contextInfo = await resolveContextLimit(config.model.provider, config.model.name, config.apiKeys);
 
-  const tui = new Tui({ sessionId, maxTokens: contextInfo.maxTokens });
+  const tui = new Tui({ sessionId, eventLog: tuiLog, maxTokens: contextInfo.maxTokens });
+  await tui.init();
 
-  tui.onTask = async (task: string) => {
+  // Welcome text prints in the output area (above the pinned status bar)
+  tui.appendOutput("ALiX TUI - Interactive Session", false);
+  tui.appendOutput("Type 'exit' to quit.", false);
+  tui.appendOutput("", false);
+
+  process.on("SIGINT", () => {
+    tui.destroy();
+    process.exit(0);
+  });
+
+  if (opts.sessionName) return;
+
+  while (true) {
+    const task = await readLine();
+    if (task === null) break;
+    if (!task.trim()) continue;
+    if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
+    if (task.trim().length < 2) continue;
+
     try {
+      tui.resetOutput();
+      echoTask(task);
       const result = await runTask(cwd, task, {
         streaming: true,
         sessionMode: "bypass",
@@ -41,42 +85,12 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         }
       });
 
-      if (result.summary) {
-        tui.appendOutput(result.summary, false);
-      }
-
-      // Track token usage from model.usage events
-      if (contextInfo.maxTokens) {
-        const events = await tuiLog.readAll();
-        let totalTokens = 0;
-        for (const ev of events) {
-          if (ev.type === "model.usage" && typeof (ev.payload as any)?.inputTokens === "number") {
-            totalTokens += (ev.payload as any).inputTokens + ((ev.payload as any).outputTokens ?? 0);
-          }
-        }
-        if (totalTokens > 0) tui.updateTokenUsage(totalTokens);
-      }
+      if (result.summary) tui.appendOutput(result.summary, false);
     } catch (err) {
-      if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") return;
-      tui.appendOutput(`Error: ${err instanceof Error ? err.message : String(err)}`, false);
+      if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
+      console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
     }
-  };
+  }
 
-  tui.onExit = () => {
-    tui.destroy();
-    process.exit(0);
-  };
-
-  await tui.init();
-
-  // Welcome messages
-  tui.appendOutput("ALiX · Interactive Session", false);
-  tui.appendOutput(`session: ${sessionId.slice(0, 16)}…`, false);
-  tui.appendOutput(`context: ${(contextInfo.maxTokens ?? 0).toLocaleString()} tokens`, false);
-  tui.appendOutput(`model: ${config.model.provider}/${config.model.name}`, false);
-  tui.appendOutput('type "exit" or Ctrl+C to quit', false);
-  tui.appendOutput("", false);
-
-  // Keep alive
-  await new Promise<void>(() => {});
+  tui.destroy();
 }

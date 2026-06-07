@@ -46,15 +46,6 @@
             "command": "HIT=$(python3 -c \"import json,sys;d=json.load(sys.stdin);t=d.get('tool_input',d);s=(str(t.get('file_path') or '')+' '+str(t.get('pattern') or '')+' '+str(t.get('path') or '')).lower().replace(chr(92),'/');exts=('.py','.js','.ts','.tsx','.jsx','.go','.rs','.java','.rb','.c','.h','.cpp','.hpp','.cc','.cs','.kt','.swift','.php','.scala','.lua','.sh','.md','.rst','.txt','.mdx');sys.stdout.write('1' if 'graphify-out/' not in s and any(e in s for e in exts) else '')\" 2>/dev/null || true); if [ \"$HIT\" = 1 ] && [ -f graphify-out/graph.json ]; then echo '{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"graphify: knowledge graph at graphify-out/. For codebase questions, run `graphify query \\\"<question>\\\"` (scoped subgraph, usually much smaller than reading files one by one), `graphify explain \\\"<concept>\\\"`, or `graphify path \\\"<A>\\\" \\\"<B>\\\"`, instead of reading source files to answer. Read raw files to modify or debug specific code, or when the graph lacks the detail.\"}}'; fi || true"
           }
         ]
-      },
-      {
-        "matcher": "Bash|Read|Write|Edit|Glob",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/home/babasola/Projects/Monolith/.claude/hooks/PreToolUse/tool-repair.sh"
-          }
-        ]
       }
     ]
   }

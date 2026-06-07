@@ -1,16 +1,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { TuiRenderer } from "../../src/tui/render.js";
+import { createTuiStore } from "../../src/tui/store.js";
 
-describe("Tui", () => {
-
-  it("appendOutput, resetOutput, updateTokenUsage exist as functions", async () => {
-    const { Tui } = await import("../../src/tui/index.js");
-    const tui = new Tui({ sessionId: "test", maxTokens: 100000 });
-    assert.ok(typeof tui.appendOutput === "function", "appendOutput exists");
-    assert.ok(typeof tui.resetOutput === "function", "resetOutput exists");
-    assert.ok(typeof tui.updateTokenUsage === "function", "updateTokenUsage exists");
-    assert.ok(typeof tui.destroy === "function", "destroy exists");
-    assert.ok(typeof tui.init === "function", "init exists");
+describe("TuiRenderer", () => {
+  it("appendOutput, resetOutput exist as functions", () => {
+    const store = createTuiStore({ sessionId: "test" });
+    const renderer = new TuiRenderer(store);
+    assert.ok(typeof renderer.appendOutput === "function", "appendOutput exists");
+    assert.ok(typeof renderer.start === "function", "start exists");
+    assert.ok(typeof renderer.stop === "function", "stop exists");
   });
-
 });

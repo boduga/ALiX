@@ -59,8 +59,11 @@ describe("deepseek-v4-flash end-to-end", () => {
     assert.deepStrictEqual(result.args.extensions, ["ts", "tsx"]);
   });
 
-  it("defaults missing offset/limit on Read", () => {
-    const result = repair.process("Read", { file_path: "test.txt" });
+  it("defaults missing offset/limit on Read (opt-in threshold)", () => {
+    // Pattern exists but confidence is below default 0.75 threshold
+    // to avoid noise. Test with explicit low threshold to verify the pattern works.
+    const lowThresholdRepair = new ToolRepair("deepseek-v4-flash", 0.50);
+    const result = lowThresholdRepair.process("Read", { file_path: "test.txt" });
     assert.strictEqual(result.repaired, true);
     assert.strictEqual(result.args.offset, 0);
     assert.strictEqual(result.args.limit, 100);

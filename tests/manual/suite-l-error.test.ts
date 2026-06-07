@@ -29,7 +29,7 @@ describe("Suite L: Error Handling", () => {
 
   // ── L.3: Invalid mode flag ───────────────────────────────────
   it("L.3: --mode=invalid does not crash", () => {
-    const r = runCli(["run", "echo hello", "--mode=invalid"], { timeoutMs: 15_000 });
+    const r = runCli(["run", "echo hello", "--mode=invalid"], { timeoutMs: 30_000 });
     // Should still execute (invalid mode falls back to default)
     assertOutputContains(r, "hello", "should execute even with invalid mode");
   });

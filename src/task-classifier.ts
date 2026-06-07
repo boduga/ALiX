@@ -69,25 +69,7 @@ export function classifyTask(prompt: string): TaskType {
   return "unknown";
 }
 
-const READ_ONLY_PATTERNS = [
-  /\b(?:read|view|show|display|list|get|fetch)\b/i,
-  /\b(?:research|study|investigate|analyze)\b/i,
-  /\bfind all\b/i,
-  /\bsearch for\b/i,
-  /\blook up\b/i,
-  /\blook into\b/i,
-  /\bcompare\b/i,
-  /\bevaluate\b/i,
-  /\bassess\b/i,
-  /\bwhat is\b/i,
-  /\bhow does\b/i,
-  /\bexplain\b/i,
-  /\bunderstand\b/i,
-  /\breview\b/i,
-  /\bdoc\b/i,
-  /\bREADME\b/i,
-  /\bcomment\b/i,
-  /\bdescribe\b/i,
+const SHELL_PATTERNS = [
   // Read-only shell commands — both bare and with args
   /^ls(?:\s|$)/i,
   /^pwd(?:\s|$)/i,
@@ -106,12 +88,31 @@ const READ_ONLY_PATTERNS = [
   /^env(?:\s|$)/i,
   /^echo(?:\s|$)/i,
   /^printf(?:\s|$)/i,
-  /^who(?:\s|$)/i,
   /^type(?:\s|$)/i,
   /^curl(?:\s|$)/i,
   /^ping(?:\s|$)/i,
-  // Note: 'which' intentionally omitted — too common as natural language
-  // ("which model are you using?"). Users can prefix with "run" for shell.
+];
+
+const READ_ONLY_PATTERNS = [
+  /\b(?:read|view|show|display|list|get|fetch)\b/i,
+  /\bwho\b/i,
+  /\b(?:research|study|investigate|analyze)\b/i,
+  /\bfind all\b/i,
+  /\bsearch for\b/i,
+  /\blook up\b/i,
+  /\blook into\b/i,
+  /\bcompare\b/i,
+  /\bevaluate\b/i,
+  /\bassess\b/i,
+  /\bwhat is\b/i,
+  /\bhow does\b/i,
+  /\bexplain\b/i,
+  /\bunderstand\b/i,
+  /\breview\b/i,
+  /\bdoc\b/i,
+  /\bREADME\b/i,
+  /\bcomment\b/i,
+  /\bdescribe\b/i,
 ];
 
 const WRITE_PATTERNS = [
@@ -135,19 +136,29 @@ const WRITE_PATTERNS = [
 ];
 
 /**
+ * Returns true if the prompt is a bare shell command (ls, cat, pwd, etc.).
+ * These are executed in read-only mode — no write tools.
+ */
+export function isShellTask(prompt: string): boolean {
+  const stripped = prompt.replace(/^['"]|['"]$/g, "");
+  return SHELL_PATTERNS.some((p) => p.test(stripped));
+}
+
+/**
  * Returns true if the task prompt describes a read-only operation
  * (research, question, docs review) that doesn't need a plan prompt.
  */
 export function isReadOnlyTask(prompt: string): boolean {
-  // Strip surrounding quotes so 'ls' and "ls" match shell command patterns
+  // Strip surrounding quotes so 'ls' and "ls" match patterns
   const stripped = prompt.replace(/^['"]|['"]$/g, "");
   const hasReadSignal = READ_ONLY_PATTERNS.some((p) => p.test(stripped));
-  const hasWriteSignal = WRITE_PATTERNS.some((p) => p.test(prompt));
 
-  if (hasReadSignal && !hasWriteSignal) return true;
-  if (hasWriteSignal && !hasReadSignal) return false;
+  if (hasReadSignal) return true;
 
-  // Ambiguous — fall back to classifier-based heuristic
+  // Docs/research tasks are always read-only regardless of write signals
+  // ("write a short story" is a docs task, not a code change)
   const type = classifyTask(prompt);
-  return type === "research" || type === "docs";
+  if (type === "research" || type === "docs") return true;
+
+  return false;
 }

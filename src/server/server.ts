@@ -47,6 +47,12 @@ export function startServer(root: string, host: string, port: number): Promise<{
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
+      if (url.pathname === "/healthz") {
+        res.statusCode = 200;
+        res.setHeader("content-type", "text/plain");
+        res.end("OK");
+        return;
+      }
       if (url.pathname === "/") {
         res.setHeader("content-type", "text/html");
         res.end(await readFile(join(root, "dist", "src", "ui", "index.html"), "utf8"));
