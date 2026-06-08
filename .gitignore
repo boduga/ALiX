@@ -40,3 +40,6 @@ vitest.config.mts
 
 # Worktrees
 .worktrees/
+.alix/reports/
+.alix/memory/
+.semantic-search-index.json

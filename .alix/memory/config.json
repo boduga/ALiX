@@ -1,7 +1,0 @@
-{
-  "decayEnabled": true,
-  "decayDays": 30,
-  "maxEntriesPerType": 50,
-  "consolidateSchedule": "daily",
-  "indexMaxLines": 100
-}
