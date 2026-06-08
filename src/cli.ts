@@ -247,6 +247,85 @@ if (command === "graph" && args[0] === "list") {
   process.exit(0);
 }
 
+// --- alix graph inspect --- show graph details ---
+if (command === "graph" && args[0] === "inspect") {
+  const graphId = args[1];
+  if (!graphId) { console.error("Usage: alix graph inspect <graphId>"); process.exit(1); }
+  const cwd = process.cwd();
+  const { loadGraph, sortNodesByDependencies, normalizeNode } = await import("./kernel/graph-executor.js");
+  try {
+    const graph = await loadGraph(graphId, cwd);
+    const nodes = graph.nodes;
+
+    console.log(`Graph:     ${graph.id}`);
+    console.log(`Goal:      ${graph.rootGoal}`);
+    console.log(`Strategy:  ${graph.strategy}`);
+    console.log(`Nodes:     ${nodes.length}`);
+    console.log(`Status:    ${graph.status}`);
+    console.log();
+
+    for (const node of nodes) {
+      const deps = node.dependencies.length > 0 ? ` (depends on: ${node.dependencies.join(", ")})` : "";
+      console.log(`  ${node.id}: ${node.title}${deps}`);
+      console.log(`    Goal:       ${node.goal}`);
+      console.log(`    Domain:     ${node.domain}`);
+      console.log(`    Risk:       ${node.riskLevel}`);
+      console.log(`    Status:     ${node.status}`);
+      if (node.requiredCapabilities.length > 0) {
+        console.log(`    Requires:   ${node.requiredCapabilities.join(", ")}`);
+      }
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix graph export --- export graph as mermaid or json ---
+if (command === "graph" && args[0] === "export") {
+  const graphId = args[1];
+  const formatIdx = args.indexOf("--format");
+  const format = formatIdx >= 0 && args[formatIdx + 1] ? args[formatIdx + 1] : "json";
+  if (!graphId) { console.error("Usage: alix graph export <graphId> --format mermaid|json"); process.exit(1); }
+  const cwd = process.cwd();
+  const { loadGraph, sortNodesByDependencies, normalizeNode } = await import("./kernel/graph-executor.js");
+
+  try {
+    const graph = await loadGraph(graphId, cwd);
+    const sorted = sortNodesByDependencies(graph.nodes.map(normalizeNode));
+
+    if (format === "mermaid") {
+      console.log("```mermaid");
+      console.log("graph TD;");
+      for (const node of sorted) {
+        const safeId = node.id.replace(/[^a-zA-Z0-9]/g, "_");
+        console.log(`    ${safeId}["${node.title.replace(/"/g, "'")}"];`);
+        for (const dep of node.dependencies) {
+          const depSafe = dep.replace(/[^a-zA-Z0-9]/g, "_");
+          console.log(`    ${depSafe} --> ${safeId};`);
+        }
+      }
+      // Nodes without dependencies start from root
+      const roots = sorted.filter(n => n.dependencies.length === 0);
+      if (roots.length > 0) {
+        console.log("    root((Start))");
+        for (const r of roots) {
+          const safeId = r.id.replace(/[^a-zA-Z0-9]/g, "_");
+          console.log(`    root --> ${safeId};`);
+        }
+      }
+      console.log("```");
+    } else {
+      console.log(JSON.stringify(graph, null, 2));
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (command === "config" && args[0] === "set-key") {
   const providerId = await selectProvider();
   const provider = PROVIDERS.find((p) => p.id === providerId)!;
