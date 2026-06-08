@@ -456,96 +456,13 @@ if (command === "sop" && args[0] !== "list" && args[0] !== "run") {
   console.log("Usage: alix sop list | alix sop run <id> --topic \"<topic>\"");
   process.exit(0);
 }
-
 // --- alix report --- report artifact commands ---
-if (command === "report" && args[0] === "list") {
-  const cwd = process.cwd();
-  const { readdir, readFile, stat } = await import("node:fs/promises");
-  const { join } = await import("node:path");
-  const { existsSync } = await import("node:fs");
-  const reportsDir = join(cwd, ".alix", "reports");
-  if (!existsSync(reportsDir)) { console.log("No reports found."); process.exit(0); }
-  const dirs = await readdir(reportsDir, { withFileTypes: true });
-  const reportDirs = dirs.filter(d => d.isDirectory());
-  if (reportDirs.length === 0) { console.log("No reports found."); process.exit(0); }
-  console.log("Reports:\n");
-  for (const d of reportDirs.sort((a, b) => b.name.localeCompare(a.name))) {
-    const manifestPath = join(reportsDir, d.name, "run_manifest.json");
-    if (!existsSync(manifestPath)) continue;
-    try {
-      const m = JSON.parse(await readFile(manifestPath, "utf-8"));
-      const date = m.createdAt ? new Date(m.createdAt).toLocaleDateString() : "?";
-      const topic = (m.topic || "").slice(0, 60);
-      const status = m.status || "?";
-      console.log(`  ${d.name.padEnd(30)} ${date.padEnd(12)} ${status.padEnd(10)} ${topic}`);
-    } catch { /* skip unreadable */ }
-  }
+if (command === "report") {
+  const { runReportCommand } = await import("./cli/commands/report.js");
+  await runReportCommand(args);
   process.exit(0);
 }
 
-if (command === "report" && args[0] === "show") {
-  const reportId = args[1];
-  if (!reportId) { console.error("Usage: alix report show <reportId>"); process.exit(1); }
-  const cwd = process.cwd();
-  const { readFile, readdir } = await import("node:fs/promises");
-  const { join } = await import("node:path");
-  const { existsSync } = await import("node:fs");
-  const manifestPath = join(cwd, ".alix", "reports", reportId, "run_manifest.json");
-  if (!existsSync(manifestPath)) { console.error(`Report not found: ${reportId}`); process.exit(1); }
-  const m = JSON.parse(await readFile(manifestPath, "utf-8"));
-  console.log(`Report:    ${m.reportId || reportId}`);
-  console.log(`SOP:       ${m.sopId || "?"}`);
-  console.log(`Topic:     ${m.topic || "?"}`);
-  console.log(`Graph:     ${m.graphId || "?"}`);
-  console.log(`Status:    ${m.status || "?"}`);
-  console.log(`Created:   ${m.createdAt || "?"}`);
-  console.log(`Path:      .alix/reports/${reportId}/\n`);
-  if (m.nodeResults && m.nodeResults.length > 0) {
-    console.log("Nodes:");
-    for (const n of m.nodeResults) {
-      console.log(`  ${(n.status === "done" ? "✓" : "✗")} ${n.title}`);
-    }
-    console.log();
-  }
-  console.log("Artifacts:");
-  const artsDir = join(cwd, ".alix", "reports", reportId);
-  const files = await readdir(artsDir);
-  for (const f of files.sort()) {
-    if (f === "run_manifest.json") continue;
-    console.log(`  ${f}`);
-  }
-  process.exit(0);
-}
-
-if (command === "report" && args[0] === "open") {
-  const reportId = args[1];
-  if (!reportId) { console.error("Usage: alix report open <reportId>"); process.exit(1); }
-  const cwd = process.cwd();
-  const { readFile } = await import("node:fs/promises");
-  const { join } = await import("node:path");
-  const { existsSync } = await import("node:fs");
-  const reportPath = join(cwd, ".alix", "reports", reportId, "final_report.md");
-  if (!existsSync(reportPath)) { console.error(`Report not found: ${reportId} (no final_report.md)`); process.exit(1); }
-  const content = await readFile(reportPath, "utf-8");
-  console.log(content);
-  process.exit(0);
-}
-
-if (command === "report" && args[0] === "path") {
-  const reportId = args[1];
-  if (!reportId) { console.error("Usage: alix report path <reportId>"); process.exit(1); }
-  const { join } = await import("node:path");
-  const { existsSync } = await import("node:fs");
-  const reportDir = join(process.cwd(), ".alix", "reports", reportId);
-  if (!existsSync(reportDir)) { console.error(`Report not found: ${reportId}`); process.exit(1); }
-  console.log(reportDir);
-  process.exit(0);
-}
-
-if (command === "report" && !["list","show","open","path"].includes(args[0] || "")) {
-  console.log("Usage: alix report list | alix report show <id> | alix report open <id> | alix report path <id>");
-  process.exit(0);
-}
 
 if (command === "config" && args[0] === "set-key") {
   const providerId = await selectProvider();
