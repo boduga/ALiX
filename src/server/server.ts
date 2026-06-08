@@ -86,6 +86,32 @@ export function startServer(root: string, host: string, port: number): Promise<{
         }
         return;
       }
+      if (url.pathname === "/api/registry/agents") {
+        try {
+          const { loadCardRegistry } = await import("../registry/card-loader.js");
+          const registry = await loadCardRegistry(root);
+          res.setHeader("content-type", "application/json");
+          res.setHeader("access-control-allow-origin", "*");
+          res.end(JSON.stringify(registry.listAgents(true)));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
+      if (url.pathname === "/api/registry/tools") {
+        try {
+          const { loadCardRegistry } = await import("../registry/card-loader.js");
+          const registry = await loadCardRegistry(root);
+          res.setHeader("content-type", "application/json");
+          res.setHeader("access-control-allow-origin", "*");
+          res.end(JSON.stringify(registry.listTools(true)));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/sessions/compare") {
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");
