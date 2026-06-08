@@ -1,0 +1,174 @@
+{
+  "id": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+  "schemaVersion": "1.0",
+  "workflowId": "wf_887cb162-1d2a-476e-ac33-06bbe4485fdb",
+  "rootGoal": "vector databases [--plan-only]",
+  "status": "draft",
+  "strategy": "sequential",
+  "nodes": [
+    {
+      "id": "scope_topic",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "title": "Define research scope",
+      "goal": "Define the research scope for: vector databases [--plan-only]. Output 3-5 research questions.",
+      "domain": "research",
+      "status": "pending",
+      "dependencies": [],
+      "requiredCapabilities": [
+        "web.search"
+      ],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {},
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:48:48.906Z",
+      "updatedAt": "2026-06-08T15:48:48.906Z"
+    },
+    {
+      "id": "search_sources",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "title": "Search for sources",
+      "goal": "Search the web for sources related to: vector databases [--plan-only]. Find at least 5 credible sources. List URLs and brief descriptions.",
+      "domain": "research",
+      "status": "pending",
+      "dependencies": [
+        "scope_topic"
+      ],
+      "requiredCapabilities": [
+        "web.search"
+      ],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {},
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:48:48.906Z",
+      "updatedAt": "2026-06-08T15:48:48.906Z"
+    },
+    {
+      "id": "extract_claims",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "title": "Extract claims from sources",
+      "goal": "Read the sources found and extract key claims. Map each claim to its source URL. Note any contradictions.",
+      "domain": "research",
+      "status": "pending",
+      "dependencies": [
+        "search_sources"
+      ],
+      "requiredCapabilities": [
+        "web.search",
+        "filesystem.read"
+      ],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {},
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:48:48.906Z",
+      "updatedAt": "2026-06-08T15:48:48.906Z"
+    },
+    {
+      "id": "synthesize",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "title": "Synthesize report",
+      "goal": "Write a structured research report about: vector databases [--plan-only]. Use the extracted claims. Separate facts from interpretations. Include a conclusions section.",
+      "domain": "research",
+      "status": "pending",
+      "dependencies": [
+        "extract_claims"
+      ],
+      "requiredCapabilities": [
+        "filesystem.read"
+      ],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {},
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:48:48.906Z",
+      "updatedAt": "2026-06-08T15:48:48.906Z"
+    },
+    {
+      "id": "critic_review",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "title": "Critic review",
+      "goal": "Review the synthesized report. Check for: unsupported claims, source concentration, missing citations, logical gaps. List each issue found.",
+      "domain": "research",
+      "status": "pending",
+      "dependencies": [
+        "synthesize"
+      ],
+      "requiredCapabilities": [
+        "filesystem.read"
+      ],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {},
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:48:48.906Z",
+      "updatedAt": "2026-06-08T15:48:48.906Z"
+    },
+    {
+      "id": "write_artifacts",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "title": "Write report artifacts",
+      "goal": "Write the final report, sources list, claims mapping, and critic review to the artifacts directory: .alix/reports/report_1780933728905/",
+      "domain": "research",
+      "status": "pending",
+      "dependencies": [
+        "critic_review"
+      ],
+      "requiredCapabilities": [
+        "filesystem.write"
+      ],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {},
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:48:48.906Z",
+      "updatedAt": "2026-06-08T15:48:48.906Z"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1_graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "from": "scope_topic",
+      "to": "search_sources",
+      "type": "requires"
+    },
+    {
+      "id": "e2_graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "from": "search_sources",
+      "to": "extract_claims",
+      "type": "requires"
+    },
+    {
+      "id": "e3_graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "from": "extract_claims",
+      "to": "synthesize",
+      "type": "requires"
+    },
+    {
+      "id": "e4_graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "from": "synthesize",
+      "to": "critic_review",
+      "type": "requires"
+    },
+    {
+      "id": "e5_graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "graphId": "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2",
+      "from": "critic_review",
+      "to": "write_artifacts",
+      "type": "requires"
+    }
+  ],
+  "createdAt": "2026-06-08T15:48:48.905Z",
+  "updatedAt": "2026-06-08T15:48:48.905Z"
+}

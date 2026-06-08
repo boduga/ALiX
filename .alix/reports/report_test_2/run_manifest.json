@@ -1,0 +1,22 @@
+{
+  "reportId": "report_test_2",
+  "sopId": "research.deep_report",
+  "topic": "test topic",
+  "graphId": "graph_test_abc",
+  "status": "completed",
+  "createdAt": "2026-06-08T16:09:53.795Z",
+  "completedAt": "2026-06-08T16:09:53.795Z",
+  "nodeResults": [
+    {
+      "nodeId": "n1",
+      "title": "Search",
+      "status": "done"
+    }
+  ],
+  "artifacts": {
+    "finalReport": "final_report.md",
+    "sources": "sources.json",
+    "claims": "claims.json",
+    "criticReview": "critic_review.md"
+  }
+}
