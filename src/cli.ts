@@ -85,6 +85,7 @@ Usage:
   alix graph inspect <id> Show graph node details and status
   alix graph export <id> --format mermaid|json  Export graph
   alix graph run <id>     Execute a planned graph sequentially
+  alix graph preflight <id>   Preflight capability check for each node
   alix graph runs <id>        Show graph run history (sessions, attempts, reports)
   alix graph rerun <id> --node <id>  Rerun a failed graph node
   alix sop list           List registered SOPs
@@ -304,6 +305,50 @@ if (command === "graph" && args[0] === "runs") {
       console.log(`  ${icon} ${node.title}: ${node.status}${node.sessionId ? ` (${node.sessionId})` : ""}`);
     }
   } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+  process.exit(0);
+
+// --- alix graph preflight --- capability check for each node ---
+if (command === "graph" && args[0] === "preflight") {
+  const graphId = args[1];
+  if (!graphId) { console.error("Usage: alix graph preflight <graphId>"); process.exit(1); }
+  const cwd = process.cwd();
+  const { loadGraph } = await import("./kernel/graph-executor.js");
+  const { CardRegistry } = await import("./registry/card-registry.js");
+  const { resolveCapabilities } = await import("./registry/capability-resolver.js");
+  try {
+    const graph = await loadGraph(graphId, cwd);
+    const registry = new CardRegistry();
+    console.log("Graph: " + graphId + "\n");
+    for (const node of graph.nodes) {
+      console.log(node.title);
+      if (!node.requiredCapabilities || node.requiredCapabilities.length === 0) {
+        console.log("  Status: ok (no capabilities required)");
+        console.log();
+        continue;
+      }
+      const r = resolveCapabilities({
+        requiredCapabilities: node.requiredCapabilities,
+        domain: node.domain,
+        executionProfile: (node as any).executionProfile,
+        registry,
+      });
+      if (r.missingCapabilities.length > 0) {
+        console.log("  Missing: " + r.missingCapabilities.join(", "));
+        console.log("  Status: blocked");
+      } else if (r.warnings.length > 0) {
+        for (const w of r.warnings) console.log("  Warning: " + w);
+        console.log("  Status: needs_approval");
+      } else {
+        console.log("  Status: ready");
+      }
+      if (r.agents.length > 0) console.log("  Agents: " + r.agents.map((a: any) => a.id).join(", "));
+      if (r.tools.length > 0) console.log("  Tools: " + r.tools.map((t: any) => t.id).join(", "));
+      console.log();
+    }
+  } catch (err: any) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
@@ -1379,3 +1424,6 @@ if (command === "research") {
 
 console.error(`Unknown command: ${command}`);
 process.exit(1);
+
+  process.exit(0);
+}
