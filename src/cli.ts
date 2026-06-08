@@ -310,6 +310,7 @@ if (command === "graph" && args[0] === "runs") {
   }
   process.exit(0);
 
+}
 // --- alix graph preflight --- capability check for each node ---
 if (command === "graph" && args[0] === "preflight") {
   const graphId = args[1];
@@ -1425,5 +1426,3 @@ if (command === "research") {
 console.error(`Unknown command: ${command}`);
 process.exit(1);
 
-  process.exit(0);
-}
