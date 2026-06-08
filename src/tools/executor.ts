@@ -106,13 +106,26 @@ export class ToolExecutor {
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
     const { toolCallId, name } = request;
     let args = request.args;
-    let argumentHash = hashArgs(args);
     const capability = inferCapability(name);
     const canonicalCapability = legacyCapabilityToCanonical(capability);
 
+    // === TOOL REPAIR LAYER — runs before policy so hash and decision use repaired args ===
+    let repairHint: string | undefined;
+    if (this.repair && name !== "done" && !name.startsWith("mcp.")) {
+      const repairResult = this.repair.process(name, args);
+      if (repairResult.repaired) {
+        repairHint = repairResult.hint;
+        args = repairResult.args;
+        (request as Record<string, unknown>).args = args;
+      }
+    }
+    // === END TOOL REPAIR ===
+
+    const argumentHash = hashArgs(args);
+
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args) });
 
-    // Create PolicyDecision placeholder (M0.9 permissive audit trail)
+    // Create PolicyDecision placeholder — uses repaired args
     const policyDecision = createPermissivePolicyDecision({
       requestId: toolCallId,
       capability,
@@ -122,7 +135,7 @@ export class ToolExecutor {
     });
 
     await this.log.append({
-      sessionId: "", actor: "policy",
+      sessionId: this.sessionId(), actor: "policy",
       type: "policy.decision",
       payload: {
         toolCallId,
@@ -134,7 +147,7 @@ export class ToolExecutor {
     });
 
     await this.log.append({
-      sessionId: "", actor: "system", type: "m09.metric",
+      sessionId: this.sessionId(), actor: "system", type: "m09.metric",
       payload: { name: "policy_decisions_total", type: "counter", value: 1, labels: { capability, decision: policyDecision.decision }, timestamp: new Date().toISOString() },
     });
 
@@ -166,20 +179,6 @@ export class ToolExecutor {
       await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0, canonicalCapability, argumentHash });
       return { kind: "denied", reason: msg };
     }
-
-    // === TOOL REPAIR LAYER ===
-    let repairHint: string | undefined;
-    if (this.repair && name !== "done" && !name.startsWith("mcp.")) {
-      const repairResult = this.repair.process(name, args);
-      if (repairResult.repaired) {
-        repairHint = repairResult.hint;
-        (request as Record<string, unknown>).args = repairResult.args;
-        // Recompute hash after repair modifies args
-        args = repairResult.args;
-        argumentHash = hashArgs(args);
-      }
-    }
-    // === END TOOL REPAIR ===
 
     await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash });
     // Emit m09 metric for tool call

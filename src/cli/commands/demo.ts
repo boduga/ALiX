@@ -77,8 +77,16 @@ export async function runDemo(): Promise<void> {
     console.log(`Tool calls:   ${toolEvents.length}`);
     console.log(`Policy decisions: ${policyEvents.length}`);
     console.log(`Metrics:      ${metricEvents.length}`);
+    // Verify no mutations occurred in read-only demo
+    const mutationTypes = new Set(["file.created", "file.deleted", "patch.applied", "patch.changed_files"]);
+    const mutationEvents = events.filter(e => mutationTypes.has(e.type));
+    console.log(`Mutations:    ${mutationEvents.length}`);
     console.log();
-    console.log("Demo complete. No files were modified.");
+    if (mutationEvents.length > 0) {
+      console.error("⚠️  Demo failed safety check: mutation events detected in read-only mode!");
+      process.exit(1);
+    }
+    console.log("✓ No files were modified.");
   } catch (err) {
     console.error(`Demo failed: ${err instanceof Error ? err.message : String(err)}`);
     console.log();

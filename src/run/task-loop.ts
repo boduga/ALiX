@@ -272,12 +272,14 @@ if (text.length > 0) {
   await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
 }
 
-if (usage) {
+// Emit model call metric for every call regardless of usage data
 await log.append({
-...session, actor: "system", type: "m09.metric",
-payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: config.model.provider }, timestamp: new Date().toISOString() },
+  ...session, actor: "system", type: "m09.metric",
+  payload: { name: "model_calls_total", type: "counter", value: 1, labels: { provider: config.model.provider }, timestamp: new Date().toISOString() },
 });
-await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
+
+if (usage) {
+  await log.append({ ...session, actor: "agent", type: "model.usage", payload: buildModelUsageEventPayload(config.model.provider, config.model.name, usage) });
 }
 
 // Emit reasoning trail

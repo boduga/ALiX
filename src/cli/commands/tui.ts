@@ -56,6 +56,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
   // Welcome text prints in the output area (above the pinned status bar)
   tui.appendOutput("ALiX TUI - Interactive Session", false);
+  tui.appendOutput("Session mode: bypass — tool approvals auto-approved in TUI.", false);
   tui.appendOutput("Type 'exit' to quit.", false);
   tui.appendOutput("", false);
 
