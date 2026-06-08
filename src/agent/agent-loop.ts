@@ -11,18 +11,56 @@ import { runPlanPhase } from "../run/plan-phase.js";
 import { READ_ONLY_TOOL_NAMES } from "../run/helpers.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
-import { ContextCompiler } from "../repomap/context-compiler.js";
+import { ContextCompiler, type ContextBundle } from "../repomap/context-compiler.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import type { NormalizedMessage } from "../providers/types.js";
 import { getEncoding } from "../config/context-limits.js";
 import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
+import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
+import { toCanonicalEvent, CanonicalEventSink } from "../kernel/event-envelope.js";
+import { randomUUID } from "node:crypto";
+import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 
 export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
   const ctx = await initAgent(cwd, { cwd, task, sessionId: opts?.sharedSession?.sessionId, sessionDir: opts?.sharedSession?.sessionDir, sharedSession: opts?.sharedSession, sessionMode: opts?.sessionMode });
 
   const session = { sessionId: ctx.sessionId, actor: "system" as const };
+
+  // Create WorkflowRun for this task
+  const wfRun = createWorkflowRun(ctx.sessionId, task);
+  const wfMeta = { workflowId: wfRun.id };
+  const canonicalSink = new CanonicalEventSink();
+
+  await ctx.log.append({
+    ...session,
+    type: "workflow.created",
+    actor: "system",
+    payload: { workflowId: wfRun.id, goal: task, mode: wfRun.mode },
+    meta: wfMeta,
+  });
+
+  await canonicalSink.emit(toCanonicalEvent(
+    { id: randomUUID(), seq: 0, version: 1, sessionId: ctx.sessionId, timestamp: new Date().toISOString(), type: "workflow.created" as const, actor: "system" as const, payload: { workflowId: wfRun.id }, meta: wfMeta },
+    wfMeta,
+  ));
+
+  // Create single-node TaskGraph for this task
+  const { graph: taskGraph, node: taskNode } = createSingleNodeGraph(wfRun.id, task);
+  const graphMeta = { ...wfMeta, graphId: taskGraph.id, nodeId: taskNode.id };
+
+  await ctx.log.append({
+    ...session, type: "graph.created", actor: "system",
+    payload: { graphId: taskGraph.id, workflowId: wfRun.id, nodeCount: 1 },
+    meta: graphMeta,
+  });
+
+  await ctx.log.append({
+    ...session, type: "task.ready", actor: "system",
+    payload: { nodeId: taskNode.id, graphId: taskGraph.id, goal: task },
+    meta: graphMeta,
+  });
 
   // Resume path — reconstruct state from a prior session
   if (opts?.resumeSessionId) {
@@ -30,6 +68,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     const reconstructed = await reconstructSession(cwd, opts.resumeSessionId);
 
     if (reconstructed.completed) {
+      const completedRun = transitionWorkflowStatus(wfRun, "completed");
+      await ctx.log.append({
+        ...session, type: "workflow.completed", actor: "system",
+        payload: { workflowId: wfRun.id, summary: `Session ${opts.resumeSessionId} is already completed. Use a different session or start a new task.` },
+        meta: wfMeta,
+      });
       return {
         sessionId: ctx.sessionId,
         summary: `Session ${opts.resumeSessionId} is already completed. Use a different session or start a new task.`,
@@ -136,39 +180,44 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
     }
   }
 
-  // Context compiler: warm up and compile context bundle
-  const contextCompiler = new ContextCompiler({
-    root: cwd,
-    maxTokens: MAX_CONTEXT_TOKENS,
-    eventLog: ctx.log,
-    sessionId: ctx.sessionId,
-  });
-  await contextCompiler.warm();
-  const contextBundle = await contextCompiler.compileContext(task, taskType, []);
-  await ctx.log.append({
-    ...session,
-    type: "context.bundle_compiled",
-    payload: buildContextBundleEventPayload(contextBundle),
-  });
-
-  // Plan phase — generate plan, get approval, inject into system prompt
   let approvedPlanContent: string | undefined;
+  let contextBundle: ContextBundle | undefined;
 
-  // On resume, use the existing plan instead of generating a new one
-  const resumedPlan = (ctx as any)._planContent;
-  if (resumedPlan) {
-    approvedPlanContent = resumedPlan;
-  } else if (opts?.planMode !== false) {
-    const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
-    if (planResult.action === "rejected") {
-      return {
-        sessionId: ctx.sessionId,
-        summary: "Plan rejected. Task cancelled.",
-        streamed: opts?.streaming,
-      };
-    }
-    if (planResult.action === "approved") {
-      approvedPlanContent = planResult.planContent;
+  // Skip context compilation & plan phase on subsequent TUI prompts
+  // (context was compiled on the first prompt; tool state is unchanged)
+  if (!opts?.skipContext) {
+    const contextCompiler = new ContextCompiler({
+      root: cwd,
+      maxTokens: MAX_CONTEXT_TOKENS,
+      eventLog: ctx.log,
+      sessionId: ctx.sessionId,
+    });
+    await contextCompiler.warm();
+    contextBundle = await contextCompiler.compileContext(task, taskType, []);
+    await ctx.log.append({
+      ...session,
+      type: "context.bundle_compiled",
+      payload: buildContextBundleEventPayload(contextBundle),
+    });
+
+    // Plan phase — only on first prompt or explicit requests
+    const resumedPlan = (ctx as any)._planContent;
+    if (resumedPlan) {
+      approvedPlanContent = resumedPlan;
+    } else if (opts?.planMode !== false) {
+      const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
+      if (planResult.action === "rejected") {
+        const failedRun = transitionWorkflowStatus(wfRun, "failed");
+        await ctx.log.append({
+          ...session, type: "workflow.failed", actor: "system",
+          payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
+          meta: wfMeta,
+        });
+        return { sessionId: ctx.sessionId, summary: "Plan rejected. Task cancelled.", streamed: opts?.streaming };
+      }
+      if (planResult.action === "approved") {
+        approvedPlanContent = planResult.planContent;
+      }
     }
   }
 
@@ -220,7 +269,7 @@ The user gave you a direct shell command. Use the \`shell_run\` tool to execute 
     lines.push(`## Available Skills\n${skillSection}`);
   }
 
-  if (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0) {
+  if (contextBundle && (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0)) {
     lines.push(renderContextBundleForPrompt(contextBundle));
   }
 
@@ -259,7 +308,7 @@ ${approvedPlanContent}`);
     provider: ctx.provider,
     providerTools,
     mcpToolIndex,
-    messages: (ctx as any)._resumedMessages ?? [{ role: "user" as const, content: task }],
+    messages: (ctx as any)._resumedMessages ?? opts?.messages ?? [{ role: "user" as const, content: task }],
     sessionState,
     stateMachine,
     scope: (ctx as any)._restoredScope ?? ctx.scope,
@@ -285,7 +334,64 @@ ${approvedPlanContent}`);
     hookRunner: ctx.hookRunner,
   };
 
-  return await runTaskLoop(taskLoopDeps);
+  // Emit task.started before entering the task loop
+  transitionNodeStatus(taskNode, "running");
+  transitionGraphStatus(taskGraph, "running");
+  await ctx.log.append({
+    ...session, type: "task.started", actor: "system",
+    payload: { nodeId: taskNode.id, graphId: taskGraph.id },
+    meta: graphMeta,
+  });
+  await ctx.log.append({
+    ...session, type: "graph.status_changed", actor: "system",
+    payload: { graphId: taskGraph.id, status: "running" },
+    meta: graphMeta,
+  });
+
+  let result: RunResult;
+  try {
+    result = await runTaskLoop(taskLoopDeps);
+  } catch (err) {
+    transitionNodeStatus(taskNode, "failed");
+    transitionGraphStatus(taskGraph, "failed");
+    await ctx.log.append({
+      ...session, type: "task.failed", actor: "system",
+      payload: { nodeId: taskNode.id, graphId: taskGraph.id, error: String(err) },
+      meta: graphMeta,
+    });
+    await ctx.log.append({
+      ...session, type: "graph.failed", actor: "system",
+      payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: String(err) },
+      meta: graphMeta,
+    });
+    const failedRun = transitionWorkflowStatus(wfRun, "failed");
+    await ctx.log.append({
+      ...session, type: "workflow.failed", actor: "system",
+      payload: { workflowId: wfRun.id, summary: String(err) },
+      meta: wfMeta,
+    });
+    throw err;
+  }
+
+  transitionNodeStatus(taskNode, "done");
+  transitionGraphStatus(taskGraph, "completed");
+  await ctx.log.append({
+    ...session, type: "task.done", actor: "system",
+    payload: { nodeId: taskNode.id, graphId: taskGraph.id, summary: result.summary },
+    meta: graphMeta,
+  });
+  await ctx.log.append({
+    ...session, type: "graph.completed", actor: "system",
+    payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: result.summary },
+    meta: graphMeta,
+  });
+  const completedRun = transitionWorkflowStatus(wfRun, "completed");
+  await ctx.log.append({
+    ...session, type: "workflow.completed", actor: "system",
+    payload: { workflowId: wfRun.id, summary: result.summary },
+    meta: wfMeta,
+  });
+  return result;
 }
 
 export type { RunOpts, RunResult } from "../run.js";
