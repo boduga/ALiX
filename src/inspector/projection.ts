@@ -231,6 +231,14 @@ export function buildInspectorSnapshot(sessionId: string, events: AlixEvent[]): 
     }
   }
 
+  // M0.9: read workflow/graph/node IDs from event meta
+  for (const event of events) {
+    const meta = (event as any).meta;
+    if (meta?.workflowId && !snapshot.workflowId) snapshot.workflowId = meta.workflowId;
+    if (meta?.graphId && !snapshot.graphId) snapshot.graphId = meta.graphId;
+    if (meta?.nodeId && !snapshot.nodeId) snapshot.nodeId = meta.nodeId;
+  }
+
   return snapshot;
 }
 

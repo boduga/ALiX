@@ -85,6 +85,7 @@ Usage:
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
   alix config set-tier [tier]    Set model for a subagent tier (interactive, fetches from provider API)
+  alix demo local       Run M0.9 demo (read-only task with kernel artifact display)
   alix tui              Launch the terminal UI dashboard for agent sessions
   alix mcp list           List connected MCP servers and their tools
   alix mcp add            Add an MCP server (interactive prompts)
@@ -326,6 +327,13 @@ if (command === "run") {
 if (command === "tui") {
   const { runTui } = await import("./cli/commands/tui.js");
   await runTui({});
+  process.exit(0);
+}
+
+// --- alix demo -- M0.9 demo path ---
+if (command === "demo" && args[0] === "local") {
+  const { runDemo } = await import("./cli/commands/demo.js");
+  await runDemo();
   process.exit(0);
 }
 

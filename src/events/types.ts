@@ -1,5 +1,13 @@
 export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier" | "subagent";
 
+export type EventMeta = {
+  workflowId?: string;
+  graphId?: string;
+  nodeId?: string;
+  traceId?: string;
+  spanId?: string;
+};
+
 export type AlixEvent<TType extends string = string, TPayload = unknown> = {
   id: string;
   seq: number;
@@ -11,6 +19,7 @@ export type AlixEvent<TType extends string = string, TPayload = unknown> = {
   type: TType;
   actor: EventActor;
   payload: TPayload;
+  meta?: EventMeta;
 };
 
 export type NewEvent<TType extends string = string, TPayload = unknown> = Omit<
@@ -38,11 +47,14 @@ export type ToolRequestPayload = {
   toolName: string;
   capability: string;
   argsPreview: Record<string, unknown>;
+  canonicalCapability: string;
+  argumentHash: string;
 };
 
 export type ToolStartedPayload = {
   toolCallId: string;
   toolName: string;
+  argumentHash: string;
 };
 
 export type ToolOutputPayload = {
@@ -57,6 +69,8 @@ export type ToolCompletedPayload = {
   toolName: string;
   status: "success" | "cancelled";
   durationMs: number;
+  canonicalCapability: string;
+  argumentHash: string;
 };
 
 export type ToolFailedPayload = {
@@ -64,6 +78,8 @@ export type ToolFailedPayload = {
   toolName: string;
   error: string;
   durationMs: number;
+  canonicalCapability: string;
+  argumentHash: string;
 };
 
 export const TOOL_EVENT_TYPES = {
@@ -176,6 +192,9 @@ export type InspectorContextItem = {
 
 export type InspectorSnapshot = {
   sessionId: string;
+  workflowId?: string;
+  graphId?: string;
+  nodeId?: string;
   summary: {
     eventCount: number;
     status: "running" | "completed" | "failed" | "unknown";
@@ -316,4 +335,17 @@ export const POLICY_EVENT_TYPES = {
   DECISION: "policy.decision",
   APPROVAL_REQUESTED: "approval.requested",
   APPROVAL_RESOLVED: "approval.resolved",
+} as const;
+
+export type ArtifactCreatedPayload = {
+  artifactId: string;
+  toolCallId: string;
+  path: string;
+  mimeType: string;
+  size: number;
+  retention: "session";
+};
+
+export const ARTIFACT_EVENT_TYPES = {
+  CREATED: "artifact.created",
 } as const;
