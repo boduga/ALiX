@@ -99,9 +99,12 @@ export class GraphExecutor {
 
       try {
         const isResearch = (node as any).executionProfile === "research";
-        const researchPrefix = isResearch
-          ? "\n\nIMPORTANT: You are a research agent. Use ONLY web_search and web_fetch. Do NOT read or write local project files. Only write artifacts under .alix/reports/."
-          : "";
+        let researchPrefix = "";
+        if (isResearch && node.id !== "write_artifacts") {
+          researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: web_search, web_fetch, and done. Do NOT read or write local project files.";
+        } else if (node.id === "write_artifacts") {
+          researchPrefix = "\n\nIMPORTANT: You may ONLY use: file.create, file.exists, and done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
+        }
         const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
           planMode: false,
           skipContext: isResearch ? true : undefined,
@@ -117,6 +120,10 @@ export class GraphExecutor {
         status = "failed";
         reason = err instanceof Error ? err.message : String(err);
         failed = true;
+      }
+
+      if (status === "failed" && node.timeoutMs && Date.now() - startTime >= node.timeoutMs) {
+        reason = `Timeout after ${node.timeoutMs}ms`;
       }
 
       results.push({
