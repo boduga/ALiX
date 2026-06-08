@@ -85,6 +85,7 @@ Usage:
   alix graph inspect <id> Show graph node details and status
   alix graph export <id> --format mermaid|json  Export graph
   alix graph run <id>     Execute a planned graph sequentially
+  alix graph rerun <id> --node <id>  Rerun a failed graph node
   alix sop list           List registered SOPs
   alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
   alix report list        List report artifacts
@@ -237,6 +238,34 @@ if (command === "graph" && args[0] === "run") {
   console.log();
   console.log(`Graph: ${result.graphStatus} — ${result.completedNodes}/${result.nodeCount} nodes`);
   process.exit(0);
+}
+
+// --- alix graph rerun --- rerun a failed node ---
+if (command === "graph" && args[0] === "rerun") {
+  const graphId = args[1];
+  const nodeIdx = args.indexOf("--node");
+  const nodeId = nodeIdx >= 0 ? args[nodeIdx + 1] : undefined;
+  const force = args.includes("--force");
+
+  if (!graphId || !nodeId) {
+    console.error("Usage: alix graph rerun <graphId> --node <nodeId> [--force]");
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const { GraphExecutor } = await import("./kernel/graph-executor.js");
+  const executor = new GraphExecutor(cwd);
+
+  try {
+    const result = await executor.rerunNode(graphId, nodeId, { force });
+    const icon = result.status === "done" ? "✓" : "✗";
+    console.log(`  ${icon} ${result.title} (${result.durationMs}ms)`);
+    if (result.reason) console.log(`     reason: ${result.reason}`);
+    process.exit(result.status === "done" ? 0 : 1);
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
 }
 
 // --- alix graph list --- list saved graphs ---
