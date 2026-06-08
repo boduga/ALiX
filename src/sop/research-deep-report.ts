@@ -23,6 +23,8 @@ function makeNode(
   domain: string,
   dependencies: string[],
   capabilities: string[],
+  timeoutMs?: number,
+  maxIterations?: number,
 ): TaskNode {
   const now = new Date().toISOString();
   return {
@@ -30,8 +32,10 @@ function makeNode(
     status: "pending", dependencies, requiredCapabilities: capabilities,
     riskLevel: "low", approvalMode: "auto", inputs: {},
     artifacts: [], memoryRefs: [],
+    executionProfile: "research" as any,
+    timeoutMs, maxIterations,
     createdAt: now, updatedAt: now,
-  };
+  } as any as TaskNode;
 }
 
 export function buildResearchDeepReportGraph(topic: string, reportId: string): { graph: TaskGraph; reportDir: string; reportId: string } {
@@ -42,22 +46,22 @@ export function buildResearchDeepReportGraph(topic: string, reportId: string): {
   const nodes: TaskNode[] = [
     { ...makeNode("scope_topic", graphId, "Define research scope",
       `Define the research scope for: ${topic}. Output 3-5 research questions. Use ONLY web_search. Do NOT read local project files.`,
-      "research", [], ["web.search"]) as any, executionProfile: "research" },
+      "research", [], ["web.search"], 60000, 2) as any, executionProfile: "research" },
     { ...makeNode("search_sources", graphId, "Search for sources",
       `Search the web for sources related to: ${topic}. Use ONLY web_search. Do NOT read local project files. Find at least 5 credible sources.`,
-      "research", ["scope_topic"], ["web.search"]) as any, executionProfile: "research" },
+      "research", ["scope_topic"], ["web.search"], 120000, 3) as any, executionProfile: "research" },
     { ...makeNode("extract_claims", graphId, "Extract claims from sources",
       `Review the search results and extract key claims. Map each claim to its source URL. Note any contradictions. Use ONLY the provided search results. Do NOT read local project files.`,
-      "research", ["search_sources"], ["web.search"]) as any, executionProfile: "research" },
+      "research", ["search_sources"], ["web.search"], 120000, 2) as any, executionProfile: "research" },
     { ...makeNode("synthesize", graphId, "Synthesize report",
       `Write a structured research report about: ${topic}. Use the extracted claims. Separate facts from interpretations. Include a conclusions section. Use ONLY the extracted claims. Do NOT access the web or local files.`,
-      "research", ["extract_claims"], []) as any, executionProfile: "research" },
+      "research", ["extract_claims"], [], 120000, 2) as any, executionProfile: "research" },
     { ...makeNode("critic_review", graphId, "Critic review",
       `Review the synthesized report. Check for: unsupported claims, source concentration, missing citations, logical gaps. Use ONLY the provided report. Do NOT access the web or local files.`,
-      "research", ["synthesize"], []) as any, executionProfile: "research" },
+      "research", ["synthesize"], [], 60000, 1) as any, executionProfile: "research" },
     { ...makeNode("write_artifacts", graphId, "Write report artifacts",
       `Write the final report, sources list, claims mapping, and critic review to the artifacts directory: .alix/reports/${reportId}/. Only write files under .alix/reports/. Do NOT read or write project source files.`,
-      "research", ["critic_review"], ["filesystem.write"]) as any, executionProfile: "research" },
+      "research", ["critic_review"], ["filesystem.write"], 30000, 1) as any, executionProfile: "research" },
   ];
 
   const edges = [
