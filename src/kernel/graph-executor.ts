@@ -16,6 +16,15 @@ import { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities } from "../registry/capability-resolver.js";
 import { runTask } from "../run.js";
 
+export interface CapabilityPreflightResult {
+  requiredCapabilities: string[];
+  matchedAgents: string[];
+  matchedTools: string[];
+  missingCapabilities: string[];
+  warnings: string[];
+  status: "ready" | "blocked" | "needs_approval";
+}
+
 export interface NodeResult {
   nodeId: string;
   title: string;
@@ -23,6 +32,7 @@ export interface NodeResult {
   summary?: string;
   reason?: string;
   durationMs: number;
+  capabilityResolution?: CapabilityPreflightResult;
 }
 
 export interface ExecutorResult {
@@ -99,7 +109,7 @@ export class GraphExecutor {
       let summary = "";
       let reason: string | undefined;
 
-      // Capability resolution preflight (observability only, no enforcement yet)
+      let capabilityResolution: CapabilityPreflightResult | undefined;
       if (node.requiredCapabilities && node.requiredCapabilities.length > 0) {
         try {
           const capRegistry = new CardRegistry();
@@ -109,10 +119,26 @@ export class GraphExecutor {
             executionProfile: (node as any).executionProfile,
             registry: capRegistry,
           });
-          if (capResult.missingCapabilities.length > 0 || capResult.warnings.length > 0) {
-            console.log(`  [cap] ${node.id}: ${capResult.missingCapabilities.length > 0 ? "blocked" : capResult.warnings.length > 0 ? "needs_approval" : "ready"}${capResult.missingCapabilities.length > 0 ? " missing=" + capResult.missingCapabilities.join(",") : ""}${capResult.warnings.length > 0 ? " warnings=" + capResult.warnings.length : ""}`);
-          }
-        } catch {}
+          const status = capResult.missingCapabilities.length > 0 ? "blocked"
+            : capResult.warnings.length > 0 ? "needs_approval" : "ready";
+          capabilityResolution = {
+            requiredCapabilities: node.requiredCapabilities,
+            matchedAgents: capResult.agents.map(a => a.id),
+            matchedTools: capResult.tools.map(t => t.id),
+            missingCapabilities: capResult.missingCapabilities,
+            warnings: capResult.warnings,
+            status,
+          };
+        } catch (err) {
+          capabilityResolution = {
+            requiredCapabilities: node.requiredCapabilities,
+            matchedAgents: [],
+            matchedTools: [],
+            missingCapabilities: [...node.requiredCapabilities],
+            warnings: [`Resolution error: ${err instanceof Error ? err.message : String(err)}`],
+            status: "blocked",
+          };
+        }
       }
 
       try {
@@ -151,6 +177,7 @@ export class GraphExecutor {
         summary,
         reason,
         durationMs: Date.now() - startTime,
+        capabilityResolution,
       });
 
       if (failed) break;
