@@ -27,3 +27,7 @@ export function getSop(id: string): SopDefinition | undefined {
 export function listSops(): SopDefinition[] {
   return Array.from(registry.values());
 }
+
+// Auto-register built-in SOPs
+import { getResearchDeepReportDef } from "./research-deep-report.js";
+registerSop(getResearchDeepReportDef());
