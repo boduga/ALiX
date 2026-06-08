@@ -342,8 +342,24 @@ if (command === "sop" && args[0] === "list") {
 if (command === "sop" && args[0] === "run") {
   const sopId = args[1];
   const topicIdx = args.indexOf("--topic");
-  const topic = topicIdx >= 0 ? args.slice(topicIdx + 1).join(" ") : "";
   const planOnly = args.includes("--plan-only");
+
+  // Collect topic words after --topic, stopping before any --flag
+  let topic = "";
+  if (topicIdx >= 0) {
+    const topicWords: string[] = [];
+    for (let i = topicIdx + 1; i < args.length; i++) {
+      if (args[i].startsWith("--")) break;
+      topicWords.push(args[i]);
+    }
+    topic = topicWords.join(" ");
+  }
+
+  // Reject bracket literals
+  if (topic.includes("[") || topic.includes("]")) {
+    console.error("Unexpected bracket syntax. Did you mean --plan-only instead of [--plan-only]?");
+    process.exit(1);
+  }
 
   if (!sopId) { console.error("Usage: alix sop run <sop-id> --topic \"<topic>\" [--plan-only]"); process.exit(1); }
   if (!topic) { console.error("Error: --topic is required"); process.exit(1); }
