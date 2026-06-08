@@ -43,6 +43,19 @@ function rejectInvalidSessionId(res: ServerResponse): void {
   res.end("Invalid session id");
 }
 
+async function serveRegistry(res: ServerResponse, root: string, type: "agents" | "tools"): Promise<void> {
+  try {
+    const { loadCardRegistry } = await import("../registry/card-loader.js");
+    const registry = await loadCardRegistry(root);
+    res.setHeader("content-type", "application/json");
+    const data = type === "agents" ? registry.listAgents(true) : registry.listTools(true);
+    res.end(JSON.stringify(data));
+  } catch (err) {
+    res.statusCode = 500;
+    res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+  }
+}
+
 export function startServer(root: string, host: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
   const server = createServer(async (req, res) => {
     try {
@@ -87,29 +100,11 @@ export function startServer(root: string, host: string, port: number): Promise<{
         return;
       }
       if (url.pathname === "/api/registry/agents") {
-        try {
-          const { loadCardRegistry } = await import("../registry/card-loader.js");
-          const registry = await loadCardRegistry(root);
-          res.setHeader("content-type", "application/json");
-          res.setHeader("access-control-allow-origin", "*");
-          res.end(JSON.stringify(registry.listAgents(true)));
-        } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-        }
+        await serveRegistry(res, root, "agents");
         return;
       }
       if (url.pathname === "/api/registry/tools") {
-        try {
-          const { loadCardRegistry } = await import("../registry/card-loader.js");
-          const registry = await loadCardRegistry(root);
-          res.setHeader("content-type", "application/json");
-          res.setHeader("access-control-allow-origin", "*");
-          res.end(JSON.stringify(registry.listTools(true)));
-        } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
-        }
+        await serveRegistry(res, root, "tools");
         return;
       }
       if (url.pathname === "/api/sessions/compare") {
