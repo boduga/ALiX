@@ -39,4 +39,28 @@ describe("GraphExecutor", () => {
   it("loadGraph rejects missing graph", async () => {
     await assert.rejects(() => loadGraph("nonexistent_graph", "/tmp"), /Graph not found/);
   });
+
+  it("normalizeNode preserves timeoutMs when set", () => {
+    const raw = {
+      id: "n1", graphId: "g1", title: "Research", goal: "test",
+      domain: "research", status: "pending" as const,
+      dependencies: [], requiredCapabilities: ["web.search"],
+      riskLevel: "low" as const, approvalMode: "auto" as const,
+      inputs: {}, artifacts: [], memoryRefs: [],
+      timeoutMs: 120000, maxIterations: 3,
+      createdAt: "", updatedAt: "",
+    };
+    const norm = normalizeNode(raw);
+    assert.equal(norm.timeoutMs, 120000);
+    assert.equal((norm as any).maxIterations, 3);
+  });
+
+  it("sortNodesByDependencies handles empty dependencies", () => {
+    const nodes: TaskNode[] = [
+      { id: "a", graphId: "g1", title: "A", goal: "a", domain: "x", status: "pending", dependencies: [], requiredCapabilities: [], riskLevel: "low", approvalMode: "auto", inputs: {}, artifacts: [], memoryRefs: [], createdAt: "", updatedAt: "" },
+    ];
+    const sorted = sortNodesByDependencies(nodes);
+    assert.equal(sorted.length, 1);
+    assert.equal(sorted[0].id, "a");
+  });
 });
