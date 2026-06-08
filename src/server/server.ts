@@ -68,6 +68,24 @@ export function startServer(root: string, host: string, port: number): Promise<{
         res.end(await readFile(file, "utf8"));
         return;
       }
+      if (url.pathname.startsWith("/api/graphs/") && url.pathname.endsWith("/projection")) {
+        const graphId = url.pathname.split("/")[3];
+        if (!graphId || graphId.length < 5) {
+          res.statusCode = 400;
+          res.end("Invalid graph ID");
+          return;
+        }
+        try {
+          const { buildGraphProjection } = await import("../kernel/graph-projection.js");
+          const projection = await buildGraphProjection(graphId, root);
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(projection));
+        } catch (err) {
+          res.statusCode = 404;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/sessions/compare") {
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");
