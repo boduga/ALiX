@@ -202,15 +202,33 @@ export class GraphExecutor {
     graph.status = anyFailed ? "failed" : allDone ? "completed" : "running";
 
     // Persist updated graph
-    const { writeFile } = await import("node:fs/promises");
+    const { writeFile, readFile } = await import("node:fs/promises");
     const { join } = await import("node:path");
-    await writeFile(
-      join(this.cwd, ".alix", "graphs", `${graphId}.json`),
-      JSON.stringify(graph, null, 2),
-      "utf-8",
-    );
+    const { existsSync } = await import("node:fs");
+    const graphPath = join(this.cwd, ".alix", "graphs", `${graphId}.json`);
+    await writeFile(graphPath, JSON.stringify(graph, null, 2), "utf-8");
 
-    const durationMs = Date.now() - startTime;
-    return { nodeId: node.id, title: node.title, status, summary, reason, durationMs };
+    // Append rerun attempt to .runs.json (for projection to read)
+    const runsPath = join(this.cwd, ".alix", "graphs", `${graphId}.runs.json`);
+    let runs: any[] = [];
+    if (existsSync(runsPath)) {
+      try { runs = JSON.parse(await readFile(runsPath, "utf-8")); } catch {}
+    }
+    const attemptNumber = runs.length + 1;
+    runs.push({
+      attempt: attemptNumber,
+      nodeId: node.id,
+      status: status === "done" ? "done" : "failed",
+      sessionId: undefined,
+      startedAt: new Date(startTime).toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: Date.now() - startTime,
+      summary,
+      error: reason,
+    });
+    await writeFile(runsPath, JSON.stringify(runs, null, 2), "utf-8");
+
+    
+    return { nodeId: node.id, title: node.title, status, summary, reason, durationMs: Date.now() - startTime };
   }
 }
