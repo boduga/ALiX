@@ -1,0 +1,56 @@
+# ALiX Nexus OS Split Documentation Pack v1.6
+
+This pack updates v1.5 with Odysseus-inspired product borrowings while preserving the M0.9 scope freeze.
+
+- `ALiX_M0.9_Implementation_Plan.md`
+- `ALiX_Nexus_OS_PRD_slim.md`
+- `ALiX_Nexus_OS_PRD_v1.6_slim.md`
+- `docs/architecture/a2a-readiness.md`
+- `docs/architecture/agent-selection.md`
+- `docs/architecture/capability-taxonomy.md`
+- `docs/architecture/event-schema.md`
+- `docs/architecture/memory-kernel.md`
+- `docs/architecture/migration-map.md`
+- `docs/architecture/observability-metrics.md`
+- `docs/architecture/persistence-recovery.md`
+- `docs/architecture/policy-enforcement.md`
+- `docs/architecture/schema-versioning.md`
+- `docs/architecture/sidecar-protocol.md`
+- `docs/architecture/taskgraph-runtime.md`
+- `docs/evals/eval_strategy.md`
+- `docs/evals/graph_replay_eval.md`
+- `docs/evals/model_routing_eval.md`
+- `docs/evals/policy_boundary_eval.md`
+- `docs/evals/research_eval.md`
+- `docs/milestones/M0.10_workflowrun_taskgraph.md`
+- `docs/milestones/M0.11_persistence_replay.md`
+- `docs/milestones/M0.12_agent_tool_cards.md`
+- `docs/milestones/M0.9_stabilize_harness.md`
+- `docs/product/PRD.md`
+- `docs/product/freeze_checklist.md`
+- `docs/product/mvp_acceptance.md`
+- `docs/product/odysseus-borrowings.md`
+- `docs/product/roadmap.md`
+- `docs/sops/coding.issue_to_pr.md`
+- `docs/sops/coding.test_repair.md`
+- `docs/sops/infra.docker_compose_audit.md`
+- `docs/sops/research.deep_report.md`
+- `implementation/m0.9-starter/docs/M0.9_INTEGRATION_NOTES.md`
+- `implementation/m0.9-starter/src/db/migrations/0001_m09_kernel.sql`
+- `implementation/m0.9-starter/src/kernel/event-envelope.ts`
+- `implementation/m0.9-starter/src/kernel/minimal-metrics.ts`
+- `implementation/m0.9-starter/src/kernel/model-routing-validation.ts`
+- `implementation/m0.9-starter/src/kernel/policy-decision.ts`
+- `implementation/m0.9-starter/src/kernel/task-graph.ts`
+- `implementation/m0.9-starter/src/kernel/workflow-run.ts`
+- `schemas/agent_card.v1.schema.json`
+- `schemas/artifact.v1.schema.json`
+- `schemas/capability.v1.schema.json`
+- `schemas/event_envelope.v1.schema.json`
+- `schemas/policy_decision.v1.schema.json`
+- `schemas/sidecar_message.v1.schema.json`
+- `schemas/skill_card.v1.schema.json`
+- `schemas/sop_pack.v1.schema.json`
+- `schemas/task_graph.v1.schema.json`
+- `schemas/task_node.v1.schema.json`
+- `schemas/tool_card.v1.schema.json`

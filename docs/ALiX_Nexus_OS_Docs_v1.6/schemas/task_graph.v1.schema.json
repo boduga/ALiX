@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TaskGraph",
+  "type": "object",
+  "required": [
+    "id",
+    "schemaVersion",
+    "workflowId",
+    "rootGoal",
+    "status",
+    "strategy",
+    "nodes",
+    "edges",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "workflowId": {
+      "type": "string"
+    },
+    "rootGoal": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "ready",
+        "running",
+        "awaiting_approval",
+        "completed",
+        "failed",
+        "cancelled"
+      ]
+    },
+    "strategy": {
+      "enum": [
+        "sequential",
+        "parallel",
+        "map_reduce",
+        "critic_loop",
+        "human_gated",
+        "hybrid"
+      ]
+    },
+    "nodes": {
+      "type": "array"
+    },
+    "edges": {
+      "type": "array"
+    },
+    "budget": {
+      "type": "object"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string"
+    }
+  }
+}

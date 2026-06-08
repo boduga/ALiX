@@ -1,11 +1,11 @@
 ---
-name: resolved on the fly... (lesson)
+name: resolved on the fly*... (lesson)
 description: Auto-extracted feedback decision: resolved
 type: feedback
 confidence: 0.6
 confirmations: 1
-createdAt: 2026-05-23T03:32:48.790Z
-modifiedAt: 2026-05-23T03:32:48.790Z
-source: session:18f039da-2b15-4389-b2ed-d75f267ea4db
+createdAt: 2026-06-07T14:23:56.260Z
+modifiedAt: 2026-06-07T14:23:56.260Z
+source: session:900d80d0-431d-4840-ae25-7cca0e91ce38
 ---
-resolved on the fly
+resolved on the fly*

@@ -104,10 +104,11 @@ export class ToolExecutor {
   }
 
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
-    const { toolCallId, name, args } = request;
+    const { toolCallId, name } = request;
+    let args = request.args;
+    let argumentHash = hashArgs(args);
     const capability = inferCapability(name);
     const canonicalCapability = legacyCapabilityToCanonical(capability);
-    const argumentHash = hashArgs(args);
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args) });
 
@@ -130,6 +131,11 @@ export class ToolExecutor {
         reason: policyDecision.reasons[0],
         matchedRuleId: policyDecision.id,
       },
+    });
+
+    await this.log.append({
+      sessionId: "", actor: "system", type: "m09.metric",
+      payload: { name: "policy_decisions_total", type: "counter", value: 1, labels: { capability, decision: policyDecision.decision }, timestamp: new Date().toISOString() },
     });
 
     const legacyPolicyResult = decidePolicy(this.config, {
@@ -164,10 +170,13 @@ export class ToolExecutor {
     // === TOOL REPAIR LAYER ===
     let repairHint: string | undefined;
     if (this.repair && name !== "done" && !name.startsWith("mcp.")) {
-      const result = this.repair.process(name, args);
-      if (result.repaired) {
-        repairHint = result.hint;
-        (request as Record<string, unknown>).args = result.args;
+      const repairResult = this.repair.process(name, args);
+      if (repairResult.repaired) {
+        repairHint = repairResult.hint;
+        (request as Record<string, unknown>).args = repairResult.args;
+        // Recompute hash after repair modifies args
+        args = repairResult.args;
+        argumentHash = hashArgs(args);
       }
     }
     // === END TOOL REPAIR ===

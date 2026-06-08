@@ -378,24 +378,23 @@ ${approvedPlanContent}`);
     throw err;
   }
 
-  transitionNodeStatus(taskNode, "done");
-  transitionGraphStatus(taskGraph, "completed");
-  await ctx.log.append({
-    ...session, type: "task.done", actor: "system",
-    payload: { nodeId: taskNode.id, graphId: taskGraph.id, summary: result.summary },
-    meta: graphMeta,
-  });
-  await ctx.log.append({
-    ...session, type: "graph.completed", actor: "system",
-    payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: result.summary },
-    meta: graphMeta,
-  });
-  const completedRun = transitionWorkflowStatus(wfRun, "completed");
-  await ctx.log.append({
-    ...session, type: "workflow.completed", actor: "system",
-    payload: { workflowId: wfRun.id, summary: result.summary },
-    meta: wfMeta,
-  });
+  const FAILURE_REASONS = new Set(["max_iterations", "max_repairs", "rejected_scope_expansion"]);
+  const isFailed = FAILURE_REASONS.has(result.reason ?? "");
+  if (isFailed) {
+    transitionNodeStatus(taskNode, "failed");
+    transitionGraphStatus(taskGraph, "failed");
+    const failedRun = transitionWorkflowStatus(wfRun, "failed");
+    await ctx.log.append({ ...session, type: "task.failed", actor: "system", payload: { nodeId: taskNode.id, graphId: taskGraph.id, reason: result.reason, summary: result.summary }, meta: graphMeta });
+    await ctx.log.append({ ...session, type: "graph.failed", actor: "system", payload: { graphId: taskGraph.id, workflowId: wfRun.id, reason: result.reason, summary: result.summary }, meta: graphMeta });
+    await ctx.log.append({ ...session, type: "workflow.failed", actor: "system", payload: { workflowId: wfRun.id, reason: result.reason, summary: result.summary }, meta: wfMeta });
+  } else {
+    transitionNodeStatus(taskNode, "done");
+    transitionGraphStatus(taskGraph, "completed");
+    const completedRun = transitionWorkflowStatus(wfRun, "completed");
+    await ctx.log.append({ ...session, type: "task.done", actor: "system", payload: { nodeId: taskNode.id, graphId: taskGraph.id, summary: result.summary }, meta: graphMeta });
+    await ctx.log.append({ ...session, type: "graph.completed", actor: "system", payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: result.summary }, meta: graphMeta });
+    await ctx.log.append({ ...session, type: "workflow.completed", actor: "system", payload: { workflowId: wfRun.id, summary: result.summary }, meta: wfMeta });
+  }
 
   // Flush minimal metrics
   metrics.duration("workflow_duration_ms", Date.now() - startTime);

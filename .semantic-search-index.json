@@ -37,8 +37,8 @@
         "path": "src/cli.ts",
         "symbolName": "agentRole",
         "kind": "const",
-        "lineStart": 572,
-        "lineEnd": 572,
+        "lineStart": 567,
+        "lineEnd": 567,
         "keywords": [
           "alix",
           "agent",
@@ -55,8 +55,8 @@
         "path": "src/cli.ts",
         "symbolName": "parseChatArgs",
         "kind": "function",
-        "lineStart": 758,
-        "lineEnd": 780,
+        "lineStart": 811,
+        "lineEnd": 833,
         "keywords": []
       }
     ]
@@ -91,16 +91,16 @@
         "path": "src/run.ts",
         "symbolName": "SharedSession",
         "kind": "interface",
-        "lineStart": 7,
-        "lineEnd": 11,
+        "lineStart": 8,
+        "lineEnd": 12,
         "keywords": []
       },
       {
         "path": "src/run.ts",
         "symbolName": "EXIT_CODES",
         "kind": "const",
-        "lineStart": 29,
-        "lineEnd": 29,
+        "lineStart": 32,
+        "lineEnd": 32,
         "keywords": []
       }
     ]
@@ -2681,7 +2681,7 @@
         "symbolName": "TuiRenderer",
         "kind": "class",
         "lineStart": 24,
-        "lineEnd": 137,
+        "lineEnd": 138,
         "keywords": []
       },
       {
@@ -2753,7 +2753,7 @@
         "symbolName": "buildBlock",
         "kind": "method",
         "lineStart": 123,
-        "lineEnd": 136,
+        "lineEnd": 137,
         "keywords": []
       }
     ]
@@ -3642,7 +3642,7 @@
       },
       {
         "path": "src/tools/capability-map.ts",
-        "symbolName": "TOOL_CAPABILITY_MAP",
+        "symbolName": "LEGACY_TO_CANONICAL",
         "kind": "const",
         "lineStart": 23,
         "lineEnd": 23,
@@ -3650,34 +3650,50 @@
       },
       {
         "path": "src/tools/capability-map.ts",
+        "symbolName": "legacyCapabilityToCanonical",
+        "kind": "function",
+        "lineStart": 45,
+        "lineEnd": 47,
+        "keywords": []
+      },
+      {
+        "path": "src/tools/capability-map.ts",
+        "symbolName": "TOOL_CAPABILITY_MAP",
+        "kind": "const",
+        "lineStart": 49,
+        "lineEnd": 49,
+        "keywords": []
+      },
+      {
+        "path": "src/tools/capability-map.ts",
         "symbolName": "inferCapability",
         "kind": "function",
-        "lineStart": 35,
-        "lineEnd": 37,
+        "lineStart": 61,
+        "lineEnd": 63,
         "keywords": []
       },
       {
         "path": "src/tools/capability-map.ts",
         "symbolName": "READONLY_CAPABILITIES",
         "kind": "const",
-        "lineStart": 39,
-        "lineEnd": 39,
+        "lineStart": 65,
+        "lineEnd": 65,
         "keywords": []
       },
       {
         "path": "src/tools/capability-map.ts",
         "symbolName": "isReadonlyCapability",
         "kind": "function",
-        "lineStart": 41,
-        "lineEnd": 43,
+        "lineStart": 67,
+        "lineEnd": 69,
         "keywords": []
       },
       {
         "path": "src/tools/capability-map.ts",
         "symbolName": "requiresApproval",
         "kind": "function",
-        "lineStart": 45,
-        "lineEnd": 47,
+        "lineStart": 71,
+        "lineEnd": 73,
         "keywords": []
       }
     ]
@@ -3688,64 +3704,72 @@
         "path": "src/tools/executor.ts",
         "symbolName": "LARGE_OUTPUT_THRESHOLD",
         "kind": "const",
-        "lineStart": 26,
-        "lineEnd": 26,
+        "lineStart": 29,
+        "lineEnd": 29,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "sanitizeArgs",
         "kind": "function",
-        "lineStart": 28,
-        "lineEnd": 36,
+        "lineStart": 31,
+        "lineEnd": 39,
+        "keywords": []
+      },
+      {
+        "path": "src/tools/executor.ts",
+        "symbolName": "hashArgs",
+        "kind": "function",
+        "lineStart": 41,
+        "lineEnd": 54,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "ToolExecutor",
         "kind": "class",
-        "lineStart": 46,
-        "lineEnd": 196,
+        "lineStart": 64,
+        "lineEnd": 254,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "sessionId",
         "kind": "method",
-        "lineStart": 78,
-        "lineEnd": 82,
+        "lineStart": 96,
+        "lineEnd": 100,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "logEvent",
         "kind": "method",
-        "lineStart": 84,
-        "lineEnd": 86,
+        "lineStart": 102,
+        "lineEnd": 104,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "execute",
         "kind": "method",
-        "lineStart": 88,
-        "lineEnd": 195,
+        "lineStart": 106,
+        "lineEnd": 253,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "classifyError",
         "kind": "function",
-        "lineStart": 200,
-        "lineEnd": 230,
+        "lineStart": 258,
+        "lineEnd": 288,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "inferCapability",
         "kind": "function",
-        "lineStart": 232,
-        "lineEnd": 246,
+        "lineStart": 290,
+        "lineEnd": 304,
         "keywords": [
           "unknownambiguous",
           "retry",
@@ -3758,16 +3782,16 @@
         "path": "src/tools/executor.ts",
         "symbolName": "truncateOutput",
         "kind": "function",
-        "lineStart": 248,
-        "lineEnd": 251,
+        "lineStart": 306,
+        "lineEnd": 309,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "writeOutputToFile",
         "kind": "function",
-        "lineStart": 253,
-        "lineEnd": 267,
+        "lineStart": 311,
+        "lineEnd": 344,
         "keywords": []
       }
     ]
@@ -5100,15 +5124,15 @@
         "symbolName": "handleToolCall",
         "kind": "function",
         "lineStart": 221,
-        "lineEnd": 231,
+        "lineEnd": 232,
         "keywords": []
       },
       {
         "path": "src/run/event-handlers.ts",
         "symbolName": "handleVerificationResults",
         "kind": "function",
-        "lineStart": 289,
-        "lineEnd": 291,
+        "lineStart": 291,
+        "lineEnd": 293,
         "keywords": []
       }
     ]
@@ -5318,39 +5342,39 @@
         "symbolName": "runTaskLoop",
         "kind": "function",
         "lineStart": 141,
-        "lineEnd": 680,
+        "lineEnd": 712,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "estimateMessageTokens",
         "kind": "function",
-        "lineStart": 688,
-        "lineEnd": 691,
+        "lineStart": 720,
+        "lineEnd": 723,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "buildSessionDigest",
         "kind": "function",
-        "lineStart": 697,
-        "lineEnd": 704,
+        "lineStart": 729,
+        "lineEnd": 736,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "buildStateSummary",
         "kind": "function",
-        "lineStart": 709,
-        "lineEnd": 716,
+        "lineStart": 741,
+        "lineEnd": 748,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "evaluatePattern",
         "kind": "function",
-        "lineStart": 722,
-        "lineEnd": 724,
+        "lineStart": 754,
+        "lineEnd": 756,
         "keywords": []
       }
     ]
@@ -9709,6 +9733,398 @@
       }
     ]
   },
+  "src/kernel/event-envelope.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "ActorType",
+        "kind": "type",
+        "lineStart": 16,
+        "lineEnd": 16,
+        "keywords": [
+          "canonical",
+          "types"
+        ]
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "EventVisibility",
+        "kind": "type",
+        "lineStart": 17,
+        "lineEnd": 17,
+        "keywords": [
+          "canonical",
+          "types"
+        ]
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "CanonicalEvent",
+        "kind": "interface",
+        "lineStart": 19,
+        "lineEnd": 34,
+        "keywords": [
+          "canonical",
+          "types"
+        ]
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "EventSink",
+        "kind": "interface",
+        "lineStart": 36,
+        "lineEnd": 38,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "mapActor",
+        "kind": "function",
+        "lineStart": 43,
+        "lineEnd": 54,
+        "keywords": [
+          "mapping",
+          "helpers"
+        ]
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "inferVisibility",
+        "kind": "function",
+        "lineStart": 57,
+        "lineEnd": 61,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "toCanonicalEvent",
+        "kind": "function",
+        "lineStart": 66,
+        "lineEnd": 92,
+        "keywords": [
+          "adapter"
+        ]
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "emitJsonLine",
+        "kind": "function",
+        "lineStart": 95,
+        "lineEnd": 97,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "CanonicalEventSink",
+        "kind": "class",
+        "lineStart": 103,
+        "lineEnd": 133,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "emit",
+        "kind": "method",
+        "lineStart": 111,
+        "lineEnd": 116,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "flush",
+        "kind": "method",
+        "lineStart": 119,
+        "lineEnd": 123,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/event-envelope.ts",
+        "symbolName": "peek",
+        "kind": "method",
+        "lineStart": 126,
+        "lineEnd": 128,
+        "keywords": []
+      }
+    ]
+  },
+  "src/kernel/minimal-metrics.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "M09MetricName",
+        "kind": "type",
+        "lineStart": 9,
+        "lineEnd": 9,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "MetricEvent",
+        "kind": "interface",
+        "lineStart": 18,
+        "lineEnd": 24,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "MinimalMetrics",
+        "kind": "class",
+        "lineStart": 26,
+        "lineEnd": 62,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "increment",
+        "kind": "method",
+        "lineStart": 29,
+        "lineEnd": 31,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "duration",
+        "kind": "method",
+        "lineStart": 33,
+        "lineEnd": 35,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "flush",
+        "kind": "method",
+        "lineStart": 38,
+        "lineEnd": 42,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "snapshot",
+        "kind": "method",
+        "lineStart": 45,
+        "lineEnd": 47,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/minimal-metrics.ts",
+        "symbolName": "report",
+        "kind": "method",
+        "lineStart": 50,
+        "lineEnd": 61,
+        "keywords": []
+      }
+    ]
+  },
+  "src/kernel/model-routing-validation.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/model-routing-validation.ts",
+        "symbolName": "ModelRoutingCase",
+        "kind": "interface",
+        "lineStart": 11,
+        "lineEnd": 17,
+        "keywords": [
+          "types"
+        ]
+      },
+      {
+        "path": "src/kernel/model-routing-validation.ts",
+        "symbolName": "ModelRoutingResult",
+        "kind": "interface",
+        "lineStart": 19,
+        "lineEnd": 27,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/model-routing-validation.ts",
+        "symbolName": "ModelRoutingSummary",
+        "kind": "interface",
+        "lineStart": 29,
+        "lineEnd": 40,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/model-routing-validation.ts",
+        "symbolName": "summarizeRoutingResults",
+        "kind": "function",
+        "lineStart": 48,
+        "lineEnd": 91,
+        "keywords": []
+      }
+    ]
+  },
+  "src/kernel/policy-decision.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/policy-decision.ts",
+        "symbolName": "PolicyDecision",
+        "kind": "interface",
+        "lineStart": 3,
+        "lineEnd": 18,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/policy-decision.ts",
+        "symbolName": "hashArguments",
+        "kind": "function",
+        "lineStart": 21,
+        "lineEnd": 27,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/policy-decision.ts",
+        "symbolName": "createPermissivePolicyDecision",
+        "kind": "function",
+        "lineStart": 30,
+        "lineEnd": 37,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/policy-decision.ts",
+        "symbolName": "assertPolicyArgumentsMatch",
+        "kind": "function",
+        "lineStart": 55,
+        "lineEnd": 60,
+        "keywords": []
+      }
+    ]
+  },
+  "src/kernel/task-graph.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "TaskNodeStatus",
+        "kind": "type",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "TaskGraphStatus",
+        "kind": "type",
+        "lineStart": 7,
+        "lineEnd": 7,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "RiskLevel",
+        "kind": "type",
+        "lineStart": 10,
+        "lineEnd": 10,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "ApprovalMode",
+        "kind": "type",
+        "lineStart": 11,
+        "lineEnd": 11,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "GraphStrategy",
+        "kind": "type",
+        "lineStart": 12,
+        "lineEnd": 12,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "EdgeType",
+        "kind": "type",
+        "lineStart": 13,
+        "lineEnd": 13,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "TaskNode",
+        "kind": "interface",
+        "lineStart": 15,
+        "lineEnd": 34,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "TaskGraph",
+        "kind": "interface",
+        "lineStart": 36,
+        "lineEnd": 47,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "createSingleNodeGraph",
+        "kind": "function",
+        "lineStart": 49,
+        "lineEnd": 49,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "transitionNodeStatus",
+        "kind": "function",
+        "lineStart": 84,
+        "lineEnd": 86,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/task-graph.ts",
+        "symbolName": "transitionGraphStatus",
+        "kind": "function",
+        "lineStart": 88,
+        "lineEnd": 90,
+        "keywords": []
+      }
+    ]
+  },
+  "src/kernel/workflow-run.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/workflow-run.ts",
+        "symbolName": "WorkflowStatus",
+        "kind": "type",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/workflow-run.ts",
+        "symbolName": "WorkflowMode",
+        "kind": "type",
+        "lineStart": 4,
+        "lineEnd": 4,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/workflow-run.ts",
+        "symbolName": "WorkflowRun",
+        "kind": "interface",
+        "lineStart": 6,
+        "lineEnd": 17,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/workflow-run.ts",
+        "symbolName": "createWorkflowRun",
+        "kind": "function",
+        "lineStart": 19,
+        "lineEnd": 31,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/workflow-run.ts",
+        "symbolName": "transitionWorkflowStatus",
+        "kind": "function",
+        "lineStart": 33,
+        "lineEnd": 35,
+        "keywords": []
+      }
+    ]
+  },
   "src/inspector/projection.ts": {
     "symbols": [
       {
@@ -9812,23 +10228,23 @@
         "symbolName": "buildInspectorSnapshot",
         "kind": "function",
         "lineStart": 62,
-        "lineEnd": 235,
+        "lineEnd": 243,
         "keywords": []
       },
       {
         "path": "src/inspector/projection.ts",
         "symbolName": "projectSubagentEvents",
         "kind": "function",
-        "lineStart": 246,
-        "lineEnd": 262,
+        "lineStart": 254,
+        "lineEnd": 270,
         "keywords": []
       },
       {
         "path": "src/inspector/projection.ts",
         "symbolName": "compareInspectorSnapshots",
         "kind": "function",
-        "lineStart": 264,
-        "lineEnd": 280,
+        "lineStart": 272,
+        "lineEnd": 288,
         "keywords": []
       }
     ]
@@ -10554,16 +10970,16 @@
         "path": "src/events/types.ts",
         "symbolName": "NewEvent",
         "kind": "type",
-        "lineStart": 16,
-        "lineEnd": 16,
+        "lineStart": 25,
+        "lineEnd": 25,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "ToolEventPayload",
         "kind": "type",
-        "lineStart": 30,
-        "lineEnd": 30,
+        "lineStart": 39,
+        "lineEnd": 39,
         "keywords": [
           "additional",
           "event",
@@ -10577,72 +10993,132 @@
         "path": "src/events/types.ts",
         "symbolName": "TOOL_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 69,
-        "lineEnd": 69,
+        "lineStart": 85,
+        "lineEnd": 85,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "PATCH_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 116,
-        "lineEnd": 116,
+        "lineStart": 132,
+        "lineEnd": 132,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "FILE_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 128,
-        "lineEnd": 128,
+        "lineStart": 144,
+        "lineEnd": 144,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "AGENT_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 133,
-        "lineEnd": 133,
+        "lineStart": 149,
+        "lineEnd": 149,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "MCP_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 139,
-        "lineEnd": 139,
+        "lineStart": 155,
+        "lineEnd": 155,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "SUBAGENT_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 156,
-        "lineEnd": 156,
+        "lineStart": 172,
+        "lineEnd": 172,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "VerificationEventPayload",
         "kind": "type",
-        "lineStart": 161,
-        "lineEnd": 161,
+        "lineStart": 177,
+        "lineEnd": 177,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "CONTEXT_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 284,
-        "lineEnd": 284,
+        "lineStart": 303,
+        "lineEnd": 303,
         "keywords": []
       },
       {
         "path": "src/events/types.ts",
         "symbolName": "POLICY_EVENT_TYPES",
         "kind": "const",
-        "lineStart": 315,
-        "lineEnd": 315,
+        "lineStart": 334,
+        "lineEnd": 334,
+        "keywords": []
+      },
+      {
+        "path": "src/events/types.ts",
+        "symbolName": "ARTIFACT_EVENT_TYPES",
+        "kind": "const",
+        "lineStart": 349,
+        "lineEnd": 349,
+        "keywords": []
+      }
+    ]
+  },
+  "src/db/manager.ts": {
+    "symbols": [
+      {
+        "path": "src/db/manager.ts",
+        "symbolName": "DatabaseManager",
+        "kind": "class",
+        "lineStart": 13,
+        "lineEnd": 156,
+        "keywords": []
+      },
+      {
+        "path": "src/db/manager.ts",
+        "symbolName": "open",
+        "kind": "method",
+        "lineStart": 22,
+        "lineEnd": 30,
+        "keywords": []
+      },
+      {
+        "path": "src/db/manager.ts",
+        "symbolName": "migrate",
+        "kind": "method",
+        "lineStart": 33,
+        "lineEnd": 37,
+        "keywords": []
+      },
+      {
+        "path": "src/db/manager.ts",
+        "symbolName": "migrateKernel",
+        "kind": "method",
+        "lineStart": 40,
+        "lineEnd": 132,
+        "keywords": []
+      },
+      {
+        "path": "src/db/manager.ts",
+        "symbolName": "health",
+        "kind": "method",
+        "lineStart": 135,
+        "lineEnd": 135,
+        "keywords": []
+      },
+      {
+        "path": "src/db/manager.ts",
+        "symbolName": "close",
+        "kind": "method",
+        "lineStart": 147,
+        "lineEnd": 150,
         "keywords": []
       }
     ]
@@ -11383,6 +11859,42 @@
       }
     ]
   },
+  "src/cli/run-args.ts": {
+    "symbols": [
+      {
+        "path": "src/cli/run-args.ts",
+        "symbolName": "BOOLEAN_FLAGS",
+        "kind": "const",
+        "lineStart": 10,
+        "lineEnd": 10,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/run-args.ts",
+        "symbolName": "VALUE_FLAGS",
+        "kind": "const",
+        "lineStart": 11,
+        "lineEnd": 11,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/run-args.ts",
+        "symbolName": "VALID_MODES",
+        "kind": "const",
+        "lineStart": 12,
+        "lineEnd": 12,
+        "keywords": []
+      },
+      {
+        "path": "src/cli/run-args.ts",
+        "symbolName": "parseRunArgs",
+        "kind": "function",
+        "lineStart": 25,
+        "lineEnd": 91,
+        "keywords": []
+      }
+    ]
+  },
   "src/cli/commands/apply.ts": {
     "symbols": [
       {
@@ -11538,6 +12050,18 @@
         "kind": "function",
         "lineStart": 277,
         "lineEnd": 294,
+        "keywords": []
+      }
+    ]
+  },
+  "src/cli/commands/demo.ts": {
+    "symbols": [
+      {
+        "path": "src/cli/commands/demo.ts",
+        "symbolName": "runDemo",
+        "kind": "function",
+        "lineStart": 14,
+        "lineEnd": 88,
         "keywords": []
       }
     ]
@@ -11740,32 +12264,32 @@
         "path": "src/cli/commands/tui.ts",
         "symbolName": "TuiOptions",
         "kind": "interface",
-        "lineStart": 9,
-        "lineEnd": 11,
+        "lineStart": 10,
+        "lineEnd": 12,
         "keywords": []
       },
       {
         "path": "src/cli/commands/tui.ts",
         "symbolName": "readLine",
         "kind": "function",
-        "lineStart": 13,
-        "lineEnd": 24,
+        "lineStart": 14,
+        "lineEnd": 25,
         "keywords": []
       },
       {
         "path": "src/cli/commands/tui.ts",
         "symbolName": "echoTask",
         "kind": "function",
-        "lineStart": 26,
-        "lineEnd": 33,
+        "lineStart": 27,
+        "lineEnd": 34,
         "keywords": []
       },
       {
         "path": "src/cli/commands/tui.ts",
         "symbolName": "runTui",
         "kind": "function",
-        "lineStart": 35,
-        "lineEnd": 96,
+        "lineStart": 36,
+        "lineEnd": 124,
         "keywords": []
       }
     ]
@@ -12579,8 +13103,8 @@
         "path": "src/agent/agent-loop.ts",
         "symbolName": "runTask",
         "kind": "function",
-        "lineStart": 22,
-        "lineEnd": 289,
+        "lineStart": 27,
+        "lineEnd": 408,
         "keywords": []
       }
     ]
@@ -12591,8 +13115,8 @@
         "path": "src/agent/agent.ts",
         "symbolName": "initAgent",
         "kind": "function",
-        "lineStart": 55,
-        "lineEnd": 201,
+        "lineStart": 56,
+        "lineEnd": 209,
         "keywords": []
       }
     ]
@@ -12670,6 +13194,82 @@
         "lineStart": 3,
         "lineEnd": 7,
         "keywords": []
+      }
+    ]
+  },
+  "scripts/validate-model-routing.ts": {
+    "symbols": [
+      {
+        "path": "scripts/validate-model-routing.ts",
+        "symbolName": "TierTest",
+        "kind": "interface",
+        "lineStart": 14,
+        "lineEnd": 18,
+        "keywords": []
+      },
+      {
+        "path": "scripts/validate-model-routing.ts",
+        "symbolName": "TIERS",
+        "kind": "const",
+        "lineStart": 20,
+        "lineEnd": 20,
+        "keywords": []
+      },
+      {
+        "path": "scripts/validate-model-routing.ts",
+        "symbolName": "classifyWithModel",
+        "kind": "function",
+        "lineStart": 26,
+        "lineEnd": 47,
+        "keywords": []
+      },
+      {
+        "path": "scripts/validate-model-routing.ts",
+        "symbolName": "parseResult",
+        "kind": "function",
+        "lineStart": 49,
+        "lineEnd": 61,
+        "keywords": []
+      },
+      {
+        "path": "scripts/validate-model-routing.ts",
+        "symbolName": "runTier",
+        "kind": "function",
+        "lineStart": 63,
+        "lineEnd": 99,
+        "keywords": []
+      },
+      {
+        "path": "scripts/validate-model-routing.ts",
+        "symbolName": "main",
+        "kind": "function",
+        "lineStart": 101,
+        "lineEnd": 115,
+        "keywords": []
+      }
+    ]
+  },
+  "scripts/validation-cases.ts": {
+    "symbols": [
+      {
+        "path": "scripts/validation-cases.ts",
+        "symbolName": "VALIDATION_CASES",
+        "kind": "const",
+        "lineStart": 7,
+        "lineEnd": 7,
+        "keywords": []
+      },
+      {
+        "path": "scripts/validation-cases.ts",
+        "symbolName": "VALIDATION_THRESHOLDS",
+        "kind": "const",
+        "lineStart": 36,
+        "lineEnd": 36,
+        "keywords": [
+          "unsafe",
+          "high",
+          "risk"
+        ]
       }
     ]
   },
@@ -13012,6 +13612,18 @@
         "kind": "function",
         "lineStart": 34,
         "lineEnd": 38,
+        "keywords": []
+      }
+    ]
+  },
+  "packages/tool-repair/src/adapters/alix-hook.ts": {
+    "symbols": [
+      {
+        "path": "packages/tool-repair/src/adapters/alix-hook.ts",
+        "symbolName": "createToolRepairHooks",
+        "kind": "function",
+        "lineStart": 11,
+        "lineEnd": 11,
         "keywords": []
       }
     ]

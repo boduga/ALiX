@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { mkdir } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { Tui } from "../../tui/index.js";
 import { EventLog } from "../../events/event-log.js";
@@ -75,9 +76,24 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     try {
       tui.resetOutput();
       echoTask(task);
+
+      // Load prior conversation for continuous context (non-shell tasks only)
+      const msgsPath = join(sessionDir, "messages.jsonl");
+      const { isShellTask } = await import("../../task-classifier.js");
+      const isShell = isShellTask(task);
+      let allMessages: any[] = [{ role: "user" as const, content: task }];
+      if (!isShell && existsSync(msgsPath)) {
+        const raw = await readFile(msgsPath, "utf-8");
+        const prevMessages = raw.trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
+        allMessages = [...prevMessages, ...allMessages];
+      }
+
+      const hasPriorMessages = allMessages.length > 1;
       const result = await runTask(cwd, task, {
+        messages: isShell ? undefined : allMessages,
         streaming: true,
         sessionMode: "bypass",
+        skipContext: hasPriorMessages,
         sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
       }, (chunk) => {
         if (chunk.type === "text" && typeof chunk.text === "string") {
@@ -86,6 +102,17 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       });
 
       if (result.summary) tui.appendOutput(result.summary, false);
+
+      // Save full conversation history for continuous context
+      if (!isShell) {
+        const savedMessages = [...allMessages];
+        if (result.summary) {
+          savedMessages.push({ role: "assistant" as const, content: result.summary });
+        }
+        const capped = savedMessages.length > 20 ? savedMessages.slice(-20) : savedMessages;
+        const jsonLines = capped.map((m: any) => JSON.stringify(m) + "\n").join("");
+        await writeFile(msgsPath, jsonLines, "utf-8").catch(() => {});
+      }
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
       console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
@@ -93,4 +120,5 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   }
 
   tui.destroy();
+
 }

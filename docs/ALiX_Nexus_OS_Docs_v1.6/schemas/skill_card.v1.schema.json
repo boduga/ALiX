@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SkillCard",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "schemaVersion",
+    "description",
+    "entrypoint",
+    "capabilities",
+    "inputSchema",
+    "outputSchema",
+    "tests",
+    "enabled"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "description": {
+      "type": "string"
+    },
+    "entrypoint": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "inputSchema": {
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "tests": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "trustLevel": {
+      "enum": [
+        "core",
+        "trusted",
+        "local",
+        "untrusted"
+      ]
+    }
+  }
+}

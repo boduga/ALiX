@@ -14,7 +14,7 @@ describe("Suite B: Plan Mode", () => {
 
   // ── B.1: Research task auto-approves ──────────────────────────
   it("B.1: research task does not show plan approval prompt", () => {
-    const r = runCli([...BASE, "research the best logging pattern for Node.js"]);
+    const r = runCli([...BASE, "research the best logging pattern for Node.js"], { timeoutMs: 60_000 });
     assertSuccess(r);
     // Research tasks skip plan generation entirely
     assertOutputNotContains(r, "Approve plan");

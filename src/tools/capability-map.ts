@@ -20,6 +20,32 @@ interface PolicyConfig {
   default: ApprovalLevel;
 }
 
+const LEGACY_TO_CANONICAL: Record<string, string> = {
+  "file.read": "filesystem.read",
+  "file.write": "filesystem.write",
+  "file.search": "filesystem.search",
+  "file.delete": "filesystem.write",
+  "shell.run": "shell.exec",
+  "shell.readonly": "shell.exec",
+  "git.diff": "repo.read",
+  "git.commit": "repo.write",
+  "git.push": "repo.write",
+  "network.fetch": "network.fetch",
+  "secret.read": "secret.read",
+  "browser.open": "browser.open",
+  "patch.apply": "patch.apply",
+  "delegate": "agent.delegate",
+  "task.complete": "task.complete",
+  "web.search": "web.search",
+  "web.fetch": "web.fetch",
+  "mcp.invoke": "mcp.invoke",
+  "tool.invoke": "tool.invoke",
+};
+
+export function legacyCapabilityToCanonical(legacy: string): string {
+  return LEGACY_TO_CANONICAL[legacy] ?? legacy;
+}
+
 const TOOL_CAPABILITY_MAP: Record<string, Capability> = {
   "alix_file_read": "file.read",
   "alix_file_write": "file.write",

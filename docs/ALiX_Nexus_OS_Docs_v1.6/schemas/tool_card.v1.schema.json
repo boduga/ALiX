@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ToolCard",
+  "type": "object",
+  "required": [
+    "id",
+    "version",
+    "schemaVersion",
+    "description",
+    "capabilities",
+    "riskTier",
+    "approvalRequired",
+    "sandboxRequired",
+    "inputSchema",
+    "outputSchema",
+    "sideEffects",
+    "audit",
+    "supportsCancellation"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "description": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "object",
+      "properties": {
+        "required": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "optional": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "emitted": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "riskTier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "approvalRequired": {
+      "type": "boolean"
+    },
+    "sandboxRequired": {
+      "type": "boolean"
+    },
+    "inputSchema": {
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "sideEffects": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "allowedSandboxes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "audit": {
+      "enum": [
+        "none",
+        "optional",
+        "required"
+      ]
+    },
+    "timeoutMs": {
+      "type": "integer"
+    },
+    "supportsCancellation": {
+      "type": "boolean"
+    }
+  }
+}

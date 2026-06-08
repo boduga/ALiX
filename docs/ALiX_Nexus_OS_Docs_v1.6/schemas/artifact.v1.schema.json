@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Artifact",
+  "type": "object",
+  "required": [
+    "id",
+    "workflowId",
+    "producerType",
+    "producerId",
+    "type",
+    "path",
+    "mimeType",
+    "checksum",
+    "sensitivity",
+    "retention",
+    "createdAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "workflowId": {
+      "type": "string"
+    },
+    "graphId": {
+      "type": "string"
+    },
+    "nodeId": {
+      "type": "string"
+    },
+    "producerType": {
+      "enum": [
+        "agent",
+        "tool",
+        "sidecar",
+        "system"
+      ]
+    },
+    "producerId": {
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "report",
+        "patch",
+        "config",
+        "json",
+        "log",
+        "screenshot",
+        "dataset",
+        "document",
+        "partial"
+      ]
+    },
+    "path": {
+      "type": "string"
+    },
+    "mimeType": {
+      "type": "string"
+    },
+    "checksum": {
+      "type": "string"
+    },
+    "sensitivity": {
+      "enum": [
+        "public",
+        "internal",
+        "sensitive"
+      ]
+    },
+    "retention": {
+      "enum": [
+        "temporary",
+        "session",
+        "project",
+        "pinned"
+      ]
+    },
+    "createdAt": {
+      "type": "string"
+    }
+  }
+}

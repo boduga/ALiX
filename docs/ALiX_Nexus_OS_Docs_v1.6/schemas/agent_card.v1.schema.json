@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AgentCard",
+  "type": "object",
+  "required": [
+    "id",
+    "schemaVersion",
+    "name",
+    "domain",
+    "description",
+    "capabilities",
+    "modelTier",
+    "tools",
+    "inputSchema",
+    "outputSchema",
+    "version",
+    "enabled"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "name": {
+      "type": "string"
+    },
+    "domain": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "forbiddenCapabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "modelTier": {
+      "enum": [
+        "fast",
+        "thinking",
+        "coding",
+        "critic"
+      ]
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "policies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "inputSchema": {
+      "type": "object"
+    },
+    "outputSchema": {
+      "type": "object"
+    },
+    "version": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "publisher": {
+      "type": "string"
+    },
+    "trustLevel": {
+      "enum": [
+        "core",
+        "trusted",
+        "local",
+        "untrusted"
+      ]
+    }
+  }
+}

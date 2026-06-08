@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PolicyDecision",
+  "type": "object",
+  "required": [
+    "id",
+    "requestId",
+    "capability",
+    "actorId",
+    "decision",
+    "riskTier",
+    "reasons",
+    "argumentHash",
+    "scope",
+    "createdAt"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "requestId": {
+      "type": "string"
+    },
+    "capability": {
+      "type": "string"
+    },
+    "actorId": {
+      "type": "string"
+    },
+    "resource": {
+      "type": "string"
+    },
+    "decision": {
+      "enum": [
+        "allow",
+        "ask",
+        "deny",
+        "modify"
+      ]
+    },
+    "riskTier": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 5
+    },
+    "reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "argumentHash": {
+      "type": "string"
+    },
+    "scope": {
+      "enum": [
+        "once",
+        "session",
+        "project",
+        "global"
+      ]
+    },
+    "validForToolId": {
+      "type": "string"
+    },
+    "validForNodeId": {
+      "type": "string"
+    },
+    "createdAt": {
+      "type": "string"
+    },
+    "expiresAt": {
+      "type": "string"
+    }
+  }
+}

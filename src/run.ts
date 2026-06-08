@@ -4,6 +4,7 @@ export { buildErrorMessage, buildToolsForProvider, buildContextBundleEventPayloa
 export { extractMutationPaths, recordMutationInSessionState, type MutationSessionState } from "./agent/mutations.js";
 
 import type { EventLog } from "./events/event-log.js";
+import type { NormalizedMessage } from "./providers/types.js";
 export interface SharedSession {
   sessionId: string;
   sessionDir: string;
@@ -24,6 +25,8 @@ export type RunOpts = {
   planMode?: boolean;
   resumeSessionId?: string;
   planFilePath?: string;
+  messages?: NormalizedMessage[];
+  skipContext?: boolean;
 };
 
 export const EXIT_CODES = {

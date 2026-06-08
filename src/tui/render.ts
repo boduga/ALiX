@@ -131,7 +131,8 @@ export class TuiRenderer {
     const l: string[] = [];
     l.push(clearToEndOfLine() + "─".repeat(w));
     l.push(clearToEndOfLine() + this.stateTheater.render() + " | " + this.budgetBar.render());
-    l.push(clearToEndOfLine() + (this.spinner.isRunning() ? this.spinner.render() : ""));
+    const isActive = s.agentState !== "idle";
+    l.push(clearToEndOfLine() + (isActive ? this.spinner.render() : ""));
     return l.join("\n");
   }
 }

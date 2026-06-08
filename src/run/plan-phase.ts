@@ -5,7 +5,7 @@ import { existsSync } from "node:fs";
 import type { AgentContext } from "../agent/agent.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import { prompt } from "../cli/commands/prompt.js";
-import { isReadOnlyTask } from "../task-classifier.js";
+import { isReadOnlyTask, isShellTask } from "../task-classifier.js";
 
 export type PlanPhaseResult =
   | { action: "approved"; planContent: string }
@@ -24,7 +24,7 @@ export async function runPlanPhase(
   planFilePath?: string,
 ): Promise<PlanPhaseResult> {
   // Skip plan generation for read-only tasks and non-TTY sessions
-  if (isReadOnlyTask(task) || !process.stdout.isTTY) {
+  if (isReadOnlyTask(task) || isShellTask(task) || !process.stdout.isTTY) {
     return { action: "approved", planContent: "" };
   }
 

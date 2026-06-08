@@ -16,7 +16,9 @@
     "openai"
   ],
   "type": "module",
-  "workspaces": ["packages/tool-repair"],
+  "workspaces": [
+    "packages/tool-repair"
+  ],
   "bin": {
     "alix": "./bin/alix.js"
   },
@@ -28,7 +30,7 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
     "test": "npm run test:node && npm run test:vitest",
     "test:node": "node --test dist/tests/*.test.js dist/tests/**/*.test.js",
     "test:vitest": "npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
