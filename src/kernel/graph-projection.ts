@@ -9,6 +9,17 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 
+export interface NodeAttempt {
+  attempt: number;
+  sessionId?: string;
+  status: string;
+  startedAt?: string;
+  completedAt?: string;
+  durationMs?: number;
+  summary?: string;
+  error?: string;
+}
+
 export interface NodeRunInfo {
   nodeId: string;
   title: string;
@@ -19,6 +30,7 @@ export interface NodeRunInfo {
   sessionId?: string;
   summary?: string;
   error?: string;
+  attempts?: NodeAttempt[];
 }
 
 export interface GraphRunProjection {
