@@ -287,30 +287,15 @@ if (command === "config" && args[0] === "show") {
 }
 
 if (command === "run") {
-  const taskArgs = args.join(" ").trim();
-  const noStream = taskArgs.includes("--no-stream");
-  const noPlan = taskArgs.includes("--no-plan");
-  const modeMatch = taskArgs.match(/--mode=(\w+)/);
-  const sessionModeMatch = taskArgs.match(/--session-mode[= ](\w+)/);
-  const resumeMatch = taskArgs.match(/--resume[= ](\S+)/);
-  const planFileMatch = taskArgs.match(/--plan-file[= ](\S+)/);
-  const mode = (modeMatch?.[1] ?? sessionModeMatch?.[1]) as "auto" | "ask" | "bypass" | undefined;
-  const resumeSessionId = resumeMatch?.[1];
-  const planFilePath = planFileMatch?.[1];
-  const cleanTask = taskArgs
-    .replace(/\s*--no-stream\s*/g, " ")
-    .replace(/\s*--no-plan\s*/g, " ")
-    .replace(/\s*--mode=\w+\s*/g, " ")
-    .replace(/\s*--session-mode[= ]\w+\s*/g, " ")
-    .replace(/\s*--resume[= ]\S+\s*/g, " ")
-    .replace(/\s*--plan-file[= ]\S+\s*/g, " ")
-    .trim();
-  if (!cleanTask && !resumeSessionId) {
+  const { parseRunArgs } = await import("./cli/run-args.js");
+  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath } = parseRunArgs(args);
+
+  if (!task && !resumeSessionId) {
     console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>]");
     process.exit(1);
   }
   try {
-    const result = await runTask(process.cwd(), cleanTask, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode: mode, resumeSessionId, planFilePath });
+    const result = await runTask(process.cwd(), task, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode, resumeSessionId, planFilePath });
     if (!result.streamed) {
       console.log(result.summary);
     }
@@ -622,6 +607,32 @@ if (command === "run" && args[0] === "--subagent") {
   ];
   await SubagentCLI.main(subagentArgs);
   process.exit(1);
+}
+
+// --- alix metrics --- m09 metrics display command ---
+if (command === "metrics") {
+  const { MinimalMetrics } = await import("./kernel/minimal-metrics.js");
+  const metrics = new MinimalMetrics();
+  // Read m09.metric events from the last session
+  const { readSessionEvents } = await import("./inspector/session-reader.js");
+  const sessionsDir = join(process.cwd(), ".alix", "sessions");
+  const { readdir } = await import("node:fs/promises");
+  // Show last session's metrics
+  const sessionDirs = (await readdir(sessionsDir, { withFileTypes: true }))
+    .filter(d => d.isDirectory())
+    .map(d => d.name)
+    .sort()
+    .reverse()
+    .slice(0, 1);
+  if (sessionDirs.length === 0) { console.log("No sessions found."); process.exit(0); }
+  const events = await readSessionEvents(process.cwd(), sessionDirs[0]);
+  const metricEvents = events.filter((e: any) => e.type === "m09.metric");
+  if (metricEvents.length === 0) { console.log("No metrics available."); process.exit(0); }
+  for (const ev of metricEvents) {
+    const p = ev.payload as any;
+    console.log(`${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
+  }
+  process.exit(0);
 }
 
 // --- alix memory --- memory management commands ---

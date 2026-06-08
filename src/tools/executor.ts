@@ -242,6 +242,11 @@ export class ToolExecutor {
         argumentHash,
       };
       await this.logEvent(TOOL_EVENT_TYPES.FAILED, failedPayload);
+      // Emit m09 metric for tool failure
+      await this.log.append({
+        sessionId: this.sessionId(), actor: "system", type: "m09.metric",
+        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString() },
+      });
     }
 
     return result;

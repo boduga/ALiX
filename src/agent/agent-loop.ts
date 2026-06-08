@@ -22,8 +22,12 @@ import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-
 import { toCanonicalEvent, CanonicalEventSink } from "../kernel/event-envelope.js";
 import { randomUUID } from "node:crypto";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
+import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 
 export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
+  const metrics = new MinimalMetrics();
+  metrics.increment("workflow_runs_total", { goal: task.slice(0, 50) });
+
   const ctx = await initAgent(cwd, { cwd, task, sessionId: opts?.sharedSession?.sessionId, sessionDir: opts?.sharedSession?.sessionDir, sharedSession: opts?.sharedSession, sessionMode: opts?.sessionMode });
 
   const session = { sessionId: ctx.sessionId, actor: "system" as const };
@@ -348,6 +352,7 @@ ${approvedPlanContent}`);
     meta: graphMeta,
   });
 
+  const startTime = Date.now();
   let result: RunResult;
   try {
     result = await runTaskLoop(taskLoopDeps);
@@ -391,6 +396,14 @@ ${approvedPlanContent}`);
     payload: { workflowId: wfRun.id, summary: result.summary },
     meta: wfMeta,
   });
+
+  // Flush minimal metrics
+  metrics.duration("workflow_duration_ms", Date.now() - startTime);
+  const metricEvents = metrics.flush();
+  for (const m of metricEvents) {
+    await ctx.log.append({ ...session, actor: "system", type: "m09.metric", payload: m });
+  }
+
   return result;
 }
 
