@@ -1,7 +1,6 @@
 # ALiX Memory Index
 
 
-- [solved an impossibly complex... (lesson)](feedback/solved-an-impossibly-complex-lesson.md) - Auto-extracted feedback decision: solved
 ## User
 - [favorite due to its... (preference)](user/favorite-due-to-its-preference.md) - Auto-extracted user decision: favorite
 - [favorite for performance-critical Node... (preference)](user/favorite-for-performance-critical-node-preference.md) - Auto-extracted user decision: favorite
@@ -21,6 +20,7 @@
 - [resolved on the fly*... (lesson)](feedback/resolved-on-the-fly-lesson.md) - Auto-extracted feedback decision: resolved
 - [resolved the `files` symbol... (lesson)](feedback/resolved-the-files-symbol-lesson.md) - Auto-extracted feedback decision: resolved
 - [resolved the points above,... (lesson)](feedback/resolved-the-points-above-lesson.md) - Auto-extracted feedback decision: resolved
+- [solved an impossibly complex... (lesson)](feedback/solved-an-impossibly-complex-lesson.md) - Auto-extracted feedback decision: solved
 - [Uses test-driven development](feedback/uses-test-driven-development.md) - 
 
 ## Reference

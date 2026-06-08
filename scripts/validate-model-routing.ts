@@ -43,7 +43,8 @@ Task: ${prompt}`,
     }),
   });
   const data = await response.json() as any;
-  return data.response ?? "";
+  // qwen3 models put output in "thinking" field with "response" empty
+  return data.response || data.thinking || "";
 }
 
 function parseResult(raw: string): Partial<ModelRoutingResult> {
@@ -60,11 +61,11 @@ function parseResult(raw: string): Partial<ModelRoutingResult> {
   }
 }
 
-async function runTier(tier: TierTest): Promise<ModelRoutingResult[]> {
+async function runTier(tier: TierTest, limit: number): Promise<ModelRoutingResult[]> {
   const results: ModelRoutingResult[] = [];
   console.log(`\nTesting ${tier.name} tier (${tier.model})...`);
 
-  for (const c of VALIDATION_CASES) {
+  for (const c of VALIDATION_CASES.slice(0, limit)) {
     process.stdout.write(`  ${c.id}... `);
     const raw = await classifyWithModel(tier, c.prompt);
     const parsed = parseResult(raw);
@@ -99,17 +100,22 @@ async function runTier(tier: TierTest): Promise<ModelRoutingResult[]> {
 }
 
 async function main() {
+  const limitFlag = process.argv.indexOf("--limit");
+  const limit = limitFlag >= 0 && process.argv[limitFlag + 1] ? parseInt(process.argv[limitFlag + 1], 10) : VALIDATION_CASES.length;
+
   console.log("M0.9 Model Routing Validation");
   console.log("============================\n");
+  console.log(`Cases: ${Math.min(limit, VALIDATION_CASES.length)} (of ${VALIDATION_CASES.length})`);
   console.log(`Cases: ${VALIDATION_CASES.length}`);
 
   for (const tier of TIERS) {
-    const results = await runTier(tier);
+    const results = await runTier(tier, limit);
     const summary = summarizeRoutingResults(results);
     console.log(`\n--- ${tier.name} Results ---`);
-    console.log(`  Valid JSON:    ${(summary.validJsonRate * 100).toFixed(0)}% (threshold: ${(VALIDATION_THRESHOLDS[tier.name as keyof typeof VALIDATION_THRESHOLDS].minValidJson * 100).toFixed(0)}%)`);
-    console.log(`  Domain Acc:    ${(summary.domainAccuracy * 100).toFixed(0)}% (threshold: ${(VALIDATION_THRESHOLDS[tier.name as keyof typeof VALIDATION_THRESHOLDS].minDomainAccuracy * 100).toFixed(0)}%)`);
-    console.log(`  Intent Acc:    ${(summary.intentAccuracy * 100).toFixed(0)}% (threshold: ${(VALIDATION_THRESHOLDS[tier.name as keyof typeof VALIDATION_THRESHOLDS].minIntentAccuracy * 100).toFixed(0)}%)`);
+    const tk = tier.name === "fast" ? "fastTier" : tier.name === "thinking" ? "thinkingTier" : "codingTier";
+    console.log(`  Valid JSON:    ${(summary.validJsonRate * 100).toFixed(0)}% (threshold: ${(VALIDATION_THRESHOLDS[tk].minValidJson * 100).toFixed(0)}%)`);
+    console.log(`  Domain Acc:    ${(summary.domainAccuracy * 100).toFixed(0)}% (threshold: ${(VALIDATION_THRESHOLDS[tk].minDomainAccuracy * 100).toFixed(0)}%)`);
+    console.log(`  Intent Acc:    ${(summary.intentAccuracy * 100).toFixed(0)}% (threshold: ${(VALIDATION_THRESHOLDS[tk].minIntentAccuracy * 100).toFixed(0)}%)`);
     console.log(`  Pass: ${summary.passedFastTierThreshold ? "✓" : "✗"}`);
   }
 }

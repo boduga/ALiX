@@ -1,6 +1,39 @@
 # Changelog
 
 ## 2026-06-05 — Multi-Embedder Intelligence
+## 2026-06-08 — M0.9 Governance/Demo Baseline
+
+### Added
+- **Kernel primitives**: WorkflowRun, single-node TaskGraph, PolicyDecision, minimal metrics
+- **Canonical event envelope**: EventSink adapter wrapping existing EventLog events
+- **SQLite migrations**: `alix db doctor`, `alix db migrate` with 6 kernel tables
+- **Demo path**: `alix demo local` with mutation safety guard and kernel artifact display
+- **Metrics**: `alix metrics` with summary/raw mode, `--session <id>` support
+- **CLI arg parser**: Positional flag parsing replacing fragile regex stripping
+- **Capability mapping**: `legacyCapabilityToCanonical()` for PRD taxonomy alignment
+- **Argument hash**: SHA-256 on all tool events for audit trail
+- **Event metadata**: Optional workflowId/graphId/nodeId/traceId/spanId field
+- **Session artifacts**: Large tool outputs moved from `/tmp` to session directories
+- **Model routing validation**: Script + 15 curated test cases (requires GPU to execute)
+
+### Fixed
+- Tool repair now runs before PolicyDecision creation (correct order)
+- Terminal events use correct status (failed vs completed) for non-completion reasons
+- DB migration reads from single-source SQL file
+- Policy events use correct sessionId (not empty string)
+- model_calls_total emitted for every model call, not only when usage returned
+- demo verifies zero mutation events (exits with error if found)
+- TUI shows bypass-mode disclosure on startup
+- Metrics command finds latest session by mtime, not name sort
+
+### Tests
+- 39 new kernel tests (event envelope, WorkflowRun, TaskGraph, PolicyDecision, metrics)
+- 73 new pre-M0.9 tests (CLI parser, capability mapping, event meta, artifacts)
+- Total: 1495 pass, 0 fail
+
+### Tagged
+- `m0.9-governance-demo-baseline`
+
 
 ### Added
 - Multi-embedder search with weighted fusion (semantic + code embedding models fused with task-type-aware weights)
