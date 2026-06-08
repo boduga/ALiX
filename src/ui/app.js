@@ -94,6 +94,61 @@ compareBtn.addEventListener("click", async () => {
   compareView.textContent = JSON.stringify(await response.json(), null, 2);
 });
 
+// Registry data loading
+let registryData = { agents: [], tools: [] };
+
+async function loadRegistry() {
+  try {
+    const [agentsRes, toolsRes] = await Promise.all([
+      fetch("/api/registry/agents"),
+      fetch("/api/registry/tools"),
+    ]);
+    registryData.agents = await agentsRes.json();
+    registryData.tools = await toolsRes.json();
+    renderRegistry();
+  } catch {
+    // Registry may not be available — silently skip
+  }
+}
+
+function renderRegistry() {
+  const agentsEl = document.getElementById("registry-agents");
+  const toolsEl = document.getElementById("registry-tools");
+  if (!agentsEl || !toolsEl) return;
+
+  if (registryData.agents.length === 0) {
+    agentsEl.innerHTML = '<p class="empty">No agent cards loaded.</p>';
+  } else {
+    agentsEl.innerHTML = `<table class="registry-table">
+      <thead><tr><th>ID</th><th>Name</th><th>Domains</th><th>Capabilities</th><th>Enabled</th></tr></thead>
+      <tbody>${registryData.agents.map(a => `<tr class="${a.enabled ? '' : 'disabled'}">
+        <td class="mono">${escapeHtml(a.id)}</td>
+        <td>${escapeHtml(a.name)}</td>
+        <td>${escapeHtml(a.domains.join(", "))}</td>
+        <td class="capabilities">${(a.capabilities || []).map(c => `<span class="cap-badge">${escapeHtml(c)}</span>`).join(" ")}</td>
+        <td>${a.enabled ? "✓" : "✗"}</td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+  }
+
+  if (registryData.tools.length === 0) {
+    toolsEl.innerHTML = '<p class="empty">No tool cards loaded.</p>';
+  } else {
+    toolsEl.innerHTML = `<table class="registry-table">
+      <thead><tr><th>ID</th><th>Name</th><th>Risk</th><th>Approval</th><th>Side Effects</th><th>Capabilities</th><th>Enabled</th></tr></thead>
+      <tbody>${registryData.tools.map(t => `<tr class="${t.enabled ? '' : 'disabled'}">
+        <td class="mono">${escapeHtml(t.id)}</td>
+        <td>${escapeHtml(t.name)}</td>
+        <td><span class="risk-${t.riskLevel || 'unknown'}">${escapeHtml(t.riskLevel || '?')}</span></td>
+        <td>${escapeHtml(t.approvalMode || '?')}</td>
+        <td>${escapeHtml(t.sideEffects || '?')}</td>
+        <td class="capabilities">${(t.capabilities || []).map(c => `<span class="cap-badge">${escapeHtml(c)}</span>`).join(" ")}</td>
+        <td>${t.enabled ? "✓" : "✗"}</td>
+      </tr>`).join("")}</tbody>
+    </table>`;
+  }
+}
+
 connectBtn.setAttribute("aria-label", "Connect to session");
 
 // Connect
@@ -109,6 +164,7 @@ function connect(sessionId) {
   allEvents = [];
   statusEl.textContent = "Connecting...";
   statusEl.className = "status";
+  loadRegistry();
 
   eventSource = new EventSource(`/api/sessions/${sessionId}/events`);
 
@@ -145,6 +201,7 @@ function renderAll() {
   renderList(verificationView, projection.verification, renderVerification);
   renderTokens(projection.tokens);
   renderSubagentTimeline(visibleEvents);
+  renderRegistry();
   replayPosition.textContent = `${visibleEvents.length} / ${replayState.events.length}`;
 }
 
@@ -287,6 +344,24 @@ function addEventRow(event, container, prepend = false) {
   const payloadBody = document.createElement("pre");
   payloadBody.className = "event-payload";
   payloadBody.textContent = JSON.stringify(event.payload, null, 2);
+
+  // Capability badge
+  const capability = event.payload?.canonicalCapability || event.payload?.capability;
+  if (capability) {
+    const capChip = document.createElement("span");
+    capChip.className = "cap-badge inline";
+    capChip.textContent = capability;
+    item.insertBefore(capChip, meta);
+  }
+
+  // Policy decision badge
+  if (event.type === "policy.decision") {
+    const decision = event.payload?.decision || "unknown";
+    const policyChip = document.createElement("span");
+    policyChip.className = `policy-badge decision-${decision}`;
+    policyChip.textContent = `policy: ${decision}`;
+    item.insertBefore(policyChip, meta);
+  }
 
   payload.append(payloadSummary, payloadBody);
   item.append(typeBadge, actorChip, meta, payload);
