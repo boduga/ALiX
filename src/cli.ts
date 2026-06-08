@@ -307,6 +307,26 @@ if (command === "graph" && args[0] === "inspect") {
         }
       }
     } catch {}
+
+    // Show run projection data
+    try {
+      const { buildGraphProjection } = await import("./kernel/graph-projection.js");
+      const projection = await buildGraphProjection(graphId, cwd);
+      if (projection.sessionIds.length > 0) {
+        console.log();
+        console.log("Run sessions:");
+        for (const sid of projection.sessionIds) {
+          console.log(`  ${sid}`);
+        }
+      }
+      if (projection.reports.length > 0) {
+        console.log();
+        console.log("Reports:");
+        for (const r of projection.reports) {
+          console.log(`  ${r}`);
+        }
+      }
+    } catch {}
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
