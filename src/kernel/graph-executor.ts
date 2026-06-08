@@ -12,6 +12,8 @@ import { existsSync } from "node:fs";
 import type { TaskGraph, TaskNode, TaskNodeStatus } from "./task-graph.js";
 import { transitionNodeStatus, transitionGraphStatus } from "./task-graph.js";
 import type { RunResult } from "../run.js";
+import { CardRegistry } from "../registry/card-registry.js";
+import { resolveCapabilities } from "../registry/capability-resolver.js";
 import { runTask } from "../run.js";
 
 export interface NodeResult {
@@ -96,6 +98,22 @@ export class GraphExecutor {
       let status: TaskNodeStatus = "done";
       let summary = "";
       let reason: string | undefined;
+
+      // Capability resolution preflight (observability only, no enforcement yet)
+      if (node.requiredCapabilities && node.requiredCapabilities.length > 0) {
+        try {
+          const capRegistry = new CardRegistry();
+          const capResult = resolveCapabilities({
+            requiredCapabilities: node.requiredCapabilities,
+            domain: node.domain,
+            executionProfile: (node as any).executionProfile,
+            registry: capRegistry,
+          });
+          if (capResult.missingCapabilities.length > 0 || capResult.warnings.length > 0) {
+            console.log(`  [cap] ${node.id}: ${capResult.missingCapabilities.length > 0 ? "blocked" : capResult.warnings.length > 0 ? "needs_approval" : "ready"}${capResult.missingCapabilities.length > 0 ? " missing=" + capResult.missingCapabilities.join(",") : ""}${capResult.warnings.length > 0 ? " warnings=" + capResult.warnings.length : ""}`);
+          }
+        } catch {}
+      }
 
       try {
         const isResearch = (node as any).executionProfile === "research";
