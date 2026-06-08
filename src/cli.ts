@@ -80,12 +80,26 @@ Usage:
   alix run --resume <id>  Resume an interrupted session
   alix session list       List past sessions
   alix session show <id>  Show session details
+  alix graph plan "<task>"  Plan a multi-node TaskGraph (dry-run, no execution)
+  alix graph list         List saved graphs
+  alix graph inspect <id> Show graph node details and status
+  alix graph export <id> --format mermaid|json  Export graph
+  alix graph run <id>     Execute a planned graph sequentially
+  alix sop list           List registered SOPs
+  alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
+  alix report list        List report artifacts
+  alix report show <id>   Show report metadata and artifacts
+  alix report open <id>   Print final report to stdout
+  alix report path <id>   Print absolute path to report directory
+  alix metrics            Show M0.9 metrics for latest session (--raw for per-event)
+  alix demo local         Run M0.9 demo (read-only task, kernel artifact display)
+  alix db doctor          Check database health
+  alix db migrate         Run M0.9 kernel database migration
   alix serve
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
   alix config set-tier [tier]    Set model for a subagent tier (interactive, fetches from provider API)
-  alix demo local       Run M0.9 demo (read-only task with kernel artifact display)
   alix tui              Launch the terminal UI dashboard for agent sessions
   alix mcp list           List connected MCP servers and their tools
   alix mcp add            Add an MCP server (interactive prompts)
@@ -98,10 +112,6 @@ Usage:
   alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
   alix extension search <query>  Search extensions by name, description, or tag
   alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
-  alix db doctor           Check database health
-  alix sop list            List registered SOPs
-  alix sop run <id> --topic "<topic>"  Run an SOP
-  alix db migrate          Run M0.9 kernel database migration
   alix memory list [--query <text>]  List memory entries
   alix memory add --name <n> --content <c>  Add a memory entry
 `);

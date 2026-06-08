@@ -37,8 +37,8 @@
         "path": "src/cli.ts",
         "symbolName": "agentRole",
         "kind": "const",
-        "lineStart": 865,
-        "lineEnd": 865,
+        "lineStart": 914,
+        "lineEnd": 914,
         "keywords": [
           "alix",
           "agent",
@@ -55,8 +55,8 @@
         "path": "src/cli.ts",
         "symbolName": "parseChatArgs",
         "kind": "function",
-        "lineStart": 1157,
-        "lineEnd": 1179,
+        "lineStart": 1206,
+        "lineEnd": 1228,
         "keywords": []
       }
     ]
@@ -12523,6 +12523,18 @@
         "kind": "function",
         "lineStart": 25,
         "lineEnd": 30,
+        "keywords": []
+      }
+    ]
+  },
+  "src/cli/commands/report.ts": {
+    "symbols": [
+      {
+        "path": "src/cli/commands/report.ts",
+        "symbolName": "runReportCommand",
+        "kind": "function",
+        "lineStart": 11,
+        "lineEnd": 87,
         "keywords": []
       }
     ]
