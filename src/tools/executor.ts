@@ -1,16 +1,19 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
+import { createHash } from "node:crypto";
 import type { AlixConfig } from "../config/schema.js";
 import type { EventLog } from "../events/event-log.js";
-import { TOOL_EVENT_TYPES } from "../events/types.js";
-import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload } from "../events/types.js";
+import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../events/types.js";
+import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
 import type { McpManager } from "../mcp/manager.js";
 import { decidePolicy } from "../policy/policy-engine.js";
 import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult } from "./types.js";
+import { createPermissivePolicyDecision, assertPolicyArgumentsMatch } from "../kernel/policy-decision.js";
+import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import {
   CompositeToolRouter,
@@ -33,6 +36,21 @@ function sanitizeArgs(args: Record<string, unknown>): Record<string, unknown> {
       sensitive.some((s) => k.toLowerCase().includes(s)) ? "[REDACTED]" : v,
     ])
   );
+}
+
+export function hashArgs(args: Record<string, unknown>): string {
+  // Stable SHA-256 using JSON.stringify with sorted keys for deterministic output
+  const stable = JSON.stringify(args, (_key: string, value: unknown) =>
+    value !== null && typeof value === "object" && !Array.isArray(value)
+      ? Object.keys(value as Record<string, unknown>)
+          .sort()
+          .reduce<Record<string, unknown>>((acc, k) => {
+            acc[k] = (value as Record<string, unknown>)[k];
+            return acc;
+          }, {})
+      : value
+  );
+  return createHash("sha256").update(stable).digest("hex");
 }
 
 export type ToolCallRequest = {
@@ -88,35 +106,58 @@ export class ToolExecutor {
   async execute(request: ToolCallRequest): Promise<ExecuteResult> {
     const { toolCallId, name, args } = request;
     const capability = inferCapability(name);
+    const canonicalCapability = legacyCapabilityToCanonical(capability);
+    const argumentHash = hashArgs(args);
 
-    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, argsPreview: sanitizeArgs(args) });
+    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args) });
 
-    const policyDecision = decidePolicy(this.config, {
+    // Create PolicyDecision placeholder (M0.9 permissive audit trail)
+    const policyDecision = createPermissivePolicyDecision({
+      requestId: toolCallId,
+      capability,
+      actorId: name,
+      args,
+      validForToolId: name,
+    });
+
+    await this.log.append({
+      sessionId: "", actor: "policy",
+      type: "policy.decision",
+      payload: {
+        toolCallId,
+        capability,
+        decision: policyDecision.decision,
+        reason: policyDecision.reasons[0],
+        matchedRuleId: policyDecision.id,
+      },
+    });
+
+    const legacyPolicyResult = decidePolicy(this.config, {
       toolCallId,
       capability,
       ...args as { path?: string; command?: string }
     });
 
-    if (policyDecision.decision === "deny") {
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: policyDecision.reason, durationMs: 0 });
-      return { kind: "denied", reason: policyDecision.reason };
+    if (legacyPolicyResult.decision === "deny") {
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: legacyPolicyResult.reason, durationMs: 0, canonicalCapability, argumentHash });
+      return { kind: "denied", reason: legacyPolicyResult.reason };
     }
 
     // Handle special case: "done" tool (not in router)
     if (name === "done") {
-      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name });
+      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash });
       const result: ToolResult = { kind: "success", output: "Task complete.", completed: true };
       const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
       const durationMs = Date.now() - startTime;
       await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { toolCallId, outputPreview: "Task complete.", outputSize: 14 });
-      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { toolCallId, toolName: name, status: "success", durationMs });
+      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { toolCallId, toolName: name, status: "success", durationMs, canonicalCapability, argumentHash });
       return result;
     }
 
     // MCP availability check — policy said "ask" or "allow", but is the tool connected?
     if (name.startsWith("mcp.") && !this.mcpManager) {
       const msg = "MCP manager not initialized. No MCP servers are connected.";
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0 });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0, canonicalCapability, argumentHash });
       return { kind: "denied", reason: msg };
     }
 
@@ -131,7 +172,15 @@ export class ToolExecutor {
     }
     // === END TOOL REPAIR ===
 
-    await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name });
+    await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash });
+    // Emit m09 metric for tool call
+    await this.log.append({
+      sessionId: this.sessionId(), actor: "system", type: "m09.metric",
+      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString() },
+    });
+
+    // Verify argument hash match before execution (M0.9 permissive placeholder)
+    assertPolicyArgumentsMatch(policyDecision, args);
 
     let result = await this.router.execute(request);
 
@@ -158,7 +207,7 @@ export class ToolExecutor {
     let outputRef: string | undefined;
 
     if (result.kind === "success" && outputSize > LARGE_OUTPUT_THRESHOLD) {
-      outputRef = await writeOutputToFile(result.output ?? result.content);
+      outputRef = await writeOutputToFile(result.output ?? result.content, this.log.sessionDir, toolCallId, this.log);
     }
 
     // Build and emit tool.output event for success
@@ -179,6 +228,8 @@ export class ToolExecutor {
         toolName: name,
         status: "success",
         durationMs,
+        canonicalCapability,
+        argumentHash,
       };
       await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, completedPayload);
     } else {
@@ -187,6 +238,8 @@ export class ToolExecutor {
         toolName: name,
         error: result.message,
         durationMs,
+        canonicalCapability,
+        argumentHash,
       };
       await this.logEvent(TOOL_EVENT_TYPES.FAILED, failedPayload);
     }
@@ -250,18 +303,37 @@ function truncateOutput(output: unknown, maxLen = 200): string {
   return str.length > maxLen ? str.slice(0, maxLen) + "..." : str;
 }
 
-async function writeOutputToFile(output: unknown): Promise<string> {
-  const { tmpdir } = await import("node:os");
+async function writeOutputToFile(output: unknown, sessionDir: string, toolCallId: string, log: EventLog): Promise<string> {
   const { join } = await import("node:path");
   const { writeFile, mkdir } = await import("node:fs/promises");
   const { randomUUID } = await import("node:crypto");
 
-  const outputDir = join(tmpdir(), "alix-tool-outputs");
-  await mkdir(outputDir, { recursive: true });
+  const artifactsDir = join(sessionDir, "artifacts");
+  await mkdir(artifactsDir, { recursive: true });
 
-  const filePath = join(outputDir, `${randomUUID()}.json`);
+  const artifactId = randomUUID();
+  const filePath = join(artifactsDir, `tool-output-${artifactId}.json`);
   const content = typeof output === "string" ? output : JSON.stringify(output, null, 2);
   await writeFile(filePath, content, "utf8");
+
+  const mimeType = typeof output === "string" ? "text/plain" : "application/json";
+  const size = Buffer.byteLength(content, "utf8");
+
+  // Emit artifact.created event
+  const sessionId = sessionDir.split("sessions/").length > 1 ? sessionDir.split("sessions/")[1] : "unknown";
+  await log.append({
+    sessionId,
+    actor: "system",
+    type: ARTIFACT_EVENT_TYPES.CREATED,
+    payload: {
+      artifactId,
+      toolCallId,
+      path: filePath,
+      mimeType,
+      size,
+      retention: "session",
+    } satisfies ArtifactCreatedPayload,
+  });
 
   return filePath;
 }
