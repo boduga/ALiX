@@ -19,31 +19,23 @@ export interface PlannerResult {
   errors: string[];
 }
 
-const DEFAULT_PLAN_PROMPT = `You are a software architecture planner. Given a user task, decompose it into a TaskGraph with 3-6 nodes.
+const DEFAULT_PLAN_PROMPT = `Decompose this task into sequential steps.
 
-Each node represents one atomic step. Nodes can be:
-- sequential (must complete before next starts)
-- parallel (can run simultaneously)
-- critic (reviews and validates output)
+Return ONLY valid JSON. No markdown, no code fences, no explanation.
+The first character must be { and the last must be }.
 
-Return ONLY valid JSON matching this schema:
 {
-  "graph": {
-    "strategy": "sequential" | "parallel" | "map_reduce" | "critic_loop" | "hybrid",
-    "nodes": [
-      {
-        "id": "node_1",
-        "title": "short title",
-        "goal": "what this node does",
-        "domain": "coding | research | infra | docs | business",
-        "dependencies": [],
-        "riskLevel": "low | medium | high",
-        "approvalMode": "auto | ask | deny",
-        "requiredCapabilities": ["filesystem.read", "web.search", ...]
-      }
-    ]
-  }
+  "nodes": [
+    {
+      "title": "Search sources",
+      "goal": "Find relevant information about the topic",
+      "domain": "research"
+    }
+  ]
 }
+
+Each node: title (short), goal (what it does), domain (coding|research|infra|docs|business)
+Produce 2-5 nodes. Include search, analyze, and synthesize nodes for research tasks.
 
 Task:`;
 
@@ -51,19 +43,14 @@ Task:`;
 function validateGraph(json: unknown): string[] {
   const errors: string[] = [];
   if (!json || typeof json !== "object") { errors.push("Response is not an object"); return errors; }
-  const obj = json as Record<string, unknown>;
-  if (!obj.graph || typeof obj.graph !== "object") { errors.push("Missing 'graph' key"); return errors; }
-  const graph = obj.graph as Record<string, unknown>;
-  if (!Array.isArray(graph.nodes) || graph.nodes.length < 2) { errors.push("Graph must have 2+ nodes"); }
-  if (!graph.strategy) { errors.push("Missing strategy"); }
-  const validStrategies = ["sequential", "parallel", "map_reduce", "critic_loop", "hybrid"];
-  if (graph.strategy && !validStrategies.includes(graph.strategy as string)) {
-    errors.push(`Invalid strategy: ${graph.strategy}`);
-  }
-  const rawNodes = graph.nodes as unknown[] | undefined;
-  for (let i = 0; i < (rawNodes?.length ?? 0); i++) {
-    const n = (graph.nodes as Record<string, unknown>[])[i];
-    if (!n.id) errors.push(`Node ${i}: missing id`);
+
+  // Handle both {graph: {nodes: [...]}} and {nodes: [...]} formats
+  let root = json as Record<string, unknown>;
+  let graph = root.graph && typeof root.graph === "object" ? root.graph as Record<string, unknown> : root;
+
+  if (!Array.isArray(graph.nodes) || graph.nodes.length < 2) { errors.push("Graph must have 2+ nodes"); return errors; }
+  for (let i = 0; i < graph.nodes.length; i++) {
+    const n = graph.nodes[i] as Record<string, unknown>;
     if (!n.title) errors.push(`Node ${i}: missing title`);
     if (!n.goal) errors.push(`Node ${i}: missing goal`);
   }
@@ -124,10 +111,15 @@ export class GraphPlanner {
       };
     }
 
+    // Extract JSON from model output (strip markdown fences if present)
+    let cleanOutput = rawModelOutput.trim();
+    const fenceMatch = cleanOutput.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) cleanOutput = fenceMatch[1].trim();
+
     // Parse model output
     let parsed: unknown;
     try {
-      parsed = JSON.parse(rawModelOutput);
+      parsed = JSON.parse(cleanOutput);
     } catch {
       return {
         graph: createFallbackGraph(goal, workflowId),
@@ -149,7 +141,8 @@ export class GraphPlanner {
     }
 
     // Build TaskGraph from parsed model output
-    const modelGraph = (parsed as Record<string, unknown>).graph as Record<string, unknown>;
+    const root = parsed as Record<string, unknown>;
+    const modelGraph = (root.graph as Record<string, unknown>) || root;
     const now = new Date().toISOString();
     const graphId = `graph_${randomUUID()}`;
     const modelNodes = modelGraph.nodes as Record<string, unknown>[];
@@ -188,6 +181,10 @@ export class GraphPlanner {
         }
       }
     }
+
+    // Infer strategy from nodes
+    const hasParallel = nodes.some(n => (n as any).strategy === "parallel" || (n as any).strategy === "map_reduce");
+    const strategy = hasParallel ? "hybrid" : nodes.length <= 1 ? "sequential" : (modelGraph.strategy as string) || "sequential";
 
     const graph: TaskGraph = {
       id: graphId,

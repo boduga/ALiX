@@ -150,6 +150,15 @@ if (command === "graph" && args[0] === "plan") {
 
   const result = await planner.plan(task, wfRun.id);
 
+  // Save raw model output if --debug
+  const isDebug = args.includes("--debug");
+  if (isDebug && result.rawModelOutput) {
+    const { writeFile } = await import("node:fs/promises");
+    const rawPath = join(cwd, ".alix", "graphs", `${result.graph.id}.raw.txt`);
+    await writeFile(rawPath, result.rawModelOutput, "utf-8");
+    console.log(`Raw:        ${rawPath}`);
+  }
+
   // Persist graph
   const filePath = await persistGraph(result.graph, cwd);
   console.log(`Graph:      ${result.graph.id}`);
