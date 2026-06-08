@@ -607,3 +607,83 @@ h3 {
   max-height: 200px;
   overflow-y: auto;
 }
+
+/* === Registry view === */
+.registry-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.registry-section h3 {
+  margin: 0 0 0.5rem;
+  color: var(--accent, #8fb845);
+}
+
+.registry-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.registry-table th {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--panel-line, #2f3a36);
+  color: var(--muted, #a59f90);
+  font-weight: 600;
+}
+
+.registry-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(47, 58, 54, 0.5);
+  vertical-align: middle;
+}
+
+.registry-table tr.disabled {
+  opacity: 0.4;
+}
+
+.registry-table .mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+}
+
+/* Capability badge */
+.cap-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  background: rgba(31, 41, 55, 0.8);
+  color: #79c0ff;
+  font-family: monospace;
+  font-size: 0.75rem;
+  margin: 0.1rem;
+  white-space: nowrap;
+}
+
+.cap-badge.inline {
+  margin-left: 0.4rem;
+  font-size: 0.7rem;
+}
+
+/* Risk level colors */
+.risk-low { color: #3fb950; }
+.risk-medium { color: #d29922; }
+.risk-high { color: #f85149; }
+.risk-critical { color: #ff7b72; background: rgba(248,81,73,0.1); padding: 0.05rem 0.3rem; border-radius: 3px; }
+
+/* Policy decision badge */
+.policy-badge {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 0.7rem;
+  margin-left: 0.4rem;
+}
+
+.policy-badge.decision-allowed { background: #1b3d1b; color: #7ee787; }
+.policy-badge.decision-denied { background: #3d1b1b; color: #ff7b72; }
+.policy-badge.decision-ask { background: #3d2e1b; color: #d29922; }
+.policy-badge.decision-unknown { background: #1f2937; color: #8b949e; }
