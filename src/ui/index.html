@@ -32,6 +32,7 @@
           <button class="tab" data-panel="tokens">Tokens</button>
           <button class="tab" data-panel="subagents">Subagents</button>
           <button class="tab" data-panel="compare">Compare</button>
+          <button class="tab" data-panel="registry">Registry</button>
         </nav>
 
         <section class="replay-bar" aria-label="Replay controls">
@@ -71,6 +72,19 @@
             <input id="compare-right" type="text" placeholder="Right session ID">
             <button id="compare-btn">Compare</button>
             <pre id="compare-view" class="event-payload"></pre>
+          </div>
+        </section>
+        <section class="panel" id="panel-registry" aria-label="Registry cards">
+          <div class="panel-header"><h2>Registry</h2></div>
+          <div class="panel-body registry-view">
+            <div class="registry-section">
+              <h3>Agent Cards</h3>
+              <div id="registry-agents"><p class="empty">Loading...</p></div>
+            </div>
+            <div class="registry-section">
+              <h3>Tool Cards</h3>
+              <div id="registry-tools"><p class="empty">Loading...</p></div>
+            </div>
           </div>
         </section>
       </section>
