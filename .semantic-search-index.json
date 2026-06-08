@@ -3729,7 +3729,7 @@
         "symbolName": "ToolExecutor",
         "kind": "class",
         "lineStart": 64,
-        "lineEnd": 254,
+        "lineEnd": 262,
         "keywords": []
       },
       {
@@ -3753,23 +3753,23 @@
         "symbolName": "execute",
         "kind": "method",
         "lineStart": 106,
-        "lineEnd": 253,
+        "lineEnd": 261,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "classifyError",
         "kind": "function",
-        "lineStart": 258,
-        "lineEnd": 288,
+        "lineStart": 266,
+        "lineEnd": 296,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "inferCapability",
         "kind": "function",
-        "lineStart": 290,
-        "lineEnd": 304,
+        "lineStart": 298,
+        "lineEnd": 312,
         "keywords": [
           "unknownambiguous",
           "retry",
@@ -3782,16 +3782,16 @@
         "path": "src/tools/executor.ts",
         "symbolName": "truncateOutput",
         "kind": "function",
-        "lineStart": 306,
-        "lineEnd": 309,
+        "lineStart": 314,
+        "lineEnd": 317,
         "keywords": []
       },
       {
         "path": "src/tools/executor.ts",
         "symbolName": "writeOutputToFile",
         "kind": "function",
-        "lineStart": 311,
-        "lineEnd": 344,
+        "lineStart": 319,
+        "lineEnd": 352,
         "keywords": []
       }
     ]
@@ -5342,39 +5342,137 @@
         "symbolName": "runTaskLoop",
         "kind": "function",
         "lineStart": 141,
-        "lineEnd": 712,
+        "lineEnd": 718,
         "keywords": []
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "maxRepairs",
+        "kind": "const",
+        "lineStart": 192,
+        "lineEnd": 192,
+        "keywords": [
+          "use",
+          "mutable",
+          "variable",
+          "messages",
+          "since",
+          "need",
+          "reassign",
+          "during",
+          "truncation"
+        ]
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "mcpManager",
+        "kind": "const",
+        "lineStart": 198,
+        "lineEnd": 198,
+        "keywords": [
+          "track",
+          "last",
+          "saved",
+          "message",
+          "count",
+          "incremental",
+          "persistence",
+          "get",
+          "mcpmanager",
+          "executor",
+          "holds",
+          "reference"
+        ]
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "hasMutations",
+        "kind": "const",
+        "lineStart": 204,
+        "lineEnd": 204,
+        "keywords": [
+          "track",
+          "any",
+          "mutations",
+          "occurred",
+          "iteration"
+        ]
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "msgTokens",
+        "kind": "const",
+        "lineStart": 207,
+        "lineEnd": 207,
+        "keywords": [
+          "track",
+          "any",
+          "mutations",
+          "occurred",
+          "iteration",
+          "truncate",
+          "messages",
+          "token",
+          "budget",
+          "exceeded",
+          "before",
+          "streamingcompletion"
+        ]
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "estimateMessageTokens",
         "kind": "function",
-        "lineStart": 720,
-        "lineEnd": 723,
+        "lineStart": 726,
+        "lineEnd": 729,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "buildSessionDigest",
         "kind": "function",
-        "lineStart": 729,
-        "lineEnd": 736,
+        "lineStart": 735,
+        "lineEnd": 742,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "buildStateSummary",
         "kind": "function",
-        "lineStart": 741,
-        "lineEnd": 748,
+        "lineStart": 747,
+        "lineEnd": 754,
         "keywords": []
       },
       {
         "path": "src/run/task-loop.ts",
         "symbolName": "evaluatePattern",
         "kind": "function",
-        "lineStart": 754,
-        "lineEnd": 756,
+        "lineStart": 760,
+        "lineEnd": 762,
+        "keywords": []
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "patternsDir",
+        "kind": "const",
+        "lineStart": 770,
+        "lineEnd": 770,
+        "keywords": []
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "registry",
+        "kind": "const",
+        "lineStart": 771,
+        "lineEnd": 771,
+        "keywords": []
+      },
+      {
+        "path": "src/run/task-loop.ts",
+        "symbolName": "outcome",
+        "kind": "const",
+        "lineStart": 773,
+        "lineEnd": 773,
         "keywords": []
       }
     ]
@@ -11077,48 +11175,48 @@
         "path": "src/db/manager.ts",
         "symbolName": "DatabaseManager",
         "kind": "class",
-        "lineStart": 13,
-        "lineEnd": 156,
+        "lineStart": 14,
+        "lineEnd": 71,
         "keywords": []
       },
       {
         "path": "src/db/manager.ts",
         "symbolName": "open",
         "kind": "method",
-        "lineStart": 22,
-        "lineEnd": 30,
+        "lineStart": 23,
+        "lineEnd": 31,
         "keywords": []
       },
       {
         "path": "src/db/manager.ts",
         "symbolName": "migrate",
         "kind": "method",
-        "lineStart": 33,
-        "lineEnd": 37,
+        "lineStart": 34,
+        "lineEnd": 38,
         "keywords": []
       },
       {
         "path": "src/db/manager.ts",
         "symbolName": "migrateKernel",
         "kind": "method",
-        "lineStart": 40,
-        "lineEnd": 132,
+        "lineStart": 41,
+        "lineEnd": 47,
         "keywords": []
       },
       {
         "path": "src/db/manager.ts",
         "symbolName": "health",
         "kind": "method",
-        "lineStart": 135,
-        "lineEnd": 135,
+        "lineStart": 50,
+        "lineEnd": 50,
         "keywords": []
       },
       {
         "path": "src/db/manager.ts",
         "symbolName": "close",
         "kind": "method",
-        "lineStart": 147,
-        "lineEnd": 150,
+        "lineStart": 62,
+        "lineEnd": 65,
         "keywords": []
       }
     ]
@@ -12061,7 +12159,7 @@
         "symbolName": "runDemo",
         "kind": "function",
         "lineStart": 14,
-        "lineEnd": 88,
+        "lineEnd": 96,
         "keywords": []
       }
     ]
@@ -12289,7 +12387,7 @@
         "symbolName": "runTui",
         "kind": "function",
         "lineStart": 36,
-        "lineEnd": 124,
+        "lineEnd": 125,
         "keywords": []
       }
     ]
@@ -13104,7 +13202,7 @@
         "symbolName": "runTask",
         "kind": "function",
         "lineStart": 27,
-        "lineEnd": 408,
+        "lineEnd": 407,
         "keywords": []
       }
     ]

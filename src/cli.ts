@@ -621,26 +621,38 @@ if (command === "run" && args[0] === "--subagent") {
 
 // --- alix metrics --- m09 metrics display command ---
 if (command === "metrics") {
-  const { MinimalMetrics } = await import("./kernel/minimal-metrics.js");
-  const metrics = new MinimalMetrics();
-  // Read m09.metric events from the last session
   const { readSessionEvents } = await import("./inspector/session-reader.js");
   const sessionsDir = join(process.cwd(), ".alix", "sessions");
-  const { readdir } = await import("node:fs/promises");
-  // Show last session's metrics
-  const sessionDirs = (await readdir(sessionsDir, { withFileTypes: true }))
-    .filter(d => d.isDirectory())
-    .map(d => d.name)
-    .sort()
-    .reverse()
-    .slice(0, 1);
-  if (sessionDirs.length === 0) { console.log("No sessions found."); process.exit(0); }
-  const events = await readSessionEvents(process.cwd(), sessionDirs[0]);
+  const { readdir, stat } = await import("node:fs/promises");
+
+  // Support --session <id>
+  const sessionIdx = args.indexOf("--session");
+  const sessionArg = sessionIdx >= 0 && args[sessionIdx + 1] ? args[sessionIdx + 1] : null;
+  let targetSession: string;
+
+  if (sessionArg) {
+    targetSession = sessionArg;
+  } else {
+    // Find newest by mtime
+    const entries = await readdir(sessionsDir, { withFileTypes: true });
+    const dirs = (await Promise.all(
+      entries.filter(d => d.isDirectory()).map(async d => {
+        const p = join(sessionsDir, d.name);
+        const s = await stat(p);
+        return { name: d.name, mtimeMs: s.mtimeMs };
+      })
+    )).sort((a, b) => b.mtimeMs - a.mtimeMs);
+    if (dirs.length === 0) { console.log("No sessions found."); process.exit(0); }
+    targetSession = dirs[0].name;
+  }
+
+  const events = await readSessionEvents(process.cwd(), targetSession);
   const metricEvents = events.filter((e: any) => e.type === "m09.metric");
-  if (metricEvents.length === 0) { console.log("No metrics available."); process.exit(0); }
+  if (metricEvents.length === 0) { console.log(`No metrics for session ${targetSession}.`); process.exit(0); }
+  console.log(`Session: ${targetSession}`);
   for (const ev of metricEvents) {
     const p = ev.payload as any;
-    console.log(`${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
+    console.log(`  ${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
   }
   process.exit(0);
 }

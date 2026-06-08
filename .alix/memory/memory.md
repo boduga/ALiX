@@ -9,6 +9,7 @@
 - [rather than interpolating them... (preference)](user/rather-than-interpolating-them-preference.md) - Auto-extracted user decision: rather
 - [rather than interpolating variables... (preference)](user/rather-than-interpolating-variables-preference.md) - Auto-extracted user decision: rather
 - [Rather than showing lists... (preference)](user/rather-than-showing-lists-preference.md) - Auto-extracted user decision: Rather
+- [rather than traditional link... (preference)](user/rather-than-traditional-link-preference.md) - Auto-extracted user decision: rather
 
 ## Project
 - [test-entry](project/test-entry.md) - 

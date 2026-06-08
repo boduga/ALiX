@@ -1,7 +1,7 @@
 {
   "model": {
-    "provider": "google",
-    "name": "gemini-3.5-flash"
+    "provider": "deepseek",
+    "name": "deepseek-v4-flash"
   },
   "subagents": {
     "enabled": true

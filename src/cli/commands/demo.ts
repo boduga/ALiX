@@ -87,6 +87,8 @@ export async function runDemo(): Promise<void> {
       process.exit(1);
     }
     console.log("✓ No files were modified.");
+  console.log();
+  console.log("View metrics: alix metrics --session " + sessionId);
   } catch (err) {
     console.error(`Demo failed: ${err instanceof Error ? err.message : String(err)}`);
     console.log();
