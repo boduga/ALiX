@@ -42,6 +42,7 @@ export interface GraphRunProjection {
   nodes: NodeRunInfo[];
   reports: string[];
   sessionIds: string[];
+  attempts: Array<Record<string, unknown>>;
 }
 
 /**
@@ -143,6 +144,21 @@ export async function buildGraphProjection(
     }
   }
 
+  // Load rerun attempts from .runs.json if present
+  let allAttempts: Array<Record<string, unknown>> = [];
+  const runsPath = join(cwd, ".alix", "graphs", `${graphId}.runs.json`);
+  if (existsSync(runsPath)) {
+    try { allAttempts = JSON.parse(await readFile(runsPath, "utf-8")); } catch {}
+  }
+
+  // Attach attempts to each node
+  for (const node of nodes) {
+    const nodeAttempts = allAttempts.filter(a => a.nodeId === node.nodeId);
+    if (nodeAttempts.length > 0) {
+      (node as any).attempts = nodeAttempts;
+    }
+  }
+
   // Determine graph-level status
   const hasFailed = nodes.some(n => n.status === "failed");
   const allDone = nodes.every(n => n.status === "done");
@@ -157,5 +173,6 @@ export async function buildGraphProjection(
     nodes,
     reports: [...new Set(reports)],
     sessionIds: [...sessionIds],
+    attempts: allAttempts,
   };
 }

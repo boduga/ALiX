@@ -1,6 +1,7 @@
 # ALiX Memory Index
 
 
+- [rather than pure frontier... (preference)](user/rather-than-pure-frontier-preference.md) - Auto-extracted user decision: rather
 ## User
 - [favorite due to its... (preference)](user/favorite-due-to-its-preference.md) - Auto-extracted user decision: favorite
 - [favorite for performance-critical Node... (preference)](user/favorite-for-performance-critical-node-preference.md) - Auto-extracted user decision: favorite
