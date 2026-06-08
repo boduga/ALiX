@@ -63,4 +63,42 @@ describe("GraphExecutor", () => {
     assert.equal(sorted.length, 1);
     assert.equal(sorted[0].id, "a");
   });
+
+  it("rerunNode throws for unknown graph", async () => {
+    const { GraphExecutor } = await import("../../src/kernel/graph-executor.js");
+    const exec = new GraphExecutor("/tmp");
+    await assert.rejects(
+      () => exec.rerunNode("nonexistent", "node_a"),
+      /Graph not found/,
+    );
+  });
+
+  it("rerunNode throws for non-failed node without force", async () => {
+    // Create a minimal graph with a "done" node
+    const { randomUUID } = await import("node:crypto");
+    const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const tmpDir = mkdtempSync(join(tmpdir(), "rerun-test-"));
+    const graphId = `graph_rerun_test`;
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    mkdirSync(graphsDir, { recursive: true });
+    writeFileSync(join(graphsDir, `${graphId}.json`), JSON.stringify({
+      id: graphId, schemaVersion: "1.0", workflowId: "wf_test", rootGoal: "test",
+      status: "completed", strategy: "sequential",
+      nodes: [{
+        id: "node_a", graphId, title: "Node A", goal: "test",
+        domain: "test", status: "done", dependencies: [], requiredCapabilities: [],
+        riskLevel: "low", approvalMode: "auto", inputs: {}, artifacts: [], memoryRefs: [],
+        createdAt: "2026-01-01", updatedAt: "2026-01-01",
+      }],
+      edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
+    }));
+    const exec = new (await import("../../src/kernel/graph-executor.js")).GraphExecutor(tmpDir);
+    await assert.rejects(
+      () => exec.rerunNode(graphId, "node_a"),
+      /status is "done"/,
+    );
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
 });
