@@ -117,6 +117,10 @@ Usage:
   alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
   alix memory list [--query <text>]  List memory entries
   alix memory add --name <n> --content <c>  Add a memory entry
+  alix registry list      List all loaded agents and tools
+  alix registry agents    List agent cards only
+  alix registry tools     List tool cards only
+  alix registry doctor    Check card file health and loading status
 `);
   process.exit(0);
 }
@@ -1422,6 +1426,122 @@ if (command === "skills") {
 	  });
 	  process.exit(0);
 	}
+
+if (command === "registry") {
+  const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const { existsSync } = await import("node:fs");
+  const { readdirSync } = await import("node:fs");
+  const registry = await loadCardRegistry(process.cwd());
+
+  if (args[0] === "agents" || args[0] === "list") {
+    const agents = registry.listAgents(true);
+    if (agents.length === 0) {
+      console.log("No agent cards loaded.");
+    } else {
+      console.log(`${"ID".padEnd(24)} ${"Name".padEnd(22)} Enabled  Domains`);
+      console.log("-".repeat(80));
+      for (const a of agents) {
+        console.log(`${a.id.padEnd(24)} ${a.name.slice(0, 20).padEnd(22)} ${(a.enabled ? "✓" : "✗").padEnd(7)} ${a.domains.join(", ")}`);
+      }
+      console.log(`\n${agents.filter(a => a.enabled).length}/${agents.length} agents enabled`);
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "tools") {
+    const tools = registry.listTools(true);
+    if (tools.length === 0) {
+      console.log("No tool cards loaded.");
+    } else {
+      console.log(`${"ID".padEnd(20)} ${"Name".padEnd(22)} Risk${"".padEnd(8)} Modes`);
+      console.log("-".repeat(70));
+      for (const t of tools) {
+        const risk = `${t.riskLevel || "?"}`;
+        const modes = t.allowedExecutionProfiles?.join(", ") || "any";
+        console.log(`${t.id.padEnd(20)} ${t.name.slice(0, 20).padEnd(22)} ${risk.padEnd(12)} ${modes}`);
+      }
+      console.log(`\n${tools.length} tools loaded`);
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "doctor") {
+    const cardsDir = join(process.cwd(), ".alix", "cards");
+    const agentsDir = join(cardsDir, "agents");
+    const toolsDir = join(cardsDir, "tools");
+
+    console.log("Registry Doctor — card health check\n");
+    console.log(`Card dir:  ${cardsDir}`);
+
+    // Check directory existence
+    const hasAgentDir = existsSync(agentsDir);
+    const hasToolDir = existsSync(toolsDir);
+    console.log(`  agents/  ${hasAgentDir ? "✓ exists" : "— not found (using defaults)"}`);
+    console.log(`  tools/   ${hasToolDir ? "✓ exists" : "— not found (using defaults)"}`);
+
+    // Scan files
+    let invalidFiles: string[] = [];
+    let totalFiles = 0;
+
+    if (hasAgentDir) {
+      const files = readdirSync(agentsDir).filter(f => f.endsWith(".json"));
+      totalFiles += files.length;
+      for (const f of files) {
+        try {
+          const data = JSON.parse(await import("node:fs").then(fs => fs.readFileSync(join(agentsDir, f), "utf-8")));
+          const { validateAgentCard } = await import("./registry/agent-card.js");
+          const result = validateAgentCard(data);
+          if (!result.valid) invalidFiles.push(`  ✗ ${f} — ${result.errors.join("; ")}`);
+        } catch (err: any) {
+          invalidFiles.push(`  ✗ ${f} — ${err.message || String(err)}`);
+        }
+      }
+    }
+
+    if (hasToolDir) {
+      const files = readdirSync(toolsDir).filter(f => f.endsWith(".json"));
+      totalFiles += files.length;
+      for (const f of files) {
+        try {
+          const data = JSON.parse(await import("node:fs").then(fs => fs.readFileSync(join(toolsDir, f), "utf-8")));
+          const { validateToolCard } = await import("./registry/tool-card.js");
+          const result = validateToolCard(data);
+          if (!result.valid) invalidFiles.push(`  ✗ ${f} — ${result.errors.join("; ")}`);
+        } catch (err: any) {
+          invalidFiles.push(`  ✗ ${f} — ${err.message || String(err)}`);
+        }
+      }
+    }
+
+    console.log(`\nCard files: ${totalFiles} found, ${invalidFiles.length} invalid`);
+
+    if (invalidFiles.length > 0) {
+      console.log("\nInvalid cards:");
+      for (const msg of invalidFiles) console.log(msg);
+    }
+
+    // Show what loaded
+    const agents = registry.listAgents(true);
+    const tools = registry.listTools(true);
+    const loadedFromDisk = hasAgentDir || hasToolDir;
+    console.log(`\nLoaded: ${agents.length} agents, ${tools.length} tools ${loadedFromDisk ? "(from disk)" : "(defaults)"}`);
+
+    if (invalidFiles.length > 0) {
+      console.log("\n⚠️  Recommendation: fix or remove invalid card files to ensure correct capability resolution.");
+    } else if (agents.length > 0 || tools.length > 0) {
+      console.log("\n✓ Registry is healthy.");
+    }
+    process.exit(0);
+  }
+
+  // Default: show usage
+  console.log("Usage: alix registry [list|agents|tools|doctor]");
+  console.log("  list           List all loaded agents and tools");
+  console.log("  agents         List agent cards only");
+  console.log("  tools          List tool cards only");
+  console.log("  doctor         Check card file health and loading status");
+  process.exit(0);
+}
 
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
