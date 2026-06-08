@@ -97,6 +97,8 @@ Usage:
   alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
   alix extension search <query>  Search extensions by name, description, or tag
   alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
+  alix db doctor           Check database health
+  alix db migrate          Run M0.9 kernel database migration
   alix memory list [--query <text>]  List memory entries
   alix memory add --name <n> --content <c>  Add a memory entry
 `);
@@ -633,6 +635,38 @@ if (command === "metrics") {
     console.log(`${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
   }
   process.exit(0);
+}
+
+// --- alix db --- database management ---
+if (command === "db") {
+  const { DatabaseManager } = await import("./db/manager.js");
+  const db = new DatabaseManager();
+
+  if (args[0] === "migrate") {
+    db.open();
+    db.migrateKernel();
+    const health = db.health();
+    console.log(`Migrated. Tables: ${health.tables.length}`);
+    db.close();
+    process.exit(0);
+  }
+
+  if (args[0] === "doctor") {
+    db.open();
+    const health = db.health();
+    if (health.ok) {
+      console.log("Database: healthy");
+      console.log(`Tables (${health.tables.length}): ${health.tables.join(", ")}`);
+    } else {
+      console.error(`Database: unhealthy — ${health.error}`);
+      process.exit(1);
+    }
+    db.close();
+    process.exit(0);
+  }
+
+  console.error("Usage: alix db migrate | alix db doctor");
+  process.exit(1);
 }
 
 // --- alix memory --- memory management commands ---
