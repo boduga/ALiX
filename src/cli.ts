@@ -117,6 +117,87 @@ if (command === "init") {
   process.exit(0);
 }
 
+// --- alix graph --- TaskGraph management ---
+if (command === "graph" && args[0] === "plan") {
+  const task = args.slice(1).join(" ");
+  if (!task) {
+    console.error("Usage: alix graph plan \"<task>\"");
+    process.exit(1);
+  }
+  const cwd = process.cwd();
+  const config = await loadConfig(cwd);
+  const sessionId = `plan_${Date.now()}`;
+  const { GraphPlanner, persistGraph, validateGraphSchema } = await import("./kernel/graph-planner.js");
+  const { createWorkflowRun } = await import("./kernel/workflow-run.js");
+  const { EventLog } = await import("./events/event-log.js");
+
+  // Create a minimal workflow run for planning
+  const sessionDir = join(cwd, ".alix", "sessions", sessionId);
+  await mkdir(sessionDir, { recursive: true });
+  const planLog = new EventLog(sessionDir);
+  await planLog.init();
+
+  const wfRun = createWorkflowRun(sessionId, task);
+  const planner = new GraphPlanner({
+    modelName: config.model.name,
+    modelEndpoint: config.model.provider === "ollama"
+      ? "http://localhost:11434/api/generate"
+      : undefined,
+  });
+
+  console.log(`Planning: ${task}`);
+  console.log();
+
+  const result = await planner.plan(task, wfRun.id);
+
+  // Persist graph
+  const filePath = await persistGraph(result.graph, cwd);
+  console.log(`Graph:      ${result.graph.id}`);
+  console.log(`Strategy:   ${result.graph.strategy}`);
+  console.log(`Nodes:      ${result.graph.nodes.length}`);
+  console.log(`Edges:      ${result.graph.edges.length}`);
+  console.log(`Valid:      ${result.valid ? "✓" : "✗"}`);
+  console.log(`Saved:      ${filePath}`);
+  console.log();
+
+  // Emit graph.created and task.ready events
+  for (const node of result.graph.nodes) {
+    await planLog.append({
+      sessionId, actor: "system", type: "task.ready",
+      payload: { nodeId: node.id, graphId: result.graph.id, goal: node.goal },
+      meta: { workflowId: wfRun.id, graphId: result.graph.id },
+    });
+  }
+  await planLog.append({
+    sessionId, actor: "system", type: "graph.created",
+    payload: { graphId: result.graph.id, workflowId: wfRun.id, nodeCount: result.graph.nodes.length },
+    meta: { workflowId: wfRun.id },
+  });
+
+  // Validate against schema
+  const schemaCheck = validateGraphSchema(result.graph);
+  if (!schemaCheck.valid) {
+    console.log("Schema validation errors:");
+    for (const err of schemaCheck.errors) console.log(`  - ${err}`);
+  }
+
+  // Show nodes
+  console.log();
+  console.log("Nodes:");
+  for (const node of result.graph.nodes) {
+    const deps = node.dependencies.length > 0 ? ` (after: ${node.dependencies.join(", ")})` : "";
+    console.log(`  ${node.id}: ${node.title}${deps}`);
+  }
+
+  if (!result.valid) {
+    console.log();
+    console.log("Errors:");
+    for (const err of result.errors) console.log(`  - ${err}`);
+    console.log("Used fallback single-node graph.");
+  }
+  process.exit(0);
+}
+
 if (command === "config" && args[0] === "set-key") {
   const providerId = await selectProvider();
   const provider = PROVIDERS.find((p) => p.id === providerId)!;
