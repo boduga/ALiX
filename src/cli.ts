@@ -99,6 +99,8 @@ Usage:
   alix extension search <query>  Search extensions by name, description, or tag
   alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
   alix db doctor           Check database health
+  alix sop list            List registered SOPs
+  alix sop run <id> --topic "<topic>"  Run an SOP
   alix db migrate          Run M0.9 kernel database migration
   alix memory list [--query <text>]  List memory entries
   alix memory add --name <n> --content <c>  Add a memory entry
@@ -323,6 +325,77 @@ if (command === "graph" && args[0] === "export") {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
+  process.exit(0);
+}
+
+// --- alix sop --- SOP management ---
+if (command === "sop" && args[0] === "list") {
+  const { listSops } = await import("./sop/sop-registry.js");
+  const sops = listSops();
+  if (sops.length === 0) { console.log("No SOPs registered."); process.exit(0); }
+  for (const s of sops) {
+    console.log(`  ${s.id.padEnd(30)} ${s.description}`);
+  }
+  process.exit(0);
+}
+
+if (command === "sop" && args[0] === "run") {
+  const sopId = args[1];
+  const topicIdx = args.indexOf("--topic");
+  const topic = topicIdx >= 0 ? args.slice(topicIdx + 1).join(" ") : "";
+  const planOnly = args.includes("--plan-only");
+
+  if (!sopId) { console.error("Usage: alix sop run <sop-id> --topic \"<topic>\" [--plan-only]"); process.exit(1); }
+  if (!topic) { console.error("Error: --topic is required"); process.exit(1); }
+
+  const { getSop, listSops } = await import("./sop/sop-registry.js");
+  const { getResearchDeepReportDef } = await import("./sop/research-deep-report.js");
+
+  // Register built-in SOPs
+  const deepReport = getResearchDeepReportDef();
+  // Import triggers registration or register manually
+
+  const sop = getSop(sopId);
+  if (!sop) { console.error(`SOP not found: ${sopId}`); process.exit(1); }
+
+  const result = sop.buildGraph({ topic });
+  const { graph, reportDir } = result as any;
+
+  // Persist graph
+  const { persistGraph } = await import("./kernel/graph-planner.js");
+  const filePath = await persistGraph(graph, process.cwd());
+
+  console.log(`SOP:        ${sopId}`);
+  console.log(`Topic:      ${topic}`);
+  console.log(`Graph:      ${graph.id}`);
+  console.log(`Nodes:      ${graph.nodes.length}`);
+  console.log(`Saved:      ${filePath}`);
+  console.log();
+
+  if (planOnly) {
+    console.log("Plan-only mode. Graph saved — not executed.");
+    process.exit(0);
+  }
+
+  // Execute graph
+  const { GraphExecutor } = await import("./kernel/graph-executor.js");
+  const executor = new GraphExecutor(process.cwd());
+  console.log("Executing...");
+  const execResult = await executor.execute(graph.id);
+  for (const nr of execResult.results) {
+    const icon = nr.status === "done" ? "✓" : "✗";
+    console.log(`  ${icon} ${nr.title} (${nr.durationMs}ms)`);
+  }
+  console.log(`\nResult: ${execResult.graphStatus} — ${execResult.completedNodes}/${execResult.nodeCount} nodes`);
+
+  if (execResult.graphStatus === "completed") {
+    console.log(`Report:     ${reportDir}/`);
+  }
+  process.exit(0);
+}
+
+if (command === "sop" && args[0] !== "list" && args[0] !== "run") {
+  console.log("Usage: alix sop list | alix sop run <id> --topic \"<topic>\"");
   process.exit(0);
 }
 
