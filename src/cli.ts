@@ -277,6 +277,26 @@ if (command === "graph" && args[0] === "inspect") {
         console.log(`    Requires:   ${node.requiredCapabilities.join(", ")}`);
       }
     }
+
+    // Check for linked reports
+    try {
+      const { existsSync } = await import("node:fs");
+      const reportsDir = join(cwd, ".alix", "reports");
+      if (existsSync(reportsDir)) {
+        const { readdir, readFile } = await import("node:fs/promises");
+        const reportDirs = await readdir(reportsDir);
+        for (const rd of reportDirs) {
+          const mp = join(reportsDir, rd, "run_manifest.json");
+          if (existsSync(mp)) {
+            const m = JSON.parse(await readFile(mp, "utf-8"));
+            if (m.graphId === graphId) {
+              console.log(`Report:     ${rd}`);
+              console.log(`Artifacts:  .alix/reports/${rd}/`);
+            }
+          }
+        }
+      }
+    } catch {}
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
@@ -375,7 +395,7 @@ if (command === "sop" && args[0] === "run") {
   if (!sop) { console.error(`SOP not found: ${sopId}`); process.exit(1); }
 
   const result = sop.buildGraph({ topic });
-  const { graph, reportDir } = result as any;
+  const graph = (result as any).graph;
 
   // Persist graph
   const { persistGraph } = await import("./kernel/graph-planner.js");
