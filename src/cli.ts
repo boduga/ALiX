@@ -207,6 +207,46 @@ if (command === "graph" && args[0] === "plan") {
   process.exit(0);
 }
 
+// --- alix graph run --- execute a planned graph ---
+if (command === "graph" && args[0] === "run") {
+  const graphId = args[1];
+  if (!graphId) { console.error("Usage: alix graph run <graphId>"); process.exit(1); }
+  const cwd = process.cwd();
+  const { GraphExecutor } = await import("./kernel/graph-executor.js");
+  const executor = new GraphExecutor(cwd);
+  console.log(`Executing graph: ${graphId}`);
+  console.log();
+  const result = await executor.execute(graphId);
+  for (const nr of result.results) {
+    const icon = nr.status === "done" ? "✓" : nr.status === "failed" ? "✗" : "○";
+    console.log(`  ${icon} ${nr.title} (${nr.durationMs}ms)`);
+    if (nr.reason) console.log(`     reason: ${nr.reason}`);
+  }
+  console.log();
+  console.log(`Graph: ${result.graphStatus} — ${result.completedNodes}/${result.nodeCount} nodes`);
+  process.exit(0);
+}
+
+// --- alix graph list --- list saved graphs ---
+if (command === "graph" && args[0] === "list") {
+  const { readdir } = await import("node:fs/promises");
+  const cwd = process.cwd();
+  const graphsDir = join(cwd, ".alix", "graphs");
+  if (!existsSync(graphsDir)) { console.log("No graphs found."); process.exit(0); }
+  const files = await readdir(graphsDir);
+  const jsonFiles = files.filter(f => f.endsWith(".json") && !f.includes(".raw") && !f.includes(".validation"));
+  if (jsonFiles.length === 0) { console.log("No graphs found."); process.exit(0); }
+  console.log("Saved graphs:");
+  for (const f of jsonFiles.sort().reverse()) {
+    const id = f.replace(/\.json$/, "");
+    try {
+      const graph = JSON.parse(await readFile(join(cwd, ".alix", "graphs", f), "utf-8"));
+      console.log(`  ${id} — ${graph.nodes?.length ?? "?"} nodes, "${(graph.rootGoal || "").slice(0, 60)}"`);
+    } catch { console.log(`  ${id} — (unreadable)`); }
+  }
+  process.exit(0);
+}
+
 if (command === "config" && args[0] === "set-key") {
   const providerId = await selectProvider();
   const provider = PROVIDERS.find((p) => p.id === providerId)!;
