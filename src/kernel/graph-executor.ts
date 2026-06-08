@@ -89,13 +89,21 @@ export function sortNodesByDependencies(nodes: TaskNode[]): TaskNode[] {
   return sorted;
 }
 
+export interface ExecutorOpts {
+  registry?: CardRegistry;
+  /** When true, blocked/needs_approval capability status short-circuits node execution. */
+  enforceCapabilities?: boolean;
+}
+
 export class GraphExecutor {
   private cwd: string;
   private registry?: CardRegistry;
+  private enforceCapabilities: boolean;
 
-  constructor(cwd: string, opts?: { registry?: CardRegistry }) {
+  constructor(cwd: string, opts?: ExecutorOpts) {
     this.cwd = cwd;
     this.registry = opts?.registry;
+    this.enforceCapabilities = opts?.enforceCapabilities ?? false;
   }
 
   async execute(graphId: string): Promise<ExecutorResult> {
@@ -143,29 +151,73 @@ export class GraphExecutor {
         }
       }
 
-      try {
-        const isResearch = (node as any).executionProfile === "research";
-        let researchPrefix = "";
-        if (isResearch && node.id !== "write_artifacts") {
-          researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: web_search, web_fetch, and done. Do NOT read or write local project files.";
-        } else if (node.id === "write_artifacts") {
-          researchPrefix = "\n\nIMPORTANT: You may ONLY use: file.create, file.exists, and done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
+      const isResearch = (node as any).executionProfile === "research";
+      let researchPrefix = "";
+      if (isResearch && node.id !== "write_artifacts") {
+        researchPrefix = "\n\nIMPORTANT: You are a research agent. You may ONLY use: web_search, web_fetch, and done. Do NOT read or write local project files.";
+      } else if (node.id === "write_artifacts") {
+        researchPrefix = "\n\nIMPORTANT: You may ONLY use: file.create, file.exists, and done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
+      }
+
+      // Capability enforcement gate
+      if (this.enforceCapabilities && capabilityResolution) {
+        if (capabilityResolution.status === "blocked") {
+          const missing = capabilityResolution.missingCapabilities.join(", ");
+          status = "blocked";
+          reason = `Blocked by capability policy: missing ${missing}`;
+          results.push({
+            nodeId: node.id, title: node.title, status, reason,
+            durationMs: Date.now() - startTime,
+            capabilityResolution,
+          });
+          failed = true;
+          break;
         }
-        const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
-          planMode: false,
-          skipContext: isResearch ? true : undefined,
-          sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
-        });
-        summary = result.summary;
-        if (result.reason && result.reason !== "completed") {
+        if (capabilityResolution.status === "needs_approval" && node.goal) {
+          try {
+            const askResult: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
+              planMode: false,
+              skipContext: isResearch ? true : undefined,
+              disableSkillFactory: isResearch ? true : undefined,
+              sessionMode: "ask",
+            });
+            summary = askResult.summary;
+            if (askResult.reason && askResult.reason !== "completed") {
+              status = "failed";
+              reason = askResult.reason;
+              failed = true;
+            }
+          } catch (err) {
+            status = "failed";
+            reason = err instanceof Error ? err.message : String(err);
+            failed = true;
+          }
+        }
+        // If status is "ready", fall through to regular execution
+      }
+
+      // Regular execution path — runs for:
+      //   - no enforcement (default)
+      //   - enforcement on + ready status (falls through from above)
+      //   - nodes with no requiredCapabilities (capabilityResolution is undefined)
+      if (!this.enforceCapabilities || !capabilityResolution || capabilityResolution.status === "ready") {
+        try {
+          const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
+            planMode: false,
+            skipContext: isResearch ? true : undefined,
+            sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
+          });
+          summary = result.summary;
+          if (result.reason && result.reason !== "completed") {
+            status = "failed";
+            reason = result.reason;
+            failed = true;
+          }
+        } catch (err) {
           status = "failed";
-          reason = result.reason;
+          reason = err instanceof Error ? err.message : String(err);
           failed = true;
         }
-      } catch (err) {
-        status = "failed";
-        reason = err instanceof Error ? err.message : String(err);
-        failed = true;
       }
 
       if (status === "failed" && node.timeoutMs && Date.now() - startTime >= node.timeoutMs) {

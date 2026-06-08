@@ -1,7 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { sortNodesByDependencies, normalizeNode, loadGraph } from "../../src/kernel/graph-executor.js";
+import { sortNodesByDependencies, normalizeNode, loadGraph, GraphExecutor } from "../../src/kernel/graph-executor.js";
 import type { TaskNode, TaskGraph } from "../../src/kernel/task-graph.js";
+import { CardRegistry } from "../../src/registry/card-registry.js";
 
 describe("GraphExecutor", () => {
 
@@ -99,6 +100,126 @@ describe("GraphExecutor", () => {
       () => exec.rerunNode(graphId, "node_a"),
       /status is "done"/,
     );
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("no enforcement: blocked capability continues execution normally", async () => {
+    const { randomUUID } = await import("node:crypto");
+    const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-test-"));
+
+    const graphId = "enforce_default_test";
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    mkdirSync(graphsDir, { recursive: true });
+    writeFileSync(join(graphsDir, `${graphId}.json`), JSON.stringify({
+      id: graphId, schemaVersion: "1.0", workflowId: "wf_test",
+      rootGoal: "test", status: "ready", strategy: "sequential",
+      nodes: [{
+        id: "node_a", graphId, title: "Node A", goal: "do the thing",
+        domain: "general", status: "pending", dependencies: [],
+        requiredCapabilities: ["nonexistent.cap"],
+        riskLevel: "low", approvalMode: "auto", inputs: {},
+        artifacts: [], memoryRefs: [],
+        createdAt: "2026-01-01", updatedAt: "2026-01-01",
+      }],
+      edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
+    }));
+
+    // Empty registry that provides no capabilities
+    const registry = new CardRegistry();
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: false });
+    const result = await exec.execute(graphId);
+
+    // Without enforcement the node attempts execution (runTask will fail because
+    // there's no real provider, but the executor doesn't stop for capability reasons)
+    const node = result.results[0];
+    assert.equal(node.nodeId, "node_a");
+    assert.ok(node.capabilityResolution, "capability resolution should exist");
+    assert.equal(node.capabilityResolution!.status, "blocked");
+
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("enforcement: blocked capability short-circuits node", async () => {
+    const { randomUUID } = await import("node:crypto");
+    const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-blocked-"));
+
+    const graphId = "enforce_blocked_test";
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    mkdirSync(graphsDir, { recursive: true });
+    writeFileSync(join(graphsDir, `${graphId}.json`), JSON.stringify({
+      id: graphId, schemaVersion: "1.0", workflowId: "wf_test",
+      rootGoal: "test", status: "ready", strategy: "sequential",
+      nodes: [{
+        id: "node_b", graphId, title: "Node B", goal: "search the web",
+        domain: "general", status: "pending", dependencies: [],
+        requiredCapabilities: ["nonexistent.cap"],
+        riskLevel: "low", approvalMode: "auto", inputs: {},
+        artifacts: [], memoryRefs: [],
+        createdAt: "2026-01-01", updatedAt: "2026-01-01",
+      }],
+      edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
+    }));
+
+    const registry = new CardRegistry();
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true });
+    const result = await exec.execute(graphId);
+
+    assert.equal(result.results.length, 1);
+    const node = result.results[0];
+    assert.equal(node.status, "blocked");
+    assert.match(node.reason!, /Blocked by capability policy/);
+    assert.match(node.reason!, /nonexistent\.cap/);
+    assert.equal(result.graphStatus, "failed");
+    assert.equal(result.completedNodes, 0);
+
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("enforcement: needs_approval capability runs with ask mode", async () => {
+    const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-approval-"));
+
+    const graphId = "enforce_approval_test";
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    mkdirSync(graphsDir, { recursive: true });
+    writeFileSync(join(graphsDir, `${graphId}.json`), JSON.stringify({
+      id: graphId, schemaVersion: "1.0", workflowId: "wf_test",
+      rootGoal: "test", status: "ready", strategy: "sequential",
+      nodes: [{
+        id: "node_c", graphId, title: "Node C", goal: "run shell command",
+        domain: "general", status: "pending", dependencies: [],
+        requiredCapabilities: ["shell.exec"],
+        riskLevel: "high", approvalMode: "ask", inputs: {},
+        artifacts: [], memoryRefs: [],
+        createdAt: "2026-01-01", updatedAt: "2026-01-01",
+      }],
+      edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
+    }));
+
+    // Registry with shell_exec tool (high risk → needs_approval)
+    const registry = new CardRegistry();
+    const { defaultToolCards } = await import("../../src/registry/card-loader.js");
+    for (const card of defaultToolCards()) registry.registerTool(card);
+
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true });
+    const result = await exec.execute(graphId);
+
+    // needs_approval still tries to execute (with ask mode) rather than blocking
+    // The runTask call will likely fail since there's no real provider,
+    // but it should NOT be "blocked" status
+    const node = result.results[0];
+    assert.notEqual(node.status, "blocked");
+    assert.ok(node.capabilityResolution);
+    assert.equal(node.capabilityResolution!.status, "needs_approval");
+
     rmSync(tmpDir, { recursive: true, force: true });
   });
 });

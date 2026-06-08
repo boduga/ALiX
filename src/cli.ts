@@ -85,11 +85,13 @@ Usage:
   alix graph inspect <id> Show graph node details and status
   alix graph export <id> --format mermaid|json  Export graph
   alix graph run <id>     Execute a planned graph sequentially
+  alix graph run <id> --enforce-capabilities  Halt on capability policy violations
   alix graph preflight <id>   Preflight capability check for each node
   alix graph runs <id>        Show graph run history (sessions, attempts, reports)
   alix graph rerun <id> --node <id>  Rerun a failed graph node
   alix sop list           List registered SOPs
   alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
+  alix sop run <id> --topic "<topic>" --enforce-capabilities  Enforce capability policy
   alix report list        List report artifacts
   alix report show <id>   Show report metadata and artifacts
   alix report open <id>   Print final report to stdout
@@ -234,8 +236,10 @@ if (command === "graph" && args[0] === "run") {
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
   const registry = await loadCardRegistry(cwd);
-  const executor = new GraphExecutor(cwd, { registry });
+  const enforce = args.includes("--enforce-capabilities");
+  const executor = new GraphExecutor(cwd, { registry, enforceCapabilities: enforce });
   console.log(`Executing graph: ${graphId}`);
+  if (enforce) console.log("  (capability enforcement enabled)");
   console.log();
   const result = await executor.execute(graphId);
   for (const nr of result.results) {
@@ -571,9 +575,11 @@ if (command === "sop" && args[0] === "run") {
   // Execute graph
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const enforce = args.includes("--enforce-capabilities");
   const registry = await loadCardRegistry(process.cwd());
-  const executor = new GraphExecutor(process.cwd(), { registry });
+  const executor = new GraphExecutor(process.cwd(), { registry, enforceCapabilities: enforce });
   console.log("Executing...");
+  if (enforce) console.log("  (capability enforcement enabled)");
   const execResult = await executor.execute(graph.id);
   for (const nr of execResult.results) {
     const icon = nr.status === "done" ? "✓" : "✗";
