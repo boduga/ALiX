@@ -37,8 +37,8 @@
         "path": "src/cli.ts",
         "symbolName": "agentRole",
         "kind": "const",
-        "lineStart": 914,
-        "lineEnd": 914,
+        "lineStart": 973,
+        "lineEnd": 973,
         "keywords": [
           "alix",
           "agent",
@@ -55,8 +55,8 @@
         "path": "src/cli.ts",
         "symbolName": "parseChatArgs",
         "kind": "function",
-        "lineStart": 1206,
-        "lineEnd": 1228,
+        "lineStart": 1265,
+        "lineEnd": 1287,
         "keywords": []
       }
     ]
@@ -99,8 +99,8 @@
         "path": "src/run.ts",
         "symbolName": "EXIT_CODES",
         "kind": "const",
-        "lineStart": 32,
-        "lineEnd": 32,
+        "lineStart": 33,
+        "lineEnd": 33,
         "keywords": []
       }
     ]
@@ -4309,23 +4309,23 @@
         "symbolName": "makeNode",
         "kind": "function",
         "lineStart": 18,
-        "lineEnd": 35,
+        "lineEnd": 39,
         "keywords": []
       },
       {
         "path": "src/sop/research-deep-report.ts",
         "symbolName": "buildResearchDeepReportGraph",
         "kind": "function",
-        "lineStart": 37,
-        "lineEnd": 37,
+        "lineStart": 41,
+        "lineEnd": 41,
         "keywords": []
       },
       {
         "path": "src/sop/research-deep-report.ts",
         "symbolName": "getResearchDeepReportDef",
         "kind": "function",
-        "lineStart": 82,
-        "lineEnd": 92,
+        "lineStart": 86,
+        "lineEnd": 96,
         "keywords": []
       }
     ]
@@ -10092,7 +10092,7 @@
         "symbolName": "GraphExecutor",
         "kind": "class",
         "lineStart": 80,
-        "lineEnd": 144,
+        "lineEnd": 211,
         "keywords": []
       },
       {
@@ -10100,7 +10100,15 @@
         "symbolName": "execute",
         "kind": "method",
         "lineStart": 87,
-        "lineEnd": 143,
+        "lineEnd": 150,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/graph-executor.ts",
+        "symbolName": "rerunNode",
+        "kind": "method",
+        "lineStart": 156,
+        "lineEnd": 156,
         "keywords": []
       }
     ]
@@ -10169,6 +10177,42 @@
         "kind": "function",
         "lineStart": 216,
         "lineEnd": 216,
+        "keywords": []
+      }
+    ]
+  },
+  "src/kernel/graph-projection.ts": {
+    "symbols": [
+      {
+        "path": "src/kernel/graph-projection.ts",
+        "symbolName": "NodeAttempt",
+        "kind": "interface",
+        "lineStart": 12,
+        "lineEnd": 21,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/graph-projection.ts",
+        "symbolName": "NodeRunInfo",
+        "kind": "interface",
+        "lineStart": 23,
+        "lineEnd": 34,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/graph-projection.ts",
+        "symbolName": "GraphRunProjection",
+        "kind": "interface",
+        "lineStart": 36,
+        "lineEnd": 45,
+        "keywords": []
+      },
+      {
+        "path": "src/kernel/graph-projection.ts",
+        "symbolName": "buildGraphProjection",
+        "kind": "function",
+        "lineStart": 54,
+        "lineEnd": 161,
         "keywords": []
       }
     ]
@@ -10405,47 +10449,47 @@
         "symbolName": "TaskNode",
         "kind": "interface",
         "lineStart": 15,
-        "lineEnd": 34,
+        "lineEnd": 36,
         "keywords": []
       },
       {
         "path": "src/kernel/task-graph.ts",
         "symbolName": "TaskGraph",
         "kind": "interface",
-        "lineStart": 36,
-        "lineEnd": 47,
+        "lineStart": 38,
+        "lineEnd": 49,
         "keywords": []
       },
       {
         "path": "src/kernel/task-graph.ts",
         "symbolName": "createSingleNodeGraph",
         "kind": "function",
-        "lineStart": 49,
-        "lineEnd": 49,
+        "lineStart": 51,
+        "lineEnd": 51,
         "keywords": []
       },
       {
         "path": "src/kernel/task-graph.ts",
         "symbolName": "ExecutionProfile",
         "kind": "type",
-        "lineStart": 84,
-        "lineEnd": 84,
+        "lineStart": 86,
+        "lineEnd": 86,
         "keywords": []
       },
       {
         "path": "src/kernel/task-graph.ts",
         "symbolName": "transitionNodeStatus",
         "kind": "function",
-        "lineStart": 86,
-        "lineEnd": 88,
+        "lineStart": 88,
+        "lineEnd": 90,
         "keywords": []
       },
       {
         "path": "src/kernel/task-graph.ts",
         "symbolName": "transitionGraphStatus",
         "kind": "function",
-        "lineStart": 90,
-        "lineEnd": 92,
+        "lineStart": 92,
+        "lineEnd": 94,
         "keywords": []
       }
     ]
@@ -13485,7 +13529,7 @@
         "symbolName": "runTask",
         "kind": "function",
         "lineStart": 27,
-        "lineEnd": 407,
+        "lineEnd": 413,
         "keywords": []
       }
     ]

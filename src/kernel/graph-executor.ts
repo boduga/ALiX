@@ -179,6 +179,7 @@ export class GraphExecutor {
       const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
         planMode: false,
         skipContext: isResearch ? true : undefined,
+        disableSkillFactory: isResearch ? true : undefined,
         sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
       });
       summary = result.summary;
@@ -193,8 +194,12 @@ export class GraphExecutor {
 
     // Update node status in graph file
     node.status = status === "done" ? "done" : "failed";
-    graph.status = status === "done" ? "running" : "failed";
     node.updatedAt = new Date().toISOString();
+
+    // Recompute graph status from all node states
+    const allDone = graph.nodes.every(n => n.status === "done" || n.status === "skipped");
+    const anyFailed = graph.nodes.some(n => n.status === "failed");
+    graph.status = anyFailed ? "failed" : allDone ? "completed" : "running";
 
     // Persist updated graph
     const { writeFile } = await import("node:fs/promises");

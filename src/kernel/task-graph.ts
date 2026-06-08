@@ -29,6 +29,8 @@ export interface TaskNode {
   outputs?: Record<string, unknown>;
   artifacts: string[];
   memoryRefs: string[];
+  timeoutMs?: number;
+  maxIterations?: number;
   createdAt: string;
   updatedAt: string;
 }
