@@ -71,7 +71,7 @@ function validateGraph(json: unknown): string[] {
 }
 
 /** Create a fallback sequential graph when the model fails. */
-function createFallbackGraph(goal: string, workflowId: string): TaskGraph {
+export function createFallbackGraph(goal: string, workflowId: string): TaskGraph {
   const now = new Date().toISOString();
   const graphId = `graph_${randomUUID()}`;
   const node: TaskNode = {
