@@ -27,6 +27,7 @@ export type RunOpts = {
   planFilePath?: string;
   messages?: NormalizedMessage[];
   skipContext?: boolean;
+  disableSkillFactory?: boolean;
 };
 
 export const EXIT_CODES = {
