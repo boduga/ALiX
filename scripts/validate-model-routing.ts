@@ -78,8 +78,11 @@ async function runTier(tier: TierTest, limit: number): Promise<ModelRoutingResul
       try {
         const json = JSON.parse(raw);
         domainCorrect = json.domain === c.expectedDomain;
-        intentCorrect = (json.intent || "").toLowerCase().includes(c.expectedIntent.toLowerCase());
+        intentCorrect = (json.intent || "").replace(/-/g, "_").toLowerCase() === c.expectedIntent.toLowerCase();
         riskCorrect = json.risk === c.expectedRisk;
+        if (json.mode) {
+          // modeCorrect is not tracked yet but available for scoring
+        }
       } catch {}
     }
 

@@ -8,12 +8,35 @@
 
 // ─── Types ──────────────────────────────────────────────────────────────
 
+
+// --- Canonical Intent Enum ------------------------------------------------
+
+export const CANONICAL_INTENTS = [
+  "read_info",
+  "summarize",
+  "research",
+  "fix_bug",
+  "add_feature",
+  "refactor",
+  "write_doc",
+  "audit_config",
+  "run_command",
+  "generate_plan",
+] as const;
+
+export type CanonicalIntent = typeof CANONICAL_INTENTS[number];
+
+export const CANONICAL_MODES = ["read", "write"] as const;
+export type CanonicalMode = typeof CANONICAL_MODES[number];
+
 export interface ModelRoutingCase {
   id: string;
   prompt: string;
   expectedDomain: string;
-  expectedIntent: string;
+  expectedIntent: CanonicalIntent;
   expectedRisk: string;
+  expectedMode?: CanonicalMode;
+  expectedTools?: string[];
 }
 
 export interface ModelRoutingResult {
