@@ -34,7 +34,7 @@ function makeNode(
   };
 }
 
-export function buildResearchDeepReportGraph(topic: string, reportId: string): { graph: TaskGraph; reportDir: string } {
+export function buildResearchDeepReportGraph(topic: string, reportId: string): { graph: TaskGraph; reportDir: string; reportId: string } {
   const graphId = `graph_${randomUUID()}`;
   const now = new Date().toISOString();
   const workflowId = `wf_${randomUUID()}`;
@@ -76,7 +76,7 @@ export function buildResearchDeepReportGraph(topic: string, reportId: string): {
 
   const reportDir = `.alix/reports/${reportId}`;
 
-  return { graph, reportDir };
+  return { graph, reportDir, reportId };
 }
 
 export function getResearchDeepReportDef() {

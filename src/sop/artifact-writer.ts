@@ -15,24 +15,40 @@ export interface ReportArtifacts {
   criticReview: string;
 }
 
-export async function writeReportArtifacts(
-  cwd: string,
-  reportId: string,
-  artifacts: ReportArtifacts,
-): Promise<string> {
-  const dir = join(cwd, ".alix", "reports", reportId);
+export interface WriteReportOpts {
+  cwd: string;
+  reportId: string;
+  artifacts: ReportArtifacts;
+  graphId: string;
+  sopId: string;
+  topic: string;
+  nodeResults?: Array<{ nodeId: string; title: string; status: string }>;
+}
+
+export async function writeReportArtifacts(opts: WriteReportOpts): Promise<string> {
+  const dir = join(opts.cwd, ".alix", "reports", opts.reportId);
   if (!existsSync(dir)) await mkdir(dir, { recursive: true });
 
-  await writeFile(join(dir, "final_report.md"), artifacts.finalReport, "utf-8");
-  await writeFile(join(dir, "sources.json"), JSON.stringify(artifacts.sources, null, 2), "utf-8");
-  await writeFile(join(dir, "claims.json"), JSON.stringify(artifacts.claims, null, 2), "utf-8");
-  await writeFile(join(dir, "critic_review.md"), artifacts.criticReview, "utf-8");
+  await writeFile(join(dir, "final_report.md"), opts.artifacts.finalReport, "utf-8");
+  await writeFile(join(dir, "sources.json"), JSON.stringify(opts.artifacts.sources, null, 2), "utf-8");
+  await writeFile(join(dir, "claims.json"), JSON.stringify(opts.artifacts.claims, null, 2), "utf-8");
+  await writeFile(join(dir, "critic_review.md"), opts.artifacts.criticReview, "utf-8");
 
   const manifest = {
-    reportId,
+    reportId: opts.reportId,
+    sopId: opts.sopId,
+    topic: opts.topic,
+    graphId: opts.graphId,
+    status: "completed",
     createdAt: new Date().toISOString(),
-    artifactCount: 4,
-    artifacts: ["final_report.md", "sources.json", "claims.json", "critic_review.md"],
+    completedAt: new Date().toISOString(),
+    nodeResults: opts.nodeResults ?? [],
+    artifacts: {
+      finalReport: "final_report.md",
+      sources: "sources.json",
+      claims: "claims.json",
+      criticReview: "critic_review.md",
+    },
   };
   await writeFile(join(dir, "run_manifest.json"), JSON.stringify(manifest, null, 2), "utf-8");
 
