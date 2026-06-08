@@ -228,7 +228,9 @@ if (command === "graph" && args[0] === "run") {
   if (!graphId) { console.error("Usage: alix graph run <graphId>"); process.exit(1); }
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
-  const executor = new GraphExecutor(cwd);
+  const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const registry = await loadCardRegistry(cwd);
+  const executor = new GraphExecutor(cwd, { registry });
   console.log(`Executing graph: ${graphId}`);
   console.log();
   const result = await executor.execute(graphId);
@@ -256,7 +258,9 @@ if (command === "graph" && args[0] === "rerun") {
 
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
-  const executor = new GraphExecutor(cwd);
+  const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const registry = await loadCardRegistry(cwd);
+  const executor = new GraphExecutor(cwd, { registry });
 
   try {
     const result = await executor.rerunNode(graphId, nodeId, { force });
@@ -317,11 +321,11 @@ if (command === "graph" && args[0] === "preflight") {
   if (!graphId) { console.error("Usage: alix graph preflight <graphId>"); process.exit(1); }
   const cwd = process.cwd();
   const { loadGraph } = await import("./kernel/graph-executor.js");
-  const { CardRegistry } = await import("./registry/card-registry.js");
+  const { loadCardRegistry } = await import("./registry/card-loader.js");
   const { resolveCapabilities } = await import("./registry/capability-resolver.js");
   try {
     const graph = await loadGraph(graphId, cwd);
-    const registry = new CardRegistry();
+    const registry = await loadCardRegistry(cwd);
     console.log("Graph: " + graphId + "\n");
     for (const node of graph.nodes) {
       console.log(node.title);
@@ -562,7 +566,9 @@ if (command === "sop" && args[0] === "run") {
 
   // Execute graph
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
-  const executor = new GraphExecutor(process.cwd());
+  const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const registry = await loadCardRegistry(process.cwd());
+  const executor = new GraphExecutor(process.cwd(), { registry });
   console.log("Executing...");
   const execResult = await executor.execute(graph.id);
   for (const nr of execResult.results) {

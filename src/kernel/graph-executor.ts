@@ -91,9 +91,11 @@ export function sortNodesByDependencies(nodes: TaskNode[]): TaskNode[] {
 
 export class GraphExecutor {
   private cwd: string;
+  private registry?: CardRegistry;
 
-  constructor(cwd: string) {
+  constructor(cwd: string, opts?: { registry?: CardRegistry }) {
     this.cwd = cwd;
+    this.registry = opts?.registry;
   }
 
   async execute(graphId: string): Promise<ExecutorResult> {
@@ -112,7 +114,7 @@ export class GraphExecutor {
       let capabilityResolution: CapabilityPreflightResult | undefined;
       if (node.requiredCapabilities && node.requiredCapabilities.length > 0) {
         try {
-          const capRegistry = new CardRegistry();
+          const capRegistry = this.registry ?? new CardRegistry();
           const capResult = resolveCapabilities({
             requiredCapabilities: node.requiredCapabilities,
             domain: node.domain,
