@@ -98,8 +98,13 @@ export class GraphExecutor {
       let reason: string | undefined;
 
       try {
-        const result: RunResult = await runTask(this.cwd, node.goal, {
+        const isResearch = (node as any).executionProfile === "research";
+        const researchPrefix = isResearch
+          ? "\n\nIMPORTANT: You are a research agent. Use ONLY web_search and web_fetch. Do NOT read or write local project files. Only write artifacts under .alix/reports/."
+          : "";
+        const result: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
           planMode: false,
+          skipContext: isResearch ? true : undefined,
           sessionMode: node.riskLevel === "high" || node.riskLevel === "critical" ? "ask" : "bypass",
         });
         summary = result.summary;

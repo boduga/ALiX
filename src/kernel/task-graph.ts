@@ -81,6 +81,8 @@ export function createSingleNodeGraph(workflowId: string, goal: string, domain =
   return { graph, node };
 }
 
+export type ExecutionProfile = "default" | "research";
+
 export function transitionNodeStatus(node: TaskNode, status: TaskNodeStatus): TaskNode {
   return { ...node, status, updatedAt: new Date().toISOString() };
 }
