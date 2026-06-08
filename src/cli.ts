@@ -85,6 +85,7 @@ Usage:
   alix graph inspect <id> Show graph node details and status
   alix graph export <id> --format mermaid|json  Export graph
   alix graph run <id>     Execute a planned graph sequentially
+  alix graph runs <id>        Show graph run history (sessions, attempts, reports)
   alix graph rerun <id> --node <id>  Rerun a failed graph node
   alix sop list           List registered SOPs
   alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
@@ -266,6 +267,47 @@ if (command === "graph" && args[0] === "rerun") {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
+}
+
+// --- alix graph runs --- show graph run history ---
+if (command === "graph" && args[0] === "runs") {
+  const graphId = args[1];
+  if (!graphId) { console.error("Usage: alix graph runs <graphId>"); process.exit(1); }
+  const cwd = process.cwd();
+  const { buildGraphProjection } = await import("./kernel/graph-projection.js");
+  try {
+    const p = await buildGraphProjection(graphId, cwd);
+    console.log(`Graph:     ${p.graphId}`);
+    console.log(`Status:    ${p.status}`);
+    console.log();
+    if (p.sessionIds.length > 0) {
+      console.log("Sessions:");
+      for (const sid of p.sessionIds) console.log(`  ${sid}`);
+      console.log();
+    }
+    if (p.attempts && p.attempts.length > 0) {
+      console.log("Attempts:");
+      for (const a of p.attempts) {
+        const icon = a.status === "done" ? "✓" : "✗";
+        const dur = a.durationMs ? `${a.durationMs}ms` : "?";
+        console.log(`  #${a.attempt} ${a.nodeId} ${icon} ${dur}  ${a.startedAt || ""}`);
+      }
+      console.log();
+    }
+    if (p.reports.length > 0) {
+      console.log("Reports:");
+      for (const r of p.reports) console.log(`  ${r}`);
+      console.log();
+    }
+    for (const node of p.nodes) {
+      const icon = node.status === "done" ? "✓" : node.status === "failed" ? "✗" : "○";
+      console.log(`  ${icon} ${node.title}: ${node.status}${node.sessionId ? ` (${node.sessionId})` : ""}`);
+    }
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+  process.exit(0);
 }
 
 // --- alix graph list --- list saved graphs ---
