@@ -119,7 +119,7 @@ if (command === "init") {
 
 // --- alix graph --- TaskGraph management ---
 if (command === "graph" && args[0] === "plan") {
-  const task = args.slice(1).join(" ");
+  const task = args.slice(1).filter(a => a !== "--debug").join(" ");
   if (!task) {
     console.error("Usage: alix graph plan \"<task>\"");
     process.exit(1);

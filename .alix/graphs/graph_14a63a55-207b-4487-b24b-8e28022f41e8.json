@@ -1,0 +1,32 @@
+{
+  "id": "graph_14a63a55-207b-4487-b24b-8e28022f41e8",
+  "schemaVersion": "1.0",
+  "workflowId": "wf_bd099266-6803-458a-8318-6ee4fada45f7",
+  "rootGoal": "research typescript agent frameworks --debug",
+  "status": "draft",
+  "strategy": "sequential",
+  "nodes": [
+    {
+      "id": "node_af999d0d-f129-4785-8e88-729a764caa88",
+      "graphId": "graph_14a63a55-207b-4487-b24b-8e28022f41e8",
+      "title": "Execute task",
+      "goal": "research typescript agent frameworks --debug",
+      "domain": "legacy",
+      "status": "ready",
+      "dependencies": [],
+      "requiredCapabilities": [],
+      "riskLevel": "low",
+      "approvalMode": "auto",
+      "inputs": {
+        "goal": "research typescript agent frameworks --debug"
+      },
+      "artifacts": [],
+      "memoryRefs": [],
+      "createdAt": "2026-06-08T15:22:16.169Z",
+      "updatedAt": "2026-06-08T15:22:16.169Z"
+    }
+  ],
+  "edges": [],
+  "createdAt": "2026-06-08T15:22:16.169Z",
+  "updatedAt": "2026-06-08T15:22:16.169Z"
+}

@@ -98,7 +98,7 @@ export class GraphPlanner {
           stream: false,
           format: "json",
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(120000),
       });
       const data = await response.json() as Record<string, unknown>;
       rawModelOutput = (data.response || data.thinking || "") as string;
