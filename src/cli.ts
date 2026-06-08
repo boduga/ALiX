@@ -395,7 +395,7 @@ if (command === "sop" && args[0] === "run") {
   if (!sop) { console.error(`SOP not found: ${sopId}`); process.exit(1); }
 
   const result = sop.buildGraph({ topic });
-  const graph = (result as any).graph;
+  const { graph, reportId } = result as any;
 
   // Persist graph
   const { persistGraph } = await import("./kernel/graph-planner.js");
@@ -427,7 +427,6 @@ if (command === "sop" && args[0] === "run") {
   // Write enriched manifest
   if (execResult.graphStatus === "completed") {
     const { writeReportArtifacts } = await import("./sop/artifact-writer.js");
-    const reportId = `report_${Date.now()}`;
     await writeReportArtifacts({
       cwd: process.cwd(),
       reportId,

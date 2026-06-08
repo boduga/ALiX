@@ -4,8 +4,8 @@
   "topic": "test topic",
   "graphId": "graph_test_abc",
   "status": "completed",
-  "createdAt": "2026-06-08T16:09:53.791Z",
-  "completedAt": "2026-06-08T16:09:53.791Z",
+  "createdAt": "2026-06-08T16:30:21.852Z",
+  "completedAt": "2026-06-08T16:30:21.852Z",
   "nodeResults": [],
   "artifacts": {
     "finalReport": "final_report.md",
