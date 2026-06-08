@@ -650,9 +650,45 @@ if (command === "metrics") {
   const metricEvents = events.filter((e: any) => e.type === "m09.metric");
   if (metricEvents.length === 0) { console.log(`No metrics for session ${targetSession}.`); process.exit(0); }
   console.log(`Session: ${targetSession}`);
-  for (const ev of metricEvents) {
-    const p = ev.payload as any;
-    console.log(`  ${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
+  console.log();
+
+  const isRaw = args.includes("--raw");
+
+  if (isRaw) {
+    // Raw mode: one line per event
+    for (const ev of metricEvents) {
+      const p = ev.payload as any;
+      console.log(`  ${p.name}: ${p.value}${p.labels ? ` ${JSON.stringify(p.labels)}` : ""}`);
+    }
+  } else {
+    // Summary mode: group by name
+    const counters: Record<string, number> = {};
+    const timers: Record<string, number[]> = {};
+    for (const ev of metricEvents) {
+      const p = ev.payload as any;
+      if (p.type === "timer") {
+        if (!timers[p.name]) timers[p.name] = [];
+        timers[p.name].push(p.value);
+      } else {
+        counters[p.name] = (counters[p.name] ?? 0) + p.value;
+      }
+    }
+    if (Object.keys(counters).length > 0) {
+      console.log("Counters:");
+      for (const [name, total] of Object.entries(counters).sort()) {
+        console.log(`  ${name}: ${total}`);
+      }
+      console.log();
+    }
+    if (Object.keys(timers).length > 0) {
+      console.log("Timers:");
+      for (const [name, values] of Object.entries(timers).sort()) {
+        const avg = values.reduce((a, b) => a + b, 0) / values.length;
+        console.log(`  ${name}: ${Math.round(avg)}ms (avg, ${values.length} samples)`);
+      }
+      console.log();
+    }
+    console.log(`Raw view: alix metrics --session ${targetSession} --raw`);
   }
   process.exit(0);
 }

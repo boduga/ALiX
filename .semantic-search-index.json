@@ -55,8 +55,8 @@
         "path": "src/cli.ts",
         "symbolName": "parseChatArgs",
         "kind": "function",
-        "lineStart": 811,
-        "lineEnd": 833,
+        "lineStart": 859,
+        "lineEnd": 881,
         "keywords": []
       }
     ]
@@ -12159,7 +12159,7 @@
         "symbolName": "runDemo",
         "kind": "function",
         "lineStart": 14,
-        "lineEnd": 96,
+        "lineEnd": 98,
         "keywords": []
       }
     ]

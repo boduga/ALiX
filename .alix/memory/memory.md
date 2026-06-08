@@ -1,6 +1,7 @@
 # ALiX Memory Index
 
 
+- [solved an impossibly complex... (lesson)](feedback/solved-an-impossibly-complex-lesson.md) - Auto-extracted feedback decision: solved
 ## User
 - [favorite due to its... (preference)](user/favorite-due-to-its-preference.md) - Auto-extracted user decision: favorite
 - [favorite for performance-critical Node... (preference)](user/favorite-for-performance-critical-node-preference.md) - Auto-extracted user decision: favorite
