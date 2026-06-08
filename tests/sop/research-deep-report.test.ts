@@ -41,4 +41,35 @@ describe("research.deep_report", () => {
     const { reportDir } = buildResearchDeepReportGraph("test", "report_5");
     assert.ok(reportDir.startsWith(".alix/reports/"));
   });
+
+  it("research nodes have executionProfile set", () => {
+    const { graph } = buildResearchDeepReportGraph("test", "report_profile");
+    for (const node of graph.nodes) {
+      assert.equal((node as any).executionProfile, "research",
+        `Node ${node.id} should have executionProfile: "research"`);
+    }
+  });
+
+  it("research nodes do not have filesystem.read capability", () => {
+    const { graph } = buildResearchDeepReportGraph("test", "report_caps");
+    for (const node of graph.nodes) {
+      if (node.id !== "write_artifacts") {
+        assert.ok(!node.requiredCapabilities.includes("filesystem.read"),
+          `Node ${node.id} should not require filesystem.read`);
+      }
+    }
+  });
+
+  it("node goals instruct web-only tool use", () => {
+    const { graph } = buildResearchDeepReportGraph("test", "report_goals");
+    for (const node of graph.nodes) {
+      if (node.id === "write_artifacts") {
+        assert.ok(node.goal.includes(".alix/reports/"),
+          `Node ${node.id} goal should reference .alix/reports/`);
+      } else {
+        assert.ok(node.goal.includes("web_search") || node.goal.includes("ONLY"),
+          `Node ${node.id} goal should restrict to web-only tools`);
+      }
+    }
+  });
 });
