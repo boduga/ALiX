@@ -93,6 +93,7 @@ Usage:
   alix sop list           List registered SOPs
   alix sop show <id>      Show SOP details and manifest
   alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
+  alix sop doctor         Validate all registered SOPs
   alix sop run <id> --topic "<topic>" --enforce-capabilities  Enforce capability policy
   alix report list        List report artifacts
   alix report show <id>   Show report metadata and artifacts
@@ -658,6 +659,29 @@ if (command === "sop" && args[0] === "show") {
   process.exit(0);
 }
 
+if (command === "sop" && args[0] === "doctor") {
+  const { listSops } = await import("./sop/sop-registry.js");
+  const sops = listSops();
+  if (sops.length === 0) { console.log("No SOPs registered."); process.exit(0); }
+  let failed = false;
+  for (const s of sops) {
+    const issues: string[] = [];
+    if (!s.manifest) issues.push("no manifest");
+    else {
+      if (!s.manifest.version) issues.push("no version");
+      if (!s.manifest.nodeCount || s.manifest.nodeCount !== s.buildGraph({}).graph.nodes.length) issues.push("nodeCount mismatch");
+    }
+    if (issues.length === 0) {
+      console.log(`[✓] ${s.id}`);
+    } else {
+      console.log(`[⚠] ${s.id} — ${issues.join(", ")}`);
+      failed = true;
+    }
+  }
+  console.log(`\n${sops.length} SOPs, ${failed ? "some have issues" : "all healthy"}`);
+  process.exit(failed ? 1 : 0);
+}
+
 if (command === "sop" && args[0] === "run") {
   const sopId = args[1];
   const topicIdx = args.indexOf("--topic");
@@ -674,27 +698,43 @@ if (command === "sop" && args[0] === "run") {
     topic = topicWords.join(" ");
   }
 
+  // Collect --input key=value pairs
+  const inputs: Record<string, string> = {};
+  const inputIdx = args.indexOf("--input");
+  if (inputIdx >= 0) {
+    for (let i = inputIdx + 1; i < args.length; i++) {
+      if (args[i].startsWith("--")) break;
+      const eq = args[i].indexOf("=");
+      if (eq > 0) {
+        inputs[args[i].slice(0, eq)] = args[i].slice(eq + 1);
+      }
+    }
+  }
+  // Also handle --path as shorthand
+  const pathIdx = args.indexOf("--path");
+  if (pathIdx >= 0 && args[pathIdx + 1] && !args[pathIdx + 1].startsWith("--")) {
+    inputs.path = args[pathIdx + 1];
+  }
+
   // Reject bracket literals
   if (topic.includes("[") || topic.includes("]")) {
     console.error("Unexpected bracket syntax. Did you mean --plan-only instead of [--plan-only]?");
     process.exit(1);
   }
 
-  if (!sopId) { console.error("Usage: alix sop run <sop-id> --topic \"<topic>\" [--plan-only]"); process.exit(1); }
-  if (!topic) { console.error("Error: --topic is required"); process.exit(1); }
+  if (!sopId) { console.error("Usage: alix sop run <id> --topic \"<topic>\" | --input key=value ..."); process.exit(1); }
 
   const sopCwd = process.cwd();
   const { getSop, listSops } = await import("./sop/sop-registry.js");
-  const { getResearchDeepReportDef } = await import("./sop/research-deep-report.js");
-
-  // Register built-in SOPs
-  const deepReport = getResearchDeepReportDef();
-  // Import triggers registration or register manually
 
   const sop = getSop(sopId);
   if (!sop) { console.error(`SOP not found: ${sopId}`); process.exit(1); }
 
-  const result = sop.buildGraph({ topic });
+  // Build input from topic + --input pairs + --path
+  const buildInput: Record<string, unknown> = { ...inputs };
+  if (topic) buildInput.topic = topic;
+
+  const result = sop.buildGraph(buildInput);
   const { graph, reportId } = result as any;
 
   // Persist graph
@@ -702,7 +742,10 @@ if (command === "sop" && args[0] === "run") {
   const filePath = await persistGraph(graph, process.cwd());
 
   console.log(`SOP:        ${sopId}`);
-  console.log(`Topic:      ${topic}`);
+  if (topic) console.log(`Topic:      ${topic}`);
+  if (Object.keys(inputs).length > 0) {
+    for (const [k, v] of Object.entries(inputs)) console.log(`Input:      ${k}=${v}`);
+  }
   console.log(`Graph:      ${graph.id}`);
   console.log(`Nodes:      ${graph.nodes.length}`);
   console.log(`Saved:      ${filePath}`);
@@ -762,7 +805,7 @@ if (command === "sop" && args[0] === "run") {
 }
 
 if (command === "sop" && args[0] !== "list" && args[0] !== "run" && args[0] !== "show") {
-  console.log("Usage: alix sop list | alix sop show <id> | alix sop run <id> --topic \"<topic>\"");
+  console.log("Usage: alix sop list | alix sop show <id> | alix sop run <id> --topic \"<topic>\" | alix sop doctor");
   process.exit(0);
 }
 // --- alix report --- report artifact commands ---
