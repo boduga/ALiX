@@ -125,12 +125,12 @@ describe("Graph list API", () => {
   it("returns [] when no graph dir exists", async () => {
     const { startServer } = await import("../../src/server/server.js");
     const blankDir = mkdtempSync(join(tmpdir(), "no-graphs-"));
+    const { url, close } = await startServer(blankDir, "127.0.0.1", 0);
     try {
-      const { url, close } = await startServer(blankDir, "127.0.0.1", 0);
       const body = await httpGet(`${url}/api/graphs`);
       assert.equal(body, "[]");
-      await close();
     } finally {
+      await close();
       rmSync(blankDir, { recursive: true, force: true });
     }
   });
@@ -152,8 +152,8 @@ describe("Graph list API", () => {
       assert.equal(ga.status, "completed");
       assert.equal(ga.strategy, "sequential");
       assert.equal(ga.hasRuns, true);
-      await close();
     } finally {
+      await close();
       // tmpDir cleaned in after()
     }
   });
@@ -167,8 +167,8 @@ describe("Graph list API", () => {
       // graph_a is the only valid graph file; runs/bad are skipped
       assert.equal(data.length, 1);
       assert.equal(data[0].graphId, "graph_a");
-      await close();
     } finally {
+      await close();
       // tmpDir cleaned in after()
     }
   });
