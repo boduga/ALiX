@@ -243,11 +243,10 @@ if (command === "graph" && args[0] === "run") {
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { RuleEvaluator } = await import("./policy/rule-evaluator.js");
-  const { defaultPolicyRules } = await import("./policy/default-policies.js");
+  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
   const registry = await loadCardRegistry(cwd);
-  const policyEvaluator = new RuleEvaluator(defaultPolicyRules());
+  const policyEvaluator = await loadRuleEvaluator(cwd);
   const approvalStore = new ApprovalStore(cwd);
   await approvalStore.load();
   const enforce = args.includes("--enforce-capabilities");
@@ -281,11 +280,10 @@ if (command === "graph" && args[0] === "rerun") {
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { RuleEvaluator } = await import("./policy/rule-evaluator.js");
-  const { defaultPolicyRules } = await import("./policy/default-policies.js");
+  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
   const registry = await loadCardRegistry(cwd);
-  const policyEvaluator = new RuleEvaluator(defaultPolicyRules());
+  const policyEvaluator = await loadRuleEvaluator(cwd);
   const approvalStore = new ApprovalStore(cwd);
   await approvalStore.load();
   const executor = new GraphExecutor(cwd, { registry, policyEvaluator, approvalStore });
@@ -563,6 +561,7 @@ if (command === "sop" && args[0] === "run") {
   if (!sopId) { console.error("Usage: alix sop run <sop-id> --topic \"<topic>\" [--plan-only]"); process.exit(1); }
   if (!topic) { console.error("Error: --topic is required"); process.exit(1); }
 
+  const sopCwd = process.cwd();
   const { getSop, listSops } = await import("./sop/sop-registry.js");
   const { getResearchDeepReportDef } = await import("./sop/research-deep-report.js");
 
@@ -595,15 +594,14 @@ if (command === "sop" && args[0] === "run") {
   // Execute graph
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { RuleEvaluator } = await import("./policy/rule-evaluator.js");
-  const { defaultPolicyRules } = await import("./policy/default-policies.js");
+  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
   const enforce = args.includes("--enforce-capabilities");
-  const registry = await loadCardRegistry(process.cwd());
-  const policyEvaluator = new RuleEvaluator(defaultPolicyRules());
-  const approvalStore = new ApprovalStore(process.cwd());
+  const registry = await loadCardRegistry(sopCwd);
+  const policyEvaluator = await loadRuleEvaluator(sopCwd);
+  const approvalStore = new ApprovalStore(sopCwd);
   await approvalStore.load();
-  const executor = new GraphExecutor(process.cwd(), { registry, enforceCapabilities: enforce, policyEvaluator, approvalStore });
+  const executor = new GraphExecutor(sopCwd, { registry, enforceCapabilities: enforce, policyEvaluator, approvalStore });
   console.log("Executing...");
   if (enforce) console.log("  (capability enforcement enabled)");
   const execResult = await executor.execute(graph.id);
