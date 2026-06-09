@@ -103,7 +103,40 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
 
-    if (task.trim().length < 2) continue;
+    if (task.trim().length < 2 && store.getState().activePanel !== "chat") {
+      const s = store.getState();
+      const buf: string[] = [];
+      if (s.activePanel === "daemon") {
+        buf.push("── Daemon ──────────────────────────────");
+        buf.push(`Status:  ${s.daemonRunning ? "● running" : "○ stopped"}`);
+        if (s.daemonTasks) {
+          const t = s.daemonTasks;
+          buf.push(`Tasks:   run:${t.running} queued:${t.queued} done:${t.completed} fail:${t.failed}`);
+        }
+        buf.push(`Events:  ${s.runtimeEventCount}`);
+      } else if (s.activePanel === "approvals") {
+        buf.push("── Approvals ────────────────────────────");
+        buf.push(`Pending: ${s.pendingApprovalsCount}`);
+        buf.push('Use: alix approvals list | approve <id> | deny <id>');
+      } else if (s.activePanel === "sops") {
+        buf.push("── SOP Packs ────────────────────────────");
+        buf.push(`SOPs:    ${s.sopsCount}`);
+        buf.push("  research.deep_report      6 nodes");
+        buf.push("  infra.docker_compose_audit 1 node");
+        buf.push("Run: alix sop list");
+      } else if (s.activePanel === "policy") {
+        buf.push("── Policy Rules ─────────────────────────");
+        buf.push(`Rules:   ${s.policyRulesCount}`);
+        buf.push("Run: alix policy list | eval --capability <cap>");
+      } else if (s.activePanel === "runtime") {
+        buf.push("── Runtime Events ───────────────────────");
+        buf.push(`Events:  ${s.runtimeEventCount}`);
+        buf.push("Run: alix runtime events --limit 10");
+        buf.push("Run: alix runtime timeline <graphId>");
+      }
+      for (const l of buf) tui.appendOutput(l, false);
+      continue;
+    }
 
     try {
       tui.resetOutput();
