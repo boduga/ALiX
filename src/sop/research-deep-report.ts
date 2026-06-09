@@ -88,6 +88,13 @@ export function getResearchDeepReportDef() {
     id: "research.deep_report",
     name: "Deep Research Report",
     description: "Search, verify, claim-map, synthesize, critique, and produce a cited report",
+    manifest: {
+      author: "ALiX",
+      version: "1.0.0",
+      tags: ["research", "report", "web"],
+      nodeCount: 6,
+      requiredCapabilities: ["web.search", "web.fetch", "filesystem.write"],
+    },
     buildGraph: (input: Record<string, unknown>) => buildResearchDeepReportGraph(
       (input.topic as string) || "research topic",
       `report_${Date.now()}`,

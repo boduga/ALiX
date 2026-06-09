@@ -91,6 +91,7 @@ Usage:
   alix graph rerun <id> --node <id>  Rerun a failed graph node
   alix graph continue <id>  Resume execution after approval
   alix sop list           List registered SOPs
+  alix sop show <id>      Show SOP details and manifest
   alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
   alix sop run <id> --topic "<topic>" --enforce-capabilities  Enforce capability policy
   alix report list        List report artifacts
@@ -628,8 +629,31 @@ if (command === "sop" && args[0] === "list") {
   const { listSops } = await import("./sop/sop-registry.js");
   const sops = listSops();
   if (sops.length === 0) { console.log("No SOPs registered."); process.exit(0); }
+  console.log(`${"ID".padEnd(30)} ${"Nodes".padEnd(6)} Tags`);
+  console.log("-".repeat(70));
   for (const s of sops) {
-    console.log(`  ${s.id.padEnd(30)} ${s.description}`);
+    const tags = s.manifest?.tags?.join(", ") || "";
+    const nodes = s.manifest?.nodeCount?.toString() || "?";
+    console.log(`  ${s.id.padEnd(30)} ${nodes.padEnd(6)} ${tags}`);
+  }
+  process.exit(0);
+}
+
+if (command === "sop" && args[0] === "show") {
+  const sopId = args[1];
+  if (!sopId) { console.error("Usage: alix sop show <id>"); process.exit(1); }
+  const { getSop } = await import("./sop/sop-registry.js");
+  const sop = getSop(sopId);
+  if (!sop) { console.error(`SOP not found: ${sopId}`); process.exit(1); }
+  console.log(`ID:          ${sop.id}`);
+  console.log(`Name:        ${sop.name}`);
+  console.log(`Description: ${sop.description}`);
+  if (sop.manifest) {
+    console.log(`Author:      ${sop.manifest.author || "—"}`);
+    console.log(`Version:     ${sop.manifest.version || "—"}`);
+    console.log(`Nodes:       ${sop.manifest.nodeCount || "?"}`);
+    console.log(`Tags:        ${sop.manifest.tags?.join(", ") || "—"}`);
+    console.log(`Capabilities: ${sop.manifest.requiredCapabilities?.join(", ") || "—"}`);
   }
   process.exit(0);
 }
@@ -737,8 +761,8 @@ if (command === "sop" && args[0] === "run") {
   process.exit(0);
 }
 
-if (command === "sop" && args[0] !== "list" && args[0] !== "run") {
-  console.log("Usage: alix sop list | alix sop run <id> --topic \"<topic>\"");
+if (command === "sop" && args[0] !== "list" && args[0] !== "run" && args[0] !== "show") {
+  console.log("Usage: alix sop list | alix sop show <id> | alix sop run <id> --topic \"<topic>\"");
   process.exit(0);
 }
 // --- alix report --- report artifact commands ---

@@ -7,10 +7,19 @@
 
 import type { TaskGraph } from "../kernel/task-graph.js";
 
+export interface SopManifest {
+  author?: string;
+  version?: string;
+  tags?: string[];
+  nodeCount?: number;
+  requiredCapabilities?: string[];
+}
+
 export interface SopDefinition {
   id: string;
   name: string;
   description: string;
+  manifest?: SopManifest;
   buildGraph: (input: Record<string, unknown>) => { graph: TaskGraph; reportDir: string };
 }
 
@@ -31,3 +40,5 @@ export function listSops(): SopDefinition[] {
 // Auto-register built-in SOPs
 import { getResearchDeepReportDef } from "./research-deep-report.js";
 registerSop(getResearchDeepReportDef());
+import { getInfraDockerComposeAuditDef } from "./infra-docker-compose-audit.js";
+registerSop(getInfraDockerComposeAuditDef());
