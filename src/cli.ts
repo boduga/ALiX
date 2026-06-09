@@ -1907,14 +1907,18 @@ if (command === "submit") {
 
   client.on("data", (data: Buffer) => {
     for (const line of data.toString().trim().split("\n")) {
+      if (!line.trim()) continue;
       try {
         const msg = JSON.parse(line);
         if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
-        if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
-        if (msg.type === "session.ended") {
-          console.log("Task completed.");
-          client.end();
-        }
+        else if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
+        else if (msg.type === "queue.position") console.log(`Queue position: ${msg.position}`);
+        else if (msg.type === "tool.started") console.log(`  → ${msg.toolName || "tool"} started`);
+        else if (msg.type === "tool.completed") console.log(`  ✓ ${msg.toolName || "tool"} completed${msg.durationMs ? ` (${msg.durationMs}ms)` : ""}`);
+        else if (msg.type === "tool.failed") console.log(`  ✗ ${msg.toolName || "tool"} failed${msg.error ? ": " + msg.error.slice(0, 60) : ""}`);
+        else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.end(); }
+        else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); client.end(); }
+        else if (msg.type === "session.ended") { client.end(); }
       } catch {
         console.log(line);
       }
