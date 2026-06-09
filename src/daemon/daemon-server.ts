@@ -11,7 +11,8 @@ import { createServer, type Socket } from "node:net";
 import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import type { DaemonResponse } from "./daemon-types.js";
+import { EventLog } from "../events/event-log.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
@@ -24,45 +25,102 @@ if (!socketPath || !cwd) {
 
 let currentSessionId: string | undefined;
 
-/** Write a session event to disk. */
-async function writeSessionEvent(sessionId: string, event: Record<string, unknown>): Promise<void> {
-  const sessionDir = join(cwd, ".alix", "sessions", sessionId);
-  if (!existsSync(sessionDir)) {
-    await mkdir(sessionDir, { recursive: true });
+const taskQueue: Array<{ task: string; client: Socket }> = [];
+let taskRunning = false;
+
+async function processQueue(): Promise<void> {
+  if (taskRunning || taskQueue.length === 0) return;
+  taskRunning = true;
+  const { task, client } = taskQueue.shift()!;
+  try {
+    await handleRun(task, client);
+  } finally {
+    taskRunning = false;
+    processQueue(); // process next
   }
-  const eventWithSeq = { ...event, seq: Date.now(), timestamp: new Date().toISOString() };
-  await appendFile(join(sessionDir, "events.jsonl"), JSON.stringify(eventWithSeq) + "\n", "utf-8");
+}
+
+/** Create a pass-through EventLog that writes to session file AND socket client. */
+function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
+  const events: any[] = [];
+  const log = new EventLog(join(cwd, ".alix", "sessions", sessionId));
+  // Override append to also forward to client socket
+  const origAppend = log.append.bind(log);
+  (log as any).append = async (event: any) => {
+    events.push(event);
+    const enriched = { ...event, sessionId, seq: events.length, timestamp: new Date().toISOString() };
+    // Write to session file using the real EventLog
+    const result = await origAppend(event);
+    // Forward key events to client
+    if (!event.type?.startsWith("m09.") && !event.type?.startsWith("embedder.") && !event.type?.startsWith("context.") && !event.type?.startsWith("mcp.")) {
+      client.write(JSON.stringify(enriched) + "\n");
+    }
+    return result;
+  };
+  return log;
 }
 
 /** Handle a single command from a connected client. */
-async function handleCommand(command: Record<string, unknown>, client: Socket): Promise<void> {
-  if (command.command === "run") {
-    const task = String(command.task || "");
-    const sessionId = `daemon_${Date.now()}_${randomUUID().slice(0, 8)}`;
-    currentSessionId = sessionId;
+async function handleCommand(cmd: Record<string, unknown>, client: Socket): Promise<void> {
+  if (cmd.command === "run") {
+    taskQueue.push({ task: String(cmd.task || ""), client });
+    if (taskQueue.length === 1) {
+      processQueue();
+    } else {
+      client.write(JSON.stringify({ type: "queue.position", position: taskQueue.length } satisfies DaemonResponse) + "\n");
+    }
+    return;
+  }
+  if (cmd.command === "ping") {
+    client.write(JSON.stringify({ type: "pong", sessionId: currentSessionId } satisfies DaemonResponse) + "\n");
+    return;
+  }
+  client.write(JSON.stringify({ type: "error", message: `Unknown command: ${cmd.command}` } satisfies DaemonResponse) + "\n");
+}
 
-    await writeSessionEvent(sessionId, {
-      type: "session.started", sessionId, actor: "system",
-      payload: { task, source: "daemon" },
-    });
-    client.write(JSON.stringify({ type: "session.started", sessionId }) + "\n");
-    client.write(JSON.stringify({ type: "task.accepted", sessionId, task }) + "\n");
+/** Run a task via runTask() and stream events back to the client. */
+async function handleRun(task: string, client: Socket): Promise<void> {
+  const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  currentSessionId = sessionId;
 
-    await writeSessionEvent(sessionId, {
-      type: "session.ended", sessionId, actor: "system",
+  client.write(JSON.stringify({ type: "session.started", sessionId } satisfies DaemonResponse) + "\n");
+  client.write(JSON.stringify({ type: "task.accepted", sessionId, task } satisfies DaemonResponse) + "\n");
+
+  const eventLog = createDaemonEventLog(sessionId, client);
+
+  await eventLog.append({
+    actor: "system", type: "session.started", sessionId,
+    payload: { task, source: "daemon" },
+  });
+
+  try {
+    const { loadConfig } = await import("../config/loader.js");
+    const config = await loadConfig(cwd);
+    const { runTask } = await import("../run.js");
+
+    const result = await runTask(cwd, task, {
+      planMode: false,
+      sharedSession: {
+        sessionId,
+        sessionDir: join(cwd, ".alix", "sessions", sessionId),
+        eventLog,
+      },
     });
-    client.write(JSON.stringify({ type: "session.ended", sessionId }) + "\n");
 
     currentSessionId = undefined;
-    return;
+
+    if (!result.reason || result.reason === "completed") {
+      client.write(JSON.stringify({ type: "task.completed", sessionId, status: "completed" } satisfies DaemonResponse) + "\n");
+    } else {
+      client.write(JSON.stringify({ type: "task.failed", sessionId, error: result.reason } satisfies DaemonResponse) + "\n");
+    }
+  } catch (err: any) {
+    currentSessionId = undefined;
+    client.write(JSON.stringify({ type: "task.failed", sessionId, error: err.message } satisfies DaemonResponse) + "\n");
   }
 
-  if (command.command === "ping") {
-    client.write(JSON.stringify({ type: "pong", sessionId: currentSessionId }) + "\n");
-    return;
-  }
-
-  client.write(JSON.stringify({ type: "error", message: `Unknown command: ${command.command}` }) + "\n");
+  await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
+  client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
 }
 
 // Start server
