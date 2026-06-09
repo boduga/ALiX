@@ -202,6 +202,26 @@ export function startServer(root: string, host: string, port: number): Promise<{
         }
         return;
       }
+      if (url.pathname === "/api/audit") {
+        try {
+          const { AuditStore } = await import("../audit/audit-store.js");
+          const store = new AuditStore(root);
+          const limitParam = url.searchParams.get("limit");
+          const limit = limitParam ? parseInt(limitParam, 10) || 100 : 100;
+          const actionParam = url.searchParams.get("action");
+          const graphParam = url.searchParams.get("graphId");
+          let records;
+          if (actionParam) records = await store.findByAction(actionParam as any, limit);
+          else if (graphParam) records = await store.findByGraph(graphParam, limit);
+          else records = await store.list(limit);
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(records));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/sessions/compare") {
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");

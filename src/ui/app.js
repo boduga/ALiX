@@ -716,8 +716,35 @@ function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
 
+// ── Audit tab ────────────────────────────────────────────────
+async function loadAudit() {
+  try {
+    const res = await fetch("/api/audit?limit=100");
+    const records = await res.json();
+    const el = document.getElementById("audit-list");
+    if (!el) return;
+    if (records.length === 0) {
+      el.innerHTML = '<p class="empty">No audit records.</p>';
+      return;
+    }
+    el.innerHTML = `<div class="audit-timeline">${records.map((r) => {
+      const actionClass = r.action.replace(/\./g, "-");
+      return `<div class="audit-entry">
+        <span class="audit-action action-${actionClass}">${escapeHtml(r.action)}</span>
+        <span class="audit-time">${new Date(r.timestamp).toLocaleString()}</span>
+        ${r.details.capability ? `<span class="cap-badge">${escapeHtml(r.details.capability)}</span>` : ""}
+        ${r.details.graphId ? `<span class="audit-meta">${escapeHtml(r.details.graphId)}</span>` : ""}
+        ${r.details.nodeId ? `<span class="audit-meta">/${escapeHtml(r.details.nodeId)}</span>` : ""}
+        ${r.details.approvalId ? `<span class="audit-meta">${escapeHtml(r.details.approvalId)}</span>` : ""}
+        ${r.details.reason ? `<div class="audit-reason">${escapeHtml(r.details.reason)}</div>` : ""}
+      </div>`;
+    }).join("")}</div>`;
+  } catch { /* silently skip */ }
+}
+
 // Load registry, graph list, and policy on page load so tabs work without connecting
 loadRegistry();
 loadGraphList();
 loadPolicyRules();
 loadApprovals();
+loadAudit();

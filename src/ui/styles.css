@@ -1104,3 +1104,65 @@ h3 {
   user-select: all;
   cursor: pointer;
 }
+
+/* === Audit view === */
+.audit-timeline {
+  display: flex;
+  flex-direction: column;
+}
+
+.audit-entry {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  padding: 0.5rem 0.8rem;
+  border-bottom: 1px solid rgba(47,58,54,0.5);
+  flex-wrap: wrap;
+  font-size: 0.85rem;
+}
+
+.audit-entry:hover {
+  background: rgba(184,224,96,0.04);
+}
+
+.audit-action {
+  display: inline-block;
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-family: monospace;
+  min-width: 120px;
+}
+
+.action-policy-allowed { background: rgba(63,185,80,0.15); color: #3fb950; }
+.action-policy-denied { background: rgba(248,81,73,0.15); color: #f85149; }
+.action-policy-asked { background: rgba(210,153,34,0.15); color: #d29922; }
+.action-runtime-allowed { background: rgba(63,185,80,0.1); color: #7ee787; }
+.action-runtime-blocked { background: rgba(248,81,73,0.1); color: #ff7b72; }
+.action-runtime-requires-approval { background: rgba(210,153,34,0.1); color: #d29922; }
+.action-approval-created { background: rgba(88,166,255,0.15); color: #58a6ff; }
+.action-approval-approved { background: rgba(63,185,80,0.15); color: #3fb950; }
+.action-approval-denied { background: rgba(248,81,73,0.15); color: #f85149; }
+.action-graph-continued { background: rgba(163,113,247,0.15); color: #a371f7; }
+.action-policy-evaluated { background: rgba(139,148,158,0.15); color: #8b949e; }
+
+.audit-time {
+  color: var(--muted, #a59f90);
+  font-size: 0.75rem;
+  font-family: monospace;
+}
+
+.audit-meta {
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--muted, #a59f90);
+}
+
+.audit-reason {
+  font-size: 0.8rem;
+  color: var(--text, #f5f0df);
+  width: 100%;
+  margin-top: 0.15rem;
+  margin-left: 1.5rem;
+}
