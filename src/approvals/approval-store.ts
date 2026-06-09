@@ -124,4 +124,25 @@ export class ApprovalStore {
   get(id: string): ApprovalRecord | undefined {
     return this.approvals.find(a => a.id === id);
   }
+
+  /** Find existing pending approval for a given graph/node/capability. */
+  findPending(opts: { graphId?: string; nodeId?: string; capability?: string }): ApprovalRecord | undefined {
+    return this.approvals.find(a =>
+      a.status === "pending"
+      && (!opts.graphId || a.graphId === opts.graphId)
+      && (!opts.nodeId || a.nodeId === opts.nodeId)
+      && (!opts.capability || a.capability === opts.capability)
+    );
+  }
+
+  /** Find the most recent resolved (approved/denied) approval for the same key. */
+  findResolved(opts: { graphId?: string; nodeId?: string; capability?: string }): ApprovalRecord | undefined {
+    const matches = this.approvals.filter(a =>
+      a.status !== "pending"
+      && (!opts.graphId || a.graphId === opts.graphId)
+      && (!opts.nodeId || a.nodeId === opts.nodeId)
+      && (!opts.capability || a.capability === opts.capability)
+    );
+    return matches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+  }
 }

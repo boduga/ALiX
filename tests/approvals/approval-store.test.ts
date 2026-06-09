@@ -138,4 +138,32 @@ describe("ApprovalStore", () => {
       assert.equal(store.get("nonexistent"), undefined);
     } finally { cleanup(); }
   });
+
+  it("findPending returns existing pending approval for graph/node/capability", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      await store.request({ reason: "test", graphId: "g1", nodeId: "n1", capability: "shell.exec" });
+      const found = store.findPending({ graphId: "g1", nodeId: "n1", capability: "shell.exec" });
+      assert.ok(found);
+      assert.equal(found!.status, "pending");
+      assert.equal(found!.graphId, "g1");
+      // Wrong capability should not match
+      assert.equal(store.findPending({ graphId: "g1", nodeId: "n1", capability: "other" }), undefined);
+    } finally { cleanup(); }
+  });
+
+  it("findResolved returns most recent resolved approval", async () => {
+    const { store, cleanup } = freshStore();
+    try {
+      await store.load();
+      const a = await store.request({ reason: "first", graphId: "g1", nodeId: "n1", capability: "shell.exec" });
+      await store.resolve(a.id, "denied", "Not now");
+      const found = store.findResolved({ graphId: "g1", nodeId: "n1", capability: "shell.exec" });
+      assert.ok(found);
+      assert.equal(found!.status, "denied");
+      // No pending match for findResolved
+      assert.equal(store.findResolved({ graphId: "g2" }), undefined);
+    } finally { cleanup(); }
+  });
 });
