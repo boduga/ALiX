@@ -173,7 +173,7 @@ describe("GraphExecutor", () => {
     assert.equal(result.results.length, 1);
     const node = result.results[0];
     assert.equal(node.status, "blocked");
-    assert.match(node.reason!, /Blocked by capability policy/);
+    assert.match(node.reason!, /Missing capabilities/);
     assert.match(node.reason!, /nonexistent\.cap/);
     assert.equal(result.graphStatus, "failed");
     assert.equal(result.completedNodes, 0);
@@ -181,10 +181,12 @@ describe("GraphExecutor", () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it("enforcement: needs_approval capability runs with ask mode", async () => {
+  it("enforcement: needs_approval creates approval request and blocks", async () => {
     const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
+    const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
+    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-approval-"));
 
     const graphId = "enforce_approval_test";
@@ -204,22 +206,76 @@ describe("GraphExecutor", () => {
       edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
     }));
 
-    // Registry with shell_exec tool (high risk → needs_approval)
+    // Registry with shell_exec tool (high risk)
     const registry = new CardRegistry();
-    const { defaultToolCards } = await import("../../src/registry/card-loader.js");
-    for (const card of defaultToolCards()) registry.registerTool(card);
+    registry.registerTool({
+      id: "shell_exec", name: "Shell Exec", description: "Test shell tool",
+      version: "1.0.0", capabilities: ["shell.exec"], riskLevel: "high",
+      approvalMode: "ask", sideEffects: "system", enabled: true,
+    });
 
-    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true });
+    // Policy that asks for shell.exec
+    const policy = new RuleEvaluator([{
+      id: "ask-shell", description: "Ask shell",
+      match: { capability: "shell.exec" }, decision: "ask", enabled: true,
+      reason: "Shell execution needs approval",
+    }]);
+
+    const approvalStore = new ApprovalStore(tmpDir);
+    await approvalStore.load();
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyEvaluator: policy, approvalStore });
     const result = await exec.execute(graphId);
 
-    // needs_approval still tries to execute (with ask mode) rather than blocking
-    // The runTask call will likely fail since there's no real provider,
-    // but it should NOT be "blocked" status
+    // needs_approval should block with a pending approval reason
     const node = result.results[0];
-    assert.notEqual(node.status, "blocked");
-    assert.ok(node.capabilityResolution);
-    assert.equal(node.capabilityResolution!.status, "needs_approval");
+    assert.equal(node.status, "blocked");
+    assert.ok(node.reason!.includes("Pending approval"), `Expected pending approval reason, got: ${node.reason}`);
 
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("enforcement: policy deny blocks node", async () => {
+    const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "exec-policy-deny-"));
+
+    const graphId = "policy_deny_test";
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    mkdirSync(graphsDir, { recursive: true });
+    writeFileSync(join(graphsDir, `${graphId}.json`), JSON.stringify({
+      id: graphId, schemaVersion: "1.0", workflowId: "wf_test",
+      rootGoal: "test", status: "ready", strategy: "sequential",
+      nodes: [{
+        id: "node_p", graphId, title: "Node P", goal: "search",
+        domain: "general", status: "pending", dependencies: [],
+        requiredCapabilities: ["web.search"],
+        riskLevel: "low", approvalMode: "auto", inputs: {},
+        artifacts: [], memoryRefs: [],
+        createdAt: "2026-01-01", updatedAt: "2026-01-01",
+      }],
+      edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
+    }));
+
+    const registry = new CardRegistry();
+    registry.registerTool({
+      id: "web_search", name: "Web Search", description: "Test web search tool",
+      version: "1.0.0", capabilities: ["web.search"], riskLevel: "low",
+      approvalMode: "auto", sideEffects: "read", enabled: true,
+    });
+
+    const policy = new RuleEvaluator([{
+      id: "deny-web", description: "Deny web search",
+      match: { capability: "web.search" }, decision: "deny", enabled: true,
+    }]);
+
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyEvaluator: policy });
+    const result = await exec.execute(graphId);
+
+    const node = result.results[0];
+    assert.equal(node.status, "blocked");
+    assert.match(node.reason!, /deny|blocked/i);
     rmSync(tmpDir, { recursive: true, force: true });
   });
 });
