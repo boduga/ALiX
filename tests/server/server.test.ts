@@ -314,6 +314,22 @@ describe("Runtime events API", () => {
   });
 });
 
+describe("Daemon API", () => {
+  it("GET /api/daemon/status returns JSON with running", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "daemon-api-test-"));
+    try {
+      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/daemon/status`);
+      const data = JSON.parse(body);
+      assert.ok("running" in data);
+      await close();
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 /**
  * Helper: perform an HTTP GET and return the full body as a string.
  */

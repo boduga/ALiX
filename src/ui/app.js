@@ -768,6 +768,28 @@ async function loadAudit() {
   } catch { /* silently skip */ }
 }
 
+async function loadDaemonStatus() {
+  try {
+    const res = await fetch("/api/daemon/status");
+    const data = await res.json();
+    const indicator = document.getElementById("daemon-indicator");
+    const text = document.getElementById("daemon-status-text");
+    if (!indicator || !text) return;
+    if (data.running) {
+      indicator.textContent = "●";
+      indicator.className = "daemon-indicator running";
+      text.textContent = `Daemon: running (pid ${data.status?.pid})`;
+    } else {
+      indicator.textContent = "○";
+      indicator.className = "daemon-indicator";
+      text.textContent = "Daemon: stopped";
+    }
+  } catch {
+    const text = document.getElementById("daemon-status-text");
+    if (text) text.textContent = "Daemon: unavailable";
+  }
+}
+
 // Load registry, graph list, and policy on page load so tabs work without connecting
 loadRegistry();
 loadGraphList();
@@ -775,3 +797,4 @@ loadPolicyRules();
 loadApprovals();
 loadAudit();
 loadRuntimeEvents();
+loadDaemonStatus();

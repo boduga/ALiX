@@ -1166,3 +1166,26 @@ h3 {
   margin-top: 0.15rem;
   margin-left: 1.5rem;
 }
+
+/* Daemon status bar */
+.daemon-status-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.8rem;
+  background: var(--panel, #151a1b);
+  border: 1px solid var(--panel-line, #2f3a36);
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--muted, #a59f90);
+}
+
+.daemon-indicator {
+  font-size: 1rem;
+  color: var(--muted, #a59f90);
+}
+
+.daemon-indicator.running {
+  color: #3fb950;
+}
