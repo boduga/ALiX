@@ -8,7 +8,6 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import { randomUUID } from "node:crypto";
 
 export type ApprovalStatus = "pending" | "approved" | "denied";
 
