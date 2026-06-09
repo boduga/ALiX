@@ -296,19 +296,79 @@ function renderNodeRow(node, graphId) {
   </tr>`;
 }
 
-// Stub functions for node detail / rerun — will be fleshed out in later tasks
 function showNodeDetail(nodeId) {
-  const detail = document.getElementById("graph-detail");
-  if (!detail) return;
-  detail.classList.remove("hidden");
-  detail.innerHTML = `<p class="empty">Node detail for <code>${escapeHtml(nodeId)}</code> (coming soon)</p>`;
+  if (!currentProjection) return;
+  const node = currentProjection.nodes.find(n => n.nodeId === nodeId);
+  if (!node) return;
+
+  const el = document.getElementById("graph-detail");
+  el.classList.remove("hidden");
+
+  const cr = node.capabilityResolution;
+  if (!cr) {
+    el.innerHTML = `<h3>${escapeHtml(node.title)}</h3><p class="empty">No capability resolution data for this node.</p>`;
+    return;
+  }
+
+  const statusClass = `cap-${cr.status}`;
+  el.innerHTML = `
+    <h3>${escapeHtml(node.title)} — Capability Resolution</h3>
+    <dl class="detail-grid">
+      <dt>Status</dt>
+      <dd><span class="cap-badge ${statusClass}">${cr.status}</span></dd>
+      ${cr.matchedAgents.length > 0 ? `<dt>Agents</dt><dd>${cr.matchedAgents.map(a => escapeHtml(a)).join(", ")}</dd>` : ""}
+      ${cr.matchedTools.length > 0 ? `<dt>Tools</dt><dd>${cr.matchedTools.map(t => escapeHtml(t)).join(", ")}</dd>` : ""}
+      ${cr.missingCapabilities.length > 0 ? `<dt>Missing</dt><dd class="error">${cr.missingCapabilities.map(c => escapeHtml(c)).join(", ")}</dd>` : ""}
+      ${cr.warnings.length > 0 ? `<dt>Warnings</dt><dd class="warning">${cr.warnings.map(w => escapeHtml(w)).join("; ")}</dd>` : ""}
+    </dl>
+  `;
 }
 
 function showRerunCommand(graphId, nodeId) {
-  const rerun = document.getElementById("graph-rerun");
-  if (!rerun) return;
-  rerun.classList.remove("hidden");
-  rerun.innerHTML = `<p class="empty">Rerun command for <code>${escapeHtml(nodeId)}</code> (coming soon)</p>`;
+  const el = document.getElementById("graph-rerun");
+  el.classList.remove("hidden");
+
+  const baseCmd = `alix graph rerun ${graphId} --node ${nodeId}`;
+  const forceCmd = `${baseCmd} --force`;
+
+  el.innerHTML = `
+    <h3>⤴ Rerun Node</h3>
+    <div class="rerun-command-box">
+      <code id="rerun-command-text">${escapeHtml(baseCmd)}</code>
+      <button id="rerun-copy-btn">Copy</button>
+    </div>
+    <div class="rerun-options">
+      <label>
+        <input type="checkbox" id="rerun-force-toggle" />
+        --force (rerun even if not failed)
+      </label>
+    </div>
+  `;
+
+  // Copy handler
+  document.getElementById("rerun-copy-btn").addEventListener("click", async () => {
+    const codeEl = document.getElementById("rerun-command-text");
+    try {
+      await navigator.clipboard.writeText(codeEl.textContent);
+      const btn = document.getElementById("rerun-copy-btn");
+      btn.textContent = "Copied!";
+      setTimeout(() => { btn.textContent = "Copy"; }, 2000);
+    } catch {
+      // Fallback for non-HTTPS environments
+      const textArea = document.createElement("textarea");
+      textArea.value = codeEl.textContent;
+      document.body.append(textArea);
+      textArea.select();
+      document.execCommand("copy");
+      textArea.remove();
+    }
+  });
+
+  // Force toggle
+  document.getElementById("rerun-force-toggle").addEventListener("change", (e) => {
+    const codeEl = document.getElementById("rerun-command-text");
+    codeEl.textContent = e.target.checked ? forceCmd : baseCmd;
+  });
 }
 
 connectBtn.setAttribute("aria-label", "Connect to session");
