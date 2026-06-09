@@ -31,6 +31,15 @@ export interface NodeRunInfo {
   summary?: string;
   error?: string;
   attempts?: NodeAttempt[];
+  requiredCapabilities?: string[];
+  capabilityResolution?: {
+    requiredCapabilities: string[];
+    matchedAgents: string[];
+    matchedTools: string[];
+    missingCapabilities: string[];
+    warnings: string[];
+    status: "ready" | "blocked" | "needs_approval";
+  };
 }
 
 export interface GraphRunProjection {
@@ -66,6 +75,8 @@ export async function buildGraphProjection(
     nodeId: n.id,
     title: n.title || n.id,
     status: n.status || "pending",
+    requiredCapabilities: n.requiredCapabilities,
+    capabilityResolution: n.capabilityResolution,
   }));
 
   // Scan sessions for events matching this graphId
