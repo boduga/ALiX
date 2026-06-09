@@ -8,6 +8,7 @@
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import type { AuditStore } from "../audit/audit-store.js";
 
 export type ApprovalStatus = "pending" | "approved" | "denied";
 
@@ -30,9 +31,11 @@ export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
   private dirty = false;
   private filePath: string;
+  private auditStore?: AuditStore;
 
-  constructor(cwd: string) {
+  constructor(cwd: string, opts?: { auditStore?: AuditStore }) {
     this.filePath = join(cwd, ".alix", "approvals", "approvals.json");
+    this.auditStore = opts?.auditStore;
   }
 
   /** Load approvals from disk. */
@@ -88,6 +91,10 @@ export class ApprovalStore {
     this.approvals.push(record);
     this.dirty = true;
     await this.save();
+    this.auditStore?.append({ action: "approval.created", actor: "policy", details: {
+      approvalId: record.id, graphId: opts.graphId, nodeId: opts.nodeId,
+      capability: opts.capability, reason: opts.reason,
+    }}).catch(() => {});
     return record;
   }
 
@@ -103,6 +110,11 @@ export class ApprovalStore {
     record.status = status;
     record.decidedAt = new Date().toISOString();
     record.decisionReason = decisionReason;
+    this.auditStore?.append({
+      action: status === "approved" ? "approval.approved" : "approval.denied",
+      actor: "user",
+      details: { approvalId: id, reason: decisionReason },
+    }).catch(() => {});
     this.dirty = true;
     await this.save();
     return record;
