@@ -15,6 +15,9 @@ import type { RunResult } from "../run.js";
 import { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities } from "../registry/capability-resolver.js";
 import { runTask } from "../run.js";
+import { evaluateRuntimeGate } from "../policy/runtime-gate.js";
+import { RuleEvaluator } from "../policy/rule-evaluator.js";
+import { ApprovalStore } from "../approvals/approval-store.js";
 
 export interface CapabilityPreflightResult {
   requiredCapabilities: string[];
@@ -93,17 +96,23 @@ export interface ExecutorOpts {
   registry?: CardRegistry;
   /** When true, blocked/needs_approval capability status short-circuits node execution. */
   enforceCapabilities?: boolean;
+  policyEvaluator?: RuleEvaluator;
+  approvalStore?: ApprovalStore;
 }
 
 export class GraphExecutor {
   private cwd: string;
   private registry?: CardRegistry;
   private enforceCapabilities: boolean;
+  private policyEvaluator: RuleEvaluator;
+  private approvalStore?: ApprovalStore;
 
   constructor(cwd: string, opts?: ExecutorOpts) {
     this.cwd = cwd;
     this.registry = opts?.registry;
     this.enforceCapabilities = opts?.enforceCapabilities ?? false;
+    this.policyEvaluator = opts?.policyEvaluator ?? new RuleEvaluator();
+    this.approvalStore = opts?.approvalStore;
   }
 
   async execute(graphId: string): Promise<ExecutorResult> {
@@ -159,12 +168,31 @@ export class GraphExecutor {
         researchPrefix = "\n\nIMPORTANT: You may ONLY use: file.create, file.exists, and done. Write artifacts ONLY under .alix/reports/. Do NOT read project source files.";
       }
 
-      // Capability enforcement gate
-      if (this.enforceCapabilities && capabilityResolution) {
-        if (capabilityResolution.status === "blocked") {
-          const missing = capabilityResolution.missingCapabilities.join(", ");
+      // Composed enforcement gate (capability + policy + approval)
+      if (this.enforceCapabilities && node.requiredCapabilities && node.requiredCapabilities.length > 0) {
+        const gateResult = await evaluateRuntimeGate({
+          node,
+          registry: this.registry ?? new CardRegistry(),
+          policyEvaluator: this.policyEvaluator,
+          approvalStore: this.approvalStore,
+        });
+
+        // Enrich capabilityResolution with gate result
+        if (gateResult.capabilityResolution) {
+          capabilityResolution = {
+            requiredCapabilities: node.requiredCapabilities ?? [],
+            matchedAgents: gateResult.capabilityResolution.agents.map(a => a.id),
+            matchedTools: gateResult.capabilityResolution.tools.map(t => t.id),
+            missingCapabilities: gateResult.capabilityResolution.missingCapabilities,
+            warnings: gateResult.capabilityResolution.warnings,
+            status: gateResult.status === "ready" ? "ready"
+              : gateResult.status === "blocked" ? "blocked" : "needs_approval",
+          };
+        }
+
+        if (gateResult.status === "blocked") {
           status = "blocked";
-          reason = `Blocked by capability policy: missing ${missing}`;
+          reason = gateResult.reason;
           results.push({
             nodeId: node.id, title: node.title, status, reason,
             durationMs: Date.now() - startTime,
@@ -173,27 +201,19 @@ export class GraphExecutor {
           failed = true;
           break;
         }
-        if (capabilityResolution.status === "needs_approval" && node.goal) {
-          try {
-            const askResult: RunResult = await runTask(this.cwd, node.goal + researchPrefix, {
-              planMode: false,
-              skipContext: isResearch ? true : undefined,
-              disableSkillFactory: isResearch ? true : undefined,
-              sessionMode: "ask",
-            });
-            summary = askResult.summary;
-            if (askResult.reason && askResult.reason !== "completed") {
-              status = "failed";
-              reason = askResult.reason;
-              failed = true;
-            }
-          } catch (err) {
-            status = "failed";
-            reason = err instanceof Error ? err.message : String(err);
-            failed = true;
-          }
+
+        if (gateResult.status === "needs_approval") {
+          status = "blocked";
+          reason = gateResult.reason;
+          results.push({
+            nodeId: node.id, title: node.title, status, reason,
+            durationMs: Date.now() - startTime,
+            capabilityResolution,
+          });
+          failed = true;
+          break;
         }
-        // If status is "ready", fall through to regular execution
+        // If "ready", fall through to regular execution
       }
 
       // Regular execution path — runs for:
