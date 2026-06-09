@@ -46,6 +46,8 @@ export interface RuntimeEventCount {
   latestAction: string;
 }
 
+export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime";
+
 export interface TuiState {
   sessionId: string;
   agentState: AgentState;
@@ -55,6 +57,7 @@ export interface TuiState {
   diffs: Diff[];
   pendingApproval: ApprovalRequest | null;
   inputMode: "command" | "multi-line" | "confirm";
+  activePanel: TuiPanel;
   daemonTasks?: DaemonTaskSummary;
   daemonRunning?: boolean;
   runtimeEventCount?: number;
@@ -62,6 +65,8 @@ export interface TuiState {
   sopsCount?: number;
   policyRulesCount?: number;
 }
+
+export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime"];
 
 const VALID_STATES: AgentState[] = ["idle", "understanding", "planning", "executing", "verifying", "repairing", "summarizing", "done", "error"];
 
@@ -81,11 +86,24 @@ export class TuiStore {
       diffs: initialState?.diffs ?? [],
       pendingApproval: initialState?.pendingApproval ?? null,
       inputMode: initialState?.inputMode ?? "command",
+      activePanel: initialState?.activePanel ?? "chat",
     };
   }
 
   getState(): TuiState {
     return this.state;
+  }
+
+  setPanel(panel: TuiPanel): void {
+    this.state.activePanel = panel;
+    this.notify();
+  }
+
+  cyclePanel(direction: 1 | -1): void {
+    const idx = PANELS.indexOf(this.state.activePanel);
+    const next = (idx + direction + PANELS.length) % PANELS.length;
+    this.state.activePanel = PANELS[next];
+    this.notify();
   }
 
   setSessionId(sessionId: string): void {

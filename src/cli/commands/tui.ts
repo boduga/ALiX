@@ -82,17 +82,24 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
   if (opts.sessionName) return;
 
+  const store = tui.getStore();
+
   while (true) {
     const task = await readLine();
     if (task === null) break;
     if (!task.trim()) continue;
     if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
 
-    // Refresh command
-    if (task.trim() === "r" || task.trim() === "refresh") {
+    // Panel navigation
+    if (task === "\t") { store.cyclePanel(1); tui.appendOutput(`Panel: ${store.getState().activePanel}\n`, false); continue; }
+    if (task.toLowerCase() === "r" || task.toLowerCase() === "refresh") {
       const fresh = await buildRuntimeSnapshot(cwd);
       if (fresh) applySnapshotToStore(tuiStore, fresh);
       tui.appendOutput("Runtime snapshot refreshed.\n", false);
+      continue;
+    }
+    if (task === "?" || task.toLowerCase() === "help") {
+      tui.appendOutput("Commands: r=refresh Tab=next panel ?=help q=quit\nPanels: chat daemon approvals sops policy runtime\n", false);
       continue;
     }
 

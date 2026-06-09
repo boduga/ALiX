@@ -135,7 +135,8 @@ export class TuiRenderer {
     const pendingStr = s.pendingApprovalsCount ? ` ⚠ ${s.pendingApprovalsCount} pending` : "";
     const sopsStr = s.sopsCount ? ` SOPs:${s.sopsCount}` : "";
     const policyStr = s.policyRulesCount ? ` rules:${s.policyRulesCount}` : "";
-    l.push(clearToEndOfLine() + this.stateTheater.render() + " | " + this.budgetBar.render()
+    const panelStr = ` [${s.activePanel}]`;
+    l.push(clearToEndOfLine() + panelStr + this.stateTheater.render() + " | " + this.budgetBar.render()
       + daemonStr + pendingStr + sopsStr + policyStr);
     let extra = "";
     if (s.daemonTasks) {
