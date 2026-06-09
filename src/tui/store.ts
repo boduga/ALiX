@@ -40,10 +40,21 @@ export interface DaemonTaskSummary {
   failedOrphaned: number;
 }
 
-export interface RuntimeEventCount {
+export interface PanelApprovalRecord {
+  id: string;
+  capability?: string;
+  riskLevel?: string;
+  reason: string;
+  createdAt: string;
+}
+
+export interface PanelRuntimeEvent {
+  id: string;
+  action: string;
   source: string;
-  count: number;
-  latestAction: string;
+  summary?: string;
+  timestamp?: string;
+  graphId?: string;
 }
 
 export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime";
@@ -64,6 +75,9 @@ export interface TuiState {
   pendingApprovalsCount?: number;
   sopsCount?: number;
   policyRulesCount?: number;
+  pendingApprovalRecords?: PanelApprovalRecord[];
+  daemonTaskRecords?: { id: string; task: string; status: string; sessionId?: string }[];
+  recentRuntimeEvents?: PanelRuntimeEvent[];
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime"];
@@ -194,6 +208,21 @@ export class TuiStore {
 
   setPolicyRulesCount(count: number): void {
     this.state.policyRulesCount = count;
+    this.notify();
+  }
+
+  setPendingApprovalRecords(records: PanelApprovalRecord[]): void {
+    this.state.pendingApprovalRecords = records;
+    this.notify();
+  }
+
+  setDaemonTaskRecords(records: { id: string; task: string; status: string; sessionId?: string }[]): void {
+    this.state.daemonTaskRecords = records;
+    this.notify();
+  }
+
+  setRecentRuntimeEvents(events: PanelRuntimeEvent[]): void {
+    this.state.recentRuntimeEvents = events;
     this.notify();
   }
 

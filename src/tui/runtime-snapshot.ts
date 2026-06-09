@@ -2,15 +2,18 @@
  * runtime-snapshot.ts — Loads Agent OS runtime state for TUI display.
  */
 
-import type { DaemonTaskSummary, TuiStore } from "./store.js";
+import type { DaemonTaskSummary, TuiStore, PanelApprovalRecord, PanelRuntimeEvent } from "./store.js";
 
 export interface TuiRuntimeSnapshot {
   daemonRunning: boolean;
   daemonTasks: DaemonTaskSummary;
+  daemonTaskRecords: { id: string; task: string; status: string; sessionId?: string }[];
   pendingApprovalsCount: number;
+  pendingApprovalRecords: PanelApprovalRecord[];
   sopsCount: number;
   policyRulesCount: number;
   runtimeEventCount: number;
+  recentRuntimeEvents: PanelRuntimeEvent[];
   daemonHeartbeatAge: number;
 }
 
@@ -20,10 +23,13 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
     const snapshot: TuiRuntimeSnapshot = {
       daemonRunning: false,
       daemonTasks: { queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0, failedOrphaned: 0 },
+      daemonTaskRecords: [],
       pendingApprovalsCount: 0,
+      pendingApprovalRecords: [],
       sopsCount: 0,
       policyRulesCount: 0,
       runtimeEventCount: 0,
+      recentRuntimeEvents: [],
       daemonHeartbeatAge: -1,
     };
 
@@ -53,14 +59,22 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
         else if (s === "completed") snapshot.daemonTasks.completed++;
         else if (s === "failed" || s === "failed_orphaned") snapshot.daemonTasks.failed++;
         else if (s === "cancelled") snapshot.daemonTasks.cancelled++;
+        snapshot.daemonTaskRecords.push({ id: t.id, task: t.task, status: s, sessionId: t.sessionId });
       }
     }
 
     // Approvals
     const { ApprovalStore } = await import("../approvals/approval-store.js");
-    const store = new ApprovalStore(cwd);
-    await store.load();
-    snapshot.pendingApprovalsCount = store.listPending().length;
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+    const allPending = approvalStore.listPending();
+    snapshot.pendingApprovalsCount = allPending.length;
+    for (const a of allPending) {
+      snapshot.pendingApprovalRecords.push({
+        id: a.id, capability: a.capability, riskLevel: a.riskLevel,
+        reason: a.reason, createdAt: a.createdAt,
+      });
+    }
 
     // SOPs
     const { listSops } = await import("../sop/sop-registry.js");
@@ -75,6 +89,12 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
     const { buildRuntimeIndex } = await import("../runtime/runtime-index.js");
     const idx = await buildRuntimeIndex(cwd);
     snapshot.runtimeEventCount = idx.events.length;
+    for (const e of idx.events.slice(0, 10)) {
+      snapshot.recentRuntimeEvents.push({
+        id: e.id, action: e.action, source: e.source,
+        summary: e.summary, timestamp: e.timestamp, graphId: e.graphId,
+      });
+    }
 
     return snapshot;
   } catch {
@@ -86,8 +106,11 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
 export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapshot): void {
   store.setDaemonRunning(snapshot.daemonRunning);
   store.setDaemonTaskSummary(snapshot.daemonTasks);
+  store.setDaemonTaskRecords(snapshot.daemonTaskRecords);
   store.setPendingApprovalsCount(snapshot.pendingApprovalsCount);
+  store.setPendingApprovalRecords(snapshot.pendingApprovalRecords);
   store.setSopsCount(snapshot.sopsCount);
   store.setPolicyRulesCount(snapshot.policyRulesCount);
   store.setRuntimeEventCount(snapshot.runtimeEventCount);
+  store.setRecentRuntimeEvents(snapshot.recentRuntimeEvents);
 }
