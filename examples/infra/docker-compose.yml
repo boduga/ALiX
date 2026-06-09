@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+  web:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    environment:
+      - DB_PASSWORD=supersecret
+    volumes:
+      - ./data:/app/data
+
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_PASSWORD: password123
+      POSTGRES_USER: root
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379"
+    command: redis-server --requirepass mypassword
+
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - API_KEY=${API_KEY}
+      - DB_URL=postgres://user:pass@db:5432/app
+    depends_on:
+      - db
+      - redis
+    deploy:
+      replicas: 1

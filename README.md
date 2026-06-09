@@ -1,13 +1,13 @@
-# ALiX
+# ALiX — Agent Operating System
 
 **Agentic Lifecycle & Intelligence eXchange**
 
-A local-first, CLI-driven coding agent harness. Give it a task and walk away — it plans, edits files, runs verification, and repairs failures autonomously.
+A local-first AI Agent OS. Run tasks, enforce policies, approve actions, audit everything, and persist work across sessions.
 
 ```bash
 npm install -g alix
-alix config set-default-model deepseek deepseek-v4-flash
-alix run "fix the null pointer in user.ts"
+alix config set-default-model
+alix run "explain the architecture of this project"
 ```
 
 ---
@@ -16,20 +16,20 @@ alix run "fix the null pointer in user.ts"
 
 | Feature | What it does |
 |---------|-------------|
-| **Autonomous loop** | Plans first, then executes. Reviews the plan with you before touching files. Approve, reject, or edit — or skip with `--no-plan` |
-| **12 LLM providers** | Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, Perplexity, MiniMax, ZhipuAI, GrokAI, OpenRouter, Mock |
-| **Multi-embedder context** | Semantic + code embedding models fused with task-type-aware weights. Kernel/grounding-set file prioritization based on dependency graph connectivity |
-| **Web search** | Built-in `web_search` and `web_fetch` tools via Brave Search API |
+| **Graph execution** | Structured multi-node TaskGraphs with dependency ordering, timeouts, and rerun |
+| **Capability registry** | Agent/tool cards declare what each component can do. Resolve capabilities to agents and tools |
+| **Policy engine** | First-match-wins policy rules: allow/ask/deny per capability, risk level, or tool |
+| **Approval queue** | File-backed approval requests. CLI-first: list, approve, deny. Cooperative cancel |
+| **Audit trail** | Append-only JSONL audit for policy decisions, approval lifecycle, and runtime outcomes |
+| **RuntimeIndex** | Unified event index across sessions, graphs, approvals, audit, and daemon tasks |
+| **SOP packs** | Repeatable multi-node workflows (research.deep_report, infra.docker_compose_audit) |
+| **Persistent daemon** | Background process with Unix socket, task queue, cooperative cancel, crash recovery |
+| **Inspector UI** | Local web dashboard with live sessions, graph view, policy, approvals, audit, registry, daemon |
+| **Autonomous loop** | Plans first, then executes. Reviews the plan with you before touching files |
+| **12 LLM providers** | Anthropic, OpenAI, Google, DeepSeek, Groq, Ollama, Perplexity, and more |
 | **MCP support** | Full Model Context Protocol client — tool discovery, deferral, caching, transport |
-| **Subagent delegation** | Role-based subagents (explorer, reviewer, worker, etc.) with file ownership tracking |
-| **Self-extensible hooks** | `create_hook` generates TypeScript hook code from plain language — the agent extends its own harness (Pi Agent pattern) |
-| **Patch engine** | Structured patches with preimage validation, git-aware checkpoints, and automatic rollback on failure |
-| **Policy engine** | Allow/ask/deny for every tool call. Session modes: auto, ask, bypass. Secret scanning |
-| **Inspector UI** | Local web dashboard at `localhost:4137` with live SSE event stream, session replay, cost tracking, decision timeline |
-| **Local llama.cpp** | Auto-starts `llama-server` on demand. Grammar-constrained tool calling via JSON schema |
-| **TUI mode** | `alix tui` — multi-task terminal UI with continuous session and streaming output |
-| **Verification** | Auto-discovers `npm test`, `build`, `typecheck`, `lint`. Runs after every change. Skips on read-only tasks |
-| **Event log** | Append-only JSONL per session in `.alix/sessions/<id>/events.jsonl`. Replay any session |
+| **Patch engine** | Structured patches with preimage validation, git-aware checkpoints, automatic rollback |
+| **Local llama.cpp** | Auto-starts `llama-server` on demand. Grammar-constrained tool calling |
 
 ---
 
@@ -77,20 +77,24 @@ alix serve
 
 | Command | Description |
 |---------|-------------|
-| `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--no-stream`, `--mode=bypass`, `--resume <id>` |
+| `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--mode=bypass`, `--resume <id>` |
 | `alix chat` | Interactive chat with web search tools |
-| `alix tui` | Multi-task terminal UI (continuous session) |
-| `alix serve` | Start the inspector web UI |
+| `alix tui` | Multi-task terminal UI |
+| `alix serve` | Start the inspector web UI at `localhost:4137` |
+| `alix daemon start|stop|status` | Persistent background daemon lifecycle |
+| `alix daemon tasks|cancel|doctor` | Task queue management and daemon health |
+| `alix submit "<task>"` | Submit a task to the daemon (streaming output) |
+| `alix sop list|show|run|doctor` | SOP pack catalog and execution |
+| `alix policy list|doctor|eval` | Policy rule management and evaluation |
+| `alix approvals list|pending|approve|deny` | Approval queue management |
+| `alix audit list|by-graph|by-approval|by-action` | Audit trail queries |
+| `alix runtime events|timeline` | Unified runtime event queries |
+| `alix graph run|preflight|rerun|continue` | Graph execution and management |
+| `alix registry list|agents|tools|doctor` | Agent/tool card registry |
+| `alix doctor` | Comprehensive system health check |
 | `alix config show` | Show current configuration |
-| `alix config set-default-model` | Interactive provider + model selection (live API) |
-| `alix config set-tier [tier]` | Set model for a subagent tier |
-| `alix config set-key` | Set an API key |
-| `alix mcp list` | List connected MCP servers |
-| `alix mcp add` | Add an MCP server |
-| `alix agent <role> "<prompt>"` | Spawn a subagent directly |
-| `alix session list` | List past sessions (newest first) |
-| `alix session show <id>` | Show session details and status |
-| `alix memory list` | List memory entries |
+| `alix config set-default-model` | Interactive provider + model selection |
+| `alix session list|show` | Session management |
 
 ---
 
@@ -230,25 +234,16 @@ See `docs/configuration.md` for the full reference.
 
 ## Architecture
 
+ALiX is a layered Agent OS. See `docs/architecture/runtime-spine.md` for the full reference.
+
 ```
-task → classify → context bundle → model → tool calls → execute → verify
-                 ↑                                          |
-                 └──────────────── repair (max 3) ──────────┘
+Execution    → runTask(), GraphExecutor, daemon-server
+Governance   → CapabilityResolver, RuleEvaluator, RuntimeGate, ApprovalStore
+Observability→ RuntimeIndex, GraphProjection, Inspector UI
+Registry     → CardRegistry, AgentCard, ToolCard
+Workflow     → SOP packs (research, infra)
+Daemon       → DaemonManager, TaskRegistry, Unix socket server
 ```
-
-The agent runs an event-sourced loop backed by an append-only JSONL log. Every model response, tool result, and verification check is recorded and replayable.
-
-### Seven modules
-
-| Module | Responsibility |
-|--------|---------------|
-| `src/providers/` | 12 provider specs + unified dispatcher |
-| `src/agent/` | Agent loop, initialization, streaming |
-| `src/run/` | Task loop (tool execution, verification, repair) |
-| `src/tools/` | File, shell, patch, web, MCP tool routers |
-| `src/repomap/` | Repo mapping, context compilation, multi-embedder search |
-| `src/extensions/` | Extension registry, hook runner, skill lifecycle |
-| `src/tui/` | Terminal UI (split-screen, event-driven status) |
 
 ---
 
