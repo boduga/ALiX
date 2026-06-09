@@ -159,6 +159,34 @@ export function startServer(root: string, host: string, port: number): Promise<{
         await serveRegistry(res, root, "tools");
         return;
       }
+      if (url.pathname === "/api/policy/rules") {
+        try {
+          const { loadRuleEvaluator } = await import("../policy/policy-loader.js");
+          const evaluator = await loadRuleEvaluator(root);
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(evaluator.getAllRules()));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
+      if (url.pathname === "/api/policy/eval") {
+        try {
+          const { loadRuleEvaluator } = await import("../policy/policy-loader.js");
+          const capability = url.searchParams.get("capability") ?? undefined;
+          const riskLevel = url.searchParams.get("risk") ?? undefined;
+          const executionProfile = url.searchParams.get("profile") ?? undefined;
+          const evaluator = await loadRuleEvaluator(root);
+          const result = evaluator.evaluate({ capability, riskLevel: riskLevel as any, executionProfile });
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/sessions/compare") {
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");

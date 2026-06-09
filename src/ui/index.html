@@ -34,6 +34,7 @@
           <button class="tab" data-panel="compare">Compare</button>
           <button class="tab" data-panel="registry">Registry</button>
           <button class="tab" data-panel="graph">Graph</button>
+          <button class="tab" data-panel="policy">Policy</button>
         </nav>
 
         <section class="replay-bar" aria-label="Replay controls">
@@ -103,6 +104,27 @@
             <div id="graph-nodes" class="graph-nodes hidden"></div>
             <div id="graph-detail" class="graph-detail hidden"></div>
             <div id="graph-rerun" class="graph-rerun hidden"></div>
+          </div>
+        </section>
+        <section class="panel" id="panel-policy" aria-label="Policy rules">
+          <div class="panel-header"><h2>Policy Rules</h2></div>
+          <div class="panel-body policy-view">
+            <div id="policy-rules-list"><p class="empty">Loading...</p></div>
+            <div class="policy-eval-form">
+              <h3>Quick Evaluate</h3>
+              <div class="eval-row">
+                <input type="text" id="policy-cap-input" placeholder="Capability (e.g. shell.exec)" />
+                <select id="policy-risk-select">
+                  <option value="">Any risk</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+                <button id="policy-eval-btn">Evaluate</button>
+              </div>
+              <div id="policy-eval-result" class="hidden"></div>
+            </div>
           </div>
         </section>
       </section>

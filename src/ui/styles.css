@@ -943,3 +943,120 @@ h3 {
 }
 
 .hidden { display: none; }
+
+/* === Policy view === */
+.policy-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.policy-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.policy-table th {
+  text-align: left;
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid var(--panel-line, #2f3a36);
+  color: var(--muted, #a59f90);
+  font-weight: 600;
+}
+
+.policy-table td {
+  padding: 0.4rem 0.6rem;
+  border-bottom: 1px solid rgba(47,58,54,0.5);
+  vertical-align: middle;
+}
+
+.policy-table tr.disabled {
+  opacity: 0.4;
+}
+
+.policy-table .mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+}
+
+.policy-table .match-cell {
+  font-size: 0.8rem;
+  max-width: 300px;
+}
+
+.policy-table .reason-cell {
+  font-size: 0.8rem;
+  color: var(--muted, #a59f90);
+  max-width: 200px;
+}
+
+/* Policy eval form */
+.policy-eval-form {
+  background: var(--panel, #151a1b);
+  border: 1px solid var(--panel-line, #2f3a36);
+  border-radius: 6px;
+  padding: 1rem;
+}
+
+.policy-eval-form h3 {
+  margin: 0 0 0.75rem;
+  color: var(--accent, #58a6ff);
+  font-size: 0.9rem;
+}
+
+.eval-row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.eval-row input, .eval-row select {
+  padding: 0.4rem 0.6rem;
+  background: var(--bg, #0b0e0f);
+  color: var(--text, #f5f0df);
+  border: 1px solid var(--panel-line, #2f3a36);
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+
+.eval-row input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.eval-row button {
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--accent, #58a6ff);
+  background: transparent;
+  color: var(--accent, #58a6ff);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+}
+
+.eval-row button:hover {
+  background: rgba(88,166,255,0.1);
+}
+
+.eval-result-card {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  margin-top: 0.75rem;
+  padding: 0.6rem 1rem;
+  background: rgba(0,0,0,0.3);
+  border-radius: 4px;
+}
+
+.eval-rule {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.85rem;
+  color: var(--text, #f5f0df);
+}
+
+.eval-reason {
+  font-size: 0.8rem;
+  color: var(--muted, #a59f90);
+}

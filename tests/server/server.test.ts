@@ -174,6 +174,53 @@ describe("Graph list API", () => {
   });
 });
 
+describe("Policy API", () => {
+  it("GET /api/policy/rules returns default rules array", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "policy-api-test-"));
+    try {
+      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/policy/rules`);
+      const data = JSON.parse(body);
+      assert.ok(Array.isArray(data));
+      assert.ok(data.length >= 8);
+      assert.ok(data.some((r: any) => r.id === "allow-web-search"));
+      await close();
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("GET /api/policy/eval returns decision", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "policy-eval-api-"));
+    try {
+      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/policy/eval?capability=shell.exec&risk=high`);
+      const result = JSON.parse(body);
+      assert.equal(result.decision, "ask");
+      assert.ok(result.matchedRuleId);
+      await close();
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("GET /api/policy/eval returns deny for unknown", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "policy-eval-unknown-"));
+    try {
+      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/policy/eval?capability=something.unknown&risk=critical`);
+      const result = JSON.parse(body);
+      assert.equal(result.decision, "deny");
+      await close();
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 /**
  * Helper: perform an HTTP GET and return the full body as a string.
  */

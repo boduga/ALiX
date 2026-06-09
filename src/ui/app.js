@@ -604,10 +604,81 @@ function formatTime(timestamp) {
   return timestamp ? new Date(timestamp).toLocaleTimeString() : "";
 }
 
+// ── Policy tab ─────────────────────────────────────────────
+let policyRules = [];
+
+async function loadPolicyRules() {
+  try {
+    const res = await fetch("/api/policy/rules");
+    policyRules = await res.json();
+    renderPolicyRules();
+  } catch {
+    // silently skip
+  }
+}
+
+function renderPolicyRules() {
+  const el = document.getElementById("policy-rules-list");
+  if (!el) return;
+  if (policyRules.length === 0) {
+    el.innerHTML = '<p class="empty">No policy rules loaded.</p>';
+    return;
+  }
+  el.innerHTML = `<table class="policy-table">
+    <thead><tr>
+      <th>ID</th>
+      <th>Decision</th>
+      <th>Enabled</th>
+      <th>Match</th>
+      <th>Reason</th>
+    </tr></thead>
+    <tbody>${policyRules.map(r => {
+      const matchParts = [];
+      if (r.match.capability) matchParts.push(`capability=${escapeHtml(r.match.capability)}`);
+      if (r.match.toolId) matchParts.push(`toolId=${escapeHtml(r.match.toolId)}`);
+      if (r.match.riskLevel) matchParts.push(`riskLevel=${escapeHtml(r.match.riskLevel)}`);
+      if (r.match.executionProfile) matchParts.push(`profile=${escapeHtml(r.match.executionProfile)}`);
+      if (r.match.pathPattern) matchParts.push(`path=${escapeHtml(r.match.pathPattern)}`);
+      return `<tr class="${r.enabled ? '' : 'disabled'}">
+        <td class="mono">${escapeHtml(r.id)}</td>
+        <td><span class="policy-badge decision-${r.decision}">${r.decision}</span></td>
+        <td>${r.enabled ? '✓' : '✗'}</td>
+        <td class="match-cell">${matchParts.join(', ')}</td>
+        <td class="reason-cell">${escapeHtml(r.reason || '')}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+// Policy eval form
+document.getElementById("policy-eval-btn")?.addEventListener("click", async () => {
+  const capability = document.getElementById("policy-cap-input").value.trim() || undefined;
+  const risk = document.getElementById("policy-risk-select").value || undefined;
+  const params = new URLSearchParams();
+  if (capability) params.set("capability", capability);
+  if (risk) params.set("risk", risk);
+  const resultEl = document.getElementById("policy-eval-result");
+  resultEl.classList.remove("hidden");
+  resultEl.innerHTML = '<p>Evaluating...</p>';
+  try {
+    const res = await fetch(`/api/policy/eval?${params}`);
+    const result = await res.json();
+    resultEl.innerHTML = `
+      <div class="eval-result-card">
+        <span class="policy-badge decision-${result.decision}">${result.decision}</span>
+        ${result.matchedRuleId ? `<span class="eval-rule">${escapeHtml(result.matchedRuleId)}</span>` : ''}
+        ${result.reason ? `<span class="eval-reason">${escapeHtml(result.reason)}</span>` : ''}
+      </div>`;
+  } catch {
+    resultEl.innerHTML = '<p class="error">Evaluation failed</p>';
+  }
+});
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
 
-// Load registry and graph list on page load so the tabs work without connecting
+// Load registry, graph list, and policy on page load so tabs work without connecting
 loadRegistry();
 loadGraphList();
+loadPolicyRules();
