@@ -127,6 +127,10 @@ Usage:
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
+  alix audit list [--limit N]    Show recent audit events
+  alix audit by-graph <id>       Show audit events for a graph
+  alix audit by-approval <id>    Show audit events for an approval
+  alix audit by-action <action>  Filter by action type
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
   alix approvals show <id>  Show approval details
@@ -361,6 +365,12 @@ if (command === "graph" && args[0] === "continue") {
 
     // Approved — rerun the graph
     console.log(`Approval ${resolved.id} is approved. Rerunning graph ${graphId}...`);
+    const { AuditStore } = await import("./audit/audit-store.js");
+    const audit = new AuditStore(cwd);
+    await audit.append({ action: "graph.continued", actor: "user", details: {
+      graphId, approvalId: resolved?.id,
+      reason: resolved?.decisionReason,
+    }});
     console.log();
     const executor = new GraphExecutor(cwd, { registry, policyEvaluator, approvalStore });
     const result = await executor.execute(graphId);
@@ -1641,6 +1651,13 @@ if (command === "policy") {
       executionProfile,
     });
 
+    const { AuditStore } = await import("./audit/audit-store.js");
+    const audit = new AuditStore(cwd);
+    await audit.append({ action: "policy.evaluated", actor: "user", details: {
+      capability, policyRuleId: result.matchedRuleId,
+      policyDecision: result.decision, reason: result.reason,
+    }});
+
     console.log(`Decision: ${result.decision}`);
     if (result.matchedRuleId) console.log(`Rule:     ${result.matchedRuleId}`);
     if (result.reason) console.log(`Reason:   ${result.reason}`);
@@ -1770,6 +1787,68 @@ if (command === "registry") {
   console.log("  agents         List agent cards only");
   console.log("  tools          List tool cards only");
   console.log("  doctor         Check card file health and loading status");
+  process.exit(0);
+}
+
+if (command === "audit") {
+  const { AuditStore } = await import("./audit/audit-store.js");
+  const cwd = process.cwd();
+  const store = new AuditStore(cwd);
+
+  if (args[0] === "list") {
+    const limitIdx = args.indexOf("--limit");
+    const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) || 50 : 50;
+    const records = await store.list(limit);
+    if (records.length === 0) { console.log("No audit records."); process.exit(0); }
+    console.log(`${"ID".padEnd(24)} ${"Action".padEnd(22)} Timestamp`);
+    console.log("-".repeat(80));
+    for (const r of records) {
+      console.log(`${r.id.slice(0, 22).padEnd(24)} ${r.action.padEnd(22)} ${r.timestamp ? new Date(r.timestamp).toLocaleString() : ""}`);
+    }
+    console.log(`\n${records.length} records`);
+    process.exit(0);
+  }
+
+  if (args[0] === "by-graph") {
+    const graphId = args[1];
+    if (!graphId) { console.error("Usage: alix audit by-graph <graphId>"); process.exit(1); }
+    const records = await store.findByGraph(graphId);
+    if (records.length === 0) { console.log("No records for graph."); process.exit(0); }
+    for (const r of records) {
+      const detail = `${r.action}${r.details.nodeId ? " node=" + r.details.nodeId : ""}${r.details.capability ? " cap=" + r.details.capability : ""}`;
+      console.log(`  [${r.action}] ${new Date(r.timestamp).toLocaleTimeString()} ${detail}`);
+      if (r.details.reason) console.log(`    reason: ${r.details.reason}`);
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "by-approval") {
+    const approvalId = args[1];
+    if (!approvalId) { console.error("Usage: alix audit by-approval <approvalId>"); process.exit(1); }
+    const records = await store.findByApproval(approvalId);
+    if (records.length === 0) { console.log("No records for approval."); process.exit(0); }
+    for (const r of records) {
+      console.log(`  [${r.action}] ${new Date(r.timestamp).toLocaleTimeString()} ${r.details.reason || ""}`);
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "by-action") {
+    const action = args[1];
+    if (!action) { console.error("Usage: alix audit by-action <action>"); process.exit(1); }
+    const records = await store.findByAction(action as any);
+    if (records.length === 0) { console.log("No records for action."); process.exit(0); }
+    for (const r of records) {
+      console.log(`  ${r.id.slice(0, 22)} ${new Date(r.timestamp).toLocaleTimeString()} ${r.details.capability || ""} ${r.details.reason || ""}`);
+    }
+    process.exit(0);
+  }
+
+  console.log("Usage: alix audit [list|by-graph|by-approval|by-action]");
+  console.log("  list              Show recent audit events");
+  console.log("  by-graph <id>     Show audit events for a graph");
+  console.log("  by-approval <id>  Show audit events for an approval");
+  console.log("  by-action <act>   Filter by action type");
   process.exit(0);
 }
 
