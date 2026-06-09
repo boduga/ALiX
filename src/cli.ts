@@ -124,6 +124,7 @@ Usage:
   alix registry agents    List agent cards only
   alix registry tools     List tool cards only
   alix registry doctor    Check card file health and loading status
+  alix doctor             Run comprehensive system health check
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -1914,7 +1915,7 @@ if (command === "daemon") {
   }
 
   if (args[0] === "doctor") {
-    const { existsSync, readFileSync, readdirSync } = await import("node:fs");
+    const { existsSync, readFileSync } = await import("node:fs");
     const { join } = await import("node:path");
     console.log("Daemon Doctor — health check\n");
     const running = await mgr.isRunning();
@@ -2164,6 +2165,74 @@ if (command === "approvals") {
   console.log('  approve <id>      Approve a pending request');
   console.log('  deny <id>         Deny a pending request');
   process.exit(0);
+}
+
+if (command === "doctor") {
+  const cwd = process.cwd();
+  const { existsSync, readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  let failed = false;
+
+  console.log("ALiX Doctor — system health check\n");
+
+  try {
+    const { loadCardRegistry, defaultAgentCards, defaultToolCards } = await import("./registry/card-loader.js");
+    const reg = await loadCardRegistry(cwd);
+    console.log(`[${reg.listAgents().length === defaultAgentCards().length ? "✓" : "⚠"}] Cards: ${reg.listAgents().length} agents, ${reg.listTools().length} tools`);
+  } catch (e: any) { console.log(`[✗] Cards: ${e.message}`); failed = true; }
+
+  try {
+    const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+    const eval1 = await loadRuleEvaluator(cwd);
+    console.log(`[✓] Policy: ${eval1.getAllRules().length} rules loaded`);
+  } catch (e: any) { console.log(`[✗] Policy: ${e.message}`); failed = true; }
+
+  try {
+    const { ApprovalStore } = await import("./approvals/approval-store.js");
+    const store = new ApprovalStore(cwd);
+    await store.load();
+    console.log(`[✓] Approvals: ${store.list().length} total, ${store.listPending().length} pending`);
+  } catch (e: any) { console.log(`[✗] Approvals: ${e.message}`); failed = true; }
+
+  try {
+    const { AuditStore } = await import("./audit/audit-store.js");
+    const store = new AuditStore(cwd);
+    const list = await store.list(5);
+    console.log(`[✓] Audit: ${list.length >= 5 ? ">=5" : list.length} records`);
+  } catch (e: any) { console.log(`[✗] Audit: ${e.message}`); failed = true; }
+
+  try {
+    const { DaemonManager } = await import("./daemon/daemon-manager.js");
+    const mgr = new DaemonManager(cwd);
+    const running = await mgr.isRunning();
+    if (running) {
+      const status = await mgr.status();
+      const hb = status?.lastHeartbeat ? `${Math.round((Date.now() - new Date(status.lastHeartbeat).getTime()) / 1000)}s ago` : "none";
+      console.log(`[✓] Daemon: running (pid ${status?.pid}, heartbeat ${hb})`);
+    } else {
+      console.log(`[○] Daemon: stopped`);
+    }
+  } catch (e: any) { console.log(`[✗] Daemon: ${e.message}`); failed = true; }
+
+  try {
+    const { buildRuntimeIndex } = await import("./runtime/runtime-index.js");
+    const idx = await buildRuntimeIndex(cwd);
+    const sources = new Set(idx.events.map((e: any) => e.source)).size;
+    console.log(`[✓] RuntimeIndex: ${idx.events.length} events across ${sources} sources`);
+  } catch (e: any) { console.log(`[✗] RuntimeIndex: ${e.message}`); failed = true; }
+
+  const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+  if (existsSync(tasksPath)) {
+    try {
+      const tasks = JSON.parse(readFileSync(tasksPath, "utf-8"));
+      console.log(`[✓] Daemon tasks: ${tasks.length} records`);
+    } catch { console.log(`[○] Daemon tasks: unreadable`); }
+  } else {
+    console.log(`[○] Daemon tasks: none`);
+  }
+
+  console.log(`\n${failed ? "⚠ Some checks failed" : "✓ All checks passed"}`);
+  process.exit(failed ? 1 : 0);
 }
 
 console.error(`Unknown command: ${command}`);
