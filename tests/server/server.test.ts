@@ -253,6 +253,22 @@ describe("Audit API", () => {
   });
 });
 
+describe("Runtime events API", () => {
+  it("GET /api/runtime/events returns array", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-api-test-"));
+    try {
+      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/runtime/events`);
+      const data = JSON.parse(body);
+      assert.ok(Array.isArray(data));
+      await close();
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+});
+
 /**
  * Helper: perform an HTTP GET and return the full body as a string.
  */

@@ -131,6 +131,8 @@ Usage:
   alix audit by-graph <id>       Show audit events for a graph
   alix audit by-approval <id>    Show audit events for an approval
   alix audit by-action <action>  Filter by action type
+  alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
+  alix runtime timeline <graphId>  Show timeline for a graph across all sources
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
   alix approvals show <id>  Show approval details
@@ -1787,6 +1789,56 @@ if (command === "registry") {
   console.log("  agents         List agent cards only");
   console.log("  tools          List tool cards only");
   console.log("  doctor         Check card file health and loading status");
+  process.exit(0);
+}
+
+if (command === "runtime") {
+  const { buildRuntimeIndex } = await import("./runtime/runtime-index.js");
+  const cwd = process.cwd();
+
+  if (args[0] === "events") {
+    const idx = await buildRuntimeIndex(cwd);
+    const limitIdx = args.indexOf("--limit");
+    const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) || 50 : 50;
+    const graphIdx = args.indexOf("--graph");
+    const sessionIdx = args.indexOf("--session");
+    const approvalIdx = args.indexOf("--approval");
+    const actionIdx = args.indexOf("--action");
+
+    let filtered = [...idx.events];
+    if (graphIdx >= 0) filtered = filtered.filter(e => e.graphId === args[graphIdx + 1]);
+    if (sessionIdx >= 0) filtered = filtered.filter(e => e.sessionId === args[sessionIdx + 1]);
+    if (approvalIdx >= 0) filtered = filtered.filter(e => e.approvalId === args[approvalIdx + 1]);
+    if (actionIdx >= 0) filtered = filtered.filter(e => e.action === args[actionIdx + 1]);
+    filtered = filtered.slice(0, limit);
+
+    if (filtered.length === 0) { console.log("No matching events."); process.exit(0); }
+    for (const e of filtered) {
+      console.log(`${(e.source + ":" + e.action).padEnd(32)} ${e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "?"}  ${e.graphId ? "graph=" + e.graphId : ""}${e.nodeId ? " node=" + e.nodeId : ""}${e.capability ? " cap=" + e.capability : ""}`);
+      if (e.summary) console.log(`  ${e.summary.slice(0, 120)}`);
+    }
+    console.log(`\n${filtered.length} events`);
+    process.exit(0);
+  }
+
+  if (args[0] === "timeline") {
+    const graphId = args[1];
+    if (!graphId) { console.error("Usage: alix runtime timeline <graphId>"); process.exit(1); }
+    const idx = await buildRuntimeIndex(cwd);
+    const events = idx.byGraph(graphId).slice(0, 100);
+    if (events.length === 0) { console.log("No events for graph."); process.exit(0); }
+    for (const e of events) {
+      const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "?";
+      console.log(`  [${time}] ${e.source}:${e.action} ${e.nodeId ? "node=" + e.nodeId : ""}${e.status ? " (" + e.status + ")" : ""}`);
+      if (e.summary) console.log(`    ${e.summary.slice(0, 100)}`);
+    }
+    console.log(`\n${events.length} events`);
+    process.exit(0);
+  }
+
+  console.log("Usage: alix runtime [events|timeline]");
+  console.log("  events [--graph <g>] [--session <s>] [--approval <a>] [--action <a>] [--limit N]");
+  console.log("  timeline <graphId>");
   process.exit(0);
 }
 

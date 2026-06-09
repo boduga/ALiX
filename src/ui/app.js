@@ -717,6 +717,32 @@ function escapeHtml(value) {
 }
 
 // ── Audit tab ────────────────────────────────────────────────
+async function loadRuntimeEvents() {
+  try {
+    const res = await fetch("/api/runtime/events?limit=100");
+    const events = await res.json();
+    const el = document.getElementById("runtime-list");
+    if (!el) return;
+    if (events.length === 0) {
+      el.innerHTML = '<p class="empty">No runtime events.</p>';
+      return;
+    }
+    el.innerHTML = `<div class="audit-timeline">${events.map((e: any) => {
+      const actionClass = (e.source + "-" + e.action).replace(/\./g, "-");
+      const sourceClass = "source-" + e.source;
+      return `<div class="audit-entry">
+        <span class="audit-action action-${actionClass}">${escapeHtml(e.source)}:${escapeHtml(e.action)}</span>
+        <span class="audit-time">${e.timestamp ? new Date(e.timestamp).toLocaleString() : "?"}</span>
+        ${e.graphId ? `<span class="audit-meta">${escapeHtml(e.graphId)}</span>` : ""}
+        ${e.nodeId ? `<span class="audit-meta">/${escapeHtml(e.nodeId)}</span>` : ""}
+        ${e.capability ? `<span class="cap-badge">${escapeHtml(e.capability)}</span>` : ""}
+        ${e.status ? `<span class="audit-meta">${escapeHtml(e.status)}</span>` : ""}
+        ${e.summary ? `<div class="audit-reason">${escapeHtml(e.summary).slice(0, 200)}</div>` : ""}
+      </div>`;
+    }).join("")}</div>`;
+  } catch { /* silently skip */ }
+}
+
 async function loadAudit() {
   try {
     const res = await fetch("/api/audit?limit=100");
@@ -748,3 +774,4 @@ loadGraphList();
 loadPolicyRules();
 loadApprovals();
 loadAudit();
+loadRuntimeEvents();

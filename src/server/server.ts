@@ -202,6 +202,30 @@ export function startServer(root: string, host: string, port: number): Promise<{
         }
         return;
       }
+      if (url.pathname === "/api/runtime/events") {
+        try {
+          const { buildRuntimeIndex } = await import("../runtime/runtime-index.js");
+          const idx = await buildRuntimeIndex(root);
+          const limitParam = url.searchParams.get("limit");
+          const limit = limitParam ? parseInt(limitParam, 10) || 100 : 100;
+          const graphParam = url.searchParams.get("graphId");
+          const sessionParam = url.searchParams.get("sessionId");
+          const approvalParam = url.searchParams.get("approvalId");
+          const actionParam = url.searchParams.get("action");
+          let filtered = [...idx.events];
+          if (graphParam) filtered = filtered.filter(e => e.graphId === graphParam);
+          if (sessionParam) filtered = filtered.filter(e => e.sessionId === sessionParam);
+          if (approvalParam) filtered = filtered.filter(e => e.approvalId === approvalParam);
+          if (actionParam) filtered = filtered.filter(e => e.action === actionParam);
+          filtered = filtered.slice(0, limit);
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(filtered));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/audit") {
         try {
           const { AuditStore } = await import("../audit/audit-store.js");
