@@ -9,6 +9,7 @@ import { resolveCapabilities, type CapabilityResolution } from "../registry/capa
 import type { RuleEvaluator } from "./rule-evaluator.js";
 import type { TaskNode } from "../kernel/task-graph.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
+import type { AuditStore } from "../audit/audit-store.js";
 
 export type RuntimeGateStatus = "ready" | "blocked" | "needs_approval";
 
@@ -27,10 +28,11 @@ export interface RuntimeGateInput {
   registry: CardRegistry;
   policyEvaluator: RuleEvaluator;
   approvalStore?: ApprovalStore;
+  auditStore?: AuditStore;
 }
 
 export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<RuntimeGateDecision> {
-  const { node, registry, policyEvaluator, approvalStore } = input;
+  const { node, registry, policyEvaluator, approvalStore, auditStore } = input;
   const caps = node.requiredCapabilities ?? [];
 
   // Layer 1: Capability coverage check
@@ -42,6 +44,11 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
       registry,
     });
     if (capResult.missingCapabilities.length > 0) {
+      auditStore?.append({ action: "runtime.blocked", actor: "system", details: {
+        graphId: node.graphId, nodeId: node.id,
+        capability: caps.join(","),
+        reason: `Missing capabilities: ${capResult.missingCapabilities.join(", ")}`,
+      }}).catch(() => {});
       return {
         status: "blocked",
         capabilityResolution: capResult,
@@ -72,6 +79,11 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
     }
 
     if (overall?.decision === "deny") {
+      auditStore?.append({ action: "policy.denied", actor: "policy", details: {
+        graphId: node.graphId, nodeId: node.id,
+        capability: caps.join(","), policyRuleId: overall.ruleId,
+        policyDecision: "deny", reason: overall.reason,
+      }}).catch(() => {});
       return {
         status: "blocked",
         capabilityResolution: capResult,
@@ -84,6 +96,11 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
 
     if (overall?.decision === "ask") {
       if (!approvalStore) {
+        auditStore?.append({ action: "runtime.blocked", actor: "system", details: {
+          graphId: node.graphId, nodeId: node.id,
+          capability: caps.join(","),
+          reason: "Approval required but no approval store configured",
+        }}).catch(() => {});
         return {
           status: "blocked",
           capabilityResolution: capResult,
@@ -100,8 +117,18 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
       });
       if (resolved) {
         if (resolved.status === "approved") {
+          auditStore?.append({ action: "policy.allowed", actor: "policy", details: {
+            graphId: node.graphId, nodeId: node.id,
+            capability: caps.join(","), approvalId: resolved.id,
+            policyDecision: "allow", reason: "Approved by prior approval",
+          }}).catch(() => {});
           return { status: "ready", reason: `Approved by prior approval: ${resolved.id}` };
         }
+        auditStore?.append({ action: "policy.denied", actor: "policy", details: {
+          graphId: node.graphId, nodeId: node.id,
+          capability: caps.join(","), approvalId: resolved.id,
+          policyDecision: "deny", reason: `Prior approval was denied: ${resolved.id}`,
+        }}).catch(() => {});
         return {
           status: "blocked",
           capabilityResolution: capResult,
@@ -116,6 +143,12 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
         graphId: node.graphId, nodeId: node.id, capability: caps[0],
       });
       if (existing) {
+        auditStore?.append({ action: "policy.asked", actor: "policy", details: {
+          graphId: node.graphId, nodeId: node.id,
+          capability: caps.join(","), approvalId: existing.id,
+          policyDecision: "ask",
+          reason: overall.reason,
+        }}).catch(() => {});
         return {
           status: "needs_approval",
           capabilityResolution: capResult,
@@ -135,6 +168,12 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
         capability: caps[0],
         riskLevel: node.riskLevel as any,
       });
+      auditStore?.append({ action: "policy.asked", actor: "policy", details: {
+        graphId: node.graphId, nodeId: node.id,
+        capability: caps.join(","), approvalId: approval.id,
+        policyDecision: "ask",
+        reason: overall.reason,
+      }}).catch(() => {});
       return {
         status: "needs_approval",
         capabilityResolution: capResult,
@@ -147,5 +186,9 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
     }
   }
 
+  auditStore?.append({ action: "runtime.allowed", actor: "system", details: {
+    graphId: node.graphId, nodeId: node.id,
+    reason: "All gates passed",
+  }}).catch(() => {});
   return { status: "ready", reason: "All gates passed" };
 }
