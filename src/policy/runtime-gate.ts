@@ -48,25 +48,53 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
         reason: `Missing capabilities: ${capResult.missingCapabilities.join(", ")}`,
       };
     }
-    // Layer 2: Policy evaluation
-    const policyResult = policyEvaluator.evaluate({
-      capability: caps[0],
-      riskLevel: node.riskLevel as any,
-      executionProfile: (node as any).executionProfile,
-    });
-    if (policyResult.decision === "deny") {
+    // Layer 2: Policy evaluation across all capabilities
+    // Apply the most restrictive decision: deny > ask > allow
+    let overall: { decision: "allow" | "ask" | "deny"; ruleId?: string; reason?: string } | undefined;
+
+    for (const cap of caps) {
+      const policyResult = policyEvaluator.evaluate({
+        capability: cap,
+        riskLevel: node.riskLevel as any,
+        executionProfile: (node as any).executionProfile,
+      });
+      if (policyResult.decision === "deny") {
+        overall = { decision: "deny", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+        break; // deny is final
+      }
+      if (policyResult.decision === "ask" && (!overall || overall.decision === "allow")) {
+        overall = { decision: "ask", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+        // continue — a later cap might deny
+      }
+      if (policyResult.decision === "allow" && !overall) {
+        overall = { decision: "allow", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+      }
+    }
+
+    if (overall?.decision === "deny") {
       return {
         status: "blocked",
         capabilityResolution: capResult,
         policyDecision: "deny",
-        policyRuleId: policyResult.matchedRuleId,
-        policyReason: policyResult.reason,
-        reason: policyResult.reason ?? `Blocked by policy rule: ${policyResult.matchedRuleId}`,
+        policyRuleId: overall.ruleId,
+        policyReason: overall.reason,
+        reason: overall.reason ?? `Blocked by policy rule: ${overall.ruleId}`,
       };
     }
-    if (policyResult.decision === "ask" && approvalStore) {
+
+    if (overall?.decision === "ask") {
+      if (!approvalStore) {
+        return {
+          status: "blocked",
+          capabilityResolution: capResult,
+          policyDecision: "ask",
+          policyRuleId: overall.ruleId,
+          policyReason: overall.reason,
+          reason: "Approval required but no approval store configured",
+        };
+      }
       const approval = await approvalStore.request({
-        reason: policyResult.reason ?? `Approval required for capability: ${caps[0]}`,
+        reason: overall.reason ?? `Approval required for capability: ${caps.join(", ")}`,
         graphId: node.graphId,
         nodeId: node.id,
         capability: caps[0],
@@ -76,8 +104,8 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
         status: "needs_approval",
         capabilityResolution: capResult,
         policyDecision: "ask",
-        policyRuleId: policyResult.matchedRuleId,
-        policyReason: policyResult.reason,
+        policyRuleId: overall.ruleId,
+        policyReason: overall.reason,
         approvalId: approval.id,
         reason: `Pending approval: ${approval.id}`,
       };
