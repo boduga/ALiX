@@ -133,6 +133,10 @@ Usage:
   alix audit by-action <action>  Filter by action type
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
+  alix daemon start      Start the background daemon
+  alix daemon stop       Stop the background daemon
+  alix daemon status     Show daemon status
+  alix submit "<task>"   Submit a task to the daemon
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
   alix approvals show <id>  Show approval details
@@ -1840,6 +1844,89 @@ if (command === "runtime") {
   console.log("  events [--graph <g>] [--session <s>] [--approval <a>] [--action <a>] [--limit N]");
   console.log("  timeline <graphId>");
   process.exit(0);
+}
+
+if (command === "daemon") {
+  const { DaemonManager } = await import("./daemon/daemon-manager.js");
+  const cwd = process.cwd();
+  const mgr = new DaemonManager(cwd);
+
+  if (args[0] === "start") {
+    try {
+      const status = await mgr.start();
+      console.log(`Daemon started (pid ${status.pid})`);
+      console.log(`Socket: ${status.socketPath}`);
+      process.exit(0);
+    } catch (err: any) {
+      console.error(err.message);
+      process.exit(1);
+    }
+  }
+
+  if (args[0] === "stop") {
+    await mgr.stop();
+    console.log("Daemon stopped.");
+    process.exit(0);
+  }
+
+  if (args[0] === "status") {
+    const running = await mgr.isRunning();
+    const status = await mgr.status();
+    if (!status) {
+      console.log("Daemon has never been started.");
+    } else {
+      console.log(`Status: ${running ? "running" : "stopped"}`);
+      console.log(`PID:    ${status.pid}`);
+      console.log(`Started: ${status.startedAt ? new Date(status.startedAt).toLocaleString() : "?"}`);
+      if (status.socketPath) console.log(`Socket: ${status.socketPath}`);
+      if (status.currentSessionId) console.log(`Session: ${status.currentSessionId}`);
+    }
+    process.exit(0);
+  }
+
+  console.log("Usage: alix daemon [start|stop|status]");
+  process.exit(0);
+}
+
+if (command === "submit") {
+  const task = args.join(" ").replace(/^["']|["']$/g, "");
+  if (!task) { console.error("Usage: alix submit \"<task>\""); process.exit(1); }
+  const { DaemonManager } = await import("./daemon/daemon-manager.js");
+  const mgr = new DaemonManager(process.cwd());
+  const running = await mgr.isRunning();
+  if (!running) { console.error("Daemon is not running. Start it with: alix daemon start"); process.exit(1); }
+
+  const status = await mgr.status();
+  const socketPath = status?.socketPath;
+  if (!socketPath) { console.error("No socket path found in daemon status."); process.exit(1); }
+
+  const { connect } = await import("node:net");
+  const client = connect(socketPath, () => {
+    client.write(JSON.stringify({ command: "run", task }) + "\n");
+  });
+
+  client.on("data", (data: Buffer) => {
+    for (const line of data.toString().trim().split("\n")) {
+      try {
+        const msg = JSON.parse(line);
+        if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
+        if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
+        if (msg.type === "session.ended") {
+          console.log("Task completed.");
+          client.end();
+        }
+      } catch {
+        console.log(line);
+      }
+    }
+  });
+
+  client.on("error", (err: Error) => {
+    console.error(`Connection error: ${err.message}`);
+    process.exit(1);
+  });
+
+  client.on("close", () => process.exit(0));
 }
 
 if (command === "audit") {
