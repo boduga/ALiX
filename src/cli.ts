@@ -89,6 +89,7 @@ Usage:
   alix graph preflight <id>   Preflight capability check for each node
   alix graph runs <id>        Show graph run history (sessions, attempts, reports)
   alix graph rerun <id> --node <id>  Rerun a failed graph node
+  alix graph continue <id>  Resume execution after approval
   alix sop list           List registered SOPs
   alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
   alix sop run <id> --topic "<topic>" --enforce-capabilities  Enforce capability policy
@@ -295,6 +296,83 @@ if (command === "graph" && args[0] === "rerun") {
     if (result.reason) console.log(`     reason: ${result.reason}`);
     process.exit(result.status === "done" ? 0 : 1);
   } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exit(1);
+  }
+}
+
+// --- alix graph continue --- resume after approval ---
+if (command === "graph" && args[0] === "continue") {
+  const graphId = args[1];
+  if (!graphId) { console.error("Usage: alix graph continue <graphId>"); process.exit(1); }
+  const cwd = process.cwd();
+  const { loadGraph, GraphExecutor } = await import("./kernel/graph-executor.js");
+  const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+  const { ApprovalStore } = await import("./approvals/approval-store.js");
+
+  try {
+    const graph = await loadGraph(graphId, cwd);
+    const registry = await loadCardRegistry(cwd);
+    const policyEvaluator = await loadRuleEvaluator(cwd);
+    const approvalStore = new ApprovalStore(cwd);
+    await approvalStore.load();
+
+    // Find first blocked/failed node
+    const blockedNode = graph.nodes.find((n: any) =>
+      n.status === "failed" || n.status === "blocked"
+    );
+    if (!blockedNode) {
+      console.log("No blocked or failed nodes found. Nothing to continue.");
+      process.exit(0);
+    }
+
+    const caps = blockedNode.requiredCapabilities ?? [];
+    if (caps.length === 0) {
+      console.log(`Node ${blockedNode.id} has no required capabilities. Use rerun instead:`);
+      console.log(`  alix graph rerun ${graphId} --node ${blockedNode.id} --force`);
+      process.exit(0);
+    }
+
+    // Check approval store for matching records
+    const pending = approvalStore.findPending({
+      graphId, nodeId: blockedNode.id, capability: caps[0],
+    });
+    if (pending) {
+      console.log(`Node ${blockedNode.id} has a pending approval: ${pending.id}`);
+      console.log(`  alix approvals approve ${pending.id}`);
+      console.log(`  alix approvals deny ${pending.id}`);
+      process.exit(0);
+    }
+
+    const resolved = approvalStore.findResolved({
+      graphId, nodeId: blockedNode.id, capability: caps[0],
+    });
+    if (!resolved) {
+      console.log(`No approval found for node ${blockedNode.id}.`);
+      console.log(`  alix graph rerun ${graphId} --node ${blockedNode.id} --force`);
+      process.exit(0);
+    }
+
+    if (resolved.status === "denied") {
+      console.log(`Node ${blockedNode.id} was denied: ${resolved.decisionReason || "No reason given"}`);
+      process.exit(1);
+    }
+
+    // Approved — rerun the graph
+    console.log(`Approval ${resolved.id} is approved. Rerunning graph ${graphId}...`);
+    console.log();
+    const executor = new GraphExecutor(cwd, { registry, policyEvaluator, approvalStore });
+    const result = await executor.execute(graphId);
+    for (const nr of result.results) {
+      const icon = nr.status === "done" ? "✓" : nr.status === "failed" ? "✗" : "○";
+      console.log(`  ${icon} ${nr.title} (${nr.durationMs}ms)`);
+      if (nr.reason) console.log(`     reason: ${nr.reason}`);
+    }
+    console.log();
+    console.log(`Graph: ${result.graphStatus} — ${result.completedNodes}/${result.nodeCount} nodes`);
+    process.exit(0);
+  } catch (err: any) {
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }
