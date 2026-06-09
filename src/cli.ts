@@ -1884,7 +1884,54 @@ if (command === "daemon") {
     process.exit(0);
   }
 
-  console.log("Usage: alix daemon [start|stop|status]");
+  if (args[0] === "tasks") {
+    const { readFileSync, existsSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+    if (!existsSync(tasksPath)) { console.log("No daemon tasks."); process.exit(0); }
+    try {
+      const raw = readFileSync(tasksPath, "utf-8");
+      const tasks = JSON.parse(raw);
+      if (tasks.length === 0) { console.log("No daemon tasks."); process.exit(0); }
+      console.log(`${"ID".padEnd(28)} ${"Status".padEnd(18)} Session${"".padEnd(20)} Task`);
+      console.log("-".repeat(100));
+      for (const t of tasks.slice(0, 50)) {
+        const sess = (t.sessionId || "-").slice(0, 22);
+        console.log(`${t.id.padEnd(28)} ${t.status.padEnd(18)} ${sess.padEnd(22)} ${t.task.slice(0, 30)}`);
+      }
+      console.log(`\n${tasks.length} tasks (showing ${Math.min(tasks.length, 50)})`);
+    } catch { console.log("Could not read task data."); }
+    process.exit(0);
+  }
+
+  if (args[0] === "cancel") {
+    const taskId = args[1];
+    if (!taskId) { console.error("Usage: alix daemon cancel <taskId>"); process.exit(1); }
+    const { connect } = await import("node:net");
+    const status = await mgr.status();
+    if (!status?.socketPath) { console.error("Daemon socket not available."); process.exit(1); }
+    const client = connect(status.socketPath, () => {
+      client.write(JSON.stringify({ command: "cancel", taskId }) + "\n");
+    });
+    client.on("data", (data: Buffer) => {
+      for (const line of data.toString().trim().split("\n")) {
+        try {
+          const msg = JSON.parse(line);
+          if (msg.type === "task.cancelled") {
+            console.log(`Cancelled: ${msg.taskId}`);
+            if (msg.requested) console.log("(cancel requested — will stop after current operation)");
+          } else if (msg.type === "cancel.error") {
+            console.error(`Error: ${msg.message}`);
+          }
+        } catch { console.log(line); }
+      }
+      client.end();
+    });
+    client.on("close", () => process.exit(0));
+    client.on("error", (err) => { console.error(err.message); process.exit(1); });
+  }
+
+  console.log("Usage: alix daemon [start|stop|status|tasks|cancel]");
   process.exit(0);
 }
 
