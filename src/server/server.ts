@@ -189,6 +189,19 @@ export function startServer(root: string, host: string, port: number): Promise<{
         }
         return;
       }
+      if (url.pathname === "/api/approvals") {
+        try {
+          const { ApprovalStore } = await import("../approvals/approval-store.js");
+          const store = new ApprovalStore(root);
+          await store.load();
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(store.list()));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/sessions/compare") {
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");

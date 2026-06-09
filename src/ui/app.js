@@ -674,6 +674,44 @@ document.getElementById("policy-eval-btn")?.addEventListener("click", async () =
   }
 });
 
+// ── Approvals tab ────────────────────────────────────────────
+async function loadApprovals() {
+  try {
+    const res = await fetch("/api/approvals");
+    const approvals = await res.json();
+    const el = document.getElementById("approvals-list-content");
+    if (!el) return;
+    if (approvals.length === 0) {
+      el.innerHTML = '<p class="empty">No approval requests.</p>';
+      return;
+    }
+    el.innerHTML = `<table class="approvals-table">
+      <thead><tr>
+        <th>ID</th>
+        <th>Status</th>
+        <th>Capability</th>
+        <th>Graph/Node</th>
+        <th>Created</th>
+        <th>Command</th>
+      </tr></thead>
+      <tbody>${approvals.map((a) => {
+        const statusClass = a.status === "approved" ? "status-approved" : a.status === "denied" ? "status-denied" : "status-pending";
+        const cmd = a.status === "pending" ? `alix approvals approve ${escapeHtml(a.id)}` : "";
+        return `<tr>
+          <td class="mono">${escapeHtml(a.id)}</td>
+          <td><span class="approval-status-badge ${statusClass}">${a.status}</span></td>
+          <td>${escapeHtml(a.capability || a.toolId || "—")}</td>
+          <td>${escapeHtml(a.graphId || "")}${a.nodeId ? "/" + escapeHtml(a.nodeId) : ""}</td>
+          <td class="mono">${new Date(a.createdAt).toLocaleString()}</td>
+          <td>${cmd ? `<code class="copyable-cmd">${escapeHtml(cmd)}</code>` : ""}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>`;
+  } catch {
+    // silently skip
+  }
+}
+
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
@@ -682,3 +720,4 @@ function escapeHtml(value) {
 loadRegistry();
 loadGraphList();
 loadPolicyRules();
+loadApprovals();
