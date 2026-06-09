@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
@@ -89,12 +89,11 @@ export function startServer(root: string, host: string, port: number): Promise<{
             res.end("[]");
             return;
           }
-          const { readdirSync, readFileSync } = await import("node:fs");
           const files = readdirSync(graphsDir);
           const items: Array<{
             graphId: string; rootGoal?: string; status?: string; strategy?: string;
             nodeCount: number; completedNodes?: number; failedNodes?: number; blockedNodes?: number;
-            updatedAt?: string; createdAt?: string; hasRuns: boolean; reportIds?: string[];
+            updatedAt?: string; createdAt?: string; hasRuns: boolean;
           }> = [];
 
           for (const f of files) {
@@ -116,11 +115,11 @@ export function startServer(root: string, host: string, port: number): Promise<{
                 updatedAt: graph.updatedAt,
                 createdAt: graph.createdAt,
                 hasRuns: existsSync(join(graphsDir, `${graphId}.runs.json`)),
-                reportIds: [],
               });
-            } catch { /* skip invalid JSON */ }
+            } catch { console.warn("Skipping invalid graph file:", f); }
           }
 
+          // ISO 8601 strings sort lexicographically — keep them ISO 8601
           items.sort((a, b) => {
             const byUpdated = (b.updatedAt || "").localeCompare(a.updatedAt || "");
             if (byUpdated !== 0) return byUpdated;
