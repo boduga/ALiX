@@ -1223,3 +1223,16 @@ h3 {
   font-family: var(--font-mono, monospace);
   font-size: 0.75rem;
 }
+
+.daemon-task-summary {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.daemon-status-count {
+  padding: 0.1rem 0.4rem;
+  border-radius: 3px;
+}

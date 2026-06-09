@@ -136,6 +136,9 @@ Usage:
   alix daemon start      Start the background daemon
   alix daemon stop       Stop the background daemon
   alix daemon status     Show daemon status
+  alix daemon tasks      List daemon tasks (--status <filter>)
+  alix daemon cancel <id>  Cancel a daemon task
+  alix daemon doctor     Daemon health check
   alix submit "<task>"   Submit a task to the daemon
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
@@ -1891,7 +1894,13 @@ if (command === "daemon") {
     if (!existsSync(tasksPath)) { console.log("No daemon tasks."); process.exit(0); }
     try {
       const raw = readFileSync(tasksPath, "utf-8");
-      const tasks = JSON.parse(raw);
+      let tasks = JSON.parse(raw);
+      // --status filter
+      const statusIdx = args.indexOf("--status");
+      if (statusIdx >= 0) {
+        const filter = args[statusIdx + 1];
+        tasks = tasks.filter((t: any) => t.status === filter);
+      }
       if (tasks.length === 0) { console.log("No daemon tasks."); process.exit(0); }
       console.log(`${"ID".padEnd(28)} ${"Status".padEnd(18)} Session${"".padEnd(20)} Task`);
       console.log("-".repeat(100));
@@ -1901,6 +1910,38 @@ if (command === "daemon") {
       }
       console.log(`\n${tasks.length} tasks (showing ${Math.min(tasks.length, 50)})`);
     } catch { console.log("Could not read task data."); }
+    process.exit(0);
+  }
+
+  if (args[0] === "doctor") {
+    const { existsSync, readFileSync, readdirSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    console.log("Daemon Doctor — health check\n");
+    const running = await mgr.isRunning();
+    const status = await mgr.status();
+    console.log(`Status:  ${running ? "running" : "stopped"}`);
+    if (status) {
+      console.log(`PID:     ${status.pid}`);
+      console.log(`Started: ${status.startedAt ? new Date(status.startedAt).toLocaleString() : "?"}`);
+      if (status.lastHeartbeat) {
+        const age = Date.now() - new Date(status.lastHeartbeat).getTime();
+        console.log(`Heartbeat: ${Math.round(age / 1000)}s ago ${age > 60000 ? "(STALE)" : "(ok)"}`);
+      }
+      if (status.socketPath) console.log(`Socket:  ${existsSync(status.socketPath) ? "✓ exists" : "✗ missing"} ${status.socketPath}`);
+    }
+    // Task summary
+    const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+    if (existsSync(tasksPath)) {
+      try {
+        const tasks = JSON.parse(readFileSync(tasksPath, "utf-8"));
+        const byStatus: Record<string, number> = {};
+        for (const t of tasks) byStatus[t.status] = (byStatus[t.status] || 0) + 1;
+        console.log(`\nTasks: ${tasks.length} total`);
+        for (const [s, count] of Object.entries(byStatus)) {
+          console.log(`  ${s}: ${count}`);
+        }
+      } catch {}
+    }
     process.exit(0);
   }
 
@@ -1931,7 +1972,7 @@ if (command === "daemon") {
     client.on("error", (err) => { console.error(err.message); process.exit(1); });
   }
 
-  console.log("Usage: alix daemon [start|stop|status|tasks|cancel]");
+  console.log("Usage: alix daemon [start|stop|status|tasks|cancel|doctor]");
   process.exit(0);
 }
 

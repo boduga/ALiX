@@ -16,6 +16,7 @@ export interface DaemonStatus {
   port?: number;
   socketPath?: string;
   currentSessionId?: string;
+  lastHeartbeat?: string;
   status: "running" | "stopped";
 }
 

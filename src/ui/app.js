@@ -808,7 +808,14 @@ async function loadDaemonTasks() {
       el.innerHTML = '<p class="empty">No daemon tasks.</p>';
       return;
     }
-    el.innerHTML = `<table class="daemon-tasks-table">
+    // Status counts
+    const counts: Record<string, number> = {};
+    for (const t of tasks) counts[t.status] = (counts[t.status] || 0) + 1;
+    const summary = Object.entries(counts).map(([s, c]) =>
+      `<span class="daemon-status-count status-${s}">${s}: ${c}</span>`
+    ).join(" ");
+    el.innerHTML = `<div class="daemon-task-summary">${summary}</div>
+    <table class="daemon-tasks-table">
       <thead><tr>
         <th>ID</th>
         <th>Status</th>
