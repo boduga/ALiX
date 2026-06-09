@@ -10,7 +10,7 @@ export type DaemonCommand =
   | { command: "run"; task: string; sessionMode?: string; planMode?: boolean }
   | { command: "ping" }
   | { command: "status" }
-  | { command: "cancel"; sessionId: string };
+  | { command: "cancel"; taskId: string };
 
 /** Response events the daemon sends back. */
 export type DaemonResponse =
@@ -24,4 +24,7 @@ export type DaemonResponse =
   | { type: "queue.position"; position: number }
   | { type: "error"; message: string }
   | { type: "pong"; sessionId?: string }
-  | { type: "cancelled"; sessionId: string };
+  | { type: "cancelled"; sessionId: string }
+  | { type: "task.created"; taskId: string; task: string; position: number }
+  | { type: "task.cancelled"; taskId: string; requested?: boolean }
+  | { type: "cancel.error"; taskId: string; message: string };

@@ -13,6 +13,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
+import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
@@ -25,19 +26,25 @@ if (!socketPath || !cwd) {
 
 let currentSessionId: string | undefined;
 
-const taskQueue: Array<{ task: string; client: Socket }> = [];
+const registry = new TaskRegistry(cwd);
+
+const taskQueue: Array<{ task: string; taskId: string; client: Socket }> = [];
 let taskRunning = false;
 
 async function processQueue(): Promise<void> {
   if (taskRunning || taskQueue.length === 0) return;
   taskRunning = true;
-  const { task, client } = taskQueue.shift()!;
+  const { task, taskId, client } = taskQueue.shift()!;
   try {
-    await handleRun(task, client);
+    await handleRun(task, taskId, client);
   } finally {
     taskRunning = false;
     processQueue(); // process next
   }
+}
+
+async function init(): Promise<void> {
+  await registry.load();
 }
 
 /** Create a pass-through EventLog that writes to session file AND socket client. */
@@ -63,7 +70,9 @@ function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
 /** Handle a single command from a connected client. */
 async function handleCommand(cmd: Record<string, unknown>, client: Socket): Promise<void> {
   if (cmd.command === "run") {
-    taskQueue.push({ task: String(cmd.task || ""), client });
+    const record = registry.create(String(cmd.task || ""));
+    taskQueue.push({ task: String(cmd.task || ""), taskId: record.id, client });
+    client.write(JSON.stringify({ type: "task.created", taskId: record.id, task: String(cmd.task || ""), position: taskQueue.length } satisfies DaemonResponse) + "\n");
     if (taskQueue.length === 1) {
       processQueue();
     } else {
@@ -75,13 +84,52 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
     client.write(JSON.stringify({ type: "pong", sessionId: currentSessionId } satisfies DaemonResponse) + "\n");
     return;
   }
+  if (cmd.command === "cancel") {
+    const taskId = String(cmd.taskId || "");
+    const record = registry.get(taskId);
+    if (!record) {
+      client.write(JSON.stringify({ type: "cancel.error", taskId, message: "Task not found" } satisfies DaemonResponse) + "\n");
+      return;
+    }
+
+    switch (record.status) {
+      case "queued": {
+        // Remove from queue
+        const qIdx = taskQueue.findIndex(item => item.taskId === taskId);
+        if (qIdx >= 0) taskQueue.splice(qIdx, 1);
+        registry.update(taskId, { status: "cancelled", cancelledAt: new Date().toISOString() });
+        client.write(JSON.stringify({ type: "task.cancelled", taskId } satisfies DaemonResponse) + "\n");
+        break;
+      }
+      case "running": {
+        registry.update(taskId, { status: "cancel_requested" });
+        client.write(JSON.stringify({ type: "task.cancelled", taskId, requested: true } satisfies DaemonResponse) + "\n");
+        break;
+      }
+      case "cancel_requested":
+        client.write(JSON.stringify({ type: "cancel.error", taskId, message: "Cancel already requested" } satisfies DaemonResponse) + "\n");
+        break;
+      case "completed":
+        client.write(JSON.stringify({ type: "cancel.error", taskId, message: "Cannot cancel completed task" } satisfies DaemonResponse) + "\n");
+        break;
+      case "failed":
+        client.write(JSON.stringify({ type: "cancel.error", taskId, message: "Cannot cancel failed task" } satisfies DaemonResponse) + "\n");
+        break;
+      case "cancelled":
+        client.write(JSON.stringify({ type: "cancel.error", taskId, message: "Task already cancelled" } satisfies DaemonResponse) + "\n");
+        break;
+    }
+    return;
+  }
   client.write(JSON.stringify({ type: "error", message: `Unknown command: ${cmd.command}` } satisfies DaemonResponse) + "\n");
 }
 
 /** Run a task via runTask() and stream events back to the client. */
-async function handleRun(task: string, client: Socket): Promise<void> {
+async function handleRun(task: string, taskId: string, client: Socket): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   currentSessionId = sessionId;
+
+  registry.update(taskId, { status: "running", sessionId, startedAt: new Date().toISOString() });
 
   client.write(JSON.stringify({ type: "session.started", sessionId } satisfies DaemonResponse) + "\n");
   client.write(JSON.stringify({ type: "task.accepted", sessionId, task } satisfies DaemonResponse) + "\n");
@@ -109,13 +157,21 @@ async function handleRun(task: string, client: Socket): Promise<void> {
 
     currentSessionId = undefined;
 
-    if (!result.reason || result.reason === "completed") {
+    // Check if cancel was requested during execution
+    const current = registry.get(taskId);
+    if (current?.status === "cancel_requested") {
+      registry.update(taskId, { status: "cancelled", cancelledAt: new Date().toISOString() });
+      client.write(JSON.stringify({ type: "task.cancelled", taskId } satisfies DaemonResponse) + "\n");
+    } else if (!result.reason || result.reason === "completed") {
+      registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
       client.write(JSON.stringify({ type: "task.completed", sessionId, status: "completed" } satisfies DaemonResponse) + "\n");
     } else {
+      registry.update(taskId, { status: "failed", error: result.reason });
       client.write(JSON.stringify({ type: "task.failed", sessionId, error: result.reason } satisfies DaemonResponse) + "\n");
     }
   } catch (err: any) {
     currentSessionId = undefined;
+    registry.update(taskId, { status: "failed", error: err.message });
     client.write(JSON.stringify({ type: "task.failed", sessionId, error: err.message } satisfies DaemonResponse) + "\n");
   }
 
@@ -147,6 +203,7 @@ const server = createServer((client: Socket) => {
 });
 
 server.listen(socketPath, () => {
+  init().catch(() => {});
   const statusPath = join(cwd, ".alix", "daemon.json");
   if (existsSync(statusPath)) {
     readFile(statusPath, "utf-8").then((raw) => {
