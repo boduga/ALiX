@@ -93,6 +93,41 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
           reason: "Approval required but no approval store configured",
         };
       }
+
+      // Check for existing resolved approval for this graph/node/capability
+      const resolved = approvalStore.findResolved({
+        graphId: node.graphId, nodeId: node.id, capability: caps[0],
+      });
+      if (resolved) {
+        if (resolved.status === "approved") {
+          return { status: "ready", reason: `Approved by prior approval: ${resolved.id}` };
+        }
+        return {
+          status: "blocked",
+          capabilityResolution: capResult,
+          policyDecision: "deny",
+          policyReason: resolved.decisionReason,
+          reason: `Prior approval was denied: ${resolved.id}`,
+        };
+      }
+
+      // Check for existing pending approval — reuse rather than duplicate
+      const existing = approvalStore.findPending({
+        graphId: node.graphId, nodeId: node.id, capability: caps[0],
+      });
+      if (existing) {
+        return {
+          status: "needs_approval",
+          capabilityResolution: capResult,
+          policyDecision: "ask",
+          policyRuleId: overall.ruleId,
+          policyReason: overall.reason,
+          approvalId: existing.id,
+          reason: `Pending approval: ${existing.id}`,
+        };
+      }
+
+      // No existing approval — create new one
       const approval = await approvalStore.request({
         reason: overall.reason ?? `Approval required for capability: ${caps.join(", ")}`,
         graphId: node.graphId,

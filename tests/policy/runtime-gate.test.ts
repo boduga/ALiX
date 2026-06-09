@@ -169,4 +169,63 @@ describe("RuntimeGate", () => {
     assert.equal(result.policyDecision, "ask");
     assert.ok(result.reason.includes("no approval store configured"));
   });
+
+  it("reuses existing pending approval instead of duplicating", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-reuse-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      // Pre-create a pending approval
+      await store.request({
+        reason: "existing", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
+      });
+      const registry = makeRegistry();
+      const policy = makePolicy({
+        id: "ask-shell", description: "Ask shell",
+        match: { capability: "shell.exec" }, decision: "ask", enabled: true,
+      });
+      const result = await evaluateRuntimeGate({
+        node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+        registry, policyEvaluator: policy, approvalStore: store,
+      });
+      assert.equal(result.status, "needs_approval");
+      assert.ok(result.approvalId);
+      // Should have reused — only 1 approval in store
+      assert.equal(store.list().length, 1);
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns ready when prior approval was approved", async () => {
+    const { mkdtempSync, rmSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const { tmpdir } = await import("node:os");
+    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-gate-approved-"));
+    try {
+      const store = new ApprovalStore(tmpDir);
+      await store.load();
+      const rec = await store.request({
+        reason: "prior", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
+      });
+      await store.resolve(rec.id, "approved");
+      const registry = makeRegistry();
+      const policy = makePolicy({
+        id: "ask-shell", description: "Ask shell",
+        match: { capability: "shell.exec" }, decision: "ask", enabled: true,
+      });
+      const result = await evaluateRuntimeGate({
+        node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
+        registry, policyEvaluator: policy, approvalStore: store,
+      });
+      assert.equal(result.status, "ready");
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
