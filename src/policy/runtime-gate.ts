@@ -1,0 +1,88 @@
+/**
+ * runtime-gate.ts — Two-layer execution gate for graph nodes.
+ *
+ * Layer 1: CapabilityResolver — does any agent/tool cover this capability?
+ * Layer 2: RuleEvaluator — is this capability allowed by policy?
+ */
+import type { CardRegistry } from "../registry/card-registry.js";
+import { resolveCapabilities, type CapabilityResolution } from "../registry/capability-resolver.js";
+import type { RuleEvaluator } from "./rule-evaluator.js";
+import type { TaskNode } from "../kernel/task-graph.js";
+import type { ApprovalStore } from "../approvals/approval-store.js";
+
+export type RuntimeGateStatus = "ready" | "blocked" | "needs_approval";
+
+export interface RuntimeGateDecision {
+  status: RuntimeGateStatus;
+  capabilityResolution?: CapabilityResolution;
+  policyDecision?: "allow" | "ask" | "deny";
+  policyRuleId?: string;
+  policyReason?: string;
+  approvalId?: string;
+  reason: string;
+}
+
+export interface RuntimeGateInput {
+  node: TaskNode;
+  registry: CardRegistry;
+  policyEvaluator: RuleEvaluator;
+  approvalStore?: ApprovalStore;
+}
+
+export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<RuntimeGateDecision> {
+  const { node, registry, policyEvaluator, approvalStore } = input;
+  const caps = node.requiredCapabilities ?? [];
+
+  // Layer 1: Capability coverage check
+  if (caps.length > 0) {
+    const capResult = resolveCapabilities({
+      requiredCapabilities: caps,
+      domain: node.domain,
+      executionProfile: (node as any).executionProfile,
+      registry,
+    });
+    if (capResult.missingCapabilities.length > 0) {
+      return {
+        status: "blocked",
+        capabilityResolution: capResult,
+        reason: `Missing capabilities: ${capResult.missingCapabilities.join(", ")}`,
+      };
+    }
+    // Layer 2: Policy evaluation
+    const policyResult = policyEvaluator.evaluate({
+      capability: caps[0],
+      riskLevel: node.riskLevel as any,
+      executionProfile: (node as any).executionProfile,
+    });
+    if (policyResult.decision === "deny") {
+      return {
+        status: "blocked",
+        capabilityResolution: capResult,
+        policyDecision: "deny",
+        policyRuleId: policyResult.matchedRuleId,
+        policyReason: policyResult.reason,
+        reason: policyResult.reason ?? `Blocked by policy rule: ${policyResult.matchedRuleId}`,
+      };
+    }
+    if (policyResult.decision === "ask" && approvalStore) {
+      const approval = await approvalStore.request({
+        reason: policyResult.reason ?? `Approval required for capability: ${caps[0]}`,
+        graphId: node.graphId,
+        nodeId: node.id,
+        capability: caps[0],
+        riskLevel: node.riskLevel as any,
+      });
+      return {
+        status: "needs_approval",
+        capabilityResolution: capResult,
+        policyDecision: "ask",
+        policyRuleId: policyResult.matchedRuleId,
+        policyReason: policyResult.reason,
+        approvalId: approval.id,
+        reason: `Pending approval: ${approval.id}`,
+      };
+    }
+  }
+
+  return { status: "ready", reason: "All gates passed" };
+}
