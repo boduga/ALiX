@@ -126,6 +126,11 @@ Usage:
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
+  alix approvals list     List all approval requests
+  alix approvals pending  List pending approvals only
+  alix approvals show <id>  Show approval details
+  alix approvals approve <id> [--reason "..."]  Approve a pending request
+  alix approvals deny <id> [--reason "..."]  Deny a pending request
 `);
   process.exit(0);
 }
@@ -1677,6 +1682,83 @@ if (command === "registry") {
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);
+  process.exit(0);
+}
+
+if (command === "approvals") {
+  const { ApprovalStore } = await import("./approvals/approval-store.js");
+  const cwd = process.cwd();
+  const store = new ApprovalStore(cwd);
+  await store.load();
+
+  if (args[0] === "list") {
+    const all = store.list();
+    if (all.length === 0) {
+      console.log("No approval requests.");
+    } else {
+      console.log(`${"ID".padEnd(38)} ${"Status".padEnd(10)} Capability${"".padEnd(12)} Created`);
+      console.log("-".repeat(90));
+      for (const a of all) {
+        const cap = (a.capability || a.toolId || "—").slice(0, 18);
+        console.log(`${a.id.padEnd(38)} ${a.status.padEnd(10)} ${cap.padEnd(18)} ${new Date(a.createdAt).toLocaleString()}`);
+      }
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "pending") {
+    const pending = store.listPending();
+    if (pending.length === 0) {
+      console.log("No pending approvals.");
+    } else {
+      console.log(`${"ID".padEnd(38)} Capability${"".padEnd(12)} Reason`);
+      console.log("-".repeat(90));
+      for (const a of pending) {
+        const cap = (a.capability || a.toolId || "—").slice(0, 18);
+        console.log(`${a.id.padEnd(38)} ${cap.padEnd(18)} ${a.reason.slice(0, 40)}`);
+      }
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "show") {
+    const id = args[1];
+    if (!id) { console.error("Usage: alix approvals show <id>"); process.exit(1); }
+    const record = store.get(id);
+    if (!record) { console.error(`Approval not found: ${id}`); process.exit(1); }
+    console.log(`ID:       ${record.id}`);
+    console.log(`Status:   ${record.status}`);
+    if (record.capability) console.log(`Capability: ${record.capability}`);
+    if (record.toolId) console.log(`Tool:     ${record.toolId}`);
+    if (record.riskLevel) console.log(`Risk:     ${record.riskLevel}`);
+    if (record.graphId) console.log(`Graph:    ${record.graphId}`);
+    if (record.nodeId) console.log(`Node:     ${record.nodeId}`);
+    if (record.sessionId) console.log(`Session:  ${record.sessionId}`);
+    console.log(`Reason:   ${record.reason}`);
+    console.log(`Created:  ${new Date(record.createdAt).toLocaleString()}`);
+    if (record.decidedAt) console.log(`Decided:  ${new Date(record.decidedAt).toLocaleString()}`);
+    if (record.decisionReason) console.log(`Decision reason: ${record.decisionReason}`);
+    process.exit(0);
+  }
+
+  if (args[0] === "approve" || args[0] === "deny") {
+    const id = args[1];
+    if (!id) { console.error(`Usage: alix approvals ${args[0]} <id> [--reason "..."]`); process.exit(1); }
+    const reasonIdx = args.indexOf("--reason");
+    const decisionReason = reasonIdx >= 0 ? args[reasonIdx + 1] : undefined;
+    const status = args[0] === "approve" ? "approved" as const : "denied" as const;
+    const result = await store.resolve(id, status, decisionReason);
+    if (!result) { console.error(`Approval not found: ${id}`); process.exit(1); }
+    console.log(`${status.charAt(0).toUpperCase() + status.slice(1)}: ${id}`);
+    process.exit(0);
+  }
+
+  console.log("Usage: alix approvals [list|pending|show|approve|deny]");
+  console.log("  list              List all approval requests");
+  console.log("  pending           List pending approvals only");
+  console.log('  show <id>         Show approval details');
+  console.log('  approve <id>      Approve a pending request');
+  console.log('  deny <id>         Deny a pending request');
   process.exit(0);
 }
 
