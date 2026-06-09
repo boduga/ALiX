@@ -92,6 +92,88 @@ describe("Registry HTTP API", () => {
   });
 });
 
+describe("Graph list API", () => {
+  let tmpDir: string;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "graph-list-test-"));
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    mkdirSync(graphsDir, { recursive: true });
+
+    // Valid graph
+    writeFileSync(join(graphsDir, "graph_a.json"), JSON.stringify({
+      id: "graph_a", rootGoal: "Research task", status: "completed",
+      strategy: "sequential", createdAt: "2026-06-01", updatedAt: "2026-06-02",
+      nodes: [
+        { id: "n1", status: "done" },
+        { id: "n2", status: "failed" },
+        { id: "n3", status: "blocked" },
+      ],
+    }));
+
+    // Run file (should be ignored)
+    writeFileSync(join(graphsDir, "graph_a.runs.json"), JSON.stringify([{ attempt: 1 }]));
+
+    // Invalid JSON file (should not break response)
+    writeFileSync(join(graphsDir, "bad.json"), "not valid json");
+  });
+
+  after(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns [] when no graph dir exists", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const blankDir = mkdtempSync(join(tmpdir(), "no-graphs-"));
+    try {
+      const { url, close } = await startServer(blankDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/graphs`);
+      assert.equal(body, "[]");
+      await close();
+    } finally {
+      rmSync(blankDir, { recursive: true, force: true });
+    }
+  });
+
+  it("returns graph_a with full metadata", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+    try {
+      const body = await httpGet(`${url}/api/graphs`);
+      const data = JSON.parse(body);
+      assert.ok(Array.isArray(data));
+      assert.ok(data.length >= 1);
+      const ga = data.find((g: any) => g.graphId === "graph_a");
+      assert.ok(ga, "graph_a should appear");
+      assert.equal(ga.nodeCount, 3);
+      assert.equal(ga.completedNodes, 1);
+      assert.equal(ga.failedNodes, 1);
+      assert.equal(ga.blockedNodes, 1);
+      assert.equal(ga.status, "completed");
+      assert.equal(ga.strategy, "sequential");
+      assert.equal(ga.hasRuns, true);
+      await close();
+    } finally {
+      // tmpDir cleaned in after()
+    }
+  });
+
+  it("skips .runs.json files and invalid JSON", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+    try {
+      const body = await httpGet(`${url}/api/graphs`);
+      const data = JSON.parse(body);
+      // graph_a is the only valid graph file; runs/bad are skipped
+      assert.equal(data.length, 1);
+      assert.equal(data[0].graphId, "graph_a");
+      await close();
+    } finally {
+      // tmpDir cleaned in after()
+    }
+  });
+});
+
 /**
  * Helper: perform an HTTP GET and return the full body as a string.
  */
