@@ -1189,3 +1189,33 @@ h3 {
 .daemon-indicator.running {
   color: #3fb950;
 }
+
+/* Daemon tasks */
+.daemon-tasks-bar {
+  margin-bottom: 0.5rem;
+}
+
+.daemon-tasks-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.daemon-tasks-table th {
+  text-align: left;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--panel-line, #2f3a36);
+  color: var(--muted, #a59f90);
+  font-weight: 600;
+}
+
+.daemon-tasks-table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid rgba(47,58,54,0.5);
+  vertical-align: middle;
+}
+
+.daemon-tasks-table .mono {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.75rem;
+}

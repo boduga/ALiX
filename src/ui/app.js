@@ -790,6 +790,41 @@ async function loadDaemonStatus() {
   }
 }
 
+async function loadDaemonTasks() {
+  try {
+    const res = await fetch("/api/daemon/tasks");
+    const tasks = await res.json();
+    const el = document.getElementById("daemon-tasks");
+    if (!el) return;
+    if (!Array.isArray(tasks) || tasks.length === 0) {
+      el.innerHTML = '<p class="empty">No daemon tasks.</p>';
+      return;
+    }
+    el.innerHTML = `<table class="daemon-tasks-table">
+      <thead><tr>
+        <th>ID</th>
+        <th>Status</th>
+        <th>Session</th>
+        <th>Task</th>
+        <th>Action</th>
+      </tr></thead>
+      <tbody>${tasks.slice(0, 20).map((t) => {
+        const statusClass = "status-" + t.status;
+        const cancelCmd = (t.status === "queued" || t.status === "running")
+          ? `<code class="copyable-cmd">alix daemon cancel ${escapeHtml(t.id)}</code>`
+          : "";
+        return `<tr>
+          <td class="mono">${escapeHtml(t.id)}</td>
+          <td><span class="approval-status-badge ${statusClass}">${escapeHtml(t.status)}</span></td>
+          <td class="mono">${escapeHtml(t.sessionId || "—")}</td>
+          <td>${escapeHtml(t.task).slice(0, 60)}</td>
+          <td>${cancelCmd}</td>
+        </tr>`;
+      }).join("")}</tbody>
+    </table>`;
+  } catch { /* silently skip */ }
+}
+
 // Load registry, graph list, and policy on page load so tabs work without connecting
 loadRegistry();
 loadGraphList();
@@ -798,3 +833,4 @@ loadApprovals();
 loadAudit();
 loadRuntimeEvents();
 loadDaemonStatus();
+loadDaemonTasks();

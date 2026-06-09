@@ -328,6 +328,20 @@ describe("Daemon API", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("GET /api/daemon/tasks returns array", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const tmpDir = mkdtempSync(join(tmpdir(), "daemon-tasks-api-"));
+    try {
+      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+      const body = await httpGet(`${url}/api/daemon/tasks`);
+      const data = JSON.parse(body);
+      assert.ok(Array.isArray(data));
+      await close();
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
 
 /**

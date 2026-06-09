@@ -203,6 +203,26 @@ export function startServer(root: string, host: string, port: number): Promise<{
         }
         return;
       }
+      if (url.pathname === "/api/daemon/tasks") {
+        try {
+          const { readFile } = await import("node:fs/promises");
+          const { existsSync } = await import("node:fs");
+          const { join } = await import("node:path");
+          const tasksPath = join(root, ".alix", "daemon-tasks.json");
+          if (!existsSync(tasksPath)) {
+            res.setHeader("content-type", "application/json");
+            res.end("[]");
+            return;
+          }
+          const raw = await readFile(tasksPath, "utf-8");
+          res.setHeader("content-type", "application/json");
+          res.end(raw);
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname === "/api/approvals") {
         try {
           const { ApprovalStore } = await import("../approvals/approval-store.js");
