@@ -94,6 +94,37 @@ compareBtn.addEventListener("click", async () => {
   compareView.textContent = JSON.stringify(await response.json(), null, 2);
 });
 
+// ── Graph tab listeners ────────────────────────────────────
+const graphSelect = document.getElementById("graph-select");
+const graphLoadBtn = document.getElementById("graph-load-btn");
+const graphIdInput = document.getElementById("graph-id-input");
+
+graphSelect?.addEventListener("change", () => {
+  const gid = graphSelect.value;
+  if (gid) {
+    graphIdInput.value = gid;
+    loadGraphProjection(gid);
+  }
+});
+
+graphLoadBtn?.addEventListener("click", () => {
+  const gid = graphIdInput.value.trim();
+  if (gid) loadGraphProjection(gid);
+});
+
+// Delegate click events for node-detail-btn and rerun-btn
+document.getElementById("graph-nodes")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("button");
+  if (!btn) return;
+  if (btn.classList.contains("node-detail-btn")) {
+    const nodeId = btn.dataset.nodeId;
+    showNodeDetail(nodeId);
+  }
+  if (btn.classList.contains("rerun-btn")) {
+    showRerunCommand(btn.dataset.graphId, btn.dataset.nodeId);
+  }
+});
+
 // Registry data loading
 let registryData = { agents: [], tools: [] };
 
@@ -149,6 +180,137 @@ function renderRegistry() {
   }
 }
 
+// ── Graph tab ──────────────────────────────────────────────
+let graphList = [];
+let currentProjection = null;
+
+async function loadGraphList() {
+  try {
+    const res = await fetch("/api/graphs");
+    graphList = await res.json();
+    const select = document.getElementById("graph-select");
+    if (!select) return;
+    select.innerHTML = `<option value="">— Select a graph —</option>`;
+    for (const g of graphList) {
+      const opt = document.createElement("option");
+      opt.value = g.graphId;
+      opt.textContent = `${g.graphId}  (${g.status ?? "?"}, ${g.nodeCount ?? 0} nodes)`;
+      select.append(opt);
+    }
+  } catch { /* silently skip if server doesn't support /api/graphs */ }
+}
+
+async function loadGraphProjection(graphId) {
+  const overview = document.getElementById("graph-overview");
+  const nodes = document.getElementById("graph-nodes");
+  const detail = document.getElementById("graph-detail");
+  const rerun = document.getElementById("graph-rerun");
+  if (!overview || !nodes) return;
+
+  try {
+    const res = await fetch(`/api/graphs/${encodeURIComponent(graphId)}/projection`);
+    if (!res.ok) {
+      overview.classList.remove("hidden");
+      overview.innerHTML = `<p class="error">Graph not found: ${escapeHtml(graphId)}</p>`;
+      return;
+    }
+    currentProjection = await res.json();
+    renderGraphOverview(currentProjection);
+    renderNodeTable(currentProjection);
+    detail.classList.add("hidden");
+    rerun.classList.add("hidden");
+  } catch {
+    overview.classList.remove("hidden");
+    overview.innerHTML = `<p class="error">Failed to load graph projection</p>`;
+  }
+}
+
+function renderGraphOverview(proj) {
+  const el = document.getElementById("graph-overview");
+  el.classList.remove("hidden");
+  el.innerHTML = `
+    <div class="overview-row">
+      <span class="graph-status status-${proj.status}">${escapeHtml(proj.status)}</span>
+      <span class="graph-strategy">${escapeHtml(proj.strategy)}</span>
+    </div>
+    <div class="overview-metrics">
+      <div class="metric"><span>Nodes</span><strong>${proj.nodeCount}</strong></div>
+      <div class="metric"><span>Completed</span><strong>${proj.nodes.filter(n => n.status === "done").length}</strong></div>
+      <div class="metric"><span>Failed</span><strong>${proj.nodes.filter(n => n.status === "failed").length}</strong></div>
+      <div class="metric"><span>Blocked</span><strong>${proj.nodes.filter(n => n.status === "blocked").length}</strong></div>
+    </div>
+    <div class="overview-meta">
+      ${proj.sessionIds.length > 0 ? `<p>Sessions: ${proj.sessionIds.map(s => escapeHtml(s)).join(", ")}</p>` : ""}
+      ${proj.reports.length > 0 ? `<p>Reports: ${proj.reports.map(r => escapeHtml(r)).join(", ")}</p>` : ""}
+      <p>Goal: ${escapeHtml(proj.rootGoal || "(none)")}</p>
+    </div>
+  `;
+}
+
+function renderNodeTable(proj) {
+  const el = document.getElementById("graph-nodes");
+  el.classList.remove("hidden");
+
+  if (proj.nodes.length === 0) {
+    el.innerHTML = '<p class="empty">No nodes in this graph.</p>';
+    return;
+  }
+
+  el.innerHTML = `<table class="node-table">
+    <thead><tr>
+      <th></th>
+      <th>Node</th>
+      <th>Duration</th>
+      <th>Capabilities</th>
+      <th>Status</th>
+      <th>Attempts</th>
+      <th></th>
+    </tr></thead>
+    <tbody>${proj.nodes.map(n => renderNodeRow(n, proj.graphId)).join("")}</tbody>
+  </table>`;
+}
+
+function renderNodeRow(node, graphId) {
+  const statusIcon = node.status === "done" ? "✓" : node.status === "failed" ? "✗" : node.status === "blocked" ? "⊘" : "○";
+  const statusClass = node.status === "done" ? "row-done" : node.status === "failed" ? "row-failed" : node.status === "blocked" ? "row-blocked" : "";
+  const caps = (node.requiredCapabilities || []).map(c => `<span class="cap-badge">${escapeHtml(c)}</span>`).join(" ");
+
+  let capStatus = "";
+  if (node.capabilityResolution) {
+    const cs = node.capabilityResolution.status;
+    capStatus = `<span class="cap-badge cap-${cs}">${cs}</span>`;
+  }
+
+  const attemptsCount = node.attempts ? node.attempts.length : 0;
+  const duration = node.durationMs != null ? `${node.durationMs}ms` : "—";
+  const showRerun = node.status === "failed";
+
+  return `<tr class="${statusClass}" data-node-id="${escapeHtml(node.nodeId)}">
+    <td class="status-icon">${statusIcon}</td>
+    <td class="node-title"><button class="link-btn node-detail-btn" data-node-id="${escapeHtml(node.nodeId)}">${escapeHtml(node.title)}</button></td>
+    <td class="node-duration">${duration}</td>
+    <td class="node-caps">${caps}</td>
+    <td class="node-cap-status">${capStatus}</td>
+    <td class="node-attempts">${attemptsCount > 0 ? attemptsCount : ""}</td>
+    <td class="node-action">${showRerun ? `<button class="rerun-btn" data-graph-id="${escapeHtml(graphId)}" data-node-id="${escapeHtml(node.nodeId)}">Rerun</button>` : ""}</td>
+  </tr>`;
+}
+
+// Stub functions for node detail / rerun — will be fleshed out in later tasks
+function showNodeDetail(nodeId) {
+  const detail = document.getElementById("graph-detail");
+  if (!detail) return;
+  detail.classList.remove("hidden");
+  detail.innerHTML = `<p class="empty">Node detail for <code>${escapeHtml(nodeId)}</code> (coming soon)</p>`;
+}
+
+function showRerunCommand(graphId, nodeId) {
+  const rerun = document.getElementById("graph-rerun");
+  if (!rerun) return;
+  rerun.classList.remove("hidden");
+  rerun.innerHTML = `<p class="empty">Rerun command for <code>${escapeHtml(nodeId)}</code> (coming soon)</p>`;
+}
+
 connectBtn.setAttribute("aria-label", "Connect to session");
 
 // Connect
@@ -165,6 +327,7 @@ function connect(sessionId) {
   statusEl.textContent = "Connecting...";
   statusEl.className = "status";
   loadRegistry();
+  loadGraphList();
 
   eventSource = new EventSource(`/api/sessions/${sessionId}/events`);
 

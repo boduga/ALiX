@@ -33,6 +33,7 @@
           <button class="tab" data-panel="subagents">Subagents</button>
           <button class="tab" data-panel="compare">Compare</button>
           <button class="tab" data-panel="registry">Registry</button>
+          <button class="tab" data-panel="graph">Graph</button>
         </nav>
 
         <section class="replay-bar" aria-label="Replay controls">
@@ -85,6 +86,23 @@
               <h3>Tool Cards</h3>
               <div id="registry-tools"><p class="empty">Loading...</p></div>
             </div>
+          </div>
+        </section>
+        <section class="panel" id="panel-graph" aria-label="Graph execution view">
+          <div class="panel-header"><h2>Graph Execution</h2></div>
+          <div class="panel-body graph-view">
+            <div class="graph-selector">
+              <label for="graph-select">Graph</label>
+              <select id="graph-select">
+                <option value="">— Select a graph —</option>
+              </select>
+              <input type="text" id="graph-id-input" placeholder="Or paste graph ID..." />
+              <button id="graph-load-btn">Load</button>
+            </div>
+            <div id="graph-overview" class="graph-overview hidden"></div>
+            <div id="graph-nodes" class="graph-nodes hidden"></div>
+            <div id="graph-detail" class="graph-detail hidden"></div>
+            <div id="graph-rerun" class="graph-rerun hidden"></div>
           </div>
         </section>
       </section>
