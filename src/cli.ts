@@ -1825,7 +1825,7 @@ if (command === "runtime") {
     const graphId = args[1];
     if (!graphId) { console.error("Usage: alix runtime timeline <graphId>"); process.exit(1); }
     const idx = await buildRuntimeIndex(cwd);
-    const events = idx.byGraph(graphId).slice(0, 100);
+    const events = idx.byGraph(graphId).slice(0, 100).reverse(); // oldest first for timeline
     if (events.length === 0) { console.log("No events for graph."); process.exit(0); }
     for (const e of events) {
       const time = e.timestamp ? new Date(e.timestamp).toLocaleTimeString() : "?";

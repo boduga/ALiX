@@ -254,18 +254,63 @@ describe("Audit API", () => {
 });
 
 describe("Runtime events API", () => {
+  let tmpDir: string;
+
+  before(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "runtime-api-test-"));
+    // Seed a graph and audit event for filter testing
+    const graphsDir = join(tmpDir, ".alix", "graphs");
+    const auditDir = join(tmpDir, ".alix", "audit");
+    mkdirSync(graphsDir, { recursive: true });
+    mkdirSync(auditDir, { recursive: true });
+    writeFileSync(join(graphsDir, "my_graph.json"), JSON.stringify({
+      id: "my_graph", rootGoal: "test", status: "completed", strategy: "sequential",
+      updatedAt: "2026-06-09T12:00:00Z", nodes: [
+        { id: "n1", title: "Node 1", status: "done" },
+      ],
+    }));
+    writeFileSync(join(auditDir, "audit.jsonl"), `{"id":"aud_1","action":"policy.allowed","timestamp":"2026-06-09T12:00:00Z","details":{"graphId":"my_graph","capability":"web.search"}}\n`);
+  });
+
+  after(() => { rmSync(tmpDir, { recursive: true, force: true }); });
+
   it("GET /api/runtime/events returns array", async () => {
     const { startServer } = await import("../../src/server/server.js");
-    const tmpDir = mkdtempSync(join(tmpdir(), "runtime-api-test-"));
+    const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
-      const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
       const body = await httpGet(`${url}/api/runtime/events`);
       const data = JSON.parse(body);
       assert.ok(Array.isArray(data));
       await close();
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+    } finally { await close(); }
+  });
+
+  it("filters by graphId", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+    try {
+      const body = await httpGet(`${url}/api/runtime/events?graphId=my_graph`);
+      const data = JSON.parse(body);
+      assert.ok(data.length >= 3); // graph + node + audit
+      assert.ok(data.every((e: any) => e.graphId === "my_graph"));
+      await close();
+    } finally { await close(); }
+  });
+
+  it("supports order=asc", async () => {
+    const { startServer } = await import("../../src/server/server.js");
+    const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
+    try {
+      const body = await httpGet(`${url}/api/runtime/events?order=asc`);
+      const data = JSON.parse(body);
+      assert.ok(data.length >= 3);
+      // First event should have earliest timestamp
+      const ts = data.map((e: any) => e.timestamp || "").filter(Boolean);
+      if (ts.length >= 2) {
+        assert.ok(new Date(ts[0]).getTime() <= new Date(ts[1]).getTime());
+      }
+      await close();
+    } finally { await close(); }
   });
 });
 

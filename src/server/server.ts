@@ -212,7 +212,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           const sessionParam = url.searchParams.get("sessionId");
           const approvalParam = url.searchParams.get("approvalId");
           const actionParam = url.searchParams.get("action");
+          const orderParam = url.searchParams.get("order");
           let filtered = [...idx.events];
+          if (orderParam === "asc") filtered.reverse();
           if (graphParam) filtered = filtered.filter(e => e.graphId === graphParam);
           if (sessionParam) filtered = filtered.filter(e => e.sessionId === sessionParam);
           if (approvalParam) filtered = filtered.filter(e => e.approvalId === approvalParam);
