@@ -17,7 +17,7 @@ import type { AuditRecord } from "../audit/audit-types.js";
 export type RuntimeIndexEvent = {
   id: string;
   timestamp?: string;
-  source: "session" | "graph" | "graph_run" | "approval" | "audit" | "report";
+  source: "session" | "graph" | "graph_run" | "approval" | "audit" | "report" | "daemon_task";
   action: string;
   graphId?: string;
   nodeId?: string;
@@ -211,6 +211,27 @@ export async function buildRuntimeIndex(cwd: string): Promise<RuntimeIndex> {
         } catch { /* skip unreadable session */ }
       }
     } catch { /* skip unreadable sessions dir */ }
+  }
+
+  // Source 6: daemon-tasks.json
+  const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+  if (existsSync(tasksPath)) {
+    try {
+      const raw = await readFile(tasksPath, "utf-8");
+      const records = JSON.parse(raw) as any[];
+      for (const r of records) {
+        events.push({
+          id: r.id,
+          timestamp: r.updatedAt || r.createdAt,
+          source: "daemon_task",
+          action: `daemon.task.${r.status}`,
+          sessionId: r.sessionId,
+          status: r.status,
+          summary: r.task,
+          payload: { error: r.error },
+        });
+      }
+    } catch { /* skip unreadable */ }
   }
 
   // Sort by timestamp descending (newest first), fallback to id
