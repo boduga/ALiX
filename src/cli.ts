@@ -123,6 +123,9 @@ Usage:
   alix registry agents    List agent cards only
   alix registry tools     List tool cards only
   alix registry doctor    Check card file health and loading status
+  alix policy list        List loaded policy rules
+  alix policy doctor      Check policy file health and loading status
+  alix policy eval        Evaluate a capability or risk level against policy
 `);
   process.exit(0);
 }
@@ -1432,6 +1435,128 @@ if (command === "skills") {
 	  });
 	  process.exit(0);
 	}
+
+if (command === "policy") {
+  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+  const { existsSync, readdirSync, readFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const cwd = process.cwd();
+
+  if (args[0] === "list") {
+    const evaluator = await loadRuleEvaluator(cwd);
+    const rules = evaluator.getAllRules();
+    if (rules.length === 0) {
+      console.log("No policy rules loaded.");
+    } else {
+      console.log(`${"ID".padEnd(22)} ${"Decision".padEnd(10)} ${"Enabled".padEnd(8)} Match`);
+      console.log("-".repeat(90));
+      for (const r of rules) {
+        const matchParts: string[] = [];
+        if (r.match.capability) matchParts.push(`capability=${r.match.capability}`);
+        if (r.match.toolId) matchParts.push(`toolId=${r.match.toolId}`);
+        if (r.match.riskLevel) matchParts.push(`riskLevel=${r.match.riskLevel}`);
+        if (r.match.executionProfile) matchParts.push(`profile=${r.match.executionProfile}`);
+        if (r.match.pathPattern) matchParts.push(`path=${r.match.pathPattern}`);
+        console.log(`${r.id.padEnd(22)} ${r.decision.padEnd(10)} ${(r.enabled ? "✓" : "✗").padEnd(8)} ${matchParts.join(", ")}`);
+      }
+      console.log(`\n${rules.filter(r => r.enabled).length}/${rules.length} rules enabled`);
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "doctor") {
+    const policiesDir = join(cwd, ".alix", "policies");
+    console.log("Policy Doctor — rule health check\n");
+    console.log(`Policy dir: ${policiesDir}`);
+    const hasDir = existsSync(policiesDir);
+    console.log(`  policies/ ${hasDir ? "✓ exists" : "— not found (using defaults)"}`);
+
+    let validCount = 0;
+    let invalidFiles = 0;
+    let duplicateIds: string[] = [];
+    const seenIds = new Set<string>();
+    const { validatePolicyRule } = await import("./policy/policy-rule.js");
+
+    if (hasDir) {
+      const files = readdirSync(policiesDir).filter(f => f.endsWith(".json"));
+      console.log(`\nPolicy files: ${files.length} found`);
+
+      for (const f of files) {
+        try {
+          const raw = readFileSync(join(policiesDir, f), "utf-8");
+          const parsed = JSON.parse(raw);
+          const items: unknown[] = Array.isArray(parsed) ? parsed : [parsed];
+          for (const item of items) {
+            const result = validatePolicyRule(item as any);
+            if (result.valid) {
+              const ruleId = (item as any).id;
+              if (seenIds.has(ruleId)) {
+                duplicateIds.push(ruleId);
+              } else {
+                seenIds.add(ruleId);
+                validCount++;
+              }
+            } else {
+              console.log(`  ⚠ ${f} — invalid rule: ${result.errors.join("; ")}`);
+            }
+          }
+        } catch {
+          console.log(`  ⚠ ${f} — failed to parse JSON`);
+          invalidFiles++;
+        }
+      }
+    }
+
+    const evaluator = await loadRuleEvaluator(cwd);
+    const totalLoaded = evaluator.getAllRules().length;
+    console.log(`\nValid rules: ${validCount}`);
+    if (invalidFiles > 0) console.log(`Invalid files: ${invalidFiles}`);
+    if (duplicateIds.length > 0) console.log(`Duplicate IDs: ${duplicateIds.join(", ")}`);
+    console.log(`Loaded: ${totalLoaded} rules ${hasDir ? "(from disk)" : "(defaults)"}`);
+
+    if (invalidFiles > 0 || duplicateIds.length > 0) {
+      console.log("\n⚠️  Recommendation: fix or remove invalid policy files.");
+    } else if (totalLoaded > 0) {
+      console.log("\n✓ Policy rules are healthy.");
+    }
+    process.exit(0);
+  }
+
+  if (args[0] === "eval") {
+    const capIdx = args.indexOf("--capability");
+    const riskIdx = args.indexOf("--risk");
+    const profileIdx = args.indexOf("--profile");
+    const capability = capIdx >= 0 ? args[capIdx + 1] : undefined;
+    const riskLevel = riskIdx >= 0 ? args[riskIdx + 1] : undefined;
+    const executionProfile = profileIdx >= 0 ? args[profileIdx + 1] : undefined;
+
+    if (!capability && !riskLevel && !executionProfile) {
+      console.error("Usage: alix policy eval --capability <cap> [--risk <low|medium|high|critical>] [--profile <profile>]");
+      process.exit(1);
+    }
+
+    const evaluator = await loadRuleEvaluator(cwd);
+    const result = evaluator.evaluate({
+      capability,
+      riskLevel: riskLevel as any,
+      executionProfile,
+    });
+
+    console.log(`Decision: ${result.decision}`);
+    if (result.matchedRuleId) console.log(`Rule:     ${result.matchedRuleId}`);
+    if (result.reason) console.log(`Reason:   ${result.reason}`);
+    process.exit(0);
+  }
+
+  console.log("Usage: alix policy [list|doctor|eval]");
+  console.log("  list                List loaded policy rules");
+  console.log("  doctor              Check policy file health and loading status");
+  console.log("  eval                Evaluate a capability/risk against policy");
+  console.log('    --capability <c>    Capability to evaluate (e.g. shell.exec)');
+  console.log('    --risk <l|m|h|c>    Risk level');
+  console.log('    --profile <p>       Execution profile');
+  process.exit(0);
+}
 
 if (command === "registry") {
   const { loadCardRegistry } = await import("./registry/card-loader.js");
