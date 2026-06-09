@@ -607,3 +607,7 @@ function formatTime(timestamp) {
 function escapeHtml(value) {
   return String(value).replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 }
+
+// Load registry and graph list on page load so the tabs work without connecting
+loadRegistry();
+loadGraphList();
