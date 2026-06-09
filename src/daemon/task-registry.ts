@@ -117,7 +117,7 @@ export class TaskRegistry {
 
   private pruneCompleted(): void {
     const completed = this.tasks.filter(t =>
-      t.status === "completed" || t.status === "failed" || t.status === "cancelled"
+      t.status === "completed" || t.status === "failed" || t.status === "cancelled" || t.status === "failed_orphaned"
     );
     if (completed.length <= this.maxCompleted) return;
     const toRemove = completed.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
