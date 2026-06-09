@@ -17,6 +17,7 @@ import { StateTheaterWidget } from "./widgets/state-theater.js";
 import { BudgetBarWidget } from "./widgets/budget-bar.js";
 import { SpinnerWidget } from "./widgets/spinner.js";
 import { clearToEndOfLine, getTerminalHeight } from "./ansi.js";
+import { renderDashboardCards, snapshotFromStore } from "./dashboard-renderer.js";
 
 const STATUS = 4;
 const LINE = (n: number) => `\x1b[${n + 1};1H`;
@@ -128,7 +129,14 @@ export class TuiRenderer {
     this.budgetBar.setFiles(s.tokenBudget.files);
 
     const w = process.stdout.columns || 80;
+    const h = getTerminalHeight();
+    const showCards = h >= 30 && w >= 120 && s.activePanel === "chat";
     const l: string[] = [];
+    if (showCards) {
+      const snap = snapshotFromStore(s);
+      const cards = renderDashboardCards(snap, w);
+      for (const line of cards) l.push(clearToEndOfLine() + line);
+    }
     l.push(clearToEndOfLine() + "─".repeat(w));
     const daemonIcon = s.daemonRunning === undefined ? "" : s.daemonRunning ? "●" : "○";
     const daemonStr = s.daemonRunning !== undefined ? ` ${daemonIcon}${s.daemonRunning ? " daemon" : " stopped"}` : "";

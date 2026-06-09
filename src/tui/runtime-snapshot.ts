@@ -4,13 +4,23 @@
 
 import type { DaemonTaskSummary, TuiStore, PanelApprovalRecord, PanelRuntimeEvent } from "./store.js";
 
+export interface SopItem {
+  id: string;
+  name: string;
+  version?: string;
+  nodeCount?: number;
+  tags?: string[];
+}
+
 export interface TuiRuntimeSnapshot {
   daemonRunning: boolean;
+  daemonPid?: number;
   daemonTasks: DaemonTaskSummary;
   daemonTaskRecords: { id: string; task: string; status: string; sessionId?: string }[];
   pendingApprovalsCount: number;
   pendingApprovalRecords: PanelApprovalRecord[];
   sopsCount: number;
+  sopItems: SopItem[];
   policyRulesCount: number;
   runtimeEventCount: number;
   recentRuntimeEvents: PanelRuntimeEvent[];
@@ -27,6 +37,7 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
       pendingApprovalsCount: 0,
       pendingApprovalRecords: [],
       sopsCount: 0,
+      sopItems: [],
       policyRulesCount: 0,
       runtimeEventCount: 0,
       recentRuntimeEvents: [],
@@ -39,8 +50,11 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
     snapshot.daemonRunning = await mgr.isRunning();
     if (snapshot.daemonRunning) {
       const status = await mgr.status();
-      if (status?.lastHeartbeat) {
-        snapshot.daemonHeartbeatAge = Math.round((Date.now() - new Date(status.lastHeartbeat).getTime()) / 1000);
+      if (status) {
+        snapshot.daemonPid = status.pid;
+        if (status.lastHeartbeat) {
+          snapshot.daemonHeartbeatAge = Math.round((Date.now() - new Date(status.lastHeartbeat).getTime()) / 1000);
+        }
       }
     }
 
@@ -78,7 +92,14 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
 
     // SOPs
     const { listSops } = await import("../sop/sop-registry.js");
-    snapshot.sopsCount = listSops().length;
+    const allSops = listSops();
+    snapshot.sopsCount = allSops.length;
+    for (const s of allSops) {
+      snapshot.sopItems.push({
+        id: s.id, name: s.name, version: s.manifest?.version,
+        nodeCount: s.manifest?.nodeCount, tags: s.manifest?.tags,
+      });
+    }
 
     // Policy rules
     const { loadRuleEvaluator } = await import("../policy/policy-loader.js");
