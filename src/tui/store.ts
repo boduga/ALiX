@@ -31,6 +31,21 @@ export interface ApprovalRequest {
   reason: string;
 }
 
+export interface DaemonTaskSummary {
+  queued: number;
+  running: number;
+  completed: number;
+  failed: number;
+  cancelled: number;
+  failedOrphaned: number;
+}
+
+export interface RuntimeEventCount {
+  source: string;
+  count: number;
+  latestAction: string;
+}
+
 export interface TuiState {
   sessionId: string;
   agentState: AgentState;
@@ -40,6 +55,12 @@ export interface TuiState {
   diffs: Diff[];
   pendingApproval: ApprovalRequest | null;
   inputMode: "command" | "multi-line" | "confirm";
+  daemonTasks?: DaemonTaskSummary;
+  daemonRunning?: boolean;
+  runtimeEventCount?: number;
+  pendingApprovalsCount?: number;
+  sopsCount?: number;
+  policyRulesCount?: number;
 }
 
 const VALID_STATES: AgentState[] = ["idle", "understanding", "planning", "executing", "verifying", "repairing", "summarizing", "done", "error"];
@@ -125,6 +146,36 @@ export class TuiStore {
 
   setInputMode(mode: TuiState["inputMode"]): void {
     this.state.inputMode = mode;
+    this.notify();
+  }
+
+  setDaemonRunning(running: boolean): void {
+    this.state.daemonRunning = running;
+    this.notify();
+  }
+
+  setDaemonTaskSummary(summary: DaemonTaskSummary): void {
+    this.state.daemonTasks = summary;
+    this.notify();
+  }
+
+  setRuntimeEventCount(count: number): void {
+    this.state.runtimeEventCount = count;
+    this.notify();
+  }
+
+  setPendingApprovalsCount(count: number): void {
+    this.state.pendingApprovalsCount = count;
+    this.notify();
+  }
+
+  setSopsCount(count: number): void {
+    this.state.sopsCount = count;
+    this.notify();
+  }
+
+  setPolicyRulesCount(count: number): void {
+    this.state.policyRulesCount = count;
     this.notify();
   }
 

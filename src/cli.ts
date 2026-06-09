@@ -1025,7 +1025,9 @@ if (command === "run") {
 
 if (command === "tui") {
   const { runTui } = await import("./cli/commands/tui.js");
-  await runTui({});
+  const modeIdx = args.indexOf("--mode");
+  const sessionMode = modeIdx >= 0 ? args[modeIdx + 1] as "auto" | "ask" | "bypass" : undefined;
+  await runTui({ sessionMode });
   process.exit(0);
 }
 

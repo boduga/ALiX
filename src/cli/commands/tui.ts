@@ -9,6 +9,7 @@ import { runTask } from "../../run.js";
 
 export interface TuiOptions {
   sessionName?: string;
+  sessionMode?: "auto" | "ask" | "bypass";
 }
 
 function readLine(): Promise<string | null> {
@@ -54,10 +55,70 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const tui = new Tui({ sessionId, eventLog: tuiLog, maxTokens: contextInfo.maxTokens });
   await tui.init();
 
+  const mode = opts.sessionMode || "bypass";
+
+  // Load daemon status if available
+  let daemonInfo = "";
+  try {
+    const { DaemonManager } = await import("../../daemon/daemon-manager.js");
+    const mgr = new DaemonManager(cwd);
+    const tuiStore = tui.getStore();
+    const running = await mgr.isRunning();
+    tuiStore.setDaemonRunning(running);
+    if (running) {
+      const status = await mgr.status();
+      if (status?.lastHeartbeat) {
+        const age = Math.round((Date.now() - new Date(status.lastHeartbeat).getTime()) / 1000);
+        daemonInfo = `, daemon ${age}s heartbeat`;
+      } else {
+        daemonInfo = ", daemon running";
+      }
+    }
+    // Load task summary
+    const tasksPath = join(cwd, ".alix", "daemon-tasks.json");
+    if (await import("node:fs").then(fs => fs.existsSync(tasksPath))) {
+      const raw = await import("node:fs/promises").then(f => f.readFile(tasksPath, "utf-8"));
+      const tasks = JSON.parse(raw);
+      const summary = { queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0, failedOrphaned: 0 };
+      for (const t of tasks) {
+        if (t.status === "queued") summary.queued++;
+        else if (t.status === "running") summary.running++;
+        else if (t.status === "completed") summary.completed++;
+        else if (t.status === "failed" || t.status === "failed_orphaned") summary.failed++;
+        else if (t.status === "cancelled") summary.cancelled++;
+      }
+      tuiStore.setDaemonTaskSummary(summary);
+    }
+    // Load pending approvals count
+    try {
+      const { ApprovalStore } = await import("../../approvals/approval-store.js");
+      const store = new ApprovalStore(cwd);
+      await store.load();
+      tuiStore.setPendingApprovalsCount(store.listPending().length);
+    } catch {}
+    // Load SOP count
+    try {
+      const { listSops } = await import("../../sop/sop-registry.js");
+      tuiStore.setSopsCount(listSops().length);
+    } catch {}
+    // Load policy rules count
+    try {
+      const { loadRuleEvaluator } = await import("../../policy/policy-loader.js");
+      const eval1 = await loadRuleEvaluator(cwd);
+      tuiStore.setPolicyRulesCount(eval1.getAllRules().length);
+    } catch {}
+    // Load runtime event count
+    try {
+      const { buildRuntimeIndex } = await import("../../runtime/runtime-index.js");
+      const idx = await buildRuntimeIndex(cwd);
+      tuiStore.setRuntimeEventCount(idx.events.length);
+    } catch {}
+  } catch {}
+
   // Welcome text prints in the output area (above the pinned status bar)
   tui.appendOutput("ALiX TUI - Interactive Session", false);
-  tui.appendOutput("Session mode: bypass — tool approvals auto-approved in TUI.", false);
-  tui.appendOutput("Type 'exit' to quit.", false);
+  tui.appendOutput(`Session mode: ${mode}${daemonInfo}`, false);
+  tui.appendOutput("Type 'exit' to quit. Type '?' for commands.", false);
   tui.appendOutput("", false);
 
   process.on("SIGINT", () => {
@@ -93,7 +154,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       const result = await runTask(cwd, task, {
         messages: isShell ? undefined : allMessages,
         streaming: true,
-        sessionMode: "bypass",
+        sessionMode: mode,
         skipContext: hasPriorMessages,
         sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
       }, (chunk) => {

@@ -130,9 +130,26 @@ export class TuiRenderer {
     const w = process.stdout.columns || 80;
     const l: string[] = [];
     l.push(clearToEndOfLine() + "─".repeat(w));
-    l.push(clearToEndOfLine() + this.stateTheater.render() + " | " + this.budgetBar.render());
+    const daemonIcon = s.daemonRunning === undefined ? "" : s.daemonRunning ? "●" : "○";
+    const daemonStr = s.daemonRunning !== undefined ? ` ${daemonIcon}${s.daemonRunning ? " daemon" : " stopped"}` : "";
+    const pendingStr = s.pendingApprovalsCount ? ` ⚠ ${s.pendingApprovalsCount} pending` : "";
+    const sopsStr = s.sopsCount ? ` SOPs:${s.sopsCount}` : "";
+    const policyStr = s.policyRulesCount ? ` rules:${s.policyRulesCount}` : "";
+    l.push(clearToEndOfLine() + this.stateTheater.render() + " | " + this.budgetBar.render()
+      + daemonStr + pendingStr + sopsStr + policyStr);
+    let extra = "";
+    if (s.daemonTasks) {
+      const t = s.daemonTasks;
+      const parts: string[] = [];
+      if (t.running) parts.push(`run:${t.running}`);
+      if (t.queued) parts.push(`queued:${t.queued}`);
+      if (t.completed) parts.push(`done:${t.completed}`);
+      if (t.failed) parts.push(`fail:${t.failed}`);
+      if (parts.length) extra = " tasks: " + parts.join(" ");
+    }
+    if (s.runtimeEventCount) extra += ` events:${s.runtimeEventCount}`;
     const isActive = s.agentState !== "idle";
-    l.push(clearToEndOfLine() + (isActive ? this.spinner.render() : ""));
+    l.push(clearToEndOfLine() + (isActive ? this.spinner.render() : "") + extra);
     return l.join("\n");
   }
 }
