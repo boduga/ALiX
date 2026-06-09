@@ -10,6 +10,7 @@ import { runTask } from "../../run.js";
 export interface TuiOptions {
   sessionName?: string;
   sessionMode?: "auto" | "ask" | "bypass";
+  daemonMode?: boolean;
 }
 
 function readLine(): Promise<string | null> {
@@ -56,6 +57,16 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   await tui.init();
 
   const mode = opts.sessionMode || "bypass";
+  const daemonMode = opts.daemonMode ?? false;
+
+  if (daemonMode) {
+    const { DaemonManager } = await import("../../daemon/daemon-manager.js");
+    const dm = new DaemonManager(cwd);
+    if (!(await dm.isRunning())) {
+      tui.appendOutput("ERROR: Daemon is not running. Start it with: alix daemon start\n", false);
+      setTimeout(() => { tui.destroy(); process.exit(1); }, 2000);
+    }
+  }
 
   // Load runtime snapshot
   const { buildRuntimeSnapshot, applySnapshotToStore } = await import("../../tui/runtime-snapshot.js");
@@ -69,11 +80,15 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     }
   }
 
-  // Welcome text prints in the output area (above the pinned status bar)
+  // Welcome text
   tui.appendOutput("ALiX TUI - Interactive Session", false);
-  tui.appendOutput(`Session mode: ${mode}${daemonInfo}`, false);
+  const execMode = daemonMode ? "daemon" : "direct";
+  tui.appendOutput(`Execution mode: ${execMode} | Session: ${mode}${daemonInfo}`, false);
+  if (daemonMode) tui.appendOutput("Daemon mode: policy handled by daemon runtime gate.", false);
   tui.appendOutput("Type 'exit' to quit. 'r' to refresh snapshot, '?' for help.", false);
   tui.appendOutput("", false);
+
+  const { submitTaskViaDaemon, formatDaemonEvent } = await import("../../tui/daemon-client.js");
 
   process.on("SIGINT", () => {
     tui.destroy();
@@ -157,41 +172,46 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       tui.resetOutput();
       echoTask(task);
 
-      // Load prior conversation for continuous context (non-shell tasks only)
-      const msgsPath = join(sessionDir, "messages.jsonl");
-      const { isShellTask } = await import("../../task-classifier.js");
-      const isShell = isShellTask(task);
-      let allMessages: any[] = [{ role: "user" as const, content: task }];
-      if (!isShell && existsSync(msgsPath)) {
-        const raw = await readFile(msgsPath, "utf-8");
-        const prevMessages = raw.trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
-        allMessages = [...prevMessages, ...allMessages];
-      }
-
-      const hasPriorMessages = allMessages.length > 1;
-      const result = await runTask(cwd, task, {
-        messages: isShell ? undefined : allMessages,
-        streaming: true,
-        sessionMode: mode,
-        skipContext: hasPriorMessages,
-        sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
-      }, (chunk) => {
-        if (chunk.type === "text" && typeof chunk.text === "string") {
-          tui.appendOutput(chunk.text, true);
+      if (daemonMode) {
+        await submitTaskViaDaemon({
+          cwd, task,
+          onEvent: (event) => { const line = formatDaemonEvent(event); if (line) tui.appendOutput(line, false); },
+          onError: (err) => tui.appendOutput(`Error: ${err}`, false),
+          onDone: async () => { const fresh = await buildRuntimeSnapshot(cwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
+        });
+      } else {
+        const msgsPath = join(sessionDir, "messages.jsonl");
+        const { isShellTask } = await import("../../task-classifier.js");
+        const isShell = isShellTask(task);
+        let allMessages: any[] = [{ role: "user" as const, content: task }];
+        if (!isShell && existsSync(msgsPath)) {
+          const raw = await readFile(msgsPath, "utf-8");
+          const prevMessages = raw.trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
+          allMessages = [...prevMessages, ...allMessages];
         }
-      });
 
-      if (result.summary) tui.appendOutput(result.summary, false);
+        const hasPriorMessages = allMessages.length > 1;
+        const result = await runTask(cwd, task, {
+          messages: isShell ? undefined : allMessages,
+          streaming: true,
+          sessionMode: mode,
+          skipContext: hasPriorMessages,
+          sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
+        }, (chunk) => {
+          if (chunk.type === "text" && typeof chunk.text === "string") {
+            tui.appendOutput(chunk.text, true);
+          }
+        });
 
-      // Save full conversation history for continuous context
-      if (!isShell) {
-        const savedMessages = [...allMessages];
-        if (result.summary) {
-          savedMessages.push({ role: "assistant" as const, content: result.summary });
+        if (result.summary) tui.appendOutput(result.summary, false);
+
+        if (!isShell) {
+          const savedMessages = [...allMessages];
+          if (result.summary) savedMessages.push({ role: "assistant" as const, content: result.summary });
+          const capped = savedMessages.length > 20 ? savedMessages.slice(-20) : savedMessages;
+          const jsonLines = capped.map((m: any) => JSON.stringify(m) + "\n").join("");
+          await writeFile(msgsPath, jsonLines, "utf-8").catch(() => {});
         }
-        const capped = savedMessages.length > 20 ? savedMessages.slice(-20) : savedMessages;
-        const jsonLines = capped.map((m: any) => JSON.stringify(m) + "\n").join("");
-        await writeFile(msgsPath, jsonLines, "utf-8").catch(() => {});
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
