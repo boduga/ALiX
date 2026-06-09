@@ -32,6 +32,12 @@ function writeRuns(dir: string, graphId: string, runs: any[]) {
   writeFileSync(join(dir, ".alix", "graphs", `${graphId}.runs.json`), JSON.stringify(runs));
 }
 
+function writeSessionEvent(dir: string, sessionId: string, event: any) {
+  const sessionDir = join(dir, ".alix", "sessions", sessionId);
+  mkdirSync(sessionDir, { recursive: true });
+  writeFileSync(join(sessionDir, "events.jsonl"), JSON.stringify(event) + "\n", { flag: "a" });
+}
+
 describe("RuntimeIndex", () => {
   it("returns empty index when no data dirs exist", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "runtime-empty-"));
@@ -125,6 +131,37 @@ describe("RuntimeIndex", () => {
       const idx = await buildRuntimeIndex(dir);
       assert.equal(idx.events[0].id, "audit_2");
       assert.equal(idx.events[1].id, "audit_1");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("includes allowlisted session events", async () => {
+    const dir = seedDir();
+    try {
+      writeSessionEvent(dir, "sess_1", { type: "session.started", timestamp: "2026-06-09T12:00:00Z", seq: 1, sessionId: "sess_1", payload: {} });
+      writeSessionEvent(dir, "sess_1", { type: "graph.created", timestamp: "2026-06-09T12:01:00Z", seq: 2, sessionId: "sess_1", meta: { graphId: "g1" }, payload: {} });
+      writeSessionEvent(dir, "sess_1", { type: "user.message", timestamp: "2026-06-09T12:02:00Z", seq: 3, sessionId: "sess_1", payload: { text: "hi" } }); // should be filtered out
+      writeSessionEvent(dir, "sess_1", { type: "tool.completed", timestamp: "2026-06-09T12:03:00Z", seq: 4, sessionId: "sess_1", payload: { toolName: "file.create", status: "success" } });
+      const idx = await buildRuntimeIndex(dir);
+      // Only 3 of 4 events should appear (user.message filtered)
+      assert.equal(idx.events.length, 3);
+      assert.equal(idx.bySession("sess_1").length, 3);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("merges session events with other sources", async () => {
+    const dir = seedDir();
+    try {
+      writeAudit(dir, [
+        `{"id":"audit_1","action":"policy.allowed","timestamp":"2026-06-09T12:00:00Z","details":{"graphId":"g1"}}`,
+      ]);
+      writeSessionEvent(dir, "sess_1", { type: "task.done", timestamp: "2026-06-09T12:01:00Z", seq: 1, sessionId: "sess_1", meta: { graphId: "g1" }, payload: { summary: "ok" } });
+      const idx = await buildRuntimeIndex(dir);
+      assert.equal(idx.events.length, 2);
+      assert.equal(idx.byGraph("g1").length, 2);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

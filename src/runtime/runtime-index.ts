@@ -6,6 +6,7 @@
  *   - .alix/approvals/approvals.json
  *   - .alix/graphs/*.json
  *   - .alix/graphs/*.runs.json
+ *   - .alix/sessions/&lt;id&gt;/events.jsonl (allowlisted event types)
  */
 
 import { readFile, readdir } from "node:fs/promises";
@@ -167,6 +168,49 @@ export async function buildRuntimeIndex(cwd: string): Promise<RuntimeIndex> {
         } catch { /* skip invalid runs JSON */ }
       }
     } catch { /* skip unreadable graphs dir */ }
+  }
+
+  // Source 5: sessions/*/events.jsonl (allowlisted)
+  const SESSION_EVENT_ALLOWLIST = new Set([
+    "session.started", "session.ended",
+    "graph.created", "graph.completed", "graph.status_changed",
+    "task.ready", "task.started", "task.done", "task.failed",
+    "policy.decision",
+    "approval.requested", "approval.resolved",
+    "tool.started", "tool.completed", "tool.failed",
+    "file.created",
+  ]);
+  const sessionsDir = join(cwd, ".alix", "sessions");
+  if (existsSync(sessionsDir)) {
+    try {
+      const sessionDirs = await readdir(sessionsDir);
+      for (const sd of sessionDirs) {
+        const eventsPath = join(sessionsDir, sd, "events.jsonl");
+        if (!existsSync(eventsPath)) continue;
+        try {
+          const raw = await readFile(eventsPath, "utf-8");
+          for (const line of raw.trim().split("\n").filter(Boolean)) {
+            try {
+              const ev = JSON.parse(line);
+              if (!SESSION_EVENT_ALLOWLIST.has(ev.type)) continue;
+              events.push({
+                id: `sess_${sd}_${ev.seq ?? ev.id ?? Math.random().toString(36).slice(2)}`,
+                timestamp: ev.timestamp,
+                source: "session",
+                action: ev.type,
+                sessionId: ev.sessionId || sd,
+                graphId: ev.meta?.graphId || ev.payload?.graphId,
+                nodeId: ev.meta?.nodeId || ev.payload?.nodeId,
+                status: ev.payload?.status || ev.payload?.decision,
+                summary: ev.payload?.reason || ev.payload?.summary,
+                capability: ev.payload?.canonicalCapability || ev.payload?.capability,
+                payload: ev,
+              });
+            } catch { /* skip malformed line */ }
+          }
+        } catch { /* skip unreadable session */ }
+      }
+    } catch { /* skip unreadable sessions dir */ }
   }
 
   // Sort by timestamp descending (newest first), fallback to id
