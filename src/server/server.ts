@@ -27,6 +27,8 @@ const VISIBLE_EVENTS = [
   "file.created",
   // Patches
   "patch.applied", "patch.rolled_back",
+  // Usage
+  "model.usage",
 ];
 
 function decodePathSegment(segment: string | undefined): string {
