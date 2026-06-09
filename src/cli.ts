@@ -243,9 +243,15 @@ if (command === "graph" && args[0] === "run") {
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const { RuleEvaluator } = await import("./policy/rule-evaluator.js");
+  const { defaultPolicyRules } = await import("./policy/default-policies.js");
+  const { ApprovalStore } = await import("./approvals/approval-store.js");
   const registry = await loadCardRegistry(cwd);
+  const policyEvaluator = new RuleEvaluator(defaultPolicyRules());
+  const approvalStore = new ApprovalStore(cwd);
+  await approvalStore.load();
   const enforce = args.includes("--enforce-capabilities");
-  const executor = new GraphExecutor(cwd, { registry, enforceCapabilities: enforce });
+  const executor = new GraphExecutor(cwd, { registry, enforceCapabilities: enforce, policyEvaluator, approvalStore });
   console.log(`Executing graph: ${graphId}`);
   if (enforce) console.log("  (capability enforcement enabled)");
   console.log();
@@ -275,8 +281,14 @@ if (command === "graph" && args[0] === "rerun") {
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const { RuleEvaluator } = await import("./policy/rule-evaluator.js");
+  const { defaultPolicyRules } = await import("./policy/default-policies.js");
+  const { ApprovalStore } = await import("./approvals/approval-store.js");
   const registry = await loadCardRegistry(cwd);
-  const executor = new GraphExecutor(cwd, { registry });
+  const policyEvaluator = new RuleEvaluator(defaultPolicyRules());
+  const approvalStore = new ApprovalStore(cwd);
+  await approvalStore.load();
+  const executor = new GraphExecutor(cwd, { registry, policyEvaluator, approvalStore });
 
   try {
     const result = await executor.rerunNode(graphId, nodeId, { force });
@@ -583,9 +595,15 @@ if (command === "sop" && args[0] === "run") {
   // Execute graph
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
+  const { RuleEvaluator } = await import("./policy/rule-evaluator.js");
+  const { defaultPolicyRules } = await import("./policy/default-policies.js");
+  const { ApprovalStore } = await import("./approvals/approval-store.js");
   const enforce = args.includes("--enforce-capabilities");
   const registry = await loadCardRegistry(process.cwd());
-  const executor = new GraphExecutor(process.cwd(), { registry, enforceCapabilities: enforce });
+  const policyEvaluator = new RuleEvaluator(defaultPolicyRules());
+  const approvalStore = new ApprovalStore(process.cwd());
+  await approvalStore.load();
+  const executor = new GraphExecutor(process.cwd(), { registry, enforceCapabilities: enforce, policyEvaluator, approvalStore });
   console.log("Executing...");
   if (enforce) console.log("  (capability enforcement enabled)");
   const execResult = await executor.execute(graph.id);
