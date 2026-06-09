@@ -81,6 +81,59 @@ export function startServer(root: string, host: string, port: number): Promise<{
         res.end(await readFile(file, "utf8"));
         return;
       }
+      if (url.pathname === "/api/graphs") {
+        try {
+          const graphsDir = join(root, ".alix", "graphs");
+          if (!existsSync(graphsDir)) {
+            res.setHeader("content-type", "application/json");
+            res.end("[]");
+            return;
+          }
+          const { readdirSync, readFileSync } = await import("node:fs");
+          const files = readdirSync(graphsDir);
+          const items: Array<{
+            graphId: string; rootGoal?: string; status?: string; strategy?: string;
+            nodeCount: number; completedNodes?: number; failedNodes?: number; blockedNodes?: number;
+            updatedAt?: string; createdAt?: string; hasRuns: boolean; reportIds?: string[];
+          }> = [];
+
+          for (const f of files) {
+            if (!f.endsWith(".json") || f.endsWith(".runs.json")) continue;
+            try {
+              const raw = readFileSync(join(graphsDir, f), "utf-8");
+              const graph = JSON.parse(raw);
+              const graphId = f.replace(/\.json$/, "");
+              const nodes: any[] = graph.nodes ?? [];
+              items.push({
+                graphId,
+                rootGoal: graph.rootGoal,
+                status: graph.status,
+                strategy: graph.strategy,
+                nodeCount: nodes.length,
+                completedNodes: nodes.filter((n: any) => n.status === "done").length,
+                failedNodes: nodes.filter((n: any) => n.status === "failed").length,
+                blockedNodes: nodes.filter((n: any) => n.status === "blocked").length,
+                updatedAt: graph.updatedAt,
+                createdAt: graph.createdAt,
+                hasRuns: existsSync(join(graphsDir, `${graphId}.runs.json`)),
+                reportIds: [],
+              });
+            } catch { /* skip invalid JSON */ }
+          }
+
+          items.sort((a, b) => {
+            const byUpdated = (b.updatedAt || "").localeCompare(a.updatedAt || "");
+            if (byUpdated !== 0) return byUpdated;
+            return (b.createdAt || "").localeCompare(a.createdAt || "");
+          });
+          res.setHeader("content-type", "application/json");
+          res.end(JSON.stringify(items));
+        } catch (err) {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+        }
+        return;
+      }
       if (url.pathname.startsWith("/api/graphs/") && url.pathname.endsWith("/projection")) {
         const graphId = url.pathname.split("/")[3];
         if (!graphId || graphId.length < 5) {
