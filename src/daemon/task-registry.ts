@@ -11,7 +11,7 @@ import { existsSync } from "node:fs";
 
 export type DaemonTaskStatus =
   | "queued" | "running" | "completed" | "failed"
-  | "cancel_requested" | "cancelled";
+  | "cancel_requested" | "cancelled" | "failed_orphaned";
 
 export type DaemonTaskRecord = {
   id: string;
@@ -82,6 +82,37 @@ export class TaskRegistry {
 
   findQueued(id: string): DaemonTaskRecord | undefined {
     return this.tasks.find(t => t.id === id && t.status === "queued");
+  }
+
+  /**
+   * Reconcile tasks after daemon startup.
+   *   running           → failed_orphaned (daemon crashed)
+   *   cancel_requested  → cancelled (daemon restarted while pending)
+   *   queued            → unchanged (safe to retry)
+   *   terminal states   → unchanged
+   */
+  reconcileOnStartup(): { reconciled: number; totalBefore: number } {
+    const totalBefore = this.tasks.length;
+    let reconciled = 0;
+    const now = new Date().toISOString();
+
+    for (const t of this.tasks) {
+      if (t.status === "running") {
+        t.status = "failed_orphaned";
+        t.error = "Daemon restarted while task was running";
+        t.updatedAt = now;
+        reconciled++;
+      } else if (t.status === "cancel_requested") {
+        t.status = "cancelled";
+        t.cancelledAt = now;
+        t.error = "Daemon restarted while cancellation was pending";
+        t.updatedAt = now;
+        reconciled++;
+      }
+    }
+
+    if (reconciled > 0) this.save().catch(() => {});
+    return { reconciled, totalBefore };
   }
 
   private pruneCompleted(): void {

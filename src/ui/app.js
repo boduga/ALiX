@@ -778,7 +778,15 @@ async function loadDaemonStatus() {
     if (data.running) {
       indicator.textContent = "●";
       indicator.className = "daemon-indicator running";
-      text.textContent = `Daemon: running (pid ${data.status?.pid})`;
+      // Check heartbeat staleness
+      const heartbeat = data.status?.lastHeartbeat;
+      let stale = false;
+      if (heartbeat) {
+        const ageMs = Date.now() - new Date(heartbeat).getTime();
+        if (ageMs > 60000) stale = true;
+      }
+      text.textContent = `Daemon: ${stale ? "STALE (no heartbeat)" : "running"} (pid ${data.status?.pid})`;
+      if (stale) indicator.className = "daemon-indicator stale";
     } else {
       indicator.textContent = "○";
       indicator.className = "daemon-indicator";

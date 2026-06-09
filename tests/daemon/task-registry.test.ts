@@ -68,6 +68,72 @@ describe("TaskRegistry", () => {
     } finally { rmSync(tmpDir, { recursive: true, force: true }); }
   });
 
+  it("reconcileOnStartup marks running as failed_orphaned", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "task-recon-running-"));
+    try {
+      const reg = new TaskRegistry(tmpDir);
+      await reg.load();
+      const r = reg.create("lost task");
+      reg.update(r.id, { status: "running", startedAt: new Date().toISOString() });
+      const result = reg.reconcileOnStartup();
+      assert.equal(result.reconciled, 1);
+      const updated = reg.get(r.id);
+      assert.equal(updated!.status, "failed_orphaned");
+      assert.ok(updated!.error!.includes("Daemon restarted"));
+    } finally { rmSync(tmpDir, { recursive: true, force: true }); }
+  });
+
+  it("reconcileOnStartup marks cancel_requested as cancelled", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "task-recon-cancel-"));
+    try {
+      const reg = new TaskRegistry(tmpDir);
+      await reg.load();
+      const r = reg.create("cancel task");
+      reg.update(r.id, { status: "cancel_requested" });
+      reg.reconcileOnStartup();
+      const updated = reg.get(r.id);
+      assert.equal(updated!.status, "cancelled");
+    } finally { rmSync(tmpDir, { recursive: true, force: true }); }
+  });
+
+  it("reconcileOnStartup leaves queued unchanged", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "task-recon-queued-"));
+    try {
+      const reg = new TaskRegistry(tmpDir);
+      await reg.load();
+      reg.create("queued task");
+      reg.reconcileOnStartup();
+      assert.equal(reg.list()[0].status, "queued");
+    } finally { rmSync(tmpDir, { recursive: true, force: true }); }
+  });
+
+  it("reconcileOnStartup leaves terminal states unchanged", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "task-recon-terminal-"));
+    try {
+      const reg = new TaskRegistry(tmpDir);
+      await reg.load();
+      const c = reg.create("comp"); reg.update(c.id, { status: "completed" });
+      const f = reg.create("fail"); reg.update(f.id, { status: "failed" });
+      const x = reg.create("cancel"); reg.update(x.id, { status: "cancelled" });
+      reg.reconcileOnStartup();
+      assert.equal(reg.get(c.id)!.status, "completed");
+      assert.equal(reg.get(f.id)!.status, "failed");
+      assert.equal(reg.get(x.id)!.status, "cancelled");
+    } finally { rmSync(tmpDir, { recursive: true, force: true }); }
+  });
+
+  it("reconcileOnStartup is idempotent", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "task-recon-idem-"));
+    try {
+      const reg = new TaskRegistry(tmpDir);
+      await reg.load();
+      const r = reg.create("idem"); reg.update(r.id, { status: "running" });
+      reg.reconcileOnStartup();
+      const first = reg.reconcileOnStartup();
+      assert.equal(first.reconciled, 0); // already reconciled
+    } finally { rmSync(tmpDir, { recursive: true, force: true }); }
+  });
+
   it("persists to disk and reloads", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "task-persist-"));
     try {

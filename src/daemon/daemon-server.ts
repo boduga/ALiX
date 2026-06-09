@@ -8,7 +8,7 @@
  */
 
 import { createServer, type Socket } from "node:net";
-import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, appendFile, mkdir, rename } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DaemonResponse } from "./daemon-types.js";
@@ -45,6 +45,26 @@ async function processQueue(): Promise<void> {
 
 async function init(): Promise<void> {
   await registry.load();
+  const { reconciled } = registry.reconcileOnStartup();
+  if (reconciled > 0) {
+    console.error(`Reconciled ${reconciled} task(s) on startup`);
+  }
+}
+
+/** Write heartbeat timestamp to daemon.json every 30 seconds. */
+function startHeartbeat(): void {
+  const statusPath = join(cwd, ".alix", "daemon.json");
+  setInterval(async () => {
+    try {
+      const raw = await readFile(statusPath, "utf-8");
+      const status = JSON.parse(raw);
+      status.lastHeartbeat = new Date().toISOString();
+      status.currentSessionId = currentSessionId;
+      const tmp = statusPath + ".tmp";
+      await writeFile(tmp, JSON.stringify(status, null, 2), "utf-8");
+      await rename(tmp, statusPath);
+    } catch { /* skip if status file not available */ }
+  }, 30000);
 }
 
 /** Create a pass-through EventLog that writes to session file AND socket client. */
@@ -204,6 +224,7 @@ const server = createServer((client: Socket) => {
 
 server.listen(socketPath, () => {
   init().catch(() => {});
+  startHeartbeat();
   const statusPath = join(cwd, ".alix", "daemon.json");
   if (existsSync(statusPath)) {
     readFile(statusPath, "utf-8").then((raw) => {

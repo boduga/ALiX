@@ -1190,6 +1190,10 @@ h3 {
   color: #3fb950;
 }
 
+.daemon-indicator.stale {
+  color: #d29922;
+}
+
 /* Daemon tasks */
 .daemon-tasks-bar {
   margin-bottom: 0.5rem;
