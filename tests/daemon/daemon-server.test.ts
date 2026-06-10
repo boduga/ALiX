@@ -53,7 +53,7 @@ describe("Daemon server route execution", { timeout: 30000 }, () => {
     return new Promise((resolve, reject) => {
       const messages: string[] = [];
       const client = connect(socketPath, () => {
-        client.write(JSON.stringify({ command: "run", task, route }) + "\n");
+        client.write(JSON.stringify({ command: "run", task, cwd: tmpDir, route }) + "\n");
       });
       client.on("data", (data: Buffer) => {
         const chunk = data.toString("utf8");
@@ -111,7 +111,7 @@ describe("Daemon server route execution", { timeout: 30000 }, () => {
   it("backward compatible: raw task without route is classified server-side", async () => {
     const messages: string[] = [];
     const client = connect(socketPath, () => {
-      client.write(JSON.stringify({ command: "run", task: "echo backward-compat" }) + "\n");
+      client.write(JSON.stringify({ command: "run", task: "echo backward-compat", cwd: tmpDir }) + "\n");
     });
     client.on("data", (data: Buffer) => {
       const chunk = data.toString("utf8");
