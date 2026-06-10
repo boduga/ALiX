@@ -90,6 +90,18 @@ export class DaemonManager {
     };
     await writeFile(this.statusPath(), JSON.stringify(status, null, 2), "utf-8");
 
+    // Short post-spawn liveness check — the spawned process may crash
+    // immediately (stale socket, missing deps, etc.) and stdio: "ignore"
+    // hides the crash. Wait briefly, then verify.
+    await new Promise((r) => setTimeout(r, 300));
+    if (!(await this.isRunning())) {
+      // Clean up stale state so a subsequent start() is clean.
+      await rm(this.pidPath(), { force: true }).catch(() => {});
+      await rm(this.statusPath(), { force: true }).catch(() => {});
+      await rm(socketPath, { force: true }).catch(() => {});
+      throw new Error("Daemon failed to stay running after start. Run daemon-server directly for logs.");
+    }
+
     return status;
   }
 

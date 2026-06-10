@@ -8,7 +8,7 @@
  */
 
 import { createServer, type Socket } from "node:net";
-import { readFile, writeFile, appendFile, mkdir, rename } from "node:fs/promises";
+import { readFile, writeFile, appendFile, mkdir, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { DaemonResponse } from "./daemon-types.js";
@@ -206,10 +206,15 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
   client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
 }
 
-process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); });
-process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); });
+process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); process.exit(1); });
+process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); process.exit(1); });
 
-// Start server
+// Remove stale socket file before binding, otherwise `listen()` can fail
+// with EADDRINUSE after a crash or unclean shutdown.
+if (existsSync(socketPath)) {
+  await rm(socketPath, { force: true }).catch(() => {});
+}
+
 const server = createServer((client: Socket) => {
   let buffer = "";
 
@@ -230,6 +235,11 @@ const server = createServer((client: Socket) => {
       }
     }
   });
+});
+
+server.on("error", (err: NodeJS.ErrnoException) => {
+  console.error("[daemon] server error", { code: err.code, message: err.message, socketPath, cwd });
+  process.exit(1);
 });
 
 server.listen(socketPath, () => {
