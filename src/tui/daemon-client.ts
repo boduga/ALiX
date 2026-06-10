@@ -14,36 +14,23 @@ export interface DaemonClientOptions {
   onDone: () => void;
 }
 
-/** Connect to the daemon socket, submit a task, and stream events back. */
+/** Connect to the global daemon socket, submit a task, and stream events back. */
 export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<void> {
-  const { DaemonManager } = await import("../daemon/daemon-manager.js");
-  const mgr = new DaemonManager(opts.cwd);
-  const running = await mgr.isRunning();
-  if (!running) {
-    opts.onError("Daemon is not running. Start it with: alix daemon start");
-    return;
-  }
-
-  const status = await mgr.status();
-  const socketPath = status?.socketPath;
-  if (!socketPath) {
-    opts.onError("No socket path found in daemon status.");
-    return;
-  }
-
-  const { connect } = await import("node:net");
+  const { homedir } = await import("node:os");
   const { join } = await import("node:path");
+  const { connect } = await import("node:net");
+  const { existsSync } = await import("node:fs");
 
-  // Validate socket path is within .alix/ directory
-  const expectedSocket = join(opts.cwd, ".alix", "alixd.sock");
-  if (socketPath !== expectedSocket) {
-    opts.onError(`Refusing daemon socket outside workspace: ${socketPath}`);
+  const socketPath = join(homedir(), ".alix", "alixd.sock");
+
+  if (!existsSync(socketPath)) {
+    opts.onError("Daemon is not running (no socket at ~/.alix/alixd.sock). Start it with: alix daemon start");
     return;
   }
 
   return new Promise<void>((resolve) => {
     const client = connect(socketPath, () => {
-      client.write(JSON.stringify({ command: "run", task: opts.task, route: opts.route }) + "\n");
+      client.write(JSON.stringify({ command: "run", task: opts.task, cwd: opts.cwd, route: opts.route }) + "\n");
     });
 
     let sawSessionEnded = false;
