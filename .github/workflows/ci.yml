@@ -26,15 +26,17 @@ jobs:
       - name: Build
         run: npm run build
 
-      - name: Run unit tests (excluding interactive manual tests)
-        run: |
-          find dist/tests -name "*.test.js" ! -path "dist/tests/manual/*" -print0 | xargs -0 node --test
+      - name: Run CI unit tests (excluding interactive manual)
+        run: npm run test:node:ci
+
+      - name: Run vitest
+        run: npm run test:vitest
 
       - name: Run integration smoke tests
         run: node --test dist/tests/integration/smoke.test.js
 
       - name: Run TUI manual smoke (non-blocking)
-        run: node --test --test-concurrency=1 dist/tests/manual/suite-p-tui-smoke.test.js
+        run: npm run test:manual:tui
         continue-on-error: true
 
       - name: Verify build is doctorable

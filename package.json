@@ -38,7 +38,11 @@
     "test:coverage": "c8 node --test dist/tests/*.test.js dist/tests/**/*.test.js && c8 npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
     "coverage:report": "c8 report --reporter=text-summary",
     "verify:deps": "node scripts/verify-deps.mjs",
-    "check": "npm run build && npm run test:node && npm run verify:deps"
+    "check": "npm run build && npm run test:node && npm run verify:deps",
+    "test:ci": "npm run test:node:ci && npm run test:vitest",
+    "test:node:ci": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' -print0 | xargs -0 node --test",
+    "test:manual:tui": "node --test --test-concurrency=1 dist/tests/manual/suite-p-tui-smoke.test.js",
+    "fresh": "npm run build && node dist/src/cli.js doctor"
   },
   "engines": {
     "node": ">=24"
