@@ -11,6 +11,7 @@ import { createServer, type Socket } from "node:net";
 import { readFile, writeFile, appendFile, mkdir, rename, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
@@ -18,26 +19,27 @@ import type { TaskRoute } from "../runtime/task-router.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
-const cwd = args[args.indexOf("--cwd") + 1];
+const defaultCwd = args[args.indexOf("--cwd") + 1];
 
-if (!socketPath || !cwd) {
+if (!socketPath || !defaultCwd) {
   console.error("Usage: daemon-server --socket <path> --cwd <dir>");
   process.exit(1);
 }
 
+const globalDir = join(homedir(), ".alix");
 let currentSessionId: string | undefined;
 
-const registry = new TaskRegistry(cwd);
+const registry = new TaskRegistry();  // global ~/.alix/ path
 
-const taskQueue: Array<{ task: string; taskId: string; route?: TaskRoute; client: Socket }> = [];
+const taskQueue: Array<{ task: string; taskId: string; cwd?: string; route?: TaskRoute; client: Socket }> = [];
 let taskRunning = false;
 
 async function processQueue(): Promise<void> {
   if (taskRunning || taskQueue.length === 0) return;
   taskRunning = true;
-  const { task, taskId, route, client } = taskQueue.shift()!;
+  const { task, taskId, cwd: requestCwd, route, client } = taskQueue.shift()!;
   try {
-    await handleRun(task, taskId, client, route);
+    await handleRun(task, taskId, client, requestCwd ?? defaultCwd, route);
   } finally {
     taskRunning = false;
     processQueue(); // process next
@@ -52,9 +54,9 @@ async function init(): Promise<void> {
   }
 }
 
-/** Write heartbeat timestamp to daemon.json every 30 seconds. */
+/** Write heartbeat timestamp to global daemon.json every 30 seconds. */
 function startHeartbeat(): void {
-  const statusPath = join(cwd, ".alix", "daemon.json");
+  const statusPath = join(globalDir, "daemon.json");
   setInterval(async () => {
     try {
       const raw = await readFile(statusPath, "utf-8");
@@ -68,10 +70,10 @@ function startHeartbeat(): void {
   }, 30000);
 }
 
-/** Create a pass-through EventLog that writes to session file AND socket client. */
-function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
+/** Create a pass-through EventLog that writes to project session file AND socket client. */
+function createDaemonEventLog(sessionId: string, client: Socket, projectCwd: string): EventLog {
   const events: any[] = [];
-  const log = new EventLog(join(cwd, ".alix", "sessions", sessionId));
+  const log = new EventLog(join(projectCwd, ".alix", "sessions", sessionId));
   // Override append to also forward to client socket
   const origAppend = log.append.bind(log);
   (log as any).append = async (event: any) => {
@@ -101,8 +103,10 @@ function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
 /** Handle a single command from a connected client. */
 async function handleCommand(cmd: Record<string, unknown>, client: Socket): Promise<void> {
   if (cmd.command === "run") {
-    const record = registry.create(String(cmd.task || ""));
-    taskQueue.push({ task: String(cmd.task || ""), taskId: record.id, route: cmd.route as TaskRoute | undefined, client });
+    const task = String(cmd.task || "");
+    const requestCwd = String(cmd.cwd || defaultCwd);  // use request cwd or startup default
+    const record = registry.create(task, requestCwd);
+    taskQueue.push({ task, taskId: record.id, cwd: requestCwd, route: cmd.route as TaskRoute | undefined, client });
     client.write(JSON.stringify({ type: "task.created", taskId: record.id, task: String(cmd.task || ""), position: taskQueue.length } satisfies DaemonResponse) + "\n");
     if (taskQueue.length === 1) {
       processQueue();
@@ -268,8 +272,10 @@ async function executeGroundedChatRoute(
 /** Run a task via the shared task router.
  *
  * If route is provided (pre-classified by client), use it directly.
- * Otherwise, classify the task via taskRouter() for backward compatibility. */
-async function handleRun(task: string, taskId: string, client: Socket, route?: TaskRoute): Promise<void> {
+ * Otherwise, classify the task via taskRouter() for backward compatibility.
+ * `requestCwd` is the project directory from the run command; defaults to
+ * the startup `--cwd` if not provided. */
+async function handleRun(task: string, taskId: string, client: Socket, requestCwd: string, route?: TaskRoute): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   currentSessionId = sessionId;
 
@@ -278,7 +284,7 @@ async function handleRun(task: string, taskId: string, client: Socket, route?: T
   client.write(JSON.stringify({ type: "session.started", sessionId } satisfies DaemonResponse) + "\n");
   client.write(JSON.stringify({ type: "task.accepted", sessionId, task } satisfies DaemonResponse) + "\n");
 
-  const eventLog = createDaemonEventLog(sessionId, client);
+  const eventLog = createDaemonEventLog(sessionId, client, requestCwd);
   await eventLog.init();
 
   await eventLog.append({
@@ -295,13 +301,13 @@ async function handleRun(task: string, taskId: string, client: Socket, route?: T
   // Route execution — tool/chat/grounded_chat complete here, agent falls through
   switch (route.kind) {
     case "tool":
-      await executeToolRoute(route, taskId, sessionId, cwd, client, eventLog);
+      await executeToolRoute(route, taskId, sessionId, requestCwd, client, eventLog);
       break;
     case "chat":
-      await executeChatRoute(route, taskId, sessionId, cwd, client, eventLog);
+      await executeChatRoute(route, taskId, sessionId, requestCwd, client, eventLog);
       break;
     case "grounded_chat":
-      await executeGroundedChatRoute(route, sessionId, cwd, client, eventLog);
+      await executeGroundedChatRoute(route, sessionId, requestCwd, client, eventLog);
       break;
     case "agent":
       break; // fall through to runTask() below
@@ -316,21 +322,21 @@ async function handleRun(task: string, taskId: string, client: Socket, route?: T
     return;
   }
 
-  // Agent route — runTask path (unchanged)
+  // Agent route — runTask path (uses requestCwd for project context)
   try {
     const { loadConfig } = await import("../config/loader.js");
-    const config = await loadConfig(cwd);
+    const config = await loadConfig(requestCwd);
     const { runTask } = await import("../run.js");
 
     let streamedText = false;
-    const result = await runTask(cwd, task, {
+    const result = await runTask(requestCwd, task, {
       planMode: false,
       streaming: true,
       sessionMode: "bypass",
       skipContext: true,
       sharedSession: {
         sessionId,
-        sessionDir: join(cwd, ".alix", "sessions", sessionId),
+        sessionDir: join(requestCwd, ".alix", "sessions", sessionId),
         eventLog,
       },
     }, (chunk: any) => {
@@ -410,14 +416,14 @@ const server = createServer((client: Socket) => {
 });
 
 server.on("error", (err: NodeJS.ErrnoException) => {
-  console.error("[daemon] server error", { code: err.code, message: err.message, socketPath, cwd });
+  console.error("[daemon] server error", { code: err.code, message: err.message, socketPath, defaultCwd });
   process.exit(1);
 });
 
 server.listen(socketPath, () => {
   init().catch(() => {});
   startHeartbeat();
-  const statusPath = join(cwd, ".alix", "daemon.json");
+  const statusPath = join(globalDir, "daemon.json");
   if (existsSync(statusPath)) {
     readFile(statusPath, "utf-8").then((raw) => {
       try {
