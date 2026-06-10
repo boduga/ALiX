@@ -36,6 +36,11 @@ function echoTask(task: string): void {
 }
 
 export async function runTui(opts: TuiOptions): Promise<void> {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.error("ALiX TUI requires an interactive terminal. Try: alix tui --daemon < /dev/tty");
+    process.exitCode = 1;
+    return;
+  }
   const cwd = process.cwd();
 
   const sessionId = opts.sessionName
