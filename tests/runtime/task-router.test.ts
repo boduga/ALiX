@@ -43,6 +43,34 @@ describe("taskRouter", () => {
     assert.equal(r.kind, "tool");
   });
 
+  // ── Natural-language shell phrases ──
+  it("routes 'list files' to tool.shell.run (natural phrase)", () => {
+    const r = taskRouter("list files");
+    assert.equal(r.kind, "tool");
+    if (r.kind === "tool") {
+      assert.equal(r.tool, "shell.run");
+      assert.equal(r.args.command, "ls -la");
+    }
+  });
+
+  it("routes 'show files' to tool.shell.run", () => {
+    const r = taskRouter("show files");
+    assert.equal(r.kind, "tool");
+  });
+
+  it("routes 'where am i' to tool.shell.run", () => {
+    const r = taskRouter("where am i");
+    assert.equal(r.kind, "tool");
+    if (r.kind === "tool") {
+      assert.equal(r.args.command, "pwd");
+    }
+  });
+
+  it("routes 'show current directory' to tool.shell.run", () => {
+    const r = taskRouter("show current directory");
+    assert.equal(r.kind, "tool");
+  });
+
   // ── Grounded chat routes (freshness signals) ──
   it("routes 'latest Node.js LTS version' to grounded_chat", () => {
     const r = taskRouter("latest Node.js LTS version");
