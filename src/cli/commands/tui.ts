@@ -105,6 +105,14 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     if (task === null) break;
     if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
 
+    // Tab navigation MUST come before trim/empty handling
+    if (task === "\t" || task.toLowerCase() === "tab") {
+      store.cyclePanel(1);
+      tui.appendOutput(`Panel: ${store.getState().activePanel}
+`, false);
+      continue;
+    }
+
     // Panel content rendering on empty Enter
     if (!task.trim()) {
       if (store.getState().activePanel !== "chat") {
@@ -113,8 +121,6 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
 
-    // Panel navigation
-    if (task === "\t") { store.cyclePanel(1); tui.appendOutput(`Panel: ${store.getState().activePanel}\n`, false); continue; }
     if (task.toLowerCase() === "r" || task.toLowerCase() === "refresh") {
       const fresh = await buildRuntimeSnapshot(cwd);
       if (fresh) applySnapshotToStore(tuiStore, fresh);
@@ -122,7 +128,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
     if (task === "?" || task.toLowerCase() === "help") {
-      tui.appendOutput("Commands: r=refresh Tab=next panel ?=help q=quit\nPanels: chat daemon approvals sops policy runtime\n", false);
+      tui.appendOutput("Commands: r=refresh tab=next panel ?=help q=quit\nPanels: chat daemon approvals sops policy runtime\n", false);
       continue;
     }
 
