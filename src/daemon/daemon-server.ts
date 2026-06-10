@@ -169,6 +169,14 @@ function extractFallbackOutput(events: any[]): string | null {
   return candidates.slice(-3).join("\n");
 }
 
+/** Map common TUI shell-like commands to a real shell command, or null if model should handle it. */
+function daemonShellAlias(task: string): string | null {
+  const t = task.trim().toLowerCase();
+  if (t === "list files" || t === "show files" || t === "ls") return "ls -la";
+  if (t === "pwd" || t === "where am i") return "pwd";
+  return null;
+}
+
 /** Run a task via runTask() and stream events back to the client. */
 async function handleRun(task: string, taskId: string, client: Socket): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -186,6 +194,32 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
     actor: "system", type: "session.started", sessionId,
     payload: { task, source: "daemon" },
   });
+
+  // Fast-path for shell-like commands — execute directly and return
+  // output without going through runTask(). This avoids running a
+  // full agent loop for simple CLI queries like "list files" or "pwd".
+  const shellCommand = daemonShellAlias(task);
+  if (shellCommand) {
+    try {
+      const { execFile } = await import("node:child_process");
+      const { promisify } = await import("node:util");
+      const execFileAsync = promisify(execFile);
+      const { stdout, stderr } = await execFileAsync("bash", ["-lc", shellCommand], {
+        cwd,
+        timeout: 10000,
+        maxBuffer: 1024 * 1024,
+      });
+      const text = [stdout, stderr].filter(Boolean).join("\n").trim();
+      safeWrite(client, { type: "assistant.text" as const, sessionId, text: text || "(no output)" });
+    } catch (err: any) {
+      safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Error: ${err.message}` });
+    }
+    currentSessionId = undefined;
+    registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
+    safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
+    client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
+    return;
+  }
 
   try {
     const { loadConfig } = await import("../config/loader.js");
