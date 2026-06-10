@@ -103,4 +103,45 @@ describe("TUI PTY regression", { skip: !ENABLED }, () => {
     assert.ok(signal === undefined || signal === 0, `TUI killed by signal ${signal}`);
     assert.strictEqual(exitCode, 0, `TUI exited with code ${exitCode}`);
   });
+
+  it("keeps TUI open after empty Enter", async () => {
+    if (!ENABLED) return;
+
+    const exitPromise = new Promise<{ exitCode: number; signal?: number }>((resolve) => {
+      proc = ptySpawn(process.execPath, [CLI, "tui", "--mode", "bypass"], {
+        name: "xterm-256color",
+        cols: 120,
+        rows: 30,
+        cwd: process.cwd(),
+        env: { ...process.env, ALIX_TUI_TEST: "1", CI: "true" } as Record<string, string>,
+      });
+      exitSub = proc.onExit(({ exitCode, signal }) => resolve({ exitCode, signal }));
+    });
+
+    assert.ok(proc, "pty process must spawn");
+
+    // 1. Wait for the welcome banner.
+    await waitFor(proc!, "ALiX TUI", 10_000);
+
+    // 2. Send an empty line (just Enter). Pre-fix, readLine() treated ""
+    //    as null which broke the loop and exited immediately.
+    proc!.write("\r");
+
+    // 3. Wait 1s — if empty Enter exited the process, exitPromise resolves.
+    const earlyExit = await Promise.race([
+      exitPromise.then(() => "exited"),
+      new Promise<string>((resolve) => setTimeout(() => resolve("alive"), 1_000)),
+    ]);
+    assert.strictEqual(earlyExit, "alive", "TUI exited on empty Enter (readLine returned null for '')");
+
+    // 4. Exit cleanly.
+    proc!.write("exit\r");
+    const { exitCode, signal } = await Promise.race([
+      exitPromise,
+      new Promise<{ exitCode: number; signal?: number }>((_, reject) =>
+        setTimeout(() => reject(new Error("TUI did not exit within 5s of 'exit'")), 5_000)),
+    ]);
+    assert.ok(signal === undefined || signal === 0, `TUI killed by signal ${signal}`);
+    assert.strictEqual(exitCode, 0, `TUI exited with code ${exitCode}`);
+  });
 });

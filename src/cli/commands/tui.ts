@@ -26,7 +26,7 @@ function readLine(): Promise<string | null> {
   return new Promise((resolve) => {
     const onLine = (line: string) => {
       current.removeListener("line", onLine);
-      if (line === "") { resolve(null); return; }
+      if (line === "") { resolve(""); return; }
       if (line === "\t" || line.toLowerCase() === "tab") { resolve("\t"); return; }
       if (line.toLowerCase() === "exit" || line.toLowerCase() === "quit") { resolve(null); return; }
       resolve(line);
@@ -92,6 +92,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     if (!(await dm.isRunning())) {
       tui.appendOutput("ERROR: Daemon is not running. Start it with: alix daemon start\n", false);
       setTimeout(() => { tui.destroy(); process.exit(1); }, 2000);
+      return;
     }
   }
 
