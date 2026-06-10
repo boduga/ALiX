@@ -12,15 +12,21 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 
 describe("Integration: Daemon lifecycle", () => {
+  let origHome: string | undefined;
+  let testHome: string;
   let tmpDir: string;
 
   before(() => {
-    tmpDir = mkdtempSync(join(tmpdir(), "int-daemon-"));
-    mkdirSync(join(tmpDir, ".alix"), { recursive: true });
+    origHome = process.env.HOME;
+    testHome = mkdtempSync(join(tmpdir(), "int-daemon-home-"));
+    process.env.HOME = testHome;
+    tmpDir = testHome;
+    mkdirSync(join(testHome, ".alix"), { recursive: true });
   });
 
   after(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+    process.env.HOME = origHome;
+    rmSync(testHome, { recursive: true, force: true });
   });
 
   it("DaemonManager returns null when never started", async () => {
@@ -39,7 +45,7 @@ describe("Integration: Daemon lifecycle", () => {
 
   it("DaemonManager reads written status file", async () => {
     const { DaemonManager } = await import("../../src/daemon/daemon-manager.js");
-    writeFileSync(join(tmpDir, ".alix", "daemon.json"), JSON.stringify({
+    writeFileSync(join(testHome, ".alix", "daemon.json"), JSON.stringify({
       pid: 99999, startedAt: "2026-01-01T00:00:00Z", socketPath: "/tmp/test.sock",
       status: "running", lastHeartbeat: "2026-01-01T00:00:30Z",
     }));
