@@ -34,6 +34,10 @@ export class DaemonManager {
     return join(this.cwd, ".alix", "daemon.json");
   }
 
+  private socketPath(): string {
+    return join(this.cwd, ".alix", "alixd.sock");
+  }
+
   private ensureDir(): Promise<void> {
     return mkdir(join(this.cwd, ".alix"), { recursive: true }) as any;
   }
@@ -42,11 +46,24 @@ export class DaemonManager {
   async start(): Promise<DaemonStatus> {
     const existing = await this.status();
     if (existing && existing.status === "running") {
-      throw new Error(`Daemon already running (pid ${existing.pid})`);
+      // Verify the recorded PID is actually alive — the status file may be stale
+      // if the daemon crashed or was killed externally.
+      if (await this.isRunning()) {
+        throw new Error(`Daemon already running (pid ${existing.pid})`);
+      }
+      // Stale state: recorded as running but PID is dead.
+      // Clean up and proceed with a fresh start.
+      await rm(this.pidPath(), { force: true }).catch(() => {});
+      await rm(this.socketPath(), { force: true }).catch(() => {});
+      await writeFile(
+        this.statusPath(),
+        JSON.stringify({ ...existing, status: "stopped" }, null, 2),
+        "utf-8",
+      ).catch(() => {});
     }
 
     await this.ensureDir();
-    const socketPath = join(this.cwd, ".alix", "alixd.sock");
+    const socketPath = this.socketPath();
 
     const child = spawn(process.execPath, [
       join(daemonManagerDir, "daemon-server.js"),

@@ -53,4 +53,36 @@ describe("DaemonManager", () => {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
+
+  it("start cleans stale state before spawning", async () => {
+    // When daemon.json records a running status but the PID is dead,
+    // start() should clean up stale state and proceed, not throw
+    // "already running".
+    const tmpDir = mkdtempSync(join(tmpdir(), "daemon-stale-"));
+    try {
+      mkdirSync(join(tmpDir, ".alix"), { recursive: true });
+      // A PID that is guaranteed not to exist on any machine
+      const deadPid = 2_147_483_647;
+      writeFileSync(join(tmpDir, ".alix", "daemon.json"), JSON.stringify({
+        pid: deadPid, startedAt: "2026-01-01T00:00:00Z",
+        socketPath: "/tmp/nonexistent.sock", status: "running",
+      }));
+      writeFileSync(join(tmpDir, ".alix", "daemon.pid"), String(deadPid));
+
+      const mgr = new DaemonManager(tmpDir);
+
+      // This should NOT throw "Daemon already running"
+      // because the recorded PID is dead.
+      const result = await mgr.start();
+
+      assert.ok(result.pid > 0, "started with a real PID");
+      assert.notEqual(result.pid, deadPid, "PID differs from stale one");
+      assert.equal(result.status, "running");
+
+      // Clean up
+      await mgr.stop().catch(() => {});
+    } finally {
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
+  });
 });
