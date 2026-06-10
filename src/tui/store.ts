@@ -82,6 +82,9 @@ export interface TuiState {
   daemonHeartbeatAge?: number;
   sopItems?: { id: string; name: string; version?: string; nodeCount?: number; tags?: string[] }[];
   showDashboard?: boolean;
+  workspaceName?: string;
+  workspacePath?: string;
+  recentWorkspaces?: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[];
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime"];
@@ -253,6 +256,17 @@ export class TuiStore {
 
   toggleDashboard(): void {
     this.state.showDashboard = !this.state.showDashboard;
+    this.notify();
+  }
+
+  setWorkspaceInfo(name: string, path: string): void {
+    this.state.workspaceName = name;
+    this.state.workspacePath = path;
+    this.notify();
+  }
+
+  setRecentWorkspaces(workspaces: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[]): void {
+    this.state.recentWorkspaces = workspaces;
     this.notify();
   }
 

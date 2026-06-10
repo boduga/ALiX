@@ -11,8 +11,12 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
   const buf: string[] = [];
 
   if (s.activePanel === "daemon") {
-    buf.push("── Daemon ──────────────────────────────");
+    const ws = s.workspaceName ? ` — ${s.workspaceName}` : "";
+    buf.push(`── Daemon${ws} ──────────────────────────`);
     buf.push(`Status:  ${s.daemonRunning ? "● running" : "○ stopped"}`);
+    if (s.workspacePath) {
+      buf.push(`Path:    ${s.workspacePath}`);
+    }
     if (s.daemonTasks) {
       const t = s.daemonTasks;
       buf.push(`Tasks:   run:${t.running} queued:${t.queued} done:${t.completed} fail:${t.failed}`);
@@ -21,6 +25,14 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
       buf.push("── Recent Tasks ────────────────────────");
       for (const r of s.daemonTaskRecords.slice(0, 8)) {
         buf.push(`  ${(r.status || "").padEnd(18)} ${r.id} ${(r.task || "").slice(0, 30)}`);
+      }
+    }
+    if (s.recentWorkspaces && s.recentWorkspaces.length > 1) {
+      buf.push("── Recent Workspaces ────────────────────");
+      for (const w of s.recentWorkspaces.slice(0, 4)) {
+        if (w.path === s.workspacePath) continue; // skip current
+        const icon = w.status === "active" ? "●" : "○";
+        buf.push(`  ${icon} ${w.name} (${w.taskCount} tasks)`);
       }
     }
     buf.push(`Events:  ${s.runtimeEventCount || 0}`);

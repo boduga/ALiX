@@ -114,6 +114,8 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   tui.appendOutput("ALiX TUI - Interactive Session", false);
   const execMode = daemonMode ? "daemon" : "direct";
   tui.appendOutput(`Execution mode: ${execMode} | Session: ${mode}${daemonInfo}`, false);
+  const wsName = snapshot?.workspaceName ?? cwd.split("/").pop() ?? "";
+  tui.appendOutput(`Workspace: ${wsName}`, false);
   if (daemonMode) tui.appendOutput("Daemon mode: policy handled by daemon runtime gate.", false);
   tui.appendOutput("Type 'exit' to quit. 'r' to refresh snapshot, '?' for help.", false);
   tui.appendOutput("", false);

@@ -25,6 +25,9 @@ export interface TuiRuntimeSnapshot {
   runtimeEventCount: number;
   recentRuntimeEvents: PanelRuntimeEvent[];
   daemonHeartbeatAge: number;
+  workspaceName?: string;
+  workspacePath?: string;
+  recentWorkspaces?: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[];
 }
 
 /** Build a fresh snapshot from disk. Returns null on failure. */
@@ -76,6 +79,19 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
         snapshot.daemonTaskRecords.push({ id: t.id, task: t.task, status: s, sessionId: t.sessionId });
       }
     }
+
+    // Workspace registry
+    const { listWorkspaces, getWorkspace } = await import("../daemon/workspace-registry.js");
+    const currentWorkspace = await getWorkspace(cwd);
+    if (currentWorkspace) {
+      snapshot.workspaceName = currentWorkspace.name;
+      snapshot.workspacePath = currentWorkspace.path;
+    }
+    const allWorkspaces = await listWorkspaces();
+    snapshot.recentWorkspaces = allWorkspaces.slice(0, 5).map(w => ({
+      path: w.path, name: w.name, lastUsed: w.lastUsed,
+      taskCount: w.taskCount, status: w.status,
+    }));
 
     // Approvals
     const { ApprovalStore } = await import("../approvals/approval-store.js");
@@ -137,4 +153,6 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   store.setPolicyRulesCount(snapshot.policyRulesCount);
   store.setRuntimeEventCount(snapshot.runtimeEventCount);
   store.setRecentRuntimeEvents(snapshot.recentRuntimeEvents);
+  store.setWorkspaceInfo(snapshot.workspaceName ?? "", snapshot.workspacePath ?? "");
+  store.setRecentWorkspaces(snapshot.recentWorkspaces ?? []);
 }
