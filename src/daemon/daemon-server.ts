@@ -144,6 +144,12 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
   client.write(JSON.stringify({ type: "error", message: `Unknown command: ${cmd.command}` } satisfies DaemonResponse) + "\n");
 }
 
+/** Write JSON to a socket if it's still open. */
+function safeWrite(client: Socket, payload: DaemonResponse | Record<string, unknown>): void {
+  if (client.destroyed || !client.writable) return;
+  client.write(JSON.stringify(payload) + "\n");
+}
+
 /** Run a task via runTask() and stream events back to the client. */
 async function handleRun(task: string, taskId: string, client: Socket): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -155,6 +161,7 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
   client.write(JSON.stringify({ type: "task.accepted", sessionId, task } satisfies DaemonResponse) + "\n");
 
   const eventLog = createDaemonEventLog(sessionId, client);
+  await eventLog.init();
 
   await eventLog.append({
     actor: "system", type: "session.started", sessionId,
@@ -198,8 +205,10 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
     }
   } catch (err: any) {
     currentSessionId = undefined;
-    registry.update(taskId, { status: "failed", error: err.message || String(err) });
-    client.write(JSON.stringify({ type: "task.failed", sessionId, error: err.message || String(err) } satisfies DaemonResponse) + "\n");
+    const error = err instanceof Error ? (err.stack ?? err.message) : String(err);
+    registry.update(taskId, { status: "failed", error });
+    safeWrite(client, { type: "task.failed" as const, sessionId, error });
+    safeWrite(client, { type: "session.ended" as const, sessionId });
   }
 
   await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
