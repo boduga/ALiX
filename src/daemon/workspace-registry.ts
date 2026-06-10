@@ -22,12 +22,14 @@ export type WorkspaceEntry = {
   status: WorkspaceStatus;
 };
 
-export const WORKSPACES_PATH = join(homedir(), ".alix", "workspaces.json");
+function workspacesPath(): string {
+  return join(homedir(), ".alix", "workspaces.json");
+}
 
 /** Load workspaces from disk.  Returns [] on any error (missing file, parse error, or non-array). */
 export async function listWorkspaces(): Promise<WorkspaceEntry[]> {
   try {
-    const raw = await readFile(WORKSPACES_PATH, "utf-8");
+    const raw = await readFile(workspacesPath(), "utf-8");
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -89,7 +91,7 @@ export async function recordWorkspaceActivity(cwd: string): Promise<void> {
   workspaces.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
 
   // Atomic write via .tmp + rename
-  const tmp = WORKSPACES_PATH + ".tmp";
+  const tmp = workspacesPath() + ".tmp";
   await writeFile(tmp, JSON.stringify(workspaces, null, 2), "utf-8");
-  await rename(tmp, WORKSPACES_PATH);
+  await rename(tmp, workspacesPath());
 }
