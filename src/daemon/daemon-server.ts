@@ -14,6 +14,7 @@ import { join } from "node:path";
 import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
+import type { TaskRoute } from "../runtime/task-router.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
@@ -28,15 +29,15 @@ let currentSessionId: string | undefined;
 
 const registry = new TaskRegistry(cwd);
 
-const taskQueue: Array<{ task: string; taskId: string; client: Socket }> = [];
+const taskQueue: Array<{ task: string; taskId: string; route?: TaskRoute; client: Socket }> = [];
 let taskRunning = false;
 
 async function processQueue(): Promise<void> {
   if (taskRunning || taskQueue.length === 0) return;
   taskRunning = true;
-  const { task, taskId, client } = taskQueue.shift()!;
+  const { task, taskId, route, client } = taskQueue.shift()!;
   try {
-    await handleRun(task, taskId, client);
+    await handleRun(task, taskId, client, route);
   } finally {
     taskRunning = false;
     processQueue(); // process next
@@ -101,7 +102,7 @@ function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
 async function handleCommand(cmd: Record<string, unknown>, client: Socket): Promise<void> {
   if (cmd.command === "run") {
     const record = registry.create(String(cmd.task || ""));
-    taskQueue.push({ task: String(cmd.task || ""), taskId: record.id, client });
+    taskQueue.push({ task: String(cmd.task || ""), taskId: record.id, route: cmd.route as TaskRoute | undefined, client });
     client.write(JSON.stringify({ type: "task.created", taskId: record.id, task: String(cmd.task || ""), position: taskQueue.length } satisfies DaemonResponse) + "\n");
     if (taskQueue.length === 1) {
       processQueue();
@@ -169,16 +170,106 @@ function extractFallbackOutput(events: any[]): string | null {
   return candidates.slice(-3).join("\n");
 }
 
-/** Map common TUI shell-like commands to a real shell command, or null if model should handle it. */
-function daemonShellAlias(task: string): string | null {
-  const t = task.trim().toLowerCase();
-  if (t === "list files" || t === "show files" || t === "ls") return "ls -la";
-  if (t === "pwd" || t === "where am i") return "pwd";
-  return null;
+// ─── Daemon-side route executors ────────────────────────────────────
+
+/** Execute a tool route in the daemon process via ToolExecutor. */
+async function executeToolRoute(
+  route: TaskRoute & { kind: "tool" },
+  taskId: string, sessionId: string,
+  cwd: string, client: Socket, eventLog: EventLog,
+): Promise<void> {
+  const { loadConfig } = await import("../config/loader.js");
+  const config = await loadConfig(cwd);
+  const { ToolExecutor } = await import("../tools/executor.js");
+  const { randomBytes } = await import("node:crypto");
+
+  const executor = new ToolExecutor(config, eventLog, cwd);
+  const toolCallId = `daemon_${Date.now()}_${randomBytes(4).toString("hex")}`;
+
+  safeWrite(client, { type: "assistant.text" as const, sessionId, text: `→ ${route.tool} ${JSON.stringify(route.args)}\n` });
+
+  const result = await executor.execute({ toolCallId, name: route.tool, args: route.args });
+
+  if (result.kind === "success") {
+    safeWrite(client, { type: "assistant.text" as const, sessionId, text: result.output ?? result.content ?? "(tool completed)" });
+  } else if (result.kind === "denied") {
+    safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Blocked by policy: ${result.reason}` });
+  } else if (result.kind === "error") {
+    safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Tool error: ${result.message}` });
+  }
 }
 
-/** Run a task via runTask() and stream events back to the client. */
-async function handleRun(task: string, taskId: string, client: Socket): Promise<void> {
+/** Execute a chat route in the daemon process: direct model call. */
+async function executeChatRoute(
+  route: TaskRoute & { kind: "chat" },
+  taskId: string, sessionId: string,
+  cwd: string, client: Socket, eventLog: EventLog,
+): Promise<void> {
+  const { loadConfig } = await import("../config/loader.js");
+  const config = await loadConfig(cwd);
+  const { createProvider } = await import("../providers/registry.js");
+
+  const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
+  const response = await provider.complete({
+    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
+    messages: [{ role: "user", content: route.prompt }],
+  });
+
+  safeWrite(client, { type: "assistant.text" as const, sessionId, text: response.text || "(no response)" });
+}
+
+/** Execute a grounded_chat route: model + read-only tools, max 2 rounds. */
+async function executeGroundedChatRoute(
+  route: TaskRoute & { kind: "grounded_chat" },
+  sessionId: string, cwd: string, client: Socket, eventLog: EventLog,
+): Promise<void> {
+  const { loadConfig } = await import("../config/loader.js");
+  const config = await loadConfig(cwd);
+  const { createProvider } = await import("../providers/registry.js");
+  const { ToolExecutor } = await import("../tools/executor.js");
+  const { randomBytes } = await import("node:crypto");
+
+  const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
+  const executor = new ToolExecutor(config, eventLog, cwd);
+
+  // First call: model may issue a tool call for fresh information
+  const response = await provider.complete({
+    systemPrompt: "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. Answer concisely.",
+    messages: [{ role: "user", content: route.prompt }],
+  });
+
+  if (response.toolCalls.length > 0 && response.toolCalls.length <= 1) {
+    const tc = response.toolCalls[0];
+    const toolResult = await executor.execute({
+      toolCallId: `daemon_${Date.now()}_${randomBytes(4).toString("hex")}`,
+      name: tc.name, args: tc.args,
+    });
+
+    const toolContent = toolResult.kind === "success"
+      ? (toolResult.output || toolResult.content || "(no output)")
+      : toolResult.kind === "error"
+        ? `Error: ${toolResult.message}`
+        : "Tool request denied by policy";
+
+    const finalResponse = await provider.complete({
+      systemPrompt: "Answer the user's question based on the tool result.",
+      messages: [
+        { role: "user", content: route.prompt },
+        { role: "assistant", content: response.text || "" },
+        { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
+      ],
+    });
+    safeWrite(client, { type: "assistant.text" as const, sessionId, text: finalResponse.text || "(no response)" });
+  } else {
+    safeWrite(client, { type: "assistant.text" as const, sessionId, text: response.text || "(no response)" });
+  }
+}
+
+/** Run a task via the shared task router.
+ *
+ * If route is provided (pre-classified by client), use it directly.
+ * Otherwise, classify the task via taskRouter() for backward compatibility. */
+async function handleRun(task: string, taskId: string, client: Socket, route?: TaskRoute): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   currentSessionId = sessionId;
 
@@ -195,32 +286,37 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
     payload: { task, source: "daemon" },
   });
 
-  // Fast-path for shell-like commands — execute directly and return
-  // output without going through runTask(). This avoids running a
-  // full agent loop for simple CLI queries like "list files" or "pwd".
-  const shellCommand = daemonShellAlias(task);
-  if (shellCommand) {
-    try {
-      const { execFile } = await import("node:child_process");
-      const { promisify } = await import("node:util");
-      const execFileAsync = promisify(execFile);
-      const { stdout, stderr } = await execFileAsync("bash", ["-lc", shellCommand], {
-        cwd,
-        timeout: 10000,
-        maxBuffer: 1024 * 1024,
-      });
-      const text = [stdout, stderr].filter(Boolean).join("\n").trim();
-      safeWrite(client, { type: "assistant.text" as const, sessionId, text: text || "(no output)" });
-    } catch (err: any) {
-      safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Error: ${err.message}` });
-    }
+  // Resolve route: use pre-classified route, or classify from scratch
+  if (!route) {
+    const { taskRouter } = await import("../runtime/task-router.js");
+    route = taskRouter(task);
+  }
+
+  // Route execution — tool/chat/grounded_chat complete here, agent falls through
+  switch (route.kind) {
+    case "tool":
+      await executeToolRoute(route, taskId, sessionId, cwd, client, eventLog);
+      break;
+    case "chat":
+      await executeChatRoute(route, taskId, sessionId, cwd, client, eventLog);
+      break;
+    case "grounded_chat":
+      await executeGroundedChatRoute(route, sessionId, cwd, client, eventLog);
+      break;
+    case "agent":
+      break; // fall through to runTask() below
+  }
+
+  if (route.kind !== "agent") {
     currentSessionId = undefined;
     registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
     safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
     client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
+    await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
     return;
   }
 
+  // Agent route — runTask path (unchanged)
   try {
     const { loadConfig } = await import("../config/loader.js");
     const config = await loadConfig(cwd);
@@ -246,8 +342,6 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
 
     currentSessionId = undefined;
 
-    // Send output: prefer streamed text, then result.summary,
-    // then fallback extracted from collected events.
     if (!streamedText) {
       if (result.summary) {
         safeWrite(client, { type: "assistant.text" as const, sessionId, text: result.summary });
@@ -261,7 +355,6 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
       }
     }
 
-    // Check if cancel was requested during execution
     const current = registry.get(taskId);
     if (current?.status === "cancel_requested") {
       registry.update(taskId, { status: "cancelled", cancelledAt: new Date().toISOString() });
