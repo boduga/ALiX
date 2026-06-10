@@ -126,11 +126,14 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
 /** Apply a snapshot to a TuiStore. */
 export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapshot): void {
   store.setDaemonRunning(snapshot.daemonRunning);
+  store.setDaemonPid(snapshot.daemonPid);
+  store.setDaemonHeartbeatAge(snapshot.daemonHeartbeatAge);
   store.setDaemonTaskSummary(snapshot.daemonTasks);
   store.setDaemonTaskRecords(snapshot.daemonTaskRecords);
   store.setPendingApprovalsCount(snapshot.pendingApprovalsCount);
   store.setPendingApprovalRecords(snapshot.pendingApprovalRecords);
   store.setSopsCount(snapshot.sopsCount);
+  store.setSopItems(snapshot.sopItems);
   store.setPolicyRulesCount(snapshot.policyRulesCount);
   store.setRuntimeEventCount(snapshot.runtimeEventCount);
   store.setRecentRuntimeEvents(snapshot.recentRuntimeEvents);

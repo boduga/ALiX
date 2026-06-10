@@ -30,25 +30,36 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
   }
 
   const { connect } = await import("node:net");
+  const { join } = await import("node:path");
+
+  // Validate socket path is within .alix/ directory
+  const expectedSocket = join(opts.cwd, ".alix", "alixd.sock");
+  if (socketPath !== expectedSocket) {
+    opts.onError(`Refusing daemon socket outside workspace: ${socketPath}`);
+    return;
+  }
+
   return new Promise<void>((resolve) => {
     const client = connect(socketPath, () => {
       client.write(JSON.stringify({ command: "run", task: opts.task }) + "\n");
     });
 
+    let buffer = "";
     client.on("data", (data: Buffer) => {
-      for (const line of data.toString().trim().split("\n")) {
+      buffer += data.toString("utf8");
+      let idx;
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, idx);
+        buffer = buffer.slice(idx + 1);
         if (!line.trim()) continue;
         try {
           const msg = JSON.parse(line) as DaemonResponse;
           opts.onEvent({ ...msg, raw: line });
-          if (msg.type === "task.completed" || msg.type === "task.failed") {
-            // Keep reading for session.ended
-          }
           if (msg.type === "session.ended") {
             client.end();
           }
         } catch {
-          opts.onEvent({ type: "error", message: "Malformed response", raw: line });
+          opts.onEvent({ type: "error" as any, message: "Malformed response", raw: line });
         }
       }
     });

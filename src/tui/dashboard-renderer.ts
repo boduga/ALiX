@@ -10,17 +10,17 @@ import type { TuiState } from "./store.js";
 export function snapshotFromStore(s: TuiState): TuiRuntimeSnapshot {
   return {
     daemonRunning: s.daemonRunning ?? false,
-    daemonPid: undefined,
+    daemonPid: s.daemonPid,
     daemonTasks: s.daemonTasks ?? { queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0, failedOrphaned: 0 },
     daemonTaskRecords: s.daemonTaskRecords ?? [],
     pendingApprovalsCount: s.pendingApprovalsCount ?? 0,
     pendingApprovalRecords: s.pendingApprovalRecords ?? [],
     sopsCount: s.sopsCount ?? 0,
-    sopItems: [],
+    sopItems: s.sopItems ?? [],
     policyRulesCount: s.policyRulesCount ?? 0,
     runtimeEventCount: s.runtimeEventCount ?? 0,
     recentRuntimeEvents: s.recentRuntimeEvents ?? [],
-    daemonHeartbeatAge: -1,
+    daemonHeartbeatAge: s.daemonHeartbeatAge ?? -1,
   };
 }
 

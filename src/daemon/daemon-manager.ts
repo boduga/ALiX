@@ -5,7 +5,7 @@
  * No actual server logic — just lifecycle.
  */
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { spawn } from "node:child_process";
@@ -87,9 +87,9 @@ export class DaemonManager {
     }
     const stopped: DaemonStatus = { ...status, status: "stopped" };
     await writeFile(this.statusPath(), JSON.stringify(stopped, null, 2), "utf-8");
-    if (existsSync(this.pidPath())) {
-      await writeFile(this.pidPath(), "", "utf-8");
-    }
+    try {
+      await rm(this.pidPath(), { force: true });
+    } catch {}
   }
 
   /** Read current status. */

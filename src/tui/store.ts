@@ -78,6 +78,9 @@ export interface TuiState {
   pendingApprovalRecords?: PanelApprovalRecord[];
   daemonTaskRecords?: { id: string; task: string; status: string; sessionId?: string }[];
   recentRuntimeEvents?: PanelRuntimeEvent[];
+  daemonPid?: number;
+  daemonHeartbeatAge?: number;
+  sopItems?: { id: string; name: string; version?: string; nodeCount?: number; tags?: string[] }[];
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime"];
@@ -223,6 +226,21 @@ export class TuiStore {
 
   setRecentRuntimeEvents(events: PanelRuntimeEvent[]): void {
     this.state.recentRuntimeEvents = events;
+    this.notify();
+  }
+
+  setDaemonPid(pid?: number): void {
+    this.state.daemonPid = pid;
+    this.notify();
+  }
+
+  setDaemonHeartbeatAge(age: number): void {
+    this.state.daemonHeartbeatAge = age;
+    this.notify();
+  }
+
+  setSopItems(items: { id: string; name: string; version?: string; nodeCount?: number; tags?: string[] }[]): void {
+    this.state.sopItems = items;
     this.notify();
   }
 

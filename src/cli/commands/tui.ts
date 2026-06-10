@@ -98,12 +98,20 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   if (opts.sessionName) return;
 
   const store = tui.getStore();
+  const { renderPanelContent } = await import("../../tui/panel-renderer.js");
 
   while (true) {
     const task = await readLine();
     if (task === null) break;
-    if (!task.trim()) continue;
     if (task.toLowerCase() === "exit" || task.toLowerCase() === "quit") break;
+
+    // Panel content rendering on empty Enter
+    if (!task.trim()) {
+      if (store.getState().activePanel !== "chat") {
+        renderPanelContent(store, tui);
+      }
+      continue;
+    }
 
     // Panel navigation
     if (task === "\t") { store.cyclePanel(1); tui.appendOutput(`Panel: ${store.getState().activePanel}\n`, false); continue; }
@@ -115,56 +123,6 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     }
     if (task === "?" || task.toLowerCase() === "help") {
       tui.appendOutput("Commands: r=refresh Tab=next panel ?=help q=quit\nPanels: chat daemon approvals sops policy runtime\n", false);
-      continue;
-    }
-
-    if (task.trim().length < 2 && store.getState().activePanel !== "chat") {
-      const s = store.getState();
-      const buf: string[] = [];
-      if (s.activePanel === "daemon") {
-        buf.push("── Daemon ──────────────────────────────");
-        buf.push(`Status:  ${s.daemonRunning ? "● running" : "○ stopped"}`);
-        if (s.daemonTasks) {
-          const t = s.daemonTasks;
-          buf.push(`Tasks:   run:${t.running} queued:${t.queued} done:${t.completed} fail:${t.failed}`);
-        }
-        if (s.daemonTaskRecords && s.daemonTaskRecords.length > 0) {
-          buf.push("── Recent Tasks ────────────────────────");
-          for (const r of s.daemonTaskRecords.slice(0, 8)) {
-            buf.push(`  ${r.status.padEnd(18)} ${r.id} ${r.task.slice(0, 30)}`);
-          }
-        }
-        buf.push(`Events:  ${s.runtimeEventCount}`);
-      } else if (s.activePanel === "approvals") {
-        buf.push("── Approvals ────────────────────────────");
-        buf.push(`Pending: ${s.pendingApprovalsCount}`);
-        if (s.pendingApprovalRecords && s.pendingApprovalRecords.length > 0) {
-          for (const a of s.pendingApprovalRecords) {
-            buf.push(`  ${a.id}  ${a.capability || "?"}  ${a.reason.slice(0, 40)}`);
-            buf.push(`    alix approvals approve ${a.id}`);
-          }
-        } else {
-          buf.push("No pending approvals.");
-        }
-      } else if (s.activePanel === "sops") {
-        buf.push("── SOP Packs ────────────────────────────");
-        buf.push(`SOPs:    ${s.sopsCount}`);
-        buf.push("  research.deep_report      6 nodes");
-        buf.push("  infra.docker_compose_audit 1 node");
-      } else if (s.activePanel === "policy") {
-        buf.push("── Policy Rules ─────────────────────────");
-        buf.push(`Rules:   ${s.policyRulesCount}`);
-        buf.push("Run: alix policy eval --capability <cap>");
-      } else if (s.activePanel === "runtime") {
-        buf.push("── Runtime Events ───────────────────────");
-        buf.push(`Events:  ${s.runtimeEventCount}`);
-        if (s.recentRuntimeEvents && s.recentRuntimeEvents.length > 0) {
-          for (const e of s.recentRuntimeEvents.slice(0, 8)) {
-            buf.push(`  [${e.source}] ${e.action} ${e.summary ? e.summary.slice(0, 40) : ""}`);
-          }
-        }
-      }
-      for (const l of buf) tui.appendOutput(l, false);
       continue;
     }
 
