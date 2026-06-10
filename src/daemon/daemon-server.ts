@@ -16,6 +16,7 @@ import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
+import { recordWorkspaceActivity } from "./workspace-registry.js";
 
 const args = process.argv.slice(2);
 const socketPath = args[args.indexOf("--socket") + 1];
@@ -106,6 +107,8 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
     const task = String(cmd.task || "");
     const requestCwd = String(cmd.cwd || defaultCwd);  // use request cwd or startup default
     const record = registry.create(task, requestCwd);
+    // Auto-register workspace activity (fire-and-forget)
+    recordWorkspaceActivity(requestCwd).catch(() => {});
     taskQueue.push({ task, taskId: record.id, cwd: requestCwd, route: cmd.route as TaskRoute | undefined, client });
     client.write(JSON.stringify({ type: "task.created", taskId: record.id, task: String(cmd.task || ""), position: taskQueue.length } satisfies DaemonResponse) + "\n");
     if (taskQueue.length === 1) {
