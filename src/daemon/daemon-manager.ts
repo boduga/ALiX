@@ -7,8 +7,11 @@
 
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { spawn } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+const daemonManagerDir = dirname(fileURLToPath(import.meta.url));
 
 export interface DaemonStatus {
   pid: number;
@@ -46,7 +49,7 @@ export class DaemonManager {
     const socketPath = join(this.cwd, ".alix", "alixd.sock");
 
     const child = spawn(process.execPath, [
-      join(__dirname, "daemon-server.js"),
+      join(daemonManagerDir, "daemon-server.js"),
       "--socket", socketPath,
       "--cwd", this.cwd,
     ], {
