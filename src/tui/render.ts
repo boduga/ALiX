@@ -84,8 +84,9 @@ export class TuiRenderer {
   private cardCount(h: number, w: number): number {
     const s = this.store.getState();
     if (s.activePanel !== "chat") return 0;
-    if (h >= 40 && w >= 150) return 10; // full cards
-    if (h >= 25 && w >= 100) return 1;  // compact summary
+    if (h >= 40 && w >= 150) return 10;  // full 3-wide cards
+    if (h >= 28 && w >= 110) return 5;   // laptop 2-row
+    if (h >= 25 && w >= 100) return 1;   // compact summary
     return 0;
   }
 
@@ -112,6 +113,8 @@ export class TuiRenderer {
     let cards: string[] = [];
     if (cCount >= 10) {
       cards = renderDashboardCards(snapshotFromStore(s), w);
+    } else if (cCount >= 5) {
+      cards = renderDashboardCards(snapshotFromStore(s), w, true);
     } else if (cCount >= 1) {
       cards = [renderCompactSummary(snapshotFromStore(s), w)];
     }
@@ -149,6 +152,7 @@ export class TuiRenderer {
       const cCount = this.cardCount(h, w);
       let cards: string[] = [];
       if (cCount >= 10) cards = renderDashboardCards(snapshotFromStore(s), w);
+      else if (cCount >= 5) cards = renderDashboardCards(snapshotFromStore(s), w, true);
       else if (cCount >= 1) cards = [renderCompactSummary(snapshotFromStore(s), w)];
       if (JSON.stringify(cards) === JSON.stringify(this.lastCards)) return;
     }

@@ -35,6 +35,7 @@ export class BudgetBarWidget {
     const filled = Math.round(Math.min(1, ratio) * width);
     const empty = width - filled;
     const color = this.getColor();
+    if (filled === 0) return `\x1b[2m${"░".repeat(width)}\x1b[22m`;
     return `\x1b[${color}m${"█".repeat(filled)}${"░".repeat(empty)}\x1b[0m`;
   }
 

@@ -24,10 +24,25 @@ export function snapshotFromStore(s: TuiState): TuiRuntimeSnapshot {
   };
 }
 
-/** Render a row of dashboard cards for the current snapshot. */
-export function renderDashboardCards(snapshot: TuiRuntimeSnapshot, width: number): string[] {
+/** Render dashboard cards. thin = 2-row laptop layout, otherwise 3-wide. */
+export function renderDashboardCards(snapshot: TuiRuntimeSnapshot, width: number, thin = false): string[] {
+  if (thin) {
+    const halfW = Math.max(Math.floor((width - 6) / 2), 30);
+    const daemon = renderDaemonCard(snapshot, halfW);
+    const center = renderCenterCard(snapshot, halfW);
+    const right = renderRightCard(snapshot, halfW);
+    const row1 = Math.max(daemon.length, center.length);
+    const result: string[] = [];
+    for (let i = 0; i < row1; i++) {
+      result.push((i < daemon.length ? daemon[i] : " ".repeat(halfW + 2)) + " " + (i < center.length ? center[i] : " ".repeat(halfW + 2)));
+    }
+    for (let i = 0; i < right.length; i++) {
+      const pad = Math.floor((width - halfW - 2) / 2);
+      result.push(" ".repeat(pad) + (i < right.length ? right[i] : " ".repeat(halfW + 2)));
+    }
+    return result;
+  }
   const cardW = Math.max(Math.floor((width - 8) / 3), 20);
-  // 3-card layout: daemon | approvals+runtime | sops+policy
   const daemon = renderDaemonCard(snapshot, cardW);
   const center = renderCenterCard(snapshot, cardW);
   const right = renderRightCard(snapshot, cardW);
