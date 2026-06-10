@@ -33,6 +33,7 @@ export class TaskRegistry {
   private tasks: DaemonTaskRecord[] = [];
   private filePath: string;
   private maxCompleted = 100;
+  private savePromise: Promise<void> = Promise.resolve();
 
   constructor() {
     this.filePath = join(homedir(), ".alix", "daemon-tasks.json");
@@ -53,6 +54,15 @@ export class TaskRegistry {
     await rename(tmp, this.filePath);
   }
 
+  /** Serialized write — ensures concurrent saves don't race. */
+  private enqueueSave(): void {
+    this.savePromise = this.savePromise
+      .then(() => this.save())
+      .catch((err) => {
+        console.error("[task-registry] save failed", err);
+      });
+  }
+
   create(task: string, cwd: string): DaemonTaskRecord {
     const record: DaemonTaskRecord = {
       id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
@@ -62,7 +72,7 @@ export class TaskRegistry {
     };
     this.tasks.push(record);
     this.pruneCompleted();
-    this.save().catch(() => {});
+    this.enqueueSave();
     return record;
   }
 
@@ -70,7 +80,7 @@ export class TaskRegistry {
     const idx = this.tasks.findIndex(t => t.id === id);
     if (idx < 0) return null;
     this.tasks[idx] = { ...this.tasks[idx], ...changes, updatedAt: new Date().toISOString() };
-    this.save().catch(() => {});
+    this.enqueueSave();
     return this.tasks[idx];
   }
 
@@ -113,7 +123,7 @@ export class TaskRegistry {
       }
     }
 
-    if (reconciled > 0) this.save().catch(() => {});
+    if (reconciled > 0) this.enqueueSave();
     return { reconciled, totalBefore };
   }
 

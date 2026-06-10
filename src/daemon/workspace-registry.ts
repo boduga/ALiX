@@ -26,6 +26,24 @@ function workspacesPath(): string {
   return join(homedir(), ".alix", "workspaces.json");
 }
 
+// Serialized write queue — avoids races between concurrent recordWorkspaceActivity calls
+let savePromise: Promise<void> = Promise.resolve();
+
+function enqueueSave(workspaces: WorkspaceEntry[]): Promise<void> {
+  savePromise = savePromise
+    .then(() => save(workspaces))
+    .catch((err) => {
+      console.error("[workspace-registry] save failed", err);
+    });
+  return savePromise;
+}
+
+async function save(workspaces: WorkspaceEntry[]): Promise<void> {
+  const tmp = workspacesPath() + ".tmp";
+  await writeFile(tmp, JSON.stringify(workspaces, null, 2), "utf-8");
+  await rename(tmp, workspacesPath());
+}
+
 /** Load workspaces from disk.  Returns [] on any error (missing file, parse error, or non-array). */
 export async function listWorkspaces(): Promise<WorkspaceEntry[]> {
   try {
@@ -90,8 +108,6 @@ export async function recordWorkspaceActivity(cwd: string): Promise<void> {
   // Sort by lastUsed descending
   workspaces.sort((a, b) => new Date(b.lastUsed).getTime() - new Date(a.lastUsed).getTime());
 
-  // Atomic write via .tmp + rename
-  const tmp = workspacesPath() + ".tmp";
-  await writeFile(tmp, JSON.stringify(workspaces, null, 2), "utf-8");
-  await rename(tmp, workspacesPath());
+  // Atomic write via .tmp + rename (serialized)
+  await enqueueSave(workspaces);
 }
