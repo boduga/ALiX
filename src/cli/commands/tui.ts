@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { createInterface, type Interface as RLInterface } from "node:readline";
 import { Tui } from "../../tui/index.js";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
@@ -13,16 +14,25 @@ export interface TuiOptions {
   daemonMode?: boolean;
 }
 
-function readLine(): Promise<string | null> {
-  return new Promise((resolve) => {
-    // Register listener first so no keystrokes are missed
-    process.stdin.once("data", (buffer: Buffer) => {
-      const text = buffer.toString("utf-8").replace(/\r?\n$/, "");
-      if (text === "") { resolve(null); return; }
-      resolve(text);
-    });
+// One readline interface per runTui() — created in runTui() after the TTY
+// guard and closed on exit/SIGINT. `terminal: true` puts stdin in cooked mode
+// and resumes the stream; without it the TUI hangs silently in a real
+// terminal because Node keeps `process.stdin` paused.
+let rl: RLInterface | null = null;
 
-    process.stdout.write("> ");
+function readLine(): Promise<string | null> {
+  const current = rl;
+  if (!current) return Promise.resolve(null);
+  return new Promise((resolve) => {
+    const onLine = (line: string) => {
+      current.removeListener("line", onLine);
+      if (line === "") { resolve(null); return; }
+      if (line === "\t" || line.toLowerCase() === "tab") { resolve("\t"); return; }
+      if (line.toLowerCase() === "exit" || line.toLowerCase() === "quit") { resolve(null); return; }
+      resolve(line);
+    };
+    current.once("line", onLine);
+    current.prompt(true);
   });
 }
 
@@ -41,6 +51,18 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     process.exitCode = 1;
     return;
   }
+
+  // Wire up a persistent readline interface for interactive input.
+  // `terminal: true` is required so Node resumes stdin in cooked mode and
+  // the `line` event fires for typed input.
+  rl = createInterface({
+    input: process.stdin,
+    output: process.stdout,
+    terminal: true,
+  });
+  rl.setPrompt("> ");
+  try { process.stdin.resume(); } catch { /* already flowing */ }
+
   const cwd = process.cwd();
 
   const sessionId = opts.sessionName
@@ -96,6 +118,8 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const { submitTaskViaDaemon, formatDaemonEvent } = await import("../../tui/daemon-client.js");
 
   process.on("SIGINT", () => {
+    try { rl?.close(); } catch { /* ignore */ }
+    rl = null;
     tui.destroy();
     process.exit(0);
   });
@@ -195,5 +219,8 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   }
 
   tui.destroy();
+
+  try { rl.close(); } catch { /* already closed */ }
+  rl = null;
 
 }

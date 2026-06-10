@@ -40,8 +40,9 @@
     "verify:deps": "node scripts/verify-deps.mjs",
     "check": "npm run build && npm run test:node && npm run verify:deps",
     "test:ci": "npm run test:node:ci && npm run test:vitest",
-    "test:node:ci": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' -print0 | xargs -0 node --test",
+    "test:node:ci": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' ! -path 'dist/tests/pty/*' -print0 | xargs -0 node --test",
     "test:manual:tui": "node --test --test-concurrency=1 dist/tests/manual/suite-p-tui-smoke.test.js",
+    "test:pty:tui": "ALIX_PTY_TESTS=1 node --test --test-concurrency=1 dist/tests/pty/tui-pty.test.js",
     "fresh": "npm run build && node dist/src/cli.js doctor"
   },
   "engines": {
@@ -54,6 +55,7 @@
     "@types/react-dom": "19.2.3",
     "c8": "11.0.0",
     "minimatch": "10.2.5",
+    "node-pty": "1.1.0-beta34",
     "typescript": "5.9.3",
     "vitest": "4.1.6"
   },

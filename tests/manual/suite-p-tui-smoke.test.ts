@@ -34,13 +34,15 @@ function ttyGuardOr(out: string, expected: string): boolean {
 
 describe("TUI smoke", () => {
   it("shows welcome or TTY guard", async () => {
-    const { stdout } = await runTui("", []);
-    assert.ok(ttyGuardOr(stdout, "ALiX TUI"), `Expected TUI or TTY guard, got: ${stdout.slice(0, 100)}`);
+    const { stdout, stderr } = await runTui("", []);
+    const combined = stdout + stderr;
+    assert.ok(ttyGuardOr(combined, "ALiX TUI"), `Expected TUI or TTY guard, got: ${combined.slice(0, 200)}`);
   });
 
   it("shows help on ? input or TTY guard", async () => {
-    const { stdout } = await runTui("?\n", []);
-    assert.ok(ttyGuardOr(stdout, "Commands") || ttyGuardOr(stdout, "Panels"), `Expected help, got: ${stdout.slice(0, 200)}`);
+    const { stdout, stderr } = await runTui("?\n", []);
+    const combined = stdout + stderr;
+    assert.ok(ttyGuardOr(combined, "Commands") || ttyGuardOr(combined, "Panels"), `Expected help, got: ${combined.slice(0, 200)}`);
   });
 
   it("daemon mode shows error or TTY guard", async () => {
