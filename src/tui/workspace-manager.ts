@@ -193,8 +193,13 @@ export class WorkspaceManager {
       resolved = homedir();
     }
 
-    // Resolve against process cwd (handles relative paths)
-    resolved = resolve(resolved);
+    // Resolve relative paths against the active workspace, not process cwd.
+    // This ensures [Monolith] > /open ../other resolves relative to Monolith,
+    // not to the original shell launch directory.
+    if (!resolved.startsWith("/")) {
+      const activeCwd = this.deps.getActiveCwd();
+      resolved = resolve(activeCwd, resolved);
+    }
 
     // Validate that the target exists and is a directory
     let isDir = false;
