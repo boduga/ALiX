@@ -92,6 +92,8 @@ function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
     }
     return result;
   };
+  // Expose collected events for fallback extraction in handleRun()
+  (log as any)._events = events;
   return log;
 }
 
@@ -158,6 +160,15 @@ function safeWrite(client: Socket, payload: DaemonResponse | Record<string, unkn
   client.write(JSON.stringify(payload) + "\n");
 }
 
+/** Extract a human-readable fallback from collected events when no text was streamed. */
+function extractFallbackOutput(events: any[]): string | null {
+  const candidates = events
+    .map((e) => e.payload?.output ?? e.payload?.stdout ?? e.payload?.result ?? e.payload?.summary)
+    .filter((v) => typeof v === "string" && v.trim().length > 0);
+  if (candidates.length === 0) return null;
+  return candidates.slice(-3).join("\n");
+}
+
 /** Run a task via runTask() and stream events back to the client. */
 async function handleRun(task: string, taskId: string, client: Socket): Promise<void> {
   const sessionId = `daemon_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
@@ -181,6 +192,7 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
     const config = await loadConfig(cwd);
     const { runTask } = await import("../run.js");
 
+    let streamedText = false;
     const result = await runTask(cwd, task, {
       planMode: false,
       streaming: true,
@@ -193,16 +205,26 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
       },
     }, (chunk: any) => {
       if (chunk.type === "text" && typeof chunk.text === "string") {
+        streamedText = true;
         client.write(JSON.stringify({ type: "assistant.text", sessionId, text: chunk.text } satisfies DaemonResponse) + "\n");
       }
     });
 
     currentSessionId = undefined;
 
-    // If no assistant.text was streamed, send the result summary so
-    // shell/tool tasks (e.g. "list files") always surface output.
-    if (result.summary) {
-      safeWrite(client, { type: "assistant.text" as const, sessionId, text: result.summary });
+    // Send output: prefer streamed text, then result.summary,
+    // then fallback extracted from collected events.
+    if (!streamedText) {
+      if (result.summary) {
+        safeWrite(client, { type: "assistant.text" as const, sessionId, text: result.summary });
+      } else {
+        const fallback = extractFallbackOutput((eventLog as any)._events ?? []);
+        if (fallback) {
+          safeWrite(client, { type: "assistant.text" as const, sessionId, text: fallback });
+        } else {
+          safeWrite(client, { type: "assistant.text" as const, sessionId, text: "Task completed, but no textual output was produced." });
+        }
+      }
     }
 
     // Check if cancel was requested during execution
