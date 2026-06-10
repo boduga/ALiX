@@ -9,14 +9,38 @@ export const red = (s: string) => `\x1b[31m${s}\x1b[0m`;
 export const dim = (s: string) => `\x1b[2m${s}\x1b[22m`;
 export const bold = (s: string) => `\x1b[1m${s}\x1b[22m`;
 
+/** Strip ANSI escape codes for width calculation. */
+export function stripAnsi(s: string): string {
+  return s.replace(/\x1b\[[0-9;]*m/g, "");
+}
+
+/** Visible width of a string (excluding ANSI codes). */
+export function visibleLen(s: string): number {
+  return stripAnsi(s).length;
+}
+
 export function truncate(s: string, w: number): string {
-  if (s.length <= w) return s;
-  return s.slice(0, w - 1) + "…";
+  if (visibleLen(s) <= w) return s;
+  let count = 0;
+  let result = "";
+  let i = 0;
+  while (i < s.length && count < w - 1) {
+    if (s[i] === "\x1b") {
+      const match = s.slice(i).match(/^\x1b\[[0-9;]*m/);
+      if (match) { result += match[0]; i += match[0].length; continue; }
+    }
+    result += s[i];
+    count++;
+    i++;
+  }
+  if (i < s.length) result += "…";
+  return result;
 }
 
 export function pad(s: string, w: number): string {
-  if (s.length >= w) return s.slice(0, w);
-  return s + " ".repeat(w - s.length);
+  const v = visibleLen(s);
+  if (v >= w) return s.slice(0, w);
+  return s + " ".repeat(w - v);
 }
 
 export function bar(pct: number, w: number): string {

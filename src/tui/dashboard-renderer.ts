@@ -106,3 +106,17 @@ function renderRightCard(snapshot: TuiRuntimeSnapshot, w: number): string[] {
   }
   return box("SOPS / POLICY", lines, w);
 }
+
+/** Compact one-line summary for medium terminals. */
+export function renderCompactSummary(snapshot: TuiRuntimeSnapshot, width: number): string {
+  const parts: string[] = [];
+  const daemon = snapshot.daemonRunning ? green("daemon") : dim("daemon stopped");
+  parts.push(daemon);
+  parts.push(`approvals:${snapshot.pendingApprovalsCount}`);
+  parts.push(`events:${snapshot.runtimeEventCount}`);
+  parts.push(`SOPs:${snapshot.sopsCount}`);
+  parts.push(`rules:${snapshot.policyRulesCount}`);
+  if (snapshot.daemonTasks.running > 0) parts.push(yellow(`run:${snapshot.daemonTasks.running}`));
+  if (snapshot.daemonTasks.queued > 0) parts.push(yellow(`queued:${snapshot.daemonTasks.queued}`));
+  return dim("│ ") + parts.join(" " + dim("│") + " ");
+}

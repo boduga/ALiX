@@ -17,7 +17,7 @@ import { StateTheaterWidget } from "./widgets/state-theater.js";
 import { BudgetBarWidget } from "./widgets/budget-bar.js";
 import { SpinnerWidget } from "./widgets/spinner.js";
 import { clearToEndOfLine, getTerminalHeight } from "./ansi.js";
-import { renderDashboardCards, snapshotFromStore } from "./dashboard-renderer.js";
+import { renderDashboardCards, renderCompactSummary, snapshotFromStore } from "./dashboard-renderer.js";
 
 const STATUS = 4;
 const LINE = (n: number) => `\x1b[${n + 1};1H`;
@@ -30,6 +30,7 @@ export class TuiRenderer {
   private renderPending = false;
   private ready = false;
   private lastBlock = "";
+  private lastCards: string[] = [];
 
   constructor(private store: TuiStore) {
     this.store.subscribe(() => this.requestRender());
@@ -50,18 +51,21 @@ export class TuiRenderer {
     process.stdout.write("\x1b[?25l");
 
     const h = getTerminalHeight();
-    const scrollH = h - STATUS;
+    const w = process.stdout.columns || 80;
+    const cardCount = this.cardCount(h, w);
+    const scrollH = h - STATUS - cardCount;
     process.stdout.write(`\x1b[1;${scrollH}r`);
     process.stdout.write("\n".repeat(scrollH));
-    this.putStatus();
+    this.putFixed();
   }
 
   /** Separator before a new task. */
   resetOutput(): void {
     if (!this.ready) return;
     this.lastBlock = "";
+    this.lastCards = [];
     process.stdout.write("\n" + clearToEndOfLine() + "─".repeat(process.stdout.columns || 80));
-    this.putStatus();
+    this.putFixed();
   }
 
   /** Append output. streaming=true overwrites last line. */
@@ -72,10 +76,18 @@ export class TuiRenderer {
     } else {
       process.stdout.write(text + "\n");
     }
-    this.putStatus();
+    this.putFixed();
   }
 
   // ── Internal ────────────────────────────────────────────────────
+
+  private cardCount(h: number, w: number): number {
+    const s = this.store.getState();
+    if (s.activePanel !== "chat") return 0;
+    if (h >= 40 && w >= 150) return 10; // full cards
+    if (h >= 25 && w >= 100) return 1;  // compact summary
+    return 0;
+  }
 
   private requestRender(): void {
     if (this.renderPending) return;
@@ -83,45 +95,67 @@ export class TuiRenderer {
     setTimeout(() => {
       if (!this.running) return;
       this.renderPending = false;
-      this.renderStatus();
+      this.renderFixed();
     }, 50);
   }
 
-  /** Save cursor, write status lines at bottom, restore cursor. */
-  private putStatus(): void {
+  /** Write all fixed content: cards + status lines. */
+  private putFixed(): void {
     if (!this.ready) return;
-    const block = this.buildBlock();
-    this.lastBlock = block;
-    process.stdout.write("\x1b[s"); // save
+    const statusBlock = this.buildStatusBlock();
+    this.lastBlock = statusBlock;
     const h = getTerminalHeight();
-    const start = h - STATUS;
-    const parts = block.split("\n");
-    for (let i = 0; i < STATUS; i++) {
-      process.stdout.write(LINE(start + i));
-      if (i < parts.length) process.stdout.write(parts[i]);
-      else process.stdout.write(clearToEndOfLine());
-    }
-    process.stdout.write("\x1b[u"); // restore
-  }
+    const w = process.stdout.columns || 80;
+    const s = this.store.getState();
+    const cCount = this.cardCount(h, w);
 
-  private renderStatus(): void {
-    if (!this.ready) return;
-    const block = this.buildBlock();
-    if (block === this.lastBlock) return;
-    this.lastBlock = block;
+    let cards: string[] = [];
+    if (cCount >= 10) {
+      cards = renderDashboardCards(snapshotFromStore(s), w);
+    } else if (cCount >= 1) {
+      cards = [renderCompactSummary(snapshotFromStore(s), w)];
+    }
+
+    const totalFixed = cards.length + STATUS;
+    const fixedStart = h - totalFixed;
+
     process.stdout.write("\x1b[s");
-    const h = getTerminalHeight();
-    const start = h - STATUS;
-    const parts = block.split("\n");
+    // Dashboard cards
+    for (let i = 0; i < cards.length; i++) {
+      process.stdout.write(LINE(fixedStart + i));
+      process.stdout.write(clearToEndOfLine() + cards[i]);
+    }
+    // Status lines
+    const statusStart = fixedStart + cards.length;
+    const parts = statusBlock.split("\n");
     for (let i = 0; i < STATUS; i++) {
-      process.stdout.write(LINE(start + i));
+      process.stdout.write(LINE(statusStart + i));
       if (i < parts.length) process.stdout.write(parts[i]);
       else process.stdout.write(clearToEndOfLine());
     }
     process.stdout.write("\x1b[u");
+
+    this.lastCards = cards;
   }
 
-  private buildBlock(): string {
+  private renderFixed(): void {
+    if (!this.ready) return;
+    const statusBlock = this.buildStatusBlock();
+    if (statusBlock === this.lastBlock) {
+      // Check if cards changed
+      const h = getTerminalHeight();
+      const w = process.stdout.columns || 80;
+      const s = this.store.getState();
+      const cCount = this.cardCount(h, w);
+      let cards: string[] = [];
+      if (cCount >= 10) cards = renderDashboardCards(snapshotFromStore(s), w);
+      else if (cCount >= 1) cards = [renderCompactSummary(snapshotFromStore(s), w)];
+      if (JSON.stringify(cards) === JSON.stringify(this.lastCards)) return;
+    }
+    this.putFixed();
+  }
+
+  private buildStatusBlock(): string {
     const s = this.store.getState();
     this.stateTheater.setState(s.agentState);
     if (s.agentReasoning) this.stateTheater.setReasoning(s.agentReasoning);
@@ -129,14 +163,7 @@ export class TuiRenderer {
     this.budgetBar.setFiles(s.tokenBudget.files);
 
     const w = process.stdout.columns || 80;
-    const h = getTerminalHeight();
-    const showCards = h >= 30 && w >= 120 && s.activePanel === "chat";
     const l: string[] = [];
-    if (showCards) {
-      const snap = snapshotFromStore(s);
-      const cards = renderDashboardCards(snap, w);
-      for (const line of cards) l.push(clearToEndOfLine() + line);
-    }
     l.push(clearToEndOfLine() + "─".repeat(w));
     const daemonIcon = s.daemonRunning === undefined ? "" : s.daemonRunning ? "●" : "○";
     const daemonStr = s.daemonRunning !== undefined ? ` ${daemonIcon}${s.daemonRunning ? " daemon" : " stopped"}` : "";
