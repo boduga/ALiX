@@ -76,42 +76,46 @@ describe("Integration: Policy eval", () => {
 });
 
 describe("Integration: TaskRegistry", () => {
+  let origHome: string | undefined;
+  let testHome: string;
+
+  before(() => {
+    origHome = process.env.HOME;
+    testHome = mkdtempSync(join(tmpdir(), "int-taskreg-home-"));
+    process.env.HOME = testHome;
+  });
+
+  after(() => {
+    process.env.HOME = origHome;
+    rmSync(testHome, { recursive: true, force: true });
+  });
+
   it("creates, updates, and persists tasks", async () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "int-taskreg-"));
-    try {
-      const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+    const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
 
-      const r1 = new TaskRegistry(tmpDir);
-      await r1.load();
-      const t = r1.create("integration test");
-      r1.update(t.id, { status: "running", sessionId: "sess_1", startedAt: new Date().toISOString() });
-      r1.update(t.id, { status: "completed" });
-      await new Promise(r => setTimeout(r, 100));
+    const r1 = new TaskRegistry();
+    await r1.load();
+    const t = r1.create("integration test", testHome);
+    r1.update(t.id, { status: "running", sessionId: "sess_1", startedAt: new Date().toISOString() });
+    r1.update(t.id, { status: "completed" });
+    await new Promise(r => setTimeout(r, 100));
 
-      const r2 = new TaskRegistry(tmpDir);
-      await r2.load();
-      const tasks = r2.list();
-      assert.equal(tasks.length, 1);
-      assert.equal(tasks[0].status, "completed");
-      assert.equal(tasks[0].task, "integration test");
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+    const r2 = new TaskRegistry();
+    await r2.load();
+    const tasks = r2.list();
+    assert.equal(tasks.length, 1);
+    assert.equal(tasks[0].status, "completed");
+    assert.equal(tasks[0].task, "integration test");
   });
 
   it("reconcileOnStartup marks running as failed_orphaned", async () => {
-    const tmpDir = mkdtempSync(join(tmpdir(), "int-recon-"));
-    try {
-      const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
-      const reg = new TaskRegistry(tmpDir);
-      await reg.load();
-      const t = reg.create("orphaned task");
-      reg.update(t.id, { status: "running" });
-      reg.reconcileOnStartup();
-      assert.equal(reg.get(t.id)!.status, "failed_orphaned");
-    } finally {
-      rmSync(tmpDir, { recursive: true, force: true });
-    }
+    const { TaskRegistry } = await import("../../src/daemon/task-registry.js");
+    const reg = new TaskRegistry();
+    await reg.load();
+    const t = reg.create("orphaned task", testHome);
+    reg.update(t.id, { status: "running" });
+    reg.reconcileOnStartup();
+    assert.equal(reg.get(t.id)!.status, "failed_orphaned");
   });
 });
 

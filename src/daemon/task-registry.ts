@@ -7,6 +7,7 @@
 
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { existsSync } from "node:fs";
 
 export type DaemonTaskStatus =
@@ -16,6 +17,7 @@ export type DaemonTaskStatus =
 export type DaemonTaskRecord = {
   id: string;
   task: string;
+  cwd: string;          // project directory where task was submitted
   status: DaemonTaskStatus;
   sessionId?: string;
   queuePosition?: number;
@@ -32,8 +34,8 @@ export class TaskRegistry {
   private filePath: string;
   private maxCompleted = 100;
 
-  constructor(cwd: string) {
-    this.filePath = join(cwd, ".alix", "daemon-tasks.json");
+  constructor() {
+    this.filePath = join(homedir(), ".alix", "daemon-tasks.json");
   }
 
   async load(): Promise<void> {
@@ -51,10 +53,10 @@ export class TaskRegistry {
     await rename(tmp, this.filePath);
   }
 
-  create(task: string): DaemonTaskRecord {
+  create(task: string, cwd: string): DaemonTaskRecord {
     const record: DaemonTaskRecord = {
       id: `task_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      task, status: "queued",
+      task, cwd, status: "queued",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
