@@ -8,6 +8,7 @@
 import { readFile, writeFile, mkdir, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -26,20 +27,24 @@ export interface DaemonStatus {
 export class DaemonManager {
   constructor(private cwd: string) {}
 
+  private globalDir(): string {
+    return join(homedir(), ".alix");
+  }
+
   private pidPath(): string {
-    return join(this.cwd, ".alix", "daemon.pid");
+    return join(this.globalDir(), "daemon.pid");
   }
 
   private statusPath(): string {
-    return join(this.cwd, ".alix", "daemon.json");
+    return join(this.globalDir(), "daemon.json");
   }
 
-  private socketPath(): string {
-    return join(this.cwd, ".alix", "alixd.sock");
+  socketPath(): string {
+    return join(this.globalDir(), "alixd.sock");
   }
 
   private ensureDir(): Promise<void> {
-    return mkdir(join(this.cwd, ".alix"), { recursive: true }) as any;
+    return mkdir(this.globalDir(), { recursive: true }) as any;
   }
 
   /** Start the daemon process. */
@@ -64,6 +69,9 @@ export class DaemonManager {
 
     await this.ensureDir();
     const socketPath = this.socketPath();
+
+    // Remove stale socket before spawn — leftover from kill -9 or crash
+    await rm(socketPath, { force: true }).catch(() => {});
 
     const child = spawn(process.execPath, [
       join(daemonManagerDir, "daemon-server.js"),
