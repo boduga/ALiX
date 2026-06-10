@@ -7,7 +7,7 @@
 
 import { basename, resolve, join } from "node:path";
 import { homedir } from "node:os";
-import { existsSync, statSync } from "node:fs";
+import { existsSync } from "node:fs";
 import type { WorkspaceEntry } from "../daemon/workspace-registry.js";
 
 // ---------------------------------------------------------------------------
@@ -136,8 +136,13 @@ export class WorkspaceManager {
           nextCwd: workspace.path,
         };
       }
-      // Invalid numeric — fall through to resolveWorkspace so that
-      // a workspace literally named "1" or "/some/path/1" can still match.
+      // Invalid numeric — preserve cache for retry, but let the user
+      // know the selection was out of range.
+      return {
+        handled: true,
+        changedWorkspace: false,
+        message: `Invalid selection: ${arg}. Choose a number between 1 and ${this.lastAmbiguity.matches.length}, or type /switch with a different name or path.`,
+      };
     }
 
     // 2. Resolve by path / name / suffix
@@ -186,11 +191,25 @@ export class WorkspaceManager {
     resolved = resolve(resolved);
 
     // Validate that the target exists and is a directory
-    if (!existsSync(resolved) || !statSync(resolved).isDirectory()) {
+    let isDir = false;
+    try {
+      const { statSync } = await import("node:fs");
+      isDir = statSync(resolved).isDirectory();
+    } catch {
+      // statSync threw (ENOENT, EACCES, etc.)
+    }
+    if (!existsSync(resolved)) {
       return {
         handled: true,
         changedWorkspace: false,
-        message: `Directory not found: ${resolved}`,
+        message: `Path does not exist: ${resolved}`,
+      };
+    }
+    if (!isDir) {
+      return {
+        handled: true,
+        changedWorkspace: false,
+        message: `Not a directory: ${resolved}`,
       };
     }
 
@@ -250,11 +269,11 @@ export class WorkspaceManager {
 // ---------------------------------------------------------------------------
 
 function isListCommand(cmd: string): boolean {
-  return cmd === "/workspaces" || cmd === "/workspace" || cmd === "/ws";
+  return (COMMAND_PREFIXES as readonly string[]).includes(cmd);
 }
 
 function isSwitchCommand(cmd: string): boolean {
-  return cmd === "/switch" || cmd === "/sw";
+  return (SWITCH_PREFIXES as readonly string[]).includes(cmd);
 }
 
 // ---------------------------------------------------------------------------
