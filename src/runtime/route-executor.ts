@@ -94,8 +94,17 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       messages: [{ role: "user", content: route.prompt }],
     });
 
-    if (response.toolCalls.length > 0 && response.toolCalls.length <= 1) {
+    if (response.toolCalls.length > 0) {
+      if (response.toolCalls.length > 1) {
+        return "Grounded chat supports only one tool call at a time.";
+      }
       const tc = response.toolCalls[0];
+
+      // Enforce allowedTools allowlist
+      if (!route.allowedTools.includes(tc.name)) {
+        return `Tool "${tc.name}" is not allowed for this query type.`;
+      }
+
       const toolResult = await executor.execute({
         toolCallId: `local_${Date.now()}_${randomBytes(4).toString("hex")}`,
         name: tc.name,

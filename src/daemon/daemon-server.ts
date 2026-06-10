@@ -245,8 +245,19 @@ async function executeGroundedChatRoute(
     messages: [{ role: "user", content: route.prompt }],
   });
 
-  if (response.toolCalls.length > 0 && response.toolCalls.length <= 1) {
+  if (response.toolCalls.length > 0) {
+    if (response.toolCalls.length > 1) {
+      safeWrite(client, { type: "assistant.text" as const, sessionId, text: "Grounded chat supports only one tool call at a time." });
+      return;
+    }
     const tc = response.toolCalls[0];
+
+    // Enforce allowedTools allowlist
+    if (!route.allowedTools.includes(tc.name)) {
+      safeWrite(client, { type: "assistant.text" as const, sessionId, text: `Tool "${tc.name}" is not allowed for this query type.` });
+      return;
+    }
+
     const toolResult = await executor.execute({
       toolCallId: `daemon_${Date.now()}_${randomBytes(4).toString("hex")}`,
       name: tc.name, args: tc.args,
@@ -295,38 +306,46 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
     payload: { task, source: "daemon" },
   });
 
+  // Guard to ensure session.ended fires exactly once
+  let ended = false;
+  const endSession = async () => {
+    if (ended) return;
+    ended = true;
+    currentSessionId = undefined;
+    await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
+    client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
+  };
+
   // Resolve route: use pre-classified route, or classify from scratch
   if (!route) {
     const { taskRouter } = await import("../runtime/task-router.js");
     route = taskRouter(task);
   }
 
-  // Route execution — tool/chat/grounded_chat complete here, agent falls through
-  switch (route.kind) {
-    case "tool":
-      await executeToolRoute(route, taskId, sessionId, requestCwd, client, eventLog);
-      break;
-    case "chat":
-      await executeChatRoute(route, taskId, sessionId, requestCwd, client, eventLog);
-      break;
-    case "grounded_chat":
-      await executeGroundedChatRoute(route, sessionId, requestCwd, client, eventLog);
-      break;
-    case "agent":
-      break; // fall through to runTask() below
-  }
-
-  if (route.kind !== "agent") {
-    currentSessionId = undefined;
-    registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
-    safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
-    client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
-    await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
-    return;
-  }
-
-  // Agent route — runTask path (uses requestCwd for project context)
   try {
+    // Route execution — tool/chat/grounded_chat complete here, agent falls through
+    switch (route.kind) {
+      case "tool":
+        await executeToolRoute(route, taskId, sessionId, requestCwd, client, eventLog);
+        break;
+      case "chat":
+        await executeChatRoute(route, taskId, sessionId, requestCwd, client, eventLog);
+        break;
+      case "grounded_chat":
+        await executeGroundedChatRoute(route, sessionId, requestCwd, client, eventLog);
+        break;
+      case "agent":
+        break; // fall through to runTask() below
+    }
+
+    if (route.kind !== "agent") {
+      registry.update(taskId, { status: "completed", completedAt: new Date().toISOString() });
+      safeWrite(client, { type: "task.completed" as const, sessionId, status: "completed" });
+      await endSession();
+      return;
+    }
+
+    // Agent route — runTask path
     const { loadConfig } = await import("../config/loader.js");
     const config = await loadConfig(requestCwd);
     const { runTask } = await import("../run.js");
@@ -348,8 +367,6 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
         client.write(JSON.stringify({ type: "assistant.text", sessionId, text: chunk.text } satisfies DaemonResponse) + "\n");
       }
     });
-
-    currentSessionId = undefined;
 
     if (!streamedText) {
       if (result.summary) {
@@ -376,15 +393,12 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
       client.write(JSON.stringify({ type: "task.failed", sessionId, error: result.reason } satisfies DaemonResponse) + "\n");
     }
   } catch (err: any) {
-    currentSessionId = undefined;
     const error = err instanceof Error ? (err.stack ?? err.message) : String(err);
     registry.update(taskId, { status: "failed", error });
     safeWrite(client, { type: "task.failed" as const, sessionId, error });
-    safeWrite(client, { type: "session.ended" as const, sessionId });
+  } finally {
+    await endSession();
   }
-
-  await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
-  client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
 }
 
 process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); process.exit(1); });
