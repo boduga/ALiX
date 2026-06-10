@@ -4,6 +4,28 @@ import { sortNodesByDependencies, normalizeNode, loadGraph, GraphExecutor } from
 import type { TaskNode, TaskGraph } from "../../src/kernel/task-graph.js";
 import { CardRegistry } from "../../src/registry/card-registry.js";
 
+/**
+ * Write a project-level .alix/config.json that pins the mock provider.
+ *
+ * `loadConfig()` in src/config/loader.ts always reads BOTH the user config
+ * (~/.config/alix/config.json) AND the project config (<cwd>/.alix/config.json).
+ * On any developer machine where the user config is set up (real API keys,
+ * a real provider), the tmpdir-isolated tests below would otherwise fall
+ * through to the user config and make real LLM calls — hanging the suite
+ * for 30+ seconds per test.
+ *
+ * Writing a project config in the tmpdir makes the loader merge the mock
+ * provider on top of the user config, so `runTask()` always uses the fast
+ * deterministic mock.
+ */
+function writeMockConfig(tmpDir: string, writeFileSync: (path: string, data: string) => void, join: (...parts: string[]) => string, mkdirSync: (path: string, opts?: { recursive?: boolean }) => void) {
+  mkdirSync(join(tmpDir, ".alix"), { recursive: true });
+  writeFileSync(
+    join(tmpDir, ".alix", "config.json"),
+    JSON.stringify({ model: { provider: "mock", name: "mock" } }),
+  );
+}
+
 describe("GraphExecutor", () => {
 
   it("sortNodesByDependencies returns nodes in dependency order", () => {
@@ -109,6 +131,7 @@ describe("GraphExecutor", () => {
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-test-"));
+    writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
 
     const graphId = "enforce_default_test";
     const graphsDir = join(tmpDir, ".alix", "graphs");
@@ -148,6 +171,7 @@ describe("GraphExecutor", () => {
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-blocked-"));
+    writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
 
     const graphId = "enforce_blocked_test";
     const graphsDir = join(tmpDir, ".alix", "graphs");
@@ -188,6 +212,7 @@ describe("GraphExecutor", () => {
     const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
     const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-approval-"));
+    writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
 
     const graphId = "enforce_approval_test";
     const graphsDir = join(tmpDir, ".alix", "graphs");
@@ -240,6 +265,7 @@ describe("GraphExecutor", () => {
     const { tmpdir } = await import("node:os");
     const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-policy-deny-"));
+    writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
 
     const graphId = "policy_deny_test";
     const graphsDir = join(tmpDir, ".alix", "graphs");
