@@ -2050,18 +2050,18 @@ if (command === "daemon") {
 if (command === "submit") {
   const task = args.join(" ").replace(/^["']|["']$/g, "");
   if (!task) { console.error("Usage: alix submit \"<task>\""); process.exit(1); }
+  const cwd = process.cwd();
   const { DaemonManager } = await import("./daemon/daemon-manager.js");
-  const mgr = new DaemonManager(process.cwd());
+  const mgr = new DaemonManager(cwd);
   const running = await mgr.isRunning();
   if (!running) { console.error("Daemon is not running. Start it with: alix daemon start"); process.exit(1); }
 
-  const status = await mgr.status();
-  const socketPath = status?.socketPath;
-  if (!socketPath) { console.error("No socket path found in daemon status."); process.exit(1); }
+  const socketPath = mgr.socketPath();
+  if (!socketPath) { console.error("No socket path found."); process.exit(1); }
 
   const { connect } = await import("node:net");
   const client = connect(socketPath, () => {
-    client.write(JSON.stringify({ command: "run", task }) + "\n");
+    client.write(JSON.stringify({ command: "run", task, cwd }) + "\n");
   });
 
   client.on("data", (data: Buffer) => {
