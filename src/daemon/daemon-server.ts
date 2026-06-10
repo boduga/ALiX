@@ -78,8 +78,16 @@ function createDaemonEventLog(sessionId: string, client: Socket): EventLog {
     const enriched = { ...event, sessionId, seq: events.length, timestamp: new Date().toISOString() };
     // Write to session file using the real EventLog
     const result = await origAppend(event);
-    // Forward key events to client
-    if (!event.type?.startsWith("m09.") && !event.type?.startsWith("embedder.") && !event.type?.startsWith("context.") && !event.type?.startsWith("mcp.")) {
+    // Forward key events to client — skip lifecycle events (daemon already
+    // sends them explicitly) and internal noise (m09./embedder./context./mcp.).
+    const forwardedLifecycle = new Set(["session.started", "session.ended"]);
+    if (
+      !forwardedLifecycle.has(event.type) &&
+      !event.type?.startsWith("m09.") &&
+      !event.type?.startsWith("embedder.") &&
+      !event.type?.startsWith("context.") &&
+      !event.type?.startsWith("mcp.")
+    ) {
       client.write(JSON.stringify(enriched) + "\n");
     }
     return result;
@@ -190,6 +198,12 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
     });
 
     currentSessionId = undefined;
+
+    // If no assistant.text was streamed, send the result summary so
+    // shell/tool tasks (e.g. "list files") always surface output.
+    if (result.summary) {
+      safeWrite(client, { type: "assistant.text" as const, sessionId, text: result.summary });
+    }
 
     // Check if cancel was requested during execution
     const current = registry.get(taskId);
