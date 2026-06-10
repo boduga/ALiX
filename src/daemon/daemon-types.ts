@@ -27,4 +27,5 @@ export type DaemonResponse =
   | { type: "cancelled"; sessionId: string }
   | { type: "task.created"; taskId: string; task: string; position: number }
   | { type: "task.cancelled"; taskId: string; requested?: boolean }
-  | { type: "cancel.error"; taskId: string; message: string };
+  | { type: "cancel.error"; taskId: string; message: string }
+  | { type: "assistant.text"; sessionId: string; text: string };

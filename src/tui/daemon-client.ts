@@ -44,6 +44,7 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
       client.write(JSON.stringify({ command: "run", task: opts.task }) + "\n");
     });
 
+    let sawSessionEnded = false;
     let buffer = "";
     client.on("data", (data: Buffer) => {
       buffer += data.toString("utf8");
@@ -56,6 +57,7 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
           const msg = JSON.parse(line) as DaemonResponse;
           opts.onEvent({ ...msg, raw: line });
           if (msg.type === "session.ended") {
+            sawSessionEnded = true;
             client.end();
           }
         } catch {
@@ -70,6 +72,7 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
     });
 
     client.on("close", () => {
+      if (!sawSessionEnded) opts.onError("Daemon connection closed before session ended.");
       opts.onDone();
       resolve();
     });
@@ -97,6 +100,8 @@ export function formatDaemonEvent(event: DaemonResponse & { raw?: string }): str
       return `✗ Task failed: ${event.error}`;
     case "session.ended":
       return `Session ended: ${event.sessionId}`;
+    case "assistant.text":
+      return (event as any).text || null;
     case "error":
       return `Error: ${event.message}`;
     default:

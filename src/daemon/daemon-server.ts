@@ -168,11 +168,18 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
 
     const result = await runTask(cwd, task, {
       planMode: false,
+      streaming: true,
+      sessionMode: "bypass",
+      skipContext: true,
       sharedSession: {
         sessionId,
         sessionDir: join(cwd, ".alix", "sessions", sessionId),
         eventLog,
       },
+    }, (chunk: any) => {
+      if (chunk.type === "text" && typeof chunk.text === "string") {
+        client.write(JSON.stringify({ type: "assistant.text", sessionId, text: chunk.text } satisfies DaemonResponse) + "\n");
+      }
     });
 
     currentSessionId = undefined;
@@ -191,13 +198,16 @@ async function handleRun(task: string, taskId: string, client: Socket): Promise<
     }
   } catch (err: any) {
     currentSessionId = undefined;
-    registry.update(taskId, { status: "failed", error: err.message });
-    client.write(JSON.stringify({ type: "task.failed", sessionId, error: err.message } satisfies DaemonResponse) + "\n");
+    registry.update(taskId, { status: "failed", error: err.message || String(err) });
+    client.write(JSON.stringify({ type: "task.failed", sessionId, error: err.message || String(err) } satisfies DaemonResponse) + "\n");
   }
 
   await eventLog.append({ actor: "system", type: "session.ended", sessionId, payload: {} });
   client.write(JSON.stringify({ type: "session.ended", sessionId } satisfies DaemonResponse) + "\n");
 }
+
+process.on("uncaughtException", (err) => { console.error("[daemon] uncaughtException", err); });
+process.on("unhandledRejection", (err) => { console.error("[daemon] unhandledRejection", err); });
 
 // Start server
 const server = createServer((client: Socket) => {
