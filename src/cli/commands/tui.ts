@@ -9,6 +9,7 @@ import { loadConfig } from "../../config/loader.js";
 import { runTask } from "../../run.js";
 import { taskRouter } from "../../runtime/task-router.js";
 import { executeRoute, LocalRuntimeExecutor, type RuntimeContext } from "../../runtime/route-executor.js";
+import { WorkspaceManager, promptLabel } from "../../tui/workspace-manager.js";
 
 export interface TuiOptions {
   sessionName?: string;
@@ -62,7 +63,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     output: process.stdout,
     terminal: true,
   });
-  rl.setPrompt("> ");
+  rl.setPrompt(promptLabel(process.cwd()));
   try { process.stdin.resume(); } catch { /* already flowing */ }
 
   const cwd = process.cwd();
@@ -75,7 +76,11 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   await mkdir(sessionDir, { recursive: true });
   const config = await loadConfig(cwd);
 
-  const tuiLog = new EventLog(sessionDir);
+  // Workspace manager for /workspaces, /switch, /open commands
+  const { listWorkspaces, recordWorkspaceActivity, getWorkspace } = await import("../../daemon/workspace-registry.js");
+  const workspaceManager = new WorkspaceManager({ listWorkspaces, recordWorkspaceActivity, getWorkspace });
+
+  let tuiLog = new EventLog(sessionDir);
   await tuiLog.init();
 
   // Resolve model context limit for the TUI token budget display
@@ -110,6 +115,8 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     }
   }
 
+  rl.setPrompt(promptLabel(cwd, snapshot?.workspaceName, snapshot?.workspacePath));
+
   // Welcome text
   tui.appendOutput("ALiX TUI - Interactive Session", false);
   const execMode = daemonMode ? "daemon" : "direct";
@@ -133,6 +140,37 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
   const store = tui.getStore();
   const { renderPanelContent } = await import("../../tui/panel-renderer.js");
+
+  // Workspace switch re-init — must be inside runTui() for variable scope
+  async function softReinitWorkspace(nextCwd: string): Promise<void> {
+    const { randomBytes } = await import("node:crypto");
+    const { join } = await import("node:path");
+    const { mkdir } = await import("node:fs/promises");
+    const { EventLog: EL } = await import("../../events/event-log.js");
+    const { buildRuntimeSnapshot: bRS, applySnapshotToStore: aSTS } = await import("../../tui/runtime-snapshot.js");
+
+    // 1. Fresh session
+    const newSessionId = `tui_${Date.now()}_${randomBytes(4).toString("hex")}`;
+    const newSessionDir = join(nextCwd, ".alix", "sessions", newSessionId);
+    await mkdir(newSessionDir, { recursive: true });
+
+    // 2. Fresh event log
+    tuiLog = new EL(newSessionDir);
+    await tuiLog.init();
+
+    // 3. Fresh snapshot
+    const newSnapshot = await bRS(nextCwd);
+    if (newSnapshot) aSTS(tuiStore, newSnapshot);
+
+    // 4. Update Tui internals
+    tuiStore.setSessionId(newSessionId);
+    tuiStore.setSessionDir(newSessionDir);
+
+    // 5. Update prompt
+    const wsName = newSnapshot?.workspaceName ?? nextCwd.split("/").pop() ?? "";
+    rl!.setPrompt(promptLabel(nextCwd, newSnapshot?.workspaceName, newSnapshot?.workspacePath));
+    rl!.prompt(true);
+  }
 
   while (true) {
     const task = await readLine();
@@ -175,6 +213,16 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     try {
       tui.resetOutput();
       echoTask(task);
+
+      // Check for workspace commands
+      const wsResult = await workspaceManager.tryHandleCommand(task);
+      if (wsResult.handled) {
+        tui.appendOutput(wsResult.message + "\n", false);
+        if (wsResult.changedWorkspace && wsResult.nextCwd) {
+          await softReinitWorkspace(wsResult.nextCwd);
+        }
+        continue;
+      }
 
       if (daemonMode) {
         // Classify locally, send the route to the daemon

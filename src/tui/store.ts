@@ -61,6 +61,7 @@ export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "ru
 
 export interface TuiState {
   sessionId: string;
+  sessionDir?: string;
   agentState: AgentState;
   agentReasoning: string;
   subagents: SubagentNode[];
@@ -130,6 +131,11 @@ export class TuiStore {
 
   setSessionId(sessionId: string): void {
     this.state.sessionId = sessionId;
+    this.notify();
+  }
+
+  setSessionDir(dir: string): void {
+    this.state.sessionDir = dir;
     this.notify();
   }
 
