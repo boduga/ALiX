@@ -53,6 +53,7 @@ describe("WorkspaceManager", () => {
       },
       getWorkspace: async (path: string) =>
         allWorkspaces.find((w) => w.path === path),
+      getActiveCwd: () => "/test/cwd",
     };
   });
 

@@ -27,6 +27,7 @@ export interface WorkspaceManagerDeps {
   listWorkspaces(): Promise<WorkspaceEntry[]>;
   recordWorkspaceActivity(cwd: string): Promise<void>;
   getWorkspace(path: string): Promise<WorkspaceEntry | undefined>;
+  getActiveCwd(): string;
 }
 
 // ---------------------------------------------------------------------------

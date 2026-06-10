@@ -66,28 +66,29 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   rl.setPrompt(promptLabel(process.cwd()));
   try { process.stdin.resume(); } catch { /* already flowing */ }
 
-  const cwd = process.cwd();
-
-  const sessionId = opts.sessionName
+  let activeCwd = process.cwd();
+  let activeSessionId = opts.sessionName
     ? opts.sessionName.replace(/[^a-zA-Z0-9-_]/g, "-")
     : randomUUID();
-
-  const sessionDir = join(cwd, ".alix", "sessions", sessionId);
-  await mkdir(sessionDir, { recursive: true });
-  const config = await loadConfig(cwd);
+  let activeSessionDir = join(activeCwd, ".alix", "sessions", activeSessionId);
+  await mkdir(activeSessionDir, { recursive: true });
+  let activeConfig = await loadConfig(activeCwd);
 
   // Workspace manager for /workspaces, /switch, /open commands
   const { listWorkspaces, recordWorkspaceActivity, getWorkspace } = await import("../../daemon/workspace-registry.js");
-  const workspaceManager = new WorkspaceManager({ listWorkspaces, recordWorkspaceActivity, getWorkspace });
+  const workspaceManager = new WorkspaceManager({
+    listWorkspaces, recordWorkspaceActivity, getWorkspace,
+    getActiveCwd: () => activeCwd,
+  });
 
-  let tuiLog = new EventLog(sessionDir);
+  let tuiLog = new EventLog(activeSessionDir);
   await tuiLog.init();
 
   // Resolve model context limit for the TUI token budget display
   const { resolveContextLimit } = await import("../../config/context-limits.js");
-  const contextInfo = await resolveContextLimit(config.model.provider, config.model.name, config.apiKeys);
+  const contextInfo = await resolveContextLimit(activeConfig.model.provider, activeConfig.model.name, activeConfig.apiKeys);
 
-  const tui = new Tui({ sessionId, eventLog: tuiLog, maxTokens: contextInfo.maxTokens });
+  const tui = new Tui({ sessionId: activeSessionId, eventLog: tuiLog, maxTokens: contextInfo.maxTokens });
   await tui.init();
 
   const mode = opts.sessionMode || "bypass";
@@ -95,7 +96,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
   if (daemonMode) {
     const { DaemonManager } = await import("../../daemon/daemon-manager.js");
-    const dm = new DaemonManager(cwd);
+    const dm = new DaemonManager(activeCwd);
     if (!(await dm.isRunning())) {
       tui.appendOutput("ERROR: Daemon is not running. Start it with: alix daemon start\n", false);
       setTimeout(() => { tui.destroy(); process.exit(1); }, 2000);
@@ -107,7 +108,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const { buildRuntimeSnapshot, applySnapshotToStore } = await import("../../tui/runtime-snapshot.js");
   let daemonInfo = "";
   const tuiStore = tui.getStore();
-  const snapshot = await buildRuntimeSnapshot(cwd);
+  const snapshot = await buildRuntimeSnapshot(activeCwd);
   if (snapshot) {
     applySnapshotToStore(tuiStore, snapshot);
     if (snapshot.daemonRunning) {
@@ -115,13 +116,13 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     }
   }
 
-  rl.setPrompt(promptLabel(cwd, snapshot?.workspaceName, snapshot?.workspacePath));
+  rl.setPrompt(promptLabel(activeCwd, snapshot?.workspaceName, snapshot?.workspacePath));
 
   // Welcome text
   tui.appendOutput("ALiX TUI - Interactive Session", false);
   const execMode = daemonMode ? "daemon" : "direct";
   tui.appendOutput(`Execution mode: ${execMode} | Session: ${mode}${daemonInfo}`, false);
-  const wsName = snapshot?.workspaceName ?? cwd.split("/").pop() ?? "";
+  const wsName = snapshot?.workspaceName ?? activeCwd.split("/").pop() ?? "";
   tui.appendOutput(`Workspace: ${wsName}`, false);
   if (daemonMode) tui.appendOutput("Daemon mode: policy handled by daemon runtime gate.", false);
   tui.appendOutput("Type 'exit' to quit. 'r' to refresh snapshot, '?' for help.", false);
@@ -149,25 +150,23 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     const { EventLog: EL } = await import("../../events/event-log.js");
     const { buildRuntimeSnapshot: bRS, applySnapshotToStore: aSTS } = await import("../../tui/runtime-snapshot.js");
 
-    // 1. Fresh session
     const newSessionId = `tui_${Date.now()}_${randomBytes(4).toString("hex")}`;
     const newSessionDir = join(nextCwd, ".alix", "sessions", newSessionId);
     await mkdir(newSessionDir, { recursive: true });
 
-    // 2. Fresh event log
+    // Update all mutable state
+    activeCwd = nextCwd;
+    activeSessionId = newSessionId;
+    activeSessionDir = newSessionDir;
+    activeConfig = await loadConfig(nextCwd);
     tuiLog = new EL(newSessionDir);
     await tuiLog.init();
 
-    // 3. Fresh snapshot
     const newSnapshot = await bRS(nextCwd);
     if (newSnapshot) aSTS(tuiStore, newSnapshot);
 
-    // 4. Update Tui internals
     tuiStore.setSessionId(newSessionId);
     tuiStore.setSessionDir(newSessionDir);
-
-    // 5. Update prompt
-    const wsName = newSnapshot?.workspaceName ?? nextCwd.split("/").pop() ?? "";
     rl!.setPrompt(promptLabel(nextCwd, newSnapshot?.workspaceName, newSnapshot?.workspacePath));
     rl!.prompt(true);
   }
@@ -194,7 +193,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     }
 
     if (task.toLowerCase() === "r" || task.toLowerCase() === "refresh") {
-      const fresh = await buildRuntimeSnapshot(cwd);
+      const fresh = await buildRuntimeSnapshot(activeCwd);
       if (fresh) applySnapshotToStore(tuiStore, fresh);
       tui.appendOutput("Runtime snapshot refreshed.\n", false);
       continue;
@@ -228,18 +227,18 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         // Classify locally, send the route to the daemon
         const route = taskRouter(task);
         await submitTaskViaDaemon({
-          cwd, task, route,
+          cwd: activeCwd, task, route,
           onEvent: (event) => { const line = formatDaemonEvent(event); if (line) tui.appendOutput(line, false); },
           onError: (err) => tui.appendOutput(`Error: ${err}`, false),
-          onDone: async () => { const fresh = await buildRuntimeSnapshot(cwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
+          onDone: async () => { const fresh = await buildRuntimeSnapshot(activeCwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
         });
       } else {
         // Route through the shared task router
         const route = taskRouter(task);
         const ctx: RuntimeContext = {
-          cwd, sessionId, sessionDir,
+          cwd: activeCwd, sessionId: activeSessionId, sessionDir: activeSessionDir,
           eventLog: tuiLog,
-          config,
+          config: activeConfig,
           onStream: (chunk) => {
             if (chunk.type === "text" && typeof chunk.text === "string") {
               tui.appendOutput(chunk.text, true);
