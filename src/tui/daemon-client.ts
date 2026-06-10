@@ -3,10 +3,12 @@
  */
 
 import type { DaemonResponse } from "../daemon/daemon-types.js";
+import type { TaskRoute } from "../runtime/task-router.js";
 
 export interface DaemonClientOptions {
   cwd: string;
   task: string;
+  route?: TaskRoute;
   onEvent: (event: DaemonResponse & { raw?: string }) => void;
   onError: (error: string) => void;
   onDone: () => void;
@@ -41,7 +43,7 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
 
   return new Promise<void>((resolve) => {
     const client = connect(socketPath, () => {
-      client.write(JSON.stringify({ command: "run", task: opts.task }) + "\n");
+      client.write(JSON.stringify({ command: "run", task: opts.task, route: opts.route }) + "\n");
     });
 
     let sawSessionEnded = false;

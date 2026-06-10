@@ -175,8 +175,10 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       echoTask(task);
 
       if (daemonMode) {
+        // Classify locally, send the route to the daemon
+        const route = taskRouter(task);
         await submitTaskViaDaemon({
-          cwd, task,
+          cwd, task, route,
           onEvent: (event) => { const line = formatDaemonEvent(event); if (line) tui.appendOutput(line, false); },
           onError: (err) => tui.appendOutput(`Error: ${err}`, false),
           onDone: async () => { const fresh = await buildRuntimeSnapshot(cwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
