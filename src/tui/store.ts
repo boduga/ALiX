@@ -81,6 +81,7 @@ export interface TuiState {
   daemonPid?: number;
   daemonHeartbeatAge?: number;
   sopItems?: { id: string; name: string; version?: string; nodeCount?: number; tags?: string[] }[];
+  showDashboard?: boolean;
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime"];
@@ -104,6 +105,7 @@ export class TuiStore {
       pendingApproval: initialState?.pendingApproval ?? null,
       inputMode: initialState?.inputMode ?? "command",
       activePanel: initialState?.activePanel ?? "chat",
+      showDashboard: initialState?.showDashboard ?? false,
     };
   }
 
@@ -241,6 +243,16 @@ export class TuiStore {
 
   setSopItems(items: { id: string; name: string; version?: string; nodeCount?: number; tags?: string[] }[]): void {
     this.state.sopItems = items;
+    this.notify();
+  }
+
+  setShowDashboard(show: boolean): void {
+    this.state.showDashboard = show;
+    this.notify();
+  }
+
+  toggleDashboard(): void {
+    this.state.showDashboard = !this.state.showDashboard;
     this.notify();
   }
 

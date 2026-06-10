@@ -84,9 +84,16 @@ export class TuiRenderer {
   private cardCount(h: number, w: number): number {
     const s = this.store.getState();
     if (s.activePanel !== "chat") return 0;
-    if (h >= 40 && w >= 150) return 10;  // full 3-wide cards
-    if (h >= 28 && w >= 110) return 5;   // laptop 2-row
-    if (h >= 25 && w >= 100) return 1;   // compact summary
+    // On-demand dashboard override
+    if (s.showDashboard) {
+      if (h >= 38 && w >= 150) return 10;
+      if (h >= 30 && w >= 110) return 5;
+      return 1;
+    }
+    // Default: compact summary on laptops, full cards only on large displays
+    if (h >= 42 && w >= 160) return 10;  // external monitor
+    if (h >= 35 && w >= 130) return 5;   // large laptop
+    if (h >= 25 && w >= 100) return 1;   // compact summary (most laptops)
     return 0;
   }
 

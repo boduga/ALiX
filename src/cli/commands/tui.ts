@@ -128,7 +128,13 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
     if (task === "?" || task.toLowerCase() === "help") {
-      tui.appendOutput("Commands: r=refresh tab=next panel ?=help q=quit\nPanels: chat daemon approvals sops policy runtime\n", false);
+      const dState = store.getState().showDashboard ? "on" : "off";
+      tui.appendOutput(`Commands: r=refresh tab=next panel d=dashboard(${dState}) ?=help q=quit\n`, false);
+      continue;
+    }
+    if (task.toLowerCase() === "d") {
+      store.toggleDashboard();
+      tui.appendOutput(`Dashboard: ${store.getState().showDashboard ? "on" : "off"}\n`, false);
       continue;
     }
 
