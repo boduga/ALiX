@@ -260,10 +260,12 @@ describe("WorkspaceManager", () => {
     }
   });
 
-  it("no argument returns handled: false", async () => {
+  it("no argument returns usage message", async () => {
     const mgr = new WorkspaceManager(deps);
     const r = await mgr.tryHandleCommand("/open");
-    assert.equal(r.handled, false);
+    assert.equal(r.handled, true);
+    assert.equal((r as any).changedWorkspace, false);
+    assert.ok((r as any).message.includes("Usage"));
   });
 
   it("existing dir records activity and switches", async () => {

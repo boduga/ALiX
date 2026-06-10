@@ -89,6 +89,7 @@ export class WorkspaceManager {
     }
 
     // /open — requires an argument after a space
+    if (trimmed === "/open") return { cmd: "/open", arg: "" };
     if (trimmed.startsWith("/open ")) {
       return { cmd: "/open", arg: trimmed.slice(6) };
     }
@@ -179,6 +180,10 @@ export class WorkspaceManager {
   }
 
   private async handleOpen(rawPath: string): Promise<WorkspaceCommandResult> {
+    if (!rawPath.trim()) {
+      return { handled: true, changedWorkspace: false, message: "Usage: /open <path>" };
+    }
+
     // Expand tilde to home directory
     let resolved = rawPath;
     if (resolved.startsWith("~/")) {
