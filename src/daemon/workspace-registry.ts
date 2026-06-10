@@ -24,11 +24,12 @@ export type WorkspaceEntry = {
 
 export const WORKSPACES_PATH = join(homedir(), ".alix", "workspaces.json");
 
-/** Load workspaces from disk.  Returns [] on any error (missing file, parse error). */
+/** Load workspaces from disk.  Returns [] on any error (missing file, parse error, or non-array). */
 export async function listWorkspaces(): Promise<WorkspaceEntry[]> {
   try {
     const raw = await readFile(WORKSPACES_PATH, "utf-8");
-    return JSON.parse(raw) as WorkspaceEntry[];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
   }
