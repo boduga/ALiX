@@ -7,7 +7,7 @@
 
 /** Commands a client can send to the daemon. */
 export type DaemonCommand =
-  | { command: "run"; task: string; route?: import("../runtime/task-router.js").TaskRoute; sessionMode?: string; planMode?: boolean }
+  | { command: "run"; task: string; cwd: string; route?: import("../runtime/task-router.js").TaskRoute; sessionMode?: string; planMode?: boolean }
   | { command: "ping" }
   | { command: "status" }
   | { command: "cancel"; taskId: string };
