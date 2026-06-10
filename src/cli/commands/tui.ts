@@ -7,6 +7,8 @@ import { Tui } from "../../tui/index.js";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
 import { runTask } from "../../run.js";
+import { taskRouter } from "../../runtime/task-router.js";
+import { executeRoute, LocalRuntimeExecutor, type RuntimeContext } from "../../runtime/route-executor.js";
 
 export interface TuiOptions {
   sessionName?: string;
@@ -180,38 +182,20 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           onDone: async () => { const fresh = await buildRuntimeSnapshot(cwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
         });
       } else {
-        const msgsPath = join(sessionDir, "messages.jsonl");
-        const { isShellTask } = await import("../../task-classifier.js");
-        const isShell = isShellTask(task);
-        let allMessages: any[] = [{ role: "user" as const, content: task }];
-        if (!isShell && existsSync(msgsPath)) {
-          const raw = await readFile(msgsPath, "utf-8");
-          const prevMessages = raw.trim().split("\n").filter(Boolean).map(l => JSON.parse(l));
-          allMessages = [...prevMessages, ...allMessages];
-        }
-
-        const hasPriorMessages = allMessages.length > 1;
-        const result = await runTask(cwd, task, {
-          messages: isShell ? undefined : allMessages,
-          streaming: true,
-          sessionMode: mode,
-          skipContext: hasPriorMessages,
-          sharedSession: { sessionId, sessionDir, eventLog: tuiLog },
-        }, (chunk) => {
-          if (chunk.type === "text" && typeof chunk.text === "string") {
-            tui.appendOutput(chunk.text, true);
-          }
-        });
-
-        if (result.summary) tui.appendOutput(result.summary, false);
-
-        if (!isShell) {
-          const savedMessages = [...allMessages];
-          if (result.summary) savedMessages.push({ role: "assistant" as const, content: result.summary });
-          const capped = savedMessages.length > 20 ? savedMessages.slice(-20) : savedMessages;
-          const jsonLines = capped.map((m: any) => JSON.stringify(m) + "\n").join("");
-          await writeFile(msgsPath, jsonLines, "utf-8").catch(() => {});
-        }
+        // Route through the shared task router
+        const route = taskRouter(task);
+        const ctx: RuntimeContext = {
+          cwd, sessionId, sessionDir,
+          eventLog: tuiLog,
+          config,
+          onStream: (chunk) => {
+            if (chunk.type === "text" && typeof chunk.text === "string") {
+              tui.appendOutput(chunk.text, true);
+            }
+          },
+        };
+        const text = await executeRoute(route, ctx, new LocalRuntimeExecutor());
+        if (text) tui.appendOutput(text, false);
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
