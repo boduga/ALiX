@@ -138,6 +138,17 @@ export class PolicyGate {
    * Returns one decision that should be both logged and enforced.
    */
   async evaluateToolCall(request: ToolPolicyRequest): Promise<PolicyGateDecision> {
+    // Bypass/auto mode short-circuits all policy checks
+    if (request.sessionMode === "bypass" || request.sessionMode === "auto") {
+      return {
+        requestId: request.requestId,
+        capability: request.capability ?? inferCapability(request.toolName),
+        decision: "allow",
+        reason: `Session mode is '${request.sessionMode}' — all tools allowed`,
+        matchedRuleId: `session-mode-${request.sessionMode}`,
+      };
+    }
+
     const capability = request.capability ?? inferCapability(request.toolName);
     const args = request.args;
 
