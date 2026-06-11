@@ -8,6 +8,7 @@
 import type { TraceEvent } from "../runtime/trace-events.js";
 import type { ReplayPreview } from "../runtime/replay-preview.js";
 import type { ReplayResult } from "../runtime/replay-executor.js";
+import type { ReplayDiffSet } from "../runtime/replay-diff-store.js";
 
 export function renderTraceSummary(event: TraceEvent): string[] {
   const lines: string[] = [];
@@ -163,6 +164,73 @@ export function renderReplayResult(result: ReplayResult): string[] {
       lines.push(`    ⚠ ${w}`);
     }
   }
+
+  // Diff summary and rollback preview
+  if (result.diffSet && result.diffSet.records.length > 0) {
+    lines.push("");
+    lines.push("  ── Changes ────────────────────────");
+    lines.push(...renderReplayDiffSummary(result.diffSet));
+    lines.push("");
+    lines.push("  ── Rollback Preview ──────────────────");
+    lines.push(...renderRollbackPreview(result.diffSet));
+  }
+
+  return lines;
+}
+
+/**
+ * Render a summary of file changes from replay diff data.
+ */
+export function renderReplayDiffSummary(diffSet: ReplayDiffSet): string[] {
+  const lines: string[] = [];
+  lines.push(`  Files changed: ${diffSet.totalFilesChanged} (${diffSet.totalRollbackable} rollbackable)`);
+
+  if (diffSet.records.length === 0) {
+    lines.push("  No file changes recorded.");
+    return lines;
+  }
+
+  lines.push("");
+  lines.push("  Changes:");
+  for (const record of diffSet.records) {
+    const typeMarker = record.changeType === "created" ? "A"
+      : record.changeType === "deleted" ? "D" : "M";
+    const rollbackFlag = record.rollbackable ? " rollbackable" : " not rollbackable";
+    lines.push(`  ${typeMarker} ${record.filePath}${rollbackFlag}`);
+    if (record.diffPreview) {
+      const previewLine = record.diffPreview.split("\n").slice(0, 3).join("\n       ").slice(0, 80);
+      if (previewLine) lines.push(`       ${previewLine}`);
+    }
+  }
+
+  return lines;
+}
+
+/**
+ * Render a rollback preview showing what would be restored or deleted.
+ * No actual rollback — preview only.
+ */
+export function renderRollbackPreview(diffSet: ReplayDiffSet): string[] {
+  const lines: string[] = [];
+  lines.push("  Rollback Preview:");
+
+  if (diffSet.records.length === 0) {
+    lines.push("  No files to rollback.");
+    return lines;
+  }
+
+  for (const record of diffSet.records) {
+    if (record.rollbackable) {
+      lines.push(`  • Would restore: ${record.filePath} from snapshot`);
+    } else {
+      if (record.changeType === "created") {
+        lines.push(`  • Would delete: ${record.filePath} (no before state)`);
+      }
+    }
+  }
+
+  lines.push("");
+  lines.push("  ⚠ No rollback will occur. Preview only.");
 
   return lines;
 }

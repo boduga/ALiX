@@ -12,7 +12,7 @@ import type { ReplayAction } from "./replay-preview.js";
 import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../approvals/approval-store.js";
-import type { ReplayDiffStore } from "./replay-diff-store.js";
+import type { ReplayDiffSet, ReplayDiffStore } from "./replay-diff-store.js";
 import { readFile, searchDir } from "../tools/file-tools.js";
 
 // -- Types ---------------------------------------------------------------
@@ -33,6 +33,7 @@ export type ReplayStepResult = {
 export type ReplayResult = {
   mode: ReplayMode;
   replayId?: string;
+  diffSet?: ReplayDiffSet;
   steps: ReplayStepResult[];
   startedAt: string;
   completedAt: string;
@@ -528,9 +529,16 @@ export class ReplayExecutor {
       replayId: plan.replayId,
     });
 
+    // Load diff set if available
+    let diffSet: ReplayDiffSet | undefined;
+    if (plan.replayId && opts?.diffStore) {
+      diffSet = await opts.diffStore.loadIndex(plan.replayId) ?? undefined;
+    }
+
     return {
       mode: plan.mode,
       replayId: plan.replayId,
+      diffSet,
       steps: stepResults,
       startedAt,
       completedAt,
