@@ -36,46 +36,82 @@ function makeSignal(opts: {
 }
 
 /* ------------------------------------------------------------------ */
-/*  Action mapping                                                     */
+/*  Rule priority: first match wins                                    */
+/*                                                                     */
+/*  1. approvalRequired || (toolRequired && policyRisk)  → ask_approval */
+/*  2. replayRollbackContext && mutationPossible          → rollback_preview */
+/*  3. replayRollbackContext                              → replay_preview  */
+/*  4. freshnessRequired && memoryRequired                 → fetch_memory   */
+/*  5. freshnessRequired                                  → run_policy_check */
+/*  6. memoryRequired                                     → fetch_memory    */
+/*  7. policyRisk                                         → run_policy_check */
+/*  8. toolRequired                                       → proceed         */
+/*  9. otherwise                                          → proceed         */
 /* ------------------------------------------------------------------ */
 
 describe("prescribeOffering", () => {
-  it("policyRisk + approvalRequired → ask_approval", () => {
+  /* ---- Rule 1 ---- */
+
+  it("approvalRequired → ask_approval", () => {
+    const signal = makeSignal({ bits: { approvalRequired: true } });
+    const plan = prescribeOffering(signal);
+
+    assert.equal(plan.action, "ask_approval");
+    assert.deepEqual(plan.requiredEvidence, ["policy_decision", "approval_status"]);
+    assert.deepEqual(plan.successCriteria, ["approval_granted"]);
+  });
+
+  it("toolRequired + policyRisk → ask_approval", () => {
     const signal = makeSignal({
-      bits: { policyRisk: true, approvalRequired: true },
+      bits: { toolRequired: true, policyRisk: true },
     });
     const plan = prescribeOffering(signal);
 
     assert.equal(plan.action, "ask_approval");
-    assert.deepEqual(plan.requiredEvidence, [
-      "policy_decision",
-      "approval_status",
-    ]);
+    assert.deepEqual(plan.requiredEvidence, ["policy_decision", "approval_status"]);
     assert.deepEqual(plan.successCriteria, ["approval_granted"]);
   });
 
-  it("mutationPossible + replayRollbackContext → rollback_preview", () => {
+  /* ---- Rule 2 ---- */
+
+  it("replayRollbackContext + mutationPossible → rollback_preview", () => {
     const signal = makeSignal({
-      bits: { mutationPossible: true, replayRollbackContext: true },
+      bits: { replayRollbackContext: true, mutationPossible: true },
     });
     const plan = prescribeOffering(signal);
 
     assert.equal(plan.action, "rollback_preview");
     assert.deepEqual(plan.requiredEvidence, ["replay_diff", "rollback_plan"]);
-    assert.deepEqual(plan.successCriteria, [
-      "diff_generated",
-      "plan_reviewed",
-    ]);
+    assert.deepEqual(plan.successCriteria, ["diff_generated", "plan_reviewed"]);
   });
 
-  it("memoryRequired → fetch_memory", () => {
-    const signal = makeSignal({ bits: { memoryRequired: true } });
+  /* ---- Rule 3 ---- */
+
+  it("replayRollbackContext alone → replay_preview", () => {
+    const signal = makeSignal({
+      bits: { replayRollbackContext: true },
+    });
+    const plan = prescribeOffering(signal);
+
+    assert.equal(plan.action, "replay_preview");
+    assert.deepEqual(plan.requiredEvidence, ["trace_events", "replay_plan"]);
+    assert.deepEqual(plan.successCriteria, ["preview_generated"]);
+  });
+
+  /* ---- Rule 4 ---- */
+
+  it("freshnessRequired + memoryRequired → fetch_memory", () => {
+    const signal = makeSignal({
+      bits: { freshnessRequired: true, memoryRequired: true },
+    });
     const plan = prescribeOffering(signal);
 
     assert.equal(plan.action, "fetch_memory");
     assert.deepEqual(plan.requiredEvidence, ["memory_index", "session_context"]);
     assert.deepEqual(plan.successCriteria, ["memory_loaded"]);
   });
+
+  /* ---- Rule 5 ---- */
 
   it("freshnessRequired → run_policy_check", () => {
     const signal = makeSignal({ bits: { freshnessRequired: true } });
@@ -86,44 +122,40 @@ describe("prescribeOffering", () => {
     assert.deepEqual(plan.successCriteria, ["policy_verified"]);
   });
 
-  it("toolRequired + policyRisk → pause", () => {
-    const signal = makeSignal({
-      bits: { toolRequired: true, policyRisk: true },
-    });
+  /* ---- Rule 6 ---- */
+
+  it("memoryRequired → fetch_memory", () => {
+    const signal = makeSignal({ bits: { memoryRequired: true } });
     const plan = prescribeOffering(signal);
 
-    assert.equal(plan.action, "pause");
-    assert.deepEqual(plan.requiredEvidence, ["tool_listing", "policy_decision"]);
-    assert.deepEqual(plan.successCriteria, ["tool_reviewed", "risk_assessed"]);
+    assert.equal(plan.action, "fetch_memory");
+    assert.deepEqual(plan.requiredEvidence, ["memory_index", "session_context"]);
+    assert.deepEqual(plan.successCriteria, ["memory_loaded"]);
   });
 
-  it("domain=rollback → rollback_preview", () => {
-    const signal = makeSignal({ bits: {}, domain: "rollback" });
+  /* ---- Rule 7 ---- */
+
+  it("policyRisk → run_policy_check", () => {
+    const signal = makeSignal({ bits: { policyRisk: true } });
     const plan = prescribeOffering(signal);
 
-    assert.equal(plan.action, "rollback_preview");
-    assert.deepEqual(plan.requiredEvidence, ["replay_diff", "rollback_plan"]);
-    // rollback rule has single-element success criteria
-    assert.deepEqual(plan.successCriteria, ["diff_generated"]);
+    assert.equal(plan.action, "run_policy_check");
+    assert.deepEqual(plan.requiredEvidence, ["current_state", "policy_rules"]);
+    assert.deepEqual(plan.successCriteria, ["policy_verified"]);
   });
 
-  it("domain=replay → replay_preview", () => {
-    const signal = makeSignal({ bits: {}, domain: "replay" });
-    const plan = prescribeOffering(signal);
+  /* ---- Rule 8 ---- */
 
-    assert.equal(plan.action, "replay_preview");
-    assert.deepEqual(plan.requiredEvidence, ["trace_events", "replay_plan"]);
-    assert.deepEqual(plan.successCriteria, ["preview_generated"]);
-  });
-
-  it("domain=research → proceed", () => {
-    const signal = makeSignal({ bits: {}, domain: "research" });
+  it("toolRequired → proceed", () => {
+    const signal = makeSignal({ bits: { toolRequired: true } });
     const plan = prescribeOffering(signal);
 
     assert.equal(plan.action, "proceed");
-    assert.deepEqual(plan.requiredEvidence, []);
-    assert.deepEqual(plan.successCriteria, ["research_completed"]);
+    assert.deepEqual(plan.requiredEvidence, ["tool_listing"]);
+    assert.deepEqual(plan.successCriteria, ["execution_completed"]);
   });
+
+  /* ---- Rule 9 ---- */
 
   it("no flags matched → proceed (default)", () => {
     const signal = makeSignal({ bits: {}, domain: "task" });
@@ -138,28 +170,28 @@ describe("prescribeOffering", () => {
   /*  Rule priority                                                    */
   /* ---------------------------------------------------------------- */
 
-  it("policyRisk+approvalRequired beats domain=replay when both match", () => {
+  it("approvalRequired beats replayRollbackContext when both match", () => {
     const signal = makeSignal({
-      bits: { policyRisk: true, approvalRequired: true },
-      domain: "replay",
+      bits: { approvalRequired: true, replayRollbackContext: true },
     });
     const plan = prescribeOffering(signal);
 
-    // The bit-based rule fires before the domain-based re-play rule
+    // Rule 1 fires before rule 3
     assert.equal(plan.action, "ask_approval");
   });
 
-  it("domain matches override generic proceed", () => {
-    // No bit-based rules match, but domain=research should use the
-    // research-specific criteria, not the generic default.
+  it("replayRollbackContext+mutationPossible beats freshnessRequired when both match", () => {
     const signal = makeSignal({
-      bits: { intentClear: true },
-      domain: "research",
+      bits: {
+        replayRollbackContext: true,
+        mutationPossible: true,
+        freshnessRequired: true,
+      },
     });
     const plan = prescribeOffering(signal);
 
-    assert.equal(plan.action, "proceed");
-    assert.deepEqual(plan.successCriteria, ["research_completed"]);
+    // Rule 2 fires before rule 5
+    assert.equal(plan.action, "rollback_preview");
   });
 
   /* ---------------------------------------------------------------- */
@@ -207,15 +239,5 @@ describe("prescribeOffering", () => {
 
     assert.equal(plan.action, "proceed");
     assert.ok(plan.constraints.includes("proceed_with_confidence"));
-  });
-
-  it('pause action adds "require_human_review" to constraints', () => {
-    const signal = makeSignal({
-      bits: { toolRequired: true, policyRisk: true },
-    });
-    const plan = prescribeOffering(signal);
-
-    assert.equal(plan.action, "pause");
-    assert.ok(plan.constraints.includes("require_human_review"));
   });
 });
