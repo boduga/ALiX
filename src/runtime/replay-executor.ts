@@ -11,6 +11,7 @@ import { REPLAY_EVENT_TYPES } from "../events/types.js";
 import type { ReplayAction } from "./replay-preview.js";
 import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
+import type { ApprovalStore } from "../approvals/approval-store.js";
 import { readFile, searchDir } from "../tools/file-tools.js";
 
 // -- Types ---------------------------------------------------------------
@@ -30,6 +31,7 @@ export type ReplayStepResult = {
 
 export type ReplayResult = {
   mode: ReplayMode;
+  replayId?: string;
   steps: ReplayStepResult[];
   startedAt: string;
   completedAt: string;
@@ -66,6 +68,74 @@ async function replayToolStep(
 ): Promise<Pick<ReplayStepResult, "status" | "output" | "error" | "blockReason">> {
   const toolName = step.toolName || "";
   const args = step.args || {};
+
+  // Approved-live shell: execute for real
+  if (toolName === "shell.run" && mode === "approved-live") {
+    const command = String(args.command || "");
+    const { runCommand } = await import("../tools/shell-tool.js");
+    const result = await runCommand({ command, cwd });
+    if (result.kind === "error") {
+      return { status: "failed", error: result.message };
+    }
+    return { status: "completed", output: result.output || "" };
+  }
+
+  // Approved-live file.create: execute for real
+  if (toolName === "file.create" && mode === "approved-live") {
+    const path = String(args.path || "");
+    const content = args.content !== undefined ? String(args.content) : "";
+    const { mkdir, writeFile } = await import("node:fs/promises");
+    const { dirname, resolve } = await import("node:path");
+    const resolvedPath = resolve(cwd, path);
+    await mkdir(dirname(resolvedPath), { recursive: true });
+    await writeFile(resolvedPath, content, "utf8");
+    return { status: "completed", output: `File created: ${path}` };
+  }
+
+  // Approved-live file.delete: execute for real
+  if (toolName === "file.delete" && mode === "approved-live") {
+    const path = String(args.path || "");
+    const { rm } = await import("node:fs/promises");
+    const { resolve } = await import("node:path");
+    const resolvedPath = resolve(cwd, path);
+    await rm(resolvedPath);
+    return { status: "completed", output: `File deleted: ${path}` };
+  }
+
+  // Approved-live patch.apply: execute for real
+  if (toolName === "patch.apply" && mode === "approved-live") {
+    const format = (args.format || "search_replace") as import("../patch/edit-format-policy.js").EditFormat;
+    const patchText = String(args.patchText || "");
+    const { applyPatch } = await import("../patch/patch-engine.js");
+    try {
+      const result = await applyPatch(cwd, format, patchText);
+      if (result.status === "applied") {
+        return { status: "completed", output: `Patch applied: ${result.changedFiles?.join(", ") || "ok"}` };
+      }
+      return { status: "failed", error: "Patch invalid" };
+    } catch (err: any) {
+      return { status: "failed", error: err.message };
+    }
+  }
+
+  // Approved-live network: execute for real (already gated by approval above)
+  if (isNetworkTool(toolName) && mode === "approved-live") {
+    if (toolName === "web_search" || toolName === "web_fetch") {
+      const { webSearchTool } = await import("../tools/web-search.js");
+      const { webFetchTool } = await import("../tools/web-fetch.js");
+      const tool = toolName === "web_search" ? webSearchTool() : webFetchTool();
+      const result = await tool.execute(args as any);
+      if (result.ok) {
+        return { status: "completed", output: JSON.stringify(result.data) };
+      }
+      return { status: "failed", error: result.error ?? "Unknown error" };
+    }
+    if (toolName === "delegate") {
+      return { status: "blocked", blockReason: "delegate tool requires subagent context in replay" };
+    }
+    // mcp.* tools
+    return { status: "blocked", blockReason: `MCP tool ${toolName} requires MCP manager in approved-live replay` };
+  }
 
   // Dry-run shell: simulate
   if (toolName === "shell.run" && mode === "dry-run") {
@@ -186,6 +256,21 @@ async function replayToolStep(
   };
 }
 
+// ─── Side-effect classification ──────────────────────────────────────────
+
+export type SideEffectLevel = "read-only" | "side-effect" | "network";
+
+export function classifySideEffect(toolName: string): SideEffectLevel {
+  if (["file.read", "file.exists", "dir.search"].includes(toolName)) return "read-only";
+  if (toolName.startsWith("mcp.")) return "network";
+  if (["web_search", "web_fetch", "delegate"].includes(toolName)) return "network";
+  return "side-effect";
+}
+
+export type ReplayExecuteOptions = {
+  approvalStore?: ApprovalStore;
+};
+
 // -- ReplayExecutor -------------------------------------------------------
 
 export class ReplayExecutor {
@@ -203,11 +288,15 @@ export class ReplayExecutor {
     await this.eventLog.append({ sessionId: this.sessionId(), actor: "system", type, payload });
   }
 
-  async execute(plan: ReplayPlan): Promise<ReplayResult> {
+  async execute(plan: ReplayPlan, opts?: ReplayExecuteOptions): Promise<ReplayResult> {
     const startedAt = new Date().toISOString();
     const startTime = Date.now();
 
-    await this.logEvent(REPLAY_EVENT_TYPES.STARTED, { mode: plan.mode, sessionId: this.sessionId() });
+    await this.logEvent(REPLAY_EVENT_TYPES.STARTED, {
+      mode: plan.mode,
+      sessionId: this.sessionId(),
+      replayId: plan.replayId,
+    });
 
     const stepResults: ReplayStepResult[] = [];
     let successCount = 0;
@@ -229,6 +318,7 @@ export class ReplayExecutor {
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_BLOCKED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, blockReason: step.blockReason,
+          replayId: plan.replayId,
         });
         stepResult.status = "blocked";
         stepResult.blockReason = step.blockReason;
@@ -241,6 +331,7 @@ export class ReplayExecutor {
       if (step.status === "skipped") {
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_SKIPPED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
+          replayId: plan.replayId,
         });
         stepResult.status = "skipped";
         stepResult.durationMs = 0;
@@ -252,7 +343,66 @@ export class ReplayExecutor {
       await this.logEvent(REPLAY_EVENT_TYPES.STEP_STARTED, {
         stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
         toolName: step.toolName,
+        replayId: plan.replayId,
       });
+
+      // Approved-live mode: re-check policy, get approval for side effects
+      if (plan.mode === "approved-live" && step.toolName) {
+        const toolName = step.toolName;
+        const sideEffect = classifySideEffect(toolName);
+
+        if (sideEffect !== "read-only") {
+          const store = opts?.approvalStore;
+          if (!store) {
+            stepResult.status = "blocked";
+            stepResult.blockReason = "Approval store required for approved-live mode";
+            stepResult.durationMs = Date.now() - stepStart;
+            blockedCount++;
+            stepResults.push(stepResult);
+            continue;
+          }
+
+          // Check for an existing approved approval for this tool
+          const allApprovals = store.list();
+          const matching = allApprovals.find(a =>
+            a.toolId === toolName && a.status === "approved"
+          );
+
+          if (!matching) {
+            // Create a new pending approval
+            const created = await store.request({
+              reason: `Replay ${plan.replayId || "?"}: ${toolName}`,
+              capability: toolName,
+              sessionId: this.sessionId(),
+              toolId: toolName,
+            });
+
+            // Emit approval.created event with replayId
+            await this.logEvent("approval.created", {
+              approvalId: created.id,
+              replayId: plan.replayId,
+              capability: toolName,
+              toolName,
+              status: "pending",
+            });
+
+            stepResult.status = "blocked";
+            stepResult.blockReason = `Approval required: ${created.id}`;
+            stepResult.durationMs = Date.now() - stepStart;
+            blockedCount++;
+            stepResults.push(stepResult);
+            continue;
+          }
+
+          // Approval exists and was approved — emit resolution
+          await this.logEvent("approval.resolved", {
+            approvalId: matching.id,
+            replayId: plan.replayId,
+            status: "approved",
+            reason: "Replay approval granted",
+          });
+        }
+      }
 
       try {
         const toolResult = await replayToolStep(step, plan.mode, this.cwd);
@@ -260,6 +410,7 @@ export class ReplayExecutor {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, status: toolResult.status, outputPreview: (toolResult.output || "").slice(0, 200),
           blockReason: toolResult.blockReason, error: toolResult.error, durationMs: Date.now() - stepStart,
+          replayId: plan.replayId,
         });
 
         stepResult.status = toolResult.status;
@@ -276,6 +427,7 @@ export class ReplayExecutor {
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_BLOCKED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, error: err.message,
+          replayId: plan.replayId,
         });
         stepResult.status = "failed";
         stepResult.error = err.message;
@@ -292,10 +444,12 @@ export class ReplayExecutor {
     await this.logEvent(REPLAY_EVENT_TYPES.COMPLETED, {
       mode: plan.mode, stepCount: plan.steps.length,
       successCount, blockedCount, skippedCount, failedCount, totalDurationMs,
+      replayId: plan.replayId,
     });
 
     return {
       mode: plan.mode,
+      replayId: plan.replayId,
       steps: stepResults,
       startedAt,
       completedAt,

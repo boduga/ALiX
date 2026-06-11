@@ -167,3 +167,105 @@ describe("ReplayExecutor sandbox mode", () => {
     assert.equal(mcpStep.status, "blocked");
   });
 });
+
+describe("ReplayExecutor approved-live mode", () => {
+  let tmpDir: string;
+  let eventLog: EventLog;
+  let executor: ReplayExecutor;
+  let approvalStore: any;
+
+  before(async () => {
+    tmpDir = mkdtempSync(join(tmpdir(), "replay-test-approve-"));
+    const logDir = join(tmpDir, ".alix", "sessions", "test-session");
+    mkdirSync(logDir, { recursive: true });
+    eventLog = new EventLog(logDir);
+    await eventLog.init();
+    executor = new ReplayExecutor(tmpDir, eventLog);
+    const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
+    approvalStore = new ApprovalStore(tmpDir);
+    await approvalStore.load();
+  });
+
+  after(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("executes read-only file.read after PolicyGate allow without approval", async () => {
+    const testFile = join(tmpDir, "test.txt");
+    writeFileSync(testFile, "hello world");
+    const events = [
+      makeEvent({ id: "e1", eventType: "file.read", label: "file.read test.txt", toolName: "file.read",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "file.read", args: { path: "test.txt" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+    assert.ok(plan.replayId);
+    const result = await executor.execute(plan, { approvalStore });
+    const readStep = result.steps.find(s => s.toolName === "file.read");
+    assert.ok(readStep);
+    assert.equal(readStep.status, "completed");
+    assert.ok(readStep.output?.includes("hello world"));
+    assert.equal(result.replayId, plan.replayId);
+  });
+
+  it("blocks side-effecting tool when approval is pending", async () => {
+    const events = [
+      makeEvent({ id: "e1", eventType: "shell.run", label: "shell.run ls", toolName: "shell.run",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "shell.run", args: { command: "ls" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+    const result = await executor.execute(plan, { approvalStore });
+    const shellStep = result.steps.find(s => s.toolName === "shell.run");
+    assert.ok(shellStep);
+    assert.equal(shellStep.status, "blocked");
+    const pending = approvalStore.listPending();
+    assert.ok(pending.length > 0);
+    const replayApproval = pending.find((a: any) => (a.reason || "").includes(plan.replayId!));
+    assert.ok(replayApproval);
+  });
+
+  it("executes side-effecting tool after approval is granted", async () => {
+    const newFilePath = join(tmpDir, "approved-new.txt");
+    const events = [
+      makeEvent({ id: "e1", eventType: "file.create", label: "file.create test.txt", toolName: "file.create",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "file.create", args: { path: "approved-new.txt", content: "approved content" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+
+    // First attempt — no approval yet, should be blocked
+    const result1 = await executor.execute(plan, { approvalStore });
+    const step1 = result1.steps.find(s => s.toolName === "file.create");
+    assert.ok(step1);
+    assert.equal(step1.status, "blocked");
+    assert.equal(existsSync(newFilePath), false);
+
+    // Resolve all pending approvals
+    const pending = approvalStore.listPending();
+    for (const a of pending) {
+      await approvalStore.resolve(a.id, "approved");
+    }
+
+    // Second attempt — approvals now granted
+    const result2 = await executor.execute(plan, { approvalStore });
+    const step2 = result2.steps.find(s => s.toolName === "file.create");
+    assert.ok(step2);
+    assert.equal(step2.status, "completed");
+    assert.equal(existsSync(newFilePath), true);
+    const content = readFileSync(newFilePath, "utf-8");
+    assert.equal(content, "approved content");
+  });
+
+  it("returns replayId in result for approved-live mode", async () => {
+    const events = [
+      makeEvent({ id: "e1", eventType: "file.read", label: "file.read", toolName: "file.read",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "file.read", args: { path: "test.txt" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+    const result = await executor.execute(plan, { approvalStore });
+    assert.ok(result.replayId);
+    assert.ok(result.replayId!.startsWith("replay_"));
+  });
+});
