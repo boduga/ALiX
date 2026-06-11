@@ -65,7 +65,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     } else if (result.kind === "denied") {
       const reason = result.reason || "";
       if (reason.includes("approval") || reason.includes("Approval")) {
-        const idMatch = reason.match(/(approval_[a-zA-Z0-9-]+)/);
+        const idMatch = reason.match(/(approval_[a-zA-Z0-9_-]+)/);
         const approvalId = idMatch ? idMatch[1] : "";
         let msg = "Approval required.\n\nPending approval:\n";
         msg += `  ${approvalId || reason}\n\n`;
