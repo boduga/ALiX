@@ -155,6 +155,30 @@ export class ToolExecutor {
     }
 
     if (policyDecision.decision === "ask") {
+      // Persist continuation so approval can resume this tool call
+      try {
+        const { ContinuationStore } = await import("../runtime/continuation-store.js");
+        const continuationStore = new ContinuationStore(this.root);
+        await continuationStore.load();
+        await continuationStore.persist({
+          approvalId: policyDecision.approvalId!,
+          kind: "tool",
+          sessionId: this.sessionId(),
+          cwd: this.root,
+          toolCall: {
+            toolCallId,
+            name,
+            capability,
+            args,
+            argsHash: argumentHash,
+          },
+          createdAt: new Date().toISOString(),
+        });
+      } catch (err) {
+        // Continuation is best-effort — if persistence fails, the user can still manually re-run
+        console.error("Failed to persist continuation:", err);
+      }
+
       await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${policyDecision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash });
       return { kind: "denied", reason: `Approval required (${policyDecision.approvalId}): ${policyDecision.reason}` };
     }
