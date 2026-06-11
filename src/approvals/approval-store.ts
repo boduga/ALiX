@@ -9,6 +9,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { AuditStore } from "../audit/audit-store.js";
+import type { EventLog } from "../events/event-log.js";
 
 export type ApprovalStatus = "pending" | "approved" | "denied";
 
@@ -32,10 +33,12 @@ export class ApprovalStore {
   private dirty = false;
   private filePath: string;
   private auditStore?: AuditStore;
+  private eventLog?: EventLog;
 
-  constructor(cwd: string, opts?: { auditStore?: AuditStore }) {
+  constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog }) {
     this.filePath = join(cwd, ".alix", "approvals", "approvals.json");
     this.auditStore = opts?.auditStore;
+    this.eventLog = opts?.eventLog;
   }
 
   /** Load approvals from disk. */
@@ -110,6 +113,23 @@ export class ApprovalStore {
     record.status = status;
     record.decidedAt = new Date().toISOString();
     record.decisionReason = decisionReason;
+
+    // Emit approval.resolved event
+    if (this.eventLog) {
+      await this.eventLog.append({
+        sessionId: record.sessionId ?? "unknown",
+        actor: "policy",
+        type: "approval.resolved",
+        payload: {
+          approvalId: id,
+          capability: record.capability,
+          sessionId: record.sessionId,
+          status: status === "approved" ? ("approved" as const) : ("denied" as const),
+          reason: decisionReason,
+        },
+      }).catch(() => {});
+    }
+
     this.auditStore?.append({
       action: status === "approved" ? "approval.approved" : "approval.denied",
       actor: "user",
