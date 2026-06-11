@@ -210,10 +210,57 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
     // Panel content rendering on empty Enter
     if (!task.trim()) {
-      if (store.getState().activePanel !== "chat") {
+      if (store.getState().activePanel === "trace") {
+        store.toggleTraceDetail();
+        renderPanelContent(store, tui);
+      } else if (store.getState().activePanel !== "chat") {
         renderPanelContent(store, tui);
       }
       continue;
+    }
+
+    // Trace navigation — ↑/k = up, ↓/j = down (when detail closed)
+    if (store.getState().activePanel === "trace") {
+      if (task === "\x1b[A" || task === "k") {
+        store.selectPreviousTraceEvent();
+        renderPanelContent(store, tui);
+        continue;
+      }
+      if (!store.getState().traceSelection.detailOpen && (task === "\x1b[B" || task.toLowerCase() === "j")) {
+        store.selectNextTraceEvent();
+        renderPanelContent(store, tui);
+        continue;
+      }
+      // Close detail on escape
+      if (task === "\x1b" && store.getState().traceSelection.detailOpen) {
+        store.closeTraceDetail();
+        renderPanelContent(store, tui);
+        continue;
+      }
+    }
+
+    // Trace detail mode switching (when detail is open, j/l/c/s switch modes)
+    if (store.getState().activePanel === "trace" && store.getState().traceSelection.detailOpen) {
+      if (task.toLowerCase() === "j") {
+        store.setTraceDetailMode("json");
+        renderPanelContent(store, tui);
+        continue;
+      }
+      if (task.toLowerCase() === "l") {
+        store.setTraceDetailMode("links");
+        renderPanelContent(store, tui);
+        continue;
+      }
+      if (task.toLowerCase() === "c") {
+        store.setTraceDetailMode("chain");
+        renderPanelContent(store, tui);
+        continue;
+      }
+      if (task.toLowerCase() === "s") {
+        store.setTraceDetailMode("summary");
+        renderPanelContent(store, tui);
+        continue;
+      }
     }
 
     if (task.toLowerCase() === "r" || task.toLowerCase() === "refresh") {
