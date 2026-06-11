@@ -1,4 +1,4 @@
-import type { TraceEvent, TraceEventFilter } from "../runtime/trace-events.js";
+import type { TraceEvent, TraceEventFilter, TraceSelectionState, TraceDetailMode } from "../runtime/trace-events.js";
 
 export type AgentState = "idle" | "understanding" | "planning" | "executing" | "verifying" | "repairing" | "summarizing" | "done" | "error";
 export type SubagentStatus = "pending" | "running" | "completed" | "failed";
@@ -96,6 +96,7 @@ export interface TuiState {
   traceEvents: TraceEvent[];
   traceEventCount: number;
   traceFilter: TraceEventFilter;
+  traceSelection: TraceSelectionState;
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace"];
@@ -123,6 +124,7 @@ export class TuiStore {
       traceEvents: initialState?.traceEvents ?? [],
       traceEventCount: initialState?.traceEventCount ?? 0,
       traceFilter: initialState?.traceFilter ?? "all",
+      traceSelection: initialState?.traceSelection ?? { selectedIndex: -1, detailOpen: false, detailMode: "summary" },
     };
   }
 
@@ -322,8 +324,20 @@ export class TuiStore {
   }
 
   setTraceEvents(events: TraceEvent[]): void {
+    const prevSelectedId = this.state.traceSelection.selectedTraceId;
     this.state.traceEvents = events;
     this.state.traceEventCount = events.length;
+    // Preserve selection if selected event still exists
+    if (prevSelectedId) {
+      const idx = events.findIndex(e => e.id === prevSelectedId);
+      if (idx >= 0) {
+        this.state.traceSelection.selectedIndex = idx;
+      } else {
+        this.state.traceSelection.selectedIndex = -1;
+        this.state.traceSelection.selectedTraceId = undefined;
+        this.state.traceSelection.detailOpen = false;
+      }
+    }
     this.notify();
   }
 
@@ -332,8 +346,63 @@ export class TuiStore {
     this.notify();
   }
 
+  // ── Trace selection ──
+
+  getSelectedTraceEvent(): TraceEvent | undefined {
+    const events = this.getFilteredTraceEvents();
+    const idx = this.state.traceSelection.selectedIndex;
+    if (idx < 0 || idx >= events.length) return undefined;
+    return events[idx];
+  }
+
+  selectNextTraceEvent(): void {
+    const events = this.getFilteredTraceEvents();
+    if (events.length === 0) return;
+    const current = this.state.traceSelection.selectedIndex;
+    const next = Math.min(current + 1, events.length - 1);
+    this.state.traceSelection.selectedIndex = next;
+    this.state.traceSelection.selectedTraceId = events[next]?.id;
+    this.notify();
+  }
+
+  selectPreviousTraceEvent(): void {
+    const events = this.getFilteredTraceEvents();
+    if (events.length === 0) return;
+    const current = this.state.traceSelection.selectedIndex;
+    const prev = Math.max(current - 1, 0);
+    this.state.traceSelection.selectedIndex = prev;
+    this.state.traceSelection.selectedTraceId = events[prev]?.id;
+    this.notify();
+  }
+
+  toggleTraceDetail(): void {
+    this.state.traceSelection.detailOpen = !this.state.traceSelection.detailOpen;
+    this.notify();
+  }
+
+  closeTraceDetail(): void {
+    this.state.traceSelection.detailOpen = false;
+    this.notify();
+  }
+
+  setTraceDetailMode(mode: TraceDetailMode): void {
+    this.state.traceSelection.detailMode = mode;
+    this.notify();
+  }
+
+  getTraceDetailMode(): TraceDetailMode {
+    return this.state.traceSelection.detailMode;
+  }
+
+  getTraceSelection(): TraceSelectionState {
+    return this.state.traceSelection;
+  }
+
   setTraceFilter(filter: TraceEventFilter): void {
     this.state.traceFilter = filter;
+    this.state.traceSelection.selectedIndex = -1;
+    this.state.traceSelection.selectedTraceId = undefined;
+    this.state.traceSelection.detailOpen = false;
     this.notify();
   }
 
