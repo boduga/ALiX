@@ -36,6 +36,7 @@ export interface TuiRuntimeSnapshot {
   recentWorkspaces?: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[];
   replayIndexData?: import("../runtime/replay-status-index.js").ReplayStatusIndexData;
   replayLockStates?: Record<string, boolean>;
+  ifamasPanelData?: import("./ifamas-panel.js").IfamasTracePanel;
 }
 
 /** Build a fresh snapshot from disk. Returns null on failure. */
@@ -212,4 +213,7 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   store.setRecentWorkspaces(snapshot.recentWorkspaces ?? []);
   store.setReplayIndexData(snapshot.replayIndexData);
   store.setReplayLockStates(snapshot.replayLockStates ?? {});
+  if (snapshot.ifamasPanelData) {
+    store.getState().ifamasPanelData = snapshot.ifamasPanelData;
+  }
 }

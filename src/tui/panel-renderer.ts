@@ -7,6 +7,7 @@ import type { Tui } from "./index.js";
 import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain, renderTraceReplay, renderReplayResult } from "./trace-detail.js";
 import { traceChainContext } from "../runtime/trace-events.js";
 import { buildReplayPreview } from "../runtime/replay-preview.js";
+import { formatIfamasPanel } from "./ifamas-panel.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
 export function renderPanelContent(store: TuiStore, tui: Tui): number {
@@ -174,6 +175,18 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
       }
     }
     buf.push("  Keys: r=refresh  tab=next panel  /batch for commands");
+  } else if (s.activePanel === "ifamas") {
+    if (s.ifamasPanelData) {
+      const panelLines = formatIfamasPanel(s.ifamasPanelData);
+      for (const line of panelLines) {
+        buf.push(line);
+      }
+    } else {
+      buf.push("── IFÁ-MAS Diagnostic ─────────────────");
+      buf.push("  No diagnostic data loaded.");
+      buf.push("  Run a diagnostic or call runIfamasDiagnostic()");
+      buf.push("  then set ifamasPanelData via /ifamas command.");
+    }
   }
 
   for (const line of buf) tui.appendOutput(line, false);
