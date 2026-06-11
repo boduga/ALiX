@@ -16,7 +16,8 @@ export type TraceSourceType =
   | "session"
   | "daemon"
   | "runtime"
-  | "replay";
+  | "replay"
+  | "rollback";
 
 export type TraceEventFilter = "all" | TraceSourceType;
 
@@ -183,6 +184,21 @@ export function toTraceEvent(event: {
       status: type.includes("blocked") || type.includes("failed") ? "failed" : "success",
       detail: p.reason || p.blockReason || "",
       sessionId: p.sessionId,
+    };
+  }
+
+  // Rollback lifecycle
+  if (type.startsWith("rollback.")) {
+    const p = payload as any;
+    return {
+      id, timestamp: ts, rawEvent,
+      sourceType: "rollback" as any,
+      eventType: type,
+      label: `rollback ${type.replace("rollback.", "")}`,
+      status: type.includes("blocked") || type.includes("failed") ? "failed" : "success",
+      detail: p.reason || "",
+      sessionId: p.sessionId,
+      replayId: p.replayId,
     };
   }
 

@@ -426,6 +426,55 @@ export type ReplayDiffRecordedPayload = {
   rollbackable: boolean;
 };
 
+// ─── Rollback lifecycle event types ──────────────────────────
+
+export const ROLLBACK_EVENT_TYPES = {
+  PLAN_CREATED: "rollback.plan.created",
+  STARTED: "rollback.started",
+  STEP_STARTED: "rollback.step.started",
+  STEP_COMPLETED: "rollback.step.completed",
+  STEP_SKIPPED: "rollback.step.skipped",
+  STEP_BLOCKED: "rollback.step.blocked",
+  COMPLETED: "rollback.completed",
+  FAILED: "rollback.failed",
+} as const;
+
+export type RollbackEventPayload = {
+  rollbackId: string;
+  replayId: string;
+  path?: string;
+  action?: "restore" | "delete-created" | "skip";
+  approvalId?: string;
+  reason?: string;
+  status?: string;
+  outputPreview?: string;
+};
+
+export type RollbackPlanCreatedPayload = {
+  rollbackId: string;
+  replayId: string;
+  mode: string;
+  stepCount: number;
+};
+
+export type RollbackCompletedPayload = {
+  rollbackId: string;
+  replayId: string;
+  mode: string;
+  stepCount: number;
+  successCount: number;
+  blockedCount: number;
+  skippedCount: number;
+  totalDurationMs: number;
+};
+
+export type RollbackFailedPayload = {
+  rollbackId: string;
+  replayId: string;
+  reason: string;
+  stepIndex?: number;
+};
+
 /**
  * Stable payload shape for all approval lifecycle events.
  * This is the audit contract — every approval event carries these fields.
