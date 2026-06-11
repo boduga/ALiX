@@ -7,12 +7,10 @@ import type { EventLog } from "../events/event-log.js";
 import { TOOL_EVENT_TYPES, ARTIFACT_EVENT_TYPES } from "../events/types.js";
 import type { ToolStartedPayload, ToolOutputPayload, ToolCompletedPayload, ToolFailedPayload, ArtifactCreatedPayload } from "../events/types.js";
 import type { McpManager } from "../mcp/manager.js";
-import { decidePolicy } from "../policy/policy-engine.js";
 import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult } from "./types.js";
-import { createPermissivePolicyDecision, assertPolicyArgumentsMatch } from "../kernel/policy-decision.js";
 import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import {
@@ -125,13 +123,18 @@ export class ToolExecutor {
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args) });
 
-    // Create PolicyDecision placeholder — uses repaired args
-    const policyDecision = createPermissivePolicyDecision({
+    // Single policy decision via PolicyGate
+    const { PolicyGate } = await import("../policy/policy-gate.js");
+    const policyGate = new PolicyGate(this.config, { eventLog: this.log });
+    const policyDecision = await policyGate.evaluateToolCall({
       requestId: toolCallId,
+      toolName: name,
       capability,
-      actorId: name,
       args,
-      validForToolId: name,
+      cwd: this.root,
+      sessionMode: this.config.permissions.sessionMode ?? "ask",
+      sessionId: this.sessionId(),
+      source: "tool",
     });
 
     await this.log.append({
@@ -141,25 +144,19 @@ export class ToolExecutor {
         toolCallId,
         capability,
         decision: policyDecision.decision,
-        reason: policyDecision.reasons[0],
-        matchedRuleId: policyDecision.id,
+        reason: policyDecision.reason,
+        matchedRuleId: policyDecision.matchedRuleId,
       },
     });
 
-    await this.log.append({
-      sessionId: this.sessionId(), actor: "system", type: "m09.metric",
-      payload: { name: "policy_decisions_total", type: "counter", value: 1, labels: { capability, decision: policyDecision.decision }, timestamp: new Date().toISOString() },
-    });
+    if (policyDecision.decision === "deny") {
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: policyDecision.reason, durationMs: 0, canonicalCapability, argumentHash });
+      return { kind: "denied", reason: policyDecision.reason };
+    }
 
-    const legacyPolicyResult = decidePolicy(this.config, {
-      toolCallId,
-      capability,
-      ...args as { path?: string; command?: string }
-    });
-
-    if (legacyPolicyResult.decision === "deny") {
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: legacyPolicyResult.reason, durationMs: 0, canonicalCapability, argumentHash });
-      return { kind: "denied", reason: legacyPolicyResult.reason };
+    if (policyDecision.decision === "ask") {
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${policyDecision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash });
+      return { kind: "denied", reason: `Approval required (${policyDecision.approvalId}): ${policyDecision.reason}` };
     }
 
     // Handle special case: "done" tool (not in router)
@@ -188,8 +185,6 @@ export class ToolExecutor {
     });
 
     // Verify argument hash match before execution (M0.9 permissive placeholder)
-    assertPolicyArgumentsMatch(policyDecision, args);
-
     let result = await this.router.execute(request);
 
     // Append repair hint to success output
