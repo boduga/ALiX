@@ -25,6 +25,7 @@ import type { GuildCandidate } from "../agents/guild-selector.js";
 import type { SignalFrame } from "./signal-frame.js";
 import type { EssenceProfile } from "../agents/essence-profile.js";
 import type { ChronicleStore } from "../chronicle/chronicle-store.js";
+import type { EventLog } from "../events/event-log.js";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */
@@ -70,6 +71,7 @@ export async function runIfamasDiagnostic(input: {
   signal: SignalFrame;
   candidates?: EssenceProfile[];
   chronicleStore?: ChronicleStore;
+  eventLog?: EventLog;
 }): Promise<IfamasDiagnostic> {
   const { signal, chronicleStore } = input;
 
@@ -94,6 +96,28 @@ export async function runIfamasDiagnostic(input: {
   if (input.candidates && input.candidates.length > 0) {
     const selector = new GuildSelector();
     guildCandidates = selector.select({ envelope, candidates: input.candidates });
+  }
+
+  // Emit trace event if eventLog is available
+  if (input.eventLog) {
+    try {
+      await input.eventLog.append?.({
+        type: "ifamas.diagnostic",
+        actor: "system",
+        sessionId: "ifamas",
+        payload: {
+          signalCode: signal.code,
+          polarity: signal.polarity,
+          offeringAction: offering.action,
+          routeTarget: routeDecision.routeHint.targetRole,
+          gatewayValid: gatewayValidation.valid,
+          guildCandidateCount: guildCandidates.length,
+          chronicleRefCount: routeDecision.chronicleEntries.length,
+        },
+      });
+    } catch {
+      // Non-fatal — diagnostic still returns successfully
+    }
   }
 
   // Step 7: Return complete diagnostic
