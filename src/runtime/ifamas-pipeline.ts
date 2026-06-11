@@ -120,6 +120,29 @@ export async function runIfamasDiagnostic(input: {
     }
   }
 
+  // Append Chronicle entry if chronicleStore is available
+  if (input.chronicleStore) {
+    try {
+      await input.chronicleStore.append({
+        signalCode: signal.code,
+        domain: signal.domain,
+        polarity: signal.polarity,
+        problem: `IFÁ-MAS diagnostic: ${signal.intent || "unspecified"}`,
+        diagnosis: `Offering: ${offering.action}. Route: ${routeDecision.routeHint.targetRole}. Gateway: ${gatewayValidation.valid ? "valid" : "invalid"}.`,
+        actionTaken: offering.action,
+        outcome: gatewayValidation.valid ? "success" : "failure",
+        lesson: `Guild candidates: ${guildCandidates.length}. Chronicle refs: ${routeDecision.chronicleEntries.length}.`,
+        taboosObserved: envelope.safety.taboos,
+        offeringsUsed: [offering.action],
+        traceRefs: [],
+        replayRefs: [],
+        rollbackRefs: [],
+      });
+    } catch {
+      // Non-fatal — diagnostic still returns successfully
+    }
+  }
+
   // Step 7: Return complete diagnostic
   return {
     signal,
