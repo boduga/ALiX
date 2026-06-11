@@ -19,6 +19,15 @@ export type TraceSourceType =
 
 export type TraceEventFilter = "all" | TraceSourceType;
 
+export type TraceDetailMode = "summary" | "json" | "links" | "chain";
+
+export type TraceSelectionState = {
+  selectedIndex: number;     // -1 = nothing selected
+  selectedTraceId?: string;
+  detailOpen: boolean;
+  detailMode: TraceDetailMode;
+};
+
 export type TraceEvent = {
   id: string;
   timestamp: string;
@@ -34,6 +43,8 @@ export type TraceEvent = {
   toolCallId?: string;
   capability?: string;
   toolName?: string;
+  rawEvent?: unknown;           // full source event for JSON drilldown view
+  sessionFilePath?: string;     // path to session events.jsonl on disk
 };
 
 // ─── Normalizer ──────────────────────────────────────────────────────
@@ -52,14 +63,16 @@ export function toTraceEvent(event: {
 }): TraceEvent | null {
   const ts = event.timestamp || (event as any).createdAt || new Date().toISOString();
   const id = event.id || `${event.type || event.action}_${Date.now()}`;
-  const type = event.type || event.action || "";
+  // Accept both `type` (EventLog) and `action` (RuntimeIndexEvent)
+  const type = (event.type || event.action || "").replace(/^tool\./, "tool.");
   const payload = event.payload || {};
+  const rawEvent = event;
 
   // Policy
   if (type === "policy.decision") {
     const decision = (payload as any).decision;
     return {
-      id, timestamp: ts,
+      id, timestamp: ts, rawEvent,
       sourceType: "policy",
       eventType: type,
       label: `policy: ${(payload as any).capability || "?"}`,
@@ -88,7 +101,7 @@ export function toTraceEvent(event: {
       "approval.resume.failed": "approval resume failed",
     };
     return {
-      id, timestamp: ts,
+      id, timestamp: ts, rawEvent,
       sourceType: "approval",
       eventType: type,
       label: `${labelMap[type] || type}`,
@@ -105,7 +118,7 @@ export function toTraceEvent(event: {
   if (type.startsWith("continuation.")) {
     const p = payload as any;
     return {
-      id, timestamp: ts,
+      id, timestamp: ts, rawEvent,
       sourceType: "continuation",
       eventType: type,
       label: type === "continuation.created" ? "continuation created" : "continuation consumed",
@@ -129,7 +142,7 @@ export function toTraceEvent(event: {
       "tool.output": "running",
     };
     return {
-      id, timestamp: ts,
+      id, timestamp: ts, rawEvent,
       sourceType: "tool",
       eventType: type,
       label: `${p.toolName || "tool"} ${type.replace("tool.", "")}`,
@@ -146,7 +159,7 @@ export function toTraceEvent(event: {
   if (type.startsWith("task.") || type === "task") {
     const p = payload as any;
     return {
-      id, timestamp: ts,
+      id, timestamp: ts, rawEvent,
       sourceType: "task",
       eventType: type,
       label: p?.task || type,
@@ -165,14 +178,65 @@ export function toTraceEvent(event: {
 /**
  * Convert an array of event-like objects into a sorted TraceEvent array.
  */
-export function traceEventsFromLog(events: any[]): TraceEvent[] {
+export function traceEventsFromLog(events: any[], sessionFilePath?: string): TraceEvent[] {
   const traces: TraceEvent[] = [];
   for (const e of events) {
     const t = toTraceEvent(e);
-    if (t) traces.push(t);
+    if (t) {
+      if (sessionFilePath) t.sessionFilePath = sessionFilePath;
+      traces.push(t);
+    }
   }
   // Sort chronologically (oldest first)
   return traces.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+/** Find events related to a selected trace event by shared entity IDs. */
+export function traceChainContext(
+  allEvents: TraceEvent[],
+  selected: TraceEvent,
+  maxResults = 12,
+): TraceEvent[] {
+  const related = new Map<string, TraceEvent>();
+  const addIfMissing = (t: TraceEvent) => { if (!related.has(t.id)) related.set(t.id, t); };
+
+  // Priority 1: same toolCallId
+  if (selected.toolCallId) {
+    for (const e of allEvents) {
+      if (e.toolCallId === selected.toolCallId) addIfMissing(e);
+    }
+  }
+
+  // Priority 2: same approvalId
+  if (selected.approvalId && related.size < maxResults) {
+    for (const e of allEvents) {
+      if (e.approvalId === selected.approvalId) addIfMissing(e);
+    }
+  }
+
+  // Priority 3: same continuationId
+  if (selected.continuationId && related.size < maxResults) {
+    for (const e of allEvents) {
+      if (e.continuationId === selected.continuationId) addIfMissing(e);
+    }
+  }
+
+  // Priority 4: same sessionId within ±5 minute window
+  if (selected.sessionId && related.size < maxResults) {
+    const selectedTime = new Date(selected.timestamp).getTime();
+    for (const e of allEvents) {
+      if (e.sessionId === selected.sessionId) {
+        const eventTime = new Date(e.timestamp).getTime();
+        if (Math.abs(eventTime - selectedTime) < 300_000) addIfMissing(e);
+      }
+    }
+  }
+
+  // Exclude self, sort chronologically
+  related.delete(selected.id);
+  return [...related.values()]
+    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .slice(0, maxResults);
 }
 
 /**
