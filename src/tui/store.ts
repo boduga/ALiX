@@ -103,6 +103,7 @@ export interface TuiState {
   replayStatus?: import("../runtime/replay-status-index.js").ReplayStatus;
   replayIndexData?: import("../runtime/replay-status-index.js").ReplayStatusIndexData;
   replayLockStates?: Record<string, boolean>;
+  selectedReplayIds: string[];
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace", "replays"];
@@ -137,6 +138,7 @@ export class TuiStore {
       replayStatus: undefined,
       replayIndexData: undefined,
       replayLockStates: undefined,
+      selectedReplayIds: [],
     };
   }
 
@@ -435,6 +437,28 @@ export class TuiStore {
 
   setReplayLockStates(states: Record<string, boolean> | undefined): void {
     this.state.replayLockStates = states;
+    this.notify();
+  }
+
+  setSelectedReplayIds(ids: string[]): void {
+    this.state.selectedReplayIds = ids;
+    this.notify();
+  }
+
+  addSelectedReplayId(id: string): void {
+    if (!this.state.selectedReplayIds.includes(id)) {
+      this.state.selectedReplayIds.push(id);
+      this.notify();
+    }
+  }
+
+  removeSelectedReplayId(id: string): void {
+    this.state.selectedReplayIds = this.state.selectedReplayIds.filter(x => x !== id);
+    this.notify();
+  }
+
+  clearSelectedReplayIds(): void {
+    this.state.selectedReplayIds = [];
     this.notify();
   }
 

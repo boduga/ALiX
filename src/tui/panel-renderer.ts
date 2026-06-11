@@ -164,14 +164,16 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
         const icon = iconForReplayStatus(entry.status);
         const id = entry.replayId.slice(0, 28).padEnd(28);
         const statusLabel = statusLabelForReplay(entry.status).padEnd(16);
+        const selected = s.selectedReplayIds.includes(entry.replayId);
+        const selectionMarker = selected ? "[x]" : "[ ]";
         let suffix = "";
         const lockInfo = s.replayLockStates?.[entry.replayId];
         if (lockInfo) suffix += "  🔒 locked";
         if (entry.status === "rollback-partial") suffix += "  ⚠ use --resume";
-        buf.push(`  ${icon} ${id} ${statusLabel} ${timeStr}${suffix}`);
+        buf.push(`  ${selectionMarker} ${icon} ${id} ${statusLabel} ${timeStr}${suffix}`);
       }
     }
-    buf.push("  Keys: r=refresh  tab=next panel");
+    buf.push("  Keys: r=refresh  tab=next panel  /batch for commands");
   }
 
   for (const line of buf) tui.appendOutput(line, false);
