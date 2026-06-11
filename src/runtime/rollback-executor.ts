@@ -3,6 +3,13 @@
  *
  * Dry-run: shows what would be restored/deleted without mutations.
  * Approved-live: restores from before snapshots / deletes created files with approval.
+ *
+ * Idempotency (approved-live):
+ *   - "rollback-completed" state → no-op result (all done)
+ *   - "rollback-partial" without --resume → refuse with suggestion
+ *   - Lock acquired before execution, released after completion
+ *   - Step-level progress tracked for crash recovery
+ *   - Completed paths skipped on resume
  */
 
 import { existsSync, copyFileSync, rmSync, mkdirSync } from "node:fs";
@@ -10,6 +17,9 @@ import { dirname, resolve } from "node:path";
 import type { EventLog } from "../events/event-log.js";
 import { ROLLBACK_EVENT_TYPES } from "../events/types.js";
 import type { RollbackPlan, RollbackStepAction, RollbackMode } from "./rollback-plan.js";
+import type { ReplayStatusIndex } from "./replay-status-index.js";
+import type { ReplayLock } from "./replay-lock.js";
+import type { RollbackProgressStore } from "./rollback-progress.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -37,10 +47,16 @@ export type RollbackResult = {
   blockedCount: number;
   skippedCount: number;
   warnings: string[];
+  resumed?: boolean;
+  completionStatus?: "completed" | "partial" | "noop" | "blocked";
 };
 
 export type RollbackExecuteOptions = {
   approvalStore?: any;
+  resume?: boolean;
+  statusIndex?: ReplayStatusIndex;
+  replayLock?: ReplayLock;
+  progressStore?: RollbackProgressStore;
 };
 
 // ─── RollbackExecutor ────────────────────────────────────────────────
@@ -61,6 +77,16 @@ export class RollbackExecutor {
   }
 
   async execute(plan: RollbackPlan, opts?: RollbackExecuteOptions): Promise<RollbackResult> {
+    // Dry-run mode — simple, no locking or idempotency needed
+    if (plan.mode === "dry-run") {
+      return this.executeDryRun(plan, opts);
+    }
+
+    // Approved-live mode — full idempotency, locking, progress tracking
+    return this.executeApprovedLive(plan, opts);
+  }
+
+  private async executeDryRun(plan: RollbackPlan, opts?: RollbackExecuteOptions): Promise<RollbackResult> {
     const startedAt = new Date().toISOString();
     const startTime = Date.now();
 
@@ -70,9 +96,13 @@ export class RollbackExecutor {
       mode: plan.mode,
     });
 
+    // Update status to rollback-dry-run if status index available
+    if (opts?.statusIndex) {
+      await opts.statusIndex.setStatus(plan.replayId, "rollback-dry-run");
+    }
+
     const stepResults: RollbackStepResult[] = [];
     let successCount = 0;
-    let blockedCount = 0;
     let skippedCount = 0;
 
     for (let i = 0; i < plan.steps.length; i++) {
@@ -106,31 +136,288 @@ export class RollbackExecutor {
         continue;
       }
 
-      // Dry-run mode: show what would happen
-      if (plan.mode === "dry-run") {
-        const output = step.action === "restore"
-          ? `[DRY-RUN] Would restore: ${step.path}`
-          : `[DRY-RUN] Would delete: ${step.path}`;
-        await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_COMPLETED, {
+      const output = step.action === "restore"
+        ? `[DRY-RUN] Would restore: ${step.path}`
+        : `[DRY-RUN] Would delete: ${step.path}`;
+
+      await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_COMPLETED, {
+        rollbackId: plan.rollbackId,
+        replayId: plan.replayId,
+        path: step.path,
+        action: step.action,
+        status: "completed",
+        outputPreview: output.slice(0, 200),
+      });
+      stepResult.status = "completed";
+      stepResult.output = output;
+      stepResult.durationMs = Date.now() - stepStart;
+      successCount++;
+      stepResults.push(stepResult);
+    }
+
+    const totalDurationMs = Date.now() - startTime;
+    const completedAt = new Date().toISOString();
+
+    await this.logEvent(ROLLBACK_EVENT_TYPES.COMPLETED, {
+      rollbackId: plan.rollbackId,
+      replayId: plan.replayId,
+      mode: plan.mode,
+      stepCount: plan.steps.length,
+      successCount,
+      blockedCount: 0,
+      skippedCount,
+      totalDurationMs,
+    });
+
+    return {
+      rollbackId: plan.rollbackId,
+      replayId: plan.replayId,
+      mode: plan.mode,
+      steps: stepResults,
+      startedAt,
+      completedAt,
+      totalDurationMs,
+      totalSteps: plan.steps.length,
+      successCount,
+      blockedCount: 0,
+      skippedCount,
+      warnings: [],
+      completionStatus: "completed",
+    };
+  }
+
+  private async executeApprovedLive(plan: RollbackPlan, opts?: RollbackExecuteOptions): Promise<RollbackResult> {
+    const startedAt = new Date().toISOString();
+    const startTime = Date.now();
+    const statusIndex = opts?.statusIndex;
+    const replayLock = opts?.replayLock;
+    const progressStore = opts?.progressStore;
+
+    // ── Step 1: Check status index for idempotency ──────────────
+    if (statusIndex) {
+      const status = await statusIndex.getStatus(plan.replayId);
+
+      if (status === "rollback-completed") {
+        // Already done — return no-op result
+        const completedAt = new Date().toISOString();
+        await this.logEvent(ROLLBACK_EVENT_TYPES.STARTED, {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          note: "noop — rollback already completed",
+        });
+        await this.logEvent(ROLLBACK_EVENT_TYPES.COMPLETED, {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          stepCount: 0,
+          successCount: 0,
+          blockedCount: 0,
+          skippedCount: 0,
+          totalDurationMs: 0,
+          note: "noop — rollback already completed",
+        });
+        return {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          steps: [],
+          startedAt,
+          completedAt,
+          totalDurationMs: 0,
+          totalSteps: 0,
+          successCount: 0,
+          blockedCount: 0,
+          skippedCount: 0,
+          warnings: ["Rollback already completed — no action taken"],
+          completionStatus: "noop",
+        };
+      }
+
+      if (status === "rollback-partial" && !opts?.resume) {
+        // Partial rollback without resume — refuse
+        const completedAt = new Date().toISOString();
+        await this.logEvent(ROLLBACK_EVENT_TYPES.STARTED, {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          note: "refused — partial rollback requires --resume",
+        });
+        return {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          steps: [],
+          startedAt,
+          completedAt,
+          totalDurationMs: 0,
+          totalSteps: 0,
+          successCount: 0,
+          blockedCount: 0,
+          skippedCount: 0,
+          warnings: [
+            `Rollback for ${plan.replayId} is in "rollback-partial" state. Use --resume to continue from the last incomplete step, or forceRelease if the lock is stale.`,
+          ],
+          completionStatus: "blocked",
+        };
+      }
+    }
+
+    // ── Step 2: Acquire lock ──────────────────────────────────
+    if (replayLock) {
+      const acquired = await replayLock.acquire(plan.replayId, "rollback");
+      if (!acquired) {
+        const completedAt = new Date().toISOString();
+        await this.logEvent(ROLLBACK_EVENT_TYPES.STARTED, {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          note: "blocked — another process holds the lock",
+        });
+        return {
+          rollbackId: plan.rollbackId,
+          replayId: plan.replayId,
+          mode: plan.mode,
+          steps: [],
+          startedAt,
+          completedAt,
+          totalDurationMs: 0,
+          totalSteps: 0,
+          successCount: 0,
+          blockedCount: 0,
+          skippedCount: 0,
+          warnings: ["Another process holds the lock for this replayId. Try again later or use --resume to force-release a stale lock."],
+          completionStatus: "blocked",
+        };
+      }
+    }
+
+    try {
+      // ── Step 3: Initialize/load progress ─────────────────────
+      let isResumed = false;
+      let completedPaths: string[] = [];
+      let lastCompletedIndex = -1;
+
+      if (progressStore) {
+        const existing = await progressStore.load(plan.replayId);
+        if (existing && existing.status === "partial" && opts?.resume) {
+          isResumed = true;
+          completedPaths = existing.completedPaths;
+          lastCompletedIndex = existing.lastCompletedStepIndex;
+          // Reset status to running for the resumed execution
+          await progressStore.initProgress(plan.replayId, plan.rollbackId);
+        } else if (!existing) {
+          await progressStore.initProgress(plan.replayId, plan.rollbackId);
+        } else if (existing.status === "completed") {
+          // Progress says completed but status index should have caught this.
+          // Belt-and-suspenders: treat as no-op.
+          const completedAt = new Date().toISOString();
+          return {
+            rollbackId: plan.rollbackId,
+            replayId: plan.replayId,
+            mode: plan.mode,
+            steps: [],
+            startedAt,
+            completedAt,
+            totalDurationMs: 0,
+            totalSteps: 0,
+            successCount: 0,
+            blockedCount: 0,
+            skippedCount: 0,
+            warnings: ["Rollback progress indicates already completed — no action taken"],
+            completionStatus: "noop",
+          };
+        }
+      }
+
+      // ── Step 4: Set status to rollback-running ───────────────
+      if (statusIndex) {
+        await statusIndex.setStatus(plan.replayId, "rollback-running");
+      }
+
+      await this.logEvent(ROLLBACK_EVENT_TYPES.STARTED, {
+        rollbackId: plan.rollbackId,
+        replayId: plan.replayId,
+        mode: plan.mode,
+        resumed: isResumed,
+      });
+
+      // ── Step 5: Execute steps ────────────────────────────────
+      const stepResults: RollbackStepResult[] = [];
+      let successCount = 0;
+      let blockedCount = 0;
+      let skippedCount = 0;
+      let hadError = false;
+
+      for (let i = 0; i < plan.steps.length; i++) {
+        const step = plan.steps[i];
+        const stepIndex = i + 1;
+        const stepStart = Date.now();
+        const stepResult: RollbackStepResult = {
+          index: stepIndex,
+          path: step.path,
+          action: step.action,
+          status: "completed",
+        };
+
+        // Skip already-completed paths on resume
+        if (isResumed && completedPaths.includes(step.path)) {
+          await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_SKIPPED, {
+            rollbackId: plan.rollbackId,
+            replayId: plan.replayId,
+            path: step.path,
+            action: step.action,
+            reason: "already completed in previous run",
+          });
+          stepResult.status = "skipped";
+          stepResult.output = "Skipped (already completed)";
+          stepResult.durationMs = 0;
+          skippedCount++;
+          stepResults.push(stepResult);
+          continue;
+        }
+
+        // Skip resumed steps before the lastCompletedIndex + 1
+        // (index is 1-based, lastCompletedStepIndex is 0-based)
+        if (isResumed && stepIndex <= lastCompletedIndex) {
+          await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_SKIPPED, {
+            rollbackId: plan.rollbackId,
+            replayId: plan.replayId,
+            path: step.path,
+            action: step.action,
+            reason: "before resume point",
+          });
+          stepResult.status = "skipped";
+          stepResult.output = "Skipped (before resume point)";
+          stepResult.durationMs = 0;
+          skippedCount++;
+          stepResults.push(stepResult);
+          continue;
+        }
+
+        if (step.action === "skip") {
+          await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_SKIPPED, {
+            rollbackId: plan.rollbackId,
+            replayId: plan.replayId,
+            path: step.path,
+            reason: step.reason,
+          });
+          stepResult.status = "skipped";
+          stepResult.durationMs = 0;
+          skippedCount++;
+          stepResults.push(stepResult);
+          continue;
+        }
+
+        await this.logEvent(ROLLBACK_EVENT_TYPES.STEP_STARTED, {
           rollbackId: plan.rollbackId,
           replayId: plan.replayId,
           path: step.path,
           action: step.action,
-          status: "completed",
-          outputPreview: output.slice(0, 200),
         });
-        stepResult.status = "completed";
-        stepResult.output = output;
-        stepResult.durationMs = Date.now() - stepStart;
-        successCount++;
-        stepResults.push(stepResult);
-        continue;
-      }
 
-      // Approved-live mode: check for approval, then execute
-      if (plan.mode === "approved-live") {
+        // Check for approval
         const store = opts?.approvalStore;
-
         if (store) {
           const allApprovals = store.list();
           const toolId = step.action === "restore" ? "file.restore" : "file.delete";
@@ -218,47 +505,76 @@ export class RollbackExecutor {
           stepResult.status = "blocked";
           stepResult.error = err.message;
           blockedCount++;
+          hadError = true;
         }
 
         stepResult.durationMs = Date.now() - stepStart;
         stepResults.push(stepResult);
-        continue;
+
+        // Track progress if store available
+        if (progressStore && stepResult.status === "completed") {
+          await progressStore.markStepCompleted(plan.replayId, plan.rollbackId, stepIndex - 1, step.path);
+        } else if (progressStore && hadError) {
+          await progressStore.markFailed(plan.replayId, plan.rollbackId, step.path);
+        }
+
+        // Stop on error
+        if (hadError) break;
       }
 
-      // Fallback
-      stepResult.status = "skipped";
-      stepResult.durationMs = 0;
-      skippedCount++;
-      stepResults.push(stepResult);
+      // ── Step 6: Determine completion status ─────────────────
+      let completionStatus: "completed" | "partial" = "completed";
+      if (hadError) {
+        completionStatus = "partial";
+      }
+
+      if (statusIndex) {
+        const newStatus = completionStatus === "completed" ? "rollback-completed" : "rollback-partial";
+        await statusIndex.setStatus(plan.replayId, newStatus);
+      }
+
+      if (progressStore && completionStatus === "completed") {
+        await progressStore.markCompleted(plan.replayId, plan.rollbackId);
+      }
+
+      const totalDurationMs = Date.now() - startTime;
+      const completedAt = new Date().toISOString();
+
+      await this.logEvent(ROLLBACK_EVENT_TYPES.COMPLETED, {
+        rollbackId: plan.rollbackId,
+        replayId: plan.replayId,
+        mode: plan.mode,
+        stepCount: plan.steps.length,
+        successCount,
+        blockedCount,
+        skippedCount,
+        totalDurationMs,
+        completionStatus,
+        resumed: isResumed,
+      });
+
+      return {
+        rollbackId: plan.rollbackId,
+        replayId: plan.replayId,
+        mode: plan.mode,
+        steps: stepResults,
+        startedAt,
+        completedAt,
+        totalDurationMs,
+        totalSteps: plan.steps.length,
+        successCount,
+        blockedCount,
+        skippedCount,
+        warnings: [],
+        resumed: isResumed,
+        completionStatus,
+      };
+
+    } finally {
+      // ── Step 7: Release lock ────────────────────────────────
+      if (replayLock) {
+        await replayLock.release(plan.replayId);
+      }
     }
-
-    const totalDurationMs = Date.now() - startTime;
-    const completedAt = new Date().toISOString();
-
-    await this.logEvent(ROLLBACK_EVENT_TYPES.COMPLETED, {
-      rollbackId: plan.rollbackId,
-      replayId: plan.replayId,
-      mode: plan.mode,
-      stepCount: plan.steps.length,
-      successCount,
-      blockedCount,
-      skippedCount,
-      totalDurationMs,
-    });
-
-    return {
-      rollbackId: plan.rollbackId,
-      replayId: plan.replayId,
-      mode: plan.mode,
-      steps: stepResults,
-      startedAt,
-      completedAt,
-      totalDurationMs,
-      totalSteps: plan.steps.length,
-      successCount,
-      blockedCount,
-      skippedCount,
-      warnings: [],
-    };
   }
 }

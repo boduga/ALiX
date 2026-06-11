@@ -6,6 +6,7 @@
 import { existsSync, copyFileSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { execSync } from "node:child_process";
+import type { ReplayStatusIndex } from "./replay-status-index.js";
 
 // ─── Types ───────────────────────────────────────────────────────────
 
@@ -40,7 +41,10 @@ export function isRollbackable(changeType: string, hasBeforeState: boolean): boo
 // ─── ReplayDiffStore ─────────────────────────────────────────────────
 
 export class ReplayDiffStore {
-  constructor(private cwd: string) {}
+  constructor(
+    private cwd: string,
+    private statusIndex?: ReplayStatusIndex,
+  ) {}
 
   private replayDir(replayId: string): string {
     return join(this.cwd, ".alix", "replays", replayId);
@@ -127,6 +131,11 @@ export class ReplayDiffStore {
       storePath: this.replayDir(replayId),
       createdAt: new Date().toISOString(),
     };
+
+    // First record being captured — set status if index is available
+    if (index.records.length === 0 && this.statusIndex) {
+      await this.statusIndex.ensureReplay(replayId);
+    }
 
     index.records.push(record);
     index.totalFilesChanged = index.records.length;

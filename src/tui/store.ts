@@ -100,6 +100,7 @@ export interface TuiState {
   replayResult?: import("../runtime/replay-executor.js").ReplayResult | null;
   replayExecuting?: boolean;
   replayMode?: import("../runtime/replay-plan.js").ReplayMode;
+  replayStatus?: import("../runtime/replay-status-index.js").ReplayStatus;
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace"];
@@ -131,6 +132,7 @@ export class TuiStore {
       replayResult: null,
       replayExecuting: false,
       replayMode: "dry-run",
+      replayStatus: undefined,
     };
   }
 
@@ -414,6 +416,11 @@ export class TuiStore {
 
   setReplayResult(result: any): void {
     this.state.replayResult = result;
+    this.notify();
+  }
+
+  setReplayStatus(status: import("../runtime/replay-status-index.js").ReplayStatus | undefined): void {
+    this.state.replayStatus = status;
     this.notify();
   }
 

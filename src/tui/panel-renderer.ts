@@ -131,7 +131,8 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
           detailLines = renderTraceReplay(preview);
         } else if (mode === "replay-result") {
           if (s.replayResult) {
-            detailLines = renderReplayResult(s.replayResult);
+            const status = s.replayResult.replayId ? s.replayStatus : undefined;
+            detailLines = renderReplayResult(s.replayResult, status);
           } else {
             detailLines = ["  No replay result yet."];
           }

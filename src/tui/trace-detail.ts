@@ -10,6 +10,7 @@ import type { ReplayPreview } from "../runtime/replay-preview.js";
 import type { ReplayResult } from "../runtime/replay-executor.js";
 import type { ReplayDiffSet } from "../runtime/replay-diff-store.js";
 import type { RollbackResult } from "../runtime/rollback-executor.js";
+import type { ReplayStatus } from "../runtime/replay-status-index.js";
 
 export function renderTraceSummary(event: TraceEvent): string[] {
   const lines: string[] = [];
@@ -123,10 +124,16 @@ export function renderTraceReplay(preview: ReplayPreview): string[] {
   return lines;
 }
 
-export function renderReplayResult(result: ReplayResult): string[] {
+export function renderReplayResult(result: ReplayResult, status?: ReplayStatus): string[] {
   const lines: string[] = [];
   lines.push(`  Mode: ${result.mode}`);
-  if (result.replayId) lines.push(`  ReplayId: ${result.replayId}`);
+
+  // Status badge
+  const statusBadge = status ? badgeForStatus(status) : null;
+  if (result.replayId) {
+    const badge = statusBadge ? `  [${statusBadge}]` : "";
+    lines.push(`  ReplayId: ${result.replayId}${badge}`);
+  }
   const total = result.steps.length;
   const completed = result.successCount;
   const blocked = result.blockedCount;
@@ -242,7 +249,12 @@ export function renderRollbackPreview(diffSet: ReplayDiffSet): string[] {
 export function renderRollbackResult(result: RollbackResult): string[] {
   const lines: string[] = [];
   lines.push(`  RollbackId: ${result.rollbackId}`);
-  lines.push(`  ReplayId:   ${result.replayId}`);
+
+  // Completion status badge
+  const csBadge = result.completionStatus
+    ? badgeForCompletionStatus(result.completionStatus) : null;
+  const badge = csBadge ? `  [${csBadge}]` : "";
+  lines.push(`  ReplayId:   ${result.replayId}${badge}`);
   lines.push(`  Mode: ${result.mode}`);
   lines.push(`  Steps: ${result.totalSteps} total, ${result.successCount} restored, ${result.blockedCount} blocked, ${result.skippedCount} skipped`);
   lines.push(`  Duration: ${result.totalDurationMs}ms`);
@@ -271,4 +283,31 @@ export function renderRollbackResult(result: RollbackResult): string[] {
   }
 
   return lines;
+}
+
+// ─── Status Badge Helpers ──────────────────────────────────────────
+
+const STATUS_BADGE_MAP: Record<ReplayStatus, string> = {
+  capturing: "capturing",
+  completed: "completed",
+  "rollback-dry-run": "dry-run",
+  "rollback-running": "rollback running",
+  "rollback-completed": "rolled back",
+  "rollback-partial": "partial",
+  locked: "locked",
+};
+
+function badgeForStatus(status: ReplayStatus): string {
+  return STATUS_BADGE_MAP[status] || status;
+}
+
+const COMPLETION_BADGE_MAP: Record<string, string> = {
+  completed: "completed",
+  partial: "partial",
+  noop: "no-op",
+  blocked: "blocked",
+};
+
+function badgeForCompletionStatus(status: string): string {
+  return COMPLETION_BADGE_MAP[status] || status;
 }

@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { ReplayDiffSet, ReplayDiffStore } from "./replay-diff-store.js";
 import { readFile, searchDir } from "../tools/file-tools.js";
+import type { ReplayStatusIndex } from "./replay-status-index.js";
 
 // -- Types ---------------------------------------------------------------
 
@@ -348,6 +349,7 @@ export function classifySideEffect(toolName: string): SideEffectLevel {
 export type ReplayExecuteOptions = {
   approvalStore?: ApprovalStore;
   diffStore?: ReplayDiffStore;
+  statusIndex?: ReplayStatusIndex;
 };
 
 // -- ReplayExecutor -------------------------------------------------------
@@ -528,6 +530,15 @@ export class ReplayExecutor {
       successCount, blockedCount, skippedCount, failedCount, totalDurationMs,
       replayId: plan.replayId,
     });
+
+    // Set status to "completed" for approved-live replays that ran without critical failures
+    if (plan.replayId && plan.mode === "approved-live" && opts?.statusIndex) {
+      // Only set completed if at least one step succeeded and no fatal errors
+      if (successCount > 0 && failedCount === 0) {
+        await opts.statusIndex.ensureReplay(plan.replayId, "approved-live");
+        await opts.statusIndex.setStatus(plan.replayId, "completed", "approved-live");
+      }
+    }
 
     // Load diff set if available
     let diffSet: ReplayDiffSet | undefined;

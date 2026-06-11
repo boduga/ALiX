@@ -227,7 +227,9 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         (globalThis as any).__replayConfirm = null;
         const { plan, mode: confirmMode } = replayConfirm;
         const { ReplayExecutor } = await import("../../runtime/replay-executor.js");
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
         const executor = new ReplayExecutor(activeCwd, tuiLog);
+        const statusIndex = new ReplayStatusIndex(activeCwd);
 
         store.setReplayExecuting(true);
         tui.appendOutput("Executing replay...\n", false);
@@ -236,9 +238,17 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           const opts: any = {};
           if (confirmMode === "approved-live" && approvalStore) {
             opts.approvalStore = approvalStore;
+            const { ReplayDiffStore } = await import("../../runtime/replay-diff-store.js");
+            opts.diffStore = new ReplayDiffStore(activeCwd, statusIndex);
           }
+          opts.statusIndex = statusIndex;
           const result = await executor.execute(plan, opts);
           store.setReplayResult(result);
+          // Load status badge for display
+          if (result.replayId) {
+            const s = await statusIndex.getStatus(result.replayId);
+            store.setReplayStatus(s);
+          }
           store.setReplayExecuting(false);
           store.setTraceDetailMode("replay-result");
           tui.appendOutput("Replay complete. " + result.successCount + "/" + result.steps.length + " steps succeeded.\n", false);
@@ -260,21 +270,35 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       const confirmPhrase = task.toLowerCase().trim();
       if (confirmPhrase === "rollback yes") {
         (globalThis as any).__rollbackConfirm = null;
-        const { plan } = rollbackConfirm;
+        const { plan, resume } = rollbackConfirm;
         const { RollbackExecutor } = await import("../../runtime/rollback-executor.js");
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+        const { ReplayLock } = await import("../../runtime/replay-lock.js");
+        const { RollbackProgressStore } = await import("../../runtime/rollback-progress.js");
         const executor = new RollbackExecutor(activeCwd, tuiLog);
 
         tui.appendOutput("Executing rollback...\n", false);
 
         try {
-          const opts: any = {};
+          const opts: any = {
+            resume,
+            statusIndex: new ReplayStatusIndex(activeCwd),
+            replayLock: new ReplayLock(activeCwd),
+            progressStore: new RollbackProgressStore(activeCwd),
+          };
           if (approvalStore) {
             opts.approvalStore = approvalStore;
           }
           const result = await executor.execute(plan, opts);
           store.setReplayResult(result as any);
           store.setTraceDetailMode("rollback-result" as any);
-          tui.appendOutput("Rollback complete. " + result.successCount + " files restored, " + result.skippedCount + " skipped.\n", false);
+
+          const statusMsg = result.completionStatus === "noop"
+            ? "Rollback already completed — no action taken."
+            : result.completionStatus === "blocked"
+              ? "Rollback blocked — check warnings."
+              : `${result.successCount} files restored, ${result.skippedCount} skipped.`;
+          tui.appendOutput("Rollback complete. " + statusMsg + "\n", false);
         } catch (err: any) {
           tui.appendOutput("Rollback error: " + err.message + "\n", false);
         }
@@ -481,10 +505,17 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         tui.appendOutput("Replaying in " + modeFlag + " mode (" + plan.steps.filter(s => s.status === "ready").length + " ready steps)...\n", false);
         store.setReplayExecuting(true);
         const executor = new ReplayExecutor(activeCwd, tuiLog);
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+        const statusIndex = new ReplayStatusIndex(activeCwd);
 
         try {
-          const result = await executor.execute(plan);
+          const opts: any = { statusIndex };
+          const result = await executor.execute(plan, opts);
           store.setReplayResult(result);
+          if (result.replayId) {
+            const s = await statusIndex.getStatus(result.replayId);
+            store.setReplayStatus(s);
+          }
           store.setReplayExecuting(false);
           store.setTraceDetailMode("replay-result");
           tui.appendOutput("Replay complete. " + result.successCount + "/" + result.steps.length + " steps succeeded.\n", false);
@@ -502,6 +533,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         if (args.includes("--approved-live") || args.includes("--live")) {
           modeFlag = "approved-live";
         }
+        const resumeFlag = args.includes("--resume");
 
         // Determine replayId
         let replayId: string | undefined;
@@ -520,6 +552,9 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         const { ReplayDiffStore } = await import("../../runtime/replay-diff-store.js");
         const { buildRollbackPlan } = await import("../../runtime/rollback-plan.js");
         const { RollbackExecutor } = await import("../../runtime/rollback-executor.js");
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+        const { ReplayLock } = await import("../../runtime/replay-lock.js");
+        const { RollbackProgressStore } = await import("../../runtime/rollback-progress.js");
 
         const diffStore = new ReplayDiffStore(activeCwd);
         const diffSet = await diffStore.loadIndex(replayId);
@@ -537,9 +572,13 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
         // Confirmation for approved-live
         if (modeFlag === "approved-live") {
-          tui.appendOutput("Rollback replay " + replayId + " with real file changes?\n", false);
+          if (resumeFlag) {
+            tui.appendOutput("Resuming rollback for replay " + replayId + " from last incomplete step?\n", false);
+          } else {
+            tui.appendOutput("Rollback replay " + replayId + " with real file changes?\n", false);
+          }
           tui.appendOutput("Type: rollback yes\n", false);
-          (globalThis as any).__rollbackConfirm = { plan };
+          (globalThis as any).__rollbackConfirm = { plan, resume: resumeFlag };
           continue;
         }
 
