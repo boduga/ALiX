@@ -55,6 +55,7 @@ export type ToolCallRequest = {
   toolCallId: string;
   name: string;
   args: Record<string, unknown>;
+  replayId?: string;
 };
 
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
@@ -120,8 +121,9 @@ export class ToolExecutor {
     // === END TOOL REPAIR ===
 
     const argumentHash = hashArgs(args);
+    const replayPayloadFields = request.replayId ? { replayId: request.replayId } : {};
 
-    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args) });
+    await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
 
     // Single policy decision via PolicyGate
     const { PolicyGate } = await import("../policy/policy-gate.js");
@@ -146,11 +148,12 @@ export class ToolExecutor {
         decision: policyDecision.decision,
         reason: policyDecision.reason,
         matchedRuleId: policyDecision.matchedRuleId,
+        ...replayPayloadFields,
       },
     });
 
     if (policyDecision.decision === "deny") {
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: policyDecision.reason, durationMs: 0, canonicalCapability, argumentHash });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: policyDecision.reason, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
       return { kind: "denied", reason: policyDecision.reason };
     }
 
@@ -179,33 +182,33 @@ export class ToolExecutor {
         console.error("Failed to persist continuation:", err);
       }
 
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${policyDecision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${policyDecision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
       return { kind: "denied", reason: `Approval required (${policyDecision.approvalId}): ${policyDecision.reason}` };
     }
 
     // Handle special case: "done" tool (not in router)
     if (name === "done") {
-      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash });
+      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
       const result: ToolResult = { kind: "success", output: "Task complete.", completed: true };
       const startTime = parseInt(toolCallId.split("_")[1]) || Date.now();
       const durationMs = Date.now() - startTime;
-      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { toolCallId, outputPreview: "Task complete.", outputSize: 14 });
-      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { toolCallId, toolName: name, status: "success", durationMs, canonicalCapability, argumentHash });
+      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { toolCallId, outputPreview: "Task complete.", outputSize: 14, ...replayPayloadFields });
+      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { toolCallId, toolName: name, status: "success", durationMs, canonicalCapability, argumentHash, ...replayPayloadFields });
       return result;
     }
 
     // MCP availability check — policy said "ask" or "allow", but is the tool connected?
     if (name.startsWith("mcp.") && !this.mcpManager) {
       const msg = "MCP manager not initialized. No MCP servers are connected.";
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0, canonicalCapability, argumentHash });
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: msg, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
       return { kind: "denied", reason: msg };
     }
 
-    await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash });
+    await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
     // Emit m09 metric for tool call
     await this.log.append({
       sessionId: this.sessionId(), actor: "system", type: "m09.metric",
-      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString() },
+      payload: { name: "tool_calls_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...replayPayloadFields },
     });
 
     // Verify argument hash match before execution (M0.9 permissive placeholder)
@@ -245,7 +248,7 @@ export class ToolExecutor {
         outputPreview: truncateOutput(result.output ?? result.content ?? ""),
         outputSize,
       };
-      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, outputPayload);
+      await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { ...outputPayload, ...replayPayloadFields });
     }
 
     // Build and emit tool.completed or tool.failed event
@@ -258,7 +261,7 @@ export class ToolExecutor {
         canonicalCapability,
         argumentHash,
       };
-      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, completedPayload);
+      await this.logEvent(TOOL_EVENT_TYPES.COMPLETED, { ...completedPayload, ...replayPayloadFields });
     } else {
       const failedPayload: ToolFailedPayload = {
         toolCallId,
@@ -268,11 +271,11 @@ export class ToolExecutor {
         canonicalCapability,
         argumentHash,
       };
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, failedPayload);
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { ...failedPayload, ...replayPayloadFields });
       // Emit m09 metric for tool failure
       await this.log.append({
         sessionId: this.sessionId(), actor: "system", type: "m09.metric",
-        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString() },
+        payload: { name: "tool_failures_total", type: "counter", value: 1, labels: { tool: name }, timestamp: new Date().toISOString(), ...replayPayloadFields },
       });
     }
 
