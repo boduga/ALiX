@@ -147,8 +147,59 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
       }
     }
     buf.push(`  t=filter  r=refresh`);
+  } else if (s.activePanel === "replays") {
+    buf.push(`── Replays (${s.replayIndexData?.entries.length || 0} total) ────────────`);
+    if (!s.replayIndexData || s.replayIndexData.entries.length === 0) {
+      buf.push("  No replays recorded. Run a replay to see it here.");
+    } else {
+      const sorted = [...s.replayIndexData.entries]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      for (const entry of sorted.slice(0, 20)) {
+        const date = new Date(entry.createdAt);
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const hours = date.getHours().toString().padStart(2, "0");
+        const minutes = date.getMinutes().toString().padStart(2, "0");
+        const timeStr = `${month}/${day} ${hours}:${minutes}`;
+        const icon = iconForReplayStatus(entry.status);
+        const id = entry.replayId.slice(0, 28).padEnd(28);
+        const statusLabel = statusLabelForReplay(entry.status).padEnd(16);
+        let suffix = "";
+        const lockInfo = s.replayLockStates?.[entry.replayId];
+        if (lockInfo) suffix += "  🔒 locked";
+        if (entry.status === "rollback-partial") suffix += "  ⚠ use --resume";
+        buf.push(`  ${icon} ${id} ${statusLabel} ${timeStr}${suffix}`);
+      }
+    }
+    buf.push("  Keys: r=refresh  tab=next panel");
   }
 
   for (const line of buf) tui.appendOutput(line, false);
   return buf.length;
+}
+
+function iconForReplayStatus(status: string): string {
+  switch (status) {
+    case "capturing": return "📷";
+    case "completed": return "✔";
+    case "rollback-dry-run": return "🔍";
+    case "rollback-running": return "⏳";
+    case "rollback-completed": return "🔄";
+    case "rollback-partial": return "✗";
+    case "locked": return "🔒";
+    default: return "?";
+  }
+}
+
+function statusLabelForReplay(status: string): string {
+  switch (status) {
+    case "capturing": return "capturing";
+    case "completed": return "completed";
+    case "rollback-dry-run": return "dry-run";
+    case "rollback-running": return "rollback running";
+    case "rollback-completed": return "rolled back";
+    case "rollback-partial": return "partial";
+    case "locked": return "locked";
+    default: return status;
+  }
 }
