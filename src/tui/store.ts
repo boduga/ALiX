@@ -50,6 +50,7 @@ export interface PanelApprovalRecord {
   createdAt: string;
   status?: string;     // "approved" | "denied" — for resolved records
   decidedAt?: string;  // when the approval was resolved
+  ifamasContext?: import("./ifamas-panel.js").IfamasApprovalContext;
 }
 
 export interface PanelRuntimeEvent {
