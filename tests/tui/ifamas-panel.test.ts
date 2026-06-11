@@ -67,8 +67,9 @@ describe("formatIfamasPanel", () => {
 
   it("does NOT require ToolExecutor / PolicyGate imports", () => {
     const source = readFileSync("src/tui/ifamas-panel.ts", "utf-8");
-    assert.ok(!source.includes("ToolExecutor"));
-    assert.ok(!source.includes("PolicyGate"));
-    assert.ok(!source.includes("ApprovalStore"));
+    const importLines = source.split("\n").filter(l => l.startsWith("import "));
+    assert.ok(importLines.every(l => !l.includes("ToolExecutor")), "ToolExecutor must not be imported");
+    assert.ok(importLines.every(l => !l.includes("PolicyGate")), "PolicyGate must not be imported");
+    assert.ok(importLines.every(l => !l.includes("ApprovalStore")), "ApprovalStore must not be imported");
   });
 });

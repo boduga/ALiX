@@ -47,6 +47,12 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
     if (s.pendingApprovalRecords && s.pendingApprovalRecords.length > 0) {
       for (const a of s.pendingApprovalRecords) {
         buf.push(`  ${a.id}  ${a.capability || "?"}  ${(a.reason || "").slice(0, 40)}`);
+        if (a.ifamasContext) {
+          const c = a.ifamasContext;
+          buf.push(`    IFÁ-MAS: ${c.signalPolarity.toUpperCase()} ${c.signalCode}  ${c.offeringAction}`);
+          if (c.routeTarget) buf.push(`    Route: ${c.routeTarget}  Gate: ${c.gatewayValid ? "✓" : "✗"}`);
+          if (c.topGuildCandidate) buf.push(`    Guild: ${c.topGuildCandidate}`);
+        }
         buf.push(`    /approve ${a.id} or /deny ${a.id}`);
       }
     } else {

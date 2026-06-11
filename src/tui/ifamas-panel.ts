@@ -1,3 +1,17 @@
+/**
+ * Advisory IFÁ-MAS context attached to approval requests.
+ * Display-only — never used in PolicyGate decisions.
+ */
+export type IfamasApprovalContext = {
+  signalCode: string;
+  signalPolarity: string;
+  offeringAction: string;
+  routeTarget?: string;
+  gatewayValid: boolean;
+  topGuildCandidate?: string;
+  chronicleRefCount: number;
+};
+
 export type IfamasTracePanel = {
   signalCode: string;
   polarity: string;
