@@ -61,11 +61,18 @@ M0.43  Signal Frame Encoder Prototype
 M0.44  Offering Planner
 M0.45  Essence Profiles
 M0.46  Chronicle Store
-M0.47  Commons Integration
+M0.47  Bridge Protocol Envelope
 M0.48  Nexus Diagnostic Router
 M0.49  Bridge Protocol Gateway
 M0.50  Guild Selection Engine
+M0.51  IFÁ-MAS Passive Diagnostic Pipeline
+M0.52  IFÁ-MAS TUI Panel
+M0.53  IFÁ-MAS Trace Persistence
+M0.54  Chronicle Learning Loop
+M0.55  Chronicle Recall Panel
 ```
+
+All 14 milestones (M0.42–M0.55) are complete on `main` as of 2026-06-11.
 
 ---
 
@@ -389,52 +396,62 @@ git commit -m "feat(chronicle): add structured case memory store"
 
 ---
 
-## 9. M0.47 — Commons Integration
+## 9. M0.47 — Bridge Protocol Envelope
 
 ### Goal
 
-Expose Signal, Essence, Offering, and Chronicle state through existing runtime snapshot and TUI infrastructure.
+Wrap SignalFrame + OfferingPlan + optional EssenceCompatibility + Chronicle refs into a transport envelope for the ALiX pipeline.
 
-### Modified Files
-
-```
-src/tui/store.ts
-src/tui/runtime-snapshot.ts
-src/tui/trace-detail.ts
-src/tui/panel-renderer.ts
-src/events/types.ts
-src/runtime/trace-events.ts
-```
-
-### New Event Types
+### New Files
 
 ```
-signal.created
-signal.routed
-offering.prescribed
-essence.compatibility.checked
-chronicle.entry.created
+src/runtime/bridge-envelope.ts
+tests/runtime/bridge-envelope.test.ts
 ```
 
-### TUI Display
+### Core Type
 
-Trace drilldown should show:
+```typescript
+export type BridgeEnvelope = {
+  envelopeId: string;
+  signal: SignalFrame;
+  offering: OfferingPlan;
+  essence?: EssenceCompatibility;
+  chronicleRefs: string[];
+  routeHint?: {
+    targetRole?: "genesis" | "nexus" | "bridge" | "guild" | "caller";
+    targetAgentId?: string;
+    reason?: string;
+  };
+  safety: {
+    requiresPolicyGate: boolean;
+    requiresApproval: boolean;
+    mutationPossible: boolean;
+    taboos: string[];
+  };
+  createdAt: string;
+};
+```
 
+### Builder
+
+```typescript
+export function buildBridgeEnvelope(input: {
+  signal: SignalFrame;
+  offering: OfferingPlan;
+  essence?: EssenceCompatibility;
+  chronicleRefs?: string[];
+  routeHint?: BridgeEnvelope["routeHint"];
+}): BridgeEnvelope;
 ```
-Signal
-  Code: 11100110
-  Domain: replay
-  Polarity: mixed
-  Intent: Approved-live replay contains mutation
-  Offering: ask_approval
-  Evidence: trace_123, replay_456
-```
+
+Safety fields are derived from decoded signal bits and offering action. Passive — does not execute tools or policy gates.
 
 ### Commit
 
 ```bash
-git add src/tui src/events src/runtime
-git commit -m "feat(tui): surface Signal and Offering metadata in runtime views"
+git add src/runtime/bridge-envelope.ts tests/runtime/bridge-envelope.test.ts
+git commit -m "feat(runtime): add BridgeEnvelope protocol wrapper"
 ```
 
 ---
@@ -443,7 +460,7 @@ git commit -m "feat(tui): surface Signal and Offering metadata in runtime views"
 
 ### Goal
 
-Introduce a diagnostic routing layer that can create SignalFrames before route execution.
+Consume a BridgeEnvelope and produce a passive routing recommendation — which agent role should handle the envelope next.
 
 ### New Files
 
@@ -455,32 +472,31 @@ tests/runtime/nexus-router.test.ts
 ### Flow
 
 ```
-input request
-  → existing TaskRouter classification
-  → SignalFrame creation
-  → Offering prescription
-  → optional Chronicle lookup
-  → route execution
+BridgeEnvelope
+  → 6 priority-ordered rules
+  → routeHint (targetRole, confidence, reason)
+  → optional ChronicleStore failure lookup
+  → optional Essence score annotation
 ```
 
 ### Interface
 
 ```typescript
 export type NexusRouteDecision = {
-  route: TaskRoute;
-  signal: SignalFrame;
-  offering?: OfferingPrescription;
-  chronicleRefs: string[];
+  envelope: BridgeEnvelope;
+  routeHint: {
+    targetRole: "genesis" | "nexus" | "bridge" | "guild" | "caller";
+    confidence: number;
+    reason: string;
+  };
+  chronicleEntries: ChronicleEntry[];
 };
 
-export class NexusRouter {
-  route(input: {
-    task: string;
-    cwd: string;
-    sessionId: string;
-    traceRefs?: string[];
-  }): Promise<NexusRouteDecision>;
-}
+export async function routeViaNexus(input: {
+  envelope: BridgeEnvelope;
+  chronicleStore?: ChronicleStore;
+  essence?: EssenceCompatibility;
+}): Promise<NexusRouteDecision>;
 ```
 
 ### Commit
@@ -496,7 +512,7 @@ git commit -m "feat(runtime): add Nexus diagnostic router"
 
 ### Goal
 
-Add a gateway layer for SignalFrame validation and inter-agent protocol translation.
+Validate BridgeEnvelopes and provide message wrapping/unwrapping utilities. The validation boundary for the runtime pipeline.
 
 ### New Files
 
@@ -504,14 +520,6 @@ Add a gateway layer for SignalFrame validation and inter-agent protocol translat
 src/runtime/bridge-gateway.ts
 tests/runtime/bridge-gateway.test.ts
 ```
-
-### Responsibilities
-
-- validate SignalFrame schema
-- enforce required fields
-- attach integrity metadata
-- translate between internal and external message shapes
-- reject malformed inter-agent messages
 
 ### Interface
 
@@ -522,11 +530,13 @@ export type BridgeValidationResult = {
 };
 
 export class BridgeGateway {
-  validateSignal(signal: SignalFrame): BridgeValidationResult;
-  wrapMessage(input: { signal: SignalFrame; payload: unknown }): BridgeEnvelope;
-  unwrapMessage(envelope: BridgeEnvelope): { signal: SignalFrame; payload: unknown };
+  validateEnvelope(envelope: BridgeEnvelope): BridgeValidationResult;
+  wrapMessage(input: { signal: SignalFrame; offering: OfferingPlan; payload: unknown }): BridgeMessage;
+  unwrapMessage(message: BridgeMessage): { signal: SignalFrame; offering: OfferingPlan; payload: unknown };
 }
 ```
+
+Validates 6 structural rule groups (envelopeId, signal, offering, safety, chronicleRefs, createdAt) collecting ALL errors.
 
 ### Commit
 
@@ -541,7 +551,7 @@ git commit -m "feat(runtime): add Bridge protocol gateway"
 
 ### Goal
 
-Select specialist agents based on SignalFrame + EssenceProfile compatibility.
+Select specialist agents based on EssenceProfile compatibility with a BridgeEnvelope.
 
 ### New Files
 
@@ -556,13 +566,16 @@ tests/agents/guild-selector.test.ts
 export type GuildCandidate = {
   profile: EssenceProfile;
   score: number;
+  compatible: boolean;
   reasons: string[];
 };
 
 export class GuildSelector {
-  select(signal: SignalFrame, candidates: EssenceProfile[]): GuildCandidate[];
+  select(input: { envelope: BridgeEnvelope; candidates: EssenceProfile[] }): GuildCandidate[];
 }
 ```
+
+Uses `checkEssenceCompatibility()` per candidate. Sorts compatible first, then by score descending.
 
 ### Commit
 
@@ -573,25 +586,190 @@ git commit -m "feat(agents): add Guild selection engine"
 
 ---
 
-## 13. Implementation Order
+## 13. M0.51 — IFÁ-MAS Passive Diagnostic Pipeline
 
-Recommended exact order:
+### Goal
+
+Chain all 8 modules (M0.43–M0.50) into a single end-to-end diagnostic pipeline.
+
+### New Files
+
+```
+src/runtime/ifamas-pipeline.ts
+tests/runtime/ifamas-pipeline.test.ts
+```
+
+### Core Type
+
+```typescript
+export type IfamasDiagnostic = {
+  signal: SignalFrame;
+  offering: OfferingPlan;
+  envelope: BridgeEnvelope;
+  routeDecision: NexusRouteDecision;
+  gatewayValidation: BridgeValidationResult;
+  guildCandidates: GuildCandidate[];
+};
+```
+
+### Pipeline Steps
+
+```
+SignalFrame → prescribeOffering → buildBridgeEnvelope
+  → BridgeGateway.validateEnvelope → routeViaNexus → GuildSelector.select
+```
+
+Optional: `eventLog` for trace event emission, `chronicleStore` for past-case lookup.
+
+### Commit
+
+```bash
+git add src/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
+git commit -m "feat(runtime): add IFÁ-MAS passive diagnostic pipeline"
+```
+
+---
+
+## 14. M0.52 — IFÁ-MAS TUI Panel
+
+### Goal
+
+Surface IFÁ-MAS diagnostic artifacts in the TUI. Operator types `/ifamas` to see Signal code, polarity, Offering action, Route target, Gateway status, and Guild candidates.
+
+### New Files
+
+```
+src/tui/ifamas-panel.ts
+tests/tui/ifamas-panel.test.ts
+```
+
+### Modified Files
+
+```
+src/tui/store.ts           — +"ifamas" panel type
+src/tui/panel-renderer.ts  — +ifamas render branch
+src/tui/runtime-snapshot.ts — +carry ifamasPanelData
+src/cli/commands/tui.ts    — +/ifamas command
+```
+
+Read-only display. No execution changes.
+
+### Commit
+
+```bash
+git add src/tui/ifamas-panel.ts src/tui/store.ts src/tui/panel-renderer.ts src/tui/runtime-snapshot.ts src/cli/commands/tui.ts tests/tui/ifamas-panel.test.ts
+git commit -m "feat(tui): add IFÁ-MAS diagnostic panel and /ifamas command"
+```
+
+---
+
+## 15. M0.53 — IFÁ-MAS Trace Persistence
+
+### Goal
+
+Record IFÁ-MAS diagnostic artifacts into the event log as structured trace events so they persist beyond the live TUI session.
+
+### Modified Files
+
+```
+src/runtime/trace-events.ts     — +"ifamas" source type, ifamasPayload, normalizer
+src/runtime/ifamas-pipeline.ts  — +optional eventLog emission
+src/cli/commands/tui.ts         — +wire tuiLog into /ifamas
+tests/runtime/trace-events-ifamas.test.ts — new
+```
+
+Non-fatal — diagnostics succeed even if event emission fails.
+
+### Commit
+
+```bash
+git add src/runtime/trace-events.ts src/runtime/ifamas-pipeline.ts src/cli/commands/tui.ts tests/runtime/trace-events-ifamas.test.ts tests/runtime/ifamas-pipeline.test.ts
+git commit -m "feat(runtime): persist IFÁ-MAS diagnostic as trace events"
+```
+
+---
+
+## 16. M0.54 — Chronicle Learning Loop
+
+### Goal
+
+After each IFÁ-MAS diagnostic run, automatically append a Chronicle entry recording what was diagnosed, what offering was prescribed, and what route was recommended.
+
+### Modified Files
+
+```
+src/runtime/ifamas-pipeline.ts — +chronicleStore.append after diagnostic
+tests/runtime/ifamas-pipeline.test.ts — +2 tests
+```
+
+Non-fatal — diagnostics succeed even if Chronicle writing fails.
+
+### Commit
+
+```bash
+git add src/runtime/ifamas-pipeline.ts tests/runtime/ifamas-pipeline.test.ts
+git commit -m "feat(chronicle): add learning loop to IFÁ-MAS diagnostic pipeline"
+```
+
+---
+
+## 17. M0.55 — Chronicle Recall Panel
+
+### Goal
+
+Let operators search historical IFÁ-MAS Chronicle entries and diagnostic artifacts by signal code, trace ID, offering action, or route target.
+
+### New Files
+
+```
+src/tui/chronicle-panel.ts
+tests/tui/chronicle-panel.test.ts
+```
+
+### Modified Files
+
+```
+src/tui/store.ts              — +"chronicle" panel type
+src/tui/panel-renderer.ts     — +chronicle render branch
+src/tui/runtime-snapshot.ts   — +carry chroniclePanelData
+src/cli/commands/tui.ts       — +/chronicle command
+```
+
+Commands: `/chronicle`, `/chronicle signal:<code>`, `/chronicle trace:<id>`, `/chronicle offering:<action>`, `/chronicle route:<target>`.
+
+### Commit
+
+```bash
+git add src/tui/chronicle-panel.ts src/tui/store.ts src/tui/panel-renderer.ts src/tui/runtime-snapshot.ts src/cli/commands/tui.ts tests/tui/chronicle-panel.test.ts
+git commit -m "feat(tui): add IFÁ-MAS Chronicle recall panel and /chronicle command"
+```
+
+---
+
+## 18. Implementation Order
+
+Recommended exact order (completed):
 
 1. M0.42 docs
 2. M0.43 SignalFrame
 3. M0.44 OfferingPlanner
 4. M0.45 EssenceProfile
 5. M0.46 ChronicleStore
-6. M0.47 TUI/Trace integration
+6. M0.47 BridgeEnvelope
 7. M0.48 NexusRouter
 8. M0.49 BridgeGateway
 9. M0.50 GuildSelector
+10. M0.51 IfamasPipeline
+11. M0.52 TUI Panel
+12. M0.53 Trace Persistence
+13. M0.54 Chronicle Learning
+14. M0.55 Chronicle Recall
 
 ---
 
-## 14. Testing Requirements
+## 19. Testing Requirements
 
-Each milestone should include unit tests. Integration tests should wait until M0.47 or later.
+Each milestone includes unit tests. Integration tests start from M0.47 onward.
 
 Testing philosophy:
 
@@ -603,7 +781,7 @@ Testing philosophy:
 
 ---
 
-## 15. Risks
+## 20. Risks
 
 ### 15.1 Over-symbolization
 
@@ -631,7 +809,7 @@ Mitigation: Implement in small milestones: Signal → Offering → Essence → C
 
 ---
 
-## 16. Definition of Done
+## 21. Definition of Done
 
 The full IFÁ-MAS symbolic coordination foundation is complete when:
 
@@ -643,10 +821,32 @@ The full IFÁ-MAS symbolic coordination foundation is complete when:
 6. Nexus can route with Signal context
 7. Bridge can validate and wrap messages
 8. GuildSelector can select agents from Essence compatibility
+9. Passive pipeline chains all modules end-to-end (M0.51)
+10. TUI can display diagnostics live (M0.52)
+11. Diagnostics persist as trace events (M0.53)
+12. Chronicle automatically records diagnostic outcomes (M0.54)
+13. Operator can recall past diagnostics by filter (M0.55)
 
 ---
 
-## 17. Final Engineering Summary
+## 22. Passive Boundary Guarantees
+
+The entire IFÁ-MAS overlay (M0.43–M0.55) respects these hard boundaries:
+
+| Component | Changes |
+|-----------|---------|
+| **ToolExecutor** | **Zero** — no imports, no references, no behavioral changes |
+| **PolicyGate** | **Zero** — no imports, no references, no behavioral changes |
+| **ApprovalStore** | **Zero** — no imports, no references, no behavioral changes |
+| **Runtime routing** | **Zero** — no routing mutation, no task dispatch changes |
+| **Replay execution** | **Zero** — no replay/rollback execution changes |
+| **File/network I/O** | Read-only via ChronicleStore and EventLog |
+
+The overlay produces diagnostics, recommendations, and structured memory. It does not execute anything.
+
+---
+
+## 23. Final Engineering Summary
 
 The implementation does not replace ALiX's current runtime.
 It layers symbolic coordination over it.
@@ -655,8 +855,10 @@ It layers symbolic coordination over it.
 Current ALiX:
   task → route → execute → trace
 
-IFÁ-MAS ALiX:
-  task → Signal → Offering → route → execute → trace → Chronicle
+IFÁ-MAS ALiX (passive):
+  Signal → Offering → Envelope → Route → Validate → Select
+       ↓
+  Display (TUI) → Persist (trace) → Learn (Chronicle) → Recall (/chronicle)
 ```
 
-This keeps the system practical, TypeScript-native, testable, and compatible with the existing replay/rollback safety architecture.
+This keeps the system practical, TypeScript-native, testable, and compatible with the existing replay/rollback safety architecture. All 14 milestones (M0.42–M0.55) are complete on `main` as of 2026-06-11.
