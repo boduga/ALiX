@@ -1,5 +1,7 @@
 # M0.24: Task Router — Core Runtime Implementation Plan
 
+**Status:** ✅ Completed (M0.24) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Supersedes:** M0.21 hardcoded `daemonShellAlias()` in `daemon-server.ts`

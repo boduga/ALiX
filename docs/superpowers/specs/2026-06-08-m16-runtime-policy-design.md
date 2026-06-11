@@ -1,5 +1,7 @@
 # M0.16: Runtime Policy Integration
 
+**Status:** ✅ Completed (M0.16) — Design implemented and committed to main.
+
 **Goal:** Connect the policy rule engine, capability resolver, and approval queue into the graph executor — so that during graph execution, capability coverage is checked first, then policy rules are evaluated, and `ask` decisions create approval requests.
 
 ## Two-Layer Gate Architecture

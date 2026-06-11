@@ -1,5 +1,7 @@
 # M0.19-A: Core RuntimeIndex
 
+**Status:** ✅ Completed (M0.19) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a read-only, on-demand RuntimeIndex that aggregates events from audit, approvals, graphs, and graph_runs into a single queryable view.

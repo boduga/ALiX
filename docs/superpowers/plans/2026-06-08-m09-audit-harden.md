@@ -1,5 +1,7 @@
 # M0.9 Audit: Execution Order and Governance
 
+**Status:** ✅ Completed (M0.18) — Plan implemented and committed to main.
+
 **Goal:** Fix 6 correctness issues found in the M0.9 implementation before adding more features.
 
 ---

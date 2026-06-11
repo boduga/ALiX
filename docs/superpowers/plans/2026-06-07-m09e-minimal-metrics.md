@@ -1,5 +1,7 @@
 # M0.9-E: Minimal Metrics
 
+**Status:** ✅ Completed (M0.9) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Emit M0.9 minimum metrics (`workflow_runs_total`, `model_calls_total`, `tool_calls_total`, `tool_failures_total`, `policy_decisions_total`, `policy_denials_total`) alongside existing events. Metrics are stored in-memory during a run and exposed via `alix metrics` command and debug output.

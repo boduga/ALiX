@@ -1,5 +1,7 @@
 # Self-Extensible Hooks (Pi-Style Code Generation)
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 **Goal:** Let the agent create TypeScript hooks from natural language — the agent writes the code, loads it in-process, and it becomes live immediately. User never writes code.
 
 **Architecture:** A `create_hook` tool that takes a plain-language description, generates a TypeScript hook module, registers it with `HookRunner`, and makes it active for the current session. Based on `src/extensions/hook-runner.ts` which already supports runtime-registered `HookFn`.

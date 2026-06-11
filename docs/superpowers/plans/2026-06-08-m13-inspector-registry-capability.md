@@ -1,5 +1,7 @@
 # M0.13: Inspector Registry + Capability Timeline
 
+**Status:** ✅ Completed (M0.13) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Surface agent/tool card data and capability resolution results in the web inspector UI.

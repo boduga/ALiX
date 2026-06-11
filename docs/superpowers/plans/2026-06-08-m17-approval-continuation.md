@@ -1,5 +1,7 @@
 # M0.17: Approval-Aware Continuation
 
+**Status:** ✅ Completed (M0.17) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Connect the approval queue back into graph execution — check existing approvals before creating new ones, add a `alix graph continue` command to resume after approval, and add read-only approval visibility in the Inspector.

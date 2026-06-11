@@ -1,5 +1,7 @@
 # M0.23: Daemon Reliability + Recovery
 
+**Status:** ✅ Completed (M0.23) — Design implemented and committed to main.
+
 ## Recovery Contract
 
 On daemon startup, before accepting commands:

@@ -1,5 +1,7 @@
 # `alix plan` / `alix review` / `alix apply` Design
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 **Goal:** Multi-stage planning pipeline: generate plan → review diffs → apply patches. Enables iterative human-in-the-loop development.
 
 **Architecture:** `alix plan` generates a machine-readable YAML plan. `alix review` shows affected files and risk. `alix apply` executes the planned patches.

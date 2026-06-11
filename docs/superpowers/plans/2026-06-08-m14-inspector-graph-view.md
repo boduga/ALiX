@@ -1,5 +1,7 @@
 # M0.14: Inspector Graph Execution View
 
+**Status:** ✅ Completed (M0.14) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a read-only Graph tab to the Inspector UI that surfaces graph run data — node list, status, capability resolution, and rerun command helpers — without adding server-side execution.

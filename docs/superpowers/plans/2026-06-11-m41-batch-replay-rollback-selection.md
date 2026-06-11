@@ -1,5 +1,7 @@
 # M0.41 — Batch Replay/Rollback Selection Implementation Plan
 
+**Status:** ✅ Completed (M0.41) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add multi-select of replay records in the replays panel + batch dry-run previews for replay and rollback, with a safety summary before execution.

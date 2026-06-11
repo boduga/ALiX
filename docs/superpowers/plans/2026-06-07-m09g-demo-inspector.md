@@ -1,5 +1,7 @@
 # M0.9-G: Demo Path + Inspector Compatibility
 
+**Status:** ✅ Completed (M0.9) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** (1) A safe `alix demo local` command that works on the default local-first setup and shows WorkflowRun ID, TaskNode ID, model route, tool event, and PolicyDecision. (2) Inspector displays WorkflowRun and TaskGraph IDs from the new `EventMeta` field while still reading legacy events.

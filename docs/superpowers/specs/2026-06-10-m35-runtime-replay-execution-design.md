@@ -1,5 +1,7 @@
 # M0.35 — Runtime Replay Execution Design
 
+**Status:** ✅ Completed (M0.35) — Design implemented and committed to main.
+
 > **One-liner:** M0.35 executes selected replay chains through a bounded replay executor using dry-run and sandbox modes, while preserving PolicyGate enforcement and full trace auditability.
 
 > **Capstone of the trace trilogy (M0.32 visible → M0.33 inspectable → M0.34 previewable → M0.35 executable).**

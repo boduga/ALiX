@@ -1,5 +1,7 @@
 # M0.11-B: Rerun Failed Graph Node
 
+**Status:** ✅ Completed (M0.11) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add `alix graph rerun <graphId> --node <nodeId>` to rerun a single failed node, preserving its goal, executionProfile, and constraints, while creating a new child session and tracking attempts.

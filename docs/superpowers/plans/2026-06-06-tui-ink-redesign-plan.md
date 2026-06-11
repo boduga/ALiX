@@ -1,5 +1,7 @@
 # TUI Ink Redesign Implementation Plan
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Replace the raw-ANSI TUI (scroll-region, manual cursor tracking, hand-rolled input) with a clean Ink-based React component tree.

@@ -1,5 +1,7 @@
 # M0.22: Daemon Task Control + Status
 
+**Status:** ✅ Completed (M0.22) — Design implemented and committed to main.
+
 ## Two-Layer Architecture
 
 ```

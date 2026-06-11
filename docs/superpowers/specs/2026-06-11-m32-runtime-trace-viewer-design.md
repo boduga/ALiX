@@ -1,6 +1,6 @@
 # M0.32: Runtime Trace Viewer — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.32)
 **Builds on:** M0.29–M0.31 (PolicyGate, Approval UX, Observability)
 
 ---

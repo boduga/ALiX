@@ -1,5 +1,7 @@
 # M0.33: Runtime Trace Drilldown — Implementation Plan
 
+**Status:** ✅ Completed (M0.33) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make each trace row inspectable — select an event, view structured fields, raw JSON payload, linked entity IDs, and chain context of related events.

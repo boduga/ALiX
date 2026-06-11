@@ -1,5 +1,7 @@
 # M0.9-C: Single-Node TaskGraph Wrapper
 
+**Status:** ✅ Completed (M0.10) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Every `alix run` creates a single-node TaskGraph internally, emits `graph.created`, `task.ready`, `task.started`, `task.done`/`task.failed` events, and supports `alix graph inspect <graph-id>`.

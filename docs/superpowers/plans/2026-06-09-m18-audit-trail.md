@@ -1,5 +1,7 @@
 # M0.18: Policy/Approval Audit Trail
 
+**Status:** ✅ Completed (M0.18) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a durable audit trail that records policy evaluations, approval lifecycle events, graph continuation decisions, and runtime gate outcomes — so ALiX can answer "what happened and why" after any session.

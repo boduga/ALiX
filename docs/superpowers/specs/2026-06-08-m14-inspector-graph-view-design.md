@@ -1,5 +1,7 @@
 # M0.14: Inspector Graph Execution View
 
+**Status:** ✅ Completed (M0.14) — Design implemented and committed to main.
+
 **Goal:** Add a read-only Graph tab to the Inspector UI that surfaces graph run data — node status, capability resolution, and rerun command helpers — without adding server-side execution.
 
 **Boundary:** Inspector remains observability-only. No POST/PUT/DELETE endpoints. Rerun uses CLI command copying, not browser-triggered execution.

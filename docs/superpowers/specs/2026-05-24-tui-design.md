@@ -1,5 +1,7 @@
 # ALiX Terminal UI (TUI) Design Spec
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 > **For agentic workers:** Use superpowers:writing-plans after this spec is approved to create the implementation plan.
 
 Date: 2026-05-24

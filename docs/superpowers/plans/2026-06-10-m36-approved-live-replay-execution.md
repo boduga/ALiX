@@ -1,5 +1,7 @@
 # M0.36 — Approved-Live Replay Execution Implementation Plan
 
+**Status:** ✅ Completed (M0.36) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Enable real replay execution only through fresh PolicyGate checks, explicit approvals for side-effecting steps, and fully linked replay audit events via `replayId`.

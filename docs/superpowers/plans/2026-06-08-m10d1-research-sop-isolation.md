@@ -1,5 +1,7 @@
 # M0.10-D.1: Research SOP Execution Isolation
 
+**Status:** ✅ Completed (M0.26) — Plan implemented and committed to main.
+
 **Goal:** Make `research.deep_report` nodes execute in a web-first, repo-isolated mode — no local file reads, only `web_search`/`web_fetch`/`done`.
 
 ---

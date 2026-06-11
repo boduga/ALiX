@@ -1,6 +1,6 @@
 # M0.34: Runtime Replay Preview — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.34)
 **Builds on:** M0.33 (Runtime Trace Drilldown)
 
 ---

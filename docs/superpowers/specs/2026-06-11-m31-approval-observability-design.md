@@ -1,6 +1,6 @@
 # M0.31: Approval Observability & Audit Trail — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.31)
 **Builds on:** M0.29 (PolicyGate), M0.30 (Approval UX & Continuation)
 
 ---

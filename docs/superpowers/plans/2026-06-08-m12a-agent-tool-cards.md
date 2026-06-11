@@ -1,5 +1,7 @@
 # M0.12-A: Agent Card + Tool Card Schemas and Registry
 
+**Status:** ✅ Completed (M0.12) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add typed `AgentCard` and `ToolCard` schemas plus an in-memory `CardRegistry` with register/list/find-by-capability, validation, and duplicate ID rejection.

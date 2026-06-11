@@ -1,6 +1,6 @@
 # M0.28: Runtime State Consistency Hardening — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.28)
 **Builds on:** M0.24 (shared task router), M0.25 (universal daemon), M0.26 (workspace registry), M0.27 (workspace switching)
 
 ---

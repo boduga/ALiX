@@ -1,7 +1,7 @@
 # TUI Ink Redesign
 
 **Date:** 2026-06-06
-**Status:** Design Approved
+**Status:** ✅ Completed (M0.7)
 
 ## Motivation
 

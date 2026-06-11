@@ -1,5 +1,7 @@
 # M0.19: Persistent Runtime Event Unification
 
+**Status:** ✅ Completed (M0.19) — Design implemented and committed to main.
+
 **Goal:** Build a read-only, on-demand RuntimeIndex that aggregates events from ALiX's multiple storage backends into a single queryable view — without introducing new storage.
 
 **Boundary:** RuntimeIndex is an on-the-fly aggregator (Approach A). SQLite mirror is deferred to M0.19-D / M0.20.

@@ -1,6 +1,6 @@
 # M0.27: Workspace Switching UX — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.27)
 **Builds on:** M0.25 (universal daemon), M0.26 (workspace registry)
 
 ---

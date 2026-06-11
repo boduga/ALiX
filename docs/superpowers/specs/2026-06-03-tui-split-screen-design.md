@@ -1,7 +1,7 @@
 # TUI Split-Screen Redesign
 
 **Date:** 2026-06-03
-**Status:** Design Approved
+**Status:** ✅ Completed (M0.7)
 
 ## Motivation
 

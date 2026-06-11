@@ -1,5 +1,7 @@
 # `alix init` Design
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 **Goal:** Interactive project setup wizard for ALiX.
 
 **Architecture:** New CLI command that runs in cwd. Detects existing state, runs an interactive 3-step wizard, writes `.alix/config.json`, and optionally initializes git with `.alix/` in `.gitignore`.

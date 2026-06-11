@@ -1,5 +1,7 @@
 # M0.27: Workspace Switching UX — Implementation Plan
 
+**Status:** ✅ Completed (M0.27) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Spec:** `docs/superpowers/specs/2026-06-10-m27-workspace-switching-design.md`

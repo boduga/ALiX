@@ -1,5 +1,7 @@
 # M0.10-D: research.deep_report SOP
 
+**Status:** ✅ Completed (M0.26) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `alix sop run research.deep_report --topic "<topic>"` creates and executes a deterministic multi-node research graph that produces structured report artifacts.

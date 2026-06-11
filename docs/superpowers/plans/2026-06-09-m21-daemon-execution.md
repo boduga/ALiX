@@ -1,5 +1,7 @@
 # M0.21: Daemon-Backed Task Execution
 
+**Status:** ✅ Completed (M0.21) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Wire the daemon's `run` command to execute real tasks through `runTask()`, streaming model/tool events back through the Unix socket.

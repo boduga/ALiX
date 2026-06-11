@@ -1,6 +1,6 @@
 # M0.30: Approval UX & Continuation — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.30)
 **Builds on:** M0.29 (PolicyGate unification)
 
 ---

@@ -1,5 +1,7 @@
 # PR 1: CLI Run Arg Parser
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Extract the regex-based flag stripping in `src/cli.ts`'s `alix run` handler into a standalone `parseRunArgs()` helper with tests.

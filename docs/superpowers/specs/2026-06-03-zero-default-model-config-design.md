@@ -1,7 +1,7 @@
 # Zero-Default Model Configuration Design
 
 **Date:** 2026-06-03
-**Status:** Draft
+**Status:** ✅ Completed (M0.7)
 **Principles:**
 1. User must always provide model config — no code defaults
 2. All hardcoded providers/names → config variables

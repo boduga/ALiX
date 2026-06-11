@@ -1,5 +1,7 @@
 # Multi-Provider Support Implementation Spec
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add 8 new provider adapters (OpenAI, Google Gemini, OpenRouter, Groq, Ollama, Perplexity, MiniMax, ZhipuAI, GrokAI, DeepSeek) alongside the existing Anthropic and Mock providers, wired through a shared registry factory, with updated config schema and CLI set-key prompt.

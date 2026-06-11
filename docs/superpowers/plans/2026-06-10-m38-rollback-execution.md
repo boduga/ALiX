@@ -1,5 +1,7 @@
 # M0.38 — Rollback Execution Implementation Plan
 
+**Status:** ✅ Completed (M0.38) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Execute rollback only from captured replay diff artifacts, under PolicyGate approval, with full `rollbackId` → `replayId` trace linkage.

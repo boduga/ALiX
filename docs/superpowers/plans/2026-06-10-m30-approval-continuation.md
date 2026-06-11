@@ -1,5 +1,7 @@
 # M0.30: Approval UX & Continuation — Implementation Plan
 
+**Status:** ✅ Completed (M0.30) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make PolicyGate `ask` decisions operational — visible in the TUI, resolvable via `/approve`/`/deny` commands, and resumable without losing the original execution context.

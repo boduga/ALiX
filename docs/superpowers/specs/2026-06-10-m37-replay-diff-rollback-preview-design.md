@@ -1,5 +1,7 @@
 # M0.37 — Replay Diff & Rollback Preview Design
 
+**Status:** ✅ Completed (M0.37) — Design implemented and committed to main.
+
 > **One-liner:** M0.37 captures before/after file snapshots for approved-live replay mutations, computes diffs, stores them under `.alix/replays/<replayId>/`, and renders a rollback preview in the Trace drilldown — without executing any rollback.
 
 ---

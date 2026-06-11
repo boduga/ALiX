@@ -1,5 +1,7 @@
 # M0.36 — Approved-Live Replay Execution Design
 
+**Status:** ✅ Completed (M0.36) — Design implemented and committed to main.
+
 > **One-liner:** M0.36 enables real replay execution only through fresh PolicyGate checks, explicit approvals, and fully linked replay audit events.
 
 > **Safety contract:** Approved-live replay must not mean "trust the old trace." Every step goes through current PolicyGate. Side-effecting steps require fresh approval. Replay audit events link every decision back to its `replayId`.

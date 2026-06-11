@@ -1,5 +1,7 @@
 # M0.38 — Rollback Execution Design
 
+**Status:** ✅ Completed (M0.38) — Design implemented and committed to main.
+
 > **One-liner:** M0.38 executes rollback only from captured replay diff artifacts, under PolicyGate approval, with full `rollbackId` → `replayId` trace linkage.
 
 > **Boundary:** Rollback only applies to files captured by `ReplayDiffStore`. `Rollback` does not infer changes outside `.alix/replays/<replayId>/`. `Rollback` does not revert arbitrary git state.

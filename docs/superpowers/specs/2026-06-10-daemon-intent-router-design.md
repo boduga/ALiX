@@ -1,6 +1,6 @@
 # M0.24: Task Router — Core Runtime Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.24)
 **Supersedes:** M0.21 hardcoded `daemonShellAlias()` in `daemon-server.ts`
 **Builds on:** M0.20 (daemon server), M0.21 (daemon execution), M0.22 (task control), M0.23 (reliability)
 

@@ -1,5 +1,7 @@
 # `--plan` Mode Design
 
+**Status:** ✅ Completed (M0.31) — Design implemented and committed to main.
+
 **Goal:** Plan generation is the default flow for `alix run`. Before executing any task, the model generates a structured plan showing what it intends to do. The user approves, edits, or rejects the plan before any files are touched.
 
 **Architecture:** A single new phase inserted between context compilation and the tool execution loop. The model generates a plan in plain markdown (no tools, pure reasoning), the user approves via a simple prompt, and the approved plan is injected into the execution system prompt as a shared commitment.

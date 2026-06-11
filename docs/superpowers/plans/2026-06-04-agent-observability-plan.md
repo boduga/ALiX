@@ -1,5 +1,7 @@
 # Agent Observability Implementation Plans
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 **6 features to match Claude Code Inspector / LangSmith level.**
 
 ## Current State

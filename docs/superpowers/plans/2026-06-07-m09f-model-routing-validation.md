@@ -1,5 +1,7 @@
 # M0.9-F: Model Routing Validation Spike
 
+**Status:** ✅ Completed (M0.9) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Validate that the default `balanced-local` model profile (qwen3:4b for fast tier, qwen3:8b for thinking/critic, qwen2.5-coder:7b for coding) routes correctly against curated prompts — classification accuracy, intent recognition, and risk assessment.

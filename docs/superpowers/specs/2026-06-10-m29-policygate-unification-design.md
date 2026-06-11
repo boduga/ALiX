@@ -1,6 +1,6 @@
 # M0.29: PolicyGate Unification — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.29)
 **Builds on:** M0.24 (shared task router), M0.28 (runtime consistency hardening)
 
 ---

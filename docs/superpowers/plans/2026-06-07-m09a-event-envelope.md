@@ -1,5 +1,7 @@
 # M0.9-A: Event Envelope Adapter
 
+**Status:** ✅ Completed (M0.9) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Adapter that wraps existing EventLog events into the canonical ALiX event envelope, preserving legacy payloads under `payload.legacy` and adding `workflowId`/`graphId`/`nodeId` from the `EventMeta` type (already added in PR 3).

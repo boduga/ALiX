@@ -1,5 +1,7 @@
 # Session Resume Implementation Plan
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 **Spec:** `docs/superpowers/specs/2026-06-05-session-resume-design.md`
 **Goal:** Make interrupted `alix run` sessions resumable via `--resume <session-id>`.
 **Risk:** Medium — touches agent loop and task loop, but changes are additive (new files + small hooks).

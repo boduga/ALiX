@@ -1,5 +1,7 @@
 # PR 3: Event Metadata Field
 
+**Status:** ✅ Completed (M0.18) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add an additive `meta` field to `AlixEvent` that carries `workflowId`, `graphId`, `nodeId`, `traceId`, and `spanId` — the identifiers M0.9 needs — without breaking any existing event consumers.

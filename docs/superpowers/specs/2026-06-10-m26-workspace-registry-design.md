@@ -1,6 +1,6 @@
 # M0.26: Workspace Registry — Project Awareness Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.26)
 **Builds on:** M0.25 (universal daemon with global `~/.alix/` and per-request `cwd`)
 
 ---

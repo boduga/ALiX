@@ -1,5 +1,7 @@
 # M0.35 — Runtime Replay Execution Implementation Plan
 
+**Status:** ✅ Completed (M0.35) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Execute selected replay chains through a bounded replay executor using dry-run and sandbox modes, preserving PolicyGate enforcement and full trace auditability.

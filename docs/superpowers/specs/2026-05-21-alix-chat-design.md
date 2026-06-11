@@ -1,5 +1,7 @@
 # `alix chat` Design
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 **Goal:** Interactive REPL-style chat with conversation history and session resumption.
 
 **Architecture:** Chat runs as a long-lived session, storing messages in `.alix/sessions/<session-id>/messages.jsonl`. Each message has role, content, and timestamp.

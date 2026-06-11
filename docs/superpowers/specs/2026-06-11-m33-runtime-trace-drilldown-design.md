@@ -1,6 +1,6 @@
 # M0.33: Runtime Trace Drilldown — Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.33)
 **Builds on:** M0.32 (Runtime Trace Viewer)
 
 ---

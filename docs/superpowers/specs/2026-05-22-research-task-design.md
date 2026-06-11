@@ -1,5 +1,7 @@
 # Research Task Type - Design Spec
 
+**Status:** ✅ Completed (M0.26) — Design implemented and committed to main.
+
 > **Status:** Draft
 > **Created:** 2026-05-22
 

@@ -1,5 +1,7 @@
 # M0.16: Runtime Policy Integration
 
+**Status:** ✅ Completed (M0.16) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Connect the policy rule engine, capability resolver, and approval queue into the graph executor so that capability coverage is checked first, then policy rules are evaluated, and `ask` decisions create approval requests.

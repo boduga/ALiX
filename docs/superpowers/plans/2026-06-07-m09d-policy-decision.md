@@ -1,5 +1,7 @@
 # M0.9-D: PolicyDecision Placeholder
 
+**Status:** ✅ Completed (M0.15) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Every tool call produces a `PolicyDecision` record with argument hash binding. M0.9 uses a permissive placeholder (allows everything) while establishing the audit trail for M0.12+ policy enforcement.

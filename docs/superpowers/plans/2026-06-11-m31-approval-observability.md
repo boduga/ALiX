@@ -1,5 +1,7 @@
 # M0.31: Approval Observability & Audit Trail — Implementation Plan
 
+**Status:** ✅ Completed (M0.31) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make approvals visible, traceable, and auditable across the TUI dashboard, event log, and runtime timeline.

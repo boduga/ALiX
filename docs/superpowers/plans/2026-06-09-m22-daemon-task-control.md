@@ -1,5 +1,7 @@
 # M0.22: Daemon Task Control + Status
 
+**Status:** ✅ Completed (M0.22) — Plan implemented and committed to main.
+
 **Goal:** Add file-backed task registry, cooperative cancel, CLI task management, and Inspector visibility to the daemon.
 
 **Files:**

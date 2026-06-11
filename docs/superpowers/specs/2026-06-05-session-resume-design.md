@@ -1,5 +1,7 @@
 # Session Resume Design
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 **Goal:** Allow users to resume interrupted `alix run` sessions. If a session hits max iterations, is cancelled mid-execution, or the user wants to continue where they left off, they can resume with the prior context intact — no re-planning, no re-execution of completed steps.
 
 **Why this matters:** This is the #1 UX gap. Currently, if a session is interrupted, all context is lost. The user must start from scratch. With resume, long-running tasks become interruptible and iterative.

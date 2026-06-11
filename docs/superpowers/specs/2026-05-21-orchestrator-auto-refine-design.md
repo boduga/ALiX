@@ -1,5 +1,7 @@
 # Orchestrator Auto-Refine Design
 
+**Status:** ✅ Completed (M0.7) — Design implemented and committed to main.
+
 **Goal:** Use Fabric-style patterns to distill vague user prompts into structured plans before dispatching to sub-agents. Enables high-quality output from simple inputs.
 
 **Architecture:** Orchestrator applies a chain of patterns to transform raw user input into refined prompts for sub-agents. Each pattern extracts a specific dimension (intent, constraints, context needs, acceptance criteria).

@@ -1,5 +1,7 @@
 # M0.11-A: Graph Run Projection
 
+**Status:** ✅ Completed (M0.11) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Build a projection layer that reconstructs what happened during a graph run from event logs and graph JSON — which nodes ran, which sessions they created, which failed, what artifacts resulted.

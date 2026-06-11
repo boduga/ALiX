@@ -1,5 +1,7 @@
 # M0.37: TUI/Daemon Hardening + Refactor
 
+**Status:** ✅ Completed (M0.37) — Plan implemented and committed to main.
+
 > **REQUIRED:** Use subagent-driven-development to execute task-by-task.
 
 **Goal:** Fix correctness bugs and structural debt in TUI and daemon code — panel Enter behavior, dashboard layout, socket path validation, JSON-line buffering, store missing fields, and test coverage.

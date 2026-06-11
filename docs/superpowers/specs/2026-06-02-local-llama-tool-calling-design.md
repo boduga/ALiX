@@ -1,7 +1,7 @@
 # Local-Llama Tool-Calling Adapter Design
 
 **Date:** 2026-06-02
-**Status:** Draft
+**Status:** ✅ Completed (M0.7)
 **Source:** User request + pi-llama-cpp pattern from YouTube article
 
 ## Motivation

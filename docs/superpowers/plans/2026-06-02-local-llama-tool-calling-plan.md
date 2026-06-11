@@ -1,5 +1,7 @@
 # Local-Llama Tool-Calling Adapter Implementation Plan
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Add a `local-llama` provider spec that uses `llama-server` with grammar-constrained tool calling, so ALiX can use local models for full agentic tasks.

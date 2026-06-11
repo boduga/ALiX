@@ -1,6 +1,6 @@
 # M0.25: Universal Daemon — Workspace Routing Design Spec
 
-**Status:** Draft
+**Status:** ✅ Completed (M0.25)
 **Builds on:** M0.20 (daemon manager), M0.21 (daemon execution), M0.22 (task control), M0.23 (reliability), M0.24 (shared task router)
 
 ---

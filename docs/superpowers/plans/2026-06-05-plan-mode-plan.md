@@ -1,5 +1,7 @@
 # `--plan` Mode Implementation Plan
 
+**Status:** ✅ Completed (M0.31) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make plan generation the default flow for `alix run` — before any tool execution, the model generates a structured plan, the user approves/edits/rejects it, and the approved plan is injected into the execution phase.

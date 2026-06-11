@@ -1,5 +1,7 @@
 # M0.39 — Replay/Rollback Reliability Hardening Design
 
+**Status:** ✅ Completed (M0.39) — Design implemented and committed to main.
+
 > **One-liner:** M0.39 hardens replay and rollback execution by adding lifecycle status, locking, idempotency, and partial rollback recovery — without expanding replay capabilities.
 
 > **Safety loop capstone:** `execute → observe → inspect → replay → diff → rollback → **harden**`

@@ -1,5 +1,7 @@
 # Zero-Default Model Configuration Implementation Plan
 
+**Status:** ✅ Completed (M0.7) — Plan implemented and committed to main.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Remove all 24 hardcoded model name strings from the codebase. User config becomes the only source of truth for model/provider names.
