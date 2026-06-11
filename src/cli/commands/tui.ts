@@ -383,6 +383,20 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     if (task.toLowerCase() === "r" || task.toLowerCase() === "refresh") {
       const fresh = await buildRuntimeSnapshot(activeCwd);
       if (fresh) applySnapshotToStore(tuiStore, fresh);
+      // Also refresh replays data if on replays panel
+      if (store.getState().activePanel === "replays" || store.getState().replayIndexData) {
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+        const { ReplayLock } = await import("../../runtime/replay-lock.js");
+        const statusIndex = new ReplayStatusIndex(activeCwd);
+        const replayLock = new ReplayLock(activeCwd);
+        const data = await statusIndex.load();
+        store.setReplayIndexData(data);
+        const lockStates: Record<string, boolean> = {};
+        for (const entry of data.entries) {
+          lockStates[entry.replayId] = await replayLock.isLocked(entry.replayId);
+        }
+        store.setReplayLockStates(lockStates);
+      }
       tui.appendOutput("Runtime snapshot refreshed.\n", false);
       continue;
     }
@@ -588,6 +602,97 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         store.setReplayResult(result as any);
         store.setTraceDetailMode("rollback-result" as any);
         tui.appendOutput("Rollback dry-run: " + result.successCount + " would be restored, " + result.skippedCount + " skipped.\n", false);
+        continue;
+      }
+
+      // Check for /replays command
+      if (task === "/replays") {
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+        const { ReplayLock } = await import("../../runtime/replay-lock.js");
+        const statusIndex = new ReplayStatusIndex(activeCwd);
+        const replayLock = new ReplayLock(activeCwd);
+
+        const data = await statusIndex.load();
+        store.setReplayIndexData(data);
+
+        // Check lock state for each entry
+        const lockStates: Record<string, boolean> = {};
+        for (const entry of data.entries) {
+          lockStates[entry.replayId] = await replayLock.isLocked(entry.replayId);
+        }
+        store.setReplayLockStates(lockStates);
+
+        store.setPanel("replays");
+        tui.appendOutput(`Replays panel: ${data.entries.length} replays found.\n`, false);
+        continue;
+      }
+
+      // Check for /replay-status <replayId>
+      if (task.startsWith("/replay-status ")) {
+        const replayId = task.slice("/replay-status ".length).trim();
+        if (!replayId) {
+          tui.appendOutput("Usage: /replay-status <replayId>\n", false);
+          continue;
+        }
+
+        const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+        const { ReplayLock } = await import("../../runtime/replay-lock.js");
+        const { RollbackProgressStore } = await import("../../runtime/rollback-progress.js");
+        const { ReplayDiffStore } = await import("../../runtime/replay-diff-store.js");
+
+        const statusIndex = new ReplayStatusIndex(activeCwd);
+        const replayLock = new ReplayLock(activeCwd);
+        const progressStore = new RollbackProgressStore(activeCwd);
+        const diffStore = new ReplayDiffStore(activeCwd);
+
+        const entry = await statusIndex.getEntry(replayId);
+        if (!entry) {
+          tui.appendOutput(`Replay not found: ${replayId}\n`, false);
+          continue;
+        }
+
+        const lines: string[] = [];
+        lines.push(`ReplayId: ${entry.replayId}`);
+        lines.push(`Status:   ${entry.status}`);
+        if (entry.replayMode) lines.push(`Mode:     ${entry.replayMode}`);
+        lines.push(`Created:  ${entry.createdAt}`);
+        lines.push(`Updated:  ${entry.updatedAt}`);
+
+        // Lock status
+        const locked = await replayLock.isLocked(replayId);
+        if (locked) {
+          const lockInfo = await replayLock.getLockInfo(replayId);
+          if (lockInfo) {
+            const stale = await replayLock.isStale(replayId);
+            lines.push(`Lock:     held by pid ${lockInfo.pid} on ${lockInfo.hostname} (${stale ? "STALE" : "active"})`);
+            if (stale) {
+              lines.push(`  ⚠ Stale lock detected — use /rollback ${replayId} --approved-live --resume to recover`);
+            }
+          } else {
+            lines.push(`Lock:     held (unreadable lock file)`);
+          }
+        } else {
+          lines.push(`Lock:     not locked`);
+        }
+
+        // Diff info
+        const diffSet = await diffStore.loadIndex(replayId);
+        if (diffSet) {
+          lines.push(`Files:    ${diffSet.totalFilesChanged} changed (${diffSet.totalRollbackable} rollbackable)`);
+        }
+
+        // Rollback progress
+        const progress = await progressStore.load(replayId);
+        if (progress) {
+          lines.push(`Rollback:  ${progress.status}`);
+          lines.push(`  Steps:  ${progress.lastCompletedStepIndex + 1} completed`);
+          if (progress.failedPath) lines.push(`  Failed: ${progress.failedPath}`);
+          if (progress.status === "partial") {
+            lines.push(`  ⚠ Partial rollback — use /rollback ${replayId} --approved-live --resume to continue`);
+          }
+        }
+
+        tui.appendOutput(lines.join("\n") + "\n", false);
         continue;
       }
 
