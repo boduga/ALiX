@@ -19,6 +19,9 @@ export interface TuiRuntimeSnapshot {
   daemonTaskRecords: { id: string; task: string; status: string; sessionId?: string }[];
   pendingApprovalsCount: number;
   pendingApprovalRecords: PanelApprovalRecord[];
+  resolvedApprovalsCount: number;          // NEW
+  resolvedApprovalRecords: PanelApprovalRecord[];  // NEW
+  continuationsCount: number;              // NEW
   sopsCount: number;
   sopItems: SopItem[];
   policyRulesCount: number;
@@ -39,6 +42,9 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
       daemonTaskRecords: [],
       pendingApprovalsCount: 0,
       pendingApprovalRecords: [],
+      resolvedApprovalsCount: 0,
+      resolvedApprovalRecords: [],
+      continuationsCount: 0,
       sopsCount: 0,
       sopItems: [],
       policyRulesCount: 0,
@@ -95,6 +101,7 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
 
     // Approvals
     const { ApprovalStore } = await import("../approvals/approval-store.js");
+    const { ContinuationStore } = await import("../runtime/continuation-store.js");
     const approvalStore = new ApprovalStore(cwd);
     await approvalStore.load();
     const allPending = approvalStore.listPending();
@@ -105,6 +112,21 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
         reason: a.reason, createdAt: a.createdAt,
       });
     }
+    // Resolved approvals (last 20)
+    const allResolved = approvalStore.list().filter(a => a.status !== "pending").slice(0, 20);
+    snapshot.resolvedApprovalsCount = allResolved.length;
+    for (const a of allResolved) {
+      snapshot.resolvedApprovalRecords.push({
+        id: a.id, capability: a.capability, riskLevel: a.riskLevel,
+        reason: a.decisionReason ?? a.reason, createdAt: a.createdAt,
+        status: a.status === "approved" ? "approved" : "denied",
+        decidedAt: a.decidedAt,
+      });
+    }
+    // Continuations count
+    const contStore = new ContinuationStore(cwd);
+    await contStore.load();
+    snapshot.continuationsCount = contStore.list().length;
 
     // SOPs
     const { listSops } = await import("../sop/sop-registry.js");
@@ -148,6 +170,9 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   store.setDaemonTaskRecords(snapshot.daemonTaskRecords);
   store.setPendingApprovalsCount(snapshot.pendingApprovalsCount);
   store.setPendingApprovalRecords(snapshot.pendingApprovalRecords);
+  store.setResolvedApprovalsCount(snapshot.resolvedApprovalsCount);
+  store.setResolvedApprovalRecords(snapshot.resolvedApprovalRecords);
+  store.setContinuationsCount(snapshot.continuationsCount);
   store.setSopsCount(snapshot.sopsCount);
   store.setSopItems(snapshot.sopItems);
   store.setPolicyRulesCount(snapshot.policyRulesCount);

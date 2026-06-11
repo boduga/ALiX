@@ -46,6 +46,8 @@ export interface PanelApprovalRecord {
   riskLevel?: string;
   reason: string;
   createdAt: string;
+  status?: string;     // "approved" | "denied" — for resolved records
+  decidedAt?: string;  // when the approval was resolved
 }
 
 export interface PanelRuntimeEvent {
@@ -74,9 +76,12 @@ export interface TuiState {
   daemonRunning?: boolean;
   runtimeEventCount?: number;
   pendingApprovalsCount?: number;
+  resolvedApprovalsCount?: number;          // NEW
+  pendingApprovalRecords?: PanelApprovalRecord[];
+  resolvedApprovalRecords?: PanelApprovalRecord[];  // NEW
+  continuationsCount?: number;             // NEW
   sopsCount?: number;
   policyRulesCount?: number;
-  pendingApprovalRecords?: PanelApprovalRecord[];
   daemonTaskRecords?: { id: string; task: string; status: string; sessionId?: string }[];
   recentRuntimeEvents?: PanelRuntimeEvent[];
   daemonPid?: number;
@@ -227,6 +232,21 @@ export class TuiStore {
 
   setPendingApprovalRecords(records: PanelApprovalRecord[]): void {
     this.state.pendingApprovalRecords = records;
+    this.notify();
+  }
+
+  setResolvedApprovalsCount(count: number): void {
+    this.state.resolvedApprovalsCount = count;
+    this.notify();
+  }
+
+  setResolvedApprovalRecords(records: PanelApprovalRecord[]): void {
+    this.state.resolvedApprovalRecords = records;
+    this.notify();
+  }
+
+  setContinuationsCount(count: number): void {
+    this.state.continuationsCount = count;
     this.notify();
   }
 
