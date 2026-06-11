@@ -756,14 +756,12 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           const diffStore = new ReplayDiffStore(activeCwd, new ReplayStatusIndex(activeCwd));
           const diffSets = new Map<string, import("../../runtime/replay-diff-store.js").ReplayDiffSet>();
 
-          let errorCount = 0;
           for (const id of selectedIds) {
             const ds = await diffStore.loadIndex(id);
             if (ds && ds.records.length > 0) {
               diffSets.set(id, ds);
             } else {
               tui.appendOutput(`  ⚠ No diff data for: ${id}\n`, false);
-              errorCount++;
             }
           }
 

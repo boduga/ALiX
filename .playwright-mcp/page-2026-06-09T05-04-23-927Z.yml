@@ -1,0 +1,43 @@
+- generic [active] [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: Agentic Lifecycle & Intelligence eXchange
+      - heading "ALiX Inspector" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Live session event stream and replay.
+    - generic [ref=e8]:
+      - generic [ref=e9]: Session ID
+      - textbox "Session ID" [ref=e10]:
+        - /placeholder: Paste session ID...
+      - button "Connect to session" [ref=e11] [cursor=pointer]: Connect
+    - generic [ref=e12]:
+      - navigation "Inspector views" [ref=e13]:
+        - button "Timeline" [ref=e14] [cursor=pointer]
+        - button "Context" [ref=e15] [cursor=pointer]
+        - button "Diffs" [ref=e16] [cursor=pointer]
+        - button "Terminal" [ref=e17] [cursor=pointer]
+        - button "Approvals" [ref=e18] [cursor=pointer]
+        - button "Verification" [ref=e19] [cursor=pointer]
+        - button "Tokens" [ref=e20] [cursor=pointer]
+        - button "Subagents" [ref=e21] [cursor=pointer]
+        - button "Compare" [ref=e22] [cursor=pointer]
+        - button "Registry" [ref=e23] [cursor=pointer]
+        - button "Graph" [ref=e24] [cursor=pointer]
+        - button "Policy" [ref=e25] [cursor=pointer]
+      - region "Replay controls" [ref=e26]:
+        - button "|<" [ref=e27] [cursor=pointer]
+        - button "<" [ref=e28] [cursor=pointer]
+        - button "Play" [ref=e29] [cursor=pointer]
+        - button ">" [ref=e30] [cursor=pointer]
+        - button ">|" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: Speed
+        - slider "Speed" [ref=e33]: "750"
+        - generic [ref=e34]: 0 / 0
+      - region "Session timeline" [ref=e35]:
+        - generic [ref=e36]:
+          - heading "Timeline" [level=2] [ref=e37]
+          - generic [ref=e38]: Disconnected
+        - list [ref=e39]:
+          - listitem [ref=e40]:
+            - generic [ref=e41]: No events yet. Connect to a session or load a replay.

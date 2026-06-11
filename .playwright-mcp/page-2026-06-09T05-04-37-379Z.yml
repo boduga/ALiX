@@ -1,0 +1,72 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: Agentic Lifecycle & Intelligence eXchange
+      - heading "ALiX Inspector" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Live session event stream and replay.
+    - generic [ref=e8]:
+      - generic [ref=e9]: Session ID
+      - textbox "Session ID" [ref=e10]:
+        - /placeholder: Paste session ID...
+        - text: 4641217a-f621-4a48-b2d7-1b69444b5f22
+      - button "Connect to session" [active] [ref=e11] [cursor=pointer]: Connect
+    - generic [ref=e12]:
+      - navigation "Inspector views" [ref=e13]:
+        - button "Timeline" [ref=e14] [cursor=pointer]
+        - button "Context" [ref=e15] [cursor=pointer]
+        - button "Diffs" [ref=e16] [cursor=pointer]
+        - button "Terminal" [ref=e17] [cursor=pointer]
+        - button "Approvals" [ref=e18] [cursor=pointer]
+        - button "Verification" [ref=e19] [cursor=pointer]
+        - button "Tokens" [ref=e20] [cursor=pointer]
+        - button "Subagents" [ref=e21] [cursor=pointer]
+        - button "Compare" [ref=e22] [cursor=pointer]
+        - button "Registry" [ref=e23] [cursor=pointer]
+        - button "Graph" [ref=e24] [cursor=pointer]
+        - button "Policy" [ref=e25] [cursor=pointer]
+      - region "Replay controls" [ref=e26]:
+        - button "|<" [ref=e27] [cursor=pointer]
+        - button "<" [ref=e28] [cursor=pointer]
+        - button "Play" [ref=e29] [cursor=pointer]
+        - button ">" [ref=e30] [cursor=pointer]
+        - button ">|" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: Speed
+        - slider "Speed" [ref=e33]: "750"
+        - generic [ref=e34]: 4 / 4
+      - region "Session timeline" [ref=e35]:
+        - generic [ref=e36]:
+          - heading "Timeline" [level=2] [ref=e37]
+          - generic [ref=e38]: Connected
+        - list [ref=e39]:
+          - listitem [ref=e42]:
+            - generic [ref=e43]: malformed
+            - generic [ref=e44]: system
+            - generic [ref=e45]: "#? ·"
+            - group [ref=e46]:
+              - generic "▶ malformed" [ref=e47] [cursor=pointer]
+          - listitem [ref=e48]:
+            - generic [ref=e49]: session › started
+            - generic [ref=e50]: system
+            - generic [ref=e51]: "#1 · 10:48:53 PM"
+            - group [ref=e52]:
+              - generic "▶ session › started" [ref=e53] [cursor=pointer]
+          - listitem [ref=e54]:
+            - generic [ref=e55]: context › repo map created
+            - generic [ref=e56]: system
+            - generic [ref=e57]: "#7 · 10:48:53 PM"
+            - group [ref=e58]:
+              - generic "▶ context › repo map created" [ref=e59] [cursor=pointer]
+          - listitem [ref=e60]:
+            - generic [ref=e61]: context › bundle compiled
+            - generic [ref=e62]: system
+            - generic [ref=e63]: "#9 · 10:48:56 PM"
+            - group [ref=e64]:
+              - generic "▶ context › bundle compiled" [ref=e65] [cursor=pointer]
+          - listitem [ref=e66]:
+            - generic [ref=e67]: model › usage
+            - generic [ref=e68]: agent
+            - generic [ref=e69]: "#15 · 10:49:23 PM"
+            - group [ref=e70]:
+              - generic "▶ model › usage" [ref=e71] [cursor=pointer]

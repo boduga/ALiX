@@ -31,16 +31,16 @@ export class ApprovalManager {
       return this.handleList();
     }
 
-    // /approve <id>
-    if (trimmed.startsWith("/approve ")) {
-      const id = trimmed.slice(9).trim();
+    // /approve <id> or /approve (exact, no arg)
+    if (trimmed.startsWith("/approve ") || trimmed === "/approve") {
+      const id = trimmed === "/approve" ? "" : trimmed.slice(9).trim();
       if (!id) return { handled: true, message: "Usage: /approve <approval-id>" };
       return this.handleResolve(id, "approved");
     }
 
-    // /deny <id>
-    if (trimmed.startsWith("/deny ")) {
-      const id = trimmed.slice(6).trim();
+    // /deny <id> or /deny (exact, no arg)
+    if (trimmed.startsWith("/deny ") || trimmed === "/deny") {
+      const id = trimmed === "/deny" ? "" : trimmed.slice(6).trim();
       if (!id) return { handled: true, message: "Usage: /deny <approval-id>" };
       return this.handleResolve(id, "denied");
     }

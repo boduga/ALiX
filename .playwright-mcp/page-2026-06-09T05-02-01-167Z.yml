@@ -1,0 +1,145 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: Agentic Lifecycle & Intelligence eXchange
+      - heading "ALiX Inspector" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Live session event stream and replay.
+    - generic [ref=e8]:
+      - generic [ref=e9]: Session ID
+      - textbox "Session ID" [ref=e10]:
+        - /placeholder: Paste session ID...
+        - text: 4641217a-f621-4a48-b2d7-1b69444b5f22
+      - button "Connect to session" [ref=e11] [cursor=pointer]: Connect
+    - generic [ref=e12]:
+      - navigation "Inspector views" [ref=e13]:
+        - button "Timeline" [ref=e14] [cursor=pointer]
+        - button "Context" [ref=e15] [cursor=pointer]
+        - button "Diffs" [ref=e16] [cursor=pointer]
+        - button "Terminal" [ref=e17] [cursor=pointer]
+        - button "Approvals" [ref=e18] [cursor=pointer]
+        - button "Verification" [ref=e19] [cursor=pointer]
+        - button "Tokens" [ref=e20] [cursor=pointer]
+        - button "Subagents" [ref=e21] [cursor=pointer]
+        - button "Compare" [ref=e22] [cursor=pointer]
+        - button "Registry" [active] [ref=e23] [cursor=pointer]
+        - button "Graph" [ref=e24] [cursor=pointer]
+        - button "Policy" [ref=e25] [cursor=pointer]
+      - region "Replay controls" [ref=e26]:
+        - button "|<" [ref=e27] [cursor=pointer]
+        - button "<" [ref=e28] [cursor=pointer]
+        - button "Play" [ref=e29] [cursor=pointer]
+        - button ">" [ref=e30] [cursor=pointer]
+        - button ">|" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: Speed
+        - slider "Speed" [ref=e33]: "750"
+        - generic [ref=e34]: 3 / 3
+      - text: ▶ ▶ ▶ ▶
+      - region "Registry cards" [ref=e66]:
+        - heading "Registry" [level=2] [ref=e68]
+        - generic [ref=e69]:
+          - generic [ref=e70]:
+            - heading "Agent Cards" [level=3] [ref=e71]
+            - table [ref=e73]:
+              - rowgroup [ref=e74]:
+                - row "ID Name Domains Capabilities Enabled" [ref=e75]:
+                  - columnheader "ID" [ref=e76]
+                  - columnheader "Name" [ref=e77]
+                  - columnheader "Domains" [ref=e78]
+                  - columnheader "Capabilities" [ref=e79]
+                  - columnheader "Enabled" [ref=e80]
+              - rowgroup [ref=e81]:
+                - row "orchestrator.core Core Orchestrator general graph.mutate agent.spawn ✓" [ref=e82]:
+                  - cell "orchestrator.core" [ref=e83]
+                  - cell "Core Orchestrator" [ref=e84]
+                  - cell "general" [ref=e85]
+                  - cell "graph.mutate agent.spawn" [ref=e86]:
+                    - generic [ref=e87]: graph.mutate
+                    - generic [ref=e88]: agent.spawn
+                  - cell "✓" [ref=e89]
+                - row "planner.graph Graph Planner general ✓" [ref=e90]:
+                  - cell "planner.graph" [ref=e91]
+                  - cell "Graph Planner" [ref=e92]
+                  - cell "general" [ref=e93]
+                  - cell [ref=e94]
+                  - cell "✓" [ref=e95]
+                - row "research.scout Research Scout research web.search web.fetch ✓" [ref=e96]:
+                  - cell "research.scout" [ref=e97]
+                  - cell "Research Scout" [ref=e98]
+                  - cell "research" [ref=e99]
+                  - cell "web.search web.fetch" [ref=e100]:
+                    - generic [ref=e101]: web.search
+                    - generic [ref=e102]: web.fetch
+                  - cell "✓" [ref=e103]
+                - row "critic.general General Critic general ✓" [ref=e104]:
+                  - cell "critic.general" [ref=e105]
+                  - cell "General Critic" [ref=e106]
+                  - cell "general" [ref=e107]
+                  - cell [ref=e108]
+                  - cell "✓" [ref=e109]
+                - row "artifact.writer Artifact Writer research filesystem.write ✓" [ref=e110]:
+                  - cell "artifact.writer" [ref=e111]
+                  - cell "Artifact Writer" [ref=e112]
+                  - cell "research" [ref=e113]
+                  - cell "filesystem.write" [ref=e114]:
+                    - generic [ref=e115]: filesystem.write
+                  - cell "✓" [ref=e116]
+                - row "memory.curator Memory Curator general memory.read memory.write.session ✓" [ref=e117]:
+                  - cell "memory.curator" [ref=e118]
+                  - cell "Memory Curator" [ref=e119]
+                  - cell "general" [ref=e120]
+                  - cell "memory.read memory.write.session" [ref=e121]:
+                    - generic [ref=e122]: memory.read
+                    - generic [ref=e123]: memory.write.session
+                  - cell "✓" [ref=e124]
+          - generic [ref=e125]:
+            - heading "Tool Cards" [level=3] [ref=e126]
+            - table [ref=e128]:
+              - rowgroup [ref=e129]:
+                - row "ID Name Risk Approval Side Effects Capabilities Enabled" [ref=e130]:
+                  - columnheader "ID" [ref=e131]
+                  - columnheader "Name" [ref=e132]
+                  - columnheader "Risk" [ref=e133]
+                  - columnheader "Approval" [ref=e134]
+                  - columnheader "Side Effects" [ref=e135]
+                  - columnheader "Capabilities" [ref=e136]
+                  - columnheader "Enabled" [ref=e137]
+              - rowgroup [ref=e138]:
+                - row "web_search Web Search low auto read web.search web.fetch ✓" [ref=e139]:
+                  - cell "web_search" [ref=e140]
+                  - cell "Web Search" [ref=e141]
+                  - cell "low" [ref=e142]
+                  - cell "auto" [ref=e143]
+                  - cell "read" [ref=e144]
+                  - cell "web.search web.fetch" [ref=e145]:
+                    - generic [ref=e146]: web.search
+                    - generic [ref=e147]: web.fetch
+                  - cell "✓" [ref=e148]
+                - row "file_read File Read low auto read filesystem.read ✓" [ref=e149]:
+                  - cell "file_read" [ref=e150]
+                  - cell "File Read" [ref=e151]
+                  - cell "low" [ref=e152]
+                  - cell "auto" [ref=e153]
+                  - cell "read" [ref=e154]
+                  - cell "filesystem.read" [ref=e155]:
+                    - generic [ref=e156]: filesystem.read
+                  - cell "✓" [ref=e157]
+                - row "file_write File Write medium ask write filesystem.write ✓" [ref=e158]:
+                  - cell "file_write" [ref=e159]
+                  - cell "File Write" [ref=e160]
+                  - cell "medium" [ref=e161]
+                  - cell "ask" [ref=e162]
+                  - cell "write" [ref=e163]
+                  - cell "filesystem.write" [ref=e164]:
+                    - generic [ref=e165]: filesystem.write
+                  - cell "✓" [ref=e166]
+                - row "shell_exec Shell Exec high ask system shell.exec ✓" [ref=e167]:
+                  - cell "shell_exec" [ref=e168]
+                  - cell "Shell Exec" [ref=e169]
+                  - cell "high" [ref=e170]
+                  - cell "ask" [ref=e171]
+                  - cell "system" [ref=e172]
+                  - cell "shell.exec" [ref=e173]:
+                    - generic [ref=e174]: shell.exec
+                  - cell "✓" [ref=e175]

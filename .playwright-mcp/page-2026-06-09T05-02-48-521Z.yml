@@ -1,0 +1,50 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: Agentic Lifecycle & Intelligence eXchange
+      - heading "ALiX Inspector" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Live session event stream and replay.
+    - generic [ref=e8]:
+      - generic [ref=e9]: Session ID
+      - textbox "Session ID" [ref=e10]:
+        - /placeholder: Paste session ID...
+        - text: 4641217a-f621-4a48-b2d7-1b69444b5f22
+      - button "Connect to session" [ref=e11] [cursor=pointer]: Connect
+    - generic [ref=e12]:
+      - navigation "Inspector views" [ref=e13]:
+        - button "Timeline" [ref=e14] [cursor=pointer]
+        - button "Context" [ref=e15] [cursor=pointer]
+        - button "Diffs" [ref=e16] [cursor=pointer]
+        - button "Terminal" [ref=e17] [cursor=pointer]
+        - button "Approvals" [ref=e18] [cursor=pointer]
+        - button "Verification" [ref=e19] [cursor=pointer]
+        - button "Tokens" [ref=e20] [cursor=pointer]
+        - button "Subagents" [ref=e21] [cursor=pointer]
+        - button "Compare" [ref=e22] [cursor=pointer]
+        - button "Registry" [ref=e23] [cursor=pointer]
+        - button "Graph" [active] [ref=e24] [cursor=pointer]
+        - button "Policy" [ref=e25] [cursor=pointer]
+      - region "Replay controls" [ref=e26]:
+        - button "|<" [ref=e27] [cursor=pointer]
+        - button "<" [ref=e28] [cursor=pointer]
+        - button "Play" [ref=e29] [cursor=pointer]
+        - button ">" [ref=e30] [cursor=pointer]
+        - button ">|" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: Speed
+        - slider "Speed" [ref=e33]: "750"
+        - generic [ref=e34]: 3 / 3
+      - text: ▶ ▶ ▶ ▶
+      - region "Graph execution view" [ref=e278]:
+        - heading "Graph Execution" [level=2] [ref=e280]
+        - generic [ref=e282]:
+          - generic [ref=e283]: Graph
+          - combobox "Graph" [ref=e284]:
+            - option "— Select a graph —"
+            - option "graph_0780ef98-a40e-4e7b-8e69-ab46fe340aec (draft, 6 nodes)" [selected]
+            - option "graph_24c6530a-c9db-418b-8f53-074f459b45c9 (draft, 6 nodes)"
+            - option "graph_9db21eaa-3c6f-4659-b077-234b96f02fe3 (draft, 6 nodes)"
+            - option "graph_55a6ca44-aba6-4728-9b7b-e0157b3cafe2 (draft, 6 nodes)"
+          - textbox "Or paste graph ID..." [ref=e285]: graph_0780ef98-a40e-4e7b-8e69-ab46fe340aec
+          - button "Load" [ref=e286]

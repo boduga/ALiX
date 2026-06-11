@@ -1,0 +1,142 @@
+- generic [ref=e1]:
+  - link "Skip to main content" [ref=e2] [cursor=pointer]:
+    - /url: "#main-content"
+  - main [ref=e3]:
+    - generic [ref=e4]:
+      - paragraph [ref=e5]: Agentic Lifecycle & Intelligence eXchange
+      - heading "ALiX Inspector" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Live session event stream and replay.
+    - generic [ref=e8]:
+      - generic [ref=e9]: Session ID
+      - textbox "Session ID" [ref=e10]:
+        - /placeholder: Paste session ID...
+        - text: 4641217a-f621-4a48-b2d7-1b69444b5f22
+      - button "Connect to session" [ref=e11] [cursor=pointer]: Connect
+    - generic [ref=e12]:
+      - navigation "Inspector views" [ref=e13]:
+        - button "Timeline" [ref=e14] [cursor=pointer]
+        - button "Context" [ref=e15] [cursor=pointer]
+        - button "Diffs" [ref=e16] [cursor=pointer]
+        - button "Terminal" [ref=e17] [cursor=pointer]
+        - button "Approvals" [ref=e18] [cursor=pointer]
+        - button "Verification" [ref=e19] [cursor=pointer]
+        - button "Tokens" [ref=e20] [cursor=pointer]
+        - button "Subagents" [ref=e21] [cursor=pointer]
+        - button "Compare" [ref=e22] [cursor=pointer]
+        - button "Registry" [ref=e23] [cursor=pointer]
+        - button "Graph" [ref=e24] [cursor=pointer]
+        - button "Policy" [ref=e25] [cursor=pointer]
+      - region "Replay controls" [ref=e26]:
+        - button "|<" [ref=e27] [cursor=pointer]
+        - button "<" [ref=e28] [cursor=pointer]
+        - button "Play" [ref=e29] [cursor=pointer]
+        - button ">" [ref=e30] [cursor=pointer]
+        - button ">|" [ref=e31] [cursor=pointer]
+        - generic [ref=e32]: Speed
+        - slider "Speed" [ref=e33]: "750"
+        - generic [ref=e34]: 3 / 3
+      - text: ▶ ▶ ▶ ▶
+      - region "Policy rules" [ref=e176]:
+        - heading "Policy Rules" [level=2] [ref=e178]
+        - generic [ref=e179]:
+          - table [ref=e181]:
+            - rowgroup [ref=e182]:
+              - row "ID Decision Enabled Match Reason" [ref=e183]:
+                - columnheader "ID" [ref=e184]
+                - columnheader "Decision" [ref=e185]
+                - columnheader "Enabled" [ref=e186]
+                - columnheader "Match" [ref=e187]
+                - columnheader "Reason" [ref=e188]
+            - rowgroup [ref=e189]:
+              - row "allow-file-read allow ✓ capability=filesystem.read" [ref=e190]:
+                - cell "allow-file-read" [ref=e191]
+                - cell "allow" [ref=e192]:
+                  - generic [ref=e193]: allow
+                - cell "✓" [ref=e194]
+                - cell "capability=filesystem.read" [ref=e195]
+                - cell [ref=e196]
+              - row "allow-web-search allow ✓ capability=web.search" [ref=e197]:
+                - cell "allow-web-search" [ref=e198]
+                - cell "allow" [ref=e199]:
+                  - generic [ref=e200]: allow
+                - cell "✓" [ref=e201]
+                - cell "capability=web.search" [ref=e202]
+                - cell [ref=e203]
+              - row "allow-web-fetch allow ✓ capability=web.fetch" [ref=e204]:
+                - cell "allow-web-fetch" [ref=e205]
+                - cell "allow" [ref=e206]:
+                  - generic [ref=e207]: allow
+                - cell "✓" [ref=e208]
+                - cell "capability=web.fetch" [ref=e209]
+                - cell [ref=e210]
+              - row "allow-shell-read allow ✓ riskLevel=low, profile=research" [ref=e211]:
+                - cell "allow-shell-read" [ref=e212]
+                - cell "allow" [ref=e213]:
+                  - generic [ref=e214]: allow
+                - cell "✓" [ref=e215]
+                - cell "riskLevel=low, profile=research" [ref=e216]
+                - cell [ref=e217]
+              - row "ask-file-write ask ✓ capability=filesystem.write File writes modify project state" [ref=e218]:
+                - cell "ask-file-write" [ref=e219]
+                - cell "ask" [ref=e220]:
+                  - generic [ref=e221]: ask
+                - cell "✓" [ref=e222]
+                - cell "capability=filesystem.write" [ref=e223]
+                - cell "File writes modify project state" [ref=e224]
+              - row "ask-shell-exec ask ✓ capability=shell.exec Shell execution can modify system state" [ref=e225]:
+                - cell "ask-shell-exec" [ref=e226]
+                - cell "ask" [ref=e227]:
+                  - generic [ref=e228]: ask
+                - cell "✓" [ref=e229]
+                - cell "capability=shell.exec" [ref=e230]
+                - cell "Shell execution can modify system state" [ref=e231]
+              - row "ask-file-delete ask ✓ capability=filesystem.delete File deletion is destructive" [ref=e232]:
+                - cell "ask-file-delete" [ref=e233]
+                - cell "ask" [ref=e234]:
+                  - generic [ref=e235]: ask
+                - cell "✓" [ref=e236]
+                - cell "capability=filesystem.delete" [ref=e237]
+                - cell "File deletion is destructive" [ref=e238]
+              - row "allow-low-risk allow ✓ riskLevel=low" [ref=e239]:
+                - cell "allow-low-risk" [ref=e240]
+                - cell "allow" [ref=e241]:
+                  - generic [ref=e242]: allow
+                - cell "✓" [ref=e243]
+                - cell "riskLevel=low" [ref=e244]
+                - cell [ref=e245]
+              - row "ask-medium-risk ask ✓ riskLevel=medium Medium-risk operation requires approval" [ref=e246]:
+                - cell "ask-medium-risk" [ref=e247]
+                - cell "ask" [ref=e248]:
+                  - generic [ref=e249]: ask
+                - cell "✓" [ref=e250]
+                - cell "riskLevel=medium" [ref=e251]
+                - cell "Medium-risk operation requires approval" [ref=e252]
+              - row "ask-high-risk ask ✓ riskLevel=high High-risk operation requires explicit approval" [ref=e253]:
+                - cell "ask-high-risk" [ref=e254]
+                - cell "ask" [ref=e255]:
+                  - generic [ref=e256]: ask
+                - cell "✓" [ref=e257]
+                - cell "riskLevel=high" [ref=e258]
+                - cell "High-risk operation requires explicit approval" [ref=e259]
+              - row "deny-critical-risk deny ✓ riskLevel=critical Critical-risk operation denied by policy" [ref=e260]:
+                - cell "deny-critical-risk" [ref=e261]
+                - cell "deny" [ref=e262]:
+                  - generic [ref=e263]: deny
+                - cell "✓" [ref=e264]
+                - cell "riskLevel=critical" [ref=e265]
+                - cell "Critical-risk operation denied by policy" [ref=e266]
+          - generic [ref=e267]:
+            - heading "Quick Evaluate" [level=3] [ref=e268]
+            - generic [ref=e269]:
+              - textbox "Capability (e.g. shell.exec)" [ref=e270]: shell.exec
+              - combobox [ref=e271]:
+                - option "Any risk" [selected]
+                - option "Low"
+                - option "Medium"
+                - option "High"
+                - option "Critical"
+              - button "Evaluate" [active] [ref=e272] [cursor=pointer]
+            - generic [ref=e274]:
+              - generic [ref=e275]: ask
+              - generic [ref=e276]: ask-shell-exec
+              - generic [ref=e277]: Shell execution can modify system state
