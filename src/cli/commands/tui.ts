@@ -396,7 +396,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     }
     if (task === "?" || task.toLowerCase() === "help") {
       const dState = store.getState().showDashboard ? "on" : "off";
-      tui.appendOutput(`Commands: r=refresh tab=next panel d=dashboard(${dState}) ?=help q=quit\n`, false);
+      tui.appendOutput(`Commands: r=refresh tab=next panel d=dashboard(${dState}) /approvals /approve<id> /deny<id> ?=help q=quit\n`, false);
       continue;
     }
     if (task.toLowerCase() === "d") {

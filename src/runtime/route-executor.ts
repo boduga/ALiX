@@ -63,7 +63,19 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     if (result.kind === "success") {
       return result.output ?? result.content ?? "(tool completed)";
     } else if (result.kind === "denied") {
-      return `Blocked by policy: ${result.reason}`;
+      const reason = result.reason || "";
+      if (reason.includes("approval") || reason.includes("Approval")) {
+        const idMatch = reason.match(/(approval_[a-zA-Z0-9-]+)/);
+        const approvalId = idMatch ? idMatch[1] : "";
+        let msg = "Approval required.\n\nPending approval:\n";
+        msg += `  ${approvalId || reason}\n\n`;
+        msg += "Run:\n";
+        msg += `  /approve ${approvalId || "<id>"}\n`;
+        msg += "or:\n";
+        msg += `  /deny ${approvalId || "<id>"}\n`;
+        return msg;
+      }
+      return `Blocked by policy: ${reason}`;
     } else if (result.kind === "error") {
       return `Tool error: ${result.message}`;
     } else {
