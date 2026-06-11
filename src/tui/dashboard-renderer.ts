@@ -23,6 +23,8 @@ export function snapshotFromStore(s: TuiState): TuiRuntimeSnapshot {
     policyRulesCount: s.policyRulesCount ?? 0,
     runtimeEventCount: s.runtimeEventCount ?? 0,
     recentRuntimeEvents: s.recentRuntimeEvents ?? [],
+    traceEvents: s.traceEvents ?? [],
+    traceEventCount: s.traceEventCount ?? 0,
     daemonHeartbeatAge: s.daemonHeartbeatAge ?? -1,
   };
 }

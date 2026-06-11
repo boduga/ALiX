@@ -3,6 +3,7 @@
  */
 
 import type { DaemonTaskSummary, TuiStore, PanelApprovalRecord, PanelRuntimeEvent } from "./store.js";
+import type { TraceEvent } from "../runtime/trace-events.js";
 
 export interface SopItem {
   id: string;
@@ -27,6 +28,8 @@ export interface TuiRuntimeSnapshot {
   policyRulesCount: number;
   runtimeEventCount: number;
   recentRuntimeEvents: PanelRuntimeEvent[];
+  traceEvents: TraceEvent[];          // NEW
+  traceEventCount: number;            // NEW
   daemonHeartbeatAge: number;
   workspaceName?: string;
   workspacePath?: string;
@@ -50,6 +53,8 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
       policyRulesCount: 0,
       runtimeEventCount: 0,
       recentRuntimeEvents: [],
+      traceEvents: [],
+      traceEventCount: 0,
       daemonHeartbeatAge: -1,
     };
 
@@ -155,6 +160,12 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
       });
     }
 
+    // Trace events — normalize from runtime index
+    const { traceEventsFromLog } = await import("../runtime/trace-events.js");
+    const traceEvents = traceEventsFromLog(idx.events);
+    snapshot.traceEvents = traceEvents;
+    snapshot.traceEventCount = traceEvents.length;
+
     return snapshot;
   } catch {
     return null;
@@ -178,6 +189,8 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   store.setPolicyRulesCount(snapshot.policyRulesCount);
   store.setRuntimeEventCount(snapshot.runtimeEventCount);
   store.setRecentRuntimeEvents(snapshot.recentRuntimeEvents);
+  store.setTraceEventCount(snapshot.traceEventCount);
+  store.setTraceEvents(snapshot.traceEvents);
   store.setWorkspaceInfo(snapshot.workspaceName ?? "", snapshot.workspacePath ?? "");
   store.setRecentWorkspaces(snapshot.recentWorkspaces ?? []);
 }

@@ -94,6 +94,7 @@ export interface TuiState {
   workspacePath?: string;
   recentWorkspaces?: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[];
   traceEvents: TraceEvent[];
+  traceEventCount: number;
   traceFilter: TraceEventFilter;
 }
 
@@ -120,6 +121,7 @@ export class TuiStore {
       activePanel: initialState?.activePanel ?? "chat",
       showDashboard: initialState?.showDashboard ?? false,
       traceEvents: initialState?.traceEvents ?? [],
+      traceEventCount: initialState?.traceEventCount ?? 0,
       traceFilter: initialState?.traceFilter ?? "all",
     };
   }
@@ -314,8 +316,14 @@ export class TuiStore {
     return events.slice(-limit).reverse();
   }
 
+  setTraceEventCount(count: number): void {
+    this.state.traceEventCount = count;
+    this.notify();
+  }
+
   setTraceEvents(events: TraceEvent[]): void {
     this.state.traceEvents = events;
+    this.state.traceEventCount = events.length;
     this.notify();
   }
 

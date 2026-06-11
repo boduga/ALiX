@@ -88,6 +88,8 @@ describe("dashboard-renderer", () => {
     policyRulesCount: 11,
     runtimeEventCount: 100,
     recentRuntimeEvents: [{ id: "e1", action: "tool.completed", source: "session", summary: "ok" }],
+    traceEvents: [],
+    traceEventCount: 0,
   };
 
   it("renders daemon card with running state", () => {
