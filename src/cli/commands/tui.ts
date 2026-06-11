@@ -696,6 +696,56 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         continue;
       }
 
+      // /ifamas — run IFÁ-MAS diagnostic pipeline on selected trace event
+      if (task.startsWith("/ifamas")) {
+        const selected = store.getSelectedTraceEvent();
+        if (!selected) {
+          tui.appendOutput("No trace event selected. Navigate to a trace event first.\n", false);
+          continue;
+        }
+
+        const { createSignalFrame } = await import("../../runtime/signal-frame.js");
+        const { runIfamasDiagnostic } = await import("../../runtime/ifamas-pipeline.js");
+
+        const bits = {
+          intentClear: true,
+          policyRisk: false,
+          toolRequired: false,
+          memoryRequired: false,
+          freshnessRequired: false,
+          mutationPossible: false,
+          approvalRequired: false,
+          replayRollbackContext: false,
+        };
+
+        const signal = createSignalFrame({ bits, domain: "task", intent: selected.label ?? "trace-event" });
+
+        try {
+          const diagnostic = await runIfamasDiagnostic({ signal });
+          const { formatIfamasPanel } = await import("../../tui/ifamas-panel.js");
+
+          const panelData = {
+            signalCode: diagnostic.signal.code,
+            polarity: diagnostic.signal.polarity,
+            offeringAction: diagnostic.offering.action,
+            routeTarget: diagnostic.routeDecision.routeHint.targetRole,
+            gatewayValid: diagnostic.gatewayValidation.valid,
+            guildCandidateCount: diagnostic.guildCandidates.length,
+            topGuildCandidate: diagnostic.guildCandidates[0]?.profile?.agentId,
+            chronicleRefCount: diagnostic.routeDecision.chronicleEntries.length,
+          };
+
+          store.getState().ifamasPanelData = panelData;
+          store.setPanel("ifamas");
+
+          const panelLines = formatIfamasPanel(panelData);
+          tui.appendOutput(panelLines.join("\n") + "\n", false);
+        } catch (err: any) {
+          tui.appendOutput("IFÁ-MAS diagnostic error: " + err.message + "\n", false);
+        }
+        continue;
+      }
+
       // Check for /batch commands
       if (task.startsWith("/batch ")) {
         const args = task.slice("/batch ".length).trim().split(/\s+/);
