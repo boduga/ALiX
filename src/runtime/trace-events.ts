@@ -46,6 +46,7 @@ export type TraceEvent = {
   toolName?: string;
   rawEvent?: unknown;           // full source event for JSON drilldown view
   sessionFilePath?: string;     // path to session events.jsonl on disk
+  replayId?: string;
 };
 
 // ─── Normalizer ──────────────────────────────────────────────────────

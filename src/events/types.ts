@@ -6,6 +6,7 @@ export type EventMeta = {
   nodeId?: string;
   traceId?: string;
   spanId?: string;
+  replayId?: string;
 };
 
 export type AlixEvent<TType extends string = string, TPayload = unknown> = {
