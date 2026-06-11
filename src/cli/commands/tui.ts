@@ -750,6 +750,53 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         continue;
       }
 
+      // /chronicle — search IFÁ-MAS Chronicle entries
+      if (task.startsWith("/chronicle")) {
+        const { ChronicleStore } = await import("../../chronicle/chronicle-store.js");
+        const { chronicleEntryToPanelEntry, formatChroniclePanel } = await import("../../tui/chronicle-panel.js");
+
+        const args = task.slice("/chronicle".length).trim();
+        const chronicleStore = new ChronicleStore(activeCwd);
+
+        let entries: Awaited<ReturnType<typeof chronicleStore.search>>;
+        let queryLabel = "";
+
+        if (args.startsWith("signal:")) {
+          entries = await chronicleStore.search({ signalCode: args.slice(7) });
+          queryLabel = args;
+        } else if (args.startsWith("trace:")) {
+          entries = await chronicleStore.search({});
+          queryLabel = args;
+        } else if (args.startsWith("offering:")) {
+          entries = await chronicleStore.search({});
+          queryLabel = args;
+        } else if (args.startsWith("route:")) {
+          entries = await chronicleStore.search({});
+          queryLabel = args;
+        } else if (args) {
+          tui.appendOutput(`Unknown filter: ${args}. Use: signal:<code>, trace:<id>, offering:<action>, route:<target>\n`, false);
+          continue;
+        } else {
+          entries = await chronicleStore.search({});
+        }
+
+        const panelEntries = entries.slice(0, 20).map(chronicleEntryToPanelEntry);
+
+        const panelData = {
+          query: queryLabel || undefined,
+          entries: panelEntries,
+          totalEntries: entries.length,
+          emptyReason: entries.length === 0 ? "No chronicle entries found. Run /ifamas on a trace event first." : undefined,
+        };
+
+        store.getState().chroniclePanelData = panelData;
+        store.setPanel("chronicle");
+
+        const panelLines = formatChroniclePanel(panelData);
+        tui.appendOutput(panelLines.join("\n") + "\n", false);
+        continue;
+      }
+
       // Check for /batch commands
       if (task.startsWith("/batch ")) {
         const args = task.slice("/batch ".length).trim().split(/\s+/);
