@@ -61,7 +61,7 @@ export interface PanelRuntimeEvent {
   graphId?: string;
 }
 
-export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime" | "trace";
+export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime" | "trace" | "replays";
 
 export interface TuiState {
   sessionId: string;
@@ -101,9 +101,11 @@ export interface TuiState {
   replayExecuting?: boolean;
   replayMode?: import("../runtime/replay-plan.js").ReplayMode;
   replayStatus?: import("../runtime/replay-status-index.js").ReplayStatus;
+  replayIndexData?: import("../runtime/replay-status-index.js").ReplayStatusIndexData;
+  replayLockStates?: Record<string, boolean>;
 }
 
-export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace"];
+export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace", "replays"];
 
 const VALID_STATES: AgentState[] = ["idle", "understanding", "planning", "executing", "verifying", "repairing", "summarizing", "done", "error"];
 
@@ -133,6 +135,8 @@ export class TuiStore {
       replayExecuting: false,
       replayMode: "dry-run",
       replayStatus: undefined,
+      replayIndexData: undefined,
+      replayLockStates: undefined,
     };
   }
 
@@ -421,6 +425,16 @@ export class TuiStore {
 
   setReplayStatus(status: import("../runtime/replay-status-index.js").ReplayStatus | undefined): void {
     this.state.replayStatus = status;
+    this.notify();
+  }
+
+  setReplayIndexData(data: import("../runtime/replay-status-index.js").ReplayStatusIndexData | undefined): void {
+    this.state.replayIndexData = data;
+    this.notify();
+  }
+
+  setReplayLockStates(states: Record<string, boolean> | undefined): void {
+    this.state.replayLockStates = states;
     this.notify();
   }
 
