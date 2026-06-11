@@ -374,6 +374,7 @@ export const REPLAY_EVENT_TYPES = {
   STEP_BLOCKED: "replay.step.blocked",
   COMPLETED: "replay.completed",
   FAILED: "replay.failed",
+  DIFF_RECORDED: "replay.diff.recorded",
 } as const;
 
 export type ReplayPlanCreatedPayload = {
@@ -414,6 +415,15 @@ export type ReplayFailedPayload = {
   mode: string;
   reason: string;
   stepIndex?: number;
+};
+
+export type ReplayDiffRecordedPayload = {
+  replayId: string;
+  filePath: string;
+  changeType: "created" | "modified" | "deleted";
+  diffPreview: string;
+  diffSize: number;
+  rollbackable: boolean;
 };
 
 /**
