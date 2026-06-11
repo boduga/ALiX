@@ -53,16 +53,20 @@ function resolvePolicyPath(cwd: string, path: string): string {
   return resolve(cwd, path);
 }
 
-/** Infer capability from tool name. */
+/** Infer capability from tool name — mirrors executor.ts inferCapability exactly. */
 function inferCapability(toolName: string): string {
   if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  if (toolName === "file.read" || toolName === "file.exists" || toolName === "dir.search" || toolName === "filesystem.list" || toolName === "filesystem.cwd") return "file.read";
-  if (toolName === "file.create" || toolName === "file.write" || toolName === "file.delete") return "file.write";
+  if (toolName === "file.read") return "file.read";
+  if (toolName === "file.create") return "file.write";
+  if (toolName === "file.delete") return "file.write";
+  if (toolName === "file.exists") return "file.read";
+  if (toolName === "dir.search") return "file.search";
   if (toolName === "shell.run") return "shell.run";
   if (toolName === "patch.apply") return "patch.apply";
   if (toolName === "done") return "task.complete";
   if (toolName === "delegate") return "delegate";
-  if (toolName.startsWith("web.")) return "web.search";
+  if (toolName === "web_search") return "web.search";
+  if (toolName === "web_fetch") return "web.fetch";
   return "tool.invoke";
 }
 
@@ -218,7 +222,6 @@ export class PolicyGate {
 
     // 5. Tool permission from config
     const toolDecision = this.config.permissions.tools[capability];
-    const mode = this.config.permissions.sessionMode ?? "ask";
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
       if (effective === "allow") {
@@ -247,7 +250,6 @@ export class PolicyGate {
    * Simpler than evaluateToolCall — no path/command/evasion checks.
    */
   async evaluateCapability(request: CapabilityPolicyRequest): Promise<PolicyGateDecision> {
-    const mode = this.config.permissions.sessionMode ?? "ask";
     const toolDecision = this.config.permissions.tools[request.capability];
 
     if (toolDecision) {
