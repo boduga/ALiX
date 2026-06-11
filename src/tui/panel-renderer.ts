@@ -4,6 +4,8 @@
 
 import type { TuiStore } from "./store.js";
 import type { Tui } from "./index.js";
+import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "./trace-detail.js";
+import { traceChainContext } from "../runtime/trace-events.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
 export function renderPanelContent(store: TuiStore, tui: Tui): number {
@@ -92,7 +94,12 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
         ? s.traceEvents
         : s.traceEvents.filter(e => e.sourceType === s.traceFilter);
       const display = filtered.slice(-20).reverse();
-      for (const t of display) {
+      const selId = s.traceSelection.selectedTraceId;
+
+      for (let i = 0; i < display.length; i++) {
+        const t = display[i];
+        const isSelected = selId === t.id;
+        const marker = isSelected ? ">" : " ";
         const time = new Date(t.timestamp).toLocaleTimeString();
         const iconMap: Record<string, string> = {
           allowed: "●", denied: "✗", pending: "○",
@@ -101,7 +108,27 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
         const icon = t.status ? (iconMap[t.status] || " ") : " ";
         const src = t.sourceType.padEnd(12);
         const label = t.label.slice(0, 48);
-        buf.push(`  ${time} ${icon} ${src} ${label}`);
+        buf.push(`${marker} ${time} ${icon} ${src} ${label}`);
+      }
+    }
+
+    // Detail panel when open
+    if (s.traceSelection.detailOpen && s.traceSelection.selectedTraceId) {
+      const selected = s.traceEvents.find(e => e.id === s.traceSelection.selectedTraceId);
+      if (selected) {
+        buf.push("───────────────────────────────────────────────");
+        const mode = s.traceSelection.detailMode;
+        let detailLines: string[] = [];
+        if (mode === "summary") detailLines = renderTraceSummary(selected);
+        else if (mode === "json") detailLines = renderTraceJson(selected);
+        else if (mode === "links") detailLines = renderTraceLinks(selected);
+        else if (mode === "chain") {
+          const chain = traceChainContext(s.traceEvents, selected);
+          detailLines = renderTraceChain(selected, chain);
+        }
+        buf.push(`  Mode: ${mode}`);
+        buf.push(...detailLines);
+        buf.push("  Keys: j=json  l=links  c=chain  s=summary  esc=close");
       }
     }
     buf.push(`  t=filter  r=refresh`);
