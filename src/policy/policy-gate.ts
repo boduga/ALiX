@@ -31,7 +31,7 @@ export type ToolPolicyRequest = {
   cwd: string;
   sessionMode: SessionMode;
   sessionId?: string;
-  source: "tool" | "graph" | "daemon" | "tui";
+  source: "tool" | "graph" | "daemon" | "tui" | "replay";
 };
 
 export type CapabilityPolicyRequest = {
@@ -41,7 +41,7 @@ export type CapabilityPolicyRequest = {
   nodeId?: string;
   graphId?: string;
   sessionId?: string;
-  source: "tool" | "graph" | "daemon" | "tui";
+  source: "tool" | "graph" | "daemon" | "tui" | "replay";
   metadata?: Record<string, unknown>;
 };
 
