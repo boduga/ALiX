@@ -93,6 +93,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       return approvalStore.listPending();
     },
     resolveApproval: async (id, status) => {
+      await approvalStore.load(); // reload from disk — approval may have been created by PolicyGate
       const record = await approvalStore.resolve(id, status, `Resolved by user via TUI`);
       if (!record) return { success: false, message: `Approval not found: ${id}` };
       return { success: true, message: `Approval ${id} ${status}.` };
