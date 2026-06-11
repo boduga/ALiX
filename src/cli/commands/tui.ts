@@ -222,9 +222,10 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     // Replay confirmation
     const replayConfirm = (globalThis as any).__replayConfirm;
     if (replayConfirm) {
-      if (task.toLowerCase() === "replay yes") {
+      const confirmPhrase = task.toLowerCase().trim();
+      if (confirmPhrase === "replay yes" || confirmPhrase === "replay yes --approved-live") {
         (globalThis as any).__replayConfirm = null;
-        const { plan } = replayConfirm;
+        const { plan, mode: confirmMode } = replayConfirm;
         const { ReplayExecutor } = await import("../../runtime/replay-executor.js");
         const executor = new ReplayExecutor(activeCwd, tuiLog);
 
@@ -232,7 +233,11 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         tui.appendOutput("Executing replay...\n", false);
 
         try {
-          const result = await executor.execute(plan);
+          const opts: any = {};
+          if (confirmMode === "approved-live" && approvalStore) {
+            opts.approvalStore = approvalStore;
+          }
+          const result = await executor.execute(plan, opts);
           store.setReplayResult(result);
           store.setReplayExecuting(false);
           store.setTraceDetailMode("replay-result");
@@ -400,7 +405,14 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       if (task.startsWith("/replay ")) {
         const args = task.slice("/replay ".length).trim().split(/\s+/);
         const target = args[0]; // "selected" (ignored for now — always uses selected)
-        const modeFlag = args.includes("--sandbox") ? "sandbox" as const : "dry-run" as const;
+        let modeFlag: "dry-run" | "sandbox" | "approved-live";
+        if (args.includes("--approved-live")) {
+          modeFlag = "approved-live";
+        } else if (args.includes("--sandbox")) {
+          modeFlag = "sandbox";
+        } else {
+          modeFlag = "dry-run";
+        }
 
         const selected = store.getSelectedTraceEvent();
         if (!selected) {
@@ -423,7 +435,15 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         // Get confirmation for sandbox mode
         if (modeFlag === "sandbox") {
           tui.appendOutput("Replay selected chain in sandbox mode? (shell runs in isolated dir) type: replay yes\n", false);
-          (globalThis as any).__replayConfirm = { plan };
+          (globalThis as any).__replayConfirm = { plan, mode: "sandbox" };
+          continue;
+        }
+
+        // Get confirmation for approved-live mode with warning
+        if (modeFlag === "approved-live") {
+          tui.appendOutput("WARNING: Approved-live replay will execute tool calls with REAL side effects.\n", false);
+          tui.appendOutput("Type: replay yes --approved-live to confirm\n", false);
+          (globalThis as any).__replayConfirm = { plan, mode: "approved-live" };
           continue;
         }
 

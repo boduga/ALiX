@@ -124,6 +124,7 @@ export function renderTraceReplay(preview: ReplayPreview): string[] {
 export function renderReplayResult(result: ReplayResult): string[] {
   const lines: string[] = [];
   lines.push(`  Mode: ${result.mode}`);
+  if (result.replayId) lines.push(`  ReplayId: ${result.replayId}`);
   const total = result.steps.length;
   const completed = result.successCount;
   const blocked = result.blockedCount;
