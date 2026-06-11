@@ -2,7 +2,10 @@
  * runtime-gate.ts — Two-layer execution gate for graph nodes.
  *
  * Layer 1: CapabilityResolver — does any agent/tool cover this capability?
- * Layer 2: RuleEvaluator — is this capability allowed by policy?
+ * Layer 2: RuleEvaluator or PolicyGate — is this capability allowed by policy?
+ *
+ * PolicyGate is the preferred decision path; PolicyEvaluator is retained
+ * for backward compatibility.
  */
 import type { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities, type CapabilityResolution } from "../registry/capability-resolver.js";
@@ -10,6 +13,8 @@ import type { RuleEvaluator } from "./rule-evaluator.js";
 import type { TaskNode } from "../kernel/task-graph.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { AuditStore } from "../audit/audit-store.js";
+import type { PolicyGate } from "./policy-gate.js";
+import type { AlixConfig } from "../config/schema.js";
 
 export type RuntimeGateStatus = "ready" | "blocked" | "needs_approval";
 
@@ -27,8 +32,10 @@ export interface RuntimeGateInput {
   node: TaskNode;
   registry: CardRegistry;
   policyEvaluator: RuleEvaluator;
+  policyGate?: PolicyGate;     // preferred — overrides policyEvaluator when set
   approvalStore?: ApprovalStore;
   auditStore?: AuditStore;
+  config?: AlixConfig;         // required when policyGate is used
 }
 
 export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<RuntimeGateDecision> {
@@ -57,24 +64,47 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
     }
     // Layer 2: Policy evaluation across all capabilities
     // Apply the most restrictive decision: deny > ask > allow
-    let overall: { decision: "allow" | "ask" | "deny"; ruleId?: string; reason?: string } | undefined;
+    let overall: { decision: "allow" | "ask" | "deny"; ruleId?: string; reason?: string; approvalId?: string } | undefined;
 
-    for (const cap of caps) {
-      const policyResult = policyEvaluator.evaluate({
-        capability: cap,
-        riskLevel: node.riskLevel as any,
-        executionProfile: (node as any).executionProfile,
-      });
-      if (policyResult.decision === "deny") {
-        overall = { decision: "deny", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
-        break; // deny is final
+    if (input.policyGate && input.config) {
+      for (const cap of caps) {
+        const decision = await input.policyGate.evaluateCapability({
+          requestId: `${node.graphId ?? "?"}:${node.id}:${cap}`,
+          capability: cap,
+          sessionMode: input.config.permissions.sessionMode ?? "ask",
+          nodeId: node.id,
+          graphId: node.graphId,
+          source: "graph",
+        });
+        if (decision.decision === "deny") {
+          overall = { decision: "deny", ruleId: decision.matchedRuleId, reason: decision.reason };
+          break;
+        }
+        if (decision.decision === "ask" && (!overall || overall.decision === "allow")) {
+          overall = { decision: "ask", ruleId: decision.matchedRuleId, reason: decision.reason, approvalId: decision.approvalId };
+        }
+        if (decision.decision === "allow" && !overall) {
+          overall = { decision: "allow", ruleId: decision.matchedRuleId, reason: decision.reason };
+        }
       }
-      if (policyResult.decision === "ask" && (!overall || overall.decision === "allow")) {
-        overall = { decision: "ask", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
-        // continue — a later cap might deny
-      }
-      if (policyResult.decision === "allow" && !overall) {
-        overall = { decision: "allow", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+    } else {
+      for (const cap of caps) {
+        const policyResult = policyEvaluator.evaluate({
+          capability: cap,
+          riskLevel: node.riskLevel as any,
+          executionProfile: (node as any).executionProfile,
+        });
+        if (policyResult.decision === "deny") {
+          overall = { decision: "deny", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+          break; // deny is final
+        }
+        if (policyResult.decision === "ask" && (!overall || overall.decision === "allow")) {
+          overall = { decision: "ask", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+          // continue — a later cap might deny
+        }
+        if (policyResult.decision === "allow" && !overall) {
+          overall = { decision: "allow", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
+        }
       }
     }
 
@@ -95,6 +125,24 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
     }
 
     if (overall?.decision === "ask") {
+      // When PolicyGate already handled the approval lifecycle, use it directly
+      if (overall.approvalId) {
+        auditStore?.append({ action: "policy.asked", actor: "policy", details: {
+          graphId: node.graphId, nodeId: node.id,
+          capability: caps.join(","), approvalId: overall.approvalId,
+          policyDecision: "ask", reason: overall.reason,
+        }}).catch(() => {});
+        return {
+          status: "needs_approval",
+          capabilityResolution: capResult,
+          policyDecision: "ask",
+          policyRuleId: overall.ruleId,
+          policyReason: overall.reason,
+          approvalId: overall.approvalId,
+          reason: `Pending approval: ${overall.approvalId}`,
+        };
+      }
+
       if (!approvalStore) {
         auditStore?.append({ action: "runtime.blocked", actor: "system", details: {
           graphId: node.graphId, nodeId: node.id,
