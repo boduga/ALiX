@@ -68,4 +68,18 @@ describe("renderReplayResult", () => {
     const joined = lines.join("\n");
     assert.ok(joined.includes("[DRY-RUN]"));
   });
+
+  it("renders replayId when present", () => {
+    const result = makeResult({
+      mode: "approved-live",
+      replayId: "replay_1718000000_abc123",
+      steps: [
+        { index: 1, traceId: "e1", action: "would-run-tool", status: "completed" as const, toolName: "shell.run", durationMs: 10 },
+      ],
+    });
+    const lines = renderReplayResult(result);
+    const joined = lines.join("\n");
+    assert.ok(joined.includes("replay_1718000000_abc123"));
+    assert.ok(joined.includes("approved-live"));
+  });
 });
