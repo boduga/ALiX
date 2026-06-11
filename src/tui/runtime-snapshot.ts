@@ -37,6 +37,7 @@ export interface TuiRuntimeSnapshot {
   replayIndexData?: import("../runtime/replay-status-index.js").ReplayStatusIndexData;
   replayLockStates?: Record<string, boolean>;
   ifamasPanelData?: import("./ifamas-panel.js").IfamasTracePanel;
+  chroniclePanelData?: import("./chronicle-panel.js").ChroniclePanelData;
 }
 
 /** Build a fresh snapshot from disk. Returns null on failure. */
@@ -215,5 +216,8 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   store.setReplayLockStates(snapshot.replayLockStates ?? {});
   if (snapshot.ifamasPanelData) {
     store.getState().ifamasPanelData = snapshot.ifamasPanelData;
+  }
+  if (snapshot.chroniclePanelData) {
+    store.getState().chroniclePanelData = snapshot.chroniclePanelData;
   }
 }

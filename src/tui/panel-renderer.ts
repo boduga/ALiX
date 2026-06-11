@@ -8,6 +8,7 @@ import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain
 import { traceChainContext } from "../runtime/trace-events.js";
 import { buildReplayPreview } from "../runtime/replay-preview.js";
 import { formatIfamasPanel } from "./ifamas-panel.js";
+import { formatChroniclePanel } from "./chronicle-panel.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
 export function renderPanelContent(store: TuiStore, tui: Tui): number {
@@ -186,6 +187,17 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
       buf.push("  No diagnostic data loaded.");
       buf.push("  Run a diagnostic or call runIfamasDiagnostic()");
       buf.push("  then set ifamasPanelData via /ifamas command.");
+    }
+  } else if (s.activePanel === "chronicle") {
+    if (s.chroniclePanelData) {
+      const panelLines = formatChroniclePanel(s.chroniclePanelData);
+      for (const line of panelLines) {
+        buf.push(line);
+      }
+    } else {
+      buf.push("── Chronicle ─────────────────────────────");
+      buf.push("  No chronicle data loaded.");
+      buf.push("  Use /chronicle to search past IFÁ-MAS diagnostics.");
     }
   }
 
