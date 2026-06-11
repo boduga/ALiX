@@ -254,6 +254,37 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
 
+    // Rollback confirmation
+    const rollbackConfirm = (globalThis as any).__rollbackConfirm;
+    if (rollbackConfirm) {
+      const confirmPhrase = task.toLowerCase().trim();
+      if (confirmPhrase === "rollback yes") {
+        (globalThis as any).__rollbackConfirm = null;
+        const { plan } = rollbackConfirm;
+        const { RollbackExecutor } = await import("../../runtime/rollback-executor.js");
+        const executor = new RollbackExecutor(activeCwd, tuiLog);
+
+        tui.appendOutput("Executing rollback...\n", false);
+
+        try {
+          const opts: any = {};
+          if (approvalStore) {
+            opts.approvalStore = approvalStore;
+          }
+          const result = await executor.execute(plan, opts);
+          store.setReplayResult(result as any);
+          store.setTraceDetailMode("rollback-result" as any);
+          tui.appendOutput("Rollback complete. " + result.successCount + " files restored, " + result.skippedCount + " skipped.\n", false);
+        } catch (err: any) {
+          tui.appendOutput("Rollback error: " + err.message + "\n", false);
+        }
+      } else {
+        (globalThis as any).__rollbackConfirm = null;
+        tui.appendOutput("Rollback cancelled.\n", false);
+      }
+      continue;
+    }
+
     // Trace navigation — ↑/k = up, ↓/j = down (when detail closed)
     if (store.getState().activePanel === "trace") {
       if (task === "\x1b[A" || task === "k") {
@@ -461,6 +492,63 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           store.setReplayExecuting(false);
           tui.appendOutput("Replay error: " + err.message + "\n", false);
         }
+        continue;
+      }
+
+      // Check for /rollback command
+      if (task.startsWith("/rollback ")) {
+        const args = task.slice("/rollback ".length).trim().split(/\s+/);
+        let modeFlag: "dry-run" | "approved-live" = "dry-run";
+        if (args.includes("--approved-live") || args.includes("--live")) {
+          modeFlag = "approved-live";
+        }
+
+        // Determine replayId
+        let replayId: string | undefined;
+        const target = args[0];
+        if (target === "selected") {
+          const selected = store.getSelectedTraceEvent();
+          replayId = selected?.replayId;
+          if (!replayId) {
+            tui.appendOutput("Selected trace event has no replayId.\n", false);
+            continue;
+          }
+        } else {
+          replayId = target;
+        }
+
+        const { ReplayDiffStore } = await import("../../runtime/replay-diff-store.js");
+        const { buildRollbackPlan } = await import("../../runtime/rollback-plan.js");
+        const { RollbackExecutor } = await import("../../runtime/rollback-executor.js");
+
+        const diffStore = new ReplayDiffStore(activeCwd);
+        const diffSet = await diffStore.loadIndex(replayId);
+
+        if (!diffSet || diffSet.records.length === 0) {
+          tui.appendOutput("No replay diff data found for replayId: " + replayId + "\n", false);
+          continue;
+        }
+
+        const plan = buildRollbackPlan(replayId, diffSet, modeFlag);
+        if (plan.steps.length === 0) {
+          tui.appendOutput("No rollback steps to execute.\n", false);
+          continue;
+        }
+
+        // Confirmation for approved-live
+        if (modeFlag === "approved-live") {
+          tui.appendOutput("Rollback replay " + replayId + " with real file changes?\n", false);
+          tui.appendOutput("Type: rollback yes\n", false);
+          (globalThis as any).__rollbackConfirm = { plan };
+          continue;
+        }
+
+        // Dry-run: execute immediately
+        const executor = new RollbackExecutor(activeCwd, tuiLog);
+        const result = await executor.execute(plan);
+        store.setReplayResult(result as any);
+        store.setTraceDetailMode("rollback-result" as any);
+        tui.appendOutput("Rollback dry-run: " + result.successCount + " would be restored, " + result.skippedCount + " skipped.\n", false);
         continue;
       }
 

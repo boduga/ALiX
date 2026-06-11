@@ -9,6 +9,7 @@ import type { TraceEvent } from "../runtime/trace-events.js";
 import type { ReplayPreview } from "../runtime/replay-preview.js";
 import type { ReplayResult } from "../runtime/replay-executor.js";
 import type { ReplayDiffSet } from "../runtime/replay-diff-store.js";
+import type { RollbackResult } from "../runtime/rollback-executor.js";
 
 export function renderTraceSummary(event: TraceEvent): string[] {
   const lines: string[] = [];
@@ -231,6 +232,43 @@ export function renderRollbackPreview(diffSet: ReplayDiffSet): string[] {
 
   lines.push("");
   lines.push("  ⚠ No rollback will occur. Preview only.");
+
+  return lines;
+}
+
+/**
+ * Render a rollback result with per-step outcomes.
+ */
+export function renderRollbackResult(result: RollbackResult): string[] {
+  const lines: string[] = [];
+  lines.push(`  RollbackId: ${result.rollbackId}`);
+  lines.push(`  ReplayId:   ${result.replayId}`);
+  lines.push(`  Mode: ${result.mode}`);
+  lines.push(`  Steps: ${result.totalSteps} total, ${result.successCount} restored, ${result.blockedCount} blocked, ${result.skippedCount} skipped`);
+  lines.push(`  Duration: ${result.totalDurationMs}ms`);
+  lines.push("");
+
+  if (result.steps.length > 0) {
+    lines.push("  Chain:");
+    for (const step of result.steps) {
+      const iconMap: Record<string, string> = {
+        completed: "✔", blocked: "✗", skipped: "○",
+      };
+      const icon = iconMap[step.status] || " ";
+      const action = step.action.padEnd(18);
+      const duration = step.durationMs !== undefined ? `${step.durationMs}ms` : "";
+      lines.push(`  ${icon} ${step.index}. ${action} ${step.path.slice(0, 40)} ${duration}`);
+      if (step.output) {
+        lines.push(`       ${step.output.slice(0, 60)}`);
+      }
+      if (step.blockReason) {
+        lines.push(`       ⛔ ${step.blockReason.slice(0, 60)}`);
+      }
+      if (step.error) {
+        lines.push(`       ❌ ${step.error.slice(0, 60)}`);
+      }
+    }
+  }
 
   return lines;
 }
