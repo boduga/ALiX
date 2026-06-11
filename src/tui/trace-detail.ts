@@ -7,6 +7,7 @@
 
 import type { TraceEvent } from "../runtime/trace-events.js";
 import type { ReplayPreview } from "../runtime/replay-preview.js";
+import type { ReplayResult } from "../runtime/replay-executor.js";
 
 export function renderTraceSummary(event: TraceEvent): string[] {
   const lines: string[] = [];
@@ -113,6 +114,51 @@ export function renderTraceReplay(preview: ReplayPreview): string[] {
     lines.push("");
     lines.push("  Warnings:");
     for (const w of preview.warnings) {
+      lines.push(`    ⚠ ${w}`);
+    }
+  }
+
+  return lines;
+}
+
+export function renderReplayResult(result: ReplayResult): string[] {
+  const lines: string[] = [];
+  lines.push(`  Mode: ${result.mode}`);
+  const total = result.steps.length;
+  const completed = result.successCount;
+  const blocked = result.blockedCount;
+  const failed = result.failedCount;
+  lines.push(`  Steps: ${total} total, ${completed} completed, ${blocked} blocked, ${failed} failed`);
+  lines.push(`  Duration: ${result.totalDurationMs}ms`);
+  lines.push("");
+
+  if (result.steps.length > 0) {
+    lines.push("  Chain:");
+    for (const step of result.steps) {
+      const iconMap: Record<string, string> = {
+        completed: "✔", blocked: "✗", skipped: "○", failed: "✗",
+      };
+      const icon = iconMap[step.status] || " ";
+      const action = step.action.padEnd(24);
+      const duration = step.durationMs !== undefined ? `${step.durationMs}ms` : "";
+      lines.push(`  ${icon} ${step.index}. ${action} ${(step.toolName || "").slice(0, 30)} ${duration}`);
+      if (step.output) {
+        const firstLine = step.output.split("\n")[0].slice(0, 60);
+        lines.push(`       ${firstLine}`);
+      }
+      if (step.blockReason) {
+        lines.push(`       ⛔ ${step.blockReason.slice(0, 60)}`);
+      }
+      if (step.error) {
+        lines.push(`       ❌ ${step.error.slice(0, 60)}`);
+      }
+    }
+  }
+
+  if (result.warnings.length > 0) {
+    lines.push("");
+    lines.push("  Warnings:");
+    for (const w of result.warnings) {
       lines.push(`    ⚠ ${w}`);
     }
   }

@@ -20,7 +20,7 @@ export type TraceSourceType =
 
 export type TraceEventFilter = "all" | TraceSourceType;
 
-export type TraceDetailMode = "summary" | "json" | "links" | "chain" | "replay";
+export type TraceDetailMode = "summary" | "json" | "links" | "chain" | "replay" | "replay-result";
 
 export type TraceSelectionState = {
   selectedIndex: number;     // -1 = nothing selected

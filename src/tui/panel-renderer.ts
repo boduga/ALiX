@@ -4,7 +4,7 @@
 
 import type { TuiStore } from "./store.js";
 import type { Tui } from "./index.js";
-import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain, renderTraceReplay } from "./trace-detail.js";
+import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain, renderTraceReplay, renderReplayResult } from "./trace-detail.js";
 import { traceChainContext } from "../runtime/trace-events.js";
 import { buildReplayPreview } from "../runtime/replay-preview.js";
 
@@ -129,10 +129,20 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
         } else if (mode === "replay") {
           const preview = buildReplayPreview(selected, s.traceEvents);
           detailLines = renderTraceReplay(preview);
+        } else if (mode === "replay-result") {
+          if (s.replayResult) {
+            detailLines = renderReplayResult(s.replayResult);
+          } else {
+            detailLines = ["  No replay result yet."];
+          }
         }
         buf.push(`  Mode: ${mode}`);
         buf.push(...detailLines);
-        buf.push("  Keys: j=json  l=links  c=chain  s=summary  p=replay  esc=close");
+        if (mode === "replay" || mode === "replay-result") {
+          buf.push("  Keys: x=execute  s=summary  esc=close");
+        } else {
+          buf.push("  Keys: j=json  l=links  c=chain  s=summary  p=replay  esc=close");
+        }
       }
     }
     buf.push(`  t=filter  r=refresh`);

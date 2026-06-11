@@ -97,6 +97,9 @@ export interface TuiState {
   traceEventCount: number;
   traceFilter: TraceEventFilter;
   traceSelection: TraceSelectionState;
+  replayResult?: import("../runtime/replay-executor.js").ReplayResult | null;
+  replayExecuting?: boolean;
+  replayMode?: import("../runtime/replay-plan.js").ReplayMode;
 }
 
 export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace"];
@@ -125,6 +128,9 @@ export class TuiStore {
       traceEventCount: initialState?.traceEventCount ?? 0,
       traceFilter: initialState?.traceFilter ?? "all",
       traceSelection: initialState?.traceSelection ?? { selectedIndex: -1, detailOpen: false, detailMode: "summary" },
+      replayResult: null,
+      replayExecuting: false,
+      replayMode: "dry-run",
     };
   }
 
@@ -403,6 +409,21 @@ export class TuiStore {
     this.state.traceSelection.selectedIndex = -1;
     this.state.traceSelection.selectedTraceId = undefined;
     this.state.traceSelection.detailOpen = false;
+    this.notify();
+  }
+
+  setReplayResult(result: any): void {
+    this.state.replayResult = result;
+    this.notify();
+  }
+
+  setReplayExecuting(v: boolean): void {
+    this.state.replayExecuting = v;
+    this.notify();
+  }
+
+  setReplayMode(mode: any): void {
+    this.state.replayMode = mode;
     this.notify();
   }
 
