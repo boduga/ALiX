@@ -73,4 +73,28 @@ describe("buildReplayPlan", () => {
     assert.equal(plan.executable, false);
     assert.ok(plan.toolCount === 0);
   });
+
+  it("builds plan with replayId for approved-live mode", () => {
+    const events = [
+      makeEvent({ id: "e1", eventType: "tool.started", label: "shell.run", toolCallId: "tc1",
+        rawEvent: { payload: { toolName: "shell.run", args: { command: "ls" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+    assert.equal(plan.mode, "approved-live");
+    assert.ok(plan.replayId);
+    assert.ok(plan.replayId!.startsWith("replay_"));
+  });
+
+  it("allows network tools in approved-live mode", () => {
+    const events = [
+      makeEvent({ id: "e1", eventType: "tool.started", label: "web_search", toolName: "web_search",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "web_search", args: { query: "test" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+    const webStep = plan.steps.find(s => s.toolName === "web_search");
+    assert.ok(webStep);
+    assert.equal(webStep.status, "ready");
+  });
 });

@@ -11,9 +11,18 @@ import { traceChainContext } from "./trace-events.js";
 import type { ReplayPreview, ReplayAction } from "./replay-preview.js";
 import { hashArgs } from "../tools/executor.js";
 
+export type ReplayExecutionContext = {
+  replayId: string;
+  sourceSessionId: string;
+  selectedTraceId: string;
+  mode: "approved-live";
+  cwd: string;
+  startedAt: string;
+};
+
 // ─── Types ───────────────────────────────────────────────────────────
 
-export type ReplayMode = "dry-run" | "sandbox";
+export type ReplayMode = "dry-run" | "sandbox" | "approved-live";
 
 export type ReplayPlanStep = {
   index: number;
@@ -29,6 +38,7 @@ export type ReplayPlanStep = {
 
 export type ReplayPlan = {
   mode: ReplayMode;
+  replayId?: string;
   sessionId?: string;
   steps: ReplayPlanStep[];
   toolCount: number;
@@ -93,6 +103,10 @@ export function buildReplayPlan(
   const approvals: ReplayPlan["approvals"] = [];
   const warnings = [...preview.warnings];
   let toolCount = 0;
+  let replayId: string | undefined;
+  if (mode === "approved-live") {
+    replayId = `replay_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+  }
   let blockedSteps = 0;
 
   for (let i = 0; i < planEvents.length; i++) {
@@ -124,8 +138,8 @@ export function buildReplayPlan(
         step.argsHash = toolCall.argsHash;
         toolCount++;
 
-        // Block network tools in both modes
-        if (isNetworkTool(toolCall.toolName)) {
+        // Block network tools (unless approved-live)
+        if (mode !== "approved-live" && isNetworkTool(toolCall.toolName)) {
           step.status = "blocked";
           step.blockReason = `"${toolCall.toolName}" is not available in ${mode} mode`;
           blockedSteps++;
@@ -172,6 +186,7 @@ export function buildReplayPlan(
 
   return {
     mode,
+    replayId,
     sessionId: preview.sessionId,
     steps,
     toolCount,
