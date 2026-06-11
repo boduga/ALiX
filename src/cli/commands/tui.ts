@@ -83,22 +83,16 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   });
 
   // Approval store + manager for /approvals, /approve, /deny commands
-  let approvalStore: any = null;
+  const { ApprovalStore } = await import("../../approvals/approval-store.js");
+  const approvalStore = new ApprovalStore(activeCwd);
+  await approvalStore.load();
+
   const approvalManager = new ApprovalManager({
     listPendingApprovals: async () => {
-      const { ApprovalStore } = await import("../../approvals/approval-store.js");
-      if (!approvalStore) {
-        approvalStore = new ApprovalStore(activeCwd);
-        await approvalStore.load();
-      }
+      await approvalStore.load(); // reload to pick up changes
       return approvalStore.listPending();
     },
     resolveApproval: async (id, status) => {
-      const { ApprovalStore } = await import("../../approvals/approval-store.js");
-      if (!approvalStore) {
-        approvalStore = new ApprovalStore(activeCwd);
-        await approvalStore.load();
-      }
       const record = await approvalStore.resolve(id, status, `Resolved by user via TUI`);
       if (!record) return { success: false, message: `Approval not found: ${id}` };
       return { success: true, message: `Approval ${id} ${status}.` };
@@ -452,7 +446,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
               continuationStore,
               approvalStore,
               executeTool: async (tc) => {
-                const executor = new ToolExecutor(activeConfig, tuiLog, activeCwd);
+                const executor = new ToolExecutor(activeConfig, tuiLog, activeCwd, undefined, undefined, undefined, undefined, approvalStore);
                 const result = await executor.execute(tc);
                 return result;
               },
@@ -696,56 +690,58 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         continue;
       }
 
-      // /ifamas — run IFÁ-MAS diagnostic pipeline on selected trace event
+      // /ifamas — run IFÁ-MAS diagnostic pipeline
       if (task.startsWith("/ifamas")) {
         const selected = store.getSelectedTraceEvent();
-        if (!selected) {
-          tui.appendOutput("No trace event selected. Navigate to a trace event first.\n", false);
-          continue;
-        }
 
-        const { createSignalFrame } = await import("../../runtime/signal-frame.js");
-        const { runIfamasDiagnostic } = await import("../../runtime/ifamas-pipeline.js");
+        if (selected) {
+          // Tier 1: Run diagnostic on selected trace event (existing behavior)
+          const { createSignalFrame } = await import("../../runtime/signal-frame.js");
+          const { runIfamasDiagnostic } = await import("../../runtime/ifamas-pipeline.js");
 
-        const bits = {
-          intentClear: true,
-          policyRisk: false,
-          toolRequired: false,
-          memoryRequired: false,
-          freshnessRequired: false,
-          mutationPossible: false,
-          approvalRequired: false,
-          replayRollbackContext: false,
-        };
-
-        const signal = createSignalFrame({ bits, domain: "task", intent: selected.label ?? "trace-event" });
-
-        try {
-          const diagnostic = await runIfamasDiagnostic({
-            signal,
-            eventLog: tuiLog,
-          });
-          const { formatIfamasPanel } = await import("../../tui/ifamas-panel.js");
-
-          const panelData = {
-            signalCode: diagnostic.signal.code,
-            polarity: diagnostic.signal.polarity,
-            offeringAction: diagnostic.offering.action,
-            routeTarget: diagnostic.routeDecision.routeHint.targetRole,
-            gatewayValid: diagnostic.gatewayValidation.valid,
-            guildCandidateCount: diagnostic.guildCandidates.length,
-            topGuildCandidate: diagnostic.guildCandidates[0]?.profile?.agentId,
-            chronicleRefCount: diagnostic.routeDecision.chronicleEntries.length,
+          const bits = {
+            intentClear: true, policyRisk: false, toolRequired: false,
+            memoryRequired: false, freshnessRequired: false,
+            mutationPossible: false, approvalRequired: false,
+            replayRollbackContext: false,
           };
+          const signal = createSignalFrame({ bits, domain: "task", intent: selected.label ?? "trace-event" });
 
-          store.getState().ifamasPanelData = panelData;
+          try {
+            const diagnostic = await runIfamasDiagnostic({ signal, eventLog: tuiLog });
+            const { formatIfamasPanel } = await import("../../tui/ifamas-panel.js");
+
+            const panelData = {
+              signalCode: diagnostic.signal.code,
+              polarity: diagnostic.signal.polarity,
+              offeringAction: diagnostic.offering.action,
+              routeTarget: diagnostic.routeDecision.routeHint.targetRole,
+              gatewayValid: diagnostic.gatewayValidation.valid,
+              guildCandidateCount: diagnostic.guildCandidates.length,
+              topGuildCandidate: diagnostic.guildCandidates[0]?.profile?.agentId,
+              chronicleRefCount: diagnostic.routeDecision.chronicleEntries.length,
+            };
+
+            store.getState().ifamasPanelData = panelData;
+            store.setPanel("ifamas");
+            const panelLines = formatIfamasPanel(panelData);
+            tui.appendOutput(panelLines.join("\n") + "\n", false);
+            tui.appendOutput("Diagnostic recorded as trace event.\n", false);
+          } catch (err: any) {
+            tui.appendOutput("IFÁ-MAS diagnostic error: " + err.message + "\n", false);
+          }
+        } else if (store.getState().ifamasPanelData) {
+          // Tier 2: No trace selected but we have previous diagnostic data
+          const { formatIfamasPanel } = await import("../../tui/ifamas-panel.js");
           store.setPanel("ifamas");
-
-          const panelLines = formatIfamasPanel(panelData);
+          const panelLines = formatIfamasPanel(store.getState().ifamasPanelData!);
+          tui.appendOutput("No trace event selected. Showing latest IFÁ-MAS diagnostic instead.\n", false);
           tui.appendOutput(panelLines.join("\n") + "\n", false);
-          tui.appendOutput("Diagnostic recorded as trace event.\n", false);
-        } catch (err: any) {
-          tui.appendOutput("IFÁ-MAS diagnostic error: " + err.message + "\n", false);
+        } else {
+          // Tier 3: Nothing available
+          tui.appendOutput("No IFÁ-MAS diagnostic available yet.\n", false);
+          tui.appendOutput("Run a task in the TUI first, then use /ifamas to diagnose a trace event.\n", false);
+          tui.appendOutput("Or type: /ifamas (with a trace event selected) to run a fresh diagnostic.\n", false);
         }
         continue;
       }
@@ -949,6 +945,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           cwd: activeCwd, sessionId: activeSessionId, sessionDir: activeSessionDir,
           eventLog: tuiLog,
           config: activeConfig,
+          approvalStore: approvalStore,
           onStream: (chunk) => {
             if (chunk.type === "text" && typeof chunk.text === "string") {
               tui.appendOutput(chunk.text, true);

@@ -71,7 +71,8 @@ export class ToolExecutor {
     private mcpManager?: McpManager,
     private editFormatPolicy?: EditFormatPolicy,
     private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
-    private checkpointManager?: CheckpointManager
+    private checkpointManager?: CheckpointManager,
+    private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
   ) {
     // Create router with all handlers
     this.router = new CompositeToolRouter([
@@ -127,7 +128,7 @@ export class ToolExecutor {
 
     // Single policy decision via PolicyGate
     const { PolicyGate } = await import("../policy/policy-gate.js");
-    const policyGate = new PolicyGate(this.config, { eventLog: this.log });
+    const policyGate = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
     const policyDecision = await policyGate.evaluateToolCall({
       requestId: toolCallId,
       toolName: name,

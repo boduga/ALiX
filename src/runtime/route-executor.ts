@@ -15,6 +15,7 @@ export interface RuntimeContext {
   sessionDir: string;
   eventLog: any; // EventLog
   config: any;   // AlixConfig
+  approvalStore?: any;
   onStream?: (chunk: any) => void;
 }
 
@@ -50,7 +51,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     const { ToolExecutor } = await import("../tools/executor.js");
     const { randomBytes } = await import("node:crypto");
 
-    const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd);
+    const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd, undefined, undefined, undefined, undefined, ctx.approvalStore);
     const toolCallId = `local_${Date.now()}_${randomBytes(4).toString("hex")}`;
 
     const result = await executor.execute({
@@ -86,7 +87,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     const { randomBytes } = await import("node:crypto");
 
     const provider = await createProvider({ provider: ctx.config.model.provider, model: ctx.config.model.name });
-    const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd);
+    const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd, undefined, undefined, undefined, undefined, ctx.approvalStore);
 
     // First call: model may issue a tool call for fresh information
     const response = await provider.complete({
