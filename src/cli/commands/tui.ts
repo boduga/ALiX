@@ -219,6 +219,36 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
 
+    // Replay confirmation
+    const replayConfirm = (globalThis as any).__replayConfirm;
+    if (replayConfirm) {
+      if (task.toLowerCase() === "replay yes") {
+        (globalThis as any).__replayConfirm = null;
+        const { plan } = replayConfirm;
+        const { ReplayExecutor } = await import("../../runtime/replay-executor.js");
+        const executor = new ReplayExecutor(activeCwd, tuiLog);
+
+        store.setReplayExecuting(true);
+        tui.appendOutput("Executing replay...\n", false);
+
+        try {
+          const result = await executor.execute(plan);
+          store.setReplayResult(result);
+          store.setReplayExecuting(false);
+          store.setTraceDetailMode("replay-result");
+          tui.appendOutput("Replay complete. " + result.successCount + "/" + result.steps.length + " steps succeeded.\n", false);
+        } catch (err: any) {
+          store.setReplayExecuting(false);
+          tui.appendOutput("Replay error: " + err.message + "\n", false);
+        }
+      } else {
+        // Anything else cancels
+        (globalThis as any).__replayConfirm = null;
+        tui.appendOutput("Replay cancelled.\n", false);
+      }
+      continue;
+    }
+
     // Trace navigation — ↑/k = up, ↓/j = down (when detail closed)
     if (store.getState().activePanel === "trace") {
       if (task === "\x1b[A" || task === "k") {
@@ -264,6 +294,28 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       if (task.toLowerCase() === "p") {
         store.setTraceDetailMode("replay");
         renderPanelContent(store, tui);
+        continue;
+      }
+      if (task.toLowerCase() === "x") {
+        const selected = store.getSelectedTraceEvent();
+        if (!selected) {
+          tui.appendOutput("No trace event selected.\n", false);
+          continue;
+        }
+        const { buildReplayPreview } = await import("../../runtime/replay-preview.js");
+        const { buildReplayPlan } = await import("../../runtime/replay-plan.js");
+
+        const preview = buildReplayPreview(selected, store.getState().traceEvents);
+        const plan = buildReplayPlan(preview, store.getState().traceEvents, "dry-run");
+
+        if (!plan.executable) {
+          tui.appendOutput("Cannot replay: " + plan.reason + " or no executable steps\n", false);
+          continue;
+        }
+
+        tui.appendOutput("Replay selected chain in dry-run mode? type: replay yes\n", false);
+        // Store confirmation context on globalThis
+        (globalThis as any).__replayConfirm = { plan };
         continue;
       }
     }
@@ -340,6 +392,54 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           } catch (err: any) {
             tui.appendOutput(`\n❌ Resume error: ${err.message}\n`, false);
           }
+        }
+        continue;
+      }
+
+      // Check for /replay command
+      if (task.startsWith("/replay ")) {
+        const args = task.slice("/replay ".length).trim().split(/\s+/);
+        const target = args[0]; // "selected" (ignored for now — always uses selected)
+        const modeFlag = args.includes("--sandbox") ? "sandbox" as const : "dry-run" as const;
+
+        const selected = store.getSelectedTraceEvent();
+        if (!selected) {
+          tui.appendOutput("No trace event selected. Navigate to a trace event first.\n", false);
+          continue;
+        }
+
+        const { buildReplayPreview } = await import("../../runtime/replay-preview.js");
+        const { buildReplayPlan } = await import("../../runtime/replay-plan.js");
+        const { ReplayExecutor } = await import("../../runtime/replay-executor.js");
+
+        const preview = buildReplayPreview(selected, store.getState().traceEvents);
+        const plan = buildReplayPlan(preview, store.getState().traceEvents, modeFlag);
+
+        if (!plan.executable) {
+          tui.appendOutput("Cannot replay: " + (plan.reason || "no executable steps") + "\n", false);
+          continue;
+        }
+
+        // Get confirmation for sandbox mode
+        if (modeFlag === "sandbox") {
+          tui.appendOutput("Replay selected chain in sandbox mode? (shell runs in isolated dir) type: replay yes\n", false);
+          (globalThis as any).__replayConfirm = { plan };
+          continue;
+        }
+
+        tui.appendOutput("Replaying in " + modeFlag + " mode (" + plan.steps.filter(s => s.status === "ready").length + " ready steps)...\n", false);
+        store.setReplayExecuting(true);
+        const executor = new ReplayExecutor(activeCwd, tuiLog);
+
+        try {
+          const result = await executor.execute(plan);
+          store.setReplayResult(result);
+          store.setReplayExecuting(false);
+          store.setTraceDetailMode("replay-result");
+          tui.appendOutput("Replay complete. " + result.successCount + "/" + result.steps.length + " steps succeeded.\n", false);
+        } catch (err: any) {
+          store.setReplayExecuting(false);
+          tui.appendOutput("Replay error: " + err.message + "\n", false);
         }
         continue;
       }
