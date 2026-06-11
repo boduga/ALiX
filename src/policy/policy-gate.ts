@@ -253,7 +253,30 @@ export class PolicyGate {
     }
 
     // 7. Ask — approval lifecycle
-    return this.handleAskDecision(request.requestId, capability, `Requires approval for capability: ${capability}`);
+    const askDecision = await this.handleAskDecision(request.requestId, capability, `Requires approval for capability: ${capability}`);
+
+    // Emit approval lifecycle event (created or reused)
+    if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
+      const isReused = askDecision.matchedRuleId === "pending-approval";
+      await this.deps.eventLog.append({
+        sessionId: request.sessionId ?? "unknown",
+        actor: "policy",
+        type: isReused ? "approval.reused" : "approval.created",
+        payload: {
+          approvalId: askDecision.approvalId,
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          capability,
+          toolName: (request as ToolPolicyRequest).toolName,
+          status: isReused ? ("reused" as const) : ("pending" as const),
+          reason: askDecision.reason,
+          cwd: (request as ToolPolicyRequest).cwd,
+          previousApprovalId: isReused ? askDecision.approvalId : undefined,
+        },
+      }).catch(() => {});
+    }
+
+    return askDecision;
   }
 
   /**
@@ -281,7 +304,28 @@ export class PolicyGate {
       return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy" };
     }
 
-    return this.handleAskDecision(request.requestId, request.capability, `Requires approval for capability: ${request.capability}`);
+    const capAskDecision = await this.handleAskDecision(request.requestId, request.capability, `Requires approval for capability: ${request.capability}`);
+
+    // Emit approval lifecycle event (created or reused)
+    if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
+      const isReused = capAskDecision.matchedRuleId === "pending-approval";
+      await this.deps.eventLog.append({
+        sessionId: request.sessionId ?? "unknown",
+        actor: "policy",
+        type: isReused ? "approval.reused" : "approval.created",
+        payload: {
+          approvalId: capAskDecision.approvalId,
+          requestId: request.requestId,
+          sessionId: request.sessionId,
+          capability: request.capability,
+          status: isReused ? ("reused" as const) : ("pending" as const),
+          reason: capAskDecision.reason,
+          previousApprovalId: isReused ? capAskDecision.approvalId : undefined,
+        },
+      }).catch(() => {});
+    }
+
+    return capAskDecision;
   }
 
   /** Handle the approval lifecycle for "ask" decisions. */
