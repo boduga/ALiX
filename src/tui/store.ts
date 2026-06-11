@@ -1,3 +1,5 @@
+import type { TraceEvent, TraceEventFilter } from "../runtime/trace-events.js";
+
 export type AgentState = "idle" | "understanding" | "planning" | "executing" | "verifying" | "repairing" | "summarizing" | "done" | "error";
 export type SubagentStatus = "pending" | "running" | "completed" | "failed";
 
@@ -59,7 +61,7 @@ export interface PanelRuntimeEvent {
   graphId?: string;
 }
 
-export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime";
+export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime" | "trace";
 
 export interface TuiState {
   sessionId: string;
@@ -91,9 +93,11 @@ export interface TuiState {
   workspaceName?: string;
   workspacePath?: string;
   recentWorkspaces?: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[];
+  traceEvents: TraceEvent[];
+  traceFilter: TraceEventFilter;
 }
 
-export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime"];
+export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace"];
 
 const VALID_STATES: AgentState[] = ["idle", "understanding", "planning", "executing", "verifying", "repairing", "summarizing", "done", "error"];
 
@@ -115,6 +119,8 @@ export class TuiStore {
       inputMode: initialState?.inputMode ?? "command",
       activePanel: initialState?.activePanel ?? "chat",
       showDashboard: initialState?.showDashboard ?? false,
+      traceEvents: initialState?.traceEvents ?? [],
+      traceFilter: initialState?.traceFilter ?? "all",
     };
   }
 
@@ -293,6 +299,33 @@ export class TuiStore {
 
   setRecentWorkspaces(workspaces: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[]): void {
     this.state.recentWorkspaces = workspaces;
+    this.notify();
+  }
+
+  // ── Trace event selectors/mutators ──
+
+  getFilteredTraceEvents(): TraceEvent[] {
+    if (this.state.traceFilter === "all") return this.state.traceEvents;
+    return this.state.traceEvents.filter(e => e.sourceType === this.state.traceFilter);
+  }
+
+  getLatestTraceEvents(limit: number): TraceEvent[] {
+    const events = this.getFilteredTraceEvents();
+    return events.slice(-limit).reverse();
+  }
+
+  setTraceEvents(events: TraceEvent[]): void {
+    this.state.traceEvents = events;
+    this.notify();
+  }
+
+  appendTraceEvent(event: TraceEvent): void {
+    this.state.traceEvents.push(event);
+    this.notify();
+  }
+
+  setTraceFilter(filter: TraceEventFilter): void {
+    this.state.traceFilter = filter;
     this.notify();
   }
 
