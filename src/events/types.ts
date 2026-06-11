@@ -349,3 +349,34 @@ export type ArtifactCreatedPayload = {
 export const ARTIFACT_EVENT_TYPES = {
   CREATED: "artifact.created",
 } as const;
+
+// ─── Approval lifecycle event types ─────────────────────────
+
+export const APPROVAL_EVENT_TYPES = {
+  CREATED: "approval.created",
+  REUSED: "approval.reused",
+  RESOLVED: "approval.resolved",
+  RESUMED: "approval.resumed",
+  RESUME_FAILED: "approval.resume.failed",
+  CONTINUATION_CREATED: "continuation.created",
+  CONTINUATION_CONSUMED: "continuation.consumed",
+} as const;
+
+/**
+ * Stable payload shape for all approval lifecycle events.
+ * This is the audit contract — every approval event carries these fields.
+ */
+export type ApprovalLifecyclePayload = {
+  approvalId: string;
+  continuationId?: string;
+  requestId?: string;
+  sessionId?: string;
+  taskId?: string;
+  capability?: string;
+  toolName?: string;
+  status: "pending" | "approved" | "denied" | "resumed" | "failed" | "reused";
+  reason?: string;
+  cwd?: string;
+  argsHash?: string;
+  previousApprovalId?: string;
+};
