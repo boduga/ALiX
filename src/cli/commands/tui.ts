@@ -10,6 +10,7 @@ import { runTask } from "../../run.js";
 import { taskRouter } from "../../runtime/task-router.js";
 import { executeRoute, LocalRuntimeExecutor, type RuntimeContext } from "../../runtime/route-executor.js";
 import { WorkspaceManager, promptLabel } from "../../tui/workspace-manager.js";
+import { ApprovalManager } from "../../tui/approval-manager.js";
 
 export interface TuiOptions {
   sessionName?: string;
@@ -79,6 +80,29 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const workspaceManager = new WorkspaceManager({
     listWorkspaces, recordWorkspaceActivity, getWorkspace,
     getActiveCwd: () => activeCwd,
+  });
+
+  // Approval store + manager for /approvals, /approve, /deny commands
+  let approvalStore: any = null;
+  const approvalManager = new ApprovalManager({
+    listPendingApprovals: async () => {
+      const { ApprovalStore } = await import("../../approvals/approval-store.js");
+      if (!approvalStore) {
+        approvalStore = new ApprovalStore(activeCwd);
+        await approvalStore.load();
+      }
+      return approvalStore.listPending();
+    },
+    resolveApproval: async (id, status) => {
+      const { ApprovalStore } = await import("../../approvals/approval-store.js");
+      if (!approvalStore) {
+        approvalStore = new ApprovalStore(activeCwd);
+        await approvalStore.load();
+      }
+      const record = await approvalStore.resolve(id, status, `Resolved by user via TUI`);
+      if (!record) return { success: false, message: `Approval not found: ${id}` };
+      return { success: true, message: `Approval ${id} ${status}.` };
+    },
   });
 
   let tuiLog = new EventLog(activeSessionDir);
@@ -219,6 +243,42 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         tui.appendOutput(wsResult.message + "\n", false);
         if (wsResult.changedWorkspace && wsResult.nextCwd) {
           await softReinitWorkspace(wsResult.nextCwd);
+        }
+        continue;
+      }
+
+      // Check for approval commands
+      const approvalResult = await approvalManager.tryHandleCommand(task);
+      if (approvalResult.handled) {
+        tui.appendOutput(approvalResult.message + "\n", false);
+
+        // If approved, try to resume the continuation
+        if (approvalResult.action === "approved" && approvalResult.approvalId) {
+          try {
+            const { ContinuationStore } = await import("../../runtime/continuation-store.js");
+            const { ContinuationManager } = await import("../../runtime/continuation-manager.js");
+            const { ToolExecutor } = await import("../../tools/executor.js");
+
+            const continuationStore = new ContinuationStore(activeCwd);
+            await continuationStore.load();
+            const contManager = new ContinuationManager({
+              continuationStore,
+              approvalStore,
+              executeTool: async (tc) => {
+                const executor = new ToolExecutor(activeConfig, tuiLog, activeCwd);
+                const result = await executor.execute(tc);
+                return result;
+              },
+            });
+            const resumeResult = await contManager.resumeApproved(approvalResult.approvalId);
+            if (resumeResult.resumed) {
+              tui.appendOutput(`\n✅ Continued:\n${resumeResult.output}\n`, false);
+            } else {
+              tui.appendOutput(`\n❌ Could not resume: ${resumeResult.error}\n`, false);
+            }
+          } catch (err: any) {
+            tui.appendOutput(`\n❌ Resume error: ${err.message}\n`, false);
+          }
         }
         continue;
       }
