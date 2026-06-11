@@ -81,6 +81,30 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
         buf.push(`  [${e.source}] ${e.action} ${(e.summary || "").slice(0, 40)}`);
       }
     }
+  } else if (s.activePanel === "trace") {
+    const filterLabel = s.traceFilter === "all" ? "all" : s.traceFilter;
+    buf.push(`── Trace (filter: ${filterLabel}) ──────────────`);
+    buf.push(`Events: ${s.traceEventCount ?? s.traceEvents.length}`);
+    if (s.traceEvents.length === 0) {
+      buf.push("  No trace events. Run a task to populate the timeline.");
+    } else {
+      const filtered = s.traceFilter === "all"
+        ? s.traceEvents
+        : s.traceEvents.filter(e => e.sourceType === s.traceFilter);
+      const display = filtered.slice(-20).reverse();
+      for (const t of display) {
+        const time = new Date(t.timestamp).toLocaleTimeString();
+        const iconMap: Record<string, string> = {
+          allowed: "●", denied: "✗", pending: "○",
+          running: "▶", success: "✔", failed: "✗", completed: "✔",
+        };
+        const icon = t.status ? (iconMap[t.status] || " ") : " ";
+        const src = t.sourceType.padEnd(12);
+        const label = t.label.slice(0, 48);
+        buf.push(`  ${time} ${icon} ${src} ${label}`);
+      }
+    }
+    buf.push(`  t=filter  r=refresh`);
   }
 
   for (const line of buf) tui.appendOutput(line, false);

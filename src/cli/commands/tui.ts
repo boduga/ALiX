@@ -232,6 +232,15 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       tui.appendOutput(`Dashboard: ${store.getState().showDashboard ? "on" : "off"}\n`, false);
       continue;
     }
+    if (task.toLowerCase() === "t") {
+      const filters = ["all", "policy", "approval", "continuation", "tool", "task", "session", "daemon", "runtime"] as const;
+      const current = store.getState().traceFilter;
+      const idx = filters.indexOf(current);
+      const next = filters[(idx + 1) % filters.length];
+      store.setTraceFilter(next);
+      tui.appendOutput(`Trace filter: ${next}\n`, false);
+      continue;
+    }
 
     try {
       tui.resetOutput();
@@ -288,7 +297,16 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         const route = taskRouter(task);
         await submitTaskViaDaemon({
           cwd: activeCwd, task, route,
-          onEvent: (event) => { const line = formatDaemonEvent(event); if (line) tui.appendOutput(line, false); },
+          onEvent: (event) => {
+            const line = formatDaemonEvent(event);
+            if (line) tui.appendOutput(line, false);
+            // Bridge daemon events into trace stream
+            (async () => {
+              const { toTraceEvent } = await import("../../runtime/trace-events.js");
+              const traceEvent = toTraceEvent(event);
+              if (traceEvent) store.appendTraceEvent(traceEvent);
+            })().catch(() => {});
+          },
           onError: (err) => tui.appendOutput(`Error: ${err}`, false),
           onDone: async () => { const fresh = await buildRuntimeSnapshot(activeCwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
         });
