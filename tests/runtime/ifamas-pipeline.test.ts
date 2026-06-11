@@ -200,4 +200,37 @@ describe("IFÁ-MAS Passive Diagnostic Pipeline", () => {
       }
     }
   });
+
+  it("emits trace event when eventLog is provided", async () => {
+    const signal = makeSafeSignal();
+    const emitted: any[] = [];
+    const fakeEventLog = {
+      append: async (event: any) => { emitted.push(event); },
+    };
+
+    const result = await runIfamasDiagnostic({
+      signal,
+      eventLog: fakeEventLog as any,
+    });
+
+    assert.equal(emitted.length, 1);
+    assert.equal(emitted[0].type, "ifamas.diagnostic");
+    assert.equal(emitted[0].payload.signalCode, signal.code);
+    assert.equal(emitted[0].actor, "system");
+  });
+
+  it("does not throw when eventLog.append fails", async () => {
+    const signal = makeSafeSignal();
+    const brokenEventLog = {
+      append: async () => { throw new Error("storage error"); },
+    };
+
+    const result = await runIfamasDiagnostic({
+      signal,
+      eventLog: brokenEventLog as any,
+    });
+
+    assert.ok(result);
+    assert.equal(result.signal.signalId, signal.signalId);
+  });
 });

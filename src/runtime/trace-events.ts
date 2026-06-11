@@ -17,11 +17,12 @@ export type TraceSourceType =
   | "daemon"
   | "runtime"
   | "replay"
-  | "rollback";
+  | "rollback"
+  | "ifamas";
 
 export type TraceEventFilter = "all" | TraceSourceType;
 
-export type TraceDetailMode = "summary" | "json" | "links" | "chain" | "replay" | "replay-result";
+export type TraceDetailMode = "summary" | "json" | "links" | "chain" | "replay" | "replay-result" | "ifamas-detail";
 
 export type TraceSelectionState = {
   selectedIndex: number;     // -1 = nothing selected
@@ -48,6 +49,15 @@ export type TraceEvent = {
   rawEvent?: unknown;           // full source event for JSON drilldown view
   sessionFilePath?: string;     // path to session events.jsonl on disk
   replayId?: string;
+  ifamasPayload?: {
+    signalCode: string;
+    polarity: string;
+    offeringAction: string;
+    routeTarget?: string;
+    gatewayValid: boolean;
+    guildCandidateCount: number;
+    chronicleRefCount: number;
+  };
 };
 
 // ─── Normalizer ──────────────────────────────────────────────────────
@@ -199,6 +209,28 @@ export function toTraceEvent(event: {
       detail: p.reason || "",
       sessionId: p.sessionId,
       replayId: p.replayId,
+    };
+  }
+
+  // IFÁ-MAS diagnostic
+  if (type === "ifamas.diagnostic") {
+    const p = payload as any;
+    return {
+      id, timestamp: ts, rawEvent,
+      sourceType: "ifamas",
+      eventType: type,
+      label: `ifamas: ${p.polarity || "?"} ${p.signalCode || "?"}`,
+      status: "completed" as const,
+      detail: `offering: ${p.offeringAction || "?"}`,
+      ifamasPayload: {
+        signalCode: p.signalCode || "",
+        polarity: p.polarity || "",
+        offeringAction: p.offeringAction || "",
+        routeTarget: p.routeTarget,
+        gatewayValid: p.gatewayValid !== false,
+        guildCandidateCount: typeof p.guildCandidateCount === "number" ? p.guildCandidateCount : 0,
+        chronicleRefCount: typeof p.chronicleRefCount === "number" ? p.chronicleRefCount : 0,
+      },
     };
   }
 

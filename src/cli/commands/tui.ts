@@ -411,7 +411,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
     if (task.toLowerCase() === "t") {
-      const filters = ["all", "policy", "approval", "continuation", "tool", "task", "session", "daemon", "runtime", "replay", "rollback"] as const;
+      const filters = ["all", "policy", "approval", "continuation", "tool", "task", "session", "daemon", "runtime", "replay", "rollback", "ifamas"] as const;
       const current = store.getState().traceFilter;
       const idx = filters.indexOf(current);
       const next = filters[(idx + 1) % filters.length];
@@ -721,7 +721,10 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         const signal = createSignalFrame({ bits, domain: "task", intent: selected.label ?? "trace-event" });
 
         try {
-          const diagnostic = await runIfamasDiagnostic({ signal });
+          const diagnostic = await runIfamasDiagnostic({
+            signal,
+            eventLog: tuiLog,
+          });
           const { formatIfamasPanel } = await import("../../tui/ifamas-panel.js");
 
           const panelData = {
@@ -740,6 +743,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
 
           const panelLines = formatIfamasPanel(panelData);
           tui.appendOutput(panelLines.join("\n") + "\n", false);
+          tui.appendOutput("Diagnostic recorded as trace event.\n", false);
         } catch (err: any) {
           tui.appendOutput("IFÁ-MAS diagnostic error: " + err.message + "\n", false);
         }
