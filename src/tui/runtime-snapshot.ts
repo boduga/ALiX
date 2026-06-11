@@ -34,6 +34,8 @@ export interface TuiRuntimeSnapshot {
   workspaceName?: string;
   workspacePath?: string;
   recentWorkspaces?: { path: string; name: string; lastUsed: string; taskCount: number; status: string }[];
+  replayIndexData?: import("../runtime/replay-status-index.js").ReplayStatusIndexData;
+  replayLockStates?: Record<string, boolean>;
 }
 
 /** Build a fresh snapshot from disk. Returns null on failure. */
@@ -166,6 +168,21 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
     snapshot.traceEvents = traceEvents;
     snapshot.traceEventCount = traceEvents.length;
 
+    // Replays index
+    const { ReplayStatusIndex } = await import("../runtime/replay-status-index.js");
+    const { ReplayLock } = await import("../runtime/replay-lock.js");
+    const replayStatusIndex = new ReplayStatusIndex(cwd);
+    const replayLock = new ReplayLock(cwd);
+    const replayData = await replayStatusIndex.load();
+    if (replayData.entries.length > 0) {
+      snapshot.replayIndexData = replayData;
+      const lockStates: Record<string, boolean> = {};
+      for (const entry of replayData.entries) {
+        lockStates[entry.replayId] = await replayLock.isLocked(entry.replayId);
+      }
+      snapshot.replayLockStates = lockStates;
+    }
+
     return snapshot;
   } catch {
     return null;
@@ -193,4 +210,6 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   store.setTraceEvents(snapshot.traceEvents);
   store.setWorkspaceInfo(snapshot.workspaceName ?? "", snapshot.workspacePath ?? "");
   store.setRecentWorkspaces(snapshot.recentWorkspaces ?? []);
+  store.setReplayIndexData(snapshot.replayIndexData);
+  store.setReplayLockStates(snapshot.replayLockStates ?? {});
 }
