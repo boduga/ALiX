@@ -160,8 +160,9 @@ export function buildReplayPreview(
     };
   });
 
-  // Determine replayability
-  const hasToolStep = chain.some(s => s.replayAction === "would-run-tool");
+  // Determine replayability — check both chain and selected event
+  const selectedClassification = classifyReplayStep(selected);
+  const hasToolStep = chain.some(s => s.replayAction === "would-run-tool") || selectedClassification.action === "would-run-tool";
   const hasDeniedApproval = chain.some(s => s.status === "not-replayable" && s.eventType === "approval.resolved");
   const hasMissingPayload = chain.some(s => s.status === "not-replayable" && s.replayAction === "would-run-tool");
   const blockedSteps = chain.filter(s => s.status === "blocked" || s.status === "not-replayable");
