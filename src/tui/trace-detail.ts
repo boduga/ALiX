@@ -1,11 +1,12 @@
 /**
  * trace-detail.ts — Detail panel renderers for the Trace drilldown.
  *
- * Four modes: summary, json, links, chain.
+ * Five modes: summary, json, links, chain, replay.
  * Each returns an array of lines to display in the detail section.
  */
 
 import type { TraceEvent } from "../runtime/trace-events.js";
+import type { ReplayPreview } from "../runtime/replay-preview.js";
 
 export function renderTraceSummary(event: TraceEvent): string[] {
   const lines: string[] = [];
@@ -67,5 +68,54 @@ export function renderTraceChain(
     const icon = e.status ? (iconMap[e.status] || " ") : " ";
     lines.push(`  ${marker} ${time} ${icon} ${e.sourceType.padEnd(12)} ${e.label.slice(0, 40)}`);
   }
+  return lines;
+}
+
+export function renderTraceReplay(preview: ReplayPreview): string[] {
+  const lines: string[] = [];
+  lines.push(`  Selected: ${preview.chain.length > 0 ? preview.chain[0]?.label : "?"}`);
+  lines.push(`  Replayable: ${preview.replayable ? "✓ yes" : "✗ no"}`);
+  if (preview.reason) lines.push(`  Reason: ${preview.reason}`);
+  lines.push("");
+
+  if (preview.chain.length > 0) {
+    lines.push("  Chain:");
+    for (const step of preview.chain) {
+      const iconMap: Record<string, string> = {
+        safe: "●", blocked: "✗", "requires-approval": "○", "not-replayable": "✗",
+      };
+      const icon = iconMap[step.status] || " ";
+      const action = step.replayAction.padEnd(24);
+      lines.push(`  ${icon} ${step.index}. ${action} ${step.label.slice(0, 40)}`);
+      if (step.detail) lines.push(`       ${step.detail.slice(0, 60)}`);
+    }
+  }
+
+  lines.push("");
+  lines.push("  Boundaries:");
+  if (preview.boundaries.policyDecisionIds.length > 0) {
+    lines.push(`    Policy:      ${preview.boundaries.policyDecisionIds.join(", ")}`);
+  }
+  if (preview.boundaries.approvalIds.length > 0) {
+    lines.push(`    Approval:    ${preview.boundaries.approvalIds.join(", ")}`);
+  }
+  if (preview.boundaries.continuationIds.length > 0) {
+    lines.push(`    Continuation: ${preview.boundaries.continuationIds.join(", ")}`);
+  }
+  if (preview.boundaries.toolCallIds.length > 0) {
+    lines.push(`    ToolCall:    ${preview.boundaries.toolCallIds.join(", ")}`);
+  }
+  if (preview.sessionId) {
+    lines.push(`    Session:     ${preview.sessionId}`);
+  }
+
+  if (preview.warnings.length > 0) {
+    lines.push("");
+    lines.push("  Warnings:");
+    for (const w of preview.warnings) {
+      lines.push(`    ⚠ ${w}`);
+    }
+  }
+
   return lines;
 }

@@ -261,6 +261,11 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         renderPanelContent(store, tui);
         continue;
       }
+      if (task.toLowerCase() === "p") {
+        store.setTraceDetailMode("replay");
+        renderPanelContent(store, tui);
+        continue;
+      }
     }
 
     if (task.toLowerCase() === "r" || task.toLowerCase() === "refresh") {

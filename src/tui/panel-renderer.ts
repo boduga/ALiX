@@ -4,8 +4,9 @@
 
 import type { TuiStore } from "./store.js";
 import type { Tui } from "./index.js";
-import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain } from "./trace-detail.js";
+import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain, renderTraceReplay } from "./trace-detail.js";
 import { traceChainContext } from "../runtime/trace-events.js";
+import { buildReplayPreview } from "../runtime/replay-preview.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
 export function renderPanelContent(store: TuiStore, tui: Tui): number {
@@ -125,10 +126,13 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
         else if (mode === "chain") {
           const chain = traceChainContext(s.traceEvents, selected);
           detailLines = renderTraceChain(selected, chain);
+        } else if (mode === "replay") {
+          const preview = buildReplayPreview(selected, s.traceEvents);
+          detailLines = renderTraceReplay(preview);
         }
         buf.push(`  Mode: ${mode}`);
         buf.push(...detailLines);
-        buf.push("  Keys: j=json  l=links  c=chain  s=summary  esc=close");
+        buf.push("  Keys: j=json  l=links  c=chain  s=summary  p=replay  esc=close");
       }
     }
     buf.push(`  t=filter  r=refresh`);
