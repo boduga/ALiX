@@ -696,6 +696,135 @@ export async function runTui(opts: TuiOptions): Promise<void> {
         continue;
       }
 
+      // Check for /batch commands
+      if (task.startsWith("/batch ")) {
+        const args = task.slice("/batch ".length).trim().split(/\s+/);
+        const subcommand = args[0];
+
+        if (subcommand === "select") {
+          const replayId = args[1];
+          if (!replayId) {
+            tui.appendOutput("Usage: /batch select <replayId>\n", false);
+            continue;
+          }
+          store.addSelectedReplayId(replayId);
+          tui.appendOutput(`Selected: ${replayId}\n`, false);
+          continue;
+        }
+
+        if (subcommand === "deselect") {
+          const replayId = args[1];
+          if (!replayId) {
+            tui.appendOutput("Usage: /batch deselect <replayId>\n", false);
+            continue;
+          }
+          store.removeSelectedReplayId(replayId);
+          tui.appendOutput(`Deselected: ${replayId}\n`, false);
+          continue;
+        }
+
+        if (subcommand === "clear") {
+          store.clearSelectedReplayIds();
+          tui.appendOutput("Selection cleared.\n", false);
+          continue;
+        }
+
+        if (subcommand === "list") {
+          const ids = store.getState().selectedReplayIds;
+          if (ids.length === 0) {
+            tui.appendOutput("No replays selected. Use /batch select <replayId>.\n", false);
+          } else {
+            tui.appendOutput(`Selected replays (${ids.length}):\n`, false);
+            for (const id of ids) {
+              tui.appendOutput(`  ${id}\n`, false);
+            }
+          }
+          continue;
+        }
+
+        if (subcommand === "rollback-preview") {
+          const selectedIds = store.getState().selectedReplayIds;
+          if (selectedIds.length === 0) {
+            tui.appendOutput("No replays selected. Use /batch select <replayId> first.\n", false);
+            continue;
+          }
+
+          const { ReplayDiffStore } = await import("../../runtime/replay-diff-store.js");
+          const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+          const { buildBatchRollbackPreview, formatBatchRollbackPreview } = await import("../../runtime/batch-preview.js");
+
+          const diffStore = new ReplayDiffStore(activeCwd, new ReplayStatusIndex(activeCwd));
+          const diffSets = new Map<string, import("../../runtime/replay-diff-store.js").ReplayDiffSet>();
+
+          let errorCount = 0;
+          for (const id of selectedIds) {
+            const ds = await diffStore.loadIndex(id);
+            if (ds && ds.records.length > 0) {
+              diffSets.set(id, ds);
+            } else {
+              tui.appendOutput(`  ⚠ No diff data for: ${id}\n`, false);
+              errorCount++;
+            }
+          }
+
+          if (diffSets.size === 0) {
+            tui.appendOutput("No diff data found for any selected replay.\n", false);
+            continue;
+          }
+
+          const preview = await buildBatchRollbackPreview(diffSets);
+          const lines = formatBatchRollbackPreview(preview);
+          tui.appendOutput(lines.join("\n") + "\n", false);
+          continue;
+        }
+
+        if (subcommand === "replay-preview") {
+          const selectedIds = store.getState().selectedReplayIds;
+          if (selectedIds.length === 0) {
+            tui.appendOutput("No replays selected. Use /batch select <replayId> first.\n", false);
+            continue;
+          }
+
+          const { ReplayStatusIndex } = await import("../../runtime/replay-status-index.js");
+          const statusIndex = new ReplayStatusIndex(activeCwd);
+
+          const lines: string[] = [];
+          lines.push(`Batch Replay Preview (${selectedIds.length} replays selected)`);
+          lines.push("═══════════════════════════════════════════");
+
+          let hasWarnings = false;
+
+          for (const id of selectedIds) {
+            const entry = await statusIndex.getEntry(id);
+            if (!entry) {
+              lines.push(`  ${id}: (not found in index)`);
+              continue;
+            }
+            const mode = entry.replayMode || "dry-run";
+            lines.push(`  ${id} (${mode}):`);
+            lines.push(`    Status: ${entry.status}`);
+            if (entry.status === "rollback-partial") {
+              lines.push(`    ⚠ Partial rollback detected -- rollback --resume recommended`);
+              hasWarnings = true;
+            }
+          }
+
+          lines.push("");
+          lines.push("Safety Summary:");
+          lines.push(`  Total replays:   ${selectedIds.length}`);
+          if (hasWarnings) {
+            lines.push("  ⚠ Some replays have warnings -- review before execution");
+          }
+
+          tui.appendOutput(lines.join("\n") + "\n", false);
+          continue;
+        }
+
+        // Unknown subcommand
+        tui.appendOutput("Unknown /batch command. Available: select, deselect, clear, list, replay-preview, rollback-preview\n", false);
+        continue;
+      }
+
       if (daemonMode) {
         // Classify locally, send the route to the daemon
         const route = taskRouter(task);
