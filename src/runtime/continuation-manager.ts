@@ -1,0 +1,64 @@
+/**
+ * continuation-manager.ts — Resume blocked tool calls after approval.
+ *
+ * Verifies approval status, argsHash integrity, then re-executes the
+ * original tool call. Each continuation is one-shot — removed on resume.
+ */
+
+import type { ApprovalStore } from "../approvals/approval-store.js";
+import type { ContinuationStore } from "./continuation-store.js";
+
+export interface ContinuationManagerDeps {
+  continuationStore: ContinuationStore;
+  approvalStore: ApprovalStore;
+  executeTool: (toolCall: {
+    toolCallId: string;
+    name: string;
+    args: Record<string, unknown>;
+  }) => Promise<{ kind: string; output?: string; content?: string; message?: string }>;
+}
+
+export class ContinuationManager {
+  constructor(private deps: ContinuationManagerDeps) {}
+
+  /**
+   * Resume a blocked tool call after approval.
+   * Returns the tool result or an error message.
+   */
+  async resumeApproved(approvalId: string): Promise<{ resumed: boolean; output?: string; error?: string }> {
+    // 1. Verify approval is actually approved
+    const approval = this.deps.approvalStore.get(approvalId);
+    if (!approval) {
+      return { resumed: false, error: `Approval not found: ${approvalId}` };
+    }
+    if (approval.status !== "approved") {
+      return { resumed: false, error: `Approval ${approvalId} status is '${approval.status}', not 'approved'` };
+    }
+
+    // 2. Look up continuation
+    const cont = this.deps.continuationStore.findByApprovalId(approvalId);
+    if (!cont) {
+      return { resumed: false, error: `No continuation record for approval: ${approvalId}` };
+    }
+    if (cont.kind !== "tool" || !cont.toolCall) {
+      return { resumed: false, error: `Continuation '${cont.kind}' cannot be resumed (only 'tool' supported in M0.30)` };
+    }
+
+    // 3. Verify argsHash integrity
+    const { hashArgs } = await import("../tools/executor.js");
+    const currentHash = hashArgs(cont.toolCall.args);
+    if (currentHash !== cont.toolCall.argsHash) {
+      return { resumed: false, error: `Args hash mismatch — expected ${cont.toolCall.argsHash}, got ${currentHash}. Continuation rejected for safety.` };
+    }
+
+    // 4. Remove continuation (one-shot)
+    await this.deps.continuationStore.remove(approvalId);
+
+    // 5. Re-execute
+    const result = await this.deps.executeTool(cont.toolCall);
+    if (result.kind === "success") {
+      return { resumed: true, output: result.output || result.content || "(tool completed)" };
+    }
+    return { resumed: false, error: result.kind === "error" ? result.message : "Tool request denied" };
+  }
+}
