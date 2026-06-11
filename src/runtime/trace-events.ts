@@ -15,7 +15,8 @@ export type TraceSourceType =
   | "task"
   | "session"
   | "daemon"
-  | "runtime";
+  | "runtime"
+  | "replay";
 
 export type TraceEventFilter = "all" | TraceSourceType;
 
@@ -167,6 +168,20 @@ export function toTraceEvent(event: {
       detail: p?.error || "",
       sessionId: p?.sessionId,
       taskId: p?.id || p?.taskId,
+    };
+  }
+
+  // Replay lifecycle
+  if (type.startsWith("replay.")) {
+    const p = payload as any;
+    return {
+      id, timestamp: ts, rawEvent,
+      sourceType: "replay",
+      eventType: type,
+      label: `replay ${type.replace("replay.", "")}`,
+      status: type.includes("blocked") || type.includes("failed") ? "failed" : "success",
+      detail: p.reason || p.blockReason || "",
+      sessionId: p.sessionId,
     };
   }
 

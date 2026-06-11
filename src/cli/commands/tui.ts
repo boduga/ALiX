@@ -285,7 +285,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
     if (task.toLowerCase() === "t") {
-      const filters = ["all", "policy", "approval", "continuation", "tool", "task", "session", "daemon", "runtime"] as const;
+      const filters = ["all", "policy", "approval", "continuation", "tool", "task", "session", "daemon", "runtime", "replay"] as const;
       const current = store.getState().traceFilter;
       const idx = filters.indexOf(current);
       const next = filters[(idx + 1) % filters.length];

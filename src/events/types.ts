@@ -362,6 +362,59 @@ export const APPROVAL_EVENT_TYPES = {
   CONTINUATION_CONSUMED: "continuation.consumed",
 } as const;
 
+// ─── Replay lifecycle event types ───────────────────────────
+
+export const REPLAY_EVENT_TYPES = {
+  PLAN_CREATED: "replay.plan.created",
+  STARTED: "replay.started",
+  STEP_STARTED: "replay.step.started",
+  STEP_COMPLETED: "replay.step.completed",
+  STEP_SKIPPED: "replay.step.skipped",
+  STEP_BLOCKED: "replay.step.blocked",
+  COMPLETED: "replay.completed",
+  FAILED: "replay.failed",
+} as const;
+
+export type ReplayPlanCreatedPayload = {
+  mode: string;
+  stepCount: number;
+  toolCount: number;
+  blockedSteps: number;
+};
+
+export type ReplayStartedPayload = {
+  mode: string;
+  sessionId: string;
+};
+
+export type ReplayStepPayload = {
+  stepIndex: number;
+  traceId: string;
+  action: string;
+  toolName?: string;
+  status?: "completed" | "skipped" | "blocked" | "failed";
+  outputPreview?: string;
+  blockReason?: string;
+  error?: string;
+  durationMs?: number;
+};
+
+export type ReplayCompletedPayload = {
+  mode: string;
+  stepCount: number;
+  successCount: number;
+  blockedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  totalDurationMs: number;
+};
+
+export type ReplayFailedPayload = {
+  mode: string;
+  reason: string;
+  stepIndex?: number;
+};
+
 /**
  * Stable payload shape for all approval lifecycle events.
  * This is the audit contract — every approval event carries these fields.
