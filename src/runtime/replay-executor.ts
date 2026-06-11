@@ -12,6 +12,7 @@ import type { ReplayAction } from "./replay-preview.js";
 import type { ReplayPlan, ReplayPlanStep, ReplayMode } from "./replay-plan.js";
 import { existsSync } from "node:fs";
 import type { ApprovalStore } from "../approvals/approval-store.js";
+import type { ReplayDiffStore } from "./replay-diff-store.js";
 import { readFile, searchDir } from "../tools/file-tools.js";
 
 // -- Types ---------------------------------------------------------------
@@ -65,6 +66,7 @@ async function replayToolStep(
   step: ReplayPlanStep,
   mode: ReplayMode,
   cwd: string,
+  opts?: { replayId?: string; diffStore?: ReplayDiffStore },
 ): Promise<Pick<ReplayStepResult, "status" | "output" | "error" | "blockReason">> {
   const toolName = step.toolName || "";
   const args = step.args || {};
@@ -80,37 +82,112 @@ async function replayToolStep(
     return { status: "completed", output: result.output || "" };
   }
 
-  // Approved-live file.create: execute for real
+  // Approved-live file.create: execute for real with diff capture
   if (toolName === "file.create" && mode === "approved-live") {
     const path = String(args.path || "");
     const content = args.content !== undefined ? String(args.content) : "";
     const { mkdir, writeFile } = await import("node:fs/promises");
     const { dirname, resolve } = await import("node:path");
     const resolvedPath = resolve(cwd, path);
+
+    // Capture before (will be null for new file)
+    const beforePath = opts?.replayId && opts?.diffStore
+      ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
+
     await mkdir(dirname(resolvedPath), { recursive: true });
     await writeFile(resolvedPath, content, "utf8");
+
+    // Capture after
+    if (opts?.replayId && opts?.diffStore) {
+      const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
+      const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
+      await opts.diffStore.appendRecord(opts.replayId, {
+        filePath: path,
+        changeType: "created",
+        beforeSnapshotPath: beforePath || undefined,
+        afterSnapshotPath: afterPath || undefined,
+        diffPreview: diffOutput.slice(0, 2000),
+        diffSize: diffOutput.length,
+        rollbackable: false,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return { status: "completed", output: `File created: ${path}` };
   }
 
-  // Approved-live file.delete: execute for real
+  // Approved-live file.delete: execute for real with diff capture
   if (toolName === "file.delete" && mode === "approved-live") {
     const path = String(args.path || "");
     const { rm } = await import("node:fs/promises");
     const { resolve } = await import("node:path");
     const resolvedPath = resolve(cwd, path);
+
+    // Capture before
+    const beforePath = opts?.replayId && opts?.diffStore
+      ? await opts.diffStore.captureBefore(opts.replayId, path) : null;
+
     await rm(resolvedPath);
+
+    // Capture after (will be null since file was deleted)
+    if (opts?.replayId && opts?.diffStore) {
+      const afterPath = await opts.diffStore.captureAfter(opts.replayId, path);
+      const diffOutput = await opts.diffStore.computeDiff(opts.replayId, path);
+      await opts.diffStore.appendRecord(opts.replayId, {
+        filePath: path,
+        changeType: "deleted",
+        beforeSnapshotPath: beforePath || undefined,
+        afterSnapshotPath: afterPath || undefined,
+        diffPreview: diffOutput.slice(0, 2000),
+        diffSize: diffOutput.length,
+        rollbackable: true,
+        timestamp: new Date().toISOString(),
+      });
+    }
+
     return { status: "completed", output: `File deleted: ${path}` };
   }
 
-  // Approved-live patch.apply: execute for real
+  // Approved-live patch.apply: execute for real with diff capture
   if (toolName === "patch.apply" && mode === "approved-live") {
-    const format = (args.format || "search_replace") as import("../patch/edit-format-policy.js").EditFormat;
+    const format = (args.format || "search_replace") as any;
     const patchText = String(args.patchText || "");
     const { applyPatch } = await import("../patch/patch-engine.js");
+    const { extractPatchPaths } = await import("../patch/patch-paths.js");
+
+    // Extract files that will be changed before applying
+    const changedByPatch = extractPatchPaths(format, patchText);
+
+    // Capture before for each file
+    const beforePaths: Record<string, string | null> = {};
+    if (opts?.replayId && opts?.diffStore) {
+      for (const f of changedByPatch) {
+        beforePaths[f] = await opts.diffStore.captureBefore(opts.replayId, f);
+      }
+    }
+
+    // Execute the patch
     try {
-      const result = await applyPatch(cwd, format, patchText);
-      if (result.status === "applied") {
-        return { status: "completed", output: `Patch applied: ${result.changedFiles?.join(", ") || "ok"}` };
+      const result = await applyPatch(cwd as string, format, patchText);
+      if (result.status === "applied" && result.changedFiles) {
+        // After capture + diff
+        if (opts?.replayId && opts?.diffStore) {
+          for (const f of result.changedFiles) {
+            const afterPath = await opts.diffStore.captureAfter(opts.replayId, f);
+            const diffOutput = await opts.diffStore.computeDiff(opts.replayId, f);
+            await opts.diffStore.appendRecord(opts.replayId, {
+              filePath: f,
+              changeType: beforePaths[f] !== null ? "modified" : "created",
+              beforeSnapshotPath: beforePaths[f] || undefined,
+              afterSnapshotPath: afterPath || undefined,
+              diffPreview: diffOutput.slice(0, 2000),
+              diffSize: diffOutput.length,
+              rollbackable: beforePaths[f] !== null,
+              timestamp: new Date().toISOString(),
+            });
+          }
+        }
+        return { status: "completed", output: `Patch applied: ${result.changedFiles.join(", ")}` };
       }
       return { status: "failed", error: "Patch invalid" };
     } catch (err: any) {
@@ -269,6 +346,7 @@ export function classifySideEffect(toolName: string): SideEffectLevel {
 
 export type ReplayExecuteOptions = {
   approvalStore?: ApprovalStore;
+  diffStore?: ReplayDiffStore;
 };
 
 // -- ReplayExecutor -------------------------------------------------------
@@ -405,7 +483,10 @@ export class ReplayExecutor {
       }
 
       try {
-        const toolResult = await replayToolStep(step, plan.mode, this.cwd);
+        const toolResult = await replayToolStep(step, plan.mode, this.cwd, {
+          replayId: plan.replayId,
+          diffStore: opts?.diffStore,
+        });
         await this.logEvent(REPLAY_EVENT_TYPES.STEP_COMPLETED, {
           stepIndex: step.index, traceId: step.traceId, action: step.replayAction,
           toolName: step.toolName, status: toolResult.status, outputPreview: (toolResult.output || "").slice(0, 200),

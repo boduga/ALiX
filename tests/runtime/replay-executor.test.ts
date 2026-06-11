@@ -268,4 +268,43 @@ describe("ReplayExecutor approved-live mode", () => {
     assert.ok(result.replayId);
     assert.ok(result.replayId!.startsWith("replay_"));
   });
+
+  it("captures diff for file.create during approved-live replay", async () => {
+    const { ReplayDiffStore } = await import("../../src/runtime/replay-diff-store.js");
+    const diffStore = new ReplayDiffStore(tmpDir);
+    const newFilePath = join(tmpDir, "diff-captured.txt");
+    const events = [
+      makeEvent({ id: "e1", eventType: "file.create", label: "file.create test.txt", toolName: "file.create",
+        toolCallId: "tc1", rawEvent: { payload: { toolName: "file.create", args: { path: "diff-captured.txt", content: "diff captured content" } } } }),
+    ];
+    const preview = buildReplayPreview(events[0], events);
+    const plan = buildReplayPlan(preview, events, "approved-live");
+
+    // Resolve any pending approvals
+    const pending = approvalStore.listPending();
+    for (const a of pending) {
+      await approvalStore.resolve(a.id, "approved");
+    }
+
+    const result = await executor.execute(plan, { approvalStore, diffStore });
+    const createStep = result.steps.find(s => s.toolName === "file.create");
+    assert.ok(createStep);
+    assert.equal(createStep.status, "completed");
+
+    // Verify diff was captured
+    const index = await diffStore.loadIndex(plan.replayId!);
+    assert.ok(index);
+    assert.ok(index!.records.length >= 1);
+    const record = index!.records.find(r => r.filePath === "diff-captured.txt");
+    assert.ok(record);
+    assert.equal(record!.changeType, "created");
+    assert.equal(record!.rollbackable, false);
+    assert.equal(existsSync(newFilePath), true);
+    assert.equal(readFileSync(newFilePath, "utf-8"), "diff captured content");
+
+    // Verify directory structure
+    const replayDir = join(tmpDir, ".alix", "replays", plan.replayId!);
+    assert.ok(existsSync(replayDir));
+    assert.ok(existsSync(join(replayDir, "index.json")));
+  });
 });
