@@ -42,10 +42,20 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
     if (s.pendingApprovalRecords && s.pendingApprovalRecords.length > 0) {
       for (const a of s.pendingApprovalRecords) {
         buf.push(`  ${a.id}  ${a.capability || "?"}  ${(a.reason || "").slice(0, 40)}`);
-        buf.push(`    alix approvals approve ${a.id}`);
+        buf.push(`    /approve ${a.id} or /deny ${a.id}`);
       }
     } else {
-      buf.push("No pending approvals.");
+      buf.push("  No pending approvals.");
+    }
+    if (s.resolvedApprovalRecords && s.resolvedApprovalRecords.length > 0) {
+      buf.push(`Resolved: ${s.resolvedApprovalsCount || 0}`);
+      for (const a of s.resolvedApprovalRecords.slice(0, 8)) {
+        const marker = a.status === "approved" ? "✓" : "✗";
+        buf.push(`  ${marker} ${a.id}  ${a.capability || "?"}  ${a.status || "?"}  ${(a.reason || "").slice(0, 30)}`);
+      }
+    }
+    if (s.continuationsCount) {
+      buf.push(`Continuations: ${s.continuationsCount}`);
     }
   } else if (s.activePanel === "sops") {
     buf.push("── SOP Packs ────────────────────────────");
