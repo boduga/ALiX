@@ -1,13 +1,15 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { mkdtempSync, rmSync, readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 
 import { runIfamasDiagnostic, type IfamasDiagnostic } from "../../src/runtime/ifamas-pipeline.js";
 import { createSignalFrame } from "../../src/runtime/signal-frame.js";
 import type { SignalBits, SignalFrame } from "../../src/runtime/signal-frame.js";
 import type { EssenceProfile } from "../../src/agents/essence-profile.js";
+import { ChronicleStore } from "../../src/chronicle/chronicle-store.js";
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -228,6 +230,48 @@ describe("IFÁ-MAS Passive Diagnostic Pipeline", () => {
     const result = await runIfamasDiagnostic({
       signal,
       eventLog: brokenEventLog as any,
+    });
+
+    assert.ok(result);
+    assert.equal(result.signal.signalId, signal.signalId);
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  13. Creates Chronicle entry                                      */
+  /* ---------------------------------------------------------------- */
+
+  it("creates Chronicle entry when chronicleStore is provided", async () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "chronicle-test-"));
+    const chronicleStore = new ChronicleStore(tmpDir);
+    const signal = makeSafeSignal();
+
+    const result = await runIfamasDiagnostic({
+      signal,
+      chronicleStore,
+    });
+
+    const entries = await chronicleStore.search({ domain: signal.domain });
+    assert.ok(entries.length >= 1);
+    assert.equal(entries[0].signalCode, signal.code);
+    assert.ok(entries[0].offeringsUsed.length >= 1);
+
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  14. Does not throw when chronicleStore.append fails              */
+  /* ---------------------------------------------------------------- */
+
+  it("does not throw when chronicleStore.append fails", async () => {
+    const brokenStore = {
+      search: async () => [],
+      append: async () => { throw new Error("storage error"); },
+    } as any;
+
+    const signal = makeSafeSignal();
+    const result = await runIfamasDiagnostic({
+      signal,
+      chronicleStore: brokenStore,
     });
 
     assert.ok(result);
