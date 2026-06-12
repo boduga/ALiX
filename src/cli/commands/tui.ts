@@ -198,6 +198,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   // Welcome text
   tui.appendOutput("ALiX TUI - Interactive Session", false);
   const execMode = daemonMode ? "daemon" : "direct";
+  const modeIcon = mode === "bypass" ? "⚠" : mode === "auto" ? "●" : "✓";
   tui.appendOutput(`Execution mode: ${execMode} | Session: ${mode}${daemonInfo}`, false);
   const wsName = snapshot?.workspaceName ?? activeCwd.split("/").pop() ?? "";
   tui.appendOutput(`Workspace: ${wsName}`, false);
