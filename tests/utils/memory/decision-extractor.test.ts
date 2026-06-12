@@ -204,7 +204,8 @@ test("promptDecisionConfirmation() sets confirmations to 1 on confirmed entry", 
     },
   ];
 
-  // In non-TTY, confirmations should be set to 1
+  // In non-TTY, confidence should be set to 0.6 (auto-confirmed)
   const confirmed = await promptDecisionConfirmation(decisions);
-  assert.equal(confirmed[0].confirmations, 1, "Confirmations should be 1");
+  assert.equal(confirmed[0].confidence, 0.6, "Confidence should be set to 0.6 in non-TTY");
+  assert.equal(confirmed[0].confirmations, 0, "Confirmations should stay 0 in non-TTY");
 });
