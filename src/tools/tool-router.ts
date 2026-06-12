@@ -203,10 +203,9 @@ export class ShellToolRouter implements ToolRouter {
     // Uses boundary-aware patterns to avoid false positives (.git != .gitignore).
     if (command && this.pathResolver) {
       const sensitivePathPatterns: { pattern: RegExp; name: string }[] = [
-        { pattern: /\b\.alix\b/, name: ".alix" },
-        { pattern: /\b\.ssh\b/, name: ".ssh" },
-        { pattern: /\b\.git\b/, name: ".git" },
-        { pattern: /\b\.env\b/, name: ".env" },
+        // Path-based patterns: match .alix, .ssh, .git, .env when preceded by
+        // space, slash, tilde, or start-of-string (the real ways paths appear).
+        { pattern: /(?:^|\s|\/|~)\.(?:alix|ssh|git|env)(?:$|\/|\s)/, name: ".alix/.ssh/.git/.env" },
         { pattern: /\bid_rsa\b/, name: "id_rsa" },
         { pattern: /\bid_ed25519\b/, name: "id_ed25519" },
         { pattern: /\bknown_hosts\b/, name: "known_hosts" },
