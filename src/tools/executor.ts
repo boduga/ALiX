@@ -56,6 +56,12 @@ export type ToolCallRequest = {
   name: string;
   args: Record<string, unknown>;
   replayId?: string;
+  /**
+   * When set to "continuation-resume", the tool executor will bypass
+   * PolicyGate. Only set by ContinuationManager after approval is
+   * already verified — never set from user input.
+   */
+  source?: string;
 };
 
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
@@ -125,6 +131,13 @@ export class ToolExecutor {
     const replayPayloadFields = request.replayId ? { replayId: request.replayId } : {};
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
+
+    // Continuation resumes bypass PolicyGate — approval was already verified
+    // by ContinuationManager. Only set from resumeApproved(), never from user input.
+    if (request.source === "continuation-resume") {
+      await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
+      return await this.router.execute(request);
+    }
 
     // Single policy decision via PolicyGate
     const { PolicyGate } = await import("../policy/policy-gate.js");

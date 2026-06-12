@@ -394,7 +394,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
                 approvalStore,
                 executeTool: async (tc) => {
                   const executor = new ToolExecutor(activeConfig, tuiLog, activeCwd, undefined, undefined, undefined, undefined, approvalStore);
-                  const result = await executor.execute(tc);
+                  const result = await executor.execute({ ...tc, source: "continuation-resume" });
                   return result;
                 },
               });
@@ -572,7 +572,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
               approvalStore,
               executeTool: async (tc) => {
                 const executor = new ToolExecutor(activeConfig, tuiLog, activeCwd, undefined, undefined, undefined, undefined, approvalStore);
-                const result = await executor.execute(tc);
+                const result = await executor.execute({ ...tc, source: "continuation-resume" });
                 return result;
               },
             });
