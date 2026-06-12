@@ -52,6 +52,91 @@ const NATURAL_SHELL_MAP: Record<string, string> = {
 };
 
 /**
+ * Regex patterns for natural-language file operations.
+ */
+const FILE_WRITE_PATTERN = /^(?:write|put|save)\s+(.+?)\s+(?:to|into|in|as)\s+(.+)$/i;
+const FILE_APPEND_PATTERN = /^(?:append|add)\s+(.+?)\s+(?:to|into)\s+(.+)$/i;
+const FILE_DELETE_PATTERN = /^(?:delete|remove|rm)\s+(.+)$/i;
+const FILE_READ_PATTERN = /^(?:show|read|cat|display|view|print|get)\s+(.+)$/i;
+const FILE_CREATE_WITH_CONTENT = /^create\s+(.+?)\s+(?:with|containing|that says)\s+(.+)$/i;
+const FILE_DELETE_DIR_PATTERN = /^(?:delete|remove)\s+(?:directory|folder|dir)\s+(.+)$/i;
+
+/**
+ * Shell-quote a string safely. Wraps in single quotes and escapes
+ * any single quotes inside.
+ */
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Strip surrounding quotes if present.
+ */
+function stripOuterQuotes(value: string): string {
+  const trimmed = value.trim();
+  if (
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"))
+  ) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
+}
+
+/**
+ * Try to match a file operation from natural language.
+ * Returns a shell command with shell-quoted args if matched, null otherwise.
+ */
+function matchNaturalFileOperation(task: string): string | null {
+  const trimmed = task.trim();
+  const content = (s: string) => stripOuterQuotes(s.trim());
+
+  // "write X to Y" → printf '%s\n' 'X' > 'Y'
+  let match = trimmed.match(FILE_WRITE_PATTERN);
+  if (match) {
+    return `printf '%s\\n' ${shellQuote(content(match[1]))} > ${shellQuote(match[2].trim())}`;
+  }
+
+  // "create Y with X" → printf '%s\n' 'X' > 'Y'
+  match = trimmed.match(FILE_CREATE_WITH_CONTENT);
+  if (match) {
+    return `printf '%s\\n' ${shellQuote(content(match[2]))} > ${shellQuote(match[1].trim())}`;
+  }
+
+  // "append X to Y" → printf '%s\n' 'X' >> 'Y'
+  match = trimmed.match(FILE_APPEND_PATTERN);
+  if (match) {
+    const filePath = match[2].trim();
+    // Guard against false positives like "add a new button to the dashboard"
+    // Only match if the target looks like a file path: has extension, contains
+    // a slash, or is a single token (no spaces).
+    if (filePath.includes("/") || /\.\w+$/.test(filePath) || !/\s/.test(filePath)) {
+      return `printf '%s\\n' ${shellQuote(content(match[1]))} >> ${shellQuote(filePath)}`;
+    }
+  }
+
+  // "delete directory Y" → rm -rf -- 'Y'
+  match = trimmed.match(FILE_DELETE_DIR_PATTERN);
+  if (match) {
+    return `rm -rf -- ${shellQuote(match[1].trim())}`;
+  }
+
+  // "delete Y" → rm -- 'Y'
+  match = trimmed.match(FILE_DELETE_PATTERN);
+  if (match) {
+    return `rm -- ${shellQuote(match[1].trim())}`;
+  }
+
+  // "show Y" → cat -- 'Y'
+  match = trimmed.match(FILE_READ_PATTERN);
+  if (match) {
+    return `cat -- ${shellQuote(match[1].trim())}`;
+  }
+
+  return null;
+}
+
+/**
  * Normalize task text for natural-phrase matching.
  */
 function normalizePhrase(task: string): string {
@@ -73,6 +158,7 @@ function matchNaturalShellPhrase(task: string): string | null {
  * Classification priority:
  * 1. Shell commands (bare commands like "ls", "cat", "pwd") → tool via shell.run
  * 2. Natural-language shell phrases ("list files", "where am i") → tool via shell.run
+ * 2b. Natural-language file operations ("write X to Y") → tool via shell.run
  * 3. Grounded questions (current events, web search, versions) → grounded_chat
  * 4. Research/docs tasks → chat (direct model, no tools)
  * 5. Everything else (feature, bugfix, refactor, unknown) → full agent loop
@@ -94,6 +180,16 @@ export function taskRouter(task: string): TaskRoute {
       kind: "tool",
       tool: "shell.run",
       args: { command: naturalShellCommand },
+    };
+  }
+
+  // 2b. Natural-language file operations — route to shell.run tool
+  const naturalFileCommand = matchNaturalFileOperation(task);
+  if (naturalFileCommand) {
+    return {
+      kind: "tool",
+      tool: "shell.run",
+      args: { command: naturalFileCommand },
     };
   }
 
