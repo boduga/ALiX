@@ -156,10 +156,26 @@ export class FileToolRouter implements ToolRouter {
 export class ShellToolRouter implements ToolRouter {
   private shellPool?: ShellPool;
 
-  constructor(private readonly root: string = "") {}
+  constructor(
+    private readonly root: string = "",
+    private pathResolver?: WorkspacePathResolver,
+  ) {}
 
   canHandle(name: string): boolean {
     return name === "shell.run";
+  }
+
+  /** Validate a path through the resolver. Returns error result if blocked. */
+  private checkPath(rawPath: string): ToolResult | null {
+    if (!this.pathResolver) return null;
+    const r = this.pathResolver.check(rawPath);
+    if (r.sensitive) {
+      return { kind: "error", message: "Shell access denied: path is sensitive (" + r.absolute + ")" };
+    }
+    if (r.protected && r.insideWorkspace) {
+      return { kind: "error", message: "Shell access denied: path is protected (" + r.absolute + ")" };
+    }
+    return null;
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
@@ -171,20 +187,30 @@ export class ShellToolRouter implements ToolRouter {
       persistent?: boolean;
     };
 
+    // Path validation via WorkspacePathResolver
+    if (cwd) {
+      const blocked = this.checkPath(cwd);
+      if (blocked) return blocked;
+    }
+    if (r) {
+      const blocked = this.checkPath(r);
+      if (blocked) return blocked;
+    }
+
     if (!command) {
       return { kind: "error", message: "shell.run requires command" };
     }
 
     // Level 5: Check if command is safe shell (runs before policy decision)
     if (isSafeShellCommand(command)) {
-      const result = await executeSafeShell(command);
-      if (result.allowed) {
+      const sResult = await executeSafeShell(command);
+      if (sResult.allowed) {
         return {
           kind: "success",
-          output: result.output ?? result.error ?? "",
+          output: sResult.output ?? sResult.error ?? "",
         };
       }
-      return { kind: "error", message: result.error ?? "SafeShell validation failed" };
+      return { kind: "error", message: sResult.error ?? "SafeShell validation failed" };
     }
 
     const workingDir = cwd ?? r ?? this.root;
@@ -194,8 +220,8 @@ export class ShellToolRouter implements ToolRouter {
         this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs });
       }
       try {
-        const result = await this.shellPool.run(command, timeoutMs);
-        return { kind: "success", output: result.output };
+        const shResult = await this.shellPool.run(command, timeoutMs);
+        return { kind: "success", output: shResult.output };
       } catch (err) {
         return { kind: "error", message: String(err) };
       }
