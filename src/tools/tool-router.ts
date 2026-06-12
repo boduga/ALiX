@@ -199,13 +199,22 @@ export class ShellToolRouter implements ToolRouter {
       if (blocked) return blocked;
     }
 
-    // Also scan the command string for known sensitive path patterns
+    // Scan the command string for references to known sensitive paths.
+    // Uses boundary-aware patterns to avoid false positives (.git != .gitignore).
     if (command && this.pathResolver) {
-      const sensitivePatterns = ['.alix', '.ssh', '.git', '.env', 'id_rsa', 'id_ed25519', 'config.json', 'known_hosts'];
-      const cmdLower = command.toLowerCase();
-      for (const pat of sensitivePatterns) {
-        if (cmdLower.includes(pat)) {
-          return { kind: "error", message: "Shell access denied: command references sensitive path (" + pat + ")" };
+      const sensitivePathPatterns: { pattern: RegExp; name: string }[] = [
+        { pattern: /\b\.alix\b/, name: ".alix" },
+        { pattern: /\b\.ssh\b/, name: ".ssh" },
+        { pattern: /\b\.git\b/, name: ".git" },
+        { pattern: /\b\.env\b/, name: ".env" },
+        { pattern: /\bid_rsa\b/, name: "id_rsa" },
+        { pattern: /\bid_ed25519\b/, name: "id_ed25519" },
+        { pattern: /\bknown_hosts\b/, name: "known_hosts" },
+        { pattern: /\/config\.json\b/, name: "config.json" },
+      ];
+      for (const { pattern, name } of sensitivePathPatterns) {
+        if (pattern.test(command)) {
+          return { kind: "error", message: "Shell access denied: command references sensitive path (" + name + ")" };
         }
       }
     }
