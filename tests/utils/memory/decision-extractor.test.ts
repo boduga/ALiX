@@ -190,7 +190,7 @@ test("promptDecisionConfirmation() skips non-interactive environments", async ()
   assert.equal(confirmed[0].confidence, 0.6, "Should set confidence to 0.6");
 });
 
-test("promptDecisionConfirmation() sets confirmations to 1 on confirmed entry", async () => {
+test("promptDecisionConfirmation() sets confidence to 0.6 on auto-confirmed entry", async () => {
   const decisions: MemoryEntry[] = [
     {
       name: "test decision",

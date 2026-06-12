@@ -41,6 +41,10 @@ export class ToolRegistry {
   private tools = new Map<ToolName, ToolCapability>();
 
   register(capability: ToolCapability): void {
+    // Warn on duplicate registration — prevents CapabilityIndex sync drift
+    if (this.tools.has(capability.name)) {
+      console.warn(`ToolRegistry: overwriting existing tool "${capability.name}"`);
+    }
     this.tools.set(capability.name, capability);
   }
 
