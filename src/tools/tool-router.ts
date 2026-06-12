@@ -543,6 +543,14 @@ export class ToolAwareRouter implements ToolRouter {
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
+    // If an intent is set, reject execution of tools that don't match
+    if (this.currentIntent.length > 0 && !this.canHandle(request.name)) {
+      return {
+        kind: "error",
+        message: `Tool "${request.name}" is not available for the current task intent`,
+        retryable: false,
+      };
+    }
     return this.downstream.execute(request);
   }
 }

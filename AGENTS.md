@@ -21,8 +21,6 @@ This project is indexed by GitNexus as **ALiX** (13613 symbols, 24598 relationsh
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 - NEVER push directly to `main`. Always use a feature branch: `git checkout -b feat/xxx`, push, open a PR, get Greptile review, merge via PR.
 - NEVER merge a PR before Greptile reaches 5/5 confidence score. If stuck below 5/5 after 5 Grep Loop iterations, review manually and re-trigger.
-- NEVER push directly to `main`. Always use a feature branch: `git checkout -b feat/xxx`, push, open a PR, get Greptile review, merge via PR.
-- NEVER merge a PR before Greptile reaches 5/5 confidence score. If stuck below 5/5 after 5 Grep Loop iterations, review manually and re-trigger.
 
 ## Resources
 

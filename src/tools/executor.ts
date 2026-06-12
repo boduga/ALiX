@@ -70,6 +70,7 @@ export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 
 export class ToolExecutor {
   private router: ToolRouter;
+  private toolAwareRouter: ToolAwareRouter;
   private repair: AlixToolRepair | null = null;
 
   constructor(
@@ -92,7 +93,8 @@ export class ToolExecutor {
       new SelfExtendToolRouter(),
       new WebToolsRouter(),
     ]);
-    this.router = new ToolAwareRouter(composite);
+    this.toolAwareRouter = new ToolAwareRouter(composite);
+    this.router = this.toolAwareRouter;
 
     // Initialize tool repair layer
     try {
@@ -100,6 +102,11 @@ export class ToolExecutor {
     } catch {
       this.repair = null;
     }
+  }
+
+  /** Expose intent-based tool filtering — sets intent keywords on the ToolAwareRouter. */
+  setIntent(intent: string[]): void {
+    this.toolAwareRouter.setIntent(intent);
   }
 
   private sessionId(): string {
