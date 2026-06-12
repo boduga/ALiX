@@ -304,6 +304,72 @@ export async function runTui(opts: TuiOptions): Promise<void> {
       continue;
     }
 
+    // Inline approval confirmation
+    const approvalConfirm = (globalThis as any).__approvalConfirm;
+    if (approvalConfirm) {
+      const confirmPhrase = task.toLowerCase().trim();
+      if (confirmPhrase === "y" || confirmPhrase === "yes") {
+        (globalThis as any).__approvalConfirm = null;
+        const { approvalId } = approvalConfirm;
+
+        // Resolve the approval — always handled since command starts with /approve
+        const approvalResult = await approvalManager.tryHandleCommand(`/approve ${approvalId}`);
+        if (!approvalResult.handled) {
+          tui.appendOutput("Approval command failed.\n", false);
+        } else {
+          tui.appendOutput(approvalResult.message + "\n", false);
+
+          // Resume the continuation
+          if (approvalResult.action === "approved" && approvalResult.approvalId) {
+            try {
+              const { ContinuationStore, ContinuationManager, ToolExecutor } = await (async () => {
+                const cs = await import("../../runtime/continuation-store.js");
+                const cm = await import("../../runtime/continuation-manager.js");
+                const te = await import("../../tools/executor.js");
+                return { ContinuationStore: cs.ContinuationStore, ContinuationManager: cm.ContinuationManager, ToolExecutor: te.ToolExecutor };
+              })();
+
+              const continuationStore = new ContinuationStore(activeCwd);
+              await continuationStore.load();
+              const contManager = new ContinuationManager({
+                continuationStore,
+                approvalStore,
+                executeTool: async (tc) => {
+                  const executor = new ToolExecutor(activeConfig, tuiLog, activeCwd, undefined, undefined, undefined, undefined, approvalStore);
+                  const result = await executor.execute(tc);
+                  return result;
+                },
+              });
+              const resumeResult = await contManager.resumeApproved(approvalResult.approvalId);
+              if (resumeResult.resumed) {
+                tui.appendOutput(`\n✅ Continued:\n${resumeResult.output}\n`, false);
+              } else {
+                tui.appendOutput(`\n❌ Could not resume: ${resumeResult.error}\n`, false);
+              }
+            } catch (err: any) {
+              tui.appendOutput(`\n❌ Resume error: ${err.message}\n`, false);
+            }
+          }
+        }
+      } else if (confirmPhrase === "n" || confirmPhrase === "no") {
+        (globalThis as any).__approvalConfirm = null;
+        const { approvalId } = approvalConfirm;
+        await approvalManager.tryHandleCommand(`/deny ${approvalId}`);
+        tui.appendOutput("Approval denied.\n", false);
+      } else if (confirmPhrase === "details" || confirmPhrase === "d") {
+        tui.appendOutput(approvalConfirm.text + "\n", false);
+        const listResult = await approvalManager.tryHandleCommand("/approvals");
+        if (listResult.handled) {
+          tui.appendOutput(listResult.message + "\n", false);
+        }
+        tui.appendOutput("Approve? [y/N/details] ", false);
+      } else {
+        tui.appendOutput("Press y to approve, n to deny, details for more info.\n", false);
+        tui.appendOutput("Approve? [y/N/details] ", false);
+      }
+      continue;
+    }
+
     // Trace navigation — ↑/k = up, ↓/j = down (when detail closed)
     if (store.getState().activePanel === "trace") {
       if (task === "\x1b[A" || task === "k") {
@@ -954,7 +1020,19 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           },
         };
         const text = await executeRoute(route, ctx, new LocalRuntimeExecutor());
-        if (text) tui.appendOutput(text, false);
+        if (!text) continue;
+
+        // Check if the output contains an approval-required message
+        const approvalMatch = text.match(/approval_[a-zA-Z0-9_-]+/);
+        if (approvalMatch) {
+          const approvalId = approvalMatch[0];
+          (globalThis as any).__approvalConfirm = { approvalId, text };
+          tui.appendOutput(text, false);
+          tui.appendOutput("Approve? [y/N/details] ", false);
+          continue;
+        }
+
+        tui.appendOutput(text, false);
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
