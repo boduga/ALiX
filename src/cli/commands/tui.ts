@@ -113,6 +113,11 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const mode = opts.sessionMode || "bypass";
   const daemonMode = opts.daemonMode ?? false;
 
+  // Sync the --mode flag into config so PolicyGate reads the correct mode
+  if (opts.sessionMode && activeConfig.permissions) {
+    activeConfig.permissions.sessionMode = mode as any;
+  }
+
   if (daemonMode) {
     const { DaemonManager } = await import("../../daemon/daemon-manager.js");
     const dm = new DaemonManager(activeCwd);
