@@ -324,6 +324,29 @@ test("CapabilityIndex.findByTag returns empty array for unknown tag", () => {
   assert.deepStrictEqual(result, []);
 });
 
+test("CapabilityIndex.findByTag returns a copy — mutating result does not affect index", () => {
+  const idx = new CapabilityIndex();
+  idx.index({
+    name: "file.read",
+    capabilityId: "filesystem.read",
+    description: "Read",
+    risk: "low",
+    domain: "filesystem",
+    mutates: false,
+    alwaysInclude: false,
+    tags: ["read"],
+  });
+
+  // Get the result and mutate it
+  const result = idx.findByTag("read");
+  result.push("file.create" as any);
+
+  // The mutation should NOT affect the original index
+  const result2 = idx.findByTag("read");
+  assert.strictEqual(result2.length, 1, "must not leak mutations into index");
+  assert.ok(!result2.includes("file.create" as any), "must not contain injected tool");
+});
+
 // ---------------------------------------------------------------------------
 // ToolRetriever
 // ---------------------------------------------------------------------------

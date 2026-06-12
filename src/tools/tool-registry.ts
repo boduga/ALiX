@@ -93,7 +93,8 @@ export class CapabilityIndex {
   }
 
   findByTag(tag: IntentTag): ToolName[] {
-    return this.tagToTools.get(tag) ?? [];
+    // Return a copy to prevent callers from mutating internal state
+    return [...(this.tagToTools.get(tag) ?? [])];
   }
 
   findByTags(tags: IntentTag[]): ToolName[] {
@@ -132,7 +133,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     },
     {
       name: "file.create",
-      capabilityId: "filesystem.write",
+      capabilityId: "filesystem.create",
       description: "Create or overwrite a file",
       risk: "medium",
       domain: "filesystem",
@@ -142,7 +143,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     },
     {
       name: "file.delete",
-      capabilityId: "filesystem.write",
+      capabilityId: "filesystem.delete",
       description: "Delete a file",
       risk: "high",
       domain: "filesystem",
@@ -162,7 +163,7 @@ export function buildDefaultToolIndex(): { registry: ToolRegistry; index: Capabi
     },
     {
       name: "dir.search",
-      capabilityId: "file.search",
+      capabilityId: "filesystem.search",
       description: "Search directory for files matching a pattern",
       risk: "low",
       domain: "filesystem",
