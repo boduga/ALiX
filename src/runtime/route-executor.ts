@@ -61,7 +61,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     });
 
     if (result.kind === "success") {
-      return result.output ?? result.content ?? "(tool completed)";
+      return result.output || result.content || "(tool completed)";
     } else if (result.kind === "denied") {
       const reason = result.reason || "";
       if (reason.includes("approval") || reason.includes("Approval")) {
