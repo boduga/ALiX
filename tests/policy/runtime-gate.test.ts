@@ -9,7 +9,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { evaluateRuntimeGate } from "../../src/policy/runtime-gate.js";
-import { RuleEvaluator } from "../../src/policy/rule-evaluator.js";
 import { CardRegistry } from "../../src/registry/card-registry.js";
 import type { TaskNode } from "../../src/kernel/task-graph.js";
 
@@ -44,32 +43,44 @@ function makeRegistry(): CardRegistry {
   return r;
 }
 
-function makePolicy(...rules: any[]): RuleEvaluator {
-  const e = new RuleEvaluator();
-  for (const r of rules) e.addRule(r);
-  return e;
+function makePolicyGate(...rules: any[]): any {
+  return {
+    evaluateCapability: async (req: any) => {
+      for (const rule of rules) {
+        if (rule.match && rule.match.capability === req.capability) {
+          return { requestId: req.requestId, capability: req.capability, decision: rule.decision, reason: rule.reason || "policy match", matchedRuleId: rule.id };
+        }
+      }
+      // Default: allow
+      return { requestId: req.requestId, capability: req.capability, decision: "allow", reason: "default allow" };
+    },
+  };
 }
+
+const mockConfig = {
+  permissions: { sessionMode: "ask", tools: {}, default: "allow", protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
+} as any;
 
 describe("RuntimeGate", () => {
   it("returns ready when capability exists and policy allows", async () => {
     const registry = makeRegistry();
-    const policy = makePolicy({
+    const policyGate = makePolicyGate({
       id: "allow-search", description: "Allow search",
       match: { capability: "web.search" }, decision: "allow", enabled: true,
     });
     const result = await evaluateRuntimeGate({
       node: makeNode({ requiredCapabilities: ["web.search"] }),
-      registry, policyEvaluator: policy,
+      registry, policyGate, config: mockConfig,
     });
     assert.equal(result.status, "ready");
   });
 
   it("returns blocked when capability is missing", async () => {
     const registry = new CardRegistry();
-    const policy = makePolicy();
+    const policyGate = makePolicyGate();
     const result = await evaluateRuntimeGate({
       node: makeNode({ requiredCapabilities: ["nonexistent.cap"] }),
-      registry, policyEvaluator: policy,
+      registry, policyGate, config: mockConfig,
     });
     assert.equal(result.status, "blocked");
     assert.ok(result.reason.includes("Missing capabilities"));
@@ -77,13 +88,13 @@ describe("RuntimeGate", () => {
 
   it("returns blocked when policy denies", async () => {
     const registry = makeRegistry();
-    const policy = makePolicy({
+    const policyGate = makePolicyGate({
       id: "deny-search", description: "Deny search",
       match: { capability: "web.search" }, decision: "deny", enabled: true,
     });
     const result = await evaluateRuntimeGate({
       node: makeNode({ requiredCapabilities: ["web.search"] }),
-      registry, policyEvaluator: policy,
+      registry, policyGate, config: mockConfig,
     });
     assert.equal(result.status, "blocked");
     assert.equal(result.policyDecision, "deny");
@@ -99,14 +110,14 @@ describe("RuntimeGate", () => {
       const store = new ApprovalStore(tmpDir);
       await store.load();
       const registry = makeRegistry();
-      const policy = makePolicy({
+      const policyGate = makePolicyGate({
         id: "ask-shell", description: "Ask shell",
         match: { capability: "shell.exec" }, decision: "ask", enabled: true,
         reason: "Shell execution needs approval",
       });
       const result = await evaluateRuntimeGate({
         node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
-        registry, policyEvaluator: policy, approvalStore: store,
+        registry, policyGate, approvalStore: store, config: mockConfig,
       });
       assert.equal(result.status, "needs_approval");
       assert.equal(result.policyDecision, "ask");
@@ -119,10 +130,10 @@ describe("RuntimeGate", () => {
 
   it("returns ready when node has no requiredCapabilities", async () => {
     const registry = new CardRegistry();
-    const policy = makePolicy();
+    const policyGate = makePolicyGate();
     const result = await evaluateRuntimeGate({
       node: makeNode({ requiredCapabilities: [] }),
-      registry, policyEvaluator: policy,
+      registry, policyGate, config: mockConfig,
     });
     assert.equal(result.status, "ready");
   });
@@ -139,7 +150,7 @@ describe("RuntimeGate", () => {
       version: "1.0.0", capabilities: ["filesystem.write"], riskLevel: "medium",
       approvalMode: "ask", sideEffects: "write", enabled: true,
     });
-    const policy = makePolicy(
+    const policyGate = makePolicyGate(
       { id: "allow-search", description: "Allow search",
         match: { capability: "web.search" }, decision: "allow", enabled: true },
       { id: "deny-write", description: "Deny write",
@@ -147,7 +158,7 @@ describe("RuntimeGate", () => {
     );
     const result = await evaluateRuntimeGate({
       node: makeNode({ requiredCapabilities: ["web.search", "filesystem.write"] }),
-      registry, policyEvaluator: policy,
+      registry, policyGate, config: mockConfig,
     });
     // deny-write should override allow-search
     assert.equal(result.status, "blocked");
@@ -156,13 +167,13 @@ describe("RuntimeGate", () => {
 
   it("ask without approvalStore returns blocked", async () => {
     const registry = makeRegistry();
-    const policy = makePolicy({
+    const policyGate = makePolicyGate({
       id: "ask-shell", description: "Ask shell",
       match: { capability: "shell.exec" }, decision: "ask", enabled: true,
     });
     const result = await evaluateRuntimeGate({
       node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
-      registry, policyEvaluator: policy,
+      registry, policyGate, config: mockConfig,
       // no approvalStore
     });
     assert.equal(result.status, "blocked");
@@ -184,13 +195,13 @@ describe("RuntimeGate", () => {
         reason: "existing", graphId: "test_graph", nodeId: "test_node", capability: "shell.exec",
       });
       const registry = makeRegistry();
-      const policy = makePolicy({
+      const policyGate = makePolicyGate({
         id: "ask-shell", description: "Ask shell",
         match: { capability: "shell.exec" }, decision: "ask", enabled: true,
       });
       const result = await evaluateRuntimeGate({
         node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
-        registry, policyEvaluator: policy, approvalStore: store,
+        registry, policyGate, approvalStore: store, config: mockConfig,
       });
       assert.equal(result.status, "needs_approval");
       assert.ok(result.approvalId);
@@ -215,13 +226,13 @@ describe("RuntimeGate", () => {
       });
       await store.resolve(rec.id, "approved");
       const registry = makeRegistry();
-      const policy = makePolicy({
+      const policyGate = makePolicyGate({
         id: "ask-shell", description: "Ask shell",
         match: { capability: "shell.exec" }, decision: "ask", enabled: true,
       });
       const result = await evaluateRuntimeGate({
         node: makeNode({ requiredCapabilities: ["shell.exec"], riskLevel: "high" }),
-        registry, policyEvaluator: policy, approvalStore: store,
+        registry, policyGate, approvalStore: store, config: mockConfig,
       });
       assert.equal(result.status, "ready");
     } finally {
