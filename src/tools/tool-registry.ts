@@ -4,6 +4,9 @@
  * Pure data structures for registering tool capabilities, indexing them by
  * intent tag, and retrieving subsets by domain, risk, or intent keywords.
  * No execution, no I/O, no side effects.
+ *
+ * Compatible with existing CompositeToolRouter and ToolName types.
+ * No runtime integration with routers or PolicyGate yet.
  */
 
 import type { ToolName } from "./types.js";
