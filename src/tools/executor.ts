@@ -109,6 +109,11 @@ export class ToolExecutor {
     this.toolAwareRouter.setIntent(intent);
   }
 
+  /** Clear the current intent — all tools become available again. */
+  clearIntent(): void {
+    this.toolAwareRouter.clearIntent();
+  }
+
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
     const parts = this.log.sessionDir.split("sessions/");
@@ -142,11 +147,12 @@ export class ToolExecutor {
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
 
-    // Continuation resumes bypass PolicyGate — approval was already verified
-    // by ContinuationManager. Only set from resumeApproved(), never from user input.
+    // Continuation resumes bypass PolicyGate AND the intent filter — the tool was
+    // already approved by the user, so the current task intent should not block it.
+    // Only set from resumeApproved(), never from user input.
     if (request.source === "continuation-resume") {
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
-      return await this.router.execute(request);
+      return await this.toolAwareRouter.downstream.execute(request);
     }
 
     // Single policy decision via PolicyGate

@@ -210,4 +210,44 @@ describe("Tool Executor Events", () => {
     assert.ok(eventTypes.includes("tool.started"), "Should have tool.started");
     assert.ok(eventTypes.includes("tool.completed"), "Should have tool.completed");
   });
+
+  it("setIntent filters tools during execution", async () => {
+    const executor = new ToolExecutor(config, eventLog, testDir);
+    executor.setIntent(["read"]);
+
+    // file.read matches "read" intent — should execute normally
+    const readResult = await executor.execute({
+      toolCallId: `read_${Date.now()}_abc`,
+      name: "file.read",
+      args: { path: "test.txt" },
+    });
+    assert.notEqual((readResult as any).kind, "denied", "file.read should execute under read intent");
+
+    // file.create does NOT match "read" intent — should be denied by ToolAwareRouter
+    const createResult = await executor.execute({
+      toolCallId: `create_${Date.now()}_abc`,
+      name: "file.create",
+      args: { path: "should-be-blocked.txt", content: "x" },
+    }) as any;
+    assert.equal(createResult.kind, "error", "file.create should be blocked under read intent");
+    assert.ok(createResult.message?.includes("not available"), "blocked tool should mention intent mismatch");
+
+    // done tool must always be available regardless of intent
+    const doneResult = await executor.execute({
+      toolCallId: `done_${Date.now()}_abc`,
+      name: "done",
+      args: {},
+    }) as any;
+    assert.ok(doneResult.kind === "success" || doneResult.completed, "done tool must always be available");
+
+    // After clearing intent, all tools work again
+    executor.clearIntent();
+    const afterClear = await executor.execute({
+      toolCallId: `create_${Date.now()}_def`,
+      name: "file.create",
+      args: { path: "should-work-now.txt", content: "x" },
+    }) as any;
+    // Should proceed past intent filter — may fail on disk I/O, but not on intent
+    assert.notEqual(afterClear.message, "Tool \"file.create\" is not available for the current task intent", "after clearIntent, file.create should not be blocked");
+  });
 });
