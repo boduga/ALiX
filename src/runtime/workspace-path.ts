@@ -48,12 +48,12 @@ export class WorkspacePathResolver {
 
   resolve(rawPath: string): string {
     if (rawPath.startsWith("/")) return rawPath;
-    if (rawPath.startsWith("~")) return resolve(homedir(), rawPath.slice(1));
+    if (rawPath.startsWith("~")) return resolve(homedir(), rawPath.replace(/^~/, homedir()));
     return resolve(this.workspaceRoot, rawPath);
   }
 
   isInWorkspace(absolutePath: string): boolean {
-    return absolutePath.startsWith(this.workspaceRoot);
+    return absolutePath === this.workspaceRoot || absolutePath.startsWith(this.workspaceRoot + "/");
   }
 
   isProtected(absolutePath: string): boolean {
@@ -88,7 +88,7 @@ export class WorkspacePathResolver {
 
   isTraversalSafe(rawPath: string): boolean {
     if (rawPath.startsWith("..")) return false;
-    if (rawPath.startsWith("/")) return rawPath.startsWith(this.workspaceRoot);
+    if (rawPath.startsWith("/")) return rawPath === this.workspaceRoot || rawPath.startsWith(this.workspaceRoot + "/");
     if (rawPath.includes("../")) return false;
     if (rawPath.startsWith("~")) return false;
     if (rawPath.startsWith("$")) return false;
