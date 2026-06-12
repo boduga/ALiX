@@ -47,4 +47,21 @@ describe("ShellToolRouter path validation", () => {
     } as any);
     assert.notEqual(result.kind, "error", "without resolver, .alix must not be blocked");
   });
+
+  it("blocks command referencing .ssh path", async () => {
+    const result = await router.execute({
+      name: "shell.run", args: { command: "cat ~/.ssh/id_rsa", cwd: "/tmp" },
+    } as any);
+    assert.equal(result.kind, "error");
+    assert.ok(result.message.includes("sensitive"), "must block commands referencing .ssh");
+  });
+
+  it("blocks command referencing .alix path in command", async () => {
+    const result = await router.execute({
+      name: "shell.run", args: { command: "ls .alix/config.json", cwd: "/tmp" },
+    } as any);
+    assert.equal(result.kind, "error");
+    assert.ok(result.message.includes("sensitive"), "must block commands referencing .alix");
+  });
+
 });

@@ -169,11 +169,13 @@ export class ShellToolRouter implements ToolRouter {
   private checkPath(rawPath: string): ToolResult | null {
     if (!this.pathResolver) return null;
     const r = this.pathResolver.check(rawPath);
-    if (r.sensitive) {
-      return { kind: "error", message: "Shell access denied: path is sensitive (" + r.absolute + ")" };
-    }
+    // Check protected first — user-configured protections take priority over
+    // the generic sensitive pattern message for better UX (mirrors FileToolRouter).
     if (r.protected && r.insideWorkspace) {
       return { kind: "error", message: "Shell access denied: path is protected (" + r.absolute + ")" };
+    }
+    if (r.sensitive) {
+      return { kind: "error", message: "Shell access denied: path is sensitive (" + r.absolute + ")" };
     }
     return null;
   }
@@ -195,6 +197,17 @@ export class ShellToolRouter implements ToolRouter {
     if (r) {
       const blocked = this.checkPath(r);
       if (blocked) return blocked;
+    }
+
+    // Also scan the command string for known sensitive path patterns
+    if (command && this.pathResolver) {
+      const sensitivePatterns = ['.alix', '.ssh', '.git', '.env', 'id_rsa', 'id_ed25519', 'config.json', 'known_hosts'];
+      const cmdLower = command.toLowerCase();
+      for (const pat of sensitivePatterns) {
+        if (cmdLower.includes(pat)) {
+          return { kind: "error", message: "Shell access denied: command references sensitive path (" + pat + ")" };
+        }
+      }
     }
 
     if (!command) {
