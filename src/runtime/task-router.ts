@@ -84,52 +84,122 @@ function stripOuterQuotes(value: string): string {
 }
 
 /**
+ * Guard: reject conceptual/help questions that happen to start with
+ * words like "how", "what", "why", "explain", or contain tutorial/example keywords.
+ */
+function isConceptualFileQuestion(task: string): boolean {
+  const normalized = task.trim().toLowerCase();
+  return (
+    normalized.startsWith("how ") ||
+    normalized.startsWith("how do ") ||
+    normalized.startsWith("how to ") ||
+    normalized.startsWith("what ") ||
+    normalized.startsWith("why ") ||
+    normalized.startsWith("explain ") ||
+    normalized.includes(" tutorial") ||
+    normalized.includes(" example") ||
+    normalized.includes(" examples")
+  );
+}
+
+/**
+ * Guard: check whether a string looks like a concrete file path or filename.
+ */
+function looksLikeFileTarget(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+
+  // Accept explicit relative/absolute paths
+  if (trimmed.startsWith("./") || trimmed.startsWith("../") || trimmed.startsWith("/") || trimmed.startsWith("~/")) {
+    return true;
+  }
+
+  // Accept names with file extensions (allows spaces: "my file.txt", "notes 2026.md")
+  if (/^[\w .~/-]+\.[A-Za-z0-9]{1,12}$/.test(trimmed)) {
+    return true;
+  }
+
+  // Accept quoted names that include a file extension or path separator
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    const unquoted = stripOuterQuotes(trimmed);
+    return unquoted.includes("/") || /^[\w .~/-]+\.[A-Za-z0-9]{1,12}$/.test(unquoted);
+  }
+
+  return false;
+}
+
+/**
+ * Guard: reject vague/unambiguous delete targets (e.g. "this", "the section").
+ */
+function looksLikeDeleteTarget(value: string): boolean {
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return false;
+
+  const vagueTargets = [
+    "this", "that", "it",
+    "the file", "the folder", "the directory",
+    "this feature", "the feature",
+    "this section", "the section",
+  ];
+
+  if (vagueTargets.includes(trimmed)) return false;
+
+  return looksLikeFileTarget(value);
+}
+
+/**
  * Try to match a file operation from natural language.
  * Returns a shell command with shell-quoted args if matched, null otherwise.
  */
 function matchNaturalFileOperation(task: string): string | null {
   const trimmed = task.trim();
+
+  // Guard 1: Conceptual/help questions are not file operations
+  if (isConceptualFileQuestion(trimmed)) {
+    return null;
+  }
+
   const content = (s: string) => stripOuterQuotes(s.trim());
 
   // "write X to Y" → printf '%s\n' 'X' > 'Y'
   let match = trimmed.match(FILE_WRITE_PATTERN);
   if (match) {
+    if (!looksLikeFileTarget(match[2].trim())) return null;
     return `printf '%s\\n' ${shellQuote(content(match[1]))} > ${shellQuote(match[2].trim())}`;
   }
 
   // "create Y with X" → printf '%s\n' 'X' > 'Y'
   match = trimmed.match(FILE_CREATE_WITH_CONTENT);
   if (match) {
+    if (!looksLikeFileTarget(match[1].trim())) return null;
     return `printf '%s\\n' ${shellQuote(content(match[2]))} > ${shellQuote(match[1].trim())}`;
   }
 
   // "append X to Y" → printf '%s\n' 'X' >> 'Y'
   match = trimmed.match(FILE_APPEND_PATTERN);
   if (match) {
-    const filePath = match[2].trim();
-    // Guard against false positives like "add a new button to the dashboard"
-    // Only match if the target looks like a file path: has extension, contains
-    // a slash, or is a single token (no spaces).
-    if (filePath.includes("/") || /\.\w+$/.test(filePath) || !/\s/.test(filePath)) {
-      return `printf '%s\\n' ${shellQuote(content(match[1]))} >> ${shellQuote(filePath)}`;
-    }
+    if (!looksLikeFileTarget(match[2].trim())) return null;
+    return `printf '%s\\n' ${shellQuote(content(match[1]))} >> ${shellQuote(match[2].trim())}`;
   }
 
   // "delete directory Y" → rm -rf -- 'Y'
   match = trimmed.match(FILE_DELETE_DIR_PATTERN);
   if (match) {
+    if (!looksLikeFileTarget(match[1].trim())) return null;
     return `rm -rf -- ${shellQuote(match[1].trim())}`;
   }
 
   // "delete Y" → rm -- 'Y'
   match = trimmed.match(FILE_DELETE_PATTERN);
   if (match) {
+    if (!looksLikeDeleteTarget(match[1].trim())) return null;
     return `rm -- ${shellQuote(match[1].trim())}`;
   }
 
   // "show Y" → cat -- 'Y'
   match = trimmed.match(FILE_READ_PATTERN);
   if (match) {
+    if (!looksLikeFileTarget(match[1].trim())) return null;
     return `cat -- ${shellQuote(match[1].trim())}`;
   }
 

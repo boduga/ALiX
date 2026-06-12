@@ -57,12 +57,10 @@ describe("natural-language file operation routing", () => {
     }
   });
 
-  it('"delete directory temp" routes to tool with rm -rf', () => {
+  it('"delete directory temp" is rejected by guardrail (temp is too vague)', () => {
+    // M0.65 guardrail: 'temp' has no extension or path prefix, so it's not routed
     const route = taskRouter("delete directory temp");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      assert.ok(toolCmd(route).includes("-rf"));
-    }
+    assert.notEqual(route.kind, "tool");
   });
 
   // --- File read ---
@@ -82,14 +80,11 @@ describe("natural-language file operation routing", () => {
 
   // --- Shell injection protection ---
 
-  it("write with semicolon injection is shell-quoted, not executed", () => {
+  it("write with semicolon injection is rejected by guardrail (not a valid file path)", () => {
+    // M0.65 guardrail: the target 'test.txt; rm -rf .' does not look like a
+    // valid file path, so the router rejects it instead of producing shell output.
     const route = taskRouter("write hello to test.txt; rm -rf .");
-    assert.equal(route.kind, "tool");
-    if (route.kind === "tool") {
-      const cmd = toolCmd(route);
-      // The semicolon and following command must be inside quotes, not executed
-      assert.ok(cmd.includes("';'") || cmd.includes("test.txt;"), "semicolons must be inside quotes");
-    }
+    assert.notEqual(route.kind, "tool");
   });
 
   it("content with quotes is properly handled", () => {
