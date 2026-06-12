@@ -1,0 +1,9 @@
+{
+  "strictness": 2,
+  "commentTypes": ["syntax", "logic", "style"],
+  "triggerOnUpdates": true,
+  "statusCheck": true,
+  "instructions": "ALiX is a TypeScript Agent OS runtime. Uses `node:test` (not Jest/Vitest). All file paths use `.js` extensions in imports for NodeNext ESM. Review for correctness, safety, and test coverage.",
+  "ignorePatterns": "dist/**\nnode_modules/**\n.alix/**\n.git/**",
+  "confidenceScoreSection": { "included": true }
+}
