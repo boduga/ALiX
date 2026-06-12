@@ -253,7 +253,7 @@ export class PolicyGate {
     }
 
     // 7. Ask — approval lifecycle
-    const askDecision = await this.handleAskDecision(request.requestId, capability, `Requires approval for capability: ${capability}`);
+    const askDecision = await this.handleAskDecision(request.requestId, capability, request.sessionMode, `Requires approval for capability: ${capability}`);
 
     // Emit approval lifecycle event (created or reused)
     if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
@@ -304,7 +304,7 @@ export class PolicyGate {
       return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy" };
     }
 
-    const capAskDecision = await this.handleAskDecision(request.requestId, request.capability, `Requires approval for capability: ${request.capability}`);
+    const capAskDecision = await this.handleAskDecision(request.requestId, request.capability, request.sessionMode, `Requires approval for capability: ${request.capability}`);
 
     // Emit approval lifecycle event (created or reused)
     if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
@@ -329,13 +329,21 @@ export class PolicyGate {
   }
 
   /** Handle the approval lifecycle for "ask" decisions. */
-  private async handleAskDecision(requestId: string, capability: string, reason: string): Promise<PolicyGateDecision> {
+  private async handleAskDecision(requestId: string, capability: string, sessionMode: string, reason: string): Promise<PolicyGateDecision> {
     const store = this.deps.approvalStore;
     if (!store) {
       return { requestId, capability, decision: "deny", reason: "Approval required but no approval store configured", matchedRuleId: "approval-store-missing" };
     }
 
-    // Check existing resolved approval
+    // In "ask" mode, always create a fresh approval — don't reuse prior approvals.
+    // Prior-approval reuse only applies in "auto" (auto-approve) mode.
+    if (sessionMode !== "auto") {
+      // Create new pending approval
+      const approval = await store.request({ reason, capability });
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval" };
+    }
+
+    // Auto mode: check existing resolved approval
     const resolved = store.findResolved({ capability });
     if (resolved) {
       if (resolved.status === "approved") {
