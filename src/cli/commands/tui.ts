@@ -110,7 +110,7 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const tui = new Tui({ sessionId: activeSessionId, eventLog: tuiLog, maxTokens: contextInfo.maxTokens });
   await tui.init();
 
-  const mode = opts.sessionMode || "bypass";
+  const mode = opts.sessionMode || activeConfig.permissions?.sessionMode || "bypass";
   const daemonMode = opts.daemonMode ?? false;
 
   // Sync the --mode flag into config so PolicyGate reads the correct mode
