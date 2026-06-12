@@ -17,6 +17,9 @@ import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 
+import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
+import type { ToolRegistry, CapabilityIndex } from "./tool-registry.js";
+
 export interface ToolRouter {
   canHandle(name: string): boolean;
   execute(request: ToolCallRequest): Promise<ToolResult>;
@@ -432,6 +435,47 @@ export class SelfExtendToolRouter implements ToolRouter {
       return { kind: "success", output: JSON.stringify(result.data) };
     }
     return { kind: "error", message: result.error ?? "Unknown error" };
+  }
+}
+
+/**
+ * Decorator router that filters available tools by task intent before
+ * passing to the downstream CompositeToolRouter. When intent keywords
+ * are provided, only tools matching those keywords (plus essential
+ * always-include tools) are offered to the model.
+ *
+ * Pure filtering — does not change tool execution, PolicyGate, or
+ * ApprovalStore behavior. When no intent is set, all tools pass through.
+ */
+export class ToolAwareRouter implements ToolRouter {
+  private retriever: ToolRetriever;
+  private currentIntent: string[] = [];
+
+  constructor(
+    private readonly downstream: ToolRouter,
+  ) {
+    const { registry, index } = buildDefaultToolIndex();
+    this.retriever = new ToolRetriever(registry, index);
+  }
+
+  /** Set the current task intent keywords for tool filtering. */
+  setIntent(intent: string[]): void {
+    this.currentIntent = intent;
+  }
+
+  /** Clear the current intent — fall back to allowing all tools. */
+  clearIntent(): void {
+    this.currentIntent = [];
+  }
+
+  canHandle(name: string): boolean {
+    if (this.currentIntent.length === 0) return true;
+    const relevant = this.retriever.selectForIntent(this.currentIntent);
+    return relevant.some(t => t.name === name);
+  }
+
+  async execute(request: ToolCallRequest): Promise<ToolResult> {
+    return this.downstream.execute(request);
   }
 }
 
