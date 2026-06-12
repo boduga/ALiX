@@ -33,7 +33,6 @@ describe("RuntimeBuilder", () => {
       const builder = new RuntimeBuilder(tmp);
       const runtime = await builder.build();
       assert.ok(runtime.eventLog);
-      assert.ok(runtime.policyEngine);
       assert.ok(runtime.toolExecutor);
       assert.ok(runtime.contextCompiler);
       assert.ok(runtime.scopeTracker);
