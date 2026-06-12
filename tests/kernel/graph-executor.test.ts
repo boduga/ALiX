@@ -22,7 +22,7 @@ function writeMockConfig(tmpDir: string, writeFileSync: (path: string, data: str
   mkdirSync(join(tmpDir, ".alix"), { recursive: true });
   writeFileSync(
     join(tmpDir, ".alix", "config.json"),
-    JSON.stringify({ model: { provider: "mock", name: "mock" } }),
+    JSON.stringify({ model: { provider: "mock", name: "mock" }, mcpServers: [] }),
   );
 }
 

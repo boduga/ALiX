@@ -26,7 +26,7 @@ describe("Daemon server route execution", { timeout: 30000 }, () => {
     mkdirSync(join(tmpDir, ".alix"), { recursive: true });
     mkdirSync(join(tmpDir, ".alix", "sessions"), { recursive: true });
     writeFileSync(join(tmpDir, ".alix", "config.json"), JSON.stringify({
-      model: { provider: "mock", name: "mock" },
+      model: { provider: "mock", name: "mock" }, mcpServers: [],
     }));
   });
 
