@@ -15,6 +15,7 @@ import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import {
   CompositeToolRouter,
+  ToolAwareRouter,
   FileToolRouter,
   ShellToolRouter,
   PatchToolRouter,
@@ -22,6 +23,7 @@ import {
   DelegateToolRouter,
   SelfExtendToolRouter,
   WebToolsRouter,
+  type ToolRouter,
 } from "./tool-router.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
@@ -67,7 +69,8 @@ export type ToolCallRequest = {
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 
 export class ToolExecutor {
-  private router: CompositeToolRouter;
+  private router: ToolRouter;
+  private toolAwareRouter: ToolAwareRouter;
   private repair: AlixToolRepair | null = null;
 
   constructor(
@@ -81,7 +84,7 @@ export class ToolExecutor {
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
   ) {
     // Create router with all handlers
-    this.router = new CompositeToolRouter([
+    const composite = new CompositeToolRouter([
       new FileToolRouter(this.root, log, this.sessionId()),
       new ShellToolRouter(this.root),
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
@@ -90,6 +93,8 @@ export class ToolExecutor {
       new SelfExtendToolRouter(),
       new WebToolsRouter(),
     ]);
+    this.toolAwareRouter = new ToolAwareRouter(composite);
+    this.router = this.toolAwareRouter;
 
     // Initialize tool repair layer
     try {
@@ -97,6 +102,16 @@ export class ToolExecutor {
     } catch {
       this.repair = null;
     }
+  }
+
+  /** Expose intent-based tool filtering — sets intent keywords on the ToolAwareRouter. */
+  setIntent(intent: string[]): void {
+    this.toolAwareRouter.setIntent(intent);
+  }
+
+  /** Clear the current intent — all tools become available again. */
+  clearIntent(): void {
+    this.toolAwareRouter.clearIntent();
   }
 
   private sessionId(): string {
@@ -132,11 +147,12 @@ export class ToolExecutor {
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
 
-    // Continuation resumes bypass PolicyGate — approval was already verified
-    // by ContinuationManager. Only set from resumeApproved(), never from user input.
+    // Continuation resumes bypass PolicyGate AND the intent filter — the tool was
+    // already approved by the user, so the current task intent should not block it.
+    // Only set from resumeApproved(), never from user input.
     if (request.source === "continuation-resume") {
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
-      return await this.router.execute(request);
+      return await this.toolAwareRouter.downstream.execute(request);
     }
 
     // Single policy decision via PolicyGate

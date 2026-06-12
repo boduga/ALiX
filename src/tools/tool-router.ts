@@ -518,9 +518,11 @@ export class SelfExtendToolRouter implements ToolRouter {
 export class ToolAwareRouter implements ToolRouter {
   private retriever: ToolRetriever;
   private currentIntent: string[] = [];
+  /** Cached tool set for the current intent — rebuilt on setIntent(), cleared on clearIntent(). */
+  private allowedToolNames: Set<string> | null = null;
 
   constructor(
-    private readonly downstream: ToolRouter,
+    readonly downstream: ToolRouter,
   ) {
     const { registry, index } = buildDefaultToolIndex();
     this.retriever = new ToolRetriever(registry, index);
@@ -529,20 +531,31 @@ export class ToolAwareRouter implements ToolRouter {
   /** Set the current task intent keywords for tool filtering. */
   setIntent(intent: string[]): void {
     this.currentIntent = intent;
+    this.allowedToolNames = new Set(
+      this.retriever.selectForIntent(intent).map(t => t.name)
+    );
   }
 
   /** Clear the current intent — fall back to allowing all tools. */
   clearIntent(): void {
     this.currentIntent = [];
+    this.allowedToolNames = null;
   }
 
   canHandle(name: string): boolean {
     if (this.currentIntent.length === 0) return true;
-    const relevant = this.retriever.selectForIntent(this.currentIntent);
-    return relevant.some(t => t.name === name);
+    return this.allowedToolNames?.has(name) ?? false;
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
+    // If an intent is set, reject execution of tools that don't match
+    if (this.currentIntent.length > 0 && !this.canHandle(request.name)) {
+      return {
+        kind: "error",
+        message: `Tool "${request.name}" is not available for the current task intent`,
+        retryable: false,
+      };
+    }
     return this.downstream.execute(request);
   }
 }
