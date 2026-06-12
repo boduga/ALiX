@@ -156,10 +156,28 @@ export class FileToolRouter implements ToolRouter {
 export class ShellToolRouter implements ToolRouter {
   private shellPool?: ShellPool;
 
-  constructor(private readonly root: string = "") {}
+  constructor(
+    private readonly root: string = "",
+    private pathResolver?: WorkspacePathResolver,
+  ) {}
 
   canHandle(name: string): boolean {
     return name === "shell.run";
+  }
+
+  /** Validate a path through the resolver. Returns error result if blocked. */
+  private checkPath(rawPath: string): ToolResult | null {
+    if (!this.pathResolver) return null;
+    const r = this.pathResolver.check(rawPath);
+    // Check protected first — user-configured protections take priority over
+    // the generic sensitive pattern message for better UX (mirrors FileToolRouter).
+    if (r.protected && r.insideWorkspace) {
+      return { kind: "error", message: "Shell access denied: path is protected (" + r.absolute + ")" };
+    }
+    if (r.sensitive) {
+      return { kind: "error", message: "Shell access denied: path is sensitive (" + r.absolute + ")" };
+    }
+    return null;
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
@@ -171,20 +189,50 @@ export class ShellToolRouter implements ToolRouter {
       persistent?: boolean;
     };
 
+    // Path validation via WorkspacePathResolver
+    if (cwd) {
+      const blocked = this.checkPath(cwd);
+      if (blocked) return blocked;
+    }
+    if (r) {
+      const blocked = this.checkPath(r);
+      if (blocked) return blocked;
+    }
+
+    // Scan the command string for references to known sensitive paths.
+    // Uses boundary-aware patterns to avoid false positives (.git != .gitignore).
+    if (command && this.pathResolver) {
+      const sensitivePathPatterns: { pattern: RegExp; name: string }[] = [
+        { pattern: /\b\.alix\b/, name: ".alix" },
+        { pattern: /\b\.ssh\b/, name: ".ssh" },
+        { pattern: /\b\.git\b/, name: ".git" },
+        { pattern: /\b\.env\b/, name: ".env" },
+        { pattern: /\bid_rsa\b/, name: "id_rsa" },
+        { pattern: /\bid_ed25519\b/, name: "id_ed25519" },
+        { pattern: /\bknown_hosts\b/, name: "known_hosts" },
+        { pattern: /\/config\.json\b/, name: "config.json" },
+      ];
+      for (const { pattern, name } of sensitivePathPatterns) {
+        if (pattern.test(command)) {
+          return { kind: "error", message: "Shell access denied: command references sensitive path (" + name + ")" };
+        }
+      }
+    }
+
     if (!command) {
       return { kind: "error", message: "shell.run requires command" };
     }
 
     // Level 5: Check if command is safe shell (runs before policy decision)
     if (isSafeShellCommand(command)) {
-      const result = await executeSafeShell(command);
-      if (result.allowed) {
+      const sResult = await executeSafeShell(command);
+      if (sResult.allowed) {
         return {
           kind: "success",
-          output: result.output ?? result.error ?? "",
+          output: sResult.output ?? sResult.error ?? "",
         };
       }
-      return { kind: "error", message: result.error ?? "SafeShell validation failed" };
+      return { kind: "error", message: sResult.error ?? "SafeShell validation failed" };
     }
 
     const workingDir = cwd ?? r ?? this.root;
@@ -194,8 +242,8 @@ export class ShellToolRouter implements ToolRouter {
         this.shellPool = new ShellPool({ cwd: workingDir, timeoutMs });
       }
       try {
-        const result = await this.shellPool.run(command, timeoutMs);
-        return { kind: "success", output: result.output };
+        const shResult = await this.shellPool.run(command, timeoutMs);
+        return { kind: "success", output: shResult.output };
       } catch (err) {
         return { kind: "error", message: String(err) };
       }
