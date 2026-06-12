@@ -60,6 +60,9 @@ const FILE_DELETE_PATTERN = /^(?:delete|remove|rm)\s+(.+)$/i;
 const FILE_READ_PATTERN = /^(?:show|read|cat|display|view|print|get)\s+(.+)$/i;
 const FILE_CREATE_WITH_CONTENT = /^create\s+(.+?)\s+(?:with|containing|that says)\s+(.+)$/i;
 const FILE_DELETE_DIR_PATTERN = /^(?:delete|remove)\s+(?:directory|folder|dir)\s+(.+)$/i;
+const FILE_CREATE_NAMED_PATTERN = /^create\s+a\s+file\s+(?:called|named)\s+(.+?)\s+(?:with|containing)\s+(.+)$/i;
+const MAKE_FILE_NAMED_PATTERN = /^make\s+a\s+file\s+(?:called|named)\s+(.+?)\s+(?:with|containing)\s+(.+)$/i;
+const CREATE_FILE_PATTERN = /^create\s+file\s+(.+?)\s+(?:with|containing)\s+(.+)$/i;
 
 /**
  * Shell-quote a string safely. Wraps in single quotes and escapes
@@ -168,6 +171,27 @@ function matchNaturalFileOperation(task: string): string | null {
     return `printf '%s\\n' ${shellQuote(content(match[1]))} > ${shellQuote(match[2].trim())}`;
   }
 
+
+  // "create a file called Y with X" -> printf '%s\n' 'X' > 'Y'
+  match = trimmed.match(FILE_CREATE_NAMED_PATTERN);
+  if (match) {
+    if (!looksLikeFileTarget(match[1].trim())) return null;
+    return `printf '%s\n' ${shellQuote(content(match[2]))} > ${shellQuote(match[1].trim())}`;
+  }
+
+  // "make a file called Y with X" -> printf '%s\n' 'X' > 'Y'
+  match = trimmed.match(MAKE_FILE_NAMED_PATTERN);
+  if (match) {
+    if (!looksLikeFileTarget(match[1].trim())) return null;
+    return `printf '%s\n' ${shellQuote(content(match[2]))} > ${shellQuote(match[1].trim())}`;
+  }
+
+  // "create file Y with X" -> printf '%s\n' 'X' > 'Y'
+  match = trimmed.match(CREATE_FILE_PATTERN);
+  if (match) {
+    if (!looksLikeFileTarget(match[1].trim())) return null;
+    return `printf '%s\n' ${shellQuote(content(match[2]))} > ${shellQuote(match[1].trim())}`;
+  }
   // "create Y with X" → printf '%s\n' 'X' > 'Y'
   match = trimmed.match(FILE_CREATE_WITH_CONTENT);
   if (match) {
