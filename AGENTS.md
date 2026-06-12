@@ -19,6 +19,7 @@ This project is indexed by GitNexus as **ALiX** (13613 symbols, 24598 relationsh
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER push directly to `main`. Always use a feature branch: `git checkout -b feat/xxx`, push, open a PR, get Greptile review, merge via PR.
 
 ## Resources
 

@@ -19,6 +19,7 @@ This project is indexed by GitNexus as **ALiX** (13613 symbols, 24598 relationsh
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+- NEVER push directly to `main`. Always create a feature branch, push it, open a PR, and merge via PR — never `git push origin main`. This ensures Greptile reviews every change and the Grep Loop can run.
 
 ## Resources
 
@@ -77,3 +78,20 @@ Rules:
 - If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
 - Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
 - After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).
+
+## opensrc — Source Code Context
+
+Key dependency source code is cached locally via opensrc and available as context.
+The cache is symlinked into `.opensrc/repos` for project-local access.
+
+Use `npx opensrc path <org/repo>` to get the absolute path, or reference opensrc
+by name when asking about implementation details — the source code is available
+locally and provides the ground truth for any API or framework.
+
+Currently cached (all at `.opensrc/repos/` → `~/.opensrc/repos/`):
+- `microsoft/typescript` — `.opensrc/repos/github.com/microsoft/typescript/main/`
+- `facebook/react` — `.opensrc/repos/github.com/facebook/react/main/`
+- `lukeed/ms` — `.opensrc/repos/github.com/lukeed/ms/master/`
+- `pewdiepie-archdaemon/odysseus` — `.opensrc/repos/github.com/pewdiepie-archdaemon/odysseus/dev/`
+
+Add more with: `npx opensrc fetch <org/repo>`
