@@ -16,6 +16,7 @@ import type { EventLog } from "../events/event-log.js";
 import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/types.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
+import { WorkspacePathResolver } from "../runtime/workspace-path.js";
 
 import { buildDefaultToolIndex, ToolRetriever } from "./tool-registry.js";
 import type { ToolRegistry, CapabilityIndex } from "./tool-registry.js";
@@ -37,21 +38,41 @@ export class FileToolRouter implements ToolRouter {
   constructor(
     private readonly root: string = "",
     private eventLog?: EventLog,
-    private sessionId?: string
+    private sessionId?: string,
+    private pathResolver?: WorkspacePathResolver,
   ) {}
+
+  /** Validate a file path through the path resolver. Returns error result if blocked. */
+  private checkPath(rawPath: string): ToolResult | null {
+    if (!this.pathResolver) return null;
+    const result = this.pathResolver.check(rawPath);
+    // Check protected first — user-configured protections take priority over
+    // the generic sensitive pattern message for better UX.
+    if (result.protected && result.insideWorkspace) {
+      return { kind: "error", message: `Access denied: path is protected (${result.absolute})` };
+    }
+    if (result.sensitive) {
+      return { kind: "error", message: `Access denied: path is sensitive (${result.absolute})` };
+    }
+    return null;
+  }
 
   canHandle(name: string): boolean {
     return FileToolRouter.SUPPORTED_TOOLS.includes(name);
   }
 
   async execute(request: ToolCallRequest): Promise<ToolResult> {
-    const args = request.args as {
-      root?: string;
-      path?: string;
-      pattern?: string;
-      extensions?: string[];
-      content?: string;
-    };
+    const args = request.args as any;
+
+    // Path validation via WorkspacePathResolver
+    if (args.path) {
+      const blocked = this.checkPath(args.path);
+      if (blocked) return blocked;
+    }
+    if (args.root) {
+      const blocked = this.checkPath(args.root);
+      if (blocked) return blocked;
+    }
 
     switch (request.name) {
       case "file.read": {
