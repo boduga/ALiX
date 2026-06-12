@@ -15,6 +15,7 @@ import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import {
   CompositeToolRouter,
+  ToolAwareRouter,
   FileToolRouter,
   ShellToolRouter,
   PatchToolRouter,
@@ -22,6 +23,7 @@ import {
   DelegateToolRouter,
   SelfExtendToolRouter,
   WebToolsRouter,
+  type ToolRouter,
 } from "./tool-router.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
@@ -67,7 +69,7 @@ export type ToolCallRequest = {
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 
 export class ToolExecutor {
-  private router: CompositeToolRouter;
+  private router: ToolRouter;
   private repair: AlixToolRepair | null = null;
 
   constructor(
@@ -81,7 +83,7 @@ export class ToolExecutor {
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
   ) {
     // Create router with all handlers
-    this.router = new CompositeToolRouter([
+    const composite = new CompositeToolRouter([
       new FileToolRouter(this.root, log, this.sessionId()),
       new ShellToolRouter(this.root),
       new PatchToolRouter(this.root, config, editFormatPolicy, checkpointManager, log, this.sessionId()),
@@ -90,6 +92,7 @@ export class ToolExecutor {
       new SelfExtendToolRouter(),
       new WebToolsRouter(),
     ]);
+    this.router = new ToolAwareRouter(composite);
 
     // Initialize tool repair layer
     try {
