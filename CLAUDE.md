@@ -20,7 +20,9 @@ This project is indexed by GitNexus as **ALiX** (13613 symbols, 24598 relationsh
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
 - NEVER push directly to `main`. Always create a feature branch, push it, open a PR, and merge via PR — never `git push origin main`.
+- NEVER merge a PR before Greptile reaches 5/5 confidence score. If stuck below 5/5 after 5 Grep Loop iterations, review manually and re-trigger.
 - NEVER push directly to `main`. Always create a feature branch, push it, open a PR, and merge via PR — never `git push origin main`. This ensures Greptile reviews every change and the Grep Loop can run.
+- NEVER merge a PR before Greptile reaches 5/5 confidence score. If stuck below 5/5 after 5 Grep Loop iterations, review manually and re-trigger.
 
 ## Resources
 
