@@ -213,7 +213,13 @@ describeSoak("Daemon Protocol Soak", () => {
   it("rejects second start while running", () => {
     startDaemon();
     assert.ok(daemonIsRunning(testHome));
-    assert.throws(() => startDaemon(), /Daemon already running/, "second start should throw");
+    try {
+      startDaemon();
+      assert.fail("second start should throw");
+    } catch (e: any) {
+      const msg = e.stderr?.toString() || e.message || "";
+      assert.ok(msg.includes("Daemon already running"), `expected "Daemon already running" in "${msg}"`);
+    }
   });
 
   it("recovers from stale PID file", () => {

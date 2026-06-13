@@ -6,7 +6,6 @@
  */
 
 import { describe, it } from "node:test";
-import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";

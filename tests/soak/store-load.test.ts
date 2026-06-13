@@ -159,7 +159,6 @@ describe("ContinuationStore load", () => {
 
 describe("RuntimeIndex load", () => {
   it("build and query on deterministic fixture", { timeout: 30000 }, async () => {
-    const { writeFileSync, mkdirSync } = await import("node:fs");
     const dir = mkdtempSync(join(tmpdir(), "soak-rix-"));
     mkdirSync(join(dir, ".alix", "audit"), { recursive: true });
     mkdirSync(join(dir, ".alix", "approvals"), { recursive: true });

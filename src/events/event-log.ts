@@ -18,7 +18,7 @@ export class EventLog {
   async init(): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true });
     const events = await this.readAll();
-    this.nextSeq = events.length + 1;
+    this.nextSeq = events.reduce((max, e) => Math.max(max, e.seq ?? 0), 0) + 1;
   }
 
   async append<TType extends string, TPayload>(

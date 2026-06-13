@@ -101,7 +101,7 @@ describe("Corruption Recovery — EventLog", () => {
       const log = new EventLog(sessionDir);
       await log.init();
       const events = await log.readAll();
-      assert.ok(Array.isArray(events), "readAll returns array even with malformed lines");
+      assert.equal(events.length, 2, "readAll should return 2 valid events, skipping the malformed line");
     } finally { cleanup(dir); }
   });
 });
