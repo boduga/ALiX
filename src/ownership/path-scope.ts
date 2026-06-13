@@ -26,11 +26,6 @@ export function pathScopesOverlap(a: PathScope, b: PathScope): boolean {
   // B is recursive and A's root sits inside B
   if (b.recursive && isInside(b.root, a.root)) return true;
 
-  // Both recursive, one is a prefix of the other
-  if (a.recursive && b.recursive) {
-    return a.root.startsWith(b.root + sep) || b.root.startsWith(a.root + sep);
-  }
-
   return false;
 }
 

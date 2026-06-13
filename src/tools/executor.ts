@@ -13,6 +13,7 @@ import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult } from "./types.js";
 import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
+import { buildDefaultToolIndex } from "./tool-registry.js";
 import {
   CompositeToolRouter,
   ToolAwareRouter,
@@ -74,6 +75,7 @@ export class ToolExecutor {
   private router: ToolRouter;
   private toolAwareRouter: ToolAwareRouter;
   private repair: AlixToolRepair | null = null;
+  private toolRegistry: any = null;
 
   constructor(
     private config: AlixConfig,
@@ -99,6 +101,7 @@ export class ToolExecutor {
     ]);
     this.toolAwareRouter = new ToolAwareRouter(composite, log, this.sessionId());
     this.router = this.toolAwareRouter;
+    this.toolRegistry = buildDefaultToolIndex().registry;
 
     // Initialize tool repair layer
     try {
@@ -333,9 +336,7 @@ export class ToolExecutor {
     if (!this.workspacePathResolver) return null;
 
     const { checkOwnershipGate: gate } = await import("../ownership/ownership-gate.js");
-    const { buildDefaultToolIndex } = await import("./tool-registry.js");
-    const toolIndex = buildDefaultToolIndex();
-    const capability = toolIndex.registry.lookupByName(toolName);
+    const capability = this.toolRegistry?.lookupByName(toolName);
     const mutates = capability?.mutates ?? false;
 
     return await gate(

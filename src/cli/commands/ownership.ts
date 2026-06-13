@@ -97,7 +97,12 @@ export async function handleOwnershipCommand(args: string[]): Promise<void> {
     case "renew": {
       const id = args[1];
       const ttlIdx = args.indexOf("--ttl");
-      const ttlMs = ttlIdx >= 0 ? parseTTL(args[ttlIdx + 1]) : undefined;
+      const ttlArg = ttlIdx >= 0 ? args[ttlIdx + 1] : undefined;
+      if (ttlIdx >= 0 && !ttlArg) {
+        console.error("--ttl requires a value. Use e.g. 30m, 2h, 300s");
+        process.exit(1);
+      }
+      const ttlMs = ttlArg ? parseTTL(ttlArg) : undefined;
       if (!id) { console.error("Usage: alix ownership renew <id> [--ttl 30m]"); process.exit(1); }
       const renewed = await reg.renew(id, ttlMs);
       if (renewed) { console.log(`Renewed: ${id}`); }

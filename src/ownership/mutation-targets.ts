@@ -86,11 +86,6 @@ export function extractMutationTargets(
       if (patchText && root) {
         const headerPaths = extractPatchPaths(patchText, resolver, root);
         targets.push(...headerPaths);
-        // Also include root as a coverage anchor (non-confident)
-        const rResolved = resolver.check(root);
-        if (rResolved.insideWorkspace) {
-          targets.push({ path: rResolved.absolute, origin: "glob", confident: false });
-        }
       }
       if (targets.length === 0) return { classification: "unknown-write", targets: [] };
       return { classification: "known-write", targets };
