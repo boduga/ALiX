@@ -103,7 +103,8 @@ Usage:
   alix demo local         Run M0.9 demo (read-only task, kernel artifact display)
   alix db doctor          Check database health
   alix db migrate         Run M0.9 kernel database migration
-  alix serve
+  alix serve               Start the Inspector server (requires ui.enabled: true)
+  alix inspector open      Start the Inspector web UI and open browser
   alix config show
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
@@ -1056,6 +1057,44 @@ if (command === "serve") {
   const server = await startServer(process.cwd(), config.ui.host, config.ui.port);
   console.log(`ALiX inspector running at ${server.url}`);
   await new Promise(() => undefined);
+}
+
+// --- alix inspector -- start Inspector server and open browser ---
+if (command === "inspector" && args[0] === "open") {
+  const { startServer } = await import("./server/server.js");
+  const { execFile } = await import("node:child_process");
+  const { platform } = await import("node:os");
+
+  const config = await loadConfig(process.cwd());
+  const host = config.ui?.host ?? "localhost";
+  const port = config.ui?.port ?? 4137;
+
+  const server = await startServer(process.cwd(), host, port);
+  const url = server.url;
+
+  // Open browser (platform-aware, best-effort)
+  const platformName = platform();
+  const openBrowser = (cmd: string, args: string[]) => {
+    try {
+      execFile(cmd, args, () => {});
+    } catch {
+      // Browser open is best-effort — user can copy the URL
+    }
+  };
+
+  if (platformName === "darwin") {
+    openBrowser("open", [url]);
+  } else if (platformName === "win32") {
+    openBrowser("cmd", ["/c", "start", url]);
+  } else {
+    openBrowser("xdg-open", [url]);
+  }
+
+  console.log(`\n  ALiX Inspector: ${url}\n`);
+  console.log("  Press Ctrl+C to stop the server.\n");
+
+  // Block until SIGINT
+  await new Promise(() => {});
 }
 
 if (command === "mcp") {

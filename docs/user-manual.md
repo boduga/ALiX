@@ -136,6 +136,26 @@ You can apply a profile and still override individual tiers with `alix config se
 
 ---
 
+## 4.1 First Success Demo
+
+A complete end-to-end walkthrough that validates your ALiX setup and runs your first real task.
+
+1. **`alix init`** — Initializes the project with the `.alix/` directory structure, default config, and agent/tool registry cards. Expect a confirmation message that your project is ready.
+
+2. **`alix models doctor`** — Runs system diagnostics checking hardware, API keys, provider connectivity, and installed models. Expect a summary showing all checks passing (green).
+
+3. **`alix models fit`** — Ranks available model profiles by how well they match your hardware and configuration. Expect a ranked table with a fit score for each profile.
+
+4. **`alix models apply-profile balanced-local --dry-run`** — Previews what applying the profile would change without modifying your config. Expect a diff showing the tier mappings that would be applied.
+
+5. **`alix models install-profile balanced-local`** — Pulls the required local models via Ollama and applies the profile to your configuration. Expect progress bars for model downloads followed by a success confirmation.
+
+6. **`alix run "inspect this repository and explain the architecture"`** — Your first real task. ALiX classifies it as a read-only research task, generates a structured plan, presents it for approval, and executes it step by step. Expect a multi-paragraph architectural explanation of the project.
+
+7. **`alix inspector open`** — Opens the web Inspector in your browser for a read-only view of sessions, graphs, policies, and approvals. The Inspector loads at http://localhost:4137.
+
+---
+
 ## 5. First Run
 
 ```bash
