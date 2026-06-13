@@ -195,6 +195,11 @@ export async function buildRuntimeIndex(
     "file.created",
     "runtime.phase.started",
     "runtime.phase.completed",
+    // Ownership events (M0.75)
+    "ownership.acquired", "ownership.released",
+    "ownership.renewed", "ownership.expired",
+    "ownership.conflict", "ownership.revoked",
+    "ownership.denied",
   ]);
   const sessionsDir = join(cwd, ".alix", "sessions");
   if (existsSync(sessionsDir)) {

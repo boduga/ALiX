@@ -31,6 +31,11 @@ const VISIBLE_EVENTS = [
   "runtime.phase.completed", "runtime.phase.started",
   // Usage
   "model.usage",
+  // Ownership events (M0.75)
+  "ownership.acquired", "ownership.released",
+  "ownership.renewed", "ownership.expired",
+  "ownership.conflict", "ownership.revoked",
+  "ownership.denied",
 ];
 
 function decodePathSegment(segment: string | undefined): string {
