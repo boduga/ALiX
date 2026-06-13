@@ -7,37 +7,63 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  # ─── Lane 1: TypeScript typecheck (fast, no build needed) ──────
+  typecheck:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        node-version: [24]
-
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: ${{ matrix.node-version }}
+          node-version: "24"
           cache: npm
+      - run: npm ci
+      - name: TypeScript typecheck
+        run: npm run typecheck
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Run CI unit tests (excluding interactive manual)
-        run: npm run test:node:ci
-
-      - name: Run vitest
+  # ─── Lane 2: Unit tests (node + vitest) ─────────────────────────
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Node unit tests
+        run: npm run test:unit:node
+      - name: Vitest
         run: npm run test:vitest
 
-      - name: Run integration smoke tests
-        run: node --test dist/tests/integration/smoke.test.js
-
-      - name: Run TUI manual smoke (non-blocking)
-        run: npm run test:manual:tui
-        continue-on-error: true
-
-      - name: Verify build is doctorable
+  # ─── Lane 3: Integration + Soak Tier 1 + Doctor ────────────────
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Integration tests
+        run: npm run test:integration
+      - name: Soak Tier 1 (corruption + store load)
+        run: npm run test:soak:quick
+      - name: Doctor health check
         run: node dist/src/cli.js doctor
+
+  # ─── Lane 4: TUI smoke (blocking) ──────────────────────────────
+  tui-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: TUI manual smoke
+        run: npm run test:manual:tui
