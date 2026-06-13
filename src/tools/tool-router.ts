@@ -14,6 +14,7 @@ import type { Checkpoint } from "../checkpoints/checkpoint-manager.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { EventLog } from "../events/event-log.js";
 import { FILE_EVENT_TYPES, MCP_EVENT_TYPES, PATCH_EVENT_TYPES } from "../events/types.js";
+import { measurePhase } from "../runtime/timing-events.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { McpManager } from "../mcp/manager.js";
 import { WorkspacePathResolver } from "../runtime/workspace-path.js";
@@ -523,6 +524,8 @@ export class ToolAwareRouter implements ToolRouter {
 
   constructor(
     readonly downstream: ToolRouter,
+    private eventLog?: EventLog,
+    private sessionId?: string,
   ) {
     const { registry, index } = buildDefaultToolIndex();
     this.retriever = new ToolRetriever(registry, index);
@@ -556,7 +559,12 @@ export class ToolAwareRouter implements ToolRouter {
         retryable: false,
       };
     }
-    return this.downstream.execute(request);
+    return measurePhase(
+      this.eventLog,
+      this.sessionId ?? "system",
+      `tool.route.${request.name}`,
+      () => this.downstream.execute(request),
+    );
   }
 }
 

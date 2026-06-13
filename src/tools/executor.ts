@@ -93,7 +93,7 @@ export class ToolExecutor {
       new SelfExtendToolRouter(),
       new WebToolsRouter(),
     ]);
-    this.toolAwareRouter = new ToolAwareRouter(composite);
+    this.toolAwareRouter = new ToolAwareRouter(composite, log, this.sessionId());
     this.router = this.toolAwareRouter;
 
     // Initialize tool repair layer

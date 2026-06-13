@@ -27,6 +27,8 @@ const VISIBLE_EVENTS = [
   "file.created",
   // Patches
   "patch.applied", "patch.rolled_back",
+  // Runtime phases
+  "runtime.phase.completed", "runtime.phase.started",
   // Usage
   "model.usage",
 ];

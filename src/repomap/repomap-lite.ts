@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { minimatch } from "minimatch";
 import { buildDependencyGraph } from "./dependency-graph.js";
+import { measurePhase } from "../runtime/timing-events.js";
 
 export type RepoFileKind = "source" | "test" | "config" | "docs" | "asset" | "unknown";
 
@@ -31,41 +32,56 @@ export type RepoMapLite = {
   topLevelSymbols: SymbolSummary[];
 };
 
+export type RepoMapOptions = {
+  eventLog?: import("../events/event-log.js").EventLog;
+  sessionId?: string;
+};
+
 const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".worktrees", ".alix", "test-folder"]);
 
-export async function buildRepoMapLite(root: string): Promise<RepoMapLite> {
-  const paths = await walk(root);
-  const files: RepoFileSummary[] = [];
-  const topLevelSymbols: SymbolSummary[] = [];
+export async function buildRepoMapLite(
+  root: string,
+  options?: RepoMapOptions,
+): Promise<RepoMapLite> {
+  return measurePhase(
+    options?.eventLog,
+    options?.sessionId ?? "system",
+    "context.compile",
+    async () => {
+      const paths = await walk(root);
+      const files: RepoFileSummary[] = [];
+      const topLevelSymbols: SymbolSummary[] = [];
 
-  for (const path of paths) {
-    const fullPath = join(root, path);
-    let info: Awaited<ReturnType<typeof stat>>;
-    try {
-      info = await stat(fullPath);
-    } catch (err: unknown) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
-      throw err;
-    }
-    const text = await readTextIfSmall(fullPath, info.size);
-    const lineCount = text ? text.split("\n").length : undefined;
-    const kind = classify(path);
-    files.push({ path, kind, language: languageFor(path), sizeBytes: info.size, lineCount });
-    if (text && kind === "source") {
-      topLevelSymbols.push(...extractSymbols(path, text));
-    }
-  }
+      for (const path of paths) {
+        const fullPath = join(root, path);
+        let info: Awaited<ReturnType<typeof stat>>;
+        try {
+          info = await stat(fullPath);
+        } catch (err: unknown) {
+          if ((err as NodeJS.ErrnoException).code === "ENOENT") continue;
+          throw err;
+        }
+        const text = await readTextIfSmall(fullPath, info.size);
+        const lineCount = text ? text.split("\n").length : undefined;
+        const kind = classify(path);
+        files.push({ path, kind, language: languageFor(path), sizeBytes: info.size, lineCount });
+        if (text && kind === "source") {
+          topLevelSymbols.push(...extractSymbols(path, text));
+        }
+      }
 
-  return {
-    root,
-    generatedAt: new Date().toISOString(),
-    files,
-    configFiles: files.filter((file) => file.kind === "config").map((file) => file.path),
-    docsFiles: files.filter((file) => file.kind === "docs").map((file) => file.path),
-    testFiles: files.filter((file) => file.kind === "test").map((file) => file.path),
-    sourceFiles: files.filter((file) => file.kind === "source").map((file) => file.path),
-    topLevelSymbols
-  };
+      return {
+        root,
+        generatedAt: new Date().toISOString(),
+        files,
+        configFiles: files.filter((file) => file.kind === "config").map((file) => file.path),
+        docsFiles: files.filter((file) => file.kind === "docs").map((file) => file.path),
+        testFiles: files.filter((file) => file.kind === "test").map((file) => file.path),
+        sourceFiles: files.filter((file) => file.kind === "source").map((file) => file.path),
+        topLevelSymbols
+      };
+    },
+  );
 }
 
 async function walk(root: string, dir = root): Promise<string[]> {
