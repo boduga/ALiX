@@ -1062,31 +1062,35 @@ if (command === "serve") {
 // --- alix inspector -- start Inspector server and open browser ---
 if (command === "inspector" && args[0] === "open") {
   const { startServer } = await import("./server/server.js");
-  const { loadConfig } = await import("./config/loader.js");
   const { execFile } = await import("node:child_process");
   const { platform } = await import("node:os");
 
   const config = await loadConfig(process.cwd());
   const host = config.ui?.host ?? "localhost";
-  const port = config.ui?.port ?? 3000;
+  const port = config.ui?.port ?? 4137;
 
   const server = await startServer(process.cwd(), host, port);
+  const url = server.url;
 
   // Open browser (platform-aware, best-effort)
   const platformName = platform();
-  try {
-    if (platformName === "darwin") {
-      execFile("open", [`http://${host}:${port}`]);
-    } else if (platformName === "win32") {
-      execFile("cmd", ["/c", "start", `http://${host}:${port}`]);
-    } else {
-      execFile("xdg-open", [`http://${host}:${port}`]);
+  const openBrowser = (cmd: string, args: string[]) => {
+    try {
+      execFile(cmd, args, () => {});
+    } catch {
+      // Browser open is best-effort — user can copy the URL
     }
-  } catch {
-    // Browser open is best-effort — user can copy the URL
+  };
+
+  if (platformName === "darwin") {
+    openBrowser("open", [url]);
+  } else if (platformName === "win32") {
+    openBrowser("cmd", ["/c", "start", url]);
+  } else {
+    openBrowser("xdg-open", [url]);
   }
 
-  console.log(`\n  ALiX Inspector: http://${host}:${port}\n`);
+  console.log(`\n  ALiX Inspector: ${url}\n`);
   console.log("  Press Ctrl+C to stop the server.\n");
 
   // Block until SIGINT
