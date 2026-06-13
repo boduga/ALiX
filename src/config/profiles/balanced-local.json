@@ -1,0 +1,17 @@
+{
+  "id": "balanced-local",
+  "name": "Balanced Local",
+  "description": "Default local-first profile for 16-32 GB RAM machines.",
+  "mode": "local-first",
+  "hardware": { "minRamGb": 16, "recommendedRamGb": 32, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "ollama", "name": "qwen3:4b", "temperature": 0.3, "contextWindow": 32768 },
+    "planner": { "provider": "ollama", "name": "qwen3:8b", "temperature": 0.2, "contextWindow": 32768 },
+    "coder": { "provider": "ollama", "name": "qwen2.5-coder:7b", "temperature": 0.1, "contextWindow": 32768 },
+    "critic": { "provider": "ollama", "name": "qwen3:8b", "temperature": 0.2, "contextWindow": 32768 },
+    "embeddings": { "provider": "ollama", "name": "qwen3-embedding:0.6b" }
+  },
+  "fallbacks": { "enabled": true, "cloud": { "provider": "anthropic", "name": "claude-haiku-4-5" } },
+  "runtime": { "maxConcurrentAgents": 2, "maxContextTokens": 24000 },
+  "install": { "ollamaPull": ["qwen3:4b", "qwen3:8b", "qwen2.5-coder:7b", "qwen3-embedding:0.6b"] }
+}
