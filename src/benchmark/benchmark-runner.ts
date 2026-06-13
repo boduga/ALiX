@@ -62,7 +62,7 @@ export async function runBenchmarks(
     console.log(`  Running: ${def.label} (${iterations}x)`);
     const result = await sample(name, def.suite, def.label, def.run, iterations);
     results.push(result);
-    console.log(`    ${result.durationMs} ms mean (p50: ${result.p50Ms}, p95: ${result.p95Ms})`);
+    console.log(`    ${result.meanMs} ms mean (p50: ${result.p50Ms}, p95: ${result.p95Ms})`);
   }
 
   const runId = `bench_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}`;
