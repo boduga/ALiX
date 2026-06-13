@@ -43,9 +43,11 @@ test("init with Ollama fallback and no installed models writes no model at all",
     assert.ok(existsSync(configPath), ".alix/config.json should exist");
     const content = JSON.parse(await readFileAsync(configPath, "utf8"));
     assert.ok(content.model, "config should have model field");
-    // Regardless of whether Ollama is installed, the model name must not be an empty string
-    assert.notEqual(content.model.name, "", "model.name must not be an empty string");
-    assert.equal(typeof content.model.name, "string", "model.name must be a string");
+    // If Ollama is installed with models, model.name is set; if not, model is {}
+    // The invariant: model.name must never be an empty string
+    if (content.model.name !== undefined) {
+      assert.notEqual(content.model.name, "", "model.name must not be an empty string");
+    }
   });
 });
 
@@ -195,10 +197,12 @@ test("end-to-end: init then doctor then fit then install-profile --dry-run", { t
     const { runInit } = await import("../../src/cli/commands/init.js");
     await runInit(dir);
 
-    // Verify config is valid (model.name not empty)
+    // Verify config is valid (model.name not empty if set)
     const configPath = join(dir, ".alix", "config.json");
     const config = JSON.parse(await readFileAsync(configPath, "utf8"));
-    assert.notEqual(config.model.name, "", "model.name must not be empty after init");
+    if (config.model.name !== undefined) {
+      assert.notEqual(config.model.name, "", "model.name must not be empty after init");
+    }
 
     // Step 2: doctor (must not throw)
     const { handleModelsDoctor, handleModelsFit, handleModelsApply } = await import("../../src/cli/commands/models.js");

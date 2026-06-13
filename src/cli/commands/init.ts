@@ -80,8 +80,8 @@ export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Pr
         `  alix models install-profile minimal-local`,
       ].join("\n"));
     }
-  } else {
-    console.log(`Using: ${selectedProvider} / ${resolvedModel || "(not set)"}`);
+  } else if (resolvedModel) {
+    console.log(`Using: ${selectedProvider} / ${resolvedModel}`);
   }
 
   // Step 3: Feature toggles (all enabled by default)
@@ -91,13 +91,12 @@ export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Pr
   const enableSubagents = true;
 
   // Build config
+  const hasModel = resolvedModel != null && resolvedModel !== "";
   const config = {
     ...structuredClone(DEFAULT_CONFIG),
-    model: {
-      ...DEFAULT_CONFIG.model,
-      provider: selectedProvider as any,
-      name: resolvedModel,
-    },
+    model: hasModel
+      ? { provider: selectedProvider, name: resolvedModel }
+      : {} as any,
     ui: {
       ...DEFAULT_CONFIG.ui,
       enabled: enableUi,
@@ -157,7 +156,9 @@ npm test
   await writeFile(agentsPath, agentsContent);
 
   console.log(`\n✓ ALiX initialized in ${workDir}`);
-  console.log(`\nNext steps:`);
-  console.log(`  alix run "your first task"`);
-  console.log(`  alix serve    # start UI inspector`);
+  if (hasModel) {
+    console.log(`\nNext steps:`);
+    console.log(`  alix run "your first task"`);
+    console.log(`  alix serve    # start UI inspector`);
+  }
 }
