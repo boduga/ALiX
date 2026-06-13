@@ -179,6 +179,8 @@ export type AlixConfig = {
   };
   subagents?: SubagentConfig;
   toolConfig?: ToolConfig;
+  modelProfile?: string;
+  models?: Record<string, { provider: string; name: string; temperature?: number; contextWindow?: number }>;
 };
 
 export type ValidationIssue = {
