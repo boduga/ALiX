@@ -17,6 +17,8 @@ export interface ContinuationManagerDeps {
     toolCallId: string;
     name: string;
     args: Record<string, unknown>;
+    agentId?: string;
+    source?: string;
   }) => Promise<{ kind: string; output?: string; content?: string; message?: string }>;
 }
 
@@ -46,6 +48,15 @@ export class ContinuationManager {
       return { resumed: false, error: `Continuation '${cont.kind}' cannot be resumed (only 'tool' supported in M0.30)` };
     }
 
+    // 2b. Check for migration issues (legacy continuations without agentId)
+    if (cont.migrationIssue === "missing-agent-identity") {
+      return {
+        resumed: false,
+        error: `This continuation was created by an older version and lacks agent identity. ` +
+          `Cannot resume under ownership enforcement. Please re-run the tool manually.`,
+      };
+    }
+
     // 3. Verify argsHash integrity
     const { hashArgs } = await import("../tools/executor.js");
     const currentHash = hashArgs(cont.toolCall.args);
@@ -73,8 +84,11 @@ export class ContinuationManager {
     // 4. Remove continuation (one-shot)
     await this.deps.continuationStore.remove(approvalId);
 
-    // 5. Re-execute
-    const result = await this.deps.executeTool(cont.toolCall);
+    // 5. Re-execute (pass agentId through for ownership check)
+    const result = await this.deps.executeTool({
+      ...cont.toolCall,
+      source: "continuation-resume",
+    });
     if (result.kind === "success") {
       // Emit approval.resumed + continuation.consumed
       if (this.deps.eventLog) {

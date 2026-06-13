@@ -210,6 +210,7 @@ export class ToolExecutor {
             capability,
             args,
             argsHash: argumentHash,
+            agentId: request.agentId,
           },
           createdAt: new Date().toISOString(),
         });
