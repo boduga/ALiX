@@ -13,6 +13,7 @@ import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { AuditRecord } from "../audit/audit-types.js";
+import { measurePhase } from "./timing-events.js";
 
 export type RuntimeIndexEvent = {
   id: string;
@@ -38,11 +39,24 @@ export type RuntimeIndex = {
   byAction(action: string): RuntimeIndexEvent[];
 };
 
-/** Build a RuntimeIndex from all available sources. */
-export async function buildRuntimeIndex(cwd: string): Promise<RuntimeIndex> {
-  const events: RuntimeIndexEvent[] = [];
+export type RuntimeIndexOptions = {
+  eventLog?: import("../events/event-log.js").EventLog;
+  sessionId?: string;
+};
 
-  // Source 1: audit/audit.jsonl
+/** Build a RuntimeIndex from all available sources. */
+export async function buildRuntimeIndex(
+  cwd: string,
+  options: RuntimeIndexOptions = {},
+): Promise<RuntimeIndex> {
+  return measurePhase(
+    options.eventLog,
+    options.sessionId ?? "system",
+    "runtime-index.build",
+    async () => {
+      const events: RuntimeIndexEvent[] = [];
+
+      // Source 1: audit/audit.jsonl
   const auditPath = join(cwd, ".alix", "audit", "audit.jsonl");
   if (existsSync(auditPath)) {
     try {
@@ -179,6 +193,8 @@ export async function buildRuntimeIndex(cwd: string): Promise<RuntimeIndex> {
     "approval.requested", "approval.resolved",
     "tool.started", "tool.completed", "tool.failed",
     "file.created",
+    "runtime.phase.started",
+    "runtime.phase.completed",
   ]);
   const sessionsDir = join(cwd, ".alix", "sessions");
   if (existsSync(sessionsDir)) {
@@ -247,4 +263,6 @@ export async function buildRuntimeIndex(cwd: string): Promise<RuntimeIndex> {
   const byAction = (action: string) => events.filter(e => e.action === action);
 
   return { events, byGraph, bySession, byApproval, byAction };
+    },
+  );
 }
