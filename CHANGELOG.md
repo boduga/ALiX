@@ -1,6 +1,5 @@
 # Changelog
 
-## 2026-06-05 — Multi-Embedder Intelligence
 ## 2026-06-08 — M0.9 Governance/Demo Baseline
 
 ### Added
@@ -92,6 +91,8 @@
 - `v0.3.0-rc.2`
 
 
+## 2026-06-05 — Multi-Embedder Intelligence
+
 ### Added
 - Multi-embedder search with weighted fusion (semantic + code embedding models fused with task-type-aware weights)
 - Kernel/grounding-set boost — high-connectivity files get score boost based on dependency graph impact
@@ -102,6 +103,7 @@
 - All 12 pre-existing test failures — provider tests, patch tests, context compiler, inspector, discover tests
 - Zero build errors across entire TypeScript codebase
 - Embedding cache miss log changed from console.warn to console.debug
+
 
 ## 2026-06-04 — Self-Extensible Hooks + Agent Observability
 
