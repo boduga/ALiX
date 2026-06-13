@@ -127,6 +127,12 @@ Usage:
   alix registry tools     List tool cards only
   alix registry doctor    Check card file health and loading status
   alix doctor             Run comprehensive system health check
+  alix models doctor         Diagnose hardware, providers, and profile compatibility
+  alix models fit            Rank model profiles for your system
+  alix models list-profiles  List available model profiles
+  alix models show-profile   Show profile details
+  alix models apply-profile  Apply a profile to config
+  alix models install-profile  Pull models and apply profile
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -2235,6 +2241,12 @@ if (command === "approvals") {
   console.log('  show <id>         Show approval details');
   console.log('  approve <id>      Approve a pending request');
   console.log('  deny <id>         Deny a pending request');
+  process.exit(0);
+}
+
+if (command === "models") {
+  const { handleModelsCommand } = await import("./cli/commands/models.js");
+  await handleModelsCommand(args);
   process.exit(0);
 }
 
