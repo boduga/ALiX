@@ -49,21 +49,10 @@ function withSavedEnv<T>(keys: string[], fn: () => Promise<T>): Promise<T> {
   for (const key of keys) {
     saved[key] = process.env[key];
   }
-  // Clear the keys for the test
   for (const key of keys) {
     delete process.env[key];
   }
-  try {
-    return Promise.resolve().then(fn).finally(() => {
-      for (const key of keys) {
-        if (saved[key] !== undefined) {
-          process.env[key] = saved[key];
-        } else {
-          delete process.env[key];
-        }
-      }
-    });
-  } catch (e) {
+  return Promise.resolve().then(fn).finally(() => {
     for (const key of keys) {
       if (saved[key] !== undefined) {
         process.env[key] = saved[key];
@@ -71,8 +60,7 @@ function withSavedEnv<T>(keys: string[], fn: () => Promise<T>): Promise<T> {
         delete process.env[key];
       }
     }
-    throw e;
-  }
+  });
 }
 
 /** Minimal config with empty model name — simulates incomplete setup. */

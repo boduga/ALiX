@@ -96,7 +96,7 @@ export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Pr
     ...structuredClone(DEFAULT_CONFIG),
     model: hasModel
       ? { provider: selectedProvider, name: resolvedModel }
-      : {} as any,
+      : { ...DEFAULT_CONFIG.model },
     ui: {
       ...DEFAULT_CONFIG.ui,
       enabled: enableUi,
