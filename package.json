@@ -41,9 +41,11 @@
     "verify:deps": "node scripts/verify-deps.mjs",
     "check": "npm run build && npm run test:node && npm run verify:deps",
     "test:ci": "npm run test:node:ci && npm run test:vitest",
-    "test:node:ci": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' ! -path 'dist/tests/pty/*' -print0 | xargs -0 node --test --test-timeout=30000",
+    "test:node:ci": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' ! -path 'dist/tests/pty/*' ! -path 'dist/tests/soak/*' -print0 | xargs -0 node --test --test-timeout=30000",
     "test:manual:tui": "node --test --test-concurrency=1 dist/tests/manual/suite-p-tui-smoke.test.js",
     "test:pty:tui": "ALIX_PTY_TESTS=1 node --test --test-concurrency=1 dist/tests/pty/tui-pty.test.js",
+    "test:soak:quick": "node --test --test-concurrency=1 dist/tests/soak/corruption-recovery.test.js dist/tests/soak/store-load.test.js dist/tests/soak/memory-growth.test.js",
+    "test:soak": "ALIX_SOAK_TESTS=1 node --test --test-concurrency=1 dist/tests/soak/*.test.js",
     "fresh": "npm run build && node dist/src/cli.js doctor"
   },
   "engines": {
