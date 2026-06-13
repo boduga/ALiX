@@ -16,6 +16,11 @@ export async function runNoToolTaskBenchmark(): Promise<void> {
     ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" },
     mcpServers: [],
   }));
+  const { rmSync } = await import("node:fs");
   const { runTask } = await import("../../run.js");
-  await runTask(tmpDir, 'respond with "hello"', { planMode: false, skipContext: true, sessionMode: "bypass" });
+  try {
+    await runTask(tmpDir, 'respond with "hello"', { planMode: false, skipContext: true, sessionMode: "bypass" });
+  } finally {
+    rmSync(tmpDir, { recursive: true, force: true });
+  }
 }

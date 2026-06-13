@@ -39,7 +39,7 @@ export async function sample(
   const sum = samples.reduce((a, b) => a + b, 0);
   return {
     name, suite, label,
-    durationMs: Math.round(sum / samples.length * 100) / 100,
+    durationMs: Math.round(sum * 100) / 100,
     iterations: samples.length,
     minMs: Math.round(samples[0] * 100) / 100,
     maxMs: Math.round(samples[samples.length - 1] * 100) / 100,

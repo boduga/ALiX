@@ -12,15 +12,20 @@ export async function handleBenchmarkRun(args: string[]): Promise<void> {
   const { runBenchmarks, saveRun } = await import("../../benchmark/benchmark-runner.js");
   const { BENCHMARK_CASES } = await import("../../benchmark/cases/index.js");
 
+  const VALID_SUITES = ["quick", "runtime", "daemon"] as const;
   let suite: string | undefined;
   for (let i = 0; i < args.length; i++) {
     if (args[i] === "--suite" && args[i + 1]) suite = args[++i];
+  }
+  if (suite !== undefined && !(VALID_SUITES as readonly string[]).includes(suite)) {
+    console.error(`Unknown suite "${suite}". Valid suites: ${VALID_SUITES.join(", ")}`);
+    process.exit(1);
   }
 
   const start = performance.now();
   console.log(`Running benchmarks${suite ? ` (suite: ${suite})` : ""}...\n`);
 
-  const run = await runBenchmarks(BENCHMARK_CASES, { suite: suite as any, iterations: 3 });
+  const run = await runBenchmarks(BENCHMARK_CASES, { suite: suite as typeof VALID_SUITES[number] | undefined, iterations: 3 });
   saveRun(process.cwd(), run);
 
   const totalMs = Math.round((performance.now() - start) * 100) / 100;

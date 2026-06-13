@@ -36,7 +36,7 @@ describe("benchmark storage", () => {
   const BENCH_DIR = join(TEST_DIR, ".alix", "benchmarks");
 
   beforeEach(() => { mkdirSync(BENCH_DIR, { recursive: true }); });
-  afterEach(() => { rmSync(join(TEST_DIR, ".alix"), { recursive: true, force: true }); });
+  afterEach(() => { rmSync(TEST_DIR, { recursive: true, force: true }); });
 
   it("saveRun and loadPreviousRuns round-trips", () => {
     const run = { runId: "bench_test", createdAt: "2026-01-01", cliVersion: "test", results: [] };
