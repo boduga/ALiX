@@ -15,7 +15,7 @@ export async function handleModelsDoctor(args: string[]): Promise<void> {
   console.log("\nALiX Model Doctor\n");
   for (const sec of report.sections) {
     console.log(sec.title);
-    for (const i of sec.items) console.log(`  ${i.startsWith("  ") ? i : `  ${i}`}`);
+    for (const i of sec.items) console.log(`  ${i}`);
     console.log();
   }
   console.log("Profile Compatibility");

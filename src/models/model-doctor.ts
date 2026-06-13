@@ -78,6 +78,7 @@ export function runDoctor(
     } else if (match === "incompatible") {
       if (system.ramGb < profile.hardware.minRamGb) reason = `Requires ${profile.hardware.minRamGb} GB RAM (detected ${system.ramGb} GB)`;
       else if (profile.hardware.requiresGpu && !system.hasGpu) reason = "Requires GPU";
+      else if (profile.mode === "cloud-only" || profile.mode === "cloud-first") reason = "Missing API keys for one or more providers";
     }
     profileCompatibility.push({ id: profile.id, name: profile.name, status: match, reason });
   }
