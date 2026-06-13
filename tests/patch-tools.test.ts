@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { readFile } from "node:fs/promises";
 import { ToolExecutor } from "../src/tools/executor.js";
-import { DEFAULT_CONFIG } from "../src/config/defaults.js";
+import { DEFAULT_CONFIG, PERMIT_ALL_CONFIG } from "../src/config/defaults.js";
 import { EventLog } from "../src/events/event-log.js";
 import type { AlixConfig } from "../src/config/schema.js";
 
@@ -16,7 +16,7 @@ test("patch.apply with checkpointing is routed through executor", async () => {
     await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
     const log = new EventLog(join(dir, "session"));
     await log.init();
-    const executor = new ToolExecutor({ ...DEFAULT_CONFIG, model: { provider: "test", name: "test-model" } }, log, dir);
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
     const result = await executor.execute({
       toolCallId: "p1",
       name: "patch.apply",
@@ -44,6 +44,11 @@ test("patch.apply logs edit format policy telemetry", async () => {
     const config: AlixConfig = {
       ...DEFAULT_CONFIG,
       model: { provider: "google", name: "test-model" },
+      permissions: {
+        ...DEFAULT_CONFIG.permissions,
+        default: "allow",
+        sessionMode: "bypass",
+      },
     };
     const executor = new ToolExecutor(config, log, dir);
 
@@ -80,7 +85,7 @@ test("patch.apply blocks full_file at the edit format policy layer", async () =>
   try {
     const log = new EventLog(join(dir, "session"));
     await log.init();
-    const executor = new ToolExecutor({ ...DEFAULT_CONFIG, model: { provider: "test", name: "test-model" } }, log, dir);
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
 
     const result = await executor.execute({
       toolCallId: "p-full-file",
@@ -114,7 +119,7 @@ test("patch.apply checkpoints structured patch paths before applying", async () 
     await writeFile(join(dir, "src/a.ts"), "const a = 1;\n");
     const log = new EventLog(join(dir, "session"));
     await log.init();
-    const executor = new ToolExecutor({ ...DEFAULT_CONFIG, model: { provider: "test", name: "test-model" } }, log, dir);
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
 
     const result = await executor.execute({
       toolCallId: "p-structured-checkpoint",
@@ -149,7 +154,7 @@ test("patch.apply rolls back prior file changes when a later patch block fails",
     await writeFile(join(dir, "src/b.ts"), "const b = 1;\n");
     const log = new EventLog(join(dir, "session"));
     await log.init();
-    const executor = new ToolExecutor({ ...DEFAULT_CONFIG, model: { provider: "test", name: "test-model" } }, log, dir);
+    const executor = new ToolExecutor(PERMIT_ALL_CONFIG, log, dir);
 
     const result = await executor.execute({
       toolCallId: "p-rollback",

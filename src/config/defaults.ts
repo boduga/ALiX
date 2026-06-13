@@ -83,3 +83,23 @@ export const DEFAULT_CONFIG: AlixConfig = {
     historyRetentionDays: 30,
   },
 };
+
+/**
+ * Permissive test config that allows all tool operations.
+ * Bypasses PolicyGate to test routing logic, not approval workflows.
+ */
+export const PERMIT_ALL_CONFIG: AlixConfig = {
+  ...DEFAULT_CONFIG,
+  model: { provider: "test", name: "test-model" },
+  permissions: {
+    ...DEFAULT_CONFIG.permissions,
+    default: "allow",
+    sessionMode: "bypass",
+    tools: {
+      "file.read": "allow",
+      "file.write": "allow",
+      "shell.run": "allow",
+      "git.diff": "allow",
+    },
+  },
+};
