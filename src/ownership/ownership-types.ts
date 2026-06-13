@@ -56,8 +56,20 @@ export type OwnershipEventSink = {
 
 /**
  * Conflict matrix: existing vs requested.
- * Only exclusive-write conflicts with another exclusive-write or
- * with a prior shared-read that another agent holds.
+ *
+ * Rules (intentionally asymmetric):
+ * 1. exclusive-write blocks another exclusive-write — prevents two writers
+ * 2. shared-read blocks a new exclusive-write — prevents writes during reads
+ * 3. exclusive-write does NOT block shared-read — reads are advisory
+ * 4. review-only blocks nothing — never conflicts
+ *
+ * The asymmetry in rule 3 vs rule 2 is deliberate: a shared-read that was
+ * acquired alongside an active writer can later block the NEXT writer,
+ * creating chained starvation. This is acceptable for M0.75 because:
+ * - Leases have bounded TTL (default 30 min, shorter for auto-acquired)
+ * - The lock file serializes concurrent acquire requests
+ * - In practice, reviewers release their shared-read quickly
+ * Future versions may add conflict escalation or lease preemption.
  */
 export function modesConflict(
   existing: OwnershipMode,

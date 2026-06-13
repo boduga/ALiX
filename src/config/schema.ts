@@ -179,6 +179,12 @@ export type AlixConfig = {
   };
   subagents?: SubagentConfig;
   toolConfig?: ToolConfig;
+  ownership?: {
+    enabled?: boolean;
+    autoAcquire?: boolean;
+    defaultTtlMs?: number;
+    historyRetentionDays?: number;
+  };
   modelProfile?: string;
   models?: Record<string, { provider: string; name: string; temperature?: number; contextWindow?: number }>;
 };

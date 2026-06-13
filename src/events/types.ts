@@ -165,6 +165,7 @@ export const OWNERSHIP_EVENT_TYPES = {
   CONFLICT: "ownership.conflict",
   REVOKED: "ownership.revoked",
   DENIED: "ownership.denied",
+  LOCK_FAILED: "ownership.lock_failed",
 } as const;
 
 export type SubagentStartedPayload = {

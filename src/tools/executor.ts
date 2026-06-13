@@ -342,7 +342,7 @@ export class ToolExecutor {
       {
         registry: this.ownershipRegistry,
         resolver: this.workspacePathResolver,
-        autoAcquire: true,
+        autoAcquire: this.config.ownership?.autoAcquire ?? true,
       },
       request.agentId ?? "root",
       toolName,

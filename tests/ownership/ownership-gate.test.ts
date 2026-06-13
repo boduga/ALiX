@@ -125,7 +125,7 @@ describe("OwnershipGate", () => {
   it("no-write shell commands pass through", async () => {
     const result = await checkOwnershipGate(
       { registry: reg, resolver },
-      "agent-1", "shell.run", { command: "npm test" }, true,
+      "agent-1", "shell.run", { command: "ls -la" }, true,
     );
     assert.equal(result, null);
   });

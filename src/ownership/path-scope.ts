@@ -116,6 +116,8 @@ export function normalizePathScope(pattern: string, cwd: string, workspaceRoot?:
 }
 
 function isInside(parent: string, child: string): boolean {
+  // Same path is inside (allows workspace root as scope)
+  if (parent === child) return true;
   const rel = relative(parent, child);
   return rel !== "" &&
     rel !== ".." &&

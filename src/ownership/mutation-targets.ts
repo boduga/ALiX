@@ -13,9 +13,11 @@
 import type { WorkspacePathResolver } from "../runtime/workspace-path.js";
 
 // Shell commands known to be read-only (no file mutation)
+// Only truly read-only commands belong here. Tools that can write
+// files (git, npm, npx, node, tsc, etc.) are intentionally excluded
+// so they go through ownership enforcement.
 const READ_ONLY_COMMANDS = new Set([
   "ls", "cat", "head", "tail", "grep", "find", "echo", "pwd", "which",
-  "git", "npm", "npx", "node", "tsc", "yarn", "pnpm",
 ]);
 
 export type MutationClassification = "known-write" | "unknown-write" | "no-write";

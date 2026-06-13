@@ -40,8 +40,14 @@ describe("extractMutationTargets", () => {
   });
 
   it("returns no-write for known read-only shell command", () => {
-    const result = extractMutationTargets("shell.run", { command: "npm test" }, resolver);
+    const result = extractMutationTargets("shell.run", { command: "ls -la" }, resolver);
     assert.equal(result.classification, "no-write");
+    assert.equal(result.targets.length, 0);
+  });
+
+  it("returns unknown-write for npm write-capable command", () => {
+    const result = extractMutationTargets("shell.run", { command: "npm test" }, resolver);
+    assert.equal(result.classification, "unknown-write");
     assert.equal(result.targets.length, 0);
   });
 
