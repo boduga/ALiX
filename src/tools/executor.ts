@@ -57,6 +57,8 @@ export type ToolCallRequest = {
   toolCallId: string;
   name: string;
   args: Record<string, unknown>;
+  agentId?: string;
+  sessionId?: string;
   replayId?: string;
   /**
    * When set to "continuation-resume", the tool executor will bypass

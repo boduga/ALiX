@@ -4,6 +4,8 @@ export type ToolCallRequest = {
   toolCallId: string;
   name: string;
   args: Record<string, unknown>;
+  agentId?: string;
+  sessionId?: string;
 };
 
 export type ToolResult =
