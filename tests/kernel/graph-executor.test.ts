@@ -190,8 +190,10 @@ describe("GraphExecutor", () => {
       edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
     }));
 
+    const { PolicyGate } = await import("../../src/policy/policy-gate.js");
+    const mockConfig = { version: 1 as const, model: { provider: "mock", name: "test" }, permissions: { default: "allow" as const, tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite" as const, maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process" as const, shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" as const } };
     const registry = new CardRegistry();
-    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true });
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyGate: new PolicyGate(mockConfig, {}), config: mockConfig });
     const result = await exec.execute(graphId);
 
     assert.equal(result.results.length, 1);

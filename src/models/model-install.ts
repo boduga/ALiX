@@ -6,7 +6,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { getProfile, listProfiles } from "../config/profile-registry.js";
-import { buildProfilePatch, applyProfilePatch, type ProfilePatch } from "../config/profile-patch.js";
+import { buildProfilePatch, applyProfilePatch, PRESERVED_SECTIONS, type ProfilePatch } from "../config/profile-patch.js";
 import type { ProfileData } from "../config/profile-types.js";
 import type { AlixConfig } from "../config/schema.js";
 
@@ -28,7 +28,7 @@ function writeConfig(cwd: string, config: AlixConfig): void {
 export function listAllProfiles(): ProfileData[] { return listProfiles(); }
 export function showProfileDetail(id: string): ProfileData | undefined { return getProfile(id); }
 
-const PRESERVED = ["policy", "workspace", "daemon", "memory", "approvals", "tools", "logging", "apiKeys", "permissions", "mcpServers", "mcpServerPaths", "context", "skills", "extensions", "ui", "toolConfig"];
+const PRESERVED = PRESERVED_SECTIONS;
 
 export function applyProfile(profileId: string, cwd: string, dryRun = false): ApplyResult {
   const profile = getProfile(profileId);

@@ -174,6 +174,13 @@ export class GraphExecutor {
 
       // Composed enforcement gate (capability + policy + approval)
       if (this.enforceCapabilities && node.requiredCapabilities && node.requiredCapabilities.length > 0) {
+        if (!this.policyGate || !this.config) {
+          status = "blocked";
+          reason = "Policy gate or config not provided — cannot enforce capabilities";
+          results.push({ nodeId: node.id, title: node.title, status, reason, durationMs: Date.now() - startTime });
+          failed = true;
+          break;
+        }
         const gateResult = await evaluateRuntimeGate({
           node,
           registry: this.registry ?? new CardRegistry(),

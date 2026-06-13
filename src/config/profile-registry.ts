@@ -28,6 +28,11 @@ export type SystemInfo = {
 
 let _profiles: ProfileData[] | null = null;
 
+/** Reset the profile cache. Call when profiles change at runtime or between tests. */
+export function resetProfileCache(): void {
+  _profiles = null;
+}
+
 /** Get the directory containing profile JSON files (dist/ or src/ fallback). */
 function profilesDir(): string {
   const distDir = join(dirname(fileURLToPath(import.meta.url)), "profiles");
@@ -74,7 +79,7 @@ function hasApiKeysForProfile(profile: ProfileData, system: SystemInfo): boolean
   const neededProviders = new Set(
     Object.values(profile.models).map(m => m.provider)
   );
-  return Array.from(neededProviders).some(p => system.apiProviders[p]?.hasKey);
+  return Array.from(neededProviders).every(p => system.apiProviders[p]?.hasKey);
 }
 
 /** Check hardware compatibility for a single profile. */
