@@ -134,6 +134,9 @@ Usage:
   alix models show-profile   Show profile details
   alix models apply-profile  Apply a profile to config
   alix models install-profile  Pull models and apply profile
+  alix benchmark run          Run performance benchmarks
+  alix benchmark run --suite quick   Run quick benchmarks only
+  alix benchmark compare <id> <id>  Compare two benchmark runs
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -2286,6 +2289,12 @@ if (command === "approvals") {
 if (command === "models") {
   const { handleModelsCommand } = await import("./cli/commands/models.js");
   await handleModelsCommand(args);
+  process.exit(0);
+}
+
+if (command === "benchmark") {
+  const { handleBenchmarkCommand } = await import("./cli/commands/benchmark.js");
+  await handleBenchmarkCommand(args);
   process.exit(0);
 }
 
