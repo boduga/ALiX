@@ -2,7 +2,7 @@
  * benchmark-runner.ts — Orchestrate benchmark cases, store and compare results.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { readFileSync, readdirSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import type { BenchmarkResult, BenchmarkRun, BenchmarkSuite } from "./benchmark-types.js";
@@ -91,8 +91,7 @@ export function loadPreviousRuns(cwd: string): BenchmarkRun[] {
   const dir = benchmarksDir(cwd);
   if (!existsSync(dir)) return [];
   try {
-    const files = readFileSync(dir, "utf-8")
-      .split("\n")
+    const files = readdirSync(dir)
       .filter(f => f.endsWith(".json"));
     return files.map(f => JSON.parse(readFileSync(join(dir, f), "utf-8")) as BenchmarkRun);
   } catch {
