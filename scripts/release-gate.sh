@@ -59,9 +59,9 @@ TMP_DIR="$(mktemp -d)"
 TARBALL="$(npm pack --json 2>/dev/null | node -p "require('/dev/stdin')[0].filename" 2>/dev/null || echo "")"
 if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
   if npm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
-    if "$TMP_DIR/node_modules/.bin/alix" init > /dev/null 2>&1 && \
-       "$TMP_DIR/node_modules/.bin/alix" doctor > /dev/null 2>&1 && \
-       "$TMP_DIR/node_modules/.bin/alix" models doctor --json > /dev/null 2>&1; then
+    if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
+        ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
+        ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
       echo "  ✅ Packed-artifact smoke"
     else
       echo "  ❌ Packed-artifact smoke — FAILED"
@@ -73,7 +73,8 @@ if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
   fi
   rm -f "$TARBALL"
 else
-  echo "  ⚠ npm pack produced no tarball — skipping artifact smoke"
+  echo "  ❌ npm pack produced no tarball — FAILED"
+  GATE_PASSED=false
 fi
 echo ""
 
