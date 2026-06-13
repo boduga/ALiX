@@ -25,29 +25,84 @@ async function withTempDir<T>(fn: (dir: string) => Promise<T>): Promise<T> {
   }
 }
 
+/**
+ * Run a test function with a scoped working directory.
+ * The test fixture config is written at <dir>/.alix/config.json,
+ * and handleModels* commands call loadConfig(process.cwd()), so
+ * we chdir into dir to ensure they read the test fixture.
+ */
+async function withScopedCwd<T>(dir: string, fn: () => Promise<T>): Promise<T> {
+  const prevCwd = process.cwd();
+  process.chdir(dir);
+  try {
+    return await fn();
+  } finally {
+    process.chdir(prevCwd);
+  }
+}
+
+/**
+ * Save env vars before deletion, restore them after the test.
+ */
+function withSavedEnv<T>(keys: string[], fn: () => Promise<T>): Promise<T> {
+  const saved: Record<string, string | undefined> = {};
+  for (const key of keys) {
+    saved[key] = process.env[key];
+  }
+  // Clear the keys for the test
+  for (const key of keys) {
+    delete process.env[key];
+  }
+  try {
+    return Promise.resolve().then(fn).finally(() => {
+      for (const key of keys) {
+        if (saved[key] !== undefined) {
+          process.env[key] = saved[key];
+        } else {
+          delete process.env[key];
+        }
+      }
+    });
+  } catch (e) {
+    for (const key of keys) {
+      if (saved[key] !== undefined) {
+        process.env[key] = saved[key];
+      } else {
+        delete process.env[key];
+      }
+    }
+    throw e;
+  }
+}
+
+/** Minimal config with empty model name — simulates incomplete setup. */
+const INCOMPLETE_CONFIG = {
+  model: { provider: "ollama", name: "" },
+  permissions: { default: "ask", tools: {}, protectedPaths: [] },
+  context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 0, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
+  runtime: { provider: "process", shell: "/bin/bash", commandTimeoutMs: 10000, envAllowlist: [] },
+  ui: { enabled: false, host: "", port: 0, transport: "sse" },
+};
+
 // ── 1. init with Ollama detected but no models does not write an empty model ──
 
 test("init with Ollama fallback and no installed models writes no model at all", { timeout: 15_000 }, async () => {
-  await withTempDir(async (dir) => {
-    // Ensure no API key env vars are set
-    for (const key of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY"]) {
-      delete process.env[key];
-    }
-    // Delete any existing OLLAMA_API_KEY to trigger Ollama fallback
-    delete process.env.OLLAMA_API_KEY;
+  const keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY", "OLLAMA_API_KEY"];
+  await withSavedEnv(keys, async () => {
+    await withTempDir(async (dir) => {
+      const { runInit } = await import("../../src/cli/commands/init.js");
+      await runInit(dir);
 
-    const { runInit } = await import("../../src/cli/commands/init.js");
-    await runInit(dir);
-
-    const configPath = join(dir, ".alix", "config.json");
-    assert.ok(existsSync(configPath), ".alix/config.json should exist");
-    const content = JSON.parse(await readFileAsync(configPath, "utf8"));
-    assert.ok(content.model, "config should have model field");
-    // If Ollama is installed with models, model.name is set; if not, model is {}
-    // The invariant: model.name must never be an empty string
-    if (content.model.name !== undefined) {
-      assert.notEqual(content.model.name, "", "model.name must not be an empty string");
-    }
+      const configPath = join(dir, ".alix", "config.json");
+      assert.ok(existsSync(configPath), ".alix/config.json should exist");
+      const content = JSON.parse(await readFileAsync(configPath, "utf8"));
+      assert.ok(content.model, "config should have model field");
+      // If Ollama is installed with models, model.name is set; if not, model is {}
+      // The invariant: model.name must never be an empty string
+      if (content.model.name !== undefined) {
+        assert.notEqual(content.model.name, "", "model.name must not be an empty string");
+      }
+    });
   });
 });
 
@@ -55,22 +110,17 @@ test("init with Ollama fallback and no installed models writes no model at all",
 
 test("models doctor works with incomplete model config", { timeout: 15_000 }, async () => {
   await withTempDir(async (dir) => {
-    // Create minimal config with provider but no model name
     await mkdirAsync(join(dir, ".alix"), { recursive: true });
     await writeFileAsync(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({
-        model: { provider: "ollama", name: "" },
-        permissions: { default: "ask", tools: {}, protectedPaths: [] },
-        context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 0, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
-        runtime: { provider: "process", shell: "/bin/bash", commandTimeoutMs: 10000, envAllowlist: [] },
-        ui: { enabled: false, host: "", port: 0, transport: "sse" },
-      })
+      JSON.stringify(INCOMPLETE_CONFIG)
     );
 
     const { handleModelsDoctor } = await import("../../src/cli/commands/models.js");
-    // Should not throw despite incomplete model config
-    await handleModelsDoctor(["--json"]);
+    // handler calls loadConfig(process.cwd()) — scope cwd to fixture dir
+    await withScopedCwd(dir, async () => {
+      await handleModelsDoctor(["--json"]);
+    });
   });
 });
 
@@ -78,22 +128,16 @@ test("models doctor works with incomplete model config", { timeout: 15_000 }, as
 
 test("models fit works with incomplete model config", { timeout: 15_000 }, async () => {
   await withTempDir(async (dir) => {
-    // Create minimal config with provider but no model name
     await mkdirAsync(join(dir, ".alix"), { recursive: true });
     await writeFileAsync(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({
-        model: { provider: "ollama", name: "" },
-        permissions: { default: "ask", tools: {}, protectedPaths: [] },
-        context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 0, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
-        runtime: { provider: "process", shell: "/bin/bash", commandTimeoutMs: 10000, envAllowlist: [] },
-        ui: { enabled: false, host: "", port: 0, transport: "sse" },
-      })
+      JSON.stringify(INCOMPLETE_CONFIG)
     );
 
     const { handleModelsFit } = await import("../../src/cli/commands/models.js");
-    // Should not throw despite incomplete model config
-    await handleModelsFit(["--json"]);
+    await withScopedCwd(dir, async () => {
+      await handleModelsFit(["--json"]);
+    });
   });
 });
 
@@ -104,17 +148,13 @@ test("models list-profiles works with incomplete model config", { timeout: 15_00
     await mkdirAsync(join(dir, ".alix"), { recursive: true });
     await writeFileAsync(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({
-        model: { provider: "ollama", name: "" },
-        permissions: { default: "ask", tools: {}, protectedPaths: [] },
-        context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 0, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
-        runtime: { provider: "process", shell: "/bin/bash", commandTimeoutMs: 10000, envAllowlist: [] },
-        ui: { enabled: false, host: "", port: 0, transport: "sse" },
-      })
+      JSON.stringify(INCOMPLETE_CONFIG)
     );
 
     const { handleModelsList } = await import("../../src/cli/commands/models.js");
-    await handleModelsList(["--json"]);
+    await withScopedCwd(dir, async () => {
+      await handleModelsList(["--json"]);
+    });
   });
 });
 
@@ -155,28 +195,19 @@ test("doctor recommends install-profile when no model is configured", { timeout:
     await mkdirAsync(join(dir, ".alix"), { recursive: true });
     await writeFileAsync(
       join(dir, ".alix", "config.json"),
-      JSON.stringify({
-        model: { provider: "ollama", name: "" },
-        permissions: { default: "ask", tools: {}, protectedPaths: [] },
-        context: { repoMap: false, repoMapMode: "lite", maxRepoMapTokens: 0, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] },
-        runtime: { provider: "process", shell: "/bin/bash", commandTimeoutMs: 10000, envAllowlist: [] },
-        ui: { enabled: false, host: "", port: 0, transport: "sse" },
-      })
+      JSON.stringify(INCOMPLETE_CONFIG)
     );
 
-    // Capture console.log output
     const logs: string[] = [];
     const origLog = console.log;
     console.log = (...args: string[]) => logs.push(args.join(" "));
 
     try {
       const { handleModelsDoctor } = await import("../../src/cli/commands/models.js");
-
-      // We expect this to succeed — doctor should handle missing model gracefully
-      await handleModelsDoctor([]);
-
+      await withScopedCwd(dir, async () => {
+        await handleModelsDoctor([]);
+      });
       const output = logs.join("\n");
-      // Doctor should produce profile compatibility output, not throw
       assert.ok(output.includes("Profile"), "doctor output should mention profiles");
     } finally {
       console.log = origLog;
@@ -187,31 +218,27 @@ test("doctor recommends install-profile when no model is configured", { timeout:
 // ── 7. End-to-end acceptance: init → doctor → fit → install-profile --dry-run ──
 
 test("end-to-end: init then doctor then fit then install-profile --dry-run", { timeout: 15_000 }, async () => {
-  await withTempDir(async (dir) => {
-    // Ensure no API keys to get clean Ollama fallback
-    for (const key of ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY", "OLLAMA_API_KEY"]) {
-      delete process.env[key];
-    }
+  const keys = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY", "DEEPSEEK_API_KEY", "OLLAMA_API_KEY"];
+  await withSavedEnv(keys, async () => {
+    await withTempDir(async (dir) => {
+      // Step 1: init
+      const { runInit } = await import("../../src/cli/commands/init.js");
+      await runInit(dir);
 
-    // Step 1: init
-    const { runInit } = await import("../../src/cli/commands/init.js");
-    await runInit(dir);
+      // Verify config is valid (model.name not empty if set)
+      const configPath = join(dir, ".alix", "config.json");
+      const config = JSON.parse(await readFileAsync(configPath, "utf8"));
+      if (config.model.name !== undefined) {
+        assert.notEqual(config.model.name, "", "model.name must not be empty after init");
+      }
 
-    // Verify config is valid (model.name not empty if set)
-    const configPath = join(dir, ".alix", "config.json");
-    const config = JSON.parse(await readFileAsync(configPath, "utf8"));
-    if (config.model.name !== undefined) {
-      assert.notEqual(config.model.name, "", "model.name must not be empty after init");
-    }
-
-    // Step 2: doctor (must not throw)
-    const { handleModelsDoctor, handleModelsFit, handleModelsApply } = await import("../../src/cli/commands/models.js");
-    await handleModelsDoctor(["--json"]);
-
-    // Step 3: fit (must not throw)
-    await handleModelsFit(["--json"]);
-
-    // Step 4: install-profile --dry-run (must not throw)
-    await handleModelsApply(["minimal-local", "--dry-run"]);
+      // Step 2-4: doctor, fit, apply-profile (scoped cwd so handlers read fresh fixture)
+      const { handleModelsDoctor, handleModelsFit, handleModelsApply } = await import("../../src/cli/commands/models.js");
+      await withScopedCwd(dir, async () => {
+        await handleModelsDoctor(["--json"]);
+        await handleModelsFit(["--json"]);
+        await handleModelsApply(["minimal-local", "--dry-run"]);
+      });
+    });
   });
 });
