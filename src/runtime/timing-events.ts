@@ -60,12 +60,16 @@ export async function measurePhase<T>(
     return result;
   } catch (e: any) {
     const durationMs = Math.round((performance.now() - startTime) * 100) / 100;
-    await log.append({
-      sessionId,
-      actor: "system",
-      type: "runtime.phase.completed",
-      payload: { timingId, operation, durationMs, outcome: "failure", error: e.message || String(e), metadata } as TimingEventPayload,
-    });
+    try {
+      await log.append({
+        sessionId,
+        actor: "system",
+        type: "runtime.phase.completed",
+        payload: { timingId, operation, durationMs, outcome: "failure", error: e.message || String(e), metadata } as TimingEventPayload,
+      });
+    } catch {
+      // EventLog write failure must not hide the original work error
+    }
     throw e;
   }
 }

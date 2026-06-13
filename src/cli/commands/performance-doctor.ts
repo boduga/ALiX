@@ -5,7 +5,7 @@
  * checks each measurement against its performance budget.
  * Does NOT run new benchmarks.
  *
- * Returns a numeric exit code: 0 = pass, 1 = fail/warning, 2 = no data.
+ * Returns a numeric exit code: 0 = pass/warning, 1 = fail, 2 = no data.
  */
 
 import { loadPreviousRuns } from "../../benchmark/benchmark-runner.js";
