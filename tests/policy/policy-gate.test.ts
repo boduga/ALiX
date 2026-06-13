@@ -194,7 +194,7 @@ describe("PolicyGate", () => {
     }
   });
 
-  it("reuses existing pending approval instead of duplicating", async () => {
+  it("creates separate approval for each ask-mode request", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-reuse-"));
     try {
       const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
@@ -212,19 +212,19 @@ describe("PolicyGate", () => {
       });
       assert.equal(first.decision, "ask");
 
-      // Second call with same capability reuses the pending approval
+      // Second call in ask mode creates a new approval (does not reuse)
       const second = await gate.evaluateToolCall({
         requestId: "a4", toolName: "shell.run", args: { command: "echo hello" }, cwd: "/tmp",
         sessionMode: "ask", source: "tool",
       });
       assert.equal(second.decision, "ask");
-      assert.equal(second.approvalId, first.approvalId);
+      assert.notEqual(second.approvalId, first.approvalId);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 
-  it("returns allow for previously approved capability", async () => {
+  it("creates new approval even when prior approval exists (ask mode)", async () => {
     const tmpDir = mkdtempSync(join(tmpdir(), "pol-approved-"));
     try {
       const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
@@ -246,13 +246,13 @@ describe("PolicyGate", () => {
       // Resolve it approved manually
       await store.resolve(first.approvalId!, "approved", "User approved");
 
-      // Next call with same capability should return allow
+      // Ask mode always creates fresh approvals — doesn't check resolved ones
       const next = await gate.evaluateToolCall({
         requestId: "a6", toolName: "shell.run", args: { command: "echo hello" }, cwd: "/tmp",
         sessionMode: "ask", source: "tool",
       });
-      assert.equal(next.decision, "allow");
-      assert.equal(next.approvalId, first.approvalId);
+      assert.equal(next.decision, "ask");
+      assert.notEqual(next.approvalId, first.approvalId);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }
