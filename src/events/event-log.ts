@@ -45,7 +45,10 @@ export class EventLog {
     return text
       .split("\n")
       .filter(Boolean)
-      .map((line) => JSON.parse(line) as AlixEvent);
+      .flatMap((line) => {
+        try { return [JSON.parse(line) as AlixEvent]; }
+        catch { return []; }
+      });
   }
 
   async close(): Promise<void> {
