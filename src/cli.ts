@@ -128,6 +128,7 @@ Usage:
   alix registry tools     List tool cards only
   alix registry doctor    Check card file health and loading status
   alix doctor             Run comprehensive system health check
+  alix doctor --performance     Check latest benchmark data against performance budgets
   alix models doctor         Diagnose hardware, providers, and profile compatibility
   alix models fit            Rank model profiles for your system
   alix models list-profiles  List available model profiles
@@ -2299,6 +2300,10 @@ if (command === "benchmark") {
 }
 
 if (command === "doctor") {
+  if (args.includes("--performance")) {
+    const { runPerformanceDoctor } = await import("./cli/commands/performance-doctor.js");
+    process.exit(await runPerformanceDoctor(process.cwd()));
+  }
   const cwd = process.cwd();
   const { existsSync, readFileSync } = await import("node:fs");
   const { join } = await import("node:path");
