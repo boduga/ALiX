@@ -1,6 +1,5 @@
 # Changelog
 
-## 2026-06-05 — Multi-Embedder Intelligence
 ## 2026-06-08 — M0.9 Governance/Demo Baseline
 
 ### Added
@@ -73,6 +72,27 @@
 - `m0.75-ownership-registry`
 
 
+## 2026-06-13 — ALiX 0.3.0-rc.2
+
+### Fixed
+- **Fresh-install onboarding**: `models doctor`, `models fit`, and `models list-profiles` now work before a model is configured — `loadConfig` accepts `{ requireModel: false }` for diagnostic commands
+- **`alix init` no longer writes empty model name**: When Ollama is auto-detected but has no installed models (or Ollama is absent), config writes `model: {}` instead of `model: { provider: "ollama", name: "" }` and shows remediation guidance
+- **Ollama model auto-detection**: `init` now queries `ollama list` to select the first installed model when Ollama is the detected provider
+
+### Added
+- `LoadConfigOptions.requireModel` in `loader.ts` — strict default preserved for production paths
+- `getInstalledOllamaModels()` exported from `catalog.ts`
+
+### Tests
+- 7 new fresh-install regression tests (env-var isolation, scoped CWD fixtures)
+- 2491 total passing, 0 failing
+
+### Tagged
+- `v0.3.0-rc.2`
+
+
+## 2026-06-05 — Multi-Embedder Intelligence
+
 ### Added
 - Multi-embedder search with weighted fusion (semantic + code embedding models fused with task-type-aware weights)
 - Kernel/grounding-set boost — high-connectivity files get score boost based on dependency graph impact
@@ -83,6 +103,7 @@
 - All 12 pre-existing test failures — provider tests, patch tests, context compiler, inspector, discover tests
 - Zero build errors across entire TypeScript codebase
 - Embedding cache miss log changed from console.warn to console.debug
+
 
 ## 2026-06-04 — Self-Extensible Hooks + Agent Observability
 
