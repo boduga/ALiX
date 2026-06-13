@@ -3,7 +3,6 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { loadConfig } from "../config/loader.js";
 import { EventLog } from "../events/event-log.js";
-import { PolicyEngine } from "../policy/policy-engine.js";
 import { ApprovalManager } from "../policy/approvals.js";
 import { buildRepoMapLite } from "../repomap/repomap-lite.js";
 import { createProvider } from "../providers/registry.js";
@@ -81,12 +80,6 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
   if (shouldAutoDisableStreaming() && config.model.streaming) {
     config.model.streaming = false;
   }
-
-  // Create policy engine with event log
-  const policyEngine = new PolicyEngine(config, {}, {
-    eventLog: log,
-    sessionId,
-  });
 
   // Create approval manager with event log
   const approvalManager = new ApprovalManager({

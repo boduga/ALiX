@@ -1,0 +1,17 @@
+{
+  "id": "power-local",
+  "name": "Power Local",
+  "description": "High-end local profile for machines with 32+ GB RAM and optional GPU.",
+  "mode": "local-first",
+  "hardware": { "minRamGb": 32, "recommendedRamGb": 64, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "ollama", "name": "qwen3:8b", "temperature": 0.3, "contextWindow": 65536 },
+    "planner": { "provider": "ollama", "name": "qwen3:14b", "temperature": 0.2, "contextWindow": 65536 },
+    "coder": { "provider": "ollama", "name": "qwen2.5-coder:14b", "temperature": 0.1, "contextWindow": 65536 },
+    "critic": { "provider": "ollama", "name": "qwen3:14b", "temperature": 0.2, "contextWindow": 65536 },
+    "embeddings": { "provider": "ollama", "name": "qwen3-embedding:0.6b" }
+  },
+  "fallbacks": { "enabled": true, "cloud": { "provider": "anthropic", "name": "claude-sonnet-4-5" } },
+  "runtime": { "maxConcurrentAgents": 3, "maxContextTokens": 48000 },
+  "install": { "ollamaPull": ["qwen3:8b", "qwen3:14b", "qwen2.5-coder:14b", "qwen3-embedding:0.6b"] }
+}

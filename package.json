@@ -30,7 +30,8 @@
     "package.json"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
+    "copy:profiles": "mkdir -p dist/src/config/profiles && cp src/config/profiles/*.json dist/src/config/profiles/",
+    "build": "tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
     "test": "npm run test:node && npm run test:vitest",
     "test:node": "node --test --test-timeout=30000 dist/tests/*.test.js dist/tests/**/*.test.js",
     "test:vitest": "npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",

@@ -16,7 +16,8 @@ import { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities } from "../registry/capability-resolver.js";
 import { runTask } from "../run.js";
 import { evaluateRuntimeGate } from "../policy/runtime-gate.js";
-import { RuleEvaluator } from "../policy/rule-evaluator.js";
+import type { PolicyGate } from "../policy/policy-gate.js";
+import type { AlixConfig } from "../config/schema.js";
 import { ApprovalStore } from "../approvals/approval-store.js";
 
 export interface CapabilityPreflightResult {
@@ -96,22 +97,25 @@ export interface ExecutorOpts {
   registry?: CardRegistry;
   /** When true, blocked/needs_approval capability status short-circuits node execution. */
   enforceCapabilities?: boolean;
-  policyEvaluator?: RuleEvaluator;
+  policyGate?: PolicyGate;
   approvalStore?: ApprovalStore;
+  config?: AlixConfig;
 }
 
 export class GraphExecutor {
   private cwd: string;
   private registry?: CardRegistry;
   private enforceCapabilities: boolean;
-  private policyEvaluator: RuleEvaluator;
+  private policyGate?: PolicyGate;
+  private config?: AlixConfig;
   private approvalStore?: ApprovalStore;
 
   constructor(cwd: string, opts?: ExecutorOpts) {
     this.cwd = cwd;
     this.registry = opts?.registry;
     this.enforceCapabilities = opts?.enforceCapabilities ?? false;
-    this.policyEvaluator = opts?.policyEvaluator ?? new RuleEvaluator();
+    this.policyGate = opts?.policyGate;
+    this.config = opts?.config;
     this.approvalStore = opts?.approvalStore;
   }
 
@@ -170,10 +174,18 @@ export class GraphExecutor {
 
       // Composed enforcement gate (capability + policy + approval)
       if (this.enforceCapabilities && node.requiredCapabilities && node.requiredCapabilities.length > 0) {
+        if (!this.policyGate || !this.config) {
+          status = "blocked";
+          reason = "Policy gate or config not provided — cannot enforce capabilities";
+          results.push({ nodeId: node.id, title: node.title, status, reason, durationMs: Date.now() - startTime });
+          failed = true;
+          break;
+        }
         const gateResult = await evaluateRuntimeGate({
           node,
           registry: this.registry ?? new CardRegistry(),
-          policyEvaluator: this.policyEvaluator,
+          policyGate: this.policyGate!,
+          config: this.config!,
           approvalStore: this.approvalStore,
         });
 

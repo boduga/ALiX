@@ -30,6 +30,7 @@ alix run "explain the architecture of this project"
 | **MCP support** | Full Model Context Protocol client — tool discovery, deferral, caching, transport |
 | **Patch engine** | Structured patches with preimage validation, git-aware checkpoints, automatic rollback |
 | **Local llama.cpp** | Auto-starts `llama-server` on demand. Grammar-constrained tool calling |
+| **Model profiles** | Built-in presets for provider/model/tier mappings per use case. `alix models doctor`, `fit`, `install-profile`, and more |
 
 ---
 
@@ -94,6 +95,7 @@ alix serve
 | `alix doctor` | Comprehensive system health check |
 | `alix config show` | Show current configuration |
 | `alix config set-default-model` | Interactive provider + model selection |
+| `alix models doctor|fit|list-profiles|show-profile|apply-profile|install-profile` | Model profile management and diagnostics |
 | `alix session list|show` | Session management |
 
 ---

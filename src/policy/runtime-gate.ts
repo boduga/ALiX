@@ -2,14 +2,10 @@
  * runtime-gate.ts — Two-layer execution gate for graph nodes.
  *
  * Layer 1: CapabilityResolver — does any agent/tool cover this capability?
- * Layer 2: RuleEvaluator or PolicyGate — is this capability allowed by policy?
- *
- * PolicyGate is the preferred decision path; PolicyEvaluator is retained
- * for backward compatibility.
+ * Layer 2: PolicyGate — is this capability allowed by policy?
  */
 import type { CardRegistry } from "../registry/card-registry.js";
 import { resolveCapabilities, type CapabilityResolution } from "../registry/capability-resolver.js";
-import type { RuleEvaluator } from "./rule-evaluator.js";
 import type { TaskNode } from "../kernel/task-graph.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { AuditStore } from "../audit/audit-store.js";
@@ -31,15 +27,14 @@ export interface RuntimeGateDecision {
 export interface RuntimeGateInput {
   node: TaskNode;
   registry: CardRegistry;
-  policyEvaluator: RuleEvaluator;
-  policyGate?: PolicyGate;     // preferred — overrides policyEvaluator when set
+  policyGate: PolicyGate;
   approvalStore?: ApprovalStore;
   auditStore?: AuditStore;
-  config?: AlixConfig;         // required when policyGate is used
+  config: AlixConfig;
 }
 
 export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<RuntimeGateDecision> {
-  const { node, registry, policyEvaluator, approvalStore, auditStore } = input;
+  const { node, registry, approvalStore, auditStore, policyGate, config } = input;
   const caps = node.requiredCapabilities ?? [];
 
   // Layer 1: Capability coverage check
@@ -66,45 +61,24 @@ export async function evaluateRuntimeGate(input: RuntimeGateInput): Promise<Runt
     // Apply the most restrictive decision: deny > ask > allow
     let overall: { decision: "allow" | "ask" | "deny"; ruleId?: string; reason?: string; approvalId?: string } | undefined;
 
-    if (input.policyGate && input.config) {
-      for (const cap of caps) {
-        const decision = await input.policyGate.evaluateCapability({
-          requestId: `${node.graphId ?? "?"}:${node.id}:${cap}`,
-          capability: cap,
-          sessionMode: input.config.permissions.sessionMode ?? "ask",
-          nodeId: node.id,
-          graphId: node.graphId,
-          source: "graph",
-        });
-        if (decision.decision === "deny") {
-          overall = { decision: "deny", ruleId: decision.matchedRuleId, reason: decision.reason };
-          break;
-        }
-        if (decision.decision === "ask" && (!overall || overall.decision === "allow")) {
-          overall = { decision: "ask", ruleId: decision.matchedRuleId, reason: decision.reason, approvalId: decision.approvalId };
-        }
-        if (decision.decision === "allow" && !overall) {
-          overall = { decision: "allow", ruleId: decision.matchedRuleId, reason: decision.reason };
-        }
+    for (const cap of caps) {
+      const decision = await policyGate.evaluateCapability({
+        requestId: `${node.graphId ?? "?"}:${node.id}:${cap}`,
+        capability: cap,
+        sessionMode: config.permissions.sessionMode ?? "ask",
+        nodeId: node.id,
+        graphId: node.graphId,
+        source: "graph",
+      });
+      if (decision.decision === "deny") {
+        overall = { decision: "deny", ruleId: decision.matchedRuleId, reason: decision.reason };
+        break;
       }
-    } else {
-      for (const cap of caps) {
-        const policyResult = policyEvaluator.evaluate({
-          capability: cap,
-          riskLevel: node.riskLevel as any,
-          executionProfile: (node as any).executionProfile,
-        });
-        if (policyResult.decision === "deny") {
-          overall = { decision: "deny", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
-          break; // deny is final
-        }
-        if (policyResult.decision === "ask" && (!overall || overall.decision === "allow")) {
-          overall = { decision: "ask", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
-          // continue — a later cap might deny
-        }
-        if (policyResult.decision === "allow" && !overall) {
-          overall = { decision: "allow", ruleId: policyResult.matchedRuleId, reason: policyResult.reason };
-        }
+      if (decision.decision === "ask" && (!overall || overall.decision === "allow")) {
+        overall = { decision: "ask", ruleId: decision.matchedRuleId, reason: decision.reason, approvalId: decision.approvalId };
+      }
+      if (decision.decision === "allow" && !overall) {
+        overall = { decision: "allow", ruleId: decision.matchedRuleId, reason: decision.reason };
       }
     }
 

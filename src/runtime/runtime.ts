@@ -1,5 +1,4 @@
 import type { EventLog } from "../events/event-log.js";
-import type { PolicyEngine } from "../policy/policy-engine.js";
 import type { ToolExecutor } from "../tools/executor.js";
 import type { ContextCompiler } from "../repomap/context-compiler.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
@@ -11,9 +10,6 @@ export interface Runtime {
 
   /** Event log for session */
   eventLog: EventLog;
-
-  /** Policy engine for tool call decisions */
-  policyEngine: PolicyEngine;
 
   /** Tool executor for running tools */
   toolExecutor: ToolExecutor;

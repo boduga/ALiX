@@ -1,7 +1,10 @@
-export { PolicyEngine, decidePolicy, type ToolRequest, type PolicyDecision } from "./policy-engine.js";
-export type { PolicyEngineOptions } from "./policy-engine.js";
 export { PolicyGate } from "./policy-gate.js";
 export type { PolicyGateDecision, ToolPolicyRequest, CapabilityPolicyRequest } from "./policy-gate.js";
+
+/** @deprecated Use PolicyGate instead. Will be removed in a future version. */
+export { PolicyEngine, decidePolicy } from "./policy-engine.js";
+/** @deprecated Use PolicyGate instead. */
+export type { PolicyEngineOptions } from "./policy-engine.js";
 export { ApprovalManager, ApprovalQueue, type ApprovalRequest, type ApprovalResult, type ApprovalStatus } from "./approvals.js";
 export type { ApprovalManagerOptions } from "./approvals.js";
 export { CommandClassifier, classifyCommand, type CommandRisk, type CommandClassification } from "./command-classifier.js";

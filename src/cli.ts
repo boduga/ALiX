@@ -127,6 +127,12 @@ Usage:
   alix registry tools     List tool cards only
   alix registry doctor    Check card file health and loading status
   alix doctor             Run comprehensive system health check
+  alix models doctor         Diagnose hardware, providers, and profile compatibility
+  alix models fit            Rank model profiles for your system
+  alix models list-profiles  List available model profiles
+  alix models show-profile   Show profile details
+  alix models apply-profile  Apply a profile to config
+  alix models install-profile  Pull models and apply profile
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -260,14 +266,14 @@ if (command === "graph" && args[0] === "run") {
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+  const { PolicyGate } = await import("./policy/policy-gate.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
+  const config = await loadConfig(cwd);
   const registry = await loadCardRegistry(cwd);
-  const policyEvaluator = await loadRuleEvaluator(cwd);
   const approvalStore = new ApprovalStore(cwd);
   await approvalStore.load();
   const enforce = args.includes("--enforce-capabilities");
-  const executor = new GraphExecutor(cwd, { registry, enforceCapabilities: enforce, policyEvaluator, approvalStore });
+  const executor = new GraphExecutor(cwd, { registry, enforceCapabilities: enforce, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
   console.log(`Executing graph: ${graphId}`);
   if (enforce) console.log("  (capability enforcement enabled)");
   console.log();
@@ -297,13 +303,13 @@ if (command === "graph" && args[0] === "rerun") {
   const cwd = process.cwd();
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+  const { PolicyGate } = await import("./policy/policy-gate.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
+  const config = await loadConfig(cwd);
   const registry = await loadCardRegistry(cwd);
-  const policyEvaluator = await loadRuleEvaluator(cwd);
   const approvalStore = new ApprovalStore(cwd);
   await approvalStore.load();
-  const executor = new GraphExecutor(cwd, { registry, policyEvaluator, approvalStore });
+  const executor = new GraphExecutor(cwd, { registry, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
 
   try {
     const result = await executor.rerunNode(graphId, nodeId, { force });
@@ -324,15 +330,16 @@ if (command === "graph" && args[0] === "continue") {
   const cwd = process.cwd();
   const { loadGraph, GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+  const { PolicyGate } = await import("./policy/policy-gate.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
 
   try {
     const graph = await loadGraph(graphId, cwd);
+    const config = await loadConfig(cwd);
     const registry = await loadCardRegistry(cwd);
-    const policyEvaluator = await loadRuleEvaluator(cwd);
     const approvalStore = new ApprovalStore(cwd);
     await approvalStore.load();
+    const policyGate = new PolicyGate(config, { approvalStore });
 
     // Find first blocked/failed node
     const blockedNode = graph.nodes.find((n: any) =>
@@ -384,7 +391,7 @@ if (command === "graph" && args[0] === "continue") {
       reason: resolved?.decisionReason,
     }});
     console.log();
-    const executor = new GraphExecutor(cwd, { registry, policyEvaluator, approvalStore });
+    const executor = new GraphExecutor(cwd, { registry, policyGate, config, approvalStore });
     const result = await executor.execute(graphId);
     for (const nr of result.results) {
       const icon = nr.status === "done" ? "✓" : nr.status === "failed" ? "✗" : "○";
@@ -759,14 +766,14 @@ if (command === "sop" && args[0] === "run") {
   // Execute graph
   const { GraphExecutor } = await import("./kernel/graph-executor.js");
   const { loadCardRegistry } = await import("./registry/card-loader.js");
-  const { loadRuleEvaluator } = await import("./policy/policy-loader.js");
+  const { PolicyGate } = await import("./policy/policy-gate.js");
   const { ApprovalStore } = await import("./approvals/approval-store.js");
   const enforce = args.includes("--enforce-capabilities");
+  const config = await loadConfig(sopCwd);
   const registry = await loadCardRegistry(sopCwd);
-  const policyEvaluator = await loadRuleEvaluator(sopCwd);
   const approvalStore = new ApprovalStore(sopCwd);
   await approvalStore.load();
-  const executor = new GraphExecutor(sopCwd, { registry, enforceCapabilities: enforce, policyEvaluator, approvalStore });
+  const executor = new GraphExecutor(sopCwd, { registry, enforceCapabilities: enforce, policyGate: new PolicyGate(config, { approvalStore }), config, approvalStore });
   console.log("Executing...");
   if (enforce) console.log("  (capability enforcement enabled)");
   const execResult = await executor.execute(graph.id);
@@ -2234,6 +2241,12 @@ if (command === "approvals") {
   console.log('  show <id>         Show approval details');
   console.log('  approve <id>      Approve a pending request');
   console.log('  deny <id>         Deny a pending request');
+  process.exit(0);
+}
+
+if (command === "models") {
+  const { handleModelsCommand } = await import("./cli/commands/models.js");
+  await handleModelsCommand(args);
   process.exit(0);
 }
 

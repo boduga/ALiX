@@ -190,8 +190,10 @@ describe("GraphExecutor", () => {
       edges: [], createdAt: "2026-01-01", updatedAt: "2026-01-01",
     }));
 
+    const { PolicyGate } = await import("../../src/policy/policy-gate.js");
+    const mockConfig = { version: 1 as const, model: { provider: "mock", name: "test" }, permissions: { default: "allow" as const, tools: {}, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] }, context: { repoMap: false, repoMapMode: "lite" as const, maxRepoMapTokens: 1000, semanticSearch: false, includeGitStatus: false, pinnedFiles: [] }, runtime: { provider: "process" as const, shell: "/bin/sh", commandTimeoutMs: 30000, envAllowlist: [] }, ui: { enabled: false, host: "localhost", port: 3000, transport: "sse" as const } };
     const registry = new CardRegistry();
-    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true });
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyGate: new PolicyGate(mockConfig, {}), config: mockConfig });
     const result = await exec.execute(graphId);
 
     assert.equal(result.results.length, 1);
@@ -209,7 +211,6 @@ describe("GraphExecutor", () => {
     const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
     const { ApprovalStore } = await import("../../src/approvals/approval-store.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-enforce-approval-"));
     writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
@@ -239,16 +240,23 @@ describe("GraphExecutor", () => {
       approvalMode: "ask", sideEffects: "system", enabled: true,
     });
 
-    // Policy that asks for shell.exec
-    const policy = new RuleEvaluator([{
-      id: "ask-shell", description: "Ask shell",
-      match: { capability: "shell.exec" }, decision: "ask", enabled: true,
-      reason: "Shell execution needs approval",
-    }]);
+    // PolicyGate that asks for shell.exec
+    const policyGate = {
+      evaluateCapability: async (req: any) => {
+        if (req.capability === "shell.exec") {
+          return { requestId: req.requestId, capability: req.capability, decision: "ask" as const, reason: "Shell execution needs approval", matchedRuleId: "ask-shell" };
+        }
+        return { requestId: req.requestId, capability: req.capability, decision: "allow" as const, reason: "default allow" };
+      },
+    };
+
+    const mockConfig = {
+      permissions: { sessionMode: "ask" as const, tools: {}, default: "allow" as const, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
+    } as any;
 
     const approvalStore = new ApprovalStore(tmpDir);
     await approvalStore.load();
-    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyEvaluator: policy, approvalStore });
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyGate: policyGate as any, config: mockConfig, approvalStore });
     const result = await exec.execute(graphId);
 
     // needs_approval should block with a pending approval reason
@@ -263,7 +271,6 @@ describe("GraphExecutor", () => {
     const { mkdtempSync, rmSync, writeFileSync, mkdirSync } = await import("node:fs");
     const { join } = await import("node:path");
     const { tmpdir } = await import("node:os");
-    const { RuleEvaluator } = await import("../../src/policy/rule-evaluator.js");
     const tmpDir = mkdtempSync(join(tmpdir(), "exec-policy-deny-"));
     writeMockConfig(tmpDir, writeFileSync, join, mkdirSync);
 
@@ -291,17 +298,25 @@ describe("GraphExecutor", () => {
       approvalMode: "auto", sideEffects: "read", enabled: true,
     });
 
-    const policy = new RuleEvaluator([{
-      id: "deny-web", description: "Deny web search",
-      match: { capability: "web.search" }, decision: "deny", enabled: true,
-    }]);
+    const policyGate = {
+      evaluateCapability: async (req: any) => {
+        if (req.capability === "web.search") {
+          return { requestId: req.requestId, capability: req.capability, decision: "deny" as const, reason: "Denied by policy", matchedRuleId: "deny-web" };
+        }
+        return { requestId: req.requestId, capability: req.capability, decision: "allow" as const, reason: "default allow" };
+      },
+    };
 
-    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyEvaluator: policy });
+    const mockConfig = {
+      permissions: { sessionMode: "ask" as const, tools: {}, default: "allow" as const, protectedPaths: [], allowNetworkDomains: [], denyCommands: [] },
+    } as any;
+
+    const exec = new GraphExecutor(tmpDir, { registry, enforceCapabilities: true, policyGate: policyGate as any, config: mockConfig });
     const result = await exec.execute(graphId);
 
     const node = result.results[0];
     assert.equal(node.status, "blocked");
-    assert.match(node.reason!, /deny|blocked/i);
+    assert.match(node.reason!, /denied|deny|blocked/i);
     rmSync(tmpDir, { recursive: true, force: true });
   });
 });

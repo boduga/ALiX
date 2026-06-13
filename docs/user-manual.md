@@ -85,7 +85,58 @@ alix config set-tier fast       # Quick classification, routing
 
 ---
 
-## 4. First Run
+## 4. Model Profiles
+
+Model profiles are built-in presets that configure provider, model, and tier mappings for each use case. Instead of manually setting every tier with `alix config set-tier`, you select a single profile that matches your hardware and preferences.
+
+### Built-in profiles
+
+| Profile | Mode | Key attribute |
+|---------|------|---------------|
+| `minimal-local` | local-first | Lowest resource requirement. Single small local model for all tiers. |
+| `balanced-local` | local-first | Default for 16–32 GB machines. Local models per tier with cloud fallback. |
+| `power-local` | local-first | High-end local. Larger local models, more context, heavier tiers. |
+| `cloud-balanced` | cloud-first | API models for reasoning, coding, and critique; local for embeddings and fallback. |
+| `all-cloud` | cloud-only | No local model dependency at all. All tiers via API providers. |
+
+### Happy path
+
+```bash
+# 1. Run diagnostics — checks hardware, API keys, and provider config
+alix models doctor
+
+# 2. Rank available profiles by fit with your hardware
+alix models fit
+
+# 3. Install the best-fit profile (pulls local models via Ollama)
+alix models install-profile balanced-local
+```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `alix models doctor` | Run system and profile diagnostic |
+| `alix models fit` | Rank profiles by hardware fit |
+| `alix models list-profiles` | List available profiles |
+| `alix models show-profile <id>` | Show profile details |
+| `alix models apply-profile <id>` | Apply a profile to config (no model download) |
+| `alix models install-profile <id>` | Pull models via Ollama and apply the profile |
+
+### Config precedence
+
+When a profile is active, the effective model configuration is resolved in this order:
+
+1. **CLI flags** — highest priority, overrides everything
+2. **`alix config set` overrides** — explicit user settings
+3. **`modelProfile`** — the selected profile's tier mappings
+4. **Built-in defaults** — fallback when nothing else is set
+
+You can apply a profile and still override individual tiers with `alix config set-tier` — your explicit settings always take precedence over the profile.
+
+---
+
+## 5. First Run
 
 ```bash
 alix run "list the files in the current directory" --session-mode bypass
@@ -137,7 +188,7 @@ alix run --resume <session-id>
 
 ---
 
-## 5. CLI Command Reference
+## 6. CLI Command Reference
 
 Full command reference moved to `docs/cli-reference.md`.
 
@@ -145,7 +196,7 @@ See [CLI Reference](cli-reference.md) for all commands organized by subsystem.
 
 ---
 
-## 6. Running Tasks
+## 7. Running Tasks
 
 ### Simple tasks
 
@@ -181,7 +232,7 @@ ALiX classifies tasks into three types:
 
 ---
 
-## 7. Daemon Mode
+## 8. Daemon Mode
 
 The daemon is a persistent background process that runs tasks, queues them, and survives CLI restarts.
 
@@ -260,7 +311,7 @@ alix daemon tasks --status queued
 
 ---
 
-## 8. Graphs
+## 9. Graphs
 
 A TaskGraph is a multi-node execution plan. Each node has a goal, required capabilities, risk level, and dependencies. Nodes execute in dependency order.
 
@@ -319,7 +370,7 @@ Shows sessions, attempts, and reports associated with a graph.
 
 ---
 
-## 9. SOP Packs
+## 10. SOP Packs
 
 SOPs (Standard Operating Procedures) are repeatable, pre-built workflows.
 
@@ -375,7 +426,7 @@ Then register it in `src/sop/sop-registry.ts`.
 
 ---
 
-## 10. Capability Registry
+## 11. Capability Registry
 
 The registry manages agent and tool identity. Every capability (e.g. `web.search`, `filesystem.write`) is declared on a card.
 
@@ -433,7 +484,7 @@ If no card covers a required capability, the node is marked as blocked.
 
 ---
 
-## 11. Policy Rules
+## 12. Policy Rules
 
 Policy rules control what ALiX is allowed to do. Rules are evaluated in order — first match wins.
 
@@ -492,7 +543,7 @@ Place policy rules in `.alix/policies/*.json`:
 
 ---
 
-## 12. Approvals
+## 13. Approvals
 
 When a policy rule returns `ask`, the system creates an approval request. Execution pauses until the request is resolved.
 
@@ -546,7 +597,7 @@ policy.ask → approval.created (pending)
 
 ---
 
-## 13. Audit Trail
+## 14. Audit Trail
 
 Every policy decision, approval action, and runtime outcome is recorded in an append-only JSONL audit trail.
 
@@ -581,7 +632,7 @@ Records are written to `.alix/audit/audit.jsonl`. Each line is a complete JSON r
 
 ---
 
-## 14. RuntimeIndex / Timeline
+## 15. RuntimeIndex / Timeline
 
 The RuntimeIndex provides a unified view across all ALiX data sources: sessions, graphs, approvals, audit, and daemon tasks.
 
@@ -623,7 +674,7 @@ GET /api/runtime/events?limit=50&graphId=...&order=asc
 
 ---
 
-## 15. Inspector UI
+## 16. Inspector UI
 
 The web Inspector provides a read-only view of sessions, graphs, policies, approvals, audit, registry, and daemon status.
 
@@ -668,7 +719,7 @@ Speed slider controls playback rate (150–1500ms per step).
 
 ---
 
-## 16. Reports and Artifacts
+## 17. Reports and Artifacts
 
 SOP runs produce artifacts in `.alix/reports/<reportId>/`.
 
@@ -694,7 +745,7 @@ alix report path <reportId>
 
 ---
 
-## 17. Troubleshooting
+## 18. Troubleshooting
 
 Troubleshooting guide moved to `docs/troubleshooting.md`.
 
@@ -702,7 +753,7 @@ See [Troubleshooting](troubleshooting.md) for common errors and solutions.
 
 ---
 
-## 18. Common Workflows
+## 19. Common Workflows
 
 ### Research workflow
 
@@ -783,7 +834,7 @@ alix audit list --limit 10
 
 ---
 
-## 19. Security Model
+## 20. Security Model
 
 ### Two-layer gate
 
@@ -814,7 +865,7 @@ The daemon binds to a Unix socket (`.alix/alixd.sock`). No remote access. No net
 
 ---
 
-## 20. Storage Layout
+## 21. Storage Layout
 
 ```
 .alix/
@@ -835,7 +886,7 @@ The daemon binds to a Unix socket (`.alix/alixd.sock`). No remote access. No net
 
 ---
 
-## 21. Glossary
+## 22. Glossary
 
 | Term | Definition |
 |------|------------|

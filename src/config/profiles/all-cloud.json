@@ -1,0 +1,17 @@
+{
+  "id": "all-cloud",
+  "name": "All Cloud",
+  "description": "Zero local model dependency. All tiers via API providers.",
+  "mode": "cloud-only",
+  "hardware": { "minRamGb": 4, "recommendedRamGb": 8, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "anthropic", "name": "claude-haiku-4-5", "temperature": 0.3, "contextWindow": 128000 },
+    "planner": { "provider": "anthropic", "name": "claude-sonnet-4-5", "temperature": 0.2, "contextWindow": 128000 },
+    "coder": { "provider": "anthropic", "name": "claude-sonnet-4-5", "temperature": 0.1, "contextWindow": 128000 },
+    "researcher": { "provider": "perplexity", "name": "sonar-pro", "temperature": 0.3, "contextWindow": 128000 },
+    "critic": { "provider": "openai", "name": "gpt-4.1", "temperature": 0.2, "contextWindow": 128000 },
+    "embeddings": { "provider": "openai", "name": "text-embedding-3-small" }
+  },
+  "fallbacks": { "enabled": false },
+  "runtime": { "localModelsRequired": false, "ollamaRequired": false, "maxConcurrentAgents": 4, "maxContextTokens": 96000 }
+}
