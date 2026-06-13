@@ -1,3 +1,5 @@
+import { execFileSync } from "node:child_process";
+
 /**
  * Provider catalog - shared definitions for provider selection and model listing.
  * Consolidated from src/cli.ts to avoid duplication.
@@ -187,4 +189,26 @@ export function detectProvider(): { provider: string; model: string } {
   }
   // Fallback to ollama with empty model name
   return { provider: "ollama", model: "" };
+}
+
+/**
+ * Query Ollama for locally installed models.
+ * Returns array of model names (e.g. ["qwen3:4b", "qwen2.5-coder:7b"]),
+ * or empty array if Ollama is not installed, not running, or has no models.
+ */
+export function getInstalledOllamaModels(): string[] {
+  try {
+    const list = execFileSync("ollama", ["list"], {
+      encoding: "utf-8",
+      timeout: 3000,
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    return list
+      .split("\n")
+      .slice(1) // skip header
+      .map(l => l.split(/\s+/)[0])
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
 }

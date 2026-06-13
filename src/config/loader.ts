@@ -42,7 +42,13 @@ type PartialConfig = Partial<AlixConfig> & {
 //
 // API keys from config are injected as environment variables.
 export { DEFAULT_CONFIG } from "./defaults.js";
-export async function loadConfig(cwd: string): Promise<AlixConfig> {
+
+export type LoadConfigOptions = {
+  /** When true (default), throws if model.provider or model.name is missing */
+  requireModel?: boolean;
+};
+
+export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
   const userConfigPath = join(homedir(), ".config", "alix", "config.json");
   const projectConfigPath = join(cwd, ".alix", "config.json");
 
@@ -91,10 +97,11 @@ export async function loadConfig(cwd: string): Promise<AlixConfig> {
   }
 
   // Validate that a model is configured — no hardcoded defaults
-  if (!result.model?.provider || !result.model?.name) {
+  if (options.requireModel !== false && (!result.model?.provider || !result.model?.name)) {
     throw new Error(
       "No model configured. Run: alix config set-default-model\n" +
-      "Example: alix config set-default-model deepseek deepseek-v4-flash"
+      "Example: alix config set-default-model deepseek deepseek-v4-flash\n" +
+      "Or run: alix models doctor"
     );
   }
 

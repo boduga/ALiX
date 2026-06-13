@@ -61,7 +61,28 @@ export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Pr
 
   // Step 2: Provider + Model (auto-detect from environment)
   const { provider: selectedProvider, model: selectedModel } = detectProvider();
-  console.log(`Using: ${selectedProvider} / ${selectedModel} (auto-detected)`);
+  let resolvedModel = selectedModel;
+
+  // If no env-based provider was found, Ollama was auto-detected but no model name known
+  if (!resolvedModel && selectedProvider === "ollama") {
+    const { getInstalledOllamaModels } = await import("../../providers/catalog.js");
+    const installedModels = getInstalledOllamaModels();
+    if (installedModels.length > 0) {
+      resolvedModel = installedModels[0];
+      console.log(`Detected Ollama, selecting: ${resolvedModel}`);
+    } else {
+      console.log([
+        `Detected Ollama, but no installed models were found.`,
+        ``,
+        `Next:`,
+        `  alix models doctor`,
+        `  alix models fit`,
+        `  alix models install-profile minimal-local`,
+      ].join("\n"));
+    }
+  } else if (resolvedModel) {
+    console.log(`Using: ${selectedProvider} / ${resolvedModel}`);
+  }
 
   // Step 3: Feature toggles (all enabled by default)
   const enableUi = true;
@@ -70,13 +91,12 @@ export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Pr
   const enableSubagents = true;
 
   // Build config
+  const hasModel = resolvedModel != null && resolvedModel !== "";
   const config = {
     ...structuredClone(DEFAULT_CONFIG),
-    model: {
-      ...DEFAULT_CONFIG.model,
-      provider: selectedProvider as any,
-      name: selectedModel,
-    },
+    model: hasModel
+      ? { provider: selectedProvider, name: resolvedModel }
+      : { ...DEFAULT_CONFIG.model },
     ui: {
       ...DEFAULT_CONFIG.ui,
       enabled: enableUi,
@@ -136,7 +156,9 @@ npm test
   await writeFile(agentsPath, agentsContent);
 
   console.log(`\n✓ ALiX initialized in ${workDir}`);
-  console.log(`\nNext steps:`);
-  console.log(`  alix run "your first task"`);
-  console.log(`  alix serve    # start UI inspector`);
+  if (hasModel) {
+    console.log(`\nNext steps:`);
+    console.log(`  alix run "your first task"`);
+    console.log(`  alix serve    # start UI inspector`);
+  }
 }

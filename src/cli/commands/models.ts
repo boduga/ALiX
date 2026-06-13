@@ -8,7 +8,7 @@ export async function handleModelsDoctor(args: string[]): Promise<void> {
   const { loadConfig } = await import("../../config/loader.js");
   const { runDoctor } = await import("../../models/model-doctor.js");
   const { listProfiles } = await import("../../config/profile-registry.js");
-  const config = await loadConfig(process.cwd());
+  const config = await loadConfig(process.cwd(), { requireModel: false });
   const system = detectSystem(config as any);
   const report = runDoctor(system, config as any, listProfiles(), config.modelProfile);
   if (args.includes("--json")) { console.log(JSON.stringify(report, null, 2)); return; }
@@ -34,7 +34,7 @@ export async function handleModelsFit(args: string[]): Promise<void> {
   const { loadConfig } = await import("../../config/loader.js");
   const { rankProfiles } = await import("../../models/model-fit.js");
   const { listProfiles } = await import("../../config/profile-registry.js");
-  const config = await loadConfig(process.cwd());
+  const config = await loadConfig(process.cwd(), { requireModel: false });
   const system = detectSystem(config as any);
   const opts: Record<string, string> = {};
   for (let i = 0; i < args.length; i++) {
@@ -57,7 +57,7 @@ export async function handleModelsList(args: string[]): Promise<void> {
   const { listProfiles, matchHardware } = await import("../../config/profile-registry.js");
   const { detectSystem } = await import("../../config/hardware-detect.js");
   const { loadConfig } = await import("../../config/loader.js");
-  const config = await loadConfig(process.cwd());
+  const config = await loadConfig(process.cwd(), { requireModel: false });
   const system = detectSystem(config as any);
   const profiles = listProfiles();
   if (args.includes("--json")) { console.log(JSON.stringify(profiles, null, 2)); return; }

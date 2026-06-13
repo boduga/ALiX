@@ -34,8 +34,16 @@ test("runInit creates .alix/config.json", { timeout: 10_000 }, async () => {
     assert.ok(existsSync(configPath), ".alix/config.json should be created");
     const content = JSON.parse(await readFileAsync(configPath, "utf8"));
     assert.ok(content.model, "config should have model field");
-    assert.ok(typeof content.model.provider === "string", "model.provider should be a string");
-    assert.ok(typeof content.model.name === "string", "model.name should be a string");
+    // Model may be populated (Ollama present with models) or empty (no Ollama / no models).
+    // The invariant: if model.name is set, it must not be empty.
+    if (content.model.provider !== undefined) {
+      assert.equal(typeof content.model.provider, "string", "model.provider should be a string");
+      assert.notEqual(content.model.provider, "", "model.provider must not be empty");
+    }
+    if (content.model.name !== undefined) {
+      assert.equal(typeof content.model.name, "string", "model.name should be a string");
+      assert.notEqual(content.model.name, "", "model.name must not be empty");
+    }
   });
 });
 
