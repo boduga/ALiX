@@ -35,6 +35,44 @@
 - `m0.9-governance-demo-baseline`
 
 
+## 2026-06-13 — ALiX 0.3.0-rc.1
+
+### Added
+- **Model Profiles**: `alix config profiles list|show|apply|install`, with `models doctor` and `models fit`
+  - `minimal-local`, `balanced-local`, `power-local`, `cloud-balanced`, `all-cloud`
+  - Dynamic profile switching and model-provider resolution
+- **Ownership Boundaries (M0.75)**:
+  - Lock-protected `OwnershipRegistry` with atomic acquire/release/renew
+  - Deterministic `PathScope` overlap detection (symmetric overlap + directional contains)
+  - `OwnershipLock` with UUID token, PID liveness check, cross-host safety
+  - Classification-driven mutation-target extraction (`known-write` / `unknown-write` / `no-write`)
+  - `OwnershipGate` integrated into `ToolExecutor` (runs on every tool call including continuation-resume)
+  - `alix ownership {list|show|history|acquire|release|renew|conflicts|prune}`
+  - Auto-acquire with config switch; explicit-lease mode for parallel agents
+  - 81 ownership-specific tests, Greptile 5/5
+- **Tool-Aware Routing**: Intent-based tool filtering with capability inference
+- **WorkspacePathResolver**: Centralized path validation with sensitive-path detection
+- **Daemon enhancements**: Assistant streaming, stable readline/cursor handling
+- **TUI improvements**: Responsive laptop layout, stable interactive mode
+- **Continuation compatibility**: `migrationIssue` field for legacy continuations missing `agentId`
+
+### Fixed
+- Continuation-resume now passes through OwnershipGate (not just PolicyGate)
+- Config schema extended with `ownership` namespace
+- `sessionMode: "ask"` correctly creates fresh approvals (does not reuse stale ones)
+- Test suite reliability: routing tests use `PERMIT_ALL_CONFIG` fixture, vitest/node isolation
+- 22 pre-existing test failures resolved across executor, patch, PolicyGate, and skill suites
+
+### Tests
+- 81 new ownership tests (path-scope, lock, registry, gate, mutation-targets, CLI)
+- 2484 total passing, 0 failing
+- Full CI clean: unit, integration, typecheck, TUI smoke
+- Vitest suites separated from node:test runner
+
+### Tagged
+- `m0.75-ownership-registry`
+
+
 ### Added
 - Multi-embedder search with weighted fusion (semantic + code embedding models fused with task-type-aware weights)
 - Kernel/grounding-set boost — high-connectivity files get score boost based on dependency graph impact
