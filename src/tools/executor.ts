@@ -84,6 +84,8 @@ export class ToolExecutor {
     private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
     private checkpointManager?: CheckpointManager,
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
+    private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
+    private ownershipRegistry?: any,  // OwnershipRegistry — for OwnershipGate
   ) {
     // Create router with all handlers
     const composite = new CompositeToolRouter([
@@ -149,9 +151,11 @@ export class ToolExecutor {
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
 
-    // Continuation resumes bypass PolicyGate AND the intent filter — the tool was
-    // already approved by the user, so the current task intent should not block it.
-    // Only set from resumeApproved(), never from user input.
+    // Continuation resumes bypass PolicyGate — approval was already verified.
+    // But OwnershipGate runs ALWAYS (even for continuation-resume).
+    const gateResult = await this.checkOwnershipGate(request, name, args);
+    if (gateResult) return gateResult;
+
     if (request.source === "continuation-resume") {
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
       return await this.toolAwareRouter.downstream.execute(request);
@@ -312,6 +316,38 @@ export class ToolExecutor {
     }
 
     return result;
+  }
+
+  // ─── Ownership Gate ───────────────────────────────────────────
+  // Runs for every tool call including continuation-resume.
+  // Only mutates=true tools require ownership checks.
+
+  private async checkOwnershipGate(
+    request: ToolCallRequest,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult | null> {
+    // Skip if ownership is not wired
+    if (!this.ownershipRegistry) return null;
+    if (!this.workspacePathResolver) return null;
+
+    const { checkOwnershipGate: gate } = await import("../ownership/ownership-gate.js");
+    const { buildDefaultToolIndex } = await import("./tool-registry.js");
+    const toolIndex = buildDefaultToolIndex();
+    const capability = toolIndex.registry.lookupByName(toolName);
+    const mutates = capability?.mutates ?? false;
+
+    return await gate(
+      {
+        registry: this.ownershipRegistry,
+        resolver: this.workspacePathResolver,
+        autoAcquire: true,
+      },
+      request.agentId ?? "root",
+      toolName,
+      args,
+      mutates,
+    );
   }
 }
 
