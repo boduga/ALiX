@@ -54,19 +54,21 @@ run_step "Performance budgets" node dist/src/cli.js doctor --performance
 # Packaged-artifact smoke test
 echo "▸ Packed-artifact smoke..."
 TMP_DIR="$(mktemp -d)"
-PACKAGE_DIR="$(pwd)"
 
 # Pack the current build
-TARBALL="$(npm pack --json 2>/dev/null | node -p "require('/dev/stdin')[0].filename" 2>/dev/null || echo "alix-*.tgz")"
-if [ -f "$TARBALL" ]; then
-  npm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1
-
-  if "$TMP_DIR/node_modules/.bin/alix" init > /dev/null 2>&1 && \
-     "$TMP_DIR/node_modules/.bin/alix" doctor > /dev/null 2>&1 && \
-     "$TMP_DIR/node_modules/.bin/alix" models doctor --json > /dev/null 2>&1; then
-    echo "  ✅ Packed-artifact smoke"
+TARBALL="$(npm pack --json 2>/dev/null | node -p "require('/dev/stdin')[0].filename" 2>/dev/null || echo "")"
+if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
+  if npm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
+    if "$TMP_DIR/node_modules/.bin/alix" init > /dev/null 2>&1 && \
+       "$TMP_DIR/node_modules/.bin/alix" doctor > /dev/null 2>&1 && \
+       "$TMP_DIR/node_modules/.bin/alix" models doctor --json > /dev/null 2>&1; then
+      echo "  ✅ Packed-artifact smoke"
+    else
+      echo "  ❌ Packed-artifact smoke — FAILED"
+      GATE_PASSED=false
+    fi
   else
-    echo "  ❌ Packed-artifact smoke — FAILED"
+    echo "  ❌ Packed-artifact smoke (install failed) — FAILED"
     GATE_PASSED=false
   fi
   rm -f "$TARBALL"
