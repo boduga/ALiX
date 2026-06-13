@@ -13,6 +13,7 @@ import type { CheckpointManager } from "../patch/checkpoint.js";
 import type { ToolResult } from "./types.js";
 import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
+import { buildDefaultToolIndex } from "./tool-registry.js";
 import {
   CompositeToolRouter,
   ToolAwareRouter,
@@ -57,6 +58,8 @@ export type ToolCallRequest = {
   toolCallId: string;
   name: string;
   args: Record<string, unknown>;
+  agentId?: string;
+  sessionId?: string;
   replayId?: string;
   /**
    * When set to "continuation-resume", the tool executor will bypass
@@ -72,6 +75,7 @@ export class ToolExecutor {
   private router: ToolRouter;
   private toolAwareRouter: ToolAwareRouter;
   private repair: AlixToolRepair | null = null;
+  private toolRegistry: any = null;
 
   constructor(
     private config: AlixConfig,
@@ -82,6 +86,8 @@ export class ToolExecutor {
     private extraHandlers?: Record<string, (args: Record<string, unknown>) => Promise<ToolResult>>,
     private checkpointManager?: CheckpointManager,
     private approvalStore?: any,  // ApprovalStore — for PolicyGate ask decisions
+    private workspacePathResolver?: any,  // WorkspacePathResolver — for OwnershipGate
+    private ownershipRegistry?: any,  // OwnershipRegistry — for OwnershipGate
   ) {
     // Create router with all handlers
     const composite = new CompositeToolRouter([
@@ -95,6 +101,7 @@ export class ToolExecutor {
     ]);
     this.toolAwareRouter = new ToolAwareRouter(composite, log, this.sessionId());
     this.router = this.toolAwareRouter;
+    this.toolRegistry = buildDefaultToolIndex().registry;
 
     // Initialize tool repair layer
     try {
@@ -147,9 +154,11 @@ export class ToolExecutor {
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
 
-    // Continuation resumes bypass PolicyGate AND the intent filter — the tool was
-    // already approved by the user, so the current task intent should not block it.
-    // Only set from resumeApproved(), never from user input.
+    // Continuation resumes bypass PolicyGate — approval was already verified.
+    // But OwnershipGate runs ALWAYS (even for continuation-resume).
+    const gateResult = await this.checkOwnershipGate(request, name, args);
+    if (gateResult) return gateResult;
+
     if (request.source === "continuation-resume") {
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
       return await this.toolAwareRouter.downstream.execute(request);
@@ -204,6 +213,7 @@ export class ToolExecutor {
             capability,
             args,
             argsHash: argumentHash,
+            agentId: request.agentId,
           },
           createdAt: new Date().toISOString(),
         });
@@ -310,6 +320,36 @@ export class ToolExecutor {
     }
 
     return result;
+  }
+
+  // ─── Ownership Gate ───────────────────────────────────────────
+  // Runs for every tool call including continuation-resume.
+  // Only mutates=true tools require ownership checks.
+
+  private async checkOwnershipGate(
+    request: ToolCallRequest,
+    toolName: string,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult | null> {
+    // Skip if ownership is not wired
+    if (!this.ownershipRegistry) return null;
+    if (!this.workspacePathResolver) return null;
+
+    const { checkOwnershipGate: gate } = await import("../ownership/ownership-gate.js");
+    const capability = this.toolRegistry?.lookupByName(toolName);
+    const mutates = capability?.mutates ?? false;
+
+    return await gate(
+      {
+        registry: this.ownershipRegistry,
+        resolver: this.workspacePathResolver,
+        autoAcquire: this.config.ownership?.autoAcquire ?? true,
+      },
+      request.agentId ?? "root",
+      toolName,
+      args,
+      mutates,
+    );
   }
 }
 

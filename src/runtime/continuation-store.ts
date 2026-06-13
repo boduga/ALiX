@@ -24,8 +24,16 @@ export type PendingContinuation = {
     capability: string;
     args: Record<string, unknown>;
     argsHash: string;
+    /** agentId was added in M0.75. Legacy continuations may lack this. */
+    agentId?: string;
   };
   createdAt: string;
+  /**
+   * Set when a continuation was loaded from persistent storage but has
+   * a migration issue (e.g. missing agentId). Such continuations cannot
+   * be resumed under ownership enforcement but are not deleted.
+   */
+  migrationIssue?: "missing-agent-identity";
 };
 
 // ─── ContinuationStore ───────────────────────────────────────────────
@@ -48,7 +56,13 @@ export class ContinuationStore {
     }
     try {
       const raw = await readFile(this.filePath, "utf-8");
-      this.continuations = JSON.parse(raw);
+      this.continuations = (JSON.parse(raw) as PendingContinuation[]).map(c => {
+        // Mark legacy continuations missing agentId
+        if (c.toolCall && !c.toolCall.agentId) {
+          return { ...c, migrationIssue: "missing-agent-identity" as const };
+        }
+        return c;
+      });
       this.dirty = false;
     } catch {
       this.continuations = [];

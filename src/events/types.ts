@@ -157,6 +157,17 @@ export const MCP_EVENT_TYPES = {
   TOOL_INVOKED: "mcp.tool_invoked",
 } as const;
 
+export const OWNERSHIP_EVENT_TYPES = {
+  ACQUIRED: "ownership.acquired",
+  RELEASED: "ownership.released",
+  RENEWED: "ownership.renewed",
+  EXPIRED: "ownership.expired",
+  CONFLICT: "ownership.conflict",
+  REVOKED: "ownership.revoked",
+  DENIED: "ownership.denied",
+  LOCK_FAILED: "ownership.lock_failed",
+} as const;
+
 export type SubagentStartedPayload = {
   role: string;
   taskId: string;

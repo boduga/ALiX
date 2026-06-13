@@ -75,5 +75,11 @@ export const DEFAULT_CONFIG: AlixConfig = {
       { role: "docs_researcher",   mode: "read_only", style: "fast", retryCount: 1 },
       { role: "worker",            mode: "write",     style: "coding",  retryCount: 0 },
     ],
-  }
+  },
+  ownership: {
+    enabled: true,
+    autoAcquire: true,
+    defaultTtlMs: 30 * 60 * 1000,
+    historyRetentionDays: 30,
+  },
 };

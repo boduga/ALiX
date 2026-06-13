@@ -2371,6 +2371,12 @@ if (command === "doctor") {
   process.exit(failed ? 1 : 0);
 }
 
+if (command === "ownership") {
+  const { handleOwnershipCommand } = await import("./cli/commands/ownership.js");
+  await handleOwnershipCommand(args);
+  process.exit(0);
+}
+
 console.error(`Unknown command: ${command}`);
 process.exit(1);
 
