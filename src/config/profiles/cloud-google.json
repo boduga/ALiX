@@ -1,0 +1,17 @@
+{
+  "id": "cloud-google",
+  "name": "Cloud Google",
+  "description": "All tiers via Google Gemini. Best for users with Google AI credentials.",
+  "mode": "cloud-only",
+  "hardware": { "minRamGb": 4, "recommendedRamGb": 8, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "google", "name": "gemini-3.5-flash", "temperature": 0.3, "contextWindow": 128000 },
+    "planner": { "provider": "google", "name": "gemini-3.5-pro", "temperature": 0.2, "contextWindow": 128000 },
+    "coder": { "provider": "google", "name": "gemini-3.5-pro", "temperature": 0.1, "contextWindow": 128000 },
+    "researcher": { "provider": "google", "name": "gemini-3.5-pro", "temperature": 0.3, "contextWindow": 128000 },
+    "critic": { "provider": "google", "name": "gemini-3.5-flash", "temperature": 0.2, "contextWindow": 128000 },
+    "embeddings": { "provider": "google", "name": "text-embedding-004" }
+  },
+  "fallbacks": { "enabled": false },
+  "runtime": { "localModelsRequired": false, "ollamaRequired": false, "maxConcurrentAgents": 4, "maxContextTokens": 96000 }
+}

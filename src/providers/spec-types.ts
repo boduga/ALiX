@@ -15,6 +15,9 @@ export type ProviderSpec = {
   /** API endpoint URL (no trailing slash) */
   baseUrl: string;
 
+  /** Streaming endpoint URL — defaults to baseUrl when not set */
+  streamUrl?: string;
+
   /** Build auth headers from API key */
   authHeader: (apiKey: string) => Record<string, string>;
 

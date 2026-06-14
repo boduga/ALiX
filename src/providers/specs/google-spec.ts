@@ -2,6 +2,7 @@ import type { ProviderSpec } from "../spec-types.js";
 
 export const googleSpec: ProviderSpec = {
   baseUrl: "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+  streamUrl: "https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?alt=sse",
 
   authHeader: (apiKey) => ({ "x-goog-api-key": apiKey }),
 

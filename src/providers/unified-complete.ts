@@ -113,7 +113,8 @@ export async function* stream(
 
   const apiKey = resolveApiKey(provider, options.apiKey);
   const body = spec.toRequestBody({ ...request, model, stream: true });
-  const url = spec.baseUrl.replace("{model}", encodeURIComponent(model));
+  const streamBase = spec.streamUrl ?? spec.baseUrl;
+  const url = streamBase.replace("{model}", encodeURIComponent(model));
   const res = await _fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
