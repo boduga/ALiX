@@ -1,0 +1,17 @@
+{
+  "id": "cloud-glm",
+  "name": "Cloud GLM",
+  "description": "All tiers via Zhipu AI GLM-5.1. Best for users with Zhipu AI credentials.",
+  "mode": "cloud-only",
+  "hardware": { "minRamGb": 4, "recommendedRamGb": 8, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "zhipu", "name": "glm-5.1", "temperature": 0.3, "contextWindow": 200000 },
+    "planner": { "provider": "zhipu", "name": "glm-5.1", "temperature": 0.2, "contextWindow": 200000 },
+    "coder": { "provider": "zhipu", "name": "glm-5.1", "temperature": 0.1, "contextWindow": 200000 },
+    "researcher": { "provider": "zhipu", "name": "glm-5.1", "temperature": 0.3, "contextWindow": 200000 },
+    "critic": { "provider": "zhipu", "name": "glm-5.1", "temperature": 0.2, "contextWindow": 200000 },
+    "embeddings": { "provider": "zhipu", "name": "embedding-3", "contextWindow": 8192 }
+  },
+  "fallbacks": { "enabled": false },
+  "runtime": { "localModelsRequired": false, "ollamaRequired": false, "maxConcurrentAgents": 4, "maxContextTokens": 96000 }
+}

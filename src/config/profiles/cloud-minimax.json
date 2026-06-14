@@ -1,0 +1,17 @@
+{
+  "id": "cloud-minimax",
+  "name": "Cloud MiniMax",
+  "description": "All tiers via MiniMax M3. Best for users with MiniMax API credentials.",
+  "mode": "cloud-only",
+  "hardware": { "minRamGb": 4, "recommendedRamGb": 8, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "minimax", "name": "MiniMax-M3", "temperature": 0.3, "contextWindow": 1048576 },
+    "planner": { "provider": "minimax", "name": "MiniMax-M3", "temperature": 0.2, "contextWindow": 1048576 },
+    "coder": { "provider": "minimax", "name": "MiniMax-M3", "temperature": 0.1, "contextWindow": 1048576 },
+    "researcher": { "provider": "minimax", "name": "MiniMax-M3", "temperature": 0.3, "contextWindow": 1048576 },
+    "critic": { "provider": "minimax", "name": "MiniMax-M3", "temperature": 0.2, "contextWindow": 1048576 },
+    "embeddings": { "provider": "openai", "name": "text-embedding-3-small" }
+  },
+  "fallbacks": { "enabled": false },
+  "runtime": { "localModelsRequired": false, "ollamaRequired": false, "maxConcurrentAgents": 4, "maxContextTokens": 96000 }
+}
