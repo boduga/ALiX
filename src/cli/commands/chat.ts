@@ -8,13 +8,21 @@ import { createProvider } from "../../providers/registry.js";
 import type { NormalizedMessage, NormalizedResponse, ToolCall } from "../../providers/types.js";
 import { webSearchTool } from "../../tools/web-search.js";
 import { webFetchTool } from "../../tools/web-fetch.js";
+import { WorkspacePathResolver } from "../../runtime/workspace-path.js";
+import { readFile as readFileTool, searchDir as searchDirTool } from "../../tools/file-tools.js";
 
 export interface ChatOptions {
   sessionId?: string;
   resume?: boolean;
   list?: boolean;
   delete?: string;
+  workspace?: boolean;
+  agent?: boolean;
 }
+
+export type ParseChatArgsResult =
+  | { ok: true; options: ChatOptions }
+  | { ok: false; error: string };
 
 // Shared chat tools — lazily constructed once
 const CHAT_TOOLS = [webSearchTool(), webFetchTool()].map((t) => ({
@@ -43,16 +51,173 @@ async function executeChatTool(name: string, args: Record<string, unknown>): Pro
   return `Error: Unknown tool "${name}"`;
 }
 
+export function parseChatArgs(args: string[]): ParseChatArgsResult {
+  const opts: ChatOptions = {};
+  let i = 0;
+
+  while (i < args.length) {
+    const arg = args[i];
+    if (arg === "--resume" || arg === "-r") {
+      if (opts.list || opts.delete) return { ok: false, error: "--resume cannot be combined with --list or --delete" };
+      opts.resume = true;
+      i++;
+    } else if (arg === "--list" || arg === "-l") {
+      if (opts.resume || opts.delete || opts.workspace || opts.agent) return { ok: false, error: "--list cannot be combined with other flags" };
+      opts.list = true;
+      i++;
+    } else if (arg === "--delete" || arg === "-d") {
+      if (!args[i + 1] || args[i + 1].startsWith("-")) return { ok: false, error: "--delete requires a session id" };
+      if (opts.list || opts.resume) return { ok: false, error: "--delete cannot be combined with --list or --resume" };
+      opts.delete = args[i + 1];
+      i += 2;
+    } else if (arg === "--agent" || arg === "-a") {
+      if (opts.list) return { ok: false, error: "--agent cannot be combined with --list" };
+      if (opts.workspace) return { ok: false, error: "--agent cannot be combined with --workspace" };
+      opts.agent = true;
+      i++;
+    } else if (arg === "--workspace" || arg === "-w") {
+      if (opts.list) return { ok: false, error: "--workspace cannot be combined with --list" };
+      if (opts.agent) return { ok: false, error: "--workspace cannot be combined with --agent" };
+      opts.workspace = true;
+      i++;
+    } else if (arg === "--session" || arg === "-s") {
+      if (!args[i + 1] || args[i + 1].startsWith("-")) return { ok: false, error: "--session requires a session id" };
+      opts.sessionId = args[i + 1];
+      i += 2;
+    } else if (!arg.startsWith("-")) {
+      if (opts.sessionId) return { ok: false, error: `Unexpected argument: ${arg}. Session already set to ${opts.sessionId}` };
+      opts.sessionId = arg;
+      i++;
+    } else {
+      return { ok: false, error: `Unknown option: ${arg}. Supported: --workspace, --agent, --resume, --session, --list, --delete` };
+    }
+  }
+
+  return { ok: true, options: opts };
+}
+
+export type ChatMode = "conversation" | "workspace" | "agent";
+
+export type ResolvedChatMode = {
+  mode: ChatMode;
+  tools: Array<{ name: string; description: string; input_schema: any }>;
+  mutations: "disabled" | "policy-gated";
+  workspaceAccess: boolean;
+};
+
+export function resolveChatMode(opts: ChatOptions): ResolvedChatMode {
+  if (opts.agent) {
+    return { mode: "agent", tools: [], mutations: "policy-gated", workspaceAccess: true };
+  }
+  if (opts.workspace) {
+    return {
+      mode: "workspace",
+      tools: [
+        ...CHAT_TOOLS,
+        { name: "file.read", description: "Read a file's contents", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+        { name: "file.exists", description: "Check if a file exists", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+        { name: "dir.search", description: "Search for files matching a pattern", input_schema: { type: "object", properties: { pattern: { type: "string" }, extensions: { type: "array", items: { type: "string" } } }, required: ["pattern"] } },
+      ],
+      mutations: "disabled",
+      workspaceAccess: true,
+    };
+  }
+  return { mode: "conversation", tools: CHAT_TOOLS, mutations: "disabled", workspaceAccess: false };
+}
+
+/** Check a model-supplied path against the workspace. Returns error string or null. */
+function checkModelPath(path: string, cwd: string): string | null {
+  const resolver = new WorkspacePathResolver(cwd);
+  const result = resolver.check(path);
+  if (!result.insideWorkspace) return "Path is outside the workspace";
+  if (result.protected) return "Path is protected";
+  if (result.sensitive) return "Path is sensitive";
+  if (!resolver.isTraversalSafe(path)) return "Path traversal detected";
+  return null;
+}
+
+
+async function executeWorkspaceTool(name: string, args: Record<string, unknown>): Promise<string> {
+  const cwd = process.cwd();
+  const path = String(args.path || "");
+  if (path) {
+    const blocked = checkModelPath(path, cwd);
+    if (blocked) return `Error: ${blocked}`;
+  }
+  // dir.search pattern is a glob — only block obvious traversal attempts
+  const pattern = String(args.pattern || "");
+  if (pattern && (pattern.startsWith("..") || pattern.startsWith("/"))) {
+    return "Error: Search pattern denied (traversal)";
+  }
+  switch (name) {
+    case "file.read": {
+      const result = await readFileTool({ root: process.cwd(), path });
+      if (result.kind === "error") return `Error: ${result.message}`;
+      return result.content || "";
+    }
+    case "file.exists": {
+      const { existsSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      return existsSync(resolve(process.cwd(), path)) ? "exists" : "not found";
+    }
+    case "dir.search": {
+      const dirResult = await searchDirTool({ root: process.cwd(), pattern: String(args.pattern || ""), extensions: (args.extensions as string[]) || [] });
+      if (dirResult.kind === "error") return `Error: ${dirResult.message}`;
+      return JSON.stringify(dirResult.matches || [], null, 2);
+    }
+    default:
+      return `Error: Unknown tool "${name}"`;
+  }
+}
+
+async function runAgentMode(): Promise<void> {
+  const { runTask } = await import("../../run.js");
+  const { loadConfig } = await import("../../config/loader.js");
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  const config = await loadConfig(process.cwd());
+  console.log(`\nChat session (agent task console)`);
+  console.log(`Provider: ${config.model.provider}/${config.model.name}`);
+  console.log("Each prompt starts a new governed task.");
+  console.log("Subject to policy, approval, and ownership gates.");
+  console.log("Type /exit or /quit to end\n");
+
+  let input = await rl.question("> ");
+  while (input.trim() !== "/exit" && input.trim() !== "/quit") {
+    if (!input.trim()) { input = await rl.question("> "); continue; }
+    try {
+      const result = await runTask(process.cwd(), input.trim(), {
+        planMode: false,
+        sessionMode: config.permissions?.sessionMode ?? "ask",
+      });
+      if (result.summary) console.log(`\n${result.summary}`);
+      console.log(`Session: ${result.sessionId}`);
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+    }
+    input = await rl.question("> ");
+  }
+  rl.close();
+}
+
 export async function runChat(opts: ChatOptions = {}): Promise<void> {
   const sessionDir = join(process.cwd(), ".alix", "sessions");
 
   if (opts.list) { await listSessions(sessionDir); return; }
   if (opts.delete) { await deleteSession(sessionDir, opts.delete); return; }
+  if (opts.agent) { await runAgentMode(); return; }
 
-  await runChatLoop(sessionDir, opts.sessionId, opts.resume);
+  await runChatLoop(sessionDir, opts.sessionId, opts.resume, opts.workspace);
 }
 
-async function runChatLoop(sessionDir: string, sessionId?: string, resume = false) {
+async function runChatLoop(sessionDir: string, sessionId?: string, resume = false, workspace = false) {
+  const resolved = resolveChatMode({ workspace, agent: false });
+  const modeLabel = workspace ? "workspace (read-only)" : "conversational";
+  console.log(`Mode: ${modeLabel}`);
+  if (!workspace) {
+    console.log("For workspace access, use: alix chat --workspace");
+  }
   const id = sessionId ? await findSession(sessionDir, sessionId) : randomUUID();
   const dir = join(sessionDir, id);
   const messagesPath = join(dir, "messages.jsonl");
@@ -100,7 +265,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   const config = await loadConfig(process.cwd());
   const apiKey = config.apiKeys?.[config.model.provider] ?? process.env[`${config.model.provider.toUpperCase()}_API_KEY`] ?? "";
   const provider = await createProvider(config.model, apiKey);
-  const systemPrompt = buildChatSystemPrompt();
+  const systemPrompt = buildChatSystemPrompt(workspace);
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("> ");
@@ -155,7 +320,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
         process.stdout.write("\n");
         let text = "";
         const toolCalls: ToolCall[] = [];
-        const stream = provider.stream({ systemPrompt, messages, tools: CHAT_TOOLS });
+        const stream = provider.stream({ systemPrompt, messages, tools: resolved.tools });
         for await (const chunk of stream) {
           if (chunk.type === "text_delta") {
             process.stdout.write(chunk.text);
@@ -171,7 +336,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
         process.stdout.write("\n");
         response = { text, toolCalls, usage: undefined };
       } else {
-        response = await provider.complete({ systemPrompt, messages, tools: CHAT_TOOLS });
+        response = await provider.complete({ systemPrompt, messages, tools: resolved.tools });
         if (response.text) {
           console.log(response.text);
         }
@@ -190,7 +355,9 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       for (const tc of response.toolCalls) {
         if (!tc || !tc.name || tc.name === "undefined") continue; // skip malformed
         console.log(`  [Calling ${tc.name}...]`);
-        const result = await executeChatTool(tc.name, tc.args);
+        const result = resolved.mode === "workspace"
+          ? await executeWorkspaceTool(tc.name, tc.args)
+          : await executeChatTool(tc.name, tc.args);
         console.log(`  [Done]\n`);
         messages.push({ role: "assistant", content: JSON.stringify({ type: "tool", name: tc.name, arguments: tc.args }) });
         messages.push({ role: "user", content: JSON.stringify({ type: "tool_result", name: tc.name, result }) });
@@ -249,14 +416,28 @@ async function deleteSession(dir: string, id: string): Promise<void> {
   console.log(`Deleted session ${id.slice(0, 8)}`);
 }
 
-function buildChatSystemPrompt(): string {
-  const base = `You are ALiX, an AI coding assistant. Be concise and helpful.
+const WORKSPACE_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant with read-only access to the current project workspace.
+
+You have access to these tools:
+- web_search(query, count): Search the web for current information
+- web_fetch(url, maxLength): Fetch a URL and get its text content
+- file.read(path): Read a file's contents
+- file.exists(path): Check if a file exists
+- dir.search(pattern, extensions): Search for files matching a pattern
+
+You can read files, search directories, and search the web. You CANNOT modify any files.
+When the user asks you to make changes, explain that you are in read-only mode.`;
+
+const CHAT_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant. Be concise and helpful.
 
 You have access to these tools:
 - web_search(query, count): Search the web for current information
 - web_fetch(url, maxLength): Fetch a URL and get its text content
 
 For questions about current events or facts beyond your training data, use web_search to find up-to-date information. You can then use web_fetch to read full articles. Answer based on the search results.`;
+
+function buildChatSystemPrompt(workspace = false): string {
+  const base = workspace ? WORKSPACE_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
   const projectMemory = loadProjectMemory();
   if (projectMemory) return `${base}\n\n## Project Memory\n${projectMemory}`;
   return base;
