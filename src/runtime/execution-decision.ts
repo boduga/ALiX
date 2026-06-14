@@ -1,5 +1,5 @@
 /**
- * execution-decision.md — Canonical decision contract for all execution paths.
+ * execution-decision.ts — Canonical decision contract for all execution paths.
  *
  * Every tool call, graph node, daemon route, and agent request produces
  * exactly one ExecutionDecision through ExecutionAuthorization.evaluate().
@@ -41,14 +41,14 @@ export interface ExecutionDecisionRequest {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-export function decisionAllowed(overrides?: Partial<ExecutionDecision & { status: "allowed" }>): ExecutionDecision {
+export function decisionAllowed(overrides?: { policyRuleId?: string; approvalId?: string }): ExecutionDecision {
   return { status: "allowed", ...overrides };
 }
 
-export function decisionDenied(reason: string, overrides?: Partial<ExecutionDecision & { status: "denied" }>): ExecutionDecision {
+export function decisionDenied(reason: string, overrides?: { policyRuleId?: string; approvalId?: string }): ExecutionDecision {
   return { status: "denied", reason, ...overrides };
 }
 
-export function decisionApprovalRequired(approvalId: string, reason: string, overrides?: Partial<ExecutionDecision & { status: "approval_required" }>): ExecutionDecision {
+export function decisionApprovalRequired(approvalId: string, reason: string, overrides?: { policyRuleId?: string }): ExecutionDecision {
   return { status: "approval_required", approvalId, reason, ...overrides };
 }

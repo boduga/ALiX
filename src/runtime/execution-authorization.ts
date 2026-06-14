@@ -10,7 +10,6 @@
  */
 
 import type { PolicyGate } from "../policy/policy-gate.js";
-import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { OwnershipGateConfig } from "../ownership/ownership-gate.js";
 import type { CapabilityRegistry } from "../policy/capability-registry.js";
 import type { AuditStore } from "../audit/audit-store.js";
@@ -21,7 +20,6 @@ import { decisionAllowed, decisionDenied, decisionApprovalRequired } from "./exe
 
 export type AuthorizationDeps = {
   policyGate: PolicyGate;
-  approvalStore?: ApprovalStore;
   ownershipGateConfig?: OwnershipGateConfig;
   capabilityRegistry?: CapabilityRegistry;
   auditStore?: AuditStore;
@@ -53,7 +51,7 @@ export class ExecutionAuthorization {
    * Pipeline:
    *   1. Capability check—resolve risk level, requiresApproval flag
    *   2. Policy evaluation—delegate to PolicyGate
-   *   3. Approval lifecycle—check/reuse/create approval records (PolicyGate handles this)
+   *   3. Approval lifecycle - delegated to PolicyGate handleAskDecision()
    *   4. Ownership gate—verify mutation targets are covered
    *   5. Audit emission—one canonical record
    */
@@ -148,8 +146,14 @@ export class ExecutionAuthorization {
     decision: ExecutionDecision,
     extras: { riskLevel?: string; policyDecision?: unknown; ownershipResult?: unknown },
   ): Promise<void> {
+    // Narrow the discriminated union for field access
+    const reason = decision.status === "denied" || decision.status === "approval_required" ? decision.reason : undefined;
+    const policyRuleId = "policyRuleId" in decision ? (decision as any).policyRuleId as string | undefined : undefined;
+    const approvalId = decision.status === "allowed" || decision.status === "approval_required" ? (decision as any).approvalId as string | undefined : undefined;
+    const action = `authorization.${decision.status}` as "authorization.allowed" | "authorization.denied" | "authorization.approval_required";
+
     const auditPromise = auditStore?.append({
-      action: `authorization.${decision.status}` as any,
+      action,
       actor: "system",
       details: {
         requestId: request.requestId,
@@ -159,16 +163,16 @@ export class ExecutionAuthorization {
         source: request.source,
         sessionId: request.sessionId,
         decision: decision.status,
-        reason: (decision as any).reason,
-        policyRuleId: (decision as any).policyRuleId,
-        approvalId: (decision as any).approvalId,
+        reason,
+        policyRuleId,
+        approvalId,
         riskLevel: extras.riskLevel,
-      } as any,
+      },
     }).catch(() => {});
 
     const eventPromise = eventLog?.append({
       sessionId: request.sessionId,
-      actor: "authorization" as any,
+      actor: "authorization",
       type: "authorization.evaluated",
       payload: {
         requestId: request.requestId,
@@ -177,8 +181,8 @@ export class ExecutionAuthorization {
         agentId: request.agentId,
         source: request.source,
         decision: decision.status,
-        policyRuleId: (decision as any).policyRuleId,
-        approvalId: (decision as any).approvalId,
+        policyRuleId,
+        approvalId,
       },
     }).catch(() => {});
 
