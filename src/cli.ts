@@ -136,6 +136,8 @@ Usage:
   alix benchmark run          Run performance benchmarks
   alix benchmark run --suite quick   Run quick benchmarks only
   alix benchmark compare <id> <id>  Compare two benchmark runs
+  alix provider doctor       Test all configured providers (complete + stream)
+  alix provider doctor google  Test a specific provider
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -2369,6 +2371,12 @@ if (command === "doctor") {
 if (command === "ownership") {
   const { handleOwnershipCommand } = await import("./cli/commands/ownership.js");
   await handleOwnershipCommand(args);
+  process.exit(0);
+}
+
+if (command === "provider" && args[0] === "doctor") {
+  const { handleProviderDoctor } = await import("./cli/commands/provider-doctor.js");
+  await handleProviderDoctor(args.slice(1));
   process.exit(0);
 }
 

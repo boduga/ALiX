@@ -31,7 +31,7 @@ const SPECS = new Map<string, ProviderSpec>([
   ["local-llama", localLlamaSpec],
 ]);
 
-const PROVIDER_KEY_ENV: Record<string, string> = {
+export const PROVIDER_KEY_ENV: Record<string, string> = {
   openai: "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
   google: "GEMINI_API_KEY",
@@ -115,30 +115,56 @@ export async function* stream(
   const body = spec.toRequestBody({ ...request, model, stream: true });
   const streamBase = spec.streamUrl ?? spec.baseUrl;
   const url = streamBase.replace("{model}", encodeURIComponent(model));
-  const res = await _fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
-    body: JSON.stringify(body),
-  });
 
-  if (!res.ok) {
-    const errBody = await res.json().catch(() => ({}));
-    yield { type: "error", error: spec.toErrorMessage(res.status, errBody) };
-    return;
+  // Retry the initial HTTP request on transient failure.
+  // Once the stream is established and chunks are yielded, we cannot retry
+  // without re-yielding already-sent chunks, so mid-stream errors are terminal.
+  const maxRetries = 2;
+  let res: Response | null = null;
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      res = await _fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) break;
+      if ((res.status === 429 || res.status >= 500) && attempt < maxRetries) {
+        const delay = Math.floor(Math.random() * 1000 * Math.pow(2, attempt));
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      const errBody = await res.json().catch(() => ({}));
+      yield { type: "error", error: spec.toErrorMessage(res.status, errBody) };
+      return;
+    } catch (e: any) {
+      if (attempt < maxRetries) {
+        const delay = Math.floor(Math.random() * 1000 * Math.pow(2, attempt));
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      yield { type: "error", error: `Stream request failed: ${e.message}` };
+      return;
+    }
   }
 
-  const reader = res.body!.getReader();
+  // Stream established — no retry from here onward
+  const reader = res!.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
-    buffer = lines.pop() ?? "";
-    for (const line of lines) {
-      const chunk = spec.fromStreamChunk(line.trim());
-      if (chunk) yield chunk;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      buffer = lines.pop() ?? "";
+      for (const line of lines) {
+        const chunk = spec.fromStreamChunk(line.trim());
+        if (chunk) yield chunk;
+      }
     }
+  } catch (e: any) {
+    yield { type: "error", error: `Stream read failed: ${e.message}` };
   }
 }
