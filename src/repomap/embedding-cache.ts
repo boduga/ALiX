@@ -70,8 +70,10 @@ export class EmbeddingCache {
       const content = await readFile(cacheFile, "utf8");
       return JSON.parse(content);
     } catch (err) {
-      // Cache miss — first time seeing this text, computing fresh
-      console.debug(`[EmbeddingCache] Cache miss for hash, computing fresh`);
+      // Cache miss — normal during first run. Hidden behind ALIX_LOG_LEVEL=debug.
+      if (process.env.ALIX_LOG_LEVEL === "debug") {
+        console.debug(`[EmbeddingCache] Cache miss for hash, computing fresh`);
+      }
       return null;
     }
   }

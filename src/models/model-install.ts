@@ -49,16 +49,29 @@ export function installProfile(profileId: string, cwd: string, dryRun = false): 
   if (profile.mode === "cloud-only") {
     return dryRun ? { success: true, message: `[DRY-RUN] Would validate API keys and apply profile: ${profileId}`, pulled: [], skipped: [], errors: [] } : applyProfile(profileId, cwd);
   }
+  // Get already-installed models
+  let installedModels: string[] = [];
+  try {
+    const list = execFileSync("ollama", ["list"], { timeout: 5000, encoding: "utf-8", stdio: "pipe" });
+    installedModels = list.split("\n").slice(1).map(l => l.split(/\s+/)[0]).filter(Boolean);
+  } catch { /* Ollama not available */ }
   const modelsToPull = profile.install?.ollamaPull || [];
   const pulled: string[] = [];
+  const skipped: string[] = [];
   const errors: string[] = [];
   for (const model of modelsToPull) {
-    if (dryRun) continue;
+    if (dryRun) { skipped.push(model); continue; }
+    if (installedModels.includes(model)) { skipped.push(model); continue; }
     try {
       execFileSync("ollama", ["pull", model], { timeout: 300000, stdio: "pipe" });
       pulled.push(model);
     } catch { errors.push(model); }
   }
   const applyResult = dryRun ? applyProfile(profileId, cwd, true) : applyProfile(profileId, cwd);
-  return { success: applyResult.success && errors.length === 0, message: dryRun ? `[DRY-RUN] Would install profile: ${profileId} (would pull ${modelsToPull.length} models)` : `Installed profile: ${profileId}. Pulled ${pulled.length}, errors ${errors.length}.`, pulled, skipped: dryRun ? modelsToPull : [], errors };
+  const labels = [
+    pulled.length > 0 ? `Downloaded ${pulled.length}` : "",
+    skipped.length > 0 ? `Already installed ${skipped.length}` : "",
+    errors.length > 0 ? `Failed ${errors.length}` : "",
+  ].filter(Boolean).join(", ");
+  return { success: applyResult.success && errors.length === 0, message: dryRun ? `[DRY-RUN] Would install profile: ${profileId} (would pull ${modelsToPull.length} models)` : `Installed profile: ${profileId}. ${labels}.`, pulled, skipped, errors };
 }

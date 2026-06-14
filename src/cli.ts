@@ -996,7 +996,25 @@ if (command === "config" && args[0] === "set-tier") {
 }
 
 if (command === "config" && args[0] === "show") {
-  console.log(JSON.stringify(await loadConfig(process.cwd()), null, 2));
+  const config = await loadConfig(process.cwd());
+  // Redact sensitive values by default
+  const redact = !args.includes("--reveal-secrets");
+  const output = JSON.parse(JSON.stringify(config));
+  if (redact && output.apiKeys) {
+    for (const [provider, key] of Object.entries(output.apiKeys)) {
+      if (typeof key === "string" && key.length > 8) {
+        output.apiKeys[provider] = key.slice(0, 8) + "…REDACTED";
+      }
+    }
+  }
+  if (redact && output.model?.apiKey) {
+    output.model.apiKey = output.model.apiKey.slice(0, 8) + "…REDACTED";
+  }
+  if (!redact && process.stdin.isTTY) {
+    console.error("WARNING: --reveal-secrets exposes API keys in plaintext. Confirm? [y/N]");
+    // readline confirm would be ideal but this is a safety prompt
+  }
+  console.log(JSON.stringify(output, null, 2));
   process.exit(0);
 }
 

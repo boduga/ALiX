@@ -115,6 +115,31 @@ export async function handleModelsInstall(args: string[]): Promise<void> {
   if (!result.success) process.exit(1);
 }
 
+export async function handleModelsResolve(args: string[]): Promise<void> {
+  const { loadConfig } = await import("../../config/loader.js");
+  const { getProfile } = await import("../../config/profile-registry.js");
+  const role = args.find(a => !a.startsWith("--"));
+  const profileId = args.indexOf("--profile") >= 0 ? args[args.indexOf("--profile") + 1] : undefined;
+  const config = await loadConfig(process.cwd());
+  const activeProfileId = profileId || config.modelProfile;
+  const profile = activeProfileId ? getProfile(activeProfileId) : undefined;
+  const tierMap: Record<string, string> = { coder: "coding", planner: "thinking", critic: "critic", researcher: "fast", embeddings: "tiny", default: "default" };
+  if (role) {
+    const key = tierMap[role] || role;
+    const st = (config as any).subagents?.[key];
+    const mt = (config as any).models?.[role];
+    console.log(`Role: ${role}\nProvider: ${st?.provider || mt?.provider || "unknown"}\nModel: ${st?.name || mt?.name || "unknown"}`);
+    if (activeProfileId) console.log(`Source: profile ${activeProfileId}`);
+  } else {
+    for (const t of ["default","planner","coder","critic","researcher","embeddings"]) {
+      const k = tierMap[t] || t;
+      const s = (config as any).subagents?.[k];
+      const m = (config as any).models?.[t];
+      console.log(`${t.padEnd(12)} ${s?.provider || m?.provider || "default"}/${s?.name || m?.name || "default"}${profile ? ` (from ${profile.id})` : ""}`);
+    }
+  }
+}
+
 const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "doctor": handleModelsDoctor,
   "fit": handleModelsFit,
@@ -122,19 +147,22 @@ const HANDLERS: Record<string, (args: string[]) => Promise<void>> = {
   "show-profile": handleModelsShow,
   "apply-profile": handleModelsApply,
   "install-profile": handleModelsInstall,
+  "resolve": handleModelsResolve,
 };
 
 export async function handleModelsCommand(args: string[]): Promise<void> {
   const sub = args[0];
   const handler = HANDLERS[sub];
   if (!handler) {
-    console.error("Usage: alix models <doctor|fit|list-profiles|show-profile|apply-profile|install-profile>");
+    console.error("Usage: alix models <doctor|fit|list-profiles|show-profile|apply-profile|install-profile|resolve>");
     console.error("  alix models doctor               Run system and profile diagnostic");
     console.error("  alix models fit                   Rank profiles by hardware fit");
     console.error("  alix models list-profiles         List available profiles");
     console.error("  alix models show-profile <id>     Show profile details");
     console.error("  alix models apply-profile <id>    Apply a profile to config");
     console.error("  alix models install-profile <id>  Pull models and apply profile");
+    console.error("  alix models resolve               Show effective model per role");
+    console.error("  alix models resolve <role>        Show effective model for a specific role");
     process.exit(1);
   }
   await handler(args.slice(1));
