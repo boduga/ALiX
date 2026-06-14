@@ -58,4 +58,15 @@ describe("applyProfilePatch", () => {
     const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
     assert.equal(r.models?.coder.name, "qwen2.5-coder:7b");
   });
+
+  it("syncs profile coder tier into subagents.coding", () => {
+    const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
+    assert.ok(r.subagents, "subagents should exist after patch");
+    assert.equal((r.subagents as any)?.coding?.name, "qwen2.5-coder:7b", "coder tier syncs to subagents.coding");
+  });
+
+  it("syncs profile embeddings tier into subagents.tiny", () => {
+    const r = applyProfilePatch(makeMinimalConfig(), buildProfilePatch(makeProfile()));
+    assert.equal((r.subagents as any)?.tiny?.name, "test", "embeddings tier syncs to subagents.tiny");
+  });
 });

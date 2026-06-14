@@ -53,5 +53,22 @@ export function applyProfilePatch(existingConfig: AlixConfig, patch: ProfilePatc
   if (patch.model) result.model = { ...(result.model as object), ...patch.model };
   if (patch.models) result.models = { ...((result.models as object) || {}), ...patch.models };
   if (patch.runtime) result.runtime = { ...(result.runtime as object), ...patch.runtime };
+
+  // Sync models into subagents so the runtime uses the profile's per-tier models.
+  // Mapping: planner->thinking, coder->coding, critic->critic, researcher->fast, embeddings->tiny
+  if (patch.models) {
+    const tierMap: Record<string, string> = { planner: "thinking", coder: "coding", critic: "critic", researcher: "fast", embeddings: "tiny" };
+    result.subagents = { ...((result.subagents as object) || {}) };
+    for (const [profileTier, model] of Object.entries(patch.models)) {
+      const subagentKey = tierMap[profileTier];
+      if (!subagentKey) continue;
+      (result.subagents as Record<string, unknown>)[subagentKey] = {
+        ...((result.subagents as Record<string, unknown>)[subagentKey] as object || {}),
+        provider: model.provider,
+        name: model.name,
+      };
+    }
+  }
+
   return result as AlixConfig;
 }
