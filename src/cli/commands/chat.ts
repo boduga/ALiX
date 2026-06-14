@@ -138,10 +138,16 @@ function checkModelPath(path: string, cwd: string): string | null {
 
 
 async function executeWorkspaceTool(name: string, args: Record<string, unknown>): Promise<string> {
+  const cwd = process.cwd();
   const path = String(args.path || "");
   if (path) {
-    const blocked = checkModelPath(path, process.cwd());
+    const blocked = checkModelPath(path, cwd);
     if (blocked) return `Error: ${blocked}`;
+  }
+  // dir.search pattern is a glob — only block obvious traversal attempts
+  const pattern = String(args.pattern || "");
+  if (pattern && (pattern.startsWith("..") || pattern.startsWith("/"))) {
+    return "Error: Search pattern denied (traversal)";
   }
   switch (name) {
     case "file.read": {
