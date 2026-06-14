@@ -162,11 +162,43 @@ async function executeWorkspaceTool(name: string, args: Record<string, unknown>)
   }
 }
 
+async function runAgentMode(): Promise<void> {
+  const { runTask } = await import("../../run.js");
+  const { loadConfig } = await import("../../config/loader.js");
+  const { createInterface } = await import("node:readline/promises");
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  const config = await loadConfig(process.cwd());
+  console.log(`\nChat session (agent task console)`);
+  console.log(`Provider: ${config.model.provider}/${config.model.name}`);
+  console.log("Each prompt starts a new governed task.");
+  console.log("Subject to policy, approval, and ownership gates.");
+  console.log("Type /exit or /quit to end\n");
+
+  let input = await rl.question("> ");
+  while (input.trim() !== "/exit" && input.trim() !== "/quit") {
+    if (!input.trim()) { input = await rl.question("> "); continue; }
+    try {
+      const result = await runTask(process.cwd(), input.trim(), {
+        planMode: false,
+        sessionMode: config.permissions?.sessionMode ?? "ask",
+      });
+      if (result.summary) console.log(`\n${result.summary}`);
+      console.log(`Session: ${result.sessionId}`);
+    } catch (err: any) {
+      console.error(`Error: ${err.message}`);
+    }
+    input = await rl.question("> ");
+  }
+  rl.close();
+}
+
 export async function runChat(opts: ChatOptions = {}): Promise<void> {
   const sessionDir = join(process.cwd(), ".alix", "sessions");
 
   if (opts.list) { await listSessions(sessionDir); return; }
   if (opts.delete) { await deleteSession(sessionDir, opts.delete); return; }
+  if (opts.agent) { await runAgentMode(); return; }
 
   await runChatLoop(sessionDir, opts.sessionId, opts.resume, opts.workspace);
 }
