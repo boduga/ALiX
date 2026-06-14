@@ -46,7 +46,7 @@ export async function handleModelsFit(args: string[]): Promise<void> {
   if (opts.json) { console.log(JSON.stringify(results, null, 2)); return; }
   console.log("\nRecommended Profiles\n");
   results.forEach((r, i) => {
-    console.log(`${i + 1}. ${r.profile.id.padEnd(20)} ${r.status === "best fit" ? "✅ best fit" : r.status === "compatible" ? "✅ compatible" : "⚠️ not recommended"}`);
+    console.log(`${i + 1}. ${r.profile.id.padEnd(20)} ${r.status === "best fit" ? "✅ best fit" : r.status === "alternative" ? `⚠️ ${r.compatibility} — best available` : "❌ not recommended"}`);
     r.reasons.forEach(rs => console.log(`   ${rs}`)); console.log();
   });
   const best = results[0];
@@ -64,7 +64,7 @@ export async function handleModelsList(args: string[]): Promise<void> {
   console.log("\nAvailable Profiles\n");
   for (const p of profiles) {
     const m = matchHardware(p, system);
-    const icon = m === "compatible" ? "✅" : m === "partial" ? "⚠️" : "❌";
+    const icon = m.status === "compatible" ? "✅" : m.status === "partial" ? "⚠️" : "❌";
     console.log(`  ${icon} ${p.id.padEnd(22)} ${p.name}${config.modelProfile === p.id ? " (active)" : ""}`);
     console.log(`     ${p.description}`);
     console.log(`     Mode: ${p.mode} | RAM: ${p.hardware.minRamGb}-${p.hardware.recommendedRamGb} GB\n`);

@@ -5,9 +5,9 @@
  */
 
 import type { ProfileData } from "../config/profile-types.js";
-import { matchHardware, type SystemInfo } from "../config/profile-registry.js";
+import { matchHardware, type SystemInfo, type HardwareMatchResult } from "../config/profile-registry.js";
 
-export type FitRanking = { profile: ProfileData; rank: number; status: "best fit" | "compatible" | "not recommended"; reasons: string[] };
+export type FitRanking = { profile: ProfileData; rank: number; status: "best fit" | "alternative" | "not recommended"; reasons: string[]; compatibility: "compatible" | "partial" | "incompatible" };
 export type FitOptions = { role?: string; mode?: string };
 
 const ROLE_BIAS: Record<string, { local: number; cloud: number }> = {
@@ -22,14 +22,14 @@ export function rankProfiles(system: SystemInfo, profiles: ProfileData[], option
   const scores: FitRanking[] = [];
   for (const profile of profiles) {
     if (options.mode && profile.mode !== options.mode) continue;
-    const match = matchHardware(profile, system);
-    const reasons: string[] = [];
+    const result = matchHardware(profile, system);
+    const reasons = [...result.reasons];
     let score = 0;
-    if (match === "incompatible") {
-      scores.push({ profile, rank: 0, status: "not recommended", reasons: ["Incompatible: hardware requirements not met"] });
+    if (result.status === "incompatible") {
+      scores.push({ profile, rank: 0, status: "not recommended", reasons, compatibility: "incompatible" });
       continue;
     }
-    if (match === "compatible") { score += 10; reasons.push("Fits available hardware"); }
+    if (result.status === "compatible") { score += 10; reasons.push("Fits available hardware"); }
     else { score += 5; reasons.push("Partially fits hardware"); }
     const role = options.role || "general";
     const bias = ROLE_BIAS[role] || ROLE_BIAS.general!;
@@ -43,15 +43,15 @@ export function rankProfiles(system: SystemInfo, profiles: ProfileData[], option
       reasons.push("Best quality with API models");
       if (profile.fallbacks?.enabled) reasons.push("Has local fallback option");
     }
-    if (profile.id === "minimal-local") reasons.push("Safest local-only option");
+    if (profile.id === "minimal-local") { /* already covered by reasons */ }
     if (profile.id === "balanced-local") reasons.push("Good latency/quality balance");
-    if (profile.id === "power-local" && match === "partial") reasons.push("Coder tier likely too large for this machine");
+    if (profile.id === "power-local" && result.status === "partial") reasons.push("Coder tier likely too large for this machine");
     if (profile.id === "cloud-balanced" || profile.id === "all-cloud") {
-      reasons.push("Requires API keys");
-      if (match === "compatible") reasons.push("Higher cost");
+      if (result.status === "compatible") reasons.push("Higher cost");
     }
-    const status = score >= 15 ? "best fit" : score >= 8 ? "compatible" : "not recommended";
-    scores.push({ profile, rank: score, status, reasons });
+    const status: FitRanking["status"] = result.status === "compatible" ? "best fit" : result.status === "partial" ? "alternative" : "not recommended";
+    if (result.status === "partial" && score >= 15) { /* still alternative, not best fit */ }
+    scores.push({ profile, rank: score, status, reasons, compatibility: result.status });
   }
   return scores.sort((a, b) => b.rank - a.rank);
 }

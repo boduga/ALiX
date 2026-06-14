@@ -30,4 +30,10 @@ describe("rankProfiles", () => {
     assert.ok(r.every(p => p.profile.mode === "cloud-only"));
   });
   it("respects role filter", () => { assert.ok(rankProfiles(system, profiles, { role: "coder" }).length > 0); });
+  it("includes compatibility field matching matchHardware", () => {
+    const r = rankProfiles(system, profiles);
+    for (const entry of r) {
+      assert.ok(["compatible", "partial", "incompatible"].includes(entry.compatibility));
+    }
+  });
 });

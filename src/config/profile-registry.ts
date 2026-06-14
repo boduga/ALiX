@@ -11,6 +11,11 @@ import { type ProfileData, validateProfile } from "./profile-types.js";
 
 export type HardwareMatch = "compatible" | "partial" | "incompatible";
 
+export type HardwareMatchResult = {
+  status: HardwareMatch;
+  reasons: string[];
+};
+
 export type SystemInfo = {
   os: string;
   cpu: string;
@@ -82,35 +87,54 @@ function hasApiKeysForProfile(profile: ProfileData, system: SystemInfo): boolean
   return Array.from(neededProviders).every(p => system.apiProviders[p]?.hasKey);
 }
 
-/** Check hardware compatibility for a single profile. */
-export function matchHardware(profile: ProfileData, system: SystemInfo): HardwareMatch {
+/** Check hardware compatibility for a single profile. Returns status + reasons. */
+export function matchHardware(profile: ProfileData, system: SystemInfo): HardwareMatchResult {
+  const reasons: string[] = [];
+
   // cloud-only profiles only care about API keys, never about GPU/RAM/Ollama
   if (profile.mode === "cloud-only") {
-    return hasApiKeysForProfile(profile, system) ? "compatible" : "incompatible";
+    if (!hasApiKeysForProfile(profile, system)) {
+      const missing = [...new Set(Object.values(profile.models).filter(m => !system.apiProviders[m.provider]?.hasKey).map(m => m.provider))];
+      reasons.push(`Missing API keys for: ${missing.join(", ")}`);
+      return { status: "incompatible", reasons };
+    }
+    return { status: "compatible", reasons: ["API keys configured"] };
   }
 
   const hw = profile.hardware;
 
-  // RAM check
-  if (system.ramGb < hw.minRamGb) return "incompatible";
+  if (system.ramGb < hw.minRamGb) {
+    reasons.push(`Requires ${hw.minRamGb} GB RAM (detected ${system.ramGb} GB)`);
+    return { status: "incompatible", reasons };
+  }
+  if (hw.requiresGpu && !system.hasGpu) {
+    reasons.push("Requires GPU — none detected");
+    return { status: "incompatible", reasons };
+  }
+  if (hw.minVramGb > 0 && (system.vramGb ?? 0) < hw.minVramGb) {
+    reasons.push(`Requires ${hw.minVramGb} GB VRAM (detected ${system.vramGb ?? 0} GB)`);
+    return { status: "incompatible", reasons };
+  }
 
-  // GPU check
-  if (hw.requiresGpu && !system.hasGpu) return "incompatible";
-  if (hw.minVramGb > 0 && (system.vramGb ?? 0) < hw.minVramGb) return "incompatible";
-
-  // Ollama check for local-first profiles
   if (profile.mode === "local-first") {
-    if (!system.ollamaInstalled) return "partial";
-    if (!system.ollamaRunning) return "partial";
+    if (!system.ollamaInstalled) { reasons.push("Ollama not installed"); return { status: "partial", reasons }; }
+    if (!system.ollamaRunning) { reasons.push("Ollama is installed but not running"); return { status: "partial", reasons }; }
   }
 
-  // Cloud-first: needs API keys for cloud tiers
   if (profile.mode === "cloud-first") {
-    if (!hasApiKeysForProfile(profile, system)) return "incompatible";
+    if (!hasApiKeysForProfile(profile, system)) {
+      const missing = [...new Set(Object.values(profile.models).filter(m => !system.apiProviders[m.provider]?.hasKey).map(m => m.provider))];
+      reasons.push(`Missing API keys for: ${missing.join(", ")}`);
+      return { status: "incompatible", reasons };
+    }
+    reasons.push("API keys configured");
   }
 
-  // Partial: RAM above minimum but below recommended
-  if (system.ramGb < hw.recommendedRamGb) return "partial";
+  if (system.ramGb < hw.recommendedRamGb) {
+    reasons.push(`RAM ${system.ramGb} GB is below recommended ${hw.recommendedRamGb} GB`);
+    return { status: "partial", reasons };
+  }
 
-  return "compatible";
+  reasons.push("Meets all hardware requirements");
+  return { status: "compatible", reasons };
 }

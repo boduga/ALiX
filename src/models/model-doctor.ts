@@ -69,24 +69,18 @@ export function runDoctor(
   if (Object.keys(system.apiProviders).length > 0) sections.push({ title: "API Providers", items: provItems });
 
   for (const profile of profiles) {
-    const match = matchHardware(profile, system);
-    let reason: string | undefined;
-    if (match === "compatible" && (profile.mode === "cloud-only" || profile.mode === "cloud-first")) reason = "API keys configured";
-    else if (match === "partial") {
-      if (profile.mode === "local-first" && !system.ollamaRunning) reason = "Ollama not running";
-      else if (system.ramGb < profile.hardware.recommendedRamGb) reason = `RAM below recommended ${profile.hardware.recommendedRamGb} GB`;
-    } else if (match === "incompatible") {
-      if (system.ramGb < profile.hardware.minRamGb) reason = `Requires ${profile.hardware.minRamGb} GB RAM (detected ${system.ramGb} GB)`;
-      else if (profile.hardware.requiresGpu && !system.hasGpu) reason = "Requires GPU";
-      else if (profile.mode === "cloud-only" || profile.mode === "cloud-first") reason = "Missing API keys for one or more providers";
-    }
-    profileCompatibility.push({ id: profile.id, name: profile.name, status: match, reason });
+    const result = matchHardware(profile, system);
+    const reason = result.reasons[0];
+    profileCompatibility.push({ id: profile.id, name: profile.name, status: result.status, reason });
   }
 
   if (activeProfileId) {
     const active = profiles.find(p => p.id === activeProfileId);
-    if (active && matchHardware(active, system) === "incompatible") {
-      issues.push({ severity: "warning", message: `Active profile "${activeProfileId}" is incompatible with current hardware. Consider switching.` });
+    if (active) {
+      const result = matchHardware(active, system);
+      if (result.status === "incompatible") {
+        issues.push({ severity: "warning", message: `Active profile "${activeProfileId}" is incompatible with current hardware. Consider switching.` });
+      }
     }
   }
 
