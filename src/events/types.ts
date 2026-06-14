@@ -1,4 +1,4 @@
-export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier" | "subagent";
+export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier" | "subagent" | "authorization";
 
 export type EventMeta = {
   workflowId?: string;
