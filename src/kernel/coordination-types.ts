@@ -1,0 +1,186 @@
+/**
+ * coordination-types.ts — Core data model for multi-agent coordination.
+ *
+ * This sits ABOVE the existing WorkflowRun/TaskGraph system.
+ * A CoordinationRun tracks one coordinator orchestration run with
+ * multiple WorkerAssignments, each of which maps to a task slot
+ * with ownership scopes for conflict detection.
+ */
+
+import { randomUUID } from "node:crypto";
+
+export type WorkerStatus =
+  | "pending"      // not yet eligible
+  | "ready"        // dependencies resolved, waiting for assignment
+  | "running"      // actively executing
+  | "blocked"      // blocked by dependency failure or resource contention
+  | "completed"    // finished successfully
+  | "failed"       // finished with error
+  | "cancelled";   // cancelled before completion
+
+export type CoordinationRunStatus =
+  | "planning"     // coordinator is decomposing the goal
+  | "running"      // one or more workers active
+  | "blocked"      // all workers blocked or pending
+  | "completed"    // all workers completed successfully
+  | "failed";      // one or more workers failed and cannot proceed
+
+export interface WorkerAssignment {
+  /** Unique ID for this assignment (uuid) */
+  id: string;
+
+  /** Which coordination run owns this worker */
+  coordinationRunId: string;
+
+  /** The agent ID that will execute this task */
+  agentId: string;
+
+  /** Human-readable task description */
+  taskLabel: string;
+
+  /** Detailed goal prompt — what the worker should accomplish */
+  goalPrompt: string;
+
+  /** IDs of other WorkerAssignments that must complete first */
+  dependencies: string[];
+
+  /** Ownership scopes for path-based conflict detection.
+   *  Each scope is a minimatch pattern (e.g. "src/**"). */
+  ownershipScopes: string[];
+
+  /** Current status */
+  status: WorkerStatus;
+
+  /** Reference to the persisted result (file path or store key).
+   *  Set when status transitions to "completed" or "failed". */
+  resultRef?: string;
+
+  /** Error message, set when status is "failed" */
+  error?: string;
+
+  /** When this assignment was created */
+  createdAt: string;
+
+  /** When this assignment last changed status */
+  updatedAt: string;
+}
+
+export interface CoordinationRun {
+  /** Unique run ID (e.g. "coord_<uuid>") */
+  id: string;
+
+  /** Session ID of the coordinator agent */
+  sessionId: string;
+
+  /** The top-level goal being decomposed */
+  rootGoal: string;
+
+  /** Current run status */
+  status: CoordinationRunStatus;
+
+  /** Which agent (agentId) is the coordinator */
+  coordinatorAgentId: string;
+
+  /** All worker assignments in this run */
+  workers: WorkerAssignment[];
+
+  /** Schema version for forward compatibility */
+  schemaVersion: "1.0";
+
+  /** When the run was created */
+  createdAt: string;
+
+  /** When the run last changed status */
+  updatedAt: string;
+}
+
+// ─── Constructors ─────────────────────────────────────────────────────
+
+export function createCoordinationRun(opts: {
+  sessionId: string;
+  rootGoal: string;
+  coordinatorAgentId: string;
+}): CoordinationRun {
+  const now = new Date().toISOString();
+  return {
+    id: `coord_${randomUUID()}`,
+    sessionId: opts.sessionId,
+    rootGoal: opts.rootGoal,
+    status: "planning",
+    coordinatorAgentId: opts.coordinatorAgentId,
+    workers: [],
+    schemaVersion: "1.0",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+export function createWorkerAssignment(opts: {
+  coordinationRunId: string;
+  agentId: string;
+  taskLabel: string;
+  goalPrompt: string;
+  dependencies?: string[];
+  ownershipScopes?: string[];
+}): WorkerAssignment {
+  const now = new Date().toISOString();
+  return {
+    id: `worker_${randomUUID()}`,
+    coordinationRunId: opts.coordinationRunId,
+    agentId: opts.agentId,
+    taskLabel: opts.taskLabel,
+    goalPrompt: opts.goalPrompt,
+    dependencies: opts.dependencies ?? [],
+    ownershipScopes: opts.ownershipScopes ?? [],
+    status: "pending",
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────
+
+export function transitionWorkerStatus(
+  worker: WorkerAssignment,
+  status: WorkerStatus,
+  extra?: { resultRef?: string; error?: string },
+): WorkerAssignment {
+  return {
+    ...worker,
+    status,
+    resultRef: extra?.resultRef ?? worker.resultRef,
+    error: extra?.error ?? worker.error,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function transitionCoordinationRunStatus(
+  run: CoordinationRun,
+  status: CoordinationRunStatus,
+): CoordinationRun {
+  return { ...run, status, updatedAt: new Date().toISOString() };
+}
+
+/**
+ * Compute the coordination run status from its workers' statuses.
+ * - all completed → "completed"
+ * - any failed and no path forward → "failed"
+ * - any running → "running"
+ * - all pending/blocked → "blocked"
+ * - else → "running"
+ */
+export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus {
+  const allCompleted = run.workers.every(w => w.status === "completed");
+  if (allCompleted && run.workers.length > 0) return "completed";
+
+  const hasFailed = run.workers.some(w => w.status === "failed");
+  const hasRunning = run.workers.some(w => w.status === "running" || w.status === "ready");
+  if (hasFailed && !hasRunning) return "failed";
+
+  const allIdle = run.workers.every(w =>
+    w.status === "pending" || w.status === "blocked" || w.status === "cancelled"
+  );
+  if (allIdle && run.workers.length > 0) return "blocked";
+
+  return "running";
+}
