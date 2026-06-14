@@ -70,13 +70,15 @@ export function parseChatArgs(args: string[]): ParseChatArgsResult {
       if (opts.list || opts.resume) return { ok: false, error: "--delete cannot be combined with --list or --resume" };
       opts.delete = args[i + 1];
       i += 2;
-    } else if (arg === "--workspace" || arg === "-w") {
-      if (opts.list) return { ok: false, error: "--workspace cannot be combined with --list" };
-      opts.workspace = true;
-      i++;
     } else if (arg === "--agent" || arg === "-a") {
       if (opts.list) return { ok: false, error: "--agent cannot be combined with --list" };
+      if (opts.workspace) return { ok: false, error: "--agent cannot be combined with --workspace" };
       opts.agent = true;
+      i++;
+    } else if (arg === "--workspace" || arg === "-w") {
+      if (opts.list) return { ok: false, error: "--workspace cannot be combined with --list" };
+      if (opts.agent) return { ok: false, error: "--workspace cannot be combined with --agent" };
+      opts.workspace = true;
       i++;
     } else if (arg === "--session" || arg === "-s") {
       if (!args[i + 1] || args[i + 1].startsWith("-")) return { ok: false, error: "--session requires a session id" };
@@ -123,22 +125,22 @@ export function resolveChatMode(opts: ChatOptions): ResolvedChatMode {
   return { mode: "conversation", tools: CHAT_TOOLS, mutations: "disabled", workspaceAccess: false };
 }
 
-const PATH_RESOLVER = new WorkspacePathResolver(process.cwd());
-
 /** Check a model-supplied path against the workspace. Returns error string or null. */
-function checkModelPath(path: string): string | null {
-  const result = PATH_RESOLVER.check(path);
+function checkModelPath(path: string, cwd: string): string | null {
+  const resolver = new WorkspacePathResolver(cwd);
+  const result = resolver.check(path);
   if (!result.insideWorkspace) return "Path is outside the workspace";
   if (result.protected) return "Path is protected";
   if (result.sensitive) return "Path is sensitive";
-  if (!PATH_RESOLVER.isTraversalSafe(path)) return "Path traversal detected";
+  if (!resolver.isTraversalSafe(path)) return "Path traversal detected";
   return null;
 }
+
 
 async function executeWorkspaceTool(name: string, args: Record<string, unknown>): Promise<string> {
   const path = String(args.path || "");
   if (path) {
-    const blocked = checkModelPath(path);
+    const blocked = checkModelPath(path, process.cwd());
     if (blocked) return `Error: ${blocked}`;
   }
   switch (name) {
@@ -257,7 +259,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   const config = await loadConfig(process.cwd());
   const apiKey = config.apiKeys?.[config.model.provider] ?? process.env[`${config.model.provider.toUpperCase()}_API_KEY`] ?? "";
   const provider = await createProvider(config.model, apiKey);
-  const systemPrompt = buildChatSystemPrompt();
+  const systemPrompt = buildChatSystemPrompt(workspace);
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("> ");
@@ -408,14 +410,28 @@ async function deleteSession(dir: string, id: string): Promise<void> {
   console.log(`Deleted session ${id.slice(0, 8)}`);
 }
 
-function buildChatSystemPrompt(): string {
-  const base = `You are ALiX, an AI coding assistant. Be concise and helpful.
+const WORKSPACE_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant with read-only access to the current project workspace.
+
+You have access to these tools:
+- web_search(query, count): Search the web for current information
+- web_fetch(url, maxLength): Fetch a URL and get its text content
+- file.read(path): Read a file's contents
+- file.exists(path): Check if a file exists
+- dir.search(pattern, extensions): Search for files matching a pattern
+
+You can read files, search directories, and search the web. You CANNOT modify any files.
+When the user asks you to make changes, explain that you are in read-only mode.`;
+
+const CHAT_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant. Be concise and helpful.
 
 You have access to these tools:
 - web_search(query, count): Search the web for current information
 - web_fetch(url, maxLength): Fetch a URL and get its text content
 
 For questions about current events or facts beyond your training data, use web_search to find up-to-date information. You can then use web_fetch to read full articles. Answer based on the search results.`;
+
+function buildChatSystemPrompt(workspace = false): string {
+  const base = workspace ? WORKSPACE_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
   const projectMemory = loadProjectMemory();
   if (projectMemory) return `${base}\n\n## Project Memory\n${projectMemory}`;
   return base;
