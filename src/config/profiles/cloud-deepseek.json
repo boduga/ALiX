@@ -1,0 +1,17 @@
+{
+  "id": "cloud-deepseek",
+  "name": "Cloud DeepSeek",
+  "description": "All tiers via DeepSeek. Best for users with DeepSeek API credentials.",
+  "mode": "cloud-only",
+  "hardware": { "minRamGb": 4, "recommendedRamGb": 8, "requiresGpu": false, "minVramGb": 0 },
+  "models": {
+    "default": { "provider": "deepseek", "name": "deepseek-v4-flash", "temperature": 0.3, "contextWindow": 1048576 },
+    "planner": { "provider": "deepseek", "name": "deepseek-v4-pro", "temperature": 0.2, "contextWindow": 1048576 },
+    "coder": { "provider": "deepseek", "name": "deepseek-v4-pro", "temperature": 0.1, "contextWindow": 1048576 },
+    "researcher": { "provider": "deepseek", "name": "deepseek-v4-flash", "temperature": 0.3, "contextWindow": 1048576 },
+    "critic": { "provider": "deepseek", "name": "deepseek-v4-pro", "temperature": 0.2, "contextWindow": 1048576 },
+    "embeddings": { "provider": "deepseek", "name": "deepseek-v4-flash", "temperature": 0.2 }
+  },
+  "fallbacks": { "enabled": false },
+  "runtime": { "localModelsRequired": false, "ollamaRequired": false, "maxConcurrentAgents": 4, "maxContextTokens": 96000 }
+}
