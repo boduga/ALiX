@@ -14,7 +14,13 @@ export interface ChatOptions {
   resume?: boolean;
   list?: boolean;
   delete?: string;
+  workspace?: boolean;
+  agent?: boolean;
 }
+
+export type ParseChatArgsResult =
+  | { ok: true; options: ChatOptions }
+  | { ok: false; error: string };
 
 // Shared chat tools — lazily constructed once
 const CHAT_TOOLS = [webSearchTool(), webFetchTool()].map((t) => ({
@@ -41,6 +47,49 @@ async function executeChatTool(name: string, args: Record<string, unknown>): Pro
     }
   }
   return `Error: Unknown tool "${name}"`;
+}
+
+export function parseChatArgs(args: string[]): ParseChatArgsResult {
+  const opts: ChatOptions = {};
+  let i = 0;
+
+  while (i < args.length) {
+    const arg = args[i];
+    if (arg === "--resume" || arg === "-r") {
+      if (opts.list || opts.delete) return { ok: false, error: "--resume cannot be combined with --list or --delete" };
+      opts.resume = true;
+      i++;
+    } else if (arg === "--list" || arg === "-l") {
+      if (opts.resume || opts.delete || opts.workspace || opts.agent) return { ok: false, error: "--list cannot be combined with other flags" };
+      opts.list = true;
+      i++;
+    } else if (arg === "--delete" || arg === "-d") {
+      if (!args[i + 1] || args[i + 1].startsWith("-")) return { ok: false, error: "--delete requires a session id" };
+      if (opts.list || opts.resume) return { ok: false, error: "--delete cannot be combined with --list or --resume" };
+      opts.delete = args[i + 1];
+      i += 2;
+    } else if (arg === "--workspace" || arg === "-w") {
+      if (opts.list) return { ok: false, error: "--workspace cannot be combined with --list" };
+      opts.workspace = true;
+      i++;
+    } else if (arg === "--agent" || arg === "-a") {
+      if (opts.list) return { ok: false, error: "--agent cannot be combined with --list" };
+      opts.agent = true;
+      i++;
+    } else if (arg === "--session" || arg === "-s") {
+      if (!args[i + 1] || args[i + 1].startsWith("-")) return { ok: false, error: "--session requires a session id" };
+      opts.sessionId = args[i + 1];
+      i += 2;
+    } else if (!arg.startsWith("-")) {
+      if (opts.sessionId) return { ok: false, error: `Unexpected argument: ${arg}. Session already set to ${opts.sessionId}` };
+      opts.sessionId = arg;
+      i++;
+    } else {
+      return { ok: false, error: `Unknown option: ${arg}. Supported: --workspace, --agent, --resume, --session, --list, --delete` };
+    }
+  }
+
+  return { ok: true, options: opts };
 }
 
 export async function runChat(opts: ChatOptions = {}): Promise<void> {

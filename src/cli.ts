@@ -11,8 +11,6 @@ import { PROVIDERS, listModels } from "./providers/catalog.js";
 import type { MemoryType } from "./utils/memory/types.js";
 import type { ModelInfo } from "./providers/catalog.js";
 import { prompt } from "./cli/commands/prompt.js";
-import { runChat } from "./cli/commands/chat.js";
-import type { ChatOptions } from "./cli/commands/chat.js";
 
 const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
 
@@ -1626,32 +1624,11 @@ if (command === "session") {
   process.exit(0);
 }
 
-function parseChatArgs(args: string[]): ChatOptions {
-  const opts: ChatOptions = {};
-  let i = 0;
-  while (i < args.length) {
-    const arg = args[i];
-    if (arg === "--resume" || arg === "-r") {
-      opts.resume = true;
-      i++;
-    } else if (arg === "--list" || arg === "-l") {
-      opts.list = true;
-      i++;
-    } else if (arg === "--delete" || arg === "-d") {
-      opts.delete = args[++i];
-      i++;
-    } else if (!arg.startsWith("-")) {
-      opts.sessionId = arg;
-      i++;
-    } else {
-      i++;
-    }
-  }
-  return opts;
-}
-
 if (command === "chat") {
-  await runChat(parseChatArgs(args));
+  const { parseChatArgs, runChat } = await import("./cli/commands/chat.js");
+  const parsed = parseChatArgs(args);
+  if (!parsed.ok) { console.error(parsed.error); process.exit(1); }
+  await runChat(parsed.options);
   process.exit(0);
 }
 
