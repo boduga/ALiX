@@ -8,6 +8,8 @@ import { createProvider } from "../../providers/registry.js";
 import type { NormalizedMessage, NormalizedResponse, ToolCall } from "../../providers/types.js";
 import { webSearchTool } from "../../tools/web-search.js";
 import { webFetchTool } from "../../tools/web-fetch.js";
+import { WorkspacePathResolver } from "../../runtime/workspace-path.js";
+import { readFile as readFileTool, searchDir as searchDirTool } from "../../tools/file-tools.js";
 
 export interface ChatOptions {
   sessionId?: string;
@@ -92,16 +94,90 @@ export function parseChatArgs(args: string[]): ParseChatArgsResult {
   return { ok: true, options: opts };
 }
 
+export type ChatMode = "conversation" | "workspace" | "agent";
+
+export type ResolvedChatMode = {
+  mode: ChatMode;
+  tools: Array<{ name: string; description: string; input_schema: any }>;
+  mutations: "disabled" | "policy-gated";
+  workspaceAccess: boolean;
+};
+
+export function resolveChatMode(opts: ChatOptions): ResolvedChatMode {
+  if (opts.agent) {
+    return { mode: "agent", tools: [], mutations: "policy-gated", workspaceAccess: true };
+  }
+  if (opts.workspace) {
+    return {
+      mode: "workspace",
+      tools: [
+        ...CHAT_TOOLS,
+        { name: "file.read", description: "Read a file's contents", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+        { name: "file.exists", description: "Check if a file exists", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+        { name: "dir.search", description: "Search for files matching a pattern", input_schema: { type: "object", properties: { pattern: { type: "string" }, extensions: { type: "array", items: { type: "string" } } }, required: ["pattern"] } },
+      ],
+      mutations: "disabled",
+      workspaceAccess: true,
+    };
+  }
+  return { mode: "conversation", tools: CHAT_TOOLS, mutations: "disabled", workspaceAccess: false };
+}
+
+const PATH_RESOLVER = new WorkspacePathResolver(process.cwd());
+
+/** Check a model-supplied path against the workspace. Returns error string or null. */
+function checkModelPath(path: string): string | null {
+  const result = PATH_RESOLVER.check(path);
+  if (!result.insideWorkspace) return "Path is outside the workspace";
+  if (result.protected) return "Path is protected";
+  if (result.sensitive) return "Path is sensitive";
+  if (!PATH_RESOLVER.isTraversalSafe(path)) return "Path traversal detected";
+  return null;
+}
+
+async function executeWorkspaceTool(name: string, args: Record<string, unknown>): Promise<string> {
+  const path = String(args.path || "");
+  if (path) {
+    const blocked = checkModelPath(path);
+    if (blocked) return `Error: ${blocked}`;
+  }
+  switch (name) {
+    case "file.read": {
+      const result = await readFileTool({ root: process.cwd(), path });
+      if (result.kind === "error") return `Error: ${result.message}`;
+      return result.content || "";
+    }
+    case "file.exists": {
+      const { existsSync } = await import("node:fs");
+      const { resolve } = await import("node:path");
+      return existsSync(resolve(process.cwd(), path)) ? "exists" : "not found";
+    }
+    case "dir.search": {
+      const dirResult = await searchDirTool({ root: process.cwd(), pattern: String(args.pattern || ""), extensions: (args.extensions as string[]) || [] });
+      if (dirResult.kind === "error") return `Error: ${dirResult.message}`;
+      return JSON.stringify(dirResult.matches || [], null, 2);
+    }
+    default:
+      return `Error: Unknown tool "${name}"`;
+  }
+}
+
 export async function runChat(opts: ChatOptions = {}): Promise<void> {
   const sessionDir = join(process.cwd(), ".alix", "sessions");
 
   if (opts.list) { await listSessions(sessionDir); return; }
   if (opts.delete) { await deleteSession(sessionDir, opts.delete); return; }
 
-  await runChatLoop(sessionDir, opts.sessionId, opts.resume);
+  await runChatLoop(sessionDir, opts.sessionId, opts.resume, opts.workspace);
 }
 
-async function runChatLoop(sessionDir: string, sessionId?: string, resume = false) {
+async function runChatLoop(sessionDir: string, sessionId?: string, resume = false, workspace = false) {
+  const resolved = resolveChatMode({ workspace, agent: false });
+  const modeLabel = workspace ? "workspace (read-only)" : "conversational";
+  console.log(`Mode: ${modeLabel}`);
+  if (!workspace) {
+    console.log("For workspace access, use: alix chat --workspace");
+  }
   const id = sessionId ? await findSession(sessionDir, sessionId) : randomUUID();
   const dir = join(sessionDir, id);
   const messagesPath = join(dir, "messages.jsonl");
@@ -204,7 +280,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
         process.stdout.write("\n");
         let text = "";
         const toolCalls: ToolCall[] = [];
-        const stream = provider.stream({ systemPrompt, messages, tools: CHAT_TOOLS });
+        const stream = provider.stream({ systemPrompt, messages, tools: resolved.tools });
         for await (const chunk of stream) {
           if (chunk.type === "text_delta") {
             process.stdout.write(chunk.text);
@@ -220,7 +296,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
         process.stdout.write("\n");
         response = { text, toolCalls, usage: undefined };
       } else {
-        response = await provider.complete({ systemPrompt, messages, tools: CHAT_TOOLS });
+        response = await provider.complete({ systemPrompt, messages, tools: resolved.tools });
         if (response.text) {
           console.log(response.text);
         }
@@ -239,7 +315,9 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       for (const tc of response.toolCalls) {
         if (!tc || !tc.name || tc.name === "undefined") continue; // skip malformed
         console.log(`  [Calling ${tc.name}...]`);
-        const result = await executeChatTool(tc.name, tc.args);
+        const result = resolved.mode === "workspace"
+          ? await executeWorkspaceTool(tc.name, tc.args)
+          : await executeChatTool(tc.name, tc.args);
         console.log(`  [Done]\n`);
         messages.push({ role: "assistant", content: JSON.stringify({ type: "tool", name: tc.name, arguments: tc.args }) });
         messages.push({ role: "user", content: JSON.stringify({ type: "tool_result", name: tc.name, result }) });
