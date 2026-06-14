@@ -61,4 +61,14 @@ describe("parseChatArgs (via CLI)", () => {
     });
     assert.ok(out.includes("--workspace"), `Should suggest workspace flag, got: ${out.slice(0, 300)}`);
   });
+
+  it("rejects --workspace --agent conflict", () => {
+    try {
+      execFileSync(process.execPath, [cli, "chat", "--workspace", "--agent"], { encoding: "utf-8", timeout: 5000 });
+      assert.fail("should throw");
+    } catch (e: any) {
+      const out = e.stderr?.toString() || e.stdout?.toString() || "";
+      assert.ok(out.includes("cannot be combined"), `Should reject combo, got: ${out}`);
+    }
+  });
 });
