@@ -32,11 +32,10 @@ export async function checkProvider(
   const start = Date.now();
   const result: ProviderHealthResult = { provider, model, hasApiKey: !!apiKey, completeOk: false, streamOk: false, durationMs: 0 };
 
-  if (!apiKey) {
-    result.completeOk = false;
-    result.streamOk = false;
-    result.durationMs = Date.now() - start;
+  const keylessProviders = ["ollama", "local-llama", "mock"];
+  if (!apiKey && !keylessProviders.includes(provider)) {
     result.error = "No API key configured";
+    result.durationMs = Date.now() - start;
     return result;
   }
 
