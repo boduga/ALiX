@@ -12,7 +12,7 @@ export type ProviderHealthResult = {
   model: string;
   hasApiKey: boolean;
   completeOk: boolean;
-  streamOk: boolean | "unsupported";
+  streamOk: boolean;
   durationMs: number;
   error?: string;
 };

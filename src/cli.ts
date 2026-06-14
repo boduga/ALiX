@@ -2377,6 +2377,7 @@ if (command === "ownership") {
 if (command === "provider" && args[0] === "doctor") {
   const { handleProviderDoctor } = await import("./cli/commands/provider-doctor.js");
   await handleProviderDoctor(args.slice(1));
+  process.exit(0);
 }
 
 console.error(`Unknown command: ${command}`);

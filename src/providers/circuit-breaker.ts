@@ -62,5 +62,6 @@ export class CircuitBreaker {
   reset(): void {
     this.state = "closed";
     this.failureCount = 0;
+    this.lastFailureTime = 0;
   }
 }
