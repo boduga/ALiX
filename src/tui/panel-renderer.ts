@@ -9,6 +9,7 @@ import { traceChainContext } from "../runtime/trace-events.js";
 import { buildReplayPreview } from "../runtime/replay-preview.js";
 import { formatIfamasPanel } from "./ifamas-panel.js";
 import { formatChroniclePanel } from "./chronicle-panel.js";
+import { formatCoordinationPanel } from "./coordination-panel.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
 export function renderPanelContent(store: TuiStore, tui: Tui): number {
@@ -204,6 +205,18 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
       buf.push("── Chronicle ─────────────────────────────");
       buf.push("  No chronicle data loaded.");
       buf.push("  Use /chronicle to search past IFÁ-MAS diagnostics.");
+    }
+  } else if (s.activePanel === "coordination") {
+    if (s.coordinationPanelData) {
+      const panelLines = formatCoordinationPanel(s.coordinationPanelData, process.stdout.columns || 80);
+      for (const line of panelLines) {
+        buf.push(line);
+      }
+    } else {
+      buf.push("── Coordination ──────────────────────────");
+      buf.push("  No coordination run loaded.");
+      buf.push("  Use /coordination <run-id> to load a run.");
+      buf.push("  Or run: alix coordination list");
     }
   }
 

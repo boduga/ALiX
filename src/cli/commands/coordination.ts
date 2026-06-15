@@ -12,6 +12,7 @@
 
 import { loadConfig } from "../../config/loader.js";
 import { CoordinationStore } from "../../kernel/coordination-store.js";
+import { buildCoordinationRunView } from "../../kernel/coordination-view.js";
 import { CoordinationPlanner } from "../../kernel/coordination-planner.js";
 import { CoordinationScheduler } from "../../kernel/coordination-scheduler.js";
 import { OwnershipRegistry } from "../../ownership/ownership-registry.js";
@@ -21,9 +22,10 @@ import { DefaultWorkerExecutor } from "../../kernel/worker-executor.js";
 import { buildDefaultToolIndex } from "../../tools/tool-registry.js";
 
 export async function handleCoordination(args: string[]): Promise<void> {
+  const cwd = process.cwd();
   const subcommand = args[0];
   if (!subcommand) {
-    console.error("Usage: alix coordination <run|tick|resume|status|cancel> ...");
+    console.error("Usage: alix coordination <run|tick|resume|status|results|cancel|list|inspect|watch|workers|approvals|ownership|events> ...");
     process.exit(1);
   }
 
@@ -34,6 +36,20 @@ export async function handleCoordination(args: string[]): Promise<void> {
     case "status": return handleStatus(args.slice(1));
     case "results": return handleResults(args.slice(1));
     case "cancel": return handleCancel(args.slice(1));
+    case "list":
+      return handleList(cwd);
+    case "inspect":
+      return handleInspect(cwd, args.slice(1));
+    case "watch":
+      return handleWatch(cwd, args.slice(1));
+    case "workers":
+      return handleWorkers(cwd, args.slice(1));
+    case "approvals":
+      return handleApprovals(cwd, args.slice(1));
+    case "ownership":
+      return handleOwnership(cwd, args.slice(1));
+    case "events":
+      return handleEvents(cwd, args.slice(1));
     default:
       console.error(`Unknown coordination subcommand: ${subcommand}`);
       process.exit(1);
@@ -307,4 +323,113 @@ function printResultSummary(summary: any): void {
   if (summary.finalSummary) {
     console.log(`\nSynthesis:\n${summary.finalSummary}`);
   }
+}
+
+async function handleList(cwd: string): Promise<void> {
+  const store = new CoordinationStore(cwd);
+  const runs = await store.list();
+  // Show all runs in a table: ID, status, outcome, workers, created
+  if (runs.length === 0) { console.log("No coordination runs found."); return; }
+  for (const run of runs) {
+    const outcome = run.outcome ?? "-";
+    console.log(`${run.id.padEnd(30)} ${run.status.padEnd(12)} ${outcome.padEnd(16)} ${String(run.workers.length).padEnd(4)} ${run.createdAt.slice(0, 19)}`);
+  }
+}
+
+async function handleInspect(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination inspect <run-id>"); process.exit(1); }
+  const jsonMode = args.includes("--json");
+  const view = await buildCoordinationRunView(runId, cwd);
+  if (!view) { console.error(`Run not found: ${runId}`); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(view, null, 2)); return; }
+
+  console.log(`Run: ${view.run.id}`);
+  console.log(`Goal: ${view.run.goal}`);
+  console.log(`Status: ${view.run.status}`);
+  if (view.run.outcome) console.log(`Outcome: ${view.run.outcome}`);
+  console.log(`Workers: ${view.run.workerCount}`);
+  console.log(`Freshness: ${view.freshness}`);
+  console.log(`Created: ${view.run.createdAt}`);
+  console.log(`Updated: ${view.run.updatedAt}`);
+  if (view.failureChains.length > 0) {
+    console.log(`\nFailure chains:`);
+    for (const chain of view.failureChains) {
+      console.log(`  Root: ${chain.rootWorkerId} (${chain.rootTaskLabel}) → ${chain.allAffectedWorkers.length} affected`);
+    }
+  }
+}
+
+async function handleWatch(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination watch <run-id>"); process.exit(1); }
+  let cycles = 0;
+  while (true) {
+    const view = await buildCoordinationRunView(runId, cwd);
+    if (!view) { console.error(`Run not found: ${runId}`); process.exit(1); }
+    if (cycles > 0) process.stdout.write("\x1b[" + (view.workers.length + 8) + "A");
+    console.log(`Run: ${view.run.id} — ${view.run.status} ${view.run.outcome ?? ""}`);
+    console.log(`Workers: ${view.run.workerCount} | Freshness: ${view.freshness}`);
+    for (const w of view.workers) {
+      const dur = w.durationMs ? `${(w.durationMs / 1000).toFixed(1)}s` : "-";
+      console.log(`  ${w.id.padEnd(16)} ${w.status.padEnd(12)} ${(w.outcome ?? "-").padEnd(8)} attempt ${w.attempt}  ${dur}`);
+    }
+    if (view.run.status === "completed" || view.run.status === "failed") break;
+    await new Promise(r => setTimeout(r, 2000));
+    cycles++;
+  }
+}
+
+async function handleWorkers(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination workers <run-id>"); process.exit(1); }
+  const jsonMode = args.includes("--json");
+  const view = await buildCoordinationRunView(runId, cwd);
+  if (!view) { console.error(`Run not found: ${runId}`); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(view.workers, null, 2)); return; }
+  for (const w of view.workers) {
+    const dur = w.durationMs ? `${(w.durationMs / 1000).toFixed(1)}s` : "-";
+    console.log(`${w.id.padEnd(16)} ${(w.outcome ?? "-").padEnd(8)} ${w.status.padEnd(12)} attempt ${w.attempt}  ${dur}  ${w.taskLabel.slice(0, 40)}`);
+    if (w.error) console.log(`  error: ${w.error}`);
+    if (w.blockReason) console.log(`  blocked: ${w.blockReason}`);
+  }
+}
+
+async function handleApprovals(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination approvals <run-id>"); process.exit(1); }
+  const jsonMode = args.includes("--json");
+  const view = await buildCoordinationRunView(runId, cwd);
+  if (!view) { console.error(`Run not found: ${runId}`); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(view.approvals, null, 2)); return; }
+  for (const a of view.approvals) {
+    console.log(`${a.id.padEnd(24)} ${a.status.padEnd(12)} ${(a.capabilities ?? []).join(",").padEnd(20)} expires ${a.expiresAt.slice(0, 19)}`);
+  }
+  if (view.approvals.length === 0) console.log("No approvals found for this run.");
+}
+
+async function handleOwnership(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination ownership <run-id>"); process.exit(1); }
+  const jsonMode = args.includes("--json");
+  const view = await buildCoordinationRunView(runId, cwd);
+  if (!view) { console.error(`Run not found: ${runId}`); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(view.ownershipLeases, null, 2)); return; }
+  for (const l of view.ownershipLeases) {
+    console.log(`${l.id.padEnd(24)} agent=${l.agentId} scope=${l.scope} mode=${l.mode} status=${l.status}`);
+  }
+  if (view.ownershipLeases.length === 0) console.log("No ownership leases found for this run.");
+}
+
+async function handleEvents(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination events <run-id>"); process.exit(1); }
+  const jsonMode = args.includes("--json");
+  const view = await buildCoordinationRunView(runId, cwd);
+  if (!view) { console.error(`Run not found: ${runId}`); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(view.events, null, 2)); return; }
+  for (const e of view.events) {
+    console.log(`${e.timestamp.slice(0, 19)} ${e.type.padEnd(30)} ${e.workerId ?? ""}`);
+  }
+  if (view.events.length === 0) console.log("No coordination events found.");
 }
