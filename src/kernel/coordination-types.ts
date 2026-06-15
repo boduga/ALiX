@@ -184,6 +184,7 @@ export function createWorkerAssignment(opts: {
   ownershipScopes?: string[];
   status?: WorkerStatus;
   error?: string;
+  resultRef?: string;
   requiredCapabilities?: string[];
   riskLevel?: string;
   approvalMode?: string;
@@ -214,10 +215,24 @@ export function createWorkerAssignment(opts: {
     ownershipScopes: opts.ownershipScopes ?? [],
     status: opts.status ?? "pending",
     error: opts.error,
+    sourceNodeId: opts.sourceNodeId,
     requiredCapabilities: opts.requiredCapabilities ?? [],
+    riskLevel: opts.riskLevel,
+    approvalMode: opts.approvalMode,
     attempt: opts.attempt ?? 0,
     maxAttempts: opts.maxAttempts ?? 3,
+    planOrder: opts.planOrder,
+    nextAttemptAt: opts.nextAttemptAt,
     ownershipClaims: opts.ownershipClaims ?? [],
+    leaseIds: opts.leaseIds,
+    executionOwnerId: opts.executionOwnerId,
+    lastHeartbeatAt: opts.lastHeartbeatAt,
+    startedAt: opts.startedAt,
+    completedAt: opts.completedAt,
+    blockReason: opts.blockReason,
+    failureKind: opts.failureKind,
+    approvalId: opts.approvalId,
+    authorizationEvidence: opts.authorizationEvidence,
     createdAt: now,
     updatedAt: now,
   };
