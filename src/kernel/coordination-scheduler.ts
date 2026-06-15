@@ -423,6 +423,18 @@ export class CoordinationScheduler {
       }
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
+      // AbortSignal errors from shutdown/cancellation are terminal — don't retry
+      const isAbort = error instanceof Error && (error.name === "AbortError" || errorMsg.includes("abort"));
+      if (isAbort) {
+        try {
+          await this.deps.store.patchWorker(runId, workerId, {
+            status: "failed", blockReason: "cancelled", failureKind: "cancelled",
+            error: "Worker cancelled by scheduler shutdown",
+            completedAt: new Date().toISOString(),
+          });
+        } catch { /* best-effort */ }
+        return;
+      }
       // Check retry budget for catch-path failures (executor threw rather than returning a result)
       const currentRun = await this.deps.store.load(runId);
       const currentAttempt = currentRun?.workers.find(w => w.id === workerId)?.attempt ?? worker.attempt;
