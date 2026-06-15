@@ -25,6 +25,36 @@ export type CoordinationRunStatus =
   | "completed"    // all workers completed successfully
   | "failed";      // one or more workers failed and cannot proceed
 
+export type WorkerBlockReason =
+  | "approval_required" | "authorization_denied" | "ownership_conflict"
+  | "dependency_failed" | "orphaned" | "concurrency_limit"
+  | "execution_failed" | "lease_lost" | "cancelled";
+
+export type WorkerFailureKind =
+  | "transient_provider" | "timeout" | "authorization_denied"
+  | "approval_required" | "ownership_conflict" | "execution_error"
+  | "orphaned" | "dependency_failed" | "lease_lost" | "cancelled";
+
+export type WorkerOwnershipClaim = {
+  path: string;
+  recursive: boolean;
+  sourcePattern?: string;
+};
+
+export type WorkerCapabilityDecision = {
+  capability: string;
+  status: "allowed" | "denied" | "approval_required";
+  policyRuleId?: string;
+  approvalId?: string;
+  reason?: string;
+};
+
+export type WorkerAuthorizationEvidence = {
+  evaluatedAt: string;
+  policyRevision?: number;
+  decisions: WorkerCapabilityDecision[];
+};
+
 export interface WorkerAssignment {
   /** Unique ID for this assignment (uuid) */
   id: string;
@@ -57,6 +87,25 @@ export interface WorkerAssignment {
 
   /** Error message, set when status is "failed" */
   error?: string;
+
+  sourceNodeId?: string;
+  requiredCapabilities: string[];
+  riskLevel?: string;
+  approvalMode?: string;
+  attempt: number;
+  maxAttempts: number;
+  planOrder?: number;
+  nextAttemptAt?: string;
+  ownershipClaims: WorkerOwnershipClaim[];
+  leaseIds?: string[];
+  executionOwnerId?: string;
+  lastHeartbeatAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  blockReason?: WorkerBlockReason;
+  failureKind?: WorkerFailureKind;
+  approvalId?: string;
+  authorizationEvidence?: WorkerAuthorizationEvidence;
 
   /** When this assignment was created */
   createdAt: string;
@@ -135,6 +184,25 @@ export function createWorkerAssignment(opts: {
   ownershipScopes?: string[];
   status?: WorkerStatus;
   error?: string;
+  resultRef?: string;
+  requiredCapabilities?: string[];
+  riskLevel?: string;
+  approvalMode?: string;
+  sourceNodeId?: string;
+  attempt?: number;
+  maxAttempts?: number;
+  planOrder?: number;
+  nextAttemptAt?: string;
+  ownershipClaims?: WorkerOwnershipClaim[];
+  leaseIds?: string[];
+  executionOwnerId?: string;
+  lastHeartbeatAt?: string;
+  startedAt?: string;
+  completedAt?: string;
+  blockReason?: WorkerBlockReason;
+  failureKind?: WorkerFailureKind;
+  approvalId?: string;
+  authorizationEvidence?: WorkerAuthorizationEvidence;
 }): WorkerAssignment {
   const now = new Date().toISOString();
   return {
@@ -147,6 +215,24 @@ export function createWorkerAssignment(opts: {
     ownershipScopes: opts.ownershipScopes ?? [],
     status: opts.status ?? "pending",
     error: opts.error,
+    sourceNodeId: opts.sourceNodeId,
+    requiredCapabilities: opts.requiredCapabilities ?? [],
+    riskLevel: opts.riskLevel,
+    approvalMode: opts.approvalMode,
+    attempt: opts.attempt ?? 0,
+    maxAttempts: opts.maxAttempts ?? 3,
+    planOrder: opts.planOrder,
+    nextAttemptAt: opts.nextAttemptAt,
+    ownershipClaims: opts.ownershipClaims ?? [],
+    leaseIds: opts.leaseIds,
+    executionOwnerId: opts.executionOwnerId,
+    lastHeartbeatAt: opts.lastHeartbeatAt,
+    startedAt: opts.startedAt,
+    completedAt: opts.completedAt,
+    blockReason: opts.blockReason,
+    failureKind: opts.failureKind,
+    approvalId: opts.approvalId,
+    authorizationEvidence: opts.authorizationEvidence,
     createdAt: now,
     updatedAt: now,
   };

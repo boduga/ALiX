@@ -10,16 +10,41 @@
  * concurrently from multiple processes.
  */
 
-import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, unlink, rename as renameFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, transitionCoordinationRunStatus, recomputeRunStatus } from "./coordination-types.js";
+import { CoordinationRunLock } from "./coordination-run-lock.js";
+
+/**
+ * Normalize a WorkerAssignment loaded from earlier coordination milestones.
+ * New scheduler fields get safe defaults when absent.
+ */
+export function normalizeWorkerAssignment(worker: WorkerAssignment): WorkerAssignment {
+  return {
+    ...worker,
+    requiredCapabilities: worker.requiredCapabilities ?? [],
+    attempt: worker.attempt ?? 0,
+    maxAttempts: worker.maxAttempts ?? 3,
+    ownershipClaims: worker.ownershipClaims ?? [],
+  };
+}
+
+export type WorkerPatch = Partial<Pick<WorkerAssignment,
+  | "status" | "resultRef" | "error" | "attempt" | "blockReason"
+  | "failureKind" | "approvalId" | "startedAt" | "completedAt"
+  | "lastHeartbeatAt" | "leaseIds" | "executionOwnerId"
+  | "authorizationEvidence" | "nextAttemptAt"
+>>;
 
 export class CoordinationStore {
-  private baseDir: string;
+  private readonly cwd: string;
+  private readonly baseDir: string;
 
   constructor(cwd: string) {
+    this.cwd = cwd;
     this.baseDir = join(cwd, ".alix", "coordination");
   }
 
@@ -33,11 +58,14 @@ export class CoordinationStore {
     }
   }
 
-  /** Save a coordination run (full overwrite). */
+  /** Save a coordination run (atomic write via tmp + rename). */
   async save(run: CoordinationRun): Promise<void> {
     await this.ensureDir();
     run.updatedAt = new Date().toISOString();
-    await writeFile(this.runPath(run.id), JSON.stringify(run, null, 2), "utf-8");
+    const path = this.runPath(run.id);
+    const tmpPath = `${path}.tmp.${randomUUID()}`;
+    await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
+    await renameFile(tmpPath, path);
   }
 
   /** Load a coordination run by ID. */
@@ -46,7 +74,9 @@ export class CoordinationStore {
     if (!existsSync(path)) return null;
     try {
       const raw = await readFile(path, "utf-8");
-      return JSON.parse(raw) as CoordinationRun;
+      const run = JSON.parse(raw) as CoordinationRun;
+      run.workers = run.workers.map(normalizeWorkerAssignment);
+      return run;
     } catch {
       return null;
     }
@@ -61,7 +91,9 @@ export class CoordinationStore {
       if (!file.endsWith(".json")) continue;
       try {
         const raw = await readFile(join(this.baseDir, file), "utf-8");
-        runs.push(JSON.parse(raw) as CoordinationRun);
+        const run = JSON.parse(raw) as CoordinationRun;
+        run.workers = run.workers.map(normalizeWorkerAssignment);
+        runs.push(run);
       } catch {
         // skip corrupt files
       }
@@ -136,5 +168,51 @@ export class CoordinationStore {
       run.workers.every(w =>
         w.status === "completed" || w.status === "failed" || w.status === "cancelled"
       );
+  }
+
+  // ── Lock-safe operations ─────────────────────────────────────────
+
+  /**
+   * Update a run within a per-run lock. Acquires the lock, loads,
+   * mutates, writes atomically, then releases the lock.
+   *
+   * Returns null if the lock could not be acquired or the run was not found.
+   */
+  async updateRun(
+    runId: string,
+    mutate: (run: CoordinationRun) => void | Promise<void>,
+  ): Promise<CoordinationRun | null> {
+    const lock = new CoordinationRunLock(this.cwd, runId);
+    const acquired = await lock.acquire();
+    if (!acquired) return null;
+    try {
+      const run = await this.load(runId);
+      if (!run) return null;
+      await mutate(run);
+      run.status = recomputeRunStatus(run);
+      run.updatedAt = new Date().toISOString();
+      const path = this.runPath(runId);
+      const tmpPath = `${path}.tmp.${randomUUID()}`;
+      await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
+      await renameFile(tmpPath, path);
+      return run;
+    } finally {
+      lock.release();
+    }
+  }
+
+  /** Update specific fields on a worker within a run. Uses lock-safe updateRun. */
+  async patchWorker(
+    runId: string,
+    workerId: string,
+    patch: Record<string, unknown>,
+  ): Promise<CoordinationRun | null> {
+    return this.updateRun(runId, (run) => {
+      const worker = run.workers.find(w => w.id === workerId);
+      if (!worker) return;
+      for (const [key, value] of Object.entries(patch)) {
+        (worker as any)[key] = value;
+      }
+    });
   }
 }

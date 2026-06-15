@@ -2368,6 +2368,12 @@ if (command === "doctor") {
   process.exit(failed ? 1 : 0);
 }
 
+if (command === "coordination") {
+  const { handleCoordination } = await import("./cli/commands/coordination.js");
+  await handleCoordination(args);
+  process.exit(0);
+}
+
 if (command === "ownership") {
   const { handleOwnershipCommand } = await import("./cli/commands/ownership.js");
   await handleOwnershipCommand(args);
