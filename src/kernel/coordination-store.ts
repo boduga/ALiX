@@ -189,6 +189,7 @@ export class CoordinationStore {
       const run = await this.load(runId);
       if (!run) return null;
       await mutate(run);
+      run.status = recomputeRunStatus(run);
       run.updatedAt = new Date().toISOString();
       const path = this.runPath(runId);
       const tmpPath = `${path}.tmp.${randomUUID()}`;
