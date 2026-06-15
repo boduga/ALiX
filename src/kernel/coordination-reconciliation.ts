@@ -13,6 +13,7 @@
 
 import type { CoordinationStore } from "./coordination-store.js";
 import type { WorkerAssignment } from "./coordination-types.js";
+import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 
 export interface Clock {
   now(): Date;
@@ -28,6 +29,7 @@ export type ReconciliationResult = {
 
 export type ReconciliationDeps = {
   store: CoordinationStore;
+  ownershipRegistry: OwnershipRegistry;
   daemonInstanceId: string;
   orphanThresholdMs: number;
   clock?: Clock;
@@ -64,10 +66,10 @@ export async function reconcileCoordinationRun(
     const locallyActive = deps.activeExecutionIds?.has(worker.id) ?? false;
     if (locallyActive) continue;
 
-    // Different execution owner or no owner — orphaned
-    if (worker.executionOwnerId && worker.executionOwnerId !== deps.daemonInstanceId) {
+    // No execution owner or different execution owner — orphaned
+    if (!worker.executionOwnerId || worker.executionOwnerId !== deps.daemonInstanceId) {
       result.orphaned.push(worker.id);
-      await releaseWorkerLeases(deps.store, runId, worker);
+      await releaseWorkerLeases(deps, runId, worker);
       await deps.store.patchWorker(runId, worker.id, {
         status: "failed",
         blockReason: "orphaned" as any,
@@ -136,8 +138,10 @@ export async function reconcileCoordinationRun(
   return result;
 }
 
-async function releaseWorkerLeases(store: CoordinationStore, runId: string, worker: WorkerAssignment): Promise<void> {
+async function releaseWorkerLeases(deps: ReconciliationDeps, runId: string, worker: WorkerAssignment): Promise<void> {
   if (worker.leaseIds && worker.leaseIds.length > 0) {
-    await store.patchWorker(runId, worker.id, { leaseIds: [] } as any);
+    const { releaseWorkerOwnership } = await import("./coordination-ownership.js");
+    await releaseWorkerOwnership(deps.ownershipRegistry, worker.leaseIds);
+    await deps.store.patchWorker(runId, worker.id, { leaseIds: [] } as any);
   }
 }
