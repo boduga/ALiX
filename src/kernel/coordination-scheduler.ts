@@ -131,6 +131,7 @@ export class CoordinationScheduler {
   async reconcile(runId: string): Promise<ReconciliationResult> {
     const result = await reconcileCoordinationRun({
       store: this.deps.store,
+      ownershipRegistry: this.deps.ownershipRegistry,
       daemonInstanceId: this.deps.daemonInstanceId,
       orphanThresholdMs: this.options.orphanThresholdMs,
       clock: this.deps.clock,

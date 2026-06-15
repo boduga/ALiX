@@ -12,7 +12,8 @@ const ORPHAN_THRESHOLD_MS = 100;
 describe("reconcileCoordinationRun", () => {
   let cwd: string;
   let store: CoordinationStore;
-  beforeEach(() => { cwd = mkdtempSync(join(tmpdir(), "recon-")); store = new CoordinationStore(cwd); });
+  let mockRegistry: any;
+  beforeEach(() => { cwd = mkdtempSync(join(tmpdir(), "recon-")); store = new CoordinationStore(cwd); mockRegistry = { release: async () => true, acquireMany: async () => [] }; });
   afterEach(() => { rmSync(cwd, { recursive: true, force: true }); });
 
   it("orphans stale different-owner workers", async () => {
@@ -24,9 +25,8 @@ describe("reconcileCoordinationRun", () => {
       executionOwnerId: "other-daemon",
     });
     await store.addWorker(run.id, w1);
-    // Wait for stale threshold
     await new Promise(r => setTimeout(r, 50));
-    const result = await reconcileCoordinationRun({ store, daemonInstanceId: "my-daemon", orphanThresholdMs: ORPHAN_THRESHOLD_MS }, run.id);
+    const result = await reconcileCoordinationRun({ store, ownershipRegistry: mockRegistry, daemonInstanceId: "my-daemon", orphanThresholdMs: ORPHAN_THRESHOLD_MS }, run.id);
     assert.equal(result.orphaned.length, 1);
     const loaded = await store.load(run.id);
     assert.equal(loaded!.workers[0].status, "failed");
@@ -40,7 +40,7 @@ describe("reconcileCoordinationRun", () => {
     await store.addWorker(run.id, w1);
     await store.addWorker(run.id, w2);
     await store.patchWorker(run.id, w1.id, { status: "failed", error: "oops" });
-    const result = await reconcileCoordinationRun({ store, daemonInstanceId: "d", orphanThresholdMs: ORPHAN_THRESHOLD_MS }, run.id);
+    const result = await reconcileCoordinationRun({ store, ownershipRegistry: mockRegistry, daemonInstanceId: "d", orphanThresholdMs: ORPHAN_THRESHOLD_MS }, run.id);
     const loaded = await store.load(run.id);
     assert.equal(loaded!.workers.find(w => w.id === w2.id)?.status, "blocked");
   });
@@ -55,7 +55,7 @@ describe("reconcileCoordinationRun", () => {
     await store.addWorker(run.id, w1);
     const isApproved = async (id: string) => id === "apr-1";
     const result = await reconcileCoordinationRun(
-      { store, daemonInstanceId: "d", orphanThresholdMs: ORPHAN_THRESHOLD_MS, isApproved }, run.id,
+      { store, ownershipRegistry: mockRegistry, daemonInstanceId: "d", orphanThresholdMs: ORPHAN_THRESHOLD_MS, isApproved }, run.id,
     );
     assert.equal(result.approvalResumed.length, 1);
     const loaded = await store.load(run.id);
@@ -72,10 +72,28 @@ describe("reconcileCoordinationRun", () => {
     });
     await store.addWorker(run.id, w1);
     const result = await reconcileCoordinationRun(
-      { store, daemonInstanceId: "my-daemon", orphanThresholdMs: ORPHAN_THRESHOLD_MS, activeExecutionIds: new Set([w1.id]) }, run.id,
+      { store, ownershipRegistry: mockRegistry, daemonInstanceId: "my-daemon", orphanThresholdMs: ORPHAN_THRESHOLD_MS, activeExecutionIds: new Set([w1.id]) }, run.id,
     );
     assert.equal(result.orphaned.length, 0);
     const loaded = await store.load(run.id);
     assert.equal(loaded!.workers[0].status, "running");
+  });
+
+  it("orphans stale worker with no executionOwnerId", async () => {
+    const run = createCoordinationRun({ sessionId: "s1", rootGoal: "test", coordinatorAgentId: "alix" });
+    await store.save(run);
+    const w1 = createWorkerAssignment({
+      coordinationRunId: run.id, agentId: "w1", taskLabel: "T", goalPrompt: "do it",
+      status: "running", lastHeartbeatAt: new Date(Date.now() - 60000).toISOString(),
+    });
+    await store.addWorker(run.id, w1);
+    await new Promise(r => setTimeout(r, 50));
+    const result = await reconcileCoordinationRun(
+      { store, ownershipRegistry: mockRegistry, daemonInstanceId: "my-daemon", orphanThresholdMs: ORPHAN_THRESHOLD_MS }, run.id,
+    );
+    assert.equal(result.orphaned.length, 1);
+    const loaded = await store.load(run.id);
+    assert.equal(loaded!.workers[0].status, "failed");
+    assert.equal(loaded!.workers[0].blockReason, "orphaned");
   });
 });
