@@ -6,12 +6,15 @@
  */
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { rename as renameFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
+import { randomUUID } from "node:crypto";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
 import type { ApprovalStatus, ApprovalRecord } from "./approval-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
+import { ApprovalStoreLock } from "./approval-store-lock.js";
 
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
@@ -49,13 +52,40 @@ export class ApprovalStore {
 
   /** Persist to disk if dirty. */
   async save(): Promise<void> {
+    await this.saveAtomic();
+  }
+
+  /** Write to a temp file, then rename for atomic update. */
+  private async saveAtomic(): Promise<void> {
     if (!this.dirty) return;
     const dir = join(this.filePath, "..");
     if (!existsSync(dir)) {
       await mkdir(dir, { recursive: true });
     }
-    await writeFile(this.filePath, JSON.stringify(this.approvals, null, 2), "utf-8");
+    const token = randomUUID().slice(0, 8);
+    const tmpPath = `${this.filePath}.tmp.${token}`;
+    await writeFile(tmpPath, JSON.stringify(this.approvals, null, 2), "utf-8");
+    await renameFile(tmpPath, this.filePath);
     this.dirty = false;
+  }
+
+  /**
+   * Acquire the per-file lock, load fresh, run a mutation, then atomically persist.
+   * Guarantees serialised access across concurrent processes.
+   */
+  async mutate<T>(fn: (approvals: ApprovalRecord[]) => T | Promise<T>): Promise<T> {
+    const lock = new ApprovalStoreLock(this.cwd);
+    const acquired = await lock.acquire();
+    if (!acquired) throw new Error("Could not acquire approval lock");
+    try {
+      await this.load();
+      const result = await fn(this.approvals);
+      this.dirty = true;
+      await this.saveAtomic();
+      return result;
+    } finally {
+      lock.release();
+    }
   }
 
   /** Create a new pending approval request. */
@@ -151,6 +181,16 @@ export class ApprovalStore {
   /** Get a single approval by ID. */
   get(id: string): ApprovalRecord | undefined {
     return this.approvals.find(a => a.id === id);
+  }
+
+  /** Find an approval record by exact binding key. */
+  findExact(bindingKey: string): ApprovalRecord | undefined {
+    return this.approvals.find(a => a.bindingKey === bindingKey);
+  }
+
+  /** Find a pending approval by binding key. */
+  findPendingByBindingKey(bindingKey: string): ApprovalRecord | undefined {
+    return this.approvals.find(a => a.status === "pending" && a.bindingKey === bindingKey);
   }
 
   /** Find existing pending approval for a given graph/node/capability. */
