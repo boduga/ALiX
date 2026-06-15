@@ -32,6 +32,7 @@ export async function handleCoordination(args: string[]): Promise<void> {
     case "tick": return handleTick(args.slice(1));
     case "resume": return handleResume(args.slice(1));
     case "status": return handleStatus(args.slice(1));
+    case "results": return handleResults(args.slice(1));
     case "cancel": return handleCancel(args.slice(1));
     default:
       console.error(`Unknown coordination subcommand: ${subcommand}`);
@@ -182,6 +183,29 @@ async function handleStatus(args: string[]): Promise<void> {
   }
   console.log(`Created: ${run.createdAt}`);
   console.log(`Updated: ${run.updatedAt}`);
+
+  // Aggregate info
+  if (run.aggregateResultRef) {
+    const fresh = run.aggregateSourceFingerprint ? "fresh" : "unknown";
+    console.log(`Aggregate: ${run.aggregateResultRef} (${fresh})`);
+  } else {
+    console.log(`Aggregate: not yet generated`);
+  }
+  if (run.outcome) {
+    console.log(`Outcome: ${run.outcome}`);
+  }
+  // Failure chains
+  const failedWorkers = run.workers.filter(w => w.status === "failed" || w.status === "cancelled");
+  if (failedWorkers.length > 0) {
+    console.log(`Failed workers:`);
+    for (const w of failedWorkers) {
+      console.log(`  ${w.id} (${w.taskLabel}): ${w.error ?? "no error"}`);
+      if (w.failureProvenance) {
+        console.log(`    → root causes: ${w.failureProvenance.rootCauseWorkerIds.join(", ")}`);
+        console.log(`    → propagated: ${w.failureProvenance.propagatedAt}`);
+      }
+    }
+  }
 }
 
 async function handleCancel(args: string[]): Promise<void> {
@@ -203,4 +227,84 @@ async function handleCancel(args: string[]): Promise<void> {
 
   await scheduler.cancelRun(runId);
   console.log(`Cancelled: ${runId}`);
+}
+
+async function handleResults(args: string[]): Promise<void> {
+  const runId = args[0];
+  if (!runId) { console.error("Usage: alix coordination results <run-id> [--json] [--refresh] [--synthesize]"); process.exit(1); }
+
+  const jsonMode = args.includes("--json");
+  const refresh = args.includes("--refresh");
+  const synthesize = args.includes("--synthesize");
+
+  const cwd = process.cwd();
+  const { CoordinationStore } = await import("../../kernel/coordination-store.js");
+  const { CoordinationResultStore } = await import("../../kernel/coordination-result-store.js");
+  const { CoordinationAggregateStore } = await import("../../kernel/coordination-aggregate-store.js");
+  const { ResultAggregator } = await import("../../kernel/coordination-result-aggregator.js");
+  const { CoordinationCompletionService } = await import("../../kernel/coordination-completion-service.js");
+  const { ModelRunSynthesizer } = await import("../../kernel/coordination-run-synthesizer.js");
+
+  const store = new CoordinationStore(cwd);
+  const resultStore = new CoordinationResultStore(cwd);
+  const aggregateStore = new CoordinationAggregateStore(cwd);
+
+  // Check for existing fresh aggregate
+  if (!refresh) {
+    const existing = await aggregateStore.load(runId);
+    if (existing) {
+      if (jsonMode) { console.log(JSON.stringify(existing, null, 2)); return; }
+      printResultSummary(existing);
+      return;
+    }
+  }
+
+  // Generate aggregate
+  const run = await store.load(runId);
+  if (!run) { console.error(`Run not found: ${runId}`); process.exit(1); }
+
+  const aggregator = new ResultAggregator(resultStore);
+  const completionService = new CoordinationCompletionService({
+    coordinationStore: store,
+    resultAggregator: aggregator,
+    aggregateStore,
+    synthesizer: synthesize ? new ModelRunSynthesizer() : undefined,
+  });
+
+  const summary = await completionService.finalize(runId);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(summary, null, 2));
+    return;
+  }
+
+  printResultSummary(summary);
+}
+
+function printResultSummary(summary: any): void {
+  console.log(`Run: ${summary.runId}`);
+  console.log(`Goal: ${summary.rootGoal}`);
+  console.log(`Status: ${summary.status}`);
+  console.log(`Outcome: ${summary.outcome}`);
+  console.log(`Complete: ${summary.complete}`);
+  console.log(`Workers: ${summary.counts.workers} total, ${summary.counts.completed} completed, ${summary.counts.failed} failed, ${summary.counts.blocked} blocked`);
+  console.log(`Results: ${summary.counts.successfulResults} success, ${summary.counts.failedResults} failure, ${summary.counts.missingResults} missing`);
+  if (summary.timing.wallClockDurationMs !== undefined) {
+    console.log(`Duration: ${(summary.timing.wallClockDurationMs / 1000).toFixed(1)}s`);
+  }
+  if (summary.failureChains?.length > 0) {
+    console.log(`\nFailure chains:`);
+    for (const chain of summary.failureChains) {
+      console.log(`  Root: ${chain.rootWorkerId} (${chain.rootTaskLabel})`);
+      console.log(`  Direct dependents: ${chain.directDependents.length}`);
+      console.log(`  Total affected: ${chain.allAffectedWorkers.length}`);
+      if (chain.rootError) console.log(`  Error: ${chain.rootError}`);
+    }
+  }
+  if (summary.aggregateRef) {
+    console.log(`\nAggregate: ${summary.aggregateRef}`);
+  }
+  if (summary.finalSummary) {
+    console.log(`\nSynthesis:\n${summary.finalSummary}`);
+  }
 }

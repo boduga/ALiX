@@ -20,6 +20,7 @@ import type { EventLog } from "../events/event-log.js";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
 import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────
@@ -63,6 +64,7 @@ export type CoordinationSchedulerDeps = {
   authorization: ExecutionAuthorization;
   ownershipRegistry: OwnershipRegistry;
   executor: CoordinationWorkerExecutor;
+  completionService?: CoordinationCompletionService;
   eventLog?: EventLog;
   auditStore?: AuditStore;
   clock?: Clock;
@@ -326,6 +328,12 @@ export class CoordinationScheduler {
       timestamp: new Date().toISOString(),
     });
 
+    // Finalize if run became terminal
+    if (run?.status === "completed" || run?.status === "failed") {
+      // Fire-and-forget — don't block the tick response
+      this.maybeFinalizeRun(runId).catch(() => {});
+    }
+
     return {
       runId, examined: readyWorkers.length, ready: readyWorkers.length,
       dispatched, awaitingApproval, denied, ownershipConflicts,
@@ -416,6 +424,10 @@ export class CoordinationScheduler {
       if (finalWorker?.leaseIds && finalWorker.leaseIds.length > 0) {
         await releaseWorkerOwnership(this.deps.ownershipRegistry, finalWorker.leaseIds);
         await this.deps.store.patchWorker(runId, workerId, { leaseIds: [] });
+      }
+      // Check if run is now terminal
+      if (finalRun?.status === "completed" || finalRun?.status === "failed") {
+        this.maybeFinalizeRun(runId).catch(() => {});
       }
     }
   }
@@ -515,6 +527,25 @@ export class CoordinationScheduler {
     } catch { /* events are observability, not correctness */ }
   }
 
+  // ── Terminal finalization ──────────────────────────────────────────
+
+  /**
+   * If the run is terminal and a completion service is configured, finalize it.
+   * This is best-effort — errors are logged but never thrown to the caller.
+   */
+  private async maybeFinalizeRun(runId: string): Promise<void> {
+    if (!this.deps.completionService) return;
+    try {
+      const run = await this.deps.store.load(runId);
+      if (!run || (run.status !== "completed" && run.status !== "failed")) return;
+      await this.deps.completionService.finalize(runId);
+    } catch (error) {
+      // Finalization is observability — never affects scheduler correctness
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[scheduler] Finalization failed for ${runId}: ${msg}`);
+    }
+  }
+
   // ── Cancel ─────────────────────────────────────────────────────────
 
   async cancelRun(runId: string): Promise<void> {
@@ -534,6 +565,7 @@ export class CoordinationScheduler {
         });
       }
     }
+    await this.maybeFinalizeRun(runId);
   }
 
   // ── Shutdown ───────────────────────────────────────────────────────

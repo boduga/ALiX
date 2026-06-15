@@ -14,7 +14,7 @@ import { readFile, writeFile, mkdir, readdir, unlink, rename as renameFile } fro
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
-import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
+import type { CoordinationRun, CoordinationRunOutcome, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, transitionCoordinationRunStatus, recomputeRunStatus } from "./coordination-types.js";
 import { CoordinationRunLock } from "./coordination-run-lock.js";
 
@@ -29,6 +29,7 @@ export function normalizeWorkerAssignment(worker: WorkerAssignment): WorkerAssig
     attempt: worker.attempt ?? 0,
     maxAttempts: worker.maxAttempts ?? 3,
     ownershipClaims: worker.ownershipClaims ?? [],
+    failureProvenance: worker.failureProvenance,
   };
 }
 
@@ -37,6 +38,7 @@ export type WorkerPatch = Partial<Pick<WorkerAssignment,
   | "failureKind" | "approvalId" | "startedAt" | "completedAt"
   | "lastHeartbeatAt" | "leaseIds" | "executionOwnerId"
   | "authorizationEvidence" | "nextAttemptAt"
+  | "failureProvenance"
 >>;
 
 export class CoordinationStore {
@@ -213,6 +215,21 @@ export class CoordinationStore {
       for (const [key, value] of Object.entries(patch)) {
         (worker as any)[key] = value;
       }
+    });
+  }
+
+  /** Attach aggregate metadata to a run. */
+  async attachAggregate(runId: string, metadata: {
+    aggregateResultRef: string;
+    aggregateGeneratedAt: string;
+    aggregateSourceFingerprint: string;
+    outcome: CoordinationRunOutcome;
+  }): Promise<CoordinationRun | null> {
+    return this.updateRun(runId, (run) => {
+      run.aggregateResultRef = metadata.aggregateResultRef;
+      run.aggregateGeneratedAt = metadata.aggregateGeneratedAt;
+      run.aggregateSourceFingerprint = metadata.aggregateSourceFingerprint;
+      run.outcome = metadata.outcome;
     });
   }
 }

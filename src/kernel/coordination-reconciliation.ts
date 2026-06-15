@@ -12,7 +12,7 @@
  */
 
 import type { CoordinationStore } from "./coordination-store.js";
-import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationRun, WorkerAssignment, WorkerFailureProvenance } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 
 export interface Clock {
@@ -89,21 +89,35 @@ export async function reconcileCoordinationRun(
     for (const worker of currentRun.workers) {
       if (worker.status !== "pending") continue;
 
-      const failedDep = worker.dependencies
+      const failedDeps = worker.dependencies
         .map(id => currentRun.workers.find(w => w.id === id))
-        .find(dep =>
-          dep && (
+        .filter((dep): dep is NonNullable<typeof dep> =>
+          dep !== undefined && (
             dep.status === "failed" ||
             dep.status === "cancelled" ||
             (dep.status === "blocked" && dep.blockReason === "dependency_failed")
           )
         );
 
-      if (failedDep) {
+      if (failedDeps.length > 0) {
+        const directCauseWorkerIds = [...new Set(failedDeps.map(d => d.id))].sort();
+        const rootCauseWorkerIds = [...new Set(
+          failedDeps.flatMap(d =>
+            d.failureProvenance?.rootCauseWorkerIds ?? [d.id]
+          )
+        )].sort();
+
+        const failureProvenance: WorkerFailureProvenance = {
+          directCauseWorkerIds,
+          rootCauseWorkerIds,
+          propagatedAt: new Date().toISOString(),
+        };
+
         await deps.store.patchWorker(runId, worker.id, {
           status: "blocked",
           blockReason: "dependency_failed" as any,
-          error: `Dependency ${failedDep.id} failed: ${failedDep.error ?? "unknown"}`,
+          error: `Dependency ${failedDeps[0].id} failed: ${failedDeps[0].error ?? "unknown"}`,
+          failureProvenance,
         });
         result.dependencyBlocked.push(worker.id);
         changed = true;

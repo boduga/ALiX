@@ -168,6 +168,17 @@ export const OWNERSHIP_EVENT_TYPES = {
   LOCK_FAILED: "ownership.lock_failed",
 } as const;
 
+export const COORDINATION_EVENT_TYPES = {
+  AGGREGATE_STARTED: "coordination.aggregate.started",
+  AGGREGATE_COMPLETED: "coordination.aggregate.completed",
+  AGGREGATE_FAILED: "coordination.aggregate.failed",
+  AGGREGATE_STALE: "coordination.aggregate.stale",
+  SYNTHESIS_STARTED: "coordination.synthesis.started",
+  SYNTHESIS_COMPLETED: "coordination.synthesis.completed",
+  SYNTHESIS_FAILED: "coordination.synthesis.failed",
+  FAILURE_PROPAGATED: "coordination.failure.propagated",
+} as const;
+
 export type SubagentStartedPayload = {
   role: string;
   taskId: string;
