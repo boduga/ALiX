@@ -2374,6 +2374,12 @@ if (command === "coordination") {
   process.exit(0);
 }
 
+if (command === "approval") {
+  const { handleApproval } = await import("./cli/commands/approval.js");
+  await handleApproval(args);
+  process.exit(0);
+}
+
 if (command === "ownership") {
   const { handleOwnershipCommand } = await import("./cli/commands/ownership.js");
   await handleOwnershipCommand(args);
