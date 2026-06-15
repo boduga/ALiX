@@ -20,7 +20,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           config.model: "gemini/gemini-3.5-flash"
-          config.fallback_models: '["gemini/gemini-3.5-flash"]'
+          config.fallback_models: '["gemini/gemini-3.5-flash", "gemini/gemini-2.5-flash"]'
+          config.custom_model_max_tokens: "32000"
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           github_action_config.auto_review: "true"
           github_action_config.auto_describe: "true"
