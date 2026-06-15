@@ -261,6 +261,16 @@ export class CoordinationScheduler {
 
       dispatched.push(worker.id);
 
+      // Emit dispatch event
+      this.emit("coordination.worker.dispatched", {
+        coordinationRunId: runId,
+        workerId: worker.id,
+        agentId: worker.agentId,
+        sessionId: run.sessionId,
+        taskGraphId: run.taskGraphId,
+        timestamp: new Date().toISOString(),
+      });
+
       // Start tracked execution
       const controller = new AbortController();
       const execPromise = this.executeWorker(runId, worker.id, controller.signal);
@@ -270,6 +280,23 @@ export class CoordinationScheduler {
 
     run = (await this.deps.store.load(runId))!;
     const progressMade = dispatched.length > 0 || recResult.orphaned.length > 0 || recResult.dependencyBlocked.length > 0;
+
+    // Emit tick completed
+    this.emit("coordination.tick.completed", {
+      coordinationRunId: runId,
+      sessionId: run?.sessionId ?? "unknown",
+      taskGraphId: run?.taskGraphId,
+      examined: readyWorkers.length,
+      dispatched,
+      awaitingApproval,
+      denied,
+      ownershipConflicts,
+      activeRunning,
+      availableSlots,
+      runStatus: run?.status ?? "failed",
+      progressMade,
+      timestamp: new Date().toISOString(),
+    });
 
     return {
       runId, examined: readyWorkers.length, ready: readyWorkers.length,
@@ -302,6 +329,15 @@ export class CoordinationScheduler {
         await this.deps.store.patchWorker(runId, workerId, {
           status: "completed", completedAt: new Date().toISOString(), resultRef,
         });
+        this.emit("coordination.worker.completed", {
+          coordinationRunId: runId,
+          workerId: worker.id,
+          agentId: worker.agentId,
+          sessionId: run.sessionId,
+          taskGraphId: run.taskGraphId,
+          outcome: "success",
+          timestamp: new Date().toISOString(),
+        });
       } else {
         // Retryable failure check
         const isRetryable = result.failureKind === "timeout" || result.failureKind === "transient_provider" || result.failureKind === "execution_error";
@@ -317,12 +353,34 @@ export class CoordinationScheduler {
             status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
             error: result.error ?? "Execution failed",
           });
+          this.emit("coordination.worker.failed", {
+            coordinationRunId: runId,
+            workerId: worker.id,
+            agentId: worker.agentId,
+            sessionId: run.sessionId,
+            taskGraphId: run.taskGraphId,
+            outcome: "failed",
+            failureKind: result.failureKind ?? "execution_error",
+            error: result.error ?? "Execution failed",
+            timestamp: new Date().toISOString(),
+          });
         }
       }
     } catch (error) {
       await this.deps.store.patchWorker(runId, workerId, {
         status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
         error: error instanceof Error ? error.message : String(error),
+      });
+      this.emit("coordination.worker.failed", {
+        coordinationRunId: runId,
+        workerId,
+        agentId: worker.agentId,
+        sessionId: run.sessionId,
+        taskGraphId: run.taskGraphId,
+        outcome: "failed",
+        failureKind: "execution_error",
+        error: error instanceof Error ? error.message : String(error),
+        timestamp: new Date().toISOString(),
       });
     } finally {
       const finalRun = await this.deps.store.load(runId);
@@ -413,6 +471,20 @@ export class CoordinationScheduler {
         });
       }
     }
+  }
+
+  // ── Event emission (observability, not correctness) ──────────────
+
+  private async emit(event: string, payload: Record<string, unknown>): Promise<void> {
+    if (!this.deps.eventLog) return;
+    try {
+      await this.deps.eventLog.append({
+        sessionId: (payload.sessionId as string) ?? "unknown",
+        actor: "coordination",
+        type: event,
+        payload,
+      });
+    } catch { /* events are observability, not correctness */ }
   }
 
   // ── Cancel ─────────────────────────────────────────────────────────
