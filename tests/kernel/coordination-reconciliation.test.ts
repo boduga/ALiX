@@ -53,7 +53,7 @@ describe("reconcileCoordinationRun", () => {
       status: "blocked", blockReason: "approval_required", approvalId: "apr-1",
     });
     await store.addWorker(run.id, w1);
-    const isApproved = async (id: string) => id === "apr-1";
+    const isApproved = async (worker: any) => worker.approvalId === "apr-1";
     const result = await reconcileCoordinationRun(
       { store, ownershipRegistry: mockRegistry, daemonInstanceId: "d", orphanThresholdMs: ORPHAN_THRESHOLD_MS, isApproved }, run.id,
     );
