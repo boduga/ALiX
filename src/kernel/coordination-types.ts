@@ -84,6 +84,12 @@ export interface CoordinationRun {
   /** All worker assignments in this run */
   workers: WorkerAssignment[];
 
+  /** Reference to the persisted TaskGraph (planning evidence). */
+  taskGraphId?: string;
+
+  /** File path to the persisted TaskGraph, relative to cwd. */
+  taskGraphRef?: string;
+
   /** Schema version for forward compatibility */
   schemaVersion: "1.0";
 
@@ -100,6 +106,8 @@ export function createCoordinationRun(opts: {
   sessionId: string;
   rootGoal: string;
   coordinatorAgentId: string;
+  taskGraphId?: string;
+  taskGraphRef?: string;
 }): CoordinationRun {
   const now = new Date().toISOString();
   return {
@@ -109,6 +117,8 @@ export function createCoordinationRun(opts: {
     status: "planning",
     coordinatorAgentId: opts.coordinatorAgentId,
     workers: [],
+    taskGraphId: opts.taskGraphId,
+    taskGraphRef: opts.taskGraphRef,
     schemaVersion: "1.0",
     createdAt: now,
     updatedAt: now,
@@ -116,23 +126,27 @@ export function createCoordinationRun(opts: {
 }
 
 export function createWorkerAssignment(opts: {
+  id?: string;
   coordinationRunId: string;
   agentId: string;
   taskLabel: string;
   goalPrompt: string;
   dependencies?: string[];
   ownershipScopes?: string[];
+  status?: WorkerStatus;
+  error?: string;
 }): WorkerAssignment {
   const now = new Date().toISOString();
   return {
-    id: `worker_${randomUUID()}`,
+    id: opts.id ?? `worker_${randomUUID()}`,
     coordinationRunId: opts.coordinationRunId,
     agentId: opts.agentId,
     taskLabel: opts.taskLabel,
     goalPrompt: opts.goalPrompt,
     dependencies: opts.dependencies ?? [],
     ownershipScopes: opts.ownershipScopes ?? [],
-    status: "pending",
+    status: opts.status ?? "pending",
+    error: opts.error,
     createdAt: now,
     updatedAt: now,
   };
