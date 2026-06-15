@@ -16,6 +16,20 @@ import { existsSync } from "node:fs";
 import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
 import { transitionWorkerStatus, transitionCoordinationRunStatus, recomputeRunStatus } from "./coordination-types.js";
 
+/**
+ * Normalize a WorkerAssignment loaded from earlier coordination milestones.
+ * New scheduler fields get safe defaults when absent.
+ */
+export function normalizeWorkerAssignment(worker: WorkerAssignment): WorkerAssignment {
+  return {
+    ...worker,
+    requiredCapabilities: worker.requiredCapabilities ?? [],
+    attempt: worker.attempt ?? 0,
+    maxAttempts: worker.maxAttempts ?? 3,
+    ownershipClaims: worker.ownershipClaims ?? [],
+  };
+}
+
 export class CoordinationStore {
   private baseDir: string;
 
@@ -46,7 +60,9 @@ export class CoordinationStore {
     if (!existsSync(path)) return null;
     try {
       const raw = await readFile(path, "utf-8");
-      return JSON.parse(raw) as CoordinationRun;
+      const run = JSON.parse(raw) as CoordinationRun;
+      run.workers = run.workers.map(normalizeWorkerAssignment);
+      return run;
     } catch {
       return null;
     }
@@ -61,7 +77,9 @@ export class CoordinationStore {
       if (!file.endsWith(".json")) continue;
       try {
         const raw = await readFile(join(this.baseDir, file), "utf-8");
-        runs.push(JSON.parse(raw) as CoordinationRun);
+        const run = JSON.parse(raw) as CoordinationRun;
+        run.workers = run.workers.map(normalizeWorkerAssignment);
+        runs.push(run);
       } catch {
         // skip corrupt files
       }
