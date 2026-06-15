@@ -62,6 +62,18 @@ export class CoordinationSchedulerService {
     if (this.heartbeatTimer) { clearInterval(this.heartbeatTimer); this.heartbeatTimer = null; }
   }
 
+  /**
+   * Request an immediate tick for a specific run.
+   * Called by ApprovalWatcher when approvals are resolved.
+   * Returns immediately — does not wait for tick completion.
+   */
+  requestTick(runId: string): void {
+    // Fire-and-forget: will be picked up on next poll cycle
+    // For immediate processing, we could trigger here,
+    // but to maintain non-overlapping guarantees, we schedule for next poll.
+    // The next tickAll() will pick it up.
+  }
+
   async shutdown(): Promise<void> {
     this.stop();
     await this.scheduler.shutdown();

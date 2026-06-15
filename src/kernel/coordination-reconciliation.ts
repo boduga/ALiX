@@ -12,7 +12,7 @@
  */
 
 import type { CoordinationStore } from "./coordination-store.js";
-import type { WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 
 export interface Clock {
@@ -33,7 +33,7 @@ export type ReconciliationDeps = {
   daemonInstanceId: string;
   orphanThresholdMs: number;
   clock?: Clock;
-  isApproved?: (approvalId: string) => Promise<boolean>;
+  isApproved?: (worker: WorkerAssignment, run: CoordinationRun) => Promise<boolean>;
   activeExecutionIds?: Set<string>;
 };
 
@@ -117,7 +117,7 @@ export async function reconcileCoordinationRun(
     if (renewedRun) {
       for (const worker of renewedRun.workers) {
         if (worker.status === "blocked" && worker.blockReason === "approval_required" && worker.approvalId) {
-          if (await deps.isApproved(worker.approvalId)) {
+          if (await deps.isApproved(worker, renewedRun)) {
             await deps.store.patchWorker(runId, worker.id, {
               status: "pending",
               blockReason: undefined,

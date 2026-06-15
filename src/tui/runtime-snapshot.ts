@@ -117,7 +117,7 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
     snapshot.pendingApprovalsCount = allPending.length;
     for (const a of allPending) {
       snapshot.pendingApprovalRecords.push({
-        id: a.id, capability: a.capability, riskLevel: a.riskLevel,
+        id: a.id, capability: a.capabilities?.[0], riskLevel: a.riskLevel,
         reason: a.reason, createdAt: a.createdAt,
       });
     }
@@ -126,7 +126,7 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
     snapshot.resolvedApprovalsCount = allResolved.length;
     for (const a of allResolved) {
       snapshot.resolvedApprovalRecords.push({
-        id: a.id, capability: a.capability, riskLevel: a.riskLevel,
+        id: a.id, capability: a.capabilities?.[0], riskLevel: a.riskLevel,
         reason: a.decisionReason ?? a.reason, createdAt: a.createdAt,
         status: a.status === "approved" ? "approved" : "denied",
         decidedAt: a.decidedAt,

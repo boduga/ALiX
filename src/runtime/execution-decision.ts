@@ -13,13 +13,14 @@ import type { SessionMode } from "../config/schema.js";
 // ─── Decision contract ──────────────────────────────────────────────
 
 export type ExecutionDecision =
-  | { status: "allowed"; policyRuleId?: string; approvalId?: string }
-  | { status: "denied"; reason: string; policyRuleId?: string; approvalId?: string }
+  | { status: "allowed"; policyRuleId?: string; approvalId?: string; policyRevision?: string }
+  | { status: "denied"; reason: string; policyRuleId?: string; approvalId?: string; policyRevision?: string }
   | {
       status: "approval_required";
       approvalId: string;
       reason: string;
       policyRuleId?: string;
+      policyRevision?: string;
     };
 
 // ─── Request ────────────────────────────────────────────────────────
@@ -41,14 +42,14 @@ export interface ExecutionDecisionRequest {
 
 // ─── Helpers ────────────────────────────────────────────────────────
 
-export function decisionAllowed(overrides?: { policyRuleId?: string; approvalId?: string }): ExecutionDecision {
+export function decisionAllowed(overrides?: { policyRuleId?: string; approvalId?: string; policyRevision?: string }): ExecutionDecision {
   return { status: "allowed", ...overrides };
 }
 
-export function decisionDenied(reason: string, overrides?: { policyRuleId?: string; approvalId?: string }): ExecutionDecision {
+export function decisionDenied(reason: string, overrides?: { policyRuleId?: string; approvalId?: string; policyRevision?: string }): ExecutionDecision {
   return { status: "denied", reason, ...overrides };
 }
 
-export function decisionApprovalRequired(approvalId: string, reason: string, overrides?: { policyRuleId?: string }): ExecutionDecision {
+export function decisionApprovalRequired(approvalId: string, reason: string, overrides?: { policyRuleId?: string; policyRevision?: string }): ExecutionDecision {
   return { status: "approval_required", approvalId, reason, ...overrides };
 }

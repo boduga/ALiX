@@ -32,7 +32,7 @@ describe("TUI approval store wiring", () => {
     });
     assert.ok(record);
     assert.equal(record.status, "pending");
-    assert.equal(record.capability, "filesystem.read");
+    assert.deepEqual(record.capabilities, ["filesystem.read"]);
     assert.ok(existsSync(join(tmpDir, ".alix", "approvals", "approvals.json")));
   });
 

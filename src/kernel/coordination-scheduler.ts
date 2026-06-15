@@ -135,13 +135,40 @@ export class CoordinationScheduler {
       daemonInstanceId: this.deps.daemonInstanceId,
       orphanThresholdMs: this.options.orphanThresholdMs,
       clock: this.deps.clock,
-      isApproved: async (approvalId: string) => {
+      isApproved: async (worker: WorkerAssignment, run: CoordinationRun) => {
         try {
+          if (!worker.authorizationEvidence?.decisions?.length) return false;
           const { ApprovalStore } = await import("../approvals/approval-store.js");
+          const { computeBindingKey, computeOwnershipClaimsHash } = await import("../approvals/approval-binding.js");
           const store = new ApprovalStore(this.deps.cwd);
           await store.load();
-          const record = store.get(approvalId);
-          return record?.status === "approved";
+
+          // Compute the binding key from worker evidence + run
+          const bindingKey = computeBindingKey({
+            coordinationRunId: run.id,
+            workerId: worker.id,
+            workerAttempt: worker.attempt,
+            capabilities: worker.requiredCapabilities ?? [],
+            ownershipClaims: worker.ownershipClaims,
+            requestFingerprint: worker.authorizationEvidence.decisions.map(d => d.capability).join(","),
+            policyRevision: String(worker.authorizationEvidence.policyRevision ?? "legacy"),
+          });
+
+          const record = store.findExact(bindingKey);
+          if (!record) return false;
+          if (record.status !== "approved") return false;
+          if (new Date(record.expiresAt) <= new Date()) return false;
+
+          // If single-use, consume atomically
+          if (record.usePolicy === "single_use") {
+            const consumed = await store.consumeApproved(record.id, bindingKey, {
+              workerId: worker.id,
+              workerAttempt: worker.attempt,
+            });
+            return consumed.consumed;
+          }
+
+          return true;
         } catch {
           return false;
         }
