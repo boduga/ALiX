@@ -8,6 +8,7 @@ import { relative } from "node:path";
 import { GraphPlanner, persistGraph } from "./graph-planner.js";
 import { validateGraphDag } from "./graph-validator.js";
 import { classifyCapabilities } from "./mutation-classifier.js";
+import { compileOwnershipClaims } from "./ownership-claim-compiler.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { createCoordinationRun, createWorkerAssignment } from "./coordination-types.js";
 import { buildDefaultToolIndex } from "../tools/tool-registry.js";
@@ -139,6 +140,10 @@ export class CoordinationPlanner {
       });
     }
 
+    const planOrderByNode = new Map<string, number>(
+      dagResult.topologicalOrder.map((nodeId, index) => [nodeId, index]),
+    );
+
     const absoluteGraphPath = await persistGraph(planResult.graph, this.cwd);
     const taskGraphRef = relative(this.cwd, absoluteGraphPath).replaceAll("\\", "/");
 
@@ -158,6 +163,7 @@ export class CoordinationPlanner {
 
       const mutationClass = classifyCapabilities(node.requiredCapabilities ?? [], this.toolRegistry);
       const ownershipScopes = inferOwnershipScopes(node, mutationClass);
+      const claimResult = compileOwnershipClaims(ownershipScopes);
       const agentId = pool[workers.length % pool.length];
 
       workers.push(createWorkerAssignment({
@@ -168,6 +174,14 @@ export class CoordinationPlanner {
         goalPrompt: node.goal,
         dependencies: [],
         ownershipScopes,
+        sourceNodeId: node.id,
+        requiredCapabilities: node.requiredCapabilities ?? [],
+        riskLevel: node.riskLevel,
+        approvalMode: node.approvalMode,
+        attempt: 0,
+        maxAttempts: 3,
+        planOrder: planOrderByNode.get(node.id),
+        ownershipClaims: claimResult.claims,
       }));
     }
 
