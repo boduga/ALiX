@@ -8,6 +8,20 @@
 import { createHash } from "node:crypto";
 import type { CoordinationRun } from "./coordination-types.js";
 
+function canonicalize(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalize);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, item]) => [key, canonicalize(item)]),
+    );
+  }
+  return value;
+}
+
 export function computeAggregationSourceFingerprint(run: CoordinationRun): string {
   const relevant = {
     runId: run.id,
@@ -26,6 +40,6 @@ export function computeAggregationSourceFingerprint(run: CoordinationRun): strin
       failureProvenance: w.failureProvenance,
     })).sort((a, b) => a.id.localeCompare(b.id)),
   };
-  const canonical = JSON.stringify(relevant, Object.keys(relevant).sort());
+  const canonical = JSON.stringify(canonicalize(relevant));
   return createHash("sha256").update(canonical).digest("hex");
 }

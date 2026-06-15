@@ -42,7 +42,13 @@ export class ResultAggregator {
 
       // Compute duration if we have both timestamps
       if (worker.startedAt && worker.completedAt) {
-        summary.durationMs = new Date(worker.completedAt).getTime() - new Date(worker.startedAt).getTime();
+        const start = new Date(worker.startedAt).getTime();
+        const end = new Date(worker.completedAt).getTime();
+        if (!isNaN(start) && !isNaN(end) && end >= start) {
+          summary.durationMs = end - start;
+        } else {
+          issues.push({ code: "invalid_timestamp", workerId: worker.id, message: `Invalid timestamps: start=${worker.startedAt}, end=${worker.completedAt}` });
+        }
       }
 
       // Track earliest start and latest completion
@@ -115,11 +121,9 @@ export class ResultAggregator {
       missingResults,
     };
 
-    // Compute completeness
-    const missingRequired = run.workers.filter(w => requiresResultRecord(w) && !w.resultRef).length;
-    const missingResultsCount = issues.filter(i => i.code === "missing_result").length;
-    const corruptResultsCount = issues.filter(i => i.code === "corrupt_result").length;
-    const complete = missingRequired === 0 && missingResultsCount === 0 && corruptResultsCount === 0;
+    // Compute completeness — any integrity issue makes the aggregate incomplete
+    const hasIntegrityIssue = issues.length > 0;
+    const complete = !hasIntegrityIssue;
 
     // Compute outcome
     const outcome = this.computeOutcome(run, complete, counts);
@@ -155,8 +159,15 @@ export class ResultAggregator {
     if (!complete) return "incomplete";
     if (counts.workers === 0) return "incomplete";
     if (run.workers.every(w => w.status === "cancelled")) return "cancelled";
+
+    // Non-terminal runs cannot be success
+    if (counts.pending > 0 || counts.running > 0) return "incomplete";
+
+    // Partial success: some succeeded but there are terminal problems
+    const hasTerminalProblem = counts.failed > 0 || counts.blocked > 0 || counts.cancelled > 0;
+    if (counts.successfulResults > 0 && hasTerminalProblem) return "partial_success";
+
     if (counts.completed === counts.workers && counts.failedResults === 0 && counts.missingResults === 0) return "success";
-    if (counts.completed > 0 && counts.failed > 0) return "partial_success";
     if (counts.completed > 0 && counts.failed === 0) return "success";
     if (counts.failed > 0) return "failure";
     if (counts.blocked > 0 && counts.completed === 0) return "blocked";

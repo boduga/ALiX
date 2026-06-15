@@ -380,15 +380,34 @@ export class CoordinationScheduler {
         const currentRun = await this.deps.store.load(runId);
         const currentAttempt = currentRun?.workers.find(w => w.id === workerId)?.attempt ?? worker.attempt;
         if (isRetryable && currentAttempt < worker.maxAttempts) {
-          await this.deps.store.patchWorker(runId, workerId, {
-            status: "pending", blockReason: undefined, failureKind: result.failureKind,
-            error: result.error,
-          });
+          // Persist failure result for audit trail
+          try {
+            const failureRef = await this.resultStore.persist(worker, runId, {
+              outcome: "failure",
+              error: result.error,
+              failureKind: result.failureKind ?? "execution_error",
+            });
+            await this.deps.store.patchWorker(runId, workerId, {
+              status: "pending", blockReason: undefined, failureKind: result.failureKind,
+              error: result.error,
+              resultRef: failureRef,
+            });
+          } catch { /* best-effort */ }
         } else {
-          await this.deps.store.patchWorker(runId, workerId, {
-            status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
-            error: result.error ?? "Execution failed",
-          });
+          // Persist failure result
+          try {
+            const failureRef = await this.resultStore.persist(worker, runId, {
+              outcome: "failure",
+              error: result.error,
+              failureKind: result.failureKind ?? "execution_error",
+            });
+            await this.deps.store.patchWorker(runId, workerId, {
+              status: "failed", blockReason: "execution_failed", failureKind: result.failureKind ?? "execution_error",
+              error: result.error ?? "Execution failed",
+              resultRef: failureRef,
+              completedAt: new Date().toISOString(),
+            });
+          } catch { /* best-effort */ }
           this.emit("coordination.worker.failed", {
             coordinationRunId: runId,
             workerId: worker.id,
@@ -403,10 +422,20 @@ export class CoordinationScheduler {
         }
       }
     } catch (error) {
-      await this.deps.store.patchWorker(runId, workerId, {
-        status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
-        error: error instanceof Error ? error.message : String(error),
-      });
+      // Persist failure result
+      try {
+        const failureRef = await this.resultStore.persist(worker, runId, {
+          outcome: "failure",
+          error: error instanceof Error ? error.message : String(error),
+          failureKind: "execution_error",
+        });
+        await this.deps.store.patchWorker(runId, workerId, {
+          status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
+          error: error instanceof Error ? error.message : String(error),
+          resultRef: failureRef,
+          completedAt: new Date().toISOString(),
+        });
+      } catch { /* best-effort */ }
       this.emit("coordination.worker.failed", {
         coordinationRunId: runId,
         workerId,
