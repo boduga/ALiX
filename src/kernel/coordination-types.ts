@@ -41,6 +41,16 @@ export type WorkerOwnershipClaim = {
   sourcePattern?: string;
 };
 
+export type CoordinationRunOutcome =
+  | "success" | "partial_success" | "failure"
+  | "cancelled" | "blocked" | "incomplete";
+
+export type WorkerFailureProvenance = {
+  directCauseWorkerIds: string[];
+  rootCauseWorkerIds: string[];
+  propagatedAt: string;
+};
+
 export type WorkerCapabilityDecision = {
   capability: string;
   status: "allowed" | "denied" | "approval_required";
@@ -106,6 +116,7 @@ export interface WorkerAssignment {
   failureKind?: WorkerFailureKind;
   approvalId?: string;
   authorizationEvidence?: WorkerAuthorizationEvidence;
+  failureProvenance?: WorkerFailureProvenance;
 
   /** When this assignment was created */
   createdAt: string;
@@ -138,6 +149,11 @@ export interface CoordinationRun {
 
   /** File path to the persisted TaskGraph, relative to cwd. */
   taskGraphRef?: string;
+
+  aggregateResultRef?: string;
+  aggregateGeneratedAt?: string;
+  aggregateSourceFingerprint?: string;
+  outcome?: CoordinationRunOutcome;
 
   /** Schema version for forward compatibility */
   schemaVersion: "1.0";
@@ -203,6 +219,7 @@ export function createWorkerAssignment(opts: {
   failureKind?: WorkerFailureKind;
   approvalId?: string;
   authorizationEvidence?: WorkerAuthorizationEvidence;
+  failureProvenance?: WorkerFailureProvenance;
 }): WorkerAssignment {
   const now = new Date().toISOString();
   return {
@@ -233,6 +250,7 @@ export function createWorkerAssignment(opts: {
     failureKind: opts.failureKind,
     approvalId: opts.approvalId,
     authorizationEvidence: opts.authorizationEvidence,
+    failureProvenance: opts.failureProvenance,
     createdAt: now,
     updatedAt: now,
   };
