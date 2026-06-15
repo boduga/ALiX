@@ -422,31 +422,48 @@ export class CoordinationScheduler {
         }
       }
     } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      // Check retry budget for catch-path failures (executor threw rather than returning a result)
+      const currentRun = await this.deps.store.load(runId);
+      const currentAttempt = currentRun?.workers.find(w => w.id === workerId)?.attempt ?? worker.attempt;
+      const isRetryable = currentAttempt < (worker.maxAttempts ?? 3);
       // Persist failure result
       try {
         const failureRef = await this.resultStore.persist(worker, runId, {
           outcome: "failure",
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMsg,
           failureKind: "execution_error",
         });
-        await this.deps.store.patchWorker(runId, workerId, {
-          status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
-          error: error instanceof Error ? error.message : String(error),
-          resultRef: failureRef,
-          completedAt: new Date().toISOString(),
-        });
+        if (isRetryable) {
+          await this.deps.store.patchWorker(runId, workerId, {
+            status: "pending",
+            blockReason: undefined,
+            failureKind: "execution_error",
+            error: errorMsg,
+            resultRef: failureRef,
+          });
+        } else {
+          await this.deps.store.patchWorker(runId, workerId, {
+            status: "failed", blockReason: "execution_failed", failureKind: "execution_error",
+            error: errorMsg,
+            resultRef: failureRef,
+            completedAt: new Date().toISOString(),
+          });
+        }
       } catch { /* best-effort */ }
-      this.emit("coordination.worker.failed", {
-        coordinationRunId: runId,
-        workerId,
-        agentId: worker.agentId,
-        sessionId: run.sessionId,
-        taskGraphId: run.taskGraphId,
-        outcome: "failed",
-        failureKind: "execution_error",
-        error: error instanceof Error ? error.message : String(error),
-        timestamp: new Date().toISOString(),
-      });
+      if (!isRetryable) {
+        this.emit("coordination.worker.failed", {
+          coordinationRunId: runId,
+          workerId,
+          agentId: worker.agentId,
+          sessionId: run.sessionId,
+          taskGraphId: run.taskGraphId,
+          outcome: "failed",
+          failureKind: "execution_error",
+          error: errorMsg,
+          timestamp: new Date().toISOString(),
+        });
+      }
     } finally {
       const finalRun = await this.deps.store.load(runId);
       const finalWorker = finalRun?.workers.find(w => w.id === workerId);
