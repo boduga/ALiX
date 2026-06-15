@@ -32,12 +32,15 @@ describe("Approval lifecycle integration", () => {
   afterEach(() => { rmSync(cwd, { recursive: true, force: true }); });
 
   it("full create → approve → consume flow", async () => {
-    const record = await store.request({
+    const record = await store.requestBound({
       reason: "Need to create a file",
-      capability: "file.create",
+      bindingKey,
+      requestFingerprint: "fp1",
+      policyRevision: "rev1",
+      capabilities: ["file.create"],
+      coordinationRunId: "run-1",
+      workerId: "w-1",
     });
-    // Update with binding key
-    record.bindingKey = bindingKey;
 
     const resolved = await store.resolve(record.id, "approved", "Looks good");
     assert.equal(resolved?.status, "approved");
@@ -53,11 +56,13 @@ describe("Approval lifecycle integration", () => {
   });
 
   it("binding mismatch rejects consumption", async () => {
-    const record = await store.request({
+    const record = await store.requestBound({
       reason: "test",
-      capability: "file.create",
+      bindingKey,
+      requestFingerprint: "fp1",
+      policyRevision: "rev1",
+      capabilities: ["file.create"],
     });
-    record.bindingKey = bindingKey;
 
     await store.resolve(record.id, "approved", "ok");
     const wrongKey = computeBindingKey({
@@ -72,12 +77,14 @@ describe("Approval lifecycle integration", () => {
   });
 
   it("expired approval cannot be consumed", async () => {
-    const record = await store.request({
+    const record = await store.requestBound({
       reason: "test",
-      capability: "file.create",
+      bindingKey,
+      requestFingerprint: "fp1",
+      policyRevision: "rev1",
+      capabilities: ["file.create"],
+      expiresAt: new Date(Date.now() - 1000).toISOString(), // already expired
     });
-    record.bindingKey = bindingKey;
-    record.expiresAt = new Date(Date.now() - 1000).toISOString(); // already expired
 
     // Must approve first
     await store.resolve(record.id, "approved", "ok");
@@ -88,8 +95,13 @@ describe("Approval lifecycle integration", () => {
   });
 
   it("revoked approval cannot be consumed", async () => {
-    const record = await store.request({ reason: "test", capability: "file.create" });
-    record.bindingKey = bindingKey;
+    const record = await store.requestBound({
+      reason: "test",
+      bindingKey,
+      requestFingerprint: "fp1",
+      policyRevision: "rev1",
+      capabilities: ["file.create"],
+    });
     await store.resolve(record.id, "approved", "ok");
     await store.revoke(record.id, { actor: "admin", reason: "policy change" });
 

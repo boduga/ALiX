@@ -32,6 +32,12 @@ describe("computeBindingKey", () => {
     const b = computeBindingKey({ capabilities: ["file.write"], requestFingerprint: "fp1", policyRevision: "rev1" });
     assert.notEqual(a, b);
   });
+
+  it("different ownership paths produce different keys", () => {
+    const a = computeBindingKey({ capabilities: ["file.create"], requestFingerprint: "fp1", policyRevision: "rev1", ownershipClaims: [{ path: "src", recursive: true, sourcePattern: "src/**" }] });
+    const b = computeBindingKey({ capabilities: ["file.create"], requestFingerprint: "fp1", policyRevision: "rev1", ownershipClaims: [{ path: "docs", recursive: true, sourcePattern: "docs/**" }] });
+    assert.notEqual(a, b);
+  });
 });
 
 describe("computeOwnershipClaimsHash", () => {

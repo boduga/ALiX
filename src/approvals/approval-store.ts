@@ -13,9 +13,29 @@ import { randomUUID } from "node:crypto";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
 import type { ApprovalStatus, ApprovalRecord, ApprovalGroup, ConsumeResult } from "./approval-types.js";
+import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 import { APPROVAL_EVENT_TYPES } from "../events/types.js";
+
+export type ApprovalRequestInput = {
+  reason: string;
+  bindingKey: string;
+  requestFingerprint: string;
+  policyRevision: string;
+  capabilities: string[];
+  ownershipClaims?: WorkerOwnershipClaim[];
+  coordinationRunId?: string;
+  workerId?: string;
+  workerAttempt?: number;
+  graphId?: string;
+  nodeId?: string;
+  sessionId?: string;
+  toolId?: string;
+  riskLevel?: "low" | "medium" | "high" | "critical";
+  groupId?: string;
+  expiresAt?: string;
+};
 
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
@@ -104,7 +124,62 @@ export class ApprovalStore {
     }
   }
 
-  /** Create a new pending approval request. */
+  // ─── Enriched request types ───────────────────────────────────────
+
+  /** Enriched request with exact binding — uses mutate() for lock safety. */
+  async requestBound(input: ApprovalRequestInput): Promise<ApprovalRecord> {
+    return this.mutate((approvals) => {
+      // Deduplicate by pending binding key
+      const existing = approvals.find(a => a.status === "pending" && a.bindingKey === input.bindingKey && a.bindingKey !== "");
+      if (existing) return existing;
+
+      const record: ApprovalRecord = {
+        id: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        schemaVersion: "2.0",
+        status: "pending",
+        usePolicy: "single_use",
+        bindingKey: input.bindingKey,
+        requestFingerprint: input.requestFingerprint,
+        policyRevision: input.policyRevision,
+        capabilities: input.capabilities,
+        ownershipClaims: input.ownershipClaims ?? [],
+        reason: input.reason,
+        createdAt: new Date().toISOString(),
+        expiresAt: input.expiresAt ?? new Date(Date.now() + 30 * 60_000).toISOString(),
+        coordinationRunId: input.coordinationRunId,
+        workerId: input.workerId,
+        workerAttempt: input.workerAttempt,
+        graphId: input.graphId,
+        nodeId: input.nodeId,
+        sessionId: input.sessionId,
+        toolId: input.toolId,
+        riskLevel: input.riskLevel,
+        groupId: input.groupId,
+      };
+      approvals.push(record);
+
+      // Emit event after successful mutation
+      this.eventLog?.append({
+        sessionId: record.sessionId ?? "unknown",
+        actor: "policy",
+        type: APPROVAL_EVENT_TYPES.CREATED,
+        payload: {
+          approvalId: record.id,
+          coordinationRunId: record.coordinationRunId,
+          workerId: record.workerId,
+          capabilities: record.capabilities,
+          bindingKey: record.bindingKey,
+          policyRevision: record.policyRevision,
+          status: record.status,
+          timestamp: record.createdAt,
+        },
+      }).catch(() => {});
+
+      return record;
+    });
+  }
+
+  /** Legacy request wrapper — generates a safe binding from available fields. */
   async request(opts: {
     reason: string;
     graphId?: string;
@@ -114,95 +189,71 @@ export class ApprovalStore {
     toolId?: string;
     riskLevel?: "low" | "medium" | "high" | "critical";
   }): Promise<ApprovalRecord> {
-    const record: ApprovalRecord = {
-      id: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-      schemaVersion: "2.0",
-      status: "pending",
-      usePolicy: "single_use",
-      bindingKey: "",
-      requestFingerprint: "",
-      policyRevision: "",
+    const { computeBindingKey } = await import("./approval-binding.js");
+    const requestFingerprint = `legacy:${opts.capability ?? "unknown"}:${opts.graphId ?? ""}:${opts.nodeId ?? ""}:${opts.sessionId ?? ""}`;
+    const bindingKey = computeBindingKey({
       capabilities: opts.capability ? [opts.capability] : [],
       ownershipClaims: [],
-      createdAt: new Date().toISOString(),
-      expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
+      requestFingerprint,
+      policyRevision: "legacy",
+      graphId: opts.graphId,
+      nodeId: opts.nodeId,
+      sessionId: opts.sessionId,
+    });
+    return this.requestBound({
       reason: opts.reason,
+      bindingKey,
+      requestFingerprint,
+      policyRevision: "legacy",
+      capabilities: opts.capability ? [opts.capability] : [],
       graphId: opts.graphId,
       nodeId: opts.nodeId,
       sessionId: opts.sessionId,
       toolId: opts.toolId,
       riskLevel: opts.riskLevel,
-    };
-    this.approvals.push(record);
-    this.dirty = true;
-    await this.save();
-
-    // Emit approval.created event
-    this.eventLog?.append({
-      sessionId: record.sessionId ?? "unknown",
-      actor: "policy" as const,
-      type: APPROVAL_EVENT_TYPES.CREATED,
-      payload: {
-        approvalId: record.id,
-        coordinationRunId: record.coordinationRunId,
-        workerId: record.workerId,
-        capabilities: record.capabilities,
-        bindingKey: record.bindingKey,
-        policyRevision: record.policyRevision,
-        status: record.status,
-        timestamp: record.createdAt,
-      },
-    }).catch(() => {});
-
-    this.auditStore?.append({ action: "approval.created", actor: "policy", details: {
-      approvalId: record.id, graphId: opts.graphId, nodeId: opts.nodeId,
-      capability: opts.capability, reason: opts.reason,
-    }}).catch(() => {});
-    return record;
+    });
   }
 
-  /** Resolve a pending approval. */
+  /** Resolve a pending approval — uses mutate() for lock safety. */
   async resolve(
     id: string,
     status: "approved" | "denied",
     decisionReason?: string,
   ): Promise<ApprovalRecord | null> {
-    const record = this.approvals.find(a => a.id === id);
-    if (!record) return null;
-    if (record.status !== "pending") return record; // already resolved
-    record.status = status;
-    record.decidedAt = new Date().toISOString();
-    record.decisionReason = decisionReason;
+    const resolved = await this.mutate((approvals) => {
+      const record = approvals.find(a => a.id === id);
+      if (!record || record.status !== "pending") { return record ?? null; }
+      record.status = status;
+      record.decidedAt = new Date().toISOString();
+      record.decisionReason = decisionReason;
+      return { ...record } as ApprovalRecord;
+    });
 
-    // Emit approval.resolved event
-    if (this.eventLog) {
-      await this.eventLog.append({
-        sessionId: record.sessionId ?? "unknown",
+    // Emit events after lock is released
+    if (resolved && resolved.status === status) {
+      this.eventLog?.append({
+        sessionId: resolved.sessionId ?? "unknown",
         actor: "policy",
         type: APPROVAL_EVENT_TYPES.RESOLVED,
         payload: {
           approvalId: id,
-          coordinationRunId: record.coordinationRunId,
-          workerId: record.workerId,
-          capabilities: record.capabilities,
-          bindingKey: record.bindingKey,
-          policyRevision: record.policyRevision,
-          status: status,
-          actor: record.decidedBy,
+          coordinationRunId: resolved.coordinationRunId,
+          workerId: resolved.workerId,
+          capabilities: resolved.capabilities,
+          bindingKey: resolved.bindingKey,
+          policyRevision: resolved.policyRevision,
+          status,
           reason: decisionReason,
-          timestamp: record.decidedAt,
+          timestamp: resolved.decidedAt,
         },
       }).catch(() => {});
+      this.auditStore?.append({
+        action: status === "approved" ? "approval.approved" : "approval.denied",
+        actor: "user",
+        details: { approvalId: id, reason: decisionReason },
+      }).catch(() => {});
     }
-
-    this.auditStore?.append({
-      action: status === "approved" ? "approval.approved" : "approval.denied",
-      actor: "user",
-      details: { approvalId: id, reason: decisionReason },
-    }).catch(() => {});
-    this.dirty = true;
-    await this.save();
-    return record;
+    return resolved;
   }
 
   /** List all approvals, newest first. */
@@ -299,8 +350,10 @@ export class ApprovalStore {
       const r = approvals.find(a => a.id === id);
       if (!r) { result = { consumed: false, reason: "not found" }; return; }
       if (r.status !== "approved") { result = { consumed: false, reason: `status is ${r.status}` }; return; }
-      if (new Date(r.expiresAt) <= new Date()) { result = { consumed: false, reason: "expired" }; return; }
+      const now = consumer.now ?? new Date();
+      if (new Date(r.expiresAt) <= now) { result = { consumed: false, reason: "expired" }; return; }
       if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
+      if (r.workerId && consumer.workerId && r.workerId !== consumer.workerId) { result = { consumed: false, reason: "worker mismatch" }; return; }
       r.status = "consumed";
       r.consumedAt = (consumer.now ?? new Date()).toISOString();
       r.consumedByWorkerId = consumer.workerId;
