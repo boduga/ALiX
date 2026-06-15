@@ -93,9 +93,9 @@ describe("ApprovalStore", () => {
     const { store, cleanup } = freshStore();
     try {
       await store.load();
-      const a = await store.request({ reason: "first" });
+      const a = await store.request({ reason: "first", graphId: "list-test-a" });
       await new Promise(r => setTimeout(r, 2)); // ensure distinct timestamps
-      const b = await store.request({ reason: "second" });
+      const b = await store.request({ reason: "second", graphId: "list-test-b" });
       const list = store.list();
       assert.equal(list[0].id, b.id, "newer item should be first");
       assert.equal(list[1].id, a.id, "older item should be second");
@@ -106,8 +106,8 @@ describe("ApprovalStore", () => {
     const { store, cleanup } = freshStore();
     try {
       await store.load();
-      const a = await store.request({ reason: "pending one" });
-      const b = await store.request({ reason: "pending two" });
+      const a = await store.request({ reason: "pending one", graphId: "pending-a" });
+      const b = await store.request({ reason: "pending two", graphId: "pending-b" });
       await store.resolve(b.id, "denied");
       const pending = store.listPending();
       assert.equal(pending.length, 1);
