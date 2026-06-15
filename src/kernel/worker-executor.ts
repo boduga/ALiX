@@ -27,3 +27,45 @@ export interface CoordinationWorkerExecutor {
     signal: AbortSignal,
   ): Promise<WorkerExecutionResult>;
 }
+
+/**
+ * DefaultWorkerExecutor — concrete implementation that delegates to runTask()
+ * for each worker execution. Passes through the AbortSignal for cancellation.
+ *
+ * Used by the CLI foreground mode and as the default executor when no
+ * custom executor is injected into CoordinationScheduler.
+ */
+export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
+  async execute(
+    worker: WorkerAssignment,
+    context: WorkerExecutionContext,
+    signal: AbortSignal,
+  ): Promise<WorkerExecutionResult> {
+    try {
+      const { runTask } = await import("../run.js");
+      const result = await runTask(context.cwd, worker.goalPrompt, {
+        sessionMode: "auto",
+        streaming: false,
+      });
+
+      if (signal.aborted) {
+        return { outcome: "failure", failureKind: "timeout", error: "Execution cancelled" };
+      }
+
+      return {
+        outcome: "success",
+        summary: result.summary,
+        outputPath: result.sessionId,
+      };
+    } catch (error) {
+      if (signal.aborted) {
+        return { outcome: "failure", failureKind: "timeout", error: "Execution cancelled" };
+      }
+      return {
+        outcome: "failure",
+        failureKind: "execution_error",
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+}
