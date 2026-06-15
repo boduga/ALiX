@@ -12,7 +12,7 @@ import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
-import type { ApprovalStatus, ApprovalRecord } from "./approval-types.js";
+import type { ApprovalStatus, ApprovalRecord, ConsumeResult } from "./approval-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 
@@ -191,6 +191,105 @@ export class ApprovalStore {
   /** Find a pending approval by binding key. */
   findPendingByBindingKey(bindingKey: string): ApprovalRecord | undefined {
     return this.approvals.find(a => a.status === "pending" && a.bindingKey === bindingKey);
+  }
+
+  /**
+   * Mark all pending or approved approvals past their expiry as expired.
+   * Returns the list of newly expired records.
+   */
+  async expireDue(now?: Date): Promise<ApprovalRecord[]> {
+    const cutoff = now ?? new Date();
+    const expired: ApprovalRecord[] = [];
+    await this.mutate((approvals) => {
+      for (const r of approvals) {
+        if ((r.status === "pending" || r.status === "approved") && new Date(r.expiresAt) <= cutoff) {
+          r.status = "expired";
+          expired.push({ ...r });
+        }
+      }
+    });
+    return expired;
+  }
+
+  /**
+   * Revoke an approval. Terminal states (consumed, expired) cannot be revoked.
+   */
+  async revoke(id: string, context: { actor: string; reason: string; now?: Date }): Promise<ApprovalRecord | null> {
+    let revoked: ApprovalRecord | null = null;
+    await this.mutate((approvals) => {
+      const r = approvals.find(a => a.id === id);
+      if (!r || r.status === "consumed" || r.status === "expired") return;
+      r.status = "revoked";
+      r.revokedAt = (context.now ?? new Date()).toISOString();
+      r.revokedBy = context.actor;
+      r.revocationReason = context.reason;
+      revoked = { ...r };
+    });
+    return revoked;
+  }
+
+  /**
+   * Invalidate all approved approvals whose policy revision doesn't match.
+   */
+  async invalidateByPolicyRevision(currentRevision: string, now?: Date): Promise<ApprovalRecord[]> {
+    const invalidated: ApprovalRecord[] = [];
+    await this.mutate((approvals) => {
+      for (const r of approvals) {
+        if (r.status === "approved" && r.policyRevision !== currentRevision) {
+          r.status = "invalidated";
+          r.invalidatedAt = (now ?? new Date()).toISOString();
+          r.invalidationReason = `Policy revision changed to ${currentRevision}`;
+          invalidated.push({ ...r });
+        }
+      }
+    });
+    return invalidated;
+  }
+
+  /**
+   * Atomically consume a single-use approved approval.
+   * Validates: status, expiry, binding key match.
+   */
+  async consumeApproved(
+    id: string,
+    expectedBindingKey: string,
+    consumer: { workerId?: string; workerAttempt?: number; now?: Date },
+  ): Promise<ConsumeResult> {
+    let result: ConsumeResult = { consumed: false, reason: "not found" };
+    await this.mutate((approvals) => {
+      const r = approvals.find(a => a.id === id);
+      if (!r) { result = { consumed: false, reason: "not found" }; return; }
+      if (r.status !== "approved") { result = { consumed: false, reason: `status is ${r.status}` }; return; }
+      if (new Date(r.expiresAt) <= new Date()) { result = { consumed: false, reason: "expired" }; return; }
+      if (r.bindingKey !== expectedBindingKey) { result = { consumed: false, reason: "binding key mismatch" }; return; }
+      r.status = "consumed";
+      r.consumedAt = (consumer.now ?? new Date()).toISOString();
+      r.consumedByWorkerId = consumer.workerId;
+      r.consumedAttempt = consumer.workerAttempt;
+      result = { consumed: true, record: { ...r } };
+    });
+    return result;
+  }
+
+  /**
+   * List approvals for a specific coordination run.
+   */
+  listByRun(runId: string): ApprovalRecord[] {
+    return this.approvals.filter(a => a.coordinationRunId === runId);
+  }
+
+  /**
+   * List approvals for a specific worker.
+   */
+  listByWorker(workerId: string): ApprovalRecord[] {
+    return this.approvals.filter(a => a.workerId === workerId);
+  }
+
+  /**
+   * List approvals belonging to a group.
+   */
+  listByGroup(groupId: string): ApprovalRecord[] {
+    return this.approvals.filter(a => a.groupId === groupId);
   }
 
   /** Find existing pending approval for a given graph/node/capability. */
