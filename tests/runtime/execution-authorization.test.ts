@@ -67,6 +67,17 @@ function makeOwnershipGate(passes: boolean): any {
 
 // ── Helpers ───────────────────────────────────────────────────────────
 
+function makeFakeToolRegistry(): any {
+  return {
+    lookupByName: (name: string) => {
+      if (name === "file.write" || name === "file.delete" || name === "shell.run" || name === "patch.apply") {
+        return { mutates: true, name, capabilityId: name, risk: "medium", domain: "filesystem", description: "", alwaysInclude: false, tags: [] };
+      }
+      return undefined;
+    },
+  };
+}
+
 function makeRequest(overrides?: Partial<ExecutionDecisionRequest>): ExecutionDecisionRequest {
   return {
     requestId: "req-1",
@@ -137,6 +148,7 @@ describe("ExecutionAuthorization", () => {
   it("denies when ownership gate fails", async () => {
     deps.policyGate = new FakePolicyGate({ toolResult: { decision: "allow" } }) as any;
     deps.ownershipGateConfig = makeOwnershipGate(false);
+    deps.toolRegistry = makeFakeToolRegistry();
     const auth = new ExecutionAuthorization(deps);
     const result = await auth.evaluate(makeRequest({ toolName: "file.write", args: { path: "/etc/passwd" } }));
     assert.equal(result.status, "denied");
@@ -146,6 +158,7 @@ describe("ExecutionAuthorization", () => {
   it("allows when ownership gate passes", async () => {
     deps.policyGate = new FakePolicyGate({ toolResult: { decision: "allow" } }) as any;
     deps.ownershipGateConfig = makeOwnershipGate(true);
+    deps.toolRegistry = makeFakeToolRegistry();
     const auth = new ExecutionAuthorization(deps);
     const result = await auth.evaluate(makeRequest({ toolName: "file.write", args: { path: "/safe/file.txt" } }));
     assert.equal(result.status, "allowed");

@@ -14,6 +14,7 @@ import type { OwnershipGateConfig } from "../ownership/ownership-gate.js";
 import type { CapabilityRegistry } from "../policy/capability-registry.js";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
+import type { ToolRegistry } from "../tools/tool-registry.js";
 import { checkOwnershipGate } from "../ownership/ownership-gate.js";
 import type { ExecutionDecision, ExecutionDecisionRequest } from "./execution-decision.js";
 import { decisionAllowed, decisionDenied, decisionApprovalRequired } from "./execution-decision.js";
@@ -22,25 +23,10 @@ export type AuthorizationDeps = {
   policyGate: PolicyGate;
   ownershipGateConfig?: OwnershipGateConfig;
   capabilityRegistry?: CapabilityRegistry;
+  toolRegistry?: ToolRegistry;
   auditStore?: AuditStore;
   eventLog?: EventLog;
 };
-
-/**
- * Simple capability classification for ownership gate.
- * Write-capable capabilities are: file.write, file.delete, shell.run, patch.apply.
- */
-function isMutatingCapability(capability: string): boolean {
-  switch (capability) {
-    case "file.write":
-    case "file.delete":
-    case "shell.run":
-    case "patch.apply":
-      return true;
-    default:
-      return false;
-  }
-}
 
 export class ExecutionAuthorization {
   constructor(private deps: AuthorizationDeps) {}
@@ -107,9 +93,11 @@ export class ExecutionAuthorization {
     }
 
     // ── Step 4: Ownership gate ───────────────────────────────────
-    // Only run ownership check for known-mutating capabilities
-    if (ownershipGateConfig && request.toolName && request.args) {
-      const mutatesCap = isMutatingCapability(request.capability);
+    // Determines mutability from the tool registry's authoritative `mutates` flag,
+    // covering any tool registered as mutating (including MCP, custom tools, etc.).
+    if (ownershipGateConfig && request.toolName && request.args && this.deps.toolRegistry) {
+      const cap = this.deps.toolRegistry.lookupByName(request.toolName);
+      const mutatesCap = cap?.mutates ?? false;
       if (mutatesCap) {
         const ownershipResult = await checkOwnershipGate(
           ownershipGateConfig,
@@ -146,10 +134,26 @@ export class ExecutionAuthorization {
     decision: ExecutionDecision,
     extras: { riskLevel?: string; policyDecision?: unknown; ownershipResult?: unknown },
   ): Promise<void> {
-    // Narrow the discriminated union for field access
-    const reason = decision.status === "denied" || decision.status === "approval_required" ? decision.reason : undefined;
-    const policyRuleId = "policyRuleId" in decision ? (decision as any).policyRuleId as string | undefined : undefined;
-    const approvalId = decision.status === "allowed" || decision.status === "approval_required" ? (decision as any).approvalId as string | undefined : undefined;
+    // Narrow the discriminated union for field access — no `as any` casts
+    let reason: string | undefined;
+    let policyRuleId: string | undefined;
+    let approvalId: string | undefined;
+    switch (decision.status) {
+      case "allowed":
+        policyRuleId = decision.policyRuleId;
+        approvalId = decision.approvalId;
+        break;
+      case "denied":
+        reason = decision.reason;
+        policyRuleId = decision.policyRuleId;
+        approvalId = decision.approvalId;
+        break;
+      case "approval_required":
+        approvalId = decision.approvalId;
+        reason = decision.reason;
+        policyRuleId = decision.policyRuleId;
+        break;
+    }
     const action = `authorization.${decision.status}` as "authorization.allowed" | "authorization.denied" | "authorization.approval_required";
 
     const auditPromise = auditStore?.append({

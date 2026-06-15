@@ -170,6 +170,7 @@ export class ToolExecutor {
     const policyGate = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
     const execAuth = new ExecutionAuthorization({
       policyGate,
+      toolRegistry: this.toolRegistry,
       ownershipGateConfig: this.ownershipRegistry && this.workspacePathResolver
         ? { registry: this.ownershipRegistry, resolver: this.workspacePathResolver, autoAcquire: this.config.ownership?.autoAcquire ?? true }
         : undefined,

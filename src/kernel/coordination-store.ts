@@ -10,7 +10,7 @@
  * concurrently from multiple processes.
  */
 
-import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment, WorkerStatus } from "./coordination-types.js";
@@ -81,7 +81,7 @@ export class CoordinationStore {
   async delete(runId: string): Promise<boolean> {
     const path = this.runPath(runId);
     if (!existsSync(path)) return false;
-    await writeFile(path, JSON.stringify({ deleted: true, runId }), "utf-8");
+    await unlink(path);
     return true;
   }
 
@@ -125,9 +125,9 @@ export class CoordinationStore {
     );
   }
 
-  /** Find the next worker that is ready and not yet assigned. */
+  /** Find the next worker that is ready and waiting for assignment. */
   nextReadyWorker(run: CoordinationRun): WorkerAssignment | undefined {
-    return this.getReadyWorkers(run).find(w => w.status !== "running");
+    return this.getReadyWorkers(run)[0];
   }
 
   /** Check if all workers in a run have reached a terminal state. */
