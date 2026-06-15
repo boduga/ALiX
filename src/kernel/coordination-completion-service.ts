@@ -65,9 +65,10 @@ export class CoordinationCompletionService {
         }
       }
 
-      // Persist aggregate atomically
-      const aggregateRef = await this.deps.aggregateStore.persist(summary);
+      // Compute ref deterministically before persisting
+      const aggregateRef = `.alix/coordination/results/runs/${summary.runId}.json`;
       summary.aggregateRef = aggregateRef;
+      await this.deps.aggregateStore.persist(summary);
 
       // Attach metadata to run (lock-safe via updateRun)
       await this.deps.coordinationStore.attachAggregate(runId, {

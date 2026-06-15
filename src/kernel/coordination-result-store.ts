@@ -7,7 +7,7 @@
 
 import { writeFile, rename as renameFile, mkdir, readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { join, relative, isAbsolute } from "node:path";
+import { join, relative, isAbsolute, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { WorkerFailureKind, WorkerAssignment } from "./coordination-types.js";
 
@@ -60,9 +60,11 @@ export function requiresResultRecord(worker: WorkerAssignment): boolean {
 }
 
 export class CoordinationResultStore {
-  private baseDir: string;
+  private readonly cwd: string;
+  private readonly baseDir: string;
 
   constructor(cwd: string) {
+    this.cwd = cwd;
     this.baseDir = join(cwd, ".alix", "coordination", "results");
   }
 
@@ -120,12 +122,13 @@ export class CoordinationResultStore {
    */
   async loadByRef(resultRef: string): Promise<ResultLoadResult> {
     // Reject absolute paths
-    if (resultRef.startsWith("/")) {
+    if (isAbsolute(resultRef)) {
       return { status: "invalid_ref", message: "Absolute paths not allowed" };
     }
-    // Resolve and verify containment within the results directory
-    const resolved = join(this.baseDir, resultRef);
+    // Resolve against workspace root, not baseDir
+    const resolved = resolve(this.cwd, resultRef);
     const rel = relative(this.baseDir, resolved);
+    // The resolved path must be within the results directory and be a .json file
     if (rel.startsWith("..") || isAbsolute(rel) || !rel.endsWith(".json")) {
       return { status: "invalid_ref", message: "Reference outside result directory or invalid format" };
     }
