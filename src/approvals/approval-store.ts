@@ -12,12 +12,13 @@ import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
-import type { ApprovalStatus, ApprovalRecord, ConsumeResult } from "./approval-types.js";
+import type { ApprovalStatus, ApprovalRecord, ApprovalGroup, ConsumeResult } from "./approval-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
 
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
+  private groups: ApprovalGroup[] = [];
   private dirty = false;
   private filePath: string;
   private cwd: string;
@@ -35,17 +36,30 @@ export class ApprovalStore {
   async load(): Promise<void> {
     if (!existsSync(this.filePath)) {
       this.approvals = [];
+      this.groups = [];
       this.dirty = false;
       return;
     }
     try {
       const raw = await readFile(this.filePath, "utf-8");
-      this.approvals = (JSON.parse(raw) as any[]).map(r =>
-        normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
-      );
+      const parsed = JSON.parse(raw);
+      // Support both old format (array) and new format ({ approvals, groups })
+      if (Array.isArray(parsed)) {
+        this.approvals = (parsed as any[]).map(r =>
+          normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
+        );
+        this.groups = [];
+      } else {
+        const data = parsed as { approvals?: any[]; groups?: ApprovalGroup[] };
+        this.approvals = (data.approvals ?? []).map(r =>
+          normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
+        );
+        this.groups = data.groups ?? [];
+      }
       this.dirty = false;
     } catch {
       this.approvals = [];
+      this.groups = [];
       this.dirty = false;
     }
   }
@@ -64,7 +78,8 @@ export class ApprovalStore {
     }
     const token = randomUUID().slice(0, 8);
     const tmpPath = `${this.filePath}.tmp.${token}`;
-    await writeFile(tmpPath, JSON.stringify(this.approvals, null, 2), "utf-8");
+    const state = { approvals: this.approvals, groups: this.groups ?? [] };
+    await writeFile(tmpPath, JSON.stringify(state, null, 2), "utf-8");
     await renameFile(tmpPath, this.filePath);
     this.dirty = false;
   }
@@ -290,6 +305,108 @@ export class ApprovalStore {
    */
   listByGroup(groupId: string): ApprovalRecord[] {
     return this.approvals.filter(a => a.groupId === groupId);
+  }
+
+  /**
+   * Create an approval group linking multiple approval records.
+   * All approvals must share the same run, worker, attempt, scope hash,
+   * policy revision, and risk level.
+   */
+  async createGroup(input: {
+    approvalIds: string[];
+    coordinationRunId?: string;
+    workerId?: string;
+    workerAttempt?: number;
+    policyRevision: string;
+    riskLevel?: "low" | "medium" | "high" | "critical";
+    now?: Date;
+  }): Promise<ApprovalGroup | null> {
+    const now = input.now ?? new Date();
+    const approvals = this.approvals.filter(a => input.approvalIds.includes(a.id));
+
+    // Validate all exist and are pending
+    if (approvals.length !== input.approvalIds.length) return null;
+    if (approvals.some(a => a.status !== "pending")) return null;
+
+    // Validate compatibility
+    const first = approvals[0];
+    if (approvals.some(a =>
+      a.coordinationRunId !== first.coordinationRunId ||
+      a.workerId !== first.workerId ||
+      a.policyRevision !== first.policyRevision
+    )) return null;
+
+    const group: ApprovalGroup = {
+      id: `group_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      schemaVersion: "1.0",
+      approvalIds: [...input.approvalIds],
+      coordinationRunId: input.coordinationRunId,
+      workerId: input.workerId,
+      workerAttempt: input.workerAttempt,
+      policyRevision: input.policyRevision,
+      riskLevel: input.riskLevel,
+      status: "pending",
+      createdAt: now.toISOString(),
+    };
+
+    // Link approvals to group
+    for (const a of approvals) {
+      a.groupId = group.id;
+    }
+
+    this.dirty = true;
+    // Store groups alongside approvals
+    this.groups ??= [];
+    this.groups.push(group);
+    await this.save();
+    return group;
+  }
+
+  /**
+   * Atomically resolve an entire group.
+   * All members must still be pending.
+   * Sets partial status when some are already resolved.
+   */
+  async resolveGroup(
+    groupId: string,
+    status: "approved" | "denied",
+    context: { actor: string; reason?: string; now?: Date },
+  ): Promise<ApprovalGroup | null> {
+    let group: ApprovalGroup | null = null;
+    await this.mutate((approvals) => {
+      const g = (this.groups ?? []).find(gr => gr.id === groupId);
+      if (!g) return;
+      if (g.status !== "pending") { group = { ...g }; return; }
+
+      const members = approvals.filter(a => g.approvalIds.includes(a.id));
+      const allStillPending = members.every(a => a.status === "pending");
+
+      if (allStillPending) {
+        // All pending — resolve all
+        for (const a of members) {
+          a.status = status;
+          a.decidedAt = (context.now ?? new Date()).toISOString();
+          a.decisionReason = context.reason;
+          a.decidedBy = context.actor;
+        }
+        g.status = status;
+      } else {
+        // Some already resolved — set partial
+        g.status = "partial";
+      }
+
+      g.decidedAt = (context.now ?? new Date()).toISOString();
+      g.decisionReason = context.reason;
+      group = { ...g };
+    });
+    return group;
+  }
+
+  /**
+   * Get a group by ID.
+   */
+  getGroup(groupId: string): ApprovalGroup | undefined {
+    return (this.groups ?? []).find(g => g.id === groupId);
   }
 
   /** Find existing pending approval for a given graph/node/capability. */
