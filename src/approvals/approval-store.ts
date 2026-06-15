@@ -15,6 +15,7 @@ import type { EventLog } from "../events/event-log.js";
 import type { ApprovalStatus, ApprovalRecord, ApprovalGroup, ConsumeResult } from "./approval-types.js";
 import { normalizeApprovalRecord } from "./approval-binding.js";
 import { ApprovalStoreLock } from "./approval-store-lock.js";
+import { APPROVAL_EVENT_TYPES } from "../events/types.js";
 
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
@@ -135,6 +136,24 @@ export class ApprovalStore {
     this.approvals.push(record);
     this.dirty = true;
     await this.save();
+
+    // Emit approval.created event
+    this.eventLog?.append({
+      sessionId: record.sessionId ?? "unknown",
+      actor: "policy" as const,
+      type: APPROVAL_EVENT_TYPES.CREATED,
+      payload: {
+        approvalId: record.id,
+        coordinationRunId: record.coordinationRunId,
+        workerId: record.workerId,
+        capabilities: record.capabilities,
+        bindingKey: record.bindingKey,
+        policyRevision: record.policyRevision,
+        status: record.status,
+        timestamp: record.createdAt,
+      },
+    }).catch(() => {});
+
     this.auditStore?.append({ action: "approval.created", actor: "policy", details: {
       approvalId: record.id, graphId: opts.graphId, nodeId: opts.nodeId,
       capability: opts.capability, reason: opts.reason,
@@ -160,13 +179,18 @@ export class ApprovalStore {
       await this.eventLog.append({
         sessionId: record.sessionId ?? "unknown",
         actor: "policy",
-        type: "approval.resolved",
+        type: APPROVAL_EVENT_TYPES.RESOLVED,
         payload: {
           approvalId: id,
+          coordinationRunId: record.coordinationRunId,
+          workerId: record.workerId,
           capabilities: record.capabilities,
-          sessionId: record.sessionId,
-          status: status === "approved" ? ("approved" as const) : ("denied" as const),
+          bindingKey: record.bindingKey,
+          policyRevision: record.policyRevision,
+          status: status,
+          actor: record.decidedBy,
           reason: decisionReason,
+          timestamp: record.decidedAt,
         },
       }).catch(() => {});
     }

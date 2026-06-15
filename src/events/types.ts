@@ -372,6 +372,13 @@ export const APPROVAL_EVENT_TYPES = {
   RESUME_FAILED: "approval.resume.failed",
   CONTINUATION_CREATED: "continuation.created",
   CONTINUATION_CONSUMED: "continuation.consumed",
+
+  // Lifecycle event types
+  CONSUMED: "approval.consumed",
+  EXPIRED: "approval.expired",
+  REVOKED: "approval.revoked",
+  INVALIDATED: "approval.invalidated",
+  GROUP_RESOLVED: "approval.group.resolved",
 } as const;
 
 // ─── Replay lifecycle event types ───────────────────────────
