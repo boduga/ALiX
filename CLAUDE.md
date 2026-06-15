@@ -19,8 +19,8 @@ This project is indexed by GitNexus as **ALiX** (13613 symbols, 24598 relationsh
 - NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
 - NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
 - NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
-- NEVER push directly to `main`. Always create a feature branch, push it, open a PR, and merge via PR — never `git push origin main`. This ensures Greptile reviews every change and the Grep Loop can run.
-- NEVER merge a PR before Greptile reaches 5/5 confidence score. If stuck below 5/5 after 5 Grep Loop iterations, review manually and re-trigger.
+- NEVER push directly to `main`. Always create a feature branch, push it, open a PR, and merge via PR — never `git push origin main`. This ensures PR-Agent (Qodo Merge) reviews every change and the Grep Loop can run.
+- NEVER merge a PR before PR-Agent completes its review (confidence ≥ acceptable). If blocked by review tool limits (e.g. API key unset, trial exhausted), review manually and merge after confirming all previous review issues are fixed. For manual review: read the fix diff and verify each previous issue is addressed, then run `git nexus detect_changes` to confirm blast radius is contained.
 
 ## Resources
 

@@ -14,7 +14,10 @@ export type AuditAction =
   | "runtime.allowed"
   | "runtime.requires_approval"
   | "graph.continued"
-  | "graph.completed";
+  | "graph.completed"
+  | "authorization.allowed"
+  | "authorization.denied"
+  | "authorization.approval_required";
 
 export interface AuditDetails {
   graphId?: string;
@@ -26,6 +29,12 @@ export interface AuditDetails {
   reason?: string;
   sessionId?: string;
   durationMs?: number;
+  requestId?: string;
+  toolName?: string;
+  agentId?: string;
+  source?: string;
+  decision?: string;
+  riskLevel?: string;
 }
 
 export interface AuditRecord {

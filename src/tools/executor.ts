@@ -154,56 +154,54 @@ export class ToolExecutor {
 
     await this.logEvent(TOOL_EVENT_TYPES.REQUESTED, { toolCallId, toolName: name, capability, canonicalCapability, argumentHash, argsPreview: sanitizeArgs(args), ...replayPayloadFields });
 
-    // Continuation resumes bypass PolicyGate — approval was already verified.
+    // Continuation resumes bypass main policy gate — approval was already verified.
     // But OwnershipGate runs ALWAYS (even for continuation-resume).
-    const gateResult = await this.checkOwnershipGate(request, name, args);
-    if (gateResult) return gateResult;
-
     if (request.source === "continuation-resume") {
+      const contGateResult = await this.checkOwnershipGate(request, name, args);
+      if (contGateResult) return contGateResult;
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
       return await this.toolAwareRouter.downstream.execute(request);
     }
 
-    // Single policy decision via PolicyGate
+    // Unified authorization via ExecutionAuthorization — composes PolicyGate,
+    // OwnershipGate, and audit/event emission into a single decision.
+    const { ExecutionAuthorization } = await import("../runtime/execution-authorization.js");
     const { PolicyGate } = await import("../policy/policy-gate.js");
     const policyGate = new PolicyGate(this.config, { eventLog: this.log, approvalStore: this.approvalStore });
-    const policyDecision = await policyGate.evaluateToolCall({
+    const execAuth = new ExecutionAuthorization({
+      policyGate,
+      toolRegistry: this.toolRegistry,
+      ownershipGateConfig: this.ownershipRegistry && this.workspacePathResolver
+        ? { registry: this.ownershipRegistry, resolver: this.workspacePathResolver, autoAcquire: this.config.ownership?.autoAcquire ?? true }
+        : undefined,
+    });
+
+    const decision = await execAuth.evaluate({
       requestId: toolCallId,
-      toolName: name,
       capability,
+      toolName: name,
       args,
       cwd: this.root,
       sessionMode: this.config.permissions.sessionMode ?? "ask",
       sessionId: this.sessionId(),
+      agentId: request.agentId ?? "alix",
       source: "tool",
     });
 
-    await this.log.append({
-      sessionId: this.sessionId(), actor: "policy",
-      type: "policy.decision",
-      payload: {
-        toolCallId,
-        capability,
-        decision: policyDecision.decision,
-        reason: policyDecision.reason,
-        matchedRuleId: policyDecision.matchedRuleId,
-        ...replayPayloadFields,
-      },
-    });
-
-    if (policyDecision.decision === "deny") {
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: policyDecision.reason, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
-      return { kind: "denied", reason: policyDecision.reason };
+    // Denied — policy or ownership rejected this call
+    if (decision.status === "denied") {
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: decision.reason, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
+      return { kind: "denied", reason: decision.reason };
     }
 
-    if (policyDecision.decision === "ask") {
-      // Persist continuation so approval can resume this tool call
+    // Approval required — persist continuation for later approval resume
+    if (decision.status === "approval_required") {
       try {
         const { ContinuationStore } = await import("../runtime/continuation-store.js");
         const continuationStore = new ContinuationStore(this.root);
         await continuationStore.load();
         await continuationStore.persist({
-          approvalId: policyDecision.approvalId!,
+          approvalId: decision.approvalId,
           kind: "tool",
           sessionId: this.sessionId(),
           cwd: this.root,
@@ -218,12 +216,11 @@ export class ToolExecutor {
           createdAt: new Date().toISOString(),
         });
       } catch (err) {
-        // Continuation is best-effort — if persistence fails, the user can still manually re-run
         console.error("Failed to persist continuation:", err);
       }
 
-      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${policyDecision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
-      return { kind: "denied", reason: `Approval required (${policyDecision.approvalId}): ${policyDecision.reason}` };
+      await this.logEvent(TOOL_EVENT_TYPES.FAILED, { toolCallId, toolName: name, error: `Approval required: ${decision.approvalId}`, durationMs: 0, canonicalCapability, argumentHash, ...replayPayloadFields });
+      return { kind: "denied", reason: `Approval required (${decision.approvalId}): ${decision.reason}` };
     }
 
     // Handle special case: "done" tool (not in router)
