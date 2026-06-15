@@ -69,6 +69,6 @@ describe("TUI approval store cross-instance persistence", () => {
     const pending = storeB.listPending();
 
     assert.ok(pending.length > 0, "storeB must see approvals from storeA after load()");
-    assert.ok(pending.some(a => a.capability === "test.read"), "must find the cross-instance approval");
+    assert.ok(pending.some(a => a.capabilities.includes("test.read")), "must find the cross-instance approval");
   });
 });

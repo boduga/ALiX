@@ -10,7 +10,7 @@ export type ApprovalManagerResult =
   | { handled: true; message: string; action?: "approved" | "denied"; approvalId?: string };
 
 export interface ApprovalManagerDeps {
-  listPendingApprovals(): Promise<Array<{ id: string; capability?: string; reason: string; toolId?: string; createdAt: string }>>;
+  listPendingApprovals(): Promise<Array<{ id: string; capabilities?: string[]; reason: string; toolId?: string; createdAt: string }>>;
   resolveApproval(id: string, status: "approved" | "denied"): Promise<{ success: boolean; message: string }>;
 }
 
@@ -54,7 +54,7 @@ export class ApprovalManager {
       return { handled: true, message: "No pending approvals." };
     }
     const lines = pending.map(a =>
-      `  ${a.id} — ${a.capability ?? "unknown"} (${a.reason})` +
+      `  ${a.id} — ${(a.capabilities?.[0]) ?? "unknown"} (${a.reason})` +
       ` — created ${new Date(a.createdAt).toLocaleString()}`
     );
     return {

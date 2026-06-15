@@ -37,7 +37,7 @@ describe("ApprovalStore", () => {
       });
       assert.ok(record.id);
       assert.equal(record.status, "pending");
-      assert.equal(record.capability, "shell.exec");
+      assert.deepEqual(record.capabilities, ["shell.exec"]);
       assert.equal(record.riskLevel, "high");
       assert.equal(record.graphId, "graph_abc");
       assert.equal(record.nodeId, "node_xyz");
@@ -125,7 +125,7 @@ describe("ApprovalStore", () => {
       const store2 = new ApprovalStore(tmpDir);
       await store2.load();
       assert.equal(store2.list().length, 1);
-      assert.equal(store2.list()[0].capability, "shell.exec");
+      assert.deepEqual(store2.list()[0].capabilities, ["shell.exec"]);
     } finally {
       rmSync(tmpDir, { recursive: true, force: true });
     }

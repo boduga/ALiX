@@ -2221,7 +2221,7 @@ if (command === "approvals") {
       console.log(`${"ID".padEnd(38)} ${"Status".padEnd(10)} Capability${"".padEnd(12)} Created`);
       console.log("-".repeat(90));
       for (const a of all) {
-        const cap = (a.capability || a.toolId || "—").slice(0, 18);
+        const cap = ((a.capabilities?.length ? a.capabilities[0] : undefined) || a.toolId || "—").slice(0, 18);
         console.log(`${a.id.padEnd(38)} ${a.status.padEnd(10)} ${cap.padEnd(18)} ${new Date(a.createdAt).toLocaleString()}`);
       }
     }
@@ -2236,7 +2236,7 @@ if (command === "approvals") {
       console.log(`${"ID".padEnd(38)} Capability${"".padEnd(12)} Reason`);
       console.log("-".repeat(90));
       for (const a of pending) {
-        const cap = (a.capability || a.toolId || "—").slice(0, 18);
+        const cap = ((a.capabilities?.length ? a.capabilities[0] : undefined) || a.toolId || "—").slice(0, 18);
         console.log(`${a.id.padEnd(38)} ${cap.padEnd(18)} ${a.reason.slice(0, 40)}`);
       }
     }
@@ -2250,7 +2250,7 @@ if (command === "approvals") {
     if (!record) { console.error(`Approval not found: ${id}`); process.exit(1); }
     console.log(`ID:       ${record.id}`);
     console.log(`Status:   ${record.status}`);
-    if (record.capability) console.log(`Capability: ${record.capability}`);
+    if (record.capabilities?.length) console.log(`Capability: ${record.capabilities[0]}`);
     if (record.toolId) console.log(`Tool:     ${record.toolId}`);
     if (record.riskLevel) console.log(`Risk:     ${record.riskLevel}`);
     if (record.graphId) console.log(`Graph:    ${record.graphId}`);

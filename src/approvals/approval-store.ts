@@ -10,32 +10,19 @@ import { join } from "node:path";
 import { existsSync } from "node:fs";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { EventLog } from "../events/event-log.js";
-
-export type ApprovalStatus = "pending" | "approved" | "denied";
-
-export interface ApprovalRecord {
-  id: string;
-  graphId?: string;
-  nodeId?: string;
-  sessionId?: string;
-  capability?: string;
-  toolId?: string;
-  riskLevel?: "low" | "medium" | "high" | "critical";
-  reason: string;
-  status: ApprovalStatus;
-  createdAt: string;
-  decidedAt?: string;
-  decisionReason?: string;
-}
+import type { ApprovalStatus, ApprovalRecord } from "./approval-types.js";
+import { normalizeApprovalRecord } from "./approval-binding.js";
 
 export class ApprovalStore {
   private approvals: ApprovalRecord[] = [];
   private dirty = false;
   private filePath: string;
+  private cwd: string;
   private auditStore?: AuditStore;
   private eventLog?: EventLog;
 
   constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog }) {
+    this.cwd = cwd;
     this.filePath = join(cwd, ".alix", "approvals", "approvals.json");
     this.auditStore = opts?.auditStore;
     this.eventLog = opts?.eventLog;
@@ -50,7 +37,9 @@ export class ApprovalStore {
     }
     try {
       const raw = await readFile(this.filePath, "utf-8");
-      this.approvals = JSON.parse(raw);
+      this.approvals = (JSON.parse(raw) as any[]).map(r =>
+        normalizeApprovalRecord(r, { defaultPolicyRevision: "legacy", now: new Date() })
+      );
       this.dirty = false;
     } catch {
       this.approvals = [];
@@ -81,13 +70,20 @@ export class ApprovalStore {
   }): Promise<ApprovalRecord> {
     const record: ApprovalRecord = {
       id: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      schemaVersion: "2.0",
       status: "pending",
+      usePolicy: "single_use",
+      bindingKey: "",
+      requestFingerprint: "",
+      policyRevision: "",
+      capabilities: opts.capability ? [opts.capability] : [],
+      ownershipClaims: [],
       createdAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 30 * 60_000).toISOString(),
       reason: opts.reason,
       graphId: opts.graphId,
       nodeId: opts.nodeId,
       sessionId: opts.sessionId,
-      capability: opts.capability,
       toolId: opts.toolId,
       riskLevel: opts.riskLevel,
     };
@@ -122,7 +118,7 @@ export class ApprovalStore {
         type: "approval.resolved",
         payload: {
           approvalId: id,
-          capability: record.capability,
+          capabilities: record.capabilities,
           sessionId: record.sessionId,
           status: status === "approved" ? ("approved" as const) : ("denied" as const),
           reason: decisionReason,
@@ -163,7 +159,7 @@ export class ApprovalStore {
       a.status === "pending"
       && (!opts.graphId || a.graphId === opts.graphId)
       && (!opts.nodeId || a.nodeId === opts.nodeId)
-      && (!opts.capability || a.capability === opts.capability)
+      && (!opts.capability || a.capabilities.includes(opts.capability))
     );
   }
 
@@ -173,7 +169,7 @@ export class ApprovalStore {
       a.status !== "pending"
       && (!opts.graphId || a.graphId === opts.graphId)
       && (!opts.nodeId || a.nodeId === opts.nodeId)
-      && (!opts.capability || a.capability === opts.capability)
+      && (!opts.capability || a.capabilities.includes(opts.capability))
     );
     return matches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   }

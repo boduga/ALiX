@@ -101,7 +101,7 @@ export async function buildRuntimeIndex(
           nodeId: record.nodeId,
           sessionId: record.sessionId,
           approvalId: record.id,
-          capability: record.capability,
+          capability: record.capabilities?.[0] ?? record.capability,
           status: record.status,
           summary: record.reason,
           payload: record,
