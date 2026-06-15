@@ -10,6 +10,7 @@ import {
   readSessionSnapshot,
   sessionEventsPath
 } from "../inspector/session-reader.js";
+import { registerCoordinationRoutes } from "./coordination-routes.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -385,6 +386,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           clearInterval(interval);
         });
 
+        return;
+      }
+      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res)) {
         return;
       }
       res.statusCode = 404;
