@@ -9,6 +9,8 @@
 import type { AlixConfig, SessionMode } from "../config/schema.js";
 import type { ApprovalStore } from "../approvals/approval-store.js";
 import type { EventLog } from "../events/event-log.js";
+import type { WorkerOwnershipClaim } from "../kernel/coordination-types.js";
+import { computePolicyRevision } from "./policy-revision.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
 import { resolve } from "node:path";
 
@@ -21,6 +23,7 @@ export type PolicyGateDecision = {
   reason: string;
   matchedRuleId?: string;
   approvalId?: string;
+  policyRevision?: string;
 };
 
 export type ToolPolicyRequest = {
@@ -32,6 +35,12 @@ export type ToolPolicyRequest = {
   sessionMode: SessionMode;
   sessionId?: string;
   source: "tool" | "graph" | "daemon" | "tui" | "replay";
+  // Coordination context
+  coordinationRunId?: string;
+  workerId?: string;
+  workerAttempt?: number;
+  ownershipClaims?: WorkerOwnershipClaim[];
+  requestFingerprint?: string;
 };
 
 export type CapabilityPolicyRequest = {
@@ -43,6 +52,12 @@ export type CapabilityPolicyRequest = {
   sessionId?: string;
   source: "tool" | "graph" | "daemon" | "tui" | "replay";
   metadata?: Record<string, unknown>;
+  // Coordination context
+  coordinationRunId?: string;
+  workerId?: string;
+  workerAttempt?: number;
+  ownershipClaims?: WorkerOwnershipClaim[];
+  requestFingerprint?: string;
 };
 
 // ─── Path resolution helper ──────────────────────────────────────────
@@ -138,6 +153,8 @@ export class PolicyGate {
    * Returns one decision that should be both logged and enforced.
    */
   async evaluateToolCall(request: ToolPolicyRequest): Promise<PolicyGateDecision> {
+    const policyRevision = computePolicyRevision(this.config);
+
     // Bypass/auto mode short-circuits all policy checks
     if (request.sessionMode === "bypass" || request.sessionMode === "auto") {
       return {
@@ -146,6 +163,7 @@ export class PolicyGate {
         decision: "allow",
         reason: `Session mode is '${request.sessionMode}' — all tools allowed`,
         matchedRuleId: `session-mode-${request.sessionMode}`,
+        policyRevision,
       };
     }
 
@@ -163,6 +181,7 @@ export class PolicyGate {
           decision: "deny",
           reason: `Path is protected: ${resolvedPath}`,
           matchedRuleId: "protected-path-rule",
+          policyRevision,
         };
       }
     }
@@ -176,6 +195,7 @@ export class PolicyGate {
         decision: "deny",
         reason: `Command is denied: ${command}`,
         matchedRuleId: "deny-command-rule",
+        policyRevision,
       };
     }
 
@@ -194,6 +214,7 @@ export class PolicyGate {
           decision: "deny",
           reason: `Command '${baseCmd}' is blocked for security reasons`,
           matchedRuleId: "blocked-command-rule",
+          policyRevision,
         };
       }
 
@@ -205,6 +226,7 @@ export class PolicyGate {
             decision: "ask",
             reason: `Command '${baseCmd}' requires approval (not in whitelist)`,
             matchedRuleId: "shell-whitelist-rule",
+            policyRevision,
           };
         }
         return {
@@ -213,6 +235,7 @@ export class PolicyGate {
           decision: "deny",
           reason: `Command '${baseCmd}' is not in the allowed whitelist`,
           matchedRuleId: "shell-whitelist-rule",
+          policyRevision,
         };
       }
     }
@@ -227,6 +250,7 @@ export class PolicyGate {
           decision: evasionResult.blocked ? "deny" : "ask",
           reason: evasionResult.reason!,
           matchedRuleId: "evasion-detection-rule",
+          policyRevision,
         };
       }
     }
@@ -236,24 +260,36 @@ export class PolicyGate {
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
       if (effective === "allow") {
-        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}` };
+        return { requestId: request.requestId, capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
       }
       if (effective === "deny") {
-        return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}` };
+        return { requestId: request.requestId, capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${capability}`, policyRevision };
       }
     }
 
     // 6. Default policy
     const defaultDecision = this.config.permissions.default ?? "ask";
     if (defaultDecision === "allow") {
-      return { requestId: request.requestId, capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy" };
+      return { requestId: request.requestId, capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy", policyRevision };
     }
     if (defaultDecision === "deny") {
-      return { requestId: request.requestId, capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy" };
+      return { requestId: request.requestId, capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy", policyRevision };
     }
 
     // 7. Ask — approval lifecycle
-    const askDecision = await this.handleAskDecision(request.requestId, capability, request.sessionMode, `Requires approval for capability: ${capability}`);
+    const askDecision = await this.handleAskDecision(
+      request.requestId,
+      capability,
+      request.sessionMode,
+      `Requires approval for capability: ${capability}`,
+      request.coordinationRunId ? {
+        coordinationRunId: request.coordinationRunId,
+        workerId: request.workerId,
+        workerAttempt: request.workerAttempt,
+        ownershipClaims: request.ownershipClaims,
+        requestFingerprint: request.requestFingerprint,
+      } : undefined,
+    );
 
     // Emit approval lifecycle event (created or reused)
     if (this.deps.eventLog && askDecision.approvalId && askDecision.decision === "ask") {
@@ -284,27 +320,41 @@ export class PolicyGate {
    * Simpler than evaluateToolCall — no path/command/evasion checks.
    */
   async evaluateCapability(request: CapabilityPolicyRequest): Promise<PolicyGateDecision> {
+    const policyRevision = computePolicyRevision(this.config);
+
     const toolDecision = this.config.permissions.tools[request.capability];
 
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
       if (effective === "allow") {
-        return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${request.capability}` };
+        return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: `Allowed by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${request.capability}`, policyRevision };
       }
       if (effective === "deny") {
-        return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${request.capability}` };
+        return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: `Denied by tool policy (mode: ${request.sessionMode})`, matchedRuleId: `tool-policy-${request.capability}`, policyRevision };
       }
     }
 
     const defaultDecision = this.config.permissions.default ?? "ask";
     if (defaultDecision === "allow") {
-      return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy" };
+      return { requestId: request.requestId, capability: request.capability, decision: "allow", reason: "Allowed by default policy", matchedRuleId: "default-policy", policyRevision };
     }
     if (defaultDecision === "deny") {
-      return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy" };
+      return { requestId: request.requestId, capability: request.capability, decision: "deny", reason: "Denied by default policy", matchedRuleId: "default-policy", policyRevision };
     }
 
-    const capAskDecision = await this.handleAskDecision(request.requestId, request.capability, request.sessionMode, `Requires approval for capability: ${request.capability}`);
+    const capAskDecision = await this.handleAskDecision(
+      request.requestId,
+      request.capability,
+      request.sessionMode,
+      `Requires approval for capability: ${request.capability}`,
+      request.coordinationRunId ? {
+        coordinationRunId: request.coordinationRunId,
+        workerId: request.workerId,
+        workerAttempt: request.workerAttempt,
+        ownershipClaims: request.ownershipClaims,
+        requestFingerprint: request.requestFingerprint,
+      } : undefined,
+    );
 
     // Emit approval lifecycle event (created or reused)
     if (this.deps.eventLog && capAskDecision.approvalId && capAskDecision.decision === "ask") {
@@ -329,37 +379,94 @@ export class PolicyGate {
   }
 
   /** Handle the approval lifecycle for "ask" decisions. */
-  private async handleAskDecision(requestId: string, capability: string, sessionMode: string, reason: string): Promise<PolicyGateDecision> {
+  private async handleAskDecision(
+    requestId: string,
+    capability: string,
+    sessionMode: string,
+    reason: string,
+    coordinationContext?: {
+      coordinationRunId?: string;
+      workerId?: string;
+      workerAttempt?: number;
+      ownershipClaims?: WorkerOwnershipClaim[];
+      requestFingerprint?: string;
+    },
+  ): Promise<PolicyGateDecision> {
     const store = this.deps.approvalStore;
+    const policyRevision = computePolicyRevision(this.config);
+
     if (!store) {
-      return { requestId, capability, decision: "deny", reason: "Approval required but no approval store configured", matchedRuleId: "approval-store-missing" };
+      return { requestId, capability, decision: "deny", reason: "Approval required but no approval store configured", matchedRuleId: "approval-store-missing", policyRevision };
     }
 
+    // When coordination context is provided, use exact binding key
+    if (coordinationContext?.coordinationRunId) {
+      const { computeBindingKey } = await import("../approvals/approval-binding.js");
+      const bindingKey = computeBindingKey({
+        coordinationRunId: coordinationContext.coordinationRunId,
+        workerId: coordinationContext.workerId,
+        workerAttempt: coordinationContext.workerAttempt,
+        capabilities: [capability],
+        ownershipClaims: coordinationContext.ownershipClaims,
+        requestFingerprint: coordinationContext.requestFingerprint ?? capability,
+        policyRevision,
+      });
+
+      // Check for existing approved binding
+      const approved = store.findExact(bindingKey);
+      if (approved?.status === "approved" && new Date(approved.expiresAt) > new Date()) {
+        // Try to consume it
+        const consumed = await store.consumeApproved(approved.id, bindingKey, {});
+        if (consumed.consumed) {
+          return { requestId, capability, decision: "allow", reason: "Approved by prior exact binding", approvalId: approved.id, matchedRuleId: "exact-binding-approved", policyRevision };
+        }
+      }
+
+      // Check for existing pending
+      const pending = store.findPendingByBindingKey(bindingKey);
+      if (pending) {
+        return { requestId, capability, decision: "ask", reason: `Pending approval: ${pending.id}`, approvalId: pending.id, matchedRuleId: "pending-approval", policyRevision };
+      }
+
+      // Create new pending with binding key
+      const approval = await store.request({ reason, capability });
+      // Update the approval with binding key via store's internal state
+      approval.bindingKey = bindingKey;
+      approval.policyRevision = policyRevision;
+      approval.requestFingerprint = coordinationContext.requestFingerprint ?? capability;
+      approval.coordinationRunId = coordinationContext.coordinationRunId;
+      approval.workerId = coordinationContext.workerId;
+      approval.workerAttempt = coordinationContext.workerAttempt;
+      approval.ownershipClaims = coordinationContext.ownershipClaims ?? [];
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
+    }
+
+    // Fallback to legacy behavior for non-coordination requests
     // In "ask" mode, always create a fresh approval — don't reuse prior approvals.
     // Prior-approval reuse only applies in "auto" (auto-approve) mode.
     if (sessionMode !== "auto") {
       // Create new pending approval
       const approval = await store.request({ reason, capability });
-      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval" };
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
     }
 
     // Auto mode: check existing resolved approval
     const resolved = store.findResolved({ capability });
     if (resolved) {
       if (resolved.status === "approved") {
-        return { requestId, capability, decision: "allow", reason: `Approved by prior approval: ${resolved.id}`, approvalId: resolved.id };
+        return { requestId, capability, decision: "allow", reason: `Approved by prior approval: ${resolved.id}`, approvalId: resolved.id, policyRevision };
       }
-      return { requestId, capability, decision: "deny", reason: `Prior approval was denied: ${resolved.id}`, approvalId: resolved.id };
+      return { requestId, capability, decision: "deny", reason: `Prior approval was denied: ${resolved.id}`, approvalId: resolved.id, policyRevision };
     }
 
     // Check existing pending approval — reuse
     const existing = store.findPending({ capability });
     if (existing) {
-      return { requestId, capability, decision: "ask", reason: `Pending approval: ${existing.id}`, approvalId: existing.id, matchedRuleId: "pending-approval" };
+      return { requestId, capability, decision: "ask", reason: `Pending approval: ${existing.id}`, approvalId: existing.id, matchedRuleId: "pending-approval", policyRevision };
     }
 
     // Create new pending approval
     const approval = await store.request({ reason, capability });
-    return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval" };
+    return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
   }
 }
