@@ -5,13 +5,14 @@
  * importable and that the type surface compiles.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
 import { ConflictDetector, DEFAULT_DETECTION_LIMITS } from "../../src/kernel/collaboration-conflict-detector.js";
 
 describe("ConflictDetector (stub)", () => {
   it("exports the class and default limits", () => {
-    expect(typeof ConflictDetector).toBe("function");
-    expect(DEFAULT_DETECTION_LIMITS.maxFindingsPerTopic).toBe(20);
-    expect(DEFAULT_DETECTION_LIMITS.maxPairsPerDetectionPass).toBe(200);
+    assert.equal(typeof ConflictDetector, "function");
+    assert.equal(DEFAULT_DETECTION_LIMITS.maxFindingsPerTopic, 20);
+    assert.equal(DEFAULT_DETECTION_LIMITS.maxPairsPerDetectionPass, 200);
   });
 });

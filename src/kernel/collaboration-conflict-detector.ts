@@ -26,7 +26,6 @@ import { ClaimComparator } from "./collaboration-claim-comparator.js";
 import { ConflictEvidenceComparator } from "./collaboration-evidence-comparator.js";
 import { ConflictRepository } from "./collaboration-conflict-repository.js";
 import type { ModelConflictComparator } from "./collaboration-model-conflict-comparator.js";
-import { systemClock, type Clock } from "./collaboration-freshness.js";
 import { computeFindingStatus } from "./collaboration-freshness.js";
 import { computeTopicKey } from "./collaboration-claim-normalizer.js";
 import type { SharedFinding } from "./collaboration-types.js";
@@ -69,7 +68,6 @@ export type ConflictDetectorDeps = {
   evidenceComparator: ConflictEvidenceComparator;
   conflictRepo: ConflictRepository;
   modelComparator?: ModelConflictComparator;
-  clock?: Clock;
   limits?: ConflictDetectionLimits;
 };
 
@@ -109,7 +107,11 @@ export class ConflictDetector {
   ): Promise<ConflictDetectionReport> {
     const start = Date.now();
     const limits = this.deps.limits ?? DEFAULT_DETECTION_LIMITS;
-    const clock: Clock = this.deps.clock ?? systemClock;
+    // If the caller supplied custom limits, build a generator bound to them;
+    // otherwise reuse the one injected in deps.
+    const candidateGenerator = this.deps.limits
+      ? new ConflictCandidateGenerator(limits)
+      : this.deps.candidateGenerator;
     const useModel = options?.useModelAssistance === true;
     const signal = options?.signal;
 
@@ -151,9 +153,10 @@ export class ConflictDetector {
       report.durationMs = Date.now() - start;
       return report;
     }
-    // queryFindings already excludes invalidated/superseded, but defensively filter again.
+    // Defensively filter again: queryFindings already excludes invalidated/superseded.
+    // The collabStore is per-run, so findings are already scoped; here we just
+    // enforce the current source-worker attempt.
     const activeFindings = rawFindings.filter(f => {
-      if (!run) return false;
       if (f.invalidatedAt || f.supersededBy) return false;
       const sourceWorker = run.workers.find(w => w.id === f.workerId);
       if (!sourceWorker) return false;
@@ -164,12 +167,13 @@ export class ConflictDetector {
     });
 
     // 3. Generate candidate pairs (the generator does its own topic-grouping and limits).
-    const { pairs, report: genReport } = this.deps.candidateGenerator.generateCandidates(activeFindings, run);
+    const { pairs, report: genReport } = candidateGenerator.generateCandidates(activeFindings, run);
     report.candidatesExamined = pairs.length;
     report.omittedPairs = genReport.omittedPairs;
     report.warnings.push(...genReport.warnings);
 
     // 4. Build evidence context (artifacts + dependency results).
+    // Loaded for the D3 observability wiring; not consumed by detection itself.
     let artifacts: Awaited<ReturnType<CollaborationStore["getArtifacts"]>>;
     try {
       artifacts = await this.deps.collabStore.getArtifacts();
@@ -179,6 +183,7 @@ export class ConflictDetector {
       report.warnings.push(`collabStore.getArtifacts failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
+    // Loaded for the D3 observability wiring; not consumed by detection itself.
     let dependencyResults: Awaited<ReturnType<CoordinationResultStore["loadByRun"]>>;
     try {
       dependencyResults = (await this.deps.resultStore.loadByRun(runId)) ?? [];
@@ -223,7 +228,7 @@ export class ConflictDetector {
         report.deterministicConflicts++;
         pathKind = "deterministic";
       } else if (cmp.compatibility === "uncertain" && useModel && this.deps.modelComparator) {
-        const modelOutcome = await this.invokeModel(left, right, evidenceFor(activeFindings, left, right));
+        const modelOutcome = await this.invokeModel(left, right, evidenceFor(activeFindings, left, right), signal);
         if (modelOutcome === "incompatible") {
           report.modelAssistedConflicts++;
           pathKind = "model_assisted";
@@ -257,13 +262,7 @@ export class ConflictDetector {
       }
 
       // Fingerprint dedup key: run + type + topic + sorted finding ids + comparator version.
-      const topicKey = (() => {
-        try {
-          return computeTopicKey(left.claim!);
-        } catch {
-          return "unknown";
-        }
-      })();
+      const topicKey = computeTopicKey(left.claim!);
       const fingerprint = sha256Hex({
         runId,
         type: cmp.type ?? "contradiction",
@@ -308,6 +307,7 @@ export class ConflictDetector {
     left: SharedFinding,
     right: SharedFinding,
     evidenceSummary: { leftScore: number; rightScore: number; margin: number },
+    signal: AbortSignal | undefined,
   ): Promise<"compatible" | "incompatible" | "uncertain" | null> {
     if (!this.deps.modelComparator) return null;
     try {
@@ -328,7 +328,7 @@ export class ConflictDetector {
           },
           evidenceSummary,
         },
-        { timeoutMs: MODEL_TIMEOUT_MS },
+        { timeoutMs: MODEL_TIMEOUT_MS, signal },
       );
       if (result.compatibility === "compatible" || result.compatibility === "incompatible" || result.compatibility === "uncertain") {
         return result.compatibility;
