@@ -35,6 +35,7 @@ const baseRun = () => {
 
 const addWorker = (run: ReturnType<typeof baseRun>, id: string, attempt = 1) => {
   const w = createWorkerAssignment({
+    id,
     coordinationRunId: run.id,
     agentId: id,
     taskLabel: id,

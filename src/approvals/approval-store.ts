@@ -129,9 +129,12 @@ export class ApprovalStore {
   /** Enriched request with exact binding — uses mutate() for lock safety. */
   async requestBound(input: ApprovalRequestInput): Promise<ApprovalRecord> {
     return this.mutate((approvals) => {
-      // Deduplicate by pending binding key
-      const existing = approvals.find(a => a.status === "pending" && a.bindingKey === input.bindingKey && a.bindingKey !== "");
-      if (existing) return existing;
+      // Dedup note: callers are responsible for checking whether a pending
+      // approval with the same binding key already exists. The coordination
+      // flow in policy-gate.ts does this BEFORE calling requestBound (via
+      // store.findPendingByBindingKey). Legacy callers (store.request) must
+      // always create a fresh record per call — "ask" mode in policy-gate
+      // depends on a new approval for every request.
 
       const record: ApprovalRecord = {
         id: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,

@@ -4,7 +4,7 @@ import { ApprovalManager } from "../../src/tui/approval-manager.js";
 import type { ApprovalManagerDeps } from "../../src/tui/approval-manager.js";
 
 describe("TUI approval continuation", () => {
-  let pendingList: Array<{ id: string; capability?: string; reason: string; createdAt: string }> = [];
+  let pendingList: Array<{ id: string; capabilities?: string[]; reason: string; createdAt: string }> = [];
 
   const deps: ApprovalManagerDeps = {
     listPendingApprovals: async () => pendingList,
@@ -20,7 +20,7 @@ describe("TUI approval continuation", () => {
 
   beforeEach(() => {
     pendingList = [
-      { id: "approval_001", capability: "filesystem.read", reason: "list files in directory", createdAt: new Date().toISOString() },
+      { id: "approval_001", capabilities: ["filesystem.read"], reason: "list files in directory", createdAt: new Date().toISOString() },
     ];
   });
 
