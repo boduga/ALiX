@@ -87,9 +87,10 @@ describe("Inspector coordination conflict routes", () => {
     const r2 = await fetch(`${server.url}/api/coordination/${RUN_ID}/conflicts/${conflictId}`);
     assert.equal(r2.status, 200);
     const mtimeAfter = (await stat(statePath)).mtimeMs;
-    // The implementation is allowed to update mtime on read (it currently does,
-    // via mutate()), but the assertion is that it never does so in a way that
-    // reduces the mtime or races. For now, allow a small drift; assert non-decrease.
-    assert.ok(mtimeAfter >= mtimeBefore, "GET should not decrease mtime");
+    // Strict: a read must not rewrite the state file. The ConflictRepository
+    // routes its getConflicts/getConflict lookups through the read-only
+    // CollaborationStore.read<T>() primitive, which never touches the file
+    // mtime.
+    assert.equal(mtimeAfter, mtimeBefore, "GET must not touch the state file");
   });
 });

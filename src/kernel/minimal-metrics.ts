@@ -14,13 +14,14 @@ export type M09MetricName =
   | "policy_decisions_total"
   | "policy_denials_total"
   | "workflow_duration_ms"
-  // D4: 12 conflict metrics (plan §18)
+  // D4: 12 conflict metrics (plan §18). `collaboration_conflicts_by_type`
+  // was previously declared here but had no emitter and was removed; it
+  // can be re-introduced once a typed label vocabulary is defined.
   | "collaboration_conflict_candidates_total"
   | "collaboration_conflicts_detected_total"
   | "collaboration_conflicts_updated_total"
   | "collaboration_conflicts_resolved_total"
   | "collaboration_conflicts_dismissed_total"
-  | "collaboration_conflicts_by_type"
   | "collaboration_conflict_detection_duration_ms"
   | "collaboration_conflict_pairs_omitted_total"
   | "collaboration_conflict_model_compare_total"
@@ -50,8 +51,15 @@ export interface MetricEvent {
 export class MinimalMetrics {
   private events: MetricEvent[] = [];
 
-  increment(name: M09CounterName, labels?: Record<string, string>): void {
-    this.events.push({ name, type: "counter", value: 1, labels, timestamp: new Date().toISOString() });
+  /**
+   * Record a counter increment. The `by` argument lets a single call
+   * record N occurrences (e.g. omitted-pairs in a detection pass that
+   * itself is one call). Defaults to 1 so existing call sites are
+   * unaffected.
+   */
+  increment(name: M09CounterName, labels?: Record<string, string>, by: number = 1): void {
+    if (by <= 0) return;
+    this.events.push({ name, type: "counter", value: by, labels, timestamp: new Date().toISOString() });
   }
 
   duration(name: M09DurationName, value: number, labels?: Record<string, string>): void {

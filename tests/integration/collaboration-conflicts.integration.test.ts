@@ -228,19 +228,26 @@ describe("Collaboration conflict end-to-end (M0.78f §21)", () => {
     assert.ok(present, "the detected conflict must be in the downstream snapshot");
 
     // Render and assert the untrusted + shared_conflicts markers.
-    // The renderer marks the outer coordination_context wrapper as untrusted
-    // and includes a <shared_conflicts> section listing the conflicts.
+    // The renderer marks every worker-supplied section (dependency_results,
+    // shared_findings, shared_artifacts, shared_conflicts) with its own
+    // trust="untrusted" attribute, in addition to the outer wrapper.
     snapshot.renderedText = renderContextSnapshot(manifest, snapshot);
     assert.ok(
       snapshot.renderedText.includes(`<coordination_context trust="untrusted">`),
       "rendered text must be marked untrusted",
     );
     assert.ok(
-      snapshot.renderedText.includes(`<shared_conflicts>`),
-      "rendered text must include a <shared_conflicts> section",
+      snapshot.renderedText.includes(`<shared_conflicts trust="untrusted">`),
+      "shared_conflicts section must be marked untrusted",
+    );
+    assert.ok(
+      snapshot.renderedText.includes(`<dependency_results trust="untrusted">`),
+      "dependency_results section must be marked untrusted",
     );
     // The conflict must appear in the rendered shared_conflicts block.
-    const conflictsBlock = snapshot.renderedText.split("<shared_conflicts>")[1]?.split("</shared_conflicts>")[0];
+    const conflictsBlock = snapshot.renderedText
+      .split("<shared_conflicts")[1]
+      ?.split("</shared_conflicts>")[0];
     assert.ok(conflictsBlock, "shared_conflicts block must be present");
     assert.ok(
       conflictsBlock.includes(`[Conflict: ${conflict.id}]`),

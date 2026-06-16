@@ -90,19 +90,30 @@ describe("WorkerCollaborationAPI conflict reporting", () => {
     )).id;
     rmSync(otherCwd, { recursive: true, force: true });
 
-    // api's store won't see the other-run finding; but the test only verifies the
-    // same-run case + the missing case. Cross-run is verified via direct mutate.
+    // api's store won't see the other-run finding; both IDs are unknown to
+    // this run, so the missing-check fires. (The duplicate-ID check requires
+    // unique IDs, so we use f_other plus an unknown placeholder.)
     await assert.rejects(
-      () => api.reportConflict({ findingIds: [f_other, f_other], reason: "x" }),
+      () => api.reportConflict({ findingIds: [f_other, "missing_in_run"], reason: "x" }),
       /Findings not found/,
     );
   });
 
-  it("duplicate IDs are accepted but result in a conflict referencing each id once", async () => {
+  it("duplicate IDs rejected", async () => {
     const f1 = await seedFinding(store, "w1", 1, "x");
-    // Duplicate IDs: getFindings dedupes via Set, no "missing" rejection.
-    const conflictId = await api.reportConflict({ findingIds: [f1, f1], reason: "dup" });
-    assert.ok(conflictId.startsWith("conflict_"));
+    await assert.rejects(
+      () => api.reportConflict({ findingIds: [f1, f1], reason: "dup" }),
+      /Duplicate finding ID/,
+    );
+  });
+
+  it("duplicate IDs across three entries rejected on the first repeat", async () => {
+    const f1 = await seedFinding(store, "w1", 1, "x");
+    const f2 = await seedFinding(store, "w2", 1, "y");
+    await assert.rejects(
+      () => api.reportConflict({ findingIds: [f1, f2, f1], reason: "dup" }),
+      /Duplicate finding ID/,
+    );
   });
 
   it("fewer than two IDs rejected", async () => {

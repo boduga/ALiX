@@ -74,7 +74,7 @@ function estimateTokens(text: string): number {
 }
 
 type MetricsLike = {
-  increment: (name: string, labels?: Record<string, string>) => void;
+  increment: (name: string, labels?: Record<string, string>, by?: number) => void;
   duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
 };
 

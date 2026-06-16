@@ -93,6 +93,13 @@ export class BoundWorkerCollaborationAPI implements WorkerCollaborationAPI {
       throw new Error("Reason must be at most 1000 characters");
     }
 
+    // Duplicate IDs must be rejected. A conflict that references the same
+    // finding twice has no semantic meaning and would corrupt the
+    // fingerprint (which is hashed over findingIds) and any downstream
+    // intersection logic. The fingerprint dedup would silently treat two
+    // semantically different conflicts as identical.
+    assertUniqueFindingIds(input.findingIds);
+
     const findings = await this.store.getFindings(input.findingIds);
     const foundIds = new Set(findings.map(f => f.id));
 
@@ -164,5 +171,19 @@ export class BoundWorkerCollaborationAPI implements WorkerCollaborationAPI {
 
     const limit = filter?.limit ?? 50;
     return conflicts.slice(0, limit);
+  }
+}
+
+/**
+ * Throw on duplicate IDs in the input array. Order does not matter; the
+ * first repeat encountered is the offender.
+ */
+function assertUniqueFindingIds(findingIds: string[]): void {
+  const seen = new Set<string>();
+  for (const id of findingIds) {
+    if (seen.has(id)) {
+      throw new Error(`Duplicate finding ID: ${id}`);
+    }
+    seen.add(id);
   }
 }

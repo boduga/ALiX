@@ -81,7 +81,7 @@ type AuditStoreLike = {
 };
 
 type MetricsLike = {
-  increment: (name: string, labels?: Record<string, string>) => void;
+  increment: (name: string, labels?: Record<string, string>, by?: number) => void;
   duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
 };
 
@@ -337,9 +337,13 @@ export class ConflictDetector {
         this.deps.metrics.increment("collaboration_conflicts_detected_total", { type: detectedType });
       } catch { /* best-effort */ }
       try {
-        this.deps.metrics.increment("collaboration_conflict_pairs_omitted_total", {
-          reason: report.omittedPairs > 0 ? "topic_cap_or_pass_cap" : "none",
-        });
+        // Record the actual count of omitted pairs in this detection pass.
+        // When omittedPairs is 0 the increment is a no-op (by <= 0).
+        this.deps.metrics.increment(
+          "collaboration_conflict_pairs_omitted_total",
+          { reason: report.omittedPairs > 0 ? "topic_cap_or_pass_cap" : "none" },
+          report.omittedPairs,
+        );
       } catch { /* best-effort */ }
       try {
         this.deps.metrics.duration("collaboration_conflict_detection_duration_ms", report.durationMs);

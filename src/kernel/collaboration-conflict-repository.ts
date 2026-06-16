@@ -46,7 +46,7 @@ type AuditStoreLike = {
 };
 
 type MetricsLike = {
-  increment: (name: string, labels?: Record<string, string>) => void;
+  increment: (name: string, labels?: Record<string, string>, by?: number) => void;
   duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
 };
 
@@ -192,7 +192,7 @@ export class ConflictRepository {
   }
 
   async getConflicts(runId: string): Promise<FindingConflict[]> {
-    return this.collabStore.mutate((state: any) => {
+    return this.collabStore.read((state: any) => {
       state.conflicts = state.conflicts ?? [];
       return state.conflicts.filter(
         (c: FindingConflict) => c.runId === runId,
@@ -201,7 +201,7 @@ export class ConflictRepository {
   }
 
   async getConflict(id: string): Promise<FindingConflict | null> {
-    return this.collabStore.mutate((state: any) => {
+    return this.collabStore.read((state: any) => {
       state.conflicts = state.conflicts ?? [];
       return state.conflicts.find((c: FindingConflict) => c.id === id) ?? null;
     });

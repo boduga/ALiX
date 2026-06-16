@@ -204,7 +204,7 @@ describe("CollaborationContextBuilder conflict integration", () => {
     assert.equal(typeof manifest.omitted.findings, "number");
   });
 
-  it("renderer marks context as untrusted (coordination_context trust attribute)", async () => {
+  it("renderer marks every worker-supplied section as untrusted", async () => {
     await collabStore.publishFinding(
       { kind: "fact", title: "target", content: "x", tags: [] },
       { runId: RUN_ID, workerId: "w_dep", workerAttempt: 1 },
@@ -226,9 +226,27 @@ describe("CollaborationContextBuilder conflict integration", () => {
 
     const { manifest, snapshot } = await builder.build(run, ctxWorker);
     snapshot.renderedText = renderContextSnapshot(manifest, snapshot);
-    // The outer wrapper is marked untrusted.
+    // Outer wrapper: untrusted.
     assert.ok(snapshot.renderedText.includes(`<coordination_context trust="untrusted">`));
-    assert.ok(snapshot.renderedText.includes(`<shared_conflicts>`));
+    // Each worker-supplied section carries its own trust marker. Sections
+    // may be extracted, reordered, or selectively injected downstream, so
+    // the marker cannot live only on the outer wrapper.
+    assert.ok(
+      snapshot.renderedText.includes(`<dependency_results trust="untrusted">`),
+      "dependency_results section must be marked untrusted",
+    );
+    assert.ok(
+      snapshot.renderedText.includes(`<shared_findings trust="untrusted">`),
+      "shared_findings section must be marked untrusted",
+    );
+    assert.ok(
+      snapshot.renderedText.includes(`<shared_artifacts trust="untrusted">`),
+      "shared_artifacts section must be marked untrusted",
+    );
+    assert.ok(
+      snapshot.renderedText.includes(`<shared_conflicts trust="untrusted">`),
+      "shared_conflicts section must be marked untrusted",
+    );
   });
 
   it("context fingerprint changes when conflict set changes", async () => {

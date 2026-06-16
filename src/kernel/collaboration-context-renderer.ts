@@ -76,19 +76,23 @@ export function renderContextSnapshot(
     `<coordination_context trust="untrusted">`,
     `  <disclaimer>${escapeDelimiters(DISCLAIMER)}</disclaimer>`,
     ``,
-    `  <dependency_results>`,
+    // Every section that contains worker-supplied data carries its own
+    // trust="untrusted" marker. Sections may be extracted, reordered, or
+    // selectively injected downstream, so the marker cannot live only on
+    // the outer wrapper.
+    `  <dependency_results trust="untrusted">`,
     renderResults(manifest.results, resultLimit),
     `  </dependency_results>`,
     ``,
-    `  <shared_findings>`,
+    `  <shared_findings trust="untrusted">`,
     renderFindings(snapshot.findings, contentLimit),
     `  </shared_findings>`,
     ``,
-    `  <shared_artifacts>`,
+    `  <shared_artifacts trust="untrusted">`,
     renderArtifacts(snapshot.artifacts),
     `  </shared_artifacts>`,
     ``,
-    `  <shared_conflicts>`,
+    `  <shared_conflicts trust="untrusted">`,
     renderConflicts(snapshot.conflicts),
     `  </shared_conflicts>`,
     `</coordination_context>`,
