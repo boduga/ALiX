@@ -26,6 +26,7 @@ const DEFAULT_STATE: CollaborationState = {
   revision: 0,
   findings: [],
   artifacts: [],
+  conflicts: [],
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
 };
