@@ -3,7 +3,7 @@
  */
 
 import { resolve, relative, isAbsolute } from "node:path";
-import type { PublishFindingInput, PublishArtifactInput } from "./collaboration-types.js";
+import type { PublishFindingInput, PublishArtifactInput, WorkerContextManifest } from "./collaboration-types.js";
 import type { WorkerOwnershipClaim } from "./coordination-types.js";
 
 // ─── Constants ──────────────────────────────────────────────────────
@@ -96,5 +96,24 @@ export function canonicalizeFindingInput(input: PublishFindingInput): PublishFin
       JSON.stringify(a).localeCompare(JSON.stringify(b))
     ),
     artifactRefs: [...(input.artifactRefs ?? [])].sort(),
+  };
+}
+
+export function normalizeManifestV1_0(manifest: any): WorkerContextManifest {
+  return {
+    ...manifest,
+    schemaVersion: "1.1" as const,
+    findings: (manifest.findings ?? []).map((f: any) => ({
+      ...f,
+      sourceWorkerAttempt: f.sourceWorkerAttempt ?? 1,
+      score: f.score ?? 0,
+      scoreComponents: f.scoreComponents ?? {},
+      selectionReasons: f.selectionReasons ?? [],
+    })),
+    omittedByReason: manifest.omittedByReason ?? {
+      budget: 0, lowRelevance: 0, invalidated: 0, superseded: 0,
+      staleAttempt: 0, staleDependency: 0, staleArtifact: 0,
+      unauthorized: 0, duplicate: 0, semanticRerankLimit: 0,
+    },
   };
 }
