@@ -1,0 +1,231 @@
+/**
+ * collaboration-store.ts — Lock-safe, run-scoped store for shared findings and artifacts.
+ *
+ * State file: .alix/coordination/shared/<runId>/state.json
+ * Manifests:  .alix/coordination/shared/<runId>/manifests/<workerId>-attempt-<n>.json
+ * Lock:       .alix/coordination/shared/locks/<runId>.lock
+ *
+ * All writes go through mutate<T>() for atomicity.
+ * Workers may only mutate records they created.
+ */
+
+import { writeFile, rename as renameFile, mkdir, readFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { randomUUID } from "node:crypto";
+import { CollaborationRunLock } from "./collaboration-run-lock.js";
+import { validatePublishFindingInput, validatePublishArtifactInput, canonicalizeFindingInput } from "./collaboration-validation.js";
+import type {
+  SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,
+  CollaborationActor, FindingFilter, PublishFindingInput, PublishArtifactInput,
+} from "./collaboration-types.js";
+
+const DEFAULT_STATE: CollaborationState = {
+  schemaVersion: "1.0",
+  runId: "",
+  revision: 0,
+  findings: [],
+  artifacts: [],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+export class CollaborationStore {
+  private readonly cwd: string;
+  private readonly runId: string;
+  private readonly statePath: string;
+  private readonly manifestsDir: string;
+  private state: CollaborationState = { ...DEFAULT_STATE };
+
+  constructor(cwd: string, runId: string) {
+    this.cwd = cwd;
+    this.runId = runId;
+    this.statePath = join(cwd, ".alix", "coordination", "shared", runId, "state.json");
+    this.manifestsDir = join(cwd, ".alix", "coordination", "shared", runId, "manifests");
+  }
+
+  private async ensureDirs(): Promise<void> {
+    const dir = dirname(this.statePath);
+    if (!existsSync(dir)) {
+      await mkdir(dir, { recursive: true });
+    }
+    if (!existsSync(this.manifestsDir)) {
+      await mkdir(this.manifestsDir, { recursive: true });
+    }
+  }
+
+  private async loadState(): Promise<void> {
+    if (!existsSync(this.statePath)) {
+      this.state = { ...DEFAULT_STATE, runId: this.runId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+      return;
+    }
+    try {
+      const raw = await readFile(this.statePath, "utf-8");
+      this.state = JSON.parse(raw) as CollaborationState;
+    } catch {
+      this.state = { ...DEFAULT_STATE, runId: this.runId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    }
+  }
+
+  private async saveState(): Promise<void> {
+    this.state.updatedAt = new Date().toISOString();
+    const token = randomUUID().slice(0, 8);
+    const tmpPath = `${this.statePath}.tmp.${token}`;
+    await writeFile(tmpPath, JSON.stringify(this.state, null, 2), "utf-8");
+    await renameFile(tmpPath, this.statePath);
+  }
+
+  async mutate<T>(fn: (state: CollaborationState) => T | Promise<T>): Promise<T> {
+    const lock = new CollaborationRunLock(this.cwd, this.runId);
+    const acquired = await lock.acquire();
+    if (!acquired) throw new Error("Could not acquire collaboration lock");
+    try {
+      await this.loadState();
+      const result = await fn(this.state);
+      this.state.revision++;
+      await this.saveState();
+      return result;
+    } finally {
+      lock.release();
+    }
+  }
+
+  async publishFinding(input: PublishFindingInput, actor: CollaborationActor): Promise<SharedFinding> {
+    const errors = validatePublishFindingInput(input);
+    if (errors.length > 0) throw new Error(`Finding validation failed: ${errors.join("; ")}`);
+
+    return this.mutate((state) => {
+      const now = new Date().toISOString();
+      const canonical = canonicalizeFindingInput(input);
+      const finding: SharedFinding = {
+        id: `finding_${randomUUID()}`,
+        schemaVersion: "1.0",
+        runId: this.runId,
+        workerId: actor.workerId,
+        kind: canonical.kind,
+        title: canonical.title,
+        content: canonical.content,
+        confidence: canonical.confidence,
+        tags: canonical.tags ?? [],
+        evidenceRefs: canonical.evidenceRefs ?? [],
+        artifactRefs: canonical.artifactRefs ?? [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      state.findings.push(finding);
+      return finding;
+    });
+  }
+
+  async publishArtifact(input: PublishArtifactInput, actor: CollaborationActor): Promise<SharedArtifact> {
+    return this.mutate((state) => {
+      const now = new Date().toISOString();
+      const artifact: SharedArtifact = {
+        id: `artifact_${randomUUID()}`,
+        schemaVersion: "1.0",
+        runId: this.runId,
+        workerId: actor.workerId,
+        kind: input.kind,
+        uri: input.uri,
+        mediaType: input.mediaType,
+        digest: input.digest,
+        sizeBytes: input.sizeBytes,
+        ownershipClaims: input.ownershipClaims ?? [],
+        createdAt: now,
+        updatedAt: now,
+      };
+      state.artifacts.push(artifact);
+      return artifact;
+    });
+  }
+
+  async queryFindings(filter: FindingFilter): Promise<SharedFinding[]> {
+    await this.loadState();
+    let results = this.state.findings;
+
+    if (filter.kinds && filter.kinds.length > 0) {
+      results = results.filter(f => filter.kinds!.includes(f.kind));
+    }
+    if (filter.tags && filter.tags.length > 0) {
+      results = results.filter(f => filter.tags!.some(t => f.tags.includes(t)));
+    }
+    if (filter.workerIds && filter.workerIds.length > 0) {
+      results = results.filter(f => filter.workerIds!.includes(f.workerId));
+    }
+    if (filter.since) {
+      results = results.filter(f => f.createdAt >= filter.since!);
+    }
+
+    // Exclude invalidated and superseded by default
+    results = results.filter(f => !f.invalidatedAt && !f.supersededBy);
+
+    // Sort by createdAt descending (newest first)
+    results.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+    const limit = filter.limit ?? 50;
+    return results.slice(0, limit);
+  }
+
+  async getFindings(ids: string[]): Promise<SharedFinding[]> {
+    await this.loadState();
+    const idSet = new Set(ids);
+    return this.state.findings.filter(f => idSet.has(f.id));
+  }
+
+  async getArtifacts(ids?: string[]): Promise<SharedArtifact[]> {
+    await this.loadState();
+    if (!ids) return [...this.state.artifacts];
+    const idSet = new Set(ids);
+    return this.state.artifacts.filter(a => idSet.has(a.id));
+  }
+
+  async getWorkerFindings(workerId: string): Promise<SharedFinding[]> {
+    await this.loadState();
+    return this.state.findings.filter(f => f.workerId === workerId && !f.invalidatedAt && !f.supersededBy);
+  }
+
+  async supersedeFinding(id: string, replacementId: string, actor: CollaborationActor): Promise<boolean> {
+    return this.mutate((state) => {
+      const finding = state.findings.find(f => f.id === id);
+      if (!finding || finding.workerId !== actor.workerId) return false;
+      finding.supersededBy = replacementId;
+      finding.updatedAt = new Date().toISOString();
+      return true;
+    });
+  }
+
+  async markFindingInvalid(id: string, reason: string, actor: CollaborationActor): Promise<boolean> {
+    return this.mutate((state) => {
+      const finding = state.findings.find(f => f.id === id);
+      if (!finding || finding.workerId !== actor.workerId) return false;
+      finding.invalidatedAt = new Date().toISOString();
+      finding.invalidationReason = reason;
+      finding.updatedAt = new Date().toISOString();
+      return true;
+    });
+  }
+
+  async persistManifest(manifest: WorkerContextManifest): Promise<string> {
+    await this.ensureDirs();
+    const fileName = `${manifest.workerId}-attempt-${manifest.workerAttempt}.json`;
+    const filePath = join(this.manifestsDir, fileName);
+    const token = randomUUID().slice(0, 8);
+    const tmpPath = `${filePath}.tmp.${token}`;
+    await writeFile(tmpPath, JSON.stringify(manifest, null, 2), "utf-8");
+    await renameFile(tmpPath, filePath);
+    return `.alix/coordination/shared/${this.runId}/manifests/${fileName}`;
+  }
+
+  async loadManifestByRef(ref: string): Promise<WorkerContextManifest | null> {
+    const resolved = join(this.cwd, ref);
+    if (!existsSync(resolved)) return null;
+    try {
+      const raw = await readFile(resolved, "utf-8");
+      return JSON.parse(raw) as WorkerContextManifest;
+    } catch { return null; }
+  }
+
+  getRevision(): number {
+    return this.state.revision;
+  }
+}
