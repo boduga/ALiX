@@ -100,6 +100,31 @@ alix serve
 
 ---
 
+## Conflict Detection (M0.78f)
+
+ALiX detects conflicts between findings reported by different workers in a coordination run using deterministic claim comparison, evidence ranking, optional worker reports, and an opt-in model-assistance layer. Detection is **non-blocking** — workers, downstream tasks, and the run itself keep going while a conflict is open. Resolving a conflict is an explicit human/operator act; the system never picks a winner on its own.
+
+CLI subcommands (all require `--actor <id>`, take `--reason <text>`, and accept `--json`):
+
+| Command | Description |
+|---------|-------------|
+| `alix coordination conflicts <run-id>` | List every conflict in a run with status, type, and topic |
+| `alix coordination conflict <run-id> <conflict-id>` | Show one conflict in full: claim comparison, evidence ranking, history |
+| `alix coordination conflict-resolve <run-id> <conflict-id>` | Pick a winner — rejects the other finding(s), closes the conflict |
+| `alix coordination conflict-dismiss <run-id> <conflict-id>` | Dismiss as not a real conflict (e.g. both interpretations valid) |
+| `alix coordination conflict-accept-divergence <run-id> <conflict-id>` | Accept both findings as intentionally divergent — they coexist |
+
+**Safety boundaries:**
+
+- Workers can **report** conflicts (via the worker report API) but cannot resolve them.
+- Resolution requires an operator actor with explicit authority; the actor and reason are recorded in the conflict history and the audit chain.
+- Conflicts are non-blocking by default — only critical conflicts with `blocksDownstreamByPolicy: true` halt downstream work, and that policy is set explicitly, never implied.
+- The model is non-authoritative: it can suggest a topic or interpretation but cannot create a conflict or pick a winner.
+
+See `docs/user-manual.md` for the detailed walkthrough, the Inspector conflict routes, the TUI conflict panel, and the audit/event log layout.
+
+---
+
 ## Examples
 
 ```bash
