@@ -20,6 +20,27 @@ import { ExecutionAuthorization } from "../../runtime/execution-authorization.js
 import { PolicyGate } from "../../policy/policy-gate.js";
 import { DefaultWorkerExecutor } from "../../kernel/worker-executor.js";
 import { buildDefaultToolIndex } from "../../tools/tool-registry.js";
+import { ConflictRepository } from "../../kernel/collaboration-conflict-repository.js";
+import { CollaborationStore } from "../../kernel/collaboration-store.js";
+
+function readFlag(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  return idx === -1 || idx + 1 >= args.length ? undefined : args[idx + 1];
+}
+function hasFlag(args: string[], flag: string): boolean {
+  return args.includes(flag);
+}
+function isFlagValue(args: string[], candidate: string): boolean {
+  // true if `candidate` immediately follows --actor or --reason
+  for (const f of ["--actor", "--reason"]) {
+    const i = args.indexOf(f);
+    if (i !== -1 && args[i + 1] === candidate) return true;
+  }
+  return false;
+}
+function positionalArgs(args: string[]): string[] {
+  return args.filter(a => !a.startsWith("--") && !isFlagValue(args, a));
+}
 
 export async function handleCoordination(args: string[]): Promise<void> {
   const cwd = process.cwd();
@@ -50,6 +71,16 @@ export async function handleCoordination(args: string[]): Promise<void> {
       return handleOwnership(cwd, args.slice(1));
     case "events":
       return handleEvents(cwd, args.slice(1));
+    case "conflicts":
+      return handleConflicts(cwd, args.slice(1));
+    case "conflict":
+      return handleConflict(cwd, args.slice(1));
+    case "conflict-resolve":
+      return handleConflictResolve(cwd, args.slice(1));
+    case "conflict-dismiss":
+      return handleConflictDismiss(cwd, args.slice(1));
+    case "conflict-accept-divergence":
+      return handleConflictAcceptDivergence(cwd, args.slice(1));
     default:
       console.error(`Unknown coordination subcommand: ${subcommand}`);
       process.exit(1);
@@ -358,6 +389,12 @@ async function handleInspect(cwd: string, args: string[]): Promise<void> {
       console.log(`  Root: ${chain.rootWorkerId} (${chain.rootTaskLabel}) → ${chain.allAffectedWorkers.length} affected`);
     }
   }
+  if (typeof view.conflictCount === "number" && view.conflictCount > 0) {
+    console.log(`Unresolved conflicts: ${view.conflictCount}`);
+    for (const c of view.conflicts ?? []) {
+      console.log(`  - ${c.id}  ${c.type}  ${c.criticality}  (${c.findingCount} findings, ${c.evidenceRecommendation})`);
+    }
+  }
 }
 
 async function handleWatch(cwd: string, args: string[]): Promise<void> {
@@ -432,4 +469,104 @@ async function handleEvents(cwd: string, args: string[]): Promise<void> {
     console.log(`${e.timestamp.slice(0, 19)} ${e.type.padEnd(30)} ${e.workerId ?? ""}`);
   }
   if (view.events.length === 0) console.log("No coordination events found.");
+}
+
+async function handleConflicts(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0]; const jsonMode = args.includes("--json");
+  if (!runId) { console.error("Usage: alix coordination conflicts <run-id>"); process.exit(1); }
+  const store = new CollaborationStore(cwd, runId);
+  const repo = new ConflictRepository(store);
+  const conflicts = await repo.getConflicts(runId);
+  if (jsonMode) { console.log(JSON.stringify(conflicts, null, 2)); return; }
+  if (conflicts.length === 0) { console.log("No conflicts."); return; }
+  for (const c of conflicts) {
+    console.log(`${c.id.padEnd(30)} ${c.status.padEnd(16)} ${c.type.padEnd(20)} ${c.criticality.padEnd(10)} ${c.findingIds.length} findings`);
+  }
+}
+
+async function handleConflict(cwd: string, args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  if (args.length < 2) { console.error("Usage: alix coordination conflict <run-id> <conflict-id>"); process.exit(1); }
+  const store = new CollaborationStore(cwd, args[0]);
+  const repo = new ConflictRepository(store);
+  const conflict = await repo.getConflict(args[1]);
+  if (!conflict) { console.error("Conflict not found."); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(conflict, null, 2)); return; }
+  console.log(`Conflict: ${conflict.id}`);
+  console.log(`Topic: ${conflict.topicKey}`);
+  console.log(`Type: ${conflict.type}  Status: ${conflict.status}  Criticality: ${conflict.criticality}`);
+  console.log(`Findings: ${conflict.findingIds.join(", ")}`);
+  console.log(`Evidence: confidence ${conflict.evidenceComparison.confidence}, recommendation ${conflict.evidenceComparison.recommendation}`);
+  console.log(`History: ${conflict.history.length} entries`);
+}
+
+async function handleConflictResolve(cwd: string, args: string[]): Promise<void> {
+  const positional = positionalArgs(args);
+  if (positional.length < 2) {
+    console.error("Usage: alix coordination conflict-resolve <run-id> <conflict-id> [--actor <id>] [--reason <text>] [--json]");
+    process.exit(1);
+  }
+  const [runId, conflictId] = positional;
+  const actor = readFlag(args, "--actor") ?? "cli";
+  const reason = readFlag(args, "--reason") ?? "resolved by operator";
+  const store = new CollaborationStore(cwd, runId);
+  const repo = new ConflictRepository(store);
+  const conflict = await repo.resolveConflict(conflictId, {
+    decision: reason,
+    acceptedFindingIds: [], rejectedFindingIds: [],
+    resolver: { kind: "operator", id: actor },
+    evidenceRefs: [], resolvedAt: new Date().toISOString(),
+  }, { kind: "operator", actorId: actor });
+  if (hasFlag(args, "--json")) {
+    console.log(JSON.stringify(conflict, null, 2));
+  } else if (!conflict) {
+    console.error("Conflict not found or not authorized.");
+    process.exit(1);
+  } else {
+    console.log(`Resolved: ${conflictId}`);
+  }
+}
+
+async function handleConflictDismiss(cwd: string, args: string[]): Promise<void> {
+  const positional = positionalArgs(args);
+  if (positional.length < 2) {
+    console.error("Usage: alix coordination conflict-dismiss <run-id> <conflict-id> [--actor <id>] [--reason <text>] [--json]");
+    process.exit(1);
+  }
+  const [runId, conflictId] = positional;
+  const actor = readFlag(args, "--actor") ?? "cli";
+  const reason = readFlag(args, "--reason") ?? "dismissed by operator";
+  const store = new CollaborationStore(cwd, runId);
+  const repo = new ConflictRepository(store);
+  const conflict = await repo.updateConflictStatus(conflictId, "dismissed", { kind: "operator", actorId: actor });
+  if (hasFlag(args, "--json")) {
+    console.log(JSON.stringify(conflict, null, 2));
+  } else if (!conflict) {
+    console.error("Conflict not found or not authorized.");
+    process.exit(1);
+  } else {
+    console.log(`Dismissed: ${conflictId}`);
+  }
+}
+
+async function handleConflictAcceptDivergence(cwd: string, args: string[]): Promise<void> {
+  const positional = positionalArgs(args);
+  if (positional.length < 2) {
+    console.error("Usage: alix coordination conflict-accept-divergence <run-id> <conflict-id> [--actor <id>] [--reason <text>] [--json]");
+    process.exit(1);
+  }
+  const [runId, conflictId] = positional;
+  const actor = readFlag(args, "--actor") ?? "cli";
+  const reason = readFlag(args, "--reason") ?? "accepted divergence";
+  const store = new CollaborationStore(cwd, runId);
+  const repo = new ConflictRepository(store);
+  const conflict = await repo.acceptConflictDivergence(conflictId, reason, { kind: "operator", actorId: actor });
+  if (hasFlag(args, "--json")) {
+    console.log(JSON.stringify(conflict, null, 2));
+  } else if (!conflict) {
+    console.error("Conflict not found or not authorized.");
+    process.exit(1);
+  } else {
+    console.log(`Accepted divergence: ${conflictId}`);
+  }
 }

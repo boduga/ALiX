@@ -7,12 +7,13 @@
 
 import type { CoordinationRunView } from "../kernel/coordination-view.js";
 
-export type CoordinationPanelViewMode = "overview" | "worker" | "approvals" | "failures" | "results";
+export type CoordinationPanelViewMode = "overview" | "worker" | "approvals" | "failures" | "results" | "conflicts";
 
 export type CoordinationPanelData = {
   view: CoordinationRunView;
   selectedWorkerIndex: number;
   viewMode: CoordinationPanelViewMode;
+  selectedConflictIndex?: number;
 };
 
 export function formatCoordinationPanel(
@@ -28,6 +29,7 @@ export function formatCoordinationPanel(
     case "approvals": return renderApprovals(data, w);
     case "failures": return renderFailures(data, w);
     case "results": return renderResults(data, w);
+    case "conflicts": return renderConflicts(data, w);
     default: return lines;
   }
 }
@@ -40,6 +42,9 @@ function renderOverview(data: CoordinationPanelData, width: number): string[] {
   lines.push(`Goal: ${v.run.goal}`);
   lines.push(`Status: ${v.run.status}  Outcome: ${v.run.outcome ?? "-"}  Freshness: ${v.freshness}`);
   lines.push(`Workers: ${v.run.workerCount} total`);
+  if (typeof v.conflictCount === "number" && v.conflictCount > 0) {
+    lines.push(`Conflicts: ${v.conflictCount} unresolved`);
+  }
   lines.push(`Created: ${v.run.createdAt.slice(0, 19)}`);
   lines.push(`Updated: ${v.run.updatedAt.slice(0, 19)}`);
   lines.push("");
@@ -60,7 +65,7 @@ function renderOverview(data: CoordinationPanelData, width: number): string[] {
   }
 
   lines.push("");
-  lines.push("Keys: ↑↓ select worker  Enter=detail  a=approvals  f=failures  r=results");
+  lines.push("Keys: ↑↓ select worker  Enter=detail  a=approvals  f=failures  r=results  c=conflicts");
   return lines;
 }
 
@@ -125,5 +130,33 @@ function renderResults(data: CoordinationPanelData, _width: number): string[] {
   if (agg.timing.wallClockDurationMs) lines.push(`  Duration: ${(agg.timing.wallClockDurationMs / 1000).toFixed(1)}s`);
   if (agg.finalSummary) lines.push(`\n  Synthesis: ${agg.finalSummary}`);
   lines.push(""); lines.push("Keys: ESC=back");
+  return lines;
+}
+
+function renderConflicts(data: CoordinationPanelData, width: number): string[] {
+  const lines = ["── Conflicts ────────────────────────────"];
+  const conflicts = data.view.conflicts ?? [];
+  if (conflicts.length === 0) {
+    lines.push("  (no unresolved conflicts)");
+    lines.push(""); lines.push("Keys: ESC=back");
+    return lines;
+  }
+  const sel = data.selectedConflictIndex ?? 0;
+  lines.push(`${"  "}${"Conflict".padEnd(22)} ${"Status".padEnd(14)} ${"Type".padEnd(22)} ${"Crit".padEnd(8)} F  Topic`);
+  lines.push("─".repeat(Math.min(width, 80)));
+  for (let i = 0; i < conflicts.length; i++) {
+    const c = conflicts[i];
+    const mark = i === sel ? ">" : " ";
+    const topicTrunc = c.topicKey.slice(0, Math.max(20, width - 78));
+    lines.push(`${mark} ${c.id.slice(0, 20).padEnd(22)} ${c.status.padEnd(14)} ${c.type.padEnd(22)} ${c.criticality.padEnd(8)} ${String(c.findingCount).padEnd(2)} ${topicTrunc}`);
+  }
+  const cur = conflicts[sel];
+  if (cur) {
+    lines.push("");
+    lines.push(`Evidence: ${cur.evidenceRecommendation} (confidence ${cur.evidenceConfidence}, margin ${cur.scoreMargin.toFixed(2)})`);
+    lines.push(`Detected by: ${cur.detectedBy.join(", ")}`);
+    lines.push(`Updated: ${cur.updatedAt.slice(0, 19)}`);
+  }
+  lines.push(""); lines.push("Keys: ↑↓ select conflict  ESC=back");
   return lines;
 }

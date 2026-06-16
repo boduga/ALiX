@@ -3,7 +3,7 @@
  */
 
 import { resolve, relative, isAbsolute } from "node:path";
-import type { PublishFindingInput, PublishArtifactInput, WorkerContextManifest } from "./collaboration-types.js";
+import type { PublishFindingInput, PublishArtifactInput, WorkerContextManifest, CollaborationState } from "./collaboration-types.js";
 import type { WorkerOwnershipClaim } from "./coordination-types.js";
 import type { ContextBudget } from "./collaboration-relevance-types.js";
 
@@ -104,6 +104,7 @@ export function normalizeManifestV1_0(manifest: any): WorkerContextManifest {
   return {
     ...manifest,
     schemaVersion: "1.1" as const,
+    conflictIds: manifest.conflictIds ?? [],
     findings: (manifest.findings ?? []).map((f: any) => ({
       ...f,
       sourceWorkerAttempt: f.sourceWorkerAttempt ?? 1,
@@ -132,4 +133,20 @@ export function validateContextBudget(budget: ContextBudget): string[] {
   const bucketSum = budget.dependencyResults.maxTokens + budget.findings.maxTokens + budget.artifacts.maxTokens + budget.systemReserveTokens + budget.taskReserveTokens;
   if (bucketSum > budget.totalTokens) errors.push(`bucket sum ${bucketSum} exceeds totalTokens ${budget.totalTokens}`);
   return errors;
+}
+
+export function normalizeStateV1_0(
+  state: Partial<CollaborationState> | undefined | null,
+): CollaborationState {
+  const now = new Date().toISOString();
+  return {
+    schemaVersion: "1.0",
+    runId: state?.runId ?? "",
+    revision: state?.revision ?? 0,
+    findings: state?.findings ?? [],
+    artifacts: state?.artifacts ?? [],
+    conflicts: state?.conflicts ?? [],
+    createdAt: state?.createdAt ?? now,
+    updatedAt: state?.updatedAt ?? now,
+  };
 }

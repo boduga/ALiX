@@ -16,10 +16,17 @@ import { CoordinationResultStore } from "./coordination-result-store.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
+import type { FindingConflict } from "./collaboration-conflict-types.js";
 import type {
   WorkerContextManifest, WorkerContextSnapshot, CollaborationContextWarning,
   SharedFinding, SharedArtifact,
 } from "./collaboration-types.js";
+
+export type CollaborationContextConflictsBudget = {
+  maxTokens: number;
+  maxItems: number;
+  maxFindingsPerConflict: number;
+};
 
 export type CollaborationContextBudget = {
   maxTokens: number;
@@ -28,6 +35,13 @@ export type CollaborationContextBudget = {
   maxDependencyResults: number;
   maxFindingContentChars: number;
   maxResultSummaryChars: number;
+  conflicts?: CollaborationContextConflictsBudget;
+};
+
+const DEFAULT_CONFLICTS_BUDGET: CollaborationContextConflictsBudget = {
+  maxTokens: 1_000,
+  maxItems: 10,
+  maxFindingsPerConflict: 5,
 };
 
 const DEFAULT_BUDGET: CollaborationContextBudget = {
@@ -37,17 +51,39 @@ const DEFAULT_BUDGET: CollaborationContextBudget = {
   maxDependencyResults: 8,
   maxFindingContentChars: 4_000,
   maxResultSummaryChars: 8_000,
+  conflicts: DEFAULT_CONFLICTS_BUDGET,
 };
+
+function resolveConflictsBudget(budget: CollaborationContextBudget): CollaborationContextConflictsBudget {
+  return budget.conflicts ?? DEFAULT_CONFLICTS_BUDGET;
+}
+
+function capConflict(c: FindingConflict, maxFindingsPerConflict: number): FindingConflict {
+  if (c.findingIds.length <= maxFindingsPerConflict && c.claimComparisons.length <= maxFindingsPerConflict) {
+    return c;
+  }
+  return {
+    ...c,
+    findingIds: c.findingIds.slice(0, maxFindingsPerConflict),
+    claimComparisons: c.claimComparisons.slice(0, maxFindingsPerConflict),
+  };
+}
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
+
+type MetricsLike = {
+  increment: (name: string, labels?: Record<string, string>, by?: number) => void;
+  duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
+};
 
 export class CollaborationContextBuilder {
   constructor(
     private resultStore: CoordinationResultStore,
     private collabStore: CollaborationStore,
     private budget: CollaborationContextBudget = DEFAULT_BUDGET,
+    private metrics?: MetricsLike,
   ) {}
 
   async build(run: CoordinationRun, worker: WorkerAssignment): Promise<{
@@ -119,11 +155,37 @@ export class CollaborationContextBuilder {
       }
     }
 
+    // 4. Load unresolved conflicts involving these findings
+    const findingIds = findings.map(f => f.id);
+    const conflictsBudget = resolveConflictsBudget(this.budget);
+    const rawConflicts = findingIds.length > 0
+      ? await this.collabStore.queryConflicts({ findingIds, statuses: ["detected", "under_review"] })
+      : [];
+    const activeConflicts = rawConflicts
+      .slice(0, conflictsBudget.maxItems)
+      .map(c => capConflict(c, conflictsBudget.maxFindingsPerConflict));
+
+    // D4: context conflict metrics — included vs omitted.
+    if (this.metrics) {
+      const omittedByBudget = Math.max(0, rawConflicts.length - activeConflicts.length);
+      try {
+        for (let i = 0; i < activeConflicts.length; i++) {
+          this.metrics.increment("collaboration_conflict_context_included_total", { reason: "included" });
+        }
+      } catch { /* best-effort */ }
+      if (omittedByBudget > 0) {
+        try {
+          this.metrics.increment("collaboration_conflict_context_omitted_total", { reason: "budget" });
+        } catch { /* best-effort */ }
+      }
+    }
+
     // Compute fingerprint
     const fingerprintInput = {
       depResults: manifestResults.map(r => ({ ref: r.resultRef, outcome: r.outcome })),
       findings: findings.map(f => ({ id: f.id, updatedAt: f.updatedAt })),
       artifacts: artifacts.map(a => ({ id: a.id })),
+      conflictIds: activeConflicts.map(c => c.id).sort(),
     };
     const sourceFingerprint = createHash("sha256").update(JSON.stringify(fingerprintInput)).digest("hex");
 
@@ -167,6 +229,7 @@ export class CollaborationContextBuilder {
         estimatedTokens: estimateTokens(a.uri),
       })),
       results: manifestResults,
+      conflictIds: activeConflicts.map(c => c.id),
       generatedAt: new Date().toISOString(),
       tokenEstimate,
       tokenBudget: this.budget.maxTokens,
@@ -184,6 +247,7 @@ export class CollaborationContextBuilder {
       dependencyResults: resultRecords,
       findings,
       artifacts,
+      conflicts: activeConflicts,
       renderedText: "",
     };
 

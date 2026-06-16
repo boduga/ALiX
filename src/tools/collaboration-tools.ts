@@ -121,5 +121,41 @@ export function createCollaborationTools(api: WorkerCollaborationAPI): BoundTool
         return JSON.stringify(results);
       },
     },
+
+    {
+      definition: {
+        name: "collaboration.report_conflict",
+        description: "Report a potential conflict between your findings and other workers' findings.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            findingIds: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 20, description: "IDs of findings that appear to conflict" },
+            topic: { type: "string", description: "Optional topic label for the conflict" },
+            reason: { type: "string", maxLength: 1000, description: "Why these findings appear to conflict" },
+          },
+          required: ["findingIds", "reason"],
+        },
+      },
+      handler: async (args) => {
+        const id = await api.reportConflict({ findingIds: args.findingIds as string[], topic: args.topic as string | undefined, reason: args.reason as string });
+        return JSON.stringify({ conflictId: id });
+      },
+    },
+    {
+      definition: {
+        name: "collaboration.list_conflicts",
+        description: "List unresolved conflicts relevant to this worker.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            limit: { type: "number", description: "Max results (default 10, max 50)" },
+          },
+        },
+      },
+      handler: async (args) => {
+        const conflicts = await api.listConflicts({ limit: Math.min((args.limit as number) ?? 10, 50) });
+        return JSON.stringify(conflicts);
+      },
+    },
   ];
 }

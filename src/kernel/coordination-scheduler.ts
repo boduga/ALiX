@@ -23,6 +23,12 @@ import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment } from ".
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
 import { CollaborationStore } from "./collaboration-store.js";
+import { ConflictDetector } from "./collaboration-conflict-detector.js";
+import { ConflictCandidateGenerator } from "./collaboration-conflict-candidates.js";
+import { ClaimComparator } from "./collaboration-claim-comparator.js";
+import { ConflictEvidenceComparator } from "./collaboration-evidence-comparator.js";
+import { ConflictRepository } from "./collaboration-conflict-repository.js";
+import { systemClock as collabSystemClock } from "./collaboration-freshness.js";
 import type { WorkerCollaborationAPI } from "./worker-collaboration-api.js";
 import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaboration-types.js";
 
@@ -57,6 +63,7 @@ export type SchedulerOptions = {
   ownershipRenewIntervalMs?: number;
   orphanThresholdMs?: number;
   maxDispatchPerTick?: number;
+  enableConflictDetection?: boolean;
 };
 
 export type CoordinationSchedulerDeps = {
@@ -135,6 +142,7 @@ export class CoordinationScheduler {
       ownershipRenewIntervalMs: options.ownershipRenewIntervalMs ?? DEFAULT_OWNERSHIP_RENEW_INTERVAL_MS,
       orphanThresholdMs: options.orphanThresholdMs ?? DEFAULT_ORPHAN_THRESHOLD_MS,
       maxDispatchPerTick: options.maxDispatchPerTick ?? DEFAULT_MAX_DISPATCH_PER_TICK,
+      enableConflictDetection: options.enableConflictDetection ?? true,
     };
     this.resultStore = new CoordinationResultStore(deps.cwd);
   }
@@ -638,11 +646,36 @@ export class CoordinationScheduler {
     try {
       const run = await this.deps.store.load(runId);
       if (!run || (run.status !== "completed" && run.status !== "failed")) return;
+      // Run conflict detection once at finalization, before the completion
+      // service runs. Best-effort — failures are logged but never thrown.
+      if (this.options.enableConflictDetection) {
+        await this.runConflictDetection(runId);
+      }
       await this.deps.completionService.finalize(runId);
     } catch (error) {
       // Finalization is observability — never affects scheduler correctness
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] Finalization failed for ${runId}: ${msg}`);
+    }
+  }
+
+  private async runConflictDetection(runId: string): Promise<void> {
+    try {
+      const collabStore = new CollaborationStore(this.deps.cwd, runId);
+      const conflictRepo = new ConflictRepository(collabStore);
+      const detector = new ConflictDetector({
+        collabStore,
+        coordinationStore: this.deps.store,
+        resultStore: this.resultStore,
+        candidateGenerator: new ConflictCandidateGenerator(),
+        claimComparator: new ClaimComparator(),
+        evidenceComparator: new ConflictEvidenceComparator(collabSystemClock),
+        conflictRepo,
+      });
+      await detector.detectConflicts(runId);
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : String(error);
+      console.error(`[scheduler] Conflict detection failed for ${runId}: ${msg}`);
     }
   }
 

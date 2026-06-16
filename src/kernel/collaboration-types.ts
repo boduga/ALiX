@@ -9,6 +9,8 @@
 
 import type { WorkerOwnershipClaim } from "./coordination-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
+import type { FindingConflict } from "./collaboration-conflict-types.js";
+import type { FindingClaim } from "./collaboration-conflict-types.js";
 
 // ─── Finding and artifact kinds ─────────────────────────────────────
 
@@ -81,6 +83,7 @@ export interface SharedFinding {
   title: string;
   content: string;
   confidence?: number;
+  claim?: FindingClaim;
   tags: string[];
   evidenceRefs: EvidenceRef[];
   artifactRefs: string[];
@@ -136,6 +139,7 @@ export interface WorkerContextManifest {
     estimatedTokens: number;
     outcome: "success" | "failure";
   }>;
+  conflictIds: string[];
   generatedAt: string;
   tokenEstimate: number;
   tokenBudget: number;
@@ -154,6 +158,7 @@ export interface WorkerContextSnapshot {
   dependencyResults: CoordinationWorkerResultRecord[];
   findings: SharedFinding[];
   artifacts: SharedArtifact[];
+  conflicts: FindingConflict[];
   renderedText: string;
 }
 
@@ -165,6 +170,7 @@ export interface CollaborationState {
   revision: number;
   findings: SharedFinding[];
   artifacts: SharedArtifact[];
+  conflicts: FindingConflict[];
   createdAt: string;
   updatedAt: string;
 }

@@ -885,6 +885,74 @@ The daemon binds to a Unix socket (`.alix/alixd.sock`). No remote access. No net
 
 ---
 
+## 20.1 Conflict Detection (M0.78f)
+
+When multiple workers in a coordination run publish findings about the same topic, ALiX runs a conflict-detection pass to surface disagreements so a human can review them. Detection is **non-blocking** by default — it never halts a worker, the run, or downstream tasks unless an operator explicitly sets `blocksDownstreamByPolicy: true` on a critical conflict.
+
+### How detection works
+
+1. **Claim normalization.** Each finding's title and content are scanned for narrow, testable patterns (`subject = value`, `version = 1.2.3`, `decision: use X`, `digest = sha256:…`, `is true / false`, simple `key = value`). Prose that does not match a pattern returns `null` — no claim is fabricated. The resulting `FindingClaim` is case-folded, trimmed, and version-stamped (see `EXTRACTION_VERSION` in `collaboration-claim-normalizer.ts`).
+2. **Topic key.** A normalized claim produces a deterministic SHA-256 topic key from `{ subject, predicate, scope }`. Findings that normalize to the same key are considered candidates for comparison.
+3. **Candidate generation.** Only **active** findings are eligible (findings marked `superseded`, `invalidated`, or from a prior `workerAttempt` are excluded). The generator groups by topic key, sorts the group deterministically (`createdAt`, `workerId`, `id`), emits unique pairs `(i, j)`, and enforces `maxPairsPerDetectionPass` (default 200) and `maxFindingsPerTopic` (default 20) caps.
+4. **Claim comparison.** Pairs are compared by `ClaimComparator` which classifies compatibility as `compatible | incompatible | different_scope | uncertain` and assigns a conflict `type` (`contradiction | competing_decision | artifact_mismatch`). Booleans with different values are contradictions; numbers within tolerance (0.01) are compatible; enums in the same scope are competing decisions; digests in the same subject are `artifact_mismatch`; ambiguous claims return `uncertain` and do not create a deterministic conflict.
+5. **Evidence ranking.** `ConflictEvidenceComparator` scores each finding on freshness (recency, 1–8), evidence quality (artifact with digest, durable worker result, etc., 0–15), confidence (self-declared, scaled), source attempt, result provenance, and artifact integrity. The score-margin between the top two rankings drives a recommendation: `prefer_stronger_evidence` (high confidence), `human_review` (low/medium).
+6. **Worker reports.** Workers can also report conflicts directly via the worker conflict-reporting API. Worker reports are merged with the deterministic record and tagged with `detectedBy: ["worker_report", "deterministic"]`.
+
+### Reading conflicts
+
+**CLI.** All five commands require `--actor <id>` and accept `--reason <text>` and `--json`:
+
+```bash
+# List all conflicts in a run
+alix coordination conflicts <run-id>
+
+# Full detail for one conflict
+alix coordination conflict <run-id> <conflict-id>
+```
+
+The detail view includes claim comparisons, evidence ranking with score components, conflict history, and the resolution (if any).
+
+**Inspector (web).** Read-only HTTP routes:
+
+- `GET /api/coordination/:runId/conflicts` — list
+- `GET /api/coordination/:runId/conflicts/:conflictId` — single conflict
+
+The Inspector never exposes resolution endpoints. Resolution always goes through the CLI so the actor and reason are recorded explicitly.
+
+**TUI.** From the run overview, press `c` to open the conflict panel. Navigate with arrow keys, press `Enter` to view one conflict in full, `r` / `d` / `a` to resolve / dismiss / accept-divergence (each prompts for a reason).
+
+### Resolving a conflict
+
+Three terminal actions are available, each appending a `ConflictHistoryEntry` and (for resolution) a `ConflictResolution` record:
+
+| Action | Effect | When to use |
+|--------|--------|-------------|
+| `conflict-resolve` | Pick a winning finding; reject the others. The rejected findings get `invalidatedAt` set; the conflict is `resolved`. | One finding is provably correct, the other is provably wrong. |
+| `conflict-accept-divergence` | Accept both findings. They coexist; the conflict is `accepted_divergence`. | Both findings are correct in their own context (e.g. different scopes, different assumptions). |
+| `conflict-dismiss` | Mark the conflict as not a real conflict. The findings are left alone; the conflict is `dismissed`. | After review, this is a false positive (e.g. topic key collision, outdated claim). |
+
+**When in doubt, start with `dismiss` or `accept-divergence`.** `resolve` is the strongest action — it invalidates other findings and removes them from future context bundles. `dismiss` and `accept-divergence` are reversible in the sense that the findings remain available; only the conflict record is closed.
+
+### Audit chain and event log
+
+Two correlated trails are written for every conflict action:
+
+- **Audit log** at `.alix/audit/audit.jsonl` — append-only JSONL. Use `alix audit by-action` (or grep directly) to find every conflict resolution, dismissal, and acceptance. Each entry records the actor and reason.
+- **Event log** at `.alix/sessions/<id>/events.jsonl` — per-session append-only events. Conflict lifecycle events (`conflict.detected`, `conflict.under_review`, `conflict.resolved`, `conflict.accepted_divergence`, `conflict.dismissed`) are emitted here. Use `alix runtime events --session <id>` or the Inspector's session view to correlate them.
+
+To correlate a conflict with a session, find the conflict's `runId` in `.alix/coordination/<id>/state.json`, look up the run's owning session, then read the corresponding `events.jsonl`.
+
+### Hard safety guarantees
+
+These properties are enforced by the kernel and are not configurable:
+
+- **No automatic truth resolution.** The detector never picks a winner. The model (if enabled) may flag a finding for review but cannot mark a conflict as resolved.
+- **No worker resolve.** Workers can publish findings and report conflicts, but the `conflict-resolve`, `conflict-dismiss`, and `conflict-accept-divergence` actions require an operator actor. The CLI rejects worker-actor resolutions at the kernel boundary.
+- **Model is non-authoritative.** Model-assisted detection is recorded as `detectedBy: ["model_assisted"]` but is never the sole source of a resolution. A deterministic comparison or worker report is always present alongside.
+- **Non-blocking by default.** Conflicts do not pause the run or downstream tasks. Only an operator setting `blocksDownstreamByPolicy: true` on a `critical` conflict halts downstream work, and that flag is visible in the conflict record and audit log.
+
+---
+
 ## 21. Storage Layout
 
 ```
