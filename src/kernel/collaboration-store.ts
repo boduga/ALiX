@@ -14,7 +14,7 @@ import { existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CollaborationRunLock } from "./collaboration-run-lock.js";
-import { validatePublishFindingInput, validatePublishArtifactInput, canonicalizeFindingInput } from "./collaboration-validation.js";
+import { validatePublishFindingInput, validatePublishArtifactInput, canonicalizeFindingInput, normalizeStateV1_0 } from "./collaboration-validation.js";
 import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
 import type {
   SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,
@@ -63,7 +63,8 @@ export class CollaborationStore {
     }
     try {
       const raw = await readFile(this.statePath, "utf-8");
-      this.state = JSON.parse(raw) as CollaborationState;
+      const parsed = JSON.parse(raw);
+      this.state = normalizeStateV1_0(parsed);
     } catch {
       this.state = { ...DEFAULT_STATE, runId: this.runId, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     }
