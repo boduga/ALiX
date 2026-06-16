@@ -22,6 +22,12 @@ import type {
   SharedFinding, SharedArtifact,
 } from "./collaboration-types.js";
 
+export type CollaborationContextConflictsBudget = {
+  maxTokens: number;
+  maxItems: number;
+  maxFindingsPerConflict: number;
+};
+
 export type CollaborationContextBudget = {
   maxTokens: number;
   maxFindings: number;
@@ -29,6 +35,13 @@ export type CollaborationContextBudget = {
   maxDependencyResults: number;
   maxFindingContentChars: number;
   maxResultSummaryChars: number;
+  conflicts?: CollaborationContextConflictsBudget;
+};
+
+const DEFAULT_CONFLICTS_BUDGET: CollaborationContextConflictsBudget = {
+  maxTokens: 1_000,
+  maxItems: 10,
+  maxFindingsPerConflict: 5,
 };
 
 const DEFAULT_BUDGET: CollaborationContextBudget = {
@@ -38,7 +51,23 @@ const DEFAULT_BUDGET: CollaborationContextBudget = {
   maxDependencyResults: 8,
   maxFindingContentChars: 4_000,
   maxResultSummaryChars: 8_000,
+  conflicts: DEFAULT_CONFLICTS_BUDGET,
 };
+
+function resolveConflictsBudget(budget: CollaborationContextBudget): CollaborationContextConflictsBudget {
+  return budget.conflicts ?? DEFAULT_CONFLICTS_BUDGET;
+}
+
+function capConflict(c: FindingConflict, maxFindingsPerConflict: number): FindingConflict {
+  if (c.findingIds.length <= maxFindingsPerConflict && c.claimComparisons.length <= maxFindingsPerConflict) {
+    return c;
+  }
+  return {
+    ...c,
+    findingIds: c.findingIds.slice(0, maxFindingsPerConflict),
+    claimComparisons: c.claimComparisons.slice(0, maxFindingsPerConflict),
+  };
+}
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
@@ -122,9 +151,13 @@ export class CollaborationContextBuilder {
 
     // 4. Load unresolved conflicts involving these findings
     const findingIds = findings.map(f => f.id);
-    const activeConflicts = findingIds.length > 0
+    const conflictsBudget = resolveConflictsBudget(this.budget);
+    const rawConflicts = findingIds.length > 0
       ? await this.collabStore.queryConflicts({ findingIds, statuses: ["detected", "under_review"] })
       : [];
+    const activeConflicts = rawConflicts
+      .slice(0, conflictsBudget.maxItems)
+      .map(c => capConflict(c, conflictsBudget.maxFindingsPerConflict));
 
     // Compute fingerprint
     const fingerprintInput = {
