@@ -15,6 +15,7 @@ import { resolve, relative, sep, isAbsolute, join } from "node:path";
 import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
 import type { FailureChain, RunResultSummary } from "./coordination-result-types.js";
 import { CollaborationStore } from "./collaboration-store.js";
+import type { ConflictStatus, ConflictType, DetectionMethod } from "./collaboration-conflict-types.js";
 
 // ─── View types ────────────────────────────────────────────────────
 
@@ -80,6 +81,20 @@ export type CoordinationEventView = {
   payload: Record<string, unknown>;
 };
 
+export type CoordinationConflictView = {
+  id: string;
+  topicKey: string;
+  type: ConflictType;
+  status: ConflictStatus;
+  criticality: "info" | "warning" | "critical";
+  findingCount: number;
+  evidenceRecommendation: "prefer_stronger_evidence" | "request_more_evidence" | "accept_divergence" | "human_review";
+  evidenceConfidence: "high" | "medium" | "low";
+  scoreMargin: number;
+  detectedBy: DetectionMethod[];
+  updatedAt: string;
+};
+
 export type CoordinationRunView = {
   run: RunSummary;
   workers: WorkerView[];
@@ -90,6 +105,7 @@ export type CoordinationRunView = {
   freshness: "fresh" | "stale" | "missing";
   events: CoordinationEventView[];
   conflictCount?: number;
+  conflicts?: CoordinationConflictView[];
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -226,12 +242,26 @@ export async function buildCoordinationRunView(
     }
   } catch { /* events are best-effort */ }
 
-  // Conflict count — unresolved conflicts from the run's collaboration store
+  // Conflicts — unresolved conflicts from the run's collaboration store
   let conflictCount: number | undefined;
+  let conflicts: CoordinationConflictView[] | undefined;
   try {
     const collabStore = new CollaborationStore(cwd, runId);
     const unresolved = await collabStore.queryConflicts({ statuses: ["detected", "under_review"] });
     conflictCount = unresolved.length;
+    conflicts = unresolved.map(c => ({
+      id: c.id,
+      topicKey: c.topicKey,
+      type: c.type,
+      status: c.status,
+      criticality: c.criticality,
+      findingCount: c.findingIds.length,
+      evidenceRecommendation: c.evidenceComparison.recommendation,
+      evidenceConfidence: c.evidenceComparison.confidence,
+      scoreMargin: c.evidenceComparison.scoreMargin,
+      detectedBy: c.detectedBy,
+      updatedAt: c.updatedAt,
+    }));
   } catch { /* conflicts are best-effort */ }
 
   return {
@@ -244,5 +274,6 @@ export async function buildCoordinationRunView(
     freshness,
     events,
     conflictCount,
+    conflicts,
   };
 }
