@@ -28,7 +28,8 @@ export type CoordinationRunStatus =
 export type WorkerBlockReason =
   | "approval_required" | "authorization_denied" | "ownership_conflict"
   | "dependency_failed" | "orphaned" | "concurrency_limit"
-  | "execution_failed" | "lease_lost" | "cancelled";
+  | "execution_failed" | "lease_lost" | "cancelled"
+  | "context_unavailable";
 
 export type WorkerFailureKind =
   | "transient_provider" | "timeout" | "authorization_denied"
@@ -117,6 +118,10 @@ export interface WorkerAssignment {
   approvalId?: string;
   authorizationEvidence?: WorkerAuthorizationEvidence;
   failureProvenance?: WorkerFailureProvenance;
+  contextManifestRef?: string;
+  contextFingerprint?: string;
+  contextGeneratedAt?: string;
+  contextTokenEstimate?: number;
 
   /** When this assignment was created */
   createdAt: string;
@@ -220,6 +225,10 @@ export function createWorkerAssignment(opts: {
   approvalId?: string;
   authorizationEvidence?: WorkerAuthorizationEvidence;
   failureProvenance?: WorkerFailureProvenance;
+  contextManifestRef?: string;
+  contextFingerprint?: string;
+  contextGeneratedAt?: string;
+  contextTokenEstimate?: number;
 }): WorkerAssignment {
   const now = new Date().toISOString();
   return {
@@ -251,6 +260,10 @@ export function createWorkerAssignment(opts: {
     approvalId: opts.approvalId,
     authorizationEvidence: opts.authorizationEvidence,
     failureProvenance: opts.failureProvenance,
+    contextManifestRef: opts.contextManifestRef,
+    contextFingerprint: opts.contextFingerprint,
+    contextGeneratedAt: opts.contextGeneratedAt,
+    contextTokenEstimate: opts.contextTokenEstimate,
     createdAt: now,
     updatedAt: now,
   };

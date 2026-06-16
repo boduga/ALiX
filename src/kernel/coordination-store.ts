@@ -30,6 +30,10 @@ export function normalizeWorkerAssignment(worker: WorkerAssignment): WorkerAssig
     maxAttempts: worker.maxAttempts ?? 3,
     ownershipClaims: worker.ownershipClaims ?? [],
     failureProvenance: worker.failureProvenance,
+    contextManifestRef: worker.contextManifestRef,
+    contextFingerprint: worker.contextFingerprint,
+    contextGeneratedAt: worker.contextGeneratedAt,
+    contextTokenEstimate: worker.contextTokenEstimate,
   };
 }
 
@@ -39,6 +43,8 @@ export type WorkerPatch = Partial<Pick<WorkerAssignment,
   | "lastHeartbeatAt" | "leaseIds" | "executionOwnerId"
   | "authorizationEvidence" | "nextAttemptAt"
   | "failureProvenance"
+  | "contextManifestRef" | "contextFingerprint"
+  | "contextGeneratedAt" | "contextTokenEstimate"
 >>;
 
 export class CoordinationStore {
