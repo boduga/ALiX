@@ -23,6 +23,25 @@ import { buildDefaultToolIndex } from "../../tools/tool-registry.js";
 import { ConflictRepository } from "../../kernel/collaboration-conflict-repository.js";
 import { CollaborationStore } from "../../kernel/collaboration-store.js";
 
+function readFlag(args: string[], flag: string): string | undefined {
+  const idx = args.indexOf(flag);
+  return idx === -1 || idx + 1 >= args.length ? undefined : args[idx + 1];
+}
+function hasFlag(args: string[], flag: string): boolean {
+  return args.includes(flag);
+}
+function isFlagValue(args: string[], candidate: string): boolean {
+  // true if `candidate` immediately follows --actor or --reason
+  for (const f of ["--actor", "--reason"]) {
+    const i = args.indexOf(f);
+    if (i !== -1 && args[i + 1] === candidate) return true;
+  }
+  return false;
+}
+function positionalArgs(args: string[]): string[] {
+  return args.filter(a => !a.startsWith("--") && !isFlagValue(args, a));
+}
+
 export async function handleCoordination(args: string[]): Promise<void> {
   const cwd = process.cwd();
   const subcommand = args[0];
@@ -60,6 +79,8 @@ export async function handleCoordination(args: string[]): Promise<void> {
       return handleConflictResolve(cwd, args.slice(1));
     case "conflict-dismiss":
       return handleConflictDismiss(cwd, args.slice(1));
+    case "conflict-accept-divergence":
+      return handleConflictAcceptDivergence(cwd, args.slice(1));
     default:
       console.error(`Unknown coordination subcommand: ${subcommand}`);
       process.exit(1);
@@ -474,22 +495,72 @@ async function handleConflict(cwd: string, args: string[]): Promise<void> {
 }
 
 async function handleConflictResolve(cwd: string, args: string[]): Promise<void> {
-  if (args.length < 2) { console.error("Usage: alix coordination conflict-resolve <run-id> <conflict-id>"); process.exit(1); }
-  const store = new CollaborationStore(cwd, args[0]);
+  const positional = positionalArgs(args);
+  if (positional.length < 2) {
+    console.error("Usage: alix coordination conflict-resolve <run-id> <conflict-id> [--actor <id>] [--reason <text>] [--json]");
+    process.exit(1);
+  }
+  const [runId, conflictId] = positional;
+  const actor = readFlag(args, "--actor") ?? "cli";
+  const reason = readFlag(args, "--reason") ?? "resolved by operator";
+  const store = new CollaborationStore(cwd, runId);
   const repo = new ConflictRepository(store);
-  await repo.resolveConflict(args[1], {
-    decision: "resolved by operator",
+  const conflict = await repo.resolveConflict(conflictId, {
+    decision: reason,
     acceptedFindingIds: [], rejectedFindingIds: [],
-    resolver: { kind: "operator", id: "cli" },
+    resolver: { kind: "operator", id: actor },
     evidenceRefs: [], resolvedAt: new Date().toISOString(),
-  }, { kind: "operator", actorId: "cli" });
-  console.log(`Resolved: ${args[1]}`);
+  }, { kind: "operator", actorId: actor });
+  if (hasFlag(args, "--json")) {
+    console.log(JSON.stringify(conflict, null, 2));
+  } else if (!conflict) {
+    console.error("Conflict not found or not authorized.");
+    process.exit(1);
+  } else {
+    console.log(`Resolved: ${conflictId}`);
+  }
 }
 
 async function handleConflictDismiss(cwd: string, args: string[]): Promise<void> {
-  if (args.length < 2) { console.error("Usage: alix coordination conflict-dismiss <run-id> <conflict-id>"); process.exit(1); }
-  const store = new CollaborationStore(cwd, args[0]);
+  const positional = positionalArgs(args);
+  if (positional.length < 2) {
+    console.error("Usage: alix coordination conflict-dismiss <run-id> <conflict-id> [--actor <id>] [--reason <text>] [--json]");
+    process.exit(1);
+  }
+  const [runId, conflictId] = positional;
+  const actor = readFlag(args, "--actor") ?? "cli";
+  const reason = readFlag(args, "--reason") ?? "dismissed by operator";
+  const store = new CollaborationStore(cwd, runId);
   const repo = new ConflictRepository(store);
-  await repo.updateConflictStatus(args[1], "dismissed", { kind: "operator", actorId: "cli" });
-  console.log(`Dismissed: ${args[1]}`);
+  const conflict = await repo.updateConflictStatus(conflictId, "dismissed", { kind: "operator", actorId: actor });
+  if (hasFlag(args, "--json")) {
+    console.log(JSON.stringify(conflict, null, 2));
+  } else if (!conflict) {
+    console.error("Conflict not found or not authorized.");
+    process.exit(1);
+  } else {
+    console.log(`Dismissed: ${conflictId}`);
+  }
+}
+
+async function handleConflictAcceptDivergence(cwd: string, args: string[]): Promise<void> {
+  const positional = positionalArgs(args);
+  if (positional.length < 2) {
+    console.error("Usage: alix coordination conflict-accept-divergence <run-id> <conflict-id> [--actor <id>] [--reason <text>] [--json]");
+    process.exit(1);
+  }
+  const [runId, conflictId] = positional;
+  const actor = readFlag(args, "--actor") ?? "cli";
+  const reason = readFlag(args, "--reason") ?? "accepted divergence";
+  const store = new CollaborationStore(cwd, runId);
+  const repo = new ConflictRepository(store);
+  const conflict = await repo.acceptConflictDivergence(conflictId, reason, { kind: "operator", actorId: actor });
+  if (hasFlag(args, "--json")) {
+    console.log(JSON.stringify(conflict, null, 2));
+  } else if (!conflict) {
+    console.error("Conflict not found or not authorized.");
+    process.exit(1);
+  } else {
+    console.log(`Accepted divergence: ${conflictId}`);
+  }
 }
