@@ -53,6 +53,7 @@ export class ConflictRepository {
         )
           existing.detectedBy.push(...input.detectedBy);
         existing.evidenceComparison = input.evidenceComparison;
+        this.addHistory(existing, "updated");
         return existing;
       }
       created = true;
