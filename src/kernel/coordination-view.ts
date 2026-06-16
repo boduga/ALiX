@@ -10,6 +10,7 @@ import { CoordinationStore } from "./coordination-store.js";
 import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
 import { buildFailureChains } from "./coordination-failure-chain.js";
 import { computeAggregationSourceFingerprint } from "./coordination-aggregation-fingerprint.js";
+import { existsSync } from "node:fs";
 import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
 import type { FailureChain, RunResultSummary } from "./coordination-result-types.js";
 
@@ -145,11 +146,38 @@ export async function buildCoordinationRunView(
     resultRef: w.resultRef,
   }));
 
-  // Approvals
-  const approvals: ApprovalView[] = [];
+  // Approvals — load from ApprovalStore by run ID
+  const { ApprovalStore } = await import("../approvals/approval-store.js");
+  const approvalStore = new ApprovalStore(cwd);
+  await approvalStore.load();
+  const approvals: ApprovalView[] = approvalStore.listByRun(runId).map(a => ({
+    id: a.id,
+    status: a.status,
+    capabilities: a.capabilities,
+    bindingKey: a.bindingKey,
+    workerId: a.workerId,
+    createdAt: a.createdAt,
+    expiresAt: a.expiresAt,
+  }));
 
-  // Ownership leases
-  const ownershipLeases: OwnershipLeaseView[] = [];
+  // Ownership leases — load from registry and filter by worker IDs in this run
+  const workerIds = new Set(run.workers.map(w => w.id));
+  const { OwnershipRegistry } = await import("../ownership/ownership-registry.js");
+  const registry = new OwnershipRegistry(cwd, { sessionId: run.sessionId });
+  await registry.refresh();
+  const allRecords = registry.list();
+  const ownershipLeases: OwnershipLeaseView[] = allRecords
+    .filter(r => r.taskId && workerIds.has(r.taskId))
+    .map(r => ({
+      id: r.id,
+      agentId: r.agentId,
+      scope: r.scope && typeof r.scope === "object" ? (r.scope as any).root ?? JSON.stringify(r.scope) : JSON.stringify(r.scope ?? ""),
+      mode: r.mode,
+      status: r.status,
+      acquiredAt: r.acquiredAt,
+      ttlMs: 0,
+      taskId: r.taskId,
+    }));
 
   // Aggregate and freshness
   const aggregateStore = new CoordinationAggregateStore(cwd);
@@ -164,8 +192,27 @@ export async function buildCoordinationRunView(
   // Failure chains
   const failureChains = buildFailureChains(run);
 
-  // Events
-  const events: CoordinationEventView[] = [];
+  // Events — read from EventLog session
+  let events: CoordinationEventView[] = [];
+  try {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const eventPath = join(cwd, ".alix", "sessions", run.sessionId, "events.jsonl");
+    if (existsSync(eventPath)) {
+      const raw = readFileSync(eventPath, "utf-8");
+      events = raw.trim().split("\n").filter(Boolean).map(line => {
+        try {
+          const parsed = JSON.parse(line);
+          return {
+            type: parsed.type ?? "unknown",
+            timestamp: parsed.timestamp ?? parsed.createdAt ?? "",
+            workerId: parsed.payload?.workerId,
+            payload: parsed.payload ?? {},
+          };
+        } catch { return null; }
+      }).filter(Boolean).slice(-100) as CoordinationEventView[]; // last 100 events
+    }
+  } catch { /* events are best-effort */ }
 
   return {
     run: runSummary,

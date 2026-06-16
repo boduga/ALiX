@@ -62,6 +62,20 @@ export function registerCoordinationRoutes(
     return true;
   }
 
+  // GET /api/coordination/:runId/approvals
+  const approvalsMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/approvals$/);
+  if (method === "GET" && approvalsMatch) {
+    handleApprovals(cwd, approvalsMatch[1], res);
+    return true;
+  }
+
+  // GET /api/coordination/:runId/ownership
+  const ownershipMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/ownership$/);
+  if (method === "GET" && ownershipMatch) {
+    handleOwnership(cwd, ownershipMatch[1], res);
+    return true;
+  }
+
   return false;
 }
 
@@ -138,6 +152,26 @@ async function handleEvents(cwd: string, runId: string, res: ServerResponse): Pr
     const view = await buildCoordinationRunView(runId, cwd);
     if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
     sendJson(res, view.events);
+  } catch (err) {
+    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+}
+
+async function handleApprovals(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+  try {
+    const view = await buildCoordinationRunView(runId, cwd);
+    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
+    sendJson(res, view.approvals);
+  } catch (err) {
+    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+}
+
+async function handleOwnership(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+  try {
+    const view = await buildCoordinationRunView(runId, cwd);
+    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
+    sendJson(res, view.ownershipLeases);
   } catch (err) {
     sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
   }
