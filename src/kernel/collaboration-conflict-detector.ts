@@ -337,6 +337,11 @@ export class ConflictDetector {
         this.deps.metrics.increment("collaboration_conflicts_detected_total", { type: detectedType });
       } catch { /* best-effort */ }
       try {
+        this.deps.metrics.increment("collaboration_conflict_pairs_omitted_total", {
+          reason: report.omittedPairs > 0 ? "topic_cap_or_pass_cap" : "none",
+        });
+      } catch { /* best-effort */ }
+      try {
         this.deps.metrics.duration("collaboration_conflict_detection_duration_ms", report.durationMs);
       } catch { /* best-effort */ }
     }
@@ -355,6 +360,13 @@ export class ConflictDetector {
     signal: AbortSignal | undefined,
   ): Promise<"compatible" | "incompatible" | "uncertain" | null> {
     if (!this.deps.modelComparator) return null;
+    if (this.deps.metrics) {
+      try {
+        this.deps.metrics.increment("collaboration_conflict_model_compare_total", {
+          method: "model_assisted",
+        });
+      } catch { /* best-effort */ }
+    }
     try {
       const result = await this.deps.modelComparator.compare(
         {
@@ -380,6 +392,13 @@ export class ConflictDetector {
       }
       return null;
     } catch {
+      if (this.deps.metrics) {
+        try {
+          this.deps.metrics.increment("collaboration_conflict_model_compare_failed_total", {
+            method: "model_assisted",
+          });
+        } catch { /* best-effort */ }
+      }
       return null;
     }
   }

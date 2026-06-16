@@ -45,11 +45,17 @@ type AuditStoreLike = {
   }) => Promise<unknown>;
 };
 
+type MetricsLike = {
+  increment: (name: string, labels?: Record<string, string>) => void;
+  duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
+};
+
 export class ConflictRepository {
   constructor(
     private collabStore: CollaborationStore,
     private eventLog?: EventLogLike,
     private auditStore?: AuditStoreLike,
+    private metrics?: MetricsLike,
   ) {}
 
   /**
@@ -281,6 +287,11 @@ export class ConflictRepository {
           conflictId: result.id,
           actorId: actor.id,
         });
+        if (this.metrics) {
+          try {
+            this.metrics.increment("collaboration_conflicts_dismissed_total", { result: "ok" });
+          } catch { /* best-effort */ }
+        }
       } else if (status === "superseded") {
         await this.emit(
           CONFLICT_EVENT_TYPES.SUPERSEDED,
@@ -331,6 +342,11 @@ export class ConflictRepository {
         actorId: actor.id,
         reason: resolution.decision,
       });
+      if (this.metrics) {
+        try {
+          this.metrics.increment("collaboration_conflicts_resolved_total", { result: "ok" });
+        } catch { /* best-effort */ }
+      }
     }
     return result;
   }

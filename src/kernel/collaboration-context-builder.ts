@@ -73,11 +73,17 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
 }
 
+type MetricsLike = {
+  increment: (name: string, labels?: Record<string, string>) => void;
+  duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
+};
+
 export class CollaborationContextBuilder {
   constructor(
     private resultStore: CoordinationResultStore,
     private collabStore: CollaborationStore,
     private budget: CollaborationContextBudget = DEFAULT_BUDGET,
+    private metrics?: MetricsLike,
   ) {}
 
   async build(run: CoordinationRun, worker: WorkerAssignment): Promise<{
@@ -158,6 +164,21 @@ export class CollaborationContextBuilder {
     const activeConflicts = rawConflicts
       .slice(0, conflictsBudget.maxItems)
       .map(c => capConflict(c, conflictsBudget.maxFindingsPerConflict));
+
+    // D4: context conflict metrics — included vs omitted.
+    if (this.metrics) {
+      const omittedByBudget = Math.max(0, rawConflicts.length - activeConflicts.length);
+      try {
+        for (let i = 0; i < activeConflicts.length; i++) {
+          this.metrics.increment("collaboration_conflict_context_included_total", { reason: "included" });
+        }
+      } catch { /* best-effort */ }
+      if (omittedByBudget > 0) {
+        try {
+          this.metrics.increment("collaboration_conflict_context_omitted_total", { reason: "budget" });
+        } catch { /* best-effort */ }
+      }
+    }
 
     // Compute fingerprint
     const fingerprintInput = {

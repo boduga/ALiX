@@ -13,7 +13,31 @@ export type M09MetricName =
   | "tool_failures_total"
   | "policy_decisions_total"
   | "policy_denials_total"
-  | "workflow_duration_ms";
+  | "workflow_duration_ms"
+  // D4: 12 conflict metrics (plan §18)
+  | "collaboration_conflict_candidates_total"
+  | "collaboration_conflicts_detected_total"
+  | "collaboration_conflicts_updated_total"
+  | "collaboration_conflicts_resolved_total"
+  | "collaboration_conflicts_dismissed_total"
+  | "collaboration_conflicts_by_type"
+  | "collaboration_conflict_detection_duration_ms"
+  | "collaboration_conflict_pairs_omitted_total"
+  | "collaboration_conflict_model_compare_total"
+  | "collaboration_conflict_model_compare_failed_total"
+  | "collaboration_conflict_context_included_total"
+  | "collaboration_conflict_context_omitted_total";
+
+export type M09CounterName = Exclude<
+  M09MetricName,
+  | "workflow_duration_ms"
+  | "collaboration_conflict_detection_duration_ms"
+>;
+
+export type M09DurationName = Extract<
+  M09MetricName,
+  "workflow_duration_ms" | "collaboration_conflict_detection_duration_ms"
+>;
 
 export interface MetricEvent {
   name: M09MetricName;
@@ -26,11 +50,11 @@ export interface MetricEvent {
 export class MinimalMetrics {
   private events: MetricEvent[] = [];
 
-  increment(name: Exclude<M09MetricName, "workflow_duration_ms">, labels?: Record<string, string>): void {
+  increment(name: M09CounterName, labels?: Record<string, string>): void {
     this.events.push({ name, type: "counter", value: 1, labels, timestamp: new Date().toISOString() });
   }
 
-  duration(name: "workflow_duration_ms", value: number, labels?: Record<string, string>): void {
+  duration(name: M09DurationName, value: number, labels?: Record<string, string>): void {
     this.events.push({ name, type: "timer", value, labels, timestamp: new Date().toISOString() });
   }
 
