@@ -11,6 +11,7 @@ import { CoordinationAggregateStore } from "./coordination-aggregate-store.js";
 import { buildFailureChains } from "./coordination-failure-chain.js";
 import { computeAggregationSourceFingerprint } from "./coordination-aggregation-fingerprint.js";
 import { existsSync } from "node:fs";
+import { resolve, relative, sep, isAbsolute, join } from "node:path";
 import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
 import type { FailureChain, RunResultSummary } from "./coordination-result-types.js";
 
@@ -66,7 +67,8 @@ export type OwnershipLeaseView = {
   mode: string;
   status: string;
   acquiredAt: string;
-  ttlMs: number;
+  expiresAt: string;
+  expiresInMs: number;
   taskId?: string;
 };
 
@@ -175,7 +177,8 @@ export async function buildCoordinationRunView(
       mode: r.mode,
       status: r.status,
       acquiredAt: r.acquiredAt,
-      ttlMs: 0,
+      expiresAt: r.expiresAt,
+      expiresInMs: Number.isFinite(Date.parse(r.expiresAt)) ? Math.max(0, Date.parse(r.expiresAt) - Date.now()) : 0,
       taskId: r.taskId,
     }));
 
@@ -192,25 +195,32 @@ export async function buildCoordinationRunView(
   // Failure chains
   const failureChains = buildFailureChains(run);
 
-  // Events — read from EventLog session
+  // Events — read from EventLog session with path containment validation
   let events: CoordinationEventView[] = [];
   try {
-    const { readFileSync } = await import("node:fs");
-    const { join } = await import("node:path");
-    const eventPath = join(cwd, ".alix", "sessions", run.sessionId, "events.jsonl");
-    if (existsSync(eventPath)) {
-      const raw = readFileSync(eventPath, "utf-8");
-      events = raw.trim().split("\n").filter(Boolean).map(line => {
-        try {
-          const parsed = JSON.parse(line);
-          return {
-            type: parsed.type ?? "unknown",
-            timestamp: parsed.timestamp ?? parsed.createdAt ?? "",
-            workerId: parsed.payload?.workerId,
-            payload: parsed.payload ?? {},
-          };
-        } catch { return null; }
-      }).filter(Boolean).slice(-100) as CoordinationEventView[]; // last 100 events
+    const sessionsRoot = resolve(cwd, ".alix", "sessions");
+    const sessionDir = resolve(sessionsRoot, run.sessionId);
+    const rel = relative(sessionsRoot, sessionDir);
+    if (!rel.startsWith("..") && !isAbsolute(rel) && rel !== "..") {
+      const eventPath = join(sessionDir, "events.jsonl");
+      if (existsSync(eventPath)) {
+        const { readFileSync } = await import("node:fs");
+        const raw = readFileSync(eventPath, "utf-8");
+        events = raw.trim().split("\n").filter(Boolean).map(line => {
+          try {
+            const parsed = JSON.parse(line);
+            const p = parsed.payload ?? {};
+            // Filter to only coordination-run events unless worker-matched
+            if (p.coordinationRunId !== runId && !(p.workerId && workerIds.has(p.workerId))) return null;
+            return {
+              type: parsed.type ?? "unknown",
+              timestamp: parsed.timestamp ?? parsed.createdAt ?? "",
+              workerId: p.workerId,
+              payload: {}, // redacted — full payload available via diagnostic flag
+            };
+          } catch { return null; }
+        }).filter(Boolean).slice(-100) as CoordinationEventView[];
+      }
     }
   } catch { /* events are best-effort */ }
 
