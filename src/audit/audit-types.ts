@@ -17,7 +17,14 @@ export type AuditAction =
   | "graph.completed"
   | "authorization.allowed"
   | "authorization.denied"
-  | "authorization.approval_required";
+  | "authorization.approval_required"
+  | "conflict.detected"
+  | "conflict.reported"
+  | "conflict.under_review"
+  | "conflict.resolved"
+  | "conflict.accepted_divergence"
+  | "conflict.dismissed"
+  | "conflict.candidate_generation";
 
 export interface AuditDetails {
   graphId?: string;

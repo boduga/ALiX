@@ -38,10 +38,18 @@ type EventLogLike = {
   }) => Promise<unknown>;
 };
 
+type AuditStoreLike = {
+  append: (e: {
+    action: string;
+    details?: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
 export class ConflictRepository {
   constructor(
     private collabStore: CollaborationStore,
     private eventLog?: EventLogLike,
+    private auditStore?: AuditStoreLike,
   ) {}
 
   /**
@@ -59,6 +67,23 @@ export class ConflictRepository {
       await this.eventLog.append({ type, payload, actor });
     } catch {
       // best-effort; never gate on observability
+    }
+  }
+
+  /**
+   * Best-effort audit recording. Like event emission, never gates a
+   * decision. The audit record carries run id, conflict id, actor id,
+   * and the free-text reason for the transition.
+   */
+  private async audit(
+    action: string,
+    details: Record<string, unknown>,
+  ): Promise<void> {
+    if (!this.auditStore) return;
+    try {
+      await this.auditStore.append({ action, details });
+    } catch {
+      // best-effort
     }
   }
 
@@ -136,6 +161,11 @@ export class ConflictRepository {
         },
         { kind: "detector", id: "ConflictDetector" },
       );
+      await this.audit("conflict.detected", {
+        runId,
+        conflictId: conflict.id,
+        actorId: "ConflictDetector",
+      });
     } else {
       await this.emit(
         CONFLICT_EVENT_TYPES.UPDATED,
@@ -146,6 +176,11 @@ export class ConflictRepository {
         },
         { kind: "detector", id: "ConflictDetector" },
       );
+      await this.audit("conflict.reported", {
+        runId,
+        conflictId: conflict.id,
+        actorId: "ConflictDetector",
+      });
     }
     return { conflict, created };
   }
@@ -230,12 +265,22 @@ export class ConflictRepository {
           { runId: result.runId, conflictId: result.id },
           actor,
         );
+        await this.audit("conflict.under_review", {
+          runId: result.runId,
+          conflictId: result.id,
+          actorId: actor.id,
+        });
       } else if (status === "dismissed") {
         await this.emit(
           CONFLICT_EVENT_TYPES.DISMISSED,
           { runId: result.runId, conflictId: result.id },
           actor,
         );
+        await this.audit("conflict.dismissed", {
+          runId: result.runId,
+          conflictId: result.id,
+          actorId: actor.id,
+        });
       } else if (status === "superseded") {
         await this.emit(
           CONFLICT_EVENT_TYPES.SUPERSEDED,
@@ -270,6 +315,7 @@ export class ConflictRepository {
       return conflict;
     });
     if (result) {
+      const actor = this.actorFromAuthority(authority);
       await this.emit(
         CONFLICT_EVENT_TYPES.RESOLVED,
         {
@@ -277,8 +323,14 @@ export class ConflictRepository {
           conflictId: result.id,
           decision: resolution.decision,
         },
-        this.actorFromAuthority(authority),
+        actor,
       );
+      await this.audit("conflict.resolved", {
+        runId: result.runId,
+        conflictId: result.id,
+        actorId: actor.id,
+        reason: resolution.decision,
+      });
     }
     return result;
   }
@@ -310,11 +362,18 @@ export class ConflictRepository {
       return conflict;
     });
     if (result) {
+      const actor = this.actorFromAuthority(authority);
       await this.emit(
         CONFLICT_EVENT_TYPES.ACCEPTED_DIVERGENCE,
         { runId: result.runId, conflictId: result.id, reason },
-        this.actorFromAuthority(authority),
+        actor,
       );
+      await this.audit("conflict.accepted_divergence", {
+        runId: result.runId,
+        conflictId: result.id,
+        actorId: actor.id,
+        reason,
+      });
     }
     return result;
   }
