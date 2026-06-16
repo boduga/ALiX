@@ -389,6 +389,12 @@ async function handleInspect(cwd: string, args: string[]): Promise<void> {
       console.log(`  Root: ${chain.rootWorkerId} (${chain.rootTaskLabel}) → ${chain.allAffectedWorkers.length} affected`);
     }
   }
+  if (typeof view.conflictCount === "number" && view.conflictCount > 0) {
+    console.log(`Unresolved conflicts: ${view.conflictCount}`);
+    for (const c of view.conflicts ?? []) {
+      console.log(`  - ${c.id}  ${c.type}  ${c.criticality}  (${c.findingCount} findings, ${c.evidenceRecommendation})`);
+    }
+  }
 }
 
 async function handleWatch(cwd: string, args: string[]): Promise<void> {
