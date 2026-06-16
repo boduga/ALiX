@@ -9,10 +9,13 @@
  */
 
 import { CollaborationStore } from "./collaboration-store.js";
+import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import type {
   SharedFinding, SharedArtifact, CollaborationActor,
   FindingFilter, PublishFindingInput, PublishArtifactInput,
 } from "./collaboration-types.js";
+import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
 
 export interface WorkerCollaborationAPI {
@@ -27,6 +30,20 @@ export interface WorkerCollaborationAPI {
 
   /** Get pre-loaded dependency results for the current worker. */
   getDependencyResults(): Promise<CoordinationWorkerResultRecord[]>;
+
+  /**
+   * Report a conflict between the given finding IDs.
+   * Validates that all findings exist, are in the same run, are active,
+   * and the reporting worker belongs to the run.
+   * Returns the conflict ID.
+   */
+  reportConflict(input: { findingIds: string[]; topic?: string; reason: string }): Promise<string>;
+
+  /**
+   * List conflicts relevant to this worker's run.
+   * Returns unresolved conflicts with bounded output.
+   */
+  listConflicts(filter?: { statuses?: ConflictStatus[]; relatedFindingIds?: string[]; limit?: number }): Promise<FindingConflict[]>;
 }
 
 /**
@@ -66,5 +83,86 @@ export class BoundWorkerCollaborationAPI implements WorkerCollaborationAPI {
 
   async getDependencyResults(): Promise<CoordinationWorkerResultRecord[]> {
     return [...this.dependencyResults];
+  }
+
+  async reportConflict(input: { findingIds: string[]; topic?: string; reason: string }): Promise<string> {
+    if (input.findingIds.length < 2) {
+      throw new Error("At least two finding IDs are required to report a conflict");
+    }
+    if (input.reason.length > 1000) {
+      throw new Error("Reason must be at most 1000 characters");
+    }
+
+    const findings = await this.store.getFindings(input.findingIds);
+    const foundIds = new Set(findings.map(f => f.id));
+
+    // Validate all findings exist
+    const missing = input.findingIds.filter(id => !foundIds.has(id));
+    if (missing.length > 0) {
+      throw new Error(`Findings not found: ${missing.join(", ")}`);
+    }
+
+    // Validate all findings belong to the same run as the reporting worker
+    for (const f of findings) {
+      if (f.runId !== this.actor.runId) {
+        throw new Error(`Finding ${f.id} belongs to a different run (${f.runId})`);
+      }
+    }
+
+    // Validate findings are active (not invalidated or superseded)
+    const inactive = findings.filter(f => f.invalidatedAt || f.supersededBy);
+    if (inactive.length > 0) {
+      const inactiveIds = inactive.map(f => f.id).join(", ");
+      throw new Error(`Findings are not active (invalidated or superseded): ${inactiveIds}`);
+    }
+
+    const now = new Date().toISOString();
+    const topicKey = input.topic ?? `conflict_${input.findingIds.sort().join("_").slice(0, 64)}`;
+    const conflictFingerprint = createHash("sha256")
+      .update(JSON.stringify({ findingIds: [...input.findingIds].sort(), runId: this.actor.runId }))
+      .digest("hex");
+
+    const conflict: FindingConflict = {
+      id: `conflict_${randomUUID()}`,
+      schemaVersion: "1.0",
+      runId: this.actor.runId,
+      conflictFingerprint,
+      topicKey,
+      type: "worker_reported",
+      status: "under_review",
+      findingIds: [...input.findingIds],
+      claimComparisons: [],
+      evidenceComparison: {
+        ranking: [],
+        confidence: "low",
+        scoreMargin: 0,
+        recommendation: "human_review",
+        unresolvedReasons: [input.reason],
+      },
+      detectedBy: ["worker_report"],
+      criticality: "warning",
+      blocksDownstreamByPolicy: false,
+      history: [{
+        action: "created",
+        actor: { kind: "worker", id: this.actor.workerId },
+        at: now,
+        reason: input.reason,
+      }],
+      createdAt: now,
+      updatedAt: now,
+    };
+
+    await this.store.addConflict(conflict);
+    return conflict.id;
+  }
+
+  async listConflicts(filter?: { statuses?: ConflictStatus[]; relatedFindingIds?: string[]; limit?: number }): Promise<FindingConflict[]> {
+    const conflicts = await this.store.queryConflicts({
+      findingIds: filter?.relatedFindingIds,
+      statuses: filter?.statuses,
+    });
+
+    const limit = filter?.limit ?? 50;
+    return conflicts.slice(0, limit);
   }
 }
