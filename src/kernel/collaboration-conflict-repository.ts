@@ -104,12 +104,10 @@ export class ConflictRepository {
     if (authority.kind === "operator") return true;
     if (authority.kind === "planner") return true;
     if (authority.kind === "worker") {
-      if (
-        authority.allowedConflictIds &&
-        !authority.allowedConflictIds.includes(conflict.id)
-      )
-        return false;
-      return true;
+      return (
+        Array.isArray(authority.allowedConflictIds) &&
+        authority.allowedConflictIds.includes(conflict.id)
+      );
     }
     return false;
   }
