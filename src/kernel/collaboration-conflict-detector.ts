@@ -69,6 +69,20 @@ export type ConflictDetectorDeps = {
   conflictRepo: ConflictRepository;
   modelComparator?: ModelConflictComparator;
   limits?: ConflictDetectionLimits;
+  auditStore?: AuditStoreLike;
+  metrics?: MetricsLike;
+};
+
+type AuditStoreLike = {
+  append: (e: {
+    action: string;
+    details?: Record<string, unknown>;
+  }) => Promise<unknown>;
+};
+
+type MetricsLike = {
+  increment: (name: string, labels?: Record<string, string>) => void;
+  duration: (name: string, valueMs: number, labels?: Record<string, string>) => void;
 };
 
 export type DetectConflictsOptions = {
@@ -171,6 +185,16 @@ export class ConflictDetector {
     report.candidatesExamined = pairs.length;
     report.omittedPairs = genReport.omittedPairs;
     report.warnings.push(...genReport.warnings);
+
+    // D3: candidate generation audit point.
+    if (this.deps.auditStore) {
+      try {
+        await this.deps.auditStore.append({
+          action: "conflict.candidate_generation",
+          details: { runId, candidateCount: pairs.length },
+        });
+      } catch { /* best-effort */ }
+    }
 
     // 4. Build evidence context (artifacts + dependency results).
     // Loaded for the D3 observability wiring; not consumed by detection itself.
@@ -296,6 +320,27 @@ export class ConflictDetector {
     }
 
     report.durationMs = Date.now() - start;
+
+    // D3: detection-time metrics. Each call is best-effort and never
+    // gates the detection result.
+    const detectedType =
+      report.deterministicConflicts > 0
+        ? "deterministic"
+        : report.modelAssistedConflicts > 0
+          ? "model_assisted"
+          : "none";
+    if (this.deps.metrics) {
+      try {
+        this.deps.metrics.increment("collaboration_conflict_candidates_total", { result: "examined" });
+      } catch { /* best-effort */ }
+      try {
+        this.deps.metrics.increment("collaboration_conflicts_detected_total", { type: detectedType });
+      } catch { /* best-effort */ }
+      try {
+        this.deps.metrics.duration("collaboration_conflict_detection_duration_ms", report.durationMs);
+      } catch { /* best-effort */ }
+    }
+
     return report;
   }
 
