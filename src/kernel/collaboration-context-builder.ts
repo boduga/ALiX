@@ -15,6 +15,7 @@ import { createHash } from "node:crypto";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
 import type {
   WorkerContextManifest, WorkerContextSnapshot, CollaborationContextWarning,
   SharedFinding, SharedArtifact,
@@ -57,6 +58,7 @@ export class CollaborationContextBuilder {
     const findings: SharedFinding[] = [];
     const artifacts: SharedArtifact[] = [];
     const manifestResults: WorkerContextManifest["results"] = [];
+    const resultRecords: CoordinationWorkerResultRecord[] = [];
     let tokenEstimate = 0;
 
     // 1. Load direct dependency results
@@ -66,6 +68,7 @@ export class CollaborationContextBuilder {
         const loadResult = await this.resultStore.loadByRef(dep.resultRef);
         switch (loadResult.status) {
           case "ok":
+            resultRecords.push(loadResult.record);
             const resultTokens = estimateTokens(loadResult.record.summary ?? "");
             manifestResults.push({
               resultRef: dep.resultRef,
@@ -132,8 +135,15 @@ export class CollaborationContextBuilder {
       results: Math.max(0, depWorkers.length - this.budget.maxDependencyResults),
     };
 
+    const omittedByReason = {
+      budget: omitted.results + omitted.findings + omitted.artifacts,
+      lowRelevance: 0, invalidated: 0, superseded: 0,
+      staleAttempt: 0, staleDependency: 0, staleArtifact: 0,
+      unauthorized: 0, duplicate: 0, semanticRerankLimit: 0,
+    };
+
     const manifest: WorkerContextManifest = {
-      schemaVersion: "1.0",
+      schemaVersion: "1.1",
       runId: run.id,
       workerId: worker.id,
       workerAttempt: worker.attempt,
@@ -141,9 +151,14 @@ export class CollaborationContextBuilder {
       findings: findings.map(f => ({
         findingId: f.id,
         sourceWorkerId: f.workerId,
+        sourceWorkerAttempt: f.workerAttempt,
         reason: "dependency_finding",
         estimatedTokens: estimateTokens(f.title + f.content),
+        includedTokens: estimateTokens(f.title + f.content),
         digest: createHash("sha256").update(JSON.stringify(f)).digest("hex"),
+        score: 0,
+        scoreComponents: {},
+        selectionReasons: [],
       })),
       artifacts: artifacts.map(a => ({
         artifactId: a.id,
@@ -156,6 +171,7 @@ export class CollaborationContextBuilder {
       tokenEstimate,
       tokenBudget: this.budget.maxTokens,
       omitted,
+      omittedByReason,
       warnings,
       sourceRevision: storeRevision,
       sourceFingerprint,
@@ -165,7 +181,7 @@ export class CollaborationContextBuilder {
       schemaVersion: "1.0",
       manifestRef: "",
       sourceFingerprint,
-      dependencyResults: manifestResults,
+      dependencyResults: resultRecords,
       findings,
       artifacts,
       renderedText: "",

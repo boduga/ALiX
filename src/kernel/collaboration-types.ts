@@ -8,6 +8,7 @@
  */
 
 import type { WorkerOwnershipClaim } from "./coordination-types.js";
+import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
 
 // ─── Finding and artifact kinds ─────────────────────────────────────
 
@@ -19,6 +20,40 @@ export type ArtifactKind =
 
 export type ContextSelectionReason =
   | "direct_dependency_result" | "dependency_finding" | "referenced_artifact" | "tag_match";
+
+export type CompressionMetadata = {
+  originalTokens: number;
+  compressedTokens: number;
+  algorithm: string;
+  compressionRatio: number;
+};
+
+export type OmittedByReason = {
+  budget: number;
+  lowRelevance: number;
+  invalidated: number;
+  superseded: number;
+  staleAttempt: number;
+  staleDependency: number;
+  staleArtifact: number;
+  unauthorized: number;
+  duplicate: number;
+  semanticRerankLimit: number;
+};
+
+export type ScoredManifestFinding = {
+  findingId: string;
+  sourceWorkerId: string;
+  sourceWorkerAttempt: number;
+  reason: ContextSelectionReason;
+  estimatedTokens: number;
+  includedTokens: number;
+  digest: string;
+  score: number;
+  scoreComponents: Record<string, number>;
+  selectionReasons: string[];
+  compression?: CompressionMetadata;
+};
 
 export type CollaborationContextWarningCode =
   | "dependency_result_missing" | "dependency_result_corrupt"
@@ -41,6 +76,7 @@ export interface SharedFinding {
   schemaVersion: "1.0";
   runId: string;
   workerId: string;
+  workerAttempt: number;
   kind: FindingKind;
   title: string;
   content: string;
@@ -60,6 +96,7 @@ export interface SharedArtifact {
   schemaVersion: "1.0";
   runId: string;
   workerId: string;
+  workerAttempt: number;
   kind: ArtifactKind;
   uri: string;
   mediaType?: string;
@@ -79,18 +116,12 @@ export type CollaborationContextWarning = {
 };
 
 export interface WorkerContextManifest {
-  schemaVersion: "1.0";
+  schemaVersion: "1.0" | "1.1";
   runId: string;
   workerId: string;
   workerAttempt: number;
   dependencyWorkerIds: string[];
-  findings: Array<{
-    findingId: string;
-    sourceWorkerId: string;
-    reason: ContextSelectionReason;
-    estimatedTokens: number;
-    digest: string;
-  }>;
+  findings: ScoredManifestFinding[];
   artifacts: Array<{
     artifactId: string;
     sourceWorkerId: string;
@@ -109,6 +140,8 @@ export interface WorkerContextManifest {
   tokenEstimate: number;
   tokenBudget: number;
   omitted: { findings: number; artifacts: number; results: number };
+  omittedByReason: OmittedByReason;
+  relevanceConfigFingerprint?: string;
   warnings: CollaborationContextWarning[];
   sourceRevision: number;
   sourceFingerprint: string;
@@ -118,7 +151,7 @@ export interface WorkerContextSnapshot {
   schemaVersion: "1.0";
   manifestRef: string;
   sourceFingerprint: string;
-  dependencyResults: any[];
+  dependencyResults: CoordinationWorkerResultRecord[];
   findings: SharedFinding[];
   artifacts: SharedArtifact[];
   renderedText: string;

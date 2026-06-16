@@ -3,8 +3,9 @@
  */
 
 import { resolve, relative, isAbsolute } from "node:path";
-import type { PublishFindingInput, PublishArtifactInput } from "./collaboration-types.js";
+import type { PublishFindingInput, PublishArtifactInput, WorkerContextManifest } from "./collaboration-types.js";
 import type { WorkerOwnershipClaim } from "./coordination-types.js";
+import type { ContextBudget } from "./collaboration-relevance-types.js";
 
 // ─── Constants ──────────────────────────────────────────────────────
 
@@ -97,4 +98,38 @@ export function canonicalizeFindingInput(input: PublishFindingInput): PublishFin
     ),
     artifactRefs: [...(input.artifactRefs ?? [])].sort(),
   };
+}
+
+export function normalizeManifestV1_0(manifest: any): WorkerContextManifest {
+  return {
+    ...manifest,
+    schemaVersion: "1.1" as const,
+    findings: (manifest.findings ?? []).map((f: any) => ({
+      ...f,
+      sourceWorkerAttempt: f.sourceWorkerAttempt ?? 1,
+      score: f.score ?? 0,
+      scoreComponents: f.scoreComponents ?? {},
+      selectionReasons: f.selectionReasons ?? [],
+    })),
+    omittedByReason: manifest.omittedByReason ?? {
+      budget: 0, lowRelevance: 0, invalidated: 0, superseded: 0,
+      staleAttempt: 0, staleDependency: 0, staleArtifact: 0,
+      unauthorized: 0, duplicate: 0, semanticRerankLimit: 0,
+    },
+  };
+}
+
+export function validateContextBudget(budget: ContextBudget): string[] {
+  const errors: string[] = [];
+  if (!Number.isFinite(budget.totalTokens) || budget.totalTokens <= 0) errors.push("totalTokens must be positive");
+  if (!Number.isFinite(budget.systemReserveTokens) || budget.systemReserveTokens < 0) errors.push("systemReserveTokens must be non-negative");
+  if (!Number.isFinite(budget.taskReserveTokens) || budget.taskReserveTokens < 0) errors.push("taskReserveTokens must be non-negative");
+  if (budget.systemReserveTokens + budget.taskReserveTokens >= budget.totalTokens) errors.push("reserves exceed total budget");
+  if (budget.dependencyResults.maxTokens <= 0) errors.push("dependencyResults.maxTokens must be positive");
+  if (budget.dependencyResults.minReservedTokens > budget.dependencyResults.maxTokens) errors.push("dependency minReserved exceeds maxTokens");
+  if (budget.findings.maxTokens <= 0) errors.push("findings.maxTokens must be positive");
+  if (budget.artifacts.maxTokens <= 0) errors.push("artifacts.maxTokens must be positive");
+  const bucketSum = budget.dependencyResults.maxTokens + budget.findings.maxTokens + budget.artifacts.maxTokens + budget.systemReserveTokens + budget.taskReserveTokens;
+  if (bucketSum > budget.totalTokens) errors.push(`bucket sum ${bucketSum} exceeds totalTokens ${budget.totalTokens}`);
+  return errors;
 }
