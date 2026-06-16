@@ -16,6 +16,7 @@ import { CoordinationResultStore } from "./coordination-result-store.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
+import type { FindingConflict } from "./collaboration-conflict-types.js";
 import type {
   WorkerContextManifest, WorkerContextSnapshot, CollaborationContextWarning,
   SharedFinding, SharedArtifact,
@@ -119,11 +120,18 @@ export class CollaborationContextBuilder {
       }
     }
 
+    // 4. Load unresolved conflicts involving these findings
+    const findingIds = findings.map(f => f.id);
+    const activeConflicts = findingIds.length > 0
+      ? await this.collabStore.queryConflicts({ findingIds, statuses: ["detected", "under_review"] })
+      : [];
+
     // Compute fingerprint
     const fingerprintInput = {
       depResults: manifestResults.map(r => ({ ref: r.resultRef, outcome: r.outcome })),
       findings: findings.map(f => ({ id: f.id, updatedAt: f.updatedAt })),
       artifacts: artifacts.map(a => ({ id: a.id })),
+      conflictIds: activeConflicts.map(c => c.id).sort(),
     };
     const sourceFingerprint = createHash("sha256").update(JSON.stringify(fingerprintInput)).digest("hex");
 
@@ -167,6 +175,7 @@ export class CollaborationContextBuilder {
         estimatedTokens: estimateTokens(a.uri),
       })),
       results: manifestResults,
+      conflictIds: activeConflicts.map(c => c.id),
       generatedAt: new Date().toISOString(),
       tokenEstimate,
       tokenBudget: this.budget.maxTokens,
@@ -184,6 +193,7 @@ export class CollaborationContextBuilder {
       dependencyResults: resultRecords,
       findings,
       artifacts,
+      conflicts: activeConflicts,
       renderedText: "",
     };
 

@@ -5,6 +5,7 @@
  * and escaped content. Truncates to token budget.
  */
 
+import type { FindingConflict } from "./collaboration-conflict-types.js";
 import type { WorkerContextManifest, WorkerContextSnapshot, SharedFinding, SharedArtifact } from "./collaboration-types.js";
 
 const DISCLAIMER =
@@ -46,6 +47,22 @@ function renderArtifacts(artifacts: SharedArtifact[]): string {
   ).join("\n\n");
 }
 
+function renderConflicts(conflicts: FindingConflict[]): string {
+  if (conflicts.length === 0) return "    (none)";
+  return conflicts.map(c => {
+    const ranking = c.evidenceComparison.ranking.map(r =>
+      `      - ${r.findingId}: score ${r.score} (${r.reasons.join(", ")})`
+    ).join("\n");
+    return (
+      `    [Conflict: ${c.id}]\n` +
+      `    Topic: ${c.topicKey}\n` +
+      `    Type: ${c.type}  Status: ${c.status}  Criticality: ${c.criticality}\n` +
+      `    Recommendation: ${c.evidenceComparison.recommendation}\n` +
+      `    Evidence ranking:\n${ranking}`
+    );
+  }).join("\n\n");
+}
+
 export function renderContextSnapshot(
   manifest: WorkerContextManifest,
   snapshot: WorkerContextSnapshot,
@@ -70,6 +87,10 @@ export function renderContextSnapshot(
     `  <shared_artifacts>`,
     renderArtifacts(snapshot.artifacts),
     `  </shared_artifacts>`,
+    ``,
+    `  <shared_conflicts>`,
+    renderConflicts(snapshot.conflicts),
+    `  </shared_conflicts>`,
     `</coordination_context>`,
   ];
 

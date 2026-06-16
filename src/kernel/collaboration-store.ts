@@ -15,6 +15,7 @@ import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
 import { CollaborationRunLock } from "./collaboration-run-lock.js";
 import { validatePublishFindingInput, validatePublishArtifactInput, canonicalizeFindingInput } from "./collaboration-validation.js";
+import type { FindingConflict, ConflictStatus } from "./collaboration-conflict-types.js";
 import type {
   SharedFinding, SharedArtifact, WorkerContextManifest, CollaborationState,
   CollaborationActor, FindingFilter, PublishFindingInput, PublishArtifactInput,
@@ -226,6 +227,29 @@ export class CollaborationStore {
       const raw = await readFile(resolved, "utf-8");
       return JSON.parse(raw) as WorkerContextManifest;
     } catch { return null; }
+  }
+
+  async addConflict(conflict: FindingConflict): Promise<FindingConflict> {
+    return this.mutate((state) => {
+      state.conflicts.push(conflict);
+      return conflict;
+    });
+  }
+
+  async queryConflicts(filter: { findingIds?: string[]; statuses?: ConflictStatus[] }): Promise<FindingConflict[]> {
+    await this.loadState();
+    let results = this.state.conflicts;
+
+    if (filter.findingIds && filter.findingIds.length > 0) {
+      const idSet = new Set(filter.findingIds);
+      results = results.filter(c => c.findingIds.some(fid => idSet.has(fid)));
+    }
+
+    if (filter.statuses && filter.statuses.length > 0) {
+      results = results.filter(c => filter.statuses!.includes(c.status));
+    }
+
+    return results;
   }
 
   getRevision(): number {

@@ -104,6 +104,7 @@ export function normalizeManifestV1_0(manifest: any): WorkerContextManifest {
   return {
     ...manifest,
     schemaVersion: "1.1" as const,
+    conflictIds: manifest.conflictIds ?? [],
     findings: (manifest.findings ?? []).map((f: any) => ({
       ...f,
       sourceWorkerAttempt: f.sourceWorkerAttempt ?? 1,

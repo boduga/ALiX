@@ -139,6 +139,7 @@ export interface WorkerContextManifest {
     estimatedTokens: number;
     outcome: "success" | "failure";
   }>;
+  conflictIds: string[];
   generatedAt: string;
   tokenEstimate: number;
   tokenBudget: number;
@@ -157,6 +158,7 @@ export interface WorkerContextSnapshot {
   dependencyResults: CoordinationWorkerResultRecord[];
   findings: SharedFinding[];
   artifacts: SharedArtifact[];
+  conflicts: FindingConflict[];
   renderedText: string;
 }
 
