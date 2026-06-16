@@ -8,12 +8,18 @@
  *   GET /api/coordination/:runId/workers/:workerId -> single worker
  *   GET /api/coordination/:runId/results     -> aggregate result
  *   GET /api/coordination/:runId/events      -> event timeline
+ *   GET /api/coordination/:runId/approvals   -> approvals
+ *   GET /api/coordination/:runId/ownership   -> ownership leases
+ *   GET /api/coordination/:runId/conflicts            -> unresolved conflict summaries
+ *   GET /api/coordination/:runId/conflicts/:conflictId -> full FindingConflict
  */
 
 import type { ServerResponse } from "node:http";
 import { CoordinationStore } from "../kernel/coordination-store.js";
 import { CoordinationAggregateStore } from "../kernel/coordination-aggregate-store.js";
 import { buildCoordinationRunView } from "../kernel/coordination-view.js";
+import { CollaborationStore } from "../kernel/collaboration-store.js";
+import { ConflictRepository } from "../kernel/collaboration-conflict-repository.js";
 
 export function registerCoordinationRoutes(
   cwd: string,
@@ -73,6 +79,20 @@ export function registerCoordinationRoutes(
   const ownershipMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/ownership$/);
   if (method === "GET" && ownershipMatch) {
     handleOwnership(cwd, ownershipMatch[1], res);
+    return true;
+  }
+
+  // GET /api/coordination/:runId/conflicts
+  const conflictsMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/conflicts$/);
+  if (method === "GET" && conflictsMatch) {
+    handleConflicts(cwd, conflictsMatch[1], res);
+    return true;
+  }
+
+  // GET /api/coordination/:runId/conflicts/:conflictId
+  const conflictMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/conflicts\/([^/]+)$/);
+  if (method === "GET" && conflictMatch) {
+    handleConflict(cwd, conflictMatch[1], conflictMatch[2], res);
     return true;
   }
 
@@ -172,6 +192,29 @@ async function handleOwnership(cwd: string, runId: string, res: ServerResponse):
     const view = await buildCoordinationRunView(runId, cwd);
     if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
     sendJson(res, view.ownershipLeases);
+  } catch (err) {
+    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+}
+
+async function handleConflicts(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+  try {
+    const store = new CollaborationStore(cwd, runId);
+    const repo = new ConflictRepository(store);
+    const conflicts = await repo.getConflicts(runId);
+    sendJson(res, conflicts);
+  } catch (err) {
+    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+  }
+}
+
+async function handleConflict(cwd: string, runId: string, conflictId: string, res: ServerResponse): Promise<void> {
+  try {
+    const store = new CollaborationStore(cwd, runId);
+    const repo = new ConflictRepository(store);
+    const conflict = await repo.getConflict(conflictId);
+    if (!conflict) { sendJson(res, { error: "Conflict not found" }, 404); return; }
+    sendJson(res, conflict);
   } catch (err) {
     sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
   }
