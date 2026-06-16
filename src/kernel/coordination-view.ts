@@ -105,6 +105,7 @@ export type CoordinationRunView = {
   freshness: "fresh" | "stale" | "missing";
   events: CoordinationEventView[];
   conflictCount?: number;
+  criticalConflictCount?: number;
   conflicts?: CoordinationConflictView[];
 };
 
@@ -244,6 +245,7 @@ export async function buildCoordinationRunView(
 
   // Conflicts — unresolved conflicts from the run's collaboration store
   let conflictCount: number | undefined;
+  let criticalConflictCount: number | undefined;
   let conflicts: CoordinationConflictView[] | undefined;
   try {
     const collabStore = new CollaborationStore(cwd, runId);
@@ -262,6 +264,7 @@ export async function buildCoordinationRunView(
       detectedBy: c.detectedBy,
       updatedAt: c.updatedAt,
     }));
+    criticalConflictCount = conflicts.filter(c => c.criticality === "critical").length;
   } catch { /* conflicts are best-effort */ }
 
   return {
@@ -274,6 +277,7 @@ export async function buildCoordinationRunView(
     freshness,
     events,
     conflictCount,
+    criticalConflictCount,
     conflicts,
   };
 }
