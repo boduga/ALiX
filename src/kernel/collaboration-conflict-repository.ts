@@ -7,6 +7,7 @@
 
 import { randomUUID } from "node:crypto";
 import { CollaborationStore } from "./collaboration-store.js";
+import { CONFLICT_EVENT_TYPES } from "../events/types.js";
 import type {
   FindingConflict,
   ConflictStatus,
@@ -29,8 +30,50 @@ export type UpsertConflictInput = {
   blocksDownstreamByPolicy: boolean;
 };
 
+type EventLogLike = {
+  append: (e: {
+    type: string;
+    payload?: unknown;
+    actor?: { kind: string; id: string };
+  }) => Promise<unknown>;
+};
+
 export class ConflictRepository {
-  constructor(private collabStore: CollaborationStore) {}
+  constructor(
+    private collabStore: CollaborationStore,
+    private eventLog?: EventLogLike,
+  ) {}
+
+  /**
+   * Best-effort event emission. Never gates on observability: a failed
+   * append is swallowed so a write/decision that already succeeded
+   * cannot be rolled back by an event-log failure.
+   */
+  private async emit(
+    type: string,
+    payload: Record<string, unknown>,
+    actor: { kind: string; id: string },
+  ): Promise<void> {
+    if (!this.eventLog) return;
+    try {
+      await this.eventLog.append({ type, payload, actor });
+    } catch {
+      // best-effort; never gate on observability
+    }
+  }
+
+  private actorFromAuthority(
+    authority: ConflictResolverAuthority,
+  ): { kind: string; id: string } {
+    return {
+      kind: authority.kind,
+      id:
+        (authority as any).actorId ??
+        (authority as any).workerId ??
+        (authority as any).plannerId ??
+        "unknown",
+    };
+  }
 
   async upsertConflict(
     runId: string,
@@ -79,6 +122,31 @@ export class ConflictRepository {
       state.conflicts.push(conflict);
       return conflict;
     });
+    // D1 emission: lifecycle event is emitted AFTER the mutate returns.
+    if (created) {
+      await this.emit(
+        CONFLICT_EVENT_TYPES.DETECTED,
+        {
+          runId,
+          conflictId: conflict.id,
+          fingerprint: conflict.conflictFingerprint,
+          type: conflict.type,
+          findingIds: conflict.findingIds,
+          criticality: conflict.criticality,
+        },
+        { kind: "detector", id: "ConflictDetector" },
+      );
+    } else {
+      await this.emit(
+        CONFLICT_EVENT_TYPES.UPDATED,
+        {
+          runId,
+          conflictId: conflict.id,
+          fingerprint: conflict.conflictFingerprint,
+        },
+        { kind: "detector", id: "ConflictDetector" },
+      );
+    }
     return { conflict, created };
   }
 
@@ -133,7 +201,7 @@ export class ConflictRepository {
     status: ConflictStatus,
     authority: ConflictResolverAuthority,
   ): Promise<FindingConflict | null> {
-    return this.collabStore.mutate((state: any) => {
+    const result = await this.collabStore.mutate((state: any) => {
       state.conflicts = state.conflicts ?? [];
       const conflict = state.conflicts.find(
         (c: FindingConflict) => c.id === id,
@@ -149,17 +217,34 @@ export class ConflictRepository {
       this.addHistory(
         conflict,
         status as any,
-        {
-          kind: authority.kind,
-          id:
-            (authority as any).actorId ??
-            (authority as any).workerId ??
-            (authority as any).plannerId ??
-            "unknown",
-        },
+        this.actorFromAuthority(authority),
       );
       return conflict;
     });
+    // D1 emission: status-transition events are emitted AFTER the mutate returns.
+    if (result) {
+      const actor = this.actorFromAuthority(authority);
+      if (status === "under_review") {
+        await this.emit(
+          CONFLICT_EVENT_TYPES.UNDER_REVIEW,
+          { runId: result.runId, conflictId: result.id },
+          actor,
+        );
+      } else if (status === "dismissed") {
+        await this.emit(
+          CONFLICT_EVENT_TYPES.DISMISSED,
+          { runId: result.runId, conflictId: result.id },
+          actor,
+        );
+      } else if (status === "superseded") {
+        await this.emit(
+          CONFLICT_EVENT_TYPES.SUPERSEDED,
+          { runId: result.runId, conflictId: result.id },
+          actor,
+        );
+      }
+    }
+    return result;
   }
 
   async resolveConflict(
@@ -167,7 +252,7 @@ export class ConflictRepository {
     resolution: ConflictResolution,
     authority: ConflictResolverAuthority,
   ): Promise<FindingConflict | null> {
-    return this.collabStore.mutate((state: any) => {
+    const result = await this.collabStore.mutate((state: any) => {
       state.conflicts = state.conflicts ?? [];
       const conflict = state.conflicts.find(
         (c: FindingConflict) => c.id === id,
@@ -179,18 +264,23 @@ export class ConflictRepository {
       this.addHistory(
         conflict,
         "resolved",
-        {
-          kind: authority.kind,
-          id:
-            (authority as any).actorId ??
-            (authority as any).workerId ??
-            (authority as any).plannerId ??
-            "unknown",
-        },
+        this.actorFromAuthority(authority),
         resolution.decision,
       );
       return conflict;
     });
+    if (result) {
+      await this.emit(
+        CONFLICT_EVENT_TYPES.RESOLVED,
+        {
+          runId: result.runId,
+          conflictId: result.id,
+          decision: resolution.decision,
+        },
+        this.actorFromAuthority(authority),
+      );
+    }
+    return result;
   }
 
   async acceptConflictDivergence(
@@ -198,7 +288,7 @@ export class ConflictRepository {
     reason: string,
     authority: ConflictResolverAuthority,
   ): Promise<FindingConflict | null> {
-    return this.collabStore.mutate((state: any) => {
+    const result = await this.collabStore.mutate((state: any) => {
       state.conflicts = state.conflicts ?? [];
       const conflict = state.conflicts.find(
         (c: FindingConflict) => c.id === id,
@@ -214,17 +304,18 @@ export class ConflictRepository {
       this.addHistory(
         conflict,
         "accepted_divergence",
-        {
-          kind: authority.kind,
-          id:
-            (authority as any).actorId ??
-            (authority as any).workerId ??
-            (authority as any).plannerId ??
-            "unknown",
-        },
+        this.actorFromAuthority(authority),
         reason,
       );
       return conflict;
     });
+    if (result) {
+      await this.emit(
+        CONFLICT_EVENT_TYPES.ACCEPTED_DIVERGENCE,
+        { runId: result.runId, conflictId: result.id, reason },
+        this.actorFromAuthority(authority),
+      );
+    }
+    return result;
   }
 }
