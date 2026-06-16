@@ -28,6 +28,15 @@ export type RunOpts = {
   messages?: NormalizedMessage[];
   skipContext?: boolean;
   disableSkillFactory?: boolean;
+  injectedContext?: {
+    kind: string;
+    content: string;
+    metadata?: Record<string, unknown>;
+  };
+  boundTools?: Array<{
+    definition: { name: string; description: string; inputSchema: Record<string, unknown> };
+    handler: (args: Record<string, unknown>) => Promise<string>;
+  }>;
 };
 
 export const EXIT_CODES = {

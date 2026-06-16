@@ -179,6 +179,19 @@ export const COORDINATION_EVENT_TYPES = {
   FAILURE_PROPAGATED: "coordination.failure.propagated",
 } as const;
 
+export const COLLABORATION_EVENT_TYPES = {
+  FINDING_PUBLISHED: "collaboration.finding.published",
+  FINDING_SUPERSEDED: "collaboration.finding.superseded",
+  FINDING_INVALIDATED: "collaboration.finding.invalidated",
+  ARTIFACT_PUBLISHED: "collaboration.artifact.published",
+  CONTEXT_BUILD_STARTED: "collaboration.context.build.started",
+  CONTEXT_BUILD_COMPLETED: "collaboration.context.build.completed",
+  CONTEXT_BUILD_DEGRADED: "collaboration.context.build.degraded",
+  CONTEXT_BUILD_FAILED: "collaboration.context.build.failed",
+  MANIFEST_PERSISTED: "collaboration.manifest.persisted",
+  TOOL_CALLED: "collaboration.tool.called",
+} as const;
+
 export type SubagentStartedPayload = {
   role: string;
   taskId: string;
