@@ -22,6 +22,9 @@ import type { AlixConfig } from "../config/schema.js";
 import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
+import { CollaborationStore } from "./collaboration-store.js";
+import type { WorkerCollaborationAPI } from "./worker-collaboration-api.js";
+import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaboration-types.js";
 
 // ─── Constants ──────────────────────────────────────────────────────────
 
@@ -64,6 +67,14 @@ export type CoordinationSchedulerDeps = {
   authorization: ExecutionAuthorization;
   ownershipRegistry: OwnershipRegistry;
   executor: CoordinationWorkerExecutor;
+  collaborationContextFactory?: (
+    run: CoordinationRun,
+    worker: WorkerAssignment,
+  ) => Promise<{
+    api: WorkerCollaborationAPI;
+    manifest: WorkerContextManifest;
+    contextSnapshot: WorkerContextSnapshot;
+  }>;
   completionService?: CoordinationCompletionService;
   eventLog?: EventLog;
   auditStore?: AuditStore;
@@ -268,6 +279,37 @@ export class CoordinationScheduler {
           authorizationEvidence: authResult.evidence,
         });
         continue;
+      }
+
+      // Collaboration context
+      if (this.deps.collaborationContextFactory && worker.dependencies.length > 0) {
+        try {
+          const ctx = await this.deps.collaborationContextFactory(run, worker);
+          // Persist manifest
+          const manifestRef = await (ctx.manifest?.runId
+            ? new CollaborationStore(this.deps.cwd, run.id).persistManifest(ctx.manifest)
+            : Promise.resolve(undefined));
+
+          if (manifestRef) {
+            // Store manifest ref on the worker for context persistence
+            worker.contextManifestRef = manifestRef;
+            worker.contextFingerprint = ctx.manifest.sourceFingerprint;
+            worker.contextGeneratedAt = ctx.manifest.generatedAt;
+            worker.contextTokenEstimate = ctx.manifest.tokenEstimate;
+          }
+        } catch (error) {
+          // Context build failure does NOT consume an execution attempt
+          const msg = error instanceof Error ? error.message : String(error);
+          console.error(`[scheduler] Context build failed for ${worker.id}: ${msg}`);
+          // Mark as blocked — worker will retry
+          await this.deps.store.patchWorker(runId, worker.id, {
+            status: "pending",
+            blockReason: "context_unavailable" as any,
+            error: `Context unavailable: ${msg}`,
+          });
+          ownershipConflicts.push(worker.id);
+          continue; // skip this worker, try again next tick
+        }
       }
 
       // Persist running state before execution
