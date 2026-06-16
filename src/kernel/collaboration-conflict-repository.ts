@@ -192,4 +192,39 @@ export class ConflictRepository {
       return conflict;
     });
   }
+
+  async acceptConflictDivergence(
+    id: string,
+    reason: string,
+    authority: ConflictResolverAuthority,
+  ): Promise<FindingConflict | null> {
+    return this.collabStore.mutate((state: any) => {
+      state.conflicts = state.conflicts ?? [];
+      const conflict = state.conflicts.find(
+        (c: FindingConflict) => c.id === id,
+      );
+      if (!conflict || !this.authorize(authority, conflict)) return null;
+      if (
+        conflict.status === "resolved" ||
+        conflict.status === "superseded"
+      )
+        return null;
+      conflict.status = "accepted_divergence";
+      conflict.updatedAt = new Date().toISOString();
+      this.addHistory(
+        conflict,
+        "accepted_divergence",
+        {
+          kind: authority.kind,
+          id:
+            (authority as any).actorId ??
+            (authority as any).workerId ??
+            (authority as any).plannerId ??
+            "unknown",
+        },
+        reason,
+      );
+      return conflict;
+    });
+  }
 }
