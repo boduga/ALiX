@@ -192,6 +192,18 @@ export const COLLABORATION_EVENT_TYPES = {
   TOOL_CALLED: "collaboration.tool.called",
 } as const;
 
+export const CONFLICT_EVENT_TYPES = {
+  DETECTED: "collaboration.conflict.detected",
+  UPDATED: "collaboration.conflict.updated",
+  REPORTED: "collaboration.conflict.reported",
+  UNDER_REVIEW: "collaboration.conflict.under_review",
+  RESOLVED: "collaboration.conflict.resolved",
+  ACCEPTED_DIVERGENCE: "collaboration.conflict.accepted_divergence",
+  DISMISSED: "collaboration.conflict.dismissed",
+  SUPERSEDED: "collaboration.conflict.superseded",
+  MODEL_FAILED: "collaboration.conflict.model_comparison_failed",
+} as const;
+
 export type SubagentStartedPayload = {
   role: string;
   taskId: string;

@@ -14,6 +14,7 @@ import { existsSync } from "node:fs";
 import { resolve, relative, sep, isAbsolute, join } from "node:path";
 import type { CoordinationRunStatus, CoordinationRunOutcome, WorkerStatus, WorkerBlockReason, WorkerFailureKind, WorkerFailureProvenance } from "./coordination-types.js";
 import type { FailureChain, RunResultSummary } from "./coordination-result-types.js";
+import { CollaborationStore } from "./collaboration-store.js";
 
 // ─── View types ────────────────────────────────────────────────────
 
@@ -88,6 +89,7 @@ export type CoordinationRunView = {
   aggregate?: RunResultSummary;
   freshness: "fresh" | "stale" | "missing";
   events: CoordinationEventView[];
+  conflictCount?: number;
 };
 
 // ─── Helpers ───────────────────────────────────────────────────────
@@ -224,6 +226,14 @@ export async function buildCoordinationRunView(
     }
   } catch { /* events are best-effort */ }
 
+  // Conflict count — unresolved conflicts from the run's collaboration store
+  let conflictCount: number | undefined;
+  try {
+    const collabStore = new CollaborationStore(cwd, runId);
+    const unresolved = await collabStore.queryConflicts({ statuses: ["detected", "under_review"] });
+    conflictCount = unresolved.length;
+  } catch { /* conflicts are best-effort */ }
+
   return {
     run: runSummary,
     workers,
@@ -233,5 +243,6 @@ export async function buildCoordinationRunView(
     aggregate: aggregate ?? undefined,
     freshness,
     events,
+    conflictCount,
   };
 }

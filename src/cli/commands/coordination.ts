@@ -20,6 +20,8 @@ import { ExecutionAuthorization } from "../../runtime/execution-authorization.js
 import { PolicyGate } from "../../policy/policy-gate.js";
 import { DefaultWorkerExecutor } from "../../kernel/worker-executor.js";
 import { buildDefaultToolIndex } from "../../tools/tool-registry.js";
+import { ConflictRepository } from "../../kernel/collaboration-conflict-repository.js";
+import { CollaborationStore } from "../../kernel/collaboration-store.js";
 
 export async function handleCoordination(args: string[]): Promise<void> {
   const cwd = process.cwd();
@@ -50,6 +52,14 @@ export async function handleCoordination(args: string[]): Promise<void> {
       return handleOwnership(cwd, args.slice(1));
     case "events":
       return handleEvents(cwd, args.slice(1));
+    case "conflicts":
+      return handleConflicts(cwd, args.slice(1));
+    case "conflict":
+      return handleConflict(cwd, args.slice(1));
+    case "conflict-resolve":
+      return handleConflictResolve(cwd, args.slice(1));
+    case "conflict-dismiss":
+      return handleConflictDismiss(cwd, args.slice(1));
     default:
       console.error(`Unknown coordination subcommand: ${subcommand}`);
       process.exit(1);
@@ -432,4 +442,54 @@ async function handleEvents(cwd: string, args: string[]): Promise<void> {
     console.log(`${e.timestamp.slice(0, 19)} ${e.type.padEnd(30)} ${e.workerId ?? ""}`);
   }
   if (view.events.length === 0) console.log("No coordination events found.");
+}
+
+async function handleConflicts(cwd: string, args: string[]): Promise<void> {
+  const runId = args[0]; const jsonMode = args.includes("--json");
+  if (!runId) { console.error("Usage: alix coordination conflicts <run-id>"); process.exit(1); }
+  const store = new CollaborationStore(cwd, runId);
+  const repo = new ConflictRepository(store);
+  const conflicts = await repo.getConflicts(runId);
+  if (jsonMode) { console.log(JSON.stringify(conflicts, null, 2)); return; }
+  if (conflicts.length === 0) { console.log("No conflicts."); return; }
+  for (const c of conflicts) {
+    console.log(`${c.id.padEnd(30)} ${c.status.padEnd(16)} ${c.type.padEnd(20)} ${c.criticality.padEnd(10)} ${c.findingIds.length} findings`);
+  }
+}
+
+async function handleConflict(cwd: string, args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  if (args.length < 2) { console.error("Usage: alix coordination conflict <run-id> <conflict-id>"); process.exit(1); }
+  const store = new CollaborationStore(cwd, args[0]);
+  const repo = new ConflictRepository(store);
+  const conflict = await repo.getConflict(args[1]);
+  if (!conflict) { console.error("Conflict not found."); process.exit(1); }
+  if (jsonMode) { console.log(JSON.stringify(conflict, null, 2)); return; }
+  console.log(`Conflict: ${conflict.id}`);
+  console.log(`Topic: ${conflict.topicKey}`);
+  console.log(`Type: ${conflict.type}  Status: ${conflict.status}  Criticality: ${conflict.criticality}`);
+  console.log(`Findings: ${conflict.findingIds.join(", ")}`);
+  console.log(`Evidence: confidence ${conflict.evidenceComparison.confidence}, recommendation ${conflict.evidenceComparison.recommendation}`);
+  console.log(`History: ${conflict.history.length} entries`);
+}
+
+async function handleConflictResolve(cwd: string, args: string[]): Promise<void> {
+  if (args.length < 2) { console.error("Usage: alix coordination conflict-resolve <run-id> <conflict-id>"); process.exit(1); }
+  const store = new CollaborationStore(cwd, args[0]);
+  const repo = new ConflictRepository(store);
+  await repo.resolveConflict(args[1], {
+    decision: "resolved by operator",
+    acceptedFindingIds: [], rejectedFindingIds: [],
+    resolver: { kind: "operator", id: "cli" },
+    evidenceRefs: [], resolvedAt: new Date().toISOString(),
+  }, { kind: "operator", actorId: "cli" });
+  console.log(`Resolved: ${args[1]}`);
+}
+
+async function handleConflictDismiss(cwd: string, args: string[]): Promise<void> {
+  if (args.length < 2) { console.error("Usage: alix coordination conflict-dismiss <run-id> <conflict-id>"); process.exit(1); }
+  const store = new CollaborationStore(cwd, args[0]);
+  const repo = new ConflictRepository(store);
+  await repo.updateConflictStatus(args[1], "dismissed", { kind: "operator", actorId: "cli" });
+  console.log(`Dismissed: ${args[1]}`);
 }
