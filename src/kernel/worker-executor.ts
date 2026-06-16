@@ -2,14 +2,24 @@
  * worker-executor.ts — Injectable worker executor contract for CoordinationScheduler.
  */
 
+import { join } from "node:path";
 import type { CoordinationRun, WorkerAssignment, WorkerFailureKind } from "./coordination-types.js";
 import type { AlixConfig } from "../config/schema.js";
+import type { WorkerCollaborationAPI } from "./worker-collaboration-api.js";
+import type { WorkerContextManifest, WorkerContextSnapshot } from "./collaboration-types.js";
+import { createCollaborationTools } from "../tools/collaboration-tools.js";
+import type { BoundTool } from "../tools/collaboration-tools.js";
 
 export type WorkerExecutionContext = {
   run: CoordinationRun;
   sessionId: string;
   cwd: string;
   config: AlixConfig;
+  collaboration?: {
+    api: WorkerCollaborationAPI;
+    manifest: WorkerContextManifest;
+    contextSnapshot: WorkerContextSnapshot;
+  };
 };
 
 export type WorkerExecutionResult = {
@@ -43,9 +53,31 @@ export class DefaultWorkerExecutor implements CoordinationWorkerExecutor {
   ): Promise<WorkerExecutionResult> {
     try {
       const { runTask } = await import("../run.js");
+
+      // Build bound tools if collaboration is available
+      let boundTools: BoundTool[] | undefined;
+      if (context.collaboration) {
+        boundTools = createCollaborationTools(context.collaboration.api);
+      }
+
       const result = await runTask(context.cwd, worker.goalPrompt, {
-        sessionMode: "auto",
-        streaming: false,
+        sessionMode: context.config.permissions.sessionMode ?? "ask",
+        sharedSession: {
+          sessionId: context.sessionId,
+          sessionDir: join(context.cwd, ".alix", "sessions", context.sessionId),
+          eventLog: null as any,
+        },
+        injectedContext: context.collaboration
+          ? {
+              kind: "coordination",
+              content: context.collaboration.contextSnapshot.renderedText,
+              metadata: {
+                manifestRef: context.collaboration.manifest.sourceFingerprint,
+                sourceFingerprint: context.collaboration.contextSnapshot.sourceFingerprint,
+              },
+            }
+          : undefined,
+        boundTools,
       });
 
       if (signal.aborted) {
