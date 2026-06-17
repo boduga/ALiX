@@ -19,9 +19,10 @@ import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
 import type { EventLog } from "../events/event-log.js";
 import type { AuditStore } from "../audit/audit-store.js";
 import type { AlixConfig } from "../config/schema.js";
-import type { CoordinationRun, CoordinationRunStatus, WorkerAssignment } from "./coordination-types.js";
+import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, type WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
+import type { CollaborativePlanner } from "./collaborative-planner.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import { ConflictDetector } from "./collaboration-conflict-detector.js";
 import { ConflictCandidateGenerator } from "./collaboration-conflict-candidates.js";
@@ -64,6 +65,7 @@ export type SchedulerOptions = {
   orphanThresholdMs?: number;
   maxDispatchPerTick?: number;
   enableConflictDetection?: boolean;
+  enableMidExecutionReplanning?: boolean;
 };
 
 export type CoordinationSchedulerDeps = {
@@ -86,6 +88,7 @@ export type CoordinationSchedulerDeps = {
   eventLog?: EventLog;
   auditStore?: AuditStore;
   clock?: Clock;
+  replanner?: CollaborativePlanner;
 };
 
 // ─── Result types ───────────────────────────────────────────────────────
@@ -143,6 +146,7 @@ export class CoordinationScheduler {
       orphanThresholdMs: options.orphanThresholdMs ?? DEFAULT_ORPHAN_THRESHOLD_MS,
       maxDispatchPerTick: options.maxDispatchPerTick ?? DEFAULT_MAX_DISPATCH_PER_TICK,
       enableConflictDetection: options.enableConflictDetection ?? true,
+      enableMidExecutionReplanning: options.enableMidExecutionReplanning ?? true,
     };
     this.resultStore = new CoordinationResultStore(deps.cwd);
   }
@@ -206,7 +210,7 @@ export class CoordinationScheduler {
     if (!run) {
       return emptyTick(runId, "failed");
     }
-    if (run.status === "completed" || run.status === "failed") {
+    if (run.status === "completed" || run.status === "failed" || run.status === "replanning") {
       return emptyTick(runId, run.status);
     }
 
@@ -458,6 +462,12 @@ export class CoordinationScheduler {
               completedAt: new Date().toISOString(),
             });
           } catch { /* best-effort */ }
+
+          // Attempt replan for exhausted-retries failure
+          if (this.deps.replanner && this.options.enableMidExecutionReplanning) {
+            await this.maybeReplanAfterWorkerCompletion(runId, workerId, "failure");
+          }
+
           this.emit("coordination.worker.failed", {
             coordinationRunId: runId,
             workerId: worker.id,
@@ -514,6 +524,10 @@ export class CoordinationScheduler {
         }
       } catch { /* best-effort */ }
       if (!isRetryable) {
+        // Attempt replan for exhausted-retries failure in catch path
+        if (this.deps.replanner && this.options.enableMidExecutionReplanning) {
+          await this.maybeReplanAfterWorkerCompletion(runId, workerId, "failure");
+        }
         this.emit("coordination.worker.failed", {
           coordinationRunId: runId,
           workerId,
@@ -676,6 +690,77 @@ export class CoordinationScheduler {
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       console.error(`[scheduler] Conflict detection failed for ${runId}: ${msg}`);
+    }
+  }
+
+  // ── Replanning ────────────────────────────────────────────────────────
+
+  /**
+   * Attempt mid-execution replanning after a worker has exhausted its retries.
+   *
+   * Sets run status to "replanning" (preventing concurrent dispatch), calls
+   * the replanner, then either accepts the result (replan() sets status to
+   * "running" atomically) or restores the run to a recomputed safe status.
+   */
+  private async maybeReplanAfterWorkerCompletion(
+    runId: string,
+    workerId: string,
+    outcome: "success" | "failure",
+  ): Promise<void> {
+    if (!this.deps.replanner || !this.options.enableMidExecutionReplanning) return;
+
+    const run = await this.deps.store.load(runId);
+    if (!run || run.status === "completed") return;
+
+    const worker = run.workers.find(w => w.id === workerId);
+    if (!worker) return;
+
+    // Only trigger on failure with exhausted retries
+    if (outcome !== "failure" || worker.attempt < worker.maxAttempts) return;
+
+    // Set replanning status — prevents concurrent dispatch
+    await this.deps.store.updateRun(runId, (r) => { r.status = "replanning"; });
+
+    try {
+      const result = await this.deps.replanner.replan(runId, {
+        triggeredBy: "worker_failed" as const,
+        workerId,
+      });
+
+      if (!result.applied) {
+        // Replan did not apply (CAS conflict or no action needed).
+        // Restore run from "replanning" to a safe recomputed status.
+        // We bypass the replanning guard in recomputeRunStatus by first
+        // setting a non-replanning status before the computation.
+        await this.deps.store.updateRun(runId, (r) => {
+          r.status = "running"; // Temporarily override to bypass guard
+          r.status = recomputeRunStatus(r);
+        });
+
+        if (result.errors.length > 0) {
+          console.error(`[coordination] replan failed for ${runId}: ${result.errors.join("; ")}`);
+          this.deps.auditStore?.append({
+            action: "replan.failed",
+            actor: "scheduler",
+            details: { runId, workerId, errors: result.errors },
+          }).catch(() => {});
+        }
+      }
+      // If applied, replan() already set status to "running" inside the atomic transaction
+    } catch (err) {
+      // Unexpected error in replanner — do not silently swallow
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[coordination] replan threw for ${runId}: ${msg}`);
+      this.deps.auditStore?.append({
+        action: "replan.error",
+        actor: "scheduler",
+        details: { runId, workerId, error: msg },
+      }).catch(() => {});
+      // Restore run from replanning to a safe recomputed status
+      await this.deps.store.updateRun(runId, (r) => {
+        r.status = "running"; // Temporarily override to bypass guard
+        r.status = recomputeRunStatus(r);
+      });
     }
   }
 
