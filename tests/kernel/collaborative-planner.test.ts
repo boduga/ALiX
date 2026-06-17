@@ -998,4 +998,124 @@ describe("CollaborativePlanner — replan", () => {
       }
     });
   });
+
+  describe("classifyReplanKind", () => {
+    it("conflict_detected trigger classifies as resolve_conflict", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const worker: WorkerAssignment = {
+          id: "w1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "running",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [worker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "conflict_detected",
+          workerId: "w1",
+        });
+
+        // classifyReplanKind returns resolve_conflict with targetWorkerIds=[w1]
+        // → replan() hits kind guard → deferred message
+        assert.ok(!result.applied);
+        assert.equal(result.run, null);
+        assert.equal(result.errors.length, 1);
+        assert.ok(result.errors[0].includes("resolve_conflict deferred to M0.78g.1"));
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("worker_completed trigger classifies as add_work", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const worker: WorkerAssignment = {
+          id: "w1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "running",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [worker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_completed",
+          workerId: "w1",
+        });
+
+        // classifyReplanKind returns add_work with targetWorkerIds=[]
+        // → replan() returns applied=false before kind guard
+        assert.ok(!result.applied);
+        assert.equal(result.errors.length, 0);
+        assert.ok(result.run);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("unknown trigger returns default replace_worker with empty targetWorkerIds", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const worker: WorkerAssignment = {
+          id: "w1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "running",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [worker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "finding_published" as any,
+          workerId: "w1",
+        });
+
+        // Unknown trigger falls through to default { kind: "replace_worker", targetWorkerIds: [] }
+        // → replan() returns applied=false before kind guard
+        assert.ok(!result.applied);
+        assert.equal(result.errors.length, 0);
+        assert.ok(result.run);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("replan returns applied=false with deferred message for resolve_conflict and add_work", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const worker: WorkerAssignment = {
+          id: "w1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "running",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [worker] });
+
+        // resolve_conflict: targetWorkerIds non-empty → hits kind guard
+        const resolveResult = await planner.replan(run.id, {
+          triggeredBy: "conflict_detected",
+          workerId: "w1",
+        });
+        assert.ok(!resolveResult.applied);
+        assert.ok(resolveResult.errors[0].includes("deferred to M0.78g.1"));
+
+        // add_work: targetWorkerIds empty → returns before kind guard (stub intent clear)
+        const addWorkResult = await planner.replan(run.id, {
+          triggeredBy: "worker_completed",
+          workerId: "w1",
+        });
+        assert.ok(!addWorkResult.applied);
+        assert.equal(addWorkResult.errors.length, 0);
+      } finally {
+        cleanup();
+      }
+    });
+  });
 });

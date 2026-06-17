@@ -49,6 +49,10 @@ class StubResultStore {
   async loadByRun(_runId: string): Promise<CoordinationWorkerResultRecord[]> { return []; }
 }
 
+class StubCoordinationStore {
+  async load(_runId: string): Promise<any> { return null; }
+}
+
 describe("CollaborationContextBuilder conflict integration", () => {
   let cwd: string;
   let collabStore: CollaborationStore;
@@ -70,6 +74,7 @@ describe("CollaborationContextBuilder conflict integration", () => {
     builder = new CollaborationContextBuilder(
       new StubResultStore() as any,
       collabStore,
+      new StubCoordinationStore() as any,
       {
         maxTokens: 8_000, maxFindings: 20, maxArtifacts: 20,
         maxDependencyResults: 8, maxFindingContentChars: 4_000, maxResultSummaryChars: 8_000,

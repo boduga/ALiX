@@ -323,7 +323,15 @@ export class CollaborativePlanner {
         return { kind: "replace_worker", targetWorkerIds: [context.workerId] };
       }
     }
-    // conflict_detected, worker_completed → stubbed (task 8)
+    // classifyReplanKind is classification-only.
+    // The replan() method returns applied=false for these — the
+    // model-assisted replan logic is deferred to M0.78g.1.
+    if (context.triggeredBy === "conflict_detected") {
+      return { kind: "resolve_conflict", targetWorkerIds: context.workerId ? [context.workerId] : [] };
+    }
+    if (context.triggeredBy === "worker_completed") {
+      return { kind: "add_work", targetWorkerIds: [] };
+    }
     return { kind: "replace_worker", targetWorkerIds: [] };
   }
 

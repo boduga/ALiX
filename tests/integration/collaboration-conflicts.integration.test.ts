@@ -163,7 +163,7 @@ describe("Collaboration conflict end-to-end (M0.78f §21)", () => {
       auditStore: adaptedAuditStore,
     });
 
-    contextBuilder = new CollaborationContextBuilder(resultStore, collabStore);
+    contextBuilder = new CollaborationContextBuilder(resultStore, collabStore, coordStore);
   });
 
   afterEach(() => { rmSync(cwd, { recursive: true, force: true }); });
