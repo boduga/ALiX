@@ -23,6 +23,8 @@ import { recomputeRunStatus, type CoordinationRun, type CoordinationRunStatus, t
 import type { CoordinationCompletionService } from "./coordination-completion-service.js";
 import type { CoordinationWorkerExecutor, WorkerExecutionContext, WorkerExecutionResult } from "./worker-executor.js";
 import type { CollaborativePlanner } from "./collaborative-planner.js";
+import type { ModelAssistedReplanService } from "./model-assisted-replan-service.js";
+import { createTriggerEvidence } from "./replan-types.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import { ConflictDetector } from "./collaboration-conflict-detector.js";
 import { ConflictCandidateGenerator } from "./collaboration-conflict-candidates.js";
@@ -89,6 +91,8 @@ export type CoordinationSchedulerDeps = {
   auditStore?: AuditStore;
   clock?: Clock;
   replanner?: CollaborativePlanner;
+  /** Optional model-assisted replan service — upgrade path over mechanical replan. */
+  modelAssistedReplan?: ModelAssistedReplanService;
 };
 
 // ─── Result types ───────────────────────────────────────────────────────
@@ -698,6 +702,9 @@ export class CoordinationScheduler {
   /**
    * Attempt mid-execution replanning after a worker has exhausted its retries.
    *
+   * Prefers the model-assisted replan service when configured; falls back to
+   * the mechanical CollaborativePlanner.replan() otherwise.
+   *
    * Sets run status to "replanning" (preventing concurrent dispatch), calls
    * the replanner, then either accepts the result (replan() sets status to
    * "running" atomically) or restores the run to a recomputed safe status.
@@ -711,7 +718,10 @@ export class CoordinationScheduler {
     workerId: string,
     outcome: "success" | "failure",
   ): Promise<void> {
-    if (!this.deps.replanner || !this.options.enableMidExecutionReplanning) return;
+    if (!this.options.enableMidExecutionReplanning) return;
+    const hasModelService = !!this.deps.modelAssistedReplan;
+    const hasMechanical = !!this.deps.replanner;
+    if (!hasModelService && !hasMechanical) return;
 
     const run = await this.deps.store.load(runId);
     if (!run || run.status === "completed") return;
@@ -726,7 +736,64 @@ export class CoordinationScheduler {
     await this.deps.store.updateRun(runId, (r) => { r.status = "replanning"; });
 
     try {
-      const result = await this.deps.replanner.replan(runId, {
+      if (hasModelService) {
+        // Use model-assisted replan service
+        const evidence = createTriggerEvidence({
+          workerId,
+          reason: `Worker ${workerId} failed after ${worker.attempt} attempts`,
+        });
+        const result = await this.deps.modelAssistedReplan!.proposeRevision(
+          runId,
+          "worker_failed",
+          evidence,
+        );
+
+        if (result.status === "applied" || result.status === "approved") {
+          // Applied successfully — service set status to "running" inside the atomic transaction
+          return;
+        }
+
+        if (result.status === "awaiting_approval") {
+          // Model-assisted replan requires human approval.
+          // The proposal was persisted with status "awaiting_approval".
+          // Restore run from "replanning" to a safe computed status.
+          await this.deps.store.updateRun(runId, (r) => {
+            r.status = "running";
+            r.status = recomputeRunStatus(r);
+          });
+          this.emit("coordination.replan.awaiting_approval", {
+            coordinationRunId: runId,
+            workerId,
+            proposalId: result.proposalId,
+            approvalId: result.approvalId,
+            timestamp: new Date().toISOString(),
+          });
+          return;
+        }
+
+        // Model-assisted replan failed or found no valid changes.
+        // Fall through to the mechanical fallback if available.
+        if (result.errors.length > 0) {
+          console.error(`[coordination] model-assisted replan failed for ${runId}: ${result.errors.join("; ")}`);
+          this.deps.auditStore?.append({
+            action: "replan.failed",
+            actor: "scheduler",
+            details: { runId, workerId, errors: result.errors },
+          }).catch(() => {});
+        }
+
+        // If no mechanical fallback, restore run status
+        if (!hasMechanical) {
+          await this.deps.store.updateRun(runId, (r) => {
+            r.status = "running";
+            r.status = recomputeRunStatus(r);
+          });
+          return;
+        }
+      }
+
+      // Mechanical fallback
+      const result = await this.deps.replanner!.replan(runId, {
         triggeredBy: "worker_failed" as const,
         workerId,
       });
@@ -734,8 +801,6 @@ export class CoordinationScheduler {
       if (!result.applied) {
         // Replan did not apply (CAS conflict or no action needed).
         // Restore run from "replanning" to a safe recomputed status.
-        // We bypass the replanning guard in recomputeRunStatus by first
-        // setting a non-replanning status before the computation.
         await this.deps.store.updateRun(runId, (r) => {
           r.status = "running"; // Temporarily override to bypass guard
           r.status = recomputeRunStatus(r);
