@@ -36,6 +36,12 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
   try {
+    // All observability routes are GET-only
+    if (req.method !== "GET") {
+      json(res, { error: "Method not allowed" }, 405);
+      return true;
+    }
+
     if (url.pathname === "/api/observability/health") {
       const { ObservabilitySnapshotService } = await import("../observability/health-snapshot.js");
       const svc = new ObservabilitySnapshotService(root);

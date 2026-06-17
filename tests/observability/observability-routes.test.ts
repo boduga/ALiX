@@ -29,11 +29,11 @@ function mockRes(): ServerResponse & { body: string; headers: Record<string, str
 /**
  * Create a minimal mock IncomingMessage with a given URL.
  */
-function mockReq(url: string): IncomingMessage {
+function mockReq(url: string, method = "GET"): IncomingMessage {
   return {
     url,
     headers: { host: "localhost" },
-    method: "GET",
+    method,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
@@ -125,6 +125,17 @@ describe("observability HTTP routes", () => {
       root: tmpDir,
     });
     assert.equal(handled, false);
+  });
+
+  it("returns 405 for non-GET requests", async () => {
+    const res = mockRes();
+    const handled = await handleObservabilityRoute({
+      req: mockReq("/api/observability/health", "POST"),
+      res: res as unknown as ServerResponse,
+      root: tmpDir,
+    });
+    assert.equal(handled, true);
+    assert.equal(res.statusCode, 405);
   });
 
   it("sets cache-control: no-store on responses", async () => {

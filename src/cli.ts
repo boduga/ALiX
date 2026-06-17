@@ -2397,7 +2397,12 @@ if (command === "approval") {
 // --- alix observability --- P4.2 observability commands ---
 if (command === "observability") {
   const { handleObservability } = await import("./cli/commands/observability.js");
-  await handleObservability(args, process.cwd());
+  try {
+    await handleObservability(args, process.cwd());
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+  }
   process.exit(0);
 }
 

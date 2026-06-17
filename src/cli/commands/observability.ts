@@ -19,8 +19,7 @@ export async function handleObservability(args: string[], cwd: string): Promise<
   if (sub === "trends") { const { cmdTrends } = await import("./observability-trends.js"); await cmdTrends(cwd, args.slice(1)); return; }
   if (sub === "alerts") { const { cmdAlerts } = await import("./observability-alerts.js"); await cmdAlerts(cwd, args.slice(1)); return; }
   if (sub === "export") { const { cmdExport } = await import("./observability-export.js"); await cmdExport(cwd, args.slice(1)); return; }
-  console.error("Usage: alix observability {health|metrics|trends|alerts|export}");
-  process.exit(1);
+  throw new Error("Usage: alix observability {health|metrics|trends|alerts|export}");
 }
 
 async function cmdHealth(cwd: string): Promise<void> {
@@ -62,7 +61,7 @@ async function cmdMetrics(cwd: string, args: string[]): Promise<void> {
     groups.set(row.name, g);
   }
 
-  if (totalRows === 0) { console.log("No metrics found."); process.exit(0); }
+  if (totalRows === 0) { console.log("No metrics found."); return; }
   console.log(`Metrics (${totalRows} rows, ${groups.size} names):`);
   for (const [name, g] of groups) {
     const avg = Math.round(g.sum / g.count);
