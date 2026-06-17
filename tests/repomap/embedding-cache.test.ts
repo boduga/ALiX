@@ -2,9 +2,23 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { execSync } from "node:child_process";
 import { EmbeddingCache } from "../../src/repomap/embedding-cache.js";
 
-describe("EmbeddingCache", () => {
+// Embedding tests download a model from HuggingFace at runtime.
+// CI runners may not have network access (HTTP 429), so skip when offline.
+function canReachHuggingFace(): boolean {
+  try {
+    execSync("curl -sI https://huggingface.co -o /dev/null -w '%{http_code}' --connect-timeout 3", { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const hasNetwork = canReachHuggingFace();
+
+describe("EmbeddingCache", { skip: !hasNetwork }, () => {
   const tmpDir = join("/tmp", `embedding-cache-test-${Date.now()}`);
   let cache: EmbeddingCache;
 
