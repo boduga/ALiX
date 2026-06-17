@@ -6,7 +6,7 @@
  * ObservabilitySnapshotService provides TTL-cached access.
  */
 
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { mergeObservabilityConfig, type ObservabilityConfig } from "./observability-config.js";
@@ -91,12 +91,11 @@ export function healthStatusFromAge(
 
 export function overallHealth(statuses: HealthStatus[]): HealthStatus {
   if (statuses.some(s => s === "unhealthy")) return "unhealthy";
+  if (statuses.every(s => s === "unknown")) return "unknown";
   if (statuses.some(s => s === "degraded")) return "degraded";
-  if (statuses.every(s => s === "unknown" || s === "healthy")) {
-    if (statuses.every(s => s === "unknown")) return "unknown";
-    return "healthy";
-  }
-  return "unknown";
+  if (statuses.every(s => s === "healthy")) return "healthy";
+  // mix of healthy + unknown → degraded (unknown treated as degraded when mixed)
+  return "degraded";
 }
 
 // ─── Side-Effect-Free Collector ────────────────────────────────────────

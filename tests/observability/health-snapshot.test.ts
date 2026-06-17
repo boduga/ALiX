@@ -4,10 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import {
-  type RuntimeHealthSnapshot,
   type HealthStatus,
-  type DaemonHealth,
-  type ProviderHealth,
   healthStatusFromAge,
   overallHealth,
   HealthProjectionCollector,
@@ -50,6 +47,9 @@ describe("HealthSnapshot", () => {
     });
     it("returns 'healthy' when all are healthy", () => {
       assert.equal(overallHealth(["healthy", "healthy"]), "healthy");
+    });
+    it("returns 'degraded' when mixed healthy and unknown", () => {
+      assert.equal(overallHealth(["healthy", "unknown"]), "degraded");
     });
   });
 
