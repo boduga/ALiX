@@ -1,0 +1,94 @@
+{
+  "id": "coord_b430bf06-5e98-432e-a80e-cef6d6d0c02e",
+  "sessionId": "demo",
+  "rootGoal": "Full pipeline demo",
+  "status": "completed",
+  "coordinatorAgentId": "alix",
+  "workers": [
+    {
+      "id": "w1",
+      "coordinationRunId": "coord_b430bf06-5e98-432e-a80e-cef6d6d0c02e",
+      "agentId": "alix",
+      "taskLabel": "Read README",
+      "goalPrompt": "Read README",
+      "dependencies": [],
+      "ownershipScopes": [],
+      "status": "completed",
+      "requiredCapabilities": [
+        "file.read"
+      ],
+      "attempt": 1,
+      "maxAttempts": 3,
+      "planOrder": 0,
+      "ownershipClaims": [],
+      "createdAt": "2026-06-15T23:08:26.316Z",
+      "updatedAt": "2026-06-15T23:08:26.316Z",
+      "startedAt": "2026-06-15T23:08:26.324Z",
+      "lastHeartbeatAt": "2026-06-15T23:08:26.324Z",
+      "executionOwnerId": "demo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:08:26.323Z",
+        "decisions": [
+          {
+            "capability": "file.read",
+            "status": "allowed",
+            "policyRuleId": "default-policy"
+          }
+        ]
+      },
+      "completedAt": "2026-06-15T23:08:26.326Z",
+      "resultRef": ".alix/coordination/results/w1.json"
+    },
+    {
+      "id": "w2",
+      "coordinationRunId": "coord_b430bf06-5e98-432e-a80e-cef6d6d0c02e",
+      "agentId": "alix",
+      "taskLabel": "Write doc",
+      "goalPrompt": "Write improvements",
+      "dependencies": [
+        "w1"
+      ],
+      "ownershipScopes": [],
+      "status": "completed",
+      "requiredCapabilities": [
+        "file.create"
+      ],
+      "attempt": 1,
+      "maxAttempts": 3,
+      "planOrder": 1,
+      "ownershipClaims": [
+        {
+          "path": "src",
+          "recursive": true,
+          "sourcePattern": "src/**"
+        }
+      ],
+      "createdAt": "2026-06-15T23:08:26.316Z",
+      "updatedAt": "2026-06-15T23:08:26.316Z",
+      "startedAt": "2026-06-15T23:08:26.330Z",
+      "lastHeartbeatAt": "2026-06-15T23:08:26.330Z",
+      "executionOwnerId": "demo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:08:26.328Z",
+        "decisions": [
+          {
+            "capability": "file.create",
+            "status": "allowed",
+            "policyRuleId": "default-policy"
+          }
+        ]
+      },
+      "completedAt": "2026-06-15T23:08:26.331Z",
+      "resultRef": ".alix/coordination/results/w2.json"
+    }
+  ],
+  "schemaVersion": "1.0",
+  "createdAt": "2026-06-15T23:08:26.311Z",
+  "updatedAt": "2026-06-15T23:08:26.353Z",
+  "aggregateResultRef": ".alix/coordination/results/runs/coord_b430bf06-5e98-432e-a80e-cef6d6d0c02e.json",
+  "aggregateGeneratedAt": "2026-06-15T23:08:26.353Z",
+  "aggregateSourceFingerprint": "09c4170d1834303b1b218ae740ae5fc446b9bd8c4818d840db4e79fca3af29ed",
+  "outcome": "success"
+}

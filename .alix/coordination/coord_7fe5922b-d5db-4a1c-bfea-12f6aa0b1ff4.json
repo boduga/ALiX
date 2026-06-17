@@ -1,0 +1,48 @@
+{
+  "id": "coord_7fe5922b-d5db-4a1c-bfea-12f6aa0b1ff4",
+  "sessionId": "fixverify",
+  "rootGoal": "Verify retry fix",
+  "status": "completed",
+  "coordinatorAgentId": "alix",
+  "workers": [
+    {
+      "id": "w_retry",
+      "coordinationRunId": "coord_7fe5922b-d5db-4a1c-bfea-12f6aa0b1ff4",
+      "agentId": "alix",
+      "taskLabel": "Flaky",
+      "goalPrompt": "do it",
+      "dependencies": [],
+      "ownershipScopes": [],
+      "status": "completed",
+      "requiredCapabilities": [
+        "file.read"
+      ],
+      "attempt": 2,
+      "maxAttempts": 3,
+      "planOrder": 0,
+      "ownershipClaims": [],
+      "createdAt": "2026-06-15T23:16:40.401Z",
+      "updatedAt": "2026-06-15T23:16:40.401Z",
+      "startedAt": "2026-06-15T23:16:40.412Z",
+      "lastHeartbeatAt": "2026-06-15T23:16:40.412Z",
+      "executionOwnerId": "demo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:16:40.412Z",
+        "decisions": [
+          {
+            "capability": "file.read",
+            "status": "allowed",
+            "policyRuleId": "default-policy"
+          }
+        ]
+      },
+      "failureKind": "execution_error",
+      "resultRef": ".alix/coordination/results/w_retry.json",
+      "completedAt": "2026-06-15T23:16:40.414Z"
+    }
+  ],
+  "schemaVersion": "1.0",
+  "createdAt": "2026-06-15T23:16:40.399Z",
+  "updatedAt": "2026-06-15T23:16:40.414Z"
+}

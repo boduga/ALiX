@@ -209,6 +209,46 @@ export class CoordinationStore {
     }
   }
 
+  /**
+   * Update a run with an expectedPlanRevision guard (CAS) for safe concurrent
+   * replanning. Acquires the per-run lock, checks planRevision matches the
+   * expected value, applies mutate, increments planRevision, writes atomically,
+   * then releases the lock.
+   *
+   * Does NOT call recomputeRunStatus — the caller (e.g. replan) manages status
+   * explicitly.
+   *
+   * Returns the updated run on success, or null if:
+   * - the lock could not be acquired
+   * - the run was not found
+   * - run.planRevision !== expectedPlanRevision (CAS mismatch)
+   */
+  async updateRunWithRevisionCheck(
+    runId: string,
+    expectedPlanRevision: number,
+    mutate: (run: CoordinationRun) => void | Promise<void>,
+  ): Promise<CoordinationRun | null> {
+    const lock = new CoordinationRunLock(this.cwd, runId);
+    const acquired = await lock.acquire();
+    if (!acquired) return null;
+    try {
+      const run = await this.load(runId);
+      if (!run) return null;
+      // CAS guard: reject if planRevision has advanced
+      if (run.planRevision !== expectedPlanRevision) return null;
+      await mutate(run);
+      run.planRevision += 1;
+      run.updatedAt = new Date().toISOString();
+      const path = this.runPath(runId);
+      const tmpPath = `${path}.tmp.${randomUUID()}`;
+      await writeFile(tmpPath, JSON.stringify(run, null, 2), "utf-8");
+      await renameFile(tmpPath, path);
+      return run;
+    } finally {
+      lock.release();
+    }
+  }
+
   /** Update specific fields on a worker within a run. Uses lock-safe updateRun. */
   async patchWorker(
     runId: string,

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "runId": "coord_b430bf06-5e98-432e-a80e-cef6d6d0c02e",
+  "rootGoal": "Full pipeline demo",
+  "status": "completed",
+  "outcome": "success",
+  "generatedAt": "2026-06-15T23:08:26.353Z",
+  "sourceFingerprint": "09c4170d1834303b1b218ae740ae5fc446b9bd8c4818d840db4e79fca3af29ed",
+  "sourceRunUpdatedAt": "2026-06-15T23:08:26.333Z",
+  "complete": true,
+  "issues": [],
+  "counts": {
+    "workers": 2,
+    "completed": 2,
+    "failed": 0,
+    "blocked": 0,
+    "cancelled": 0,
+    "pending": 0,
+    "running": 0,
+    "successfulResults": 2,
+    "failedResults": 0,
+    "missingResults": 0
+  },
+  "workerResults": [
+    {
+      "workerId": "w1",
+      "taskLabel": "Read README",
+      "goalPrompt": "Read README",
+      "agentId": "alix",
+      "planOrder": 0,
+      "status": "completed",
+      "attempt": 1,
+      "maxAttempts": 3,
+      "outcome": "success",
+      "startedAt": "2026-06-15T23:08:26.324Z",
+      "completedAt": "2026-06-15T23:08:26.326Z",
+      "durationMs": 2,
+      "summary": "ok"
+    },
+    {
+      "workerId": "w2",
+      "taskLabel": "Write doc",
+      "goalPrompt": "Write improvements",
+      "agentId": "alix",
+      "planOrder": 1,
+      "status": "completed",
+      "attempt": 1,
+      "maxAttempts": 3,
+      "outcome": "success",
+      "startedAt": "2026-06-15T23:08:26.330Z",
+      "completedAt": "2026-06-15T23:08:26.331Z",
+      "durationMs": 1,
+      "summary": "ok"
+    }
+  ],
+  "failureChains": [],
+  "timing": {
+    "startedAt": "2026-06-15T23:08:26.324Z",
+    "completedAt": "2026-06-15T23:08:26.331Z",
+    "wallClockDurationMs": 7,
+    "totalWorkerDurationMs": 3
+  },
+  "synthesis": {
+    "status": "not_requested"
+  },
+  "aggregateRef": ".alix/coordination/results/runs/coord_b430bf06-5e98-432e-a80e-cef6d6d0c02e.json"
+}

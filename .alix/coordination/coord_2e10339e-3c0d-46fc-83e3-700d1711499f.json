@@ -1,0 +1,50 @@
+{
+  "id": "coord_2e10339e-3c0d-46fc-83e3-700d1711499f",
+  "sessionId": "retrydemo",
+  "rootGoal": "Retry demo",
+  "status": "failed",
+  "coordinatorAgentId": "alix",
+  "workers": [
+    {
+      "id": "w_retry",
+      "coordinationRunId": "coord_2e10339e-3c0d-46fc-83e3-700d1711499f",
+      "agentId": "alix",
+      "taskLabel": "Flaky task",
+      "goalPrompt": "do it",
+      "dependencies": [],
+      "ownershipScopes": [],
+      "status": "failed",
+      "requiredCapabilities": [
+        "file.read"
+      ],
+      "attempt": 1,
+      "maxAttempts": 3,
+      "planOrder": 0,
+      "ownershipClaims": [],
+      "createdAt": "2026-06-15T23:08:42.831Z",
+      "updatedAt": "2026-06-15T23:08:42.831Z",
+      "startedAt": "2026-06-15T23:08:42.832Z",
+      "lastHeartbeatAt": "2026-06-15T23:08:42.832Z",
+      "executionOwnerId": "demo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:08:42.832Z",
+        "decisions": [
+          {
+            "capability": "file.read",
+            "status": "allowed",
+            "policyRuleId": "default-policy"
+          }
+        ]
+      },
+      "blockReason": "execution_failed",
+      "failureKind": "execution_error",
+      "error": "Transient failure",
+      "resultRef": ".alix/coordination/results/w_retry.json",
+      "completedAt": "2026-06-15T23:08:42.834Z"
+    }
+  ],
+  "schemaVersion": "1.0",
+  "createdAt": "2026-06-15T23:08:42.830Z",
+  "updatedAt": "2026-06-15T23:08:42.834Z"
+}

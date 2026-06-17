@@ -1,0 +1,11 @@
+{
+  "schemaVersion": "1.0",
+  "runId": "coord_b8f22736-2d10-496c-9787-913e878bfae2",
+  "workerId": "w_retry",
+  "agentId": "alix",
+  "attempt": 2,
+  "outcome": "success",
+  "summary": "ok",
+  "startedAt": "2026-06-15T23:18:24.944Z",
+  "completedAt": "2026-06-15T23:18:24.945Z"
+}
