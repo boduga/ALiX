@@ -417,7 +417,6 @@ describe("ModelReplanAdapter", () => {
 
   it("abort signal checked after response", async () => {
     // Mock that succeeds but we abort before processing
-    let aborted = false;
     const adapter = new ModelReplanAdapter(createMockAdapter());
     const ac = new AbortController();
 
@@ -566,7 +565,7 @@ describe("ModelReplanAdapter", () => {
       () => adapter.proposeRevision(context),
       (err: unknown) =>
         err instanceof ReplanAdapterError &&
-        err.code === "transient_failure" &&
+        err.code === "provider_error" &&
         err.message.includes("unauthorized"),
     );
 

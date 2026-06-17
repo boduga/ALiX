@@ -138,6 +138,7 @@ export type ReplanAdapterErrorCode =
   | "parse_error"
   | "validation_error"
   | "transient_failure"
+  | "provider_error"
   | "aborted"
   | "max_retries_exceeded";
 
@@ -447,7 +448,7 @@ export class ModelReplanAdapter {
         if (!isTransientError(error)) {
           throw error instanceof ReplanAdapterError
             ? error
-            : new ReplanAdapterError("transient_failure", String(error), error);
+            : new ReplanAdapterError("provider_error", String(error), error);
         }
 
         // Exhausted retries
