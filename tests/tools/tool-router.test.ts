@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { writeFile, mkdir, rm } from "node:fs/promises";
+import { writeFile, mkdir, rm, mkdtemp } from "node:fs/promises";
 import { join } from "node:path";
+import { tmpdir } from "node:os";
 import {
   FileToolRouter,
   ShellToolRouter,
@@ -196,9 +197,10 @@ test("FileToolRouter.execute handles file.read", async () => {
 });
 
 test("FileToolRouter.execute handles dir.search", async () => {
-  const router = new FileToolRouter("/tmp");
-  await mkdir("/tmp/test-search-dir", { recursive: true });
-  await writeFile("/tmp/test-search-dir/test.txt", "search keyword unique xyz");
+  const searchRoot = await mkdtemp(join(tmpdir(), "tool-router-search-"));
+  const router = new FileToolRouter(searchRoot);
+  await mkdir(join(searchRoot, "sub"), { recursive: true });
+  await writeFile(join(searchRoot, "sub", "test.txt"), "search keyword unique xyz");
   const result = await router.execute({
     toolCallId: "1",
     name: "dir.search",
@@ -207,8 +209,8 @@ test("FileToolRouter.execute handles dir.search", async () => {
   assert.strictEqual(result.kind, "success");
   assert.ok(result.matches && result.matches.length > 0);
   // Verify the match path ends with our test file
-  assert.ok(result.matches![0].path.endsWith("test-search-dir/test.txt"));
-  await rm("/tmp/test-search-dir", { recursive: true, force: true });
+  assert.ok(result.matches![0].path.endsWith(join("sub", "test.txt")));
+  await rm(searchRoot, { recursive: true, force: true });
 });
 
 test("FileToolRouter.execute handles file.create", async () => {
