@@ -271,8 +271,7 @@ export class ReplanSimulator {
     const totalWorkers =
       existingWorkers.length -
       cancelSet.size +
-      draft.workersToAdd.length +
-      draft.workersToReplace.length;
+      draft.workersToAdd.length;
 
     if (totalWorkers > maxWorkers) {
       errors.push({
@@ -353,7 +352,9 @@ export class ReplanSimulator {
       const mod = modifyMap.get(w.id);
       if (mod) {
         if (mod.dependencies !== undefined) {
-          w.dependencies = [...mod.dependencies];
+          w.dependencies = mod.dependencies.map((dep) =>
+            existingIds.has(dep) ? dep : (idMap[dep] ?? dep),
+          );
         }
         // If the worker wasn't already "removed", update its status
         if (w.status !== "removed") {
@@ -365,9 +366,15 @@ export class ReplanSimulator {
     // ── 11. Build set of explicit override edges for auto-rewire ───────
 
     // Edges represented as "dependentWorkerRef:removeDependencyRef"
+    // dependentWorkerRef is resolved through idMap so that overrides
+    // referencing a draftWorkerId match the auto-rewire lookup key
+    // (which uses the resolved provisional durable ID).
     const explicitOverrideEdges = new Set<string>();
     for (const rw of draft.dependencyRewiring) {
-      explicitOverrideEdges.add(`${rw.dependentWorkerRef}:${rw.removeDependencyRef}`);
+      const resolvedDependent = existingIds.has(rw.dependentWorkerRef)
+        ? rw.dependentWorkerRef
+        : (idMap[rw.dependentWorkerRef] ?? rw.dependentWorkerRef);
+      explicitOverrideEdges.add(`${resolvedDependent}:${rw.removeDependencyRef}`);
     }
 
     // ── 12. Apply explicit dependency rewiring ─────────────────────────
