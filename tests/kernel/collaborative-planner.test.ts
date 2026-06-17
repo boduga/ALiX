@@ -11,8 +11,8 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { CoordinationStore } from "../../src/kernel/coordination-store.js";
 import type { CoordinationPlanner, CoordinationPlanResult } from "../../src/kernel/coordination-planner.js";
-import type { CoordinationRun, PlanningRound, WorkerAssignment } from "../../src/kernel/coordination-types.js";
-import type { CollaborativePlannerOptions, CollaborativePlanResult } from "../../src/kernel/collaborative-planner.js";
+import type { CoordinationRun, PlanningRound, WorkerAssignment, PlanDiffEntry, PlanRevision, PlanTriggerKind } from "../../src/kernel/coordination-types.js";
+import type { CollaborativePlannerOptions, CollaborativePlanResult, ReplanContext, ReplanResult } from "../../src/kernel/collaborative-planner.js";
 
 // ─── normalizeCapability ──────────────────────────────────────────────
 
@@ -200,6 +200,7 @@ function makeWorker(id: string, overrides: Partial<WorkerAssignment> = {}): Work
     taskLabel: `Task ${id}`,
     goalPrompt: `Goal for ${id}`,
     dependencies: [],
+    ownershipScopes: [],
     status: "pending",
     requiredCapabilities: [],
     attempt: 0,
@@ -499,6 +500,499 @@ describe("CollaborativePlanner.plan()", () => {
         assert.ok(result.run.planningRounds);
         assert.equal(result.run.planningRounds.length, 1);
         assert.equal(result.run.planningRounds[0].proposals.length, 1);
+      } finally {
+        cleanup();
+      }
+    });
+  });
+});
+
+// ─── CollaborativePlanner.replan() ───────────────────────────────────────
+
+/**
+ * Helper: create a CollaborativePlanner for replan tests with a real store.
+ */
+function createReplanPlanner(
+  options: Partial<{ agentPool: string[] }> = {},
+): { planner: CollaborativePlanner; store: CoordinationStore; cleanup: () => void } {
+  const dir = mkdtempSync(join(tmpdir(), "replan-test-"));
+  const store = new CoordinationStore(dir);
+  const planner = new CollaborativePlanner(mockPlanner(validPlanResult([])), store, {
+    agentPool: options.agentPool ?? ["agent-1", "agent-2", "agent-3"],
+  });
+  return {
+    planner,
+    store,
+    cleanup: () => {
+      try { rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
+    },
+  };
+}
+
+/**
+ * Helper: create a CoordinationRun saved in the store with replan-ready workers.
+ */
+async function createSavedRun(
+  store: CoordinationStore,
+  overrides: {
+    workers?: WorkerAssignment[];
+    planRevision?: number;
+    status?: string;
+    runId?: string;
+  } = {},
+): Promise<CoordinationRun> {
+  const now = new Date().toISOString();
+  const run: CoordinationRun = {
+    id: overrides.runId ?? `coord_${randomUUID()}`,
+    sessionId: "replan-test-session",
+    rootGoal: "replan test goal",
+    status: (overrides.status as any) ?? "replanning",
+    coordinatorAgentId: "coordinator",
+    workers: overrides.workers ?? [],
+    planRevision: overrides.planRevision ?? 0,
+    schemaVersion: "1.0",
+    createdAt: now,
+    updatedAt: now,
+  };
+  await store.save(run);
+  return run;
+}
+
+// ─── CollaborativePlanner.replan() Tests ──────────────────────────────────
+
+describe("CollaborativePlanner — replan", () => {
+  describe("replace_worker", () => {
+    it("creates replacement worker with same task and goal", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Important task", goalPrompt: "Do the important thing",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: ["filesystem.read"], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        assert.ok(result.run);
+        assert.equal(result.run.workers.length, 2);
+
+        const replacement = result.run.workers.find(w => w.id !== "w_fail1")!;
+        assert.equal(replacement.taskLabel, "Important task");
+        assert.equal(replacement.goalPrompt, "Do the important thing");
+        assert.equal(replacement.requiredCapabilities.join(","), "filesystem.read");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("rewires downstream dependencies to replacement ID", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const downstreamWorker: WorkerAssignment = {
+          id: "w_down1", coordinationRunId: "test_run", agentId: "agent-2",
+          taskLabel: "Task B", goalPrompt: "Goal B",
+          dependencies: ["w_fail1"], ownershipScopes: [], status: "pending",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker, downstreamWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const updatedDownstream = result.run!.workers.find(w => w.id === "w_down1")!;
+        const replacement = result.run!.workers.find(w => w.id !== "w_fail1" && w.id !== "w_down1")!;
+
+        // Downstream should now depend on replacement, not failed worker
+        assert.ok(updatedDownstream.dependencies.includes(replacement.id));
+        assert.ok(!updatedDownstream.dependencies.includes("w_fail1"));
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("preserves failed worker status as 'failed'", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const stillFailed = result.run!.workers.find(w => w.id === "w_fail1")!;
+        assert.equal(stillFailed.status, "failed");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("sets replacementForWorkerId on replacement", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const replacement = result.run!.workers.find(w => w.id !== "w_fail1")!;
+        assert.equal((replacement as any).replacementForWorkerId, "w_fail1");
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("sets supersededByWorkerId on original", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const original = result.run!.workers.find(w => w.id === "w_fail1")!;
+        const replacement = result.run!.workers.find(w => w.id !== "w_fail1")!;
+        assert.equal((original as any).supersededByWorkerId, replacement.id);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("does not inherit authorizationEvidence", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const authEvidence = { evaluatedAt: now, decisions: [] };
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+          authorizationEvidence: authEvidence,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const replacement = result.run!.workers.find(w => w.id !== "w_fail1")!;
+        assert.equal(replacement.authorizationEvidence, undefined);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("does not inherit leaseIds or approvalId", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+          leaseIds: ["lease_1"], approvalId: "approval_1",
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const replacement = result.run!.workers.find(w => w.id !== "w_fail1")!;
+        assert.equal(replacement.leaseIds, undefined);
+        assert.equal(replacement.approvalId, undefined);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("replacement gets fresh attempt=0", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        const replacement = result.run!.workers.find(w => w.id !== "w_fail1")!;
+        assert.equal(replacement.attempt, 0);
+        assert.equal(replacement.maxAttempts, 3);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("increments planRevision", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker], planRevision: 0 });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        assert.equal(result.run!.planRevision, 1);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("appends to revisionHistory", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        assert.ok(result.revision);
+        assert.equal(result.revision.revisionNumber, 1);
+        assert.equal(result.revision.triggerKind, "worker_failed");
+        assert.equal(result.revision.triggerWorkerId, "w_fail1");
+        assert.ok(result.revision.reason.includes("w_fail1"));
+
+        const history = result.run!.revisionHistory;
+        assert.ok(history);
+        assert.equal(history.length, 1);
+        assert.equal(history[0].revisionNumber, 1);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("no-op when worker not found", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const worker: WorkerAssignment = {
+          id: "w_ok", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "running",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [worker] });
+
+        // Replan with a workerId that doesn't exist
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "nonexistent_worker",
+        });
+
+        // classifyReplanKind won't find it → targetWorkerIds empty
+        assert.ok(!result.applied);
+        assert.equal(result.errors.length, 0);
+        assert.ok(result.run);
+        assert.equal(result.run.workers.length, 1);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("no-op when attempt < maxAttempts", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        // Worker has attempt=1, maxAttempts=3 → not exhausted
+        const worker: WorkerAssignment = {
+          id: "w_not_done", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 1, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [worker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_not_done",
+        });
+
+        // attempt (1) < maxAttempts (3), so classifyReplanKind returns empty targetWorkerIds
+        assert.ok(!result.applied);
+        assert.equal(result.errors.length, 0);
+        assert.ok(result.run);
+        assert.equal(result.run.workers.length, 1);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("atomic — fails if planRevision changed since load", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        // Save the run at planRevision 0
+        const run = await createSavedRun(store, { workers: [failedWorker], planRevision: 0 });
+
+        // Simulate a concurrent modification: advance planRevision to 1
+        const concurrent = await store.load(run.id);
+        assert.ok(concurrent);
+        concurrent.planRevision = 1;
+        await store.save(concurrent);
+
+        // Now the file has planRevision=1 on disk.
+        // replan() will load it, see 1, set expectedRev=1, and
+        // updateRunWithRevisionCheck will also see 1 → CAS would pass.
+        // To trigger a CAS miss, we need the file to change between
+        // replan's initial load and updateRunWithRevisionCheck's load.
+        //
+        // Directly test the CAS guard by calling updateRunWithRevisionCheck
+        // with a stale expectedPlanRevision that doesn't match the file.
+        const casResult = await (store as any).updateRunWithRevisionCheck(
+          run.id,
+          0, // stale expected — file has 1
+          (r: any) => { r.status = "running"; },
+        );
+
+        // CAS should reject because file has planRevision=1, expected was 0
+        assert.equal(casResult, null);
+      } finally {
+        cleanup();
+      }
+    });
+
+    it("builds PlanDiff with added/removed/modified entries", async () => {
+      const { planner, store, cleanup } = createReplanPlanner();
+      try {
+        const now = new Date().toISOString();
+        const failedWorker: WorkerAssignment = {
+          id: "w_fail1", coordinationRunId: "test_run", agentId: "agent-1",
+          taskLabel: "Task A", goalPrompt: "Goal A",
+          dependencies: [], ownershipScopes: [], status: "failed",
+          requiredCapabilities: [], attempt: 3, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const downstreamWorker: WorkerAssignment = {
+          id: "w_down1", coordinationRunId: "test_run", agentId: "agent-2",
+          taskLabel: "Task B", goalPrompt: "Goal B",
+          dependencies: ["w_fail1"], ownershipScopes: [], status: "pending",
+          requiredCapabilities: [], attempt: 0, maxAttempts: 3,
+          ownershipClaims: [], createdAt: now, updatedAt: now,
+        };
+        const run = await createSavedRun(store, { workers: [failedWorker, downstreamWorker] });
+
+        const result = await planner.replan(run.id, {
+          triggeredBy: "worker_failed",
+          workerId: "w_fail1",
+        });
+
+        assert.ok(result.applied);
+        assert.ok(result.revision);
+        const diff = result.revision.diff;
+
+        // Should have an entry for removed failed worker
+        const removed = diff.find(e => e.change === "removed");
+        assert.ok(removed);
+        assert.equal(removed!.workerId, "w_fail1");
+
+        // Should have an entry for added replacement
+        const added = diff.find(e => e.change === "added");
+        assert.ok(added);
+        assert.equal(added!.taskLabel, "Task A");
+
+        // Should have an entry for modified downstream
+        const modified = diff.find(e => e.change === "modified");
+        assert.ok(modified);
+        assert.equal(modified!.workerId, "w_down1");
       } finally {
         cleanup();
       }

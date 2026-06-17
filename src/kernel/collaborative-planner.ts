@@ -16,7 +16,17 @@
 import { randomUUID } from "node:crypto";
 import type { CoordinationPlanner } from "./coordination-planner.js";
 import type { CoordinationStore } from "./coordination-store.js";
-import type { CoordinationRun, PlanningRound, PlanningProposal, PlanningBid } from "./coordination-types.js";
+import type {
+  CoordinationRun,
+  PlanningRound,
+  PlanningProposal,
+  PlanningBid,
+  WorkerAssignment,
+  PlanDiffEntry,
+  PlanRevision,
+  PlanTriggerKind,
+} from "./coordination-types.js";
+import { createWorkerAssignment } from "./coordination-types.js";
 
 // ─── Capability alias registry ─────────────────────────────────────────
 
@@ -107,6 +117,26 @@ export interface CollaborativePlanResult {
   /** Whether the plan is valid and ready for execution. */
   valid: boolean;
   /** Error messages if planning failed. */
+  errors: string[];
+}
+
+// ─── Replanning Types ──────────────────────────────────────────────────
+
+/**
+ * Context for triggering a replan operation.
+ */
+export interface ReplanContext {
+  triggeredBy: PlanTriggerKind;
+  workerId: string;
+}
+
+/**
+ * Result of a replan operation.
+ */
+export interface ReplanResult {
+  run: CoordinationRun | null;
+  revision: PlanRevision | null;
+  applied: boolean;
   errors: string[];
 }
 
@@ -275,5 +305,136 @@ export class CollaborativePlanner {
     }
 
     return assignments;
+  }
+
+  // ── Replanning ──────────────────────────────────────────────────────────
+
+  /**
+   * Determine what kind of replan is needed for a given context.
+   * Only "replace_worker" is implemented; others are stubbed.
+   */
+  private classifyReplanKind(
+    context: ReplanContext,
+    run: CoordinationRun,
+  ): { kind: "replace_worker" | "resolve_conflict" | "add_work" | "re_decompose"; targetWorkerIds: string[] } {
+    if (context.triggeredBy === "worker_failed") {
+      const w = run.workers.find(x => x.id === context.workerId);
+      if (w && w.attempt >= w.maxAttempts) {
+        return { kind: "replace_worker", targetWorkerIds: [context.workerId] };
+      }
+    }
+    // conflict_detected, worker_completed → stubbed (task 8)
+    return { kind: "replace_worker", targetWorkerIds: [] };
+  }
+
+  /**
+   * Pick a different agent from the pool to replace a failed one.
+   * Round-robins to the next agent; returns same agent if no alternative.
+   */
+  private pickReplacementAgent(failedAgentId: string): string {
+    const pool = this.options.agentPool;
+    if (!pool || pool.length <= 1) return failedAgentId;
+    const idx = pool.indexOf(failedAgentId);
+    // If not found or last in pool, wrap to first; otherwise next
+    if (idx === -1 || idx === pool.length - 1) return pool[0];
+    return pool[idx + 1];
+  }
+
+  /**
+   * Replan a coordination run by replacing a failed worker atomically.
+   *
+   * When a worker has exhausted its retries (attempt >= maxAttempts),
+   * this creates a replacement worker, rewires downstream dependencies,
+   * builds a PlanRevision, and increments the planRevision — all within
+   * a single CAS-guarded store operation.
+   */
+  async replan(runId: string, context: ReplanContext): Promise<ReplanResult> {
+    const run = await this.store.load(runId);
+    if (!run) return { run: null, revision: null, applied: false, errors: ["Run not found"] };
+
+    const { kind, targetWorkerIds } = this.classifyReplanKind(context, run);
+    if (targetWorkerIds.length === 0) {
+      return { run, revision: null, applied: false, errors: [] };
+    }
+
+    if (kind !== "replace_worker") {
+      return { run: null, revision: null, applied: false, errors: [`${kind} deferred to M0.78g.1`] };
+    }
+
+    const expectedRev = run.planRevision ?? 0;
+
+    const updated = await this.store.updateRunWithRevisionCheck(
+      runId,
+      expectedRev,
+      (r: CoordinationRun) => {
+        const failedId = targetWorkerIds[0];
+        const failed = r.workers.find(w => w.id === failedId);
+        if (!failed) return;
+
+        // 1. Create replacement worker
+        const replId = `worker_${Date.now()}_repl`;
+        const replacement = createWorkerAssignment({
+          coordinationRunId: runId,
+          agentId: this.pickReplacementAgent(failed.agentId),
+          taskLabel: failed.taskLabel,
+          goalPrompt: failed.goalPrompt,
+          dependencies: [...failed.dependencies],
+          ownershipScopes: failed.ownershipScopes,
+          requiredCapabilities: failed.requiredCapabilities,
+          ownershipClaims: [],
+          riskLevel: failed.riskLevel,
+          approvalMode: failed.approvalMode,
+          status: "ready",
+          attempt: 0,
+          maxAttempts: failed.maxAttempts,
+          id: replId,
+        });
+        (replacement as any).replacementForWorkerId = failedId;
+
+        // 2. Rewire downstream dependencies
+        const downstreamModified: string[] = [];
+        for (const w of r.workers) {
+          const idx = w.dependencies.indexOf(failedId);
+          if (idx !== -1) {
+            w.dependencies = [...w.dependencies];
+            w.dependencies[idx] = replId;
+            downstreamModified.push(w.id);
+          }
+        }
+
+        // 3. Mark the failed worker as superseded (status stays "failed")
+        (failed as any).supersededByWorkerId = replId;
+
+        // 4. Add replacement to run
+        r.workers.push(replacement);
+
+        // 5. Build PlanRevision
+        const diff: PlanDiffEntry[] = [
+          { workerId: failedId, change: "removed", taskLabel: failed.taskLabel, reason: "Failed worker replaced" },
+          { workerId: replId, change: "added", taskLabel: failed.taskLabel, goalPrompt: failed.goalPrompt, reason: "Replacement worker" },
+          ...downstreamModified.map(dwId => ({ workerId: dwId, change: "modified" as const, reason: "Dependencies rewired" })),
+        ];
+        const revision: PlanRevision = {
+          revisionNumber: r.planRevision + 1,
+          timestamp: new Date().toISOString(),
+          reason: `Worker ${failedId} failed after ${failed.attempt} attempts -> replaced by ${replId}`,
+          triggerKind: context.triggeredBy,
+          triggerWorkerId: context.workerId,
+          diff,
+        };
+        r.revisionHistory = [...(r.revisionHistory ?? []), revision];
+
+        // 6. Set status back to running
+        r.status = "running";
+      },
+    );
+
+    if (updated) {
+      const lastRevision = (updated.revisionHistory?.slice(-1)[0]) ?? null;
+      return { run: updated, revision: lastRevision, applied: true, errors: [] };
+    }
+
+    // CAS failure — planRevision advanced since load
+    return { run: null, revision: null, applied: false, errors: ["planRevision conflict — concurrent replan in progress"] };
   }
 }
