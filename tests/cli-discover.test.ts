@@ -1,12 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
+import { execSync } from "node:child_process";
 import { McpManager } from "../src/mcp/manager.js";
 import { loadConfig } from "../src/config/loader.js";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_000 }, async () => {
+function hasUvx(): boolean {
+  try {
+    execSync("uvx --version", { stdio: "ignore", timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_000, skip: !hasUvx() }, async () => {
   const config = await loadConfig(__dirname, { requireModel: false });
   if (!config.model) {
     config.model = { provider: "cli", name: "test-model" };
@@ -38,7 +48,7 @@ test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_
   }
 });
 
-test("discoverServer throws for unknown package", { timeout: 60_000 }, async () => {
+test("discoverServer throws for unknown package", { timeout: 60_000, skip: !hasUvx() }, async () => {
   const config = await loadConfig(__dirname, { requireModel: false });
   if (!config.model) {
     config.model = { provider: "cli", name: "test-model" };
