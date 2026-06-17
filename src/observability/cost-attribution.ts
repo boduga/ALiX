@@ -182,7 +182,8 @@ export class CostAttribution {
           }
           const wf = byWorkflow[workflow];
           wf.tokens += tokens;
-          if (cost >= 0) wf.cost += cost;
+          if (cost >= 0 && wf.cost >= 0) wf.cost += cost;
+          else if (cost >= 0) wf.cost = cost;
           else wf.cost = -1;
           wf.calls++;
 
