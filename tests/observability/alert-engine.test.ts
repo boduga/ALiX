@@ -75,6 +75,18 @@ describe("AlertEngine", () => {
     assert.equal(fingerprintAlert("memory_high", "warning"), fingerprintAlert("memory_high", "warning"));
   });
 
+  it("fingerprintAlert() appends sorted dimensions", () => {
+    const fp1 = fingerprintAlert("providers_unhealthy", "warning", { providerId: "openai" });
+    const fp2 = fingerprintAlert("providers_unhealthy", "warning", { providerId: "ollama" });
+    assert.notEqual(fp1, fp2, "different providers must produce different fingerprints");
+    assert.ok(fp1.includes("providerId=openai"));
+    assert.ok(fp2.includes("providerId=ollama"));
+    // Sorted keys: same fingerprint regardless of insertion order
+    const fp3 = fingerprintAlert("r", "critical", { z: "1", a: "2" });
+    const fp4 = fingerprintAlert("r", "critical", { a: "2", z: "1" });
+    assert.equal(fp3, fp4, "dimension key sorting must be deterministic");
+  });
+
   it("acknowledges a specific alert", () => {
     const engine = new AlertEngine();
     engine.evaluate(unhealthySnap);

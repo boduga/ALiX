@@ -28,8 +28,14 @@ export interface AlertRule {
   severity: AlertSeverity;
   enabled: boolean;
   condition: (snapshot: RuntimeHealthSnapshot) => boolean;
-  message: (snapshot: RuntimeHealthSnapshot) => string;
+  message: (snapshot: RuntimeHealthSnapshot, instanceDimensions?: Record<string, string>) => string;
   cooldownMs?: number;
+  /**
+   * Optional: when present, the rule fires one alert per dimension set returned.
+   * Each alert gets its own fingerprint with the dimension keys appended.
+   * Example: providers_unhealthy returns [{ providerId: "openai" }, { providerId: "ollama" }]
+   */
+  instanceDimensions?: (snapshot: RuntimeHealthSnapshot) => Record<string, string>[];
 }
 
 export interface AlertEvent {
@@ -61,8 +67,13 @@ export interface EvaluateResult {
  * Two AlertEvents with the same rule firing at the same severity
  * are the same alert, even if the message drifts slightly.
  */
-export function fingerprintAlert(ruleId: string, severity: AlertSeverity): string {
-  return `${ruleId}::${severity}`;
+export function fingerprintAlert(ruleId: string, severity: AlertSeverity, dimensions?: Record<string, string>): string {
+  const base = `${ruleId}::${severity}`;
+  if (!dimensions || Object.keys(dimensions).length === 0) return base;
+  const parts = Object.entries(dimensions)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([k, v]) => `${k}=${v}`);
+  return `${base}::${parts.join("|")}`;
 }
 
 // ─── Built-in Rules ────────────────────────────────────────────────────────
@@ -137,8 +148,11 @@ export const HEALTH_RULES: AlertRule[] = [
     description: "One or more providers are unhealthy",
     severity: "warning",
     enabled: true,
-    condition: (h) => h.providers.some(p => p.status === "unhealthy"),
-    message: (h) => `Unhealthy: ${h.providers.filter(p => p.status === "unhealthy").map(p => p.providerId).join(", ")}`,
+    condition: (h: RuntimeHealthSnapshot) => h.providers.some(p => p.status === "unhealthy"),
+    instanceDimensions: (h: RuntimeHealthSnapshot) =>
+      h.providers.filter(p => p.status === "unhealthy").map(p => ({ providerId: p.providerId })),
+    message: (h: RuntimeHealthSnapshot, d?: Record<string, string>) =>
+      d ? `Provider ${d.providerId} is unhealthy` : "One or more providers are unhealthy",
   },
 ];
 
@@ -181,35 +195,41 @@ export class AlertEngine {
 
     for (const rule of this.rules) {
       if (!rule.enabled) continue;
-      let triggered = false;
-      try { triggered = rule.condition(snapshot); } catch { /* skip rule on error */ }
-      const fp = fingerprintAlert(rule.id, rule.severity);
 
-      if (triggered) {
-        activeFingerprints.add(fp);
-        const existing = this.firing.get(fp);
+      // Determine whether this rule fires per-instance or once
+      const instances = rule.instanceDimensions ? rule.instanceDimensions(snapshot) : [undefined];
 
-        if (existing) {
-          existing.occurrences++;
-          existing.lastTriggeredAt = now;
-          firing.push({ ...existing });
-        } else {
-          this.alertCounter++;
-          const alert: AlertEvent = {
-            id: `alert_${nowMs}_${this.alertCounter}`,
-            ruleId: rule.id,
-            fingerprint: fp,
-            ruleName: rule.name,
-            severity: rule.severity,
-            status: "firing",
-            message: rule.message(snapshot),
-            timestamp: now,
-            firstTriggeredAt: now,
-            lastTriggeredAt: now,
-            occurrences: 1,
-          };
-          this.firing.set(fp, alert);
-          firing.push({ ...alert });
+      for (const dims of instances) {
+        let triggered = false;
+        try { triggered = rule.condition(snapshot); } catch { /* skip rule on error */ }
+        const fp = fingerprintAlert(rule.id, rule.severity, dims ?? undefined);
+
+        if (triggered) {
+          activeFingerprints.add(fp);
+          const existing = this.firing.get(fp);
+
+          if (existing) {
+            existing.occurrences++;
+            existing.lastTriggeredAt = now;
+            firing.push({ ...existing });
+          } else {
+            this.alertCounter++;
+            const alert: AlertEvent = {
+              id: `alert_${nowMs}_${this.alertCounter}`,
+              ruleId: rule.id,
+              fingerprint: fp,
+              ruleName: rule.name,
+              severity: rule.severity,
+              status: "firing",
+              message: rule.message(snapshot, dims ?? undefined),
+              timestamp: now,
+              firstTriggeredAt: now,
+              lastTriggeredAt: now,
+              occurrences: 1,
+            };
+            this.firing.set(fp, alert);
+            firing.push({ ...alert });
+          }
         }
       }
     }
