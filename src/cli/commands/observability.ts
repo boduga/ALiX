@@ -26,7 +26,7 @@ async function cmdHealth(cwd: string): Promise<void> {
   const svc = new ObservabilitySnapshotService(cwd);
   const snap = await svc.getHealth();
   const allStatuses = [snap.daemon.status, ...snap.providers.map(p => p.status)];
-  console.log(`ALiX Health: ${(await overallHealth(allStatuses)).toUpperCase()}`);
+  console.log(`ALiX Health: ${overallHealth(allStatuses).toUpperCase()}`);
   console.log(`  Generated: ${snap.generatedAt}`);
   console.log();
   console.log(`Daemon: ${snap.daemon.status}  PID: ${snap.daemon.pid ?? "-"}  Beat: ${snap.daemon.heartbeatAgeMs != null && snap.daemon.heartbeatAgeMs >= 0 ? `${Math.round(snap.daemon.heartbeatAgeMs / 1000)}s` : "unknown"}`);

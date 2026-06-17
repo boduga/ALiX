@@ -194,11 +194,19 @@ export function normalizeMetricEvent(event: MetricInputType): TelemetryEnvelope 
       break;
   }
 
+  // Infer category from metric name prefix
+  const metricCat = event.name.startsWith("model.") ? "cost"
+    : event.name.startsWith("workflow.") ? "coordination"
+    : event.name.startsWith("provider.") ? "provider"
+    : event.name.startsWith("memory.") ? "memory"
+    : event.name.startsWith("daemon.") ? "daemon"
+    : "tool";
+
   return {
     schemaVersion: "1.0",
     id: `tel_${Date.now()}_${randomUUID().slice(0, 8)}`,
     timestamp: event.timestamp,
-    category: "memory",
+    category: metricCat,
     eventType: `metric.${event.name}`,
     severity: "info",
     correlation: {},
