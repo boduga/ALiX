@@ -122,6 +122,10 @@ export class ModelAssistedReplanService {
       return { status: "failed", errors: [`Coordination run not found: ${runId}`] };
     }
 
+    if (run.status !== "replanning" && run.status !== "running") {
+      return { status: "failed", errors: [`Run ${runId} is in status ${run.status}, not eligible for replanning`] };
+    }
+
     const expectedPlanRevision = run.planRevision ?? 0;
     const existingWorkers = [...run.workers];
 

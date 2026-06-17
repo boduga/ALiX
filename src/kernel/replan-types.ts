@@ -281,10 +281,17 @@ export interface ProposalRecord {
  */
 import { createHash } from "node:crypto";
 
-export function computeFingerprint(value: unknown): string {
-  return createHash("sha256")
-    .update(JSON.stringify(value))
-    .digest("hex");
+export function computeFingerprint<T>(value: T): string {
+  const sorted = JSON.stringify(value, (_, v) => {
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      return Object.keys(v).sort().reduce((acc: Record<string, unknown>, k) => {
+        acc[k] = (v as Record<string, unknown>)[k];
+        return acc;
+      }, {});
+    }
+    return v;
+  });
+  return createHash("sha256").update(sorted).digest("hex");
 }
 
 // ─── Constructors ─────────────────────────────────────────────────────
