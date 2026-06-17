@@ -7,6 +7,7 @@ import { OpenAIProvider } from "../src/providers/openai-provider.js";
 import { OpenRouterProvider } from "../src/providers/openrouter-provider.js";
 import { OllamaProvider } from "../src/providers/ollama-provider.js";
 import { DeepSeekProvider } from "../src/providers/deepseek-provider.js";
+import { _setFetchForTesting } from "../src/providers/unified-complete.js";
 import { PerplexityProvider } from "../src/providers/perplexity-provider.js";
 import { GroqProvider } from "../src/providers/groq-provider.js";
 import { GrokAIProvider } from "../src/providers/grokai-provider.js";
@@ -51,11 +52,11 @@ test("ollama provider works without api key", async () => {
   assert.ok(c.model);
 });
 
-test("ollama complete sends tools and parses tool calls", { skip: true }, async () => {
-  const originalFetch = globalThis.fetch;
+test("ollama complete sends tools and parses tool calls", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
+  const originalFetch = _setFetchForTesting;
   let capturedBody: Record<string, any> | undefined;
 
-  globalThis.fetch = (async (_url, init) => {
+  const mockFetch = (async (_url: string, init?: RequestInit) => {
     capturedBody = JSON.parse(String(init?.body));
     return new Response(JSON.stringify({
       choices: [{
@@ -73,6 +74,8 @@ test("ollama complete sends tools and parses tool calls", { skip: true }, async 
       usage: { prompt_tokens: 11, completion_tokens: 7 },
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
+
+  _setFetchForTesting(mockFetch);
 
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
@@ -98,14 +101,12 @@ test("ollama complete sends tools and parses tool calls", { skip: true }, async 
     }]);
     assert.deepEqual(resp.usage, { inputTokens: 11, outputTokens: 7 });
   } finally {
-    globalThis.fetch = originalFetch;
+    _setFetchForTesting(globalThis.fetch);
   }
 });
 
-test("ollama complete parses JSON-in-text tool call fallback", { skip: true }, async () => {
-  const originalFetch = globalThis.fetch;
-
-  globalThis.fetch = (async () => {
+test("ollama complete parses JSON-in-text tool call fallback", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
+  const mockFetch = (async () => {
     return new Response(JSON.stringify({
       choices: [{
         message: {
@@ -114,6 +115,8 @@ test("ollama complete parses JSON-in-text tool call fallback", { skip: true }, a
       }],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
+
+  _setFetchForTesting(mockFetch);
 
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
@@ -138,14 +141,12 @@ test("ollama complete parses JSON-in-text tool call fallback", { skip: true }, a
       args: { command: "ls src/agents", cwd: "", timeoutMs: 5000 },
     }]);
   } finally {
-    globalThis.fetch = originalFetch;
+    _setFetchForTesting(globalThis.fetch);
   }
 });
 
-test("ollama complete parses fenced JSON tool call fallback", { skip: true }, async () => {
-  const originalFetch = globalThis.fetch;
-
-  globalThis.fetch = (async () => {
+test("ollama complete parses fenced JSON tool call fallback", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
+  const mockFetch = (async () => {
     return new Response(JSON.stringify({
       choices: [{
         message: {
@@ -155,6 +156,8 @@ test("ollama complete parses fenced JSON tool call fallback", { skip: true }, as
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
 
+  _setFetchForTesting(mockFetch);
+
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
@@ -178,14 +181,12 @@ test("ollama complete parses fenced JSON tool call fallback", { skip: true }, as
       args: { command: "ls src/agents/", cwd: "", timeoutMs: 0 },
     }]);
   } finally {
-    globalThis.fetch = originalFetch;
+    _setFetchForTesting(globalThis.fetch);
   }
 });
 
-test("ollama complete parses first embedded JSON tool call from prose", { skip: true }, async () => {
-  const originalFetch = globalThis.fetch;
-
-  globalThis.fetch = (async () => {
+test("ollama complete parses first embedded JSON tool call from prose", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
+  const mockFetch = (async () => {
     return new Response(JSON.stringify({
       choices: [{
         message: {
@@ -195,6 +196,8 @@ test("ollama complete parses first embedded JSON tool call from prose", { skip: 
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
 
+  _setFetchForTesting(mockFetch);
+
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
@@ -218,14 +221,12 @@ test("ollama complete parses first embedded JSON tool call from prose", { skip: 
       args: { command: "ls src/agents/", cwd: "", timeoutMs: 0 },
     }]);
   } finally {
-    globalThis.fetch = originalFetch;
+    _setFetchForTesting(globalThis.fetch);
   }
 });
 
-test("ollama complete parses unquoted tool name fallback", { skip: true }, async () => {
-  const originalFetch = globalThis.fetch;
-
-  globalThis.fetch = (async () => {
+test("ollama complete parses unquoted tool name fallback", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
+  const mockFetch = (async () => {
     return new Response(JSON.stringify({
       choices: [{
         message: {
@@ -234,6 +235,8 @@ test("ollama complete parses unquoted tool name fallback", { skip: true }, async
       }],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
+
+  _setFetchForTesting(mockFetch);
 
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
@@ -258,14 +261,12 @@ test("ollama complete parses unquoted tool name fallback", { skip: true }, async
       args: { command: "ls", cwd: "/home" },
     }]);
   } finally {
-    globalThis.fetch = originalFetch;
+    _setFetchForTesting(globalThis.fetch);
   }
 });
 
-test("ollama complete parses Python-style None in tool arguments", { skip: true }, async () => {
-  const originalFetch = globalThis.fetch;
-
-  globalThis.fetch = (async () => {
+test("ollama complete parses Python-style None in tool arguments", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
+  const mockFetch = (async () => {
     return new Response(JSON.stringify({
       choices: [{
         message: {
@@ -274,6 +275,8 @@ test("ollama complete parses Python-style None in tool arguments", { skip: true 
       }],
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
+
+  _setFetchForTesting(mockFetch);
 
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
@@ -298,7 +301,7 @@ test("ollama complete parses Python-style None in tool arguments", { skip: true 
       args: { command: "ls /home", cwd: "/home", timeoutMs: null },
     }]);
   } finally {
-    globalThis.fetch = originalFetch;
+    _setFetchForTesting(globalThis.fetch);
   }
 });
 test("deepseek provider returns correct capabilities", () => {
