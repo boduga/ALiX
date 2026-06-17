@@ -129,7 +129,7 @@ describe("PlanRevision", () => {
     assert.equal(rev.triggerKind, "worker_failed");
     assert.equal(rev.diff.length, 0);
     assert.equal(rev.triggerWorkerId, undefined);
-    assert.equal(rev.triggerConflictIds, undefined);
+    assert.equal(rev.conflictIds, undefined);
   });
 
   it("constructs with conflict triggers", () => {
@@ -139,7 +139,7 @@ describe("PlanRevision", () => {
       reason: "Conflict detected between workers",
       triggerKind: "conflict_detected",
       triggerWorkerId: "worker_a",
-      triggerConflictIds: ["conflict_001", "conflict_002"],
+      conflictIds: ["conflict_001", "conflict_002"],
       diff: [
         { workerId: "worker_b", change: "added", taskLabel: "Resolver", reason: "resolve conflict_001" },
       ],
@@ -147,7 +147,7 @@ describe("PlanRevision", () => {
     assert.equal(rev.revisionNumber, 2);
     assert.equal(rev.triggerKind, "conflict_detected");
     assert.equal(rev.triggerWorkerId, "worker_a");
-    assert.equal(rev.triggerConflictIds?.length, 2);
+    assert.equal(rev.conflictIds?.length, 2);
     assert.equal(rev.diff.length, 1);
   });
 
@@ -231,9 +231,10 @@ describe("PlanningBid", () => {
       agentId: "agent-beta",
       matchedCapabilities: [],
       unmatchedCapabilities: [],
+      confidence: 0.0,
       createdAt: "2026-06-16T12:00:00.000Z",
     };
-    assert.equal(bid.confidence, undefined);
+    assert.equal(bid.confidence, 0.0);
     assert.equal(bid.message, undefined);
   });
 });
@@ -241,34 +242,26 @@ describe("PlanningBid", () => {
 // ─── PlanningAcceptance ──────────────────────────────────────────────────
 
 describe("PlanningAcceptance", () => {
-  it("constructs with accepted status", () => {
+  it("constructs with all required fields", () => {
     const acc: PlanningAcceptance = {
       proposalId: "proposal_001",
       agentId: "agent-alpha",
-      status: "accepted",
       assignedWorkerId: "worker_abc",
     };
-    assert.equal(acc.status, "accepted");
+    assert.equal(acc.proposalId, "proposal_001");
+    assert.equal(acc.agentId, "agent-alpha");
     assert.equal(acc.assignedWorkerId, "worker_abc");
   });
 
-  it("constructs with countered and rejected status", () => {
-    const countered: PlanningAcceptance = {
+  it("does not include status, reason, or other optional fields", () => {
+    const acc: PlanningAcceptance = {
       proposalId: "proposal_002",
       agentId: "agent-beta",
-      status: "countered",
-      reason: "Need higher confidence",
+      assignedWorkerId: "worker_def",
     };
-    assert.equal(countered.status, "countered");
-    assert.equal(countered.reason, "Need higher confidence");
-
-    const rejected: PlanningAcceptance = {
-      proposalId: "proposal_003",
-      agentId: "agent-gamma",
-      status: "rejected",
-      reason: "Capability mismatch",
-    };
-    assert.equal(rejected.status, "rejected");
+    // The shape has no status or reason field
+    assert.equal("status" in acc, false);
+    assert.equal("reason" in acc, false);
   });
 });
 
@@ -445,6 +438,91 @@ describe("recomputeRunStatus replanning guard", () => {
       transitionWorkerStatus(w2, "completed"),
     ];
     assert.equal(recomputeRunStatus(run), "running");
+  });
+});
+
+// ─── WorkerAssignment lineage fields: replacementFor/supersededBy ────────
+
+describe("WorkerAssignment lineage fields", () => {
+  it("sets replacementForWorkerId when provided", () => {
+    const w = createWorkerAssignment({
+      coordinationRunId: "coord_abc",
+      agentId: "agent-a",
+      taskLabel: "Task A",
+      goalPrompt: "do it",
+      replacementForWorkerId: "worker_old",
+    });
+    assert.equal(w.replacementForWorkerId, "worker_old");
+  });
+
+  it("sets supersededByWorkerId when provided", () => {
+    const w = createWorkerAssignment({
+      coordinationRunId: "coord_abc",
+      agentId: "agent-a",
+      taskLabel: "Task A",
+      goalPrompt: "do it",
+      supersededByWorkerId: "worker_new",
+    });
+    assert.equal(w.supersededByWorkerId, "worker_new");
+  });
+
+  it("defaults both fields to undefined when not provided", () => {
+    const w = createWorkerAssignment({
+      coordinationRunId: "coord_abc",
+      agentId: "agent-a",
+      taskLabel: "Task A",
+      goalPrompt: "do it",
+    });
+    assert.equal(w.replacementForWorkerId, undefined);
+    assert.equal(w.supersededByWorkerId, undefined);
+  });
+
+  it("can set both fields simultaneously", () => {
+    const w = createWorkerAssignment({
+      coordinationRunId: "coord_abc",
+      agentId: "agent-a",
+      taskLabel: "Task A",
+      goalPrompt: "do it",
+      replacementForWorkerId: "worker_old",
+      supersededByWorkerId: "worker_new",
+    });
+    assert.equal(w.replacementForWorkerId, "worker_old");
+    assert.equal(w.supersededByWorkerId, "worker_new");
+  });
+});
+
+// ─── PlanningRounds on CoordinationRun ────────────────────────────────────
+
+describe("CoordinationRun planningRounds", () => {
+  it("can be set with PlanningRound[]", () => {
+    const run = createCoordinationRun({
+      sessionId: "s1",
+      rootGoal: "Test planning rounds",
+      coordinatorAgentId: "alix",
+    });
+    const round: PlanningRound = {
+      id: "planround_1",
+      coordinationRunId: run.id,
+      roundNumber: 1,
+      status: "draft",
+      proposals: [],
+      bids: [],
+      acceptances: [],
+      createdAt: "2026-06-16T12:00:00.000Z",
+      updatedAt: "2026-06-16T12:00:00.000Z",
+    };
+    run.planningRounds = [round];
+    assert.equal(run.planningRounds?.length, 1);
+    assert.equal(run.planningRounds![0].id, "planround_1");
+  });
+
+  it("defaults to undefined when not set", () => {
+    const run = createCoordinationRun({
+      sessionId: "s1",
+      rootGoal: "Test no rounds",
+      coordinatorAgentId: "alix",
+    });
+    assert.equal(run.planningRounds, undefined);
   });
 });
 

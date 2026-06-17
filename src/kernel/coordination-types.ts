@@ -73,7 +73,7 @@ export interface PlanningBid {
   agentId: string;
   matchedCapabilities: string[];
   unmatchedCapabilities: string[];
-  confidence?: number;
+  confidence: number;
   message?: string;
   createdAt: string;
 }
@@ -81,9 +81,7 @@ export interface PlanningBid {
 export interface PlanningAcceptance {
   proposalId: string;
   agentId: string;
-  status: "accepted" | "countered" | "rejected";
-  reason?: string;
-  assignedWorkerId?: string;
+  assignedWorkerId: string;
 }
 
 export interface PlanningRound {
@@ -112,7 +110,7 @@ export interface PlanRevision {
   reason: string;
   triggerKind: PlanTriggerKind;
   triggerWorkerId?: string;
-  triggerConflictIds?: string[];
+  conflictIds?: string[];
   diff: PlanDiffEntry[];
 }
 
@@ -180,6 +178,8 @@ export interface WorkerAssignment {
   ownershipClaims: WorkerOwnershipClaim[];
   leaseIds?: string[];
   executionOwnerId?: string;
+  replacementForWorkerId?: string;
+  supersededByWorkerId?: string;
   lastHeartbeatAt?: string;
   startedAt?: string;
   completedAt?: string;
@@ -235,6 +235,9 @@ export interface CoordinationRun {
 
   /** History of all plan revisions, oldest first. */
   revisionHistory?: PlanRevision[];
+
+  /** History of planning rounds for this run. */
+  planningRounds?: PlanningRound[];
 
   /** Schema version for forward compatibility */
   schemaVersion: "1.0";
@@ -294,6 +297,8 @@ export function createWorkerAssignment(opts: {
   ownershipClaims?: WorkerOwnershipClaim[];
   leaseIds?: string[];
   executionOwnerId?: string;
+  replacementForWorkerId?: string;
+  supersededByWorkerId?: string;
   lastHeartbeatAt?: string;
   startedAt?: string;
   completedAt?: string;
@@ -329,6 +334,8 @@ export function createWorkerAssignment(opts: {
     ownershipClaims: opts.ownershipClaims ?? [],
     leaseIds: opts.leaseIds,
     executionOwnerId: opts.executionOwnerId,
+    replacementForWorkerId: opts.replacementForWorkerId,
+    supersededByWorkerId: opts.supersededByWorkerId,
     lastHeartbeatAt: opts.lastHeartbeatAt,
     startedAt: opts.startedAt,
     completedAt: opts.completedAt,
