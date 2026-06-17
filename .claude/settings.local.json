@@ -24,7 +24,9 @@
       "Bash(git push *)",
       "Bash(gh auth *)",
       "Bash(./dist/cli.js --help)",
-      "Bash(node dist/src/cli.js --help)"
+      "Bash(node dist/src/cli.js --help)",
+      "Skill(update-config)",
+      "Bash(claude config *)"
     ]
   },
   "hooks": {

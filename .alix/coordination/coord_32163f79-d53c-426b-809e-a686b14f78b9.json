@@ -1,0 +1,90 @@
+{
+  "id": "coord_32163f79-d53c-426b-809e-a686b14f78b9",
+  "sessionId": "vis-test",
+  "rootGoal": "Visibility test",
+  "status": "completed",
+  "coordinatorAgentId": "alix",
+  "workers": [
+    {
+      "id": "w_appr",
+      "coordinationRunId": "coord_32163f79-d53c-426b-809e-a686b14f78b9",
+      "agentId": "alix",
+      "taskLabel": "Read",
+      "goalPrompt": "read me",
+      "dependencies": [],
+      "ownershipScopes": [],
+      "status": "completed",
+      "requiredCapabilities": [
+        "file.read"
+      ],
+      "attempt": 1,
+      "maxAttempts": 3,
+      "planOrder": 0,
+      "ownershipClaims": [],
+      "createdAt": "2026-06-15T23:36:08.364Z",
+      "updatedAt": "2026-06-15T23:36:08.364Z",
+      "startedAt": "2026-06-15T23:36:08.372Z",
+      "lastHeartbeatAt": "2026-06-15T23:36:08.372Z",
+      "executionOwnerId": "visdemo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:36:08.372Z",
+        "decisions": [
+          {
+            "capability": "file.read",
+            "status": "allowed",
+            "policyRuleId": "default-policy"
+          }
+        ]
+      },
+      "completedAt": "2026-06-15T23:36:08.373Z",
+      "resultRef": ".alix/coordination/results/w_appr.json"
+    },
+    {
+      "id": "w_own",
+      "coordinationRunId": "coord_32163f79-d53c-426b-809e-a686b14f78b9",
+      "agentId": "alix",
+      "taskLabel": "Write",
+      "goalPrompt": "write it",
+      "dependencies": [
+        "w_appr"
+      ],
+      "ownershipScopes": [],
+      "status": "completed",
+      "requiredCapabilities": [
+        "file.create"
+      ],
+      "attempt": 1,
+      "maxAttempts": 3,
+      "planOrder": 1,
+      "ownershipClaims": [
+        {
+          "path": "src",
+          "recursive": true,
+          "sourcePattern": "src/**"
+        }
+      ],
+      "createdAt": "2026-06-15T23:36:08.364Z",
+      "updatedAt": "2026-06-15T23:36:08.364Z",
+      "startedAt": "2026-06-15T23:36:08.375Z",
+      "lastHeartbeatAt": "2026-06-15T23:36:08.375Z",
+      "executionOwnerId": "visdemo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:36:08.374Z",
+        "decisions": [
+          {
+            "capability": "file.create",
+            "status": "allowed",
+            "policyRuleId": "default-policy"
+          }
+        ]
+      },
+      "completedAt": "2026-06-15T23:36:08.376Z",
+      "resultRef": ".alix/coordination/results/w_own.json"
+    }
+  ],
+  "schemaVersion": "1.0",
+  "createdAt": "2026-06-15T23:36:08.363Z",
+  "updatedAt": "2026-06-15T23:36:08.377Z"
+}

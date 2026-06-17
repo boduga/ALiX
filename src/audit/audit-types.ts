@@ -24,7 +24,9 @@ export type AuditAction =
   | "conflict.resolved"
   | "conflict.accepted_divergence"
   | "conflict.dismissed"
-  | "conflict.candidate_generation";
+  | "conflict.candidate_generation"
+  | "replan.failed"
+  | "replan.error";
 
 export interface AuditDetails {
   graphId?: string;
@@ -42,6 +44,10 @@ export interface AuditDetails {
   source?: string;
   decision?: string;
   riskLevel?: string;
+  runId?: string;
+  workerId?: string;
+  errors?: string[];
+  error?: string;
 }
 
 export interface AuditRecord {

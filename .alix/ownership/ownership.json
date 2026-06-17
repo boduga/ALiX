@@ -1,0 +1,74 @@
+{
+  "version": 1,
+  "revision": 8,
+  "records": [
+    {
+      "id": "own_36e46429",
+      "agentId": "alix",
+      "taskId": "w2",
+      "sessionId": "demo",
+      "scope": {
+        "kind": "path",
+        "root": "/home/babasola/Projects/Monolith/src",
+        "recursive": true
+      },
+      "mode": "exclusive-write",
+      "status": "released",
+      "acquiredAt": "2026-06-15T23:08:26.330Z",
+      "expiresAt": "2026-06-15T23:38:26.330Z",
+      "reason": "Worker w2 (Write doc)",
+      "releasedAt": "2026-06-15T23:08:26.332Z"
+    },
+    {
+      "id": "own_b0711d6e",
+      "agentId": "alix",
+      "taskId": "w_own1",
+      "sessionId": "owndemo",
+      "scope": {
+        "kind": "path",
+        "root": "/home/babasola/Projects/Monolith/src",
+        "recursive": true
+      },
+      "mode": "exclusive-write",
+      "status": "released",
+      "acquiredAt": "2026-06-15T23:08:42.755Z",
+      "expiresAt": "2026-06-15T23:38:42.755Z",
+      "reason": "Worker w_own1 (First write)",
+      "releasedAt": "2026-06-15T23:08:42.760Z"
+    },
+    {
+      "id": "own_fb7e5f13",
+      "agentId": "alix",
+      "taskId": "w_own2",
+      "sessionId": "owndemo",
+      "scope": {
+        "kind": "path",
+        "root": "/home/babasola/Projects/Monolith/src",
+        "recursive": true
+      },
+      "mode": "exclusive-write",
+      "status": "released",
+      "acquiredAt": "2026-06-15T23:08:42.761Z",
+      "expiresAt": "2026-06-15T23:38:42.761Z",
+      "reason": "Worker w_own2 (Second write)",
+      "releasedAt": "2026-06-15T23:08:42.821Z"
+    },
+    {
+      "id": "own_7923fc4b",
+      "agentId": "alix",
+      "taskId": "w_own",
+      "sessionId": "vis-test",
+      "scope": {
+        "kind": "path",
+        "root": "/home/babasola/Projects/Monolith/src",
+        "recursive": true
+      },
+      "mode": "exclusive-write",
+      "status": "released",
+      "acquiredAt": "2026-06-15T23:36:08.375Z",
+      "expiresAt": "2026-06-16T00:06:08.375Z",
+      "reason": "Worker w_own (Write)",
+      "releasedAt": "2026-06-15T23:36:08.376Z"
+    }
+  ]
+}

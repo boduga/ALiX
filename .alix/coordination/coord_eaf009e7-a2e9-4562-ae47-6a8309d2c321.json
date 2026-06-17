@@ -1,0 +1,92 @@
+{
+  "id": "coord_eaf009e7-a2e9-4562-ae47-6a8309d2c321",
+  "sessionId": "demo",
+  "rootGoal": "Full pipeline demo",
+  "status": "failed",
+  "coordinatorAgentId": "alix",
+  "workers": [
+    {
+      "id": "w1",
+      "coordinationRunId": "coord_eaf009e7-a2e9-4562-ae47-6a8309d2c321",
+      "agentId": "alix",
+      "taskLabel": "Read README",
+      "goalPrompt": "Read README",
+      "dependencies": [],
+      "ownershipScopes": [],
+      "status": "completed",
+      "requiredCapabilities": [
+        "file.read"
+      ],
+      "attempt": 1,
+      "maxAttempts": 3,
+      "planOrder": 0,
+      "ownershipClaims": [],
+      "createdAt": "2026-06-15T23:08:12.026Z",
+      "updatedAt": "2026-06-15T23:08:12.026Z",
+      "startedAt": "2026-06-15T23:08:12.032Z",
+      "lastHeartbeatAt": "2026-06-15T23:08:12.032Z",
+      "executionOwnerId": "demo",
+      "leaseIds": [],
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:08:12.032Z",
+        "decisions": [
+          {
+            "capability": "file.read",
+            "status": "allowed",
+            "policyRuleId": "tool-policy-file.read"
+          }
+        ]
+      },
+      "completedAt": "2026-06-15T23:08:12.033Z",
+      "resultRef": ".alix/coordination/results/w1.json"
+    },
+    {
+      "id": "w2",
+      "coordinationRunId": "coord_eaf009e7-a2e9-4562-ae47-6a8309d2c321",
+      "agentId": "alix",
+      "taskLabel": "Write doc",
+      "goalPrompt": "Write improvements",
+      "dependencies": [
+        "w1"
+      ],
+      "ownershipScopes": [],
+      "status": "failed",
+      "requiredCapabilities": [
+        "file.create"
+      ],
+      "attempt": 0,
+      "maxAttempts": 3,
+      "planOrder": 1,
+      "ownershipClaims": [
+        {
+          "path": "src",
+          "recursive": true,
+          "sourcePattern": "src/**"
+        }
+      ],
+      "createdAt": "2026-06-15T23:08:12.026Z",
+      "updatedAt": "2026-06-15T23:08:12.026Z",
+      "blockReason": "authorization_denied",
+      "failureKind": "authorization_denied",
+      "error": "Authorization denied for one or more capabilities",
+      "authorizationEvidence": {
+        "evaluatedAt": "2026-06-15T23:08:12.034Z",
+        "decisions": [
+          {
+            "capability": "file.create",
+            "status": "denied",
+            "policyRuleId": "approval-store-missing",
+            "reason": "Approval required but no approval store configured"
+          }
+        ]
+      }
+    }
+  ],
+  "schemaVersion": "1.0",
+  "createdAt": "2026-06-15T23:08:12.018Z",
+  "updatedAt": "2026-06-15T23:08:12.057Z",
+  "aggregateResultRef": ".alix/coordination/results/runs/coord_eaf009e7-a2e9-4562-ae47-6a8309d2c321.json",
+  "aggregateGeneratedAt": "2026-06-15T23:08:12.056Z",
+  "aggregateSourceFingerprint": "c574e3248d7c582553c6d367cf3760e41f875559b31dd4c1a005514e1368b178",
+  "outcome": "partial_success"
+}

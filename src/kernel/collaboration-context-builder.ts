@@ -13,6 +13,7 @@
 
 import { createHash } from "node:crypto";
 import { CoordinationResultStore } from "./coordination-result-store.js";
+import { CoordinationStore } from "./coordination-store.js";
 import { CollaborationStore } from "./collaboration-store.js";
 import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
@@ -82,6 +83,7 @@ export class CollaborationContextBuilder {
   constructor(
     private resultStore: CoordinationResultStore,
     private collabStore: CollaborationStore,
+    private coordinationStore: CoordinationStore,
     private budget: CollaborationContextBudget = DEFAULT_BUDGET,
     private metrics?: MetricsLike,
   ) {}
@@ -252,5 +254,27 @@ export class CollaborationContextBuilder {
     };
 
     return { manifest, snapshot };
+  }
+
+  /**
+   * Build replan context for a coordination run.
+   * Returns completed/failed workers, active conflicts, and recent findings
+   * to inform replanning decisions.
+   */
+  async buildReplanContext(runId: string): Promise<{
+    completedWorkers: Array<{ workerId: string; taskLabel: string; outcome: string; attempt: number }>;
+    activeConflicts: FindingConflict[];
+    recentFindings: SharedFinding[];
+  }> {
+    const run = await this.coordinationStore.load(runId);
+    if (!run) return { completedWorkers: [], activeConflicts: [], recentFindings: [] };
+
+    return {
+      completedWorkers: run.workers
+        .filter(w => w.status === "completed" || w.status === "failed")
+        .map(w => ({ workerId: w.id, taskLabel: w.taskLabel, outcome: w.status, attempt: w.attempt })),
+      activeConflicts: await this.collabStore.queryConflicts({ statuses: ["detected", "under_review"] }),
+      recentFindings: await this.collabStore.queryFindings({ limit: 20 }),
+    };
   }
 }
