@@ -15,13 +15,14 @@ import { createHash } from "node:crypto";
 import { CoordinationResultStore } from "./coordination-result-store.js";
 import { CoordinationStore } from "./coordination-store.js";
 import { CollaborationStore } from "./collaboration-store.js";
-import type { CoordinationRun, WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationRun, WorkerAssignment, PlanTriggerKind } from "./coordination-types.js";
 import type { CoordinationWorkerResultRecord } from "./coordination-result-store.js";
 import type { FindingConflict } from "./collaboration-conflict-types.js";
 import type {
   WorkerContextManifest, WorkerContextSnapshot, CollaborationContextWarning,
   SharedFinding, SharedArtifact,
 } from "./collaboration-types.js";
+import type { TriggerEvidence, ModelReplanContext, ModelWorkerInfo, ModelFindingInfo, ModelConflictInfo, AggregateResultInfo } from "./replan-types.js";
 
 export type CollaborationContextConflictsBudget = {
   maxTokens: number;
@@ -72,6 +73,101 @@ function capConflict(c: FindingConflict, maxFindingsPerConflict: number): Findin
 
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+/** Convert a WorkerAssignment to a model-safe ModelWorkerInfo. */
+function toModelWorker(w: WorkerAssignment): ModelWorkerInfo {
+  return {
+    id: w.id,
+    taskLabel: w.taskLabel,
+    status: w.status,
+    attempt: w.attempt,
+    dependencies: w.dependencies,
+    planOrder: w.planOrder,
+  };
+}
+
+/** Convert a SharedFinding to a model-safe ModelFindingInfo. */
+function toModelFinding(f: SharedFinding): ModelFindingInfo {
+  return {
+    id: f.id,
+    workerId: f.workerId,
+    workerAttempt: f.workerAttempt,
+    kind: f.kind,
+    title: f.title,
+    content: f.content,
+    confidence: f.confidence,
+    createdAt: f.createdAt,
+  };
+}
+
+/** Convert a FindingConflict to a model-safe ModelConflictInfo. */
+function toModelConflict(c: FindingConflict): ModelConflictInfo {
+  return {
+    id: c.id,
+    topicKey: c.topicKey,
+    type: c.type,
+    status: c.status,
+    criticality: c.criticality,
+    findingIds: c.findingIds,
+    summary: `Conflict ${c.id} (${c.type}, ${c.status}) involving findings: ${c.findingIds.join(", ")}`,
+  };
+}
+
+/**
+ * Compute topological batches (levels) from a list of workers.
+ * Returns an array of arrays, where each inner array is a batch of workers
+ * that can run in parallel (all their dependencies are in earlier batches).
+ */
+function computeTopologicalBatches(workers: WorkerAssignment[]): string[][] {
+  const workerMap = new Map(workers.map(w => [w.id, w]));
+  const inDegree = new Map<string, number>();
+  const adjacency = new Map<string, string[]>();
+  for (const w of workers) { inDegree.set(w.id, 0); adjacency.set(w.id, []); }
+  for (const w of workers) {
+    for (const depId of w.dependencies) {
+      if (!workerMap.has(depId)) continue; // skip unknown deps
+      adjacency.get(depId)!.push(w.id);
+      inDegree.set(w.id, (inDegree.get(w.id) ?? 0) + 1);
+    }
+  }
+
+  const remaining = new Set(workers.map(w => w.id));
+  const batches: string[][] = [];
+
+  while (remaining.size > 0) {
+    const batch: string[] = [];
+    for (const id of remaining) {
+      if ((inDegree.get(id) ?? 0) === 0) {
+        batch.push(id);
+      }
+    }
+    if (batch.length === 0) break; // cycle or unknown deps
+    for (const id of batch) {
+      remaining.delete(id);
+      for (const neighbor of adjacency.get(id) ?? []) {
+        inDegree.set(neighbor, (inDegree.get(neighbor) ?? 1) - 1);
+      }
+    }
+    batches.push(batch);
+  }
+
+  return batches;
+}
+
+/**
+ * Redact sensitive content: strip absolute paths, truncate long strings.
+ * - Replaces patterns like /home/user/path or /var/log/path with "[redacted-path]"
+ * - Truncates excessively long words (>200 chars)
+ */
+function redactContent(text: string): string {
+  // Strip absolute paths (Unix-style)
+  let result = text.replace(/\/(?:[a-zA-Z0-9_.-]+\/)+[a-zA-Z0-9_.-]+/g, "[redacted-path]");
+  // Strip absolute paths (Windows-style)
+  result = result.replace(/[A-Za-z]:\\(?:[a-zA-Z0-9_.-]+\\)+[a-zA-Z0-9_.-]+/g, "[redacted-path]");
+  // Truncate long contiguous strings (>200 chars) — these are likely encoded/binary data
+  result = result.replace(/[^\s]{201,}/g, (match) => match.slice(0, 100) + "...[truncated]");
+  return result;
 }
 
 type MetricsLike = {
@@ -254,6 +350,172 @@ export class CollaborationContextBuilder {
     };
 
     return { manifest, snapshot };
+  }
+
+  // ─── Helper methods ─────────────────────────────────────────────
+
+  /**
+   * Build a bounded ModelReplanContext for model-assisted replanning.
+   *
+   * Returns a fully populated context with run-scoped workers, findings,
+   * conflicts, aggregate results, dependency graph (topological order),
+   * budget enforcement, content redaction, and a deterministic fingerprint.
+   *
+   * The returned context is bounded by the configured token budget.
+   * Content is redacted for sensitive data (absolute paths, long strings).
+   * The `untrustedContent: true` marker signals that this data was sourced
+   * from model input and should be treated as untrusted.
+   *
+   * Throws if the coordination run is not found.
+   */
+  async buildModelReplanContext(
+    runId: string,
+    trigger: PlanTriggerKind,
+    triggerEvidence: TriggerEvidence,
+  ): Promise<ModelReplanContext> {
+    const run = await this.coordinationStore.load(runId);
+    if (!run) {
+      throw new Error(`Coordination run not found: ${runId}`);
+    }
+
+    const workers = run.workers;
+    const workerIds = workers.map(w => w.id);
+
+    // Worker info: completed/failed workers
+    const completedWorkers = workers
+      .filter(w => w.status === "completed" || w.status === "failed")
+      .map(w => toModelWorker(w));
+
+    // Full worker graph (all workers, for dependency context)
+    const workerGraph = workers.map(w => toModelWorker(w));
+
+    // Dependency graph as topological order (batches by level)
+    const dependencyGraph = computeTopologicalBatches(workers);
+
+    // Run-scoped findings: only this run's workers, current attempt only
+    const workerToAttempt = new Map(workers.map(w => [w.id, w.attempt]));
+    const rawFindings = workerIds.length > 0
+      ? await this.collabStore.queryFindings({ workerIds, limit: this.budget.maxFindings })
+      : [];
+
+    // Filter to current-attempt findings per worker
+    const currentFindings = rawFindings.filter(
+      f => workerToAttempt.get(f.workerId) === f.workerAttempt,
+    );
+
+    // Conflicts involving these findings (detected or under review)
+    const findingIds = currentFindings.map(f => f.id);
+    const rawConflicts = findingIds.length > 0
+      ? await this.collabStore.queryConflicts({ findingIds, statuses: ["detected", "under_review"] })
+      : [];
+
+    // Aggregate result from CoordinationResultStore
+    let aggregateResult: AggregateResultInfo | undefined;
+    if (run.aggregateResultRef) {
+      const loadResult = await this.resultStore.loadByRef(run.aggregateResultRef);
+      if (loadResult.status === "ok") {
+        aggregateResult = {
+          outcome: loadResult.record.outcome,
+          summary: loadResult.record.summary ?? "",
+          issues: loadResult.record.error ? [loadResult.record.error] : [],
+        };
+      } else {
+        aggregateResult = {
+          outcome: "unknown",
+          summary: `Aggregate result not available: ${loadResult.message}`,
+          issues: [],
+        };
+      }
+    }
+
+    // Build model-friendly structures
+    let findings: ModelFindingInfo[] = currentFindings.map(f => toModelFinding(f));
+    let conflicts: ModelConflictInfo[] = rawConflicts.map(c => toModelConflict(c));
+
+    // Pre-redact content (strip absolute paths, truncate long strings)
+    const warnings: string[] = [];
+    const redactedFindings = findings.map(f => ({
+      ...f,
+      content: redactContent(f.content),
+    }));
+    const redactedConflicts = conflicts.map(c => ({
+      ...c,
+      summary: redactContent(c.summary),
+    }));
+
+    // Token budget enforcement
+    // Pre-compute token estimates per item for precise trimming
+    const findingWithTokens = redactedFindings.map(f => ({
+      info: f,
+      tokens: estimateTokens(JSON.stringify(f)),
+    }));
+    const conflictWithTokens = redactedConflicts.map(c => ({
+      info: c,
+      tokens: estimateTokens(JSON.stringify(c)),
+    }));
+
+    // Base tokens (workers, graph, aggregate result — always included)
+    const baseTokens = estimateTokens(JSON.stringify({
+      completedWorkers, workerGraph, dependencyGraph, aggregateResult,
+    }));
+    let findingsTokens = findingWithTokens.reduce((s, f) => s + f.tokens, 0);
+    let conflictsTokens = conflictWithTokens.reduce((s, c) => s + c.tokens, 0);
+    let totalTokens = baseTokens + findingsTokens + conflictsTokens;
+    let omittedFindingsByBudget = 0;
+    let omittedConflictsByBudget = 0;
+
+    // Trim findings from back (newest-first = least critical for replan)
+    while (totalTokens > this.budget.maxTokens && findingWithTokens.length > 0) {
+      const removed = findingWithTokens.pop()!;
+      totalTokens -= removed.tokens;
+      omittedFindingsByBudget++;
+    }
+    // Trim conflicts if findings alone did not bring us under budget
+    while (totalTokens > this.budget.maxTokens && conflictWithTokens.length > 0) {
+      const removed = conflictWithTokens.pop()!;
+      totalTokens -= removed.tokens;
+      omittedConflictsByBudget++;
+    }
+
+    if (omittedFindingsByBudget > 0 || omittedConflictsByBudget > 0) {
+      warnings.push(
+        `Context trimmed: ${omittedFindingsByBudget} findings and ${omittedConflictsByBudget} conflicts omitted to fit budget of ${this.budget.maxTokens} tokens`,
+      );
+    }
+
+    // Compute deterministic context fingerprint
+    const fingerprintInput = {
+      runId,
+      trigger,
+      workerCount: workers.length,
+      findingIds: findingWithTokens.map(f => f.info.id).sort(),
+      conflictIds: conflictWithTokens.map(c => c.info.id).sort(),
+      workerIds: workerGraph.map(w => w.id).sort(),
+    };
+    const fingerprint = createHash("sha256")
+      .update(JSON.stringify(fingerprintInput))
+      .digest("hex");
+
+    return {
+      runId,
+      trigger,
+      triggerEvidence,
+      completedWorkers,
+      activeConflicts: conflictWithTokens.map(c => c.info),
+      recentFindings: findingWithTokens.map(f => f.info),
+      workerGraph,
+      aggregateResult,
+      dependencyGraph,
+      tokenBudget: {
+        allocated: this.budget.maxTokens,
+        consumed: totalTokens,
+        omittedFindings: omittedFindingsByBudget + Math.max(0, rawFindings.length - currentFindings.length),
+        omittedConflicts: omittedConflictsByBudget,
+      },
+      fingerprint,
+      warnings,
+      untrustedContent: true as const,
+    };
   }
 
   /**

@@ -167,14 +167,61 @@ export interface ImpactAnalysis {
 
 // ─── Model Replan Context ─────────────────────────────────────────────
 
+export interface ModelWorkerInfo {
+  id: string;
+  taskLabel: string;
+  status: string;
+  attempt: number;
+  dependencies: string[];
+  planOrder?: number;
+}
+
+export interface ModelFindingInfo {
+  id: string;
+  workerId: string;
+  workerAttempt: number;
+  kind: string;
+  title: string;
+  content: string;
+  confidence?: number;
+  createdAt: string;
+}
+
+export interface ModelConflictInfo {
+  id: string;
+  topicKey: string;
+  type: string;
+  status: string;
+  criticality: string;
+  findingIds: string[];
+  summary: string;
+}
+
+export interface AggregateResultInfo {
+  outcome: string;
+  summary: string;
+  issues: string[];
+}
+
 export interface ModelReplanContext {
   runId: string;
   trigger: PlanTriggerKind;
   triggerEvidence: TriggerEvidence;
-  completedWorkers: WorkerAssignment[];
-  activeConflicts: string[];
-  recentFindings: string[];
-  workerGraph: WorkerAssignment[];
+  completedWorkers: ModelWorkerInfo[];
+  activeConflicts: ModelConflictInfo[];
+  recentFindings: ModelFindingInfo[];
+  workerGraph: ModelWorkerInfo[];
+  aggregateResult?: AggregateResultInfo;
+  dependencyGraph: string[][];
+  tokenBudget: {
+    allocated: number;
+    consumed: number;
+    omittedFindings: number;
+    omittedConflicts: number;
+  };
+  fingerprint: string;
+  warnings: string[];
+  untrustedContent: true;
 }
 
 // ─── Proposal Record (Persisted) ──────────────────────────────────────
