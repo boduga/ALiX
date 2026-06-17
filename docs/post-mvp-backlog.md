@@ -248,4 +248,42 @@ Current state: Implementation complete
 
 ---
 
-*Updated 2026-05-20: All components implemented. Document preserved for historical reference. See `docs/architecture/implementation-readiness.md` for current status.*
+## P4 — Production Hardening
+
+Completed in two milestones after the MVP backlog was closed.
+
+### P4.1 — Production Hardening Baseline
+
+**Tag:** `p4.1-production-hardening-baseline`
+
+Covered: `ollama` client adapter health check, `isPidAlive()` cross-platform fix (EPERM on macOS), `canReachHuggingFace()` network probe for embedding tests, `/api/chat` contract testing, `RecoveryMatrix`/`RecoveryScanner`/`RecoveryRepair`/`RecoveryCLI`, concurrency stress harness (22 tests), fault-injection test suite (16 tests), cross-platform CI matrix (macOS/Windows/Node 22/24).
+
+### P4.2 — Observability and Operational Readiness (2026-06-17)
+
+**Tag:** `p4.2-observability-baseline`
+**PR:** [#43](https://github.com/boduga/ALiX/pull/43)
+**Merge commit:** `8367775b`
+
+8-track observability stack — 16 commits, 75 new tests, 0 regressions (3302 CI pass):
+
+| Track | What | Key Files |
+|-------|------|-----------|
+| **P4.2a** | Unified telemetry schema (`TelemetryEnvelope`), normalization adapters, bounded buffer (10k, drop_oldest) | `telemetry-envelope.ts` |
+| **P4.2b** | Side-effect-free health projection with `"unknown"` status, TTL-cached snapshot service | `health-snapshot.ts`, `observability-config.ts` |
+| **P4.2c** | Append-only JSONL metrics store (streaming I/O, no sqlite), hourly rollups with p50/p95/p99 | `metrics-store.ts` |
+| **P4.2d** | Read-only CLI (`alix observability {health\|metrics\|trends\|alerts\|export}`), REST API at `/api/observability/*` | `observability.ts`, `observability-routes.ts` |
+| **P4.2e** | Windowed trend analysis, percentile computation, z-score anomaly detection | `trend-analyzer.ts` |
+| **P4.2f** | Stateful alert engine — deterministic fingerprinting, dedup, cooldown, resolution, metadata acknowledgement | `alert-engine.ts` |
+| **P4.2g** | Versioned `PricingCatalog`, streaming cost attribution, unknown model → `-1` sentinel | `cost-attribution.ts` |
+| **P4.2h** | Health/cost TUI panels, SSE event stream, operational runbook, dashboard integration | `health-panel.ts`, `cost-panel.ts`, `observability-stream.ts` |
+
+**Architecture:**
+```
+events/metrics/traces/health → TelemetryEnvelope → CLI / TUI / Inspector / Alerts
+```
+
+**Key constraints:** No native dependencies, side-effect-free health reads, `"unknown"` for missing evidence, append-only JSONL, GET-only HTTP, dimensioned alert fingerprints.
+
+---
+
+*Updated 2026-06-17: P4.2 Observability milestone complete. See `docs/observability-runbook.md` for operational reference.*
