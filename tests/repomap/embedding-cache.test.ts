@@ -1,4 +1,4 @@
-import { describe, it, beforeEach, afterEach } from "node:test";
+import { describe, it, beforeEach, afterEach, before } from "node:test";
 import assert from "node:assert";
 import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -6,11 +6,16 @@ import { execSync } from "node:child_process";
 import { EmbeddingCache } from "../../src/repomap/embedding-cache.js";
 
 // Embedding tests download a model from HuggingFace at runtime.
-// CI runners may not have network access (HTTP 429), so skip when offline.
+// CI runners may not have reliable access to the model hub, so check
+// the specific model's file URL (not just the homepage) before running.
 function canReachHuggingFace(): boolean {
   try {
-    execSync("curl -sI https://huggingface.co -o /dev/null -w '%{http_code}' --connect-timeout 3", { timeout: 5000 });
-    return true;
+    const result = execSync(
+      "curl -sI --connect-timeout 5 --max-time 10 'https://huggingface.co/Xenova/all-MiniLM-L6-v2/resolve/main/README.md' -o /dev/null -w '%{http_code}' 2>/dev/null",
+      { timeout: 15000, encoding: "utf-8" },
+    );
+    const code = result?.toString().trim();
+    return code === "200" || code === "302" || code === "301";
   } catch {
     return false;
   }

@@ -68,7 +68,9 @@ function readLockMeta(lockDir: string): { pid?: number; acquiredAt?: number } | 
 function isPidAlive(pid: number): boolean {
   try {
     return process.kill(pid, 0);
-  } catch {
+  } catch (e: any) {
+    // EPERM means the process exists but is owned by another user — treat as alive
+    if (e && typeof e === "object" && e.code === "EPERM") return true;
     return false;
   }
 }
