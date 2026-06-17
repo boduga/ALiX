@@ -2394,6 +2394,18 @@ if (command === "approval") {
   process.exit(0);
 }
 
+// --- alix observability --- P4.2 observability commands ---
+if (command === "observability") {
+  const { handleObservability } = await import("./cli/commands/observability.js");
+  try {
+    await handleObservability(args, process.cwd());
+  } catch (err) {
+    console.error(err instanceof Error ? err.message : String(err));
+    process.exitCode = 1;
+  }
+  process.exit(0);
+}
+
 if (command === "ownership") {
   const { handleOwnershipCommand } = await import("./cli/commands/ownership.js");
   await handleOwnershipCommand(args);
