@@ -90,7 +90,7 @@ export class VerificationPipeline {
 
       return {
         success: summary.failed === 0,
-        partial: summary.failed > 0 && summary.passed > 0,
+        partial: stopOnFailure || (summary.failed > 0 && summary.passed > 0),
         discovered,
         executed,
         reporter,

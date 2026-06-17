@@ -8,6 +8,9 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_000 }, async () => {
   const config = await loadConfig(__dirname);
+  if (!config.model) {
+    config.model = { provider: "cli", name: "test-model" };
+  }
   const mcpManager = new McpManager(config);
   await mcpManager.initialize();
 
@@ -37,6 +40,9 @@ test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_
 
 test("discoverServer throws for unknown package", { timeout: 60_000 }, async () => {
   const config = await loadConfig(__dirname);
+  if (!config.model) {
+    config.model = { provider: "cli", name: "test-model" };
+  }
   const mcpManager = new McpManager(config);
   await mcpManager.initialize();
 

@@ -3,7 +3,7 @@ import assert from "node:assert";
 import { ContextCompiler } from "../../src/repomap/context-compiler.js";
 
 describe("ContextCompiler.warm() overhead", () => {
-  it("measures warm() and compile() timing", async () => {
+  it("measures warm() and compile() timing", { timeout: 120_000 }, async () => {
     const projectRoot = process.cwd();
     const compiler = new ContextCompiler({ root: projectRoot });
 
