@@ -27,7 +27,7 @@ export async function cmdAlerts(cwd: string, args: string[]): Promise<void> {
   }
 
   // Print firing alerts
-  if (result.firing.length === 0 && result.resolved.length === 0) {
+  if (result.firing.length === 0 && result.recent === 0) {
     console.log("No alerts.");
     return;
   }
@@ -35,16 +35,23 @@ export async function cmdAlerts(cwd: string, args: string[]): Promise<void> {
   if (result.firing.length > 0) {
     console.log(`Firing Alerts (${result.firing.length}):`);
     for (const a of result.firing) {
-      const ack = a.acknowledged ? " [acknowledged]" : "";
+      const ack = a.status === "acknowledged" ? " [acknowledged]" : "";
       console.log(`  [${a.severity.toUpperCase()}] ${a.ruleName}${ack}`);
       console.log(`    ${a.message}`);
       console.log(`    triggered: ${a.firstTriggeredAt} (x${a.occurrences})`);
     }
   }
 
-  if (result.resolved.length > 0) {
-    console.log(`\nResolved Alerts (${result.resolved.length}):`);
-    for (const a of result.resolved) {
+  if (result.recent > 0) {
+    console.log(`\nRecent/Cooling: ${result.recent} active alert(s) in cooldown`);
+  }
+
+  // Also show resolved from full state
+  const state = engine.getState();
+  if (state.resolved.length > 0) {
+    console.log(`\nResolved (${state.resolved.length} total):`);
+    const recentResolved = state.resolved.slice(-5);
+    for (const a of recentResolved) {
       console.log(`  [${a.severity.toUpperCase()}] ${a.ruleName}`);
       console.log(`    resolved: ${a.resolvedAt ?? "?"}`);
     }

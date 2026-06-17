@@ -19,20 +19,23 @@ import type { RuntimeHealthSnapshot } from "./health-snapshot.js";
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export type AlertSeverity = "critical" | "warning" | "info";
-export type AlertStatus = "firing" | "resolved";
+export type AlertStatus = "firing" | "resolved" | "acknowledged";
 
 export interface AlertRule {
   id: string;
   name: string;
   description: string;
   severity: AlertSeverity;
+  enabled: boolean;
   condition: (snapshot: RuntimeHealthSnapshot) => boolean;
   message: (snapshot: RuntimeHealthSnapshot) => string;
+  cooldownMs?: number;
 }
 
 export interface AlertEvent {
   id: string;
   ruleId: string;
+  fingerprint: string;
   ruleName: string;
   severity: AlertSeverity;
   status: AlertStatus;
@@ -41,13 +44,14 @@ export interface AlertEvent {
   firstTriggeredAt: string;
   lastTriggeredAt: string;
   resolvedAt?: string;
+  acknowledgedAt?: string;
   occurrences: number;
-  acknowledged: boolean;
+  metadata?: Record<string, unknown>;
 }
 
 export interface EvaluateResult {
   firing: AlertEvent[];
-  resolved: AlertEvent[];
+  recent: number;
 }
 
 // ─── Fingerprint ───────────────────────────────────────────────────────────
@@ -57,8 +61,8 @@ export interface EvaluateResult {
  * Two AlertEvents with the same rule firing at the same severity
  * are the same alert, even if the message drifts slightly.
  */
-export function fingerprintAlert(a: AlertEvent): string {
-  return `${a.ruleId}::${a.severity}`;
+export function fingerprintAlert(ruleId: string, severity: AlertSeverity): string {
+  return `${ruleId}::${severity}`;
 }
 
 // ─── Built-in Rules ────────────────────────────────────────────────────────
@@ -69,6 +73,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Daemon Not Running",
     description: "Daemon status is not healthy",
     severity: "critical",
+    enabled: true,
     condition: (h) => h.daemon.status === "unhealthy",
     message: (h) => `Daemon is unhealthy (status: ${h.daemon.status})`,
   },
@@ -77,6 +82,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Daemon Heartbeat Stale",
     description: "Daemon heartbeat is degraded",
     severity: "warning",
+    enabled: true,
     condition: (h) => h.daemon.status === "degraded",
     message: (h) => `Heartbeat ${Math.round((h.daemon.heartbeatAgeMs ?? -1) / 1000)}s old`,
   },
@@ -85,6 +91,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Approvals Backlog",
     description: "Pending approvals exceed threshold or oldest is too old",
     severity: "warning",
+    enabled: true,
     condition: (h) => h.approvals.pending > 10 || h.approvals.oldestPendingMs > 300_000,
     message: (h) => `${h.approvals.pending} pending, oldest ${Math.round(h.approvals.oldestPendingMs / 1000)}s`,
   },
@@ -93,6 +100,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Recovery Critical Findings",
     description: "Critical recovery findings unresolved",
     severity: "critical",
+    enabled: true,
     condition: (h) => h.recovery.criticalFindings > 0,
     message: (h) => `${h.recovery.criticalFindings} critical findings`,
   },
@@ -101,6 +109,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Ownership Conflicts",
     description: "Ownership conflicts detected",
     severity: "warning",
+    enabled: true,
     condition: (h) => h.ownership.conflicts > 0,
     message: (h) => `${h.ownership.conflicts} conflicts`,
   },
@@ -109,6 +118,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "High Memory Usage",
     description: "RSS exceeds warning threshold",
     severity: "warning",
+    enabled: true,
     condition: (h) => h.resources.memoryRssMb > 500,
     message: (h) => `RSS ${h.resources.memoryRssMb} MB (threshold: 500)`,
   },
@@ -117,6 +127,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Critical Memory Usage",
     description: "RSS exceeds critical threshold",
     severity: "critical",
+    enabled: true,
     condition: (h) => h.resources.memoryRssMb > 1000,
     message: (h) => `RSS ${h.resources.memoryRssMb} MB (threshold: 1000)`,
   },
@@ -125,6 +136,7 @@ export const HEALTH_RULES: AlertRule[] = [
     name: "Unhealthy Providers",
     description: "One or more providers are unhealthy",
     severity: "warning",
+    enabled: true,
     condition: (h) => h.providers.some(p => p.status === "unhealthy"),
     message: (h) => `Unhealthy: ${h.providers.filter(p => p.status === "unhealthy").map(p => p.providerId).join(", ")}`,
   },
@@ -147,46 +159,46 @@ export class AlertEngine {
   constructor(config?: Partial<ObservabilityConfig> & AlertEngineOptions) {
     this.config = mergeObservabilityConfig(config);
     this.cooldownMs = config?.cooldownMs ?? 30_000; // 30s default cooldown
-    this.rules = [...HEALTH_RULES];
+    this.rules = [...HEALTH_RULES.map(r => ({ ...r, enabled: r.enabled ?? true, cooldownMs: r.cooldownMs ?? this.cooldownMs }))];
   }
 
   addRule(rule: AlertRule): void {
-    this.rules.push(rule);
+    this.rules.push({ ...rule, enabled: rule.enabled ?? true, cooldownMs: rule.cooldownMs ?? this.cooldownMs });
   }
 
   /**
    * Evaluate all rules against a health snapshot.
-   * Mutates engine state on first call; subsequent calls with same condition
-   * increment occurrences instead of creating new alerts.
+   * Returns a fresh snapshot of firing alerts and the recent count.
+   * Never mutates previously-returned AlertEvent objects.
    */
   evaluate(snapshot: RuntimeHealthSnapshot): EvaluateResult {
-    const now = new Date().toISOString();
     const nowMs = Date.now();
+    const now = new Date(nowMs).toISOString();
     const firing: AlertEvent[] = [];
-    const resolved: AlertEvent[] = [];
 
     // Track which fingerprints are still active this round
     const activeFingerprints = new Set<string>();
 
     for (const rule of this.rules) {
+      if (!rule.enabled) continue;
       let triggered = false;
       try { triggered = rule.condition(snapshot); } catch { /* skip rule on error */ }
-      const fp = `${rule.id}::${rule.severity}`;
+      const fp = fingerprintAlert(rule.id, rule.severity);
 
       if (triggered) {
         activeFingerprints.add(fp);
         const existing = this.firing.get(fp);
 
         if (existing) {
-          // Update occurrences and timestamp
           existing.occurrences++;
           existing.lastTriggeredAt = now;
-          firing.push(existing);
+          firing.push({ ...existing });
         } else {
           this.alertCounter++;
           const alert: AlertEvent = {
-            id: `alert_${Date.now()}_${this.alertCounter}`,
+            id: `alert_${nowMs}_${this.alertCounter}`,
             ruleId: rule.id,
+            fingerprint: fp,
             ruleName: rule.name,
             severity: rule.severity,
             status: "firing",
@@ -195,36 +207,47 @@ export class AlertEngine {
             firstTriggeredAt: now,
             lastTriggeredAt: now,
             occurrences: 1,
-            acknowledged: false,
           };
           this.firing.set(fp, alert);
-          firing.push(alert);
+          firing.push({ ...alert });
         }
       }
     }
 
     // Resolve alerts that are no longer firing, after cooldown
+    let recent = 0;
     for (const [fp, alert] of this.firing) {
+      if (alert.status === "acknowledged") {
+        recent++;
+        continue;
+      }
       if (!activeFingerprints.has(fp)) {
         if (nowMs - new Date(alert.lastTriggeredAt).getTime() >= this.cooldownMs) {
           alert.status = "resolved";
           alert.resolvedAt = now;
           this.resolved.push(alert);
           this.firing.delete(fp);
-          resolved.push(alert);
+        } else {
+          recent++;
         }
+      } else {
+        recent++;
       }
     }
 
-    return { firing, resolved };
+    return { firing, recent };
   }
 
-  acknowledge(alertId: string): boolean {
-    for (const [, alert] of this.firing) {
-      if (alert.id === alertId) {
-        alert.acknowledged = true;
-        return true;
-      }
+  /**
+   * Acknowledge a firing alert by fingerprint.
+   * Sets status to "acknowledged" and records the timestamp.
+   */
+  acknowledge(fingerprint: string): boolean {
+    const alert = this.firing.get(fingerprint);
+    if (alert) {
+      alert.status = "acknowledged";
+      alert.acknowledgedAt = new Date().toISOString();
+      return true;
     }
     return false;
   }

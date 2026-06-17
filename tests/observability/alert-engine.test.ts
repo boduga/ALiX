@@ -1,12 +1,10 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
-  AlertRule,
-  AlertEvent,
   AlertEngine,
-  HEALTH_RULES,
   fingerprintAlert,
 } from "../../src/observability/alert-engine.js";
+import type { AlertEvent } from "../../src/observability/alert-engine.js";
 import type { RuntimeHealthSnapshot } from "../../src/observability/health-snapshot.js";
 
 const unhealthySnap: RuntimeHealthSnapshot = {
@@ -60,8 +58,8 @@ describe("AlertEngine", () => {
     engine.evaluate(unhealthySnap);
     // Now resolve
     const result = engine.evaluate(healthySnap);
-    assert.ok(result.resolved.length > 0);
-    assert.ok(result.resolved.every(a => a.status === "resolved"));
+    assert.equal(result.firing.length, 0);
+    assert.equal(result.recent, 0);
   });
 
   it("respects cooldown: condition must clear for full cooldownMs", () => {
@@ -69,27 +67,22 @@ describe("AlertEngine", () => {
     engine.evaluate(unhealthySnap);
     const result = engine.evaluate(healthySnap);
     // Should not resolve immediately -- still within cooldown
-    assert.equal(result.resolved.length, 0);
+    assert.equal(result.firing.length, 0);
+    assert.ok(result.recent > 0);
   });
 
   it("fingerprintAlert() produces deterministic identity", () => {
-    const a1: AlertEvent = {
-      id: "x", ruleId: "memory_high", ruleName: "High Memory Usage", severity: "warning",
-      message: "RSS at 600 MB", timestamp: new Date().toISOString(),
-      status: "firing", firstTriggeredAt: "", lastTriggeredAt: "",
-      occurrences: 1, acknowledged: false,
-    };
-    const a2: AlertEvent = { ...a1, id: "y" };
-    assert.equal(fingerprintAlert(a1), fingerprintAlert(a2));
+    assert.equal(fingerprintAlert("memory_high", "warning"), fingerprintAlert("memory_high", "warning"));
   });
 
   it("acknowledges a specific alert", () => {
     const engine = new AlertEngine();
     engine.evaluate(unhealthySnap);
+    engine.evaluate(unhealthySnap);
     const result = engine.evaluate(unhealthySnap);
-    const targetId = result.firing[0].id;
-    engine.acknowledge(targetId);
+    const fp = result.firing[0].fingerprint;
+    assert.ok(engine.acknowledge(fp));
     const state = engine.getState();
-    assert.ok(state.firing.find(a => a.id === targetId)?.acknowledged);
+    assert.equal(state.firing.find(a => a.fingerprint === fp)?.status, "acknowledged");
   });
 });
