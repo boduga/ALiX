@@ -11,6 +11,7 @@ import {
   sessionEventsPath
 } from "../inspector/session-reader.js";
 import { registerCoordinationRoutes } from "./coordination-routes.js";
+import { handleObservabilityRoute } from "../observability/observability-routes.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -387,6 +388,10 @@ export function startServer(root: string, host: string, port: number): Promise<{
         });
 
         return;
+      }
+      if (url.pathname.startsWith("/api/observability")) {
+        const handled = await handleObservabilityRoute({ req, res, root });
+        if (handled) return;
       }
       if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res)) {
         return;
