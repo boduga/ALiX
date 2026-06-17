@@ -87,7 +87,9 @@ export async function complete(
 
   const apiKey = resolveApiKey(provider, options.apiKey);
   const body = spec.toRequestBody({ ...request, model });
-  const url = spec.baseUrl.replace("{model}", encodeURIComponent(model));
+  const hasTools = !!(request.tools && request.tools.length > 0);
+  const base = hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl;
+  const url = base.replace("{model}", encodeURIComponent(model));
   const res = await fetchWithRetry(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", ...spec.authHeader(apiKey) },
@@ -113,7 +115,8 @@ export async function* stream(
 
   const apiKey = resolveApiKey(provider, options.apiKey);
   const body = spec.toRequestBody({ ...request, model, stream: true });
-  const streamBase = spec.streamUrl ?? spec.baseUrl;
+  const hasTools = !!(request.tools && request.tools.length > 0);
+  const streamBase = spec.streamUrl ?? (hasTools && spec.toolCallUrl ? spec.toolCallUrl : spec.baseUrl);
   const url = streamBase.replace("{model}", encodeURIComponent(model));
 
   // Retry the initial HTTP request on transient failure.

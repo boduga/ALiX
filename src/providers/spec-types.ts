@@ -18,6 +18,14 @@ export type ProviderSpec = {
   /** Streaming endpoint URL — defaults to baseUrl when not set */
   streamUrl?: string;
 
+  /** Tool-calling endpoint URL — defaults to baseUrl when not set.
+   * When a request includes tools, the dispatcher routes to this URL
+   * instead of baseUrl. Providers that use a separate endpoint for
+   * structured tool calls (e.g. Ollama /api/chat vs /api/generate)
+   * set this to the tool-capable endpoint.
+   * When omitted, tool-bearing requests use baseUrl. */
+  toolCallUrl?: string;
+
   /** Build auth headers from API key */
   authHeader: (apiKey: string) => Record<string, string>;
 
