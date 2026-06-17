@@ -20,6 +20,7 @@ export type WorkerStatus =
 
 export type CoordinationRunStatus =
   | "planning"     // coordinator is decomposing the goal
+  | "replanning"   // coordinator is re-planning after a worker completed/failed
   | "running"      // one or more workers active
   | "blocked"      // all workers blocked or pending
   | "completed"    // all workers completed successfully
@@ -45,6 +46,75 @@ export type WorkerOwnershipClaim = {
 export type CoordinationRunOutcome =
   | "success" | "partial_success" | "failure"
   | "cancelled" | "blocked" | "incomplete";
+
+// ─── Planning / Replanning Types ─────────────────────────────────────────
+
+export type PlanningRoundStatus =
+  | "draft" | "bidding" | "finalizing" | "finalized" | "failed";
+
+export type PlanTriggerKind =
+  | "worker_completed" | "worker_failed" | "conflict_detected"
+  | "finding_published" | "manual";
+
+export interface PlanningProposal {
+  id: string;
+  taskLabel: string;
+  goalPrompt: string;
+  requiredCapabilities: string[];
+  ownershipClaims: WorkerOwnershipClaim[];
+  dependencies: string[];
+  riskLevel?: string;
+  approvalMode?: string;
+}
+
+export interface PlanningBid {
+  id: string;
+  proposalId: string;
+  agentId: string;
+  matchedCapabilities: string[];
+  unmatchedCapabilities: string[];
+  confidence?: number;
+  message?: string;
+  createdAt: string;
+}
+
+export interface PlanningAcceptance {
+  proposalId: string;
+  agentId: string;
+  status: "accepted" | "countered" | "rejected";
+  reason?: string;
+  assignedWorkerId?: string;
+}
+
+export interface PlanningRound {
+  id: string;
+  coordinationRunId: string;
+  roundNumber: number;
+  status: PlanningRoundStatus;
+  proposals: PlanningProposal[];
+  bids: PlanningBid[];
+  acceptances: PlanningAcceptance[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PlanDiffEntry {
+  workerId: string;
+  change: "added" | "removed" | "modified";
+  taskLabel?: string;
+  goalPrompt?: string;
+  reason: string;
+}
+
+export interface PlanRevision {
+  revisionNumber: number;
+  timestamp: string;
+  reason: string;
+  triggerKind: PlanTriggerKind;
+  triggerWorkerId?: string;
+  triggerConflictIds?: string[];
+  diff: PlanDiffEntry[];
+}
 
 export type WorkerFailureProvenance = {
   directCauseWorkerIds: string[];
@@ -160,6 +230,12 @@ export interface CoordinationRun {
   aggregateSourceFingerprint?: string;
   outcome?: CoordinationRunOutcome;
 
+  /** Current plan revision number (increments on each replan). */
+  planRevision: number;
+
+  /** History of all plan revisions, oldest first. */
+  revisionHistory?: PlanRevision[];
+
   /** Schema version for forward compatibility */
   schemaVersion: "1.0";
 
@@ -189,6 +265,7 @@ export function createCoordinationRun(opts: {
     workers: [],
     taskGraphId: opts.taskGraphId,
     taskGraphRef: opts.taskGraphRef,
+    planRevision: 0,
     schemaVersion: "1.0",
     createdAt: now,
     updatedAt: now,
@@ -301,6 +378,11 @@ export function transitionCoordinationRunStatus(
  * - else → "running"
  */
 export function recomputeRunStatus(run: CoordinationRun): CoordinationRunStatus {
+  // Guard: preserve replanning when coordinator has explicitly set it.
+  // The scheduler sets "replanning" before invoking replan() and expects
+  // status to stay "replanning" until replan() completes.
+  if (run.status === "replanning") return "replanning";
+
   const allCompleted = run.workers.every(w => w.status === "completed");
   if (allCompleted && run.workers.length > 0) return "completed";
 
