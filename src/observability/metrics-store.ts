@@ -4,7 +4,6 @@
  * Durable, append-only JSONL metric store under:
  *   .alix/observability/metrics/YYYY-MM-DD.jsonl    (raw)
  *   .alix/observability/rollups/hourly.jsonl          (hourly aggregates)
- *   .alix/observability/rollups/daily.jsonl           (daily aggregates)
  *
  * Uses Node.js streams (createReadStream + readline) for all reads.
  * No new native dependencies — pure Node.js I/O.
@@ -17,7 +16,7 @@
  */
 
 import { existsSync, mkdirSync, createWriteStream, createReadStream } from "node:fs";
-import { rename, readdir } from "node:fs/promises";
+import { readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
@@ -192,7 +191,6 @@ export class RollupStore {
       const ts = new Date(datePart).getTime();
       if (!isNaN(ts) && ts < cutoff) {
         try {
-          const { unlink } = await import("node:fs/promises");
           await unlink(join(this.cwd, ".alix", "observability", "metrics", f));
           removed++;
         } catch { /* skip */ }

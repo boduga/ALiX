@@ -1,6 +1,6 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync, readFileSync, mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { MetricsStore, RollupStore, type MetricRow, type MetricType } from "../../src/observability/metrics-store.js";
@@ -91,8 +91,14 @@ describe("MetricsStore", () => {
 });
 
 describe("RollupStore", () => {
+  let tmpDir2: string;
+  before(() => {
+    tmpDir2 = mkdtempSync(join(tmpdir(), "rollup-test-"));
+  });
+  after(() => {
+    rmSync(tmpDir2, { recursive: true, force: true });
+  });
   it("creates hourly rollups from raw metrics", async () => {
-    const tmpDir2 = mkdtempSync(join(tmpdir(), "rollup-test-"));
     const rollup = new RollupStore(tmpDir2);
     // Write a sample raw metric
     const store = new MetricsStore(tmpDir2);
@@ -102,6 +108,5 @@ describe("RollupStore", () => {
     // Roll up
     const count = await rollup.rollUp();
     assert.equal(typeof count, "number");
-    rmSync(tmpDir2, { recursive: true, force: true });
   });
 });
