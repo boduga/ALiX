@@ -67,3 +67,43 @@ jobs:
       - run: npm run build
       - name: TUI manual smoke
         run: npm run test:manual:tui
+
+  # ─── Lane 5: Cross-platform — macOS (Node LTS + current) ─────
+  unit-macos:
+    strategy:
+      matrix:
+        node-version: ["22", "24"]
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Node unit tests
+        run: npm run test:unit:node
+      - name: TypeScript typecheck
+        run: npm run typecheck
+
+  # ─── Lane 6: Cross-platform — Windows (Node LTS) ─────────────
+  unit-windows:
+    strategy:
+      matrix:
+        node-version: ["22"]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Node unit tests
+        shell: bash
+        run: npm run test:unit:node
+      - name: TypeScript typecheck
+        shell: bash
+        run: npm run typecheck
