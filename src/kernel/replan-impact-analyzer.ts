@@ -17,6 +17,9 @@ import type { CapabilityRegistry } from "./collaborative-planner.js";
 import type { PlanRevisionDraft, OwnershipImpact, PolicyDecision, ImpactAnalysis, SimulatedGraph } from "./replan-types.js";
 import type { WorkerAssignment } from "./coordination-types.js";
 import type { OwnershipRegistry } from "../ownership/ownership-registry.js";
+import { PolicyEngine } from "../policy/policy-engine.js";
+import type { ToolCallRequest } from "../policy/policy-engine.js";
+import type { SessionMode } from "../config/schema.js";
 
 // ─── Risk helpers ──────────────────────────────────────────────────────────
 
@@ -86,6 +89,12 @@ export interface ReplanImpactAnalyzerOptions {
    * Any worker claiming ownership of a protected scope is flagged.
    */
   protectedScopes?: string[];
+  /**
+   * Optional PolicyEngine instance for real policy evaluation.
+   * When provided, enables "deny" decisions for high-risk operations.
+   * When omitted, uses simplified policy logic ("allow" / "ask" only).
+   */
+  policyEngine?: PolicyEngine;
 }
 
 // ─── Analyzer ──────────────────────────────────────────────────────────────
@@ -249,6 +258,8 @@ export class ReplanImpactAnalyzer {
     // ── 5. Detect active lease conflicts via OwnershipRegistry ──────────
 
     const activeLeaseConflicts: string[] = [];
+    // Dedup set: tracks already-reported scope/claim paths per agent pair
+    const reportedConflicts = new Set<string>();
 
     try {
       // Check each proposed ownership scope against active leases
@@ -260,9 +271,13 @@ export class ReplanImpactAnalyzer {
           const conflicting = await this.options.ownershipRegistry.findConflictsByPattern(scope);
           for (const c of conflicting) {
             if (c.agentId !== existing.agentId) {
-              activeLeaseConflicts.push(
-                `Scope "${scope}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
-              );
+              const key = `scope:${scope}:${c.agentId}:${c.mode}`;
+              if (!reportedConflicts.has(key)) {
+                reportedConflicts.add(key);
+                activeLeaseConflicts.push(
+                  `Scope "${scope}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
+                );
+              }
             }
           }
         }
@@ -271,14 +286,19 @@ export class ReplanImpactAnalyzer {
           const conflicting = await this.options.ownershipRegistry.findConflictsByPattern(claim.path);
           for (const c of conflicting) {
             if (c.agentId !== existing.agentId) {
-              activeLeaseConflicts.push(
-                `Ownership claim "${claim.path}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
-              );
+              const key = `claim:${claim.path}:${c.agentId}:${c.mode}`;
+              if (!reportedConflicts.has(key)) {
+                reportedConflicts.add(key);
+                activeLeaseConflicts.push(
+                  `Ownership claim "${claim.path}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
+                );
+              }
             }
           }
         }
       }
-    } catch {
+    } catch (err) {
+      console.warn("OwnershipRegistry unavailable during lease conflict detection:", err);
       // Registry unavailable — skip lease conflict detection
     }
 
@@ -413,16 +433,25 @@ export class ReplanImpactAnalyzer {
   /**
    * Evaluate policy for a single worker (new or replacement).
    *
+   * When a PolicyEngine is available, delegates to evaluateWithPolicyEngine
+   * for full policy evaluation including "deny" decisions.
+   *
+   * Fallback (no PolicyEngine):
    * - New workers without an explicit approvalMode default to "auto" (allow).
    * - Replacement workers inherit the existing approvalMode (or "auto").
    * - "manual" approvalMode → "ask" decision.
-   * - No support in M0.78g for a deny policy — always "allow" unless manual.
+   * - No "deny" in fallback mode — always "allow" unless manual.
    */
   private evaluateWorkerPolicy(
     workerRef: string,
     targetWorkerId: string | undefined,
     existingById: Map<string, WorkerAssignment>,
   ): PolicyDecision {
+    // When PolicyEngine is available, use it for full evaluation
+    if (this.options.policyEngine) {
+      return this.evaluateWithPolicyEngine(workerRef, targetWorkerId, existingById);
+    }
+
     const existing = targetWorkerId ? existingById.get(targetWorkerId) : undefined;
     const approvalMode = existing?.approvalMode ?? "auto";
 
@@ -438,6 +467,80 @@ export class ReplanImpactAnalyzer {
       workerRef,
       decision: "allow",
       reason: `Worker policy allows execution (approvalMode: "${approvalMode}")`,
+    };
+  }
+
+  /**
+   * Evaluate worker policy using the real PolicyEngine instance.
+   *
+   * Constructs a ToolRequest wrapping the "coordination.plan.revise" capability
+   * and delegates to PolicyEngine.evaluatePolicy() for the actual decision.
+   * This enables "deny" decisions for high-risk operations that the simplified
+   * fallback logic cannot produce.
+   *
+   * NOTE: PolicyEngine.evaluatePolicy() is designed for tool-call-level
+   * authorization (file read/write, shell commands, network fetches). Using
+   * it at the worker level by injecting "coordination.plan.revise" as the
+   * capability is a best-effort integration. The PolicyEngine checks
+   * protected paths, capability registry approval requirements, and default
+   * policy — but it does not natively understand worker-level concepts like
+   * approvalMode or ownership scopes. Those remain handled by the caller.
+   */
+  private evaluateWithPolicyEngine(
+    workerRef: string,
+    targetWorkerId: string | undefined,
+    existingById: Map<string, WorkerAssignment>,
+  ): PolicyDecision {
+    const engine = this.options.policyEngine!;
+    const existing = targetWorkerId ? existingById.get(targetWorkerId) : undefined;
+
+    // Build a ToolRequest that wraps the replan authorization as a capability check
+    const request: ToolCallRequest = {
+      toolCallId: `replan_${workerRef}`,
+      toolName: "coordination.plan",
+      args: {},
+      capability: "coordination.plan.revise",
+      sessionMode: "auto" as SessionMode,
+    };
+
+    const engineDecision = engine.check(request);
+
+    // Map the engine's decision to our PolicyDecision shape
+    const decision = engineDecision.decision;
+
+    // If the engine says "deny", respect it.
+    // If "ask", return ask (needs authorization).
+    // If "allow", still check approvalMode for manual workers.
+    if (decision === "deny") {
+      return {
+        workerRef,
+        decision: "deny",
+        reason: engineDecision.reason,
+      };
+    }
+
+    if (decision === "ask") {
+      return {
+        workerRef,
+        decision: "ask",
+        reason: engineDecision.reason,
+      };
+    }
+
+    // Engine allowed it — also check worker-level approvalMode
+    const approvalMode = existing?.approvalMode ?? "auto";
+    if (approvalMode === "manual") {
+      return {
+        workerRef,
+        decision: "ask",
+        reason: `Worker requires manual approval (approvalMode: "${approvalMode}")`,
+      };
+    }
+
+    return {
+      workerRef,
+      decision: "allow",
+      reason: `PolicyEngine allowed; worker policy permits execution (approvalMode: "${approvalMode}")`,
     };
   }
 

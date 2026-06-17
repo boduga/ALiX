@@ -322,6 +322,118 @@ describe("ReplanImpactAnalyzer", () => {
     assert.equal(result.impactAnalysis.activeLeaseConflicts.length, 0, "No conflicts expected");
   });
 
+  it("detects ownership conflicts via ownershipClaims", async () => {
+    // Acquire a lease on a path that overlaps with an ownership claim
+    await registry.acquire({
+      agentId: "agent-gamma",
+      scope: { kind: "path", root: join(dir, "src/domain"), recursive: true },
+      mode: "exclusive-write",
+    });
+
+    const analyzer = new ReplanImpactAnalyzer({
+      capabilityRegistry: CAP_REGISTRY,
+      ownershipRegistry: registry,
+    });
+
+    const existing = [
+      makeWorker({
+        id: "w1",
+        agentId: "agent-alpha",
+        ownershipClaims: [{ path: join(dir, "src/domain"), recursive: true }],
+      }),
+    ];
+
+    const draft = validDraft({
+      workersToReplace: [
+        {
+          targetWorkerId: "w1",
+          replacement: {
+            draftWorkerId: "d1",
+            taskLabel: "Replacement",
+            goalPrompt: "Replace",
+            requiredCapabilities: ["filesystem.read"],
+            dependencies: [],
+            verificationRequirements: [],
+          },
+          reason: "Replacing failed worker",
+        },
+      ],
+    });
+
+    const result = await analyzer.analyze(draft, existing, emptySimulatedGraph());
+
+    assert.ok(result.impactAnalysis.activeLeaseConflicts.length > 0, "Expected lease conflicts via ownershipClaims");
+    const conflictStr = result.impactAnalysis.activeLeaseConflicts[0];
+    assert.ok(conflictStr.includes("agent-gamma"), "Conflict should mention agent-gamma");
+    assert.ok(conflictStr.includes("Ownership claim"), "Conflict should mention ownership claim");
+  });
+
+  it("deduplicates active lease conflicts by scope path", async () => {
+    // Two different workers each hold a lease on the same path
+    await registry.acquire({
+      agentId: "agent-gamma",
+      scope: { kind: "path", root: join(dir, "src/shared"), recursive: true },
+      mode: "exclusive-write",
+    });
+
+    const analyzer = new ReplanImpactAnalyzer({
+      capabilityRegistry: CAP_REGISTRY,
+      ownershipRegistry: registry,
+    });
+
+    // Two workers sharing the same ownershipScopes value — produce the same conflict
+    const existing = [
+      makeWorker({
+        id: "w1",
+        agentId: "agent-alpha",
+        ownershipScopes: [join(dir, "src/shared")],
+      }),
+      makeWorker({
+        id: "w2",
+        agentId: "agent-beta",
+        ownershipScopes: [join(dir, "src/shared")],
+      }),
+    ];
+
+    const draft = validDraft({
+      workersToReplace: [
+        {
+          targetWorkerId: "w1",
+          replacement: {
+            draftWorkerId: "d1",
+            taskLabel: "Rep1",
+            goalPrompt: "Replace",
+            requiredCapabilities: ["filesystem.read"],
+            dependencies: [],
+            verificationRequirements: [],
+          },
+          reason: "Replacing w1",
+        },
+        {
+          targetWorkerId: "w2",
+          replacement: {
+            draftWorkerId: "d2",
+            taskLabel: "Rep2",
+            goalPrompt: "Replace",
+            requiredCapabilities: ["filesystem.read"],
+            dependencies: [],
+            verificationRequirements: [],
+          },
+          reason: "Replacing w2",
+        },
+      ],
+    });
+
+    const result = await analyzer.analyze(draft, existing, emptySimulatedGraph());
+
+    // Both replacements trigger the same conflict path vs agent-gamma
+    // Without dedup this would produce 2 identical entries
+    const gammaConflicts = result.impactAnalysis.activeLeaseConflicts.filter(
+      (c) => c.includes("agent-gamma"),
+    );
+    assert.equal(gammaConflicts.length, 1, "Should deduplicate same scope+agent conflict");
+  });
+
   // ── 4. Risk calculation ───────────────────────────────────────────────
 
   it("starts at low risk and raises to medium for new workers", async () => {
@@ -417,6 +529,69 @@ describe("ReplanImpactAnalyzer", () => {
     const result = await analyzer.analyze(draft, existing, emptySimulatedGraph());
     // Risk should be "high" (from the worker's riskLevel), not lowered by model confidence
     assert.equal(result.impactAnalysis.riskLevel, "high");
+  });
+
+  it("raises risk when modifying a high-risk worker", async () => {
+    const analyzer = new ReplanImpactAnalyzer({
+      capabilityRegistry: CAP_REGISTRY,
+      ownershipRegistry: registry,
+    });
+
+    const existing = [
+      makeWorker({
+        id: "w1",
+        riskLevel: "critical",
+      }),
+    ];
+
+    const draft = validDraft({
+      workersToModify: [
+        {
+          workerId: "w1",
+          goalPrompt: "Updated prompt",
+        },
+      ],
+    });
+
+    const result = await analyzer.analyze(draft, existing, emptySimulatedGraph());
+    assert.equal(result.impactAnalysis.riskLevel, "critical");
+  });
+
+  it("raises risk to highest among workersToAdd, workersToReplace, and workersToModify", async () => {
+    const analyzer = new ReplanImpactAnalyzer({
+      capabilityRegistry: CAP_REGISTRY,
+      ownershipRegistry: registry,
+    });
+
+    const existing = [
+      makeWorker({
+        id: "w1",
+        riskLevel: "medium",
+      }),
+    ];
+
+    const draft = validDraft({
+      workersToAdd: [
+        {
+          draftWorkerId: "d1",
+          taskLabel: "Low risk add",
+          goalPrompt: "Do something",
+          requiredCapabilities: ["filesystem.read"],
+          dependencies: [],
+          verificationRequirements: [],
+        },
+      ],
+      workersToModify: [
+        {
+          workerId: "w1",
+          goalPrompt: "Updated prompt",
+        },
+      ],
+    });
+
+    const result = await analyzer.analyze(draft, existing, emptySimulatedGraph());
+    // New workers default to "medium", modify inherits existing "medium" → overall "medium"
+    assert.equal(result.impactAnalysis.riskLevel, "medium");
   });
 
   // ── 5. Policy decisions ───────────────────────────────────────────────
