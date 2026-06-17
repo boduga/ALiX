@@ -20,6 +20,11 @@ import { readdir, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
 
+/** Narrow a caught value to a NodeJS.ErrnoException with a code property. */
+function isNodeError(err: unknown): err is NodeJS.ErrnoException {
+  return err instanceof Error && "code" in err;
+}
+
 export type MetricType = "counter_delta" | "counter_total" | "gauge" | "histogram_sample";
 
 export interface MetricRow {
@@ -67,16 +72,30 @@ export class MetricsStore {
     const files = await this.listFiles();
     let count = 0;
     for (const file of files) {
-      const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
-      for await (const line of rl) {
-        try {
-          const row = JSON.parse(line) as MetricRow;
-          if (query?.after && row.timestamp < query.after) continue;
-          if (query?.before && row.timestamp > query.before) continue;
-          yield row;
-          count++;
-          if (query?.limit && count >= query.limit) return;
-        } catch { /* skip malformed lines */ }
+      let rl: ReturnType<typeof createInterface>;
+      try {
+        rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity });
+      } catch (err: unknown) {
+        if (isNodeError(err) && err.code === "ENOENT") continue; // raced by retention
+        throw err;
+      }
+      try {
+        for await (const line of rl) {
+          try {
+            const row = JSON.parse(line) as MetricRow;
+            if (query?.after && row.timestamp < query.after) continue;
+            if (query?.before && row.timestamp > query.before) continue;
+            yield row;
+            count++;
+            if (query?.limit && count >= query.limit) return;
+          } catch { /* skip malformed lines */ }
+        }
+      } catch (err: unknown) {
+        // createReadStream may throw ENOENT asynchronously if file deleted mid-read
+        if (isNodeError(err) && err.code === "ENOENT") continue;
+        throw err;
+      } finally {
+        rl.close();
       }
     }
   }

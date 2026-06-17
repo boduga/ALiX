@@ -35,7 +35,7 @@ export async function cmdAlerts(cwd: string, args: string[]): Promise<void> {
   if (result.firing.length > 0) {
     console.log(`Firing Alerts (${result.firing.length}):`);
     for (const a of result.firing) {
-      const ack = a.status === "acknowledged" ? " [acknowledged]" : "";
+      const ack = a.acknowledgedAt ? " [acknowledged]" : "";
       console.log(`  [${a.severity.toUpperCase()}] ${a.ruleName}${ack}`);
       console.log(`    ${a.message}`);
       console.log(`    triggered: ${a.firstTriggeredAt} (x${a.occurrences})`);

@@ -19,7 +19,7 @@ import type { RuntimeHealthSnapshot } from "./health-snapshot.js";
 // ─── Types ────────────────────────────────────────────────────────────────
 
 export type AlertSeverity = "critical" | "warning" | "info";
-export type AlertStatus = "firing" | "resolved" | "acknowledged";
+export type AlertStatus = "firing" | "resolved";
 
 export interface AlertRule {
   id: string;
@@ -51,6 +51,7 @@ export interface AlertEvent {
   lastTriggeredAt: string;
   resolvedAt?: string;
   acknowledgedAt?: string;
+  acknowledgedBy?: string;
   occurrences: number;
   metadata?: Record<string, unknown>;
 }
@@ -237,10 +238,6 @@ export class AlertEngine {
     // Resolve alerts that are no longer firing, after cooldown
     let recent = 0;
     for (const [fp, alert] of this.firing) {
-      if (alert.status === "acknowledged") {
-        recent++;
-        continue;
-      }
       if (!activeFingerprints.has(fp)) {
         if (nowMs - new Date(alert.lastTriggeredAt).getTime() >= this.cooldownMs) {
           alert.status = "resolved";
@@ -262,11 +259,11 @@ export class AlertEngine {
    * Acknowledge a firing alert by fingerprint.
    * Sets status to "acknowledged" and records the timestamp.
    */
-  acknowledge(fingerprint: string): boolean {
+  acknowledge(fingerprint: string, acknowledgedBy?: string): boolean {
     const alert = this.firing.get(fingerprint);
     if (alert) {
-      alert.status = "acknowledged";
       alert.acknowledgedAt = new Date().toISOString();
+      alert.acknowledgedBy = acknowledgedBy;
       return true;
     }
     return false;

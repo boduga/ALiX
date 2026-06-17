@@ -95,6 +95,9 @@ describe("AlertEngine", () => {
     const fp = result.firing[0].fingerprint;
     assert.ok(engine.acknowledge(fp));
     const state = engine.getState();
-    assert.equal(state.firing.find(a => a.fingerprint === fp)?.status, "acknowledged");
+    assert.equal(state.firing.find(a => a.fingerprint === fp)?.status, "firing",
+      "acknowledgement is metadata — status remains firing");
+    assert.ok(state.firing.find(a => a.fingerprint === fp)?.acknowledgedAt,
+      "acknowledgedAt should be set on acknowledgement");
   });
 });

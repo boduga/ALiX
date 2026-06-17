@@ -153,16 +153,18 @@ export class TrendAnalyzer {
     const results: AnomalyResult[] = [];
 
     for (const [name, rows] of byName) {
-      if (rows.length < 3) continue;
+      if (rows.length < 4) continue; // need at least 3 historical + 1 latest
       // Sort by timestamp ascending
       rows.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
-      const values = rows.map(r => r.value);
-      const mean = values.reduce((a, b) => a + b, 0) / values.length;
-      const stddev = Math.sqrt(values.reduce((sq, v) => sq + (v - mean) ** 2, 0) / values.length);
+
+      // Baseline = all rows except the latest (most recent)
+      const baseline = rows.slice(0, -1);
+      const baselineValues = baseline.map(r => r.value);
+      const latest = rows.at(-1)!;
+      const mean = baselineValues.reduce((a, b) => a + b, 0) / baselineValues.length;
+      const stddev = Math.sqrt(baselineValues.reduce((sq, v) => sq + (v - mean) ** 2, 0) / baselineValues.length);
       if (stddev === 0) continue;
 
-      // Use the LAST entry in sorted order as "latest"
-      const latest = rows[rows.length - 1];
       const zScore = (latest.value - mean) / stddev;
       if (Math.abs(zScore) > sensitivity) {
         results.push({
