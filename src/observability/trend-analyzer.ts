@@ -39,8 +39,8 @@ export interface AnomalyResult {
 
 function percentile(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
-  const idx = Math.ceil(p * sorted.length) - 1;
-  return sorted[Math.max(0, Math.min(idx, sorted.length - 1))];
+  const idx = Math.floor((sorted.length - 1) * p);
+  return sorted[Math.max(0, idx)];
 }
 
 export class TrendAnalyzer {
@@ -97,7 +97,7 @@ export class TrendAnalyzer {
       windowA: { durationMs: number; endTime: string };
       windowB: { durationMs: number; endTime: string };
     },
-  ): Promise<WindowComparison | null> {
+  ): Promise<WindowComparison> {
     const [windowA, windowB] = await Promise.all([
       this.collectWindow(metricName, spec.windowA),
       this.collectWindow(metricName, spec.windowB),
