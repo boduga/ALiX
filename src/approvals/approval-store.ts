@@ -182,6 +182,126 @@ export class ApprovalStore {
     });
   }
 
+  /**
+   * requestFresh — Always creates a new approval record even if one with the
+   * same binding key already exists. Delegates to mutate() for thread safety.
+   */
+  async requestFresh(input: ApprovalRequestInput): Promise<ApprovalRecord> {
+    return this.createApprovalRecord(input);
+  }
+
+  /**
+   * requestOrReusePending — Atomic lookup + insert inside a single mutate() call.
+   *
+   * If a pending approval with the same bindingKey already exists, returns it.
+   * Otherwise creates a new one via the same logic as requestBound.
+   *
+   * This eliminates the check-then-create race that requestBound() leaves to callers.
+   */
+  async requestOrReusePending(input: ApprovalRequestInput): Promise<ApprovalRecord> {
+    return this.mutate((approvals) => {
+      // Look for existing pending approval with the same binding key
+      const existing = approvals.find(
+        (a) => a.status === "pending" && a.bindingKey === input.bindingKey,
+      );
+      if (existing) {
+        return { ...existing };
+      }
+
+      // No existing pending — create a new record
+      const record: ApprovalRecord = {
+        id: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        schemaVersion: "2.0",
+        status: "pending",
+        usePolicy: "single_use",
+        bindingKey: input.bindingKey,
+        requestFingerprint: input.requestFingerprint,
+        policyRevision: input.policyRevision,
+        capabilities: input.capabilities,
+        ownershipClaims: input.ownershipClaims ?? [],
+        reason: input.reason,
+        createdAt: new Date().toISOString(),
+        expiresAt: input.expiresAt ?? new Date(Date.now() + 30 * 60_000).toISOString(),
+        coordinationRunId: input.coordinationRunId,
+        workerId: input.workerId,
+        workerAttempt: input.workerAttempt,
+        graphId: input.graphId,
+        nodeId: input.nodeId,
+        sessionId: input.sessionId,
+        toolId: input.toolId,
+        riskLevel: input.riskLevel,
+        groupId: input.groupId,
+      };
+      approvals.push(record);
+
+      this.eventLog?.append({
+        sessionId: record.sessionId ?? "unknown",
+        actor: "policy",
+        type: APPROVAL_EVENT_TYPES.CREATED,
+        payload: {
+          approvalId: record.id,
+          coordinationRunId: record.coordinationRunId,
+          workerId: record.workerId,
+          capabilities: record.capabilities,
+          bindingKey: record.bindingKey,
+          policyRevision: record.policyRevision,
+          status: record.status,
+          timestamp: record.createdAt,
+        },
+      }).catch(() => {});
+
+      return record;
+    });
+  }
+
+  /** Internal helper to create an approval record inside mutate(). */
+  private async createApprovalRecord(input: ApprovalRequestInput): Promise<ApprovalRecord> {
+    return this.mutate((approvals) => {
+      const record: ApprovalRecord = {
+        id: `approval_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        schemaVersion: "2.0",
+        status: "pending",
+        usePolicy: "single_use",
+        bindingKey: input.bindingKey,
+        requestFingerprint: input.requestFingerprint,
+        policyRevision: input.policyRevision,
+        capabilities: input.capabilities,
+        ownershipClaims: input.ownershipClaims ?? [],
+        reason: input.reason,
+        createdAt: new Date().toISOString(),
+        expiresAt: input.expiresAt ?? new Date(Date.now() + 30 * 60_000).toISOString(),
+        coordinationRunId: input.coordinationRunId,
+        workerId: input.workerId,
+        workerAttempt: input.workerAttempt,
+        graphId: input.graphId,
+        nodeId: input.nodeId,
+        sessionId: input.sessionId,
+        toolId: input.toolId,
+        riskLevel: input.riskLevel,
+        groupId: input.groupId,
+      };
+      approvals.push(record);
+
+      this.eventLog?.append({
+        sessionId: record.sessionId ?? "unknown",
+        actor: "policy",
+        type: APPROVAL_EVENT_TYPES.CREATED,
+        payload: {
+          approvalId: record.id,
+          coordinationRunId: record.coordinationRunId,
+          workerId: record.workerId,
+          capabilities: record.capabilities,
+          bindingKey: record.bindingKey,
+          policyRevision: record.policyRevision,
+          status: record.status,
+          timestamp: record.createdAt,
+        },
+      }).catch(() => {});
+
+      return record;
+    });
+  }
+
   /** Legacy request wrapper — generates a safe binding from available fields. */
   async request(opts: {
     reason: string;
