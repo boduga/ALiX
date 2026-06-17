@@ -2368,6 +2368,20 @@ if (command === "doctor") {
   process.exit(failed ? 1 : 0);
 }
 
+if (command === "recovery") {
+  const { cmdScan, cmdInspect, cmdRepair, cmdVerify } = await import("./cli/commands/recover.js");
+  const sub = args[0];
+  if (sub === "scan") await cmdScan(args.slice(1));
+  else if (sub === "inspect") await cmdInspect(args.slice(1));
+  else if (sub === "repair") await cmdRepair(args.slice(1));
+  else if (sub === "verify") await cmdVerify(args.slice(1));
+  else {
+    console.error("Usage: alix recovery {scan|inspect|repair|verify} [options]");
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (command === "coordination") {
   const { handleCoordination } = await import("./cli/commands/coordination.js");
   await handleCoordination(args);
