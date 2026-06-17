@@ -3,7 +3,16 @@ import assert from "node:assert/strict";
 import {
   normalizeCapability,
   matchCapabilities,
+  CollaborativePlanner,
 } from "../../src/kernel/collaborative-planner.js";
+import { randomUUID } from "node:crypto";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { CoordinationStore } from "../../src/kernel/coordination-store.js";
+import type { CoordinationPlanner, CoordinationPlanResult } from "../../src/kernel/coordination-planner.js";
+import type { CoordinationRun, PlanningRound, WorkerAssignment } from "../../src/kernel/coordination-types.js";
+import type { CollaborativePlannerOptions, CollaborativePlanResult } from "../../src/kernel/collaborative-planner.js";
 
 // ─── normalizeCapability ──────────────────────────────────────────────
 
@@ -177,16 +186,6 @@ describe("matchCapabilities", () => {
 
 // ─── CollaborativePlanner ───────────────────────────────────────────────
 
-import { randomUUID } from "node:crypto";
-import { mkdtempSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { CollaborativePlanner } from "../../src/kernel/collaborative-planner.js";
-import { CoordinationStore } from "../../src/kernel/coordination-store.js";
-import type { CoordinationPlanner, CoordinationPlanResult } from "../../src/kernel/coordination-planner.js";
-import type { CoordinationRun, PlanningRound, WorkerAssignment } from "../../src/kernel/coordination-types.js";
-import type { CollaborativePlannerOptions, CollaborativePlanResult } from "../../src/kernel/collaborative-planner.js";
-
 // ─── Helpers ────────────────────────────────────────────────────────────
 
 /**
@@ -201,7 +200,6 @@ function makeWorker(id: string, overrides: Partial<WorkerAssignment> = {}): Work
     taskLabel: `Task ${id}`,
     goalPrompt: `Goal for ${id}`,
     dependencies: [],
-    ownershipScopes: [],
     status: "pending",
     requiredCapabilities: [],
     attempt: 0,
