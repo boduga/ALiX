@@ -9,19 +9,24 @@ import { handleObservabilityRoute, type RouteContext } from "../../src/observabi
 /**
  * Create a minimal mock ServerResponse that captures statusCode, headers, and body.
  */
-function mockRes(): ServerResponse & { body: string; headers: Record<string, string> } {
-  const captured: { statusCode: number; headers: Record<string, string>; body: string } = {
+function mockRes(): ServerResponse & { body: string; headers: Record<string, string>; closeHandlers: (() => void)[] } {
+  const captured: { statusCode: number; headers: Record<string, string>; body: string; closeHandlers: (() => void)[] } = {
     statusCode: 200,
     headers: {},
     body: "",
+    closeHandlers: [],
   };
   return {
     get statusCode() { return captured.statusCode; },
     set statusCode(v: number) { captured.statusCode = v; },
     get headers() { return captured.headers; },
     get body() { return captured.body; },
+    get closeHandlers() { return captured.closeHandlers; },
     setHeader(k: string, v: string) { captured.headers[k] = v; },
     end(data: string) { captured.body = data; },
+    flushHeaders() { /* no-op for mock */ },
+    write(_data: unknown) { return true; },
+    on(event: string, cb: () => void) { if (event === "close") captured.closeHandlers.push(cb); },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any;
 }
@@ -107,14 +112,17 @@ describe("observability HTTP routes", () => {
     assert.ok(body.error);
   });
 
-  it("returns false for /api/observability/stream (falls through)", async () => {
+  it("handles GET /api/observability/stream (SSE)", async () => {
     const res = mockRes();
     const handled = await handleObservabilityRoute({
       req: mockReq("/api/observability/stream"),
       res: res as unknown as ServerResponse,
       root: tmpDir,
     });
-    assert.equal(handled, false);
+    assert.equal(handled, true);
+    assert.equal(res.headers["content-type"], "text/event-stream");
+    // Fire close handlers to clean up intervals
+    for (const cb of res.closeHandlers) cb();
   });
 
   it("returns false for unknown observability path", async () => {

@@ -10,6 +10,8 @@ import { buildReplayPreview } from "../runtime/replay-preview.js";
 import { formatIfamasPanel } from "./ifamas-panel.js";
 import { formatChroniclePanel } from "./chronicle-panel.js";
 import { formatCoordinationPanel } from "./coordination-panel.js";
+import { formatHealthPanel } from "./health-panel.js";
+import { formatCostPanel } from "./cost-panel.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
 export function renderPanelContent(store: TuiStore, tui: Tui): number {
@@ -217,6 +219,30 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
       buf.push("  No coordination run loaded.");
       buf.push("  Use /coordination <run-id> to load a run.");
       buf.push("  Or run: alix coordination list");
+    }
+  } else if (s.activePanel === "health") {
+    if (s.healthSnapshot) {
+      const panelLines = formatHealthPanel(s.healthSnapshot, process.stdout.columns || 80);
+      for (const line of panelLines) {
+        buf.push(line);
+      }
+    } else {
+      buf.push("── Health ────────────────────────────────");
+      buf.push("  No health data loaded.");
+      buf.push("  Health snapshot is collected on TUI refresh.");
+      buf.push("  Run: alix observability health");
+    }
+  } else if (s.activePanel === "cost") {
+    if (s.costData) {
+      const panelLines = formatCostPanel(s.costData, process.stdout.columns || 80);
+      for (const line of panelLines) {
+        buf.push(line);
+      }
+    } else {
+      buf.push("── Cost & Tokens ─────────────────────────");
+      buf.push("  No cost data loaded.");
+      buf.push("  Cost data is collected on TUI refresh.");
+      buf.push("  Run: alix observability export");
     }
   }
 

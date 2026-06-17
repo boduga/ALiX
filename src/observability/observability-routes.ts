@@ -83,8 +83,9 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
     }
 
     if (url.pathname === "/api/observability/stream") {
-      // SSE stream -- handled by handleObservabilityStream
-      return false; // fallthrough to dedicated handler
+      const { subscribeObservabilityStream } = await import("../server/observability-stream.js");
+      await subscribeObservabilityStream(res, root);
+      return true;
     }
   } catch (err) {
     json(res, { error: err instanceof Error ? err.message : String(err) }, 500);

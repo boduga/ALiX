@@ -3,7 +3,8 @@
  */
 
 import type { TuiRuntimeSnapshot } from "./runtime-snapshot.js";
-import { box, green, yellow, red, dim, bold, truncate, formatAge } from "./box.js";
+import { box, green, yellow, red, dim, bold, truncate } from "./box.js";
+import type { HealthStatus } from "../observability/health-snapshot.js";
 import type { TuiState } from "./store.js";
 
 /** Build a snapshot-like view from store state for dashboard rendering. */
@@ -26,6 +27,8 @@ export function snapshotFromStore(s: TuiState): TuiRuntimeSnapshot {
     traceEvents: s.traceEvents ?? [],
     traceEventCount: s.traceEventCount ?? 0,
     daemonHeartbeatAge: s.daemonHeartbeatAge ?? -1,
+    health: s.healthSnapshot,
+    cost: s.costData,
   };
 }
 
@@ -82,6 +85,13 @@ function renderDaemonCard(snapshot: TuiRuntimeSnapshot, w: number): string[] {
   return box("DAEMON", lines, w);
 }
 
+function healthStatusLabel(status: HealthStatus | undefined): string {
+  if (!status || status === "unknown") return dim("unknown");
+  if (status === "healthy") return green("healthy");
+  if (status === "degraded") return yellow("degraded");
+  return red("unhealthy");
+}
+
 function renderCenterCard(snapshot: TuiRuntimeSnapshot, w: number): string[] {
   const lines: string[] = [];
   // Approvals section
@@ -104,6 +114,14 @@ function renderCenterCard(snapshot: TuiRuntimeSnapshot, w: number): string[] {
     lines.push(`  ${dim(src)} ${act}`);
   } else {
     lines.push(dim("  no events"));
+  }
+  // Health status (if available)
+  if (snapshot.health) {
+    lines.push("");
+    const overall = snapshot.health.daemon.status;
+    const mem = snapshot.health.resources.memoryRssMb;
+    const memColor = mem > 1000 ? red : mem > 500 ? yellow : dim;
+    lines.push(`Health  ${healthStatusLabel(overall)}  ${memColor(`${mem}MB`)}`);
   }
   return box("APPROVALS / RUNTIME", lines, w);
 }
@@ -136,6 +154,9 @@ export function renderCompactSummary(snapshot: TuiRuntimeSnapshot, width: number
   parts.push(`events:${snapshot.runtimeEventCount}`);
   parts.push(`SOPs:${snapshot.sopsCount}`);
   parts.push(`rules:${snapshot.policyRulesCount}`);
+  if (snapshot.health) {
+    parts.push(`health:${healthStatusLabel(snapshot.health.daemon.status)}`);
+  }
   if (snapshot.daemonTasks.running > 0) parts.push(yellow(`run:${snapshot.daemonTasks.running}`));
   if (snapshot.daemonTasks.queued > 0) parts.push(yellow(`queued:${snapshot.daemonTasks.queued}`));
   return dim("│ ") + parts.join(" " + dim("│") + " ");

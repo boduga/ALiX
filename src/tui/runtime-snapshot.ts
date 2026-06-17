@@ -38,6 +38,8 @@ export interface TuiRuntimeSnapshot {
   replayLockStates?: Record<string, boolean>;
   ifamasPanelData?: import("./ifamas-panel.js").IfamasTracePanel;
   chroniclePanelData?: import("./chronicle-panel.js").ChroniclePanelData;
+  health?: import("../observability/health-snapshot.js").RuntimeHealthSnapshot;
+  cost?: import("./cost-panel.js").CostPanelData;
 }
 
 /** Build a fresh snapshot from disk. Returns null on failure. */
@@ -185,6 +187,20 @@ export async function buildRuntimeSnapshot(cwd: string): Promise<TuiRuntimeSnaps
       snapshot.replayLockStates = lockStates;
     }
 
+    // Observability health snapshot (TTL-cached, side-effect-free)
+    try {
+      const { ObservabilitySnapshotService } = await import("../observability/health-snapshot.js");
+      const healthSvc = new ObservabilitySnapshotService(cwd);
+      snapshot.health = await healthSvc.getHealth();
+    } catch { /* health snapshot is optional */ }
+
+    // Observability cost summary
+    try {
+      const { CostAttribution } = await import("../observability/cost-attribution.js");
+      const costSvc = new CostAttribution(cwd);
+      snapshot.cost = await costSvc.summary();
+    } catch { /* cost data is optional */ }
+
     return snapshot;
   } catch {
     return null;
@@ -219,5 +235,11 @@ export function applySnapshotToStore(store: TuiStore, snapshot: TuiRuntimeSnapsh
   }
   if (snapshot.chroniclePanelData) {
     store.getState().chroniclePanelData = snapshot.chroniclePanelData;
+  }
+  if (snapshot.health) {
+    store.getState().healthSnapshot = snapshot.health;
+  }
+  if (snapshot.cost) {
+    store.getState().costData = snapshot.cost;
   }
 }

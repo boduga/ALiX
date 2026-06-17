@@ -62,7 +62,7 @@ export interface PanelRuntimeEvent {
   graphId?: string;
 }
 
-export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime" | "trace" | "replays" | "ifamas" | "chronicle" | "coordination";
+export type TuiPanel = "chat" | "daemon" | "approvals" | "sops" | "policy" | "runtime" | "trace" | "replays" | "ifamas" | "chronicle" | "coordination" | "health" | "cost";
 
 export interface TuiState {
   sessionId: string;
@@ -108,9 +108,11 @@ export interface TuiState {
   ifamasPanelData?: import("./ifamas-panel.js").IfamasTracePanel;
   chroniclePanelData?: import("./chronicle-panel.js").ChroniclePanelData;
   coordinationPanelData?: import("./coordination-panel.js").CoordinationPanelData;
+  healthSnapshot?: import("../observability/health-snapshot.js").RuntimeHealthSnapshot;
+  costData?: import("./cost-panel.js").CostPanelData;
 }
 
-export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace", "replays", "ifamas", "chronicle", "coordination"];
+export const PANELS: TuiPanel[] = ["chat", "daemon", "approvals", "sops", "policy", "runtime", "trace", "replays", "ifamas", "chronicle", "coordination", "health", "cost"];
 
 const VALID_STATES: AgentState[] = ["idle", "understanding", "planning", "executing", "verifying", "repairing", "summarizing", "done", "error"];
 
