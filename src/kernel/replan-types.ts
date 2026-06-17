@@ -217,6 +217,7 @@ export interface ModelReplanContext {
     allocated: number;
     consumed: number;
     omittedFindings: number;
+    omittedStaleFindings: number;
     omittedConflicts: number;
   };
   fingerprint: string;

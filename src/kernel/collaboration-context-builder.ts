@@ -162,7 +162,7 @@ function computeTopologicalBatches(workers: WorkerAssignment[]): string[][] {
  */
 function redactContent(text: string): string {
   // Strip absolute paths (Unix-style)
-  let result = text.replace(/\/(?:[a-zA-Z0-9_.-]+\/)+[a-zA-Z0-9_.-]+/g, "[redacted-path]");
+  let result = text.replace(/\/(?:[a-zA-Z0-9_.-]+\/)*[a-zA-Z0-9_.-]+/g, "[redacted-path]");
   // Strip absolute paths (Windows-style)
   result = result.replace(/[A-Za-z]:\\(?:[a-zA-Z0-9_.-]+\\)+[a-zA-Z0-9_.-]+/g, "[redacted-path]");
   // Truncate long contiguous strings (>200 chars) — these are likely encoded/binary data
@@ -509,7 +509,8 @@ export class CollaborationContextBuilder {
       tokenBudget: {
         allocated: this.budget.maxTokens,
         consumed: totalTokens,
-        omittedFindings: omittedFindingsByBudget + Math.max(0, rawFindings.length - currentFindings.length),
+        omittedFindings: omittedFindingsByBudget,
+        omittedStaleFindings: Math.max(0, rawFindings.length - currentFindings.length),
         omittedConflicts: omittedConflictsByBudget,
       },
       fingerprint,
