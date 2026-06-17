@@ -7,7 +7,6 @@ import { OpenAIProvider } from "../src/providers/openai-provider.js";
 import { OpenRouterProvider } from "../src/providers/openrouter-provider.js";
 import { OllamaProvider } from "../src/providers/ollama-provider.js";
 import { DeepSeekProvider } from "../src/providers/deepseek-provider.js";
-import { _setFetchForTesting } from "../src/providers/unified-complete.js";
 import { PerplexityProvider } from "../src/providers/perplexity-provider.js";
 import { GroqProvider } from "../src/providers/groq-provider.js";
 import { GrokAIProvider } from "../src/providers/grokai-provider.js";
@@ -52,11 +51,11 @@ test("ollama provider works without api key", async () => {
   assert.ok(c.model);
 });
 
-test("ollama complete sends tools and parses tool calls", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
-  const originalFetch = _setFetchForTesting;
+test("ollama complete sends tools and parses tool calls", { skip: "P4.1b: Ollama provider does not yet translate tool_calls" }, async () => {
+  const originalFetch = globalThis.fetch;
   let capturedBody: Record<string, any> | undefined;
 
-  const mockFetch = (async (_url: string, init?: RequestInit) => {
+  globalThis.fetch = (async (_url, init) => {
     capturedBody = JSON.parse(String(init?.body));
     return new Response(JSON.stringify({
       choices: [{
@@ -64,10 +63,7 @@ test("ollama complete sends tools and parses tool calls", { skip: "requires Olla
           content: null,
           tool_calls: [{
             id: "call_1",
-            function: {
-              name: "alix_shell_run",
-              arguments: "{\"command\":\"ls src/agents\"}",
-            },
+            function: { name: "alix_shell_run", arguments: "{\"command\":\"ls src/agents\"}" },
           }],
         },
       }],
@@ -75,234 +71,108 @@ test("ollama complete sends tools and parses tool calls", { skip: "requires Olla
     }), { status: 200, headers: { "content-type": "application/json" } });
   }) as typeof fetch;
 
-  _setFetchForTesting(mockFetch);
-
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
       systemPrompt: "Use tools.",
       messages: [{ role: "user", content: "List files" }],
       tools: [{
-        name: "alix_shell_run",
-        description: "Run shell command",
-        input_schema: {
-          type: "object",
-          properties: { command: { type: "string" } },
-          required: ["command"],
-        },
+        name: "alix_shell_run", description: "Run shell command",
+        input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] },
       }],
     });
 
     assert.equal((capturedBody?.tools as any[])?.[0]?.function?.name, "alix_shell_run");
     assert.deepEqual(resp.toolCalls, [{
-      id: "call_1",
-      name: "alix_shell_run",
-      args: { command: "ls src/agents" },
+      id: "call_1", name: "alix_shell_run", args: { command: "ls src/agents" },
     }]);
     assert.deepEqual(resp.usage, { inputTokens: 11, outputTokens: 7 });
-  } finally {
-    _setFetchForTesting(globalThis.fetch);
-  }
+  } finally { globalThis.fetch = originalFetch; }
 });
 
-test("ollama complete parses JSON-in-text tool call fallback", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
-  const mockFetch = (async () => {
-    return new Response(JSON.stringify({
-      choices: [{
-        message: {
-          content: "{\"name\":\"alix_shell_run\",\"parameters\":{\"command\":\"ls src/agents\",\"cwd\":\"\",\"timeoutMs\":5000}}",
-        },
-      }],
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  }) as typeof fetch;
-
-  _setFetchForTesting(mockFetch);
-
+test("ollama complete parses JSON-in-text tool call fallback", { skip: "P4.1b: Ollama provider does not yet translate tool_calls" }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { content: "{\"name\":\"alix_shell_run\",\"parameters\":{\"command\":\"ls src/agents\",\"cwd\":\"\",\"timeoutMs\":5000}}" } }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
       systemPrompt: "Use tools.",
       messages: [{ role: "user", content: "List files" }],
-      tools: [{
-        name: "alix_shell_run",
-        description: "Run shell command",
-        input_schema: {
-          type: "object",
-          properties: { command: { type: "string" } },
-          required: ["command"],
-        },
-      }],
+      tools: [{ name: "alix_shell_run", description: "Run shell command", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }],
     });
-
     assert.equal(resp.text, "");
-    assert.deepEqual(resp.toolCalls, [{
-      id: resp.toolCalls[0].id,
-      name: "alix_shell_run",
-      args: { command: "ls src/agents", cwd: "", timeoutMs: 5000 },
-    }]);
-  } finally {
-    _setFetchForTesting(globalThis.fetch);
-  }
+    assert.deepEqual(resp.toolCalls, [{ id: resp.toolCalls[0].id, name: "alix_shell_run", args: { command: "ls src/agents", cwd: "", timeoutMs: 5000 } }]);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
-test("ollama complete parses fenced JSON tool call fallback", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
-  const mockFetch = (async () => {
-    return new Response(JSON.stringify({
-      choices: [{
-        message: {
-          content: "```json\n{\"name\":\"alix_shell_run\",\"parameters\":{\"command\":\"ls src/agents/\",\"cwd\":\"\",\"timeoutMs\":0}}\n```",
-        },
-      }],
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  }) as typeof fetch;
-
-  _setFetchForTesting(mockFetch);
-
+test("ollama complete parses fenced JSON tool call fallback", { skip: "P4.1b: Ollama provider does not yet translate tool_calls" }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { content: "```json\n{\"name\":\"alix_shell_run\",\"parameters\":{\"command\":\"ls src/agents/\",\"cwd\":\"\",\"timeoutMs\":0}}\n```" } }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
       systemPrompt: "Use tools.",
       messages: [{ role: "user", content: "List files" }],
-      tools: [{
-        name: "alix_shell_run",
-        description: "Run shell command",
-        input_schema: {
-          type: "object",
-          properties: { command: { type: "string" } },
-          required: ["command"],
-        },
-      }],
+      tools: [{ name: "alix_shell_run", description: "Run shell command", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }],
     });
-
     assert.equal(resp.text, "");
-    assert.deepEqual(resp.toolCalls, [{
-      id: resp.toolCalls[0].id,
-      name: "alix_shell_run",
-      args: { command: "ls src/agents/", cwd: "", timeoutMs: 0 },
-    }]);
-  } finally {
-    _setFetchForTesting(globalThis.fetch);
-  }
+    assert.deepEqual(resp.toolCalls, [{ id: resp.toolCalls[0].id, name: "alix_shell_run", args: { command: "ls src/agents/", cwd: "", timeoutMs: 0 } }]);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
-test("ollama complete parses first embedded JSON tool call from prose", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
-  const mockFetch = (async () => {
-    return new Response(JSON.stringify({
-      choices: [{
-        message: {
-          content: "JSON responses:\n\n1. shell:\n{\"name\":\"alix_shell_run\",\"parameters\":{\"command\":\"ls src/agents/\",\"cwd\":\"\",\"timeoutMs\":0}}\n\n2. done:\n{\"name\":\"alix_done\",\"parameters\":{}}",
-        },
-      }],
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  }) as typeof fetch;
-
-  _setFetchForTesting(mockFetch);
-
+test("ollama complete parses first embedded JSON tool call from prose", { skip: "P4.1b: Ollama provider does not yet translate tool_calls" }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { content: "JSON responses:\n\n1. shell:\n{\"name\":\"alix_shell_run\",\"parameters\":{\"command\":\"ls src/agents/\",\"cwd\":\"\",\"timeoutMs\":0}}\n\n2. done:\n{\"name\":\"alix_done\",\"parameters\":{}}" } }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
       systemPrompt: "Use tools.",
       messages: [{ role: "user", content: "List files" }],
-      tools: [{
-        name: "alix_shell_run",
-        description: "Run shell command",
-        input_schema: {
-          type: "object",
-          properties: { command: { type: "string" } },
-          required: ["command"],
-        },
-      }],
+      tools: [{ name: "alix_shell_run", description: "Run shell command", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }],
     });
-
     assert.equal(resp.text, "");
-    assert.deepEqual(resp.toolCalls, [{
-      id: resp.toolCalls[0].id,
-      name: "alix_shell_run",
-      args: { command: "ls src/agents/", cwd: "", timeoutMs: 0 },
-    }]);
-  } finally {
-    _setFetchForTesting(globalThis.fetch);
-  }
+    assert.deepEqual(resp.toolCalls, [{ id: resp.toolCalls[0].id, name: "alix_shell_run", args: { command: "ls src/agents/", cwd: "", timeoutMs: 0 } }]);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
-test("ollama complete parses unquoted tool name fallback", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
-  const mockFetch = (async () => {
-    return new Response(JSON.stringify({
-      choices: [{
-        message: {
-          content: "{\"name\": alix_shell_run, \"parameters\": {\"command\": \"ls\", \"cwd\": \"/home\"}}",
-        },
-      }],
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  }) as typeof fetch;
-
-  _setFetchForTesting(mockFetch);
-
+test("ollama complete parses unquoted tool name fallback", { skip: "P4.1b: Ollama provider does not yet translate tool_calls" }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { content: "{\"name\": alix_shell_run, \"parameters\": {\"command\": \"ls\", \"cwd\": \"/home\"}}" } }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
       systemPrompt: "Use tools.",
       messages: [{ role: "user", content: "List files" }],
-      tools: [{
-        name: "alix_shell_run",
-        description: "Run shell command",
-        input_schema: {
-          type: "object",
-          properties: { command: { type: "string" } },
-          required: ["command"],
-        },
-      }],
+      tools: [{ name: "alix_shell_run", description: "Run shell command", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }],
     });
-
     assert.equal(resp.text, "");
-    assert.deepEqual(resp.toolCalls, [{
-      id: resp.toolCalls[0].id,
-      name: "alix_shell_run",
-      args: { command: "ls", cwd: "/home" },
-    }]);
-  } finally {
-    _setFetchForTesting(globalThis.fetch);
-  }
+    assert.deepEqual(resp.toolCalls, [{ id: resp.toolCalls[0].id, name: "alix_shell_run", args: { command: "ls", cwd: "/home" } }]);
+  } finally { globalThis.fetch = originalFetch; }
 });
 
-test("ollama complete parses Python-style None in tool arguments", { skip: "requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])" }, async () => {
-  const mockFetch = (async () => {
-    return new Response(JSON.stringify({
-      choices: [{
-        message: {
-          content: "{\"name\": \"alix_shell_run\", \"parameters\": {\"command\": \"ls /home\", \"cwd\": \"/home\", \"timeoutMs\": None}}",
-        },
-      }],
-    }), { status: 200, headers: { "content-type": "application/json" } });
-  }) as typeof fetch;
-
-  _setFetchForTesting(mockFetch);
-
+test("ollama complete parses Python-style None in tool arguments", { skip: "P4.1b: Ollama provider does not yet translate tool_calls" }, async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { content: "{\"name\": \"alix_shell_run\", \"parameters\": {\"command\": \"ls /home\", \"cwd\": \"/home\", \"timeoutMs\": None}}" } }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
   try {
     const p = new OllamaProvider({ model: "llama3.2:3b" });
     const resp = await p.complete({
       systemPrompt: "Use tools.",
       messages: [{ role: "user", content: "List files" }],
-      tools: [{
-        name: "alix_shell_run",
-        description: "Run shell command",
-        input_schema: {
-          type: "object",
-          properties: { command: { type: "string" } },
-          required: ["command"],
-        },
-      }],
+      tools: [{ name: "alix_shell_run", description: "Run shell command", input_schema: { type: "object", properties: { command: { type: "string" } }, required: ["command"] } }],
     });
-
     assert.equal(resp.text, "");
-    assert.deepEqual(resp.toolCalls, [{
-      id: resp.toolCalls[0].id,
-      name: "alix_shell_run",
-      args: { command: "ls /home", cwd: "/home", timeoutMs: null },
-    }]);
-  } finally {
-    _setFetchForTesting(globalThis.fetch);
-  }
+    assert.deepEqual(resp.toolCalls, [{ id: resp.toolCalls[0].id, name: "alix_shell_run", args: { command: "ls /home", cwd: "/home", timeoutMs: null } }]);
+  } finally { globalThis.fetch = originalFetch; }
 });
 test("deepseek provider returns correct capabilities", () => {
   const p = new DeepSeekProvider({ apiKey: "sk-ds-test" });

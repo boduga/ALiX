@@ -1,21 +1,36 @@
 # Skipped Tests Taxonomy
 
-> Last updated: 2026-06-17
-> Part of P4.1a — Skipped-Test Elimination
+> **Last updated:** 2026-06-17
+> **Part of:** P4.1a — Skipped-Test Elimination
+> **Governance:** `npm run test:skips:audit` validates this document against the codebase
 
-**Target:** 0 unexplained skipped tests. Every skip must have a documented reason and classification.
+**Target:** 0 unexplained skipped tests. Every skip must have a documented reason, classification, activation condition, and removal criteria.
 
-## Summary
+## Runner Scope
 
-| Classification | Count | Files |
+The count of **10 skipped** reported by `npm run test:node:ci` (3136 pass, 0 fail) refers only to the `node:test` runner configured in CI. The **23 documented items** below include skips in runners excluded from that command:
+
+| Runner | Included in `test:node:ci` | Tests |
 |---|---|---|
-| External-service-dependent | 8 | `tests/providers.test.ts`, `tests/cli-discover.test.ts`, `tests/repomap/embedding-cache.test.ts` |
-| Manual / TTY-only | 5 | `tests/manual/run-cli.ts`, `tests/manual/suite-a-cli.test.ts`, `tests/manual/suite-b-plan.test.ts` |
-| Correctly env-gated | 2 | `tests/pty/tui-pty.test.ts`, `tests/soak/daemon-protocol-soak.test.ts` |
-| Correctly gated (integration) | 2 | `tests/agent-loop.test.ts`, `tests/run-flow.test.ts` |
-| Feature-not-implemented | 6 | `tests/providers.test.ts` (Ollama tool-call parsing) |
+| Node CI (`dist/tests/**/*.test.js`) | ✅ | 3136 pass / 10 skip / 0 fail |
+| Manual / TTY suites (`tests/manual/`) | ❌ skipped as a group | 3 exports + 3 tests |
+| PTY tests (`tests/pty/`) | ❌ gated by `ALIX_PTY_TESTS=1` | 1 describe block |
+| Soak tests (`tests/soak/`) | ❌ gated by `ALIX_SOAK_TESTS=1` | 4 test files |
+| Integration tests (model API) | ❌ gated by API key probes | 2 tests |
 
-**Total skipped: 23** (across tests + manual exports + describe blocks)
+## Summary by Classification
+
+| Classification | Count | CI Runner | Activate Condition |
+|---|---|---|---|
+| Feature-not-implemented | 6 | ✅ skipped | Milestone P4.1b |
+| External-tool-dependent | 2 | ✅ gated by `hasUvx()` | `uvx` on `$PATH` |
+| Network-dependent | 1 | ✅ gated by `hasNetwork()` | HuggingFace reachable |
+| Manual / TTY-only | 5 | ❌ excluded | Interactive terminal |
+| Platform-specific (PTY) | 1 | ❌ `ALIX_PTY_TESTS=1` | Real TTY device |
+| Soak tests | 4 | ❌ `ALIX_SOAK_TESTS=1` | Long-running mode |
+| Integration (model API) | 2 | ✅ gated by API key | Real provider configured |
+
+**Total documented: 23** | **Node CI count: 10**
 
 ---
 
@@ -25,11 +40,25 @@ These tests validate functionality the codebase does not yet implement. They ser
 
 ### Ollama tool call parsing — 6 tests
 
-**File:** `tests/providers.test.ts` (lines 54–303)
-**Skip reason:** `"requires Ollama tool call parsing feature (ollama-spec.ts returns toolCalls: [])"`
-**Classification:** Feature-not-implemented
+| Field | Value |
+|---|---|
+| **ID** | `ollama-tool-calls-01` |
+| **File** | `tests/providers.test.ts` |
+| **Lines** | 54–303 |
+| **Skip reason** | `"P4.1b: Ollama provider does not yet translate tool_calls"` |
+| **Classification** | Feature-not-implemented |
+| **Milestone** | P4.1b |
+| **Removal criteria** | `ollama-spec.ts` returns parsed `toolCalls` from its `fromResponse` handler |
+| **Mock infrastructure** | `globalThis.fetch`, properly restored in `finally` block |
+| **Test coverage:** | |
+| — native `tool_calls` field parsing | ✅ line 54 |
+| — JSON-in-text fallback | ✅ line 105 |
+| — fenced JSON (```json ... ```) | ✅ line 145 |
+| — first embedded JSON from prose | ✅ line 185 |
+| — unquoted tool name | ✅ line 225 |
+| — Python-style `None` in arguments | ✅ line 265 |
 
-The `ollama-spec.ts` provider spec hardcodes `toolCalls: []` in its `fromResponse` handler. These tests were written as specification tests for a future Ollama tool-call parsing layer. The test bodies mock `_setFetchForTesting` and verify correct tool call extraction from various response formats (native tool_calls, JSON-in-text fallback, fenced JSON, prose-embedded JSON, unquoted names, Python-style None).
+The `ollama-spec.ts` provider spec hardcodes `toolCalls: []` in its `fromResponse` handler. These tests were written as specification tests for a future Ollama tool-call parsing layer. The test bodies mock `globalThis.fetch` with the Ollama API response format and verify correct tool call extraction.
 
 **To enable:** Implement tool call parsing in `src/providers/specs/ollama-spec.ts` or in a middleware layer, then remove the skip flag from these tests.
 
@@ -37,111 +66,197 @@ The `ollama-spec.ts` provider spec hardcodes `toolCalls: []` in its `fromRespons
 
 ## 2. External-Service-Dependent
 
-These tests require an external service running and are correctly gated behind a runtime probe.
+These tests require an external service and are correctly gated behind a runtime probe. CI does not install these services.
 
 ### uvx-based MCP discovery — 2 tests
 
-**File:** `tests/cli-discover.test.ts` (lines 19, 51)
-**Skip reason:** `{ skip: !hasUvx() }` — runtime probe for `uvx` CLI availability
-**Classification:** External-tool-dependent
-
-`hasUvx()` probes `uvx --version` before each test run. The tests require the `uvx` package manager to be installed and available on `$PATH`.
-
-**To enable:** Install `uv` toolchain (`pip install uv` or `npm install -g uvx`).
+| Field | Value |
+|---|---|
+| **ID** | `uvx-discovery-01` |
+| **File** | `tests/cli-discover.test.ts` |
+| **Lines** | 19, 51 |
+| **Skip reason** | `{ skip: !hasUvx() }` |
+| **Classification** | External-tool-dependent |
+| **Activation** | `uvx --version` succeeds on `$PATH` |
+| **Removal criteria** | uvx installed in CI or test restructured to mock `uvx` |
 
 ### Embedding cache — 1 describe block
 
-**File:** `tests/repomap/embedding-cache.test.ts` (line 21)
-**Skip reason:** `{ skip: !hasNetwork }` — runtime network probe
-**Classification:** Network-dependent
-
-`hasNetwork()` probes whether HuggingFace model endpoints are reachable. These tests download embedding models and fail silently without network.
-
-**To enable:** Ensure internet access and HuggingFace model endpoints are reachable.
+| Field | Value |
+|---|---|
+| **ID** | `embedding-cache-01` |
+| **File** | `tests/repomap/embedding-cache.test.ts` |
+| **Line** | 21 |
+| **Skip reason** | `{ skip: !hasNetwork }` |
+| **Classification** | Network-dependent |
+| **Activation** | HuggingFace model endpoints reachable |
+| **Removal criteria** | Embedding model downloads bundled or mocked |
 
 ---
 
 ## 3. Manual / TTY-Only
 
-These tests require interactive terminal input or a running real model API and live in `tests/manual/`.
+These tests require interactive terminal input or a running real model API. They live in `tests/manual/` and are not included in CI.
 
 ### run-cli helpers — 3 exports
 
-**File:** `tests/manual/run-cli.ts` (lines 131, 145, 150)
-**Skip reasons:**
-- `needsModel`: `{ skip: "requires model API key" }` — probes `resolveApiKey()`
-- `needsTty`: `{ skip: "requires interactive TTY" }` — always skipped
-- `needsBrave`: `{ skip: "requires BRAVE_API_KEY env var" }` — probes `process.env.BRAVE_API_KEY`
+| Field | Value |
+|---|---|
+| **File** | `tests/manual/run-cli.ts` |
+| **Lines** | 131, 145, 150 |
+| **Classification** | Manual-test-helper (skip option objects, not individual tests) |
 
-**Classification:** Manual-test-helper — these are not individual skipped tests but exportable skip option objects used by other manual tests.
+- `needsModel`: `{ skip: "requires model API key" }` — probes `resolveApiKey()`
+- `needsTty`: `{ skip: "requires interactive TTY" }` — always skipped in non-TTY
+- `needsBrave`: `{ skip: "requires BRAVE_API_KEY env var" }`
 
 ### CLI suite A — 2 tests
 
-**File:** `tests/manual/suite-a-cli.test.ts` (lines 72, 84)
-**Skip reasons:**
-- A.6: `{ skip: "requires interactive TTY" }` — plan detail view with terminal interaction
-- A.8: `{ skip: "requires interactive prompts" }` — scope expansion denial flow
-
-**Classification:** Manual-test
+| Field | Value |
+|---|---|
+| **File** | `tests/manual/suite-a-cli.test.ts` |
+| **Lines** | 72, 84 |
+| **Skip reasons** | A.6: `"requires interactive TTY"` | A.8: `"requires interactive prompts"` |
 
 ### Plan suite B — 1 test
 
-**File:** `tests/manual/suite-b-plan.test.ts` (line 24)
-**Skip reason:** `{ skip: "requires interactive TTY for plan phase" }`
-**Classification:** Manual-test
+| Field | Value |
+|---|---|
+| **File** | `tests/manual/suite-b-plan.test.ts` |
+| **Line** | 24 |
+| **Skip reason** | `"requires interactive TTY for plan phase"` |
 
 ---
 
-## 4. Correctly Env-Gated
+## 4. Platform- and Environment-Gated
 
-These tests run only when a specific environment variable is set.
+These tests run only when a specific environment variable is set. They require runtime capabilities absent in headless CI.
 
 ### PTY tests — 1 describe block
 
-**File:** `tests/pty/tui-pty.test.ts` (line 52)
-**Gate:** `{ skip: !ENABLED }` where `ENABLED = process.env.ALIX_PTY_TESTS === "1"`
-**Classification:** Platform-specific
+| Field | Value |
+|---|---|
+| **ID** | `pty-tests-01` |
+| **File** | `tests/pty/tui-pty.test.ts` |
+| **Line** | 52 |
+| **Gate** | `ALIX_PTY_TESTS=1` |
+| **Skip expression** | `{ skip: !ENABLED }` where `ENABLED = process.env.ALIX_PTY_TESTS === "1"` |
+| **Classification** | Platform-specific |
+| **Run command** | `ALIX_PTY_TESTS=1 npx node --test dist/tests/pty/` |
 
-PTY tests spawn pseudo-terminals and require a real TTY device. They are incompatible with headless CI.
+PTY tests spawn pseudo-terminals and require a real TTY device. Incompatible with headless CI.
 
-**To enable:** `ALIX_PTY_TESTS=1 npx node --test dist/tests/pty/`
+### Soak tests — 4 files
 
-### Soak tests — 2 files
-
-**Files:**
-- `tests/soak/daemon-protocol-soak.test.ts`
-- `tests/soak/corruption-recovery.test.ts`
-- `tests/soak/memory-growth.test.ts`
-- `tests/soak/store-load.test.ts`
-
-**Gate:** All gated by `ALIX_SOAK_TESTS=1` environment variable.
-**Classification:** Soak-test
+| Field | Value |
+|---|---|
+| **ID** | `soak-tests-01` |
+| **Files** | `tests/soak/daemon-protocol-soak.test.ts`, `tests/soak/corruption-recovery.test.ts`, `tests/soak/memory-growth.test.ts`, `tests/soak/store-load.test.ts` |
+| **Gate** | `ALIX_SOAK_TESTS=1` |
+| **Classification** | Soak-test |
+| **Run command** | `ALIX_SOAK_TESTS=1 npx node --test dist/tests/soak/` |
 
 Soak tests are long-running (minutes to hours) and excluded from CI.
-
-**To enable:** `ALIX_SOAK_TESTS=1 npx node --test dist/tests/soak/`
 
 ---
 
 ## 5. Correctly Gated Integration Tests
 
-These tests call a real model API and require available credits.
+These tests call a real model API and require available credits. They are included in CI but skip when no API key is configured.
 
 ### agent-loop.test.ts — 1 test
 
-**File:** `tests/agent-loop.test.ts` (line 13)
-**Skip reason:** `{ skip: "integration test: requires model API credits" }`
-**Classification:** Integration-test
+| Field | Value |
+|---|---|
+| **ID** | `integration-credits-01` |
+| **File** | `tests/agent-loop.test.ts` |
+| **Line** | 13 |
+| **Skip reason** | `{ skip: "integration test: requires model API credits" }` |
+| **Classification** | Integration-test |
 
-Calls `runTask()` which invokes a real model. Skipped when no API key/providers are configured.
+Calls `runTask()` which invokes a real model.
 
 ### run-flow.test.ts — 1 test
 
-**File:** `tests/run-flow.test.ts` (line 10)
-**Skip reason:** `{ skip: "integration test: requires model API credits" }`
-**Classification:** Integration-test
+| Field | Value |
+|---|---|
+| **ID** | `integration-credits-02` |
+| **File** | `tests/run-flow.test.ts` |
+| **Line** | 10 |
+| **Skip reason** | `{ skip: "integration test: requires model API credits" }` |
+| **Classification** | Integration-test |
 
 Same dependency on real model API.
+
+---
+
+## 6. Skipped-Test Governance (CI Validator)
+
+The `npm run test:skips:audit` script (`scripts/test-skips-audit.sh`) runs as part of pre-merge validation. It detects:
+
+| Check | Detects | Fails CI |
+|---|---|---|
+| Bare `{ skip: true }` without reason string | ❌ | ✅ |
+| `.skip()` without equivalent in taxonomy doc | ❌ | ✅ |
+| `test.skip(...)` / `it.skip(...)` / `describe.skip(...)` without documented marker | ❌ | ✅ |
+| `process.env`-based gating not in taxonomy | ⚠️ warning | ❌ |
+| New undocumented skip introduced | ❌ | ✅ |
+
+### Machine-Readable Registry
+
+```json
+[
+  {
+    "id": "ollama-tool-calls-01",
+    "file": "tests/providers.test.ts",
+    "classification": "feature-not-implemented",
+    "milestone": "P4.1b",
+    "removalCriteria": "ollama-spec.ts returns parsed toolCalls from fromResponse"
+  },
+  {
+    "id": "uvx-discovery-01",
+    "file": "tests/cli-discover.test.ts",
+    "classification": "external-tool-dependent",
+    "milestone": "P4.1c",
+    "removalCriteria": "uvx installed in CI or test restructured"
+  },
+  {
+    "id": "embedding-cache-01",
+    "file": "tests/repomap/embedding-cache.test.ts",
+    "classification": "network-dependent",
+    "milestone": "TBD",
+    "removalCriteria": "embedding model downloads bundled"
+  },
+  {
+    "id": "pty-tests-01",
+    "file": "tests/pty/tui-pty.test.ts",
+    "classification": "platform-specific",
+    "milestone": "P4.1g",
+    "removalCriteria": "PTY tests run in CI via cross-platform matrix"
+  },
+  {
+    "id": "soak-tests-01",
+    "file": "tests/soak/*.test.ts",
+    "classification": "soak-test",
+    "milestone": "P4.1e",
+    "removalCriteria": "soak tests have scheduled CI run"
+  },
+  {
+    "id": "integration-credits-01",
+    "file": "tests/agent-loop.test.ts",
+    "classification": "integration-test",
+    "milestone": "TBD",
+    "removalCriteria": "model provider available in CI"
+  },
+  {
+    "id": "integration-credits-02",
+    "file": "tests/run-flow.test.ts",
+    "classification": "integration-test",
+    "milestone": "TBD",
+    "removalCriteria": "model provider available in CI"
+  }
+]
+```
 
 ---
 
@@ -150,4 +265,4 @@ Same dependency on real model API.
 | Date | Change |
 |------|--------|
 | 2026-06-17 | Initial taxonomy — documented all 23 skipped items |
-| 2026-06-17 | Updated 6 Ollama skips from `{ skip: true }` (no reason) to documented reason |
+| 2026-06-17 | Updated 6 Ollama skips to use milestone-referencing reason `"P4.1b: Ollama provider does not yet translate tool_calls"`, added machine-readable registry, runner scope table, and CI governance check |

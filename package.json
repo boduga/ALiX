@@ -49,6 +49,7 @@
     "test:pty:tui": "ALIX_PTY_TESTS=1 node --test --test-concurrency=1 dist/tests/pty/tui-pty.test.js",
     "test:soak:quick": "node --test --test-concurrency=1 dist/tests/soak/corruption-recovery.test.js dist/tests/soak/store-load.test.js dist/tests/soak/memory-growth.test.js",
     "test:soak": "ALIX_SOAK_TESTS=1 node --test --test-concurrency=1 dist/tests/soak/*.test.js",
+    "test:skips:audit": "bash scripts/test-skips-audit.sh",
     "fresh": "npm run build && node dist/src/cli.js doctor"
   },
   "engines": {
