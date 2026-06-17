@@ -23,6 +23,14 @@ npm-debug.log*
 .alix/context-cache.json
 .alix/embeddings/
 
+# Coordination runtime state
+.alix/coordination/
+.alix/graphs/
+.alix/ownership/
+
+# External tool metadata
+.serena/
+
 # Test artifacts
 .test-*
 vitest.config.mts
