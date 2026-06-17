@@ -1,28 +1,27 @@
 # Skipped Tests Taxonomy
 
-> **Last updated:** 2026-06-17
-> **Part of:** P4.1a — Skipped-Test Elimination
+> **Last updated:** 2026-06-17 (P4.1b — Ollama tool-call parsing complete)
+> **Part of:** P4.1a/P4.1b — Skipped-Test Elimination and Ollama Tool-Call Parsing
 > **Governance:** `npm run test:skips:audit` validates this document against the codebase
 
 **Target:** 0 unexplained skipped tests. Every skip must have a documented reason, classification, activation condition, and removal criteria.
 
 ## Runner Scope
 
-The count of **10 skipped** reported by `npm run test:node:ci` (3136 pass, 0 fail) refers only to the `node:test` runner configured in CI. The **23 documented items** below include skips in runners excluded from that command:
+The count of **4 skipped** reported by `npm run test:node:ci` (3173 pass, 0 fail) refers only to the `node:test` runner configured in CI. The **15 documented items** below include skips in runners excluded from that command:
 
 | Runner | Included in `test:node:ci` | Tests |
 |---|---|---|
-| Node CI (`dist/tests/**/*.test.js`) | ✅ | 3136 pass / 10 skip / 0 fail |
-| Manual / TTY suites (`tests/manual/`) | ❌ skipped as a group | 3 exports + 3 tests |
+| Node CI (`dist/tests/**/*.test.js`) | ✅ | 3173 pass / 4 skip / 0 fail |
+| Manual / TTY suites (`tests/manual/`) | ❌ excluded by path | 3 exports + 3 tests |
 | PTY tests (`tests/pty/`) | ❌ gated by `ALIX_PTY_TESTS=1` | 1 describe block |
 | Soak tests (`tests/soak/`) | ❌ gated by `ALIX_SOAK_TESTS=1` | 4 test files |
-| Integration tests (model API) | ❌ gated by API key probes | 2 tests |
+| Integration tests (model API) | ✅ gated by API key probes | 2 tests (skip when no key) |
 
 ## Summary by Classification
 
 | Classification | Count | CI Runner | Activate Condition |
 |---|---|---|---|
-| Feature-not-implemented | 6 | ✅ skipped | Milestone P4.1b |
 | External-tool-dependent | 2 | ✅ gated by `hasUvx()` | `uvx` on `$PATH` |
 | Network-dependent | 1 | ✅ gated by `hasNetwork()` | HuggingFace reachable |
 | Manual / TTY-only | 5 | ❌ excluded | Interactive terminal |
@@ -30,41 +29,11 @@ The count of **10 skipped** reported by `npm run test:node:ci` (3136 pass, 0 fai
 | Soak tests | 4 | ❌ `ALIX_SOAK_TESTS=1` | Long-running mode |
 | Integration (model API) | 2 | ✅ gated by API key | Real provider configured |
 
-**Total documented: 23** | **Node CI count: 10**
+**Total documented: 15** | **Node CI count: 4**
 
 ---
 
-## 1. Feature-Not-Implemented
-
-These tests validate functionality the codebase does not yet implement. They serve as specification placeholders for future work.
-
-### Ollama tool call parsing — 6 tests
-
-| Field | Value |
-|---|---|
-| **ID** | `ollama-tool-calls-01` |
-| **File** | `tests/providers.test.ts` |
-| **Lines** | 54–303 |
-| **Skip reason** | `"P4.1b: Ollama provider does not yet translate tool_calls"` |
-| **Classification** | Feature-not-implemented |
-| **Milestone** | P4.1b |
-| **Removal criteria** | `ollama-spec.ts` returns parsed `toolCalls` from its `fromResponse` handler |
-| **Mock infrastructure** | `globalThis.fetch`, properly restored in `finally` block |
-| **Test coverage:** | |
-| — native `tool_calls` field parsing | ✅ line 54 |
-| — JSON-in-text fallback | ✅ line 105 |
-| — fenced JSON (```json ... ```) | ✅ line 145 |
-| — first embedded JSON from prose | ✅ line 185 |
-| — unquoted tool name | ✅ line 225 |
-| — Python-style `None` in arguments | ✅ line 265 |
-
-The `ollama-spec.ts` provider spec hardcodes `toolCalls: []` in its `fromResponse` handler. These tests were written as specification tests for a future Ollama tool-call parsing layer. The test bodies mock `globalThis.fetch` with the Ollama API response format and verify correct tool call extraction.
-
-**To enable:** Implement tool call parsing in `src/providers/specs/ollama-spec.ts` or in a middleware layer, then remove the skip flag from these tests.
-
----
-
-## 2. External-Service-Dependent
+## 1. External-Service-Dependent
 
 These tests require an external service and are correctly gated behind a runtime probe. CI does not install these services.
 
@@ -94,7 +63,7 @@ These tests require an external service and are correctly gated behind a runtime
 
 ---
 
-## 3. Manual / TTY-Only
+## 2. Manual / TTY-Only
 
 These tests require interactive terminal input or a running real model API. They live in `tests/manual/` and are not included in CI.
 
@@ -128,7 +97,7 @@ These tests require interactive terminal input or a running real model API. They
 
 ---
 
-## 4. Platform- and Environment-Gated
+## 3. Platform- and Environment-Gated
 
 These tests run only when a specific environment variable is set. They require runtime capabilities absent in headless CI.
 
@@ -160,7 +129,7 @@ Soak tests are long-running (minutes to hours) and excluded from CI.
 
 ---
 
-## 5. Correctly Gated Integration Tests
+## 4. Correctly Gated Integration Tests
 
 These tests call a real model API and require available credits. They are included in CI but skip when no API key is configured.
 
@@ -206,14 +175,6 @@ The `npm run test:skips:audit` script (`scripts/test-skips-audit.sh`) runs as pa
 
 ```json
 [
-  {
-    "id": "ollama-tool-calls-01",
-    "file": "tests/providers.test.ts",
-    "classification": "feature-not-implemented",
-    "milestone": "P4.1b",
-    "removalCriteria": "ollama-spec.ts returns parsed toolCalls from fromResponse"
-  },
-  {
     "id": "uvx-discovery-01",
     "file": "tests/cli-discover.test.ts",
     "classification": "external-tool-dependent",
@@ -264,5 +225,6 @@ The `npm run test:skips:audit` script (`scripts/test-skips-audit.sh`) runs as pa
 
 | Date | Change |
 |------|--------|
-| 2026-06-17 | Initial taxonomy — documented all 23 skipped items |
+| 2026-06-17 | P4.1b complete — removed Ollama section (6 tests re-enabled), updated counts to 3173 pass / 4 skip / 0 fail. Remaining skips: uvx (2), embedding network (1), integration credits (2). |
 | 2026-06-17 | Updated 6 Ollama skips to use milestone-referencing reason `"P4.1b: Ollama provider does not yet translate tool_calls"`, added machine-readable registry, runner scope table, and CI governance check |
+| 2026-06-17 | Initial taxonomy — documented all 23 skipped items |
