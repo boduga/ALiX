@@ -701,6 +701,10 @@ export class CoordinationScheduler {
    * Sets run status to "replanning" (preventing concurrent dispatch), calls
    * the replanner, then either accepts the result (replan() sets status to
    * "running" atomically) or restores the run to a recomputed safe status.
+   *
+   * Only "completed" runs are guarded. "failed" runs are intentionally
+   * permitted — a failed run from exhausted retries is exactly the case
+   * replanning is designed to recover from.
    */
   private async maybeReplanAfterWorkerCompletion(
     runId: string,
