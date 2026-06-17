@@ -131,6 +131,36 @@ function validGraph(overrides?: Partial<SimulatedGraph>): SimulatedGraph {
   };
 }
 
+import type { ApplyInput } from "../../src/kernel/replan-applier.js";
+
+function makeApplyInput(
+  draft: PlanRevisionDraft,
+  graph: SimulatedGraph,
+  runId: string,
+  agentAssignments?: Record<string, { agentId: string }>,
+): ApplyInput {
+  const assignments: Record<string, { agentId: string }> = { ...(agentAssignments ?? {}) };
+  for (const w of draft.workersToAdd) {
+    if (!assignments[w.draftWorkerId]) {
+      assignments[w.draftWorkerId] = { agentId: "agent_alpha" };
+    }
+  }
+  for (const rs of draft.workersToReplace) {
+    if (!assignments[rs.replacement.draftWorkerId]) {
+      assignments[rs.replacement.draftWorkerId] = { agentId: "agent_alpha" };
+    }
+  }
+  return {
+    draft,
+    graph,
+    agentAssignments: assignments,
+    ownershipScopes: [],
+    ownershipClaims: [],
+    expectedPlanRevision: 0,
+    runId,
+  };
+}
+
 const CAP_REGISTRY = {
   "agent-alpha": ["filesystem.read", "filesystem.write", "network.fetch", "code.analyze"],
   "agent-beta": ["filesystem.read", "code.analyze", "code.refactor"],
@@ -493,7 +523,7 @@ describe("Replan — Adversarial Tests", () => {
           }],
         });
 
-        const result = await applier.apply(draft, graph, run.id);
+        const result = await applier.apply(makeApplyInput(draft, graph, run.id));
         assert.equal(result.applied, true);
 
         const loaded = await store.load(run.id);
@@ -705,11 +735,11 @@ describe("Replan — Adversarial Tests", () => {
 
         // A second replan advances the plan revision to 1
         const graph1 = validGraph({ idMap: { d1: "worker_actual_1" } });
-        await applier.apply(validDraft({
+        await applier.apply(makeApplyInput(validDraft({
           workersToAdd: [createDraftWorkerSpec({
             draftWorkerId: "d1", taskLabel: "Other", goalPrompt: "Do",
           })],
-        }), graph1, run.id);
+        }), graph1, run.id));
 
         // The applier reads the latest planRevision from the run each time,
         // so sequential applies succeed. After one apply, planRevision = 1.
@@ -751,7 +781,7 @@ describe("Replan — Adversarial Tests", () => {
           summary: "Needs approval",
         };
 
-        const evalResult = await gate.evaluate(analysis, "run-1", "fp1", "ifp1");
+        const evalResult = await gate.evaluate(analysis, "run-1", "fp1", "ifp1", 0);
         assert.ok(evalResult.approvalId);
         assert.equal(evalResult.record!.status, "pending");
 
@@ -759,17 +789,17 @@ describe("Replan — Adversarial Tests", () => {
         const resolved = await approvalStore.resolve(evalResult.approvalId!, "approved", "OK");
         assert.equal(resolved!.status, "approved");
 
-        const bindingKey = "replan:run-1:fp1";
+        const bindingKey = evalResult.record!.bindingKey;
 
         // First consume succeeds
-        const first = await gate.consumeApproved(evalResult.approvalId!, bindingKey, "run-1");
+        const first = await gate.consumeApproved(evalResult.approvalId!, bindingKey);
         assert.equal(first.consumed, true);
         if (first.consumed) {
-          assert.equal(first.record.status, "consumed");
+          assert.equal(first.record!.status, "consumed");
         }
 
         // Second consume fails — already consumed
-        const second = await gate.consumeApproved(evalResult.approvalId!, bindingKey, "run-1");
+        const second = await gate.consumeApproved(evalResult.approvalId!, bindingKey);
         assert.equal(second.consumed, false);
       } finally {
         rmSync(cwd, { recursive: true, force: true });
@@ -791,7 +821,7 @@ describe("Replan — Adversarial Tests", () => {
         await store.save(run);
 
         const draft = validDraft({ workersToCancel: ["w1"] });
-        const result = await applier.apply(draft, validGraph(), run.id);
+        const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
         assert.equal(result.applied, false);
         assert.ok(result.errors[0].includes("running"));
@@ -820,7 +850,7 @@ describe("Replan — Adversarial Tests", () => {
         await store.save(run);
 
         const draft = validDraft({ workersToCancel: ["w1"] });
-        const result = await applier.apply(draft, validGraph(), run.id);
+        const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
         assert.equal(result.applied, false);
         assert.ok(result.errors[0].includes("completed"));
@@ -865,7 +895,7 @@ describe("Replan — Adversarial Tests", () => {
           }],
         });
 
-        const result = await applier.apply(draft, graph, run.id);
+        const result = await applier.apply(makeApplyInput(draft, graph, run.id));
         assert.equal(result.applied, true);
 
         const loaded = await store.load(run.id);
@@ -927,7 +957,7 @@ describe("Replan — Adversarial Tests", () => {
           }],
         });
 
-        const result = await applier.apply(draft, graph, run.id);
+        const result = await applier.apply(makeApplyInput(draft, graph, run.id));
         assert.equal(result.applied, true);
 
         const loaded = await store.load(run.id);
@@ -974,8 +1004,8 @@ describe("Replan — Adversarial Tests", () => {
 
         // Fire two concurrent applies
         const [r1, r2] = await Promise.all([
-          applier.apply(draft, graph, run.id),
-          applier.apply(draft, graph, run.id),
+          applier.apply(makeApplyInput(draft, graph, run.id)),
+          applier.apply(makeApplyInput(draft, graph, run.id)),
         ]);
 
         const successCount = [r1, r2].filter((r) => r.applied).length;
@@ -1017,7 +1047,7 @@ describe("Replan — Adversarial Tests", () => {
         // mechanical replan, but here we verify the store still works.
         const applier = new ReplanApplier(store);
         const draft = validDraft(); // empty draft
-        const result = await applier.apply(draft, validGraph(), run.id);
+        const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
         assert.equal(result.applied, true);
         assert.ok(result.run);
@@ -1218,12 +1248,13 @@ describe("Replan — Adversarial Tests", () => {
             run.id,
             draftFingerprint,
             impactFingerprint,
+            run.planRevision ?? 0,
           );
           assert.ok(gateResult.autoApproved || gateResult.approved,
             "Should auto-approve or already be approved");
 
           // 10. Apply directly (since auto-approved)
-          const applyResult = await applier.apply(draft, simulatedGraph, run.id);
+          const applyResult = await applier.apply(makeApplyInput(draft, simulatedGraph, run.id));
           assert.equal(applyResult.applied, true,
             `Apply should succeed: ${applyResult.errors.join(", ")}`);
 
@@ -1303,7 +1334,7 @@ describe("Replan — Adversarial Tests", () => {
           }],
         });
 
-        const result = await applier.apply(draft, graph, run.id);
+        const result = await applier.apply(makeApplyInput(draft, graph, run.id));
         assert.equal(result.applied, true);
 
         // Verify revisionHistory

@@ -12,12 +12,22 @@
  * All imports use .js extensions (NodeNext).
  */
 
-import type { CoordinationRun, PlanRevision, PlanDiffEntry, WorkerAssignment } from "./coordination-types.js";
+import type { CoordinationRun, PlanRevision, PlanDiffEntry, WorkerAssignment, WorkerOwnershipClaim } from "./coordination-types.js";
 import { createWorkerAssignment } from "./coordination-types.js";
 import type { PlanRevisionDraft, SimulatedGraph } from "./replan-types.js";
 import { CoordinationStore } from "./coordination-store.js";
 
 // ── Types ───────────────────────────────────────────────────────────────
+
+export interface ApplyInput {
+  draft: PlanRevisionDraft;
+  graph: SimulatedGraph;
+  agentAssignments: Record<string, { agentId: string }>;
+  ownershipScopes: string[];
+  ownershipClaims: WorkerOwnershipClaim[];
+  expectedPlanRevision: number;
+  runId: string;
+}
 
 export interface ApplyResult {
   applied: boolean;
@@ -61,23 +71,17 @@ export class ReplanApplier {
    * The draft must have passed structural validation and graph simulation
    * before being passed to apply().
    */
-  async apply(
-    draft: PlanRevisionDraft,
-    graph: SimulatedGraph,
-    runId: string,
-  ): Promise<ApplyResult> {
-    const run = await this.store.load(runId);
+  async apply(input: ApplyInput): Promise<ApplyResult> {
+    const run = await this.store.load(input.runId);
     if (!run) {
       return { applied: false, run: null, revision: null, errors: ["Run not found"] };
     }
 
-    const expectedRev = run.planRevision ?? 0;
-
     try {
       const updated = await this.store.updateRunWithRevisionCheck(
-        runId,
-        expectedRev,
-        (r) => this.applyDraft(r, draft, graph),
+        input.runId,
+        input.expectedPlanRevision,
+        (r) => this.applyDraft(r, input),
       );
 
       if (!updated) {
@@ -113,9 +117,9 @@ export class ReplanApplier {
    */
   private applyDraft(
     run: CoordinationRun,
-    draft: PlanRevisionDraft,
-    graph: SimulatedGraph,
+    input: ApplyInput,
   ): void {
+    const { draft, graph } = input;
     const diffs: PlanDiffEntry[] = [];
 
     // ── 1. Cancel workers ───────────────────────────────────────────────
@@ -174,15 +178,24 @@ export class ReplanApplier {
         (d) => graph.idMap[d] ?? d,
       );
 
+      const agentAssignment = input.agentAssignments[replaceSpec.replacement.draftWorkerId];
+      if (!agentAssignment?.agentId) {
+        throw new Error(
+          `No eligible agent assigned for replacement worker: ${replaceSpec.replacement.draftWorkerId}`,
+        );
+      }
+
       const replacementWorker = createWorkerAssignment({
         id: durableId,
         coordinationRunId: run.id,
-        agentId: "unassigned",
+        agentId: agentAssignment.agentId,
         taskLabel: replaceSpec.replacement.taskLabel,
         goalPrompt: replaceSpec.replacement.goalPrompt,
         dependencies: mappedDeps,
         requiredCapabilities: replaceSpec.replacement.requiredCapabilities,
         replacementForWorkerId: replaceSpec.targetWorkerId,
+        ownershipScopes: [...(input.ownershipScopes ?? [])],
+        ownershipClaims: [...(input.ownershipClaims ?? [])],
       });
 
       // Wipe execution state — no stale data carries over
@@ -203,7 +216,7 @@ export class ReplanApplier {
     // This updates every existing worker whose dependencies reference a
     // replaced worker ID, UNLESS an explicit DependencyRewire overrides
     // that specific pair.
-    this.autoRewireDependencies(run, draft, graph);
+    this.autoRewireDependencies(run, input);
 
     // ── 3. Add new workers ──────────────────────────────────────────────
 
@@ -219,14 +232,23 @@ export class ReplanApplier {
         (d) => graph.idMap[d] ?? d,
       );
 
+      const addAgentAssignment = input.agentAssignments[addSpec.draftWorkerId];
+      if (!addAgentAssignment?.agentId) {
+        throw new Error(
+          `No eligible agent assigned for new worker: ${addSpec.draftWorkerId}`,
+        );
+      }
+
       const newWorker = createWorkerAssignment({
         id: durableId,
         coordinationRunId: run.id,
-        agentId: "unassigned",
+        agentId: addAgentAssignment.agentId,
         taskLabel: addSpec.taskLabel,
         goalPrompt: addSpec.goalPrompt,
         dependencies: mappedDeps,
         requiredCapabilities: addSpec.requiredCapabilities,
+        ownershipScopes: [...(input.ownershipScopes ?? [])],
+        ownershipClaims: [...(input.ownershipClaims ?? [])],
       });
 
       // Fresh execution state applies to new workers too
@@ -256,8 +278,13 @@ export class ReplanApplier {
         worker.goalPrompt = modifySpec.goalPrompt;
       }
       if (modifySpec.dependencies !== undefined) {
-        worker.dependencies = [...modifySpec.dependencies];
+        worker.dependencies = modifySpec.dependencies.map(d => graph.idMap[d] ?? d);
       }
+      // Material modification resets stale security state
+      worker.approvalId = undefined;
+      worker.authorizationEvidence = undefined;
+      worker.leaseIds = [];
+      worker.executionOwnerId = undefined;
       worker.updatedAt = new Date().toISOString();
 
       diffs.push({
@@ -272,18 +299,24 @@ export class ReplanApplier {
     // ── 5. Apply explicit dependency rewiring ───────────────────────────
 
     for (const rewire of draft.dependencyRewiring) {
+      const resolvedRef = graph.idMap[rewire.dependentWorkerRef] ?? rewire.dependentWorkerRef;
+      const resolvedAddRef = rewire.addDependencyRef
+        ? (graph.idMap[rewire.addDependencyRef] ?? rewire.addDependencyRef)
+        : undefined;
+
       const dependent = run.workers.find(
-        (w) => w.id === rewire.dependentWorkerRef,
+        (w) => w.id === resolvedRef,
       );
       if (!dependent) {
         throw new Error(
-          `Dependent worker not found for dependency rewiring: ${rewire.dependentWorkerRef}`,
+          `Dependent worker not found for dependency rewiring: ${resolvedRef}`,
         );
       }
       // Remove the old dependency if present
       if (rewire.removeDependencyRef) {
+        const resolvedRemoveRef = graph.idMap[rewire.removeDependencyRef] ?? rewire.removeDependencyRef;
         const idx = dependent.dependencies.indexOf(
-          rewire.removeDependencyRef,
+          resolvedRemoveRef,
         );
         if (idx !== -1) {
           dependent.dependencies.splice(idx, 1);
@@ -291,15 +324,15 @@ export class ReplanApplier {
       }
       // Add the new dependency if specified and not already present
       if (
-        rewire.addDependencyRef &&
-        !dependent.dependencies.includes(rewire.addDependencyRef)
+        resolvedAddRef &&
+        !dependent.dependencies.includes(resolvedAddRef)
       ) {
-        dependent.dependencies.push(rewire.addDependencyRef);
+        dependent.dependencies.push(resolvedAddRef);
       }
       dependent.updatedAt = new Date().toISOString();
 
       diffs.push({
-        workerId: rewire.dependentWorkerRef,
+        workerId: resolvedRef,
         change: "modified",
         reason: `Dependency rewired: removed "${rewire.removeDependencyRef}", added "${rewire.addDependencyRef}"`,
       });
@@ -346,9 +379,9 @@ export class ReplanApplier {
    */
   private autoRewireDependencies(
     run: CoordinationRun,
-    draft: PlanRevisionDraft,
-    graph: SimulatedGraph,
+    input: ApplyInput,
   ): void {
+    const { draft, graph } = input;
     // Build index of explicit rewire entries so we skip auto-rewiring
     // for pairs the draft author deliberately handled.
     const explicitRewires = new Set<string>();

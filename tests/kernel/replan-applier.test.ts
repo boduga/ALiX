@@ -34,6 +34,37 @@ import type { WorkerAssignment } from "../../src/kernel/coordination-types.js";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
 
+import type { ApplyInput } from "../../src/kernel/replan-applier.js";
+
+function makeApplyInput(
+  draft: PlanRevisionDraft,
+  graph: SimulatedGraph,
+  runId: string,
+  agentAssignments?: Record<string, { agentId: string }>,
+): ApplyInput {
+  // Auto-populate agent assignments for any draftWorkerIds referenced in add/replace
+  const assignments: Record<string, { agentId: string }> = { ...(agentAssignments ?? {}) };
+  for (const w of draft.workersToAdd) {
+    if (!assignments[w.draftWorkerId]) {
+      assignments[w.draftWorkerId] = { agentId: "agent_test" };
+    }
+  }
+  for (const rs of draft.workersToReplace) {
+    if (!assignments[rs.replacement.draftWorkerId]) {
+      assignments[rs.replacement.draftWorkerId] = { agentId: "agent_test" };
+    }
+  }
+  return {
+    draft,
+    graph,
+    agentAssignments: assignments,
+    ownershipScopes: [],
+    ownershipClaims: [],
+    expectedPlanRevision: 0,
+    runId,
+  };
+}
+
 function makeWorker(id: string, deps: string[] = [], overrides: Partial<WorkerAssignment> = {}) {
   return createWorkerAssignment({
     id,
@@ -108,7 +139,7 @@ describe("ReplanApplier", () => {
     run.workers = [makeWorker("w1")];
     await store.save(run);
 
-    const result = await applier.apply(validDraft(), validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(validDraft(), validGraph(), run.id));
 
     assert.equal(result.applied, true);
     assert(result.run !== null);
@@ -129,7 +160,7 @@ describe("ReplanApplier", () => {
     await store.save(run);
 
     const draft = validDraft({ workersToCancel: ["w1"] });
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, true);
     assert.equal(result.run!.workers[0].status, "cancelled");
@@ -147,7 +178,7 @@ describe("ReplanApplier", () => {
     await store.save(run);
 
     const draft = validDraft({ workersToCancel: ["w1"] });
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, false);
     assert.ok(result.errors[0].includes("running"));
@@ -165,7 +196,7 @@ describe("ReplanApplier", () => {
     await store.save(run);
 
     const draft = validDraft({ workersToCancel: ["w1"] });
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, false);
     assert.ok(result.errors[0].includes("completed"));
@@ -200,7 +231,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
     assert.equal(result.run!.workers.length, 2);
@@ -259,7 +290,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
     assert.equal(result.run!.workers.length, 4);
@@ -294,7 +325,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
     assert.equal(result.run!.workers.length, 2);
@@ -321,7 +352,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, true);
     assert.equal(result.run!.workers[0].goalPrompt, "Updated goal");
@@ -357,7 +388,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
     const w2 = result.run!.workers.find((w) => w.id === "w2");
@@ -409,7 +440,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
 
@@ -458,8 +489,8 @@ describe("ReplanApplier", () => {
     // Two concurrent apply calls — the lock serializes them, and the second
     // should see a planRevision mismatch (first call bumps from 0 to 1).
     const [result1, result2] = await Promise.all([
-      applier.apply(draft, graph, run.id),
-      applier.apply(draft, graph, run.id),
+      applier.apply(makeApplyInput(draft, graph, run.id)),
+      applier.apply(makeApplyInput(draft, graph, run.id)),
     ]);
 
     const successCount = [result1, result2].filter((r) => r.applied).length;
@@ -528,7 +559,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
     const replacement = result.run!.workers.find((w) => w.id === "worker_r1");
@@ -571,7 +602,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     assert.equal(result.applied, true);
     assert.ok(result.revision);
@@ -589,9 +620,7 @@ describe("ReplanApplier", () => {
 
   it("returns error when run is not found", async () => {
     const result = await applier.apply(
-      validDraft(),
-      validGraph(),
-      "nonexistent_run_id",
+      makeApplyInput(validDraft(), validGraph(), "nonexistent_run_id"),
     );
 
     assert.equal(result.applied, false);
@@ -621,7 +650,7 @@ describe("ReplanApplier", () => {
       ],
     });
 
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, true);
     const w3 = result.run!.workers.find((w) => w.id === "w3");
@@ -642,7 +671,7 @@ describe("ReplanApplier", () => {
     await store.save(run);
 
     const draft = validDraft({ workersToCancel: ["w1"] });
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, false);
     assert.ok(result.errors[0].includes("failed"));
@@ -674,7 +703,7 @@ describe("ReplanApplier", () => {
     });
 
     const graph = validGraph({ idMap: { d1: "worker_new_1" } });
-    const result = await applier.apply(draft, graph, run.id);
+    const result = await applier.apply(makeApplyInput(draft, graph, run.id));
 
     // Must fail — should never partially apply
     assert.equal(result.applied, false);
@@ -702,7 +731,7 @@ describe("ReplanApplier", () => {
     await store.save(run);
 
     const draft = validDraft({ workersToCancel: ["w1"] });
-    const result = await applier.apply(draft, validGraph(), run.id);
+    const result = await applier.apply(makeApplyInput(draft, validGraph(), run.id));
 
     assert.equal(result.applied, true);
     assert.equal(result.run!.workers[0].status, "cancelled");

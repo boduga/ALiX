@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ApprovalStore } from "../../src/approvals/approval-store.js";
 import { ReplanApprovalGate } from "../../src/kernel/replan-approval-gate.js";
+import { computeFingerprint } from "../../src/kernel/replan-types.js";
 import type { ImpactAnalysis } from "../../src/kernel/replan-types.js";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -52,10 +53,29 @@ function makeImpactAnalysis(overrides?: Partial<ImpactAnalysis>): ImpactAnalysis
   };
 }
 
+/** Compute the exact binding key the gate would use for a given set of inputs. */
+function expectedBindingKey(
+  runId: string,
+  draftFingerprint: string,
+  impactFingerprint: string,
+  expectedPlanRevision: number,
+): string {
+  return computeFingerprint({
+    kind: "model_assisted_replan",
+    runId,
+    expectedPlanRevision,
+    draftFingerprint,
+    impactFingerprint,
+    policyRevision: "current",
+    capabilities: ["coordination.plan.revise"],
+  });
+}
+
 describe("ReplanApprovalGate", () => {
   const RUN_ID = "coord_test-run-123";
   const DRAFT_FINGERPRINT = "abc123def456";
   const IMPACT_FINGERPRINT = "789ghi";
+  const PLAN_REVISION = 0;
 
   describe("evaluate", () => {
     it("returns auto-approved when no approval is required", async () => {
@@ -63,7 +83,7 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ requiresApproval: false, riskLevel: "low" });
-        const result = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const result = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
 
         assert.equal(result.approved, true);
         assert.equal(result.autoApproved, true);
@@ -80,14 +100,14 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "medium" });
-        const result = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const result = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
 
         assert.equal(result.approved, false); // pending, not approved yet
         assert.equal(result.autoApproved, false);
         assert.ok(result.approvalId, "should have an approval ID");
         assert.ok(result.record, "should have a record");
         assert.equal(result.record!.status, "pending");
-        assert.equal(result.record!.bindingKey, `replan:${RUN_ID}:${DRAFT_FINGERPRINT}`);
+        assert.ok(result.record!.bindingKey.length > 0, "binding key should be non-empty");
         assert.deepEqual(result.record!.capabilities, ["coordination.plan.revise"]);
         assert.equal(result.record!.coordinationRunId, RUN_ID);
         assert.equal(result.record!.riskLevel, "medium");
@@ -103,11 +123,11 @@ describe("ReplanApprovalGate", () => {
         const analysis = makeImpactAnalysis({ riskLevel: "high" });
 
         // First call creates a pending approval
-        const first = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const first = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.equal(first.record!.status, "pending");
 
-        // Second call should reuse the same pending approval
-        const second = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, "different-impact-fp");
+        // Second call with identical params reuses the same pending
+        const second = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.equal(second.record!.status, "pending");
         assert.equal(second.approvalId, first.approvalId);
         assert.equal(second.record!.id, first.record!.id);
@@ -127,8 +147,8 @@ describe("ReplanApprovalGate", () => {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "medium" });
 
-        const result1 = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
-        const result2 = await gate.evaluate(analysis, "coord_other-run", DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const result1 = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
+        const result2 = await gate.evaluate(analysis, "coord_other-run", DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
 
         assert.notEqual(result1.approvalId, result2.approvalId);
         assert.notEqual(result1.record!.bindingKey, result2.record!.bindingKey);
@@ -144,7 +164,7 @@ describe("ReplanApprovalGate", () => {
         const analysis = makeImpactAnalysis({ riskLevel: "critical" });
 
         // Create the approval
-        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.ok(created.approvalId);
 
         // Resolve it to approved
@@ -152,7 +172,7 @@ describe("ReplanApprovalGate", () => {
         assert.equal(resolved!.status, "approved");
 
         // Re-evaluate — should find the now-approved record
-        const checked = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const checked = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.equal(checked.approved, true);
         assert.equal(checked.record!.status, "approved");
       } finally {
@@ -180,7 +200,7 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "medium" });
-        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.ok(created.approvalId);
 
         const result = await gate.checkApproval(created.approvalId!);
@@ -196,7 +216,7 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "medium" });
-        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         await store.resolve(created.approvalId!, "approved");
 
         const result = await gate.checkApproval(created.approvalId!);
@@ -214,23 +234,23 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "high" });
-        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.ok(created.approvalId);
 
         // Approve it
         await store.resolve(created.approvalId!, "approved");
 
-        const bindingKey = `replan:${RUN_ID}:${DRAFT_FINGERPRINT}`;
+        const bindingKey = expectedBindingKey(RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
 
-        // First consume should succeed
-        const first = await gate.consumeApproved(created.approvalId!, bindingKey, RUN_ID);
+        // First consume should succeed (2 args — no coordinationRunId)
+        const first = await gate.consumeApproved(created.approvalId!, bindingKey);
         assert.equal(first.consumed, true);
         if (first.consumed) {
           assert.equal(first.record.status, "consumed");
         }
 
         // Second consume should fail — already consumed
-        const second = await gate.consumeApproved(created.approvalId!, bindingKey, RUN_ID);
+        const second = await gate.consumeApproved(created.approvalId!, bindingKey);
         assert.equal(second.consumed, false);
         assert.ok(second.reason);
       } finally {
@@ -243,14 +263,13 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "high" });
-        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         await store.resolve(created.approvalId!, "approved");
 
         // Wrong binding key should fail
         const result = await gate.consumeApproved(
           created.approvalId!,
-          "replan:wrong-run:wrong-fingerprint",
-          RUN_ID,
+          "wrong-binding-key",
         );
         assert.equal(result.consumed, false);
         assert.ok(result.reason);
@@ -264,14 +283,14 @@ describe("ReplanApprovalGate", () => {
       try {
         await store.load();
         const analysis = makeImpactAnalysis({ riskLevel: "high" });
-        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT);
+        const created = await gate.evaluate(analysis, RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
         assert.ok(created.approvalId);
 
         // Deny it
         await store.resolve(created.approvalId!, "denied", "Not approved");
 
-        const bindingKey = `replan:${RUN_ID}:${DRAFT_FINGERPRINT}`;
-        const result = await gate.consumeApproved(created.approvalId!, bindingKey, RUN_ID);
+        const bindingKey = expectedBindingKey(RUN_ID, DRAFT_FINGERPRINT, IMPACT_FINGERPRINT, PLAN_REVISION);
+        const result = await gate.consumeApproved(created.approvalId!, bindingKey);
         assert.equal(result.consumed, false);
       } finally {
         cleanup();

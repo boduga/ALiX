@@ -122,7 +122,7 @@ export class ModelAssistedReplanService {
       return { status: "failed", errors: [`Coordination run not found: ${runId}`] };
     }
 
-    if (run.status !== "replanning" && run.status !== "running") {
+    if (run.status !== "replanning" && run.status !== "running" && run.status !== "blocked") {
       return { status: "failed", errors: [`Run ${runId} is in status ${run.status}, not eligible for replanning`] };
     }
 
@@ -261,6 +261,7 @@ export class ModelAssistedReplanService {
     // ── 6. Analyze impact ─────────────────────────────────────────────
 
     let impactAnalysis: ImpactAnalysis;
+    let agentAssignments: Record<string, { agentId: string }> | undefined;
     try {
       const analyzeResult = await this.options.impactAnalyzer.analyze(
         draft,
@@ -268,6 +269,7 @@ export class ModelAssistedReplanService {
         simulatedGraph,
       );
       impactAnalysis = analyzeResult.impactAnalysis;
+      agentAssignments = analyzeResult.agentAssignments;
     } catch (err) {
       const draftFingerprint = computeFingerprint(draft);
       const analysisFailedProposal = createProposalRecord({
@@ -337,6 +339,7 @@ export class ModelAssistedReplanService {
         runId,
         draftFingerprint,
         impactFingerprint,
+        expectedPlanRevision,
       );
     } catch (err) {
       await this.options.proposalStore.updateStatus(runId, persistedProposal.id, "failed", {
@@ -352,10 +355,8 @@ export class ModelAssistedReplanService {
 
     // ── 9. Handle gate result ─────────────────────────────────────────
 
-    // Map agentAssignments for the applier's draftWorkerId → agentId mapping
-    // The ReplanApplier sets agentId to "unassigned" for new/replacement workers
-    // because it does not accept agentAssignments. The caller is responsible for
-    // setting agentId after apply by examining the impact analysis.
+    // agentAssignments captured from the impact analyzer are passed to the
+    // applier, which now assigns the correct agentId instead of "unassigned".
 
     if (gateResult.approved && gateResult.autoApproved) {
       // Auto-approved: apply directly
@@ -364,19 +365,20 @@ export class ModelAssistedReplanService {
         draft,
         simulatedGraph,
         expectedPlanRevision,
+        agentAssignments ?? {},
       );
     }
 
     if (gateResult.approved && !gateResult.autoApproved) {
       // Already approved (pre-existing approved record): consume and apply
-      const bindingKey = `replan:${runId}:${draftFingerprint}`;
+      // Use bindingKey from the gate result's record (fingerprint of exact inputs)
+      const bindingKey = gateResult.record!.bindingKey;
       const approvalId = gateResult.approvalId!;
 
       try {
         const consumeResult = await this.options.approvalGate.consumeApproved(
           approvalId,
           bindingKey,
-          runId,
         );
 
         if (!consumeResult.consumed) {
@@ -415,6 +417,7 @@ export class ModelAssistedReplanService {
         draft,
         simulatedGraph,
         expectedPlanRevision,
+        agentAssignments ?? {},
       );
     }
 
@@ -455,6 +458,7 @@ export class ModelAssistedReplanService {
     runId: string,
     proposalId: string,
     approvalId: string,
+    agentAssignments: Record<string, { agentId: string }> = {},
   ): Promise<ServiceResult> {
     // ── 1. Reload run + proposal ─────────────────────────────────────
     const [run, proposal] = await Promise.all([
@@ -495,14 +499,21 @@ export class ModelAssistedReplanService {
 
     // ── 3. Consume the approval ─────────────────────────────────────
 
-    const draftFingerprint = proposal.draftFingerprint;
-    const bindingKey = `replan:${runId}:${draftFingerprint}`;
+    const bindingInput = {
+      kind: "model_assisted_replan",
+      runId,
+      expectedPlanRevision: proposal.expectedPlanRevision,
+      draftFingerprint: proposal.draftFingerprint,
+      impactFingerprint: proposal.impactFingerprint,
+      policyRevision: "current",
+      capabilities: ["coordination.plan.revise"],
+    };
+    const bindingKey = computeFingerprint(bindingInput);
 
     try {
       const consumeResult = await this.options.approvalGate.consumeApproved(
         approvalId,
         bindingKey,
-        runId,
       );
 
       if (!consumeResult.consumed) {
@@ -533,6 +544,7 @@ export class ModelAssistedReplanService {
       proposal.draft,
       proposal.simulatedGraph ?? EMPTY_SIMULATED,
       proposal.expectedPlanRevision,
+      agentAssignments,
     );
   }
 
@@ -547,13 +559,18 @@ export class ModelAssistedReplanService {
     draft: PlanRevisionDraft,
     simulatedGraph: SimulatedGraph,
     expectedPlanRevision: number,
+    agentAssignments: Record<string, { agentId: string }> = {},
   ): Promise<ServiceResult> {
     try {
-      const applyResult = await this.options.applier.apply(
+      const applyResult = await this.options.applier.apply({
         draft,
-        simulatedGraph,
-        proposal.runId,
-      );
+        graph: simulatedGraph,
+        agentAssignments,
+        ownershipScopes: [],
+        ownershipClaims: [],
+        expectedPlanRevision,
+        runId: proposal.runId,
+      });
 
       if (!applyResult.applied) {
         const errMsg = applyResult.errors.join("; ") || "CAS conflict — planRevision mismatch";

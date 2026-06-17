@@ -722,20 +722,19 @@ describe("ModelAssistedReplanService", () => {
     const proposalStore = new ReplanProposalStore(cwd);
     const approvalStore = makeMockApprovalStore();
 
-    const draft = validDraft({ workersToAdd: [{
-      draftWorkerId: "dw-1",
-      taskLabel: "New worker",
-      goalPrompt: "Do new stuff",
-      requiredCapabilities: [],
-      dependencies: [],
-      verificationRequirements: [],
-    }]});
+    // Use a replace draft (no new workers that need agent assignment)
+    const draft = validDraft({
+      workersToAdd: [],
+      workersToReplace: [],
+      workersToCancel: [],
+      workersToModify: [],
+    });
 
     const draftFingerprint = computeFingerprint(draft);
     const simulatedGraph: SimulatedGraph = {
       workers: [],
       edges: [],
-      idMap: { "dw-1": "worker_new_1" },
+      idMap: {},
       valid: true,
       errors: [],
       warnings: [],
@@ -769,13 +768,22 @@ describe("ModelAssistedReplanService", () => {
     await proposalStore.create(proposal);
 
     // Approve it in the approval store manually
-    const bindingKey = `replan:${run.id}:${draftFingerprint}`;
+    const bindingKey = computeFingerprint({
+      kind: "model_assisted_replan",
+      runId: run.id,
+      expectedPlanRevision: proposal.expectedPlanRevision,
+      draftFingerprint: proposal.draftFingerprint,
+      impactFingerprint: proposal.impactFingerprint,
+      policyRevision: "current",
+      capabilities: ["coordination.plan.revise"],
+    });
     const gate = new ReplanApprovalGate(approvalStore);
     const gateResult = await gate.evaluate(
       { riskLevel: "high", agentsAssigned: 1, capabilitiesAdded: [], capabilitiesRemoved: [], ownershipChanges: [], activeLeaseConflicts: [], protectedScopeViolations: [], policyDecisions: [{ workerRef: "dw-1", decision: "ask", reason: "test" }], requiresApproval: true, summary: "" },
       run.id,
       draftFingerprint,
-      computeFingerprint("test"),
+      proposal.impactFingerprint,
+      run.planRevision ?? 0,
     );
 
     const approvalId = gateResult.approvalId!;
@@ -794,6 +802,7 @@ describe("ModelAssistedReplanService", () => {
       run.id,
       proposal.id,
       approvalId,
+      { "dw-1": { agentId: "agent_test" } },
     );
 
     assert.equal(result.status, "applied", `Expected applied, got ${result.status}: ${result.errors.join(", ")}`);

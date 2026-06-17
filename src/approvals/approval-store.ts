@@ -407,6 +407,25 @@ export class ApprovalStore {
   }
 
   /**
+   * Force a fresh load from disk and return an approval by ID.
+   * Unlike get() which may return stale in-memory state, this
+   * reloads the store first to guarantee fresh data.
+   */
+  async loadFresh(approvalId: string): Promise<ApprovalRecord | undefined> {
+    await this.load();
+    return this.approvals.find(a => a.id === approvalId);
+  }
+
+  /**
+   * Force a fresh load and find an approval by exact binding key.
+   * Reloads from disk to ensure the in-memory state is current.
+   */
+  async findExactFresh(bindingKey: string): Promise<ApprovalRecord | undefined> {
+    await this.load();
+    return this.approvals.find(a => a.bindingKey === bindingKey);
+  }
+
+  /**
    * Mark all pending or approved approvals past their expiry as expired.
    * Returns the list of newly expired records.
    */

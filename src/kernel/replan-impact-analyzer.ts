@@ -267,6 +267,7 @@ export class ReplanImpactAnalyzer {
         const existing = existingById.get(rs.targetWorkerId);
         if (!existing) continue;
 
+        // Check existing worker's current scopes for transfer conflicts
         for (const scope of existing.ownershipScopes) {
           const conflicting = await this.options.ownershipRegistry.findConflictsByPattern(scope);
           for (const c of conflicting) {
@@ -293,6 +294,38 @@ export class ReplanImpactAnalyzer {
                   `Ownership claim "${claim.path}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
                 );
               }
+            }
+          }
+        }
+
+        // ALSO check the replacement's proposed scopes for new conflicts
+        const proposedScopes = (rs.replacement as any).ownershipScopes ?? [];
+        for (const scope of proposedScopes) {
+          const conflicting = await this.options.ownershipRegistry.findConflictsByPattern(scope);
+          for (const c of conflicting) {
+            const key = `proposed:${scope}:${c.agentId}:${c.mode}`;
+            if (!reportedConflicts.has(key)) {
+              reportedConflicts.add(key);
+              activeLeaseConflicts.push(
+                `Proposed scope "${scope}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
+              );
+            }
+          }
+        }
+      }
+
+      // Also check proposed scopes for new workers (workersToAdd)
+      for (const w of draft.workersToAdd) {
+        const proposedScopes = (w as any).ownershipScopes ?? [];
+        for (const scope of proposedScopes) {
+          const conflicting = await this.options.ownershipRegistry.findConflictsByPattern(scope);
+          for (const c of conflicting) {
+            const key = `new:${scope}:${c.agentId}:${c.mode}`;
+            if (!reportedConflicts.has(key)) {
+              reportedConflicts.add(key);
+              activeLeaseConflicts.push(
+                `New worker scope "${scope}" conflicts with lease held by "${c.agentId}" (${c.mode})`,
+              );
             }
           }
         }

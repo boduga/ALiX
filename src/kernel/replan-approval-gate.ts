@@ -21,6 +21,7 @@ import type {
 } from "../approvals/approval-types.js";
 import type { ApprovalStore, ApprovalRequestInput } from "../approvals/approval-store.js";
 import type { ImpactAnalysis } from "./replan-types.js";
+import { computeFingerprint } from "./replan-types.js";
 
 // ─── Public types ────────────────────────────────────────────────────────────
 
@@ -46,21 +47,22 @@ export class ReplanApprovalGate {
    * Evaluate a plan revision proposal through the approval gate.
    *
    * When analysis.requiresApproval is false, returns auto-approved immediately.
-   * Otherwise, computes a deterministic binding key from the run ID and draft
-   * fingerprint, then atomically reuses any existing pending approval or creates
-   * a new one via requestOrReusePending().
+   * Otherwise, computes an exact binding key from ALL proposal inputs via
+   * computeFingerprint, then atomically reuses any existing pending approval
+   * or creates a new one via requestOrReusePending().
    *
    * @param analysis — The impact analysis for the proposal.
    * @param runId — The coordination run ID.
    * @param draftFingerprint — The fingerprint of the plan revision draft.
-   * @param impactFingerprint — The fingerprint of the impact analysis (unused
-   *   in this gate but reserved for future policy checks).
+   * @param impactFingerprint — The fingerprint of the impact analysis.
+   * @param expectedPlanRevision — The plan revision number of the run at proposal time.
    */
   async evaluate(
     analysis: ImpactAnalysis,
     runId: string,
     draftFingerprint: string,
     impactFingerprint: string,
+    expectedPlanRevision: number,
   ): Promise<ApprovalGateResult> {
     // Auto-approve when no approval is required
     if (!analysis.requiresApproval) {
@@ -71,12 +73,23 @@ export class ReplanApprovalGate {
       };
     }
 
-    const bindingKey = `replan:${runId}:${draftFingerprint}`;
+    // Compute exact binding key from ALL proposal inputs so that any change
+    // to revision, draft, impact, or policy produces a different binding.
+    const bindingInput = {
+      kind: "model_assisted_replan",
+      runId,
+      expectedPlanRevision,
+      draftFingerprint,
+      impactFingerprint,
+      policyRevision: "current",
+      capabilities: ["coordination.plan.revise"],
+    };
+    const requestFingerprint = computeFingerprint(bindingInput);
 
     // Check for existing non-terminal records by binding key FIRST so we don't
     // create a duplicate when a previous evaluate() created a pending that was
     // later resolved to "approved". requestOrReusePending only matches "pending".
-    const existing = this.approvalStore.findExact(bindingKey);
+    const existing = this.approvalStore.findExact(requestFingerprint);
     if (existing) {
       if (existing.status === "approved") {
         return {
@@ -102,9 +115,9 @@ export class ReplanApprovalGate {
 
     const input: ApprovalRequestInput = {
       reason: `Plan revision for run ${runId} requires approval (risk: ${analysis.riskLevel})`,
-      bindingKey,
-      requestFingerprint: `replan:${runId}:${draftFingerprint}:${impactFingerprint}`,
-      policyRevision: draftFingerprint,
+      bindingKey: requestFingerprint,
+      requestFingerprint,
+      policyRevision: "current",
       capabilities: ["coordination.plan.revise"],
       coordinationRunId: runId,
       riskLevel: analysis.riskLevel as "low" | "medium" | "high" | "critical",
@@ -152,17 +165,14 @@ export class ReplanApprovalGate {
 
   /**
    * Apply (consume) an approved approval record.
-   * Verifies exact binding key and coordination run ID before consuming.
+   * Verifies exact binding key before consuming.
    *
    * @returns The result of consuming the approval.
    */
   async consumeApproved(
     approvalId: string,
     expectedBindingKey: string,
-    coordinationRunId: string,
   ): Promise<ConsumeResult> {
-    return this.approvalStore.consumeApproved(approvalId, expectedBindingKey, {
-      workerId: coordinationRunId,
-    });
+    return this.approvalStore.consumeApproved(approvalId, expectedBindingKey, {});
   }
 }
