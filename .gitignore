@@ -33,7 +33,6 @@ npm-debug.log*
 
 # Test artifacts
 .test-*
-vitest.config.mts
 
 # OS/editor noise
 .DS_Store
