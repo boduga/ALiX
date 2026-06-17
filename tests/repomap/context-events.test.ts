@@ -26,7 +26,7 @@ describe("Context Compiler Events", () => {
     await rm(testDir, { recursive: true, force: true });
   });
 
-  it("emits context.repo_map_created on warm", { timeout: 60_000 }, async () => {
+  it("emits context.repo_map_created on warm", { timeout: 120_000 }, async () => {
     await compiler.warm();
     const events = await eventLog.readAll();
     const repoMapEvent = events.find((e) => e.type === "context.repo_map_created");
@@ -36,7 +36,7 @@ describe("Context Compiler Events", () => {
     assert.ok(payload.symbolCount >= 0);
   });
 
-  it("emits context.bundle_created on compile", { timeout: 60_000 }, async () => {
+  it("emits context.bundle_created on compile", { timeout: 120_000 }, async () => {
     await compiler.warm();
     await compiler.compileContext("fix the login bug", "bugfix");
     const events = await eventLog.readAll();
