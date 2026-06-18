@@ -172,6 +172,12 @@ Usage:
   alix audit verify --json       Structured integrity report
   alix audit checkpoint --output <path>  Create signed checkpoint
   alix audit checkpoint-verify <path>    Verify checkpoint evidence
+  alix evidence list [--kind <type>] [--limit <n>] [--json]
+                                   List evidence records
+  alix evidence show <fingerprint> Show evidence record by fingerprint
+  alix evidence query --kind <type> [--after <iso>] [--before <iso>] [--json]
+                                   Query evidence by type and time range
+  alix evidence verify             Run fingerprint chain verification
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
   alix daemon start      Start the background daemon
@@ -2462,6 +2468,13 @@ if (command === "audit") {
   process.exit(0);
 }
 
+// ── Evidence commands (P4.4b) ──────────────────────────────────────
+if (command === "evidence") {
+  const { handleEvidenceCommand } = await import("./cli/commands/evidence.js");
+  await handleEvidenceCommand(args);
+  process.exit(0);
+}
+
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);
@@ -2671,6 +2684,18 @@ if (command === "security" && args[0] === "config" && args[1] === "sign") {
     console.log(`Config hash: ${sig.configHash}`);
     console.log(`Signed at:   ${sig.signedAt}`);
     console.log(`Signature:   .alix/config/config.sig`);
+
+    // P4.4c: Record signing evidence
+    try {
+      const { ConfigTrustHistory } = await import("./security/evidence/config-trust-history.js");
+      const history = new ConfigTrustHistory();
+      const ev = await history.recordSign(sig);
+      if (ev) {
+        console.log(`Evidence:    ${ev.fingerprint}`);
+      }
+    } catch {
+      // Evidence recording is best-effort
+    }
   } catch (err: any) {
     console.error(`Signing failed: ${err.message}`);
     process.exit(1);
