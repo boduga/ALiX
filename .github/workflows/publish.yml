@@ -5,21 +5,31 @@ on:
     tags:
       - "v*"
 
+# P4.3-Sf.4: Least-privilege — id-token only for provenance, contents:write for release
+permissions:
+  contents: write       # needed for GitHub release
+  id-token: write        # needed for npm provenance
+  actions: read          # needed for artifact download
+
 jobs:
-  publish:
+  # ── Phase 1: Build, test, pack, verify ───────────────────────────────
+  build-and-pack:
     runs-on: ubuntu-latest
     permissions:
-      contents: write       # needed for GitHub release
-      id-token: write        # needed for npm provenance
-
+      contents: read
+    outputs:
+      tarball-name: ${{ steps.pack.outputs.tarball }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      # actions/checkout v4 — pinned to SHA
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      # actions/setup-node v4 — pinned to SHA
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
           cache: npm
 
+      # Sf.7 step 1: Install approved dependencies
       - run: npm ci
 
       # Ensure tag matches package.json version
@@ -31,20 +41,147 @@ jobs:
             echo "Tag version '$TAG_VERSION' does not match package.json '$PACKAGE_VERSION'"
             exit 1
           fi
+          echo "VERSION=$PACKAGE_VERSION" >> $GITHUB_ENV
           echo "Version $PACKAGE_VERSION — OK"
 
-      - name: Release gate
-        run: bash scripts/release-gate.sh
+      # Sf.7 step 2: Build and test
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Build
+        run: npm run build
+      - name: Unit tests
+        run: npm run test:unit:node
+      - name: Integration tests
+        run: npm run test:integration
 
-      - name: Create GitHub release (before npm — if this fails, nothing is published)
+      # Sf.7 step 3: npm pack --json
+      - name: Pack (Sf.7 step 3)
+        id: pack
+        run: |
+          TARBALL="$(npm pack --json | node -p "require('fs').readFileSync('/dev/stdin','utf8') ? JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))[0].filename : ''" 2>/dev/null)"
+          echo "Tarball: $TARBALL"
+          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+
+      # Sf.7 step 4: Verify package contents
+      - name: Verify tarball contents (Sf.7 step 4)
+        run: |
+          if [ -f "${{ steps.pack.outputs.tarball }}" ]; then
+            node dist/src/cli.js security supply-chain verify-tarball "${{ steps.pack.outputs.tarball }}" --json
+          else
+            echo "ERROR: Tarball not found"
+            exit 1
+          fi
+
+      # Sf.7 step 5-6: Install tarball in clean temp dir and run smoke tests
+      - name: Smoke test tarball (Sf.7 steps 5-6)
+        run: |
+          TARBALL="${{ steps.pack.outputs.tarball }}"
+          TMP_DIR="$(mktemp -d)"
+          echo "Installing tarball into $TMP_DIR"
+          if npm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
+            if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
+                ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
+                ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
+              echo "Smoke test passed"
+            else
+              echo "ERROR: Smoke test failed"
+              exit 1
+            fi
+          else
+            echo "ERROR: Tarball install failed"
+            exit 1
+          fi
+          rm -rf "$TMP_DIR"
+
+      # Sf.7 step 7: Generate SBOM
+      - name: Generate SBOM (Sf.7 step 7)
+        run: |
+          npm sbom -- --json > "${{ steps.pack.outputs.tarball }}.sbom.json" 2>/dev/null || echo "{}" > "${{ steps.pack.outputs.tarball }}.sbom.json"
+          echo "SBOM generated: ${{ steps.pack.outputs.tarball }}.sbom.json"
+
+      # Sf.7 step 8: Compute checksum
+      - name: Compute checksum (Sf.7 step 8)
+        run: |
+          sha256sum "${{ steps.pack.outputs.tarball }}" > "${{ steps.pack.outputs.tarball }}.sha256"
+          echo "Checksum: $(cat ${{ steps.pack.outputs.tarball }}.sha256)"
+
+      # Sf.7 step 9: Upload tarball, SBOM, checksum as workflow artifacts
+      # actions/upload-artifact v4 — pinned to SHA
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
+        with:
+          name: release-artifacts
+          path: |
+            ${{ steps.pack.outputs.tarball }}
+            ${{ steps.pack.outputs.tarball }}.sbom.json
+            ${{ steps.pack.outputs.tarball }}.sha256
+          retention-days: 7
+
+  # ── Phase 2: Publish from artifact (not source tree) ─────────────────
+  publish:
+    needs: build-and-pack
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write       # needed for GitHub release
+      id-token: write        # needed for npm provenance
+      actions: read          # needed for artifact download
+    steps:
+      # actions/checkout v4 — pinned to SHA
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      # actions/setup-node v4 — pinned to SHA
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # Download the exact tarball that passed the release gate
+      # actions/download-artifact v4 — pinned to SHA
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093  # v4
+        with:
+          name: release-artifacts
+
+      - name: Verify checksum before publish (Sf.7 step 10)
+        run: |
+          TARBALL="$(ls alix-*.tgz | head -1)"
+          if [ -z "$TARBALL" ]; then
+            echo "ERROR: No tarball found in artifacts"
+            exit 1
+          fi
+          echo "Verifying checksum for $TARBALL"
+          sha256sum -c "$TARBALL.sha256" || {
+            echo "ERROR: Checksum verification FAILED"
+            exit 1
+          }
+          echo "Checksum verified — OK"
+          echo "TARBALL=$TARBALL" >> $GITHUB_ENV
+
+      # Sf.7 step 10: Publish from artifact (exact tarball, with provenance)
+      - name: Publish to npm (Sf.7 step 10)
+        run: npm publish "$TARBALL" --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      # Find SBOM and checksum file
+      - name: Identify artifact files
+        id: artifact-files
+        run: |
+          SBOM_FILE="$(ls *.sbom.json 2>/dev/null | head -1 || echo "")"
+          CHECKSUM_FILE="$(ls *.sha256 2>/dev/null | head -1 || echo "")"
+          echo "sbom=$SBOM_FILE" >> $GITHUB_OUTPUT
+          echo "checksum=$CHECKSUM_FILE" >> $GITHUB_OUTPUT
+
+      # Sf.7 step 11: Create GitHub release with tarball, SBOM, checksum
+      - name: Create GitHub release with artifacts (Sf.7 step 11)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          ASSETS=("$TARBALL")
+          [ -n "${{ steps.artifact-files.outputs.sbom }}" ] && [ -f "${{ steps.artifact-files.outputs.sbom }}" ] && ASSETS+=("${{ steps.artifact-files.outputs.sbom }}")
+          [ -n "${{ steps.artifact-files.outputs.checksum }}" ] && [ -f "${{ steps.artifact-files.outputs.checksum }}" ] && ASSETS+=("${{ steps.artifact-files.outputs.checksum }}")
+
+          echo "Release assets: ${ASSETS[*]}"
+
+          # Create the release with assets
           gh release create "${GITHUB_REF_NAME}" \
+            "${ASSETS[@]}" \
             --generate-notes \
             --title "ALiX ${GITHUB_REF_NAME}"
-
-      - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

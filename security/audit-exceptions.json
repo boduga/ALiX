@@ -1,0 +1,65 @@
+{
+  "$schema": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/audit-exceptions.schema.json",
+  "description": "Exceptions for npm audit advisories that have been reviewed and accepted.",
+  "lastReviewed": "2026-06-18",
+  "policy": {
+    "failOnUnexcepted": true,
+    "failOnExpired": true,
+    "failSeverity": "critical",
+    "warnSeverity": "high",
+    "expiryWindowDays": 90,
+    "productionOnly": false
+  },
+  "advisories": [
+    {
+      "id": "@xenova/transformers",
+      "severity": "high",
+      "package": "@xenova/transformers",
+      "title": "Post-Install Script Execution Risk in transformers.js",
+      "reason": "@xenova/transformers is a deprecated package used for local embeddings. It runs postinstall scripts. Migration to @huggingface/transformers is planned (M0.82). The package is isolated and does not handle user input at runtime.",
+      "owner": "boduga",
+      "created": "2026-06-18",
+      "expiry": "2026-09-16"
+    },
+    {
+      "id": "onnx-proto",
+      "severity": "high",
+      "package": "onnx-proto",
+      "title": "Prototype Pollution in Protobufjs (transitive via onnx-proto)",
+      "reason": "Transitive dependency of @xenova/transformers. Not directly used by ALiX. Prototype pollution risk is limited to internal ONNX model parsing — no user-controlled input reaches the vulnerable path.",
+      "owner": "boduga",
+      "created": "2026-06-18",
+      "expiry": "2026-09-16"
+    },
+    {
+      "id": "onnxruntime-web",
+      "severity": "high",
+      "package": "onnxruntime-web",
+      "title": "Vulnerable ONNX Runtime Web Version",
+      "reason": "Transitive dependency of @xenova/transformers. Used only for ML model inference, not accessible via network. Migration to @huggingface/transformers will eliminate this dependency.",
+      "owner": "boduga",
+      "created": "2026-06-18",
+      "expiry": "2026-09-16"
+    },
+    {
+      "id": "protobufjs",
+      "severity": "critical",
+      "package": "protobufjs",
+      "title": "Prototype Pollution in protobufjs (< 7.6.2)",
+      "reason": "Transitive dependency via @xenova/transformers. ALiX does not parse untrusted protobuf input. The library is used internally for ONNX model format only. Migration to updated transformers will resolve this.",
+      "owner": "boduga",
+      "created": "2026-06-18",
+      "expiry": "2026-09-16"
+    },
+    {
+      "id": "vite",
+      "severity": "high",
+      "package": "vite",
+      "title": "Dev-only: Vite Server File Access Vulnerability",
+      "reason": "Dev dependency only — vitest uses vite. Development-only exposure; not shipped in production tarball. Vite dev server is only run locally during test execution.",
+      "owner": "boduga",
+      "created": "2026-06-18",
+      "expiry": "2026-09-16"
+    }
+  ]
+}

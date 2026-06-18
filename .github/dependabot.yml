@@ -1,0 +1,50 @@
+# P4.3-Sf.4 — Dependabot configuration for npm and GitHub Actions
+# Weekly schedule; auto-merge for patch updates (semver patch).
+#
+# Dependabot will pin GitHub Actions to SHA with version comments
+# and keep npm dependencies updated.
+
+version: 2
+updates:
+  # ── npm dependencies ──────────────────────────────────────────────────
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    versioning-strategy: "increase"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "needs-triage"
+    # Group patch updates together for auto-merge
+    groups:
+      patch-updates:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "patch"
+    commit-message:
+      prefix: "deps"
+      prefix-development: "deps-dev"
+      include: "scope"
+
+  # ── GitHub Actions ────────────────────────────────────────────────────
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "UTC"
+    labels:
+      - "dependencies"
+      - "ci"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
+    # Pin actions to SHA with version comment
+    # Dependabot will update both the SHA and the comment
