@@ -26,7 +26,7 @@ import type { TraceEvent } from "../runtime/trace-events.js";
 
 export type TelemetryCategory =
   | "provider" | "tool" | "worker" | "coordination" | "approval"
-  | "ownership" | "recovery" | "daemon" | "memory" | "cost";
+  | "ownership" | "recovery" | "daemon" | "memory" | "cost" | "security";
 
 export type TelemetrySeverity = "debug" | "info" | "warning" | "error" | "critical";
 
@@ -124,6 +124,7 @@ const CATEGORY_MAP: Record<string, TelemetryCategory> = {
   "daemon.": "daemon",
   "worker.": "worker",
   "session.": "daemon",
+  "security.": "security",
 };
 
 function inferCategory(eventType: string): TelemetryCategory {
@@ -200,6 +201,7 @@ export function normalizeMetricEvent(event: MetricInputType): TelemetryEnvelope 
     : event.name.startsWith("provider.") ? "provider"
     : event.name.startsWith("memory.") ? "memory"
     : event.name.startsWith("daemon.") ? "daemon"
+    : event.name.startsWith("security_") ? "security"
     : "tool";
 
   return {

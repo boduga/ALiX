@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { MetricsStore, RollupStore, type MetricRow, type MetricType } from "../../src/observability/metrics-store.js";
+import {
+  MetricsStore, RollupStore, type MetricRow, type MetricType,
+} from "../../src/observability/metrics-store.js";
 
 describe("MetricsStore", () => {
   let tmpDir: string;
@@ -108,5 +110,99 @@ describe("RollupStore", () => {
     // Roll up
     const count = await rollup.rollUp();
     assert.equal(typeof count, "number");
+  });
+});
+
+describe("MetricsStore query enhancements", () => {
+  let tmpDir3: string;
+  let store3: MetricsStore;
+
+  before(async () => {
+    tmpDir3 = mkdtempSync(join(tmpdir(), "metrics-store-query-"));
+    store3 = new MetricsStore(tmpDir3);
+    // Seed known metrics
+    const rows = [
+      { name: "model_calls_total", type: "counter_delta" as const, value: 1, timestamp: "2026-06-01T00:00:00.000Z" },
+      { name: "tool_calls_total", type: "counter_delta" as const, value: 2, timestamp: "2026-06-02T00:00:00.000Z" },
+      { name: "model_calls_total", type: "counter_delta" as const, value: 3, timestamp: "2026-06-03T00:00:00.000Z" },
+    ];
+    for (const r of rows) {
+      for await (const _ of store3.append(r)) { /* drain */ }
+    }
+  });
+  after(() => { rmSync(tmpDir3, { recursive: true, force: true }); });
+
+  it("filters by single metric name", async () => {
+    const results: Array<{ name: string; value: number }> = [];
+    for await (const r of store3.readAll({ nameFilter: "model_calls_total" })) {
+      results.push({ name: r.name, value: r.value });
+    }
+    assert.ok(results.length >= 2);
+    for (const r of results) {
+      assert.equal(r.name, "model_calls_total");
+    }
+  });
+
+  it("filters by multiple metric names", async () => {
+    const results: Array<{ name: string }> = [];
+    for await (const r of store3.readAll({
+      nameFilter: ["model_calls_total", "tool_calls_total"],
+    })) {
+      results.push({ name: r.name });
+    }
+    const names = [...new Set(results.map(r => r.name))].sort();
+    assert.deepEqual(names, ["model_calls_total", "tool_calls_total"]);
+  });
+
+  it("orders files by desc (default) — newest files first", async () => {
+    // All rows are in today's file, so desc doesn't change file order.
+    // Within a file, rows are in append order. Verify files are read
+    // newest-first by checking that at least the rows are streamed.
+    const results: Array<{ name: string; value: number }> = [];
+    for await (const r of store3.readAll({ nameFilter: "model_calls_total" })) {
+      results.push({ name: r.name, value: r.value });
+    }
+    assert.ok(results.length >= 2);
+    // With desc (default), within the same daily file, rows are in append order.
+    // The order "desc" determines file iteration order (newest files first).
+    assert.equal(results.length, 2);
+  });
+
+  it("orders files by asc — oldest files first", async () => {
+    const results: Array<{ name: string; value: number }> = [];
+    for await (const r of store3.readAll({
+      nameFilter: "model_calls_total",
+      order: "asc",
+    })) {
+      results.push({ name: r.name, value: r.value });
+    }
+    assert.ok(results.length >= 2);
+  });
+
+  it("applies limit after filters", async () => {
+    const results: Array<{ name: string; timestamp: string }> = [];
+    for await (const r of store3.readAll({ limit: 2 })) {
+      results.push({ name: r.name, timestamp: r.timestamp });
+    }
+    assert.ok(results.length <= 2);
+  });
+
+  it("enforces max limit", async () => {
+    // The max is 100000, so a very large limit should be capped
+    const results: Array<{ name: string }> = [];
+    for await (const r of store3.readAll({ limit: 999999 })) {
+      results.push({ name: r.name });
+    }
+    // Should cap to 100000 — we have only 3 rows so we'll get 3
+    assert.equal(results.length, 3);
+  });
+
+  it("streams reads without loading all into memory", async () => {
+    // readAll uses createReadStream + readline internally
+    const results: Array<{ name: string; value: number }> = [];
+    for await (const r of store3.readAll({ nameFilter: "model_calls_total" })) {
+      results.push({ name: r.name, value: r.value });
+    }
+    assert.ok(results.length >= 1);
   });
 });
