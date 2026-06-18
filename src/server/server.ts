@@ -21,7 +21,9 @@ import { createSecureResponder, type SecureJsonResponder } from "./secure-respon
 import { SecretDetector } from "../security/redaction/secret-detector.js";
 import { AuthStore } from "../security/inspector/auth-store.js";
 import { AuthService } from "../security/inspector/auth-service.js";
+import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
 import { getUserStatePaths } from "../security/platform/user-state-paths.js";
+import { handleSessionExchange, handleLogout } from "./auth-routes.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -107,13 +109,17 @@ export function startServer(root: string, host: string, port: number, allowedHos
   const noopMetrics: MetricsFn = () => {};
   const authService = new AuthService(authStore, fileAudit, noopMetrics);
 
-  // Create the security middleware with bearer token validation
+  // P4.3-Sb3: In-memory browser session store
+  const sessionStore = new BrowserSessionStore();
+
+  // Create the security middleware with bearer token validation and session cookies
   const securityMiddleware = createSecurityMiddleware({
     host,
     allowedHosts: effectiveAllowed,
     registry: routeRegistry,
     detector,
     authService,
+    sessionStore,
   });
 
   const server = createServer(async (req, res) => {
@@ -152,6 +158,20 @@ export function startServer(root: string, host: string, port: number, allowedHos
         res.end("OK");
         return;
       }
+
+      // P4.3-Sb3: Auth routes — session exchange and logout
+      // Handled BEFORE the main authenticated-required routing so
+      // unauthenticated clients can reach them.  Token validation
+      // is performed by the handler itself, not the middleware.
+      if (url.pathname === "/api/auth/session" && req.method === "POST") {
+        await handleSessionExchange(req, res, secure, authService, sessionStore, host);
+        return;
+      }
+      if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+        await handleLogout(req, res, secure, sessionStore);
+        return;
+      }
+
       if (url.pathname === "/") {
         res.setHeader("content-type", "text/html");
         res.end(await readFile(join(root, "dist", "src", "ui", "index.html"), "utf8"));

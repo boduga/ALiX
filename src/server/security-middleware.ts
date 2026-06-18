@@ -25,6 +25,7 @@ import { authorize } from "../security/inspector/authorization.js";
 import { SecretDetector } from "../security/redaction/secret-detector.js";
 import { createSecureResponder } from "./secure-response.js";
 import type { AuthService } from "../security/inspector/auth-service.js";
+import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
 import { parseToken } from "../security/inspector/token-format.js";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,7 @@ export interface SecurityMiddlewareConfig {
   host: string;
   /** Allowed host values (for logging, not validated here). */
   allowedHosts?: string[];
-  /** The route policy registry (with all 33 routes registered). */
+  /** The route policy registry (with all routes registered). */
   registry: RoutePolicyRegistry;
   /** Pre-configured secret detector. */
   detector: SecretDetector;
@@ -51,6 +52,12 @@ export interface SecurityMiddlewareConfig {
    * set `authenticated: true` on the SecurityContext for valid tokens.
    */
   authService?: AuthService;
+  /**
+   * Browser session store for cookie-based authentication (Sb3).
+   * When provided, the middleware will parse the ALiX session cookie
+   * and authenticate requests with valid sessions.
+   */
+  sessionStore?: BrowserSessionStore;
 }
 
 // ---------------------------------------------------------------------------
@@ -111,6 +118,34 @@ function extractBearerToken(req: IncomingMessage, url: URL): BearerResult {
 }
 
 // ---------------------------------------------------------------------------
+// Session cookie parsing (Sb3)
+// ---------------------------------------------------------------------------
+
+/** Session cookie name. */
+const SESSION_COOKIE = "alix-session";
+
+/**
+ * Parse the ALiX session cookie from the Cookie header.
+ *
+ * Returns the session ID or null if not found.
+ */
+function parseSessionCookie(req: IncomingMessage): string | null {
+  const cookieHeader = req.headers["cookie"];
+  if (!cookieHeader) return null;
+
+  const cookieStr = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
+
+  // Parse: alix-session=<value>
+  const match = cookieStr.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
+  if (match) {
+    const value = match[1];
+    if (value.length > 0) return value;
+  }
+
+  return null;
+}
+
+// ---------------------------------------------------------------------------
 // Middleware factory
 // ---------------------------------------------------------------------------
 
@@ -126,12 +161,17 @@ function extractBearerToken(req: IncomingMessage, url: URL): BearerResult {
  * 2. Verify tokens against the auth store.
  * 3. Set `authenticated: true`, `tokenId`, and `permissions` on the context.
  *
+ * With Sb3, if `sessionStore` is provided, the middleware will:
+ * 1. Parse the ALiX session cookie from the Cookie header.
+ * 2. Look up the session in the store.
+ * 3. Set `authenticated: true`, `tokenId`, and `permissions` for valid sessions.
+ *
  * If the request is denied (unauthenticated for an auth-required route,
  * or invalid auth), the function sends a structured error response and
  * returns `null`.
  */
 export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
-  const { host, registry, detector, enforceAuth, authService } = config;
+  const { host, registry, detector, enforceAuth, authService, sessionStore } = config;
 
   return async function securityMiddleware(
     req: IncomingMessage,
@@ -148,8 +188,24 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
     // 3. Create base security context (unauthenticated by default)
     let ctx = createSecurityContext({ route });
 
-    // 4. Bearer token authentication (Sb2)
-    if (authService) {
+    // 4. Session cookie authentication (Sb3) — takes priority over Bearer
+    if (sessionStore) {
+      const sessionId = parseSessionCookie(req);
+      if (sessionId) {
+        const session = sessionStore.getSession(sessionId);
+        if (session) {
+          ctx = createSecurityContext({
+            authenticated: true,
+            tokenId: session.principal.id,
+            permissions: derivePermissions(session.principal.role),
+            route,
+          });
+        }
+      }
+    }
+
+    // 5. Bearer token authentication (Sb2) — fallback if no valid session
+    if (authService && !ctx.authenticated) {
       const bearerResult = extractBearerToken(req, url);
 
       if (!bearerResult.ok) {
@@ -188,7 +244,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
       }
     }
 
-    // 5. If enforcement is active, check authorization
+    // 6. If enforcement is active, check authorization
     if (enforceAuth && route) {
       const result = authorize(ctx, route);
       if (!result.ok) {

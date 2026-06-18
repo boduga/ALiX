@@ -278,9 +278,9 @@ describe("RoutePolicyRegistry", () => {
 });
 
 describe("canonical routeRegistry instance", () => {
-  it("has all 33 routes registered", () => {
+  it("has all 35 routes registered", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 33, `expected 33 routes, got ${all.length}`);
+    assert.equal(all.length, 35, `expected 35 routes, got ${all.length}`);
   });
 
   it("all routes have unique ids", () => {
@@ -305,11 +305,14 @@ describe("canonical routeRegistry instance", () => {
     assert.equal(d!.routeClass, "static");
   });
 
-  it("API routes are authenticated", () => {
+  it("API routes are authenticated (except auth and SSE)", () => {
     const api = routeRegistry.getApiRoutes();
     for (const d of api) {
       // SSE routes are exempt from authenticated check
       if (d.routeClass === "sse") continue;
+      // Auth routes (Sb3) are intentionally public — token validation
+      // happens at the body level inside the handler
+      if (d.routeClass === "auth") continue;
       assert.equal(
         d.auth,
         "authenticated",

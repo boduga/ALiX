@@ -82,6 +82,10 @@ const IMPLEMENTED_ROUTES: ImplementedRoute[] = [
   { pathname: "/api/coordination/run-001/ownership", method: "GET", source: "coordination-routes.ts" },
   { pathname: "/api/coordination/run-001/conflicts", method: "GET", source: "coordination-routes.ts" },
   { pathname: "/api/coordination/run-001/conflicts/conf-001", method: "GET", source: "coordination-routes.ts" },
+
+  // -- Auth (Sb3) ---------------------------------------------------------
+  { pathname: "/api/auth/session", method: "POST", source: "server.ts" },
+  { pathname: "/api/auth/logout", method: "POST", source: "server.ts" },
 ];
 
 // ---------------------------------------------------------------------------
@@ -163,12 +167,12 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("all P4.3-S routes use GET method", () => {
+  it("non-GET routes are limited to auth endpoints (Sb3)", () => {
     const all = routeRegistry.getAll();
     const nonGet: string[] = [];
 
     for (const d of all) {
-      if (d.method !== "GET") {
+      if (d.method !== "GET" && d.routeClass !== "auth") {
         nonGet.push(`${d.id} (${d.method} ${d.pathPattern})`);
       }
     }
@@ -176,13 +180,13 @@ describe("Route coverage (Sb1.3)", () => {
     assert.equal(
       nonGet.length,
       0,
-      `Non-GET route(s) found: ${nonGet.join(", ")}`,
+      `Non-GET non-auth route(s) found: ${nonGet.join(", ")}`,
     );
   });
 
-  it("registry has exactly 33 routes", () => {
+  it("registry has exactly 35 routes", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 33, `expected 33 routes, got ${all.length}`);
+    assert.equal(all.length, 35, `expected 35 routes, got ${all.length}`);
   });
 
   it("all 33 routes have distinct ids", () => {

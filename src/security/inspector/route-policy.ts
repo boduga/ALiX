@@ -604,3 +604,29 @@ routeRegistry.register({
   redactionProfile: "operational",
   streaming: false,
 });
+
+// ---------------------------------------------------------------------------
+// Route registration — auth routes (public, Sb3)
+// ---------------------------------------------------------------------------
+
+routeRegistry.register({
+  id: "auth.session.create",
+  method: "POST",
+  pathPattern: "/api/auth/session",
+  pathType: "exact",
+  auth: "public",
+  routeClass: "auth",
+  redactionProfile: "public",
+  streaming: false,
+});
+
+routeRegistry.register({
+  id: "auth.session.delete",
+  method: "POST",
+  pathPattern: "/api/auth/logout",
+  pathType: "exact",
+  auth: "public",
+  routeClass: "auth",
+  redactionProfile: "public",
+  streaming: false,
+});

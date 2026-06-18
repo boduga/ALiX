@@ -849,3 +849,15 @@ loadAudit();
 loadRuntimeEvents();
 loadDaemonStatus();
 loadDaemonTasks();
+
+// P4.3-Sb3: Expose reload function for auth.js to call after login
+window.reloadInspectorData = function () {
+  loadRegistry();
+  loadGraphList();
+  loadPolicyRules();
+  loadApprovals();
+  loadAudit();
+  loadRuntimeEvents();
+  loadDaemonStatus();
+  loadDaemonTasks();
+};

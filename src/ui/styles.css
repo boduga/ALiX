@@ -1236,3 +1236,141 @@ h3 {
   padding: 0.1rem 0.4rem;
   border-radius: 3px;
 }
+
+/* === P4.3-Sb3: Login overlay === */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 14, 15, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.login-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-line);
+  border-radius: 12px;
+  padding: 32px;
+  width: min(400px, calc(100vw - 32px));
+  text-align: center;
+}
+
+.login-card h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.login-lede {
+  color: var(--muted);
+  font-size: 14px;
+  margin-bottom: 24px;
+}
+
+.login-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.login-card label {
+  font-size: 13px;
+  color: var(--muted);
+  text-align: left;
+}
+
+.login-card input {
+  background: var(--bg);
+  border: 1px solid var(--panel-line);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 14px;
+  padding: 10px 14px;
+}
+
+.login-card input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.login-card button {
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #0b0e0f;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px;
+  margin-top: 4px;
+  transition: all 0.15s ease;
+}
+
+.login-card button:hover:not(:disabled) {
+  background: #9ec040;
+  box-shadow: 0 4px 16px rgba(143, 184, 69, 0.25);
+  transform: translateY(-1px);
+}
+
+.login-card button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.login-error {
+  color: #ff6b4a;
+  font-size: 13px;
+  margin: 0;
+  padding: 8px;
+  background: rgba(255, 72, 72, 0.08);
+  border-radius: 6px;
+}
+
+.login-help {
+  color: var(--muted);
+  font-size: 11px;
+  margin: 16px 0 0;
+}
+
+/* === P4.3-Sb3: Auth bar (shown when authenticated) === */
+.auth-bar {
+  position: fixed;
+  top: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--panel-line);
+  border-left: 1px solid var(--panel-line);
+  border-radius: 0 0 0 8px;
+  z-index: 500;
+  font-size: 13px;
+}
+
+.auth-role {
+  color: var(--accent);
+  font-weight: 500;
+}
+
+.logout-btn {
+  background: transparent;
+  border: 1px solid var(--panel-line);
+  border-radius: 5px;
+  color: var(--text);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  transition: all 0.15s ease;
+}
+
+.logout-btn:hover {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
