@@ -2417,6 +2417,12 @@ if (command === "security" && args[0] === "doctor") {
   process.exit(0);
 }
 
+if (command === "security" && args[0] === "gate") {
+  const { handleSecurityGate } = await import("./cli/commands/security.js");
+  await handleSecurityGate(args.slice(1));
+  process.exit(0);
+}
+
 // --- alix credential --- P4.3-Se1 credential store management ---
 if (command === "credential") {
   const sub = args[0] ?? "";
@@ -2486,7 +2492,8 @@ if (command === "inspector" && args[0] === "auth") {
 }
 
 if (command === "security") {
-  console.error("Usage: alix security doctor");
+  console.error("Usage: alix security doctor [--json]");
+  console.error("       alix security gate [--json]");
   console.error("       alix credential list|get|set|delete|migrate");
   process.exit(1);
 }

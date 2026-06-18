@@ -31,8 +31,8 @@
 
 ## 2. Route Inventory
 
-**Total counted routes: 33**
-**All routes are GET only.** No state-changing HTTP routes (POST/PUT/DELETE/PATCH) exist.
+**Total counted routes: 35** (updated P4.3-Sg)
+**All routes are GET only except auth session exchange and logout (POST).**
 
 ### Classification Counts
 
@@ -66,6 +66,8 @@
 | 17 | `GET /api/sessions/compare` | authenticated_read |
 | 18 | `GET /api/sessions/:sessionId/snapshot` | authenticated_read |
 | 19 | `GET /api/sessions/:sessionId/events` | sse |
+| 20 | `GET /api/doctor` | authenticated_read |
+| 21 | `GET /api/security/status` | authenticated_read |
 
 ### Observability Routes (`src/observability/observability-routes.ts`)
 
@@ -471,3 +473,51 @@ No `preinstall`, `postinstall`, `prepare`, or other lifecycle scripts in `packag
 - Release gate runs comprehensive validation before publishing
 - Packed-artifact smoke test validates the installable tarball
 - No lifecycle scripts in dependencies
+
+---
+
+## 10. P4.3-Sg Additions — Security Health, Gate, and Documentation
+
+### 10.1 New Source Files
+
+| File | Purpose |
+|---|---|
+| `src/server/security-alerts.ts` | Passive health assessment, alert types, status response builder |
+| `src/cli/commands/security.ts` (updated) | Added `alix security doctor` and `alix security gate` |
+| `src/cli.ts` (updated) | Registered `security gate` subcommand routing |
+| `src/server/server.ts` (updated) | Added `GET /api/security/status` handler |
+| `src/security/inspector/route-policy.ts` (updated) | Registered `api.security.status` route |
+
+### 10.2 New Routes
+
+| # | Path | Classification | Route ID |
+|---|---|---|---|
+| 34 | `GET /api/doctor` | authenticated_read | `api.doctor` |
+| 35 | `GET /api/security/status` | authenticated_read | `api.security.status` |
+
+### 10.3 New CLI Commands
+
+| Command | Description |
+|---|---|
+| `alix security doctor` | Comprehensive passive security diagnosis |
+| `alix security doctor --json` | Machine-readable doctor report |
+| `alix security gate` | Pre-deployment acceptance gate |
+| `alix security gate --json` | Machine-readable gate report |
+
+### 10.4 New Documentation
+
+| File | Purpose |
+|---|---|
+| `docs/security/architecture.md` | Overall security architecture with trust boundaries, component interaction, data flows |
+| `docs/security/threat-model.md` | STRIDE analysis per trust boundary, abuse cases, residual risks |
+| `docs/security/operations.md` | Operations guide (tokens, credentials, config signing, audit, doctor, alerts) |
+| `docs/security/acceptance-matrix.md` | Attacks vs controls vs validation tests |
+| `docs/security/rollout-strategy.md` | Phased deployment plan (local, CI, staging, production) |
+| `docs/security/risk-register.md` | Catalog of 13 risks with likelihood, impact, mitigation, residual risk |
+
+### 10.5 New Tests
+
+| File | Purpose |
+|---|---|
+| `tests/security/security-alerts.test.ts` | Passive health assessment and alert management |
+| `tests/cli/security-doctor.test.ts` | Security doctor and gate command output |
