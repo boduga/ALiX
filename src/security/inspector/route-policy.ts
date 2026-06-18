@@ -622,6 +622,22 @@ routeRegistry.register({
 });
 
 // ---------------------------------------------------------------------------
+// Route registration — security status (authenticated, Sg1)
+// ---------------------------------------------------------------------------
+
+routeRegistry.register({
+  id: "api.security.status",
+  method: "GET",
+  pathPattern: "/api/security/status",
+  pathType: "exact",
+  auth: "authenticated",
+  permission: "observability:read",
+  routeClass: "data",
+  redactionProfile: "operational",
+  streaming: false,
+});
+
+// ---------------------------------------------------------------------------
 // Route registration — auth routes (public, Sb3)
 // ---------------------------------------------------------------------------
 

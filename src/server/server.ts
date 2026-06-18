@@ -18,6 +18,11 @@ import { routeRegistry } from "../security/inspector/route-policy.js";
 import { createSecurityMiddleware } from "./security-middleware.js";
 import { createSecureResponder, type SecureJsonResponder } from "./secure-response.js";
 import { SecretDetector } from "../security/redaction/secret-detector.js";
+import {
+  assessSecurityHealth,
+  toSecurityStatusResponse,
+  type HealthAssessmentContext,
+} from "./security-alerts.js";
 import { AuthStore } from "../security/inspector/auth-store.js";
 import { AuthService } from "../security/inspector/auth-service.js";
 import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
@@ -240,6 +245,30 @@ export function startServer(root: string, host: string, port: number, allowedHos
             postAuthCapacity: postAuthLimiter.capacity,
           },
         });
+        return;
+      }
+
+      // ── P4.3-Sg1: Passive security health status ──────────────────
+      if (url.pathname === "/api/security/status" && req.method === "GET") {
+        const authStoreExists = existsSync(join(userPaths.authStateDir, "auth-store.json"));
+        const healthCtx: HealthAssessmentContext = {
+          authStoreExists,
+          rateLimiterActive: true,
+          preAuthBuckets: preAuthLimiter.size,
+          preAuthCapacity: preAuthLimiter.capacity,
+          postAuthBuckets: postAuthLimiter.size,
+          postAuthCapacity: postAuthLimiter.capacity,
+          connectionLimiterActive: true,
+          connectionCount: connectionLimiter.diagnostic().activeConnections,
+          connectionLimit: connectionLimiter.diagnostic().maxGlobal,
+          originPolicyConfigured: effectiveOrigins.length > 0,
+          redactionActive: true,
+          isLoopbackBind: ["127.0.0.1", "::1", "localhost", "[::1]"].includes(host.toLowerCase()),
+          remoteAccessConfigured: effectiveOrigins.length > 0,
+          requireTlsForRemote: remoteAccessConfig.requireTlsForRemote,
+        };
+        const snapshot = assessSecurityHealth(healthCtx);
+        secure.ok(toSecurityStatusResponse(snapshot));
         return;
       }
 

@@ -144,8 +144,9 @@ Usage:
   alix benchmark compare <id> <id>  Compare two benchmark runs
   alix provider doctor       Test all configured providers (complete + stream)
   alix provider doctor google  Test a specific provider
-<<<<<<< HEAD
+
   alix security doctor       Check Inspector boundary state and security config
+  alix security gate         Run the security acceptance gate
   alix security config keygen    Generate config signing keypair
   alix security config sign      Sign the current config
   alix security config verify    Verify config signature and anti-rollback
@@ -2885,6 +2886,10 @@ if (command === "security") {
   console.error("Usage: alix security doctor");
   console.error("       alix security config keygen|sign|verify|trust-key|allow-rollback");
   console.error("       alix security supply-chain lifecycle-check|exceptions|verify-tarball");
+  console.error("       alix security gate [--json]");
+  console.error("Usage: alix security doctor [--json]");
+  console.error("       alix security gate [--json]");
+
   console.error("       alix credential list|get|set|delete|migrate");
   process.exit(1);
 }
