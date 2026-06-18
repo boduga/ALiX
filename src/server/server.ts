@@ -12,6 +12,7 @@ import {
 } from "../inspector/session-reader.js";
 import { registerCoordinationRoutes } from "./coordination-routes.js";
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
+import { handleEvidenceRoute } from "./evidence-routes.js";
 import { validateHost } from "../security/inspector/host-policy.js";
 import { applySecurityHeaders, API_CACHE_HEADERS } from "./security-headers.js";
 import { routeRegistry } from "../security/inspector/route-policy.js";
@@ -553,6 +554,11 @@ export function startServer(root: string, host: string, port: number, allowedHos
           responder: secure,
           observabilityHub,
         });
+        if (handled) return;
+      }
+      // ── P4.4d: Evidence routes ──────────────────────────────────
+      if (url.pathname.startsWith("/api/security/evidence")) {
+        const handled = await handleEvidenceRoute({ root, req, res });
         if (handled) return;
       }
       // ── P4.3-Sc2: Observability SSE stream (hub-based) ─────────
