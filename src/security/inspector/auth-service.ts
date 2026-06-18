@@ -377,7 +377,7 @@ export class AuthService {
       ok: true,
       value: {
         totalTokens: tokens.length,
-        maxTokens: this.store["maxTokens"] ?? MAX_TOKEN_COUNT,
+        maxTokens: this.store.getMaxTokens(),
         activeTokens: active,
         revokedTokens: revoked,
         expiredTokens: expired,
@@ -455,5 +455,45 @@ export class AuthService {
         workspaceIds: stored.workspaceIds,
       },
     };
+  }
+
+  // -----------------------------------------------------------------------
+  // Verify with workspace scope
+  // -----------------------------------------------------------------------
+
+  /**
+   * Verify a bearer token and check workspace scope.
+   *
+   * Calls verifyToken() and then checks the principal's workspaceIds
+   * against the target workspace. If the token has workspaceIds defined
+   * but does not include the target workspace, returns workspace_mismatch.
+   *
+   * If targetWorkspace is undefined or the token has no workspaceIds,
+   * workspace scope is not enforced (token is accepted for any workspace).
+   */
+  async verifyTokenForRequest(
+    raw: string,
+    targetWorkspace?: string,
+  ): Promise<ServiceResult<{
+    id: string;
+    name: string;
+    role: string;
+    workspaceIds?: string[];
+  }>> {
+    const result = await this.verifyToken(raw);
+    if (!result.ok) return result;
+
+    const principal = result.value;
+
+    // If a target workspace is specified and the token has workspace scopes,
+    // verify the token includes the target workspace
+    if (targetWorkspace && principal.workspaceIds && principal.workspaceIds.length > 0) {
+      if (!principal.workspaceIds.includes(targetWorkspace)) {
+        this.metrics("token.verification_failed", { status: "failed" });
+        return { ok: false, error: "workspace_mismatch" };
+      }
+    }
+
+    return result;
   }
 }

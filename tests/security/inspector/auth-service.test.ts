@@ -347,6 +347,76 @@ describe("AuthService", () => {
     });
   });
 
+  describe("verifyTokenForRequest with workspace scope", () => {
+    it("accepts token without workspaceIds for any workspace", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const created = await svc.createToken({ name: "no-scope", role: "readonly" });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      // Token has no workspaceIds — should work for any workspace
+      const result = await svc.verifyTokenForRequest(created.value.token, "workspace-a");
+      assert.ok(result.ok, "unscoped token should work for any workspace");
+    });
+
+    it("accepts token with matching workspace scope", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const created = await svc.createToken({
+        name: "scoped-a",
+        role: "readonly",
+        workspaceIds: ["workspace-a", "workspace-b"],
+      });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const result = await svc.verifyTokenForRequest(created.value.token, "workspace-a");
+      assert.ok(result.ok);
+      if (result.ok) {
+        assert.deepEqual(result.value.workspaceIds, ["workspace-a", "workspace-b"]);
+      }
+    });
+
+    it("rejects token with non-matching workspace scope", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const created = await svc.createToken({
+        name: "scoped-a",
+        role: "readonly",
+        workspaceIds: ["workspace-a"],
+      });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const result = await svc.verifyTokenForRequest(created.value.token, "workspace-b");
+      assert.ok(!result.ok);
+      if (!result.ok) {
+        assert.equal(result.error, "workspace_mismatch");
+      }
+    });
+
+    it("accepts token when no target workspace is specified", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const created = await svc.createToken({
+        name: "scoped-a",
+        role: "readonly",
+        workspaceIds: ["workspace-a"],
+      });
+      assert.ok(created.ok);
+      if (!created.ok) return;
+
+      const result = await svc.verifyTokenForRequest(created.value.token);
+      assert.ok(result.ok, "token should verify when no target workspace is specified");
+    });
+
+    it("forwards invalid_token errors from verifyToken", async () => {
+      const svc = new AuthService(store, noopAudit, noopMetrics);
+      const result = await svc.verifyTokenForRequest("invalid_token_here", "workspace-a");
+      assert.ok(!result.ok);
+      if (!result.ok) {
+        assert.notEqual(result.error, "workspace_mismatch");
+      }
+    });
+  });
+
   describe("doctor", () => {
     it("reports zero tokens for empty store", async () => {
       const svc = new AuthService(store, noopAudit, noopMetrics);

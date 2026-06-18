@@ -1,7 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
   InvalidSessionIdError,
@@ -86,12 +87,25 @@ export function startServer(root: string, host: string, port: number, allowedHos
     filePath: join(userPaths.authStateDir, "auth-store.json"),
   });
 
-  // No-op audit/metrics for server runtime
+  // File-backed audit for server runtime — appends JSONL to auth state dir
   type AuditFn = import("../security/inspector/auth-service.js").AuditFn;
   type MetricsFn = import("../security/inspector/auth-service.js").MetricsFn;
-  const noopAudit: AuditFn = () => {};
+  const auditPath = join(userPaths.authStateDir, "audit.jsonl");
+  const fileAudit: AuditFn = (event) => {
+    try {
+      mkdirSync(userPaths.authStateDir, { recursive: true, mode: 0o700 });
+      const entry = JSON.stringify({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        ...event,
+      }) + "\n";
+      appendFileSync(auditPath, entry, { mode: 0o600 });
+    } catch {
+      // Best-effort audit — failures are non-fatal
+    }
+  };
   const noopMetrics: MetricsFn = () => {};
-  const authService = new AuthService(authStore, noopAudit, noopMetrics);
+  const authService = new AuthService(authStore, fileAudit, noopMetrics);
 
   // Create the security middleware with bearer token validation
   const securityMiddleware = createSecurityMiddleware({

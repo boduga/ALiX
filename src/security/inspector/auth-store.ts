@@ -240,6 +240,13 @@ export class AuthStore {
   }
 
   /**
+   * Return the maximum number of tokens allowed in the store.
+   */
+  getMaxTokens(): number {
+    return this.maxTokens;
+  }
+
+  /**
    * Check if the store file exists.
    */
   async exists(): Promise<boolean> {
@@ -276,21 +283,14 @@ export class AuthStore {
       return { ok: false, error: "store_dir_create_failed" };
     }
 
-    // Symlink check before writing
-    try {
-      const { realpath } = await import("node:fs/promises");
-      const dirReal = await realpath(dir);
-      // Verify the directory path resolves within itself (no traversal)
-      if (!dirReal.startsWith(dir) && !dir.startsWith(dirReal)) {
-        // Only check that resolving doesn't escape a known safe prefix
-        const resolved = await realpath(dir);
-        const resolvedAbs = resolved;
-        // Reject if the directory is a symlink to an unexpected location
-        // (We use lstat to detect symlinks)
-      }
-    } catch {
-      // realpath failure on missing dir is ok if we just created it
-    }
+    // Symlink check: detect leaf-path symlinks on the store file and its
+    // parent directory using lstatSync. This prevents the most common
+    // symlink replacement attacks. Full ancestor-path symlink resolution
+    // (traversing each path component) is not implemented for this threat
+    // model — a determined attacker with filesystem access could bypass
+    // this check by symlinking an intermediate directory. The existing
+    // directory creation with restrictive permissions (0o700) mitigates
+    // the practical attack surface.
 
     // Detect symlinked store file or directory
     try {
