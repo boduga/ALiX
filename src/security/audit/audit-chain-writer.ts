@@ -251,8 +251,6 @@ export class AuditChainWriter {
    * @returns The complete v2 record as written to the log.
    */
   async append(record: Omit<AuditRecordV2, "version" | "seq" | "prevHash" | "recordHash">): Promise<AuditRecordV2> {
-    const isAuditInternal = isAuditAction(record.action);
-
     let lockHandle: LockHandle | null = null;
 
     try {
@@ -263,6 +261,28 @@ export class AuditChainWriter {
       }
       lockHandle = result;
 
+      // 2. Delegate to the core append logic (lock already held).
+      return this.doAppend(record, lockHandle);
+    } finally {
+      // Ensure lock is released on any exit path.
+      if (lockHandle !== null) {
+        lockHandle.release();
+      }
+    }
+  }
+
+  /**
+   * Core append logic — caller MUST hold the lock.
+   *
+   * @param _lockHandle — an already-acquired lock handle (shared, not released here).
+   */
+  private async doAppend(
+    record: Omit<AuditRecordV2, "version" | "seq" | "prevHash" | "recordHash">,
+    _lockHandle: LockHandle,
+  ): Promise<AuditRecordV2> {
+    const isAuditInternal = isAuditAction(record.action);
+
+    try {
       // Guard against recursive audit emission (checked AFTER lock acquisition
       // so concurrent calls serialize rather than failing).
       if (!isAuditInternal) {
@@ -338,19 +358,9 @@ export class AuditChainWriter {
 
       writeHeadAtomic(this.headPath, newHead);
 
-      // 12. Release lock and clear guard.
-      if (!isAuditInternal) {
-        this.auditGuard = false;
-      }
-      lockHandle!.release();
-      lockHandle = null;
-
       return v2Record;
     } finally {
-      // Ensure lock is released and guard cleared on any exit path.
-      if (lockHandle !== null) {
-        lockHandle.release();
-      }
+      // Clear guard on any exit path.
       if (!isAuditInternal) {
         this.auditGuard = false;
       }
@@ -410,89 +420,107 @@ export class AuditChainWriter {
    * 2. Count legacy records.
    * 3. Compute the exact byte length of the legacy segment.
    * 4. Compute SHA-256 digest of the legacy segment.
-   * 5. Append `security.audit.integrity_enabled` as the first v2 record.
+   * 5. Append `audit.integrity_enabled` as the first v2 record.
    * 6. Mark the legacy segment in the head sidecar as unverified.
    * 7. Idempotent: skips if already activated.
    */
   async activateLegacy(): Promise<ActivationResult> {
-    // Check if already activated.
-    const existingHead = readHead(this.headPath);
-    if (existingHead?.legacy) {
-      return { activated: false, reason: "Already activated" };
-    }
+    let lockHandle: LockHandle | null = null;
 
-    // Check if any v2 records already exist in the log.
-    const lastV2 = this.readLastV2Record();
-    if (lastV2 !== null) {
-      return { activated: false, reason: "v2 records already exist in audit log" };
-    }
+    try {
+      // Acquire cross-process lock at the start to prevent TOCTOU races.
+      const result = await acquire(this.lockPath, this.lockOptions);
+      if (!result.ok) {
+        throw new Error(`Failed to acquire audit lock: ${result.error} (${result.code})`);
+      }
+      lockHandle = result;
 
-    // Read legacy bytes.
-    let legacyBytes: string;
-    let legacyCount = 0;
-    let legacyByteLength = 0;
+      // Idempotency checks are INSIDE the lock so two concurrent calls
+      // cannot both pass the gate and produce duplicate activation records.
+      const existingHead = readHead(this.headPath);
+      if (existingHead?.legacy) {
+        return { activated: false, reason: "Already activated" };
+      }
 
-    const auditPath = this.auditPath;
-    if (existsSync(auditPath)) {
-      legacyBytes = readFileSync(auditPath, "utf-8");
-      legacyByteLength = statSync(auditPath).size;
+      // Check if any v2 records already exist in the log.
+      const lastV2 = this.readLastV2Record();
+      if (lastV2 !== null) {
+        return { activated: false, reason: "v2 records already exist in audit log" };
+      }
 
-      // Count legacy records.
-      const lines = legacyBytes.trim().split("\n").filter(Boolean);
-      for (const line of lines) {
-        try {
-          const parsed = JSON.parse(line);
-          if (isLegacyAuditRecord(parsed)) {
+      // Read legacy bytes.
+      let legacyBytes: string;
+      let legacyCount = 0;
+      let legacyByteLength = 0;
+
+      const auditPath = this.auditPath;
+      if (existsSync(auditPath)) {
+        legacyBytes = readFileSync(auditPath, "utf-8");
+        legacyByteLength = statSync(auditPath).size;
+
+        // Count legacy records.
+        const lines = legacyBytes.trim().split("\n").filter(Boolean);
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line);
+            if (isLegacyAuditRecord(parsed)) {
+              legacyCount++;
+            }
+          } catch {
+            // Skip malformed lines but count them as legacy.
             legacyCount++;
           }
-        } catch {
-          // Skip malformed lines but count them as legacy.
-          legacyCount++;
         }
+      } else {
+        // No legacy file — nothing to activate.
+        legacyBytes = "";
+        legacyByteLength = 0;
+        legacyCount = 0;
       }
-    } else {
-      // No legacy file — nothing to activate.
-      legacyBytes = "";
-      legacyByteLength = 0;
-      legacyCount = 0;
-    }
 
-    // Compute legacy digest.
-    const digestHash = createHash("sha256");
-    digestHash.update(legacyBytes, "utf8");
-    const legacyDigest = digestHash.digest("hex");
+      // Compute legacy digest.
+      const digestHash = createHash("sha256");
+      digestHash.update(legacyBytes, "utf8");
+      const legacyDigest = digestHash.digest("hex");
 
-    // Append activation record.
-    const activationRecord = await this.append({
-      action: "audit.integrity_enabled" as AnyAuditAction,
-      timestamp: Date.now(),
-      actor: "system",
-      details: {
+      // Append activation record using doAppend (lock already held).
+      // This avoids calling append() which would try to re-acquire the lock.
+      const activationRecord = await this.doAppend({
+        action: "audit.integrity_enabled" as AnyAuditAction,
+        timestamp: Date.now(),
+        actor: "system",
+        details: {
+          legacyCount,
+          legacyBytes: legacyByteLength,
+          legacyDigest,
+        },
+      }, lockHandle);
+
+      // Update head with legacy segment info.
+      const head = readHead(this.headPath);
+      if (head) {
+        head.legacy = {
+          digest: legacyDigest,
+          count: legacyCount,
+          bytes: legacyByteLength,
+          verified: false,
+        };
+        writeHeadAtomic(this.headPath, head);
+      }
+
+      return {
+        activated: true,
         legacyCount,
         legacyBytes: legacyByteLength,
         legacyDigest,
-      },
-    });
-
-    // Update head with legacy segment info.
-    const head = readHead(this.headPath);
-    if (head) {
-      head.legacy = {
-        digest: legacyDigest,
-        count: legacyCount,
-        bytes: legacyByteLength,
-        verified: false,
+        activationRecord,
       };
-      writeHeadAtomic(this.headPath, head);
+    } finally {
+      // Release the lock on any exit path (success, early return, or error).
+      if (lockHandle !== null) {
+        lockHandle.release();
+      }
     }
-
-    return {
-      activated: true,
-      legacyCount,
-      legacyBytes: legacyByteLength,
-      legacyDigest,
-      activationRecord,
-    };
   }
 
   // -----------------------------------------------------------------------
