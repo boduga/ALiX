@@ -13,6 +13,7 @@ import {
 import { registerCoordinationRoutes } from "./coordination-routes.js";
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
 import { validateHost } from "../security/inspector/host-policy.js";
+import { applySecurityHeaders, API_CACHE_HEADERS } from "./security-headers.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -84,6 +85,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
         res.end(JSON.stringify({ error: "invalid_host" }));
         return;
       }
+
+      // Apply baseline security headers to all responses
+      applySecurityHeaders(res);
 
       if (url.pathname === "/healthz") {
         res.statusCode = 200;
@@ -343,6 +347,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
         res.setHeader("content-type", "text/event-stream");
         res.setHeader("cache-control", "no-cache");
         res.setHeader("connection", "keep-alive");
+        res.setHeader("x-accel-buffering", "no");
 
         if (!existsSync(eventsPath)) {
           res.end();
