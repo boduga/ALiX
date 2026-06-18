@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "model": {
+    "provider": "anthropic",
+    "name": "claude-sonnet-4-20250514"
+  },
+  "apiKeys": {
+    "anthropic": "sk-ant-0123456789abcdef",
+    "openai": "sk-openai-abcdef0123456789"
+  },
+  "permissions": {
+    "default": "ask",
+    "tools": {},
+    "protectedPaths": ["/etc", "/usr"],
+    "allowNetworkDomains": [],
+    "denyCommands": ["rm -rf /"]
+  },
+  "context": {
+    "repoMap": true,
+    "repoMapMode": "lite",
+    "maxRepoMapTokens": 8000,
+    "semanticSearch": true,
+    "includeGitStatus": true,
+    "pinnedFiles": []
+  },
+  "runtime": {
+    "provider": "process",
+    "shell": "/bin/bash",
+    "commandTimeoutMs": 300000,
+    "envAllowlist": ["PATH", "HOME"]
+  },
+  "ui": {
+    "enabled": true,
+    "host": "127.0.0.1",
+    "port": 4137,
+    "transport": "sse"
+  },
+  "mcpServers": [
+    {
+      "name": "fetch",
+      "type": "stdio",
+      "command": "uvx",
+      "args": ["mcp-server-fetch"]
+    }
+  ]
+}

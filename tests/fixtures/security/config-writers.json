@@ -1,0 +1,132 @@
+[
+  {
+    "command": "config set-key",
+    "source": "src/cli.ts",
+    "line": 41,
+    "configPaths": ["apiKeys.*"],
+    "function": "setApiKey",
+    "usesMutationService": false,
+    "description": "Writes API key to user config (~/.config/alix/config.json) under apiKeys[providerId]",
+    "targetFile": "~/.config/alix/config.json"
+  },
+  {
+    "command": "config set-default-model",
+    "source": "src/cli.ts",
+    "line": 913,
+    "configPaths": ["model.provider", "model.name"],
+    "function": "inline in CLI handler",
+    "usesMutationService": false,
+    "description": "Writes model provider and name to .alix/config.json or ~/.config/alix/config.json",
+    "targetFile": ".alix/config.json or ~/.config/alix/config.json"
+  },
+  {
+    "command": "config set-tier",
+    "source": "src/cli.ts",
+    "line": 993,
+    "configPaths": ["subagents.<tier>.provider", "subagents.<tier>.name"],
+    "function": "inline in CLI handler",
+    "usesMutationService": false,
+    "description": "Writes subagent tier model config to .alix/config.json or ~/.config/alix/config.json",
+    "targetFile": ".alix/config.json or ~/.config/alix/config.json"
+  },
+  {
+    "command": "mcp add",
+    "source": "src/cli.ts",
+    "line": 1211,
+    "configPaths": ["mcpServers[]"],
+    "function": "inline in MCP handler",
+    "usesMutationService": false,
+    "description": "Appends an MCP server config (name, type, command/args, optional headers/env) to mcpServers array",
+    "targetFile": ".alix/config.json"
+  },
+  {
+    "command": "mcp discover",
+    "source": "src/cli.ts",
+    "line": 1253,
+    "configPaths": ["mcpServers[]"],
+    "function": "inline in MCP handler",
+    "usesMutationService": false,
+    "description": "Appends discovered npm MCP package as stdio server config to mcpServers array",
+    "targetFile": ".alix/config.json"
+  },
+  {
+    "command": "init",
+    "source": "src/cli/commands/init.ts",
+    "line": 117,
+    "configPaths": ["version", "model", "permissions", "context", "runtime", "ui"],
+    "function": "runInit",
+    "usesMutationService": false,
+    "description": "Writes initial project config (.alix/config.json), agents cards, and .gitignore entries",
+    "targetFile": ".alix/config.json, .alix/agents/*.json, .gitignore"
+  },
+  {
+    "command": "models apply-profile",
+    "source": "src/cli/commands/models.ts",
+    "line": 97,
+    "configPaths": ["model.provider", "model.name", "models.*", "modelProfile"],
+    "function": "handleModelsApply",
+    "usesMutationService": false,
+    "description": "Applies a model profile by updating project config with profile settings",
+    "targetFile": ".alix/config.json"
+  },
+  {
+    "command": "models install-profile",
+    "source": "src/cli/commands/models.ts",
+    "line": 112,
+    "configPaths": ["model.provider", "model.name", "models.*", "modelProfile"],
+    "function": "handleModelsInstall",
+    "usesMutationService": false,
+    "description": "Pulls model weights and applies profile config",
+    "targetFile": ".alix/config.json"
+  },
+  {
+    "command": "AuditStore.append",
+    "source": "src/audit/audit-store.ts",
+    "line": 42,
+    "configPaths": [],
+    "function": "AuditStore.append",
+    "usesMutationService": false,
+    "description": "Appends audit record to .alix/audit/audit.jsonl",
+    "targetFile": ".alix/audit/audit.jsonl"
+  },
+  {
+    "command": "MetricsStore.append",
+    "source": "src/observability/metrics-store.ts",
+    "line": 56,
+    "configPaths": [],
+    "function": "MetricsStore.append",
+    "usesMutationService": false,
+    "description": "Appends metric row to .alix/observability/metrics/YYYY-MM-DD.jsonl",
+    "targetFile": ".alix/observability/metrics/*.jsonl"
+  },
+  {
+    "command": "RollupStore.rollUp",
+    "source": "src/observability/metrics-store.ts",
+    "line": 159,
+    "configPaths": [],
+    "function": "RollupStore.rollUp",
+    "usesMutationService": false,
+    "description": "Computes hourly rollups and appends to .alix/observability/rollups/hourly.jsonl",
+    "targetFile": ".alix/observability/rollups/hourly.jsonl"
+  },
+  {
+    "command": "plan/review/apply",
+    "source": "src/cli/commands/plan.ts",
+    "line": 102,
+    "configPaths": [],
+    "function": "runPlan / runReview / runApply",
+    "usesMutationService": false,
+    "description": "Writes plan YAML files and applies plan changes (writeFile for plan artifacts)",
+    "targetFile": ".alix/plans/*"
+  },
+  {
+    "command": "EventLog.append",
+    "source": "src/events/event-log.ts",
+    "line": 0,
+    "configPaths": [],
+    "function": "EventLog.append",
+    "usesMutationService": false,
+    "description": "Session event log append, used across agent/tools/runtime for .alix/sessions/*/events.jsonl",
+    "targetFile": ".alix/sessions/*/events.jsonl"
+  }
+]
