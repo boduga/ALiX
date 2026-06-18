@@ -144,12 +144,17 @@ Usage:
   alix benchmark compare <id> <id>  Compare two benchmark runs
   alix provider doctor       Test all configured providers (complete + stream)
   alix provider doctor google  Test a specific provider
+<<<<<<< HEAD
   alix security doctor       Check Inspector boundary state and security config
   alix security config keygen    Generate config signing keypair
   alix security config sign      Sign the current config
   alix security config verify    Verify config signature and anti-rollback
   alix security config trust-key <path>  Import a trusted public key
   alix security config allow-rollback --reason "..."  Accept current config version
+  alix security supply-chain lifecycle-check     Check lifecycle scripts against allowlist
+  alix security supply-chain exceptions list      List all audit exceptions
+  alix security supply-chain exceptions check     Check npm audit against exceptions policy
+  alix security supply-chain verify-tarball <p>   Verify tarball contents against policy
   alix credential list        List stored credentials (no values)
   alix credential get <p> <l>  Get credential value
   alix credential set <p> <l> <v> Store credential
@@ -2845,9 +2850,41 @@ if (command === "inspector" && args[0] === "auth") {
   process.exit(0);
 }
 
+// --- alix security supply-chain --- P4.3-Sf supply-chain policy ---
+if (command === "security" && args[0] === "supply-chain") {
+  const sub = args[1] ?? "";
+  const subArgs = args.slice(2);
+
+  if (sub === "lifecycle-check") {
+    const { handleSupplyChainLifecycleCheck } = await import("./cli/commands/security.js");
+    await handleSupplyChainLifecycleCheck(subArgs);
+    process.exit(0);
+  }
+
+  if (sub === "exceptions") {
+    const { handleSupplyChainExceptions } = await import("./cli/commands/security.js");
+    await handleSupplyChainExceptions(subArgs);
+    process.exit(0);
+  }
+
+  if (sub === "verify-tarball") {
+    const { handleSupplyChainVerifyTarball } = await import("./cli/commands/security.js");
+    await handleSupplyChainVerifyTarball(subArgs);
+    process.exit(0);
+  }
+
+  console.error("Usage: alix security supply-chain {lifecycle-check|exceptions|verify-tarball} [--json]");
+  console.error("  lifecycle-check          Check lifecycle scripts against allowlist");
+  console.error("  exceptions list           List all audit exceptions");
+  console.error("  exceptions check          Check npm audit against exceptions policy");
+  console.error("  verify-tarball <path>     Verify tarball contents against security policy");
+  process.exit(1);
+}
+
 if (command === "security") {
   console.error("Usage: alix security doctor");
   console.error("       alix security config keygen|sign|verify|trust-key|allow-rollback");
+  console.error("       alix security supply-chain lifecycle-check|exceptions|verify-tarball");
   console.error("       alix credential list|get|set|delete|migrate");
   process.exit(1);
 }

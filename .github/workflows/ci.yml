@@ -6,13 +6,44 @@ on:
   pull_request:
     branches: [main]
 
+# P4.3-Sf.4: Explicit least-privilege permissions
+permissions:
+  contents: read
+
 jobs:
-  # ─── Lane 1: TypeScript typecheck (fast, no build needed) ──────
+  # ─── Lane 0: Supply-chain check (first gate) ──────────────────────────
+  supply-chain:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout v4 — pinned to SHA
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      # actions/setup-node v4 — pinned to SHA
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Lifecycle script check (Sf.1)
+        run: node scripts/verify-lifecycle-scripts.mjs
+      - name: Lockfile integrity (Sf.3)
+        run: |
+          if ! git diff --exit-code package-lock.json; then
+            echo "ERROR: package-lock.json has uncommitted changes"
+            exit 1
+          fi
+          echo "Lockfile clean — OK"
+      - name: Supply-chain gate (Sf.x)
+        run: bash scripts/check-supply-chain.sh
+
+  # ─── Lane 1: TypeScript typecheck (fast, no build needed) ─────────────
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
           cache: npm
@@ -20,12 +51,12 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
 
-  # ─── Lane 2: Unit tests (node + vitest) ─────────────────────────
+  # ─── Lane 2: Unit tests (node + vitest) ────────────────────────────────
   unit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
           cache: npm
@@ -36,12 +67,12 @@ jobs:
       - name: Vitest
         run: npm run test:vitest
 
-  # ─── Lane 3: Integration + Soak Tier 1 + Doctor ────────────────
+  # ─── Lane 3: Integration + Soak Tier 1 + Doctor ───────────────────────
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
           cache: npm
@@ -54,12 +85,12 @@ jobs:
       - name: Doctor health check
         run: node dist/src/cli.js doctor
 
-  # ─── Lane 4: TUI smoke (blocking) ──────────────────────────────
+  # ─── Lane 4: TUI smoke (blocking) ─────────────────────────────────────
   tui-smoke:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
           cache: npm
@@ -68,15 +99,15 @@ jobs:
       - name: TUI manual smoke
         run: npm run test:manual:tui
 
-  # ─── Lane 5: Cross-platform — macOS (Node LTS + current) ─────
+  # ─── Lane 5: Cross-platform — macOS (Node LTS + current) ──────────────
   unit-macos:
     strategy:
       matrix:
         node-version: ["22", "24"]
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -87,15 +118,15 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
 
-  # ─── Lane 6: Cross-platform — Windows (Node LTS) ─────────────
+  # ─── Lane 6: Cross-platform — Windows (Node LTS) ──────────────────────
   unit-windows:
     strategy:
       matrix:
         node-version: ["22"]
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
