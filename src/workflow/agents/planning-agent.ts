@@ -79,7 +79,7 @@ export class PlanningAgent {
     // Decompose acceptance criteria into subtasks
     const subtasks = this.buildSubtasks(workPackage);
 
-    // Estimate commits: 1 per subtask + 1 for setup
+    // Estimate commits: subtasks + 1 integration commit
     const estimatedCommits = subtasks.length + 1;
 
     const plan: ExecutionPlan = {
@@ -266,13 +266,13 @@ export class PlanningAgent {
    * Describes how to verify the subtask is complete.
    */
   private buildAcceptanceCheck(
-    _ac: string,
+    ac: string,
     files: string[],
   ): string {
     const fileList = files.length > 0
-      ? `Files: ${files.join(", ")}. `
+      ? ` Files: ${files.join(", ")}.`
       : "";
-    return `${fileList}Run tests to verify implementation meets acceptance criteria.`;
+    return `Verify: ${ac}.${fileList} Run tests to verify implementation.`;
   }
 }
 

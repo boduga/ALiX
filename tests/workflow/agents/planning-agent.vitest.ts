@@ -199,7 +199,7 @@ describe("PlanningAgent", () => {
       expect(result.plan.subtasks[0].id).toBe("step-1");
     });
 
-    it("acceptanceCheck contains file list and test instruction", async () => {
+    it("acceptanceCheck contains AC text, file list, and test instruction", async () => {
       const wp = validWorkPackage({
         estimatedFiles: [
           "src/foo.ts",
@@ -210,6 +210,7 @@ describe("PlanningAgent", () => {
       expect(result.success).toBe(true);
       if (!result.success) return;
       const acSubtask = result.plan.subtasks[1];
+      expect(acSubtask.acceptanceCheck).toContain("Implement foo");
       expect(acSubtask.acceptanceCheck).toContain("src/foo.ts");
       expect(acSubtask.acceptanceCheck).toContain("Run tests");
     });
