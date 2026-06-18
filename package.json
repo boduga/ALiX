@@ -63,7 +63,7 @@
     "@types/react-dom": "19.2.3",
     "c8": "11.0.0",
     "minimatch": "10.2.5",
-    "node-pty": "1.1.0-beta34",
+    "node-pty": "1.1.0",
     "typescript": "5.9.3",
     "vitest": "4.1.6"
   },
