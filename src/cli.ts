@@ -2396,6 +2396,40 @@ if (command === "security" && args[0] === "doctor") {
   process.exit(0);
 }
 
+// --- alix inspector auth --- P4.3-Sb2 token management ---
+if (command === "inspector" && args[0] === "auth") {
+  const sub = args[1] ?? "";
+  const subArgs = args.slice(2);
+  const {
+    handleInspectorAuthCreate,
+    handleInspectorAuthList,
+    handleInspectorAuthRotate,
+    handleInspectorAuthRevoke,
+    handleInspectorAuthDoctor,
+  } = await import("./cli/commands/security.js");
+
+  if (sub === "create") {
+    await handleInspectorAuthCreate(subArgs);
+  } else if (sub === "list") {
+    await handleInspectorAuthList(subArgs);
+  } else if (sub === "rotate") {
+    await handleInspectorAuthRotate(subArgs);
+  } else if (sub === "revoke") {
+    await handleInspectorAuthRevoke(subArgs);
+  } else if (sub === "doctor") {
+    await handleInspectorAuthDoctor(subArgs);
+  } else {
+    console.error("Usage: alix inspector auth {create|list|rotate|revoke|doctor}");
+    console.error("  create --name <name> --role <role> [--json]");
+    console.error("  list [--json]");
+    console.error("  rotate <token-id> --grace <duration> [--json]");
+    console.error("  revoke <token-id> [--yes] [--json]");
+    console.error("  doctor [--json]");
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 if (command === "security") {
   console.error("Usage: alix security doctor");
   process.exit(1);

@@ -18,6 +18,9 @@ import { routeRegistry } from "../security/inspector/route-policy.js";
 import { createSecurityMiddleware } from "./security-middleware.js";
 import { createSecureResponder, type SecureJsonResponder } from "./secure-response.js";
 import { SecretDetector } from "../security/redaction/secret-detector.js";
+import { AuthStore } from "../security/inspector/auth-store.js";
+import { AuthService } from "../security/inspector/auth-service.js";
+import { getUserStatePaths } from "../security/platform/user-state-paths.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -77,12 +80,26 @@ export function startServer(root: string, host: string, port: number, allowedHos
   // Create the secret detector once (stateless, safe to reuse)
   const detector = new SecretDetector();
 
-  // Create the security middleware
+  // P4.3-Sb2: Create auth store and service for bearer token validation
+  const userPaths = getUserStatePaths();
+  const authStore = new AuthStore({
+    filePath: join(userPaths.authStateDir, "auth-store.json"),
+  });
+
+  // No-op audit/metrics for server runtime
+  type AuditFn = import("../security/inspector/auth-service.js").AuditFn;
+  type MetricsFn = import("../security/inspector/auth-service.js").MetricsFn;
+  const noopAudit: AuditFn = () => {};
+  const noopMetrics: MetricsFn = () => {};
+  const authService = new AuthService(authStore, noopAudit, noopMetrics);
+
+  // Create the security middleware with bearer token validation
   const securityMiddleware = createSecurityMiddleware({
     host,
     allowedHosts: effectiveAllowed,
     registry: routeRegistry,
     detector,
+    authService,
   });
 
   const server = createServer(async (req, res) => {
@@ -102,9 +119,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
       // Apply baseline security headers to all responses
       applySecurityHeaders(res);
 
-      // P4.3-Sb1: Run security middleware — looks up route, builds context,
-      // denies unauthenticated requests to auth-required routes.
-      const ctx = securityMiddleware(req, res);
+      // P4.3-Sb1/Sb2: Run security middleware — looks up route, builds context,
+      // validates bearer tokens, denies unauthenticated requests to auth-required routes.
+      const ctx = await securityMiddleware(req, res);
       if (!ctx) {
         // Middleware already sent the denial response
         return;
