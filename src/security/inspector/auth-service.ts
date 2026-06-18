@@ -178,16 +178,17 @@ export class AuthService {
       expiresAt,
     });
 
-    // Persist
-    const addResult = await this.store.add(record);
-    if (!addResult.ok) return addResult;
-
-    // Audit (no raw token or hash in audit)
+    // Write-ahead audit: record intent BEFORE store mutation.
+    // If audit fails the token is never persisted, preventing stranded tokens.
     await this.audit({
       action: "token.created",
       tokenId: generated.id,
       details: { name, role },
     });
+
+    // Persist
+    const addResult = await this.store.add(record);
+    if (!addResult.ok) return addResult;
 
     // Metrics
     this.metrics("token.created", { role: role as SecurityMetricLabelValue, status: "ok" });
@@ -272,6 +273,14 @@ export class AuthService {
       expiresAt: graceExpiry,
     });
 
+    // Write-ahead audit: record intent before mutations.
+    // If audit fails, neither token is changed.
+    await this.audit({
+      action: "token.rotated",
+      tokenId: generated.id,
+      details: { previousId: id, graceMs },
+    });
+
     // Persist new token
     const addResult = await this.store.add(record);
     if (!addResult.ok) return addResult;
@@ -281,16 +290,17 @@ export class AuthService {
       expiresAt: graceExpiry,
     });
     if (!updateResult.ok) {
-      // Best-effort: the new token is already persisted, but the old one
-      // may not have the grace window set. This is a partial-failure edge case.
+      // Roll back the new token if the old token update fails,
+      // preventing both tokens remaining active indefinitely.
+      // Mark the new token as revoked so it cannot be used.
+      await this.store.update(generated.id, {
+        revocation: createRevocation("rotation_rollback"),
+      });
+      return {
+        ok: false,
+        error: `Rotation failed: could not expire old token. New token ${generated.id} has been revoked. Error: ${updateResult.error}`,
+      };
     }
-
-    // Audit
-    await this.audit({
-      action: "token.rotated",
-      tokenId: generated.id,
-      details: { previousId: id, graceMs },
-    });
 
     // Metrics
     this.metrics("token.rotated", { role: existing.role as SecurityMetricLabelValue, status: "ok" });
@@ -330,15 +340,16 @@ export class AuthService {
     }
 
     const revocation = createRevocation(reason);
-    const updateResult = await this.store.update(id, { revocation });
-    if (!updateResult.ok) return updateResult;
 
-    // Audit
+    // Write-ahead audit: record intent before mutation.
     await this.audit({
       action: "token.revoked",
       tokenId: id,
       details: { reason },
     });
+
+    const updateResult = await this.store.update(id, { revocation });
+    if (!updateResult.ok) return updateResult;
 
     // Metrics
     this.metrics("token.revoked", { status: "ok" });

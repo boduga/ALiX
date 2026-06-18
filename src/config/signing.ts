@@ -347,13 +347,14 @@ export class ConfigSigner {
     const { hash: configHash } = await readCanonicalConfigBytes(configDir);
 
     // Build the signing payload
+    const signedAt = now();
     const payload = JSON.stringify({
       schemaVersion: SIG_SCHEMA_VERSION,
       keyId,
       configVersion,
       configHash,
       prevConfigHash: prevConfigHash ?? null,
-      signedAt: now(),
+      signedAt,
     });
 
     // Sign the payload using Ed25519
@@ -363,7 +364,7 @@ export class ConfigSigner {
       schemaVersion: SIG_SCHEMA_VERSION,
       keyId,
       signature,
-      signedAt: now(),
+      signedAt,
       configVersion,
       configHash,
       prevConfigHash: prevConfigHash ?? null,
