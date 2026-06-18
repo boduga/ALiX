@@ -12,6 +12,11 @@ import assert from "node:assert/strict";
 import { RateLimiter, normalizeClientAddress } from "../../src/security/inspector/rate-limiter.js";
 import { ConnectionLimiter } from "../../src/security/inspector/connection-limiter.js";
 import { validateHost } from "../../src/security/inspector/host-policy.js";
+import { MockSecureSseConnection } from "../../src/server/secure-sse.js";
+import { ObservabilityStreamHub } from "../../src/server/observability-stream-hub.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 
 // ---------------------------------------------------------------------------
 // Fake clock for deterministic stress tests
@@ -230,5 +235,84 @@ describe("HostPolicy — stress: DNS rebinding and foreign hosts", () => {
         assert.ok(!result.error.includes(host), `error should not leak ${host}`);
       }
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SSE stress: rapid connect/disconnect
+// ---------------------------------------------------------------------------
+
+describe("SSE — rapid connect/disconnect", () => {
+  it("50 rapid subscribes/unsubscribes leave no leaked subscribers", () => {
+    const tmp = mkdtempSync(join(tmpdir(), "alix-sse-stress-"));
+    try {
+      const hub = new ObservabilityStreamHub(tmp, { cycleIntervalMs: 5000 });
+      hub.start();
+
+      for (let i = 0; i < 50; i++) {
+        const conn = new MockSecureSseConnection();
+        hub.subscribe(conn);
+        hub.unsubscribe(conn);
+      }
+
+      assert.strictEqual(hub.subscriberCount, 0, "no leaked subscribers after rapid cycle");
+      hub.stop();
+    } finally {
+      try { rmSync(tmp, { recursive: true, force: true }); } catch { /* ignore */ }
+    }
+  });
+
+  it("100 connections do not exceed connection limiter", () => {
+    const limiter = new ConnectionLimiter({ maxGlobal: 5 });
+    const reserved: Array<ReturnType<typeof limiter.reserve>> = [];
+
+    for (let i = 0; i < 100; i++) {
+      const r = limiter.reserve(`p${i % 10}`, `10.0.0.${i % 20}`);
+      reserved.push(r);
+    }
+
+    const allowed = reserved.filter((r) => r.allowed);
+    assert.ok(allowed.length <= 5, `at most 5 allowed, got ${allowed.length}`);
+  });
+
+  it("slow client events are capped by buffered event count", () => {
+    const conn = new MockSecureSseConnection(undefined, undefined, {
+      maxBufferedEvents: 5,
+    });
+
+    for (let i = 0; i < 20; i++) {
+      conn.send("event", { n: i });
+    }
+
+    // After exceeding the buffer, connection should close
+    assert.strictEqual(conn.closed, true, "connection should close on buffer overflow");
+  });
+
+  it("MockSecureSseConnection enforces total buffer bytes", () => {
+    const conn = new MockSecureSseConnection(undefined, undefined, {
+      totalBufferBytes: 100,
+      maxBufferedEvents: 1000,
+    });
+
+    // Each event ~30 bytes, 5 events = ~150 bytes > 100 limit
+    for (let i = 0; i < 10; i++) {
+      conn.send("e", { data: "hello world" });
+    }
+
+    assert.strictEqual(conn.closed, true);
+  });
+
+  it("large events are dropped but connection stays open", () => {
+    const conn = new MockSecureSseConnection(undefined, undefined, {
+      perEventByteLimit: 10,
+    });
+
+    conn.send("small", { a: 1 });
+    conn.send("large", { data: "x".repeat(5000) });
+    conn.send("small2", { b: 2 });
+
+    // Large event should be dropped, small events still delivered
+    assert.strictEqual(conn.closed, false);
+    assert.strictEqual(conn.events.length, 2);
   });
 });

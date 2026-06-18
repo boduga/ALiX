@@ -8,8 +8,7 @@ import {
   InvalidSessionIdError,
   isValidSessionId,
   readSessionComparison,
-  readSessionSnapshot,
-  sessionEventsPath
+  readSessionSnapshot
 } from "../inspector/session-reader.js";
 import { registerCoordinationRoutes } from "./coordination-routes.js";
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
@@ -35,7 +34,9 @@ import {
   buildRateLimitKey,
 } from "../security/inspector/rate-limiter.js";
 import { ConnectionLimiter } from "../security/inspector/connection-limiter.js";
-import type { ConnectionToken } from "../security/inspector/connection-limiter.js";
+import { createSecureSseConnection } from "./secure-sse.js";
+import { ObservabilityStreamHub } from "./observability-stream-hub.js";
+import { SessionStreamHub } from "./session-stream-hub.js";
 import { buildServerOptions, validateHttpLimits } from "./http-limits.js";
 import type { RemoteAccessConfig } from "../security/inspector/remote-access-policy.js";
 
@@ -161,6 +162,10 @@ export function startServer(root: string, host: string, port: number, allowedHos
     remoteAccessConfig,
     trustedProxyCidrs: effectiveProxyCidrs,
   });
+
+  // P4.3-Sc2: Create SSE hubs (shared producer for observability, tailers for sessions)
+  const observabilityHub = new ObservabilityStreamHub(root);
+  const sessionHub = new SessionStreamHub(root, VISIBLE_EVENTS);
 
   // P4.3-Sc1.5: Apply HTTP server limits
   const httpOptions = buildServerOptions();
@@ -485,89 +490,30 @@ export function startServer(root: string, host: string, port: number, allowedHos
           return;
         }
 
-        // ── P4.3-Sc1.7: Connection limiting for SSE ─────────────────
+        // ── P4.3-Sc2: Hub-based session SSE ──────────────────────────
         const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
         const sseAddr = normalizeAddress(clientAddr.address);
-        const reserveResult = connectionLimiter.reserve(ssePrincipal, sseAddr);
 
-        if (!reserveResult.allowed) {
-          secure.error(reserveResult.error ?? "connection_limit", 503);
+        const conn = createSecureSseConnection(res, ctx, connectionLimiter, {
+          clientAddress: sseAddr,
+        });
+
+        if (!conn) {
+          secure.error("connection_limit", 503);
           return;
         }
 
-        const connToken: ConnectionToken = reserveResult.token!;
-
-        const eventsPath = sessionEventsPath(root, sessionId);
-
-        res.setHeader("content-type", "text/event-stream");
-        res.setHeader("cache-control", "no-cache");
-        res.setHeader("connection", "keep-alive");
-        res.setHeader("x-accel-buffering", "no");
-
-        // Release connection token on close
-        req.on("close", () => {
-          connectionLimiter.release(connToken);
-        });
-        res.on("close", () => {
-          connectionLimiter.release(connToken);
-        });
-
-        if (!existsSync(eventsPath)) {
-          res.end();
+        // Subscribe to the shared session tailer
+        if (!sessionHub.subscribe(sessionId, conn)) {
+          conn.close();
+          secure.error("too_many_tailers", 503);
           return;
         }
 
-        // Honor Last-Event-ID for cursor-based resume on reconnect
-        const rawResumeId = req.headers["last-event-id"];
-        const resumeFromSeq = parseInt(Array.isArray(rawResumeId) ? rawResumeId[0] : (rawResumeId ?? "0"), 10);
-
-        // Send existing events from resume cursor
-        const text = await readFile(eventsPath, "utf8");
-        for (const line of text.split("\n").filter(Boolean)) {
-          try {
-            const event = JSON.parse(line) as { seq: number; type: string };
-            if (event.seq <= resumeFromSeq) continue;
-            // Only emit tool events to SSE
-            if (!VISIBLE_EVENTS.includes(event.type)) continue;
-            res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
-          } catch {
-            // Skip malformed lines
-          }
-        }
-
-        // Poll for new events
-        let lastSize = (await readFile(eventsPath, "utf8")).length;
-        const interval = setInterval(async () => {
-          if (!existsSync(eventsPath)) {
-            clearInterval(interval);
-            res.end();
-            return;
-          }
-          try {
-            const currentSize = (await readFile(eventsPath, "utf8")).length;
-            if (currentSize > lastSize) {
-              const newText = (await readFile(eventsPath, "utf8")).slice(lastSize);
-              lastSize = currentSize;
-              for (const line of newText.split("\n").filter(Boolean)) {
-                try {
-                  const event = JSON.parse(line) as { seq: number; type: string };
-                  // Only emit tool events to SSE
-                  if (!VISIBLE_EVENTS.includes(event.type)) continue;
-                  res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
-                } catch {
-                  // Skip malformed lines
-                }
-              }
-            }
-          } catch {
-            clearInterval(interval);
-            res.end();
-          }
-        }, 500);
-
-        req.on("close", () => {
-          clearInterval(interval);
-        });
+        // Handle replay from Last-Event-ID
+        const lastEventIdHeader = req.headers["last-event-id"];
+        const lastEventId = Array.isArray(lastEventIdHeader) ? lastEventIdHeader[0] : lastEventIdHeader;
+        sessionHub.replay(sessionId, conn, lastEventId ?? undefined);
 
         return;
       }
@@ -576,9 +522,34 @@ export function startServer(root: string, host: string, port: number, allowedHos
           req, res, root,
           security: ctx,
           responder: secure,
+          observabilityHub,
         });
         if (handled) return;
       }
+      // ── P4.3-Sc2: Observability SSE stream (hub-based) ─────────
+      if (url.pathname === "/api/observability/stream" && req.method === "GET") {
+        const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
+        const sseAddr = normalizeAddress(clientAddr.address);
+
+        const conn = createSecureSseConnection(res, ctx, connectionLimiter, {
+          clientAddress: sseAddr,
+        });
+
+        if (!conn) {
+          secure.error("connection_limit", 503);
+          return;
+        }
+
+        observabilityHub.subscribe(conn);
+
+        // Handle replay from Last-Event-ID
+        const lastEventIdHeader = req.headers["last-event-id"];
+        const lastEventId = Array.isArray(lastEventIdHeader) ? lastEventIdHeader[0] : lastEventIdHeader;
+        observabilityHub.replay(conn, lastEventId ?? undefined);
+
+        return;
+      }
+
       if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure)) {
         return;
       }
@@ -596,10 +567,20 @@ export function startServer(root: string, host: string, port: number, allowedHos
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
+      // P4.3-Sc2: Start SSE hubs after server is listening
+      observabilityHub.start();
+
       const address = server.address() as AddressInfo;
       resolve({
         url: `http://${host}:${address.port}`,
-        close: () => new Promise((done) => server.close(() => done()))
+        close: () => new Promise<void>((done) => {
+          // P4.3-Sc2: Stop SSE hubs on server close
+          observabilityHub.stop();
+          sessionHub.stop();
+          // Release all connection limiter slots
+          connectionLimiter.releaseAll();
+          server.close(() => done());
+        }),
       });
     });
   });

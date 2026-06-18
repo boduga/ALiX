@@ -68,18 +68,22 @@ describe("Security headers", () => {
 
   it("SSE response has Cache-Control: no-cache and X-Accel-Buffering: no", async () => {
     const { startServer } = await import("../../src/server/server.js");
-    // Create the session directory to make the session ID valid, but leave
-    // the events.jsonl file absent so the SSE handler sets headers and then
-    // calls res.end() (clean shutdown instead of hanging on the polling loop).
-    const sessionId = "test-session";
+    const sessionId = "test-session-headers";
     const eventsDir = join(tmpDir, ".alix", "sessions", sessionId);
     mkdirSync(eventsDir, { recursive: true });
 
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
-      const headers = await httpGetHeaders(`${url}/api/sessions/${sessionId}/events`);
-      assert.equal(headers["cache-control"], "no-cache");
-      assert.equal(headers["x-accel-buffering"], "no");
+      // SSE connections stay open — check headers from the response object
+      // before closing the connection
+      const res = await fetch(`${url}/api/sessions/${sessionId}/events`);
+      try {
+        assert.equal(res.headers.get("cache-control"), "no-cache");
+        assert.equal(res.headers.get("x-accel-buffering"), "no");
+      } finally {
+        // Cancel the stream to avoid hanging
+        await res.body?.cancel();
+      }
     } finally {
       await close();
     }
