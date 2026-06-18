@@ -185,7 +185,7 @@ async function handleListRuns(cwd: string, r: SecureJsonResponder): Promise<void
     }));
     r.ok(summaries);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -195,7 +195,7 @@ async function handleRunView(cwd: string, runId: string, r: SecureJsonResponder)
     if (!view) { r.error("run_not_found", 404); return; }
     r.ok(view);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -205,7 +205,7 @@ async function handleWorkers(cwd: string, runId: string, r: SecureJsonResponder)
     if (!view) { r.error("run_not_found", 404); return; }
     r.ok(view.workers);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -217,7 +217,7 @@ async function handleWorker(cwd: string, runId: string, workerId: string, r: Sec
     if (!worker) { r.error("worker_not_found", 404); return; }
     r.ok(worker);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -228,7 +228,7 @@ async function handleResults(cwd: string, runId: string, r: SecureJsonResponder)
     if (!summary) { r.error("no_aggregate_found", 404); return; }
     r.ok(summary);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -238,7 +238,7 @@ async function handleEvents(cwd: string, runId: string, r: SecureJsonResponder):
     if (!view) { r.error("run_not_found", 404); return; }
     r.ok(view.events);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -248,7 +248,7 @@ async function handleApprovals(cwd: string, runId: string, r: SecureJsonResponde
     if (!view) { r.error("run_not_found", 404); return; }
     r.ok(view.approvals);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -258,7 +258,7 @@ async function handleOwnership(cwd: string, runId: string, r: SecureJsonResponde
     if (!view) { r.error("run_not_found", 404); return; }
     r.ok(view.ownershipLeases);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -269,7 +269,7 @@ async function handleConflicts(cwd: string, runId: string, r: SecureJsonResponde
     const conflicts = await repo.getConflicts(runId);
     r.ok(conflicts);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }
 
@@ -281,6 +281,6 @@ async function handleConflict(cwd: string, runId: string, conflictId: string, r:
     if (!conflict) { r.error("conflict_not_found", 404); return; }
     r.ok(conflict);
   } catch (err) {
-    r.error(err instanceof Error ? err.message : String(err), 500);
+    r.error("internal_error", 500);
   }
 }

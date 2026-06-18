@@ -118,9 +118,8 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
       return true;
     }
   } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (r) r.error(msg, 500);
-    else rawJson(res, { error: msg }, 500);
+    if (r) r.error("internal_error", 500);
+    else rawJson(res, { error: "internal_error" }, 500);
     return true;
   }
 

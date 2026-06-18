@@ -16,6 +16,7 @@ import { redactValue } from "../security/redaction/redactor.js";
 import { createRedactionPolicy } from "../security/redaction/redaction-policy.js";
 import { SecretDetector } from "../security/redaction/secret-detector.js";
 import { DEFAULT_PROFILE } from "../security/redaction/profiles.js";
+import { MAX_OUTPUT_BYTES } from "../security/redaction/classifications.js";
 import { API_CACHE_HEADERS } from "./security-headers.js";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,8 @@ export interface SecureResponderOptions {
   requestId?: string;
   /** When true, enforce output byte limits (additional safety net). */
   enforceOutputLimit?: boolean;
+  /** Callback invoked after each redaction, for metrics recording. */
+  onRedact?: (classification: string, bytes: number) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -117,7 +120,16 @@ export function createSecureResponder(
         //    no toJSON on the result, so JSON.stringify is safe)
         const body = JSON.stringify(redacted);
 
-        // 6. Send
+        // 6. Fire redaction metrics callback (no recursive output)
+        opts?.onRedact?.("operational", Buffer.byteLength(body));
+
+        // 7. Enforce output byte limit if configured
+        if (opts?.enforceOutputLimit && Buffer.byteLength(body) > MAX_OUTPUT_BYTES) {
+          respondError(res, "response_too_large", 413, requestId);
+          return;
+        }
+
+        // 8. Send
         res.end(body);
       } catch {
         // Serialization failure — fall back to structured error.

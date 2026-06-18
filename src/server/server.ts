@@ -67,7 +67,7 @@ async function serveRegistry(responder: SecureJsonResponder, root: string, type:
     const data = type === "agents" ? registry.listAgents(true) : registry.listTools(true);
     responder.ok(data);
   } catch (err) {
-    responder.error(err instanceof Error ? err.message : String(err), 500);
+    responder.error("internal_error", 500);
   }
 }
 
@@ -182,7 +182,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           });
           secure.ok(items);
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -197,7 +197,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const projection = await buildGraphProjection(graphId, root);
           secure.ok(projection);
         } catch (err) {
-          secure.error("graph_not_found", 404, err instanceof Error ? err.message : String(err));
+          secure.error("graph_not_found", 404);
         }
         return;
       }
@@ -215,7 +215,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const evaluator = await loadRuleEvaluator(root);
           secure.ok(evaluator.getAllRules());
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -229,7 +229,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const result = evaluator.evaluate({ capability, riskLevel: riskLevel as any, executionProfile });
           secure.ok(result);
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -241,7 +241,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const status = await mgr.status();
           secure.ok({ running, status });
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -264,7 +264,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           });
           res.end(raw);
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -275,7 +275,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           await store.load();
           secure.ok(store.list());
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -299,7 +299,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           filtered = filtered.slice(0, limit);
           secure.ok(filtered);
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -317,7 +317,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           else records = await store.list(limit);
           secure.ok(records);
         } catch (err) {
-          secure.error(err instanceof Error ? err.message : String(err), 500);
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -435,7 +435,8 @@ export function startServer(root: string, host: string, port: number, allowedHos
         return;
       }
       res.statusCode = 500;
-      res.end(error instanceof Error ? error.message : "Internal server error");
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ error: "internal_error" }));
     }
   });
 
