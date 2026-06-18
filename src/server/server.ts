@@ -164,11 +164,16 @@ export function startServer(root: string, host: string, port: number, allowedHos
       // unauthenticated clients can reach them.  Token validation
       // is performed by the handler itself, not the middleware.
       if (url.pathname === "/api/auth/session" && req.method === "POST") {
-        await handleSessionExchange(req, res, secure, authService, sessionStore, host);
+        await handleSessionExchange(req, res, secure, authService, sessionStore);
         return;
       }
       if (url.pathname === "/api/auth/logout" && req.method === "POST") {
-        await handleLogout(req, res, secure, sessionStore);
+        await handleLogout(req, res, secure, sessionStore, (event) => {
+          fileAudit({
+            action: event.type,
+            tokenId: event.sessionId,
+          });
+        });
         return;
       }
 

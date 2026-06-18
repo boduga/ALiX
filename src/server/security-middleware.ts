@@ -26,7 +26,7 @@ import { SecretDetector } from "../security/redaction/secret-detector.js";
 import { createSecureResponder } from "./secure-response.js";
 import type { AuthService } from "../security/inspector/auth-service.js";
 import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
-import { parseToken } from "../security/inspector/token-format.js";
+import { parseSessionCookie } from "./cookie-utils.js";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -118,34 +118,6 @@ function extractBearerToken(req: IncomingMessage, url: URL): BearerResult {
 }
 
 // ---------------------------------------------------------------------------
-// Session cookie parsing (Sb3)
-// ---------------------------------------------------------------------------
-
-/** Session cookie name. */
-const SESSION_COOKIE = "alix-session";
-
-/**
- * Parse the ALiX session cookie from the Cookie header.
- *
- * Returns the session ID or null if not found.
- */
-function parseSessionCookie(req: IncomingMessage): string | null {
-  const cookieHeader = req.headers["cookie"];
-  if (!cookieHeader) return null;
-
-  const cookieStr = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
-
-  // Parse: alix-session=<value>
-  const match = cookieStr.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  if (match) {
-    const value = match[1];
-    if (value.length > 0) return value;
-  }
-
-  return null;
-}
-
-// ---------------------------------------------------------------------------
 // Middleware factory
 // ---------------------------------------------------------------------------
 
@@ -197,7 +169,9 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
           ctx = createSecurityContext({
             authenticated: true,
             tokenId: session.principal.id,
-            permissions: derivePermissions(session.principal.role),
+            permissions:
+              session.principal.permissions ??
+              derivePermissions(session.principal.role),
             route,
           });
         }
@@ -271,7 +245,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
  *
  * Uses a closed vocabulary — no dynamic permission generation.
  */
-function derivePermissions(role: string): string[] {
+export function derivePermissions(role: string): string[] {
   const permissions: string[] = [];
   permissions.push("health:read");
 

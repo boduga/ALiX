@@ -27,6 +27,8 @@ export interface SessionPrincipal {
   name: string;
   role: string;
   workspaceIds?: string[];
+  /** Permissions derived from the token role at session creation time. */
+  permissions?: string[];
 }
 
 /** An active browser session. */

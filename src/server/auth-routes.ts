@@ -20,6 +20,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { AuthService } from "../security/inspector/auth-service.js";
 import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
 import type { SecureJsonResponder } from "./secure-response.js";
+import { parseSessionCookie } from "./cookie-utils.js";
+import { derivePermissions } from "./security-middleware.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -35,8 +37,11 @@ const SESSION_COOKIE = "alix-session";
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const RATE_LIMIT_MAX_ATTEMPTS = 20;
 
+/** Maximum distinct IPs tracked by the rate limiter (prevents unbounded growth). */
+const RATE_LIMIT_MAX_ENTRIES = 10_000;
+
 // ---------------------------------------------------------------------------
-// Rate limiter (in-memory)
+// Rate limiter (in-memory, bounded)
 // ---------------------------------------------------------------------------
 
 interface RateEntry {
@@ -48,6 +53,32 @@ const rateLimitMap = new Map<string, RateEntry>();
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
+
+  // 1. Purge all entries whose window has expired (keeps the map bounded)
+  for (const [key, entry] of rateLimitMap) {
+    if (now >= entry.resetAt) {
+      rateLimitMap.delete(key);
+    }
+  }
+
+  // 2. Enforce maximum-entries cap — evict oldest if over limit
+  while (rateLimitMap.size >= RATE_LIMIT_MAX_ENTRIES) {
+    let oldestKey: string | null = null;
+    let oldestResetAt = Infinity;
+    for (const [key, entry] of rateLimitMap) {
+      if (entry.resetAt < oldestResetAt) {
+        oldestResetAt = entry.resetAt;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey) {
+      rateLimitMap.delete(oldestKey);
+    } else {
+      break; // safety guard
+    }
+  }
+
+  // 3. Check / create entry for the current IP
   const entry = rateLimitMap.get(ip);
 
   if (!entry) {
@@ -104,20 +135,31 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /**
- * Validate that Origin or Referer headers match the configured host.
+ * Validate that Origin or Referer headers match the request's Host header.
+ *
+ * Uses `req.headers.host` (which includes port for non-standard ports) so
+ * that same-origin validation works correctly when the server is listening
+ * on a port other than 80/443.
  *
  * Returns true if the request appears to be same-origin (including cases
  * where neither header is present, e.g., from curl or native apps).
  */
-function isSameOrigin(req: IncomingMessage, host: string): boolean {
+function isSameOrigin(req: IncomingMessage): boolean {
   const origin = req.headers["origin"];
   const referer = req.headers["referer"];
 
   // If neither header is present, proceed (non-browser context)
   if (!origin && !referer) return true;
 
-  const expectedOrigin = `http://${host}`;
-  const expectedSecureOrigin = `https://${host}`;
+  const hostHeader = req.headers["host"];
+  if (!hostHeader) {
+    // No Host header — can't validate, allow to proceed
+    return true;
+  }
+  const hostStr = Array.isArray(hostHeader) ? hostHeader[0] : hostHeader;
+
+  const expectedOrigin = `http://${hostStr}`;
+  const expectedSecureOrigin = `https://${hostStr}`;
 
   if (origin) {
     const originStr = Array.isArray(origin) ? origin[0] : origin;
@@ -192,7 +234,6 @@ export async function handleSessionExchange(
   responder: SecureJsonResponder,
   authService: AuthService,
   sessionStore: BrowserSessionStore,
-  host: string,
 ): Promise<void> {
   try {
     // 1. Rate limiting
@@ -202,8 +243,8 @@ export async function handleSessionExchange(
       return;
     }
 
-    // 2. Same-origin check
-    if (!isSameOrigin(req, host)) {
+    // 2. Same-origin check (uses req.headers.host which includes port)
+    if (!isSameOrigin(req)) {
       responder.error("cross_origin_denied", 403);
       return;
     }
@@ -263,19 +304,23 @@ export async function handleSessionExchange(
 
     const principal = verifyResult.value;
 
-    // 6. Create session
+    // 6. Create session with derived permissions (Fix I5: store permissions
+    //    so cookie auth and bearer auth use the same permission set)
+    const sessionPermissions = derivePermissions(principal.role);
     const session = sessionStore.createSession({
       id: principal.id,
       name: principal.name,
       role: principal.role,
       workspaceIds: principal.workspaceIds,
+      permissions: sessionPermissions,
     });
 
     // 7. Determine if connection is secure
-    // Check X-Forwarded-Proto for reverse-proxy deployments
-    const proto = req.headers["x-forwarded-proto"];
-    const protoStr = Array.isArray(proto) ? proto[0] : proto;
-    const isSecure = protoStr === "https";
+    // Check direct TLS (req.socket.encrypted) AND X-Forwarded-Proto for
+    // reverse-proxy deployments
+    const isSecure =
+      (req.socket as any).encrypted ||
+      (req.headers["x-forwarded-proto"] as string)?.toLowerCase() === "https";
 
     // 8. Set cookie
     res.setHeader("Set-Cookie", buildSetCookie(session.id, isSecure));
@@ -300,20 +345,23 @@ export async function handleLogout(
   res: ServerResponse,
   responder: SecureJsonResponder,
   sessionStore: BrowserSessionStore,
+  onAudit?: (event: { type: string; sessionId: string }) => void,
 ): Promise<void> {
   try {
     // 1. Parse session cookie
     const sessionId = parseSessionCookie(req);
 
-    // 2. Remove session if it exists
+    // 2. Remove session if it exists and emit audit
     if (sessionId) {
       sessionStore.removeSession(sessionId);
+      onAudit?.({ type: "logout", sessionId });
     }
 
     // 3. Determine secure flag
-    const proto = req.headers["x-forwarded-proto"];
-    const protoStr = Array.isArray(proto) ? proto[0] : proto;
-    const isSecure = protoStr === "https";
+    // Check direct TLS AND X-Forwarded-Proto for reverse-proxy deployments
+    const isSecure =
+      (req.socket as any).encrypted ||
+      (req.headers["x-forwarded-proto"] as string)?.toLowerCase() === "https";
 
     // 4. Expire cookie
     res.setHeader("Set-Cookie", buildExpireCookie(isSecure));
@@ -329,23 +377,3 @@ export async function handleLogout(
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Parse the ALiX session cookie from the Cookie header.
- *
- * Returns the session ID or null if not found.
- */
-export function parseSessionCookie(req: IncomingMessage): string | null {
-  const cookieHeader = req.headers["cookie"];
-  if (!cookieHeader) return null;
-
-  const cookieStr = Array.isArray(cookieHeader) ? cookieHeader[0] : cookieHeader;
-
-  // Parse: alix-session=<value>
-  const match = cookieStr.match(new RegExp(`(?:^|;\\s*)${SESSION_COOKIE}=([^;]+)`));
-  if (match) {
-    const value = match[1];
-    if (value.length > 0) return value;
-  }
-
-  return null;
-}
