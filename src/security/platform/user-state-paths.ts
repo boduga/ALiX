@@ -22,6 +22,10 @@ import { join } from "node:path";
 export interface UserStatePaths {
   /** Directory for Inspector auth state (token store). */
   authStateDir: string;
+  /** Directory for platform persistent data (credential store, audit logs). */
+  dataDir: string;
+  /** Directory for platform configuration files. */
+  configDir: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -92,5 +96,7 @@ export function getUserStatePaths(): UserStatePaths {
   const base = resolveBaseStateDir();
   return {
     authStateDir: join(base, "auth"),
+    dataDir: join(base, "data"),
+    configDir: join(base, "config"),
   };
 }
