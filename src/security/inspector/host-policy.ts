@@ -107,12 +107,13 @@ export function validateHost(
       const lastColon = trimmed.lastIndexOf(":");
       const afterColon = trimmed.slice(lastColon + 1);
       if (/^\d+$/.test(afterColon)) {
-        // Looks like host:port with numeric port — valid format
+        // Numeric port — valid, continue to allow-list match
       } else if (afterColon.includes(".") || afterColon === "com" || afterColon === "org" || afterColon === "net" || /[a-zA-Z]/.test(afterColon)) {
-        // Not a port — assume it's part of hostname (could be IPv6 without brackets)
+        // Not a numeric port — assume it's part of hostname (could be IPv6 without brackets)
         // Pass through to host check
       } else {
-        // Undetermined — accept and let normalization handle it
+        // Non-numeric and not hostname-like — malformed port
+        return { ok: false, error: "invalid_host", statusCode: 400 };
       }
     }
   }

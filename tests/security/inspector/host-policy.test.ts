@@ -92,6 +92,18 @@ describe("validateHost", () => {
     assert.ok(!result.ok);
   });
 
+  it("rejects port with special characters", () => {
+    const result = validateHost("127.0.0.1:!!", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects trailing colon with no port", () => {
+    const result = validateHost("127.0.0.1:", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
   it("rejects external host not in allowed list", () => {
     const result = validateHost("evil-server.com:4137", DEFAULT_ALLOWED);
     assert.ok(!result.ok);

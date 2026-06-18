@@ -10,7 +10,7 @@
 
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { get, request } from "node:http";
@@ -68,13 +68,18 @@ describe("Security headers", () => {
 
   it("SSE response has Cache-Control: no-cache and X-Accel-Buffering: no", async () => {
     const { startServer } = await import("../../src/server/server.js");
+    // Create the session directory to make the session ID valid, but leave
+    // the events.jsonl file absent so the SSE handler sets headers and then
+    // calls res.end() (clean shutdown instead of hanging on the polling loop).
+    const sessionId = "test-session";
+    const eventsDir = join(tmpDir, ".alix", "sessions", sessionId);
+    mkdirSync(eventsDir, { recursive: true });
+
     const { url, close } = await startServer(tmpDir, "127.0.0.1", 0);
     try {
-      const headers = await httpGetHeaders(`${url}/api/runtime/events`, { method: "GET" });
-      // The /api/runtime/events route returns JSON, not SSE. For a real SSE test
-      // we'd need a session with an events file. But the key test is that the
-      // header is set on non-SSE paths correctly.
-      // SSE headers are tested by checking the /api/sessions/*/events path.
+      const headers = await httpGetHeaders(`${url}/api/sessions/${sessionId}/events`);
+      assert.equal(headers["cache-control"], "no-cache");
+      assert.equal(headers["x-accel-buffering"], "no");
     } finally {
       await close();
     }
