@@ -47,6 +47,16 @@ export type UiConfig = {
   host: string;
   port: number;
   transport: "sse" | "websocket";
+  security?: UiSecurityConfig;
+};
+
+export type UiSecurityConfig = {
+  authentication: "required" | "disabled-loopback-development";
+  remoteAccess: boolean;
+  allowedHosts: string[];
+  allowedOrigins: string[];
+  trustedProxyCidrs: string[];
+  requireTlsForRemote: boolean;
 };
 
 export type McpTransportType = "stdio" | "http" | "websocket";

@@ -151,7 +151,11 @@ export function mergeConfig(
       },
       context: { ...result.context, ...override.context },
       runtime: { ...result.runtime, ...override.runtime },
-      ui: { ...result.ui, ...override.ui },
+      ui: {
+        ...result.ui,
+        ...override.ui,
+        security: { ...result.ui?.security, ...override.ui?.security } as AlixConfig["ui"]["security"] | undefined,
+      },
       mcpServers: normalizeMcpServers(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),
