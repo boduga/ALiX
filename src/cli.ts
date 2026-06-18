@@ -146,6 +146,10 @@ Usage:
   alix audit by-graph <id>       Show audit events for a graph
   alix audit by-approval <id>    Show audit events for an approval
   alix audit by-action <action>  Filter by action type
+  alix audit verify              Stream-verify audit log integrity
+  alix audit verify --json       Structured integrity report
+  alix audit checkpoint --output <path>  Create signed checkpoint
+  alix audit checkpoint-verify <path>    Verify checkpoint evidence
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
   alix daemon start      Start the background daemon
@@ -2178,8 +2182,32 @@ if (command === "submit") {
 }
 
 if (command === "audit") {
-  const { AuditStore } = await import("./audit/audit-store.js");
   const cwd = process.cwd();
+
+  // Sd2: verify
+  if (args[0] === "verify") {
+    const { handleAuditVerify } = await import("./cli/commands/security.js");
+    await handleAuditVerify(args.slice(1));
+    // handleAuditVerify calls process.exit
+    process.exit(0);
+  }
+
+  // Sd2: checkpoint
+  if (args[0] === "checkpoint") {
+    const { handleAuditCheckpoint } = await import("./cli/commands/security.js");
+    await handleAuditCheckpoint(args.slice(1));
+    process.exit(0);
+  }
+
+  // Sd2: checkpoint-verify
+  if (args[0] === "checkpoint-verify") {
+    const { handleAuditCheckpointVerify } = await import("./cli/commands/security.js");
+    await handleAuditCheckpointVerify(args.slice(1));
+    process.exit(0);
+  }
+
+  // Legacy: query commands
+  const { AuditStore } = await import("./audit/audit-store.js");
   const store = new AuditStore(cwd);
 
   if (args[0] === "list") {
@@ -2231,11 +2259,16 @@ if (command === "audit") {
     process.exit(0);
   }
 
-  console.log("Usage: alix audit [list|by-graph|by-approval|by-action]");
+  console.log("Usage: alix audit [list|by-graph|by-approval|by-action|verify|checkpoint|checkpoint-verify]");
   console.log("  list              Show recent audit events");
   console.log("  by-graph <id>     Show audit events for a graph");
   console.log("  by-approval <id>  Show audit events for an approval");
   console.log("  by-action <act>   Filter by action type");
+  console.log("  verify             Stream-verify the audit log integrity (Sd2)");
+  console.log("    --json           Output structured findings as JSON");
+  console.log("  checkpoint         Create signed checkpoint evidence (Sd2)");
+  console.log("    --output <path>  Write checkpoint to file");
+  console.log("  checkpoint-verify <path>  Verify a checkpoint (Sd2)");
   process.exit(0);
 }
 
