@@ -149,6 +149,22 @@ export interface AgentCapability {
 }
 
 // ---------------------------------------------------------------------------
+// WorkPackage (IssueIntakeAgent → PlanningAgent)
+// ---------------------------------------------------------------------------
+
+export interface WorkPackage {
+  issueNumber: number;
+  issueTitle: string;
+  labels: string[];
+  priority: "low" | "medium" | "high" | "critical";
+  complexity: "small" | "medium" | "large" | "unknown";
+  estimatedFiles: string[];
+  dependencies: number[];
+  acceptanceCriteria: string[];
+  riskFlags: string[];
+}
+
+// ---------------------------------------------------------------------------
 // Coordinator config
 // ---------------------------------------------------------------------------
 
