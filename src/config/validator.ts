@@ -13,6 +13,11 @@ export function validateConfig(config: AlixConfig): ConfigValidationResult {
     issues.push({ path: "ui.port", level: "warning", message: `Port ${config.ui.port} is outside typical range (1024-65535)` });
   }
 
+  // Warn when ui.host is explicitly set to 0.0.0.0 — should use loopback
+  if (config.ui.host === "0.0.0.0") {
+    issues.push({ path: "ui.host", level: "warning", message: "Binding to 0.0.0.0 exposes Inspector on all interfaces. Set ui.host to 127.0.0.1 for loopback-only." });
+  }
+
   // context.maxRepoMapTokens must be positive integer
   if (!Number.isInteger(config.context.maxRepoMapTokens) || config.context.maxRepoMapTokens <= 0) {
     issues.push({ path: "context.maxRepoMapTokens", level: "error", message: "maxRepoMapTokens must be a positive integer" });
