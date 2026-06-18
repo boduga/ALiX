@@ -172,6 +172,12 @@ Usage:
   alix audit verify --json       Structured integrity report
   alix audit checkpoint --output <path>  Create signed checkpoint
   alix audit checkpoint-verify <path>    Verify checkpoint evidence
+  alix evidence list [--kind <type>] [--limit <n>] [--json]
+                                   List evidence records
+  alix evidence show <fingerprint> Show evidence record by fingerprint
+  alix evidence query --kind <type> [--after <iso>] [--before <iso>] [--json]
+                                   Query evidence by type and time range
+  alix evidence verify             Run fingerprint chain verification
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
   alix daemon start      Start the background daemon
@@ -2459,6 +2465,13 @@ if (command === "audit") {
   console.log("  checkpoint         Create signed checkpoint evidence (Sd2)");
   console.log("    --output <path>  Write checkpoint to file");
   console.log("  checkpoint-verify <path>  Verify a checkpoint (Sd2)");
+  process.exit(0);
+}
+
+// ── Evidence commands (P4.4b) ──────────────────────────────────────
+if (command === "evidence") {
+  const { handleEvidenceCommand } = await import("./cli/commands/evidence.js");
+  await handleEvidenceCommand(args);
   process.exit(0);
 }
 
