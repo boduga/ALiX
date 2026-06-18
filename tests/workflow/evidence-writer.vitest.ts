@@ -8,7 +8,6 @@ import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
 import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
-import type { EvidenceRecord } from "../../src/security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -43,7 +43,6 @@ export class WorkflowCoordinator {
   private readonly staleThresholdMs: number;
   private evidenceStore: import("../security/evidence/evidence-store.js").EvidenceStore | null = null;
   private evidenceStoreInitPromise: Promise<void> | null = null;
-  private evidenceWriterEvidenceStore: import("../security/evidence/evidence-store.js").EvidenceStore | null = null;
   private evidenceWriter: EvidenceEventWriter | null = null;
 
   constructor(config: WorkflowCoordinatorConfig) {
@@ -408,16 +407,12 @@ export class WorkflowCoordinator {
     if (this.evidenceWriter) return this.evidenceWriter;
     await this.ensureEvidenceStore();
     if (!this.evidenceStore) return null;
-    if (this.evidenceWriterEvidenceStore === this.evidenceStore && this.evidenceWriter) {
-      return this.evidenceWriter;
-    }
     const { EvidenceEventWriter } = await import(
       "./evidence-writer.js"
     );
     this.evidenceWriter = new EvidenceEventWriter(
       (type, payload) => this.evidenceStore!.append(type, payload),
     );
-    this.evidenceWriterEvidenceStore = this.evidenceStore;
     return this.evidenceWriter;
   }
 
