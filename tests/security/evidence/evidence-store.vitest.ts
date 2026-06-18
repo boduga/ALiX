@@ -215,39 +215,40 @@ describe("EvidenceStore", () => {
 
     it("compacts old records into summary records", async () => {
       const oldDir = tmpDir();
-      // Seed the store with old records by writing them directly
-      const oldTime = new Date(Date.now() - 10_000).toISOString();
-      const cutoff = new Date(Date.now() - 5_000).toISOString();
+      try {
+        // Seed the store with old records by writing them directly
+        const oldTime = new Date(Date.now() - 10_000).toISOString();
+        const cutoff = new Date(Date.now() - 5_000).toISOString();
 
-      const oldRecord1: EvidenceRecord = {
-        version: 1, id: randomUUID(), type: "config_signed",
-        timestamp: oldTime, fingerprint: "ff".repeat(32),
-        payload: { configVersion: 1 },
-      };
-      const oldRecord2: EvidenceRecord = {
-        version: 1, id: randomUUID(), type: "trust_evaluation",
-        timestamp: oldTime, fingerprint: "ee".repeat(32),
-        payload: { trusted: true, configVersion: 1 },
-      };
+        const oldRecord1: EvidenceRecord = {
+          version: 1, id: randomUUID(), type: "config_signed",
+          timestamp: oldTime, fingerprint: "ff".repeat(32),
+          payload: { configVersion: 1 },
+        };
+        const oldRecord2: EvidenceRecord = {
+          version: 1, id: randomUUID(), type: "trust_evaluation",
+          timestamp: oldTime, fingerprint: "ee".repeat(32),
+          payload: { trusted: true, configVersion: 1 },
+        };
 
-      writeFileSync(
-        join(oldDir, "evidence.jsonl"),
-        JSON.stringify(oldRecord1) + "\n" + JSON.stringify(oldRecord2) + "\n",
-        "utf-8",
-      );
+        writeFileSync(
+          join(oldDir, "evidence.jsonl"),
+          JSON.stringify(oldRecord1) + "\n" + JSON.stringify(oldRecord2) + "\n",
+          "utf-8",
+        );
 
-      const seededStore = new EvidenceStore({ storeDir: oldDir });
-      // Append a recent record
-      await seededStore.append("config_signed", { configVersion: 2 });
+        const seededStore = new EvidenceStore({ storeDir: oldDir });
+        await seededStore.append("config_signed", { configVersion: 2 });
 
-      const result = await seededStore.compact(cutoff);
-      expect(result.recordsBefore).toBe(3); // 2 old + 1 recent
-      expect(result.recordsAfter).toBeGreaterThanOrEqual(2); // 1 recent + summaries
+        const result = await seededStore.compact(cutoff);
+        expect(result.recordsBefore).toBe(3);
+        expect(result.recordsAfter).toBeGreaterThanOrEqual(2);
 
-      const compactions = await seededStore.query({ type: "evidence_compaction" });
-      expect(compactions.records.length).toBeGreaterThanOrEqual(1);
-
-      rmSync(oldDir, { recursive: true, force: true });
+        const compactions = await seededStore.query({ type: "evidence_compaction" });
+        expect(compactions.records.length).toBeGreaterThanOrEqual(1);
+      } finally {
+        rmSync(oldDir, { recursive: true, force: true });
+      }
     });
 
     it("does not create compaction records if nothing to compact", async () => {
