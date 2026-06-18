@@ -189,7 +189,7 @@ class SessionTailer {
         reason: "cursor_below_floor",
         requestedSeq: cursorSeq,
         availableFrom: firstSeq,
-      });
+      }, lastSeq.toString());
       cursorSeq = firstSeq - 1;
     }
 
@@ -203,12 +203,12 @@ class SessionTailer {
       conn.send("replay.reset", {
         reason: "replay_truncated",
         totalEvents: bounded.length,
-      });
+      }, bounded[bounded.length - 1].seq.toString());
     }
 
     let count = 0;
     for (const ev of bounded) {
-      conn.send("alix", ev.redacted);
+      conn.send("alix", ev.redacted, ev.seq.toString());
       count++;
     }
 
@@ -429,9 +429,10 @@ class SessionTailer {
       }
 
       // Fan out to subscribers
+      const seqStr = event.seq.toString();
       for (const conn of this.subscribers) {
         try {
-          conn.send("alix", redacted);
+          conn.send("alix", redacted, seqStr);
         } catch {
           // Best-effort per subscriber
         }

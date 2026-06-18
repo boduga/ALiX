@@ -33,7 +33,7 @@ import { SecretDetector } from "../security/redaction/secret-detector.js";
  */
 export interface SecureSseConnection {
   /** Send an SSE event. May drop the event if buffers are full. */
-  send(event: string, data: unknown): void;
+  send(event: string, data: unknown, id?: string): void;
 
   /** Idempotent close — releases all resources. */
   close(): void;
@@ -292,7 +292,7 @@ export function createSecureSseConnection(
 
   // ── Public API ───────────────────────────────────────────────────────
 
-  const send = (event: string, data: unknown): void => {
+  const send = (event: string, data: unknown, id?: string): void => {
     if (closed) return;
 
     try {
@@ -310,7 +310,8 @@ export function createSecureSseConnection(
 
       // Format as SSE: event, id, data fields
       const eventLine = event.includes("\n") ? "" : `event: ${event}\n`;
-      const payload = `${eventLine}data: ${dataStr}\n\n`;
+      const idLine = id !== undefined ? `id: ${id}\n` : "";
+      const payload = `${eventLine}${idLine}data: ${dataStr}\n\n`;
 
       doWrite(payload);
     } catch {
@@ -380,7 +381,7 @@ export class MockSecureSseConnection implements SecureSseConnection {
     this.maxBuffered = opts?.maxBufferedEvents ?? DEFAULT_MAX_BUFFERED_EVENTS;
   }
 
-  send(event: string, data: unknown): void {
+  send(event: string, data: unknown, _id?: string): void {
     if (this._closed) return;
 
     // Redact
@@ -399,11 +400,11 @@ export class MockSecureSseConnection implements SecureSseConnection {
 
     // Buffer limits
     if (this.totalBuffered + payloadBytes > this.maxBufferBytes) {
-      this._closed = true;
+      this.close();
       return;
     }
     if (this.events.length >= this.maxBuffered) {
-      this._closed = true;
+      this.close();
       return;
     }
 

@@ -167,6 +167,12 @@ export class ObservabilityStreamHub {
     conn.onClose(() => {
       this.subscribers.delete(conn);
       this.disconnectCount++;
+      // Track disconnect reason for diagnostics
+      const reason: string =
+        typeof (conn as any)._getCloseReason === "function"
+          ? (conn as any)._getCloseReason()
+          : "unknown";
+      this.disconnectReasons[reason] = (this.disconnectReasons[reason] ?? 0) + 1;
     });
   }
 
@@ -211,7 +217,7 @@ export class ObservabilityStreamHub {
         epoch: this.epoch,
         reason: !epochOk ? "epoch_mismatch" : "fresh_connect",
         totalEvents: eventsToReplay.length,
-      });
+      }, formatReplayId(this.epoch, this.headSeq()));
     } else if (cursorSeq >= this.headSeq()) {
       // Cursor at or beyond head — nothing to replay
       return 0;
@@ -224,7 +230,7 @@ export class ObservabilityStreamHub {
         requestedSeq: cursorSeq,
         floorSeq: this.floorSeq(),
         totalEvents: eventsToReplay.length,
-      });
+      }, formatReplayId(this.epoch, this.headSeq()));
     } else {
       // Normal incremental replay
       eventsToReplay = this.ring.filter((e) => e.seq > cursorSeq);
@@ -237,13 +243,13 @@ export class ObservabilityStreamHub {
         epoch: this.epoch,
         reason: "replay_truncated",
         totalEvents: eventsToReplay.length,
-      });
+      }, formatReplayId(this.epoch, eventsToReplay[eventsToReplay.length - 1].seq));
     }
 
     // Send replay events
     let count = 0;
     for (const ev of eventsToReplay) {
-      conn.send(ev.event, ev.data);
+      conn.send(ev.event, ev.data, formatReplayId(ev.epoch, ev.seq));
       count++;
     }
 
@@ -385,7 +391,7 @@ export class ObservabilityStreamHub {
     for (const conn of this.subscribers) {
       try {
         // Pass replay ID as the SSE event ID
-        conn.send(event, { _replayId: replayId, ...(redactedData as Record<string, unknown>) });
+        conn.send(event, redactedData, replayId);
       } catch {
         // Best-effort per subscriber
       }
