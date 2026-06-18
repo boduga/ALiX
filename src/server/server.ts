@@ -12,6 +12,7 @@ import {
 } from "../inspector/session-reader.js";
 import { registerCoordinationRoutes } from "./coordination-routes.js";
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
+import { validateHost } from "../security/inspector/host-policy.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -67,10 +68,23 @@ async function serveRegistry(res: ServerResponse, root: string, type: "agents" |
   }
 }
 
-export function startServer(root: string, host: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
+export function startServer(root: string, host: string, port: number, allowedHosts?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
+  const effectiveAllowed = allowedHosts ?? ["127.0.0.1", "::1", "localhost"];
+
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
+
+      // Validate Host header on every request, including /healthz
+      const hostResult = validateHost(req.headers.host, effectiveAllowed);
+      if (!hostResult.ok) {
+        // Do NOT include rejected raw host in the response
+        res.statusCode = hostResult.statusCode;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: "invalid_host" }));
+        return;
+      }
+
       if (url.pathname === "/healthz") {
         res.statusCode = 200;
         res.setHeader("content-type", "text/plain");
