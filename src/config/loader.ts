@@ -7,6 +7,8 @@ import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } fro
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
 import { isCredentialReference, resolveCredential } from "../security/credentials/credential-reference.js";
+import { ConfigSigner, type TrustReport } from "./signing.js";
+import { ConfigMutationService } from "./mutation.js";
 
 function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "image"): Partial<ModelTierConfig> | undefined {
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
@@ -50,6 +52,25 @@ export type LoadConfigOptions = {
   requireModel?: boolean;
   /** Override the credential store (for testing). When not provided, the default platform store is used. */
   credentialStore?: CredentialStore;
+  /** Enable config trust evaluation (signature verification + anti-rollback). */
+  trustEvaluation?: boolean | LoadConfigTrustOptions;
+};
+
+export type LoadConfigTrustOptions = {
+  /** If true, trust failures are fatal errors (default: false = warnings only). */
+  productionMode?: boolean;
+  /** PEM-encoded trusted public key for signature verification. */
+  publicKeyPem?: string;
+  /** Path to the anti-rollback version stamp. */
+  stampPath?: string;
+};
+
+/**
+ * Extended config type that carries a trust report when trust evaluation is enabled.
+ */
+export type TrustedAlixConfig = AlixConfig & {
+  /** Trust evaluation report, populated when trustEvaluation is enabled. */
+  _trustReport?: TrustReport;
 };
 
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
@@ -175,6 +196,51 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
       console.warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
     }
   }
+
+  // Trust evaluation: signature verification + anti-rollback
+  const trustOpts = options.trustEvaluation;
+  if (trustOpts) {
+    const productionMode = typeof trustOpts === "object" ? (trustOpts.productionMode ?? false) : false;
+    const publicKeyPem = typeof trustOpts === "object" ? (trustOpts.publicKeyPem ?? null) : null;
+    const stampPath = typeof trustOpts === "object" ? (trustOpts.stampPath ?? undefined) : undefined;
+
+    const projectConfigDir = join(cwd, ".alix", "config");
+    let configVersion = 0;
+    try {
+      if (existsSync(projectConfigDir)) {
+        const mutationService = new ConfigMutationService(projectConfigDir);
+        configVersion = await mutationService.getVersion();
+      }
+    } catch {
+      // Version read is best-effort
+    }
+
+    const trustReport = await ConfigSigner.evaluateTrust(
+      projectConfigDir,
+      publicKeyPem,
+      configVersion,
+      productionMode,
+    );
+
+    // Store the trust report on the config for access by callers
+    (result as TrustedAlixConfig)._trustReport = trustReport;
+
+    // Emit issues
+    for (const issue of trustReport.issues) {
+      const prefix = issue.severity === "error" ? "ERROR" : "WARN";
+      console.warn(`[Config Trust ${prefix}] ${issue.code}: ${issue.message}`);
+    }
+
+    // Fail closed in production mode
+    if (!trustReport.trusted && productionMode) {
+      const errors = trustReport.issues.filter((i) => i.severity === "error");
+      throw new Error(
+        `Config trust evaluation failed (production mode). ` +
+        errors.map((e) => `${e.code}: ${e.message}`).join("; "),
+      );
+    }
+  }
+
   return result;
 }
 

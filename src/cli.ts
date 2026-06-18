@@ -104,6 +104,12 @@ Usage:
   alix serve               Start the Inspector server (requires ui.enabled: true)
   alix inspector open      Start the Inspector web UI and open browser
   alix config show
+  alix config get <path>         Get config value at dot-path
+  alix config set <path> <value> Set config value, record provenance
+  alix config delete <path>      Delete config value, record provenance
+  alix config history [--json]   Show mutation history
+  alix config provenance [--json] [<path>]  Show provenance log
+  alix config rollback <version> --force --reason "..."  Force anti-rollback override
   alix config set-key     Interactive API key setup for 11 providers
   alix config set-default-model  Interactive model selection (fetches from provider API)
   alix config set-tier [tier]    Set model for a subagent tier (interactive, fetches from provider API)
@@ -139,6 +145,11 @@ Usage:
   alix provider doctor       Test all configured providers (complete + stream)
   alix provider doctor google  Test a specific provider
   alix security doctor       Check Inspector boundary state and security config
+  alix security config keygen    Generate config signing keypair
+  alix security config sign      Sign the current config
+  alix security config verify    Verify config signature and anti-rollback
+  alix security config trust-key <path>  Import a trusted public key
+  alix security config allow-rollback --reason "..."  Accept current config version
   alix credential list        List stored credentials (no values)
   alix credential get <p> <l>  Get credential value
   alix credential set <p> <l> <v> Store credential
@@ -998,6 +1009,174 @@ if (command === "config" && args[0] === "set-tier") {
   await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
   console.log(`\nTier "${tierName}" set to ${providerId}/${selected.id}.`);
   console.log(`Saved to ${configPath}`);
+  process.exit(0);
+}
+
+// --- alix config get <path> ---
+if (command === "config" && args[0] === "get") {
+  const path = args[1];
+  if (!path) {
+    console.error("Usage: alix config get <path>");
+    console.error("Example: alix config get model.provider");
+    process.exit(1);
+  }
+  const config = await loadConfig(process.cwd());
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  const service = new ConfigMutationService(join(process.cwd(), ".alix", "config"));
+  const value = service.getValue(config, path);
+  if (value === undefined) {
+    console.log(`(not set)`);
+  } else if (typeof value === "object") {
+    console.log(JSON.stringify(value, null, 2));
+  } else {
+    console.log(String(value));
+  }
+  process.exit(0);
+}
+
+// --- alix config set <path> <value> ---
+if (command === "config" && args[0] === "set") {
+  const path = args[1];
+  const valueStr = args[2];
+  if (!path || valueStr === undefined) {
+    console.error("Usage: alix config set <path> <value>");
+    console.error("Example: alix config set model.temperature 0.7");
+    process.exit(1);
+  }
+  // Parse value: try JSON first, fall back to string
+  let value: unknown = valueStr;
+  try { value = JSON.parse(valueStr); } catch { /* keep as string */ }
+
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  const service = new ConfigMutationService(configDir);
+  try {
+    const mutation = await service.set(path, value);
+    console.log(`Set ${path} = ${JSON.stringify(value)}`);
+    console.log(`(previous: ${mutation.previousValue === undefined ? "not set" : JSON.stringify(mutation.previousValue)})`);
+  } catch (err: any) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix config delete <path> ---
+if (command === "config" && args[0] === "delete") {
+  const path = args[1];
+  if (!path) {
+    console.error("Usage: alix config delete <path>");
+    console.error("Example: alix config delete model.temperature");
+    process.exit(1);
+  }
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  const service = new ConfigMutationService(configDir);
+  try {
+    const mutation = await service.delete(path);
+    console.log(`Deleted ${path}`);
+    console.log(`(was: ${mutation.previousValue === undefined ? "not set" : JSON.stringify(mutation.previousValue)})`);
+  } catch (err: any) {
+    console.error(`Error: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix config history ---
+if (command === "config" && args[0] === "history") {
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  const service = new ConfigMutationService(configDir);
+  const json = args.includes("--json");
+  const entries = await service.getProvenance();
+  if (entries.length === 0) {
+    console.log("No config mutation history.");
+    process.exit(0);
+  }
+  if (json) {
+    console.log(JSON.stringify(entries, null, 2));
+  } else {
+    for (const entry of entries) {
+      const time = new Date(entry.updatedAt).toLocaleString();
+      console.log(`#${entry.version}  ${time}  by ${entry.updatedBy}`);
+      for (const m of entry.mutations) {
+        const prev = m.previousValue !== undefined ? ` (was: ${JSON.stringify(m.previousValue)})` : "";
+        if (m.op === "set") {
+          console.log(`  ${m.op}  ${m.path} = ${JSON.stringify(m.value)}${prev}`);
+        } else {
+          console.log(`  ${m.op}  ${m.path}${prev}`);
+        }
+      }
+      console.log(`  hash: ${entry.configHash.slice(0, 12)}...`);
+      console.log();
+    }
+    console.log(`${entries.length} entries (max 100)`);
+  }
+  process.exit(0);
+}
+
+// --- alix config provenance [--json] [<path>] ---
+if (command === "config" && args[0] === "provenance") {
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  const service = new ConfigMutationService(configDir);
+  const json = args.includes("--json");
+  // filter path: first non-flag arg after "provenance"
+  const filterPath = args.slice(1).find(a => !a.startsWith("--"));
+  const entries = filterPath ? await service.getProvenance(filterPath) : await service.getProvenance();
+  if (entries.length === 0) {
+    console.log(filterPath ? `No provenance entries for path "${filterPath}".` : "No provenance entries.");
+    process.exit(0);
+  }
+  if (json) {
+    console.log(JSON.stringify(entries, null, 2));
+  } else {
+    console.log(`Config provenance ${filterPath ? `for "${filterPath}" ` : ""}(${entries.length} entries):\n`);
+    for (const entry of entries) {
+      const time = new Date(entry.updatedAt).toLocaleString();
+      console.log(`v${entry.version}  ${time}  ${entry.updatedBy}`);
+      for (const m of entry.mutations) {
+        const icon = m.op === "set" ? "+" : "-";
+        console.log(`  ${icon} ${m.path}`);
+      }
+      console.log(`  prev: ${entry.prevConfigHash.slice(0, 12)}...  ->  ${entry.configHash.slice(0, 12)}...`);
+      console.log();
+    }
+  }
+  process.exit(0);
+}
+
+// --- alix config rollback <version> --force --reason "<reason>" ---
+if (command === "config" && args[0] === "rollback") {
+  const versionStr = args[1];
+  const force = args.includes("--force");
+  const reasonIdx = args.indexOf("--reason");
+  const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : undefined;
+
+  if (!versionStr) {
+    console.error("Usage: alix config rollback <version> --force --reason \"<reason>\"");
+    process.exit(1);
+  }
+  if (!force) {
+    console.error("Rollback requires --force. Use --reason to explain why.");
+    process.exit(1);
+  }
+  if (!reason) {
+    console.error("Rollback requires --reason \"<explanation>\".");
+    process.exit(1);
+  }
+
+  const version = parseInt(versionStr, 10);
+  if (isNaN(version) || version < 1) {
+    console.error(`Invalid version: ${versionStr}`);
+    process.exit(1);
+  }
+
+  const { ConfigSigner } = await import("./config/signing.js");
+  await ConfigSigner.writeAcceptedVersion(version);
+  console.log(`Rolled back accepted config version to ${version}.`);
+  console.log(`Reason: ${reason}`);
   process.exit(0);
 }
 
@@ -2417,6 +2596,154 @@ if (command === "security" && args[0] === "doctor") {
   process.exit(0);
 }
 
+// --- alix security config keygen --- P4.3-Se3 ---
+if (command === "security" && args[0] === "config" && args[1] === "keygen") {
+  const { ConfigSigner } = await import("./config/signing.js");
+  try {
+    const result = await ConfigSigner.generateAndPersistKey();
+    console.log(`Signing keypair generated.`);
+    console.log(`Private key: ${result.keyPath}`);
+    console.log(`Key ID:      ${result.publicKey.slice(0, 20)}...`);
+    console.log();
+    console.log("Public key (share this with config verifiers):");
+    console.log(result.publicKey);
+  } catch (err: any) {
+    console.error(`Key generation failed: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix security config sign --- P4.3-Se3 ---
+if (command === "security" && args[0] === "config" && args[1] === "sign") {
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigSigner } = await import("./config/signing.js");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  try {
+    const signer = new ConfigSigner();
+    const service = new ConfigMutationService(configDir);
+    const version = await service.getVersion();
+    const provenance = await service.getProvenance();
+    const prevHash = provenance.length > 0 ? provenance[provenance.length - 1].configHash : null;
+    const sig = await signer.sign(configDir, version, prevHash);
+    console.log(`Config signed successfully.`);
+    console.log(`Key ID:      ${sig.keyId}`);
+    console.log(`Version:     ${sig.configVersion}`);
+    console.log(`Config hash: ${sig.configHash}`);
+    console.log(`Signed at:   ${sig.signedAt}`);
+    console.log(`Signature:   .alix/config/config.sig`);
+  } catch (err: any) {
+    console.error(`Signing failed: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix security config verify --- P4.3-Se3 ---
+if (command === "security" && args[0] === "config" && args[1] === "verify") {
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigSigner } = await import("./config/signing.js");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  try {
+    const signer = new ConfigSigner();
+    const publicKeyPem = await signer.getPublicKey().catch(() => null);
+    if (!publicKeyPem) {
+      console.error("No signing key found. Generate one with: alix security config keygen");
+      console.error("Or import a trusted key with: alix security config trust-key <path>");
+      process.exit(1);
+    }
+
+    const verifyResult = await signer.verify(configDir, publicKeyPem);
+    if (verifyResult.ok) {
+      const sig = await ConfigSigner.readSignature(configDir);
+      const service = new ConfigMutationService(configDir);
+      const version = await service.getVersion();
+      const rollback = await ConfigSigner.checkRollback(sig?.configVersion ?? version);
+
+      console.log("Config signature: VALID");
+      if (sig) {
+        console.log(`Key ID:      ${sig.keyId}`);
+        console.log(`Version:     ${sig.configVersion}`);
+        console.log(`Config hash: ${sig.configHash}`);
+        console.log(`Signed at:   ${sig.signedAt}`);
+      }
+      if (rollback.ok) {
+        console.log("Anti-rollback: OK");
+      } else {
+        console.log(`Anti-rollback: WARNING — ${rollback.error}`);
+      }
+    } else {
+      console.error(`Config signature: INVALID`);
+      console.error(`  ${verifyResult.error}`);
+      process.exit(1);
+    }
+  } catch (err: any) {
+    console.error(`Verification failed: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix security config trust-key <path> --- P4.3-Se3 ---
+if (command === "security" && args[0] === "config" && args[1] === "trust-key") {
+  const keyPath = args[2];
+  if (!keyPath) {
+    console.error("Usage: alix security config trust-key <path-to-public-key.pem>");
+    process.exit(1);
+  }
+  const { readFile, mkdir: mkdirP } = await import("node:fs/promises");
+  const { existsSync: existsP } = await import("node:fs");
+  if (!existsP(keyPath)) {
+    console.error(`File not found: ${keyPath}`);
+    process.exit(1);
+  }
+  try {
+    const pem = await readFile(keyPath, "utf-8");
+    if (!pem.includes("PUBLIC KEY")) {
+      console.error("File does not contain a valid public key (PEM format).");
+      process.exit(1);
+    }
+    // Store trusted key in user config
+    const homedirP = (await import("node:os")).homedir();
+    const trustedDir = join(homedirP, ".config", "alix");
+    await mkdirP(trustedDir, { recursive: true });
+    const trustedPath = join(trustedDir, "trusted-signing-key.pem");
+    await writeFile(trustedPath, pem);
+    console.log(`Trusted key imported: ${trustedPath}`);
+    const { createHash } = await import("node:crypto");
+    const keyId = createHash("sha256").update(pem).digest("hex").slice(0, 16);
+    console.log(`Key ID: ${keyId}`);
+  } catch (err: any) {
+    console.error(`Failed to import key: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
+// --- alix security config allow-rollback --- P4.3-Se3 ---
+if (command === "security" && args[0] === "config" && args[1] === "allow-rollback") {
+  const reasonIdx = args.indexOf("--reason");
+  const reason = reasonIdx >= 0 ? args[reasonIdx + 1] : undefined;
+  if (!reason) {
+    console.error('Usage: alix security config allow-rollback --reason "<reason>"');
+    process.exit(1);
+  }
+  const configDir = join(process.cwd(), ".alix", "config");
+  const { ConfigMutationService } = await import("./config/mutation.js");
+  const { ConfigSigner } = await import("./config/signing.js");
+  try {
+    const service = new ConfigMutationService(configDir);
+    const version = await service.getVersion();
+    await ConfigSigner.acceptVersion(version);
+    console.log(`Accepted config version ${version}.`);
+    console.log(`Reason: ${reason}`);
+  } catch (err: any) {
+    console.error(`Failed: ${err.message}`);
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 // --- alix credential --- P4.3-Se1 credential store management ---
 if (command === "credential") {
   const sub = args[0] ?? "";
@@ -2487,6 +2814,7 @@ if (command === "inspector" && args[0] === "auth") {
 
 if (command === "security") {
   console.error("Usage: alix security doctor");
+  console.error("       alix security config keygen|sign|verify|trust-key|allow-rollback");
   console.error("       alix credential list|get|set|delete|migrate");
   process.exit(1);
 }
