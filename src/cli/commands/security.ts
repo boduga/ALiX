@@ -21,10 +21,14 @@ import {
   type MetricsFn,
 } from "../../security/inspector/auth-service.js";
 import { getUserStatePaths } from "../../security/platform/user-state-paths.js";
+import { CredentialStore } from "../../security/credentials/credential-store.js";
+import { makeCredentialReference } from "../../security/credentials/credential-reference.js";
+import { migrateCredentials } from "../../security/credentials/credential-migration.js";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
+import { homedir } from "node:os";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -406,5 +410,181 @@ export async function handleInspectorAuthDoctor(args: string[]): Promise<void> {
     } else {
       console.log("✓ Auth state is healthy.");
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Credential store helper
+// ---------------------------------------------------------------------------
+
+async function createCredentialStore(): Promise<CredentialStore> {
+  const store = new CredentialStore();
+  await store.load();
+  return store;
+}
+
+// ---------------------------------------------------------------------------
+// alix credential list
+// ---------------------------------------------------------------------------
+
+export async function handleCredentialList(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+
+  const store = await createCredentialStore();
+  const entries = store.list();
+
+  if (jsonMode) {
+    console.log(JSON.stringify(entries));
+  } else {
+    if (entries.length === 0) {
+      console.log("No credentials stored.");
+      console.log(`\nCapacity: 0/${store.maxEntries} entries`);
+    } else {
+      console.log(`${"Provider".padEnd(20)} ${"Key Label".padEnd(30)} ${"Encrypted".padEnd(12)} Updated`);
+      console.log("-".repeat(90));
+      for (const e of entries) {
+        const updated = e.updatedAt ? new Date(e.updatedAt).toLocaleDateString() : "";
+        console.log(`${e.provider.slice(0, 18).padEnd(20)} ${e.keyLabel.slice(0, 28).padEnd(30)} ${e.encrypted ? "yes".padEnd(12) : "no".padEnd(12)} ${updated}`);
+      }
+      console.log(`\n${entries.length}/${store.maxEntries} entries`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// alix credential get
+// ---------------------------------------------------------------------------
+
+export async function handleCredentialGet(args: string[]): Promise<void> {
+  const provider = args[0];
+  const keyLabel = args[1];
+
+  if (!provider || !keyLabel) {
+    console.error("Usage: alix credential get <provider> <keyLabel>");
+    process.exit(1);
+  }
+
+  const store = await createCredentialStore();
+  const value = store.get(provider, keyLabel);
+
+  if (value === null) {
+    console.error(`Credential not found: ${provider}/${keyLabel}`);
+    process.exit(1);
+  }
+
+  // Output only the value (usable for piping)
+  console.log(value);
+}
+
+// ---------------------------------------------------------------------------
+// alix credential set
+// ---------------------------------------------------------------------------
+
+export async function handleCredentialSet(args: string[]): Promise<void> {
+  const provider = args[0];
+  const keyLabel = args[1];
+  const value = args[2];
+
+  if (!provider || !keyLabel || value === undefined) {
+    console.error("Usage: alix credential set <provider> <keyLabel> <value>");
+    process.exit(1);
+  }
+
+  const store = await createCredentialStore();
+  const entry = await store.set(provider, keyLabel, value);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ id: entry.id, provider: entry.provider, keyLabel: entry.keyLabel, created: entry.createdAt }));
+  } else {
+    console.log(`Credential stored: ${makeCredentialReference(provider, keyLabel)}`);
+    console.log(`ID: ${entry.id}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// alix credential delete
+// ---------------------------------------------------------------------------
+
+export async function handleCredentialDelete(args: string[]): Promise<void> {
+  const provider = args[0];
+  const keyLabel = args[1];
+
+  if (!provider || !keyLabel) {
+    console.error("Usage: alix credential delete <provider> <keyLabel>");
+    process.exit(1);
+  }
+
+  const store = await createCredentialStore();
+  const deleted = await store.delete(provider, keyLabel);
+
+  if (!deleted) {
+    console.error(`Credential not found: ${provider}/${keyLabel}`);
+    process.exit(1);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ deleted: true, provider, keyLabel }));
+  } else {
+    console.log(`Deleted: ${provider}/${keyLabel}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// alix credential migrate
+// ---------------------------------------------------------------------------
+
+export async function handleCredentialMigrate(args: string[]): Promise<void> {
+  setJsonMode(args.includes("--json"));
+  const dryRun = args.includes("--dry-run");
+
+  const cwd = process.cwd();
+  const home = homedir();
+
+  if (!jsonMode) {
+    if (dryRun) {
+      console.log("Credential Migration — DRY RUN (no changes will be made)\n");
+    } else {
+      console.log("Credential Migration\n");
+    }
+  }
+
+  try {
+    const result = await migrateCredentials(cwd, home, { dryRun });
+
+    if (jsonMode) {
+      console.log(JSON.stringify({ dryRun, ...result }));
+    } else {
+      console.log(`Migrated:  ${result.migrated}`);
+      console.log(`Skipped:   ${result.skipped}`);
+      if (result.errors.length > 0) {
+        console.log(`Errors:    ${result.errors.length}`);
+        for (const err of result.errors) {
+          console.log(`  - ${err}`);
+        }
+      }
+      console.log();
+
+      for (const file of result.files) {
+        if (file.migrated.length === 0 && file.skipped.length === 0 && file.errors.length === 0) {
+          continue; // Skip files with no action
+        }
+        console.log(`File: ${file.path}`);
+        for (const m of file.migrated) console.log(`  ✓ migrated: ${m}`);
+        for (const s of file.skipped) console.log(`  − skipped: ${s}`);
+        for (const e of file.errors) console.log(`  ✗ error: ${e}`);
+        console.log();
+      }
+
+      if (dryRun && result.migrated > 0) {
+        console.log("This was a dry run. Run without --dry-run to apply changes.");
+      }
+    }
+
+    if (result.errors.length > 0) {
+      process.exit(1);
+    }
+  } catch (err) {
+    console.error(`Migration failed: ${err instanceof Error ? err.message : String(err)}`);
+    process.exit(1);
   }
 }

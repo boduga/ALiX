@@ -139,6 +139,11 @@ Usage:
   alix provider doctor       Test all configured providers (complete + stream)
   alix provider doctor google  Test a specific provider
   alix security doctor       Check Inspector boundary state and security config
+  alix credential list        List stored credentials (no values)
+  alix credential get <p> <l>  Get credential value
+  alix credential set <p> <l> <v> Store credential
+  alix credential delete <p> <l> Delete credential
+  alix credential migrate      Migrate credentials from config [--dry-run]
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -2412,6 +2417,40 @@ if (command === "security" && args[0] === "doctor") {
   process.exit(0);
 }
 
+// --- alix credential --- P4.3-Se1 credential store management ---
+if (command === "credential") {
+  const sub = args[0] ?? "";
+  const subArgs = args.slice(1);
+  const {
+    handleCredentialList,
+    handleCredentialGet,
+    handleCredentialSet,
+    handleCredentialDelete,
+    handleCredentialMigrate,
+  } = await import("./cli/commands/security.js");
+
+  if (sub === "list") {
+    await handleCredentialList(subArgs);
+  } else if (sub === "get") {
+    await handleCredentialGet(subArgs);
+  } else if (sub === "set") {
+    await handleCredentialSet(subArgs);
+  } else if (sub === "delete") {
+    await handleCredentialDelete(subArgs);
+  } else if (sub === "migrate") {
+    await handleCredentialMigrate(subArgs);
+  } else {
+    console.error("Usage: alix credential {list|get|set|delete|migrate} [options]");
+    console.error("  list [--json]");
+    console.error("  get <provider> <keyLabel>");
+    console.error("  set <provider> <keyLabel> <value>");
+    console.error("  delete <provider> <keyLabel>");
+    console.error("  migrate [--dry-run] [--json]");
+    process.exit(1);
+  }
+  process.exit(0);
+}
+
 // --- alix inspector auth --- P4.3-Sb2 token management ---
 if (command === "inspector" && args[0] === "auth") {
   const sub = args[1] ?? "";
@@ -2448,6 +2487,7 @@ if (command === "inspector" && args[0] === "auth") {
 
 if (command === "security") {
   console.error("Usage: alix security doctor");
+  console.error("       alix credential list|get|set|delete|migrate");
   process.exit(1);
 }
 

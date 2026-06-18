@@ -5,6 +5,8 @@ import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
+import { CredentialStore } from "../security/credentials/credential-store.js";
+import { isCredentialReference, resolveCredential } from "../security/credentials/credential-reference.js";
 
 function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "image"): Partial<ModelTierConfig> | undefined {
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
@@ -46,6 +48,8 @@ export { DEFAULT_CONFIG } from "./defaults.js";
 export type LoadConfigOptions = {
   /** When true (default), throws if model.provider or model.name is missing */
   requireModel?: boolean;
+  /** Override the credential store (for testing). When not provided, the default platform store is used. */
+  credentialStore?: CredentialStore;
 };
 
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
@@ -55,7 +59,53 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   const userConfig = existsSync(userConfigPath) ? await readJson(userConfigPath) : {};
   const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
 
-  // Inject API keys as env vars so providers pick them up
+  // Merge apiKeys from both configs (project overrides user)
+  let apiKeys: Record<string, unknown> = {
+    ...(userConfig as any).apiKeys,
+    ...(projectConfig as any).apiKeys
+  };
+
+  // Resolve cred:// references in apiKeys before injecting as env vars
+  const hasCredentialRefs = Object.values(apiKeys).some(
+    (v) => typeof v === "string" && v.startsWith("cred://")
+  );
+
+  if (hasCredentialRefs) {
+    let credentialStore: CredentialStore;
+    if (options.credentialStore) {
+      credentialStore = options.credentialStore;
+    } else {
+      try {
+        credentialStore = new CredentialStore();
+        await credentialStore.load();
+      } catch (err) {
+        throw new Error(
+          "Credential store is unavailable. Config references 'cred://' but the credential " +
+          "store could not be loaded. Check the credential store integrity or run " +
+          `'alix credential list' for diagnostics. Details: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
+    const resolvedApiKeys: Record<string, string> = {};
+    for (const [provider, value] of Object.entries(apiKeys)) {
+      if (typeof value === "string" && isCredentialReference(value)) {
+        const resolved = resolveCredential(value, credentialStore);
+        if (resolved === null) {
+          throw new Error(
+            `Credential not found for apiKeys.${provider}: ${value}. ` +
+            `Store the credential with: alix credential set ${provider} apiKey <value>`
+          );
+        }
+        resolvedApiKeys[provider] = resolved;
+      } else if (typeof value === "string") {
+        resolvedApiKeys[provider] = value;
+      }
+    }
+    apiKeys = resolvedApiKeys;
+  }
+
+  // Inject resolved API keys as env vars so providers pick them up
   // Map provider names to their expected env var names
   const PROVIDER_ENV_MAP: Record<string, string> = {
     google: "GEMINI_API_KEY",
@@ -68,10 +118,6 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     zhipuai: "ZHIPUAI_API_KEY",
     grokai: "GROKAI_API_KEY",
     deepseek: "DEEPSEEK_API_KEY",
-  };
-  const apiKeys = {
-    ...(userConfig as any).apiKeys,
-    ...(projectConfig as any).apiKeys
   };
   for (const [provider, key] of Object.entries(apiKeys)) {
     const envVar = PROVIDER_ENV_MAP[provider] ?? `${provider.toUpperCase()}_API_KEY`;
@@ -91,6 +137,11 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     ...([userConfig, projectConfig] as PartialConfig[]),
     { modelTiers } as PartialConfig
   );
+
+  // Override the result's apiKeys with resolved values
+  if (hasCredentialRefs) {
+    result.apiKeys = apiKeys as Record<string, string>;
+  }
 
   if (process.env.ALIX_STREAMING !== undefined) {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
