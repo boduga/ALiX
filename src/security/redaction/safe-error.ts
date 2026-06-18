@@ -140,17 +140,23 @@ function extractMessage(error: unknown): string {
  * Convert an internal exception to a `SafeError`.
  *
  * The returned error NEVER contains stack trace or internal details.
+ * When `messageOverride` is provided it is used instead of the raw error
+ * message, allowing callers to supply a pre-redacted message.
  *
  * @param error — the original thrown value.
  * @param requestId — optional correlation ID for operator tracing.
+ * @param messageOverride — optional pre-redacted message.  When omitted the
+ *   raw error message is used (only use when the error is known to be free
+ *   of secrets, or before a redactor has had a chance to run).
  */
 export function toSafeError(
   error: unknown,
   requestId?: string,
+  messageOverride?: string,
 ): SafeError {
   try {
     const code = classifyError(error);
-    const message = extractMessage(error);
+    const message = messageOverride ?? extractMessage(error);
 
     return {
       code,
