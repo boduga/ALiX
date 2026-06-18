@@ -5,6 +5,10 @@ import { join } from "node:path";
 import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
+import { CredentialStore } from "../security/credentials/credential-store.js";
+import { isCredentialReference, resolveCredential } from "../security/credentials/credential-reference.js";
+import { ConfigSigner, type TrustReport } from "./signing.js";
+import { ConfigMutationService } from "./mutation.js";
 
 function getEnvTier(name: "thinking" | "coding" | "fast" | "critic" | "tiny" | "image"): Partial<ModelTierConfig> | undefined {
   const provider = process.env[`ALIX_${name.toUpperCase()}_PROVIDER`];
@@ -46,6 +50,27 @@ export { DEFAULT_CONFIG } from "./defaults.js";
 export type LoadConfigOptions = {
   /** When true (default), throws if model.provider or model.name is missing */
   requireModel?: boolean;
+  /** Override the credential store (for testing). When not provided, the default platform store is used. */
+  credentialStore?: CredentialStore;
+  /** Enable config trust evaluation (signature verification + anti-rollback). */
+  trustEvaluation?: boolean | LoadConfigTrustOptions;
+};
+
+export type LoadConfigTrustOptions = {
+  /** If true, trust failures are fatal errors (default: false = warnings only). */
+  productionMode?: boolean;
+  /** PEM-encoded trusted public key for signature verification. */
+  publicKeyPem?: string;
+  /** Path to the anti-rollback version stamp. */
+  stampPath?: string;
+};
+
+/**
+ * Extended config type that carries a trust report when trust evaluation is enabled.
+ */
+export type TrustedAlixConfig = AlixConfig & {
+  /** Trust evaluation report, populated when trustEvaluation is enabled. */
+  _trustReport?: TrustReport;
 };
 
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
@@ -55,7 +80,53 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
   const userConfig = existsSync(userConfigPath) ? await readJson(userConfigPath) : {};
   const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
 
-  // Inject API keys as env vars so providers pick them up
+  // Merge apiKeys from both configs (project overrides user)
+  let apiKeys: Record<string, unknown> = {
+    ...(userConfig as any).apiKeys,
+    ...(projectConfig as any).apiKeys
+  };
+
+  // Resolve cred:// references in apiKeys before injecting as env vars
+  const hasCredentialRefs = Object.values(apiKeys).some(
+    (v) => typeof v === "string" && v.startsWith("cred://")
+  );
+
+  if (hasCredentialRefs) {
+    let credentialStore: CredentialStore;
+    if (options.credentialStore) {
+      credentialStore = options.credentialStore;
+    } else {
+      try {
+        credentialStore = new CredentialStore();
+        await credentialStore.load();
+      } catch (err) {
+        throw new Error(
+          "Credential store is unavailable. Config references 'cred://' but the credential " +
+          "store could not be loaded. Check the credential store integrity or run " +
+          `'alix credential list' for diagnostics. Details: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
+    }
+
+    const resolvedApiKeys: Record<string, string> = {};
+    for (const [provider, value] of Object.entries(apiKeys)) {
+      if (typeof value === "string" && isCredentialReference(value)) {
+        const resolved = resolveCredential(value, credentialStore);
+        if (resolved === null) {
+          throw new Error(
+            `Credential not found for apiKeys.${provider}: ${value}. ` +
+            `Store the credential with: alix credential set ${provider} apiKey <value>`
+          );
+        }
+        resolvedApiKeys[provider] = resolved;
+      } else if (typeof value === "string") {
+        resolvedApiKeys[provider] = value;
+      }
+    }
+    apiKeys = resolvedApiKeys;
+  }
+
+  // Inject resolved API keys as env vars so providers pick them up
   // Map provider names to their expected env var names
   const PROVIDER_ENV_MAP: Record<string, string> = {
     google: "GEMINI_API_KEY",
@@ -68,10 +139,6 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     zhipuai: "ZHIPUAI_API_KEY",
     grokai: "GROKAI_API_KEY",
     deepseek: "DEEPSEEK_API_KEY",
-  };
-  const apiKeys = {
-    ...(userConfig as any).apiKeys,
-    ...(projectConfig as any).apiKeys
   };
   for (const [provider, key] of Object.entries(apiKeys)) {
     const envVar = PROVIDER_ENV_MAP[provider] ?? `${provider.toUpperCase()}_API_KEY`;
@@ -91,6 +158,11 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     ...([userConfig, projectConfig] as PartialConfig[]),
     { modelTiers } as PartialConfig
   );
+
+  // Override the result's apiKeys with resolved values
+  if (hasCredentialRefs) {
+    result.apiKeys = apiKeys as Record<string, string>;
+  }
 
   if (process.env.ALIX_STREAMING !== undefined) {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
@@ -124,6 +196,51 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
       console.warn(`[Config ${prefix}] ${issue.path}: ${issue.message}`);
     }
   }
+
+  // Trust evaluation: signature verification + anti-rollback
+  const trustOpts = options.trustEvaluation;
+  if (trustOpts) {
+    const productionMode = typeof trustOpts === "object" ? (trustOpts.productionMode ?? false) : false;
+    const publicKeyPem = typeof trustOpts === "object" ? (trustOpts.publicKeyPem ?? null) : null;
+    const stampPath = typeof trustOpts === "object" ? (trustOpts.stampPath ?? undefined) : undefined;
+
+    const projectConfigDir = join(cwd, ".alix", "config");
+    let configVersion = 0;
+    try {
+      if (existsSync(projectConfigDir)) {
+        const mutationService = new ConfigMutationService(projectConfigDir);
+        configVersion = await mutationService.getVersion();
+      }
+    } catch {
+      // Version read is best-effort
+    }
+
+    const trustReport = await ConfigSigner.evaluateTrust(
+      projectConfigDir,
+      publicKeyPem,
+      configVersion,
+      productionMode,
+    );
+
+    // Store the trust report on the config for access by callers
+    (result as TrustedAlixConfig)._trustReport = trustReport;
+
+    // Emit issues
+    for (const issue of trustReport.issues) {
+      const prefix = issue.severity === "error" ? "ERROR" : "WARN";
+      console.warn(`[Config Trust ${prefix}] ${issue.code}: ${issue.message}`);
+    }
+
+    // Fail closed in production mode
+    if (!trustReport.trusted && productionMode) {
+      const errors = trustReport.issues.filter((i) => i.severity === "error");
+      throw new Error(
+        `Config trust evaluation failed (production mode). ` +
+        errors.map((e) => `${e.code}: ${e.message}`).join("; "),
+      );
+    }
+  }
+
   return result;
 }
 
@@ -151,7 +268,11 @@ export function mergeConfig(
       },
       context: { ...result.context, ...override.context },
       runtime: { ...result.runtime, ...override.runtime },
-      ui: { ...result.ui, ...override.ui },
+      ui: {
+        ...result.ui,
+        ...override.ui,
+        security: { ...result.ui?.security, ...override.ui?.security } as AlixConfig["ui"]["security"] | undefined,
+      },
       mcpServers: normalizeMcpServers(
         override.mcpServers !== undefined ? override.mcpServers : result.mcpServers
       ),

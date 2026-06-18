@@ -1,17 +1,49 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { createServer, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import {
   InvalidSessionIdError,
   isValidSessionId,
   readSessionComparison,
-  readSessionSnapshot,
-  sessionEventsPath
+  readSessionSnapshot
 } from "../inspector/session-reader.js";
 import { registerCoordinationRoutes } from "./coordination-routes.js";
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
+import { validateHost } from "../security/inspector/host-policy.js";
+import { applySecurityHeaders, API_CACHE_HEADERS } from "./security-headers.js";
+import { routeRegistry } from "../security/inspector/route-policy.js";
+import { createSecurityMiddleware } from "./security-middleware.js";
+import { createSecureResponder, type SecureJsonResponder } from "./secure-response.js";
+import { SecretDetector } from "../security/redaction/secret-detector.js";
+import {
+  assessSecurityHealth,
+  toSecurityStatusResponse,
+  type HealthAssessmentContext,
+} from "./security-alerts.js";
+import { AuthStore } from "../security/inspector/auth-store.js";
+import { AuthService } from "../security/inspector/auth-service.js";
+import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
+import { getUserStatePaths } from "../security/platform/user-state-paths.js";
+import { handleSessionExchange, handleLogout } from "./auth-routes.js";
+import {
+  resolveClientAddress,
+  normalizeAddress,
+} from "../security/inspector/client-address.js";
+import {
+  createPreAuthLimiter,
+  createPostAuthLimiter,
+  normalizeClientAddress,
+  buildRateLimitKey,
+} from "../security/inspector/rate-limiter.js";
+import { ConnectionLimiter } from "../security/inspector/connection-limiter.js";
+import { createSecureSseConnection } from "./secure-sse.js";
+import { ObservabilityStreamHub } from "./observability-stream-hub.js";
+import { SessionStreamHub } from "./session-stream-hub.js";
+import { buildServerOptions, validateHttpLimits } from "./http-limits.js";
+import type { RemoteAccessConfig } from "../security/inspector/remote-access-policy.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -54,29 +86,210 @@ function rejectInvalidSessionId(res: ServerResponse): void {
   res.end("Invalid session id");
 }
 
-async function serveRegistry(res: ServerResponse, root: string, type: "agents" | "tools"): Promise<void> {
+async function serveRegistry(responder: SecureJsonResponder, root: string, type: "agents" | "tools"): Promise<void> {
   try {
     const { loadCardRegistry } = await import("../registry/card-loader.js");
     const registry = await loadCardRegistry(root);
-    res.setHeader("content-type", "application/json");
     const data = type === "agents" ? registry.listAgents(true) : registry.listTools(true);
-    res.end(JSON.stringify(data));
+    responder.ok(data);
   } catch (err) {
-    res.statusCode = 500;
-    res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    responder.error("internal_error", 500);
   }
 }
 
-export function startServer(root: string, host: string, port: number): Promise<{ close: () => Promise<void>; url: string }> {
-  const server = createServer(async (req, res) => {
+export function startServer(root: string, host: string, port: number, allowedHosts?: string[], allowedOrigins?: string[], trustedProxyCidrs?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
+  const effectiveAllowed = allowedHosts ?? ["127.0.0.1", "::1", "localhost"];
+  const effectiveOrigins = allowedOrigins ?? [];
+  const effectiveProxyCidrs = trustedProxyCidrs ?? [];
+
+  // Create the secret detector once (stateless, safe to reuse)
+  const detector = new SecretDetector();
+
+  // P4.3-Sc1.6: Create rate limiters
+  const preAuthLimiter = createPreAuthLimiter();
+  const postAuthLimiter = createPostAuthLimiter();
+
+  // P4.3-Sc1.7: Create connection limiter for SSE connections
+  const connectionLimiter = new ConnectionLimiter();
+
+  // P4.3-Sc1.4: Build remote access config
+  // Remote access is determined by whether the bind host is non-loopback
+  // and whether TLS-termination proxy CIDRs are configured.
+  const remoteAccessConfig: RemoteAccessConfig = {
+    bindHost: host,
+    remoteAccess: !["127.0.0.1", "::1", "localhost", "[::1]"].includes(host.toLowerCase()),
+    requireTlsForRemote: true,
+    allowedHosts: effectiveAllowed,
+    allowedOrigins: effectiveOrigins,
+  };
+
+  // P4.3-Sb2: Create auth store and service for bearer token validation
+  const userPaths = getUserStatePaths();
+  const authStore = new AuthStore({
+    filePath: join(userPaths.authStateDir, "auth-store.json"),
+  });
+
+  // File-backed audit for server runtime — appends JSONL to auth state dir
+  type AuditFn = import("../security/inspector/auth-service.js").AuditFn;
+  type MetricsFn = import("../security/inspector/auth-service.js").MetricsFn;
+  const auditPath = join(userPaths.authStateDir, "audit.jsonl");
+  const fileAudit: AuditFn = async (event) => {
     try {
+      mkdirSync(userPaths.authStateDir, { recursive: true, mode: 0o700 });
+      const entry = JSON.stringify({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        ...event,
+      }) + "\n";
+      appendFileSync(auditPath, entry, { mode: 0o600 });
+    } catch {
+      // Server: non-fatal — auth operations succeed without audit
+    }
+  };
+  const noopMetrics: MetricsFn = () => {};
+  const authService = new AuthService(authStore, fileAudit, noopMetrics);
+
+  // P4.3-Sb3: In-memory browser session store
+  const sessionStore = new BrowserSessionStore();
+
+  // Create the security middleware with all Sc1 components
+  const securityMiddleware = createSecurityMiddleware({
+    host,
+    allowedHosts: effectiveAllowed,
+    allowedOrigins: effectiveOrigins,
+    registry: routeRegistry,
+    detector,
+    authService,
+    sessionStore,
+    preAuthLimiter,
+    postAuthLimiter,
+    connectionLimiter,
+    remoteAccessConfig,
+    trustedProxyCidrs: effectiveProxyCidrs,
+  });
+
+  // P4.3-Sc2: Create SSE hubs (shared producer for observability, tailers for sessions)
+  const observabilityHub = new ObservabilityStreamHub(root);
+  const sessionHub = new SessionStreamHub(root, VISIBLE_EVENTS);
+
+  // P4.3-Sc1.5: Apply HTTP server limits
+  const httpOptions = buildServerOptions();
+
+  const server = createServer(httpOptions, async (req, res) => {
+    try {
+      // ── P4.3-Sc1.5: HTTP limit validation (early, pre-URL parse) ──
+      const httpLimitResult = validateHttpLimits(req);
+      if (!httpLimitResult.ok) {
+        res.statusCode = httpLimitResult.statusCode ?? 400;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: httpLimitResult.error }));
+        return;
+      }
+
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
+
+      // ── P4.3-Sc1.1: Validate Host header on every request ─────────
+      const hostResult = validateHost(req.headers.host, effectiveAllowed);
+      if (!hostResult.ok) {
+        // Do NOT include rejected raw host in the response
+        res.statusCode = hostResult.statusCode;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: "invalid_host" }));
+        return;
+      }
+
+      // ── P4.3-Sc1.3: Resolve client address ────────────────────────
+      const clientAddr = resolveClientAddress(req, effectiveProxyCidrs);
+
+      // Apply baseline security headers to all responses
+      applySecurityHeaders(res);
+
+      // P4.3-Sb1/Sb2/Sc1: Run security middleware — looks up route, builds context,
+      // validates origins, remote access, bearer tokens, cookie sessions,
+      // and denies unauthenticated requests to auth-required routes.
+      const ctx = await securityMiddleware(req, res);
+      if (!ctx) {
+        // Middleware already sent the denial response
+        return;
+      }
+
+      // P4.3-Sb1: Create secure JSON responder for this request
+      const secure = createSecureResponder(res, routeRegistry, detector, {
+        requestId: ctx.requestId,
+      });
+
       if (url.pathname === "/healthz") {
         res.statusCode = 200;
         res.setHeader("content-type", "text/plain");
         res.end("OK");
         return;
       }
+
+      // ── P4.3-Sc1.7: Doctor diagnostics endpoint ───────────────────
+      if (url.pathname === "/api/doctor" && req.method === "GET") {
+        const { proxyTrustDiagnostic } = await import("../security/inspector/client-address.js");
+        const { remoteAccessDoctorReport } = await import("../security/inspector/remote-access-policy.js");
+
+        const proxyDiag = proxyTrustDiagnostic(effectiveProxyCidrs);
+        const remoteDiag = remoteAccessDoctorReport(remoteAccessConfig);
+        const connDiag = connectionLimiter.diagnostic();
+
+        secure.ok({
+          proxy: proxyDiag,
+          remoteAccess: remoteDiag,
+          connections: connDiag,
+          rateLimiter: {
+            preAuthBuckets: preAuthLimiter.size,
+            preAuthCapacity: preAuthLimiter.capacity,
+            postAuthBuckets: postAuthLimiter.size,
+            postAuthCapacity: postAuthLimiter.capacity,
+          },
+        });
+        return;
+      }
+
+      // ── P4.3-Sg1: Passive security health status ──────────────────
+      if (url.pathname === "/api/security/status" && req.method === "GET") {
+        const authStoreExists = existsSync(join(userPaths.authStateDir, "auth-store.json"));
+        const healthCtx: HealthAssessmentContext = {
+          authStoreExists,
+          rateLimiterActive: true,
+          preAuthBuckets: preAuthLimiter.size,
+          preAuthCapacity: preAuthLimiter.capacity,
+          postAuthBuckets: postAuthLimiter.size,
+          postAuthCapacity: postAuthLimiter.capacity,
+          connectionLimiterActive: true,
+          connectionCount: connectionLimiter.diagnostic().activeConnections,
+          connectionLimit: connectionLimiter.diagnostic().maxGlobal,
+          originPolicyConfigured: effectiveOrigins.length > 0,
+          redactionActive: true,
+          isLoopbackBind: ["127.0.0.1", "::1", "localhost", "[::1]"].includes(host.toLowerCase()),
+          remoteAccessConfigured: effectiveOrigins.length > 0,
+          requireTlsForRemote: remoteAccessConfig.requireTlsForRemote,
+        };
+        const snapshot = assessSecurityHealth(healthCtx);
+        secure.ok(toSecurityStatusResponse(snapshot));
+        return;
+      }
+
+      // P4.3-Sb3: Auth routes — session exchange and logout
+      // Handled BEFORE the main authenticated-required routing so
+      // unauthenticated clients can reach them.  Token validation
+      // is performed by the handler itself, not the middleware.
+      if (url.pathname === "/api/auth/session" && req.method === "POST") {
+        await handleSessionExchange(req, res, secure, authService, sessionStore);
+        return;
+      }
+      if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+        await handleLogout(req, res, secure, sessionStore, (event) => {
+          fileAudit({
+            action: event.type,
+            tokenId: event.sessionId,
+          });
+        });
+        return;
+      }
+
       if (url.pathname === "/") {
         res.setHeader("content-type", "text/html");
         res.end(await readFile(join(root, "dist", "src", "ui", "index.html"), "utf8"));
@@ -130,55 +343,47 @@ export function startServer(root: string, host: string, port: number): Promise<{
             } catch { console.warn("Skipping invalid graph file:", f); }
           }
 
-          // ISO 8601 strings sort lexicographically — keep them ISO 8601
           items.sort((a, b) => {
             const byUpdated = (b.updatedAt || "").localeCompare(a.updatedAt || "");
             if (byUpdated !== 0) return byUpdated;
             return (b.createdAt || "").localeCompare(a.createdAt || "");
           });
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(items));
+          secure.ok(items);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
       if (url.pathname.startsWith("/api/graphs/") && url.pathname.endsWith("/projection")) {
         const graphId = url.pathname.split("/")[3];
         if (!graphId || graphId.length < 5) {
-          res.statusCode = 400;
-          res.end("Invalid graph ID");
+          secure.error("invalid_graph_id", 400);
           return;
         }
         try {
           const { buildGraphProjection } = await import("../kernel/graph-projection.js");
           const projection = await buildGraphProjection(graphId, root);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(projection));
+          secure.ok(projection);
         } catch (err) {
-          res.statusCode = 404;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("graph_not_found", 404);
         }
         return;
       }
       if (url.pathname === "/api/registry/agents") {
-        await serveRegistry(res, root, "agents");
+        await serveRegistry(secure, root, "agents");
         return;
       }
       if (url.pathname === "/api/registry/tools") {
-        await serveRegistry(res, root, "tools");
+        await serveRegistry(secure, root, "tools");
         return;
       }
       if (url.pathname === "/api/policy/rules") {
         try {
           const { loadRuleEvaluator } = await import("../policy/policy-loader.js");
           const evaluator = await loadRuleEvaluator(root);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(evaluator.getAllRules()));
+          secure.ok(evaluator.getAllRules());
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -190,11 +395,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           const executionProfile = url.searchParams.get("profile") ?? undefined;
           const evaluator = await loadRuleEvaluator(root);
           const result = evaluator.evaluate({ capability, riskLevel: riskLevel as any, executionProfile });
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(result));
+          secure.ok(result);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -204,11 +407,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           const mgr = new DaemonManager(root);
           const running = await mgr.isRunning();
           const status = await mgr.status();
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify({ running, status }));
+          secure.ok({ running, status });
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -225,10 +426,12 @@ export function startServer(root: string, host: string, port: number): Promise<{
           }
           const raw = await readFile(tasksPath, "utf-8");
           res.setHeader("content-type", "application/json");
+          Object.entries(API_CACHE_HEADERS).forEach(([k, v]) => {
+            if (!res.hasHeader(k)) res.setHeader(k, v);
+          });
           res.end(raw);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -237,11 +440,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           const { ApprovalStore } = await import("../approvals/approval-store.js");
           const store = new ApprovalStore(root);
           await store.load();
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(store.list()));
+          secure.ok(store.list());
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -263,11 +464,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           if (approvalParam) filtered = filtered.filter(e => e.approvalId === approvalParam);
           if (actionParam) filtered = filtered.filter(e => e.action === actionParam);
           filtered = filtered.slice(0, limit);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(filtered));
+          secure.ok(filtered);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -283,11 +482,9 @@ export function startServer(root: string, host: string, port: number): Promise<{
           if (actionParam) records = await store.findByAction(actionParam as any, limit);
           else if (graphParam) records = await store.findByGraph(graphParam, limit);
           else records = await store.list(limit);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(records));
+          secure.ok(records);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("internal_error", 500);
         }
         return;
       }
@@ -295,8 +492,7 @@ export function startServer(root: string, host: string, port: number): Promise<{
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");
         if (!left || !right) {
-          res.statusCode = 400;
-          res.end("Missing left or right session id");
+          secure.error("missing_session_ids", 400, "Missing left or right session id");
           return;
         }
         if (!isValidSessionId(left) || !isValidSessionId(right)) {
@@ -304,8 +500,7 @@ export function startServer(root: string, host: string, port: number): Promise<{
           return;
         }
 
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify(await readSessionComparison(root, left, right)));
+        secure.ok(await readSessionComparison(root, left, right));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/snapshot")) {
@@ -314,8 +509,7 @@ export function startServer(root: string, host: string, port: number): Promise<{
           rejectInvalidSessionId(res);
           return;
         }
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify(await readSessionSnapshot(root, sessionId)));
+        secure.ok(await readSessionSnapshot(root, sessionId));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/events")) {
@@ -324,96 +518,98 @@ export function startServer(root: string, host: string, port: number): Promise<{
           rejectInvalidSessionId(res);
           return;
         }
-        const eventsPath = sessionEventsPath(root, sessionId);
 
-        res.setHeader("content-type", "text/event-stream");
-        res.setHeader("cache-control", "no-cache");
-        res.setHeader("connection", "keep-alive");
+        // ── P4.3-Sc2: Hub-based session SSE ──────────────────────────
+        const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
+        const sseAddr = normalizeAddress(clientAddr.address);
 
-        if (!existsSync(eventsPath)) {
-          res.end();
+        const conn = createSecureSseConnection(res, ctx, connectionLimiter, {
+          clientAddress: sseAddr,
+        });
+
+        if (!conn) {
+          secure.error("connection_limit", 503);
           return;
         }
 
-        // Honor Last-Event-ID for cursor-based resume on reconnect
-        const rawResumeId = req.headers["last-event-id"];
-        const resumeFromSeq = parseInt(Array.isArray(rawResumeId) ? rawResumeId[0] : (rawResumeId ?? "0"), 10);
-
-        // Send existing events from resume cursor
-        const text = await readFile(eventsPath, "utf8");
-        for (const line of text.split("\n").filter(Boolean)) {
-          try {
-            const event = JSON.parse(line) as { seq: number; type: string };
-            if (event.seq <= resumeFromSeq) continue;
-            // Only emit tool events to SSE
-            if (!VISIBLE_EVENTS.includes(event.type)) continue;
-            res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
-          } catch {
-            // Skip malformed lines
-          }
+        // Subscribe to the shared session tailer
+        if (!sessionHub.subscribe(sessionId, conn)) {
+          conn.close();
+          secure.error("too_many_tailers", 503);
+          return;
         }
 
-        // Poll for new events
-        let lastSize = (await readFile(eventsPath, "utf8")).length;
-        const interval = setInterval(async () => {
-          if (!existsSync(eventsPath)) {
-            clearInterval(interval);
-            res.end();
-            return;
-          }
-          try {
-            const currentSize = (await readFile(eventsPath, "utf8")).length;
-            if (currentSize > lastSize) {
-              const newText = (await readFile(eventsPath, "utf8")).slice(lastSize);
-              lastSize = currentSize;
-              for (const line of newText.split("\n").filter(Boolean)) {
-                try {
-                  const event = JSON.parse(line) as { seq: number; type: string };
-                  // Only emit tool events to SSE
-                  if (!VISIBLE_EVENTS.includes(event.type)) continue;
-                  res.write(`event: alix\nid: ${event.seq}\ndata: ${line}\n\n`);
-                } catch {
-                  // Skip malformed lines
-                }
-              }
-            }
-          } catch {
-            clearInterval(interval);
-            res.end();
-          }
-        }, 500);
-
-        req.on("close", () => {
-          clearInterval(interval);
-        });
+        // Handle replay from Last-Event-ID
+        const lastEventIdHeader = req.headers["last-event-id"];
+        const lastEventId = Array.isArray(lastEventIdHeader) ? lastEventIdHeader[0] : lastEventIdHeader;
+        sessionHub.replay(sessionId, conn, lastEventId ?? undefined);
 
         return;
       }
       if (url.pathname.startsWith("/api/observability")) {
-        const handled = await handleObservabilityRoute({ req, res, root });
+        const handled = await handleObservabilityRoute({
+          req, res, root,
+          security: ctx,
+          responder: secure,
+          observabilityHub,
+        });
         if (handled) return;
       }
-      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res)) {
+      // ── P4.3-Sc2: Observability SSE stream (hub-based) ─────────
+      if (url.pathname === "/api/observability/stream" && req.method === "GET") {
+        const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
+        const sseAddr = normalizeAddress(clientAddr.address);
+
+        const conn = createSecureSseConnection(res, ctx, connectionLimiter, {
+          clientAddress: sseAddr,
+        });
+
+        if (!conn) {
+          secure.error("connection_limit", 503);
+          return;
+        }
+
+        observabilityHub.subscribe(conn);
+
+        // Handle replay from Last-Event-ID
+        const lastEventIdHeader = req.headers["last-event-id"];
+        const lastEventId = Array.isArray(lastEventIdHeader) ? lastEventIdHeader[0] : lastEventIdHeader;
+        observabilityHub.replay(conn, lastEventId ?? undefined);
+
         return;
       }
-      res.statusCode = 404;
-      res.end("Not found");
+
+      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure)) {
+        return;
+      }
+      secure.error("not_found", 404);
     } catch (error) {
       if (error instanceof InvalidSessionIdError) {
         rejectInvalidSessionId(res);
         return;
       }
       res.statusCode = 500;
-      res.end(error instanceof Error ? error.message : "Internal server error");
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ error: "internal_error" }));
     }
   });
 
   return new Promise((resolve) => {
     server.listen(port, host, () => {
+      // P4.3-Sc2: Start SSE hubs after server is listening
+      observabilityHub.start();
+
       const address = server.address() as AddressInfo;
       resolve({
         url: `http://${host}:${address.port}`,
-        close: () => new Promise((done) => server.close(() => done()))
+        close: () => new Promise<void>((done) => {
+          // P4.3-Sc2: Stop SSE hubs on server close
+          observabilityHub.stop();
+          sessionHub.stop();
+          // Release all connection limiter slots
+          connectionLimiter.releaseAll();
+          server.close(() => done());
+        }),
       });
     });
   });

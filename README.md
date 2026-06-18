@@ -72,6 +72,10 @@ alix serve
 # Visit http://127.0.0.1:4137
 ```
 
+> **Security note:** By default the Inspector binds to `127.0.0.1` (loopback only),
+> meaning it is not accessible from other machines on the network.
+> See [Inspector Security](docs/security/inspector-security.md) for remote access documentation.
+
 ---
 
 ## Commands
@@ -81,7 +85,7 @@ alix serve
 | `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--mode=bypass`, `--resume <id>` |
 | `alix chat` | Interactive chat with web search tools |
 | `alix tui` | Multi-task terminal UI |
-| `alix serve` | Start the inspector web UI at `localhost:4137` |
+| `alix serve` | Start the inspector web UI at `127.0.0.1:4137` (loopback) |
 | `alix daemon start|stop|status` | Persistent background daemon lifecycle |
 | `alix daemon tasks|cancel|doctor` | Task queue management and daemon health |
 | `alix submit "<task>"` | Submit a task to the daemon (streaming output) |

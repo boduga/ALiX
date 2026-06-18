@@ -1,0 +1,5 @@
+{"id":"audit_1718000000001_abc12","action":"policy.evaluated","timestamp":"2024-06-10T08:00:00.000Z","actor":"user","details":{"capability":"shell.exec","policyDecision":"deny"}}
+This line is not valid JSON at all
+{"id":"audit_1718000000003_ghi56","action":"approval.created","timestamp":"2024-06-10T08:01:00.000Z","actor":"system","details":{"approvalId":"appr_abc123","capability":"shell.exec","reason":"Requires manual approval"}}
+{truncated json line without closing brace
+{"id":"audit_1718000000005_mno90","action":"runtime.allowed","timestamp":"2024-06-10T08:02:01.000Z","actor":"system","details":{"capability":"shell.exec","sessionId":"sess_001"}}

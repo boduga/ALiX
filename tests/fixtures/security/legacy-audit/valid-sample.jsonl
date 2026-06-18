@@ -1,0 +1,8 @@
+{"id":"audit_1718000000001_abc12","action":"policy.evaluated","timestamp":"2024-06-10T08:00:00.000Z","actor":"user","details":{"capability":"shell.exec","policyDecision":"deny"}}
+{"id":"audit_1718000000002_def34","action":"policy.denied","timestamp":"2024-06-10T08:00:01.000Z","actor":"policy","details":{"capability":"shell.exec","policyRuleId":"rule-deny-rm","reason":"Unsafe command: rm -rf"}}
+{"id":"audit_1718000000003_ghi56","action":"approval.created","timestamp":"2024-06-10T08:01:00.000Z","actor":"system","details":{"approvalId":"appr_abc123","capability":"shell.exec","reason":"Requires manual approval"}}
+{"id":"audit_1718000000004_jkl78","action":"approval.approved","timestamp":"2024-06-10T08:02:00.000Z","actor":"user","details":{"approvalId":"appr_abc123","reason":"Looks safe"}}
+{"id":"audit_1718000000005_mno90","action":"runtime.allowed","timestamp":"2024-06-10T08:02:01.000Z","actor":"system","details":{"capability":"shell.exec","sessionId":"sess_001"}}
+{"id":"audit_1718000000006_pqr12","action":"graph.completed","timestamp":"2024-06-10T09:00:00.000Z","actor":"system","details":{"graphId":"graph_001","nodeId":"node_001","durationMs":3500000}}
+{"id":"audit_1718000000007_stu34","action":"conflict.detected","timestamp":"2024-06-10T09:30:00.000Z","actor":"system","details":{"runId":"run_001","workerId":"worker_a","workerId":"worker_b","reason":"Concurrent edits to src/index.ts"}}
+{"id":"audit_1718000000008_vwx56","action":"authorization.denied","timestamp":"2024-06-10T10:00:00.000Z","actor":"policy","details":{"capability":"file.write","reason":"Path not in allowed list"}}

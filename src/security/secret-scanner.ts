@@ -9,10 +9,16 @@ export type SecretType =
   | "bearer_token"
   | "basic_auth";
 
+/**
+ * @deprecated Use SecretSpan from src/security/redaction/secret-detector.ts instead.
+ * This type is replaced by the Sa1 redaction system and will be removed
+ * in a future version.
+ */
 export interface SecretFinding {
   type: SecretType;
   line: number;
   column: number;
+  /** @deprecated Returns "[REDACTED]" — raw source context is no longer exposed. */
   context: string;
   value: string;
   confidence: "high" | "medium" | "low";
@@ -25,6 +31,11 @@ export interface SecretScannerOptions {
   excludePaths?: string[];
 }
 
+/**
+ * @deprecated Use SecretDetector from src/security/redaction/secret-detector.ts instead.
+ * This class is replaced by the Sa1 redaction system and will be removed
+ * in a future version.
+ */
 export class SecretScanner {
   private patterns: { type: SecretType; pattern: RegExp; rule: string }[];
 
@@ -57,15 +68,16 @@ export class SecretScanner {
         let match;
 
         while ((match = pattern.exec(line)) !== null) {
-          findings.push({
+          const finding: SecretFinding = {
             type,
             line: lineNum + 1,
             column: match.index + 1,
-            context: line.trim(),
+            get context() { return "[REDACTED]"; },
             value: this.sanitize(match[0]),
             confidence: this.getConfidence(type, match[0]),
             rule,
-          });
+          };
+          findings.push(finding);
         }
       }
     }

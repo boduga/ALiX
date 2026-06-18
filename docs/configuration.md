@@ -69,6 +69,31 @@ Override in config:
 
 Env vars take precedence over config file values.
 
+## Inspector security
+
+By default the Inspector binds to `127.0.0.1` (loopback only) with authentication
+disabled for local development. The security configuration is controlled via
+`ui.security` in your config file.
+
+```json
+{
+  "ui": {
+    "host": "127.0.0.1",
+    "port": 4137,
+    "security": {
+      "authentication": "disabled-loopback-development",
+      "remoteAccess": false,
+      "allowedHosts": ["127.0.0.1", "::1", "localhost"],
+      "allowedOrigins": [],
+      "trustedProxyCidrs": [],
+      "requireTlsForRemote": true
+    }
+  }
+}
+```
+
+See [Inspector Security](security/inspector-security.md) for full details.
+
 ## Supply chain
 
 ALiX pins all direct dependencies. Verify with:

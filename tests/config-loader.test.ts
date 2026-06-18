@@ -6,6 +6,8 @@ import { join } from "node:path";
 import { loadConfig, _setHomedirOverride, mergeConfig } from "../src/config/loader.js";
 import { DEFAULT_CONFIG } from "../src/config/defaults.js";
 import type { AlixConfig, McpServerConfig } from "../src/config/schema.js";
+import { CredentialStore } from "../src/security/credentials/credential-store.js";
+import { makeCredentialReference } from "../src/security/credentials/credential-reference.js";
 
 function withMockedHomedir(dir: string): () => void {
   _setHomedirOverride(dir);
@@ -378,6 +380,119 @@ test("modelTiers config file override is overridden by env vars", async () => {
     restore();
     delete process.env.ALIX_THINKING_PROVIDER;
     delete process.env.ALIX_THINKING_MODEL;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+// --- Credential reference resolution tests (P4.3-Se1) ---
+
+test("loadConfig resolves cred:// references in apiKeys", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    // Populate credential store at the default platform state path
+    const credDir = join(dir, ".local", "state", "alix-inspector", "data", "credentials");
+    await mkdir(credDir, { recursive: true, mode: 0o700 });
+    const credentialStore = new CredentialStore({
+      filePath: join(credDir, "credential-store.json"),
+    });
+    await credentialStore.load();
+    await credentialStore.set("openai", "apiKey", "sk-from-credential-store");
+
+    // Project config with cred:// reference
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
+        apiKeys: { openai: makeCredentialReference("openai", "apiKey") },
+      })
+    );
+
+    delete process.env.OPENAI_API_KEY;
+    const config = await loadConfig(dir, { credentialStore });
+    assert.equal(process.env.OPENAI_API_KEY, "sk-from-credential-store");
+    // The resolved key should also be in config.apiKeys
+    assert.equal(config.apiKeys?.openai, "sk-from-credential-store");
+  } finally {
+    restore();
+    delete process.env.OPENAI_API_KEY;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig throws clear error on missing credential reference", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    // Create an empty credential store
+    const credDir = join(dir, ".local", "state", "alix-inspector", "data", "credentials");
+    await mkdir(credDir, { recursive: true, mode: 0o700 });
+    const credentialStore = new CredentialStore({
+      filePath: join(credDir, "credential-store.json"),
+    });
+    await credentialStore.load();
+
+    // Project config with cred:// reference to non-existent credential
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
+        apiKeys: { openai: makeCredentialReference("openai", "apiKey") },
+      })
+    );
+
+    await assert.rejects(
+      () => loadConfig(dir, { credentialStore }),
+      /Credential not found/
+    );
+  } finally {
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig mixed cred:// and plaintext apiKeys work together", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  try {
+    // Populate credential store
+    const credDir = join(dir, ".local", "state", "alix-inspector", "data", "credentials");
+    await mkdir(credDir, { recursive: true, mode: 0o700 });
+    const credentialStore = new CredentialStore({
+      filePath: join(credDir, "credential-store.json"),
+    });
+    await credentialStore.load();
+    await credentialStore.set("openai", "apiKey", "sk-from-store");
+
+    // Project config with mixed: one cred:// reference, one plaintext
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({
+        model: { provider: "openai", name: "gpt-4o" },
+        apiKeys: {
+          openai: makeCredentialReference("openai", "apiKey"),
+          anthropic: "sk-plaintext-key",
+        },
+      })
+    );
+
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
+    const config = await loadConfig(dir, { credentialStore });
+
+    // cred:// reference resolved
+    assert.equal(process.env.OPENAI_API_KEY, "sk-from-store");
+    assert.equal(config.apiKeys?.openai, "sk-from-store");
+
+    // Plaintext key preserved
+    assert.equal(process.env.ANTHROPIC_API_KEY, "sk-plaintext-key");
+    assert.equal(config.apiKeys?.anthropic, "sk-plaintext-key");
+  } finally {
+    restore();
+    delete process.env.OPENAI_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY;
     await rm(dir, { recursive: true, force: true });
   }
 });

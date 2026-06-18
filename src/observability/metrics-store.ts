@@ -39,7 +39,12 @@ export interface MetricsQuery {
   after?: string;
   before?: string;
   limit?: number;
+  nameFilter?: string | string[];
+  order?: "asc" | "desc";
 }
+
+const DEFAULT_MAX_LIMIT = 10000;
+const ABSOLUTE_MAX_LIMIT = 100000;
 
 export class MetricsStore {
   private baseDir: string;
@@ -67,9 +72,26 @@ export class MetricsStore {
 
   /**
    * Stream all metric rows from all daily files (optionally filtered).
+   *
+   * Filtering order:
+   * 1. metric name filter (nameFilter)
+   * 2. time-range filters (after, before)
+   * 3. limit after all filters
+   *
+   * Default order is "desc" (newest first).  When order is "desc" files
+   * are read newest-first so the most recent data surfaces first.
    */
   async *readAll(query?: MetricsQuery): AsyncGenerator<MetricRow> {
-    const files = await this.listFiles();
+    const resolvedLimit = query?.limit ?? DEFAULT_MAX_LIMIT;
+    const cappedLimit = Math.min(resolvedLimit, ABSOLUTE_MAX_LIMIT);
+    const order = query?.order ?? "desc";
+    const nameFilter = query?.nameFilter
+      ? Array.isArray(query.nameFilter) ? query.nameFilter : [query.nameFilter]
+      : undefined;
+
+    let files = await this.listFiles();
+    if (order === "desc") files = files.reverse();
+
     let count = 0;
     for (const file of files) {
       let rl: ReturnType<typeof createInterface>;
@@ -83,11 +105,17 @@ export class MetricsStore {
         for await (const line of rl) {
           try {
             const row = JSON.parse(line) as MetricRow;
+
+            // Filter by name first (cheapest filter)
+            if (nameFilter && !nameFilter.includes(row.name)) continue;
+
+            // Then time-range filters
             if (query?.after && row.timestamp < query.after) continue;
             if (query?.before && row.timestamp > query.before) continue;
+
             yield row;
             count++;
-            if (query?.limit && count >= query.limit) return;
+            if (count >= cappedLimit) return;
           } catch { /* skip malformed lines */ }
         }
       } catch (err: unknown) {

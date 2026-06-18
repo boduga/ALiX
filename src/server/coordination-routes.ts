@@ -20,202 +20,267 @@ import { CoordinationAggregateStore } from "../kernel/coordination-aggregate-sto
 import { buildCoordinationRunView } from "../kernel/coordination-view.js";
 import { CollaborationStore } from "../kernel/collaboration-store.js";
 import { ConflictRepository } from "../kernel/collaboration-conflict-repository.js";
+import type { SecurityContext } from "../security/inspector/security-context.js";
+import type { SecureJsonResponder } from "./secure-response.js";
+
+// ---------------------------------------------------------------------------
+// Path parameter validation
+// ---------------------------------------------------------------------------
+
+/**
+ * Validate a path segment extracted from a URL.
+ * Rejects empty segments, path traversal attempts, and non-alphanumeric-plus-dash segments.
+ */
+function validatePathSegment(segment: string | undefined, name: string): string | null {
+  if (!segment || segment.length === 0) return null;
+  // Reject path traversal
+  if (segment.includes("..") || segment.includes("/") || segment.includes("\\")) return null;
+  // Reject empty or whitespace-only
+  if (segment.trim().length === 0) return null;
+  return segment;
+}
+
+// ---------------------------------------------------------------------------
+// Main dispatcher
+// ---------------------------------------------------------------------------
 
 export function registerCoordinationRoutes(
   cwd: string,
   method: string,
   pathname: string,
   res: ServerResponse,
+  ctx?: SecurityContext | null,
+  responder?: SecureJsonResponder,
 ): boolean {
+  // Create fallback responder if none provided (backward compat for direct callers)
+  const r = responder ?? createFallbackResponder(res);
+
   // GET /api/coordination -- list runs
   if (method === "GET" && pathname === "/api/coordination") {
-    handleListRuns(cwd, res);
+    handleListRuns(cwd, r);
     return true;
   }
 
   // GET /api/coordination/:runId -- full view
   const runMatch = pathname.match(/^\/api\/coordination\/([^/]+)$/);
   if (method === "GET" && runMatch) {
-    handleRunView(cwd, runMatch[1], res);
+    const runId = validatePathSegment(runMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleRunView(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/workers
   const workersMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/workers$/);
   if (method === "GET" && workersMatch) {
-    handleWorkers(cwd, workersMatch[1], res);
+    const runId = validatePathSegment(workersMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleWorkers(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/workers/:workerId
   const workerMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/workers\/([^/]+)$/);
   if (method === "GET" && workerMatch) {
-    handleWorker(cwd, workerMatch[1], workerMatch[2], res);
+    const runId = validatePathSegment(workerMatch[1], "runId");
+    const workerId = validatePathSegment(workerMatch[2], "workerId");
+    if (!runId || !workerId) { r.error("invalid_path_param", 400); return true; }
+    handleWorker(cwd, runId, workerId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/results
   const resultsMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/results$/);
   if (method === "GET" && resultsMatch) {
-    handleResults(cwd, resultsMatch[1], res);
+    const runId = validatePathSegment(resultsMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleResults(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/events
   const eventsMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/events$/);
   if (method === "GET" && eventsMatch) {
-    handleEvents(cwd, eventsMatch[1], res);
+    const runId = validatePathSegment(eventsMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleEvents(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/approvals
   const approvalsMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/approvals$/);
   if (method === "GET" && approvalsMatch) {
-    handleApprovals(cwd, approvalsMatch[1], res);
+    const runId = validatePathSegment(approvalsMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleApprovals(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/ownership
   const ownershipMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/ownership$/);
   if (method === "GET" && ownershipMatch) {
-    handleOwnership(cwd, ownershipMatch[1], res);
+    const runId = validatePathSegment(ownershipMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleOwnership(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/conflicts
   const conflictsMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/conflicts$/);
   if (method === "GET" && conflictsMatch) {
-    handleConflicts(cwd, conflictsMatch[1], res);
+    const runId = validatePathSegment(conflictsMatch[1], "runId");
+    if (!runId) { r.error("invalid_run_id", 400); return true; }
+    handleConflicts(cwd, runId, r);
     return true;
   }
 
   // GET /api/coordination/:runId/conflicts/:conflictId
   const conflictMatch = pathname.match(/^\/api\/coordination\/([^/]+)\/conflicts\/([^/]+)$/);
   if (method === "GET" && conflictMatch) {
-    handleConflict(cwd, conflictMatch[1], conflictMatch[2], res);
+    const runId = validatePathSegment(conflictMatch[1], "runId");
+    const conflictId = validatePathSegment(conflictMatch[2], "conflictId");
+    if (!runId || !conflictId) { r.error("invalid_path_param", 400); return true; }
+    handleConflict(cwd, runId, conflictId, r);
     return true;
   }
 
   return false;
 }
 
-function sendJson(res: ServerResponse, data: unknown, status = 200): void {
-  res.statusCode = status;
-  res.setHeader("Content-Type", "application/json");
-  res.end(JSON.stringify(data, null, 2));
+// ---------------------------------------------------------------------------
+// Fallback responder (for direct callers without secure-response plumbing)
+// ---------------------------------------------------------------------------
+
+function createFallbackResponder(res: ServerResponse): SecureJsonResponder {
+  return {
+    ok(value: unknown): void {
+      res.statusCode = 200;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(value));
+    },
+    error(code: string, status: number): void {
+      res.statusCode = status;
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify({ error: code }));
+    },
+  };
 }
 
-async function handleListRuns(cwd: string, res: ServerResponse): Promise<void> {
+// ---------------------------------------------------------------------------
+// Handlers
+// ---------------------------------------------------------------------------
+
+async function handleListRuns(cwd: string, r: SecureJsonResponder): Promise<void> {
   try {
     const store = new CoordinationStore(cwd);
     const runs = await store.list();
-    const summaries = runs.map(r => ({
-      id: r.id,
-      goal: r.rootGoal,
-      status: r.status,
-      outcome: r.outcome,
-      workerCount: r.workers.length,
-      createdAt: r.createdAt,
-      updatedAt: r.updatedAt,
+    const summaries = runs.map(run => ({
+      id: run.id,
+      goal: run.rootGoal,
+      status: run.status,
+      outcome: run.outcome,
+      workerCount: run.workers.length,
+      createdAt: run.createdAt,
+      updatedAt: run.updatedAt,
     }));
-    sendJson(res, summaries);
+    r.ok(summaries);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleRunView(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleRunView(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const view = await buildCoordinationRunView(runId, cwd);
-    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
-    sendJson(res, view);
+    if (!view) { r.error("run_not_found", 404); return; }
+    r.ok(view);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleWorkers(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleWorkers(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const view = await buildCoordinationRunView(runId, cwd);
-    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
-    sendJson(res, view.workers);
+    if (!view) { r.error("run_not_found", 404); return; }
+    r.ok(view.workers);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleWorker(cwd: string, runId: string, workerId: string, res: ServerResponse): Promise<void> {
+async function handleWorker(cwd: string, runId: string, workerId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const view = await buildCoordinationRunView(runId, cwd);
-    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
+    if (!view) { r.error("run_not_found", 404); return; }
     const worker = view.workers.find(w => w.id === workerId);
-    if (!worker) { sendJson(res, { error: "Worker not found" }, 404); return; }
-    sendJson(res, worker);
+    if (!worker) { r.error("worker_not_found", 404); return; }
+    r.ok(worker);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleResults(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleResults(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const agg = new CoordinationAggregateStore(cwd);
     const summary = await agg.load(runId);
-    if (!summary) { sendJson(res, { error: "No aggregate found for this run" }, 404); return; }
-    sendJson(res, summary);
+    if (!summary) { r.error("no_aggregate_found", 404); return; }
+    r.ok(summary);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleEvents(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleEvents(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const view = await buildCoordinationRunView(runId, cwd);
-    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
-    sendJson(res, view.events);
+    if (!view) { r.error("run_not_found", 404); return; }
+    r.ok(view.events);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleApprovals(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleApprovals(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const view = await buildCoordinationRunView(runId, cwd);
-    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
-    sendJson(res, view.approvals);
+    if (!view) { r.error("run_not_found", 404); return; }
+    r.ok(view.approvals);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleOwnership(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleOwnership(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const view = await buildCoordinationRunView(runId, cwd);
-    if (!view) { sendJson(res, { error: "Run not found" }, 404); return; }
-    sendJson(res, view.ownershipLeases);
+    if (!view) { r.error("run_not_found", 404); return; }
+    r.ok(view.ownershipLeases);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleConflicts(cwd: string, runId: string, res: ServerResponse): Promise<void> {
+async function handleConflicts(cwd: string, runId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const store = new CollaborationStore(cwd, runId);
     const repo = new ConflictRepository(store);
     const conflicts = await repo.getConflicts(runId);
-    sendJson(res, conflicts);
+    r.ok(conflicts);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }
 
-async function handleConflict(cwd: string, runId: string, conflictId: string, res: ServerResponse): Promise<void> {
+async function handleConflict(cwd: string, runId: string, conflictId: string, r: SecureJsonResponder): Promise<void> {
   try {
     const store = new CollaborationStore(cwd, runId);
     const repo = new ConflictRepository(store);
     const conflict = await repo.getConflict(conflictId);
-    if (!conflict) { sendJson(res, { error: "Conflict not found" }, 404); return; }
-    sendJson(res, conflict);
+    if (!conflict) { r.error("conflict_not_found", 404); return; }
+    r.ok(conflict);
   } catch (err) {
-    sendJson(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    r.error("internal_error", 500);
   }
 }

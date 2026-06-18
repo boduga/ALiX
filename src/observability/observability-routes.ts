@@ -3,30 +3,46 @@
  *
  * All routes are GET-only, never mutate state, and set Cache-Control: no-store.
  * Segregated from the monolithic server.ts router.
+ *
+ * P4.3-Sb1: Refactored to consume SecurityContext and use secure-response.ts
+ * for all JSON responses.
  */
 
 import type { ServerResponse, IncomingMessage } from "node:http";
+import type { SecurityContext } from "../security/inspector/security-context.js";
+import type { SecureJsonResponder } from "../server/secure-response.js";
+import type { ObservabilityStreamHub } from "../server/observability-stream-hub.js";
 
 export interface RouteContext {
   root: string;
   req: IncomingMessage;
   res: ServerResponse;
+  /** P4.3-Sb1: Security context (set by middleware). */
+  security?: SecurityContext | null;
+  /** P4.3-Sb1: Secure JSON responder (set by server). */
+  responder?: SecureJsonResponder;
+  /** P4.3-Sc2: Observability stream hub for SSE subscription. */
+  observabilityHub?: ObservabilityStreamHub;
 }
+
+// ---------------------------------------------------------------------------
+// Fallback helpers (used when no secure responder is provided)
+// ---------------------------------------------------------------------------
 
 const JSON_HEADERS = {
   "content-type": "application/json",
   "cache-control": "no-store",
 };
 
-function json(res: ServerResponse, data: unknown, status = 200): void {
+function rawJson(res: ServerResponse, data: unknown, status = 200): void {
   res.statusCode = status;
   Object.entries(JSON_HEADERS).forEach(([k, v]) => res.setHeader(k, v));
   res.end(JSON.stringify(data));
 }
 
-function badRequest(res: ServerResponse, msg: string): void {
-  json(res, { error: msg }, 400);
-}
+// ---------------------------------------------------------------------------
+// Main handler
+// ---------------------------------------------------------------------------
 
 /**
  * Try to handle an observability route path. Returns true if handled.
@@ -34,11 +50,13 @@ function badRequest(res: ServerResponse, msg: string): void {
 export async function handleObservabilityRoute(ctx: RouteContext): Promise<boolean> {
   const { req, res, root } = ctx;
   const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
+  const r = ctx.responder;
 
   try {
     // All observability routes are GET-only
     if (req.method !== "GET") {
-      json(res, { error: "Method not allowed" }, 405);
+      if (r) r.error("method_not_allowed", 405);
+      else rawJson(res, { error: "Method not allowed" }, 405);
       return true;
     }
 
@@ -46,7 +64,8 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
       const { ObservabilitySnapshotService } = await import("../observability/health-snapshot.js");
       const svc = new ObservabilitySnapshotService(root);
       const snap = await svc.getHealth();
-      json(res, snap);
+      if (r) r.ok(snap);
+      else rawJson(res, snap);
       return true;
     }
 
@@ -56,17 +75,30 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
       const before = url.searchParams.get("before") ?? undefined;
       const limitParam = url.searchParams.get("limit");
       const limit = limitParam ? Math.min(parseInt(limitParam, 10), 1000) : 100;
-      if (limit < 1) { badRequest(res, "limit must be >= 1"); return true; }
-      if (after && isNaN(Date.parse(after))) { badRequest(res, "invalid after date"); return true; }
-      if (before && isNaN(Date.parse(before))) { badRequest(res, "invalid before date"); return true; }
+      if (limit < 1) {
+        if (r) r.error("invalid_limit", 400, "limit must be >= 1");
+        else rawJson(res, { error: "limit must be >= 1" }, 400);
+        return true;
+      }
+      if (after && isNaN(Date.parse(after))) {
+        if (r) r.error("invalid_after_date", 400);
+        else rawJson(res, { error: "invalid after date" }, 400);
+        return true;
+      }
+      if (before && isNaN(Date.parse(before))) {
+        if (r) r.error("invalid_before_date", 400);
+        else rawJson(res, { error: "invalid before date" }, 400);
+        return true;
+      }
 
       const { MetricsStore } = await import("../observability/metrics-store.js");
       const store = new MetricsStore(root);
       const rows: unknown[] = [];
-      for await (const r of store.readAll({ after, before, limit })) {
-        if (!metricName || r.name === metricName) rows.push(r);
+      for await (const row of store.readAll({ after, before, limit })) {
+        if (!metricName || row.name === metricName) rows.push(row);
       }
-      json(res, rows);
+      if (r) r.ok(rows);
+      else rawJson(res, rows);
       return true;
     }
 
@@ -78,17 +110,31 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
       const engine = new AlertEngine();
       // evaluate but don't persist (GET = read-only)
       const alerts = engine.evaluate(snap);
-      json(res, alerts.firing);
+      if (r) r.ok(alerts.firing);
+      else rawJson(res, alerts.firing);
       return true;
     }
 
     if (url.pathname === "/api/observability/stream") {
+      // P4.3-Sc2: Delegate to the shared observability stream hub
+      // The hub is set up in server.ts and passed via RouteContext.
+      // If no hub is available, fall back to the legacy (non-hub) path.
+      const hub = ctx.observabilityHub;
+      if (hub) {
+        // SSE subscription is handled by the server.ts integration layer
+        // which has access to the connection limiter and can create
+        // SecureSseConnections.  We signal that this is an SSE route
+        // by returning true; the server.ts handler will use the hub.
+        return false; // let server.ts handle the SSE subscription
+      }
+      // Legacy fallback
       const { subscribeObservabilityStream } = await import("../server/observability-stream.js");
       await subscribeObservabilityStream(res, root);
       return true;
     }
   } catch (err) {
-    json(res, { error: err instanceof Error ? err.message : String(err) }, 500);
+    if (r) r.error("internal_error", 500);
+    else rawJson(res, { error: "internal_error" }, 500);
     return true;
   }
 

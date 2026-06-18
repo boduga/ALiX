@@ -9,6 +9,8 @@ import {
   normalizeTraceEvent,
   normalizeMetricEvent,
   TelemetryBuffer,
+  inferCategory,
+  CATEGORY_MAP,
   type MetricInputType,
 } from "../../src/observability/telemetry-envelope.js";
 import type { AlixEvent } from "../../src/events/types.js";
@@ -69,6 +71,30 @@ describe("TelemetryEnvelope", () => {
     });
   });
 
+  describe("CATEGORY_MAP", () => {
+    it("contains security prefix mapping", () => {
+      assert.equal(CATEGORY_MAP["security."], "security");
+    });
+  });
+
+  describe("inferCategory()", () => {
+    it("returns 'security' for 'security.auth'", () => {
+      assert.equal(inferCategory("security.auth"), "security");
+    });
+
+    it("returns 'security' for 'security.rate_limit'", () => {
+      assert.equal(inferCategory("security.rate_limit"), "security");
+    });
+
+    it("returns 'tool' for 'provider.request' (no provider prefix in CATEGORY_MAP)", () => {
+      assert.equal(inferCategory("provider.request"), "tool");
+    });
+
+    it("returns 'tool' for non-matching event type (default fallback)", () => {
+      assert.equal(inferCategory("unknown.event"), "tool");
+    });
+  });
+
   describe("normalizeMetricEvent()", () => {
     it("maps counter_delta to TelemetryEnvelope", () => {
       const env = normalizeMetricEvent({
@@ -88,6 +114,26 @@ describe("TelemetryEnvelope", () => {
         timestamp: new Date().toISOString(),
       });
       assert.equal(env.measurements["sample"], 500);
+    });
+
+    it("categorizes 'security_auth_attempt' as security", () => {
+      const env = normalizeMetricEvent({
+        name: "security_auth_attempt",
+        type: "counter_delta",
+        value: 1,
+        timestamp: new Date().toISOString(),
+      });
+      assert.equal(env.category, "security");
+    });
+
+    it("categorizes 'provider.request_count' as provider (existing behavior)", () => {
+      const env = normalizeMetricEvent({
+        name: "provider.request_count",
+        type: "counter_delta",
+        value: 5,
+        timestamp: new Date().toISOString(),
+      });
+      assert.equal(env.category, "provider");
     });
   });
 

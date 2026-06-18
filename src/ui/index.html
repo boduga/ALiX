@@ -153,7 +153,30 @@
         </section>
       </section>
     </main>
+
+    <!-- P4.3-Sb3: Login overlay (hidden by default) -->
+    <div id="login-overlay" class="login-overlay hidden" aria-label="Login">
+      <div class="login-card">
+        <h2>ALiX Inspector</h2>
+        <p class="login-lede">Authenticate with an API token to continue.</p>
+        <form id="login-form" autocomplete="off">
+          <label for="token-input">API Token</label>
+          <input type="password" id="token-input" placeholder="alix_i_..." autocomplete="off" required />
+          <button type="submit" id="login-btn">Authenticate</button>
+          <p id="login-error" class="login-error hidden"></p>
+        </form>
+        <p class="login-help">Tokens are never stored in your browser.</p>
+      </div>
+    </div>
+
+    <!-- P4.3-Sb3: Logout button bar (hidden until authenticated) -->
+    <div id="auth-bar" class="auth-bar hidden" aria-label="Session">
+      <span id="auth-role" class="auth-role"></span>
+      <button id="logout-btn" class="logout-btn">Logout</button>
+    </div>
+
     <script type="module" src="/projection.js"></script>
+    <script type="module" src="/auth.js"></script>
     <script type="module" src="/app.js"></script>
   </body>
 </html>

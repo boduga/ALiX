@@ -33,9 +33,17 @@ export const DEFAULT_CONFIG: AlixConfig = {
   },
   ui: {
     enabled: true,
-    host: "0.0.0.0",
+    host: "127.0.0.1",
     port: 4137,
-    transport: "sse"
+    transport: "sse",
+    security: {
+      authentication: "disabled-loopback-development",
+      remoteAccess: false,
+      allowedHosts: ["127.0.0.1", "::1", "localhost"],
+      allowedOrigins: [],
+      trustedProxyCidrs: [],
+      requireTlsForRemote: true,
+    }
   },
   mcpServers: [
     {
