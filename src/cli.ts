@@ -178,6 +178,9 @@ Usage:
   alix evidence query --kind <type> [--after <iso>] [--before <iso>] [--json]
                                    Query evidence by type and time range
   alix evidence verify             Run fingerprint chain verification
+  alix workflow status <issue>     Show workflow state for an issue
+  alix workflow list               List active workflow entries
+  alix workflow transition <i> <s>  Manually transition an issue
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
   alix daemon start      Start the background daemon
@@ -2472,6 +2475,13 @@ if (command === "audit") {
 if (command === "evidence") {
   const { handleEvidenceCommand } = await import("./cli/commands/evidence.js");
   await handleEvidenceCommand(args);
+  process.exit(0);
+}
+
+// ── Workflow commands (P4.5c) ─────────────────────────────────────
+if (command === "workflow") {
+  const { handleWorkflowCommand } = await import("./cli/commands/workflow.js");
+  await handleWorkflowCommand(args);
   process.exit(0);
 }
 

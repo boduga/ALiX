@@ -30,7 +30,21 @@ export type EvidenceType =
   | "config_signed"
   | "trust_evaluation"
   | "audit_checkpoint"
-  | "evidence_compaction";
+  | "evidence_compaction"
+  // P4.5 workflow events
+  | "issue_selected"
+  | "plan_generated"
+  | "plan_approved"
+  | "plan_rejected"
+  | "execution_started"
+  | "execution_completed"
+  | "review_started"
+  | "review_completed"
+  | "pr_created"
+  | "merge_completed"
+  | "workflow_blocked"
+  | "workflow_unblocked"
+  | "workflow_aborted";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -38,6 +52,20 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "trust_evaluation",
   "audit_checkpoint",
   "evidence_compaction",
+  // P4.5 workflow events
+  "issue_selected",
+  "plan_generated",
+  "plan_approved",
+  "plan_rejected",
+  "execution_started",
+  "execution_completed",
+  "review_started",
+  "review_completed",
+  "pr_created",
+  "merge_completed",
+  "workflow_blocked",
+  "workflow_unblocked",
+  "workflow_aborted",
 ]);
 
 // ---------------------------------------------------------------------------
