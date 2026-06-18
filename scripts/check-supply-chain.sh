@@ -67,9 +67,8 @@ fi
 
 # Check lockfile is in sync with package.json
 echo "▸ Sf.3 — Lockfile freshness..."
-LOCKFILE_HASH="$(node -e "
+if node -e "
   const lf = JSON.parse(require('fs').readFileSync('$PROJECT_ROOT/package-lock.json','utf8'));
-  // Check that every direct dep in package.json has a matching lock entry
   const pj = JSON.parse(require('fs').readFileSync('$PROJECT_ROOT/package.json','utf8'));
   const issues = [];
   for (const dep of [...Object.keys(pj.dependencies||{}), ...Object.keys(pj.devDependencies||{})]) {
@@ -83,11 +82,10 @@ LOCKFILE_HASH="$(node -e "
     process.exit(1);
   }
   console.log('OK');
-" 2>&1)"; then
+" 2>&1; then
   echo "  ✅ Lockfile is in sync with package.json"
 else
   echo "  ❌ Lockfile is out of sync with package.json"
-  echo "     $LOCKFILE_HASH"
   PASSED=false
 fi
 
@@ -135,7 +133,8 @@ NEWEST_DEP="$(node -e "
   times.sort((a,b) => b.time - a.time);
   const newest = times[0];
   if (newest) console.log(JSON.stringify(newest));
-")"; then
+")"
+if [ -n "$NEWEST_DEP" ]; then
   NEWEST_NAME="$(echo "$NEWEST_DEP" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).name" 2>/dev/null || echo "")"
   NEWEST_TIME="$(echo "$NEWEST_DEP" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).time" 2>/dev/null || echo "0")"
   NEWEST_AGE="$(( NOW - NEWEST_TIME ))"
