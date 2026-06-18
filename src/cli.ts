@@ -138,6 +138,7 @@ Usage:
   alix benchmark compare <id> <id>  Compare two benchmark runs
   alix provider doctor       Test all configured providers (complete + stream)
   alix provider doctor google  Test a specific provider
+  alix security doctor       Check Inspector boundary state and security config
   alix policy list        List loaded policy rules
   alix policy doctor      Check policy file health and loading status
   alix policy eval        Evaluate a capability or risk level against policy
@@ -1075,6 +1076,16 @@ if (command === "serve") {
     console.error("UI inspector is not enabled. Set ui.enabled=true in your config.");
     process.exit(1);
   }
+  // Startup security check
+  const { checkStartupSafety } = await import("./security/inspector/remote-access-policy.js");
+  const safety = checkStartupSafety(config);
+  for (const w of safety.warnings) {
+    console.error(`\x1b[33m${w}\x1b[0m`); // yellow
+  }
+  if (!safety.ok) {
+    console.error(`\x1b[31m${safety.error}\x1b[0m`); // red
+    process.exit(1);
+  }
   const { startServer } = await import("./server/server.js");
   const server = await startServer(process.cwd(), config.ui.host, config.ui.port);
   console.log(`ALiX inspector running at ${server.url}`);
@@ -1090,6 +1101,17 @@ if (command === "inspector" && args[0] === "open") {
   const config = await loadConfig(process.cwd());
   const host = config.ui?.host ?? "localhost";
   const port = config.ui?.port ?? 4137;
+
+  // Startup security check
+  const { checkStartupSafety } = await import("./security/inspector/remote-access-policy.js");
+  const safety = checkStartupSafety(config);
+  for (const w of safety.warnings) {
+    console.error(`\x1b[33m${w}\x1b[0m`);
+  }
+  if (!safety.ok) {
+    console.error(`\x1b[31m${safety.error}\x1b[0m`);
+    process.exit(1);
+  }
 
   const server = await startServer(process.cwd(), host, port);
   const url = server.url;
@@ -2366,6 +2388,17 @@ if (command === "doctor") {
 
   console.log(`\n${failed ? "⚠ Some checks failed" : "✓ All checks passed"}`);
   process.exit(failed ? 1 : 0);
+}
+
+if (command === "security" && args[0] === "doctor") {
+  const { handleSecurityDoctor } = await import("./cli/commands/security.js");
+  await handleSecurityDoctor(args.slice(1));
+  process.exit(0);
+}
+
+if (command === "security") {
+  console.error("Usage: alix security doctor");
+  process.exit(1);
 }
 
 if (command === "recovery") {
