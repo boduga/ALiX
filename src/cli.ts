@@ -2684,6 +2684,18 @@ if (command === "security" && args[0] === "config" && args[1] === "sign") {
     console.log(`Config hash: ${sig.configHash}`);
     console.log(`Signed at:   ${sig.signedAt}`);
     console.log(`Signature:   .alix/config/config.sig`);
+
+    // P4.4c: Record signing evidence
+    try {
+      const { ConfigTrustHistory } = await import("./security/evidence/config-trust-history.js");
+      const history = new ConfigTrustHistory();
+      const ev = await history.recordSign(sig);
+      if (ev) {
+        console.log(`Evidence:    ${ev.fingerprint}`);
+      }
+    } catch {
+      // Evidence recording is best-effort
+    }
   } catch (err: any) {
     console.error(`Signing failed: ${err.message}`);
     process.exit(1);

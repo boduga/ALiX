@@ -222,6 +222,15 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
       productionMode,
     );
 
+    // P4.4c: Record trust evaluation evidence (best-effort)
+    try {
+      const { ConfigTrustHistory } = await import("../security/evidence/config-trust-history.js");
+      const history = new ConfigTrustHistory();
+      await history.recordTrustEvaluation(trustReport, configVersion);
+    } catch {
+      // Evidence recording must never block config loading
+    }
+
     // Store the trust report on the config for access by callers
     (result as TrustedAlixConfig)._trustReport = trustReport;
 
