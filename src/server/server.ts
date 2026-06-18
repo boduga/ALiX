@@ -24,6 +24,20 @@ import { AuthService } from "../security/inspector/auth-service.js";
 import { BrowserSessionStore } from "../security/inspector/browser-session-store.js";
 import { getUserStatePaths } from "../security/platform/user-state-paths.js";
 import { handleSessionExchange, handleLogout } from "./auth-routes.js";
+import {
+  resolveClientAddress,
+  normalizeAddress,
+} from "../security/inspector/client-address.js";
+import {
+  createPreAuthLimiter,
+  createPostAuthLimiter,
+  normalizeClientAddress,
+  buildRateLimitKey,
+} from "../security/inspector/rate-limiter.js";
+import { ConnectionLimiter } from "../security/inspector/connection-limiter.js";
+import type { ConnectionToken } from "../security/inspector/connection-limiter.js";
+import { buildServerOptions, validateHttpLimits } from "./http-limits.js";
+import type { RemoteAccessConfig } from "../security/inspector/remote-access-policy.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -77,11 +91,31 @@ async function serveRegistry(responder: SecureJsonResponder, root: string, type:
   }
 }
 
-export function startServer(root: string, host: string, port: number, allowedHosts?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
+export function startServer(root: string, host: string, port: number, allowedHosts?: string[], allowedOrigins?: string[], trustedProxyCidrs?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
   const effectiveAllowed = allowedHosts ?? ["127.0.0.1", "::1", "localhost"];
+  const effectiveOrigins = allowedOrigins ?? [];
+  const effectiveProxyCidrs = trustedProxyCidrs ?? [];
 
   // Create the secret detector once (stateless, safe to reuse)
   const detector = new SecretDetector();
+
+  // P4.3-Sc1.6: Create rate limiters
+  const preAuthLimiter = createPreAuthLimiter();
+  const postAuthLimiter = createPostAuthLimiter();
+
+  // P4.3-Sc1.7: Create connection limiter for SSE connections
+  const connectionLimiter = new ConnectionLimiter();
+
+  // P4.3-Sc1.4: Build remote access config
+  // Remote access is determined by whether the bind host is non-loopback
+  // and whether TLS-termination proxy CIDRs are configured.
+  const remoteAccessConfig: RemoteAccessConfig = {
+    bindHost: host,
+    remoteAccess: !["127.0.0.1", "::1", "localhost", "[::1]"].includes(host.toLowerCase()),
+    requireTlsForRemote: true,
+    allowedHosts: effectiveAllowed,
+    allowedOrigins: effectiveOrigins,
+  };
 
   // P4.3-Sb2: Create auth store and service for bearer token validation
   const userPaths = getUserStatePaths();
@@ -112,21 +146,38 @@ export function startServer(root: string, host: string, port: number, allowedHos
   // P4.3-Sb3: In-memory browser session store
   const sessionStore = new BrowserSessionStore();
 
-  // Create the security middleware with bearer token validation and session cookies
+  // Create the security middleware with all Sc1 components
   const securityMiddleware = createSecurityMiddleware({
     host,
     allowedHosts: effectiveAllowed,
+    allowedOrigins: effectiveOrigins,
     registry: routeRegistry,
     detector,
     authService,
     sessionStore,
+    preAuthLimiter,
+    postAuthLimiter,
+    connectionLimiter,
+    remoteAccessConfig,
   });
 
-  const server = createServer(async (req, res) => {
+  // P4.3-Sc1.5: Apply HTTP server limits
+  const httpOptions = buildServerOptions();
+
+  const server = createServer(httpOptions, async (req, res) => {
     try {
+      // ── P4.3-Sc1.5: HTTP limit validation (early, pre-URL parse) ──
+      const httpLimitResult = validateHttpLimits(req);
+      if (!httpLimitResult.ok) {
+        res.statusCode = httpLimitResult.statusCode ?? 400;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: httpLimitResult.error }));
+        return;
+      }
+
       const url = new URL(req.url ?? "/", `http://${host}:${port}`);
 
-      // Validate Host header on every request, including /healthz
+      // ── P4.3-Sc1.1: Validate Host header on every request ─────────
       const hostResult = validateHost(req.headers.host, effectiveAllowed);
       if (!hostResult.ok) {
         // Do NOT include rejected raw host in the response
@@ -136,11 +187,15 @@ export function startServer(root: string, host: string, port: number, allowedHos
         return;
       }
 
+      // ── P4.3-Sc1.3: Resolve client address ────────────────────────
+      const clientAddr = resolveClientAddress(req, effectiveProxyCidrs);
+
       // Apply baseline security headers to all responses
       applySecurityHeaders(res);
 
-      // P4.3-Sb1/Sb2: Run security middleware — looks up route, builds context,
-      // validates bearer tokens, denies unauthenticated requests to auth-required routes.
+      // P4.3-Sb1/Sb2/Sc1: Run security middleware — looks up route, builds context,
+      // validates origins, remote access, bearer tokens, cookie sessions,
+      // and denies unauthenticated requests to auth-required routes.
       const ctx = await securityMiddleware(req, res);
       if (!ctx) {
         // Middleware already sent the denial response
@@ -156,6 +211,29 @@ export function startServer(root: string, host: string, port: number, allowedHos
         res.statusCode = 200;
         res.setHeader("content-type", "text/plain");
         res.end("OK");
+        return;
+      }
+
+      // ── P4.3-Sc1.7: Doctor diagnostics endpoint ───────────────────
+      if (url.pathname === "/api/doctor" && req.method === "GET") {
+        const { proxyTrustDiagnostic } = await import("../security/inspector/client-address.js");
+        const { remoteAccessDoctorReport } = await import("../security/inspector/remote-access-policy.js");
+
+        const proxyDiag = proxyTrustDiagnostic(effectiveProxyCidrs);
+        const remoteDiag = remoteAccessDoctorReport(remoteAccessConfig);
+        const connDiag = connectionLimiter.diagnostic();
+
+        secure.ok({
+          proxy: proxyDiag,
+          remoteAccess: remoteDiag,
+          connections: connDiag,
+          rateLimiter: {
+            preAuthBuckets: preAuthLimiter.size,
+            preAuthCapacity: preAuthLimiter.capacity,
+            postAuthBuckets: postAuthLimiter.size,
+            postAuthCapacity: postAuthLimiter.capacity,
+          },
+        });
         return;
       }
 
@@ -230,7 +308,6 @@ export function startServer(root: string, host: string, port: number, allowedHos
             } catch { console.warn("Skipping invalid graph file:", f); }
           }
 
-          // ISO 8601 strings sort lexicographically — keep them ISO 8601
           items.sort((a, b) => {
             const byUpdated = (b.updatedAt || "").localeCompare(a.updatedAt || "");
             if (byUpdated !== 0) return byUpdated;
@@ -313,7 +390,6 @@ export function startServer(root: string, host: string, port: number, allowedHos
             return;
           }
           const raw = await readFile(tasksPath, "utf-8");
-          // Read raw file content — already persisted JSON
           res.setHeader("content-type", "application/json");
           Object.entries(API_CACHE_HEADERS).forEach(([k, v]) => {
             if (!res.hasHeader(k)) res.setHeader(k, v);
@@ -407,12 +483,33 @@ export function startServer(root: string, host: string, port: number, allowedHos
           rejectInvalidSessionId(res);
           return;
         }
+
+        // ── P4.3-Sc1.7: Connection limiting for SSE ─────────────────
+        const ssePrincipal = ctx.authenticated ? (ctx.tokenId ?? "anonymous") : "anonymous";
+        const sseAddr = normalizeAddress(clientAddr.address);
+        const reserveResult = connectionLimiter.reserve(ssePrincipal, sseAddr);
+
+        if (!reserveResult.allowed) {
+          secure.error(reserveResult.error ?? "connection_limit", 503);
+          return;
+        }
+
+        const connToken: ConnectionToken = reserveResult.token!;
+
         const eventsPath = sessionEventsPath(root, sessionId);
 
         res.setHeader("content-type", "text/event-stream");
         res.setHeader("cache-control", "no-cache");
         res.setHeader("connection", "keep-alive");
         res.setHeader("x-accel-buffering", "no");
+
+        // Release connection token on close
+        req.on("close", () => {
+          connectionLimiter.release(connToken);
+        });
+        res.on("close", () => {
+          connectionLimiter.release(connToken);
+        });
 
         if (!existsSync(eventsPath)) {
           res.end();

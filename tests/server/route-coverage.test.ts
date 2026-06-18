@@ -83,6 +83,9 @@ const IMPLEMENTED_ROUTES: ImplementedRoute[] = [
   { pathname: "/api/coordination/run-001/conflicts", method: "GET", source: "coordination-routes.ts" },
   { pathname: "/api/coordination/run-001/conflicts/conf-001", method: "GET", source: "coordination-routes.ts" },
 
+  // -- Doctor (Sc1) --------------------------------------------------------
+  { pathname: "/api/doctor", method: "GET", source: "server.ts" },
+
   // -- Auth (Sb3) ---------------------------------------------------------
   { pathname: "/api/auth/session", method: "POST", source: "server.ts" },
   { pathname: "/api/auth/logout", method: "POST", source: "server.ts" },
@@ -184,12 +187,12 @@ describe("Route coverage (Sb1.3)", () => {
     );
   });
 
-  it("registry has exactly 35 routes", () => {
+  it("registry has exactly 36 routes", () => {
     const all = routeRegistry.getAll();
-    assert.equal(all.length, 35, `expected 35 routes, got ${all.length}`);
+    assert.equal(all.length, 36, `expected 36 routes, got ${all.length}`);
   });
 
-  it("all 33 routes have distinct ids", () => {
+  it("all 36 routes have distinct ids", () => {
     const all = routeRegistry.getAll();
     const ids = all.map((d) => d.id);
     const unique = new Set(ids);
