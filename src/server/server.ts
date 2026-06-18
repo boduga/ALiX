@@ -133,7 +133,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
   type AuditFn = import("../security/inspector/auth-service.js").AuditFn;
   type MetricsFn = import("../security/inspector/auth-service.js").MetricsFn;
   const auditPath = join(userPaths.authStateDir, "audit.jsonl");
-  const fileAudit: AuditFn = (event) => {
+  const fileAudit: AuditFn = async (event) => {
     try {
       mkdirSync(userPaths.authStateDir, { recursive: true, mode: 0o700 });
       const entry = JSON.stringify({
@@ -143,7 +143,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
       }) + "\n";
       appendFileSync(auditPath, entry, { mode: 0o600 });
     } catch {
-      // Best-effort audit — failures are non-fatal
+      // Server: non-fatal — auth operations succeed without audit
     }
   };
   const noopMetrics: MetricsFn = () => {};

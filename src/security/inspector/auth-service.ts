@@ -82,12 +82,14 @@ export type ServiceResult<T> =
 // Audit callback
 // ---------------------------------------------------------------------------
 
-/** Function called to record an audit event. */
+/** Function called to record an audit event.
+ * When async, callers that require durability should await it.
+ * Server runtime may use fire-and-forget; CLI should await for fail-closed. */
 export type AuditFn = (event: {
   action: string;
   tokenId: string;
   details?: Record<string, unknown>;
-}) => void;
+}) => void | Promise<void>;
 
 // ---------------------------------------------------------------------------
 // Metrics callback (bounded vocabulary)
@@ -181,7 +183,7 @@ export class AuthService {
     if (!addResult.ok) return addResult;
 
     // Audit (no raw token or hash in audit)
-    this.audit({
+    await this.audit({
       action: "token.created",
       tokenId: generated.id,
       details: { name, role },
@@ -284,7 +286,7 @@ export class AuthService {
     }
 
     // Audit
-    this.audit({
+    await this.audit({
       action: "token.rotated",
       tokenId: generated.id,
       details: { previousId: id, graceMs },
@@ -332,7 +334,7 @@ export class AuthService {
     if (!updateResult.ok) return updateResult;
 
     // Audit
-    this.audit({
+    await this.audit({
       action: "token.revoked",
       tokenId: id,
       details: { reason },

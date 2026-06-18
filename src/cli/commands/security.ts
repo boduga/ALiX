@@ -25,7 +25,7 @@ import {
 } from "../../security/inspector/auth-service.js";
 import { getUserStatePaths } from "../../security/platform/user-state-paths.js";
 import { join } from "node:path";
-import { existsSync } from "node:fs";
+import { existsSync, mkdirSync, appendFileSync } from "node:fs";
 import { mkdir, writeFile, readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { CredentialStore } from "../../security/credentials/credential-store.js";
@@ -69,21 +69,25 @@ function auditLogPath(): string {
 
 /**
  * Create a file-backed audit function.
+ * Uses synchronous writes so errors propagate to the caller
+ * (audit failure can fail the enclosing mutation).
  */
 function createFileAudit(): AuditFn {
   const logPath = auditLogPath();
   return (event) => {
-    // Best-effort fire-and-forget audit logging
-    const entry = JSON.stringify({
-      id: randomUUID(),
-      timestamp: new Date().toISOString(),
-      ...event,
-    }) + "\n";
-    // Ensure directory exists
-    const dir = join(logPath, "..");
-    mkdir(dir, { recursive: true, mode: 0o700 }).then(() => {
-      writeFile(logPath, entry, { flag: "a", mode: 0o600 }).catch(() => {});
-    }).catch(() => {});
+    try {
+      const dir = join(logPath, "..");
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      const entry = JSON.stringify({
+        id: randomUUID(),
+        timestamp: new Date().toISOString(),
+        ...event,
+      }) + "\n";
+      appendFileSync(logPath, entry, { mode: 0o600 });
+    } catch (err) {
+      // Re-throw so the mutation can fail if audit cannot persist
+      throw err;
+    }
   };
 }
 
@@ -299,6 +303,10 @@ export async function handleInspectorAuthRotate(args: string[]): Promise<void> {
 
   const graceIdx = args.indexOf("--grace");
   const graceRaw = graceIdx >= 0 ? args[graceIdx + 1] : "1h";
+  if (!graceRaw || graceRaw.startsWith("--")) {
+    console.error("Missing value for --grace. Example: --grace 1h");
+    process.exit(1);
+  }
   const graceMs = parseDuration(graceRaw);
 
   if (!graceMs) {
