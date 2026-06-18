@@ -196,7 +196,6 @@ describe("IssueIntakeAgent", () => {
           { name: "ready-for-agent" },
           { name: "security" },
         ],
-        dependencies: [1, 2, 3, 4],
       });
       const result = await agent.intake(62, data);
       expect(result.success).toBe(true);

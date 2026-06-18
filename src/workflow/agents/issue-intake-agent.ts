@@ -13,7 +13,7 @@
 import { execSync } from "node:child_process";
 import type { WorkflowCoordinator } from "../coordinator.js";
 import type { EvidenceEventWriter } from "../evidence-writer.js";
-import type { WorkPackage, AgentName } from "../types.js";
+import type { WorkPackage } from "../types.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -129,12 +129,11 @@ export class IssueIntakeAgent {
     const dependencies = this.detectDependencies(data.body);
 
     // Estimate priority
-    const priority = this.estimatePriority(labelNames, data.body);
+    const priority = this.estimatePriority(labelNames);
 
     // Estimate complexity
     const complexity = this.estimateComplexity(
       labelNames,
-      data.body,
       acceptanceCriteria,
     );
 
@@ -333,7 +332,6 @@ export class IssueIntakeAgent {
    */
   private estimatePriority(
     labels: string[],
-    _body: string,
   ): "low" | "medium" | "high" | "critical" {
     const lower = labels.map((l) => l.toLowerCase());
 
@@ -365,7 +363,6 @@ export class IssueIntakeAgent {
    */
   private estimateComplexity(
     labels: string[],
-    _body: string,
     criteria: string[],
   ): "small" | "medium" | "large" | "unknown" {
     const lower = labels.map((l) => l.toLowerCase());
