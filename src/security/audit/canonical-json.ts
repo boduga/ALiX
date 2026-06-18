@@ -149,6 +149,17 @@ export function canonicalHash(value: unknown): string {
 }
 
 /**
+ * Hash raw UTF-8 bytes directly (with domain prefix).
+ * Used to hash the legacy byte segment during verification.
+ */
+export function canonicalHashRaw(utf8Bytes: Buffer): string {
+  const hash = createHash("sha256");
+  hash.update(DOMAIN_PREFIX);
+  hash.update(utf8Bytes);
+  return hash.digest("hex");
+}
+
+/**
  * The domain prefix prepended to canonical content before hashing.
  * Exported for test fixtures and verification.
  */
