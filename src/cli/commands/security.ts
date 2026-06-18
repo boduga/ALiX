@@ -832,7 +832,6 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-
 // P4.3-Sf supply-chain commands
 // ---------------------------------------------------------------------------
 
@@ -975,13 +974,8 @@ export async function handleSupplyChainVerifyTarball(args: string[]): Promise<vo
   }
 
   process.exit(result.ok ? 0 : 1);
+}
 
-// P4.3-Sg2 — Security Doctor (enhanced passive diagnosis)
-// ---------------------------------------------------------------------------
-
-/**
- * Result from a single security doctor diagnostic check.
- */
 interface DoctorCheckResult {
   /** Stable check identifier. */
   id: string;
@@ -1538,5 +1532,4 @@ export async function handleSecurityGate(args: string[]): Promise<void> {
   }
 
   process.exit(passed ? 0 : 1);
-
 }
