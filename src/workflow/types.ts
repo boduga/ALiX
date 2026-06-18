@@ -165,6 +165,31 @@ export interface WorkPackage {
 }
 
 // ---------------------------------------------------------------------------
+// Subtask (PlanningAgent → ExecutionAgent)
+// ---------------------------------------------------------------------------
+
+export interface Subtask {
+  id: string;
+  description: string;
+  files: string[];
+  testFiles: string[];
+  acceptanceCheck: string;
+  dependsOn: string[];
+}
+
+// ---------------------------------------------------------------------------
+// ExecutionPlan (PlanningAgent → ExecutionAgent + Human)
+// ---------------------------------------------------------------------------
+
+export interface ExecutionPlan {
+  workPackage: WorkPackage;
+  subtasks: Subtask[];
+  branchName: string;
+  estimatedCommits: number;
+  approvalRequired: boolean;
+}
+
+// ---------------------------------------------------------------------------
 // Coordinator config
 // ---------------------------------------------------------------------------
 
