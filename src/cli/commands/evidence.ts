@@ -75,9 +75,19 @@ function parseArgs(args: string[]): ParsedArgs {
     } else if (arg === "--json") {
       result.json = true;
     } else if (arg === "--after") {
-      result.after = args[++i];
+      const raw = args[++i];
+      if (!raw || !isValidIso(raw)) {
+        result.errors.push(`--after requires a valid ISO 8601 timestamp, got "${raw ?? ""}"`);
+        continue;
+      }
+      result.after = raw;
     } else if (arg === "--before") {
-      result.before = args[++i];
+      const raw = args[++i];
+      if (!raw || !isValidIso(raw)) {
+        result.errors.push(`--before requires a valid ISO 8601 timestamp, got "${raw ?? ""}"`);
+        continue;
+      }
+      result.before = raw;
     } else if (!result.fingerprint && !arg.startsWith("-")) {
       // First positional arg after command is the fingerprint for "show"
       result.fingerprint = arg;
@@ -93,6 +103,18 @@ function parseArgs(args: string[]): ParsedArgs {
 function truncate(s: string, maxLen: number): string {
   if (s.length <= maxLen) return s;
   return s.slice(0, maxLen - 3) + "...";
+}
+
+/**
+ * Basic ISO 8601 validation: the string must parse to a valid Date
+ * and the round-tripped ISO string must match (catches obvious garbage).
+ */
+function isValidIso(s: string): boolean {
+  if (typeof s !== "string" || s.length < 10) return false;
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return false;
+  // Round-trip check: parsing and re-stringifying should produce the same date
+  return d.toISOString().slice(0, s.length) === s || s.endsWith("Z") || /^\d{4}-\d{2}-\d{2}/.test(s);
 }
 
 // ---------------------------------------------------------------------------

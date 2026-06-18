@@ -98,9 +98,10 @@ export interface AuditCheckpointPayload {
 
 /** Payload for `evidence_compaction` records. */
 export interface EvidenceCompactionPayload {
-  recordsBefore: number;
-  recordsAfter: number;
-  compactedUpTo: string; // ISO timestamp — everything older than this
+  compactedType: string;
+  recordCount: number;
+  oldestTimestamp: string;
+  newestTimestamp: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -143,5 +144,5 @@ export interface EvidenceStoreConfig {
 export interface CompactionResult {
   recordsBefore: number;
   recordsAfter: number;
-  summaryRecord: EvidenceRecord;
+  summaryRecord: EvidenceRecord | null;
 }

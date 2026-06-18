@@ -243,7 +243,7 @@ export class EvidenceStore {
   async compact(olderThan: string): Promise<CompactionResult> {
     const filePath = evidenceFilePath(this.config.storeDir);
     if (!existsSync(filePath)) {
-      return { recordsBefore: 0, recordsAfter: 0, summaryRecord: null as unknown as EvidenceRecord };
+      return { recordsBefore: 0, recordsAfter: 0, summaryRecord: null };
     }
 
     const lockResult = await acquire(this.config.lockPath);
@@ -263,7 +263,7 @@ export class EvidenceStore {
       const recentRecords = allRecords.filter((r) => r.timestamp >= olderThan);
 
       if (oldRecords.length === 0) {
-        return { recordsBefore, recordsAfter: recentRecords.length, summaryRecord: null as unknown as EvidenceRecord };
+        return { recordsBefore, recordsAfter: recentRecords.length, summaryRecord: null };
       }
 
       // Group old records by type
@@ -355,14 +355,14 @@ export class EvidenceStore {
           failed.push(record);
         }
       } catch {
-        // Malformed line
+        // Malformed line — cannot parse, so we can't read its type or timestamp
         failed.push({
           version: EVIDENCE_SCHEMA_VERSION,
           id: "malformed",
-          type: "trust_evaluation",
+          type: "evidence_compaction" as EvidenceType,
           timestamp: "",
           fingerprint: "",
-          payload: {},
+          payload: { malformedLine: true },
         });
       }
     }
