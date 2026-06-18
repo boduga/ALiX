@@ -134,8 +134,8 @@ describe("resolveAccessMode", () => {
     assert.equal(resolveAccessMode("localhost"), "loopback");
   });
 
-  it("returns loopback for 0.0.0.0", () => {
-    assert.equal(resolveAccessMode("0.0.0.0"), "loopback");
+  it("returns remote for 0.0.0.0 (not loopback)", () => {
+    assert.equal(resolveAccessMode("0.0.0.0"), "remote");
   });
 
   it("returns remote for external host", () => {

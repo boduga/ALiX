@@ -41,6 +41,7 @@ import {
   type RemoteAccessConfig,
   validateRemoteAccess,
 } from "../security/inspector/remote-access-policy.js";
+import { resolveClientAddress } from "../security/inspector/client-address.js";
 
 // ---------------------------------------------------------------------------
 // Configuration
@@ -94,6 +95,13 @@ export interface SecurityMiddlewareConfig {
    * Used to validate remote/TLS policy per-request.
    */
   remoteAccessConfig?: RemoteAccessConfig;
+  /**
+   * Trusted proxy CIDR ranges for client address resolution (Sc1.3).
+   * When configured, the middleware resolves the effective client address
+   * from X-Forwarded-For headers when the immediate peer is within a
+   * trusted CIDR. Used for rate-limit keying instead of socket address.
+   */
+  trustedProxyCidrs?: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -183,6 +191,7 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
     postAuthLimiter,
     connectionLimiter,
     remoteAccessConfig,
+    trustedProxyCidrs,
   } = config;
 
   const effectiveOrigins = allowedOrigins ?? [];
@@ -247,12 +256,8 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
       }
 
       // Apply Vary headers
-      if (originResult.varyHeaders) {
-        for (const h of originResult.varyHeaders) {
-          if (!res.hasHeader("vary")) {
-            res.setHeader("vary", h);
-          }
-        }
+      if (originResult.varyHeaders?.length) {
+        res.setHeader("vary", originResult.varyHeaders.join(", "));
       }
     }
 
@@ -294,11 +299,10 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
 
     // ── 6. Pre-auth rate limiting (Sc1.6) ───────────────────────────
     if (preAuthLimiter && route) {
-      const clientAddr = (req.socket?.remoteAddress ?? "unknown");
-      const { normalizeClientAddress, buildRateLimitKey } =
+      const resolvedAddr = resolveClientAddress(req, trustedProxyCidrs ?? []);
+      const { buildRateLimitKey } =
         await import("../security/inspector/rate-limiter.js");
-      const normalizedAddr = normalizeClientAddress(clientAddr);
-      const preAuthKey = buildRateLimitKey(normalizedAddr, route.routeClass);
+      const preAuthKey = buildRateLimitKey(resolvedAddr.address, route.routeClass);
 
       const preAuthResult = preAuthLimiter.consume(preAuthKey);
       if (!preAuthResult.allowed) {
@@ -375,14 +379,13 @@ export function createSecurityMiddleware(config: SecurityMiddlewareConfig) {
 
     // ── 9. Post-auth rate limiting (Sc1.6) ──────────────────────────
     if (postAuthLimiter && route && ctx.authenticated) {
-      const clientAddr = (req.socket?.remoteAddress ?? "unknown");
-      const { normalizeClientAddress, buildRateLimitKey } =
+      const resolvedAddr = resolveClientAddress(req, trustedProxyCidrs ?? []);
+      const { buildRateLimitKey } =
         await import("../security/inspector/rate-limiter.js");
-      const normalizedAddr = normalizeClientAddress(clientAddr);
       const principal = ctx.tokenId ?? "anonymous";
       const postAuthKey = buildRateLimitKey(
         principal,
-        normalizedAddr,
+        resolvedAddr.address,
         route.routeClass,
       );
 

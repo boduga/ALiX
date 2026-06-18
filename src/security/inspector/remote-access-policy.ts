@@ -88,7 +88,7 @@ const LOOPBACK_HOSTS = new Set(["127.0.0.1", "::1", "localhost", "[::1]"]);
  */
 export function isLoopbackBind(host: string): boolean {
   const lower = host.toLowerCase();
-  return LOOPBACK_HOSTS.has(lower) || lower === "0.0.0.0";
+  return LOOPBACK_HOSTS.has(lower);
 }
 
 /**

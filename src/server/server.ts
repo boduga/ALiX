@@ -159,6 +159,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
     postAuthLimiter,
     connectionLimiter,
     remoteAccessConfig,
+    trustedProxyCidrs: effectiveProxyCidrs,
   });
 
   // P4.3-Sc1.5: Apply HTTP server limits
