@@ -15,7 +15,6 @@
  */
 
 import { existsSync, mkdirSync } from "node:fs";
-import { join, dirname } from "node:path";
 import { StateFile } from "./state-file.js";
 import { ALLOWED_TRANSITIONS, WORKFLOW_STATES } from "./types.js";
 import type {
@@ -26,6 +25,7 @@ import type {
   WorkflowCoordinatorConfig,
 } from "./types.js";
 import type { EvidenceType } from "../security/evidence/evidence-types.js";
+import type { EvidenceEventWriter } from "./evidence-writer.js";
 
 // ---------------------------------------------------------------------------
 // Defaults
@@ -43,6 +43,7 @@ export class WorkflowCoordinator {
   private readonly staleThresholdMs: number;
   private evidenceStore: import("../security/evidence/evidence-store.js").EvidenceStore | null = null;
   private evidenceStoreInitPromise: Promise<void> | null = null;
+  private evidenceWriter: EvidenceEventWriter | null = null;
 
   constructor(config: WorkflowCoordinatorConfig) {
     this.stateFile = new StateFile(config.workflowDir, config.lockTimeoutMs);
@@ -395,6 +396,24 @@ export class WorkflowCoordinator {
   /** Expose the underlying StateFile for advanced diagnostics. */
   getStateFile(): StateFile {
     return this.stateFile;
+  }
+
+  /**
+   * Get the evidence event writer for recording typed workflow events.
+   * Returns null if the evidence store is not available.
+   * Lazily initialised on first access.
+   */
+  async getEvidenceWriter(): Promise<EvidenceEventWriter | null> {
+    if (this.evidenceWriter) return this.evidenceWriter;
+    await this.ensureEvidenceStore();
+    if (!this.evidenceStore) return null;
+    const { EvidenceEventWriter } = await import(
+      "./evidence-writer.js"
+    );
+    this.evidenceWriter = new EvidenceEventWriter(
+      (type, payload) => this.evidenceStore!.append(type, payload),
+    );
+    return this.evidenceWriter;
   }
 
   // -----------------------------------------------------------------------
