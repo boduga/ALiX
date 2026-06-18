@@ -14,6 +14,10 @@ import { registerCoordinationRoutes } from "./coordination-routes.js";
 import { handleObservabilityRoute } from "../observability/observability-routes.js";
 import { validateHost } from "../security/inspector/host-policy.js";
 import { applySecurityHeaders, API_CACHE_HEADERS } from "./security-headers.js";
+import { routeRegistry } from "../security/inspector/route-policy.js";
+import { createSecurityMiddleware } from "./security-middleware.js";
+import { createSecureResponder, type SecureJsonResponder } from "./secure-response.js";
+import { SecretDetector } from "../security/redaction/secret-detector.js";
 
 // Event types to include in SSE stream
 const VISIBLE_EVENTS = [
@@ -56,21 +60,30 @@ function rejectInvalidSessionId(res: ServerResponse): void {
   res.end("Invalid session id");
 }
 
-async function serveRegistry(res: ServerResponse, root: string, type: "agents" | "tools"): Promise<void> {
+async function serveRegistry(responder: SecureJsonResponder, root: string, type: "agents" | "tools"): Promise<void> {
   try {
     const { loadCardRegistry } = await import("../registry/card-loader.js");
     const registry = await loadCardRegistry(root);
-    res.setHeader("content-type", "application/json");
     const data = type === "agents" ? registry.listAgents(true) : registry.listTools(true);
-    res.end(JSON.stringify(data));
+    responder.ok(data);
   } catch (err) {
-    res.statusCode = 500;
-    res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+    responder.error(err instanceof Error ? err.message : String(err), 500);
   }
 }
 
 export function startServer(root: string, host: string, port: number, allowedHosts?: string[]): Promise<{ close: () => Promise<void>; url: string }> {
   const effectiveAllowed = allowedHosts ?? ["127.0.0.1", "::1", "localhost"];
+
+  // Create the secret detector once (stateless, safe to reuse)
+  const detector = new SecretDetector();
+
+  // Create the security middleware
+  const securityMiddleware = createSecurityMiddleware({
+    host,
+    allowedHosts: effectiveAllowed,
+    registry: routeRegistry,
+    detector,
+  });
 
   const server = createServer(async (req, res) => {
     try {
@@ -88,6 +101,19 @@ export function startServer(root: string, host: string, port: number, allowedHos
 
       // Apply baseline security headers to all responses
       applySecurityHeaders(res);
+
+      // P4.3-Sb1: Run security middleware — looks up route, builds context,
+      // denies unauthenticated requests to auth-required routes.
+      const ctx = securityMiddleware(req, res);
+      if (!ctx) {
+        // Middleware already sent the denial response
+        return;
+      }
+
+      // P4.3-Sb1: Create secure JSON responder for this request
+      const secure = createSecureResponder(res, routeRegistry, detector, {
+        requestId: ctx.requestId,
+      });
 
       if (url.pathname === "/healthz") {
         res.statusCode = 200;
@@ -154,49 +180,42 @@ export function startServer(root: string, host: string, port: number, allowedHos
             if (byUpdated !== 0) return byUpdated;
             return (b.createdAt || "").localeCompare(a.createdAt || "");
           });
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(items));
+          secure.ok(items);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
       if (url.pathname.startsWith("/api/graphs/") && url.pathname.endsWith("/projection")) {
         const graphId = url.pathname.split("/")[3];
         if (!graphId || graphId.length < 5) {
-          res.statusCode = 400;
-          res.end("Invalid graph ID");
+          secure.error("invalid_graph_id", 400);
           return;
         }
         try {
           const { buildGraphProjection } = await import("../kernel/graph-projection.js");
           const projection = await buildGraphProjection(graphId, root);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(projection));
+          secure.ok(projection);
         } catch (err) {
-          res.statusCode = 404;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error("graph_not_found", 404, err instanceof Error ? err.message : String(err));
         }
         return;
       }
       if (url.pathname === "/api/registry/agents") {
-        await serveRegistry(res, root, "agents");
+        await serveRegistry(secure, root, "agents");
         return;
       }
       if (url.pathname === "/api/registry/tools") {
-        await serveRegistry(res, root, "tools");
+        await serveRegistry(secure, root, "tools");
         return;
       }
       if (url.pathname === "/api/policy/rules") {
         try {
           const { loadRuleEvaluator } = await import("../policy/policy-loader.js");
           const evaluator = await loadRuleEvaluator(root);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(evaluator.getAllRules()));
+          secure.ok(evaluator.getAllRules());
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -208,11 +227,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const executionProfile = url.searchParams.get("profile") ?? undefined;
           const evaluator = await loadRuleEvaluator(root);
           const result = evaluator.evaluate({ capability, riskLevel: riskLevel as any, executionProfile });
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(result));
+          secure.ok(result);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -222,11 +239,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const mgr = new DaemonManager(root);
           const running = await mgr.isRunning();
           const status = await mgr.status();
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify({ running, status }));
+          secure.ok({ running, status });
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -242,11 +257,14 @@ export function startServer(root: string, host: string, port: number, allowedHos
             return;
           }
           const raw = await readFile(tasksPath, "utf-8");
+          // Read raw file content — already persisted JSON
           res.setHeader("content-type", "application/json");
+          Object.entries(API_CACHE_HEADERS).forEach(([k, v]) => {
+            if (!res.hasHeader(k)) res.setHeader(k, v);
+          });
           res.end(raw);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -255,11 +273,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
           const { ApprovalStore } = await import("../approvals/approval-store.js");
           const store = new ApprovalStore(root);
           await store.load();
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(store.list()));
+          secure.ok(store.list());
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -281,11 +297,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
           if (approvalParam) filtered = filtered.filter(e => e.approvalId === approvalParam);
           if (actionParam) filtered = filtered.filter(e => e.action === actionParam);
           filtered = filtered.slice(0, limit);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(filtered));
+          secure.ok(filtered);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -301,11 +315,9 @@ export function startServer(root: string, host: string, port: number, allowedHos
           if (actionParam) records = await store.findByAction(actionParam as any, limit);
           else if (graphParam) records = await store.findByGraph(graphParam, limit);
           else records = await store.list(limit);
-          res.setHeader("content-type", "application/json");
-          res.end(JSON.stringify(records));
+          secure.ok(records);
         } catch (err) {
-          res.statusCode = 500;
-          res.end(JSON.stringify({ error: err instanceof Error ? err.message : String(err) }));
+          secure.error(err instanceof Error ? err.message : String(err), 500);
         }
         return;
       }
@@ -313,8 +325,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
         const left = url.searchParams.get("left");
         const right = url.searchParams.get("right");
         if (!left || !right) {
-          res.statusCode = 400;
-          res.end("Missing left or right session id");
+          secure.error("missing_session_ids", 400, "Missing left or right session id");
           return;
         }
         if (!isValidSessionId(left) || !isValidSessionId(right)) {
@@ -322,8 +333,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           return;
         }
 
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify(await readSessionComparison(root, left, right)));
+        secure.ok(await readSessionComparison(root, left, right));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/snapshot")) {
@@ -332,8 +342,7 @@ export function startServer(root: string, host: string, port: number, allowedHos
           rejectInvalidSessionId(res);
           return;
         }
-        res.setHeader("content-type", "application/json");
-        res.end(JSON.stringify(await readSessionSnapshot(root, sessionId)));
+        secure.ok(await readSessionSnapshot(root, sessionId));
         return;
       }
       if (url.pathname.startsWith("/api/sessions/") && url.pathname.endsWith("/events")) {
@@ -409,14 +418,17 @@ export function startServer(root: string, host: string, port: number, allowedHos
         return;
       }
       if (url.pathname.startsWith("/api/observability")) {
-        const handled = await handleObservabilityRoute({ req, res, root });
+        const handled = await handleObservabilityRoute({
+          req, res, root,
+          security: ctx,
+          responder: secure,
+        });
         if (handled) return;
       }
-      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res)) {
+      if (registerCoordinationRoutes(root, req.method ?? "GET", url.pathname, res, ctx, secure)) {
         return;
       }
-      res.statusCode = 404;
-      res.end("Not found");
+      secure.error("not_found", 404);
     } catch (error) {
       if (error instanceof InvalidSessionIdError) {
         rejectInvalidSessionId(res);

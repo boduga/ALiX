@@ -173,7 +173,8 @@ test("rejects session comparison requests missing either session id", async () =
       const text = await response.text();
 
       assert.equal(response.status, 400);
-      assert.equal(text, "Missing left or right session id");
+      const data = JSON.parse(text);
+      assert.equal(data.error, "missing_session_ids");
     } finally {
       await server.close();
     }
