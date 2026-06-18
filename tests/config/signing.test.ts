@@ -417,6 +417,51 @@ test("ConfigSigner: signed config has schema version 1", async () => {
 });
 
 // ---------------------------------------------------------------------------
+// Payload/metadata timestamp consistency (regression)
+// ---------------------------------------------------------------------------
+
+test("ConfigSigner: signedAt is identical in signing payload and signature metadata", async () => {
+  const { dir, configDir, signer, publicKey } = await setupWithKey();
+  try {
+    const service = new ConfigMutationService(configDir);
+    const version = await service.getVersion();
+    const sig = await signer.sign(configDir, version);
+
+    // Read the stored signature file
+    const sigPath = join(configDir, "config.sig");
+    const stored = JSON.parse(await readFile(sigPath, "utf-8"));
+
+    // Reconstruct the verification payload the same way verify() does.
+    // If sign() had called now() twice and the timestamps differed,
+    // this payload would NOT match what was actually signed.
+    const verifyPayload = JSON.stringify({
+      schemaVersion: stored.schemaVersion,
+      keyId: stored.keyId,
+      configVersion: stored.configVersion,
+      configHash: stored.configHash,
+      prevConfigHash: stored.prevConfigHash,
+      signedAt: stored.signedAt,
+    });
+
+    // Crypto-verify the reconstructed payload — must match the signature
+    const { verify: cryptoVerify } = await import("node:crypto");
+    const valid = cryptoVerify(
+      null,
+      Buffer.from(verifyPayload, "utf-8"),
+      publicKey,
+      Buffer.from(stored.signature, "hex"),
+    );
+    assert.ok(valid, "Reconstructed payload must be byte-identical to the signed payload");
+
+    // Also confirm end-to-end verify works
+    const result = await signer.verify(configDir, publicKey);
+    assert.equal(result.ok, true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+// ---------------------------------------------------------------------------
 // Read signature
 // ---------------------------------------------------------------------------
 
