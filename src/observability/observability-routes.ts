@@ -11,6 +11,7 @@
 import type { ServerResponse, IncomingMessage } from "node:http";
 import type { SecurityContext } from "../security/inspector/security-context.js";
 import type { SecureJsonResponder } from "../server/secure-response.js";
+import type { ObservabilityStreamHub } from "../server/observability-stream-hub.js";
 
 export interface RouteContext {
   root: string;
@@ -20,6 +21,8 @@ export interface RouteContext {
   security?: SecurityContext | null;
   /** P4.3-Sb1: Secure JSON responder (set by server). */
   responder?: SecureJsonResponder;
+  /** P4.3-Sc2: Observability stream hub for SSE subscription. */
+  observabilityHub?: ObservabilityStreamHub;
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +116,18 @@ export async function handleObservabilityRoute(ctx: RouteContext): Promise<boole
     }
 
     if (url.pathname === "/api/observability/stream") {
+      // P4.3-Sc2: Delegate to the shared observability stream hub
+      // The hub is set up in server.ts and passed via RouteContext.
+      // If no hub is available, fall back to the legacy (non-hub) path.
+      const hub = ctx.observabilityHub;
+      if (hub) {
+        // SSE subscription is handled by the server.ts integration layer
+        // which has access to the connection limiter and can create
+        // SecureSseConnections.  We signal that this is an SSE route
+        // by returning true; the server.ts handler will use the hub.
+        return false; // let server.ts handle the SSE subscription
+      }
+      // Legacy fallback
       const { subscribeObservabilityStream } = await import("../server/observability-stream.js");
       await subscribeObservabilityStream(res, root);
       return true;

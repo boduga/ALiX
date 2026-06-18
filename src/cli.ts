@@ -1087,7 +1087,15 @@ if (command === "serve") {
     process.exit(1);
   }
   const { startServer } = await import("./server/server.js");
-  const server = await startServer(process.cwd(), config.ui.host, config.ui.port);
+  const sec = config.ui.security;
+  const server = await startServer(
+    process.cwd(),
+    config.ui.host,
+    config.ui.port,
+    sec?.allowedHosts,
+    sec?.allowedOrigins,
+    sec?.trustedProxyCidrs,
+  );
   console.log(`ALiX inspector running at ${server.url}`);
   await new Promise(() => undefined);
 }
@@ -1113,7 +1121,15 @@ if (command === "inspector" && args[0] === "open") {
     process.exit(1);
   }
 
-  const server = await startServer(process.cwd(), host, port);
+  const sec = config.ui?.security;
+  const server = await startServer(
+    process.cwd(),
+    host,
+    port,
+    sec?.allowedHosts,
+    sec?.allowedOrigins,
+    sec?.trustedProxyCidrs,
+  );
   const url = server.url;
 
   // Open browser (platform-aware, best-effort)

@@ -147,3 +147,118 @@ describe("validateHost", () => {
     }
   });
 });
+
+// ── Sc1.1 DNS rebinding detection ─────────────────────────────────
+
+describe("validateHost — DNS rebinding", () => {
+  it("rejects IP address when only hostnames are allowed", () => {
+    const result = validateHost("192.168.1.1:4137", ["my-inspector.local"]);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 403);
+  });
+
+  it("rejects hostname when only IPs are allowed", () => {
+    const result = validateHost("evil.com", ["127.0.0.1", "::1"]);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 403);
+  });
+
+  it("does not flag DNS rebinding when allowed list has both IP and hostname (but still rejects unknown IP)", () => {
+    // DNS rebinding check is skipped because the allowed list has both types.
+    // But the IP is still not in the allowed list, so it's rejected.
+    const result = validateHost("192.168.1.1", ["127.0.0.1", "::1", "my-inspector.local"]);
+    assert.ok(!result.ok);
+    // Error should not be a DNS rebinding error — it's just not in the list
+    if (!result.ok) {
+      assert.equal(result.error, "invalid_host");
+    }
+  });
+
+  it("allows hostname when it's in the allowed list along with IPs", () => {
+    const result = validateHost("my-inspector.local", ["127.0.0.1", "localhost", "my-inspector.local"]);
+    assert.ok(result.ok);
+  });
+});
+
+// ── Sc1.1 Reject userinfo, path, fragment ──────────────────────────
+
+describe("validateHost — userinfo/path/fragment rejection", () => {
+  it("rejects userinfo in Host header", () => {
+    const result = validateHost("user:pass@127.0.0.1", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects path in Host header", () => {
+    const result = validateHost("127.0.0.1/path", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects fragment in Host header", () => {
+    const result = validateHost("127.0.0.1#fragment", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects query string in Host header", () => {
+    const result = validateHost("127.0.0.1?query=1", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects control characters in Host header", () => {
+    const result = validateHost("127.0.0.1\x00", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+});
+
+// ── Sc1.1 IPv6 bracket validation ──────────────────────────────────
+
+describe("validateHost — IPv6 bracket validation", () => {
+  it("rejects unmatched opening bracket", () => {
+    const result = validateHost("[::1", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects empty bracket pair", () => {
+    const result = validateHost("[]", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects garbage after bracketed IPv6 without port", () => {
+    const result = validateHost("[::1]garbage", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("rejects invalid port after bracketed IPv6", () => {
+    const result = validateHost("[::1]:99999", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+});
+
+// ── Sc1.1 Hostname syntax validation ──────────────────────────────
+
+describe("validateHost — hostname syntax", () => {
+  it("rejects overlong hostname", () => {
+    const long = "a".repeat(254) + ".com";
+    const result = validateHost(long, [long]);
+    assert.ok(!result.ok);
+    if (!result.ok) assert.equal(result.statusCode, 400);
+  });
+
+  it("strips trailing dot in hostname (FQDN notation)", () => {
+    const result = validateHost("localhost.", DEFAULT_ALLOWED);
+    assert.ok(result.ok);
+  });
+
+  it("rejects hostname segment starting with hyphen", () => {
+    const result = validateHost("-bad.localhost", DEFAULT_ALLOWED);
+    assert.ok(!result.ok);
+  });
+});

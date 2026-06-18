@@ -606,6 +606,22 @@ routeRegistry.register({
 });
 
 // ---------------------------------------------------------------------------
+// Route registration — doctor diagnostics (authenticated, Sc1)
+// ---------------------------------------------------------------------------
+
+routeRegistry.register({
+  id: "api.doctor",
+  method: "GET",
+  pathPattern: "/api/doctor",
+  pathType: "exact",
+  auth: "authenticated",
+  permission: "observability:read",
+  routeClass: "data",
+  redactionProfile: "operational",
+  streaming: false,
+});
+
+// ---------------------------------------------------------------------------
 // Route registration — auth routes (public, Sb3)
 // ---------------------------------------------------------------------------
 
