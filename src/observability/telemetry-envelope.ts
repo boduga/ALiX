@@ -110,7 +110,7 @@ export function createTelemetryEnvelope(input: TelemetryInput): TelemetryEnvelop
 // ─── Normalization ──────────────────────────────────────────────────────
 
 // Map AlixEvent types to telemetry categories.
-const CATEGORY_MAP: Record<string, TelemetryCategory> = {
+export const CATEGORY_MAP: Record<string, TelemetryCategory> = {
   "tool.": "tool",
   "approval.": "approval",
   "policy.": "tool",
@@ -127,7 +127,7 @@ const CATEGORY_MAP: Record<string, TelemetryCategory> = {
   "security.": "security",
 };
 
-function inferCategory(eventType: string): TelemetryCategory {
+export function inferCategory(eventType: string): TelemetryCategory {
   for (const [prefix, cat] of Object.entries(CATEGORY_MAP)) {
     if (eventType.startsWith(prefix)) return cat;
   }
