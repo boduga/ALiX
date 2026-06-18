@@ -152,7 +152,7 @@ function redactString(
 
     return result;
   } catch {
-    return value;
+    return SENTINEL_REDACTION_ERROR;
   }
 }
 
@@ -434,19 +434,65 @@ function redactInternal(
 
 /**
  * Accumulate output bytes estimate.
- * We use the serialised length as a cheap proxy.
+ *
+ * Walks the object graph manually without invoking `toJSON()` or any
+ * custom serialization.  Counts structural characters (braces, brackets,
+ * colons, commas, quotes) and string lengths for primitives.  Not exact
+ * — just monotonic and side-effect-free.
  */
 function updateOutputBytes(state: RedactorState, obj: unknown): void {
   try {
-    // Rough byte count — stringified length
-    const str = JSON.stringify(obj);
-    if (typeof str === "string") {
-      state.outputBytes += str.length;
-    }
+    state.outputBytes += estimateByteLength(obj, 0);
   } catch {
-    // If JSON.stringify fails (circular, etc.), estimate char count
+    // If estimation fails (pathological value), add a conservative guess.
     state.outputBytes += 256;
   }
+}
+
+/**
+ * Depth-limited byte-length estimator.
+ *
+ * Counts structural characters (braces, brackets, colons, commas, quotes)
+ * and `String(value).length` for primitives.  Never invokes `toJSON()`.
+ */
+function estimateByteLength(value: unknown, depth: number): number {
+  // Cap recursion depth so pathological objects don't hang
+  if (depth > 10) return 0;
+
+  if (value === null || value === undefined) return 4; // "null" / "undefined"
+  if (typeof value === "boolean") return value ? 4 : 5; // true / false
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value).length;
+  }
+  if (typeof value === "string") return value.length + 2; // +2 for JSON quotes
+  if (typeof value === "symbol") return 0;
+  if (typeof value !== "object") return String(value).length;
+
+  // Array
+  if (Array.isArray(value)) {
+    let size = 1; // '['
+    for (let i = 0; i < value.length; i++) {
+      if (i > 0) size += 1; // ','
+      size += estimateByteLength(value[i], depth + 1);
+    }
+    size += 1; // ']'
+    return size;
+  }
+
+  // Plain object (always a plain {} created by redactInternal, so no toJSON)
+  let size = 1; // '{'
+  const keys = Object.keys(value as Record<string, unknown>);
+  for (let i = 0; i < keys.length; i++) {
+    if (i > 0) size += 1; // ','
+    size += keys[i].length + 2; // quoted key name
+    size += 1; // ':'
+    size += estimateByteLength(
+      (value as Record<string, unknown>)[keys[i]],
+      depth + 1,
+    );
+  }
+  size += 1; // '}'
+  return size;
 }
 
 /**

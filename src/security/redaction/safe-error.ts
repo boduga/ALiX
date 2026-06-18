@@ -217,8 +217,20 @@ export function redactAndLog(
       }
     }
 
-    // Return safe error
-    return toSafeError(error);
+    // Build SafeError from the redacted payload so the caller never
+    // receives the original unredacted message.
+    const safeCode: ErrorCode = typeof redactedPayload === "object" && redactedPayload !== null
+      ? (redactedPayload as Record<string, unknown>).code as ErrorCode ?? classifyError(error)
+      : classifyError(error);
+
+    const safeMessage: string = typeof redactedPayload === "object" && redactedPayload !== null
+      ? String((redactedPayload as Record<string, unknown>).message ?? "An internal error occurred")
+      : "An internal error occurred";
+
+    return {
+      code: safeCode,
+      message: safeMessage,
+    };
   } catch {
     return {
       code: ErrorCodes.INTERNAL_ERROR,

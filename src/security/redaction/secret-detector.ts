@@ -74,9 +74,6 @@ interface RegisteredPattern {
   confidence: "high" | "medium" | "low";
 }
 
-/** @internal regex time budget (ms) per `.exec()` call. */
-const EXEC_TIMEOUT_MS = 50;
-
 /**
  * Create the default set of built-in patterns.
  * Exported as a factory so tests can inspect what is registered.
@@ -153,38 +150,6 @@ function shannonEntropy(s: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// Timed exec guard
-// ---------------------------------------------------------------------------
-
-/**
- * Execute `re.exec(input)` with a time budget.
- * Returns `null` if the call takes longer than `EXEC_TIMEOUT_MS`.
- *
- * We use a polling approach: native regex execution is synchronous and
- * cannot be interrupted, but by limiting pattern complexity and input
- * length we reduce the risk.  This wrapper adds a best-effort guard.
- *
- * @internal
- */
-function timedExec(
-  re: RegExp,
-  input: string,
-  timeoutMs: number = EXEC_TIMEOUT_MS,
-): RegExpExecArray | null {
-  // Reset lastIndex
-  re.lastIndex = 0;
-
-  // For short inputs or simple patterns we run synchronously.
-  if (input.length <= MAX_STRING_SCAN) {
-    return re.exec(input);
-  }
-
-  // Longer inputs are truncated before scanning, so we should never
-  // reach this branch under normal operation.
-  return re.exec(input);
-}
-
-// ---------------------------------------------------------------------------
 // SecretDetector
 // ---------------------------------------------------------------------------
 
@@ -196,6 +161,11 @@ function timedExec(
  * const detector = new SecretDetector();
  * const spans = detector.detect("sk-abc123...");
  * ```
+ *
+ * Regex safety is provided by:
+ * - Input-size limits (`MAX_STRING_SCAN` caps the input at 65536 bytes).
+ * - All patterns are bounded (no nested quantifiers).
+ * - A max-iteration ceiling (1000) per pattern prevents runaway global matching.
  */
 export class SecretDetector {
   private readonly patterns: RegisteredPattern[];
@@ -277,7 +247,10 @@ export class SecretDetector {
 
   /**
    * Run a single pattern against the input and collect spans.
-   * Uses a timed wrapper to guard against pathological regex behaviour.
+   *
+   * Regex safety is provided by input-size limits and safe pattern design
+   * (no nested quantifiers).  The max-iteration ceiling (1000) prevents
+   * runaway global matching.
    */
   private runPattern(
     rp: RegisteredPattern,
@@ -288,7 +261,7 @@ export class SecretDetector {
     re.lastIndex = 0;
 
     for (let i = 0; i < 1000; i++) {
-      const match = timedExec(re, input);
+      const match = re.exec(input);
       if (match === null) break;
 
       out.push({
