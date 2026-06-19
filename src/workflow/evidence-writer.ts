@@ -335,6 +335,26 @@ export class EvidenceEventWriter {
   }
 
   // -----------------------------------------------------------------------
+  // Capability routing
+  // -----------------------------------------------------------------------
+
+  async recordAgentResolved(
+    issueNumber: number,
+    payload: { capability: string; agentId: string; step: string },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("agent_resolved", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  async recordCapabilityRouted(
+    issueNumber: number,
+    payload: { capability: string; resolvedAgent: string; candidates: number; candidateAgentIds?: string[] },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("capability_routed", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------
 

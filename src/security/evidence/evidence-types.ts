@@ -50,7 +50,10 @@ export type EvidenceType =
   | "execution_subtask_completed"
   | "execution_test_passed"
   | "execution_test_failed"
-  | "execution_commit_created";
+  | "execution_commit_created"
+  // P4.7 capability routing
+  | "agent_resolved"
+  | "capability_routed";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -78,6 +81,8 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "execution_test_passed",
   "execution_test_failed",
   "execution_commit_created",
+  "agent_resolved",
+  "capability_routed",
 ]);
 
 // ---------------------------------------------------------------------------
