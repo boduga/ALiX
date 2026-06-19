@@ -22,6 +22,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { validateAgentCard, type AgentCard } from "../../registry/agent-card.js";
 import type { AdaptationProposal, ProposalTarget } from "../adaptation-types.js";
 
 /** Path to the agent card file for a given agent id. */
@@ -112,10 +113,20 @@ export class AgentCardApplier {
   // Handlers
   // -------------------------------------------------------------------------
 
-  /** Create a new agent card. Fails if the file already exists. */
+  /**
+   * Create a new agent card. Fails if the file already exists or if the
+   * payload is not a valid AgentCard (validated before writing, matching the
+   * registry's "cards are validated before registration" contract).
+   */
   private create(path: string, payload: Record<string, unknown>): void {
     if (existsSync(path)) {
       throw new Error(`Agent card already exists: ${path}`);
+    }
+    const result = validateAgentCard(payload as unknown as AgentCard);
+    if (!result.valid) {
+      throw new Error(
+        `AgentCardApplier.create_agent_card: invalid payload — ${result.errors.join("; ")}`,
+      );
     }
     this.writeCard(path, payload);
   }
