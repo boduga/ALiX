@@ -152,7 +152,6 @@ export class ExecutionAgent {
       const stepResult = await this.executeSubtask(
         subtask,
         permit,
-        coordinator,
         writer,
         issueNumber,
         cwd,
@@ -191,7 +190,6 @@ export class ExecutionAgent {
   private async executeSubtask(
     subtask: Subtask,
     permit: ExecutionPermit,
-    coordinator: WorkflowCoordinator,
     writer: EvidenceEventWriter,
     issueNumber: number,
     cwd: string,
