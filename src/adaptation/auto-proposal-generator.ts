@@ -10,7 +10,7 @@
  */
 import type { AdaptationProposal } from "./adaptation-types.js";
 import type { ProposalStore } from "./proposal-store.js";
-import { RecommendationToProposal } from "./recommendation-to-proposal.js";
+import { RecommendationToProposal, nextProposalId } from "./recommendation-to-proposal.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 import type { ReflectionReport } from "../reflection/reflection-types.js";
 import type { ProposalEffectivenessReport } from "./effectiveness-types.js";
@@ -90,11 +90,67 @@ export class AutomaticProposalGenerator {
   }
 
   async generateFromEffectiveness(
-    _report: ProposalEffectivenessReport,
+    report: ProposalEffectivenessReport,
     _opts: GenerateOptions = {},
   ): Promise<GenerateResult> {
-    // implemented in Task 4
-    throw new Error("not yet implemented");
+    // Skip rules per P5.2c.4:
+    //   - `keep` and `investigate` recommendations do NOT auto-generate
+    //     proposals.
+    //   - `revert` requires `dataSufficient === true`; without sufficient
+    //     data we still classify the outcome as `investigate` upstream and
+    //     skip auto-generation here.
+    if (report.recommendation !== "revert" || report.dataSufficient !== true) {
+      return { generated: 0, skipped: 1, proposals: [] };
+    }
+
+    // Load the source proposal so we can spread its evidenceFingerprints
+    // into the new proposal (audit trail). If the source is missing, fall
+    // back to just the effectiveness-event fingerprint.
+    const sourceProposal = await this.store.load(report.proposalId);
+    const sourceEvidence =
+      sourceProposal?.evidenceFingerprints ?? [];
+    const effFingerprint = `eff:${report.proposalId}:${report.assessedAt}`;
+
+    const proposal: AdaptationProposal = {
+      id: nextProposalId(),
+      createdAt: new Date().toISOString(),
+      status: "pending",
+      action: "create_improvement_issue",
+      target: {
+        kind: "issue",
+        title: `Investigate revert of proposal ${report.proposalId}`,
+      },
+      payload: {
+        sourceProposalId: report.proposalId,
+        assessedAt: report.assessedAt,
+        primaryMetric: report.primary?.metric ?? null,
+        reason: report.reason,
+      },
+      sourceRecommendationType: "effectiveness_revert",
+      sourceConfidence: 1,
+      evidenceFingerprints: [effFingerprint, ...sourceEvidence],
+      // Verbatim per task brief — two sentences, single period after the
+      // first, second ends with a period.
+      reason:
+        `Effectiveness report recommends REVERT for proposal ${report.proposalId}, ` +
+        `but executable revert is out of scope. ` +
+        `This proposal asks a human to investigate and create a manual remediation path.`,
+      provenance: "auto",
+    };
+
+    await this.store.save(proposal);
+    await this.writer.recordAdaptationProposed(proposal.id, {
+      createdAt: proposal.createdAt,
+      action: proposal.action,
+      target: proposal.target as unknown as Record<string, unknown>,
+      sourceRecommendationType: proposal.sourceRecommendationType,
+      sourceConfidence: proposal.sourceConfidence,
+      payload: proposal.payload,
+      reason: proposal.reason,
+      provenance: "auto",
+    });
+
+    return { generated: 1, skipped: 0, proposals: [proposal] };
   }
 
   async generateFromAllEffectiveness(

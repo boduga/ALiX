@@ -8,10 +8,11 @@ import {
   type GenerateOptions,
   type GenerateResult,
 } from "../../src/adaptation/auto-proposal-generator.js";
-import type { ProposalStore } from "../../src/adaptation/proposal-store.js";
+import { ProposalStore } from "../../src/adaptation/proposal-store.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
 import type { ReflectionReport } from "../../src/reflection/reflection-types.js";
 import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
+import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
 import { RecommendationToProposal } from "../../src/adaptation/recommendation-to-proposal.js";
 
 /**
@@ -103,6 +104,8 @@ function makeEffectivenessReport(
     windowDays: 7,
     recommendation: "keep",
     metrics: [],
+    reason: "primary metric stable over window",
+    primary: null,
     ...overrides,
   } as unknown as ProposalEffectivenessReport;
 }
@@ -343,18 +346,279 @@ describe("AutomaticProposalGenerator — generateFromReflection", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Stub-phase behaviour: effectiveness method still throws (Task 4 will replace).
-// generateFromReflection no longer throws — see Task 3 tests above.
+// Task 4 (P5.2c.4): generateFromEffectiveness behaviour — skip rules,
+// verbatim reason, evidenceFingerprints spread, manual-action warning
+// integration (regression check).
 // ---------------------------------------------------------------------------
 
-describe("AutomaticProposalGenerator — effectiveness stub", () => {
-  it("generateFromEffectiveness throws 'not yet implemented'", async () => {
+describe("AutomaticProposalGenerator — generateFromEffectiveness skip rules", () => {
+  it("skips a 'keep' recommendation (returns generated=0, skipped=1)", async () => {
     const store = new FakeProposalStore();
     const writer = makeFakeWriter();
     const gen = new AutomaticProposalGenerator(asStore(store), writer);
-    await expect(
-      gen.generateFromEffectiveness(makeEffectivenessReport()),
-    ).rejects.toThrow("not yet implemented");
+
+    const result = await gen.generateFromEffectiveness(
+      makeEffectivenessReport({ recommendation: "keep", dataSufficient: true }),
+    );
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.proposals).toEqual([]);
+    expect(store.saved).toEqual([]);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toEqual([]);
+  });
+
+  it("skips an 'investigate' recommendation (returns generated=0, skipped=1)", async () => {
+    const store = new FakeProposalStore();
+    const writer = makeFakeWriter();
+    const gen = new AutomaticProposalGenerator(asStore(store), writer);
+
+    const result = await gen.generateFromEffectiveness(
+      makeEffectivenessReport({ recommendation: "investigate", dataSufficient: true }),
+    );
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.proposals).toEqual([]);
+    expect(store.saved).toEqual([]);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toEqual([]);
+  });
+
+  it("skips a 'revert' recommendation when dataSufficient !== true (insufficient data)", async () => {
+    const store = new FakeProposalStore();
+    const writer = makeFakeWriter();
+    const gen = new AutomaticProposalGenerator(asStore(store), writer);
+
+    const result = await gen.generateFromEffectiveness(
+      makeEffectivenessReport({ recommendation: "revert", dataSufficient: false }),
+    );
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.proposals).toEqual([]);
+    expect(store.saved).toEqual([]);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toEqual([]);
+  });
+});
+
+describe("AutomaticProposalGenerator — generateFromEffectiveness success path", () => {
+  // We use a real on-disk ProposalStore so generateFromEffectiveness can
+  // call store.load(report.proposalId) to read the source proposal's
+  // evidenceFingerprints. We also need a real writer so we can assert
+  // provenance="auto" round-trips into the emitted evidence payload.
+  let tempDir: string;
+  let store: ProposalStore;
+  let evidenceStore: import("../../src/security/evidence/evidence-store.js").EvidenceStore;
+  let writer: EvidenceEventWriter;
+  let gen: AutomaticProposalGenerator;
+
+  beforeEach(async () => {
+    tempDir = mkdtempSync(join(tmpdir(), "apg-eff-"));
+    store = new ProposalStore(join(tempDir, "proposals"));
+    const { EvidenceStore } = await import(
+      "../../src/security/evidence/evidence-store.js"
+    );
+    evidenceStore = new EvidenceStore({ storeDir: join(tempDir, "evidence") });
+    const { EvidenceEventWriter: RealWriter } = await import(
+      "../../src/workflow/evidence-writer.js"
+    );
+    writer = new RealWriter((type, payload) => evidenceStore.append(type, payload));
+    gen = new AutomaticProposalGenerator(store, writer);
+
+    // Seed a source proposal the effectiveness report refers to.
+    await store.save({
+      id: "prop-source-1",
+      createdAt: "2026-06-10T00:00:00.000Z",
+      status: "applied",
+      action: "create_agent_card",
+      target: { kind: "agent_card", id: "code-review" },
+      payload: { title: "create card" },
+      sourceRecommendationType: "capability_gap",
+      sourceConfidence: 0.9,
+      evidenceFingerprints: ["src-ev-1", "src-ev-2"],
+      reason: "source proposal",
+      provenance: "auto",
+    } as AdaptationProposal);
+  });
+
+  it("produces exactly one create_improvement_issue proposal with the verbatim reason, provenance=auto, and emits evidence", async () => {
+    const report = makeEffectivenessReport({
+      proposalId: "prop-source-1",
+      assessedAt: "2026-06-19T00:00:00.000Z",
+      recommendation: "revert",
+      dataSufficient: true,
+    });
+
+    const result = await gen.generateFromEffectiveness(report);
+
+    expect(result.generated).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(result.proposals).toHaveLength(1);
+
+    const p = result.proposals[0]!;
+
+    // Verbatim reason per task brief (single period after first sentence,
+    // space, second sentence ending in a period).
+    const expectedReason =
+      "Effectiveness report recommends REVERT for proposal prop-source-1, " +
+      "but executable revert is out of scope. " +
+      "This proposal asks a human to investigate and create a manual remediation path.";
+    expect(p.reason).toBe(expectedReason);
+
+    // Required shape: every field per task brief.
+    expect(p.status).toBe("pending");
+    expect(p.action).toBe("create_improvement_issue");
+    expect(p.target).toEqual({
+      kind: "issue",
+      title: "Investigate revert of proposal prop-source-1",
+    });
+    expect(p.sourceRecommendationType).toBe("effectiveness_revert");
+    expect(p.sourceConfidence).toBe(1);
+    expect(p.provenance).toBe("auto");
+
+    // evidenceFingerprints: eff:<sourceProposalId>:<assessedAt> first, then
+    // the source proposal's evidenceFingerprints spread after.
+    expect(p.evidenceFingerprints).toEqual([
+      "eff:prop-source-1:2026-06-19T00:00:00.000Z",
+      "src-ev-1",
+      "src-ev-2",
+    ]);
+
+    // payload carries source metadata.
+    expect(p.payload).toMatchObject({
+      sourceProposalId: "prop-source-1",
+      assessedAt: "2026-06-19T00:00:00.000Z",
+    });
+    expect(p.payload).toHaveProperty("primaryMetric");
+    expect(p.payload).toHaveProperty("reason");
+
+    // id format: prop-YYYY-MM-DD-NNN
+    expect(p.id).toMatch(/^prop-\d{4}-\d{2}-\d{2}-\d{3}$/);
+    // createdAt is an ISO string.
+    expect(typeof p.createdAt).toBe("string");
+    expect(new Date(p.createdAt).toISOString()).toBe(p.createdAt);
+  });
+
+  it("persists the generated proposal via store.save", async () => {
+    const report = makeEffectivenessReport({
+      proposalId: "prop-source-1",
+      assessedAt: "2026-06-19T00:00:00.000Z",
+      recommendation: "revert",
+      dataSufficient: true,
+    });
+
+    const result = await gen.generateFromEffectiveness(report);
+    const p = result.proposals[0]!;
+
+    const reloaded = await store.load(p.id);
+    expect(reloaded).not.toBeNull();
+    expect(reloaded).toEqual(p);
+  });
+
+  it("emits adaptation_proposed evidence with provenance=auto", async () => {
+    const report = makeEffectivenessReport({
+      proposalId: "prop-source-1",
+      assessedAt: "2026-06-19T00:00:00.000Z",
+      recommendation: "revert",
+      dataSufficient: true,
+    });
+
+    const result = await gen.generateFromEffectiveness(report);
+    const p = result.proposals[0]!;
+
+    const events = await evidenceStore.query({ type: "adaptation_proposed" });
+
+    expect(events.total).toBe(1);
+    const ev = events.records[0];
+    expect(ev.payload).toMatchObject({
+      proposalId: p.id,
+      createdAt: p.createdAt,
+      action: "create_improvement_issue",
+      sourceRecommendationType: "effectiveness_revert",
+      sourceConfidence: 1,
+      provenance: "auto",
+    });
+  });
+
+  it("omits source evidenceFingerprints when the source proposal cannot be loaded", async () => {
+    // Effectiveness report refers to a proposal that does not exist on disk.
+    const report = makeEffectivenessReport({
+      proposalId: "prop-does-not-exist",
+      assessedAt: "2026-06-19T00:00:00.000Z",
+      recommendation: "revert",
+      dataSufficient: true,
+    });
+
+    const result = await gen.generateFromEffectiveness(report);
+    expect(result.generated).toBe(1);
+
+    const p = result.proposals[0]!;
+    // Only the eff: fingerprint — no source spread because the source is
+    // missing.
+    expect(p.evidenceFingerprints).toEqual([
+      "eff:prop-does-not-exist:2026-06-19T00:00:00.000Z",
+    ]);
+  });
+});
+
+describe("AutomaticProposalGenerator — manual-action regression (apply surfaces guidance, not error)", () => {
+  // Regression check: P5.1g manual-action handling still works for a
+  // create_improvement_issue proposal generated by the effectiveness path.
+  // We mirror the test in tests/cli/commands/adaptation.vitest.ts but at
+  // the generator boundary — a generated proposal must be processable by
+  // the apply command without throwing.
+  it("generated create_improvement_issue proposal has kind='issue' and action='create_improvement_issue' so manual-action apply guidance fires", async () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "apg-manual-"));
+    const store = new ProposalStore(join(tempDir, "proposals"));
+    const { EvidenceStore } = await import(
+      "../../src/security/evidence/evidence-store.js"
+    );
+    const evidenceStore = new EvidenceStore({ storeDir: join(tempDir, "evidence") });
+    const { EvidenceEventWriter: RealWriter } = await import(
+      "../../src/workflow/evidence-writer.js"
+    );
+    const writer = new RealWriter((type, payload) => evidenceStore.append(type, payload));
+    const gen = new AutomaticProposalGenerator(store, writer);
+
+    // Seed source proposal so evidenceFingerprints spread is exercised.
+    await store.save({
+      id: "prop-source-2",
+      createdAt: "2026-06-10T00:00:00.000Z",
+      status: "applied",
+      action: "create_agent_card",
+      target: { kind: "agent_card", id: "x" },
+      payload: { title: "x" },
+      sourceRecommendationType: "capability_gap",
+      sourceConfidence: 0.9,
+      evidenceFingerprints: ["src-ev"],
+      reason: "src",
+      provenance: "auto",
+    } as AdaptationProposal);
+
+    const result = await gen.generateFromEffectiveness(
+      makeEffectivenessReport({
+        proposalId: "prop-source-2",
+        assessedAt: "2026-06-19T00:00:00.000Z",
+        recommendation: "revert",
+        dataSufficient: true,
+      }),
+    );
+
+    const p = result.proposals[0]!;
+
+    // Mirror the assertions used by the manual-action regression in
+    // tests/cli/commands/adaptation.vitest.ts: target.kind="issue" and
+    // action="create_improvement_issue" are exactly the inputs that cause
+    // the CLI's runApply to surface manual guidance (not error).
+    expect(p.target.kind).toBe("issue");
+    expect(p.action).toBe("create_improvement_issue");
+    expect(p.status).toBe("pending");
   });
 });
 

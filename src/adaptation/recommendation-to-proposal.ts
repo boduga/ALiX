@@ -26,7 +26,7 @@ const ACTION_MAP: Record<RecommendationType, ProposalAction> = {
 let lastDate = "";
 let counter = 0;
 
-function nextProposalId(): string {
+export function nextProposalId(): string {
   const date = new Date().toISOString().slice(0, 10);
   if (date !== lastDate) {
     lastDate = date;
