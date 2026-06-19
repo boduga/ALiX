@@ -21,7 +21,6 @@ import type {
   ExecutionPlan,
   ReviewReport,
   ReviewFinding,
-  ReviewSeverity,
 } from "../types.js";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +47,7 @@ const PROTECTED_PATHS = [
   ".alix/",
   "src/config/",
   "src/security/",
+  "src/agents/",
   "CLAUDE.md",
   "AGENTS.md",
   "CONTEXT.md",

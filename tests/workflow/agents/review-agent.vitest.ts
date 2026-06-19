@@ -136,6 +136,28 @@ describe("ReviewAgent", () => {
       )).toBe(true);
     });
 
+    it("rejects plans modifying src/agents/", async () => {
+      const plan = validPlan({
+        subtasks: [
+          {
+            id: "step-1",
+            description: "Modify agent",
+            files: ["src/agents/issue-intake-agent.ts"],
+            testFiles: [],
+            acceptanceCheck: "Updated",
+            dependsOn: [],
+          },
+        ],
+      });
+      const result = await agent.review(plan);
+      expect(result.success).toBe(true);
+      if (!result.success) return;
+      expect(result.report.verdict).toBe("reject");
+      expect(result.report.findings.some(
+        (f) => f.file.startsWith("src/agents/"),
+      )).toBe(true);
+    });
+
     it("flags files in protected paths", async () => {
       const plan = validPlan({
         subtasks: [
