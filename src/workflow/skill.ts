@@ -50,41 +50,71 @@ export interface SkillDefinition {
 // Skill loading
 // ---------------------------------------------------------------------------
 
-const SKILLS_DIR = join(homedir(), ".alix", "skills", "workflow");
+/** Directories searched for skill files, in priority order. */
+function skillDirs(): string[] {
+  return [
+    join(process.cwd(), ".alix", "skills", "workflow"),
+    join(homedir(), ".alix", "skills", "workflow"),
+  ];
+}
 
 /**
  * Load a workflow skill by name.
- * Searches .alix/skills/workflow/<name>.json first, then built-in fallback.
+ *
+ * Search order:
+ *   1. .alix/skills/workflow/<name>.json  (project-local)
+ *   2. ~/.alix/skills/workflow/<name>.json (user-global)
+ *   3. Built-in skills
  */
 export async function loadSkill(name: string): Promise<SkillDefinition | null> {
-  // Try user-installed skill first
-  try {
-    const raw = await readFile(join(SKILLS_DIR, `${name}.json`), "utf-8");
-    return JSON.parse(raw) as SkillDefinition;
-  } catch { /* fall through to built-in */ }
+  // Search file-system dirs first
+  for (const dir of skillDirs()) {
+    try {
+      const raw = await readFile(join(dir, `${name}.json`), "utf-8");
+      return JSON.parse(raw) as SkillDefinition;
+    } catch { /* try next */ }
+  }
 
-  // Built-in skills
+  // Built-in fallback
   const builtIn = builtInSkills();
   return builtIn.find(s => s.id === name) ?? null;
 }
 
 /**
- * List all available workflow skills (built-in + user-installed).
+ * List all available workflow skills.
+ * Merges project-local, user-installed, and built-in (built-in loses on id conflict).
  */
 export async function listSkills(): Promise<SkillDefinition[]> {
-  const skills = [...builtInSkills()];
-  try {
-    const files = await readdir(SKILLS_DIR);
-    for (const f of files.filter(f => f.endsWith(".json"))) {
-      try {
-        const raw = await readFile(join(SKILLS_DIR, f), "utf-8");
-        const skill = JSON.parse(raw) as SkillDefinition;
-        if (!skills.find(s => s.id === skill.id)) {
-          skills.push(skill);
-        }
-      } catch { /* skip invalid */ }
+  const seen = new Set<string>();
+  const skills: SkillDefinition[] = [];
+
+  // Helper: load skills from a directory
+  async function loadFromDir(dir: string): Promise<void> {
+    try {
+      const files = await readdir(dir);
+      for (const f of files.filter(f => f.endsWith(".json"))) {
+        try {
+          const raw = await readFile(join(dir, f), "utf-8");
+          const skill = JSON.parse(raw) as SkillDefinition;
+          if (!seen.has(skill.id)) {
+            seen.add(skill.id);
+            skills.push(skill);
+          }
+        } catch { /* skip invalid */ }
+      }
+    } catch { /* dir doesn't exist */ }
+  }
+
+  // Load in priority order: project-local, user-global, built-in
+  for (const dir of skillDirs()) {
+    await loadFromDir(dir);
+  }
+  for (const builtIn of builtInSkills()) {
+    if (!seen.has(builtIn.id)) {
+      skills.push(builtIn);
     }
-  } catch { /* no user skills dir */ }
+  }
+
   return skills;
 }
 
