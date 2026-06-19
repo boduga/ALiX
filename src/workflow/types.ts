@@ -228,6 +228,18 @@ export interface PullRequestArtifact {
 // Coordinator config
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// ExecutionPermit (WorkflowCoordinator → ExecutionAgent)
+// ---------------------------------------------------------------------------
+
+export interface ExecutionPermit {
+  issueNumber: number;
+  planFingerprint: string;
+  /** All files across all subtasks that ExecutionAgent may touch. */
+  allowedFiles: string[];
+  issuedAt: string;
+}
+
 export interface WorkflowCoordinatorConfig {
   /** Directory for workflow state files (.alix/workflow/). */
   workflowDir: string;

@@ -271,6 +271,70 @@ export class EvidenceEventWriter {
   }
 
   // -----------------------------------------------------------------------
+  // Execution
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record that a subtask started execution.
+   * Writer: ExecutionAgent
+   */
+  async recordSubtaskStarted(
+    issueNumber: number,
+    payload: { subtaskId: string; files: string[] },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("execution_subtask_started", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  /**
+   * Record that a subtask completed execution.
+   * Writer: ExecutionAgent
+   */
+  async recordSubtaskCompleted(
+    issueNumber: number,
+    payload: { subtaskId: string; commitSha: string; filesChanged: number },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("execution_subtask_completed", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  /**
+   * Record that tests passed for a subtask.
+   * Writer: ExecutionAgent
+   */
+  async recordTestPassed(
+    issueNumber: number,
+    payload: { subtaskId: string; testFiles: string[]; durationMs: number },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("execution_test_passed", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  /**
+   * Record that tests failed for a subtask.
+   * Writer: ExecutionAgent
+   */
+  async recordTestFailed(
+    issueNumber: number,
+    payload: { subtaskId: string; testFiles: string[]; error: string },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("execution_test_failed", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  /**
+   * Record that a commit was created for a subtask.
+   * Writer: ExecutionAgent
+   */
+  async recordCommitCreated(
+    issueNumber: number,
+    payload: { subtaskId: string; commitSha: string; files: string[] },
+    context?: { actor?: AgentName; from?: WorkflowState; to?: WorkflowState },
+  ): Promise<EvidenceRecord | null> {
+    return this.record("execution_commit_created", issueNumber, payload as unknown as Record<string, unknown>, context);
+  }
+
+  // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------
 
