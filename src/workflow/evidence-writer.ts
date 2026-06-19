@@ -355,6 +355,54 @@ export class EvidenceEventWriter {
   }
 
   // -----------------------------------------------------------------------
+  // Adaptation (P5.1)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record that an AdaptationProposal was approved by a human.
+   * Writer: ApprovalGate
+   */
+  async recordAdaptationApproved(
+    proposalId: string,
+    payload: { approvedBy: string; approvedAt: string; action: string; target: Record<string, unknown> },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_approved", { proposalId, ...payload });
+  }
+
+  /**
+   * Record that an AdaptationProposal was rejected by a human.
+   * Writer: ApprovalGate
+   */
+  async recordAdaptationRejected(
+    proposalId: string,
+    payload: { rejectedBy: string; reason: string; action: string; target: Record<string, unknown> },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_rejected", { proposalId, ...payload });
+  }
+
+  /**
+   * Record that an approved AdaptationProposal was successfully applied.
+   * Writer: ApprovalGate
+   */
+  async recordAdaptationApplied(
+    proposalId: string,
+    payload: { appliedAt: string; action: string; target: Record<string, unknown>; approvedBy?: string },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_applied", { proposalId, ...payload });
+  }
+
+  /**
+   * Record that an approved AdaptationProposal failed during application.
+   * Writer: ApprovalGate
+   */
+  async recordAdaptationFailed(
+    proposalId: string,
+    payload: { error: string; action: string; target: Record<string, unknown>; approvedBy?: string },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_failed", { proposalId, ...payload });
+  }
+
+  // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------
 
@@ -373,6 +421,18 @@ export class EvidenceEventWriter {
     };
     try {
       return await this.append(type, enriched);
+    } catch {
+      return null;
+    }
+  }
+
+  /** Best-effort append for events that do not belong to an issue workflow. */
+  private async appendEvent(
+    type: EvidenceType,
+    payload: Record<string, unknown>,
+  ): Promise<EvidenceRecord | null> {
+    try {
+      return await this.append(type, payload);
     } catch {
       return null;
     }
