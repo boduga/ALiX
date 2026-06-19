@@ -42,4 +42,11 @@ export interface AdaptationProposal {
   /** Application metadata (set by applier) */
   appliedAt?: string;
   error?: string;
+  /**
+   * How this proposal was generated: "auto" by AutomaticProposalGenerator
+   * (P5.2c), or "manual" by RecommendationToProposal.convert (P5.1c).
+   * Undefined is treated as "manual" for backwards compatibility with proposals
+   * created before this field was introduced.
+   */
+  provenance?: "auto" | "manual";
 }
