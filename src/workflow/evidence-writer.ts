@@ -418,6 +418,21 @@ export class EvidenceEventWriter {
     return this.appendEvent("adaptation_failed", { proposalId, ...payload });
   }
 
+  /**
+   * Record that an applied AdaptationProposal was assessed for effectiveness.
+   * Writer: adaptation CLI (`alix adaptation effectiveness`)
+   *
+   * Advisory only — the recommendation here is informational. "revert" is a
+   * recommendation for human action; it never executes a revert (no before
+   * snapshot is stored; executable revert is a later phase).
+   */
+  async recordAdaptationEffectiveness(
+    proposalId: string,
+    payload: { recommendation: string; primaryMetric: string | null; assessedAt: string },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_effectiveness", { proposalId, ...payload });
+  }
+
   // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------

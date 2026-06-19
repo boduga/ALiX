@@ -35,6 +35,9 @@ import { ApprovalGate } from "../../adaptation/approval-gate.js";
 import type { Applier } from "../../adaptation/approval-gate.js";
 import { AgentCardApplier } from "../../adaptation/appliers/agent-card-applier.js";
 import { SkillApplier } from "../../adaptation/appliers/skill-applier.js";
+import { EffectivenessReporter } from "../../adaptation/effectiveness-reporter.js";
+import { EffectivenessStore } from "../../adaptation/effectiveness-store.js";
+import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
 import { EvidenceStore } from "../../security/evidence/evidence-store.js";
 import { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 import type { AdaptationProposal, ProposalStatus } from "../../adaptation/adaptation-types.js";
@@ -46,6 +49,7 @@ import type { ReflectionReport } from "../../reflection/reflection-types.js";
 
 /** Append-only proposal JSON store (P5.1b). */
 const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
+const EFFECTIVENESS_DIR = join(".alix", "adaptation", "effectiveness");
 
 /** Evidence store directory relative to cwd (P4.4 convention). */
 const EVIDENCE_DIR = join(".alix", "security");
@@ -95,6 +99,9 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       return;
     case "apply":
       await runApply(cwd, store, gate, rest);
+      return;
+    case "effectiveness":
+      await runEffectiveness(cwd, store, evidenceStore, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -453,9 +460,83 @@ function printUsage(toStderr: boolean): void {
     "  approve <id> [--by <actor>]    Approve a pending proposal",
     "  reject <id> [--reason <text>]  Reject a pending proposal",
     "  apply <id>                     Apply an approved proposal",
+    "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
   ];
   for (const line of lines) {
     if (toStderr) console.error(line);
     else console.log(line);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Effectiveness assessment (P5.2b)
+// ---------------------------------------------------------------------------
+
+/**
+ * `effectiveness <id>` — assess a single applied proposal.
+ * `effectiveness --all` — assess every applied proposal.
+ *
+ * Pure read + compute: computes a before/after `ReflectionMetrics` window
+ * around the proposal's `appliedAt`, derives the primary-metric delta, and
+ * persists an advisory `keep | revert | investigate` recommendation. Never
+ * mutates the proposal, agent cards, or skills. "revert" is advisory only —
+ * a human acts on it.
+ */
+async function runEffectiveness(
+  cwd: string,
+  store: ProposalStore,
+  evidenceStore: EvidenceStore,
+  args: string[],
+): Promise<void> {
+  const all = args.includes("--all");
+  const id = args.find((a) => !a.startsWith("-"));
+
+  const reporter = new EffectivenessReporter(evidenceStore);
+  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const writer = new EvidenceEventWriter((type, payload) => evidenceStore.append(type, payload));
+
+  const targets: AdaptationProposal[] = [];
+  if (all) {
+    targets.push(...(await store.list("applied")));
+  } else {
+    if (!id) {
+      console.error("Usage: alix adaptation effectiveness <id> | --all");
+      process.exit(1);
+    }
+    const proposal = await store.load(id);
+    if (!proposal) {
+      console.error(`Proposal not found: ${id}`);
+      process.exit(1);
+    }
+    targets.push(proposal);
+  }
+
+  if (targets.length === 0) {
+    console.log("No applied proposals to assess.");
+    return;
+  }
+
+  for (const p of targets) {
+    const report = await reporter.assess(p);
+    await effStore.save(report);
+    await writer.recordAdaptationEffectiveness(p.id, {
+      recommendation: report.recommendation,
+      primaryMetric: report.primary?.metric ?? null,
+      assessedAt: report.assessedAt,
+    });
+    printEffectiveness(report);
+  }
+}
+
+function printEffectiveness(r: ProposalEffectivenessReport): void {
+  console.log(`Proposal:       ${r.proposalId}`);
+  console.log(`Applied at:    ${r.appliedAt}  (window ±${r.windowDays}d)`);
+  console.log(`Recommendation: ${r.recommendation.toUpperCase()}  — ${r.reason}`);
+  if (r.primary) {
+    console.log(`Primary:       ${r.primary.metric} ${r.primary.before} → ${r.primary.after}`);
+  } else {
+    console.log(`Primary:       (none — manual-action proposal)`);
+  }
+  console.log(`Data sufficient: ${r.dataSufficient}`);
+  console.log("");
 }

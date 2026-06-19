@@ -12,6 +12,7 @@
 
 import type { Analyzer, AnalysisResult, Observation, Recommendation, ReflectionReport, ReflectionMetrics } from "./reflection-types.js";
 import type { EvidenceStore } from "../security/evidence/evidence-store.js";
+import { computeMetricsSnapshot } from "./metrics-snapshot.js";
 
 // ---------------------------------------------------------------------------
 // ReflectionAgent
@@ -81,29 +82,8 @@ export class ReflectionAgent {
    * - `review_completed` for reviewApprovalRate
    */
   private async computeMetrics(): Promise<ReflectionMetrics> {
-    // Workflow counts — only need totals, so limit=1 is sufficient
-    const completed = await this.storeForMetrics.query({ type: "merge_completed", limit: 1 });
-    const blocked = await this.storeForMetrics.query({ type: "workflow_blocked", limit: 1 });
-    const aborted = await this.storeForMetrics.query({ type: "workflow_aborted", limit: 1 });
-
-    // Capability and review queries need the full record set to inspect payloads
-    const routed = await this.storeForMetrics.query({ type: "capability_routed", limit: 5000 });
-    const reviews = await this.storeForMetrics.query({ type: "review_completed", limit: 5000 });
-
-    const unresolvedRouted = routed.records.filter(
-      (r) => (r.payload.candidates as number) === 0,
-    );
-    const approvedReviews = reviews.records.filter(
-      (r) => r.payload.verdict === "approve",
-    ).length;
-
-    return {
-      workflowsCompleted: completed.total,
-      workflowsBlocked: blocked.total,
-      workflowsAborted: aborted.total,
-      capabilitiesRequested: routed.total,
-      unresolvedCapabilities: unresolvedRouted.length,
-      reviewApprovalRate: reviews.total > 0 ? approvedReviews / reviews.total : 1,
-    };
+    // P5.2b.1: delegates to the shared, windowable snapshot. No window ⇒
+    // byte-for-byte identical to the previous inline computation.
+    return computeMetricsSnapshot(this.storeForMetrics);
   }
 }
