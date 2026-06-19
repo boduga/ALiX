@@ -178,6 +178,7 @@ Usage:
   alix evidence query --kind <type> [--after <iso>] [--before <iso>] [--json]
                                    Query evidence by type and time range
   alix evidence verify             Run fingerprint chain verification
+  alix reflection report           Generate a reflection report with observability metrics
   alix workflow status <issue>     Show workflow state for an issue
   alix workflow list               List active workflow entries
   alix workflow transition <i> <s>  Manually transition an issue
@@ -2482,6 +2483,13 @@ if (command === "evidence") {
 if (command === "workflow") {
   const { handleWorkflowCommand } = await import("./cli/commands/workflow.js");
   await handleWorkflowCommand(args);
+  process.exit(0);
+}
+
+// ── Reflection command (P5.0g) ────────────────────────────────────
+if (command === "reflection") {
+  const { handleReflectionCommand } = await import("./cli/commands/reflection.js");
+  await handleReflectionCommand(args);
   process.exit(0);
 }
 
