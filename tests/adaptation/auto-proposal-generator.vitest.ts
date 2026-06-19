@@ -12,6 +12,7 @@ import type { ProposalStore } from "../../src/adaptation/proposal-store.js";
 import type { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
 import type { ReflectionReport } from "../../src/reflection/reflection-types.js";
 import type { ProposalEffectivenessReport } from "../../src/adaptation/effectiveness-types.js";
+import { RecommendationToProposal } from "../../src/adaptation/recommendation-to-proposal.js";
 
 /**
  * Architectural-boundary sentinel test.
@@ -151,11 +152,11 @@ describe("AutomaticProposalGenerator — construction & surface", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Stub-phase behaviour: reflection & effectiveness methods throw.
-// Task 3 (reflection) and Task 4 (effectiveness) will replace the throws.
+// Task 3 (P5.2c.3): generateFromReflection behavior — governance filters,
+// provenance, evidence emission.
 // ---------------------------------------------------------------------------
 
-describe("AutomaticProposalGenerator — stub-phase", () => {
+describe("AutomaticProposalGenerator — generateFromReflection", () => {
   let store: FakeProposalStore;
   let writer: EvidenceEventWriter;
   let gen: AutomaticProposalGenerator;
@@ -166,13 +167,191 @@ describe("AutomaticProposalGenerator — stub-phase", () => {
     gen = new AutomaticProposalGenerator(asStore(store), writer);
   });
 
-  it("generateFromReflection throws 'not yet implemented'", async () => {
-    await expect(
-      gen.generateFromReflection(makeReflectionReport()),
-    ).rejects.toThrow("not yet implemented");
+  it("skips a recommendation with confidence below 0.7 (default threshold)", async () => {
+    const report = makeReflectionReport({
+      recommendations: [
+        {
+          type: "capability_gap",
+          confidence: 0.5,
+          title: "low",
+          evidence: ["e1"],
+          recommendedAction: "do thing",
+        },
+      ],
+    });
+
+    const result = await gen.generateFromReflection(report);
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.proposals).toEqual([]);
+    expect(store.saved).toEqual([]);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toEqual([]);
   });
 
+  it("respects a custom minConfidence option", async () => {
+    const report = makeReflectionReport({
+      recommendations: [
+        {
+          type: "capability_gap",
+          confidence: 0.75,
+          title: "mid",
+          evidence: ["e1"],
+          recommendedAction: "do thing",
+        },
+      ],
+    });
+
+    const result = await gen.generateFromReflection(report, { minConfidence: 0.9 });
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(store.saved).toEqual([]);
+  });
+
+  it("skips a routing_adjustment recommendation (user-deferred)", async () => {
+    const report = makeReflectionReport({
+      recommendations: [
+        {
+          type: "routing_adjustment",
+          confidence: 0.95,
+          title: "defer",
+          evidence: ["e1"],
+          recommendedAction: "tweak routing",
+        },
+      ],
+    });
+
+    const result = await gen.generateFromReflection(report);
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(store.saved).toEqual([]);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toEqual([]);
+  });
+
+  it("produces a pending, provenance=auto proposal for a high-confidence capability_gap and emits exactly one adaptation_proposed evidence with provenance=auto", async () => {
+    const report = makeReflectionReport({
+      recommendations: [
+        {
+          type: "capability_gap",
+          confidence: 0.9,
+          title: "missing capability",
+          evidence: ["ev-1", "ev-2"],
+          recommendedAction: "create agent card",
+        },
+      ],
+    });
+
+    const result = await gen.generateFromReflection(report);
+
+    expect(result.generated).toBe(1);
+    expect(result.skipped).toBe(0);
+    expect(result.proposals).toHaveLength(1);
+
+    const proposal = result.proposals[0]!;
+    expect(proposal.status).toBe("pending");
+    expect(proposal.provenance).toBe("auto");
+    expect(proposal.action).toBe("create_agent_card");
+    expect(proposal.sourceRecommendationType).toBe("capability_gap");
+    expect(proposal.sourceConfidence).toBe(0.9);
+    expect(store.saved).toHaveLength(1);
+    expect(store.saved[0]).toEqual(proposal);
+
+    const writerMock = writer.recordAdaptationProposed as ReturnType<typeof vi.fn>;
+    expect(writerMock).toHaveBeenCalledTimes(1);
+    const [callProposalId, callPayload] = writerMock.mock.calls[0] as [string, Record<string, unknown>];
+    expect(callProposalId).toBe(proposal.id);
+    expect(callPayload).toMatchObject({
+      createdAt: proposal.createdAt,
+      action: proposal.action,
+      sourceRecommendationType: "capability_gap",
+      sourceConfidence: 0.9,
+      provenance: "auto",
+    });
+  });
+
+  it("skips an unknown recommendation type (null from convert) without saving or emitting evidence", async () => {
+    // RecommendationType is a closed union of 5 strings, all of which the
+    // converter handles. We simulate an "unknown type" by monkey-patching
+    // the static convert to return null, mirroring a future extension that
+    // adds a new RecommendationType the converter hasn't learned yet.
+    const convertSpy = vi
+      .spyOn(RecommendationToProposal, "convert")
+      .mockReturnValue(null);
+
+    const report = makeReflectionReport({
+      recommendations: [
+        {
+          type: "capability_gap",
+          confidence: 0.99,
+          title: "will be nulled",
+          evidence: ["e1"],
+          recommendedAction: "noop",
+        },
+      ],
+    });
+
+    const result = await gen.generateFromReflection(report);
+
+    expect(result.generated).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.proposals).toEqual([]);
+    expect(store.saved).toEqual([]);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toEqual([]);
+
+    convertSpy.mockRestore();
+  });
+
+  it("mixes generated and skipped recommendations across multiple types", async () => {
+    const report = makeReflectionReport({
+      recommendations: [
+        // kept
+        { type: "capability_gap", confidence: 0.9, title: "kept1", evidence: ["e"], recommendedAction: "x" },
+        // skipped: low confidence
+        { type: "skill_revision", confidence: 0.4, title: "low", evidence: ["e"], recommendedAction: "x" },
+        // skipped: routing_adjustment
+        { type: "routing_adjustment", confidence: 0.99, title: "defer", evidence: ["e"], recommendedAction: "x" },
+        // kept
+        { type: "agent_card_update", confidence: 0.8, title: "kept2", evidence: ["e"], recommendedAction: "x" },
+      ],
+    });
+
+    const result = await gen.generateFromReflection(report);
+
+    expect(result.generated).toBe(2);
+    expect(result.skipped).toBe(2);
+    expect(result.proposals.map((p) => p.action).sort()).toEqual([
+      "create_agent_card",
+      "update_agent_card",
+    ]);
+    for (const p of result.proposals) {
+      expect(p.provenance).toBe("auto");
+      expect(p.status).toBe("pending");
+    }
+    expect(store.saved).toHaveLength(2);
+    expect(
+      (writer.recordAdaptationProposed as ReturnType<typeof vi.fn>).mock.calls,
+    ).toHaveLength(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stub-phase behaviour: effectiveness method still throws (Task 4 will replace).
+// generateFromReflection no longer throws — see Task 3 tests above.
+// ---------------------------------------------------------------------------
+
+describe("AutomaticProposalGenerator — effectiveness stub", () => {
   it("generateFromEffectiveness throws 'not yet implemented'", async () => {
+    const store = new FakeProposalStore();
+    const writer = makeFakeWriter();
+    const gen = new AutomaticProposalGenerator(asStore(store), writer);
     await expect(
       gen.generateFromEffectiveness(makeEffectivenessReport()),
     ).rejects.toThrow("not yet implemented");

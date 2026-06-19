@@ -369,7 +369,14 @@ export class EvidenceEventWriter {
    */
   async recordAdaptationProposed(
     proposalId: string,
-    payload: { createdAt: string; action: string; target: Record<string, unknown>; sourceRecommendationType: string; sourceConfidence: number },
+    payload: {
+      createdAt: string;
+      action: string;
+      target: Record<string, unknown>;
+      sourceRecommendationType: string;
+      sourceConfidence: number;
+      provenance?: "auto" | "manual";
+    },
   ): Promise<EvidenceRecord | null> {
     return this.appendEvent("adaptation_proposed", { proposalId, ...payload });
   }

@@ -37,15 +37,56 @@ export class AutomaticProposalGenerator {
   ) {}
 
   async generateFromReflection(
-    _report: ReflectionReport,
-    _opts: GenerateOptions = {},
+    report: ReflectionReport,
+    opts: GenerateOptions = {},
   ): Promise<GenerateResult> {
-    // Imported here for future use in Task 3 (P5.2c.3 — reflection path).
-    // Keeping the value import so Task 3 only needs to add the body, not
-    // change imports.
-    void RecommendationToProposal;
-    // implemented in Task 3
-    throw new Error("not yet implemented");
+    const minConfidence =
+      opts.minConfidence ?? DEFAULT_MIN_REFLECTION_CONFIDENCE;
+
+    let generated = 0;
+    let skipped = 0;
+    const proposals: AdaptationProposal[] = [];
+
+    for (const rec of report.recommendations) {
+      // P5.2c governance filter 1: routing_adjustment is user-deferred.
+      if (rec.type === "routing_adjustment") {
+        skipped += 1;
+        continue;
+      }
+
+      // P5.2c governance filter 2: confidence must meet threshold.
+      if (rec.confidence < minConfidence) {
+        skipped += 1;
+        continue;
+      }
+
+      // Reuse P5.1c's pure converter (do not duplicate action/target/payload
+      // derivation). null means unknown recommendation type — skip.
+      const base = RecommendationToProposal.convert(rec);
+      if (base === null) {
+        skipped += 1;
+        continue;
+      }
+
+      // Tag provenance as auto so downstream evidence and lifecycle events
+      // distinguish auto-generated proposals from manual ones.
+      const proposal: AdaptationProposal = { ...base, provenance: "auto" };
+
+      await this.store.save(proposal);
+      await this.writer.recordAdaptationProposed(proposal.id, {
+        createdAt: proposal.createdAt,
+        action: proposal.action,
+        target: proposal.target as unknown as Record<string, unknown>,
+        sourceRecommendationType: proposal.sourceRecommendationType,
+        sourceConfidence: proposal.sourceConfidence,
+        provenance: "auto",
+      });
+
+      proposals.push(proposal);
+      generated += 1;
+    }
+
+    return { generated, skipped, proposals };
   }
 
   async generateFromEffectiveness(
