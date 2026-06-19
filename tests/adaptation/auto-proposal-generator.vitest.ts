@@ -69,6 +69,16 @@ describe("AutomaticProposalGenerator — architectural boundary", () => {
       /(^\s*import\b[\s\S]*?ApprovalGate[\s\S]*?from\s+["'][^"']*["'];?)/m;
     expect(src).not.toMatch(approvalGateClass);
   });
+
+  it("does not produce revert_proposal proposals (sentinel: revert_proposal action literal)", () => {
+    const src = readImports();
+    // The generator must NEVER produce revert_proposal. This is a structural
+    // guard: revert proposals are created only by the explicit CLI `revert`
+    // command. If a future change accidentally adds a revert_proposal path
+    // to the generator, this grep-style test catches it.
+    const revertProposalAction = /"revert_proposal"/;
+    expect(src).not.toMatch(revertProposalAction);
+  });
 });
 
 // ---------------------------------------------------------------------------
