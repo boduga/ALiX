@@ -129,12 +129,9 @@ export class AutomaticProposalGenerator {
       sourceRecommendationType: "effectiveness_revert",
       sourceConfidence: 1,
       evidenceFingerprints: [effFingerprint, ...sourceEvidence],
-      // Verbatim per task brief — two sentences, single period after the
-      // first, second ends with a period.
-      reason:
-        `Effectiveness report recommends REVERT for proposal ${report.proposalId}, ` +
-        `but executable revert is out of scope. ` +
-        `This proposal asks a human to investigate and create a manual remediation path.`,
+      // Verbatim per SDS §5 — kept as a single template literal so the exact
+      // spec-mandated text is grep-able in the source (auditability).
+      reason: `Effectiveness report recommends REVERT for proposal ${report.proposalId}, but executable revert is out of scope. This proposal asks a human to investigate and create a manual remediation path.`,
       provenance: "auto",
     };
 
