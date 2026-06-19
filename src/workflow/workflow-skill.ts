@@ -133,14 +133,14 @@ export async function runWorkflowSkill(
         workPackage = result.workPackage;
         await coordinator.transition(issueNumber, "NEW", { actor: "system" });
         await coordinator.transition(issueNumber, "SELECTED", { actor: "IssueIntakeAgent" });
-      } else if (workPackage && resolvedAgent === "workflow.planning" || step.agent === "workflow.planning") {
+      } else if (workPackage && (resolvedAgent === "workflow.planning" || step.agent === "workflow.planning")) {
         const result = await planAgent.plan(workPackage);
         if (!result.success) {
           return { success: false, issueNumber, error: result.error };
         }
         plan = result.plan;
         await coordinator.transition(issueNumber, "PLANNED", { actor: "PlanningAgent" });
-      } else if (plan && resolvedAgent === "workflow.review" || step.agent === "workflow.review") {
+      } else if (plan && (resolvedAgent === "workflow.review" || step.agent === "workflow.review")) {
         const result = await reviewAgent.review(plan);
         if (!result.success) {
           return { success: false, issueNumber, error: result.error };
