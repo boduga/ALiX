@@ -54,22 +54,22 @@ export class GoalDecomposer {
 
   private buildNode(id: number, domain: string, goal: string): OutcomeNode {
     const capMap: Record<string, string[]> = {
-      frontend: ["ui.development", "ui.testing"],
-      backend: ["api.development", "api.testing"],
-      data: ["data.modeling", "data.migration", "data.testing"],
-      testing: ["test.unit", "test.integration"],
-      infrastructure: ["infra.config", "infra.deploy"],
-      documentation: ["docs.writing"],
-      security: ["security.review", "security.testing"],
-      configuration: ["config.management"],
-      review: ["code.review", "governance.check"],
-      general: ["analysis", "implementation", "testing"],
+      frontend: ["workflow.intake", "workflow.planning", "workflow.review"],
+      backend: ["workflow.intake", "workflow.planning", "workflow.review"],
+      data: ["workflow.intake", "workflow.planning", "workflow.review", "workflow.execution"],
+      testing: ["workflow.review"],
+      infrastructure: ["workflow.planning", "workflow.execution"],
+      documentation: ["workflow.review"],
+      security: ["workflow.review"],
+      configuration: ["workflow.planning"],
+      review: ["workflow.review"],
+      general: ["workflow.intake", "workflow.planning", "workflow.review"],
     };
 
     return {
       id: `node-${id}`,
       description: `${domain}: ${goal.slice(0, 80)}`,
-      requiredCapabilities: capMap[domain] ?? ["analysis"],
+      requiredCapabilities: capMap[domain] ?? ["workflow.intake", "workflow.review"],
       estimatedEffort: "medium",
       acceptanceCriteria: [`Verify ${domain} changes meet requirements`],
     };
@@ -80,12 +80,6 @@ export class GoalDecomposer {
     for (const node of nodes) {
       for (const c of node.requiredCapabilities) caps.add(c);
     }
-
-    const lower = goal.toLowerCase();
-    if (/test|testing|coverage/.test(lower)) caps.add("test.execution");
-    if (/deploy|release/.test(lower)) caps.add("deploy.management");
-    if (/doc|readme/.test(lower)) caps.add("docs.generation");
-
     return [...caps];
   }
 
