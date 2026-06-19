@@ -12,7 +12,7 @@ export class GoalDecomposer {
       requiredCapabilities: [...new Set(caps)],
       riskFlags: risks,
       requiresApproval: true,
-      reasoning: this.buildReasoning(goal, nodes, risks),
+      reasoning: this.buildReasoning(nodes, risks),
     };
   }
 
@@ -99,7 +99,7 @@ export class GoalDecomposer {
     return risks;
   }
 
-  private buildReasoning(goal: string, nodes: OutcomeNode[], risks: string[]): string {
+  private buildReasoning(nodes: OutcomeNode[], risks: string[]): string {
     const parts = [`Decomposed goal into ${nodes.length} outcome node(s).`];
     if (risks.length > 0) parts.push(`Identified ${risks.length} risk factor(s): ${risks.join(", ")}.`);
     return parts.join(" ");

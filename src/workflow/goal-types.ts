@@ -1,9 +1,3 @@
-export interface CapabilityRequirement {
-  capability: string;
-  reason: string;
-  priority: "required" | "optional";
-}
-
 export interface OutcomeNode {
   id: string;
   description: string;
@@ -29,5 +23,3 @@ export interface GoalPlan {
   /** Justification for the decomposition */
   reasoning?: string;
 }
-
-export type GoalVerdict = "feasible" | "needs_info" | "not_feasible";
