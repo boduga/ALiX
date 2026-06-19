@@ -38,6 +38,7 @@ import { SkillApplier } from "../../adaptation/appliers/skill-applier.js";
 import { EffectivenessReporter } from "../../adaptation/effectiveness-reporter.js";
 import { EffectivenessStore } from "../../adaptation/effectiveness-store.js";
 import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
+import { AutomaticProposalGenerator } from "../../adaptation/auto-proposal-generator.js";
 import { EvidenceStore } from "../../security/evidence/evidence-store.js";
 import { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 import type { AdaptationProposal, ProposalStatus } from "../../adaptation/adaptation-types.js";
@@ -102,6 +103,9 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       return;
     case "effectiveness":
       await runEffectiveness(cwd, store, evidenceStore, rest);
+      return;
+    case "generate":
+      await runGenerate(cwd, store, writer, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -461,6 +465,8 @@ function printUsage(toStderr: boolean): void {
     "  reject <id> [--reason <text>]  Reject a pending proposal",
     "  apply <id>                     Apply an approved proposal",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
+    "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
+    "                               Auto-create pending proposals from reflection or effectiveness (no approve/apply)",
   ];
   for (const line of lines) {
     if (toStderr) console.error(line);
@@ -539,4 +545,133 @@ function printEffectiveness(r: ProposalEffectivenessReport): void {
   }
   console.log(`Data sufficient: ${r.dataSufficient}`);
   console.log("");
+}
+
+// ---------------------------------------------------------------------------
+// `generate` (P5.2c.5)
+// ---------------------------------------------------------------------------
+
+/**
+ * `alix adaptation generate` — auto-create proposals from a reflection
+ * report or one-or-more effectiveness reports.
+ *
+ * Generator-only. NEVER approves, NEVER applies, NEVER mutates agent
+ * cards or skill files. The ApprovalGate and the two appliers are owned
+ * by the manual `propose`/`approve`/`apply` flow, NOT this subcommand.
+ *
+ * Exactly one of:
+ *   --reflection <path>           ReflectionReport JSON
+ *   --effectiveness <id>          single ProposalEffectivenessReport
+ *   --all-effectiveness           every saved effectiveness report
+ *
+ * Optional: --min-confidence <n> (default 0.7; only consulted on
+ *                              the reflection path).
+ */
+async function runGenerate(
+  cwd: string,
+  store: ProposalStore,
+  writer: EvidenceEventWriter,
+  args: string[],
+): Promise<void> {
+  const reflectionIdx = args.indexOf("--reflection");
+  const effectivenessIdx = args.indexOf("--effectiveness");
+  const allEffIdx = args.indexOf("--all-effectiveness");
+
+  const sourceFlagsPresent = [
+    reflectionIdx >= 0,
+    effectivenessIdx >= 0,
+    allEffIdx >= 0,
+  ].filter(Boolean).length;
+
+  if (sourceFlagsPresent !== 1) {
+    console.error(
+      "Usage: alix adaptation generate " +
+        "--reflection <path> | --effectiveness <id> | --all-effectiveness " +
+        "[--min-confidence <n>]\n" +
+        "Exactly one source flag is required. " +
+        "This subcommand is generation-only: it does NOT approve or apply anything.",
+    );
+    process.exit(1);
+  }
+
+  const minConfidenceIdx = args.indexOf("--min-confidence");
+  const minConfidence =
+    minConfidenceIdx >= 0 ? Number(args[minConfidenceIdx + 1]) : 0.7;
+  if (Number.isNaN(minConfidence)) {
+    console.error(
+      `Invalid --min-confidence value: ${args[minConfidenceIdx + 1]}`,
+    );
+    process.exit(1);
+  }
+
+  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const generator = new AutomaticProposalGenerator(store, writer);
+
+  if (reflectionIdx >= 0) {
+    const reportPath = args[reflectionIdx + 1];
+    if (!reportPath) {
+      console.error("Missing value for --reflection <path>");
+      process.exit(1);
+    }
+    if (!existsSync(reportPath)) {
+      console.error(`Report file not found: ${reportPath}`);
+      process.exit(1);
+    }
+
+    let report: ReflectionReport;
+    try {
+      report = JSON.parse(readFileSync(reportPath, "utf-8")) as ReflectionReport;
+    } catch (err) {
+      console.error(
+        `Failed to parse report: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      process.exit(1);
+    }
+
+    const result = await generator.generateFromReflection(report, {
+      minConfidence,
+    });
+    printGenerateSummary(result);
+    return;
+  }
+
+  if (effectivenessIdx >= 0) {
+    const id = args[effectivenessIdx + 1];
+    if (!id) {
+      console.error("Missing value for --effectiveness <id>");
+      process.exit(1);
+    }
+    const report = await effStore.load(id);
+    if (!report) {
+      console.error(`Effectiveness report not found: ${id}`);
+      process.exit(1);
+    }
+    const result = await generator.generateFromEffectiveness(report);
+    printGenerateSummary(result);
+    return;
+  }
+
+  // --all-effectiveness
+  const reports = await effStore.list();
+  const result = await generator.generateFromAllEffectiveness(reports, {
+    minConfidence,
+  });
+  printGenerateSummary(result);
+}
+
+/**
+ * Print the standard "Generated: N proposal(s)" summary line. The skip
+ * count is reported as a raw integer — per-source breakdown (e.g.
+ * low-confidence vs routing_adjustment) lives at the per-method level
+ * in the AutomaticProposalGenerator. The CLI keeps the summary simple
+ * to avoid duplicating the generator's internal classification here.
+ */
+function printGenerateSummary(result: {
+  generated: number;
+  skipped: number;
+  proposals: AdaptationProposal[];
+}): void {
+  const ids = result.proposals.map((p) => p.id).join(", ");
+  console.log(`Generated: ${result.generated} proposal(s) [${ids}]`);
+  console.log(`Skipped:   ${result.skipped}`);
 }

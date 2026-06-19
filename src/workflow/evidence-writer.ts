@@ -366,10 +366,26 @@ export class EvidenceEventWriter {
    * owns — the "proposed" event is emitted at proposal creation time, before
    * any gate involvement. That is why the CLI records it directly rather than
    * the converter (which is a pure function) or the gate.
+   *
+   * `payload` and `reason` are optional extensions for the auto-generation
+   * path (P5.2c.4): the effectiveness-revert generator threads the source
+   * proposal's payload and a top-level reason through this event so the audit
+   * trail preserves what triggered the auto-generated proposal. They are
+   * optional so the P5.1g CLI call site (which omits both) continues to
+   * compile and behave identically.
    */
   async recordAdaptationProposed(
     proposalId: string,
-    payload: { createdAt: string; action: string; target: Record<string, unknown>; sourceRecommendationType: string; sourceConfidence: number },
+    payload: {
+      createdAt: string;
+      action: string;
+      target: Record<string, unknown>;
+      sourceRecommendationType: string;
+      sourceConfidence: number;
+      provenance?: "auto" | "manual";
+      payload?: Record<string, unknown>;
+      reason?: string;
+    },
   ): Promise<EvidenceRecord | null> {
     return this.appendEvent("adaptation_proposed", { proposalId, ...payload });
   }
