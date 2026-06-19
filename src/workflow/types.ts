@@ -89,7 +89,7 @@ export type AgentName =
 export const ALLOWED_TRANSITIONS: Record<string, readonly WorkflowState[]> = {
   NEW: ["SELECTED"],
   SELECTED: ["PLANNED"],
-  PLANNED: ["APPROVED_FOR_EXECUTION", "UNDER_REVIEW"],
+  PLANNED: ["APPROVED_FOR_EXECUTION", "UNDER_REVIEW", "PR_READY"],
   APPROVED_FOR_EXECUTION: ["EXECUTING"],
   EXECUTING: ["UNDER_REVIEW", "BLOCKED"],
   BLOCKED: ["EXECUTING"],
@@ -209,6 +209,19 @@ export interface ReviewReport {
   verdict: "approve" | "changes_requested" | "reject";
   findings: ReviewFinding[];
   summary: string;
+}
+
+// ---------------------------------------------------------------------------
+// PullRequestArtifact (PRAgent → GitHub)
+// ---------------------------------------------------------------------------
+
+export interface PullRequestArtifact {
+  issueNumber: number;
+  branchName: string;
+  title: string;
+  body: string;
+  draft: boolean;
+  evidenceFingerprints: string[];
 }
 
 // ---------------------------------------------------------------------------
