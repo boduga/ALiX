@@ -89,11 +89,11 @@ export type AgentName =
 export const ALLOWED_TRANSITIONS: Record<string, readonly WorkflowState[]> = {
   NEW: ["SELECTED"],
   SELECTED: ["PLANNED"],
-  PLANNED: ["APPROVED_FOR_EXECUTION"],
+  PLANNED: ["APPROVED_FOR_EXECUTION", "UNDER_REVIEW"],
   APPROVED_FOR_EXECUTION: ["EXECUTING"],
   EXECUTING: ["UNDER_REVIEW", "BLOCKED"],
   BLOCKED: ["EXECUTING"],
-  UNDER_REVIEW: ["FIX_REQUIRED", "PR_READY"],
+  UNDER_REVIEW: ["FIX_REQUIRED", "PR_READY", "PLANNED"],
   FIX_REQUIRED: ["EXECUTING"],
   PR_READY: ["AWAITING_HUMAN"],
   AWAITING_HUMAN: ["MERGED", "PR_READY"],
@@ -187,6 +187,28 @@ export interface ExecutionPlan {
   branchName: string;
   estimatedCommits: number;
   approvalRequired: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// ReviewFinding (ReviewAgent → Human + ExecutionAgent)
+// ---------------------------------------------------------------------------
+
+export type ReviewSeverity = "critical" | "major" | "minor" | "nit";
+
+export interface ReviewFinding {
+  severity: ReviewSeverity;
+  file: string;
+  line?: number;
+  summary: string;
+  recommendation: string;
+}
+
+export interface ReviewReport {
+  issueNumber: number;
+  commitSha: string;
+  verdict: "approve" | "changes_requested" | "reject";
+  findings: ReviewFinding[];
+  summary: string;
 }
 
 // ---------------------------------------------------------------------------
