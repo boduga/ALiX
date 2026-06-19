@@ -21,6 +21,12 @@ export function defaultAgentCards(): AgentCard[] {
     { id: "critic.general", name: "General Critic", description: "Reviews outputs for correctness and gaps", version: "1.0.0", domains: ["general"], capabilities: [], enabled: true },
     { id: "artifact.writer", name: "Artifact Writer", description: "Writes report artifacts to disk", version: "1.0.0", domains: ["research"], capabilities: ["filesystem.write"], executionProfile: "artifact", enabled: true },
     { id: "memory.curator", name: "Memory Curator", description: "Manages memory records and conflicts", version: "1.0.0", domains: ["general"], capabilities: ["memory.read", "memory.write.session"], enabled: true },
+    // P4.5 workflow agents
+    { id: "workflow.intake", name: "Issue Intake Agent", description: "Reads GitHub issues, validates labels, estimates priority/complexity", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.intake"], enabled: true },
+    { id: "workflow.planning", name: "Planning Agent", description: "Converts WorkPackages into ExecutionPlans with subtask decomposition", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.planning"], enabled: true },
+    { id: "workflow.review", name: "Review Agent", description: "Reviews ExecutionPlans for completeness, governance, and risk", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.review"], enabled: true },
+    { id: "workflow.execution", name: "Execution Agent", description: "Executes one subtask at a time with test gating and permit validation", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.execution"], enabled: true },
+    { id: "workflow.pr", name: "PR Agent", description: "Creates draft PRs with issue links, evidence fingerprints, and review findings", version: "1.0.0", domains: ["workflow"], capabilities: ["workflow.pr"], enabled: true },
   ];
 }
 

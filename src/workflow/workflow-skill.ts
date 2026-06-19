@@ -19,6 +19,7 @@ import type { WorkflowCoordinator } from "./coordinator.js";
 import type { EvidenceEventWriter } from "./evidence-writer.js";
 import type { HookManager } from "./hooks.js";
 import type { GhIssueData } from "./agents/issue-intake-agent.js";
+import type { CardRegistry } from "../registry/card-registry.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +36,7 @@ export interface SkillContext {
   coordinator: WorkflowCoordinator;
   writer: EvidenceEventWriter;
   hooks?: HookManager;
+  registry?: CardRegistry;
 }
 
 export type SkillResult =
@@ -82,6 +84,35 @@ export async function runWorkflowSkill(
 
   for (const step of skill.steps) {
     // Pre-step hook
+    // Resolve capability if configured
+    let resolvedAgent = step.agent;
+    if (step.resolve && step.capability && context.registry) {
+      const { resolveCapabilities } = await import("../registry/capability-resolver.js");
+      const resolution = resolveCapabilities({
+        requiredCapabilities: [step.capability],
+        registry: context.registry,
+      });
+      if (resolution.agents.length === 0) {
+        return {
+          success: false,
+          issueNumber,
+          error: `No agent found for capability "${step.capability}"`,
+        };
+      }
+      resolvedAgent = resolution.agents[0].id;
+      await context.writer.recordCapabilityRouted(issueNumber, {
+        capability: step.capability,
+        resolvedAgent,
+        candidates: resolution.agents.length,
+        candidateAgentIds: resolution.agents.map(a => a.id),
+      });
+      await context.writer.recordAgentResolved(issueNumber, {
+        capability: step.capability,
+        agentId: resolvedAgent,
+        step: step.step,
+      });
+    }
+
     if (hooks) {
       const ok = await hooks.run("preAgentRun", {
         type: "preAgentRun",
@@ -94,7 +125,7 @@ export async function runWorkflowSkill(
     }
 
     try {
-      if (step.agent === "workflow.intake") {
+      if (resolvedAgent === "workflow.intake" || step.agent === "workflow.intake") {
         const result = await intakeAgent.intake(issueNumber, issueData);
         if (!result.success) {
           return { success: false, issueNumber, error: result.error };
@@ -102,14 +133,14 @@ export async function runWorkflowSkill(
         workPackage = result.workPackage;
         await coordinator.transition(issueNumber, "NEW", { actor: "system" });
         await coordinator.transition(issueNumber, "SELECTED", { actor: "IssueIntakeAgent" });
-      } else if (workPackage && step.agent === "workflow.planning") {
+      } else if (workPackage && resolvedAgent === "workflow.planning" || step.agent === "workflow.planning") {
         const result = await planAgent.plan(workPackage);
         if (!result.success) {
           return { success: false, issueNumber, error: result.error };
         }
         plan = result.plan;
         await coordinator.transition(issueNumber, "PLANNED", { actor: "PlanningAgent" });
-      } else if (plan && step.agent === "workflow.review") {
+      } else if (plan && resolvedAgent === "workflow.review" || step.agent === "workflow.review") {
         const result = await reviewAgent.review(plan);
         if (!result.success) {
           return { success: false, issueNumber, error: result.error };
@@ -120,7 +151,7 @@ export async function runWorkflowSkill(
           verdict: review.verdict,
           findingCount: review.findings.length,
         });
-      } else if (step.agent === "workflow.execution" || step.agent === "workflow.pr") {
+      } else if (resolvedAgent === "workflow.execution" || step.agent === "workflow.execution" || resolvedAgent === "workflow.pr" || step.agent === "workflow.pr") {
         // Execution and PR require human approval — stop in automated flow
         return {
           success: true,
@@ -144,9 +175,6 @@ export async function runWorkflowSkill(
     }
   }
 
-  if (!workPackage || !plan || !review) {
-    return { success: false, issueNumber, error: "Skill did not complete all required steps" };
-  }
 
   return { success: true, issueNumber, workPackage, plan, review };
 }
