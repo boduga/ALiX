@@ -36,9 +36,9 @@ describe("QualityAnalyzer", () => {
   it("detects high-severity quality_decline when approval rate < 0.5", async () => {
     // 10 reviews: 3 approved, 3 changes_requested, 4 rejected → approvalRate = 0.3
     await store.appendBatch([
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 2 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 3 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 2 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 3 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 4 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 3 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 5 } },
@@ -62,12 +62,12 @@ describe("QualityAnalyzer", () => {
   it("detects medium-severity quality_decline when approval rate >= 0.5 and < 0.75", async () => {
     // 10 reviews: 6 approved, 2 changes_requested, 2 rejected → approvalRate = 0.6
     await store.appendBatch([
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 2 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 3 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 2 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 2 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 3 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 2 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 4 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 3 } },
       { type: "review_completed", payload: { verdict: "reject", findingCount: 5 } },
@@ -92,11 +92,11 @@ describe("QualityAnalyzer", () => {
   it("detects high average findings when avgFindings > 5", async () => {
     // 5 reviews: all approved, but high finding counts → avgFindings = 8
     await store.appendBatch([
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 8 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 7 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 9 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 10 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 6 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 8 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 7 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 9 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 10 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 6 } },
     ]);
 
     const analyzer = new QualityAnalyzer(store);
@@ -115,11 +115,11 @@ describe("QualityAnalyzer", () => {
   it("produces no observations when all reviews approved and findings low", async () => {
     // 5 reviews: all approved, low finding counts
     await store.appendBatch([
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 2 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 3 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 2 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 2 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 3 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 2 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
     ]);
 
     const analyzer = new QualityAnalyzer(store);
@@ -133,8 +133,8 @@ describe("QualityAnalyzer", () => {
     // 8 reviews: 2 approved, 3 changes_requested, 3 rejected, avgFindings = 7
     // approvalRate = 0.25 (< 0.5 → high severity), avgFindings = 7 (> 5 → medium)
     await store.appendBatch([
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 8 } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 6 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 8 } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 6 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 5 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 7 } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 9 } },
@@ -166,8 +166,8 @@ describe("QualityAnalyzer", () => {
   it("handles records with missing findingCount gracefully (defaults to 0)", async () => {
     // 5 reviews: 2 approved, 3 changes_requested, missing findingCount on some
     await store.appendBatch([
-      { type: "review_completed", payload: { verdict: "approved" } },
-      { type: "review_completed", payload: { verdict: "approved", findingCount: 1 } },
+      { type: "review_completed", payload: { verdict: "approve" } },
+      { type: "review_completed", payload: { verdict: "approve", findingCount: 1 } },
       { type: "review_completed", payload: { verdict: "changes_requested" } },
       { type: "review_completed", payload: { verdict: "changes_requested", findingCount: 2 } },
       { type: "review_completed", payload: { verdict: "changes_requested" } },
