@@ -18,12 +18,16 @@ export type PrimaryMetricKey =
 /** Whether a lower or higher value of a metric is the desired outcome. */
 export type MetricDirection = "lower_is_better" | "higher_is_better";
 
-/** Outcome of assessing an applied proposal's effectiveness. */
+/**
+ * Outcome of assessing an applied proposal's effectiveness.
+ *
+ * Advisory only — "revert" recommends human action; it never executes a revert
+ * (no before-snapshot is stored; executable revert is a later phase).
+ */
 export type EffectivenessRecommendation =
-  | "helped"
-  | "neutral"
-  | "hurt"
-  | "inconclusive";
+  | "keep"
+  | "revert"
+  | "investigate";
 
 /** recommendation type → metric it intends to improve; null ⇒ investigate. */
 export const RECOMMENDATION_METRIC_MAP: Record<

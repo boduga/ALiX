@@ -55,11 +55,11 @@ describe("effectiveness types", () => {
         relativeDelta: -0.5,
       },
       dataSufficient: true,
-      recommendation: "helped",
+      recommendation: "keep",
       reason: "unresolvedCapabilities dropped 50% (4→2).",
     };
     expect(r.primary?.metric).toBe("unresolvedCapabilities");
-    expect(r.recommendation).toBe("helped");
+    expect(r.recommendation).toBe("keep");
     expect(r.dataSufficient).toBe(true);
   });
 });
