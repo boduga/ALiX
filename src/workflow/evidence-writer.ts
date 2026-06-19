@@ -359,6 +359,22 @@ export class EvidenceEventWriter {
   // -----------------------------------------------------------------------
 
   /**
+   * Record that an AdaptationProposal was proposed (created from a reflection
+   * recommendation). Writer: adaptation CLI (`alix adaptation propose`).
+   *
+   * Unlike the approve/reject/apply/failed events — which the ApprovalGate
+   * owns — the "proposed" event is emitted at proposal creation time, before
+   * any gate involvement. That is why the CLI records it directly rather than
+   * the converter (which is a pure function) or the gate.
+   */
+  async recordAdaptationProposed(
+    proposalId: string,
+    payload: { createdAt: string; action: string; target: Record<string, unknown>; sourceRecommendationType: string; sourceConfidence: number },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_proposed", { proposalId, ...payload });
+  }
+
+  /**
    * Record that an AdaptationProposal was approved by a human.
    * Writer: ApprovalGate
    */
