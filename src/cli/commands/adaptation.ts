@@ -279,6 +279,16 @@ async function runApply(
     process.exit(1);
   }
 
+  // Manual-action kinds have no automated applier by design — the human
+  // performs them out-of-band (create an issue, edit a routing weight,
+  // declare a capability). Surface actionable guidance and return cleanly
+  // (exit 0): this is a successful guided outcome, not an error. We never
+  // reach the gate and never mutate anything.
+  if (isManualKind(proposal.target.kind)) {
+    printManualAction(proposal);
+    return;
+  }
+
   const applier = selectApplier(cwd, proposal);
 
   try {
@@ -298,8 +308,13 @@ async function runApply(
  * Select the Applier callback for a proposal by `target.kind`.
  *
  * The gate owns the no-approval-no-mutation invariant; this function only
- * decides WHICH applier to hand the gate. Unknown target kinds throw — the
- * gate never runs for them, so no mutation occurs.
+ * decides WHICH applier to hand the gate.
+ *
+ * Recognized manual-action kinds ("capability", "issue", "routing_weight")
+ * are intercepted in runApply before this function is reached and surfaced
+ * as human guidance. selectApplier's default throw therefore only fires for
+ * genuinely unexpected target kinds — the gate never runs for them, so no
+ * mutation occurs.
  */
 function selectApplier(cwd: string, proposal: AdaptationProposal): Applier {
   switch (proposal.target.kind) {
@@ -322,6 +337,72 @@ function selectApplier(cwd: string, proposal: AdaptationProposal): Applier {
 // ---------------------------------------------------------------------------
 // Formatting / helpers
 // ---------------------------------------------------------------------------
+
+/**
+ * Target kinds that have no automated applier — the human must perform the
+ * action out-of-band (file an issue, edit a routing weight, declare a
+ * capability). runApply intercepts these before the gate and surfaces
+ * actionable guidance instead of mutating.
+ */
+const MANUAL_KINDS = new Set<string>(["capability", "issue", "routing_weight"]);
+
+/** Whether a proposal target kind requires manual (out-of-band) action. */
+function isManualKind(kind: string): boolean {
+  return MANUAL_KINDS.has(kind);
+}
+
+/**
+ * Print actionable manual-action guidance for a proposal that cannot be
+ * auto-applied. Writes to stdout (this is a guided success, not an error),
+ * does not mutate anything, does not touch the gate or evidence.
+ *
+ * The proposal status stays "approved" — the human performs the action
+ * out-of-band; tracking manual completion is a future concern.
+ */
+function printManualAction(p: AdaptationProposal): void {
+  console.log("Manual action required — this proposal cannot be auto-applied.");
+  console.log(`  Proposal: ${p.id}`);
+  console.log(`  Action:   ${p.action}`);
+  console.log(`  Reason:   ${p.reason}`);
+
+  // The P5.0 recommendation's free-text action — the most concrete steer the
+  // system has. Surface it verbatim so the operator gets the specific change.
+  const recommendedAction = p.payload.recommendedAction;
+  if (typeof recommendedAction === "string" && recommendedAction.length > 0) {
+    console.log(`  Suggested change: ${recommendedAction}`);
+  }
+
+  console.log("  What to do by hand:");
+
+  switch (p.target.kind) {
+    case "issue":
+      console.log(`    - Open a GitHub issue titled: "${p.target.title}"`);
+      console.log(`      Use the reason above as the issue body / starting point.`);
+      break;
+    case "routing_weight": {
+      const agent = p.payload.agentId;
+      const weight = p.payload.weight;
+      console.log(
+        `    - Adjust the routing weight for the "${p.target.capability}" capability` +
+          (typeof agent === "string" ? ` on agent "${agent}"` : "") +
+          (typeof weight === "number" || typeof weight === "string" ? ` to ${weight}` : "") +
+          ".",
+      );
+      break;
+    }
+    case "capability": {
+      const agent = p.target.agentId ?? p.payload.agentId;
+      console.log(
+        `    - Add the "${p.target.capability}" capability` +
+          (typeof agent === "string" ? ` to agent "${agent}"` : "") +
+          " (declare it on the relevant agent card).",
+      );
+      break;
+    }
+  }
+
+  console.log("  No files were changed. Proposal remains \"approved\".");
+}
 
 /** Human-readable one-liner for a proposal's target. */
 function describeTarget(p: AdaptationProposal): string {

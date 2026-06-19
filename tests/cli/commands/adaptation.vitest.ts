@@ -520,6 +520,141 @@ describe("adaptation CLI", () => {
   });
 
   // -------------------------------------------------------------------------
+  // apply (manual-action kinds: routing_weight, issue, capability)
+  // -------------------------------------------------------------------------
+
+  describe("apply (manual-action kinds)", () => {
+    it("surfaces manual guidance for an approved routing_weight proposal without mutating or erroring", async () => {
+      const proposal = await seedProposal({
+        id: "prop-manual-routing",
+        status: "approved",
+        approvedBy: "alice",
+        action: "suggest_routing_weight",
+        target: { kind: "routing_weight", capability: "code-review" },
+        payload: {
+          title: "Tune code-review routing",
+          recommendedAction: "Increase routing weight for code-review to 0.6",
+          evidence: ["ev-1", "ev-2"],
+        },
+        reason: "Under-routed capability — code-review requests blocked 3x",
+      });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      const exit = mockExit();
+
+      // Must resolve (exit 0) — manual guidance is a success, not an error.
+      await handleAdaptationCommand(["apply", proposal.id]);
+
+      exit.spy.mockRestore();
+      c.restore();
+
+      // No error exit was requested.
+      expect(exit.calls()).toHaveLength(0);
+
+      const joined = c.out().join("\n");
+      // Manual-action banner + actionable specifics.
+      expect(joined).toContain("Manual action required");
+      expect(joined).toContain("routing_weight");
+      expect(joined.toLowerCase()).toContain("code-review");
+      expect(joined).toContain("Increase routing weight for code-review to 0.6");
+
+      // No mutation: no agent card or skill file written anywhere.
+      expect(existsSync(join(tempRoot, ".alix", "cards", "agents", "code-review.json"))).toBe(false);
+      expect(existsSync(join(tempRoot, ".alix", "skills", "workflow", "code-review.json"))).toBe(false);
+
+      // Proposal stays approved — the human acts out-of-band.
+      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const reloaded = await store.load(proposal.id);
+      expect(reloaded!.status).toBe("approved");
+      expect(reloaded!.appliedAt).toBeUndefined();
+
+      // No apply/failed evidence recorded.
+      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
+      expect((await evidence.query({ type: "adaptation_applied" })).total).toBe(0);
+      expect((await evidence.query({ type: "adaptation_failed" })).total).toBe(0);
+    });
+
+    it("surfaces manual guidance for an approved issue proposal without mutating or erroring", async () => {
+      const proposal = await seedProposal({
+        id: "prop-manual-issue",
+        status: "approved",
+        approvedBy: "bob",
+        action: "create_improvement_issue",
+        target: { kind: "issue", title: "Plan workflow drops context on retry" },
+        payload: {
+          title: "Plan workflow drops context on retry",
+          recommendedAction: "Capture and replay planner state across retries",
+          evidence: ["ev-3"],
+        },
+        reason: "Process change recommended by reflection — needs human design",
+      });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      const exit = mockExit();
+
+      await handleAdaptationCommand(["apply", proposal.id]);
+
+      exit.spy.mockRestore();
+      c.restore();
+
+      expect(exit.calls()).toHaveLength(0);
+
+      const joined = c.out().join("\n");
+      expect(joined).toContain("Manual action required");
+      expect(joined).toContain("issue");
+      // Points the operator at creating a GitHub issue with the title.
+      expect(joined.toLowerCase()).toContain("github issue");
+      expect(joined).toContain("Plan workflow drops context on retry");
+
+      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
+      expect((await evidence.query({ type: "adaptation_applied" })).total).toBe(0);
+      expect((await evidence.query({ type: "adaptation_failed" })).total).toBe(0);
+    });
+
+    it("surfaces manual guidance for an approved capability proposal", async () => {
+      const proposal = await seedProposal({
+        id: "prop-manual-cap",
+        status: "approved",
+        approvedBy: "carol",
+        action: "add_capability",
+        target: { kind: "capability", capability: "summarization", agentId: "reviewer.agent" },
+        payload: {
+          title: "Add summarization capability",
+          recommendedAction: "Wire summarization into reviewer.agent",
+          evidence: ["ev-4"],
+        },
+        reason: "Capability requested but not declared on the agent card",
+      });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      const exit = mockExit();
+
+      await handleAdaptationCommand(["apply", proposal.id]);
+
+      exit.spy.mockRestore();
+      c.restore();
+
+      expect(exit.calls()).toHaveLength(0);
+
+      const joined = c.out().join("\n");
+      expect(joined).toContain("Manual action required");
+      expect(joined.toLowerCase()).toContain("summarization");
+      expect(joined.toLowerCase()).toContain("reviewer.agent");
+
+      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
+      expect((await evidence.query({ type: "adaptation_applied" })).total).toBe(0);
+      expect((await evidence.query({ type: "adaptation_failed" })).total).toBe(0);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // unknown subcommand / help
   // -------------------------------------------------------------------------
 
