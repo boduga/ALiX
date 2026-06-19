@@ -14,6 +14,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { AgentCardApplier } from "../../../src/adaptation/appliers/agent-card-applier.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
+import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
+import type { EvidenceRecord } from "../../../src/security/evidence/evidence-types.js";
+import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -336,5 +340,202 @@ describe("AgentCardApplier — unsupported actions", () => {
   it("throws on 'suggest_routing_weight'", async () => {
     const proposal = makeProposal({ action: "suggest_routing_weight" });
     await expect(applier.apply(proposal)).rejects.toThrow(/unsupported action/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Snapshotting (P5.2e.4)
+// ---------------------------------------------------------------------------
+
+describe("AgentCardApplier — snapshotting", () => {
+  let snapRoot: string;
+  let snapCardsDir: string;
+  let snapshotsDir: string;
+  let snapApplier: AgentCardApplier;
+  let snapshotStore: SnapshotStore;
+  let evidenceCalls: Array<{ type: string; payload: Record<string, unknown> }>;
+  let writer: EvidenceEventWriter;
+
+  beforeEach(() => {
+    snapRoot = mkdtempSync(join(tmpdir(), "agent-card-snap-"));
+    snapCardsDir = join(snapRoot, ".alix", "cards", "agents");
+    snapshotsDir = join(snapRoot, ".alix", "adaptation", "snapshots");
+    mkdirSync(snapCardsDir, { recursive: true });
+    mkdirSync(snapshotsDir, { recursive: true });
+
+    evidenceCalls = [];
+    const mockAppend = async (
+      type: string,
+      payload: Record<string, unknown>,
+    ): Promise<EvidenceRecord> => {
+      const record: EvidenceRecord = {
+        version: 1,
+        id: `ev-${evidenceCalls.length + 1}`,
+        type: type as EvidenceRecord["type"],
+        timestamp: new Date().toISOString(),
+        fingerprint: `fp-${evidenceCalls.length + 1}`,
+        payload,
+      };
+      evidenceCalls.push({ type, payload });
+      return record;
+    };
+
+    snapshotStore = new SnapshotStore(snapshotsDir);
+    writer = new EvidenceEventWriter(mockAppend);
+    snapApplier = new AgentCardApplier(snapCardsDir, snapshotStore, writer);
+  });
+
+  afterEach(() => {
+    rmSync(snapRoot, { recursive: true, force: true });
+  });
+
+  function snapCardPath(id: string): string {
+    return join(snapCardsDir, `${id}.json`);
+  }
+
+  // -----------------------------------------------------------------------
+  // update_agent_card — snapshot before merge-write
+  // -----------------------------------------------------------------------
+
+  it("snapshots before update_agent_card mutation", async () => {
+    const id = "snap-update";
+    const originalContent = JSON.stringify(
+      {
+        id,
+        name: "Original",
+        description: "Before snapshot",
+        version: "1.0.0",
+        domains: ["general"],
+        capabilities: ["old.cap"],
+        enabled: true,
+      },
+      null,
+      2,
+    );
+    writeFileSync(snapCardPath(id), originalContent, "utf-8");
+
+    const proposal = makeProposal({
+      id: "prop-snap-update-001",
+      action: "update_agent_card",
+      target: { kind: "agent_card", id },
+      payload: { name: "Updated" },
+    });
+
+    await snapApplier.apply(proposal);
+
+    // Snapshot file exists
+    const snap = await snapshotStore.load("prop-snap-update-001");
+    expect(snap).not.toBeNull();
+    expect(snap!.proposalId).toBe("prop-snap-update-001");
+    expect(snap!.action).toBe("update_agent_card");
+    expect(snap!.target.kind).toBe("agent_card");
+
+    // contentHash matches SHA-256 of original raw content
+    const expectedHash = createHash("sha256").update(originalContent).digest("hex");
+    expect(snap!.contentHash).toBe(expectedHash);
+
+    // content is base64 of original raw content
+    const decoded = Buffer.from(snap!.content, "base64").toString("utf-8");
+    expect(decoded).toBe(originalContent);
+
+    // Verify integrity via SnapshotStore
+    const valid = await snapshotStore.verify(snap!);
+    expect(valid).toBe(true);
+
+    // Evidence recorded
+    const snapEvidence = evidenceCalls.find(
+      (c) => c.type === "adaptation_snapshot_taken",
+    );
+    expect(snapEvidence).toBeDefined();
+    expect(snapEvidence!.payload.proposalId).toBe("prop-snap-update-001");
+    expect(snapEvidence!.payload.snapshotFingerprint).toBe(snap!.fingerprint);
+    expect(snapEvidence!.payload.contentHash).toBe(expectedHash);
+    expect(snapEvidence!.payload.filePath).toBe(snapCardPath(id));
+
+    // Mutation still happened (snapshot was before the write)
+    const updated = JSON.parse(readFileSync(snapCardPath(id), "utf-8"));
+    expect(updated.name).toBe("Updated");
+  });
+
+  // -----------------------------------------------------------------------
+  // add_capability — snapshot before append-write
+  // -----------------------------------------------------------------------
+
+  it("snapshots before add_capability mutation", async () => {
+    const id = "snap-addcap";
+    const originalContent = JSON.stringify(
+      {
+        id,
+        name: "CapAgent",
+        description: "x",
+        version: "1.0.0",
+        domains: ["general"],
+        capabilities: ["existing.cap"],
+        enabled: true,
+      },
+      null,
+      2,
+    );
+    writeFileSync(snapCardPath(id), originalContent, "utf-8");
+
+    const proposal = makeProposal({
+      id: "prop-snap-addcap-001",
+      action: "add_capability",
+      target: { kind: "agent_card", id },
+      payload: { capability: "new.capability" },
+    });
+
+    await snapApplier.apply(proposal);
+
+    // Snapshot file exists
+    const snap = await snapshotStore.load("prop-snap-addcap-001");
+    expect(snap).not.toBeNull();
+    expect(snap!.action).toBe("add_capability");
+
+    // contentHash matches SHA-256 of original content
+    const expectedHash = createHash("sha256").update(originalContent).digest("hex");
+    expect(snap!.contentHash).toBe(expectedHash);
+
+    // Integrity pass
+    const valid = await snapshotStore.verify(snap!);
+    expect(valid).toBe(true);
+
+    // Evidence recorded
+    const snapEvidence = evidenceCalls.find(
+      (c) => c.type === "adaptation_snapshot_taken",
+    );
+    expect(snapEvidence).toBeDefined();
+
+    // Mutation happened
+    const updated = JSON.parse(readFileSync(snapCardPath(id), "utf-8"));
+    expect(updated.capabilities).toEqual(["existing.cap", "new.capability"]);
+  });
+
+  // -----------------------------------------------------------------------
+  // create_agent_card — NO snapshot (irreversible)
+  // -----------------------------------------------------------------------
+
+  it("does NOT snapshot for create_agent_card", async () => {
+    const proposal = makeProposal({
+      id: "prop-snap-create-001",
+      action: "create_agent_card",
+      target: { kind: "agent_card", id: "snap-create" },
+      payload: makeCardPayload({ id: "snap-create", name: "Created" }),
+    });
+
+    await snapApplier.apply(proposal);
+
+    // No snapshot file exists
+    const snap = await snapshotStore.load("prop-snap-create-001");
+    expect(snap).toBeNull();
+
+    // No snapshot evidence
+    const snapEvidence = evidenceCalls.find(
+      (c) => c.type === "adaptation_snapshot_taken",
+    );
+    expect(snapEvidence).toBeUndefined();
+
+    // File was still created
+    expect(existsSync(snapCardPath("snap-create"))).toBe(true);
   });
 });

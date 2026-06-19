@@ -450,6 +450,34 @@ export class EvidenceEventWriter {
   }
 
   // -----------------------------------------------------------------------
+  // Adaptation revert (P5.2e)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record that a snapshot was taken before applying a proposal, enabling
+   * future executable revert.  Writer: AgentCardApplier / SkillApplier.
+   */
+  async recordSnapshotTaken(
+    proposalId: string,
+    payload: { snapshotFingerprint: string; contentHash: string; filePath: string },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_snapshot_taken", { proposalId, ...payload });
+  }
+
+  /**
+   * Record that a revert attempt failed.  Writer: RevertApplier.
+   *
+   * `snapshotFingerprint` is optional — a revert can fail before a snapshot
+   * is located (e.g. proposal was never snapshotted).
+   */
+  async recordRevertFailed(
+    proposalId: string,
+    payload: { error: string; snapshotFingerprint?: string },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("adaptation_revert_failed", { proposalId, ...payload });
+  }
+
+  // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------
 

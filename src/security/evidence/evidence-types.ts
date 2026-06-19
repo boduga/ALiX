@@ -60,6 +60,9 @@ export type EvidenceType =
   | "adaptation_rejected"
   | "adaptation_applied"
   | "adaptation_failed"
+  // P5.2e executable revert
+  | "adaptation_snapshot_taken"
+  | "adaptation_revert_failed"
   // P5.2b effectiveness assessment
   | "adaptation_effectiveness";
 
@@ -97,6 +100,9 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "adaptation_rejected",
   "adaptation_applied",
   "adaptation_failed",
+  // P5.2e executable revert
+  "adaptation_snapshot_taken",
+  "adaptation_revert_failed",
   // P5.2b effectiveness assessment
   "adaptation_effectiveness",
 ]);

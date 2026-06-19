@@ -4,14 +4,16 @@ export type ProposalAction =
   | "add_capability"
   | "adjust_skill_definition"
   | "create_improvement_issue"
-  | "suggest_routing_weight";
+  | "suggest_routing_weight"
+  | "revert_proposal";
 
 export type ProposalTarget =
   | { kind: "agent_card"; id: string }
   | { kind: "skill"; id: string }
   | { kind: "capability"; capability: string; agentId?: string }
   | { kind: "issue"; title: string }
-  | { kind: "routing_weight"; capability: string };
+  | { kind: "routing_weight"; capability: string }
+  | { kind: "revert"; sourceProposalId: string };
 
 export type ProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed";
 

@@ -23,6 +23,7 @@
  *   approve <id1> [id2] ... [--by <actor>]  Approve one or more pending proposals
  *   reject <id> [--reason <text>]  Reject a pending proposal
  *   apply <id>                     Apply an approved proposal
+ *   revert <id> [--reason <text>]  Create a revert proposal for an applied proposal
  *
  * @module
  */
@@ -35,6 +36,9 @@ import { ApprovalGate } from "../../adaptation/approval-gate.js";
 import type { Applier } from "../../adaptation/approval-gate.js";
 import { AgentCardApplier } from "../../adaptation/appliers/agent-card-applier.js";
 import { SkillApplier } from "../../adaptation/appliers/skill-applier.js";
+import { RevertApplier } from "../../adaptation/revert-applier.js";
+import { SnapshotStore } from "../../adaptation/snapshot-store.js";
+import { nextProposalId } from "../../adaptation/recommendation-to-proposal.js";
 import { EffectivenessReporter } from "../../adaptation/effectiveness-reporter.js";
 import { EffectivenessStore } from "../../adaptation/effectiveness-store.js";
 import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
@@ -99,13 +103,16 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       await runReject(gate, rest);
       return;
     case "apply":
-      await runApply(cwd, store, gate, rest);
+      await runApply(cwd, store, gate, writer, rest);
       return;
     case "effectiveness":
       await runEffectiveness(cwd, store, evidenceStore, rest);
       return;
     case "generate":
       await runGenerate(cwd, store, writer, rest);
+      return;
+    case "revert":
+      await runRevert(cwd, store, writer, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -293,6 +300,7 @@ async function runApply(
   cwd: string,
   store: ProposalStore,
   gate: ApprovalGate,
+  writer: EvidenceEventWriter,
   args: string[],
 ): Promise<void> {
   const id = args[0];
@@ -319,7 +327,7 @@ async function runApply(
     return;
   }
 
-  const applier = selectApplier(cwd, proposal);
+  const applier = selectApplier(cwd, proposal, writer);
 
   try {
     const updated = await gate.apply(id, applier);
@@ -346,7 +354,7 @@ async function runApply(
  * genuinely unexpected target kinds — the gate never runs for them, so no
  * mutation occurs.
  */
-function selectApplier(cwd: string, proposal: AdaptationProposal): Applier {
+function selectApplier(cwd: string, proposal: AdaptationProposal, writer: EvidenceEventWriter): Applier {
   switch (proposal.target.kind) {
     case "agent_card": {
       const applier = new AgentCardApplier(join(cwd, CARDS_DIR));
@@ -356,10 +364,15 @@ function selectApplier(cwd: string, proposal: AdaptationProposal): Applier {
       const applier = new SkillApplier(join(cwd, SKILLS_DIR));
       return (p) => applier.apply(p);
     }
+    case "revert": {
+      const snapshotsDir = join(cwd, ".alix", "adaptation", "snapshots");
+      const revertApplier = new RevertApplier(snapshotsDir, writer);
+      return (p) => revertApplier.apply(p);
+    }
     default:
       throw new Error(
         `No applier registered for target.kind "${proposal.target.kind}" (proposal ${proposal.id}). ` +
-          `P5.1 supports only "agent_card" and "skill".`,
+          `Supports "agent_card", "skill", and "revert".`,
       );
   }
 }
@@ -447,6 +460,8 @@ function describeTarget(p: AdaptationProposal): string {
       return `issue:"${p.target.title}"`;
     case "routing_weight":
       return `routing_weight:${p.target.capability}`;
+    case "revert":
+      return `revert proposal ${p.target.sourceProposalId}`;
   }
 }
 
@@ -483,6 +498,7 @@ function printUsage(toStderr: boolean): void {
     "  approve <id1> [id2] ... [--by <actor>]  Approve one or more pending proposals",
     "  reject <id> [--reason <text>]  Reject a pending proposal",
     "  apply <id>                     Apply an approved proposal",
+    "  revert <id> [--reason <text>]  Create a revert proposal for an applied proposal (approve then apply to execute)",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
     "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
     "                               Auto-create pending proposals from reflection or effectiveness (no approve/apply)",
@@ -676,6 +692,95 @@ async function runGenerate(
     minConfidence,
   });
   printGenerateSummary(result);
+}
+
+// ---------------------------------------------------------------------------
+// `revert` (P5.2e.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * `alix adaptation revert <id> [--reason <text>]` — create a revert proposal
+ * for a previously applied proposal.
+ *
+ * Checks that a snapshot exists for the source proposal, loads its fingerprint
+ * and contentHash, creates a `pending` `revert_proposal`, saves via the store,
+ * and records `adaptation_proposed` evidence with `action: "revert_proposal"`.
+ *
+ * Creation-only: does NOT approve or apply. The revert proposal must go through
+ * the same approve→apply lifecycle as any other proposal.
+ */
+async function runRevert(
+  cwd: string,
+  store: ProposalStore,
+  writer: EvidenceEventWriter,
+  args: string[],
+): Promise<void> {
+  const id = args[0];
+  if (!id) {
+    console.error("Usage: alix adaptation revert <id> [--reason <text>]");
+    process.exit(1);
+  }
+
+  // Load the source proposal
+  const sourceProposal = await store.load(id);
+  if (!sourceProposal) {
+    console.error(`Proposal not found: ${id}`);
+    process.exit(1);
+  }
+
+  // Check snapshot exists
+  const snapshotsDir = join(cwd, ".alix", "adaptation", "snapshots");
+  const snapshotPath = join(snapshotsDir, `${id}.json`);
+  if (!existsSync(snapshotPath)) {
+    console.error(
+      `Proposal ${id} cannot be reverted (no snapshot found; only update_agent_card, add_capability, and adjust_skill_definition are revertable).`,
+    );
+    process.exit(1);
+  }
+
+  // Load the snapshot to get fingerprint and contentHash
+  const snapshotStore = new SnapshotStore(snapshotsDir);
+  const snapshot = await snapshotStore.load(id);
+  if (!snapshot) {
+    console.error(
+      `Proposal ${id} cannot be reverted (snapshot file exists but could not be loaded).`,
+    );
+    process.exit(1);
+  }
+
+  // Parse --reason
+  const reasonIdx = args.indexOf("--reason");
+  const reason = reasonIdx >= 0 ? args.slice(reasonIdx + 1).join(" ") : "Reverting applied proposal via CLI";
+
+  const now = new Date().toISOString();
+
+  const revertProposal: AdaptationProposal = {
+    id: nextProposalId(),
+    createdAt: now,
+    status: "pending",
+    action: "revert_proposal",
+    target: { kind: "revert", sourceProposalId: id },
+    payload: { reason, snapshotFingerprint: snapshot.fingerprint, sourceProposalId: id },
+    sourceRecommendationType: "manual_revert",
+    sourceConfidence: 1,
+    evidenceFingerprints: [snapshot.fingerprint],
+    reason,
+    provenance: "auto",
+  };
+
+  await store.save(revertProposal);
+
+  // Record adaptation_proposed evidence
+  await writer.recordAdaptationProposed(revertProposal.id, {
+    createdAt: revertProposal.createdAt,
+    action: revertProposal.action,
+    target: revertProposal.target as unknown as Record<string, unknown>,
+    sourceRecommendationType: revertProposal.sourceRecommendationType,
+    sourceConfidence: revertProposal.sourceConfidence,
+    provenance: "auto",
+  });
+
+  console.log(`Revert proposed: ${revertProposal.id} (approve then apply to execute).`);
 }
 
 /**
