@@ -22,8 +22,11 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import { validateAgentCard, type AgentCard } from "../../registry/agent-card.js";
 import type { AdaptationProposal, ProposalTarget } from "../adaptation-types.js";
+import type { SnapshotStore } from "../snapshot-store.js";
+import type { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 
 /** Path to the agent card file for a given agent id. */
 function cardPath(cardsDir: string, id: string): string {
@@ -76,7 +79,11 @@ function deepMerge(
 }
 
 export class AgentCardApplier {
-  constructor(private readonly cardsDir: string) {}
+  constructor(
+    private readonly cardsDir: string,
+    private readonly snapshotStore?: SnapshotStore,
+    private readonly writer?: EvidenceEventWriter,
+  ) {}
 
   /**
    * Apply an approved proposal. Validates status, then dispatches to the
@@ -94,12 +101,15 @@ export class AgentCardApplier {
 
     switch (proposal.action) {
       case "create_agent_card":
+        // No snapshot — no pre-existing file; the action is irreversible.
         this.create(path, proposal.payload);
         return;
       case "update_agent_card":
+        this.snapshotBeforeMutation(path, proposal);
         this.update(path, proposal.payload);
         return;
       case "add_capability":
+        this.snapshotBeforeMutation(path, proposal);
         this.addCapability(path, proposal.payload);
         return;
       default:
@@ -157,6 +167,41 @@ export class AgentCardApplier {
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  /**
+   * Snapshot the file at `path` before mutation, then record evidence.
+   *
+   * No-op when `snapshotStore` or `writer` is absent (backwards-compatible
+   * with existing instantiation in `selectApplier` which passes neither).
+   */
+  private snapshotBeforeMutation(
+    path: string,
+    proposal: AdaptationProposal,
+  ): void {
+    if (!this.snapshotStore || !this.writer) return;
+
+    const content = readFileSync(path, "utf-8");
+    const base64 = Buffer.from(content, "utf-8").toString("base64");
+    const contentHash = createHash("sha256").update(content).digest("hex");
+    const fingerprint = randomUUID();
+
+    this.snapshotStore.save({
+      proposalId: proposal.id,
+      snapshotAt: new Date().toISOString(),
+      action: proposal.action,
+      target: proposal.target as { kind: string } & Record<string, unknown>,
+      filePath: path,
+      content: base64,
+      contentHash,
+      fingerprint,
+    });
+
+    this.writer.recordSnapshotTaken(proposal.id, {
+      snapshotFingerprint: fingerprint,
+      contentHash,
+      filePath: path,
+    });
+  }
 
   /** Ensure the cards directory exists, then write the card as pretty JSON. */
   private writeCard(path: string, card: Record<string, unknown>): void {

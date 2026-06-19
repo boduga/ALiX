@@ -33,7 +33,10 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
 import type { AdaptationProposal, ProposalTarget } from "../adaptation-types.js";
+import type { SnapshotStore } from "../snapshot-store.js";
+import type { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 
 /** Path to the skill file for a given skill id. */
 function skillPath(skillsDir: string, id: string): string {
@@ -62,7 +65,11 @@ function readJson(path: string): Record<string, unknown> {
 }
 
 export class SkillApplier {
-  constructor(private readonly skillsDir: string) {}
+  constructor(
+    private readonly skillsDir: string,
+    private readonly snapshotStore?: SnapshotStore,
+    private readonly writer?: EvidenceEventWriter,
+  ) {}
 
   /**
    * Apply an approved proposal. Validates status, then dispatches to the
@@ -80,6 +87,7 @@ export class SkillApplier {
 
     switch (proposal.action) {
       case "adjust_skill_definition":
+        this.snapshotBeforeMutation(path, proposal);
         this.adjustStep(path, proposal.payload);
         return;
       default:
@@ -152,6 +160,44 @@ export class SkillApplier {
   // -------------------------------------------------------------------------
   // Internals
   // -------------------------------------------------------------------------
+
+  /**
+   * Snapshot the file at `path` before mutation, then record evidence.
+   *
+   * No-op when `snapshotStore` or `writer` is absent (backwards-compatible
+   * with existing instantiation in `selectApplier` which passes neither).
+   *
+   * SkillApplier only modifies existing skills — there is no create path,
+   * so every mutation path snapshots here.
+   */
+  private snapshotBeforeMutation(
+    path: string,
+    proposal: AdaptationProposal,
+  ): void {
+    if (!this.snapshotStore || !this.writer) return;
+
+    const content = readFileSync(path, "utf-8");
+    const base64 = Buffer.from(content, "utf-8").toString("base64");
+    const contentHash = createHash("sha256").update(content).digest("hex");
+    const fingerprint = randomUUID();
+
+    this.snapshotStore.save({
+      proposalId: proposal.id,
+      snapshotAt: new Date().toISOString(),
+      action: proposal.action,
+      target: proposal.target as { kind: string } & Record<string, unknown>,
+      filePath: path,
+      content: base64,
+      contentHash,
+      fingerprint,
+    });
+
+    this.writer.recordSnapshotTaken(proposal.id, {
+      snapshotFingerprint: fingerprint,
+      contentHash,
+      filePath: path,
+    });
+  }
 
   /** Ensure the skills directory exists, then write the skill as pretty JSON. */
   private writeSkill(path: string, skill: Record<string, unknown>): void {

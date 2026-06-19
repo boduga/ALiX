@@ -22,6 +22,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { SkillApplier } from "../../../src/adaptation/appliers/skill-applier.js";
 import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
+import { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
+import type { EvidenceRecord } from "../../../src/security/evidence/evidence-types.js";
+import { createHash } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -281,5 +285,138 @@ describe("SkillApplier — unsupported actions", () => {
   it("throws on 'add_capability'", async () => {
     const proposal = makeProposal({ action: "add_capability" });
     await expect(applier.apply(proposal)).rejects.toThrow(/unsupported action/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Snapshotting (P5.2e.4)
+// ---------------------------------------------------------------------------
+
+describe("SkillApplier — snapshotting", () => {
+  let snapRoot: string;
+  let snapSkillsDir: string;
+  let snapshotsDir: string;
+  let snapApplier: SkillApplier;
+  let snapshotStore: SnapshotStore;
+  let evidenceCalls: Array<{ type: string; payload: Record<string, unknown> }>;
+  let writer: EvidenceEventWriter;
+
+  beforeEach(() => {
+    snapRoot = mkdtempSync(join(tmpdir(), "skill-snap-"));
+    snapSkillsDir = join(snapRoot, ".alix", "skills", "workflow");
+    snapshotsDir = join(snapRoot, ".alix", "adaptation", "snapshots");
+    mkdirSync(snapSkillsDir, { recursive: true });
+    mkdirSync(snapshotsDir, { recursive: true });
+
+    evidenceCalls = [];
+    const mockAppend = async (
+      type: string,
+      payload: Record<string, unknown>,
+    ): Promise<EvidenceRecord> => {
+      const record: EvidenceRecord = {
+        version: 1,
+        id: `ev-${evidenceCalls.length + 1}`,
+        type: type as EvidenceRecord["type"],
+        timestamp: new Date().toISOString(),
+        fingerprint: `fp-${evidenceCalls.length + 1}`,
+        payload,
+      };
+      evidenceCalls.push({ type, payload });
+      return record;
+    };
+
+    snapshotStore = new SnapshotStore(snapshotsDir);
+    writer = new EvidenceEventWriter(mockAppend);
+    snapApplier = new SkillApplier(snapSkillsDir, snapshotStore, writer);
+  });
+
+  afterEach(() => {
+    rmSync(snapRoot, { recursive: true, force: true });
+  });
+
+  function snapSkillPath(id: string): string {
+    return join(snapSkillsDir, `${id}.json`);
+  }
+
+  // -----------------------------------------------------------------------
+  // adjust_skill_definition — snapshot before step-action write
+  // -----------------------------------------------------------------------
+
+  it("snapshots before adjust_skill_definition mutation", async () => {
+    const id = "issue-lifecycle";
+    const originalContent = JSON.stringify(makeSkillDefinition(), null, 2);
+    writeFileSync(snapSkillPath(id), originalContent, "utf-8");
+
+    const proposal = makeProposal({
+      id: "prop-snap-skill-001",
+      target: { kind: "skill", id },
+      payload: { step: "plan", action: "New plan action" },
+    });
+
+    await snapApplier.apply(proposal);
+
+    // Snapshot file exists
+    const snap = await snapshotStore.load("prop-snap-skill-001");
+    expect(snap).not.toBeNull();
+    expect(snap!.proposalId).toBe("prop-snap-skill-001");
+    expect(snap!.action).toBe("adjust_skill_definition");
+    expect(snap!.target.kind).toBe("skill");
+
+    // contentHash matches SHA-256 of original raw content
+    const expectedHash = createHash("sha256").update(originalContent).digest("hex");
+    expect(snap!.contentHash).toBe(expectedHash);
+
+    // content is base64 of original raw content
+    const decoded = Buffer.from(snap!.content, "base64").toString("utf-8");
+    expect(decoded).toBe(originalContent);
+
+    // Verify integrity via SnapshotStore
+    const valid = await snapshotStore.verify(snap!);
+    expect(valid).toBe(true);
+
+    // Evidence recorded
+    const snapEvidence = evidenceCalls.find(
+      (c) => c.type === "adaptation_snapshot_taken",
+    );
+    expect(snapEvidence).toBeDefined();
+    expect(snapEvidence!.payload.proposalId).toBe("prop-snap-skill-001");
+    expect(snapEvidence!.payload.snapshotFingerprint).toBe(snap!.fingerprint);
+    expect(snapEvidence!.payload.contentHash).toBe(expectedHash);
+    expect(snapEvidence!.payload.filePath).toBe(snapSkillPath(id));
+
+    // Mutation still happened (snapshot was before the write)
+    const updated = JSON.parse(readFileSync(snapSkillPath(id), "utf-8"));
+    const planStep = updated.steps.find((s: { step: string }) => s.step === "plan");
+    expect(planStep.action).toBe("New plan action");
+  });
+
+  it("preserves snapshot integrity (content hash matches decoded base64)", async () => {
+    const id = "issue-lifecycle";
+    const originalContent = JSON.stringify(
+      makeSkillDefinition({ id, name: "Integrity Test" }),
+      null,
+      2,
+    );
+    writeFileSync(snapSkillPath(id), originalContent, "utf-8");
+
+    const proposal = makeProposal({
+      id: "prop-snap-integrity-001",
+      target: { kind: "skill", id },
+      payload: { step: "plan", action: "x" },
+    });
+
+    await snapApplier.apply(proposal);
+
+    const snap = await snapshotStore.load("prop-snap-integrity-001");
+    expect(snap).not.toBeNull();
+
+    // Verify round-trip: decode → hash → match
+    const decoded = Buffer.from(snap!.content, "base64").toString("utf-8");
+    const computedHash = createHash("sha256").update(decoded).digest("hex");
+    expect(computedHash).toBe(snap!.contentHash);
+
+    // Verify via SnapshotStore.verify
+    const valid = await snapshotStore.verify(snap!);
+    expect(valid).toBe(true);
   });
 });
