@@ -28,6 +28,9 @@ export type Applier = (proposal: AdaptationProposal) => Promise<void>;
 /** A human or system identifier approving/rejecting a proposal. */
 export type Actor = string;
 
+/** Error entry from a batch approval operation. */
+export type ApprovalBatchError = { id: string; error: string };
+
 export class ApprovalGate {
   constructor(
     private readonly store: ProposalStore,
@@ -62,6 +65,41 @@ export class ApprovalGate {
     });
 
     return updated;
+  }
+
+  // -------------------------------------------------------------------------
+  // approveBatch
+  // -------------------------------------------------------------------------
+
+  /**
+   * Approve multiple proposals in a best-effort batch. Each proposal is
+   * independently validated via {@link approve}. Errors are collected
+   * per-proposal — one failure does not stop the batch.
+   *
+   * Does NOT throw. Returns a result object with counts and error details.
+   * An empty `ids` array is a no-op.
+   */
+  async approveBatch(ids: string[], by: Actor): Promise<{
+    approved: number;
+    skipped: number;
+    errors: ApprovalBatchError[];
+  }> {
+    const errors: ApprovalBatchError[] = [];
+    let approved = 0;
+    let skipped = 0;
+
+    for (const id of ids) {
+      try {
+        await this.approve(id, by);
+        approved++;
+      } catch (err) {
+        skipped++;
+        const message = err instanceof Error ? err.message : String(err);
+        errors.push({ id, error: message });
+      }
+    }
+
+    return { approved, skipped, errors };
   }
 
   // -------------------------------------------------------------------------
