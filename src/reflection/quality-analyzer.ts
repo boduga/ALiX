@@ -26,15 +26,14 @@ export class QualityAnalyzer implements Analyzer {
 
     if (reviews.records.length === 0) return { observations, recommendations: [] };
 
-    let changesRequested = 0, rejects = 0, totalFindings = 0;
+    let approved = 0, totalFindings = 0;
     for (const r of reviews.records) {
       const v = r.payload.verdict as string;
-      if (v === "changes_requested") changesRequested++;
-      if (v === "reject") rejects++;
+      if (v === "approve") approved++;
       totalFindings += (r.payload.findingCount as number) ?? 0;
     }
 
-    const approvalRate = (reviews.records.length - changesRequested - rejects) / reviews.records.length;
+    const approvalRate = approved / reviews.records.length;
     const avgFindings = totalFindings / reviews.records.length;
 
     if (approvalRate < 0.5) {
@@ -42,7 +41,7 @@ export class QualityAnalyzer implements Analyzer {
         type: "quality_decline",
         severity: "high",
         title: `Low approval rate: ${Math.round(approvalRate * 100)}%`,
-        detail: `${changesRequested} changes requested, ${rejects} rejected. Avg ${avgFindings.toFixed(1)} findings/review.`,
+        detail: `${approved} approved out of ${reviews.records.length} reviews. Avg ${avgFindings.toFixed(1)} findings/review.`,
         source: this.name,
         count: reviews.records.length,
       });

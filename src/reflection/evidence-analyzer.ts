@@ -18,6 +18,9 @@ import type { EvidenceStore } from "../security/evidence/evidence-store.js";
 /** Minimum count for a pattern to be considered significant. */
 const DEFAULT_THRESHOLD = 3;
 
+/** Max records to fetch per targeted query (matches sibling analyzers). */
+const QUERY_LIMIT = 5000;
+
 /** Evidence type to observation type mapping. */
 const EVIDENCE_TO_OBSERVATION: Record<string, {
   observationType: Observation["type"];
@@ -67,7 +70,7 @@ export class EvidenceAnalyzer implements Analyzer {
     const observations: Observation[] = [];
 
     for (const evidenceType of QUERIED_TYPES) {
-      const result = await this.store.query({ type: evidenceType as "workflow_aborted" | "workflow_blocked" | "execution_test_failed" });
+      const result = await this.store.query({ type: evidenceType as "workflow_aborted" | "workflow_blocked" | "execution_test_failed", limit: QUERY_LIMIT });
       const count = result.total;
       if (count >= this.threshold) {
         const mapping = EVIDENCE_TO_OBSERVATION[evidenceType];
