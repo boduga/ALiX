@@ -267,4 +267,91 @@ describe("ApprovalGate", () => {
     const reloaded = await store.load(proposal.id);
     expect(reloaded!.status).toBe("applied");
   });
+
+  // -------------------------------------------------------------------------
+  // approveBatch()
+  // -------------------------------------------------------------------------
+
+  it("approveBatch() approves all pending proposals and returns counts with no errors", async () => {
+    const p1 = makePendingProposal({ id: "prop-001" });
+    const p2 = makePendingProposal({ id: "prop-002" });
+    const p3 = makePendingProposal({ id: "prop-003" });
+    await store.save(p1);
+    await store.save(p2);
+    await store.save(p3);
+
+    const result = await gate.approveBatch([p1.id, p2.id, p3.id], "alice");
+
+    expect(result.approved).toBe(3);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+
+    // Verify all are actually approved in store
+    for (const id of [p1.id, p2.id, p3.id]) {
+      const reloaded = await store.load(id);
+      expect(reloaded!.status).toBe("approved");
+      expect(reloaded!.approvedBy).toBe("alice");
+    }
+
+    // Each approval records evidence
+    const approvedEvents = events.filter(e => e.type === "adaptation_approved");
+    expect(approvedEvents).toHaveLength(3);
+  });
+
+  it("approveBatch() collects errors for non-pending proposals and continues", async () => {
+    const p1 = makePendingProposal({ id: "prop-001" });
+    const p2 = makePendingProposal({ id: "prop-002", status: "rejected" }); // not pending
+    const p3 = makePendingProposal({ id: "prop-003" });
+    await store.save(p1);
+    await store.save(p2);
+    await store.save(p3);
+
+    const result = await gate.approveBatch([p1.id, p2.id, p3.id], "alice");
+
+    expect(result.approved).toBe(2);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].id).toBe(p2.id);
+    expect(result.errors[0].error).toMatch(/expected "pending"/i);
+
+    // p1 and p3 should be approved
+    expect((await store.load(p1.id))!.status).toBe("approved");
+    expect((await store.load(p3.id))!.status).toBe("approved");
+    // p2 should remain rejected
+    expect((await store.load(p2.id))!.status).toBe("rejected");
+
+    // Evidence for only the two that succeeded
+    const approvedEvents = events.filter(e => e.type === "adaptation_approved");
+    expect(approvedEvents).toHaveLength(2);
+  });
+
+  it("approveBatch() collects errors for not-found proposals and continues", async () => {
+    const p1 = makePendingProposal({ id: "prop-001" });
+    const p2 = makePendingProposal({ id: "prop-002" });
+    await store.save(p1);
+    await store.save(p2);
+
+    const result = await gate.approveBatch([p1.id, "prop-missing", p2.id], "alice");
+
+    expect(result.approved).toBe(2);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].id).toBe("prop-missing");
+    expect(result.errors[0].error).toMatch(/not found/i);
+
+    // Valid ones still approved
+    expect((await store.load(p1.id))!.status).toBe("approved");
+    expect((await store.load(p2.id))!.status).toBe("approved");
+
+    const approvedEvents = events.filter(e => e.type === "adaptation_approved");
+    expect(approvedEvents).toHaveLength(2);
+  });
+
+  it("approveBatch() returns all zeroes for an empty ids array", async () => {
+    const result = await gate.approveBatch([], "alice");
+
+    expect(result.approved).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.errors).toHaveLength(0);
+  });
 });
