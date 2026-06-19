@@ -53,7 +53,13 @@ export type EvidenceType =
   | "execution_commit_created"
   // P4.7 capability routing
   | "agent_resolved"
-  | "capability_routed";
+  | "capability_routed"
+  // P5.1 adaptation lifecycle
+  | "adaptation_proposed"
+  | "adaptation_approved"
+  | "adaptation_rejected"
+  | "adaptation_applied"
+  | "adaptation_failed";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -83,6 +89,12 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "execution_commit_created",
   "agent_resolved",
   "capability_routed",
+  // P5.1 adaptation lifecycle
+  "adaptation_proposed",
+  "adaptation_approved",
+  "adaptation_rejected",
+  "adaptation_applied",
+  "adaptation_failed",
 ]);
 
 // ---------------------------------------------------------------------------
