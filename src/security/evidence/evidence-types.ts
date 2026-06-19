@@ -44,7 +44,13 @@ export type EvidenceType =
   | "merge_completed"
   | "workflow_blocked"
   | "workflow_unblocked"
-  | "workflow_aborted";
+  | "workflow_aborted"
+  // P4.5g execution events
+  | "execution_subtask_started"
+  | "execution_subtask_completed"
+  | "execution_test_passed"
+  | "execution_test_failed"
+  | "execution_commit_created";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -66,6 +72,12 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "workflow_blocked",
   "workflow_unblocked",
   "workflow_aborted",
+  // P4.5g execution events
+  "execution_subtask_started",
+  "execution_subtask_completed",
+  "execution_test_passed",
+  "execution_test_failed",
+  "execution_commit_created",
 ]);
 
 // ---------------------------------------------------------------------------
