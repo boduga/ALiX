@@ -1,7 +1,7 @@
 import type { GoalPlan, OutcomeNode } from "./goal-types.js";
 
 export class GoalDecomposer {
-  async decompose(goal: string): Promise<GoalPlan> {
+  decompose(goal: string): GoalPlan {
     const nodes = this.decomposeNodes(goal);
     const caps = this.extractCapabilities(goal, nodes);
     const risks = this.detectRisks(goal, caps);
