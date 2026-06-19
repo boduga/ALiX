@@ -20,8 +20,12 @@ import { homedir } from "node:os";
 export interface SkillStep {
   /** Step identifier (e.g. "intake", "plan") */
   step: string;
-  /** Agent card ID (e.g. "workflow.intake") */
-  agent: string;
+  /** Agent card ID — optional when capability+resolve is used */
+  agent?: string;
+  /** Capability to resolve at runtime (e.g. "workflow.planning") */
+  capability?: string;
+  /** If true, resolve capability via CardRegistry instead of hardcoded agent */
+  resolve?: boolean;
   /** Action the agent performs */
   action: string;
   /** Human gate before this step */
