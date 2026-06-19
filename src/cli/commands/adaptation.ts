@@ -20,7 +20,7 @@
  *   list [--status <status>]       List proposals (optionally filtered by status)
  *   show <id>                      Show full proposal details
  *   propose <report.json>          Convert a ReflectionReport into proposals
- *   approve <id> [--by <actor>]    Approve a pending proposal
+ *   approve <id1> [id2] ... [--by <actor>]  Approve one or more pending proposals
  *   reject <id> [--reason <text>]  Reject a pending proposal
  *   apply <id>                     Apply an approved proposal
  *
@@ -228,23 +228,42 @@ async function runPropose(
   }
 }
 
-/** `approve <id> [--by <actor>]` */
+/** `approve <id1> [id2] ... [--by <actor>]` */
 async function runApprove(gate: ApprovalGate, args: string[]): Promise<void> {
-  const id = args[0];
-  if (!id) {
-    console.error("Usage: alix adaptation approve <id> [--by <actor>]");
-    process.exit(1);
-  }
-
   const byIdx = args.indexOf("--by");
   const by = byIdx >= 0 ? args[byIdx + 1] : detectActor();
 
-  try {
-    const updated = await gate.approve(id, by);
-    console.log(`Approved: ${updated.id} by ${updated.approvedBy}`);
-  } catch (err) {
-    console.error(err instanceof Error ? err.message : String(err));
+  // Extract positional IDs: all args except --by and its value.
+  const ids = args.filter((_, i) => i !== byIdx && (byIdx < 0 || i !== byIdx + 1));
+
+  if (ids.length === 0) {
+    console.error("Usage: alix adaptation approve <id1> [id2] ... [--by <actor>]");
     process.exit(1);
+  }
+
+  // Fast path: single ID → gate.approve (unchanged behaviour).
+  if (ids.length === 1) {
+    try {
+      const updated = await gate.approve(ids[0], by);
+      console.log(`Approved: ${updated.id} by ${updated.approvedBy}`);
+    } catch (err) {
+      console.error(err instanceof Error ? err.message : String(err));
+      process.exit(1);
+    }
+    return;
+  }
+
+  // Batch path: two or more IDs → gate.approveBatch.
+  const result = await gate.approveBatch(ids, by);
+  const errorIds = new Set(result.errors.map((e) => e.id));
+
+  console.log(`Approved: ${result.approved}/${ids.length}`);
+  if (result.approved > 0) {
+    const approvedIds = ids.filter((id) => !errorIds.has(id));
+    console.log(`  Approved: ${approvedIds.join(", ")}`);
+  }
+  for (const e of result.errors) {
+    console.log(`  Skipped:  ${e.id} (${e.error})`);
   }
 }
 
@@ -461,7 +480,7 @@ function printUsage(toStderr: boolean): void {
     "  list [--status <status>]       List proposals (optionally filtered by status)",
     "  show <id>                      Show full proposal details",
     "  propose <report.json>          Convert a ReflectionReport into proposals",
-    "  approve <id> [--by <actor>]    Approve a pending proposal",
+    "  approve <id1> [id2] ... [--by <actor>]  Approve one or more pending proposals",
     "  reject <id> [--reason <text>]  Reject a pending proposal",
     "  apply <id>                     Apply an approved proposal",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",

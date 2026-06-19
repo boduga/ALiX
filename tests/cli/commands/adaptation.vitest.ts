@@ -357,6 +357,138 @@ describe("adaptation CLI", () => {
       exit.spy.mockRestore();
       c.restore();
     });
+
+    // batch approval (P5.2d.2)
+
+    it("routes multiple ids through gate.approveBatch", async () => {
+      const p1 = await seedProposal({ id: "prop-batch-1" });
+      const p2 = await seedProposal({ id: "prop-batch-2" });
+      const p3 = await seedProposal({ id: "prop-batch-3" });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      await handleAdaptationCommand(["approve", p1.id, p2.id, p3.id, "--by", "bob"]);
+      c.restore();
+
+      // Verify all 3 transitioned to approved by bob.
+      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      for (const p of [p1, p2, p3]) {
+        const reloaded = await store.load(p.id);
+        expect(reloaded!.status).toBe("approved");
+        expect(reloaded!.approvedBy).toBe("bob");
+      }
+
+      // Evidence recorded for all 3.
+      const { EvidenceStore } = await import("../../../src/security/evidence/evidence-store.js");
+      const evidence = new EvidenceStore({ storeDir: join(tempRoot, ".alix", "security") });
+      const approved = await evidence.query({ type: "adaptation_approved" });
+      expect(approved.total).toBe(3);
+
+      // Output contains batch summary.
+      const joined = c.out().join("\n");
+      expect(joined).toContain("Approved: 3/3");
+      expect(joined).toContain("prop-batch-1");
+      expect(joined).toContain("prop-batch-2");
+      expect(joined).toContain("prop-batch-3");
+    });
+
+    it("shows partial-failure summary when some ids in batch are not found", async () => {
+      const p1 = await seedProposal({ id: "prop-partial-1" });
+      // "prop-nonexistent" is not seeded.
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      await handleAdaptationCommand(["approve", p1.id, "prop-nonexistent", "--by", "carol"]);
+      c.restore();
+
+      // Valid proposal was still approved.
+      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const reloaded = await store.load(p1.id);
+      expect(reloaded!.status).toBe("approved");
+      expect(reloaded!.approvedBy).toBe("carol");
+
+      // Output shows 1/2 approved and skipped reason.
+      const joined = c.out().join("\n");
+      expect(joined).toContain("Approved: 1/2");
+      expect(joined).toContain("prop-partial-1");
+      expect(joined).toContain("prop-nonexistent");
+      expect(joined).toContain("not found");
+    });
+
+    it("batch: --by applies to all proposals", async () => {
+      const p1 = await seedProposal({ id: "prop-by-a" });
+      const p2 = await seedProposal({ id: "prop-by-b" });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      await handleAdaptationCommand(["approve", p1.id, p2.id, "--by", "dave"]);
+      c.restore();
+
+      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      for (const p of [p1, p2]) {
+        const reloaded = await store.load(p.id);
+        expect(reloaded!.status).toBe("approved");
+        expect(reloaded!.approvedBy).toBe("dave");
+      }
+    });
+
+    it("batch: detects actor from environment when --by is omitted", async () => {
+      const p1 = await seedProposal({ id: "prop-default-by" });
+      const p2 = await seedProposal({ id: "prop-default-by-2" });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      await handleAdaptationCommand(["approve", p1.id, p2.id]);
+      c.restore();
+
+      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      for (const p of [p1, p2]) {
+        const reloaded = await store.load(p.id);
+        expect(reloaded!.status).toBe("approved");
+        expect(reloaded!.approvedBy).toBeTruthy();
+      }
+
+      // Output shows 2/2 approved (not the error path).
+      const joined = c.out().join("\n");
+      expect(joined).toContain("Approved: 2/2");
+    });
+
+    it("batch: single id still uses fast path via gate.approve", async () => {
+      const p1 = await seedProposal({ id: "prop-single-batch" });
+
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      // Pass single id without --by to exercise detectActor default.
+      await handleAdaptationCommand(["approve", p1.id]);
+      c.restore();
+
+      const { ProposalStore } = await import("../../../src/adaptation/proposal-store.js");
+      const store = new ProposalStore(join(tempRoot, ".alix", "adaptation", "proposals"));
+      const reloaded = await store.load(p1.id);
+      expect(reloaded!.status).toBe("approved");
+      expect(reloaded!.approvedBy).toBeTruthy();
+
+      // Single ID uses the fast-path output format (no batch summary).
+      const joined = c.out().join("\n");
+      expect(joined).toContain(`Approved: ${p1.id}`);
+    });
+
+    it("errors with exit 1 and usage when no id is given", async () => {
+      const { handleAdaptationCommand } = await import("../../../src/cli/commands/adaptation.js");
+      const c = captureConsole();
+      const exit = mockExit();
+
+      await expect(handleAdaptationCommand(["approve"]))
+        .rejects.toThrow("process.exit(1)");
+      expect(c.err().join("\n").toLowerCase()).toContain("usage");
+
+      exit.spy.mockRestore();
+      c.restore();
+    });
   });
 
   // -------------------------------------------------------------------------
