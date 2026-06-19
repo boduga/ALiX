@@ -57,7 +57,14 @@ describe("AutomaticProposalGenerator — architectural boundary", () => {
 
   it("does not reference ApprovalGate by class name in any import", () => {
     const src = readImports();
-    const approvalGateClass = /^\s*import[\s\S]*?from\s+["'][^"']*ApprovalGate[^"']*["'];?/m;
+    // Match any import statement that mentions "ApprovalGate" anywhere —
+    // either as a named import, a default import, or as part of an aliased
+    // import (e.g. `import { ApprovalGate as Gate } from "./approval.js"`).
+    // The previous version only scanned the source path, which an aliased
+    // import path could bypass. This version scans the whole clause so the
+    // class name is detected regardless of how the module is renamed.
+    const approvalGateClass =
+      /(^\s*import\b[\s\S]*?ApprovalGate[\s\S]*?from\s+["'][^"']*["'];?)/m;
     expect(src).not.toMatch(approvalGateClass);
   });
 });
