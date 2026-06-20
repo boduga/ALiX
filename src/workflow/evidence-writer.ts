@@ -15,6 +15,14 @@
 import type { EvidenceRecord, EvidenceType } from "../security/evidence/evidence-types.js";
 import type { WorkflowState, AgentName } from "./types.js";
 
+/** Minimal logger interface for operator-visible warnings. */
+export interface Logger {
+  warn(message: string, meta?: Record<string, unknown>): void;
+}
+
+/** Default logger that writes to console.warn. */
+const DEFAULT_LOGGER: Logger = { warn: (m, meta) => console.warn(m, meta ?? "") };
+
 // ---------------------------------------------------------------------------
 // Event-specific payload types
 // ---------------------------------------------------------------------------
