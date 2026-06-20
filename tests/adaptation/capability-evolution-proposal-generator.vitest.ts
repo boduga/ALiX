@@ -55,7 +55,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
       kind: "issue",
       title: 'Investigate adding capability for "ml-training"',
     });
-    expect(result.proposals[0].sourceConfidence).toBe(0.9);
+    expect(result.proposals[0].sourceConfidence).toBe(0.90);
     expect(result.proposals[0].provenance).toBe("auto");
     expect(result.proposals[0].payload.dedupeKey).toBe(
       "capability-gap:ml-training",
@@ -121,7 +121,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
     expect(result.generated).toBe(1);
     expect(result.proposals[0].action).toBe("create_improvement_issue");
     expect(result.proposals[0].provenance).toBe("auto");
-    expect(result.proposals[0].sourceConfidence).toBe(0.7);
+    expect(result.proposals[0].sourceConfidence).toBe(0.75);
     expect(result.proposals[0].payload.findingType).toBe("overlap");
     // dedupeKey normalizes order: lexicographic sort of capability names
     expect(result.proposals[0].payload.dedupeKey).toBe(
@@ -216,7 +216,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
     expect(result.generated).toBe(1);
     expect(result.proposals[0].action).toBe("create_improvement_issue");
     expect(result.proposals[0].provenance).toBe("auto");
-    expect(result.proposals[0].sourceConfidence).toBe(0.8);
+    expect(result.proposals[0].sourceConfidence).toBe(0.85);
     expect(result.proposals[0].payload.findingType).toBe("declining");
     expect(result.proposals[0].payload.dedupeKey).toBe(
       "capability-health:declining:code-review",
@@ -286,7 +286,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
     expect(result.generated).toBe(1);
     expect(result.proposals[0].action).toBe("create_improvement_issue");
     expect(result.proposals[0].provenance).toBe("auto");
-    expect(result.proposals[0].sourceConfidence).toBe(0.75);
+    expect(result.proposals[0].sourceConfidence).toBe(0.80);
     expect(result.proposals[0].payload.findingType).toBe("drift");
     expect(result.proposals[0].payload.dedupeKey).toBe(
       "capability-drift:code-generation",
@@ -355,7 +355,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
     expect(result.generated).toBe(1);
     expect(result.proposals[0].action).toBe("create_improvement_issue");
     expect(result.proposals[0].provenance).toBe("auto");
-    expect(result.proposals[0].sourceConfidence).toBe(0.85);
+    expect(result.proposals[0].sourceConfidence).toBe(0.70);
     expect(result.proposals[0].payload.findingType).toBe("deprecated");
     expect(result.proposals[0].payload.dedupeKey).toBe(
       "capability-health:deprecated:legacy-foo",
@@ -397,7 +397,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
     expect(result.generated).toBe(1);
     expect(result.proposals[0].action).toBe("create_improvement_issue");
     expect(result.proposals[0].provenance).toBe("auto");
-    expect(result.proposals[0].sourceConfidence).toBe(0.85);
+    expect(result.proposals[0].sourceConfidence).toBe(0.65);
     expect(result.proposals[0].payload.findingType).toBe("stagnant");
     expect(result.proposals[0].payload.dedupeKey).toBe(
       "capability-health:stagnant:old-parser",

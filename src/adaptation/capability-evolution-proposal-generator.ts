@@ -52,18 +52,17 @@ export const DEFAULT_MAX_PROPOSALS_PER_RUN = 10;
  * P5.6 provenance: non-user facing base confidences per finding type.
  * These are the report's confidence in the finding — not proposal approval
  * confidence. Gaps have the highest base confidence because they come from
- * explicit demand-signal evidence. Deprecated/stagnant have higher
- * confidence because lifecycle classification is deterministic from the
- * metrics thresholds. Drift/overlap use soft metrics so confidence is
- * lower.
+ * explicit demand-signal evidence. Deprecated and stagnant are at the
+ * lowest tier because they represent passive lifecycle classifications.
+ * Drift/overlap use soft metrics so confidence is moderate.
  */
 export const FINDING_CONFIDENCE: Record<string, number> = {
-  gap: 0.9,
-  declining: 0.8,
-  drift: 0.75,
-  overlap: 0.7,
-  deprecated: 0.85,
-  stagnant: 0.85,
+  gap: 0.90,
+  declining: 0.85,
+  drift: 0.80,
+  overlap: 0.75,
+  deprecated: 0.70,
+  stagnant: 0.65,
 };
 
 // ---------------------------------------------------------------------------
@@ -182,7 +181,7 @@ export class CapabilityEvolutionProposalGenerator {
     // Deduplicate + top-N truncation
     const survivors: FindingCandidate[] = [];
     for (const c of candidates) {
-      if (dedupeKeys.has(c.dedupeKey)) {
+      if (this.#isDuplicate(c.dedupeKey, dedupeKeys)) {
         skipped.duplicate += 1;
         continue;
       }
@@ -417,5 +416,17 @@ export class CapabilityEvolutionProposalGenerator {
       reason: candidate.title,
       provenance: "auto",
     };
+  }
+
+  // -----------------------------------------------------------------------
+  // Deduplication
+  // -----------------------------------------------------------------------
+
+  /**
+   * Check whether a dedupeKey already exists among pending proposals.
+   * Extracted as a private method for testability and clarity.
+   */
+  #isDuplicate(dedupeKey: string, existing: Set<string>): boolean {
+    return existing.has(dedupeKey);
   }
 }
