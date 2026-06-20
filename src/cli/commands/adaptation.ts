@@ -716,12 +716,14 @@ async function runGenerate(
   }
 
   // --all-effectiveness
-  const reports = await effStore.list();
-  const result = await generator.generateFromAllEffectiveness(reports, {
-    minConfidence,
-  });
-  printGenerateSummary(result);
-  return;
+  if (allEffIdx >= 0) {
+    const reports = await effStore.list();
+    const result = await generator.generateFromAllEffectiveness(reports, {
+      minConfidence,
+    });
+    printGenerateSummary(result);
+    return;
+  }
 
   // --capability-evolution
   if (capabilityEvolutionIdx >= 0) {
