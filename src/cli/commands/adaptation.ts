@@ -30,7 +30,7 @@
  */
 
 import { join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
 import { RecommendationToProposal } from "../../adaptation/recommendation-to-proposal.js";
 import { ApprovalGate } from "../../adaptation/approval-gate.js";
@@ -62,6 +62,7 @@ import { CapabilityEvolutionProposalGenerator } from "../../adaptation/capabilit
 import type { CapabilityEvolutionGenerateOptions } from "../../adaptation/capability-evolution-proposal-generator.js";
 import { CapabilityEvolutionReporter } from "../../adaptation/capability-evolution-reporter.js";
 import type { CapabilityEvolutionReport } from "../../adaptation/capability-evolution-types.js";
+import { LineageBuilder } from "../../adaptation/lineage-builder.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (mirror the appliers' docstrings)
@@ -70,6 +71,7 @@ import type { CapabilityEvolutionReport } from "../../adaptation/capability-evol
 /** Append-only proposal JSON store (P5.1b). */
 const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 const EFFECTIVENESS_DIR = join(".alix", "adaptation", "effectiveness");
+const INTELLIGENCE_DIR = join(".alix", "adaptation", "intelligence");
 
 /** Evidence store directory relative to cwd (P4.4 convention). */
 const EVIDENCE_DIR = join(".alix", "security");
@@ -140,6 +142,9 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       return;
     case "capability-evolution":
       await runCapabilityEvolution(cwd, store, evidenceStore, rest);
+      return;
+    case "lineage":
+      await runLineage(cwd, store, evidenceStore, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -524,6 +529,84 @@ function detectActor(): string {
   return process.env.USER || process.env.USERNAME || "cli-user";
 }
 
+// ---------------------------------------------------------------------------
+// `lineage` (P5.7b)
+// ---------------------------------------------------------------------------
+
+/**
+ * `alix adaptation lineage <id> [--depth <n>] [--json] [--export <file>]`
+ *
+ * Builds and renders a LineageGraph for the given proposal. Shows the
+ * proposal's lifecycle as a tree in the terminal, or outputs JSON for
+ * machine consumption.
+ */
+async function runLineage(
+  cwd: string,
+  store: ProposalStore,
+  evidenceStore: EvidenceStore,
+  args: string[],
+): Promise<void> {
+  const id = args[0];
+  if (!id) {
+    console.error("Usage: alix adaptation lineage <id> [--depth <n>] [--json] [--export <file>]");
+    process.exit(1);
+  }
+
+  const depthIdx = args.indexOf("--depth");
+  const depth = depthIdx >= 0 ? parseInt(args[depthIdx + 1], 10) || 10 : 10;
+
+  const jsonMode = args.includes("--json");
+  const exportIdx = args.indexOf("--export");
+  const exportPath = exportIdx >= 0 ? args[exportIdx + 1] : undefined;
+
+  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const intelStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
+  const builder = new LineageBuilder(store, evidenceStore, effStore, intelStore);
+
+  const graph = await builder.build(id, depth);
+
+  if (jsonMode || exportPath) {
+    const json = JSON.stringify(graph, null, 2);
+    if (exportPath) {
+      writeFileSync(exportPath, json, "utf-8");
+      console.log(`Lineage graph exported to ${exportPath}`);
+      return;
+    }
+    console.log(json);
+    return;
+  }
+
+  // Terminal renderer
+  const rootNode = graph.nodes.find((n) => n.id === graph.rootId);
+  if (!rootNode) {
+    console.error(`Proposal not found: ${id}`);
+    process.exit(1);
+  }
+
+  console.log(`${rootNode.id} — ${rootNode.label}`);
+  for (const edge of graph.edges) {
+    const target = graph.nodes.find((n) => n.id === edge.targetId);
+    if (!target) continue;
+    const icon =
+      edge.relation === "approved_as" ? "├─ 👤" :
+      edge.relation === "applied_as" ? "├─ 🔧" :
+      edge.relation === "measured_as" ? "├─ 📊" :
+      edge.relation === "reverted_by" ? "├─ 🔄" :
+      edge.relation === "analyzed_in" ? "├─ 🧠" :
+      edge.relation === "prioritized_in" ? "├─ 📈" :
+      "├─ •";
+    console.log(`│  ${icon} ${target.label}`);
+  }
+
+  console.log(`\nCompleteness: ${graph.completeness}${graph.completeness === "partial" ? " — proposal has not completed all lifecycle stages" : ""}`);
+  if (graph.warnings.length > 0) {
+    console.log(`\n⚠️ Warnings (${graph.warnings.length}):`);
+    for (const w of graph.warnings) {
+      console.log(`  - ${w.message}`);
+    }
+  }
+}
+
 function printUsage(toStderr: boolean): void {
   const lines = [
     "Usage: alix adaptation <subcommand> [options]",
@@ -539,6 +622,7 @@ function printUsage(toStderr: boolean): void {
     "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
     "  prioritize [--top <n>] [--min-score <n>] [--json]  Rank pending proposals by expected value (read-only)",
     "  capability-evolution [--json] [--reflection-dir <dir>]  Report on capability health, gaps, overlap, and drift (read-only)",
+    "  lineage <id> [--depth <n>] [--json] [--export <file>]  Show proposal lifecycle lineage tree",
   ];
   for (const line of lines) {
     if (toStderr) console.error(line);
