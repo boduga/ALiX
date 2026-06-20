@@ -34,6 +34,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { assertSafePathComponent } from "../../security/path-assert.js";
 import type { AdaptationProposal, ProposalTarget } from "../adaptation-types.js";
 import type { SnapshotStore } from "../snapshot-store.js";
 import type { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
@@ -82,6 +83,7 @@ export class SkillApplier {
       );
     }
 
+    assertSafePathComponent(proposal.target.id);
     const skillId = skillIdFromTarget(proposal.target);
     const path = skillPath(this.skillsDir, skillId);
 

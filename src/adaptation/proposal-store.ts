@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from 
 import { join } from "node:path";
 import type { AdaptationProposal, ProposalStatus } from "./adaptation-types.js";
 import type { Logger } from "../workflow/evidence-writer.js";
+import { assertSafePathComponent } from "../security/path-assert.js";
 
 export class ProposalStore {
   constructor(
@@ -27,12 +28,14 @@ export class ProposalStore {
   }
 
   async save(proposal: AdaptationProposal): Promise<void> {
+    assertSafePathComponent(proposal.id);
     this.validateShape(proposal);
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true });
     writeFileSync(join(this.dir, `${proposal.id}.json`), JSON.stringify(proposal, null, 2), "utf-8");
   }
 
   async load(id: string): Promise<AdaptationProposal | null> {
+    assertSafePathComponent(id);
     const path = join(this.dir, `${id}.json`);
     if (!existsSync(path)) return null;
     return JSON.parse(readFileSync(path, "utf-8"));
@@ -63,6 +66,7 @@ export class ProposalStore {
   }
 
   async update(id: string, patch: Partial<AdaptationProposal>): Promise<AdaptationProposal> {
+    assertSafePathComponent(id);
     const existing = await this.load(id);
     if (!existing) throw new Error(`Proposal not found: ${id}`);
     const updated = { ...existing, ...patch, id }; // id is immutable

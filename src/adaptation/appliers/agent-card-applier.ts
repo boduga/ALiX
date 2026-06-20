@@ -23,6 +23,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
+import { assertSafePathComponent } from "../../security/path-assert.js";
 import { validateAgentCard, type AgentCard } from "../../registry/agent-card.js";
 import type { AdaptationProposal, ProposalTarget } from "../adaptation-types.js";
 import type { SnapshotStore } from "../snapshot-store.js";
@@ -96,6 +97,7 @@ export class AgentCardApplier {
       );
     }
 
+    assertSafePathComponent(proposal.target.id);
     const agentId = agentIdFromTarget(proposal.target);
     const path = cardPath(this.cardsDir, agentId);
 
