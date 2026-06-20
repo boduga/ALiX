@@ -1,5 +1,105 @@
 # Changelog
 
+## 2026-06-20 — v0.5.0 — Governed Adaptation Platform
+
+### Milestone
+
+ALiX has reached **Level 5: Governed Evolution**. The platform now supports a complete
+human-governed self-improvement loop, combining execution, reflection, adaptation,
+measurement, learning, prioritization, and capability evolution while maintaining strict
+approval boundaries around all system mutations.
+
+```
+Observe → Reflect → Propose → Prioritize → Approve → Apply
+→ Measure → Revert → Learn → Evolve
+```
+
+### Governance Invariants (architectural, verified across all P5 phases)
+
+```
+Generate ≠ Approve   → No auto-approval path exists
+Approve ≠ Apply      → No auto-apply path exists
+Apply ≠ Mutate       → No structural topology mutation without human gate
+Observe ≠ Revert     → Revert is a new proposal, never automatic
+Learn ≠ Evolve       → Intelligence informs but does not mutate
+```
+
+### Added — Reflection & Adaptation
+
+- **P5.0 Reflection engine**: Systematic reflection on agent execution outcomes
+- **P5.1 Guided Adaptation workflow**: `alix adaptation propose|approve|apply|reject`
+  — human-gated proposal lifecycle with evidence chain
+- **Automatic Proposal Generator (P5.2c)**: Generates pending proposals from
+  reflection and effectiveness data. Governance boundary: auto-generate ≠ auto-approve
+- **Batch approval (P5.2d)**: `alix adaptation approve <id1> <id2> ...` — approve
+  multiple pending proposals in one command with per-proposal evidence
+- **Executable revert (P5.2e)**: Snapshot-before-mutation, `RevertApplier`,
+  `alix adaptation revert <id>`. Full integrity verification via SHA-256 content hashing.
+  Revert is a new proposal that flows through the standard approve→apply lifecycle —
+  never automatic
+
+### Added — Effectiveness & Learning
+
+- **P5.2b Proposal Effectiveness**: Before/after windowed metrics with
+  keep/revert/investigate classification. Advisory-only — effectiveness informs but
+  does not auto-revert
+- **P5.3 Proposal Effectiveness Intelligence**: Cross-proposal learning from
+  adaptation history. Confidence calibration with empirical calibration curves.
+  Organizational memory that accumulates over time
+- **P5.4 Proposal Prioritization**: Strategic intelligence to decision influence.
+  Ranked proposal queues so humans see the most impactful proposals first
+
+### Added — Capability Evolution
+
+- **P5.5 Capability Evolution Intelligence**: Read-only health/gaps/overlap/drift
+  analysis of the capability topology. Four deterministic analyzers:
+  - **Health Analyzer**: Trend-aware lifecycle (emerging → active → mature → stagnant → declining → deprecated)
+  - **Gap Analyzer**: Demand-signal evidence for missing capabilities
+  - **Overlap Analyzer**: Jaccard-based capability overlap detection with consolidation candidates
+  - **Drift Analyzer**: Scope creep detection with magnitude scoring
+- **P5.6 Capability Evolution Proposal Generator**: Converts capability findings into
+  `create_improvement_issue` proposals only — no structural mutations. Type-based
+  confidence (0.65–0.90), structured dedupe keys, top-N queue protection, priority
+  tiering
+
+### Added — CLI Commands
+
+```text
+alix adaptation list [--status <s>]                        List adaptation proposals
+alix adaptation propose <type> [--reason <text>]           Propose an adaptation
+alix adaptation approve <id> [<id>...]                     Approve (batch) proposals
+alix adaptation reject <id> [--reason <text>]              Reject a proposal
+alix adaptation apply <id>                                 Apply an approved proposal
+alix adaptation revert <id> [--reason <text>]              Propose a revert
+alix adaptation generate [--reflection|--effectiveness|    Auto-generate proposals
+  --all-effectiveness|--capability-evolution]
+alix adaptation show <id>                                  Show proposal details
+alix adaptation status                                     Show pipeline health summary
+alix capability-evolution report [options]                 Generate capability evolution report
+```
+
+### Safety
+
+- All auto-generated proposals start as `pending` with `provenance: "auto"`
+- All mutation paths terminate at a human approval gate
+- Snapshot-before-mutation with SHA-256 integrity verification
+- Full evidence chain for every lifecycle event (propose → approve → apply → revert)
+- No auto-approve, no auto-apply, no auto-revert, no structural auto-mutation
+- `ApprovalGate` is the only mutation entry point — never importable by generators
+- Architectural sentinel tests prevent governance bypass
+
+### Tests
+
+- 759 tests passing across all suites (node:test + vitest)
+- Integration tests for full propose→approve→apply→measure→revert lifecycle
+- Dedicated governance invariant tests
+- Soak tests for store/load under load
+
+### Tagged
+
+- `v0.5.0` — Governed Adaptation Platform
+
+
 ## 2026-06-08 — M0.9 Governance/Demo Baseline
 
 ### Added

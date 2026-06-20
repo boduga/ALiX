@@ -34,7 +34,54 @@ alix run "explain the architecture of this project"
 
 ---
 
-## Quick Start
+## Governed Self-Improvement
+
+ALiX operates at **Maturity Level 5 — Governed Evolution**, supporting a complete
+human-gated self-improvement lifecycle:
+
+```
+Observe → Reflect → Propose → Prioritize → Approve → Apply
+→ Measure → Revert → Learn → Evolve
+```
+
+### Governance Guarantees
+
+Every system mutation follows these architectural invariants — verified by tests,
+enforced at the code level, never optional at runtime:
+
+| Invariant | What it means |
+|-----------|--------------|
+| **Generate ≠ Approve** | Auto-generated proposals always start `pending`. No auto-approval path exists |
+| **Approve ≠ Apply** | Approval only changes status to `approved`. A separate human action applies |
+| **Apply ≠ Mutate** | Capability topology changes require a separate human gate |
+| **Observe ≠ Revert** | Revert is a new proposal through the full lifecycle — never automatic |
+| **Learn ≠ Evolve** | Intelligence informs decisions but never mutates system state |
+
+### Adaptation Lifecycle
+
+```bash
+# Generate pending proposals from reflection, effectiveness, or capability analysis
+alix adaptation generate --reflection
+alix adaptation generate --capability-evolution
+
+# Review and approve
+alix adaptation list --status pending
+alix adaptation approve <proposal-id>
+
+# Apply approved changes
+alix adaptation apply <proposal-id>
+
+# Measure effectiveness (runs automatically after apply)
+alix adaptation status
+
+# Revert if needed — goes through full propose→approve→apply
+alix adaptation revert <proposal-id>
+```
+
+**Evidence chain:** Every lifecycle event (propose → approve → apply → revert) is
+recorded with full audit metadata, creating a complete provenance trail.
+
+---
 
 ### Requirements
 
@@ -101,6 +148,12 @@ alix serve
 | `alix config set-default-model` | Interactive provider + model selection |
 | `alix models doctor|fit|list-profiles|show-profile|apply-profile|install-profile` | Model profile management and diagnostics |
 | `alix session list|show` | Session management |
+| `alix adaptation list|show|status` | Adaptation proposal management |
+| `alix adaptation propose|approve|reject|apply` | Proposal lifecycle (human-gated) |
+| `alix adaptation revert <id>` | Propose a revert (goes through full approval) |
+| `alix adaptation generate --reflection` | Auto-generate proposals from reflection |
+| `alix adaptation generate --capability-evolution` | Auto-generate proposals from capability analysis |
+| `alix capability-evolution report` | Generate capability health/gap/overlap/drift report |
 
 ---
 
@@ -268,12 +321,27 @@ See `docs/configuration.md` for the full reference.
 ALiX is a layered Agent OS. See `docs/architecture/runtime-spine.md` for the full reference.
 
 ```
-Execution    → runTask(), GraphExecutor, daemon-server
-Governance   → CapabilityResolver, RuleEvaluator, RuntimeGate, ApprovalStore
-Observability→ RuntimeIndex, GraphProjection, Inspector UI
-Registry     → CardRegistry, AgentCard, ToolCard
-Workflow     → SOP packs (research, infra)
-Daemon       → DaemonManager, TaskRegistry, Unix socket server
+Execution       → runTask(), GraphExecutor, daemon-server
+Governance      → CapabilityResolver, RuleEvaluator, RuntimeGate, ApprovalStore
+Observability   → RuntimeIndex, GraphProjection, Inspector UI
+Registry        → CardRegistry, AgentCard, ToolCard
+Workflow        → SOP packs (research, infra)
+Daemon          → DaemonManager, TaskRegistry, Unix socket server
+Adaptation      → ReflectionEngine, ProposalStore, EvidenceStore, ApprovalGate
+  Intelligence  → ProposalEffectiveness, OrganizationalIntelligence, ProposalPrioritization
+  Evolution     → CapabilityEvolutionReporter, GapAnalyzer, OverlapAnalyzer,
+                  DriftAnalyzer, HealthAnalyzer, CapabilityEvolutionProposalGenerator
+```
+
+## Maturity Level
+
+```
+Level 1: Execute       ✅  Core agent loop, tool execution
+Level 2: Coordinate    ✅  Multi-agent, subagents, daemon
+Level 3: Reflect       ✅  P5.0 — Reflection engine
+Level 4: Learn         ✅  P5.3 — Effectiveness intelligence, organizational memory
+Level 5: Evolve        ✅  v0.5.0 — Governed self-improvement lifecycle
+Level 6: Autonomous    ⬜  Future
 ```
 
 ---
