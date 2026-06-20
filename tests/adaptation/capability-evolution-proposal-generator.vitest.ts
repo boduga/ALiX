@@ -650,46 +650,12 @@ describe("CapabilityEvolutionProposalGenerator", () => {
       store as any,
       writer as any,
     );
+    // Input findings in deliberately shuffled order to stress-test the sort
+    // comparator (stable sort would make ascending input order match expected
+    // output even if the comparator were broken).
     const report = makeMinimalReport({
-      gapAnalysis: [
-        {
-          suggestedCapability: "gap-1",
-          evidence: ["e"],
-          signalStrength: 2,
-          confidence: "low",
-        },
-      ],
+      // Stagnant (priority 5, lowest) — placed first in input
       healthAnalysis: [
-        {
-          capability: "decliner",
-          agentCount: 1,
-          resolutionCount: 10,
-          resolutionCountRecent: 2,
-          resolutionCountPrior: 8,
-          proposalCountRecent: 1,
-          proposalCountPrior: 4,
-          demandScore: 0.2,
-          keepRate: 0.4,
-          revertRate: 0.5,
-          proposalCount: 5,
-          lifecycleState: "declining",
-          rationale: "r",
-        },
-        {
-          capability: "deprecated-cap",
-          agentCount: 1,
-          resolutionCount: 3,
-          resolutionCountRecent: 0,
-          resolutionCountPrior: 3,
-          proposalCountRecent: 0,
-          proposalCountPrior: 2,
-          demandScore: 0,
-          keepRate: 0.3,
-          revertRate: 0.6,
-          proposalCount: 5,
-          lifecycleState: "deprecated",
-          rationale: "r",
-        },
         {
           capability: "stagnant-cap",
           agentCount: 2,
@@ -705,7 +671,49 @@ describe("CapabilityEvolutionProposalGenerator", () => {
           lifecycleState: "stagnant",
           rationale: "r",
         },
+        // Deprecated (priority 4)
+        {
+          capability: "deprecated-cap",
+          agentCount: 1,
+          resolutionCount: 3,
+          resolutionCountRecent: 0,
+          resolutionCountPrior: 3,
+          proposalCountRecent: 0,
+          proposalCountPrior: 2,
+          demandScore: 0,
+          keepRate: 0.3,
+          revertRate: 0.6,
+          proposalCount: 5,
+          lifecycleState: "deprecated",
+          rationale: "r",
+        },
+        // Declining (priority 1, second-highest)
+        {
+          capability: "decliner",
+          agentCount: 1,
+          resolutionCount: 10,
+          resolutionCountRecent: 2,
+          resolutionCountPrior: 8,
+          proposalCountRecent: 1,
+          proposalCountPrior: 4,
+          demandScore: 0.2,
+          keepRate: 0.4,
+          revertRate: 0.5,
+          proposalCount: 5,
+          lifecycleState: "declining",
+          rationale: "r",
+        },
       ],
+      // Gap (priority 0, highest) — placed in the middle of input
+      gapAnalysis: [
+        {
+          suggestedCapability: "gap-1",
+          evidence: ["e"],
+          signalStrength: 2,
+          confidence: "low",
+        },
+      ],
+      // Drift (priority 2)
       driftAnalysis: [
         {
           capability: "drifter",
@@ -715,6 +723,7 @@ describe("CapabilityEvolutionProposalGenerator", () => {
           splitCandidate: true,
         },
       ],
+      // Overlap (priority 3) — placed last in input
       overlapAnalysis: [
         {
           capabilityA: "a1",

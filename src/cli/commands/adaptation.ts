@@ -524,7 +524,7 @@ function printUsage(toStderr: boolean): void {
     "  apply <id>                     Apply an approved proposal",
     "  revert <id> [--reason <text>]  Create a revert proposal for an applied proposal (approve then apply to execute)",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
-    "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness | --capability-evolution [--report <path>]] [options]",
+    "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness | --capability-evolution [--report <path>]] [--min-confidence <n>] [options]",
     "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
     "  prioritize [--top <n>] [--min-score <n>] [--json]  Rank pending proposals by expected value (read-only)",
     "  capability-evolution [--json] [--reflection-dir <dir>]  Report on capability health, gaps, overlap, and drift (read-only)",
@@ -650,7 +650,8 @@ async function runGenerate(
     console.error(
       "Usage: alix adaptation generate " +
         "--reflection <path> | --effectiveness <id> | --all-effectiveness | --capability-evolution " +
-        "[--report <path>] [--min-gap-signal-strength <n>] [--min-drift-magnitude <n>] " +
+        "[--report <path>] [--min-confidence <n>] " +
+        "[--min-gap-signal-strength <n>] [--min-drift-magnitude <n>] " +
         "[--min-capability-usage <n>] [--max-proposals <n>]\n" +
         "Exactly one source flag is required. " +
         "This subcommand is generation-only: it does NOT approve or apply anything.",
@@ -763,13 +764,29 @@ async function runGenerate(
 
     const opts: CapabilityEvolutionGenerateOptions = {};
     const mgssIdx = args.indexOf("--min-gap-signal-strength");
-    if (mgssIdx >= 0) opts.minGapSignalStrength = Number(args[mgssIdx + 1]);
+    if (mgssIdx >= 0) {
+      const val = Number(args[mgssIdx + 1]);
+      if (Number.isNaN(val)) { console.error("Invalid --min-gap-signal-strength value"); process.exit(1); }
+      opts.minGapSignalStrength = val;
+    }
     const mdmIdx = args.indexOf("--min-drift-magnitude");
-    if (mdmIdx >= 0) opts.minDriftMagnitude = Number(args[mdmIdx + 1]);
+    if (mdmIdx >= 0) {
+      const val = Number(args[mdmIdx + 1]);
+      if (Number.isNaN(val)) { console.error("Invalid --min-drift-magnitude value"); process.exit(1); }
+      opts.minDriftMagnitude = val;
+    }
     const mcuIdx = args.indexOf("--min-capability-usage");
-    if (mcuIdx >= 0) opts.minCapabilityUsage = Number(args[mcuIdx + 1]);
+    if (mcuIdx >= 0) {
+      const val = Number(args[mcuIdx + 1]);
+      if (Number.isNaN(val)) { console.error("Invalid --min-capability-usage value"); process.exit(1); }
+      opts.minCapabilityUsage = val;
+    }
     const mpIdx = args.indexOf("--max-proposals");
-    if (mpIdx >= 0) opts.maxProposalsPerRun = Number(args[mpIdx + 1]);
+    if (mpIdx >= 0) {
+      const val = Number(args[mpIdx + 1]);
+      if (Number.isNaN(val)) { console.error("Invalid --max-proposals value"); process.exit(1); }
+      opts.maxProposalsPerRun = val;
+    }
 
     const capResult = await capGen.generateFromCapabilityEvolution(report, opts);
     printGenerateSummary(capResult);

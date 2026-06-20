@@ -15,7 +15,6 @@ import type { ProposalStore } from "./proposal-store.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 import type {
   CapabilityEvolutionReport,
-  CapabilityHealth,
 } from "./capability-evolution-types.js";
 import { nextProposalId } from "./recommendation-to-proposal.js";
 import type { GenerateResult } from "./auto-proposal-generator.js";
@@ -70,7 +69,6 @@ export const FINDING_CONFIDENCE: Record<string, number> = {
 // ---------------------------------------------------------------------------
 
 interface CapabilityEvolutionProposalPayload {
-  capabilityEvolutionGeneratedAt: string;
   findingType:
     | "gap"
     | "overlap"
@@ -190,6 +188,7 @@ export class CapabilityEvolutionProposalGenerator {
         continue;
       }
       survivors.push(c);
+      dedupeKeys.add(c.dedupeKey);
     }
 
     // Build proposals
@@ -390,7 +389,6 @@ export class CapabilityEvolutionProposalGenerator {
     report: CapabilityEvolutionReport,
   ): AdaptationProposal {
     const payload: CapabilityEvolutionProposalPayload = {
-      capabilityEvolutionGeneratedAt: report.generatedAt,
       findingType: candidate.findingType as CapabilityEvolutionProposalPayload["findingType"],
       findingDetail: candidate.detail,
       sourceReportTimestamp: report.generatedAt,
