@@ -25,6 +25,7 @@
  *   apply <id>                     Apply an approved proposal
  *   revert <id> [--reason <text>]  Create a revert proposal for an applied proposal
  *
+ *   intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]
  * @module
  */
 
@@ -47,6 +48,13 @@ import { EvidenceStore } from "../../security/evidence/evidence-store.js";
 import { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 import type { AdaptationProposal, ProposalStatus } from "../../adaptation/adaptation-types.js";
 import type { ReflectionReport } from "../../reflection/reflection-types.js";
+import { IntelligenceReporter } from "../../adaptation/intelligence-reporter.js";
+import { IntelligenceStore } from "../../adaptation/intelligence-store.js";
+import { ProposalLifecycleAnalyzer } from "../../adaptation/proposal-lifecycle-analyzer.js";
+import { EffectivenessTrendAnalyzer } from "../../adaptation/effectiveness-trend-analyzer.js";
+import { BucketAggregator } from "../../adaptation/bucket-aggregator.js";
+import { RevertSignalAnalyzer } from "../../adaptation/revert-signal-analyzer.js";
+import { ConfidenceCalibrationAnalyzer } from "../../adaptation/confidence-calibration-analyzer.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (mirror the appliers' docstrings)
@@ -113,6 +121,9 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       return;
     case "revert":
       await runRevert(cwd, store, writer, rest);
+      return;
+    case "intelligence":
+      await runIntelligence(cwd, store, evidenceStore, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -499,6 +510,7 @@ function printUsage(toStderr: boolean): void {
     "  reject <id> [--reason <text>]  Reject a pending proposal",
     "  apply <id>                     Apply an approved proposal",
     "  revert <id> [--reason <text>]  Create a revert proposal for an applied proposal (approve then apply to execute)",
+    "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
     "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
     "                               Auto-create pending proposals from reflection or effectiveness (no approve/apply)",
@@ -798,4 +810,172 @@ function printGenerateSummary(result: {
   const ids = result.proposals.map((p) => p.id).join(", ");
   console.log(`Generated: ${result.generated} proposal(s) [${ids}]`);
   console.log(`Skipped:   ${result.skipped}`);
+}
+
+// ---------------------------------------------------------------------------
+// `intelligence` (P5.3.9)
+// ---------------------------------------------------------------------------
+
+/**
+ * `alix adaptation intelligence [--since] [--until] [--min-bucket-size <n>]
+ *   [--min-confidence <n>] [--json]`
+ *
+ * Analyzes cross-proposal effectiveness trends across all completed proposals.
+ * Pure read + compute: no proposals created, no approvals, no mutations.
+ *
+ * Produces an IntelligenceReport with per-dimension buckets, revert signal
+ * analysis, and confidence calibration.  Persisted to
+ * `.alix/adaptation/intelligence/<generatedAt>.json` automatically.
+ */
+async function runIntelligence(
+  cwd: string,
+  proposalStore: ProposalStore,
+  evidenceStore: EvidenceStore,
+  args: string[],
+): Promise<void> {
+  // Parse flags
+  const sinceIdx = args.indexOf("--since");
+  const untilIdx = args.indexOf("--until");
+  const minBucketSizeIdx = args.indexOf("--min-bucket-size");
+  const minConfidenceIdx = args.indexOf("--min-confidence");
+  const jsonFlag = args.includes("--json");
+
+  const since = sinceIdx >= 0 ? args[sinceIdx + 1] : undefined;
+  const until = untilIdx >= 0 ? args[untilIdx + 1] : undefined;
+  const minBucketSize = minBucketSizeIdx >= 0 ? Number(args[minBucketSizeIdx + 1]) : undefined;
+  const minConfidence = minConfidenceIdx >= 0 ? Number(args[minConfidenceIdx + 1]) : undefined;
+
+  // Wire up components
+  const effectivenessStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const intelligenceStore = new IntelligenceStore(join(cwd, ".alix", "adaptation", "intelligence"));
+
+  const lifecycleAnalyzer = new ProposalLifecycleAnalyzer(proposalStore, effectivenessStore, evidenceStore);
+  const trendAnalyzer = new EffectivenessTrendAnalyzer();
+  const bucketAggregator = new BucketAggregator(trendAnalyzer);
+  const revertSignalAnalyzer = new RevertSignalAnalyzer();
+  const confidenceCalibrationAnalyzer = new ConfidenceCalibrationAnalyzer();
+
+  const reporter = new IntelligenceReporter(
+    lifecycleAnalyzer,
+    bucketAggregator,
+    revertSignalAnalyzer,
+    confidenceCalibrationAnalyzer,
+    intelligenceStore,
+  );
+
+  // Generate report
+  const report = await reporter.generateReport({
+    since,
+    until,
+    minBucketSize,
+    minConfidence,
+  });
+
+  // Output
+  if (jsonFlag) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // Human-readable output
+  printIntelligenceReport(report);
+}
+
+/** Print the IntelligenceReport as formatted terminal output. */
+function printIntelligenceReport(report: {
+  generatedAt: string;
+  totalProposalsAnalyzed: number;
+  dataWindow: { oldestProposalCreatedAt: string; newestProposalCreatedAt: string; oldestEffectivenessAssessedAt: string | null };
+  executiveSummary: string;
+  buckets: Record<string, { dimension: string; buckets: Array<{ value: string; totalProposals: number; insufficientData: boolean; keepRate?: number; keepCount?: number; advisoryRevertRate?: number; applyFailureRate?: number; actualRevertRate?: number; approvalRate?: number }> }>;
+  revertSignalAnalysis: { totalAdvisoryReverts: number; totalActualReverts: number; totalUnactedReverts: number; revertPrecision: number | null };
+  confidenceCalibration: { totalAssessed: number; confidenceOutcomeCorrelation: number | null; buckets: Array<{ range: string; totalProposals: number; insufficientData: boolean; keepRate?: number; advisoryRevertRate?: number }> };
+  topPerforming: Array<{ dimension: string; value: string; keepRate: number; total: number }>;
+  lowestPerforming: Array<{ dimension: string; value: string; keepRate: number; total: number }>;
+}): void {
+  // Header
+  console.log("\n=== Adaptation Intelligence Report ===");
+  console.log(`Generated: ${report.generatedAt}`);
+  console.log(`Proposals analyzed: ${report.totalProposalsAnalyzed}`);
+  console.log(`Data window: ${report.dataWindow.oldestProposalCreatedAt || "N/A"} — ${report.dataWindow.newestProposalCreatedAt || "N/A"}`);
+  console.log("");
+
+  // Executive summary
+  console.log("Executive Summary:");
+  console.log(report.executiveSummary);
+  console.log("");
+
+  // Per-dimension bucket tables
+  for (const [dimension, bucketSet] of Object.entries(report.buckets)) {
+    if (!bucketSet || !bucketSet.buckets || bucketSet.buckets.length === 0) continue;
+    console.log(`--- ${dimension} ---`);
+    const header = pad("Bucket", 35) + pad("Total", 6) + pad("Keep", 7) + pad("Rvrt(A)", 8) + pad("Rvrt(!)", 8) + pad("Failed", 7) + pad("Apprv", 6);
+    console.log(header);
+    for (const b of bucketSet.buckets) {
+      if (b.insufficientData) {
+        console.log(`  ${pad(b.value, 33)} ${pad(`${b.totalProposals}`, 6)} ⚠️  — insufficient data`);
+      } else {
+        const keepStr = b.keepRate !== undefined ? `${(b.keepRate * 100).toFixed(0)}%` : "—";
+        const revertAStr = b.advisoryRevertRate !== undefined ? `${(b.advisoryRevertRate * 100).toFixed(0)}%` : "—";
+        const revertIStr = b.actualRevertRate !== undefined ? `${(b.actualRevertRate * 100).toFixed(0)}%` : "—";
+        const failStr = b.applyFailureRate !== undefined ? `${(b.applyFailureRate * 100).toFixed(0)}%` : "—";
+        const approveStr = b.approvalRate !== undefined ? `${(b.approvalRate * 100).toFixed(0)}%` : "—";
+        console.log(
+          `  ${pad(b.value, 33)} ${pad(`${b.totalProposals}`, 6)}` +
+          `${pad(keepStr, 7)}${pad(revertAStr, 8)}${pad(revertIStr, 8)}${pad(failStr, 7)}${pad(approveStr, 6)}`,
+        );
+      }
+    }
+    console.log("");
+  }
+
+  // Revert signal
+  console.log("--- Revert Signal ---");
+  console.log(`  Advisory reverts:      ${report.revertSignalAnalysis.totalAdvisoryReverts}`);
+  console.log(`  Actual reverts:        ${report.revertSignalAnalysis.totalActualReverts}`);
+  console.log(`  Unacted reverts:       ${report.revertSignalAnalysis.totalUnactedReverts}`);
+  console.log(`  Revert precision:      ${report.revertSignalAnalysis.revertPrecision !== null ? (report.revertSignalAnalysis.revertPrecision * 100).toFixed(1) + "%" : "N/A"}`);
+  console.log("");
+
+  // Confidence calibration
+  console.log("--- Confidence Calibration ---");
+  console.log(`  Total assessed: ${report.confidenceCalibration.totalAssessed}`);
+  console.log(`  Confidence-outcome correlation: ${
+    report.confidenceCalibration.confidenceOutcomeCorrelation !== null
+      ? report.confidenceCalibration.confidenceOutcomeCorrelation.toFixed(3)
+      : "N/A (insufficient data)"
+  }`);
+  if (report.confidenceCalibration.buckets.length > 0) {
+    console.log(`  ${pad("Range", 12)} ${pad("Total", 6)} ${pad("Keep", 7)} ${pad("Rvrt(A)", 8)}`);
+    for (const cb of report.confidenceCalibration.buckets) {
+      if (cb.totalProposals === 0) continue;
+      const rangeStr = `${cb.range}`;
+      const keepStr = !cb.insufficientData && cb.keepRate !== undefined ? `${(cb.keepRate * 100).toFixed(0)}%` : "—";
+      const rvrtStr = !cb.insufficientData && cb.advisoryRevertRate !== undefined ? `${(cb.advisoryRevertRate * 100).toFixed(0)}%` : "—";
+      console.log(`  ${pad(rangeStr, 12)} ${pad(`${cb.totalProposals}`, 6)} ${pad(keepStr, 7)} ${pad(rvrtStr, 8)}${cb.insufficientData ? " ⚠️" : ""}`);
+    }
+  }
+  console.log("");
+
+  // Top / lowest
+  if (report.topPerforming.length > 0) {
+    console.log("--- Top Performing ---");
+    for (const t of report.topPerforming) {
+      console.log(`  ${t.dimension}/${t.value}: ${(t.keepRate * 100).toFixed(0)}% keep (${t.total} proposals)`);
+    }
+    console.log("");
+  }
+
+  if (report.lowestPerforming.length > 0) {
+    console.log("--- Lowest Performing ---");
+    for (const t of report.lowestPerforming) {
+      console.log(`  ${t.dimension}/${t.value}: ${(t.keepRate * 100).toFixed(0)}% keep (${t.total} proposals)`);
+    }
+    console.log("");
+  }
+}
+
+/** Right-pad a string to a minimum width. */
+function pad(s: string, width: number): string {
+  return s.padEnd(width);
 }
