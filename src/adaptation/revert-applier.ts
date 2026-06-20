@@ -19,7 +19,7 @@
 
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { SnapshotStore } from "./snapshot-store.js";
+import { SnapshotStore, AdaptationSnapshot } from "./snapshot-store.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 import type { AdaptationProposal } from "./adaptation-types.js";
 
@@ -74,8 +74,19 @@ export class RevertApplier {
     }
     const sourceProposalId = target.sourceProposalId;
 
-    // Load snapshot
-    const snapshot = await this.store.load(sourceProposalId);
+    // Load and verify snapshot (integrity guaranteed by loadVerified)
+    let snapshot: AdaptationSnapshot | null;
+    try {
+      snapshot = await this.store.loadVerified(sourceProposalId);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      await this.writer.recordRevertFailed(proposal.id, {
+        error: message,
+        snapshotFingerprint: undefined,
+      });
+      throw err;
+    }
+
     if (!snapshot) {
       await this.writer.recordRevertFailed(proposal.id, {
         error: `Snapshot not found for source proposal "${sourceProposalId}"`,
@@ -83,18 +94,6 @@ export class RevertApplier {
       });
       throw new Error(
         `RevertApplier: snapshot not found for source proposal "${sourceProposalId}"`,
-      );
-    }
-
-    // Verify snapshot integrity
-    const valid = await this.store.verify(snapshot);
-    if (!valid) {
-      await this.writer.recordRevertFailed(proposal.id, {
-        error: `Snapshot content hash mismatch for source proposal "${sourceProposalId}"`,
-        snapshotFingerprint: snapshot.fingerprint,
-      });
-      throw new Error(
-        `RevertApplier: snapshot hash mismatch for source proposal "${sourceProposalId}" — content may be corrupted`,
       );
     }
 
