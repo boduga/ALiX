@@ -1245,3 +1245,4 @@ function printCapabilityEvolutionReport(report: CapabilityEvolutionReport): void
   }
   console.log("");
 }
+
