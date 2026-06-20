@@ -7,7 +7,7 @@ import { mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { EvidenceStore } from "../../src/security/evidence/evidence-store.js";
-import { EvidenceEventWriter } from "../../src/workflow/evidence-writer.js";
+import { EvidenceEventWriter, type Logger } from "../../src/workflow/evidence-writer.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -283,6 +283,36 @@ describe("EvidenceEventWriter", () => {
       expect(r!.fingerprint).toBeTruthy();
       expect(r!.timestamp).toBeTruthy();
       expect(r!.version).toBe(1);
+    });
+  });
+
+  describe("logging", () => {
+    it("should log a warning when evidence append fails", async () => {
+      const failingAppend = async () => {
+        throw new Error("store unavailable");
+      };
+      const warnings: string[] = [];
+      const testLogger: Logger = {
+        warn(message: string) {
+          warnings.push(message);
+        },
+      };
+      const writer = new EvidenceEventWriter(
+        failingAppend as any,
+        testLogger,
+      );
+
+      const result = await writer.recordAdaptationProposed("prop-test", {
+        createdAt: new Date().toISOString(),
+        action: "create_improvement_issue",
+        target: { kind: "issue", title: "test" },
+        sourceRecommendationType: "test",
+        sourceConfidence: 1.0,
+      });
+
+      expect(result).toBeNull();
+      expect(warnings.length).toBeGreaterThan(0);
+      expect(warnings[0]).toContain("adaptation_proposed");
     });
   });
 });

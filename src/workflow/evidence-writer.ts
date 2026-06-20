@@ -100,6 +100,7 @@ export class EvidenceEventWriter {
       type: EvidenceType,
       payload: Record<string, unknown>,
     ) => Promise<EvidenceRecord>,
+    private readonly logger: Logger = DEFAULT_LOGGER,
   ) {}
 
   // -----------------------------------------------------------------------
@@ -504,7 +505,12 @@ export class EvidenceEventWriter {
     };
     try {
       return await this.append(type, enriched);
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `[EvidenceEventWriter] Failed to record ${type} evidence`,
+        { issueNumber, error: message },
+      );
       return null;
     }
   }
@@ -516,7 +522,12 @@ export class EvidenceEventWriter {
   ): Promise<EvidenceRecord | null> {
     try {
       return await this.append(type, payload);
-    } catch {
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `[EvidenceEventWriter] Failed to record ${type} evidence`,
+        { error: message },
+      );
       return null;
     }
   }
