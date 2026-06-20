@@ -58,6 +58,8 @@ import { BucketAggregator } from "../../adaptation/bucket-aggregator.js";
 import { RevertSignalAnalyzer } from "../../adaptation/revert-signal-analyzer.js";
 import { ConfidenceCalibrationAnalyzer } from "../../adaptation/confidence-calibration-analyzer.js";
 import { CapabilityEvolutionStore } from "../../adaptation/capability-evolution-store.js";
+import { CapabilityEvolutionProposalGenerator } from "../../adaptation/capability-evolution-proposal-generator.js";
+import type { CapabilityEvolutionGenerateOptions } from "../../adaptation/capability-evolution-proposal-generator.js";
 import { CapabilityEvolutionReporter } from "../../adaptation/capability-evolution-reporter.js";
 import type { CapabilityEvolutionReport } from "../../adaptation/capability-evolution-types.js";
 
@@ -522,7 +524,7 @@ function printUsage(toStderr: boolean): void {
     "  apply <id>                     Apply an approved proposal",
     "  revert <id> [--reason <text>]  Create a revert proposal for an applied proposal (approve then apply to execute)",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
-    "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
+    "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness | --capability-evolution [--report <path>]] [options]",
     "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
     "  prioritize [--top <n>] [--min-score <n>] [--json]  Rank pending proposals by expected value (read-only)",
     "  capability-evolution [--json] [--reflection-dir <dir>]  Report on capability health, gaps, overlap, and drift (read-only)",
@@ -635,18 +637,21 @@ async function runGenerate(
   const reflectionIdx = args.indexOf("--reflection");
   const effectivenessIdx = args.indexOf("--effectiveness");
   const allEffIdx = args.indexOf("--all-effectiveness");
+  const capabilityEvolutionIdx = args.indexOf("--capability-evolution");
 
   const sourceFlagsPresent = [
     reflectionIdx >= 0,
     effectivenessIdx >= 0,
     allEffIdx >= 0,
+    capabilityEvolutionIdx >= 0,
   ].filter(Boolean).length;
 
   if (sourceFlagsPresent !== 1) {
     console.error(
       "Usage: alix adaptation generate " +
-        "--reflection <path> | --effectiveness <id> | --all-effectiveness " +
-        "[--min-confidence <n>]\n" +
+        "--reflection <path> | --effectiveness <id> | --all-effectiveness | --capability-evolution " +
+        "[--report <path>] [--min-gap-signal-strength <n>] [--min-drift-magnitude <n>] " +
+        "[--min-capability-usage <n>] [--max-proposals <n>]\n" +
         "Exactly one source flag is required. " +
         "This subcommand is generation-only: it does NOT approve or apply anything.",
     );
@@ -716,6 +721,58 @@ async function runGenerate(
     minConfidence,
   });
   printGenerateSummary(result);
+  return;
+
+  // --capability-evolution
+  if (capabilityEvolutionIdx >= 0) {
+    const capabilityEvolutionStore = new CapabilityEvolutionStore(
+      join(cwd, ".alix", "adaptation", "capability-evolution"),
+    );
+    const capGen = new CapabilityEvolutionProposalGenerator(store, writer);
+
+    const reportIdx = args.indexOf("--report");
+    let report: CapabilityEvolutionReport;
+    if (reportIdx >= 0) {
+      const reportPath = args[reportIdx + 1];
+      if (!reportPath) {
+        console.error("Missing value for --report <path>");
+        process.exit(1);
+      }
+      if (!existsSync(reportPath)) {
+        console.error(`Report file not found: ${reportPath}`);
+        process.exit(1);
+      }
+      try {
+        report = JSON.parse(readFileSync(reportPath, "utf-8")) as CapabilityEvolutionReport;
+      } catch (err) {
+        console.error(`Failed to parse report: ${String(err)}`);
+        process.exit(1);
+      }
+    } else {
+      const latest = await capabilityEvolutionStore.loadLatest();
+      if (!latest) {
+        console.error(
+          "No CapabilityEvolutionReport found. Run 'alix adaptation capability-evolution' first, or pass --report <path>.",
+        );
+        process.exit(1);
+      }
+      report = latest as CapabilityEvolutionReport;
+    }
+
+    const opts: CapabilityEvolutionGenerateOptions = {};
+    const mgssIdx = args.indexOf("--min-gap-signal-strength");
+    if (mgssIdx >= 0) opts.minGapSignalStrength = Number(args[mgssIdx + 1]);
+    const mdmIdx = args.indexOf("--min-drift-magnitude");
+    if (mdmIdx >= 0) opts.minDriftMagnitude = Number(args[mdmIdx + 1]);
+    const mcuIdx = args.indexOf("--min-capability-usage");
+    if (mcuIdx >= 0) opts.minCapabilityUsage = Number(args[mcuIdx + 1]);
+    const mpIdx = args.indexOf("--max-proposals");
+    if (mpIdx >= 0) opts.maxProposalsPerRun = Number(args[mpIdx + 1]);
+
+    const capResult = await capGen.generateFromCapabilityEvolution(report, opts);
+    printGenerateSummary(capResult);
+    return;
+  }
 }
 
 // ---------------------------------------------------------------------------
