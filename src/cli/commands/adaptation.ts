@@ -51,6 +51,8 @@ import type { ReflectionReport } from "../../reflection/reflection-types.js";
 import { IntelligenceReporter } from "../../adaptation/intelligence-reporter.js";
 import { IntelligenceStore } from "../../adaptation/intelligence-store.js";
 import { ProposalLifecycleAnalyzer } from "../../adaptation/proposal-lifecycle-analyzer.js";
+import { ProposalScorer } from "../../adaptation/proposal-scorer.js";
+import { PriorityStore } from "../../adaptation/priority-store.js";
 import { EffectivenessTrendAnalyzer } from "../../adaptation/effectiveness-trend-analyzer.js";
 import { BucketAggregator } from "../../adaptation/bucket-aggregator.js";
 import { RevertSignalAnalyzer } from "../../adaptation/revert-signal-analyzer.js";
@@ -124,6 +126,9 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       return;
     case "intelligence":
       await runIntelligence(cwd, store, evidenceStore, rest);
+      return;
+    case "prioritize":
+      await runPrioritize(cwd, store, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -512,6 +517,8 @@ function printUsage(toStderr: boolean): void {
     "  revert <id> [--reason <text>]  Create a revert proposal for an applied proposal (approve then apply to execute)",
     "  effectiveness <id> [--all]     Assess an applied proposal (keep/revert/investigate)",
     "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
+    "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
+    "  prioritize [--top <n>] [--min-score <n>] [--json]  Rank pending proposals by expected value (read-only)",
   ];
   for (const line of lines) {
     if (toStderr) console.error(line);
@@ -976,4 +983,108 @@ function printIntelligenceReport(report: {
 /** Right-pad a string to a minimum width. */
 function pad(s: string, width: number): string {
   return s.padEnd(width);
+}
+
+// ---------------------------------------------------------------------------
+// `prioritize` (P5.4.3)
+// ---------------------------------------------------------------------------
+
+/**
+ * `alix adaptation prioritize [--top <n>] [--min-score <n>] [--json]`
+ *
+ * Ranks pending proposals by expected value using the P5.3 IntelligenceReport
+ * for historical success rates, confidence calibration, and revert risk.
+ *
+ * Pure read + compute: no proposals created, no approvals, no mutations.
+ *
+ * Persisted to `.alix/adaptation/priorities/<generatedAt>.json` automatically.
+ */
+async function runPrioritize(
+  cwd: string,
+  proposalStore: ProposalStore,
+  args: string[],
+): Promise<void> {
+  // Parse flags
+  const topIdx = args.indexOf("--top");
+  const minScoreIdx = args.indexOf("--min-score");
+  const jsonFlag = args.includes("--json");
+
+  const top = topIdx >= 0 ? Number(args[topIdx + 1]) : undefined;
+  const minScore = minScoreIdx >= 0 ? Number(args[minScoreIdx + 1]) : undefined;
+
+  // Wire up components
+  const intelligenceStore = new IntelligenceStore(join(cwd, ".alix", "adaptation", "intelligence"));
+  const priorityStore = new PriorityStore(join(cwd, ".alix", "adaptation", "priorities"));
+
+  const scorer = new ProposalScorer(proposalStore, intelligenceStore, priorityStore);
+
+  // Generate report
+  const report = await scorer.generateReport({ top, minScore });
+
+  // Output
+  if (jsonFlag) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // Human-readable output
+  printPriorityReport(report);
+}
+
+/** Print the ProposalPriorityReport as formatted terminal output. */
+function printPriorityReport(report: {
+  generatedAt: string;
+  scoringVersion: string;
+  totalPending: number;
+  totalScored: number;
+  totalLowConfidence: number;
+  executiveSummary: string;
+  ranked: Array<{
+    proposalId: string;
+    priorityScore: number;
+    confidence: string;
+    rationale: string;
+    proposal: { action: string; target: { kind: string }; createdAt: string };
+  }>;
+}): void {
+  console.log(`\n=== Proposal Priority Report ${report.scoringVersion} ===`);
+  console.log(`Generated: ${report.generatedAt}`);
+  console.log(`Pending: ${report.totalPending} | Scored: ${report.totalScored} | Low confidence: ${report.totalLowConfidence}`);
+  console.log("");
+
+  console.log("Executive Summary:");
+  console.log(report.executiveSummary);
+  console.log("");
+
+  if (report.ranked.length === 0) {
+    console.log("No pending proposals to prioritize.");
+    return;
+  }
+
+  // Table header
+  const header =
+    pad("Rank", 5) +
+    pad("Score", 7) +
+    pad("Conf", 7) +
+    pad("ID", 22) +
+    pad("Action", 28) +
+    pad("Target", 16) +
+    pad("Rationale", 50);
+  console.log(header);
+  console.log("-".repeat(header.length));
+
+  for (let i = 0; i < report.ranked.length; i++) {
+    const p = report.ranked[i];
+    const rank = (i + 1).toString();
+    const scoreStr = p.priorityScore.toFixed(2);
+    const confStr = p.confidence.padEnd(6);
+    const idStr = p.proposalId.slice(0, 20);
+    const actionStr = p.proposal.action.slice(0, 26);
+    const targetStr = p.proposal.target.kind.slice(0, 14);
+    const rationaleStr = p.rationale.slice(0, 48);
+    console.log(
+      `${pad(rank, 5)}${pad(scoreStr, 7)}${pad(confStr, 7)}${pad(idStr, 22)}${pad(actionStr, 28)}${pad(targetStr, 16)}${pad(rationaleStr, 50)}`,
+    );
+  }
+  console.log("");
 }
