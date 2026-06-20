@@ -20,6 +20,7 @@ import type { CapabilityEvolutionReport, LifecycleState } from "./capability-evo
 import type { AdaptationProposal } from "./adaptation-types.js";
 import type { IntelligenceReport } from "./intelligence-types.js";
 import type { EvidenceRecord } from "../security/evidence/evidence-types.js";
+import type { ReflectionReport } from "../reflection/reflection-types.js";
 
 // ---------------------------------------------------------------------------
 // Minimal agent card shape
@@ -40,8 +41,9 @@ export class CapabilityEvolutionReporter {
     private readonly cardsDir: string,
     private readonly intelligenceStore: { loadLatest(): Promise<IntelligenceReport | null> },
     private readonly proposalStore: { list(status?: string): Promise<AdaptationProposal[]> },
-    private readonly evidenceStore: { query(q: { type?: string }): Promise<{ records: EvidenceRecord[] }> },
+    private readonly evidenceStore: { query(q: { type?: string; limit?: number }): Promise<{ records: EvidenceRecord[] }> },
     private readonly store: CapabilityEvolutionStore,
+    private readonly reflectionDir?: string,
   ) {}
 
   async generateReport(): Promise<CapabilityEvolutionReport> {
@@ -53,14 +55,25 @@ export class CapabilityEvolutionReporter {
     // 2. Load IntelligenceReport (may be null)
     const intelligenceReport = await this.intelligenceStore.loadLatest();
 
-    // 3. Load proposals
-    const allProposals = await this.proposalStore.list();
+    // 3. Load applied proposals only — pending/rejected/failed proposals
+    //    would contaminate health metrics and pattern detection.
+    const allProposals = await this.proposalStore.list("applied");
 
-    // 4. Load evidence events
-    const [capabilityEvents, reflectionEvents] = await Promise.all([
-      this.evidenceStore.query({ type: "capability_routed" }),
-      this.evidenceStore.query({ type: "reflection_report" }),
+    // 4. Load evidence events (with explicit large limit to avoid silent truncation)
+    const [capabilityEvents, rawReflectionEvents] = await Promise.all([
+      this.evidenceStore.query({ type: "capability_routed", limit: 10000 }),
+      this.evidenceStore.query({ type: "reflection_report", limit: 10000 }) as Promise<{ records: EvidenceRecord[] }>,
     ]);
+
+    // 5a. Also load reflection report files from disk for richer gap detection
+    const reflectionFileEvents = this.#loadReflectionEvents();
+    const reflectionEvents: { payload: { recommendationType?: string; details?: string; capability?: string }; timestamp: string }[] = [
+      ...(rawReflectionEvents?.records ?? []).map((r) => ({
+        payload: r.payload as { recommendationType?: string; details?: string; capability?: string },
+        timestamp: r.timestamp,
+      })),
+      ...reflectionFileEvents,
+    ];
 
     // 5. Extract all unique registered capabilities from all agent cards
     const registeredCapabilities = [
@@ -80,9 +93,9 @@ export class CapabilityEvolutionReporter {
     const gapAnalyzer = new CapabilityGapAnalyzer();
     const gapAnalysis = gapAnalyzer.analyze({
       registeredCapabilities,
-      capabilityEvents: capabilityEvents.records as never,
+      capabilityEvents: (capabilityEvents.records ?? []) as never,
       proposals: allProposals,
-      reflectionEvents: reflectionEvents.records as never,
+      reflectionEvents,
     });
 
     // 8. Run overlap analyzer
@@ -91,7 +104,7 @@ export class CapabilityEvolutionReporter {
       registeredCapabilities,
       agentCards,
       proposals: allProposals,
-      capabilityEvents: capabilityEvents.records as never,
+      capabilityEvents: (capabilityEvents.records ?? []) as never,
     });
 
     // 9. Run drift analyzer
@@ -134,6 +147,66 @@ export class CapabilityEvolutionReporter {
   // -----------------------------------------------------------------------
   // Private helpers
   // -----------------------------------------------------------------------
+
+  /**
+   * Load reflection report files from the reflection directory and extract
+   * capability gap recommendations as reflection events.
+   *
+   * This enables the gap analyzer's Signal 3 (reflection gap mentions)
+   * from reflection report files on disk, complementing any reflection
+   * records that may exist in the evidence store.
+   *
+   * Recommendation titles from CapabilityAnalyzer follow known patterns:
+   *   `"${cap}" requested ${count} times with zero candidates`
+   *   `Address capability gap for "${cap}"`
+   * We extract the capability name from these patterns.
+   */
+  #loadReflectionEvents(): { payload: { recommendationType?: string; details?: string; capability?: string }; timestamp: string }[] {
+    if (!this.reflectionDir) return [];
+    try {
+      if (!existsSync(this.reflectionDir)) return [];
+      const files = readdirSync(this.reflectionDir).filter((f) => f.endsWith(".json"));
+      const events: { payload: { recommendationType?: string; details?: string; capability?: string }; timestamp: string }[] = [];
+
+      // Regex to extract a quoted capability name from recommendation titles
+      const capRegex = /"([^"]+)"/;
+
+      for (const file of files) {
+        try {
+          const raw = JSON.parse(readFileSync(join(this.reflectionDir, file), "utf-8"));
+          const report = raw as Partial<ReflectionReport>;
+          const timestamp = (raw as { generatedAt?: string }).generatedAt ?? new Date().toISOString();
+
+          // Extract capability_gap recommendations as reflection events
+          if (report.recommendations) {
+            for (const rec of report.recommendations) {
+              if (rec.type !== "capability_gap") continue;
+
+              // Extract capability name from title pattern:
+              // "Address capability gap for "cap"" or ""cap" requested..."
+              const match = rec.title.match(capRegex);
+              const capability = match ? match[1] : undefined;
+              if (!capability) continue;
+
+              events.push({
+                payload: {
+                  recommendationType: "capability_gap",
+                  capability,
+                  details: rec.evidence?.join("; ") ?? rec.recommendedAction,
+                },
+                timestamp,
+              });
+            }
+          }
+        } catch {
+          // Skip unparseable files — best-effort loading
+        }
+      }
+      return events;
+    } catch {
+      return [];
+    }
+  }
 
   /** Load all agent card JSON files from the cards directory. */
   #loadAgentCards(): AgentCardEntry[] {
@@ -179,6 +252,8 @@ export class CapabilityEvolutionReporter {
     const lines: string[] = [];
     const declining = health.filter((h) => h.lifecycleState === "declining").length;
     const emerging = health.filter((h) => h.lifecycleState === "emerging").length;
+    const stagnant = health.filter((h) => h.lifecycleState === "stagnant").length;
+    const deprecated = health.filter((h) => h.lifecycleState === "deprecated").length;
     const strongGaps = gaps.filter((g) => g.signalStrength >= 2).length;
     const consolidationCandidates = overlaps.filter((o) => o.consolidationCandidate).length;
     const splitCandidates = drifts.filter((d) => d.splitCandidate).length;
@@ -186,6 +261,8 @@ export class CapabilityEvolutionReporter {
     lines.push(`${total} capabilities registered across ${new Set(health.map((h) => h.capability)).size} capability names.`);
 
     if (declining > 0) lines.push(`${declining} in declining state — review recommended.`);
+    if (stagnant > 0) lines.push(`${stagnant} in stagnant state — idle, not trending down.`);
+    if (deprecated > 0) lines.push(`${deprecated} in deprecated state — no registered agents or usage.`);
     if (emerging > 0) lines.push(`${emerging} emerging capabilities with limited data.`);
 
     if (strongGaps > 0) lines.push(`${strongGaps} strong gap signal(s) detected — unresolved capability needs exist.`);

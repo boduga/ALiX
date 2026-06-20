@@ -74,6 +74,53 @@ describe("CapabilityEvolutionReporter", () => {
     expect(report.driftAnalysis).toEqual([]);
   });
 
+  it("loads reflection reports for gap detection", async () => {
+    const cardsDir = join(dir, "cards");
+    mkdirSync(cardsDir, { recursive: true });
+    writeFileSync(join(cardsDir, "a.json"), JSON.stringify({
+      id: "a", capabilities: ["existing.cap"], description: "Test",
+    }));
+
+    // Create a reflection report with a capability_gap recommendation
+    const reflectionDir = join(dir, "reflections");
+    mkdirSync(reflectionDir, { recursive: true });
+    writeFileSync(join(reflectionDir, "report-1.json"), JSON.stringify({
+      generatedAt: "2026-06-20T00:00:00.000Z",
+      recommendations: [
+        {
+          type: "capability_gap",
+          confidence: 0.8,
+          title: 'Address capability gap for "missing.cap"',
+          evidence: ['"missing.cap" requested 5 times with zero candidates'],
+          recommendedAction: "Register an agent for this capability",
+        },
+        {
+          type: "routing_adjustment",
+          confidence: 0.6,
+          title: "Adjust routing weights for code-review",
+          evidence: ["Routing efficiency below threshold"],
+          recommendedAction: "Rebalance weights",
+        },
+      ],
+    }));
+
+    const { CapabilityEvolutionReporter } = await import("../../src/adaptation/capability-evolution-reporter.js");
+    const reporter = new CapabilityEvolutionReporter(
+      cardsDir,
+      { loadLatest: async () => null },
+      { list: async () => [] },
+      { query: async () => ({ records: [] }) },
+      store,
+      reflectionDir, // pass the optional reflection directory
+    );
+    const report = await reporter.generateReport();
+    // Should detect "missing.cap" as a gap from the reflection report
+    const missingCapGap = report.gapAnalysis.find((g) => g.suggestedCapability === "missing.cap");
+    expect(missingCapGap).toBeDefined();
+    expect(missingCapGap!.signalStrength).toBeGreaterThanOrEqual(1);
+    expect(missingCapGap!.confidence).toBe("low"); // only 1 signal (reflection only)
+  });
+
   it("persists report to store", async () => {
     const cardsDir = join(dir, "cards");
     mkdirSync(cardsDir, { recursive: true });

@@ -296,13 +296,21 @@ export class CapabilityHealthAnalyzer {
 
     // ------------------------------------------------------------------
     // Compute raw demand (unresolved events + goal events)
+    //
+    // Note: Currently limited to available data sources.
+    //   - goalEvents: No "goal_decomposed" evidence type exists yet (P5.5 does
+    //     not record goal decomposition as evidence). Always 0 pending future
+    //     infrastructure.
+    //   - unresolvedCount: capability_routed events are only recorded AFTER
+    //     successful agent resolution (workflow-skill.ts:95-108). The
+    //     resolvedAgent field is always populated, so this filter is always
+    //     empty. A future phase should record unresolved routing attempts
+    //     as a separate evidence type.
     // ------------------------------------------------------------------
     const rawDemandByCap = new Map<string, number>();
     for (const cap of capabilities) {
       const goalCount = goalDemandByCap.get(cap) ?? 0;
-      const unresolvedCount = (eventsByCap.get(cap) ?? []).filter(
-        (e) => !e.payload.resolvedAgent,
-      ).length;
+      const unresolvedCount = 0; // See note above — no unresolved event source yet
       rawDemandByCap.set(cap, goalCount + unresolvedCount);
     }
 

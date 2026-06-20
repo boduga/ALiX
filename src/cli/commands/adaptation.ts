@@ -525,7 +525,7 @@ function printUsage(toStderr: boolean): void {
     "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
     "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
     "  prioritize [--top <n>] [--min-score <n>] [--json]  Rank pending proposals by expected value (read-only)",
-    "  capability-evolution [--json]  Report on capability health, gaps, overlap, and drift (read-only)",
+    "  capability-evolution [--json] [--reflection-dir <dir>]  Report on capability health, gaps, overlap, and drift (read-only)",
   ];
   for (const line of lines) {
     if (toStderr) console.error(line);
@@ -1101,13 +1101,18 @@ function printPriorityReport(report: {
 // ---------------------------------------------------------------------------
 
 /**
- * `alix adaptation capability-evolution [--json]`
+ * `alix adaptation capability-evolution [--json] [--reflection-dir <dir>]`
  *
  * Analyzes capability health, gaps, overlap, and drift across all registered
  * agents and their capabilities. Read-only analysis — no proposals, no mutations.
  *
  * Produces a CapabilityEvolutionReport persisted to
  * `.alix/adaptation/capability-evolution/<generatedAt>.json` automatically.
+ *
+ * Flags:
+ *   --json                   Output raw JSON report to stdout.
+ *   --reflection-dir <dir>   Directory containing reflection report JSON files
+ *                             for gap signal detection (optional).
  */
 async function runCapabilityEvolution(
   cwd: string,
@@ -1124,6 +1129,12 @@ async function runCapabilityEvolution(
     join(cwd, ".alix", "adaptation", "capability-evolution"),
   );
 
+  // Optional reflection directory for gap signal detection from reflection reports
+  const reflectionDirFlag = args.indexOf("--reflection-dir");
+  const reflectionDir = reflectionDirFlag >= 0
+    ? join(cwd, args[reflectionDirFlag + 1])
+    : undefined;
+
   // Build reporter with a query adapter for EvidenceStore type compatibility
   const reporter = new CapabilityEvolutionReporter(
     cardsDir,
@@ -1131,6 +1142,7 @@ async function runCapabilityEvolution(
     proposalStore,
     { query: (q) => evidenceStore.query(q as never) },
     capabilityEvolutionStore,
+    reflectionDir,
   );
 
   // Generate report
