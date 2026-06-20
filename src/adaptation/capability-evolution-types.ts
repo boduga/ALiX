@@ -115,6 +115,8 @@ export interface CapabilityDrift {
 export interface CapabilityEvolutionReport {
   generatedAt: string;
   /** Total registered capabilities across all agent cards. */
+  // P5.6 — CapabilityEvolutionProposalGenerator consumes this report
+  // to produce pending AdaptationProposals from actionable findings.
   totalCapabilities: number;
   /** Analyzed capability health entries. */
   healthAnalysis: CapabilityHealth[];
