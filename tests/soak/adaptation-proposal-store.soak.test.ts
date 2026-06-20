@@ -21,15 +21,16 @@ describe(`ProposalStore soak (${PROPOSAL_COUNT} proposals, level=${SOAK_LEVEL})`
   let dir: string;
   let store: ProposalStore;
   const latencies: number[] = [];
+  let memBefore: NodeJS.MemoryUsage;
 
   before(() => {
+    memBefore = process.memoryUsage();
     dir = mkdtempSync(join(tmpdir(), "proposal-soak-"));
     store = new ProposalStore(dir);
   });
 
   after(() => {
     rmSync(dir, { recursive: true, force: true });
-    const memBefore = process.memoryUsage();
     const sorted = [...latencies].sort((a, b) => a - b);
     const p50 = sorted[Math.floor(sorted.length * 0.5)];
     const p95 = sorted[Math.floor(sorted.length * 0.95)];

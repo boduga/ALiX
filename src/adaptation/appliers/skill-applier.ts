@@ -83,8 +83,8 @@ export class SkillApplier {
       );
     }
 
-    assertSafePathComponent(proposal.target.id);
     const skillId = skillIdFromTarget(proposal.target);
+    assertSafePathComponent(skillId);
     const path = skillPath(this.skillsDir, skillId);
 
     switch (proposal.action) {

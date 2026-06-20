@@ -95,7 +95,7 @@ export class LineageBuilder {
     // 4. Check for approval evidence (fingerprint-based, depth-limited)
     const approvalRecords = await this.evidenceStore.query({
       type: "adaptation_approved",
-      limit: effectiveDepth * 10,
+      limit: 10000,
     });
     const rootApprovals = approvalRecords.records.filter(
       (r) => r.payload?.proposalId === rootId,
@@ -115,7 +115,7 @@ export class LineageBuilder {
     // 5. Check for application evidence (depth-limited)
     const applyRecords = await this.evidenceStore.query({
       type: "adaptation_applied",
-      limit: effectiveDepth * 10,
+      limit: 10000,
     });
     const rootApplies = applyRecords.records.filter(
       (r) => r.payload?.proposalId === rootId,

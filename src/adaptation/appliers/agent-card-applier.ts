@@ -97,8 +97,8 @@ export class AgentCardApplier {
       );
     }
 
-    assertSafePathComponent(proposal.target.id);
     const agentId = agentIdFromTarget(proposal.target);
+    assertSafePathComponent(agentId);
     const path = cardPath(this.cardsDir, agentId);
 
     switch (proposal.action) {
