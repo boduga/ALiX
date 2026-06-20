@@ -38,7 +38,7 @@
 - Test: `tests/adaptation/capability-evolution-proposal-generator.vitest.ts`
 
 **Interfaces:**
-- Consumes: `CapabilityEvolutionReport` (from `capability-evolution-types.ts`), `ProposalStore`, `EvidenceEventWriter`, `GenerateResult` + `GenerateOptions` (from `auto-proposal-generator.ts`)
+- Consumes: `CapabilityEvolutionReport` (from `capability-evolution-types.ts`), `ProposalStore`, `EvidenceEventWriter`, `GenerateResult` (from `auto-proposal-generator.ts`)
 - Produces: `CapabilityEvolutionProposalGenerator` class with `generateFromCapabilityEvolution(report, opts)` method returning `GenerateResult`
 
 #### Types
@@ -67,7 +67,7 @@ import type { ProposalStore } from "./proposal-store.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
 import type { CapabilityEvolutionReport } from "./capability-evolution-types.js";
 import { nextProposalId } from "./recommendation-to-proposal.js";
-import type { GenerateResult, GenerateOptions } from "./auto-proposal-generator.js";
+import type { GenerateResult } from "./auto-proposal-generator.js";
 ```
 
 #### CapabilityEvolutionGenerateOptions
@@ -98,6 +98,16 @@ const FINDING_CONFIDENCE: Record<string, number> = {
 };
 ```
 
+#### Overlap dedupe key helper
+
+```ts
+/** Build a normalized dedupeKey for a capability pair (sorted lexicographically). */
+function buildOverlapKey(a: string, b: string): string {
+  const [first, second] = a < b ? [a, b] : [b, a];
+  return `capability-overlap:${first}:${second}`;
+}
+```
+
 #### Finding → candidate collection
 
 The method builds a flat array of `FindingCandidate` objects:
@@ -120,7 +130,7 @@ Collection logic:
 1. **gapAnalysis**: for each entry where `signalStrength >= opts.minGapSignalStrength` → push with priority=0, sortKey=`signalStrength`, dedupeKey=`capability-gap:<suggestedCapability>`, title=`Investigate adding capability for "<suggestedCapability>"`
 2. **healthAnalysis declining**: for each where `lifecycleState === "declining"` AND `resolutionCount >= opts.minCapabilityUsage` → priority=1, sortKey=`revertRate ?? 0`, dedupeKey=`capability-health:declining:<capability>`
 3. **driftAnalysis**: for each where `splitCandidate === true` AND `driftMagnitude >= opts.minDriftMagnitude` → priority=2, sortKey=`driftMagnitude`, dedupeKey=`capability-drift:<capability>`
-4. **overlapAnalysis**: for each where `consolidationCandidate === true` → priority=3, sortKey=`overlapScore`, dedupeKey=`capability-overlap:<capabilityA>:<capabilityB>` (A < B sorted)
+4. **overlapAnalysis**: for each where `consolidationCandidate === true` → priority=3, sortKey=`overlapScore`, dedupeKey=`buildOverlapKey(a, b)` using a dedicated helper that sorts A < B lexicographically to prevent duplicate keys like `capability-overlap:ml:vision` vs `capability-overlap:vision:ml`
 5. **healthAnalysis deprecated**: for each where `lifecycleState === "deprecated"` → priority=4, sortKey=`-resolutionCount` (lowest first), dedupeKey=`capability-health:deprecated:<capability>`
 6. **healthAnalysis stagnant**: for each where `lifecycleState === "stagnant"` AND `resolutionCount >= opts.minCapabilityUsage` → priority=5, sortKey=`-resolutionCountRecent` (least recent first), dedupeKey=`capability-health:stagnant:<capability>`
 
@@ -164,9 +174,23 @@ For each proposal: `await this.store.save(proposal)` then `await this.writer.rec
 
 If evidence recording fails, catch and log but don't abort — the proposal is already saved.
 
-#### Returns
+#### Returns + skipped tracking
 
-`{ generated: N, skipped: M, proposals: [...] }` via `GenerateResult`.
+Returns `{ generated: N, skipped: M, proposals: [...] }` via `GenerateResult`.
+
+Internally, track skipped reasons for telemetry:
+
+```ts
+interface SkippedDetail {
+  duplicate: number;
+  belowThreshold: number;
+  capped: number;
+}
+```
+
+The `GenerateResult` interface only has `skipped: number`, so store detailed counts in an internal field. The CLI prints the aggregate `Generated: N / Skipped: M` only. Detailed breakdown is available for future P5.7/P6 analytics by exposing via the generator or logging.
+
+During candidate collection, increment `belowThreshold` for findings that fail threshold checks. During deduplication, increment `duplicate` for already-pending proposals. After top-N truncation, set `capped` to the count of candidates dropped by the limit.
 
 #### Steps
 
@@ -202,11 +226,15 @@ describe("CapabilityEvolutionProposalGenerator", () => {
     });
     const result = await gen.generateFromCapabilityEvolution(report);
     expect(result.generated).toBe(1);
+    // Assert on deterministic fields only — proposal IDs evolve over time
     expect(result.proposals[0].action).toBe("create_improvement_issue");
     expect(result.proposals[0].target).toEqual({ kind: "issue", title: 'Investigate adding capability for "ml-training"' });
     expect(result.proposals[0].sourceConfidence).toBe(0.90);
     expect(result.proposals[0].provenance).toBe("auto");
     expect(result.proposals[0].payload.dedupeKey).toBe("capability-gap:ml-training");
+    expect(result.proposals[0].payload.findingType).toBe("gap");
+    expect(result.proposals[0].payload.sourceReportTimestamp).toBe("2026-06-20T12:00:00.000Z");
+    // Do NOT assert on proposal.id — nextProposalId() uses a date+counter that shifts over time
   });
 });
 ```
