@@ -90,16 +90,16 @@ interface CapabilityEvolutionGenerateOptions {
 
 ### Finding → proposal mapping
 
-All findings map to `action: "create_improvement_issue"`. No other action type is used.
+All findings map to `action: "create_improvement_issue"`. No other action type is used. Each finding type has a deterministic `sourceConfidence`:
 
-| Finding source | Condition | Title pattern | Priority signal |
-|---|---|---|---|
-| `gapAnalysis[]` | `signalStrength >= minGapSignalStrength` | `Investigate adding capability for "<suggestedCapability>"` | Multi-signal convergence (strongest) |
-| `overlapAnalysis[]` | `consolidationCandidate == true` | `Investigate consolidating "<capabilityA>" and "<capabilityB>"` | overlapScore |
-| `healthAnalysis[]` | `lifecycleState === "deprecated"` | `Investigate removing deprecated capability "<capability>"` | resolutionCount (lowest = most urgent) |
-| `healthAnalysis[]` | `lifecycleState === "stagnant"` AND `resolutionCount >= minCapabilityUsage` | `Investigate refreshing stagnant capability "<capability>"` | days since last resolution (oldest = most urgent) |
-| `healthAnalysis[]` | `lifecycleState === "declining"` AND `resolutionCount >= minCapabilityUsage` | `Investigate declining capability "<capability>"` | revertRate (highest = most urgent) |
-| `driftAnalysis[]` | `splitCandidate == true` AND `driftMagnitude >= minDriftMagnitude` | `Investigate splitting capability "<capability>"` | driftMagnitude (largest = most urgent) |
+| Finding source | Condition | Title pattern | sourceConfidence | Priority signal |
+|---|---|---|---|---|
+| `gapAnalysis[]` | `signalStrength >= minGapSignalStrength` | `Investigate adding capability for "<suggestedCapability>"` | 0.90 | Multi-signal convergence (strongest) |
+| `healthAnalysis[]` | `lifecycleState === "declining"` AND `resolutionCount >= minCapabilityUsage` | `Investigate declining capability "<capability>"` | 0.85 | revertRate (highest = most urgent) |
+| `driftAnalysis[]` | `splitCandidate == true` AND `driftMagnitude >= minDriftMagnitude` | `Investigate splitting capability "<capability>"` | 0.80 | driftMagnitude (largest = most urgent) |
+| `overlapAnalysis[]` | `consolidationCandidate == true` | `Investigate consolidating "<capabilityA>" and "<capabilityB>"` | 0.75 | overlapScore |
+| `healthAnalysis[]` | `lifecycleState === "deprecated"` | `Investigate removing deprecated capability "<capability>"` | 0.70 | resolutionCount (lowest = most urgent) |
+| `healthAnalysis[]` | `lifecycleState === "stagnant"` AND `resolutionCount >= minCapabilityUsage` | `Investigate refreshing stagnant capability "<capability>"` | 0.65 | days since last resolution (oldest = most urgent) |
 
 ### Proposal payload
 
@@ -115,8 +115,20 @@ Each proposal carries a structured payload so the reviewer has context:
   lifecycleState?: string;                 // for health findings
   driftMagnitude?: number;                 // for drift findings
   sourceReportTimestamp: string;           // when the report was generated
+  dedupeKey: string;                       // deterministic key for deduplication
 }
 ```
+
+The `dedupeKey` follows this scheme:
+
+| Finding type | dedupeKey format |
+|---|---|
+| gap | `capability-gap:<suggestedCapability>` |
+| overlap | `capability-overlap:<capabilityA>:<capabilityB>` (sorted A < B) |
+| deprecated | `capability-health:deprecated:<capability>` |
+| stagnant | `capability-health:stagnant:<capability>` |
+| declining | `capability-health:declining:<capability>` |
+| drift | `capability-drift:<capability>` |
 
 ### Priority ordering (top-N)
 
@@ -135,9 +147,9 @@ Within each tier, sort by the priority signal column in the mapping table above 
 
 Before generating, check if there is already a **pending** proposal with:
 - `action === "create_improvement_issue"`
-- `target.title` matching the proposed title (exact match)
+- `payload.dedupeKey` matching the proposed key (exact match)
 
-If found, skip generation and count as skipped. This prevents re-generating the same investigation issue across multiple runs.
+The structured `dedupeKey` is more reliable than title matching — it is invariant across report runs and not affected by human-readable wording changes. If a matching pending proposal exists, skip generation and count as skipped.
 
 ## CLI integration
 
@@ -175,13 +187,16 @@ await this.writer.recordAdaptationProposed(proposal.id, {
   action: "create_improvement_issue",
   target: proposal.target,
   sourceRecommendationType: "capability_evolution_proposal",
-  sourceConfidence: 1, // deterministic — derived from signal thresholds
+  sourceConfidence: proposal.sourceConfidence, // per finding-type (0.65-0.90)
   provenance: "auto",
-  payload: proposal.payload,
+  payload: {
+    ...proposal.payload,
+    sourceReportTimestamp: proposal.payload.sourceReportTimestamp, // included for audit traceability
+  },
 });
 ```
 
-No new evidence types are needed.
+The `sourceReportTimestamp` in the evidence payload enables future audits to answer "which CapabilityEvolutionReport produced this proposal?" without opening the proposal body. No new evidence types are needed.
 
 ## Error handling
 
