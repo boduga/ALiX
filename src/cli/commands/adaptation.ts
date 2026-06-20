@@ -57,6 +57,9 @@ import { EffectivenessTrendAnalyzer } from "../../adaptation/effectiveness-trend
 import { BucketAggregator } from "../../adaptation/bucket-aggregator.js";
 import { RevertSignalAnalyzer } from "../../adaptation/revert-signal-analyzer.js";
 import { ConfidenceCalibrationAnalyzer } from "../../adaptation/confidence-calibration-analyzer.js";
+import { CapabilityEvolutionStore } from "../../adaptation/capability-evolution-store.js";
+import { CapabilityEvolutionReporter } from "../../adaptation/capability-evolution-reporter.js";
+import type { CapabilityEvolutionReport } from "../../adaptation/capability-evolution-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (mirror the appliers' docstrings)
@@ -129,6 +132,9 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       return;
     case "prioritize":
       await runPrioritize(cwd, store, rest);
+      return;
+    case "capability-evolution":
+      await runCapabilityEvolution(cwd, store, evidenceStore, rest);
       return;
     default:
       console.error(`Unknown adaptation subcommand: "${subcommand}"`);
@@ -519,6 +525,7 @@ function printUsage(toStderr: boolean): void {
     "  generate [--reflection <path> | --effectiveness <id> | --all-effectiveness] [--min-confidence <n>]",
     "  intelligence [--since] [--until] [--min-bucket-size <n>] [--min-confidence <n>] [--json]  Analyze cross-proposal effectiveness trends (read-only)",
     "  prioritize [--top <n>] [--min-score <n>] [--json]  Rank pending proposals by expected value (read-only)",
+    "  capability-evolution [--json] [--reflection-dir <dir>]  Report on capability health, gaps, overlap, and drift (read-only)",
   ];
   for (const line of lines) {
     if (toStderr) console.error(line);
@@ -1088,3 +1095,154 @@ function printPriorityReport(report: {
   }
   console.log("");
 }
+
+// ---------------------------------------------------------------------------
+// `capability-evolution` (P5.5.6)
+// ---------------------------------------------------------------------------
+
+/**
+ * `alix adaptation capability-evolution [--json] [--reflection-dir <dir>]`
+ *
+ * Analyzes capability health, gaps, overlap, and drift across all registered
+ * agents and their capabilities. Read-only analysis — no proposals, no mutations.
+ *
+ * Produces a CapabilityEvolutionReport persisted to
+ * `.alix/adaptation/capability-evolution/<generatedAt>.json` automatically.
+ *
+ * Flags:
+ *   --json                   Output raw JSON report to stdout.
+ *   --reflection-dir <dir>   Directory containing reflection report JSON files
+ *                             for gap signal detection (optional).
+ */
+async function runCapabilityEvolution(
+  cwd: string,
+  proposalStore: ProposalStore,
+  evidenceStore: EvidenceStore,
+  args: string[],
+): Promise<void> {
+  const jsonFlag = args.includes("--json");
+
+  // Wire up stores
+  const cardsDir = join(cwd, CARDS_DIR);
+  const intelligenceStore = new IntelligenceStore(join(cwd, ".alix", "adaptation", "intelligence"));
+  const capabilityEvolutionStore = new CapabilityEvolutionStore(
+    join(cwd, ".alix", "adaptation", "capability-evolution"),
+  );
+
+  // Optional reflection directory for gap signal detection from reflection reports
+  const reflectionDirFlag = args.indexOf("--reflection-dir");
+  const reflectionDir = reflectionDirFlag >= 0
+    ? join(cwd, args[reflectionDirFlag + 1])
+    : undefined;
+
+  // Build reporter with a query adapter for EvidenceStore type compatibility
+  const reporter = new CapabilityEvolutionReporter(
+    cardsDir,
+    intelligenceStore,
+    proposalStore,
+    { query: (q) => evidenceStore.query(q as never) },
+    capabilityEvolutionStore,
+    reflectionDir,
+  );
+
+  // Generate report
+  const report = await reporter.generateReport();
+
+  // Output
+  if (jsonFlag) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // Human-readable output
+  printCapabilityEvolutionReport(report);
+}
+
+/** Print CapabilityEvolutionReport as formatted terminal output. */
+function printCapabilityEvolutionReport(report: CapabilityEvolutionReport): void {
+  const pad = (s: string, len: number) => s.padEnd(len);
+
+  // Header
+  console.log("Capability Evolution Report");
+  console.log(`Generated: ${report.generatedAt}`);
+  console.log(`Total capabilities: ${report.totalCapabilities}`);
+  console.log("");
+
+  // Executive summary
+  console.log("--- Executive Summary ---");
+  console.log(report.executiveSummary);
+  console.log("");
+
+  // Lifecycle distribution
+  console.log("--- Lifecycle Distribution ---");
+  for (const [state, count] of Object.entries(report.lifecycleDistribution)) {
+    if (count > 0) {
+      console.log(`  ${pad(state, 12)} ${count}`);
+    }
+  }
+  console.log("");
+
+  // Health analysis
+  console.log("--- Capability Health ---");
+  if (report.healthAnalysis.length === 0) {
+    console.log("  (none)");
+  } else {
+    console.log(
+      `${pad("Capability", 28)} ${pad("State", 12)} ${pad("Agents", 7)} ${pad("Resolutions", 12)} ${pad("Proposals", 10)} ${pad("Demand", 7)} ${pad("Keep", 7)} ${pad("Revert", 7)}`,
+    );
+    console.log("-".repeat(90));
+    for (const h of report.healthAnalysis) {
+      const keepStr = h.keepRate !== null ? (h.keepRate * 100).toFixed(0) + "%" : "—";
+      const revertStr = h.revertRate !== null ? (h.revertRate * 100).toFixed(0) + "%" : "—";
+      console.log(
+        `${pad(h.capability.slice(0, 26), 28)} ${pad(h.lifecycleState, 12)} ${pad(String(h.agentCount), 7)} ${pad(String(h.resolutionCount), 12)} ${pad(String(h.proposalCount), 10)} ${pad(h.demandScore.toFixed(2), 7)} ${pad(keepStr, 7)} ${pad(revertStr, 7)}`,
+      );
+    }
+  }
+  console.log("");
+
+  // Gap analysis
+  console.log("--- Capability Gaps ---");
+  if (report.gapAnalysis.length === 0) {
+    console.log("  (none)");
+  } else {
+    for (const g of report.gapAnalysis) {
+      console.log(`  ${g.suggestedCapability} (strength: ${g.signalStrength}, confidence: ${g.confidence})`);
+      for (const e of g.evidence) {
+        console.log(`    - ${e}`);
+      }
+    }
+  }
+  console.log("");
+
+  // Overlap analysis
+  console.log("--- Capability Overlap ---");
+  if (report.overlapAnalysis.length === 0) {
+    console.log("  (none)");
+  } else {
+    console.log(`${pad("A", 26)} ${pad("B", 26)} ${pad("Score", 7)} ${pad("Asym", 7)} ${pad("Cover A→B", 10)} ${pad("Cover B→A", 10)} ${pad("Consolidate?", 13)}`);
+    console.log("-".repeat(100));
+    for (const o of report.overlapAnalysis) {
+      console.log(
+        `${pad(o.capabilityA.slice(0, 24), 26)} ${pad(o.capabilityB.slice(0, 24), 26)} ${pad(o.overlapScore.toFixed(3), 7)} ${pad(o.asymmetry.toFixed(3), 7)} ${pad(o.coverageAtoB.toFixed(3), 10)} ${pad(o.coverageBtoA.toFixed(3), 10)} ${pad(o.consolidationCandidate ? "YES" : "no", 13)}`,
+      );
+    }
+  }
+  console.log("");
+
+  // Drift analysis
+  console.log("--- Capability Drift ---");
+  if (report.driftAnalysis.length === 0) {
+    console.log("  (none)");
+  } else {
+    console.log(`${pad("Capability", 28)} ${pad("Drift", 7)} ${pad("Split?", 8)}`);
+    console.log("-".repeat(43));
+    for (const d of report.driftAnalysis) {
+      console.log(
+        `${pad(d.capability.slice(0, 26), 28)} ${pad(d.driftMagnitude.toFixed(3), 7)} ${pad(d.splitCandidate ? "YES" : "no", 8)}`,
+      );
+    }
+  }
+  console.log("");
+}
+
