@@ -257,10 +257,25 @@ async function handleVerify(_parsed: ParsedArgs, store: EvidenceStore): Promise<
     return;
   }
 
-  console.error(`❌ Evidence store verification FAILED: ${result.failed.length} of ${result.total} record(s) have invalid fingerprints.`);
+  console.error(`❌ Evidence store verification FAILED:`);
+  console.error(`   Total records checked: ${result.total}`);
+  console.error(`   Invalid fingerprints:  ${result.failed.length}`);
+
+  let malformedCount = 0;
   for (const rec of result.failed) {
-    console.error(`  - ${rec.fingerprint || "(malformed)"} (${rec.type}, ${rec.timestamp})`);
+    if (!rec.fingerprint) {
+      malformedCount++;
+      continue;
+    }
+    console.error(`   - ${rec.fingerprint} (${rec.type}, ${rec.timestamp})`);
   }
+
+  if (malformedCount > 0) {
+    console.error(`\n   ⚠️  ${malformedCount} malformed record(s) with no fingerprint detected.`);
+    console.error(`   These may indicate corruption or an interrupted write.`);
+    console.error(`   Run \`alix evidence compact\` to archive old records and surface remaining issues.`);
+  }
+
   process.exit(1);
 }
 
