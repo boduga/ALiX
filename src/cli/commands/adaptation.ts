@@ -80,6 +80,9 @@ const CARDS_DIR = join(".alix", "cards", "agents");
 /** Skill definitions directory (P5.1f). */
 const SKILLS_DIR = join(".alix", "skills", "workflow");
 
+/** Snapshots directory (P5.2e). */
+const SNAPSHOTS_DIR = join(".alix", "adaptation", "snapshots");
+
 // ---------------------------------------------------------------------------
 // Command handler
 // ---------------------------------------------------------------------------
@@ -378,18 +381,26 @@ async function runApply(
  * genuinely unexpected target kinds — the gate never runs for them, so no
  * mutation occurs.
  */
-function selectApplier(cwd: string, proposal: AdaptationProposal, writer: EvidenceEventWriter): Applier {
+function selectApplier(
+  cwd: string,
+  proposal: AdaptationProposal,
+  writer: EvidenceEventWriter,
+): Applier {
+  const cardsDir = join(cwd, CARDS_DIR);
+  const skillsDir = join(cwd, SKILLS_DIR);
+  const snapshotsDir = join(cwd, SNAPSHOTS_DIR);
+  const snapshotStore = new SnapshotStore(snapshotsDir);
+
   switch (proposal.target.kind) {
     case "agent_card": {
-      const applier = new AgentCardApplier(join(cwd, CARDS_DIR));
+      const applier = new AgentCardApplier(cardsDir, snapshotStore, writer);
       return (p) => applier.apply(p);
     }
     case "skill": {
-      const applier = new SkillApplier(join(cwd, SKILLS_DIR));
+      const applier = new SkillApplier(skillsDir, snapshotStore, writer);
       return (p) => applier.apply(p);
     }
     case "revert": {
-      const snapshotsDir = join(cwd, ".alix", "adaptation", "snapshots");
       const revertApplier = new RevertApplier(snapshotsDir, writer);
       return (p) => revertApplier.apply(p);
     }
