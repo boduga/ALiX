@@ -52,6 +52,12 @@ export class RevertApplier {
    * (the gate catching the throw) appear in the evidence chain.
    */
   async apply(proposal: AdaptationProposal): Promise<void> {
+    if (proposal.status !== "approved") {
+      throw new Error(
+        `RevertApplier: proposal status is "${proposal.status}", expected "approved"`,
+      );
+    }
+
     // Guard: only revert_proposal actions
     if (proposal.action !== "revert_proposal") {
       throw new Error(
