@@ -50,6 +50,8 @@ A new file `tests/adaptation/governance-sentinels.vitest.ts` verifies architectu
 
 Walk every code path from CLI command → handler → gate → applier and produce a documented map.
 
+**Audit artifact:** `docs/governance/mutation-path-audit.md` — a machine-readable (and human-readable) document that catalogs every mutation path, its governance checks, the CLI command that triggers it, the applier that executes it, and the stores it touches. This artifact is the canonical reference consumed by `governance-model.md`, `operational-runbook.md`, and future security reviews. Without it, the audit knowledge remains trapped in tests.
+
 **Known gaps to fix:**
 
 1. **SnapshotStore / EvidenceEventWriter not wired in `selectApplier`** — `AgentCardApplier` and `SkillApplier` are instantiated without `snapshotStore` or `writer`, making snapshotting a silent no-op when invoked through the CLI. Fix: wire both through `selectApplier`.
@@ -135,6 +137,8 @@ interface LineageEdge {
 
 interface LineageGraph {
   rootId: string;
+  generatedAt: string;    // ISO 8601 — when this graph was built. Critical for
+                          // interpreting lineage relative to evidence compaction.
   completeness: LineageCompleteness;
   nodes: LineageNode[];
   edges: LineageEdge[];
@@ -247,7 +251,7 @@ Design for the evidence verify command:
 
 | Issue | Severity | Fix |
 |-------|----------|-----|
-| Path traversal possible through `target.id` in all appliers and stores | High | Add `assertSafePathComponent(input: string): void` — validates no `..`, `/`, `\`, `\0`, empty string, or absolute paths |
+| Path traversal possible through `target.id` in all appliers and stores | High | Add `assertSafePathComponent(input: string): void` — validates no `..`, `/`, `\`, `\0`, empty string, absolute paths, Windows drive prefixes (`C:`, `D:`), or reserved names (`CON`, `NUL`, `PRN`, `AUX`) |
 
 Design decision: `assertSafePathComponent` rejects rather than sanitizing. Sanitizers that rewrite (`../foo` → `foo`) can cause collisions. For governance/security, fail closed.
 
@@ -326,6 +330,17 @@ Each scenario reports:
 - **rss before/after** — process memory
 - **store file size** — disk footprint
 
+### Historical Benchmark Snapshots
+
+Benchmark outputs are committed under `docs/operations/benchmarks/` with a date-based filename:
+
+```
+docs/operations/benchmarks/2026-06-21-bench.md
+docs/operations/benchmarks/2026-08-10-bench.md
+```
+
+Each snapshot records the full measurement output (p50, p95, max, throughput, memory, disk) at a known commit. This provides longitudinal visibility — without historical snapshots, a statement like "P6 made `verify()` 3x slower" is unprovable.
+
 ### Deliverable
 
 A `docs/operations/adaptation-scaling.md` document with:
@@ -348,6 +363,26 @@ A `docs/operations/adaptation-scaling.md` document with:
 ## P5.7e — Documentation Freeze
 
 **Core question:** Does ALiX have enough structured documentation that an operator, auditor, or new contributor can understand the governance model without reading source code?
+
+### Documentation Navigation Map
+
+`docs/README.md` provides a top-level entry point organized by audience:
+
+```markdown
+# ALiX Documentation
+
+## Where to start
+
+| You are...              | Start here |
+|-------------------------|------------|
+| Operator                | operational-runbook.md |
+| Contributor             | governance-infrastructure.md |
+| Auditor                 | governance-model.md |
+| Integrator              | adaptation-lifecycle.md |
+| Architect               | decision-records.md |
+```
+
+This dramatically reduces onboarding friction by directing each audience to the document they need first.
 
 ### Documents
 
