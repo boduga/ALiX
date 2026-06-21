@@ -59,8 +59,8 @@ export interface RiskItem {
   score: number;
   /** Confidence in this score (0-1). */
   confidence: number;
-  /** Human-readable justification. */
-  reason: string;
+  /** Human-readable justifications. Matches DecisionArtifact.reasons pattern. */
+  reasons: string[];
 }
 
 export interface RiskScore extends DecisionArtifact {
@@ -72,6 +72,9 @@ export interface RiskScore extends DecisionArtifact {
 
   /** Convenience accessor — per-dimension scores. */
   dimensions: Record<RiskDimension, number>;
+
+  /** Provenance — preserves chain from DecisionContext. */
+  sourceArtifacts: SourceArtifact[];
 }
 ```
 
@@ -83,7 +86,7 @@ export interface RiskScore extends DecisionArtifact {
 | `operational` | Could application fail? | Proposal status is "failed", similar proposals have high failure rate, effectiveness trend is negative |
 | `capability` | Has this action historically performed poorly? | Effectiveness keepRate for this action type, revertRate, similar proposal outcomes |
 | `revertability` | Can this be safely reverted? | Snapshot exists, action is mutating (vs create_improvement_issue), lineage completeness |
-| `evidence_quality` | Is evidence sufficient to justify confidence? | Evidence fingerprint count, confidence from DecisionContext, dataFreshness age range |
+| `evidence_quality` | How complete and current is the evidence base? | Evidence fingerprint count, dataFreshness age range, lineage completeness — NOT inverted confidence. Risk and uncertainty are separate dimensions: evidenceQuality measures the evidence base itself, riskConfidence expresses uncertainty in the scores. |
 
 ## Scoring Methodology
 
@@ -91,7 +94,19 @@ Deterministic, no ML, no prediction.
 
 ### Computation
 
-Each dimension is scored independently based on available evidence:
+Each dimension is scored independently based on available evidence. All scoring functions are **pure, deterministic, and side-effect free** — they receive a `DecisionContext` and return a number. This makes them independently testable and future-safe across all P6.x layers.
+
+The builder orchestrates:
+
+```typescript
+interface RiskScoreBuilder {
+  build(ctx: DecisionContext): RiskScore;
+}
+```
+
+It never reads from stores directly — it receives its data through DecisionContext, preserving the read boundary.
+
+Scoring functions:
 
 ```typescript
 function scoreGovernance(ctx: DecisionContext): number {
@@ -149,8 +164,19 @@ function scoreRevertability(ctx: DecisionContext): number {
 }
 
 function scoreEvidenceQuality(ctx: DecisionContext): number {
-  // Invert DecisionContext confidence — high confidence = low evidence risk
-  return Math.round((1 - ctx.confidence) * 100) / 100;
+  // Evidence quality measures the evidence base itself, not inverted confidence.
+  // Risk and uncertainty are separate dimensions that should not be conflated.
+  let score = 0;
+  // No evidence fingerprints → poor evidence quality
+  if (ctx.evidenceRefs.length === 0) score += 0.4;
+  // Old data artifacts reduce evidence quality
+  if (ctx.dataFreshness.oldestArtifactAgeDays > 30) score += 0.2;
+  // Broken lineage = incomplete evidence trail
+  if (ctx.lineageCompleteness === "broken") score += 0.3;
+  else if (ctx.lineageCompleteness === "partial") score += 0.15;
+  // Stale context is an evidence quality concern
+  if (ctx.contextStatus === "stale_context") score += 0.3;
+  return Math.min(score, 1);
 }
 ```
 
@@ -240,6 +266,7 @@ Add a new P6 sentinel suite `tests/adaptation/risk-score-sentinels.vitest.ts`:
 2. **No Recommendation types** — RiskScoreBuilder must not import `Recommendation` types (would indicate analytical drift)
 3. **No Queue types** — RiskScoreBuilder must not import queue/prioritization types
 4. **No write methods** — RiskScoreBuilder must not call `.save()`, `.update()`, `.approve()`, `.apply()`
+5. **No recommendation language** — RiskScoreBuilder must not contain the words `approve`, `reject`, `defer`, or `investigate` as action-oriented terms. These belong to Recommendation (P6.2). A grep-based sentinel enforces: `expect(source).not.toContain("approve")` etc. Only the RiskScore outcome labels (`"low"`, `"medium"`, `"high"`, `"critical"`) are permitted.
 
 ## Determinism Assertion
 
