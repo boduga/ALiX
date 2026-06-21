@@ -2,7 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add GovernanceReviewCouncil types, deterministic aggregation, Queue integration, and governance sentinels — the foundation layer. Actual LLM lens execution is deferred to P6.5b.
+**Goal:** Add GovernanceReviewCouncil types, deterministic aggregation, Queue integration, and governance sentinels — the foundation layer (P6.5a). Actual LLM lens execution is deferred to P6.5b.
+
+> **P6.5a vs P6.5b:** P6.5a ships types, LensAgent interface, prompt templates, deterministic aggregation, queue sort integration, and sentinels. No LLM calls. CLI `review` subcommand stubs as "unavailable." P6.5b (future) adds real LLM lens execution, `alix decision review` meaningful output, and `--with-reviews` queue flag.
 
 **Architecture:** Interface-first — `LensAgent` interface and prompt templates as specification. `GovernanceReviewCouncil` aggregates scores deterministically (plurality vote, severity-based tiebreaker, confidence computation). Queue gains reviewSeverity as a quaternary sort modifier. No LLM calls, no persisted reviews in this layer. All existing P6 invariants preserved.
 

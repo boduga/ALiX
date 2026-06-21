@@ -1,6 +1,9 @@
 # P6.5 — LLM-Supervised Governance Review Council
 
 > **Status:** Spec
+> **Software delivery:** Split into P6.5a (foundation) and P6.5b (LLM execution).
+> **P6.5a ships:** Types, LensAgent interface, prompt templates, deterministic aggregation, queue sort integration, sentinels. No LLM calls. Stub CLI.
+> **P6.5b deferred:** Real LLM lens execution, `alix decision review <id>` meaningful output, `--with-reviews` queue flag.
 > **Slice:** P6.5 Governance Review Council (layer 3.5 of 5 in the P6 Decision Influence framework)
 > **Builds on:** P6.1 ApprovalRecommendation, P6.2 OperatorQueue
 > **Risk level:** MEDIUM — LLM critique adds non-deterministic signal, but the review is advisory and never mutates state
@@ -10,7 +13,7 @@
 
 **Core question:** What might the deterministic governance layer be missing?
 
-P6 (Context → Risk → Recommendation → Queue → Brief) is fully deterministic. Deterministic systems are excellent at consistency but systematically weak at: novel situations, emerging patterns, hidden assumptions, incomplete evidence, and rule blind spots. P6.5 adds an LLM-powered governance review layer that critiques each recommendation from four independent lenses — without ever making a decision.
+P6 (Context → Risk → Recommendation → Queue → Brief) is fully deterministic. Deterministic systems are excellent at consistency but systematically weak at: novel situations, emerging patterns, hidden assumptions, incomplete evidence, and rule blind spots. P6.5 adds a governance review layer (P6.5a: deterministic aggregation framework; P6.5b: LLM-powered lens execution) that critiques each recommendation from four independent lenses — without ever making a decision.
 
 **This is not P7.** P6.5 improves governance *quality*. P7 (future) improves governance *accuracy over time through learning*. Different goals.
 
@@ -25,7 +28,7 @@ RiskScore        ← P6.0b (deterministic)
      ↓
 Recommendation   ← P6.1  (deterministic)
      ↓
-GovernanceReviewCouncil  ← P6.5  (LLM-augmented critique)
+GovernanceReviewCouncil  ← P6.5  (P6.5a: deterministic framework; P6.5b: LLM-augmented lenses)
      ↓
 OperatorQueue    ← P6.2  (deterministic sort, receives review signal)
      ↓
@@ -332,6 +335,9 @@ Concerns from all lenses are merged, deduplicated by similarity (exact match on 
 
 ## Queue Integration
 
+> **P6.5a:** Queue types and sort logic are updated to include `reviewSeverity` as a quaternary field. Defaults to 0 (no sort impact) when no review data is available. The sort change is live in P6.5a — it's a valid tier even before lenses exist.
+> **P6.5b:** `--with-reviews` queue flag populates review data for live sort impact. Without it, reviewSeverity is always 0.
+
 ### Current sort order (P6.2)
 
 1. RiskScore.overallRisk descending (primary)
@@ -360,7 +366,7 @@ const GOVERNANCE_REVIEW_SEVERITY: Record<GovernanceVerdict, number> = {
 };
 ```
 
-**The review only boosts queue position; it never demotes.** If no review is available, severity = 0 (no impact). The existing P6.2 sort is unchanged for unreviewed proposals.
+**Review severity is a late tiebreaker, not a priority override.** If no review is available, severity = 0 (no impact). The existing P6.2 sort is unchanged for unreviewed proposals.
 
 ### QueueItem changes
 
@@ -391,6 +397,9 @@ export interface QueueInput {
 
 ## CLI
 
+> **P6.5a:** `alix decision review <id>` is a stub — prints "review: unavailable (P6.5a foundation — real lens agents deferred to P6.5b)". No `--with-reviews` or `--lens` flags.
+> **P6.5b:** Full CLI integration as described below.
+
 ### Review command
 
 ```bash
@@ -411,7 +420,7 @@ alix decision queue --limit 5 --with-reviews # Combined
 
 **Cost warning:** `--with-reviews` runs 4 LLM calls per pending proposal. For a queue of 20 proposals, that's 80 LLM calls. Use with `--limit` to control cost.
 
-### Terminal output (review)
+### Terminal output (review) — P6.5b
 
 ```
 Governance Review: prop-2026-06-21-042
@@ -432,7 +441,7 @@ Blind spots (1):
 Confidence in review: 0.72
 ```
 
-### Terminal output (queue with reviews)
+### Terminal output (queue with reviews) — P6.5b
 
 ```
 Operator Queue: 5 pending proposal(s)
@@ -520,40 +529,46 @@ Tests verify the GovernanceReviewCouncil aggregation logic is deterministic:
 
 ## File Structure
 
+**P6.5a only — foundation layer.** All files listed below are created/modified in P6.5a. Items with `(P6.5b)` are deferred.
+
 ```
 Create:
   src/adaptation/governance-review-types.ts    — GovernanceReview, LensScore, CouncilVote, GovernanceVerdict
   src/adaptation/governance-review-council.ts   — GovernanceReviewCouncil class (aggregation logic)
-  src/adaptation/lens-agent.ts                  — LensAgent base (prompt + LLM call per lens)
-  src/adaptation/lens-prompts.ts                — Prompt templates for all 4 lenses
+  src/adaptation/lens-agent.ts                  — LensAgent interface + prompt templates (no LLM call in P6.5a)
   tests/adaptation/governance-review-types.vitest.ts
   tests/adaptation/governance-review-council.vitest.ts
   tests/adaptation/governance-review-sentinels.vitest.ts
 
 Modify:
   src/adaptation/operator-queue-types.ts        — Add governanceReviewId, governanceVerdict to QueueItem; governanceReview to QueueInput; reviewSeverity to QueueItemOrdering
-  src/adaptation/operator-queue.ts              — Add review severity to sort order (tertiary)
+  src/adaptation/operator-queue.ts              — Add review severity to sort order (quaternary)
   src/adaptation/decision-types.ts              — Add "review" to SourceArtifactType
-  src/cli/commands/decision.ts                  — Add runReview handler, case "review" in switch; --with-reviews flag for runQueue
+  src/cli/commands/decision.ts                  — Add case "review" stub (prints "unavailable" — P6.5b: runReview handler, --with-reviews flag)
 ```
 
 ## Acceptance Criteria
 
+**P6.5a (must pass):**
 1. `GovernanceReview` extends `DecisionArtifact` with proposalId, recommendationId, verdict, concerns, blindSpots, historicalAnalogies, lensScores, councilVote
 2. `Council.aggregate(lensScores)` returns deterministic verdict and council vote for any valid input
 3. Tiebreaker resolves to most severe verdict among tied positions
 4. Queue sorts with review severity as quaternary key (after risk, recommendation rank, and age)
 5. No review → severity 0 (no sort impact)
-6. `alix decision review <id>` runs all 4 lenses and displays terminal output
-7. `alix decision queue --with-reviews` shows governance verdict per item
-8. Four governance sentinel groups pass
-9. All existing tests pass (no changes to existing sort behavior for proposals without reviews)
-10. Lens prompts contain no decision or action language
+6. `alix decision review <id>` prints "review: unavailable" stub
+7. Four governance sentinel groups pass
+8. All existing tests pass (no changes to existing sort behavior for proposals without reviews)
+9. Lens prompts contain no decision or action language
+
+**P6.5b (deferred):**
+- `alix decision review <id>` runs all 4 lenses and displays terminal output
+- `alix decision queue --with-reviews` shows governance verdict per item
 
 ## Out of Scope
 
 | Feature | Belongs to | Reason |
 |---------|-----------|--------|
+| Real LLM lens execution, `alix decision review` meaningful output, `--with-reviews` queue flag | **P6.5b** | P6.5a ships foundation (types, interface, aggregation, queue sort). LLM execution deferred |
 | Persisting GovernanceReview to disk (GovernanceReviewStore) | Future | Reviews are ephemeral — re-run when needed. No GovernanceReviewStore for P6.5 |
 | Auto-rejection based on review verdict | Never | Would violate Review ≠ Decision |
 | Learning from past reviews (P7) | P7 Decision Learning | Different goal (accuracy over time) |
