@@ -29,7 +29,6 @@ import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness
 import type { EvidenceRecord } from "../../security/evidence/evidence-types.js";
 import { PipelineHealthCollector } from "../../adaptation/pipeline-health-collector.js";
 import { PipelineHealthBuilder } from "../../adaptation/pipeline-health-builder.js";
-import type { PipelineHealthReport } from "../../adaptation/pipeline-health-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
