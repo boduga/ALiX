@@ -62,7 +62,7 @@ export class OperatorQueue {
         outcome: OUTCOME_QUEUED,
         confidence: recommendation?.confidence ?? 0,
         recommendation: recommendation?.recommendation ?? undefined,
-        reasons: this.buildReasons(ordering, inputs.length, riskScore, recommendation),
+        reasons: this.buildReasons(ordering, riskScore, recommendation),
         evidenceRefs: [ctx.id, riskScore?.id ?? "", recommendation?.id ?? ""].filter(Boolean),
         generatedAt,
         proposalId: ctx.proposalId,
@@ -123,18 +123,13 @@ export class OperatorQueue {
    */
   private buildReasons(
     ordering: QueueItemOrdering,
-    totalInputs: number,
     riskScore: QueueInput["riskScore"],
     recommendation: QueueInput["recommendation"],
   ): string[] {
     const reasons: string[] = [];
 
     if (riskScore?.overallRisk !== undefined) {
-      if (ordering.risk > 0.7) {
-        reasons.push(`Highest risk among ${totalInputs} pending proposal(s)`);
-      } else {
-        reasons.push(`Risk contribution: ${riskScore.overallRisk.toFixed(2)}`);
-      }
+      reasons.push(`Risk contribution: ${riskScore.overallRisk.toFixed(2)}`);
     } else {
       reasons.push("No risk score — treated as lowest priority");
     }
@@ -146,8 +141,7 @@ export class OperatorQueue {
     }
 
     if (ordering.ageDays > 0) {
-      const olderCount = totalInputs > 1 ? totalInputs - 1 : 0;
-      reasons.push(`Older than ${olderCount} other pending proposal(s) at ${ordering.ageDays} day(s)`);
+      reasons.push(`Age: ${ordering.ageDays} day(s)`);
     }
 
     return reasons;

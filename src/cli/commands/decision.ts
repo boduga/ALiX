@@ -308,10 +308,15 @@ async function runQueue(args: string[]): Promise<void> {
   // Build QueueInput for each pending proposal
   const inputs: QueueInput[] = [];
   for (const proposal of proposals) {
-    const ctx = await infra.contextBuilder.build(proposal.id);
-    const riskScore = riskBuilder.build(ctx);
-    const recommendation = recEngine.recommend(ctx, riskScore);
-    inputs.push({ ctx, riskScore, recommendation });
+    try {
+      const ctx = await infra.contextBuilder.build(proposal.id);
+      const riskScore = riskBuilder.build(ctx);
+      const recommendation = recEngine.recommend(ctx, riskScore);
+      inputs.push({ ctx, riskScore, recommendation });
+    } catch {
+      console.error(`  ⚠️ Skipped ${proposal.id}: failed to build context`);
+      continue;
+    }
   }
 
   // Sort and optionally limit
