@@ -1,10 +1,10 @@
-# P6.5 — Governance Review Council Implementation Plan
+# P6.5a — Governance Review Council Foundation Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Add an LLM-augmented governance critique layer between Recommendation and Queue — four independent review lenses (Red Team, Historian, Policy Auditor, Confidence Critic) produce LensScores, aggregated deterministically into a GovernanceReview artifact.
+**Goal:** Add GovernanceReviewCouncil types, deterministic aggregation, Queue integration, and governance sentinels — the foundation layer. Actual LLM lens execution is deferred to P6.5b.
 
-**Architecture:** Interface-first — `LensAgent` interface defines `run(input): Promise<LensScore>`, with prompt templates as the implementation. `GovernanceReviewCouncil` aggregates scores deterministically (plurality vote, severity-based tiebreaker, confidence computation). Queue gains reviewSeverity as a quaternary sort modifier. All existing P6 invariants preserved.
+**Architecture:** Interface-first — `LensAgent` interface and prompt templates as specification. `GovernanceReviewCouncil` aggregates scores deterministically (plurality vote, severity-based tiebreaker, confidence computation). Queue gains reviewSeverity as a quaternary sort modifier. No LLM calls, no persisted reviews in this layer. All existing P6 invariants preserved.
 
 **Tech Stack:** TypeScript (NodeNext), vitest
 
@@ -12,13 +12,23 @@
 
 - **NodeNext module resolution:** All cross-file imports MUST use `.js` extension (e.g., `./decision-types.js`)
 - **GovernanceReview ≠ Decision:** No approve/reject fields on GovernanceReview. No mutation calls. No store writes.
-- **Review only boosts, never demotes:** Missing review = severity 0 (no sort impact)
+- **Review severity is a late tiebreaker, not a priority override:** Missing review = severity 0 (no sort impact)
 - **Reviews are ephemeral:** No GovernanceReviewStore. No persistence. Computed on demand.
 - **Sort order (P6.5):** Risk desc → Recommendation rank desc → Age desc → **Review severity desc** → proposalId asc
-- **Queue integration optional and non-blocking:** Default queue = zero LLM calls. `--with-reviews` runs synchronously. Failure = warning, not block.
+- **Queue integration optional and non-blocking (P6.5b):** Default queue = zero LLM calls. `--with-reviews` runs synchronously. Failure = warning, not block.
 - **Prompt sentinels ban authority language, not ordinary words:** Ban `"I approve"`, `"I reject"`, `"apply this"`, `"execute this"`, `"final decision"`, `"must approve"`, `"must reject"`. Do NOT ban `approve`/`reject`/`recommend` globally.
 
 ---
+
+## P6.5b Deferral
+
+The following items are **explicitly deferred to P6.5b** and are NOT implemented in this plan:
+- Real LLM lens execution (calling an LLM via `LensAgent.run()`)
+- `alix decision review <id>` producing meaningful output (lens stubs output `review: unavailable (P6.5a foundation)`)
+- `--with-reviews` flag on `alix decision queue` (requires real lenses to be meaningful)
+- Any persistence of review results
+
+P6.5a delivers: types, LensAgent interface + prompt templates, deterministic council aggregation, queue optional review field (unconnected), governance sentinels. The architecture is honest about what ships — no fake "agree" reviews.
 
 ### Task 1: Governance Review Types + SourceArtifactType
 
@@ -38,9 +48,18 @@ import { describe, it, expect } from "vitest";
 import type { GovernanceReview, GovernanceVerdict, LensScore, CouncilVote, GovernanceReviewInput } from "../../src/adaptation/governance-review-types.js";
 
 describe("GovernanceReview type shape", () => {
-  it("type exists", () => {
-    const r: GovernanceReview = null as any;
+  it("type exists and has required DecisionArtifact fields", () => {
+    const r: GovernanceReview = {
+      id: "rev-test", subject: "Test", outcome: "reviewed",
+      confidence: 0.5, reasons: [], generatedAt: "t",
+      recommendationId: "r", proposalId: "p", verdict: "agree",
+      concerns: [], blindSpots: [], historicalAnalogies: [],
+      lensScores: [],
+      councilVote: { agree: 0, agreeWithConcerns: 0, challenge: 0, insufficientInformation: 0 },
+      sourceArtifacts: [],
+    };
     expect(r).toBeDefined();
+    expect(r.id).toBeTruthy();
   });
 });
 ```
@@ -451,7 +470,15 @@ export class GovernanceReviewCouncil {
   /**
    * Determine aggregate verdict.
    * Plurality rule — most votes wins.
-   * On tie: most severe among tied verdicts.
+   * On tie: most severe among tied verdicts wins (severity order:
+   * insufficient_information > challenge > agree_with_concerns > agree).
+   *
+   * NOTE — cautious tiebreaking for insufficient_information:
+   * When 2 lenses vote "agree" and 2 vote "insufficient_information",
+   * the verdict is "insufficient_information" (severity wins).
+   * This is intentional: missing data should increase caution.
+   * The confidence formula handles the mixed-signal case separately
+   * (see #computeConfidence).
    */
   #determineVerdict(vote: CouncilVote): GovernanceVerdict {
     const entries = Object.entries(vote) as [keyof CouncilVote, number][];
@@ -514,13 +541,13 @@ export class GovernanceReviewCouncil {
 
   /** Extract blind spots from lens rationales (placeholder — enhanced by real lenses). */
   #mergeBlindSpots(_scores: LensScore[]): string[] {
-    // ponytail: blind spots are lens-rationale-dependent; basic extraction for P6.5
+    // TODO — P6.5b: enhanced blind-spot extraction from real lens output
     return [];
   }
 
   /** Extract historical analogies from lens rationales. */
   #mergeAnalogies(_scores: LensScore[]): string[] {
-    // ponytail: analogies come from historian lens output; basic pass-through for P6.5
+    // TODO — P6.5b: enhanced passage from historian lens output
     return [];
   }
 
@@ -589,36 +616,67 @@ import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/adaptation/governance-rev
 
 describe("GovernanceReview type shape", () => {
   it("extends DecisionArtifact — has id, subject, outcome, confidence, reasons, generatedAt", () => {
-    const r: GovernanceReview = null as any;
-    expect(r.id).toBeUndefined(); // not constructed — just verifying the type is valid
-    // This test passes if the type compiles
+    const r: GovernanceReview = {
+      id: "rev-1", subject: "Test review", outcome: "reviewed",
+      confidence: 0.8, reasons: ["test"], generatedAt: "2026-01-01",
+      recommendationId: "rec-1", proposalId: "prop-1", verdict: "agree",
+      concerns: [], blindSpots: [], historicalAnalogies: [],
+      lensScores: [], councilVote: { agree: 0, agreeWithConcerns: 0, challenge: 0, insufficientInformation: 0 },
+      sourceArtifacts: [],
+    };
+    expect(r.id).toBe("rev-1");
+    expect(r.subject).toBe("Test review");
+    expect(r.outcome).toBe("reviewed");
+    expect(typeof r.confidence).toBe("number");
+    expect(Array.isArray(r.reasons)).toBe(true);
+    expect(typeof r.generatedAt).toBe("string");
   });
 
   it("has recommendationId, proposalId, verdict", () => {
-    const r: GovernanceReview = null as any;
-    expect(r.recommendationId).toBeUndefined();
-    expect(r.proposalId).toBeUndefined();
-    expect(r.verdict).toBeUndefined();
+    const r: GovernanceReview = { id: "rev-2", subject: "t", outcome: "reviewed",
+      confidence: 0, reasons: [], generatedAt: "t",
+      recommendationId: "rec-1", proposalId: "prop-1", verdict: "challenge",
+      concerns: [], blindSpots: [], historicalAnalogies: [],
+      lensScores: [], councilVote: { agree: 0, agreeWithConcerns: 0, challenge: 1, insufficientInformation: 0 },
+      sourceArtifacts: [],
+    };
+    expect(r.recommendationId).toBe("rec-1");
+    expect(r.proposalId).toBe("prop-1");
+    expect(r.verdict).toBe("challenge");
   });
 
-  it("has concerns, blindSpots, historicalAnalogies", () => {
-    const r: GovernanceReview = null as any;
-    expect(Array.isArray(r.concerns)).toBe(true);
-    expect(Array.isArray(r.blindSpots)).toBe(true);
-    expect(Array.isArray(r.historicalAnalogies)).toBe(true);
+  it("has concerns, blindSpots, historicalAnalogies as arrays", () => {
+    const r: GovernanceReview = { id: "rev-3", subject: "t", outcome: "reviewed",
+      confidence: 0, reasons: [], generatedAt: "t",
+      recommendationId: "r", proposalId: "p", verdict: "agree_with_concerns",
+      concerns: ["risk of X"], blindSpots: ["missing Y"], historicalAnalogies: ["Z failed"],
+      lensScores: [], councilVote: { agree: 0, agreeWithConcerns: 1, challenge: 0, insufficientInformation: 0 },
+      sourceArtifacts: [],
+    };
+    expect(r.concerns).toContain("risk of X");
+    expect(r.blindSpots).toContain("missing Y");
+    expect(r.historicalAnalogies).toContain("Z failed");
   });
 
   it("has lensScores and councilVote", () => {
-    const r: GovernanceReview = null as any;
-    expect(Array.isArray(r.lensScores)).toBe(true);
-    expect(r.councilVote).toBeUndefined();
+    const r: GovernanceReview = { id: "rev-4", subject: "t", outcome: "reviewed",
+      confidence: 0, reasons: [], generatedAt: "t",
+      recommendationId: "r", proposalId: "p", verdict: "agree",
+      concerns: [], blindSpots: [], historicalAnalogies: [],
+      lensScores: [{ lens: "red_team", recommendedVerdict: "agree", confidence: 0.9, rationale: "ok" }],
+      councilVote: { agree: 1, agreeWithConcerns: 0, challenge: 0, insufficientInformation: 0 },
+      sourceArtifacts: [],
+    };
+    expect(r.lensScores.length).toBe(1);
+    expect(r.councilVote.agree).toBe(1);
   });
 
   it("LensScore has lens, recommendedVerdict, confidence, rationale", () => {
-    const s: LensScore = null as any;
-    expect(s.lens).toBeUndefined();
-    expect(s.recommendedVerdict).toBeUndefined();
-    expect(typeof s.confidence).toBe("number");
+    const s: LensScore = { lens: "historian", recommendedVerdict: "challenge", confidence: 0.6, rationale: "Past pattern" };
+    expect(s.lens).toBe("historian");
+    expect(s.recommendedVerdict).toBe("challenge");
+    expect(s.confidence).toBe(0.6);
+    expect(s.rationale).toBe("Past pattern");
   });
 
   it("CouncilVote has counts for all 4 categories", () => {
@@ -1014,7 +1072,7 @@ git commit -m "feat(p6.5): Queue integration — governance review severity sort
 
 ---
 
-### Task 6: CLI — review Subcommand + --with-reviews Flag
+### Task 6: CLI — review Subcommand Stub (P6.5a Foundation)
 
 **Files:**
 - Modify: `src/cli/commands/decision.ts`
@@ -1041,110 +1099,26 @@ Wait — that strategicBriefBuilder import could be wrong. Let me be precise: th
 - `GovernanceReview`, `GovernanceVerdict`, `GovernanceReviewInput` types from `../../adaptation/governance-review-types.js`
 - `GOVERNANCE_VERDICT_SEVERITY` from `../../adaptation/governance-review-types.js`
 
-- [ ] **Step 3: Add case "review" to the switch in handleDecisionCommand**
+> **P6.5a note:** The `alix decision review` subcommand is a foundation stub. It always prints "unavailable" — real lens execution is deferred to P6.5b. No `--with-reviews` flag on queue in this layer.
+
+- [ ] **Step 3: Add case "review" — P6.5a stub that prints unavailable**
 
 ```typescript
     case "review":
-      await runReview(rest);
+      console.log("review: unavailable (P6.5a foundation — real lens agents deferred to P6.5b)");
       return;
 ```
 
-Updated usage string:
+Updated usage string (no `--with-reviews`, no `--lens` in P6.5a):
 ```typescript
-console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] [--with-reviews] | brief [--window N] [--json] | review <proposal-id> [--json] [--lens <name>]");
+console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | review <proposal-id>");
 ```
 
-- [ ] **Step 4: Add the runReview function**
+- [ ] **Step 4: runReview function — Not wired in P6.5a**
 
-```typescript
-// ---------------------------------------------------------------------------
-// runReview — Governance Review Council
-// ---------------------------------------------------------------------------
+The case statement at Step 3 prints "unavailable" and returns directly, so no `runReview` function is connected in this layer. The `GovernanceReviewCouncil` and `LensAgent` infrastructure is implemented and testable via unit tests (Task 4), but the CLI subcommand is a stub. P6.5b will wire the full function.
 
-/**
- * Run all 4 governance review lenses for a single proposal.
- * Reviews are ephemeral — computed on demand, not persisted.
- */
-async function runReview(args: string[]): Promise<void> {
-  const id = args[0];
-  if (!id) {
-    console.error("Usage: alix decision review <proposal-id> [--json] [--lens <name>]");
-    process.exit(1);
-  }
-
-  const jsonMode = args.includes("--json");
-  const lensIdx = args.indexOf("--lens");
-  const singleLens = lensIdx !== -1 && lensIdx + 1 < args.length ? args[lensIdx + 1] : null;
-
-  const cwd = process.cwd();
-  const infra = buildDecisionInfrastructure(cwd);
-  const riskBuilder = new RiskScoreBuilder();
-  const recEngine = new RecommendationEngine();
-  const reviewCouncil = new GovernanceReviewCouncil();
-
-  let ctx;
-  let risk;
-  let recommendation;
-
-  try {
-    ctx = await infra.contextBuilder.build(id);
-    risk = riskBuilder.build(ctx);
-    recommendation = recEngine.recommend(ctx, risk);
-  } catch (err) {
-    console.error(`Error: failed to build context for "${id}" — ${err instanceof Error ? err.message : err}`);
-    process.exit(1);
-  }
-
-  // Build lens input
-  const reviewInput: GovernanceReviewInput = {
-    recommendation,
-    decisionContext: ctx,
-    riskScore: risk,
-  };
-
-  // Run lenses
-  const LENSES: Array<{ name: string; label: string }> = singleLens
-    ? [{ name: singleLens, label: singleLens }]
-    : [
-        { name: "red_team", label: "Red Team" },
-        { name: "historian", label: "Historian" },
-        { name: "policy_auditor", label: "Policy Auditor" },
-        { name: "confidence_critic", label: "Confidence Critic" },
-      ];
-
-  const lensScores: LensScore[] = [];
-
-  for (const lens of LENSES) {
-    try {
-      // ponytail: real LLM call goes here — for P6.5, lens agents are
-      // interface-defined with prompt templates. The actual LLM integration
-      // belongs in a future task or as an extension via LensAgent interface.
-      // For now, lenses produce default scores:
-      lensScores.push({
-        lens: lens.name as LensName,
-        recommendedVerdict: "agree",
-        confidence: 0,
-        rationale: "Lens agent not yet connected — defaulting to agree.",
-      });
-    } catch {
-      console.error(`  ⚠️ Lens ${lens.label} failed — defaulting to insufficient_information`);
-      lensScores.push({
-        lens: lens.name as LensName,
-        recommendedVerdict: "insufficient_information",
-        confidence: 0,
-        rationale: "Lens agent failed to produce a result.",
-      });
-    }
-  }
-
-  // Aggregate
-  const reviewId = `review:${id}:${new Date().toISOString()}`;
-  const review = reviewCouncil.aggregate(reviewId, id, recommendation.id, lensScores, reviewInput);
-
-  if (jsonMode) {
-    console.log(JSON.stringify(review, null, 2));
-    return;
-  }
+**Decision not to stub the full function:** Shipping a `runReview` that builds real context, creates fake lens scores, and runs the council would produce a `GovernanceReview` with `verdict: "insufficient_information"` from all four lenses — which looks like a real review. P6.5b will add `runReview` when lenses produce real output.
 
   // Terminal renderer
   const verdictIcon = (v: GovernanceVerdict): string => {
@@ -1193,67 +1167,9 @@ async function runReview(args: string[]): Promise<void> {
 }
 ```
 
-- [ ] **Step 5: Add --with-reviews to queue display**
+- [ ] **Step 5: Verify no --with-reviews in P6.5a**
 
-Modify runQueue to accept `--with-reviews`. Add review verdict display in the terminal renderer, and add governanceReview to QueueInput:
-
-```typescript
-async function runQueue(args: string[]): Promise<void> {
-  const jsonMode = args.includes("--json");
-  const withReviews = args.includes("--with-reviews");
-  // ... existing limit parsing ...
-
-  // ... existing setup ...
-
-  // Build QueueInput with optional reviews
-  const inputs: QueueInput[] = [];
-  for (const proposal of proposals) {
-    try {
-      const ctx = await infra.contextBuilder.build(proposal.id);
-      const riskScore = riskBuilder.build(ctx);
-      const recommendation = recEngine.recommend(ctx, riskScore);
-      let governanceReview: GovernanceReview | undefined;
-
-      if (withReviews) {
-        // Run all 4 lenses for this proposal
-        try {
-          const reviewInput: GovernanceReviewInput = { recommendation, decisionContext: ctx, riskScore };
-          const lensScores: LensScore[] = [
-            { lens: "red_team", recommendedVerdict: "agree", confidence: 0, rationale: "Default." },
-            { lens: "historian", recommendedVerdict: "agree", confidence: 0, rationale: "Default." },
-            { lens: "policy_auditor", recommendedVerdict: "agree", confidence: 0, rationale: "Default." },
-            { lens: "confidence_critic", recommendedVerdict: "agree", confidence: 0, rationale: "Default." },
-          ];
-          const reviewId = `review:${proposal.id}:${new Date().toISOString()}`;
-          governanceReview = reviewCouncil.aggregate(reviewId, proposal.id, recommendation.id, lensScores, reviewInput);
-        } catch {
-          // Non-blocking: review failure = no review signal
-        }
-      }
-
-      inputs.push({ ctx, riskScore, recommendation, governanceReview });
-    } catch {
-      console.error(`  ⚠️ Skipped ${proposal.id}: failed to build context`);
-      continue;
-    }
-  }
-```
-
-Add review verdict to terminal display:
-```typescript
-for (const item of items) {
-  const icon = recIcon(item.recommendation);
-  const recLabel = item.recommendation ?? "no recommendation";
-  const reviewBadge = item.governanceVerdict
-    ? `  review: ${item.governanceVerdict}${item.governanceVerdict === "challenge" ? " ⚠️" : ""}`
-    : "";
-  console.log(` ${item.position}. ${icon} ${item.proposalId}  ${recLabel}  risk: ${item.ordering.risk.toFixed(2)}${reviewBadge}`);
-  if (item.reasons.length > 0) {
-    console.log(`    ${item.reasons.join(" | ")}`);
-  }
-  console.log(``);
-}
-```
+The `--with-reviews` queue flag is deferred to P6.5b. The queue's `runQueue` function should NOT reference `--with-reviews`. No code changes needed — verify `runQueue` has no `withReviews` var or `--with-reviews` check.
 
 - [ ] **Step 6: Run full test suite**
 
@@ -1266,7 +1182,7 @@ Expected: 890+ tests passing
 
 ```bash
 git add src/cli/commands/decision.ts
-git commit -m "feat(p6.5): CLI review subcommand and --with-reviews flag"
+git commit -m "feat(p6.5a): CLI review subcommand stub"
 ```
 
 ---
