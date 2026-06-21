@@ -84,42 +84,10 @@ export type ExtensionManifest =
   | RecipeExtension
   | SubagentExtension;
 
-// Minimal YAML parser (no new dependency)
-function yamlToObject(yaml: string): Record<string, unknown> {
-  const obj: Record<string, unknown> = {};
-  const lines = yaml.split("\n");
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) { i++; continue; }
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-    if (value === "") {
-      // look ahead for block value
-      const items: string[] = [];
-      i++;
-      while (i < lines.length && lines[i].startsWith("  ")) {
-        const item = lines[i].trim();
-        if (item.startsWith("-")) items.push(item.slice(1).trim());
-        else items.push(item);
-        i++;
-      }
-      if (items.length > 0) { obj[key] = items; continue; }
-      i--; // back up so outer loop processes this
-    } else if (value.startsWith("[") && value.endsWith("]")) {
-      obj[key] = value.slice(1, -1).split(",").map(t => t.trim()).filter(Boolean);
-    } else if (value === "true") obj[key] = true;
-    else if (value === "false") obj[key] = false;
-    else if (!isNaN(Number(value)) && value !== "") obj[key] = Number(value);
-    else obj[key] = value.replace(/^["']|["']$/g, "");
-    i++;
-  }
-  return obj;
-}
+import yaml from "yaml";
 
-export function parseExtensionManifest(yaml: string, type: ExtensionType): ExtensionManifest | null {
-  const raw = yamlToObject(yaml);
+export function parseExtensionManifest(yamlStr: string, type: ExtensionType): ExtensionManifest | null {
+  const raw = yaml.parse(yamlStr) as Record<string, unknown>;
   if (!raw.name || !raw.description) return null;
 
   const base = {

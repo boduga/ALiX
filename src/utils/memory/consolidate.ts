@@ -1,3 +1,4 @@
+import yaml from "yaml";
 import fs from "node:fs";
 import path from "node:path";
 import { MemoryStore } from "./store.js";
@@ -138,15 +139,7 @@ function parseEntry(content: string): { createdAt: string; modifiedAt: string; c
   if (!match) return null;
 
   const frontmatter = match[1];
-  const data: Record<string, string> = {};
-
-  for (const line of frontmatter.split("\n")) {
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    const value = line.slice(colonIdx + 1).trim();
-    data[key] = value;
-  }
+  const data = yaml.parse(frontmatter) as Record<string, string>;
 
   return {
     createdAt: data.createdAt || "",

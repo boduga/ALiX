@@ -25,13 +25,15 @@ export type SkillCandidate = {
   successCount: number;
 };
 
+import yaml from "yaml";
+
 export function parseFrontMatter(content: string): SkillManifest | null {
   // Support both full content with --- delimiters and raw YAML (no ---)
   const fullMatch = content.match(/^---\n([\s\S]*?)\n---/);
-  const yaml = fullMatch ? fullMatch[1] : content;
+  const yamlStr = fullMatch ? fullMatch[1] : content;
   try {
-    const raw = yamlToObject(yaml);
-    if (!raw.name || !raw.description) return null;
+    const raw = yaml.parse(yamlStr) as Record<string, unknown>;
+    if (!raw || !raw.name || !raw.description) return null;
     return {
       name: String(raw.name ?? ""),
       description: String(raw.description ?? ""),
@@ -46,25 +48,6 @@ export function parseFrontMatter(content: string): SkillManifest | null {
     // Returning null is intentional: missing front matter and parse errors are both silent failures.
     return null;
   }
-}
-
-function yamlToObject(yaml: string): Record<string, unknown> {
-  const obj: Record<string, unknown> = {};
-  for (const line of yaml.split("\n")) {
-    const colonIdx = line.indexOf(":");
-    if (colonIdx === -1) continue;
-    const key = line.slice(0, colonIdx).trim();
-    let value = line.slice(colonIdx + 1).trim();
-    // Handle YAML arrays like [tag1, tag2]
-    if (value.startsWith("[") && value.endsWith("]")) {
-      const inner = value.slice(1, -1);
-      obj[key] = inner.split(",").map((t: string) => t.trim()).filter(Boolean);
-    } else if (value === "true") obj[key] = true;
-    else if (value === "false") obj[key] = false;
-    else if (!isNaN(Number(value)) && value !== "") obj[key] = Number(value);
-    else obj[key] = value.replace(/^["']|["']$/g, "");
-  }
-  return obj;
 }
 
 export function parseSkillContent(content: string): { manifest: SkillManifest | null; body: string } {
