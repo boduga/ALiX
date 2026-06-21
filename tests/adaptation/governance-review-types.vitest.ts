@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { GovernanceReview, GovernanceVerdict, LensScore, CouncilVote, GovernanceReviewInput } from "../../src/adaptation/governance-review-types.js";
+import { LENS_PROMPTS } from "../../src/adaptation/lens-agent.js";
 
 describe("GovernanceReview type shape", () => {
   it("type exists and has required DecisionArtifact fields", () => {
@@ -14,5 +15,11 @@ describe("GovernanceReview type shape", () => {
     };
     expect(r).toBeDefined();
     expect(r.id).toBeTruthy();
+  });
+});
+
+describe("LensAgent prompt templates", () => {
+  it("has prompts for all 4 lenses", () => {
+    expect(Object.keys(LENS_PROMPTS).length).toBe(4);
   });
 });
