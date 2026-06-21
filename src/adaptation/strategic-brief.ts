@@ -165,7 +165,6 @@ export class StrategicBriefBuilder {
     const trends: Trend[] = [];
 
     // Trend: keep rate by action type (compare topPerforming/lowestPerforming)
-    // ponytail: simple keep-rate trend from top-level references
     const oldBestKeep = oldest.topPerforming[0]?.keepRate ?? 0;
     const newBestKeep = newest.topPerforming[0]?.keepRate ?? 0;
     const keepDelta = newBestKeep - oldBestKeep;
@@ -227,7 +226,6 @@ export class StrategicBriefBuilder {
 
     const hotspots: Hotspot[] = [];
 
-    // ponytail: group by recommendation and check revert rates
     // Effectiveness reports don't carry action type at the interface level,
     // so relatedActionTypes uses "unknown" — extend when richer data is available.
     const byRecommendation = new Map<string, { total: number; revert: number }>();
