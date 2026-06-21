@@ -58,7 +58,7 @@ export class GovernanceReviewCouncil {
     input: GovernanceReviewInput,
     options?: CouncilOptions,
   ): GovernanceReview {
-    const generatedAt = options?.generatedAt ?? new Date().toISOString();
+    const generatedAt = options?.generatedAt ?? new Date(Date.now()).toISOString();
 
     // Step 1: Count votes
     const councilVote = this.#countVotes(lensScores);
