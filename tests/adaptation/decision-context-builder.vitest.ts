@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from "vitest";
-import { DecisionContextBuilder } from "../../src/adaptation/decision-context-builder";
-import type { AdaptationProposal } from "../../src/adaptation/adaptation-types";
+import { DecisionContextBuilder } from "../../src/adaptation/decision-context-builder.js";
+import type { AdaptationProposal } from "../../src/adaptation/adaptation-types.js";
 
 // ---------------------------------------------------------------------------
 // Mock helpers (same pattern as lineage-builder tests)
@@ -150,7 +150,7 @@ describe("DecisionContextBuilder", () => {
     expect(ctx.contextStatus).toBe("complete_context");
     expect(ctx.lineageCompleteness).toBe("complete");
     expect(ctx.effectivenessTrend.sampleSize).toBe(1);
-    expect(ctx.sourceArtifacts.some((s) => s.type === "effectiveness")).toBe(true);
+    expect(ctx.sourceArtifacts.some((s: { type: string }) => s.type === "effectiveness")).toBe(true);
   });
 
   it("detects stale proposals", async () => {
@@ -189,7 +189,7 @@ describe("DecisionContextBuilder", () => {
     expect(ctx.contextStatus).toBe("stale_context");
     expect(ctx.ageDays).toBeGreaterThan(30);
     expect(ctx.warnings).toBeDefined();
-    expect(ctx.warnings!.some((w) => w.message.includes("stale") || w.message.includes("activity"))).toBe(true);
+    expect(ctx.warnings!.some((w: { message: string }) => w.message.includes("stale") || w.message.includes("activity"))).toBe(true);
   });
 
   it("includes similar proposals from intelligence store", async () => {
@@ -271,7 +271,7 @@ describe("DecisionContextBuilder", () => {
 
     const ctx = await builder.build("prop-src-001");
     // Should have: proposal + lineage + effectiveness artifacts
-    const types = ctx.sourceArtifacts.map((s) => s.type);
+    const types = ctx.sourceArtifacts.map((s: { type: string }) => s.type);
     expect(types).toContain("proposal");
     expect(types).toContain("lineage");
     expect(types).toContain("effectiveness");
@@ -378,6 +378,6 @@ describe("DecisionContextBuilder", () => {
     const ctx = await builder.build("prop-warn-001");
     expect(ctx.warnings).toBeDefined();
     expect(ctx.warnings!.length).toBeGreaterThan(0);
-    expect(ctx.warnings!.some((w) => w.message.includes("fingerprint"))).toBe(true);
+    expect(ctx.warnings!.some((w: { message: string }) => w.message.includes("fingerprint"))).toBe(true);
   });
 });

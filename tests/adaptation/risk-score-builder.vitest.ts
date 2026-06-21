@@ -11,8 +11,8 @@ import {
   scoreRevertability,
   scoreEvidenceQuality,
   RiskScoreBuilder,
-} from "../../src/adaptation/risk-score-builder";
-import type { DecisionContext } from "../../src/adaptation/decision-types";
+} from "../../src/adaptation/risk-score-builder.js";
+import type { DecisionContext } from "../../src/adaptation/decision-types.js";
 
 function createContext(overrides: Partial<DecisionContext> = {}): DecisionContext {
   return {

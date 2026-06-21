@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeDecisionConfidence } from "../../src/adaptation/decision-confidence";
+import { computeDecisionConfidence } from "../../src/adaptation/decision-confidence.js";
 
 describe("computeDecisionConfidence", () => {
   it("returns high confidence for complete data", () => {
