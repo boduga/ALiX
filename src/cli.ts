@@ -180,6 +180,7 @@ Usage:
   alix evidence verify             Run fingerprint chain verification
   alix reflection report           Generate a reflection report with observability metrics
   alix adaptation <subcommand>     Guided adaptation: list/show/propose/approve/reject/apply
+  alix decision context <id>   Show DecisionContext for a proposal (P6.0a)
   alix workflow status <issue>     Show workflow state for an issue
   alix workflow list               List active workflow entries
   alix workflow transition <i> <s>  Manually transition an issue
@@ -2498,6 +2499,13 @@ if (command === "reflection") {
 if (command === "adaptation") {
   const { handleAdaptationCommand } = await import("./cli/commands/adaptation.js");
   await handleAdaptationCommand(args);
+  process.exit(0);
+}
+
+// ── Decision command (P6.0a) ──────────────────────────────────────
+if (command === "decision") {
+  const { handleDecisionCommand } = await import("./cli/commands/decision.js");
+  await handleDecisionCommand(args);
   process.exit(0);
 }
 
