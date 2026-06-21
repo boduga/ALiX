@@ -22,15 +22,20 @@
 
 ```
 Create:
-  src/adaptation/decision-types.ts            — DecisionArtifact, ContextStatus, DecisionContext, SourceArtifact
-  src/adaptation/decision-context-builder.ts  — DecisionContextBuilder class
-  src/cli/commands/decision.ts                — `alix decision context` CLI
+  src/adaptation/decision-types.ts                — DecisionArtifact, ContextStatus, DecisionContext, SourceArtifact
+  src/adaptation/decision-confidence.ts           — computeDecisionConfidence() shared module
+  src/adaptation/decision-context-builder.ts       — DecisionContextBuilder class
+  src/cli/commands/decision.ts                    — `alix decision context` CLI
+  tests/adaptation/decision-confidence.vitest.ts
   tests/adaptation/decision-context-builder.vitest.ts
   tests/adaptation/decision-governance-sentinels.vitest.ts
 
 Modify:
-  src/cli.ts                                   — register `alix decision` command
+  src/adaptation/intelligence-store.ts             — add findSimilarProposals()
+  src/cli.ts                                       — register `alix decision` command
 ```
+
+**Path convention note:** The CLI uses the same `join(".alix", ...)` constant pattern as `src/cli/commands/adaptation.ts` (see PROPOSALS_DIR, EVIDENCE_DIR, EFFECTIVENESS_DIR, INTELLIGENCE_DIR). No separate path resolver is needed — this is the established convention.
 
 ---
 
@@ -133,19 +138,12 @@ export interface EffectivenessTrend {
   sampleSize: number;
 }
 
-export interface DecisionContext {
-  // Artifact identity (base DecisionArtifact shape)
-  id: string;
-  subject: string;
+export interface DecisionContext extends DecisionArtifact {
   contextStatus: ContextStatus;
   /** Evidence completeness — NOT recommendation confidence.
    *  Computed from: proposal found, lineage completeness, evidence refs,
    *  effectiveness history, similar proposals, warnings count. */
-  confidence: number;
-  reasons: string[];
-  warnings?: string[];
-  evidenceRefs: string[];
-  generatedAt: string;
+  // (confidence, reasons, warnings, evidenceRefs, generatedAt inherited from DecisionArtifact)
 
   // Proposal state
   proposalId: string;
@@ -181,13 +179,194 @@ git commit -m "P6.0a: DecisionContext type definitions"
 
 ---
 
-### Task 2: DecisionContextBuilder
+### Task 2a: IntelligenceStore.findSimilarProposals()
+
+**Files:**
+- Modify: `src/adaptation/intelligence-store.ts`
+
+**Interfaces:**
+- Consumes: `ProposalStore` (for looking up source proposals by ID)
+- Produces: `IntelligenceStore.findSimilarProposals(actionType, excludeProposalId, proposalStore)`
+
+- [ ] **Step 1: Add findSimilarProposals to IntelligenceStore**
+
+Read the current `src/adaptation/intelligence-store.ts` — note its `ProposalEffectivenessReport` import (it already handles `EffectivenessStore` state).
+
+Add the following method to the `IntelligenceStore` class:
+
+```typescript
+/**
+ * Find proposals with the same action type by joining effectiveness reports
+ * with their source proposals. Avoids the N+1 query pattern where callers
+ * would otherwise load every effectiveness report + proposal individually.
+ *
+ * Designed for decision-support consumers (DecisionContextBuilder, etc.).
+ */
+async findSimilarProposals(
+  actionType: string,
+  excludeProposalId: string,
+  proposalStore: ProposalStore,
+): Promise<Array<{ proposalId: string; outcome: string; confidence: number }>> {
+  const files = await this.list();
+  const similar: Array<{ proposalId: string; outcome: string; confidence: number }> = [];
+
+  for (const filename of files.slice(0, 50)) {
+    const report = await this.load(filename);
+    if (!report) continue;
+    if (report.proposalId === excludeProposalId) continue;
+
+    // Load the source proposal to verify action type matches
+    // (effectiveness reports don't store action type)
+    const sourceProposal = await proposalStore.load(report.proposalId);
+    if (sourceProposal && sourceProposal.action === actionType) {
+      similar.push({
+        proposalId: report.proposalId,
+        outcome: report.recommendation,
+        confidence: sourceProposal.sourceConfidence,
+      });
+    }
+  }
+
+  return similar;
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/adaptation/intelligence-store.ts
+git commit -m "P6.0a: IntelligenceStore.findSimilarProposals() for decision support"
+```
+
+---
+
+### Task 2b: Decision confidence module
+
+**Files:**
+- Create: `src/adaptation/decision-confidence.ts`
+
+**Interfaces:**
+- Consumes: nothing (pure constants + computation)
+- Produces: `computeDecisionConfidence(contextStatus, lineageCompleteness, hasEvidenceFp, hasEffectiveness, similarCount, warningsCount, ageDays)` — reused by P6.1 RiskScore and P6.3 Recommendation later
+
+- [ ] **Step 1: Create decision-confidence.ts**
+
+```typescript
+/**
+ * P6.0a — Decision confidence computation.
+ *
+ * Confidence reflects evidence completeness, not recommendation certainty.
+ * Extracted into its own module so P6.1 (RiskScore) and P6.3 (Recommendation)
+ * can reuse the same computation without depending on DecisionContextBuilder.
+ *
+ * @module
+ */
+
+// ---------------------------------------------------------------------------
+// Factors
+// ---------------------------------------------------------------------------
+
+const CONFIDENCE_PROPOSAL_FOUND = 0.30;
+const CONFIDENCE_LINEAGE_COMPLETE = 0.20;
+const CONFIDENCE_LINEAGE_PARTIAL = 0.10;
+const CONFIDENCE_LINEAGE_BROKEN = -0.10;
+const CONFIDENCE_EVIDENCE_FP = 0.15;
+const CONFIDENCE_EFFECTIVENESS = 0.15;
+const CONFIDENCE_SIMILAR_PROPOSALS = 0.10;
+const CONFIDENCE_PER_WARNING = -0.05;
+const CONFIDENCE_STALE_PENALTY = -0.10;
+
+/** Staleness threshold in days. */
+export const STALE_THRESHOLD_DAYS = 30;
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+export interface ConfidenceInputs {
+  lineageCompleteness: "partial" | "complete" | "broken";
+  hasEvidenceFingerprints: boolean;
+  hasEffectiveness: boolean;
+  similarProposalsCount: number;
+  warningsCount: number;
+  ageDays: number;
+}
+
+export interface ConfidenceResult {
+  confidence: number;
+  reasons: string[];
+}
+
+/**
+ * Compute evidence-completeness confidence from a DecisionContext snapshot.
+ * Returns [0, 1] clamped and rounded to 2 decimal places.
+ *
+ * When contextStatus is "insufficient_data" the caller should force confidence
+ * to 0 regardless of this computation — this function assumes a proposal exists.
+ */
+export function computeDecisionConfidence(inputs: ConfidenceInputs): ConfidenceResult {
+  const reasons: string[] = [];
+  let confidence = 0;
+
+  confidence += CONFIDENCE_PROPOSAL_FOUND;
+
+  if (inputs.lineageCompleteness === "complete") {
+    confidence += CONFIDENCE_LINEAGE_COMPLETE;
+    reasons.push("Full lineage trace available");
+  } else if (inputs.lineageCompleteness === "partial") {
+    confidence += CONFIDENCE_LINEAGE_PARTIAL;
+    reasons.push("Partial lineage trace available");
+  } else {
+    confidence += CONFIDENCE_LINEAGE_BROKEN;
+  }
+
+  if (inputs.hasEvidenceFingerprints) {
+    confidence += CONFIDENCE_EVIDENCE_FP;
+  }
+
+  if (inputs.hasEffectiveness) {
+    confidence += CONFIDENCE_EFFECTIVENESS;
+    reasons.push("Effectiveness report available");
+  }
+
+  if (inputs.similarProposalsCount > 0) {
+    confidence += CONFIDENCE_SIMILAR_PROPOSALS;
+    reasons.push(`${inputs.similarProposalsCount} similar proposals identified`);
+  }
+
+  confidence += inputs.warningsCount * CONFIDENCE_PER_WARNING;
+
+  if (inputs.ageDays > STALE_THRESHOLD_DAYS) {
+    confidence += CONFIDENCE_STALE_PENALTY;
+  }
+
+  confidence = Math.max(0, Math.min(1, confidence));
+  confidence = Math.round(confidence * 100) / 100;
+
+  if (reasons.length === 0) {
+    reasons.push("Basic proposal context available");
+  }
+
+  return { confidence, reasons };
+}
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add src/adaptation/decision-confidence.ts
+git commit -m "P6.0a: extract decision confidence computation into shared module"
+```
+
+---
+
+### Task 2c: DecisionContextBuilder
 
 **Files:**
 - Create: `src/adaptation/decision-context-builder.ts`
 
 **Interfaces:**
-- Consumes: `ProposalStore`, `EvidenceStore`, `LineageBuilder`, `EffectivenessStore`, `IntelligenceStore` from existing modules
+- Consumes: `ProposalStore`, `EvidenceStore`, `LineageBuilder`, `EffectivenessStore`, `IntelligenceStore`, `computeDecisionConfidence()`
 - Produces: `DecisionContextBuilder.build(proposalId) => Promise<DecisionContext>`
 
 - [ ] **Step 1: Create DecisionContextBuilder**
@@ -218,31 +397,13 @@ import type {
   DecisionContext,
   ContextStatus,
   SourceArtifact,
-  SimilarProposal,
   EffectivenessTrend,
   DataFreshness,
 } from "./decision-types.js";
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Proposals with no activity in this many days are considered stale. */
-const STALE_THRESHOLD_DAYS = 30;
-
-// ---------------------------------------------------------------------------
-// Confidence computation factors
-// ---------------------------------------------------------------------------
-
-const CONFIDENCE_PROPOSAL_FOUND = 0.30;
-const CONFIDENCE_LINEAGE_COMPLETE = 0.20;
-const CONFIDENCE_LINEAGE_PARTIAL = 0.10;
-const CONFIDENCE_LINEAGE_BROKEN = -0.10;
-const CONFIDENCE_EVIDENCE_FP = 0.15;
-const CONFIDENCE_EFFECTIVENESS = 0.15;
-const CONFIDENCE_SIMILAR_PROPOSALS = 0.10;
-const CONFIDENCE_PER_WARNING = -0.05;
-const CONFIDENCE_STALE_PENALTY = -0.10;
+import {
+  computeDecisionConfidence,
+  STALE_THRESHOLD_DAYS,
+} from "./decision-confidence.js";
 
 // ---------------------------------------------------------------------------
 // Builder
@@ -328,27 +489,7 @@ export class DecisionContextBuilder {
       contextStatus = "partial_context";
     }
 
-    // 4. Compute confidence (evidence completeness)
-    let confidence = 0;
-    confidence += CONFIDENCE_PROPOSAL_FOUND; // proposal was found
-    if (lineage.completeness === "complete") {
-      confidence += CONFIDENCE_LINEAGE_COMPLETE;
-      reasons.push("Full lineage trace available");
-    } else if (lineage.completeness === "partial") {
-      confidence += CONFIDENCE_LINEAGE_PARTIAL;
-      reasons.push("Partial lineage trace available");
-    } else {
-      confidence += CONFIDENCE_LINEAGE_BROKEN;
-    }
-    if (proposal.evidenceFingerprints.length > 0) {
-      confidence += CONFIDENCE_EVIDENCE_FP;
-    }
-    if (contextStatus === "stale_context") {
-      confidence += CONFIDENCE_STALE_PENALTY;
-    }
-    confidence += warnings.length * CONFIDENCE_PER_WARNING;
-
-    // 5. Load effectiveness history
+    // 4. Load effectiveness history
     const effReport = await this.effectivenessStore.load(proposalId);
     let effectivenessTrend: EffectivenessTrend = {
       actionType: proposal.action,
@@ -362,8 +503,6 @@ export class DecisionContextBuilder {
         id: proposalId,
         timestamp: effReport.assessedAt,
       });
-      confidence += CONFIDENCE_EFFECTIVENESS;
-      reasons.push(`Effectiveness report available (${effReport.recommendation})`);
       effectivenessTrend = {
         actionType: proposal.action,
         keepRate: effReport.recommendation === "keep" ? 1 : 0,
@@ -372,29 +511,18 @@ export class DecisionContextBuilder {
       };
     }
 
-    // 6. Load similar proposals from effectiveness store (same action type)
-    const similarProposals: SimilarProposal[] = [];
-    const allEffectiveness = await this.effectivenessStore.list();
-    for (const eff of allEffectiveness) {
-      if (eff.proposalId === proposalId) continue;
-      // Load the source proposal to check action type
-      const sourceProposal = await this.proposalStore.load(eff.proposalId);
-      if (sourceProposal && sourceProposal.action === proposal.action) {
-        similarProposals.push({
-          proposalId: eff.proposalId,
-          action: sourceProposal.action,
-          outcome: eff.recommendation,
-          confidence: sourceProposal.sourceConfidence,
-        });
-      }
-    }
-    // Also note that intelligence reports exist for context freshness
-    let intelReportsFound = 0;
+    // 5. Load similar proposals via IntelligenceStore
+    const similarResults = await this.intelligenceStore.findSimilarProposals(
+      proposal.action,
+      proposalId,
+      this.proposalStore,
+    );
+
+    // 6. Scan intelligence reports for source artifacts
     const intelligenceFiles = await this.intelligenceStore.list();
     for (const filename of intelligenceFiles.slice(0, 5)) {
       const report = await this.intelligenceStore.load(filename);
       if (!report) continue;
-      intelReportsFound++;
       sourceArtifacts.push({
         type: "intelligence",
         id: filename,
@@ -402,9 +530,20 @@ export class DecisionContextBuilder {
       });
     }
 
-    if (similarProposals.length > 0) {
-      confidence += CONFIDENCE_SIMILAR_PROPOSALS;
-      reasons.push(`${similarProposals.length} similar proposals identified (same action type)`);
+    // 7. Compute confidence via shared module
+    const confidenceResult = computeDecisionConfidence({
+      lineageCompleteness: lineage.completeness,
+      hasEvidenceFingerprints: proposal.evidenceFingerprints.length > 0,
+      hasEffectiveness: !!effReport,
+      similarProposalsCount: similarResults.length,
+      warningsCount: warnings.length,
+      ageDays,
+    });
+
+    // 8. Combine reasons
+    reasons.push(...confidenceResult.reasons);
+    if (effReport) {
+      reasons.push(`Effectiveness: ${effReport.recommendation}`);
     }
 
     // 7. Clamp and round confidence
@@ -432,20 +571,20 @@ export class DecisionContextBuilder {
           : 0,
     };
 
-    // 9. Build reasons summary
-    if (reasons.length === 0) {
-      reasons.push("Basic proposal context available");
-    }
-
+    // 9. Build return value
     return {
+      // DecisionArtifact fields
       id: `decision-ctx-${proposalId}`,
       subject: `Context for ${proposal.action}: ${proposal.reason}`,
-      contextStatus,
-      confidence,
+      outcome: contextStatus,
+      confidence: confidenceResult.confidence,
       reasons,
       warnings: warnings.length > 0 ? warnings : undefined,
       evidenceRefs,
       generatedAt,
+
+      // DecisionContext-specific fields
+      contextStatus,
       proposalId: proposal.id,
       proposalStatus: proposal.status,
       proposalAction: proposal.action,
@@ -453,7 +592,12 @@ export class DecisionContextBuilder {
       ageDays,
       lineage,
       lineageCompleteness: lineage.completeness,
-      similarProposals,
+      similarProposals: similarResults.map((r) => ({
+        proposalId: r.proposalId,
+        action: proposal.action,
+        outcome: r.outcome,
+        confidence: r.confidence,
+      })),
       effectivenessTrend,
       sourceArtifacts,
       dataFreshness,
@@ -471,14 +615,100 @@ git commit -m "P6.0a: DecisionContextBuilder implementation"
 
 ---
 
-### Task 3: DecisionContextBuilder tests
+### Task 3a: Decision confidence tests
+
+**Files:**
+- Create: `tests/adaptation/decision-confidence.vitest.ts`
+
+- [ ] **Step 1: Create confidence computation tests**
+
+```typescript
+import { describe, it, expect } from "vitest";
+import { computeDecisionConfidence } from "../../src/adaptation/decision-confidence";
+
+describe("computeDecisionConfidence", () => {
+  it("returns high confidence for complete data", () => {
+    const result = computeDecisionConfidence({
+      lineageCompleteness: "complete",
+      hasEvidenceFingerprints: true,
+      hasEffectiveness: true,
+      similarProposalsCount: 5,
+      warningsCount: 0,
+      ageDays: 2,
+    });
+    expect(result.confidence).toBeGreaterThan(0.8);
+    expect(result.reasons.length).toBeGreaterThan(0);
+  });
+
+  it("returns lower confidence for partial data", () => {
+    const result = computeDecisionConfidence({
+      lineageCompleteness: "partial",
+      hasEvidenceFingerprints: false,
+      hasEffectiveness: false,
+      similarProposalsCount: 0,
+      warningsCount: 0,
+      ageDays: 2,
+    });
+    expect(result.confidence).toBeLessThan(0.6);
+  });
+
+  it("applies stale penalty for old proposals", () => {
+    const fresh = computeDecisionConfidence({
+      lineageCompleteness: "complete",
+      hasEvidenceFingerprints: true,
+      hasEffectiveness: true,
+      similarProposalsCount: 3,
+      warningsCount: 0,
+      ageDays: 5,
+    });
+    const stale = computeDecisionConfidence({
+      lineageCompleteness: "complete",
+      hasEvidenceFingerprints: true,
+      hasEffectiveness: true,
+      similarProposalsCount: 3,
+      warningsCount: 0,
+      ageDays: 31,
+    });
+    expect(fresh.confidence).toBeGreaterThan(stale.confidence);
+  });
+
+  it("clamps confidence to [0, 1]", () => {
+    const result = computeDecisionConfidence({
+      lineageCompleteness: "broken",
+      hasEvidenceFingerprints: false,
+      hasEffectiveness: false,
+      similarProposalsCount: 0,
+      warningsCount: 10,
+      ageDays: 5,
+    });
+    expect(result.confidence).toBeGreaterThanOrEqual(0);
+    expect(result.confidence).toBeLessThanOrEqual(1);
+  });
+});
+```
+
+- [ ] **Step 2: Run tests**
+
+Run: `npx vitest run tests/adaptation/decision-confidence.vitest.ts --config vitest.config.mts`
+Expected: 4 tests passing
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add tests/adaptation/decision-confidence.vitest.ts
+git commit -m "P6.0a: decision confidence computation tests"
+```
+
+---
+
+### Task 3b: DecisionContextBuilder tests
 
 **Files:**
 - Create: `tests/adaptation/decision-context-builder.vitest.ts`
 
 **Interfaces:**
-- Consumes: `DecisionContextBuilder` from Task 2, mock stores
-- Produces: 7+ tests covering all DecisionContext scenarios
+- Consumes: `DecisionContextBuilder` from Task 2c, mock stores
+- Produces: 9+ tests covering all DecisionContext scenarios
 
 - [ ] **Step 1: Create tests**
 
@@ -676,7 +906,7 @@ describe("DecisionContextBuilder", () => {
     expect(ctx.warnings!.some((w) => w.includes("stale") || w.includes("activity"))).toBe(true);
   });
 
-  it("includes similar proposals from effectiveness store", async () => {
+  it("includes similar proposals from intelligence store", async () => {
     const proposal: AdaptationProposal = {
       id: "prop-sim-001",
       createdAt: now,
@@ -690,19 +920,6 @@ describe("DecisionContextBuilder", () => {
       reason: "Test with similar",
     };
 
-    const otherProposal: AdaptationProposal = {
-      id: "prop-sim-similar",
-      createdAt: now,
-      status: "applied",
-      action: "update_agent_card",
-      target: { kind: "agent_card", id: "other" },
-      payload: {},
-      sourceRecommendationType: "reflection",
-      sourceConfidence: 0.75,
-      evidenceFingerprints: [],
-      reason: "Similar proposal",
-    };
-
     const lineageGraph = {
       rootId: "prop-sim-001",
       generatedAt: now,
@@ -712,30 +929,67 @@ describe("DecisionContextBuilder", () => {
       warnings: [],
     };
 
-    // EffectivenessStore should have a list() returning all effectiveness reports
-    const effReport = {
-      proposalId: "prop-sim-similar",
-      recommendation: "keep",
-      assessedAt: now,
-      dataSufficient: true,
-    };
-
-    const effStoreWithList = {
-      load: vi.fn(async (id: string) => id === "prop-sim-001" ? null : effReport),
-      list: vi.fn(async () => [effReport]),
-    } as any;
+    // Mock IntelligenceStore with findSimilarProposals
+    const intelStore = mockIntelligenceStore([]);
+    intelStore.findSimilarProposals = vi.fn(async () => [
+      { proposalId: "prop-old-001", outcome: "keep", confidence: 0.85 },
+      { proposalId: "prop-old-002", outcome: "revert", confidence: 0.6 },
+    ]);
 
     const builder = new DecisionContextBuilder(
-      mockProposalStore({ "prop-sim-001": proposal, "prop-sim-similar": otherProposal }),
+      mockProposalStore({ "prop-sim-001": proposal }),
       mockEvidenceStore(),
       mockLineageBuilder(lineageGraph),
-      effStoreWithList,
-      mockIntelligenceStore([]),
+      mockEffectivenessStore(null),
+      intelStore,
     );
 
     const ctx = await builder.build("prop-sim-001");
     expect(ctx.similarProposals.length).toBeGreaterThan(0);
     expect(ctx.similarProposals[0].action).toBe("update_agent_card");
+  });
+
+  it("includes source artifacts for all consumed data", async () => {
+    const proposal: AdaptationProposal = {
+      id: "prop-src-001",
+      createdAt: now,
+      status: "applied",
+      action: "update_agent_card",
+      target: { kind: "agent_card", id: "test" },
+      payload: {},
+      sourceRecommendationType: "reflection",
+      sourceConfidence: 0.9,
+      evidenceFingerprints: ["fp-1"],
+      reason: "Source artifact test",
+    };
+
+    const lineageGraph = {
+      rootId: "prop-src-001",
+      generatedAt: now,
+      completeness: "complete" as const,
+      nodes: [],
+      edges: [],
+      warnings: [],
+    };
+
+    const intelStore = mockIntelligenceStore([]);
+    intelStore.findSimilarProposals = vi.fn(async () => []);
+
+    const builder = new DecisionContextBuilder(
+      mockProposalStore({ "prop-src-001": proposal }),
+      mockEvidenceStore(),
+      mockLineageBuilder(lineageGraph),
+      mockEffectivenessStore({ proposalId: "prop-src-001", recommendation: "keep", assessedAt: now, dataSufficient: true }),
+      intelStore,
+    );
+
+    const ctx = await builder.build("prop-src-001");
+    // Should have: proposal + lineage + effectiveness artifacts
+    const types = ctx.sourceArtifacts.map((s) => s.type);
+    expect(types).toContain("proposal");
+    expect(types).toContain("lineage");
+    expect(types).toContain("effectiveness");
+    expect(types.length).toBeGreaterThanOrEqual(3);
   });
 
   it("confidence reflects evidence completeness", async () => {
