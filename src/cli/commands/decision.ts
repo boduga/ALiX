@@ -25,6 +25,8 @@ import type { QueueItem, QueueInput, RecommendationPriority } from "../../adapta
 import { StrategicBriefBuilder } from "../../adaptation/strategic-brief.js";
 import type { StrategicBrief } from "../../adaptation/strategic-brief-types.js";
 import type { IntelligenceReport } from "../../adaptation/intelligence-types.js";
+import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
+import type { EvidenceRecord } from "../../security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -384,19 +386,27 @@ async function runBrief(args: string[]): Promise<void> {
   const briefBuilder = new StrategicBriefBuilder();
 
   // Query stores — this is the CLI's responsibility, not the builder's
-  const effectivenessReports = await infra.effectivenessStore.list();
+  let intelligenceReports: IntelligenceReport[];
+  let effectivenessReports: ProposalEffectivenessReport[];
+  let evidenceRecords: EvidenceRecord[];
+  const LIFECYCLE_TYPES = new Set(["adaptation_proposed", "adaptation_approved", "adaptation_applied", "adaptation_failed", "adaptation_rejected"]);
+  try {
+    effectivenessReports = await infra.effectivenessStore.list();
 
-  // Load all intelligence reports for trend detection across history
-  const intelFilenames = await infra.intelligenceStore.list();
-  const intelligenceReports = (
-    await Promise.all(intelFilenames.map((f) => infra.intelligenceStore.load(f)))
-  ).filter(Boolean) as IntelligenceReport[];
+    // Load all intelligence reports for trend detection across history
+    const intelFilenames = await infra.intelligenceStore.list();
+    intelligenceReports = (
+      await Promise.all(intelFilenames.map((f) => infra.intelligenceStore.load(f)))
+    ).filter(Boolean) as IntelligenceReport[];
 
-  // Query evidence store — EvidenceStore.query takes type (singular),
-  // so query broadly then filter for lifecycle event types in-memory
-  const LIFECYCLE_TYPES = new Set(["adaptation_proposed", "adaptation_approved", "adaptation_applied", "adaptation_failed"]);
-  const allEvidence = await infra.evidenceStore.query({ limit: 10000 });
-  const evidenceRecords = allEvidence.records.filter((r) => LIFECYCLE_TYPES.has(r.type));
+    // Query evidence store — EvidenceStore.query takes type (singular),
+    // so query broadly then filter for lifecycle event types in-memory
+    const allEvidence = await infra.evidenceStore.query({ limit: 10000 });
+    evidenceRecords = allEvidence.records.filter((r) => LIFECYCLE_TYPES.has(r.type));
+  } catch (err) {
+    console.error(`Error querying stores: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
 
   const input = {
     intelligenceReports,
@@ -458,7 +468,7 @@ async function runBrief(args: string[]): Promise<void> {
     console.log(``);
   }
 
-  console.log(`Data: ${brief.evidenceRefs?.length ?? "—"} evidence records, ${brief.trends.length} trend(s), ${brief.hotspots.length} hotspot(s)`);
+  console.log(`Data: ${intelligenceReports.length} intelligence reports, ${effectivenessReports.length} effectiveness reports, ${evidenceRecords.length} evidence records`);
   console.log(`Confidence: ${(brief.confidence * 100).toFixed(0)}% (data sufficiency)`);
 
   if (brief.reasons.length > 0) {

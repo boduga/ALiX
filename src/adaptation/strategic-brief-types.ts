@@ -120,8 +120,9 @@ export interface StrategicBrief extends DecisionArtifact {
    * Confidence in the brief's data sufficiency — NOT confidence that any
    * action should be taken.
    *
-   * Formula: min(1, sampleSize / targetSampleSize) adjusted downward for
-   * data gaps. targetSampleSize = 30 (one proposal per day in a 30-day window).
+   * Formula: min(1, sampleSize / 30).
+   * sampleSize is the total count of intelligence reports, effectiveness
+   * reports, and evidence records within the window.
    */
   confidence: number;
   /** Source artifacts consumed: intelligence, effectiveness, evidence. */
