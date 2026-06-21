@@ -25,6 +25,8 @@ import type {
   SourceArtifact,
   EffectivenessTrend,
   DataFreshness,
+  EnrichedWarning,
+  WarningSeverity,
 } from "./decision-types.js";
 import {
   computeDecisionConfidence,
@@ -47,7 +49,7 @@ export class DecisionContextBuilder {
   async build(proposalId: string): Promise<DecisionContext> {
     const generatedAt = new Date().toISOString();
     const reasons: string[] = [];
-    const warnings: string[] = [];
+    const warnings: EnrichedWarning[] = [];
     const evidenceRefs: string[] = [];
     const sourceArtifacts: SourceArtifact[] = [];
 
@@ -61,7 +63,7 @@ export class DecisionContextBuilder {
         contextStatus: "insufficient_data",
         confidence: 0,
         reasons: ["Proposal not found"],
-        warnings: [`Proposal ${proposalId} not found in ProposalStore`],
+        warnings: [{ message: `Proposal ${proposalId} not found in ProposalStore`, severity: "critical" }],
         evidenceRefs: [],
         generatedAt,
         proposalId,
@@ -98,10 +100,16 @@ export class DecisionContextBuilder {
       timestamp: lineage.generatedAt,
     });
 
-    // Propagate lineage warnings
+    // Propagate lineage warnings with severity mapping
     if (lineage.warnings.length > 0) {
       for (const w of lineage.warnings) {
-        warnings.push(`[lineage] ${w.message}`);
+        const severity: WarningSeverity =
+          w.type === "missing_evidence_fingerprint" || w.type === "integrity_mismatch"
+            ? "critical"
+            : w.type === "stalled_cycle"
+              ? "warning"
+              : "info";
+        warnings.push({ message: `[lineage] ${w.message}`, severity });
       }
     }
 
@@ -109,7 +117,7 @@ export class DecisionContextBuilder {
     let contextStatus: ContextStatus;
     if (ageDays > STALE_THRESHOLD_DAYS) {
       contextStatus = "stale_context";
-      warnings.push(`Proposal has had no activity for ${ageDays} days (threshold: ${STALE_THRESHOLD_DAYS})`);
+      warnings.push({ message: `Proposal has had no activity for ${ageDays} days (threshold: ${STALE_THRESHOLD_DAYS})`, severity: "warning" });
     } else if (lineage.completeness === "complete") {
       contextStatus = "complete_context";
     } else {

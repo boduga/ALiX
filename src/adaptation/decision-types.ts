@@ -14,6 +14,21 @@ import type { LineageGraph } from "./lineage-types.js";
 // Base artifact pattern
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Warning types
+// ---------------------------------------------------------------------------
+
+export type WarningSeverity = "info" | "warning" | "critical";
+
+export interface EnrichedWarning {
+  message: string;
+  severity: WarningSeverity;
+}
+
+// ---------------------------------------------------------------------------
+// Base artifact pattern
+// ---------------------------------------------------------------------------
+
 /**
  * Base shape for all P6 decision artifacts.
  * Specialized forms: DecisionContext, RiskScore, Recommendation, QueueItem, StrategicBrief.
@@ -24,7 +39,7 @@ export interface DecisionArtifact {
   outcome: string;
   confidence: number;
   reasons: string[];
-  warnings?: string[];
+  warnings?: EnrichedWarning[];
   evidenceRefs?: string[];
   generatedAt: string;
 }
