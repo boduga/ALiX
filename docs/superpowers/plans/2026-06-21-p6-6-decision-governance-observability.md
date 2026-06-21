@@ -14,10 +14,20 @@
 - **No writes:** The PipelineHealthCollector NEVER writes to stores. Read-only.
 - **No new evidence types:** The report reads existing events but does not create new ones.
 - **Health priority order:** `attention_needed` > `degraded` > `healthy`. Worst condition wins.
-- **Window scoping:** scopedProposals = pending proposals + proposals created/applied within `--window` days.
+- **Window scoping:** scopedProposals = pending proposals + proposals created within `--window` days. Proposals have `createdAt` but no `appliedAt` field.
 - **Per-proposal error isolation:** A single `DecisionContextBuilder.build()` failure skips that proposal without failing the report.
 - **ALiX/Claude boundary:** ALiX is its own autonomous adaptation system. No references to Claude Code, skills, plugins, or MCP in the code.
 - **Ponytail mode active (full):** Lazy senior developer — shortest working diff, no unrequested abstractions.
+
+## Store API Notes (verify before coding)
+
+| API | Returns | Notes |
+|-----|---------|-------|
+| `proposalStore.list(status?)` | `AdaptationProposal[]` | Optional status filter. Has `createdAt`; no `appliedAt`. |
+| `effectivenessStore.list()` | `ProposalEffectivenessReport[]` | Full objects — includes `id`, `recommendation`, `assessedAt`. |
+| `intelligenceStore.list()` | `string[]` | Returns filenames, not objects. Use `.load(filename)` for full report. |
+| `intelligenceStore.loadLatest()` | `IntelligenceReport \| null` | Convenience — loads the most recent report. |
+| `evidenceStore.query({})` | `{records, total, truncated}` | `records` is `EvidenceRecord[]`; `total` is count. |
 
 ---
 
@@ -805,10 +815,9 @@ export class PipelineHealthCollector {
     const scopedIds = proposals
       .filter(p => {
         if (p.status === "pending") return true;
+        // Proposals don't have appliedAt — use createdAt only
         const createdAt = Date.parse((p as any).createdAt ?? "");
-        const appliedAt = Date.parse((p as any).appliedAt ?? "");
-        return (Number.isFinite(createdAt) && createdAt >= windowStartMs)
-            || (Number.isFinite(appliedAt) && appliedAt >= windowStartMs);
+        return Number.isFinite(createdAt) && createdAt >= windowStartMs;
       })
       .map(p => p.id);
 
