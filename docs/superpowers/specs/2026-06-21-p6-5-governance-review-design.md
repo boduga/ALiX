@@ -217,6 +217,29 @@ identify what evidence is missing, weak, or stale.
 
 **Output concerns:** Missing artifacts, thin data, stale context, unwarranted confidence.
 
+## LensAgent Interface (Interface-First)
+
+Avoid baking in a specific LLM provider. The lens system should work with real LLM agents and test doubles through a single interface:
+
+```typescript
+/** Input context provided to every lens. */
+interface GovernanceReviewInput {
+  recommendation: ApprovalRecommendation;
+  decisionContext: DecisionContext;
+  riskScore?: RiskScore;
+  historicalSummary?: string;      // Pre-assembled by CLI for Historian lens
+  governanceRules?: string;         // Pre-assembled by CLI for Policy Auditor lens
+}
+
+/** Every lens implements this interface. */
+interface LensAgent {
+  /** Run the lens and return its score. */
+  run(input: GovernanceReviewInput): Promise<LensScore>;
+}
+```
+
+The CLI assembles `GovernanceReviewInput` from stores, then passes it to each lens. Lenses are stateless — all context is in the input. This makes them testable with mock implementations and swappable LLM providers.
+
 ## Council Aggregation Rules
 
 After all four lenses return their `LensScore`, the council aggregates deterministically:
@@ -276,6 +299,15 @@ function computeReviewConfidence(
   lensScores: LensScore[],
   verdict: GovernanceReview["verdict"],
 ): number {
+  // If the final verdict is insufficient_information, the insufficient-information
+  // lenses ARE the evidence — confidence reflects how many lenses couldn't assess.
+  if (verdict === "insufficient_information") {
+    const insufficientCount = lensScores.filter(
+      (s) => s.recommendedVerdict === "insufficient_information",
+    ).length;
+    return insufficientCount / lensScores.length;
+  }
+
   const definitive = lensScores.filter((s) => s.recommendedVerdict !== "insufficient_information");
   if (definitive.length === 0) return 0;
 
@@ -291,6 +323,8 @@ function computeReviewConfidence(
   return definitiveRatio * agreementFactor * avgLensConfidence;
 }
 ```
+
+**Key rule:** When the final verdict is `insufficient_information`, the lenses that abstained are the evidence — not a problem to exclude. The confidence score represents the proportion of lenses that agreed they couldn't assess.
 
 ### Step 3: Deduplicate concerns
 
@@ -309,9 +343,11 @@ Concerns from all lenses are merged, deduplicated by similarity (exact match on 
 
 1. RiskScore.overallRisk descending (primary)
 2. Recommendation rank descending (secondary)
-3. **Governance review severity descending** (tertiary — NEW)
-4. DecisionContext.ageDays descending (quaternary)
+3. DecisionContext.ageDays descending (tertiary)
+4. **Governance review severity descending** (quaternary — NEW modifier)
 5. proposalId ascending (tiebreaker)
+
+**Reasoning:** Review is critique, not priority. It surfaces concern but should not reshape queue order more aggressively than age. Risk and recommendation remain the dominant signals; review severity only breaks ties between proposals that are already similar in risk, recommendation, and age.
 
 ### Governance review severity rank
 
@@ -366,10 +402,14 @@ alix decision review <proposal-id> --lens historian  # Run a single lens only
 ### Queue with reviews
 
 ```bash
-alix decision queue                          # Current behavior (no review signal)
-alix decision queue --with-reviews           # Show governance verdict per item
+alix decision queue                          # Current behavior (no review signal, no LLM cost)
+alix decision queue --with-reviews           # Compute reviews and show verdicts (4 LLM calls per proposal)
 alix decision queue --limit 5 --with-reviews # Combined
 ```
+
+**Non-blocking review:** If a review fails (LLM error, timeout, malformed response), Queue still renders with a warning notice for that item. A failed review does not block the queue. Reviews are computed synchronously when `--with-reviews` is used; default queue runs zero LLM calls.
+
+**Cost warning:** `--with-reviews` runs 4 LLM calls per pending proposal. For a queue of 20 proposals, that's 80 LLM calls. Use with `--limit` to control cost.
 
 ### Terminal output (review)
 
@@ -421,14 +461,14 @@ Tests verify the review module does NOT import:
 - Any module from `src/security/` or `src/workflow/` (execution paths)
 - `approval-gate` or `applier` modules
 
-### Intelligence Law sentinel
+### Prompt authority-language sentinel
 
-Tests verify each lens prompt file does NOT contain:
-- Decision language ("I approve", "I reject", "I recommend")
-- Action language ("apply this", "execute this")
-- Priority language ("this should be first", "prioritize this")
+Tests verify each lens prompt file does NOT contain authority language:
+- `"I approve"` / `"I reject"` (first-person decision claims)
+- `"apply this"` / `"execute this"` (action instructions)
+- `"final decision"` / `"must approve"` / `"must reject"` (imperative authority claims)
 
-The lens prompts must stay in critique-only territory.
+The words `approve`, `reject`, and `recommend` are NOT banned globally — lens prompts need to discuss the existing recommendation (e.g., "Does this recommendation violate governance?"). Only first-person or imperative authority claims are forbidden.
 
 ### Purity sentinel
 
@@ -464,9 +504,10 @@ Tests verify the GovernanceReviewCouncil aggregation logic is deterministic:
 
 | Test | Scenario |
 |------|----------|
-| Same risk + recommendation, review severity breaks tie | Review as tiebreaker |
+| Same risk + recommendation + age, review severity breaks tie | Review as tiebreaker |
 | No review → severity 0 (no impact) | Missing review |
 | Challenge verdict → boosted above agree | Severity rank |
+| Review failure → queue still renders with warning | Non-blocking |
 
 ### Governance sentinel tests
 
@@ -501,7 +542,7 @@ Modify:
 1. `GovernanceReview` extends `DecisionArtifact` with proposalId, recommendationId, verdict, concerns, blindSpots, historicalAnalogies, lensScores, councilVote
 2. `Council.aggregate(lensScores)` returns deterministic verdict and council vote for any valid input
 3. Tiebreaker resolves to most severe verdict among tied positions
-4. Queue sorts with review severity as tertiary key (between recommendation rank and age)
+4. Queue sorts with review severity as quaternary key (after risk, recommendation rank, and age)
 5. No review → severity 0 (no sort impact)
 6. `alix decision review <id>` runs all 4 lenses and displays terminal output
 7. `alix decision queue --with-reviews` shows governance verdict per item
@@ -513,7 +554,7 @@ Modify:
 
 | Feature | Belongs to | Reason |
 |---------|-----------|--------|
-| Persisting GovernanceReview to disk | Future | Reviews are ephemeral — re-run when needed |
+| Persisting GovernanceReview to disk (GovernanceReviewStore) | Future | Reviews are ephemeral — re-run when needed. No GovernanceReviewStore for P6.5 |
 | Auto-rejection based on review verdict | Never | Would violate Review ≠ Decision |
 | Learning from past reviews (P7) | P7 Decision Learning | Different goal (accuracy over time) |
 | Human review feedback loop | Future | This is LLM critique only |
