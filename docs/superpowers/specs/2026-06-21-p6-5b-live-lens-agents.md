@@ -49,14 +49,20 @@ CLI: alix decision review <id>
 ```typescript
 // src/adaptation/llm-adapter.ts
 
+export interface LLMCompletion {
+  content: string;
+  provider?: string;
+  model?: string;
+}
+
 export interface LLMAdapter {
-  /** Send a prompt and return the raw response text.
+  /** Send a prompt and return the response.
    *  Throws on timeout, network error, or empty response.
    *  Caller owns retry/fallback logic. */
   complete(
     input: { system: string; user: string },
     options?: { timeoutMs?: number },
-  ): Promise<string>;
+  ): Promise<LLMCompletion>;
 }
 ```
 
@@ -71,7 +77,7 @@ export class ProviderCatalogAdapter implements LLMAdapter {
   async complete(
     input: { system: string; user: string },
     options?: { timeoutMs?: number },
-  ): Promise<string> {
+  ): Promise<LLMCompletion> {
     const result = await this.catalog.complete({
       system: input.system,
       messages: [{ role: "user", content: input.user }],
@@ -80,7 +86,11 @@ export class ProviderCatalogAdapter implements LLMAdapter {
       timeoutMs: options?.timeoutMs ?? 30000,
     });
     if (!result.content) throw new Error("Empty response from provider");
-    return result.content;
+    return {
+      content: result.content,
+      provider: result.provider,
+      model: result.model,
+    };
   }
 }
 ```
@@ -103,11 +113,11 @@ export class LLMLensAgent implements LensAgent {
     const context = this.#buildContext(input);
 
     try {
-      const raw = await this.adapter.complete(
-        { system: prompt, user: context },
+      const completion = await this.adapter.complete(
+        { system: `${prompt}\n\n${LENS_JSON_SUFFIX}`, user: context },
         { timeoutMs: 30000 },
       );
-      return this.#parseScore(raw);
+      return this.#parseScore(completion);
     } catch {
       return this.#fallback("Lens agent failed to produce a result.");
     }
@@ -163,8 +173,8 @@ interface LensScoreJson {
   rationale: string;
 }
 
-#parseScore(raw: string): LensScore {
-  const cleaned = raw.replace(/```(?:json)?\s*/g, "").trim();
+#parseScore(completion: LLMCompletion): LensScore {
+  const cleaned = completion.content.replace(/```(?:json)?\s*/g, "").trim();
 
   let parsed: LensScoreJson;
   try {
@@ -190,6 +200,8 @@ interface LensScoreJson {
     recommendedVerdict: parsed.recommendedVerdict,
     confidence: parsed.confidence,
     rationale: parsed.rationale,
+    provider: completion.provider,
+    model: completion.model,
   };
 }
 ```
@@ -206,12 +218,18 @@ interface LensScoreJson {
 
 ## Prompt Execution
 
-Each lens prompt is the existing `LENS_PROMPTS[lens]` from P6.5a, with the following suffix appended:
+Each lens prompt composes `LENS_PROMPTS[lens]` from P6.5a with a centralized JSON-only suffix:
 
+```typescript
+export const LENS_JSON_SUFFIX =
+  "Return ONLY valid JSON. Do not include markdown, prose, or code fences.\n" +
+  "Do not approve, reject, apply, execute, or make a final decision.";
+
+// In LLMLensAgent:
+const system = `${LENS_PROMPTS[this.lens]}\n\n${LENS_JSON_SUFFIX}`;
 ```
-Return ONLY valid JSON. Do not include markdown, prose, or code fences.
-Do not approve, reject, apply, execute, or make a final decision.
-```
+
+This keeps the suffix in one place for sentinel testing, avoids duplicating text across 4 prompt entries, and makes it trivial to verify the suffix is present in every lens invocation.
 
 The `#buildContext` method assembles a user message from `GovernanceReviewInput` fields.
 
@@ -227,7 +245,10 @@ alix decision review <proposal-id> --lens historian   # Run a single lens only
 
 ```
 1. Parse args: <id>, --json, --lens <name>
-2. Verify LLM provider is configured → if not, error + exit non-zero
+2. If --lens is specified, validate against accepted names:
+   red_team | historian | policy_auditor | confidence_critic
+   → invalid lens exits non-zero before any provider call
+3. Verify LLM provider is configured → if not, error + exit non-zero
 3. Build context → risk → recommendation (fail fast — deterministic preconditions)
 4. Assemble GovernanceReviewInput
 5. For each lens (or single lens if --lens):
@@ -297,7 +318,8 @@ Add to existing `governance-review-sentinels.vitest.ts`:
 7. No provider configured → error message, exit non-zero
 8. Council handles <4 scores without error
 9. `ProviderCatalogAdapter` wraps provider; `LLMLensAgent` does not import provider directly
-10. All existing P6.5a tests pass (no regressions)
+10. All existing P6.5a tests pass (no regressions), including council tests after widening `LensScore` with optional `provider`/`model`
+11. `--lens` with invalid value exits non-zero before any provider call
 
 ## Explicitly Out of Scope (P6.5b)
 
