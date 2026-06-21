@@ -195,44 +195,44 @@ export interface LLMAdapter {
 
 ```typescript
 /**
- * P6.5b — ProviderCatalogAdapter: LLMAdapter backed by the ALiX provider catalog.
+ * P6.5b — ProviderCatalogAdapter: LLMAdapter backed by an ALiX ModelAdapter.
  *
- * Wraps ProviderCatalog.complete() to match the LLMAdapter interface.
+ * Wraps ModelAdapter.complete() to match the LLMAdapter interface.
  * Thin — no retry, no fallback, no prompt shaping.
  *
  * @module
  */
 
 import type { LLMAdapter, LLMCompletion } from "./llm-adapter.js";
-
-// Import provider catalog type — exact import depends on the catalog module's exports
-import { /* ProviderCatalog or equivalent */ } from "../providers/catalog.js";
+import type { ModelAdapter } from "../providers/types.js";
 
 export class ProviderCatalogAdapter implements LLMAdapter {
-  constructor(private catalog: /* ProviderCatalog type */) {}
+  constructor(
+    private adapter: ModelAdapter,
+    private providerInfo: { provider: string; model?: string },
+  ) {}
 
   async complete(
     input: { system: string; user: string },
     options?: { timeoutMs?: number },
   ): Promise<LLMCompletion> {
-    const result = await this.catalog.complete({
-      system: input.system,
+    const result = await this.adapter.complete({
+      systemPrompt: input.system,
       messages: [{ role: "user" as const, content: input.user }],
-      maxTokens: 512,
       temperature: 0,
-      timeoutMs: options?.timeoutMs ?? 30000,
+      maxOutputTokens: 512,
     });
-    if (!result.content) throw new Error("Empty response from provider");
+    if (!result.text) throw new Error("Empty response from provider");
     return {
-      content: result.content,
-      provider: (result as any).provider,
-      model: (result as any).model,
+      content: result.text,
+      provider: this.providerInfo.provider,
+      model: this.providerInfo.model,
     };
   }
 }
 ```
 
-> **Note:** The `ProviderCatalog.complete()` signature MUST be verified against the actual repo code. The adapter above uses reasonable defaults (temperature=0, maxTokens=512) — adjust to match the real API.
+The adapter wraps a `ModelAdapter` instance (obtained via `createProvider()` from registry.ts), not the catalog directly. This keeps governance away from provider setup logic.
 
 - [ ] **Step 6: Run adapter tests**
 
@@ -304,12 +304,13 @@ describe("LLMLensAgent", () => {
     expect(result.confidence).toBe(0);
   });
 
-  it("returns insufficient_information on JSON parse failure", async () => {
+  it("returns insufficient_information on JSON parse failure with specific rationale", async () => {
     const adapter = makeAdapter("not-json");
     const agent = new LLMLensAgent(adapter, "red_team");
     const result = await agent.run(makeInput());
     expect(result.recommendedVerdict).toBe("insufficient_information");
     expect(result.confidence).toBe(0);
+    expect(result.rationale).toContain("Failed to parse lens output");
   });
 
   it("returns insufficient_information on invalid verdict", async () => {
@@ -319,6 +320,7 @@ describe("LLMLensAgent", () => {
     const agent = new LLMLensAgent(adapter, "red_team");
     const result = await agent.run(makeInput());
     expect(result.recommendedVerdict).toBe("insufficient_information");
+    expect(result.rationale).toContain("Invalid verdict");
   });
 
   it("returns insufficient_information when authority language in rationale", async () => {
@@ -328,6 +330,7 @@ describe("LLMLensAgent", () => {
     const agent = new LLMLensAgent(adapter, "red_team");
     const result = await agent.run(makeInput());
     expect(result.recommendedVerdict).toBe("insufficient_information");
+    expect(result.rationale).toContain("authority language");
   });
 
   it("returns insufficient_information when authority language anywhere in payload", async () => {
@@ -337,6 +340,7 @@ describe("LLMLensAgent", () => {
     const agent = new LLMLensAgent(adapter, "red_team");
     const result = await agent.run(makeInput());
     expect(result.recommendedVerdict).toBe("insufficient_information");
+    expect(result.rationale).toContain("authority language");
   });
 
   it("strips markdown fences before parsing", async () => {
@@ -414,8 +418,10 @@ export class LLMLensAgent implements LensAgent {
         { timeoutMs: DEFAULT_TIMEOUT_MS },
       );
       return this.#parseScore(completion.content, completion.provider, completion.model);
-    } catch {
-      return this.#fallback("Lens agent failed to produce a result.");
+    } catch (err) {
+      return this.#fallback(
+        err instanceof Error ? err.message : "Lens agent failed to produce a result.",
+      );
     }
   }
 
@@ -450,22 +456,22 @@ export class LLMLensAgent implements LensAgent {
     try {
       parsed = JSON.parse(cleaned);
     } catch {
-      throw new Error("Failed to parse lens output");
+      throw new Error("Failed to parse lens output — response was not valid JSON");
     }
 
     // Validate verdict
     if (!parsed.recommendedVerdict || !VALID_VERDICTS.includes(parsed.recommendedVerdict as GovernanceVerdict)) {
-      throw new Error("Invalid verdict");
+      throw new Error("Invalid verdict in lens output");
     }
 
     // Validate confidence
     if (typeof parsed.confidence !== "number" || parsed.confidence < 0 || parsed.confidence > 1) {
-      throw new Error("Invalid confidence");
+      throw new Error("Invalid confidence in lens output");
     }
 
     // Validate rationale
     if (typeof parsed.rationale !== "string" || parsed.rationale.length === 0) {
-      throw new Error("Missing or empty rationale");
+      throw new Error("Missing or empty rationale in lens output");
     }
 
     // Authority language check — full payload scan
@@ -515,7 +521,7 @@ Expected: 992+ tests passing
 
 ```bash
 git add src/adaptation/llm-lens-agent.ts tests/adaptation/llm-lens-agent.vitest.ts
-git commit -m "feat(p6.5b): LLMLensAgent with parallel execution, JSON parsing, authority detection"
+git commit -m "feat(p6.5b): LLMLensAgent JSON parsing and authority detection"
 ```
 
 ---
@@ -567,13 +573,68 @@ Add the import for `LensName`:
 import type { LensName } from "../../adaptation/governance-review-types.js";
 ```
 
-Add the `runReview` function. Key design:
+- [ ] **Step 2a: Verify provider wiring pattern in the repo**
 
+```bash
+# Find how providers are created and configured
+grep -n "createProvider" src/providers/registry.ts src/cli.ts | head -10
+echo "---"
+# Check detectProvider signature
+grep -A 8 "detectProvider" src/providers/catalog.ts | head -12
+```
+
+Expected output confirms:
+- `createProvider({ provider, model }, apiKey?): Promise<ModelAdapter>` from `registry.ts`
+- `detectProvider(): { provider: string; model: string }` from `catalog.ts`
+- `NormalizedRequest` has `systemPrompt` (not `system`), `messages`, `temperature`, `maxOutputTokens`
+- `NormalizedResponse` has `text` (not `content`), `toolCalls`
+
+- [ ] **Step 2b: Update ProviderCatalogAdapter to match real API**
+
+The adapter signature in Task 2 must match the actual `NormalizedRequest`/`NormalizedResponse` shape:
+
+```typescript
+// ProviderCatalogAdapter.complete()
+async complete(input, options?): Promise<LLMCompletion> {
+  const result = await this.adapter.complete({
+    systemPrompt: input.system,
+    messages: [{ role: "user", content: input.user }],
+    temperature: 0,
+    maxOutputTokens: 512,
+  });
+  if (!result.text) throw new Error("Empty response from provider");
+  return { content: result.text, provider: this.providerInfo.provider, model: this.providerInfo.model };
+}
+```
+
+The adapter wraps a `ModelAdapter` (the result of `createProvider()`), not the catalog. Constructor takes the adapter instance + provider info.
+
+- [ ] **Step 2c: Add provider setup in runReview**
+
+```typescript
+// In runReview — detect and create provider
+import { detectProvider } from "../../providers/catalog.js";
+import { createProvider } from "../../providers/registry.js";
+
+const detected = detectProvider();
+if (!detected || !detected.provider) {
+  console.error("Error: no LLM provider configured for governance review");
+  process.exit(1);
+}
+const apiKey = await getApiKey(detected.provider);  // or process.env[PROVIDER.envKey]
+const modelAdapter = await createProvider(
+  { provider: detected.provider, model: detected.model },
+  apiKey,
+);
+const llmAdapter = new ProviderCatalogAdapter(modelAdapter, detected);
+```
+
+**Key design for `runReview`:**
 - Parse `--json`, `--lens <name>`, and `<proposal-id>` from args
 - Validate `--lens` against `LensName` union — exit non-zero on invalid
 - Build existing infra (stores, context builder, risk builder, recommendation engine)
-- Build provider infra — verify provider is configured, else exit non-zero
-- Create LLMAdapter and 4 LLMLensAgent instances (or 1 if `--lens`)
+- Detect and create provider — exit non-zero if none configured
+- Create ProviderCatalogAdapter and 4 LLMLensAgent instances (or 1 if `--lens`)
 - Build context → risk → recommendation (fail fast on these)
 - Assemble GovernanceReviewInput
 - Run lenses in parallel: `Promise.all(lenses.map(l => l.run(input)))`
