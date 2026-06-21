@@ -135,7 +135,7 @@ async function runContext(args: string[]): Promise<void> {
     console.log(``);
     console.log(`⚠️ Warnings (${ctx.warnings.length}):`);
     for (const w of ctx.warnings) {
-      console.log(`   · ${w}`);
+      console.log(`   · ${w.message} (${w.severity})`);
     }
   }
 
