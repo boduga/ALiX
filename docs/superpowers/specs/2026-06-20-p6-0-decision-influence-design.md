@@ -133,6 +133,14 @@ export interface DecisionContext {
 
   // Provenance — what went into this context
   sourceArtifacts: SourceArtifact[];
+
+  // Data freshness — age range of all consumed artifacts
+  // Enables downstream layers (P6.1 Risk, P6.2 Recommendation) to factor
+  // staleness into their models without re-deriving it.
+  dataFreshness: {
+    newestArtifactAgeDays: number;
+    oldestArtifactAgeDays: number;
+  };
 }
 ```
 
@@ -236,8 +244,9 @@ Modify:
 
 A new sentinel file `tests/adaptation/decision-governance-sentinels.vitest.ts` verifies:
 
-1. **DecisionContextBuilder must not import** `approval-gate`, `agent-card-applier`, `skill-applier`, `revert-applier`, or any generator
-2. **DecisionContextBuilder may import stores** for read access only — the sentinel checks that `save`, `update` are not called (module-level grep, same pattern as P5.7a sentinels)
+1. **No import of governance/mutation modules** — `DecisionContextBuilder` must not import `approval-gate`, `agent-card-applier`, `skill-applier`, `revert-applier`, or any generator
+2. **No dependency on governance types** — `DecisionContextBuilder` must not import `ApprovalGate`, `Applier`, `AgentCardApplier`, `SkillApplier`, `RevertApplier`, `AutomaticProposalGenerator`, `CapabilityEvolutionProposalGenerator`, or any applier/generator result types. Prevents coupling through interfaces rather than imports
+3. **DecisionContextBuilder may import stores for read access only** — the sentinel checks that `save` and `update` are never called (module-level grep, same pattern as P5.7a sentinels)
 
 ### Tests
 
