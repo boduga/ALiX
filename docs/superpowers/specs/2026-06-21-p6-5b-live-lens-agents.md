@@ -135,6 +135,25 @@ export class LLMLensAgent implements LensAgent {
 }
 ```
 
+### Model metadata (JSON output only)
+
+The `LensScore` interface gains an optional `provider` and `model` field for JSON consumers. Terminal output omits these to reduce noise.
+
+```typescript
+export interface LensScore {
+  lens: LensName;
+  recommendedVerdict: GovernanceVerdict;
+  confidence: number;
+  rationale: string;
+  /** Provider name used to generate this score (JSON only). */
+  provider?: string;
+  /** Model name used to generate this score (JSON only). */
+  model?: string;
+}
+```
+
+The `ProviderCatalogAdapter` captures `provider` and `model` from the catalog response and passes them through to `LLMLensAgent`, which sets them on the returned `LensScore`. This enables provenance tracking across model changes without adding persistence.
+
 ### Strict JSON parsing
 
 ```typescript
@@ -161,10 +180,10 @@ interface LensScoreJson {
   if (typeof parsed.rationale !== "string" || parsed.rationale.length === 0)
     throw new Error("Missing or empty rationale");
 
-  // Authority language check
+  // Authority language check — scan entire parsed payload, not just rationale
   const forbidden = ["i approve", "i reject", "apply this", "execute this", "final decision", "must approve", "must reject"];
-  const lower = parsed.rationale.toLowerCase();
-  if (forbidden.some(phrase => lower.includes(phrase))) throw new Error("Authority language detected");
+  const payload = JSON.stringify(parsed).toLowerCase();
+  if (forbidden.some(phrase => payload.includes(phrase))) throw new Error("Authority language detected");
 
   return {
     lens: this.lens,
@@ -212,10 +231,12 @@ alix decision review <proposal-id> --lens historian   # Run a single lens only
 3. Build context → risk → recommendation (fail fast — deterministic preconditions)
 4. Assemble GovernanceReviewInput
 5. For each lens (or single lens if --lens):
-   a. LLMLensAgent.run(input) → LensScore
-   b. On failure → catch → insufficient_information
+   a. Run all lenses in parallel: `Promise.all(lenses.map(l => l.run(input)))`
+   b. On individual lens failure → catch → insufficient_information
 6. GovernanceReviewCouncil.aggregate(...) → GovernanceReview
 7. Render terminal output or JSON
+
+All lenses run in parallel via `Promise.all`. Worst-case latency = `max(single lens timeout)` not `sum(all lens timeouts)`. For a 30s timeout, a 4-lens review completes in ~30s worst case, not ~120s.
 ```
 
 ### Terminal output
