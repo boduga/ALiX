@@ -549,14 +549,7 @@ export class DecisionContextBuilder {
       reasons.push(`Effectiveness: ${effReport.recommendation}`);
     }
 
-    // 7. Clamp and round confidence
-    confidence = Math.max(0, Math.min(1, confidence));
-    confidence = Math.round(confidence * 100) / 100;
-    if (contextStatus === "insufficient_data") {
-      confidence = 0;
-    }
-
-    // 8. Build data freshness
+    // 9. Build data freshness
     const sourceTimestamps = sourceArtifacts
       .map((s) => s.timestamp)
       .filter((t): t is string => !!t)
