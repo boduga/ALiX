@@ -196,11 +196,14 @@ Add the following method to the `IntelligenceStore` class:
 
 ```typescript
 /**
- * Find proposals with the same action type by joining effectiveness reports
- * with their source proposals. Avoids the N+1 query pattern where callers
- * would otherwise load every effectiveness report + proposal individually.
+ * Find proposals with the same action type by scanning effectiveness reports
+ * and loading their source proposals to verify the action type matches.
  *
- * Designed for decision-support consumers (DecisionContextBuilder, etc.).
+ * Improves layering by keeping decision-support queries in the intelligence
+ * store rather than embedding store traversal logic in the DecisionContextBuilder.
+ * Note: still performs one proposalStore.load() per candidate — suitable for
+ * P6.0a scale (tens of effectiveness reports); optimize with indexing in later
+ * P6 phases if needed.
  */
 async findSimilarProposals(
   actionType: string,
@@ -573,7 +576,9 @@ export class DecisionContextBuilder {
 
     // 9. Build return value
     return {
-      // DecisionArtifact fields
+      // DecisionArtifact fields (outcome is set to contextStatus for artifact
+      // compatibility — P6's base artifact shape requires an outcome field,
+      // and contextStatus is the most semantically accurate value at this layer)
       id: `decision-ctx-${proposalId}`,
       subject: `Context for ${proposal.action}: ${proposal.reason}`,
       outcome: contextStatus,
@@ -1167,7 +1172,7 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
     }
   });
 
-  it("DecisionContextBuilder must not contain save/update/approve/apply calls", () => {
+  it("DecisionContextBuilder must not contain save/update/approve/apply or proposal-generation calls", () => {
     const source = sourceOf(
       "../../src/adaptation/decision-context-builder",
     );
@@ -1177,6 +1182,11 @@ describe("P6 Governance Invariants — Recommend ≠ Decide", () => {
       ".approve(",
       ".apply(",
       ".reject(",
+      ".generateProposal(",
+      "createProposal(",
+      "generateFromReflection(",
+      "generateFromEffectiveness(",
+      "generateFromCapabilityEvolution(",
     ];
     for (const method of forbiddenMethods) {
       expect(source).not.toContain(method);
