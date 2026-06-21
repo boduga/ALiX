@@ -8,7 +8,6 @@
  * @module
  */
 
-import type { SourceArtifact } from "./decision-types.js";
 import type { QueueInput, QueueItem, QueueItemOrdering } from "./operator-queue-types.js";
 import { RECOMMENDATION_RANK, type RecommendationPriority } from "./operator-queue-types.js";
 
