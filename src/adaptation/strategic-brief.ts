@@ -20,7 +20,6 @@ import type {
   Trend,
   Hotspot,
   TimeWindow,
-  FindingCategory,
 } from "./strategic-brief-types.js";
 import type { SourceArtifact } from "./decision-types.js";
 
@@ -111,7 +110,7 @@ export class StrategicBriefBuilder {
         `intelligence:${windowedInput.intelligenceReports.length}`,
         `effectiveness:${windowedInput.effectivenessReports.length}`,
         `evidence:${windowedInput.evidenceRecords.length}`,
-      ].filter(Boolean),
+      ],
       generatedAt,
       period,
       findings,
