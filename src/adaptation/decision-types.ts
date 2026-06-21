@@ -63,7 +63,10 @@ export type SourceArtifactType =
   | "lineage"
   | "effectiveness"
   | "intelligence"
-  | "priority";
+  | "priority"
+  | "context"
+  | "risk"
+  | "recommendation";
 
 export interface SourceArtifact {
   type: SourceArtifactType;
