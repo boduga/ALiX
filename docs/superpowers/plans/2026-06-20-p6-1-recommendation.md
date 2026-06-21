@@ -64,23 +64,8 @@ Modify:
  * @module
  */
 
-import type { DecisionArtifact, SourceArtifact } from "./decision-types.js";
+import type { DecisionArtifact, SourceArtifact, EnrichedWarning } from "./decision-types.js";
 import type { RiskItem } from "./risk-score-types.js";
-
-// ---------------------------------------------------------------------------
-// WarningSeverity
-// ---------------------------------------------------------------------------
-
-export type WarningSeverity = "info" | "warning" | "critical";
-
-// ---------------------------------------------------------------------------
-// EnrichedWarning
-// ---------------------------------------------------------------------------
-
-export interface EnrichedWarning {
-  message: string;
-  severity: WarningSeverity;
-}
 
 // ---------------------------------------------------------------------------
 // Recommendation
@@ -228,7 +213,11 @@ function shouldDefer(ctx: DecisionContext): boolean {
 
 /**
  * Determine if the proposal should be investigated.
- * High risk or conflicting signals need human attention.
+ * Investigate when:
+ *   1. High risk exists (overallRisk >= 0.6)
+ *   OR
+ *   2. Strong evidence exists (confidence >= 0.8) AND material risk exists (overallRisk >= 0.4)
+ *      — signals conflict: the data says "do it" but the risk says "be careful"
  */
 function shouldInvestigate(ctx: DecisionContext, riskScore?: RiskScore): boolean {
   // High risk alone is enough to flag for investigation
@@ -349,7 +338,7 @@ export class RecommendationEngine {
     const coherence = computeSignalCoherence(recommendation, ctx, riskScore);
 
     return {
-      id: `rec-${ctx.proposalId}`,
+      id: `rec-${ctx.proposalId}-${genAt}`,
       subject: `Recommendation for ${ctx.proposalId}`,
       outcome: recommendation,
       recommendation,
@@ -588,12 +577,76 @@ git commit -m "P6.1: RecommendationEngine tests"
 
 ---
 
-### Task 4: CLI — `alix decision recommend`
+### Task 4: CLI factory + `alix decision recommend`
 
 **Files:**
 - Modify: `src/cli/commands/decision.ts`
 
-- [ ] **Step 1: Add import and subcommand handler**
+**Prerequisite:** Before adding the recommend subcommand, extract the shared infrastructure factory that `runContext`, `runRisk`, and `runRecommend` all need. This is the last clean opportunity before P6.2 Queue creates a fourth copy.
+
+- [ ] **Step 1: Extract shared decision infrastructure factory**
+
+Add a factory function after the constants block:
+
+```typescript
+// ---------------------------------------------------------------------------
+// Shared infrastructure factory
+// ---------------------------------------------------------------------------
+
+interface DecisionInfrastructure {
+  proposalStore: ProposalStore;
+  evidenceStore: EvidenceStore;
+  effectivenessStore: EffectivenessStore;
+  intelligenceStore: IntelligenceStore;
+  lineageBuilder: LineageBuilder;
+  contextBuilder: DecisionContextBuilder;
+}
+
+function buildDecisionInfrastructure(cwd: string): DecisionInfrastructure {
+  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
+  const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
+  const effectivenessStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const intelligenceStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
+  const lineageBuilder = new LineageBuilder(proposalStore, evidenceStore, effectivenessStore, intelligenceStore);
+  const contextBuilder = new DecisionContextBuilder(
+    proposalStore, evidenceStore, lineageBuilder, effectivenessStore, intelligenceStore,
+  );
+  return { proposalStore, evidenceStore, effectivenessStore, intelligenceStore, lineageBuilder, contextBuilder };
+}
+```
+
+Then refactor `runContext` to use it:
+```typescript
+async function runContext(args: string[]): Promise<void> {
+  const id = args[0];
+  if (!id) {
+    console.error("Usage: alix decision context <proposal-id> [--json]");
+    process.exit(1);
+  }
+
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
+  const ctx = await infra.contextBuilder.build(id);
+  // ... rest of terminal output unchanged ...
+```
+
+Similarly refactor `runRisk` to use `buildDecisionInfrastructure`:
+```typescript
+async function runRisk(args: string[]): Promise<void> {
+  const id = args[0];
+  if (!id) { /* error + exit unchanged */ }
+
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
+  const riskBuilder = new RiskScoreBuilder();
+  const ctx = await infra.contextBuilder.build(id);
+  const risk = riskBuilder.build(ctx);
+  // ... rest unchanged ...
+```
+
+- [ ] **Step 2: Add import and subcommand handler**
 
 Add the import after the existing RiskScoreBuilder import:
 ```typescript
@@ -612,7 +665,7 @@ Update the default error message:
 console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json]");
 ```
 
-- [ ] **Step 2: Add runRecommend function**
+- [ ] **Step 3: Add runRecommend function**
 
 ```typescript
 // ---------------------------------------------------------------------------
@@ -628,17 +681,11 @@ async function runRecommend(args: string[]): Promise<void> {
 
   const jsonMode = args.includes("--json");
   const cwd = process.cwd();
-
-  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
-  const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
-  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
-  const intelStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
-  const lineageBuilder = new LineageBuilder(proposalStore, evidenceStore, effStore, intelStore);
-  const ctxBuilder = new DecisionContextBuilder(proposalStore, evidenceStore, lineageBuilder, effStore, intelStore);
+  const infra = buildDecisionInfrastructure(cwd);
   const riskBuilder = new RiskScoreBuilder();
   const recEngine = new RecommendationEngine();
 
-  const ctx = await ctxBuilder.build(id);
+  const ctx = await infra.contextBuilder.build(id);
   const risk = riskBuilder.build(ctx);
   const recommendation = recEngine.recommend(ctx, risk);
 
@@ -677,16 +724,16 @@ async function runRecommend(args: string[]): Promise<void> {
 }
 ```
 
-- [ ] **Step 3: Run tests**
+- [ ] **Step 4: Run tests**
 
 Run: `npx vitest run --config vitest.config.mts`
 Expected: All tests pass (including new recommendation tests)
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/cli/commands/decision.ts
-git commit -m "P6.1: CLI alix decision recommend subcommand"
+git commit -m "P6.1: extract buildDecisionInfrastructure, add recommend subcommand"
 ```
 
 ---
@@ -773,24 +820,9 @@ it("must not contain write/approve/apply/reject calls", () => {
   }
 });
 
-it("must not contain recommendation language as action terms", () => {
-  const source = sourceOf("../../src/adaptation/recommendation-engine");
-  // These are OK in type definitions but must not appear as imperative calls
-  const patterns = [/\bapprove\b/, /\breject\b/, /\bdefer\b/, /\binvestigate\b/];
-  // Only flag if they appear outside of type annotations and return statements
-  // (This is a conservative grep — false positives on type references are acceptable)
-  const lines = source.split("\n");
-  for (const pattern of patterns) {
-    const matches = lines.filter(
-      (l) => pattern.test(l) && !l.includes("Recommendation") && !l.includes("recommendation") && !l.includes("recommend"),
-    );
-    // Only flag if found outside the 'recommendation' return object
-    const cleanLines = matches.filter(
-      (l) => !l.includes("recommendation:") && !l.includes("recommendation === "),
-    );
-    expect(cleanLines.length).toBe(0);
-  }
-});
+// No vocabulary grep needed — recommendation/approve/reject/defer/investigate are
+// legitimate domain model values in the recommendation engine. Only imperative
+// calls (.apply(), .save(), etc.) and governance imports are forbidden.
 
 it("constructor must not accept stores", () => {
   const source = sourceOf("../../src/adaptation/recommendation-engine");
