@@ -86,9 +86,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "brief":
       await runBrief(rest);
       return;
+    case "review":
+      console.log("review: unavailable (P6.5a foundation — real lens agents deferred to P6.5b)");
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json]");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | review <proposal-id>");
       process.exit(1);
   }
 }

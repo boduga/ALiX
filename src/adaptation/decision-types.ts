@@ -66,7 +66,8 @@ export type SourceArtifactType =
   | "priority"
   | "context"
   | "risk"
-  | "recommendation";
+  | "recommendation"
+  | "review";
 
 export interface SourceArtifact {
   type: SourceArtifactType;

@@ -6,6 +6,8 @@ import type { QueueInput } from "../../src/adaptation/operator-queue-types.js";
 import type { DecisionContext } from "../../src/adaptation/decision-types.js";
 import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
 import type { ApprovalRecommendation } from "../../src/adaptation/recommendation-types.js";
+import type { GovernanceReview } from "../../src/adaptation/governance-review-types.js";
+import { GOVERNANCE_VERDICT_SEVERITY } from "../../src/adaptation/governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Shared fixtures
@@ -65,11 +67,33 @@ function makeRecommendation(overrides: Partial<ApprovalRecommendation> = {}): Ap
   } as ApprovalRecommendation;
 }
 
+function makeReview(overrides: Partial<GovernanceReview> = {}): GovernanceReview {
+  return {
+    id: "review-test",
+    subject: "Test governance review",
+    outcome: "reviewed",
+    confidence: 0.7,
+    reasons: ["Test review reason"],
+    generatedAt: new Date().toISOString(),
+    recommendationId: "rec-test",
+    proposalId: "prop-test-001",
+    verdict: "agree",
+    concerns: [],
+    blindSpots: [],
+    historicalAnalogies: [],
+    lensScores: [],
+    councilVote: { agree: 4, agreeWithConcerns: 0, challenge: 0, insufficientInformation: 0 },
+    sourceArtifacts: [{ type: "recommendation", id: "rec-test" }],
+    ...overrides,
+  } as GovernanceReview;
+}
+
 function makeInput(overrides: Partial<QueueInput> = {}): QueueInput {
   return {
     ctx: overrides.ctx ?? makeCtx(),
     riskScore: "riskScore" in overrides ? overrides.riskScore : makeRisk(),
     recommendation: "recommendation" in overrides ? overrides.recommendation : makeRecommendation(),
+    governanceReview: "governanceReview" in overrides ? overrides.governanceReview : undefined,
   };
 }
 
@@ -332,5 +356,137 @@ describe("edge cases", () => {
     expect(items[0].position).toBe(1);
     expect(items[1].position).toBe(2);
     expect(items[2].position).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Governance review severity sort
+// ---------------------------------------------------------------------------
+
+describe("sort — quaternary: review severity descending", () => {
+  it("review severity breaks tie when risk, recommendation, age are equal", () => {
+    const challenge = makeInput({
+      ctx: makeCtx({ proposalId: "prop-challenge" }),
+      riskScore: makeRisk({ overallRisk: 0.5 }),
+      recommendation: makeRecommendation({ recommendation: "defer" }),
+      governanceReview: makeReview({ verdict: "challenge" }),
+    });
+    const agree = makeInput({
+      ctx: makeCtx({ proposalId: "prop-agree" }),
+      riskScore: makeRisk({ overallRisk: 0.5 }),
+      recommendation: makeRecommendation({ recommendation: "defer" }),
+      governanceReview: makeReview({ verdict: "agree" }),
+    });
+    const q = new OperatorQueue();
+    const items = q.build([agree, challenge], { generatedAt: "2026-06-21T12:00:00.000Z" });
+    // challenge (severity 2) should sort before agree (severity 0)
+    expect(items[0].proposalId).toBe("prop-challenge");
+    expect(items[1].proposalId).toBe("prop-agree");
+  });
+
+  it("no review → severity 0 (no sort impact)", () => {
+    const withReview = makeInput({
+      ctx: makeCtx({ proposalId: "prop-with-review" }),
+      riskScore: makeRisk({ overallRisk: 0.5 }),
+      recommendation: makeRecommendation({ recommendation: "approve" }),
+      governanceReview: makeReview({ verdict: "agree" }),
+    });
+    const withoutReview = makeInput({
+      ctx: makeCtx({ proposalId: "prop-no-review" }),
+      riskScore: makeRisk({ overallRisk: 0.5 }),
+      recommendation: makeRecommendation({ recommendation: "approve" }),
+      governanceReview: undefined,
+    });
+    const q = new OperatorQueue();
+    // Both agree and missing default to severity 0, so tiebreak falls to proposalId
+    const items = q.build([withReview, withoutReview], { generatedAt: "2026-06-21T12:00:00.000Z" });
+    expect(items[0].proposalId).toBe("prop-no-review");
+    expect(items[1].proposalId).toBe("prop-with-review");
+  });
+
+  it("higher review severity sorts above lower when risk/recommendation/age tie", () => {
+    const insufficient = makeInput({
+      ctx: makeCtx({ proposalId: "prop-insufficient" }),
+      riskScore: makeRisk({ overallRisk: 0.3 }),
+      recommendation: makeRecommendation({ recommendation: "approve" }),
+      governanceReview: makeReview({ verdict: "insufficient_information" }),
+    });
+    const agreeWithConcerns = makeInput({
+      ctx: makeCtx({ proposalId: "prop-concerns" }),
+      riskScore: makeRisk({ overallRisk: 0.3 }),
+      recommendation: makeRecommendation({ recommendation: "approve" }),
+      governanceReview: makeReview({ verdict: "agree_with_concerns" }),
+    });
+    const agree = makeInput({
+      ctx: makeCtx({ proposalId: "prop-agree" }),
+      riskScore: makeRisk({ overallRisk: 0.3 }),
+      recommendation: makeRecommendation({ recommendation: "approve" }),
+      governanceReview: makeReview({ verdict: "agree" }),
+    });
+    const q = new OperatorQueue();
+    const items = q.build([agree, insufficient, agreeWithConcerns], { generatedAt: "2026-06-21T12:00:00.000Z" });
+    expect(items[0].proposalId).toBe("prop-insufficient"); // severity 3
+    expect(items[1].proposalId).toBe("prop-concerns");     // severity 1
+    expect(items[2].proposalId).toBe("prop-agree");        // severity 0
+  });
+});
+
+describe("QueueItem — governanceReview fields", () => {
+  it("sets governanceReviewId and governanceVerdict from review", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({
+      governanceReview: makeReview({ id: "review-abc", verdict: "challenge" }),
+    })]);
+    expect(items[0].governanceReviewId).toBe("review-abc");
+    expect(items[0].governanceVerdict).toBe("challenge");
+  });
+
+  it("governanceReviewId and governanceVerdict are undefined when no review", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({ governanceReview: undefined })]);
+    expect(items[0].governanceReviewId).toBeUndefined();
+    expect(items[0].governanceVerdict).toBeUndefined();
+  });
+
+  it("includes review in sourceArtifacts when present", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({
+      governanceReview: makeReview({ id: "review-abc" }),
+    })]);
+    const reviewArtifacts = items[0].sourceArtifacts.filter((a) => a.type === "review");
+    expect(reviewArtifacts.length).toBe(1);
+    expect(reviewArtifacts[0].id).toBe("review-abc");
+  });
+
+  it("does not include review in sourceArtifacts when absent", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({ governanceReview: undefined })]);
+    const reviewArtifacts = items[0].sourceArtifacts.filter((a) => a.type === "review");
+    expect(reviewArtifacts.length).toBe(0);
+  });
+
+  it("reasons include review severity when non-zero", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({
+      governanceReview: makeReview({ verdict: "challenge" }),
+    })]);
+    expect(items[0].reasons.some((r) => r.includes("Governance review severity"))).toBe(true);
+    expect(items[0].reasons.some((r) => r.includes("2"))).toBe(true);
+  });
+
+  it("reasons do NOT include review severity when zero", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({
+      governanceReview: makeReview({ verdict: "agree" }),
+    })]);
+    expect(items[0].reasons.some((r) => r.includes("Governance review severity"))).toBe(false);
+  });
+
+  it("evidenceRefs includes governanceReview id when present", () => {
+    const q = new OperatorQueue();
+    const items = q.build([makeInput({
+      governanceReview: makeReview({ id: "review-evid" }),
+    })]);
+    expect(items[0].evidenceRefs).toContain("review-evid");
   });
 });
