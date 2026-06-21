@@ -44,6 +44,10 @@ export interface LensScore {
   recommendedVerdict: GovernanceVerdict;
   confidence: number;
   rationale: string;
+  /** Provider name used to generate this score (JSON output only). */
+  provider?: string;
+  /** Model name used to generate this score (JSON output only). */
+  model?: string;
 }
 
 // ---------------------------------------------------------------------------

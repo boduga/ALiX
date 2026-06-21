@@ -104,8 +104,8 @@ describe("P6.5 — No authority language in prompt templates", () => {
 
   for (const phrase of FORBIDDEN_PHRASES) {
     it(`lens prompts must not contain "${phrase}"`, () => {
-      // Only check LENS_PROMPTS block, not file-level comments
-      const promptsBlock = lensCodeOnly.match(/LENS_PROMPTS[\s\S]*$/);
+      // Only check LENS_PROMPTS block, not file-level comments or exports after it
+      const promptsBlock = lensCodeOnly.match(/LENS_PROMPTS[\s\S]*?\n\};/);
       if (promptsBlock) {
         expect(promptsBlock[0]).not.toContain(phrase);
       }

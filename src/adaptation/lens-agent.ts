@@ -56,3 +56,11 @@ export const LENS_PROMPTS: Record<LensName, string> = {
     `identify what evidence is missing, weak, or stale. Focus on: context completeness, ` +
     `sample sizes, data freshness, unwarranted confidence levels.`,
 };
+
+/**
+ * Centralized JSON-only suffix appended to every lens prompt.
+ * Keeps sentinel testing simple and avoids duplicating text.
+ */
+export const LENS_JSON_SUFFIX =
+  "Return ONLY valid JSON. Do not include markdown, prose, or code fences.\n" +
+  "Do not approve, reject, apply, execute, or make a final decision.";
