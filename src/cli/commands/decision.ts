@@ -22,6 +22,11 @@ import { RiskScoreBuilder } from "../../adaptation/risk-score-builder.js";
 import { RecommendationEngine } from "../../adaptation/recommendation-engine.js";
 import { OperatorQueue } from "../../adaptation/operator-queue.js";
 import type { QueueItem, QueueInput, RecommendationPriority } from "../../adaptation/operator-queue-types.js";
+import { StrategicBriefBuilder } from "../../adaptation/strategic-brief.js";
+import type { StrategicBrief } from "../../adaptation/strategic-brief-types.js";
+import type { IntelligenceReport } from "../../adaptation/intelligence-types.js";
+import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
+import type { EvidenceRecord } from "../../security/evidence/evidence-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -78,9 +83,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "queue":
       await runQueue(rest);
       return;
+    case "brief":
+      await runBrief(rest);
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N]");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json]");
       process.exit(1);
   }
 }
@@ -349,5 +357,125 @@ async function runQueue(args: string[]): Promise<void> {
       console.log(`    ${item.reasons.join(" | ")}`);
     }
     console.log(``);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runBrief — Strategic Brief
+// ---------------------------------------------------------------------------
+
+/**
+ * Build and render a strategic brief from persisted stores.
+ * Computed fresh each run — no persistence.
+ */
+async function runBrief(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const windowIdx = args.indexOf("--window");
+  let windowSize: 30 | 90 | 180 = 30;
+  if (windowIdx !== -1 && windowIdx + 1 < args.length) {
+    const parsed = parseInt(args[windowIdx + 1], 10);
+    if (![30, 90, 180].includes(parsed)) {
+      console.error("Error: --window requires 30, 90, or 180");
+      process.exit(1);
+    }
+    windowSize = parsed as 30 | 90 | 180;
+  }
+
+  const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
+  const briefBuilder = new StrategicBriefBuilder();
+
+  // Query stores — this is the CLI's responsibility, not the builder's
+  let intelligenceReports: IntelligenceReport[];
+  let effectivenessReports: ProposalEffectivenessReport[];
+  let evidenceRecords: EvidenceRecord[];
+  const LIFECYCLE_TYPES = new Set(["adaptation_proposed", "adaptation_approved", "adaptation_applied", "adaptation_failed", "adaptation_rejected"]);
+  try {
+    effectivenessReports = await infra.effectivenessStore.list();
+
+    // Load all intelligence reports for trend detection across history
+    const intelFilenames = await infra.intelligenceStore.list();
+    intelligenceReports = (
+      await Promise.all(intelFilenames.map((f) => infra.intelligenceStore.load(f)))
+    ).filter(Boolean) as IntelligenceReport[];
+
+    // Query evidence store — EvidenceStore.query takes type (singular),
+    // so query broadly then filter for lifecycle event types in-memory
+    const allEvidence = await infra.evidenceStore.query({ limit: 10000 });
+    evidenceRecords = allEvidence.records.filter((r) => LIFECYCLE_TYPES.has(r.type));
+  } catch (err) {
+    console.error(`Error querying stores: ${err instanceof Error ? err.message : err}`);
+    process.exit(1);
+  }
+
+  const input = {
+    intelligenceReports,
+    effectivenessReports,
+    evidenceRecords,
+  };
+
+  const brief = briefBuilder.build(input, { window: windowSize });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(brief, null, 2));
+    return;
+  }
+
+  // Terminal renderer
+  const periodStart = new Date(brief.period.start).toLocaleDateString();
+  const periodEnd = new Date(brief.period.end).toLocaleDateString();
+
+  console.log(`Strategic Brief: Last ${windowSize} days (${periodStart} → ${periodEnd})`);
+  console.log(`═════════════════════════════════════════════════════════`);
+  console.log(``);
+
+  if (brief.findings.length > 0) {
+    console.log(`Findings (${brief.findings.length}):`);
+    for (const f of brief.findings) {
+      const icon =
+        f.category === "trend" ? "📈" :
+        f.category === "hotspot" ? "🔥" :
+        f.category === "system_warning" ? "⚠️" :
+        "💡";
+      console.log(` ${icon} ${f.summary}`);
+    }
+    console.log(``);
+  }
+
+  if (brief.trends.length > 0) {
+    console.log(`Trends (${brief.trends.length}):`);
+    for (const t of brief.trends) {
+      const dirIcon = t.direction === "increasing" ? "↑" : t.direction === "decreasing" ? "↓" : "→";
+      console.log(` ${dirIcon} ${t.metric}: ${t.direction} (magnitude: ${(t.magnitude * 100).toFixed(0)}%, n=${t.sampleSize})`);
+    }
+    console.log(``);
+  }
+
+  if (brief.hotspots.length > 0) {
+    console.log(`Hotspots (${brief.hotspots.length}):`);
+    for (const h of brief.hotspots) {
+      const sevIcon = h.severity === "high" ? "🔴" : h.severity === "medium" ? "🟠" : "🟡";
+      console.log(` ${sevIcon} ${h.area} (${h.severity}): ${h.evidence}`);
+    }
+    console.log(``);
+  }
+
+  if (brief.strategicActions.length > 0) {
+    console.log(`Strategic actions:`);
+    for (const action of brief.strategicActions) {
+      console.log(` · ${action}`);
+    }
+    console.log(``);
+  }
+
+  console.log(`Data: ${intelligenceReports.length} intelligence reports, ${effectivenessReports.length} effectiveness reports, ${evidenceRecords.length} evidence records`);
+  console.log(`Confidence: ${(brief.confidence * 100).toFixed(0)}% (data sufficiency)`);
+
+  if (brief.reasons.length > 0) {
+    console.log(``);
+    console.log(`Data sources:`);
+    for (const r of brief.reasons) {
+      console.log(` · ${r}`);
+    }
   }
 }
