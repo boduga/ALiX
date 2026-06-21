@@ -27,6 +27,9 @@ import type { StrategicBrief } from "../../adaptation/strategic-brief-types.js";
 import type { IntelligenceReport } from "../../adaptation/intelligence-types.js";
 import type { ProposalEffectivenessReport } from "../../adaptation/effectiveness-types.js";
 import type { EvidenceRecord } from "../../security/evidence/evidence-types.js";
+import { PipelineHealthCollector } from "../../adaptation/pipeline-health-collector.js";
+import { PipelineHealthBuilder } from "../../adaptation/pipeline-health-builder.js";
+import type { PipelineHealthReport } from "../../adaptation/pipeline-health-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -86,12 +89,15 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "brief":
       await runBrief(rest);
       return;
+    case "status":
+      await runStatus(rest);
+      return;
     case "review":
       console.log("review: unavailable (P6.5a foundation — real lens agents deferred to P6.5b)");
       return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | review <proposal-id>");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | status [--window N] [--json] | review <proposal-id>");
       process.exit(1);
   }
 }
@@ -479,6 +485,81 @@ async function runBrief(args: string[]): Promise<void> {
     console.log(`Data sources:`);
     for (const r of brief.reasons) {
       console.log(` · ${r}`);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runStatus — Pipeline Health Report
+// ---------------------------------------------------------------------------
+
+async function runStatus(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const windowIdx = args.indexOf("--window");
+  const windowDays = windowIdx !== -1 && windowIdx + 1 < args.length ? parseInt(args[windowIdx + 1], 10) : 30;
+
+  const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
+  const riskScoreBuilder = new RiskScoreBuilder();
+  const recommendationEngine = new RecommendationEngine();
+  const collector = new PipelineHealthCollector({ ...infra, riskScoreBuilder, recommendationEngine });
+  const builder = new PipelineHealthBuilder();
+
+  const input = await collector.collect(windowDays);
+  const report = builder.build(input, { windowDays: windowDays as any, generatedAt: new Date().toISOString() });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // Terminal renderer
+  const healthIcon = report.health === "healthy" ? "✅" : report.health === "degraded" ? "⚠️" : "🔴";
+  console.log(`Pipeline Health — Last ${report.windowDays} days: ${healthIcon} ${report.health}`);
+  console.log(`═══════════════════════════════════════`);
+  console.log(``);
+
+  const p = report.proposalCounts;
+  console.log(`Proposals: ${p.total} total (${p.pending} pending, ${p.applied} applied, ${p.approved} approved, ${p.rejected} rejected, ${p.failed} failed)`);
+
+  if (report.scopedProposals.total > 0) {
+    const s = report.scopedProposals;
+    const stale = s.staleProposals > 0 ? `  ⚠ Stale: ${s.staleProposals} (>30 days)` : "";
+    const broken = s.brokenLineage > 0 ? `  Broken lineage: ${s.brokenLineage}` : "";
+    const suffix = [stale, broken].filter(Boolean).join(" | ");
+    console.log(` ${suffix}`);
+    console.log(``);
+    console.log(`Confidence:`);
+    console.log(`  Context: ${(s.confidence.contextAvg * 100).toFixed(0)}% avg (n=${s.confidence.sampleSize})`);
+    if (s.confidence.riskAvg !== undefined) console.log(`  Risk: ${(s.confidence.riskAvg * 100).toFixed(0)}% avg`);
+    if (s.confidence.recommendationAvg !== undefined) console.log(`  Recommendation: ${(s.confidence.recommendationAvg * 100).toFixed(0)}% avg`);
+  } else {
+    console.log(`  No proposals in window`);
+  }
+  console.log(``);
+
+  if (report.strategicBrief.available) {
+    console.log(`Strategic brief: ${report.strategicBrief.confidence !== null ? (report.strategicBrief.confidence * 100).toFixed(0) + "%" : "N/A"} (${report.strategicBrief.findings} findings)`);
+  } else {
+    console.log(`Strategic brief: unavailable`);
+  }
+  console.log(``);
+
+  console.log(`Activity:`);
+  console.log(`  Effectiveness reports: ${report.effectivenessReports}  |  Intelligence reports: ${report.intelligenceReports}`);
+  console.log(`  Lifecycle events: ${report.lifecycleEvents.total} total (${report.lifecycleEvents.inWindow} in window)`);
+  console.log(``);
+
+  if (report.governanceReview.frameworkAvailable) {
+    console.log(`Governance review: Framework ready (P6.5a). Lenses deferred (P6.5b).`);
+  }
+  console.log(``);
+
+  if (report.healthSignals.length > 0) {
+    console.log(`Signals:`);
+    for (const signal of report.healthSignals) {
+      const icon = signal.severity === "critical" ? "🔴" : signal.severity === "warning" ? "⚠️" : "ℹ️";
+      console.log(`  ${icon} ${signal.message}`);
     }
   }
 }
