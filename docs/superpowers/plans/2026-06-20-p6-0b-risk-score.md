@@ -195,10 +195,13 @@ export function scoreCapability(ctx: DecisionContext): number {
 }
 
 export function scoreRevertability(ctx: DecisionContext): number {
-  if (ctx.proposalAction === "create_improvement_issue") return 0.1;
-  if (ctx.proposalAction === "suggest_routing_weight") return 0.1;
+  // Use reversibility characteristics, not action-name matching.
+  // This avoids coupling RiskScore to every future ProposalAction value.
+  if (ctx.proposalStatus === "pending" || ctx.proposalStatus === "approved") return 0.5;
   if (ctx.lineageCompleteness === "broken") return 0.7;
+  if (ctx.proposalStatus === "failed") return 0.4;
   if (ctx.proposalStatus === "applied") return 0.3;
+  if (ctx.proposalStatus === "rejected") return 0.1;
   return 0.5;
 }
 
@@ -223,9 +226,12 @@ export class RiskScoreBuilder {
    * Pure computation — receives DecisionContext directly, never reads
    * from stores or constructs context. Deterministic: same input always
    * produces the same output.
+   *
+   * @param ctx - DecisionContext to score
+   * @param generatedAt - ISO 8601 timestamp (injected for determinism in tests)
    */
-  build(ctx: DecisionContext): RiskScore {
-    const generatedAt = new Date().toISOString();
+  build(ctx: DecisionContext, generatedAt?: string): RiskScore {
+    const genAt = generatedAt ?? new Date().toISOString();
     const reasons: string[] = [];
     const warnings: string[] = [];
     const evidenceRefs: string[] = [...ctx.evidenceRefs];
@@ -256,8 +262,15 @@ export class RiskScoreBuilder {
         confidence: ctx.confidence,
         reasons: dimReasons,
       });
-      reasons.push(`${dim}: ${score.toFixed(2)}`);
     }
+    // Collect unique human-readable reasons across all dimensions
+    const uniqueReasons = new Set<string>();
+    for (const r of risks) {
+      for (const reason of r.reasons) {
+        uniqueReasons.add(reason);
+      }
+    }
+    reasons.push(...uniqueReasons);
 
     const overallRisk = Math.round(
       RISK_DIMENSIONS.reduce((sum, d) => sum + dimensions[d], 0) /
@@ -279,7 +292,7 @@ export class RiskScoreBuilder {
       reasons,
       warnings: warnings.length > 0 ? warnings : undefined,
       evidenceRefs,
-      generatedAt,
+      generatedAt: genAt,
       overallRisk,
       risks,
       dimensions,
@@ -368,9 +381,14 @@ describe("RiskScoreBuilder — pure scoring functions", () => {
     expect(scoreCapability(ctx)).toBeGreaterThan(0.3);
   });
 
-  it("scoreRevertability: non-mutating actions are low risk", () => {
-    const ctx = createContext({ proposalAction: "create_improvement_issue" });
+  it("scoreRevertability: rejected proposals are low risk", () => {
+    const ctx = createContext({ proposalStatus: "rejected" });
     expect(scoreRevertability(ctx)).toBeLessThanOrEqual(0.2);
+  });
+
+  it("scoreRevertability: pending proposals have moderate revertability risk", () => {
+    const ctx = createContext({ proposalStatus: "pending" });
+    expect(scoreRevertability(ctx)).toBeGreaterThanOrEqual(0.4);
   });
 
   it("scoreEvidenceQuality: no evidence refs increases risk", () => {
@@ -396,8 +414,9 @@ describe("RiskScoreBuilder — determinism", () => {
   it("produces identical risk scores for the same DecisionContext", () => {
     const builder = new RiskScoreBuilder();
     const ctx = createContext();
-    const score1 = builder.build(ctx);
-    const score2 = builder.build(ctx);
+    const frozenTime = "2026-06-20T12:00:00.000Z";
+    const score1 = builder.build(ctx, frozenTime);
+    const score2 = builder.build(ctx, frozenTime);
     expect(score1).toEqual(score2);
   });
 });
@@ -487,7 +506,7 @@ async function runRisk(args: string[]): Promise<void> {
     risk.outcome === "medium" ? "🟡" :
     "🟢";
 
-  console.log(`Risk Score: ${risk.proposalId}`);
+  console.log(`Risk Score: ${risk.id}`);
   console.log(`──────────────────────────────`);
   console.log(`${riskIcon} Overall: ${risk.outcome.toUpperCase()} (${risk.overallRisk.toFixed(2)})`);
   console.log(``);
@@ -594,6 +613,17 @@ describe("P6 Governance Invariants — RiskScore must not recommend", () => {
     const forbidden = [".save(", ".update(", ".approve(", ".apply(", ".reject("];
     for (const method of forbidden) {
       expect(source).not.toContain(method);
+    }
+  });
+
+  it("constructor must not accept stores", () => {
+    // Architectural sentinel: RiskScoreBuilder should only receive a DecisionContext,
+    // not stores. If its constructor signature changes to accept stores, this fails.
+    const source = sourceOf("../../src/adaptation/risk-score-builder");
+    // Check the class doesn't reference ProposalStore, EvidenceStore, etc. in constructor
+    const storePatterns = ["ProposalStore", "EvidenceStore", "LineageBuilder", "IntelligenceStore", "EffectivenessStore"];
+    for (const store of storePatterns) {
+      expect(source).not.toContain(store);
     }
   });
 });
