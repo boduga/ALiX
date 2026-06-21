@@ -42,7 +42,16 @@ Each phase adds precision only where the previous phase reveals blind spots.
 | Strategic brief | `StrategicBriefBuilder.build()` with same window | Reuses existing builder |
 | Governance review capability | Static flag | P6.5a presence detected at runtime |
 
-All stores are read via their existing APIs. No new schema, no new evidence types, no writes. If a store is unavailable, the report captures that as a health signal (see Health Computation).
+All stores are read via their existing APIs. No new schema, no new evidence types, no writes. If a store is unavailable, the report captures that as a structured field (`storeAvailability`) and a health signal (see Health Computation).
+
+## Architecture
+
+```
+PipelineHealthCollector  — does I/O: reads stores, builds DecisionContexts, returns PipelineHealthInput
+PipelineHealthBuilder    — pure: takes PipelineHealthInput, returns PipelineHealthReport
+```
+
+The CLI calls `Collector.collect(windowDays)` then `Builder.build(input)`. This preserves the P6 purity pattern from P6.0a–P6.3: I/O is a separate concern from deterministic computation. The builder is fully testable with fixture inputs; the collector is testable with mock stores.
 
 ## PipelineHealthReport Artifact
 
@@ -50,6 +59,20 @@ All stores are read via their existing APIs. No new schema, no new evidence type
 interface PipelineHealthReport extends DecisionArtifact {
   windowDays: 30 | 90 | 180;
   health: "healthy" | "degraded" | "attention_needed";
+
+  /** Structured health signals — replaces plain warnings for diagnostics */
+  healthSignals: Array<{
+    severity: "info" | "warning" | "critical";
+    message: string;
+  }>;
+
+  /** Per-store availability — JSON consumers need structured status */
+  storeAvailability: {
+    proposalStore: boolean;
+    evidenceStore: boolean;
+    effectivenessStore: boolean;
+    intelligenceStore: boolean;
+  };
 
   /** Proposal lifecycle counts — all proposals */
   proposalCounts: {
@@ -92,8 +115,11 @@ interface PipelineHealthReport extends DecisionArtifact {
   /** Total stored intelligence reports */
   intelligenceReports: number;
 
-  /** Total lifecycle evidence events */
-  lifecycleEvents: number;
+  /** Lifecycle evidence events — total and windowed */
+  lifecycleEvents: {
+    total: number;
+    inWindow: number;
+  };
 
   /** Strategic brief for this window — computed on demand */
   strategicBrief: {
@@ -116,25 +142,33 @@ interface PipelineHealthReport extends DecisionArtifact {
 Priority: `attention_needed` > `degraded` > `healthy`. Worst wins.
 
 **attention_needed:**
-- ProposalStore unavailable (cannot observe foundational pipeline state)
+- `storeAvailability.proposalStore === false` (cannot observe foundational pipeline state)
 - `brokenLineage > 0`
 
 **degraded:**
-- Non-foundational store unavailable (EvidenceStore, EffectivenessStore, IntelligenceStore)
+- Non-foundational store unavailable (`evidenceStore`, `effectivenessStore`, or `intelligenceStore` is false)
 - `staleProposals > 0`
-- Strategic brief unavailable while `enoughData` exists: `scopedProposals.total > 0 OR effectivenessReports > 0 OR intelligenceReports > 0 OR lifecycleEvents > 0`
+- `strategicBrief.available === false` while enough data exists: `scopedProposals.total > 0 OR effectivenessReports > 0 OR intelligenceReports > 0 OR lifecycleEvents.total > 0`
 - `confidence.sampleSize > 0` AND (`contextAvg < 0.3` OR `recommendationAvg < 0.3`)
 
 **healthy:**
 - None of the above conditions met
 
-### Warnings (inherited from DecisionArtifact)
+### healthSignals
 
-Warnings are emitted for:
-- `staleProposals > 0` — "N stale proposals exceed 30 days without activity"
-- `brokenLineage > 0` — "N proposal(s) have broken lineage — decision context is incomplete"
-- Strategic brief unavailable with enough data — "Strategic brief unavailable — pipeline lacks long-horizon synthesis"
-- Store unavailable — "EffectivenessStore unavailable — effectiveness data not observable"
+Structured signals replace plain warning strings. Each signal has a `severity` (`info`, `warning`, `critical`) and a `message`. Signals are emitted for:
+- `staleProposals > 0` — `"N stale proposals exceed 30 days without activity"` (warning)
+- `brokenLineage > 0` — `"N proposal(s) have broken lineage — decision context is incomplete"` (critical)
+- Strategic brief build failed with enough data — `"Strategic brief unavailable — pipeline lacks long-horizon synthesis"` (warning)
+- Store unavailable — `"EffectivenessStore unavailable — effectiveness data not observable"` (varies: ProposalStore = critical, others = warning)
+
+The inherited `warnings?: string[]` field remains on DecisionArtifact for backward compatibility and is populated from `healthSignals.map(s => s.message)`.
+
+### Strategic Brief Availability
+
+The builder always calls `StrategicBriefBuilder.build()`. Strategic brief is considered **unavailable** only when the build fails (throws or returns no result). If the build succeeds but the brief has zero findings or only system_warning findings, it is still `available: true` — the report reflects what the brief layer produces, not a second opinion on its content.
+
+Note: `evidenceRefs` is inherited from `DecisionArtifact` and is populated with summary references (e.g., `"proposals:12"`, `"effects:14"`, `"events:89"`).
 
 ## CLI Shape
 
@@ -160,12 +194,14 @@ Confidence:
   Strategic brief: 0.85 (3 findings)
 
 Activity:
-  Effectiveness reports: 14  |  Intelligence reports: 3  |  Lifecycle events: 89
+  Effectiveness reports: 14  |  Intelligence reports: 3
+  Lifecycle events: 89 total (42 in window)
 
 Governance review: Framework ready (P6.5a). Lenses deferred (P6.5b).
 
-⚠ 2 stale proposals exceed 30 days without activity
-⚠ 1 proposal has broken lineage — decision context is incomplete
+Signals:
+  ⚠ 2 stale proposals exceed 30 days without activity
+  🔴 1 proposal has broken lineage — decision context is incomplete
 ```
 
 ### Terminal output (empty system)
@@ -204,9 +240,10 @@ To keep `alix decision status` predictable:
 ## File Structure
 
 **Create:**
-- `src/adaptation/pipeline-health-types.ts` — `PipelineHealthReport` interface, `PipelineHealthStatus` type
-- `src/adaptation/pipeline-health-builder.ts` — `PipelineHealthBuilder` class: reads stores, computes metrics, returns report
-- `tests/adaptation/pipeline-health-builder.vitest.ts` — unit tests for health computation, confidence aggregation, warnings
+- `src/adaptation/pipeline-health-types.ts` — `PipelineHealthReport` interface, `PipelineHealthInput`, `PipelineHealthStatus` type
+- `src/adaptation/pipeline-health-collector.ts` — `PipelineHealthCollector` class: does I/O, reads stores, returns `PipelineHealthInput`
+- `src/adaptation/pipeline-health-builder.ts` — `PipelineHealthBuilder` class: pure, takes `PipelineHealthInput`, returns `PipelineHealthReport`
+- `tests/adaptation/pipeline-health-builder.vitest.ts` — unit tests for health computation, confidence aggregation, healthSignals, storeAvailability scenarios
 - `tests/adaptation/pipeline-health-types.vitest.ts` — type shape tests
 
 **Modify:**
@@ -218,17 +255,20 @@ To keep `alix decision status` predictable:
 
 **P6.6a (must pass):**
 1. `alix decision status` renders terminal output with header, proposal counts, confidence bands, activity counts, governance capability
-2. `alix decision status --json` outputs full `PipelineHealthReport` as JSON
+2. `alix decision status --json` outputs full `PipelineHealthReport` as JSON including `storeAvailability` and `healthSignals`
 3. `alix decision status --window 90` adjusts scoped proposal window
 4. `health` is `attention_needed` when `brokenLineage > 0`
-5. `health` is `attention_needed` when ProposalStore is unavailable
+5. `health` is `attention_needed` when `storeAvailability.proposalStore` is `false`
 6. `health` is `degraded` when `staleProposals > 0`
-7. `health` is `degraded` when strategic brief unavailable with enough data
-8. `health` is `healthy` for an empty system (no proposals)
-9. Stores with zero data report as zeros without error
-10. Per-proposal build failures skip that proposal without failing the report
-11. `warnings` array is populated for stale proposals, broken lineage, unavailable stores
-12. All existing tests pass (no changes to existing pipeline behavior)
+7. `health` is `degraded` when `strategicBrief.available === false` with enough data
+8. `health` is `degraded` when a non-foundational store is unavailable
+9. `health` is `healthy` for an empty system (no proposals)
+10. Stores with zero data report as zeros without error
+11. Per-proposal build failures skip that proposal without failing the report
+12. `healthSignals` array is populated with structured `{severity, message}` entries for stale proposals, broken lineage, unavailable stores
+13. `PipelineHealthCollector` handles I/O; `PipelineHealthBuilder` is pure (testable with fixture inputs)
+14. `PipelineHealthBuilder.build()` is deterministic — same input always produces same output
+15. All existing tests pass (no changes to existing pipeline behavior)
 
 ## Explicitly Out of Scope (P6.6a)
 
