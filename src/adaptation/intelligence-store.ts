@@ -13,6 +13,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import type { IntelligenceReport } from "./intelligence-types.js";
+import type { ProposalStore } from "./proposal-store.js";
 
 /**
  * Persists intelligence reports as standalone JSON files.
@@ -69,6 +70,42 @@ export class IntelligenceStore {
     const files = await this.list();
     if (files.length === 0) return null;
     return this.load(files[0]);
+  }
+
+  /**
+   * Find proposals with the same action type by scanning effectiveness reports
+   * and loading their source proposals to verify the action type matches.
+   *
+   * Improves layering by keeping decision-support queries in the intelligence
+   * store rather than embedding store traversal logic in the DecisionContextBuilder.
+   * Note: still performs one proposalStore.load() per candidate — suitable for
+   * P6.0a scale (tens of effectiveness reports); optimize with indexing in later
+   * P6 phases if needed.
+   */
+  async findSimilarProposals(
+    actionType: string,
+    excludeProposalId: string,
+    proposalStore: ProposalStore,
+  ): Promise<Array<{ proposalId: string; outcome: string; confidence: number }>> {
+    const files = await this.list();
+    const similar: Array<{ proposalId: string; outcome: string; confidence: number }> = [];
+
+    for (const filename of files.slice(0, 50)) {
+      const report = await this.load(filename);
+      if (!report) continue;
+      if (report.proposalId === excludeProposalId) continue;
+
+      const sourceProposal = await proposalStore.load(report.proposalId);
+      if (sourceProposal && sourceProposal.action === actionType) {
+        similar.push({
+          proposalId: report.proposalId,
+          outcome: report.recommendation,
+          confidence: sourceProposal.sourceConfidence,
+        });
+      }
+    }
+
+    return similar;
   }
 
   // ---- private helpers ------------------------------------------------
