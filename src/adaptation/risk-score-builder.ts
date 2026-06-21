@@ -114,6 +114,28 @@ export class RiskScoreBuilder {
       if (dim === "capability" && ctx.effectivenessTrend.sampleSize === 0) {
         dimReasons.push("No effectiveness history available");
       }
+      if (dim === "operational") {
+        if (ctx.proposalStatus === "failed") dimReasons.push("Proposal previously failed");
+        const badCount = ctx.similarProposals.filter(
+          (s) => s.outcome === "revert" || s.outcome === "investigate",
+        ).length;
+        if (badCount > 0) dimReasons.push(`${badCount} similar proposal(s) had revert/investigate outcomes`);
+        if (ctx.effectivenessTrend.revertRate > 0.5) dimReasons.push("Revert rate exceeds 50%");
+      }
+      if (dim === "revertability") {
+        if (ctx.proposalStatus === "pending" || ctx.proposalStatus === "approved") {
+          dimReasons.push("Pending/approved proposal has not mutated state yet");
+        }
+        if (ctx.lineageCompleteness === "broken") dimReasons.push("Mutating proposal has broken lineage");
+        if (ctx.proposalStatus === "applied") dimReasons.push("Applied proposal appears revertable via snapshot lineage");
+      }
+      if (dim === "evidence_quality") {
+        if ((ctx.evidenceRefs ?? []).length === 0) dimReasons.push("No evidence references available");
+        if (ctx.dataFreshness.oldestArtifactAgeDays > 30) dimReasons.push("Oldest source artifact is older than 30 days");
+        if (ctx.lineageCompleteness === "partial") dimReasons.push("Lineage is partial");
+        else if (ctx.lineageCompleteness === "broken") dimReasons.push("Lineage is broken");
+        if (ctx.contextStatus === "stale_context") dimReasons.push("Context is stale");
+      }
       if (dimReasons.length === 0) {
         dimReasons.push(`Score ${score.toFixed(2)} based on available evidence`);
       }
