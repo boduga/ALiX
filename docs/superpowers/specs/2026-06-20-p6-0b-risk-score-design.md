@@ -100,7 +100,7 @@ The builder orchestrates:
 
 ```typescript
 interface RiskScoreBuilder {
-  build(ctx: DecisionContext): RiskScore;
+  build(ctx: DecisionContext, generatedAt?: string): RiskScore;
 }
 ```
 
@@ -152,14 +152,13 @@ function scoreCapability(ctx: DecisionContext): number {
 }
 
 function scoreRevertability(ctx: DecisionContext): number {
-  // Non-mutating actions are always low risk
-  if (ctx.proposalAction === "create_improvement_issue") return 0.1;
-  if (ctx.proposalAction === "suggest_routing_weight") return 0.1;
-  // Mutating actions without lineage are higher risk
+  // Use proposal characteristics, not action-name matching.
+  // This avoids coupling RiskScore to every future ProposalAction value.
+  if (ctx.proposalStatus === "pending" || ctx.proposalStatus === "approved") return 0.5;
   if (ctx.lineageCompleteness === "broken") return 0.7;
-  // Applied proposals with snapshots are safer to revert
+  if (ctx.proposalStatus === "failed") return 0.4;
   if (ctx.proposalStatus === "applied") return 0.3;
-  // Pending/approved proposals haven't been applied yet
+  if (ctx.proposalStatus === "rejected") return 0.1;
   return 0.5;
 }
 
@@ -267,6 +266,7 @@ Add a new P6 sentinel suite `tests/adaptation/risk-score-sentinels.vitest.ts`:
 3. **No Queue types** — RiskScoreBuilder must not import queue/prioritization types
 4. **No write methods** — RiskScoreBuilder must not call `.save()`, `.update()`, `.approve()`, `.apply()`
 5. **No recommendation language** — RiskScoreBuilder must not contain the words `approve`, `reject`, `defer`, or `investigate` as action-oriented terms. These belong to Recommendation (P6.2). A grep-based sentinel enforces: `expect(source).not.toContain("approve")` etc. Only the RiskScore outcome labels (`"low"`, `"medium"`, `"high"`, `"critical"`) are permitted.
+6. **No stores in constructor** — RiskScoreBuilder constructor must not reference `ProposalStore`, `EvidenceStore`, `LineageBuilder`, `IntelligenceStore`, or `EffectivenessStore`. The class receives its data through `DecisionContext` only; store references in the source would indicate architectural drift.
 
 ## Determinism Assertion
 
@@ -275,11 +275,14 @@ The architectural acceptance criterion: **two operators looking at the same Deci
 ```typescript
 it("produces identical risk scores for the same DecisionContext", () => {
   const ctx = createTestContext(/* ... */);
-  const score1 = riskScoreBuilder.build(ctx);
-  const score2 = riskScoreBuilder.build(ctx);
+  const frozenTime = "2026-06-20T12:00:00.000Z";
+  const score1 = riskScoreBuilder.build(ctx, frozenTime);
+  const score2 = riskScoreBuilder.build(ctx, frozenTime);
   expect(score1).toEqual(score2);
 });
 ```
+
+Note: `build()` accepts an optional `generatedAt` parameter. Production callers omit it (defaults to `new Date().toISOString()`); tests pass a frozen timestamp for deterministic comparison.
 
 ## Tests
 
@@ -289,7 +292,7 @@ it("produces identical risk scores for the same DecisionContext", () => {
 | Operational risk from failed proposals | Status=failed → operational score > 0 |
 | Capability risk from no effectiveness | Unknown action type → capability score > 0 |
 | Revertability low for non-mutating | create_improvement_issue → revertability ~0.1 |
-| Evidence quality inverts confidence | Low confidence → high evidence risk |
+| Evidence quality from evidence base, confidence from DecisionContext | No evidence refs → high evidence risk; confidence reflects evidence completeness, not risk magnitude |
 | Overall risk is average of dimensions | Verify arithmetic |
 | Deterministic — same input, same output | Two calls with same DecisionContext produce identical result |
 | RiskScore extends DecisionArtifact | outcome, reasons, warnings, evidenceRefs, generatedAt present |
