@@ -59,7 +59,7 @@ describe("RecommendationEngine — rule evaluation", () => {
     expect(result.recommendation).toBe("reject");
   });
 
-  it("does NOT reject when only lineage is broken (no critical warning)", () => {
+  it("does NOT reject when lineage broken and data insufficient without critical warning", () => {
     const ctx = createContext({
       lineageCompleteness: "broken",
       contextStatus: "insufficient_data",
@@ -147,7 +147,7 @@ describe("computeSignalCoherence", () => {
   it("returns 0.5 neutral when no signals available", () => {
     const ctx = createContext({
       confidence: 0.5,
-      lineageCompleteness: "complete",
+      lineageCompleteness: "partial",
       effectivenessTrend: { actionType: "update_agent_card", keepRate: 0, revertRate: 0, sampleSize: 0 },
       warnings: [] as EnrichedWarning[],
     });
