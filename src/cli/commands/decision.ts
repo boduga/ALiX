@@ -246,28 +246,23 @@ async function runRecommend(args: string[]): Promise<void> {
 
   console.log(`Recommendation: ${recommendation.proposalId}`);
   console.log(`────────────────────────────────────`);
-  console.log(`${recIcon} ${recommendation.recommendation.charAt(0).toUpperCase() + recommendation.recommendation.slice(1)}`);
-  console.log(`   Confidence: ${(recommendation.confidence * 100).toFixed(0)}%`);
-  console.log(`   Risk driven: ${(recommendation.riskDrivenScore * 100).toFixed(0)}%`);
+  console.log(`${recIcon} ${recommendation.recommendation.charAt(0).toUpperCase() + recommendation.recommendation.slice(1)} (confidence: ${(recommendation.confidence * 100).toFixed(0)}%)`);
   console.log(``);
-  console.log(`Decision rules applied:`);
-  for (const rule of recommendation.rulesApplied) {
-    console.log(`   · ${rule}`);
+  console.log(`Context confidence: ${(ctx.confidence * 100).toFixed(0)}% (evidence completeness)`);
+  console.log(`Risk score:        ${risk.overallRisk.toFixed(2)}  (${risk.outcome})`);
+  console.log(``);
+  console.log(`Reasons:`);
+  for (const reason of recommendation.reasons) {
+    console.log(` · ${reason}`);
   }
-  console.log(``);
-  if (recommendation.reasons.length > 0) {
-    console.log(`Reasons:`);
-    for (const reason of recommendation.reasons) {
-      console.log(`   · ${reason}`);
-    }
+  if (recommendation.warnings && recommendation.warnings.length > 0) {
     console.log(``);
-  }
-  if (recommendation.warnings.length > 0) {
     console.log(`Warnings:`);
     for (const w of recommendation.warnings) {
-      console.log(`   · ${w}`);
+      const icon = w.severity === "critical" ? "🔴" : w.severity === "warning" ? "🟡" : "🔵";
+      console.log(` ${icon} ${w.message}`);
     }
-    console.log(``);
   }
-  console.log(`Sources: ${recommendation.sourceArtifacts.length} artifact(s) used`);
+  console.log(``);
+  console.log(`Sources: ${recommendation.sourceArtifacts.length} artifact(s)`);
 }
