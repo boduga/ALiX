@@ -189,7 +189,7 @@ describe("DecisionContextBuilder", () => {
     expect(ctx.contextStatus).toBe("stale_context");
     expect(ctx.ageDays).toBeGreaterThan(30);
     expect(ctx.warnings).toBeDefined();
-    expect(ctx.warnings!.some((w) => w.includes("stale") || w.includes("activity"))).toBe(true);
+    expect(ctx.warnings!.some((w) => w.message.includes("stale") || w.message.includes("activity"))).toBe(true);
   });
 
   it("includes similar proposals from intelligence store", async () => {
@@ -378,6 +378,6 @@ describe("DecisionContextBuilder", () => {
     const ctx = await builder.build("prop-warn-001");
     expect(ctx.warnings).toBeDefined();
     expect(ctx.warnings!.length).toBeGreaterThan(0);
-    expect(ctx.warnings!.some((w) => w.includes("fingerprint"))).toBe(true);
+    expect(ctx.warnings!.some((w) => w.message.includes("fingerprint"))).toBe(true);
   });
 });

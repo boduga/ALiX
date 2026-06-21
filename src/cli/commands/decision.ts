@@ -19,6 +19,7 @@ import { EffectivenessStore } from "../../adaptation/effectiveness-store.js";
 import { IntelligenceStore } from "../../adaptation/intelligence-store.js";
 import { DecisionContextBuilder } from "../../adaptation/decision-context-builder.js";
 import { RiskScoreBuilder } from "../../adaptation/risk-score-builder.js";
+import { RecommendationEngine } from "../../adaptation/recommendation-engine.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -28,6 +29,31 @@ const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 const EVIDENCE_DIR = join(".alix", "security");
 const EFFECTIVENESS_DIR = join(".alix", "adaptation", "effectiveness");
 const INTELLIGENCE_DIR = join(".alix", "adaptation", "intelligence");
+
+// ---------------------------------------------------------------------------
+// Shared infrastructure factory
+// ---------------------------------------------------------------------------
+
+interface DecisionInfrastructure {
+  proposalStore: ProposalStore;
+  evidenceStore: EvidenceStore;
+  effectivenessStore: EffectivenessStore;
+  intelligenceStore: IntelligenceStore;
+  lineageBuilder: LineageBuilder;
+  contextBuilder: DecisionContextBuilder;
+}
+
+function buildDecisionInfrastructure(cwd: string): DecisionInfrastructure {
+  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
+  const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
+  const effectivenessStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const intelligenceStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
+  const lineageBuilder = new LineageBuilder(proposalStore, evidenceStore, effectivenessStore, intelligenceStore);
+  const contextBuilder = new DecisionContextBuilder(
+    proposalStore, evidenceStore, lineageBuilder, effectivenessStore, intelligenceStore,
+  );
+  return { proposalStore, evidenceStore, effectivenessStore, intelligenceStore, lineageBuilder, contextBuilder };
+}
 
 // ---------------------------------------------------------------------------
 // Command handler
@@ -44,9 +70,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "risk":
       await runRisk(rest);
       return;
+    case "recommend":
+      await runRecommend(rest);
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json]");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json]");
       process.exit(1);
   }
 }
@@ -64,26 +93,9 @@ async function runContext(args: string[]): Promise<void> {
 
   const jsonMode = args.includes("--json");
   const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
 
-  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
-  const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
-  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
-  const intelStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
-  const lineageBuilder = new LineageBuilder(
-    proposalStore,
-    evidenceStore,
-    effStore,
-    intelStore,
-  );
-  const builder = new DecisionContextBuilder(
-    proposalStore,
-    evidenceStore,
-    lineageBuilder,
-    effStore,
-    intelStore,
-  );
-
-  const ctx = await builder.build(id);
+  const ctx = await infra.contextBuilder.build(id);
 
   if (jsonMode) {
     console.log(JSON.stringify(ctx, null, 2));
@@ -135,7 +147,7 @@ async function runContext(args: string[]): Promise<void> {
     console.log(``);
     console.log(`⚠️ Warnings (${ctx.warnings.length}):`);
     for (const w of ctx.warnings) {
-      console.log(`   · ${w}`);
+      console.log(`   · ${w.message} (${w.severity})`);
     }
   }
 
@@ -161,27 +173,10 @@ async function runRisk(args: string[]): Promise<void> {
 
   const jsonMode = args.includes("--json");
   const cwd = process.cwd();
-
-  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
-  const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
-  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
-  const intelStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
-  const lineageBuilder = new LineageBuilder(
-    proposalStore,
-    evidenceStore,
-    effStore,
-    intelStore,
-  );
-  const ctxBuilder = new DecisionContextBuilder(
-    proposalStore,
-    evidenceStore,
-    lineageBuilder,
-    effStore,
-    intelStore,
-  );
+  const infra = buildDecisionInfrastructure(cwd);
   const riskBuilder = new RiskScoreBuilder();
 
-  const ctx = await ctxBuilder.build(id);
+  const ctx = await infra.contextBuilder.build(id);
   const risk = riskBuilder.build(ctx);
 
   if (jsonMode) {
@@ -215,4 +210,59 @@ async function runRisk(args: string[]): Promise<void> {
   }
   console.log(``);
   console.log(`Sources: ${risk.sourceArtifacts.length} artifact(s) used`);
+}
+
+// ---------------------------------------------------------------------------
+// runRecommend
+// ---------------------------------------------------------------------------
+
+async function runRecommend(args: string[]): Promise<void> {
+  const id = args[0];
+  if (!id) {
+    console.error("Usage: alix decision recommend <proposal-id> [--json]");
+    process.exit(1);
+  }
+
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
+  const riskBuilder = new RiskScoreBuilder();
+  const recEngine = new RecommendationEngine();
+
+  const ctx = await infra.contextBuilder.build(id);
+  const risk = riskBuilder.build(ctx);
+  const recommendation = recEngine.recommend(ctx, risk);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(recommendation, null, 2));
+    return;
+  }
+
+  const recIcon =
+    recommendation.recommendation === "approve" ? "✅" :
+    recommendation.recommendation === "reject" ? "❌" :
+    recommendation.recommendation === "defer" ? "⏸️" :
+    "🔍";
+
+  console.log(`Recommendation: ${recommendation.proposalId}`);
+  console.log(`────────────────────────────────────`);
+  console.log(`${recIcon} ${recommendation.recommendation.charAt(0).toUpperCase() + recommendation.recommendation.slice(1)} (confidence: ${(recommendation.confidence * 100).toFixed(0)}%)`);
+  console.log(``);
+  console.log(`Context confidence: ${(ctx.confidence * 100).toFixed(0)}% (evidence completeness)`);
+  console.log(`Risk score:        ${risk.overallRisk.toFixed(2)}  (${risk.outcome})`);
+  console.log(``);
+  console.log(`Reasons:`);
+  for (const reason of recommendation.reasons) {
+    console.log(` · ${reason}`);
+  }
+  if (recommendation.warnings && recommendation.warnings.length > 0) {
+    console.log(``);
+    console.log(`Warnings:`);
+    for (const w of recommendation.warnings) {
+      const icon = w.severity === "critical" ? "🔴" : w.severity === "warning" ? "🟡" : "🔵";
+      console.log(` ${icon} ${w.message}`);
+    }
+  }
+  console.log(``);
+  console.log(`Sources: ${recommendation.sourceArtifacts.length} artifact(s)`);
 }

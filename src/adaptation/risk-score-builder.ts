@@ -8,7 +8,7 @@
  * @module
  */
 
-import type { DecisionContext } from "./decision-types.js";
+import type { DecisionContext, EnrichedWarning } from "./decision-types.js";
 import type {
   RiskScore,
   RiskItem,
@@ -94,7 +94,7 @@ export class RiskScoreBuilder {
   build(ctx: DecisionContext, generatedAt?: string): RiskScore {
     const genAt = generatedAt ?? new Date().toISOString();
     const reasons: string[] = [];
-    const warnings: string[] = [];
+    const warnings: EnrichedWarning[] = [];
     const evidenceRefs: string[] = [...(ctx.evidenceRefs ?? [])];
     const dimensions: Record<RiskDimension, number> = {
       governance: scoreGovernance(ctx),
