@@ -11,6 +11,7 @@ import type { DecisionArtifact, SourceArtifact } from "./decision-types.js";
 import type { RiskScore } from "./risk-score-types.js";
 import type { ApprovalRecommendation } from "./recommendation-types.js";
 import type { DecisionContext } from "./decision-types.js";
+import type { GovernanceReview, GovernanceVerdict } from "./governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Recommendation Priority — tiebreaker secondary sort key
@@ -36,6 +37,8 @@ export interface QueueInput {
   riskScore?: RiskScore;
   /** Missing recommendation → treated as rank=0 (below approve). */
   recommendation?: ApprovalRecommendation;
+  /** Governance review verdict — optional. Missing → severity 0 (no sort impact). */
+  governanceReview?: GovernanceReview;
 }
 
 // ---------------------------------------------------------------------------
@@ -49,6 +52,8 @@ export interface QueueItemOrdering {
   recommendationRank: number;
   /** DecisionContext.ageDays — tertiary sort key. */
   ageDays: number;
+  /** GovernanceReview verdict severity — quaternary sort key. */
+  reviewSeverity: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +70,10 @@ export interface QueueItem extends DecisionArtifact {
   recommendationId?: string;
   /** Link to the source RiskScore. */
   riskScoreId?: string;
+  /** Link to the source GovernanceReview. */
+  governanceReviewId?: string;
+  /** Governance verdict applied by the council. */
+  governanceVerdict?: GovernanceVerdict;
   /** The sort keys that determined this position. */
   ordering: QueueItemOrdering;
 
@@ -75,7 +84,7 @@ export interface QueueItem extends DecisionArtifact {
    */
   confidence: number;
 
-  /** Source artifacts: DecisionContext, RiskScore, ApprovalRecommendation. */
+  /** Source artifacts: DecisionContext, RiskScore, ApprovalRecommendation, GovernanceReview. */
   sourceArtifacts: SourceArtifact[];
 
   // outcome inherited from DecisionArtifact — always "queued"

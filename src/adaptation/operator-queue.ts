@@ -10,6 +10,7 @@
 
 import type { QueueInput, QueueItem, QueueItemOrdering } from "./operator-queue-types.js";
 import { RECOMMENDATION_RANK, type RecommendationPriority } from "./operator-queue-types.js";
+import { GOVERNANCE_VERDICT_SEVERITY } from "./governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -38,7 +39,8 @@ export class OperatorQueue {
    *   1. RiskScore.overallRisk descending   (primary)
    *   2. RecommendationPriority rank desc   (secondary)
    *   3. DecisionContext.ageDays descending  (tertiary)
-   *   4. proposalId ascending                (final tiebreaker)
+   *   4. GovernanceReview verdict severity    (quaternary)
+   *   5. proposalId ascending                (final tiebreaker)
    *
    * @param inputs - Pre-assembled decision artifacts per pending proposal
    * @param options - Optional limit after sorting
@@ -47,12 +49,16 @@ export class OperatorQueue {
   build(inputs: QueueInput[], options?: BuildOptions): QueueItem[] {
     const generatedAt = options?.generatedAt ?? new Date().toISOString();
 
-    const items: QueueItem[] = inputs.map(({ ctx, riskScore, recommendation }) => {
+    const items: QueueItem[] = inputs.map(({ ctx, riskScore, recommendation, governanceReview }) => {
       const recommendationRank = this.recommendationRank(riskScore, recommendation);
+      const reviewSeverity = governanceReview
+        ? (GOVERNANCE_VERDICT_SEVERITY[governanceReview.verdict] ?? 0)
+        : 0;
       const ordering: QueueItemOrdering = {
         risk: riskScore?.overallRisk ?? MISSING_RISK,
         recommendationRank,
         ageDays: ctx.ageDays,
+        reviewSeverity,
       };
 
       return {
@@ -61,23 +67,26 @@ export class OperatorQueue {
         outcome: OUTCOME_QUEUED,
         confidence: recommendation?.confidence ?? 0,
         recommendation: recommendation?.recommendation ?? undefined,
-        reasons: this.buildReasons(ordering, riskScore, recommendation),
-        evidenceRefs: [ctx.id, riskScore?.id ?? "", recommendation?.id ?? ""].filter(Boolean),
+        reasons: this.buildReasons(ordering, riskScore, recommendation, governanceReview),
+        evidenceRefs: [ctx.id, riskScore?.id ?? "", recommendation?.id ?? "", governanceReview?.id ?? ""].filter(Boolean),
         generatedAt,
         proposalId: ctx.proposalId,
         position: 0, // assigned after sort
         recommendationId: recommendation?.id,
         riskScoreId: riskScore?.id,
+        governanceReviewId: governanceReview?.id,
+        governanceVerdict: governanceReview?.verdict,
         ordering,
         sourceArtifacts: [
           { type: "context", id: ctx.id, timestamp: ctx.generatedAt },
           ...(riskScore ? [{ type: "risk" as const, id: riskScore.id, timestamp: riskScore.generatedAt }] : []),
           ...(recommendation ? [{ type: "recommendation" as const, id: recommendation.id, timestamp: recommendation.generatedAt }] : []),
+          ...(governanceReview ? [{ type: "review" as const, id: governanceReview.id, timestamp: governanceReview.generatedAt }] : []),
         ],
       };
     });
 
-    // Sort by the four-tier rule
+    // Sort by the five-tier rule
     items.sort((a, b) => {
       // 1. Risk descending
       if (b.ordering.risk !== a.ordering.risk) return b.ordering.risk - a.ordering.risk;
@@ -86,7 +95,9 @@ export class OperatorQueue {
         return b.ordering.recommendationRank - a.ordering.recommendationRank;
       // 3. Age descending
       if (b.ordering.ageDays !== a.ordering.ageDays) return b.ordering.ageDays - a.ordering.ageDays;
-      // 4. ProposalId ascending (final tiebreaker)
+      // 4. Review severity descending
+      if (b.ordering.reviewSeverity !== a.ordering.reviewSeverity) return b.ordering.reviewSeverity - a.ordering.reviewSeverity;
+      // 5. ProposalId ascending (final tiebreaker)
       return a.proposalId.localeCompare(b.proposalId);
     });
 
@@ -124,6 +135,7 @@ export class OperatorQueue {
     ordering: QueueItemOrdering,
     riskScore: QueueInput["riskScore"],
     recommendation: QueueInput["recommendation"],
+    governanceReview?: QueueInput["governanceReview"],
   ): string[] {
     const reasons: string[] = [];
 
@@ -141,6 +153,10 @@ export class OperatorQueue {
 
     if (ordering.ageDays > 0) {
       reasons.push(`Age: ${ordering.ageDays} day(s)`);
+    }
+
+    if (ordering.reviewSeverity > 0) {
+      reasons.push(`Governance review severity: ${ordering.reviewSeverity}`);
     }
 
     return reasons;
