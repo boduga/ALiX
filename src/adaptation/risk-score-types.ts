@@ -21,7 +21,7 @@ export type RiskDimension =
   | "revertability"
   | "evidence_quality";
 
-export const RISK_DIMENSIONS: RiskDimension[] = [
+export const RISK_DIMENSIONS: readonly RiskDimension[] = [
   "governance",
   "operational",
   "capability",
