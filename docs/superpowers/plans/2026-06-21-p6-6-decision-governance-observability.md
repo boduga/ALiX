@@ -45,7 +45,7 @@ Note: The collector tests use existing store test infrastructure. No separate co
 
 **Interfaces:**
 - Produces: `PipelineHealthStatus`, `PipelineHealthInput`, `PipelineHealthReport`
-- Consumes: `DecisionArtifact`, `EnrichedWarning` from `./decision-types.js`
+- Consumes: `DecisionArtifact` from `./decision-types.js`
 
 - [ ] **Step 1: Write the failing type-shape test**
 
@@ -135,10 +135,7 @@ Expected: FAIL — "Cannot find module"
  * @module
  */
 
-import type { DecisionArtifact, EnrichedWarning } from "./decision-types.js";
-import type { DecisionContext } from "./decision-types.js";
-import type { RiskScore } from "./risk-score-types.js";
-import type { ApprovalRecommendation } from "./recommendation-types.js";
+import type { DecisionArtifact } from "./decision-types.js";
 
 // ---------------------------------------------------------------------------
 // Health status
@@ -520,7 +517,7 @@ export class PipelineHealthBuilder {
       signals.push({ severity: "critical", message: `${scoped.brokenLineage} proposal(s) have broken lineage — decision context is incomplete` });
     }
 
-    if (!input.strategicBrief.available && (scoped.total > 0 || input.effectivenessReports > 0)) {
+    if (!input.strategicBrief.available && (scoped.total > 0 || input.effectivenessReports > 0 || input.intelligenceReports > 0 || input.lifecycleEvents.total > 0)) {
       signals.push({ severity: "warning", message: "Strategic brief unavailable — pipeline lacks long-horizon synthesis" });
     }
 
@@ -741,6 +738,8 @@ import type { EvidenceStore } from "../security/evidence/evidence-store.js";
 import type { EffectivenessStore } from "./effectiveness-store.js";
 import type { IntelligenceStore } from "./intelligence-store.js";
 import type { DecisionContextBuilder } from "./decision-context-builder.js";
+import { RiskScoreBuilder } from "./risk-score-builder.js";
+import { RecommendationEngine } from "./recommendation-engine.js";
 import { StrategicBriefBuilder } from "./strategic-brief.js";
 import type { StrategicBriefOptions } from "./strategic-brief-types.js";
 
@@ -748,7 +747,7 @@ import type { StrategicBriefOptions } from "./strategic-brief-types.js";
 // Constants
 // ---------------------------------------------------------------------------
 
-const EVIDENCE_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30-day window for evidence queries
+// Evidence window is derived from the requested windowDays parameter
 
 // ---------------------------------------------------------------------------
 // Collector
@@ -760,6 +759,8 @@ export interface HealthCollectorInfrastructure {
   effectivenessStore: EffectivenessStore;
   intelligenceStore: IntelligenceStore;
   contextBuilder: DecisionContextBuilder;
+  riskScoreBuilder: RiskScoreBuilder;
+  recommendationEngine: RecommendationEngine;
 }
 
 export class PipelineHealthCollector {
@@ -797,18 +798,22 @@ export class PipelineHealthCollector {
       failed: proposals.filter(p => p.status === "failed").length,
     };
 
-    // 2. Build DecisionContexts for scoped proposals (pending + recent)
+    // 2. Build DecisionContexts for scoped proposals (pending + created/applied within window)
     const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
     const scopedIds = proposals
-      .filter(p => p.status === "pending")
+      .filter(p => p.status === "pending" || (p as any).createdAt >= windowStart.toISOString())
       .map(p => p.id);
 
     const scopedProposalInputs: ScopedProposalData[] = [];
     for (const id of scopedIds) {
       try {
         const ctx = await this.#infra.contextBuilder.build(id);
+        const risk = this.#infra.riskScoreBuilder.build(ctx);
+        const recommendation = this.#infra.recommendationEngine.recommend(ctx, risk);
         scopedProposalInputs.push({
           contextConfidence: ctx.confidence,
+          riskConfidence: risk.confidence,
+          recommendationConfidence: recommendation.confidence,
           ageDays: ctx.ageDays,
           lineageCompleteness: ctx.lineageCompleteness,
           dataFreshness: {
@@ -845,39 +850,34 @@ export class PipelineHealthCollector {
     let lifecycleEventsTotal = 0;
     let lifecycleEventsInWindow = 0;
     try {
-      const allEvents = await this.#infra.evidenceStore.query({});
-      lifecycleEventsTotal = allEvents.length;
-      const windowCutoff = new Date(Date.now() - EVIDENCE_WINDOW_MS);
-      lifecycleEventsInWindow = allEvents.filter(e => new Date(e.timestamp).getTime() >= windowCutoff.getTime()).length;
+      const evResult = await this.#infra.evidenceStore.query({});
+      lifecycleEventsTotal = evResult.total;
+      const evidenceWindowMs = windowDays * 24 * 60 * 60 * 1000;
+      const windowCutoff = new Date(Date.now() - evidenceWindowMs);
+      lifecycleEventsInWindow = evResult.records.filter(e => new Date(e.timestamp).getTime() >= windowCutoff.getTime()).length;
     } catch (err) {
       storeAvailability.evidenceStore = false;
       storeErrors.evidenceStore = err instanceof Error ? err.message : String(err);
     }
 
-    // 6. Build strategic brief
+    // 6. Build strategic brief — available: false only on build failure.
+    // The brief content (findings count, confidence) is its own signal.
+    // Empty findings are valid — they mean "nothing notable."
     let strategicBrief: PipelineHealthInput["strategicBrief"];
     try {
       const briefBuilder = new StrategicBriefBuilder();
-      // Build the brief for this window using the strategic brief builder
-      // The brief builder expects StrategicBriefInput — use empty if stores failed
-      // Window-only brief — no full intelligence/effectiveness input assembly.
       const briefOptions: StrategicBriefOptions = { window: windowDays as 30 | 90 | 180, generatedAt: new Date().toISOString() };
-      // The actual brief needs intelligence/effectiveness/evidence input — we check availability
-      if (intelligenceReports === 0 && effectivenessReports === 0 && lifecycleEventsTotal === 0) {
-        strategicBrief = { available: false, confidence: null, findings: 0 };
-      } else {
-        const brief = await this.#infra.contextBuilder.build(scopedIds[0] || "inactive");
-        const briefInput = {
-          intelligenceReports: [] as any[],
-          effectivenessReports: [] as any[],
-          evidenceRecords: [] as any[],
-        };
-        strategicBrief = {
-          available: true,
-          confidence: brief.confidence,
-          findings: scopedIds.length > 0 ? 1 : 0,
-        };
-      }
+      const briefInput = {
+        intelligenceReports: [] as any[],
+        effectivenessReports: [] as any[],
+        evidenceRecords: [] as any[],
+      };
+      const brief = briefBuilder.build(briefInput, briefOptions);
+      strategicBrief = {
+        available: true,
+        confidence: brief.confidence,
+        findings: brief.findings.length,
+      };
     } catch {
       strategicBrief = { available: false, confidence: null, findings: 0 };
     }
@@ -933,6 +933,8 @@ After the existing imports in `src/cli/commands/decision.ts`, add:
 ```typescript
 import { PipelineHealthCollector } from "../../adaptation/pipeline-health-collector.js";
 import { PipelineHealthBuilder } from "../../adaptation/pipeline-health-builder.js";
+import { RiskScoreBuilder } from "../../adaptation/risk-score-builder.js";
+import { RecommendationEngine } from "../../adaptation/recommendation-engine.js";
 import type { PipelineHealthReport } from "../../adaptation/pipeline-health-types.js";
 ```
 
@@ -964,7 +966,9 @@ async function runStatus(args: string[]): Promise<void> {
 
   const cwd = process.cwd();
   const infra = buildDecisionInfrastructure(cwd);
-  const collector = new PipelineHealthCollector(infra);
+  const riskScoreBuilder = new RiskScoreBuilder();
+  const recommendationEngine = new RecommendationEngine();
+  const collector = new PipelineHealthCollector({ ...infra, riskScoreBuilder, recommendationEngine });
   const builder = new PipelineHealthBuilder();
 
   const input = await collector.collect(windowDays);
