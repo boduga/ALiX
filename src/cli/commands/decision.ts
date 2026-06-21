@@ -20,6 +20,8 @@ import { IntelligenceStore } from "../../adaptation/intelligence-store.js";
 import { DecisionContextBuilder } from "../../adaptation/decision-context-builder.js";
 import { RiskScoreBuilder } from "../../adaptation/risk-score-builder.js";
 import { RecommendationEngine } from "../../adaptation/recommendation-engine.js";
+import { OperatorQueue } from "../../adaptation/operator-queue.js";
+import type { QueueItem, QueueInput, RecommendationPriority } from "../../adaptation/operator-queue-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -73,9 +75,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "recommend":
       await runRecommend(rest);
       return;
+    case "queue":
+      await runQueue(rest);
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json]");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N]");
       process.exit(1);
   }
 }
@@ -265,4 +270,79 @@ async function runRecommend(args: string[]): Promise<void> {
   }
   console.log(``);
   console.log(`Sources: ${recommendation.sourceArtifacts.length} artifact(s)`);
+}
+
+// ---------------------------------------------------------------------------
+// runQueue — Operator Queue
+// ---------------------------------------------------------------------------
+
+/**
+ * Build and render the prioritized operator queue.
+ * Computed fresh each run — no persistence.
+ */
+async function runQueue(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const limitIdx = args.indexOf("--limit");
+  let limit: number | undefined;
+  if (limitIdx !== -1 && limitIdx + 1 < args.length) {
+    limit = parseInt(args[limitIdx + 1], 10);
+    if (isNaN(limit) || limit < 0) {
+      console.error("Error: --limit requires a non-negative integer");
+      process.exit(1);
+    }
+  }
+
+  const cwd = process.cwd();
+  const infra = buildDecisionInfrastructure(cwd);
+  const riskBuilder = new RiskScoreBuilder();
+  const recEngine = new RecommendationEngine();
+  const operatorQueue = new OperatorQueue();
+
+  // List all pending proposals
+  const proposals = await infra.proposalStore.list("pending");
+  if (proposals.length === 0) {
+    console.log("No pending proposals.");
+    return;
+  }
+
+  // Build QueueInput for each pending proposal
+  const inputs: QueueInput[] = [];
+  for (const proposal of proposals) {
+    const ctx = await infra.contextBuilder.build(proposal.id);
+    const riskScore = riskBuilder.build(ctx);
+    const recommendation = recEngine.recommend(ctx, riskScore);
+    inputs.push({ ctx, riskScore, recommendation });
+  }
+
+  // Sort and optionally limit
+  const items = operatorQueue.build(inputs, { limit });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(items, null, 2));
+    return;
+  }
+
+  // Terminal renderer
+  const recIcon = (rec: RecommendationPriority | undefined): string => {
+    switch (rec) {
+      case "investigate": return "🔴";
+      case "reject":      return "🟠";
+      case "defer":       return "🟡";
+      default:            return "⚪";
+    }
+  };
+
+  console.log(`Operator Queue: ${proposals.length} pending proposal(s)`);
+  console.log(`═══════════════════════════════════════`);
+  console.log(``);
+
+  for (const item of items) {
+    const icon = recIcon(item.recommendation);
+    const recLabel = item.recommendation ?? "no recommendation";
+    console.log(` ${item.position}. ${icon} ${item.proposalId}  ${recLabel}  risk: ${item.ordering.risk.toFixed(2)}`);
+    if (item.reasons.length > 0) {
+      console.log(`    ${item.reasons.join(" | ")}`);
+    }
+    console.log(``);
+  }
 }
