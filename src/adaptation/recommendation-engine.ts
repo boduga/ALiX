@@ -85,9 +85,15 @@ export function computeSignalCoherence(
 
   // Risk assessment support depends on recommendation
   if (riskScore) {
-    if (recommendation === "investigate" && riskScore.overallRisk >= 0.6) support++;
-    else if (recommendation !== "investigate" && riskScore.overallRisk < 0.4) support++;
-    else contradict++;
+    if (recommendation === "investigate" && riskScore.overallRisk >= 0.6) {
+      support++;
+    } else if (recommendation !== "investigate" && riskScore.overallRisk < 0.4) {
+      support++;
+    } else if (recommendation !== "investigate" && riskScore.overallRisk >= 0.6) {
+      contradict += 3; // Strong contradiction: high risk clearly conflicts with approve/defer/reject
+    } else {
+      contradict++;
+    }
   }
 
   // Lineage completeness supports confident recommendations
@@ -96,11 +102,15 @@ export function computeSignalCoherence(
 
   // Effectiveness trend alignment
   if (ctx.effectivenessTrend.sampleSize > 0) {
+    // When high risk clearly conflicts with an approve recommendation,
+    // the historical trend is less relevant (current situation differs)
+    const riskOverridesTrend = riskScore && riskScore.overallRisk >= 0.6 && recommendation === "approve";
     const trendSupports =
-      (recommendation === "approve" && ctx.effectivenessTrend.keepRate > 0.7) ||
-      (recommendation === "investigate" && ctx.effectivenessTrend.revertRate > 0.3);
+      !riskOverridesTrend &&
+      ((recommendation === "approve" && ctx.effectivenessTrend.keepRate > 0.7) ||
+        (recommendation === "investigate" && ctx.effectivenessTrend.revertRate > 0.3));
     if (trendSupports) support++;
-    else contradict++;
+    else if (!riskOverridesTrend) contradict++;
   }
 
   const total = support + contradict;
