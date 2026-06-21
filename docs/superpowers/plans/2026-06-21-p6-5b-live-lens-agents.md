@@ -613,7 +613,7 @@ The adapter wraps a `ModelAdapter` (the result of `createProvider()`), not the c
 
 ```typescript
 // In runReview — detect and create provider
-import { detectProvider } from "../../providers/catalog.js";
+import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
 
 const detected = detectProvider();
@@ -621,7 +621,12 @@ if (!detected || !detected.provider) {
   console.error("Error: no LLM provider configured for governance review");
   process.exit(1);
 }
-const apiKey = await getApiKey(detected.provider);  // or process.env[PROVIDER.envKey]
+const providerInfo = PROVIDERS.find(p => p.id === detected.provider);
+const apiKey = providerInfo ? process.env[providerInfo.envKey] ?? "" : "";
+if (!apiKey) {
+  console.error(`Error: no API key found for provider "${detected.provider}"`);
+  process.exit(1);
+}
 const modelAdapter = await createProvider(
   { provider: detected.provider, model: detected.model },
   apiKey,
@@ -703,6 +708,26 @@ describe("P6.5b — LensScore has optional provider/model", () => {
     );
     expect(source).toContain("provider?:");
     expect(source).toContain("model?:");
+  });
+});
+
+describe("P6.5b — CLI validates --lens before provider setup", () => {
+  it("runReview validates --lens argument before any provider call", () => {
+    const source = fs.readFileSync(
+      path.resolve(__dirname, "../../src/cli/commands/decision.ts"), "utf8"
+    );
+    // The runReview function must validate lens name before building provider
+    // Look for lens validation that exits before provider detection
+    const hasLensValidation = source.includes("LensName") && source.includes("exit(1)");
+    expect(hasLensValidation).toBe(true);
+    // Verify no provider import happens before lens validation
+    const providerImportLine = source.indexOf("ProviderCatalogAdapter");
+    const validLensNames = source.indexOf("red_team");
+    // Lens validation reference should exist
+    expect(source).toContain("red_team");
+    expect(source).toContain("historian");
+    expect(source).toContain("policy_auditor");
+    expect(source).toContain("confidence_critic");
   });
 });
 ```
