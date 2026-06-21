@@ -40,7 +40,7 @@ Each phase adds precision only where the previous phase reveals blind spots.
 | Confidence (recommendation) | `RecommendationEngine.recommend()` per scoped proposal | Computed on demand, averaged |
 | Data freshness | `DecisionContext.dataFreshness` | Min/max across scoped proposals |
 | Strategic brief | `StrategicBriefBuilder.build()` with same window | Reuses existing builder |
-| Governance review capability | Static flag | P6.5a presence detected at runtime |
+| Governance review capability | Static flag | P6.5a is merged — always `true` |
 
 All stores are read via their existing APIs. No new schema, no new evidence types, no writes. If a store is unavailable, the report captures that as a structured field (`storeAvailability`) and a health signal (see Health Computation).
 
@@ -128,11 +128,19 @@ interface PipelineHealthReport extends DecisionArtifact {
     findings: number;
   };
 
-  /** Governance review capability (P6.5a) */
+  /** Governance review capability (P6.5a merged — always available) */
   governanceReview: {
-    frameworkAvailable: boolean;
+    frameworkAvailable: true;
     liveLensExecutionAvailable: false;
     persistedReviews: false;
+  };
+
+  /** Store-level errors for diagnostics (undefined = no error) */
+  storeErrors?: {
+    proposalStore?: string;
+    evidenceStore?: string;
+    effectivenessStore?: string;
+    intelligenceStore?: string;
   };
 }
 ```
@@ -224,8 +232,8 @@ Governance review: Framework ready (P6.5a). Lenses deferred (P6.5b)
 - **Store unavailable at construction:** Catch per-store initialization in `buildDecisionInfrastructure`. Log warning. Report metric as unavailable (signal, not crash).
 - **Individual proposal build failure:** `DecisionContextBuilder.build()` failure for one proposal logs a warning, skips that proposal, continues. Does not fail the report.
 - **Empty stores:** Reported as zeros. Health = `healthy` (no data means nothing is broken, no blind spots).
-- **Window with no data:** `scopedProposals.total = 0`, health = `healthy`, warning: "No proposals in window"
-- **P6.5a not installed:** `governanceReview.frameworkAvailable = false` — the report adapts to what's installed without crashing.
+- **Window with no data:** `scopedProposals.total = 0`, health = `healthy`, health signal: `{severity: "info", message: "No proposals in window"}`
+- **P6.5a not installed:** Not applicable — P6.5a is merged to main. `governanceReview.frameworkAvailable` is always `true`.
 
 ## Performance
 
