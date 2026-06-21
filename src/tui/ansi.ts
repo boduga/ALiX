@@ -1,12 +1,12 @@
-import pc from "picocolors";
+import { styleText } from "node:util";
 
-export const bold = (text: string) => pc.bold(text);
-export const cyan = (text: string) => pc.cyan(text);
-export const green = (text: string) => pc.green(text);
-export const red = (text: string) => pc.red(text);
-export const yellow = (text: string) => pc.yellow(text);
-export const dim = (text: string) => pc.dim(text);
-export const magenta = (text: string) => pc.magenta(text);
+export const bold = (text: string) => styleText("bold", text);
+export const cyan = (text: string) => styleText("cyan", text);
+export const green = (text: string) => styleText("green", text);
+export const red = (text: string) => styleText("red", text);
+export const yellow = (text: string) => styleText("yellow", text);
+export const dim = (text: string) => styleText("dim", text);
+export const magenta = (text: string) => styleText("magenta", text);
 
 // Cursor control
 export const cursorHide = () => "\x1b[?25l";
