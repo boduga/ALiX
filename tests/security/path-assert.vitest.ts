@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { assertSafePathComponent } from "../../src/security/path-assert";
+import { assertSafePathComponent } from "../../src/security/path-assert.js";
 
 describe("assertSafePathComponent", () => {
   it("accepts simple alphanumeric names", () => {

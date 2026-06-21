@@ -163,7 +163,7 @@ describe("ExecutionAgent", () => {
       const agent = new ExecutionAgent({ writeFile: async () => {} });
       const result = await agent.execute(validPlan(), coordinator, writer, null as unknown as ExecutionPermit);
       expect(result.success).toBe(false);
-      expect(result.code).toBe("no_permit");
+      expect((result as any).code).toBe("no_permit");
 
       rmSync(dir, { recursive: true, force: true });
     });
@@ -213,7 +213,7 @@ describe("ExecutionAgent", () => {
       const agent = new ExecutionAgent({ writeFile: async () => {} });
       const result = await agent.execute(roguePlan, coordinator, writer, validPermit(plan));
       expect(result.success).toBe(false);
-      expect(result.code).toBe("file_not_allowed");
+      expect((result as any).code).toBe("file_not_allowed");
 
       rmSync(dir, { recursive: true, force: true });
     });
@@ -243,7 +243,7 @@ describe("ExecutionAgent", () => {
       const agent = new ExecutionAgent({ writeFile: async () => {} });
       const result = await agent.execute(plan, coordinator, writer, validPermit(plan));
       expect(result.success).toBe(false);
-      expect(result.code).toBe("protected_path");
+      expect((result as any).code).toBe("protected_path");
 
       rmSync(dir, { recursive: true, force: true });
     });
@@ -265,7 +265,7 @@ describe("ExecutionAgent", () => {
       const agent = new ExecutionAgent({ writeFile: async () => {} });
       const result = await agent.execute(plan, coordinator, writer, badPermit);
       expect(result.success).toBe(false);
-      expect(result.code).toBe("permit_mismatch");
+      expect((result as any).code).toBe("permit_mismatch");
 
       rmSync(dir, { recursive: true, force: true });
     });
@@ -297,7 +297,7 @@ describe("ExecutionAgent", () => {
 
       const result = await agent.execute(plan, coordinator, writer, validPermit(plan));
       expect(result.success).toBe(false);
-      expect(result.code).toBe("tests_failed");
+      expect((result as any).code).toBe("tests_failed");
       // Only the first subtask should have run
       expect(result.results.length).toBe(1);
       expect(result.results[0].subtaskId).toBe("step-1");

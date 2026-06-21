@@ -355,6 +355,7 @@ describe("IssueIntakeAgent", () => {
         labels: [{ name: "ready-for-agent" }],
       });
       expect(r2.success).toBe(true);
+      if (!r2.success) return; // type guard
       expect(r2.workPackage.issueNumber).toBe(63);
 
       // Both should have evidence
