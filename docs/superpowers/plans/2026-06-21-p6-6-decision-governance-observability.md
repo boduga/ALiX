@@ -30,12 +30,14 @@ Create:
   src/adaptation/pipeline-health-collector.ts    — PipelineHealthCollector (I/O: reads stores)
   tests/adaptation/pipeline-health-types.vitest.ts
   tests/adaptation/pipeline-health-builder.vitest.ts
+  tests/adaptation/pipeline-health-collector.vitest.ts
 
 Modify:
   src/cli/commands/decision.ts                   — Add case "status" + runStatus function
 ```
 
-Note: The collector tests use existing store test infrastructure. No separate collector test file needed in the initial plan — the CLI integration test exercises the full Collector→Builder path.
+**Tests:**
+- `tests/adaptation/pipeline-health-collector.vitest.ts` — lightweight collector tests with mock infrastructure
 
 ### Task 1: Pipeline Health Types
 
@@ -799,9 +801,15 @@ export class PipelineHealthCollector {
     };
 
     // 2. Build DecisionContexts for scoped proposals (pending + created/applied within window)
-    const windowStart = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+    const windowStartMs = Date.now() - windowDays * 24 * 60 * 60 * 1000;
     const scopedIds = proposals
-      .filter(p => p.status === "pending" || (p as any).createdAt >= windowStart.toISOString())
+      .filter(p => {
+        if (p.status === "pending") return true;
+        const createdAt = Date.parse((p as any).createdAt ?? "");
+        const appliedAt = Date.parse((p as any).appliedAt ?? "");
+        return (Number.isFinite(createdAt) && createdAt >= windowStartMs)
+            || (Number.isFinite(appliedAt) && appliedAt >= windowStartMs);
+      })
       .map(p => p.id);
 
     const scopedProposalInputs: ScopedProposalData[] = [];
@@ -836,11 +844,12 @@ export class PipelineHealthCollector {
       storeErrors.effectivenessStore = err instanceof Error ? err.message : String(err);
     }
 
-    // 4. Load intelligence reports (count only)
+    // 4. Load intelligence reports
     let intelligenceReports = 0;
+    let intelRecords: any[] = [];
     try {
-      const intelList = await this.#infra.intelligenceStore.list();
-      intelligenceReports = intelList.length;
+      intelRecords = await this.#infra.intelligenceStore.list();
+      intelligenceReports = intelRecords.length;
     } catch (err) {
       storeAvailability.intelligenceStore = false;
       storeErrors.intelligenceStore = err instanceof Error ? err.message : String(err);
@@ -849,9 +858,11 @@ export class PipelineHealthCollector {
     // 5. Count evidence events
     let lifecycleEventsTotal = 0;
     let lifecycleEventsInWindow = 0;
+    let evRecords: any[] = [];
     try {
       const evResult = await this.#infra.evidenceStore.query({});
       lifecycleEventsTotal = evResult.total;
+      evRecords = evResult.records;
       const evidenceWindowMs = windowDays * 24 * 60 * 60 * 1000;
       const windowCutoff = new Date(Date.now() - evidenceWindowMs);
       lifecycleEventsInWindow = evResult.records.filter(e => new Date(e.timestamp).getTime() >= windowCutoff.getTime()).length;
@@ -861,16 +872,20 @@ export class PipelineHealthCollector {
     }
 
     // 6. Build strategic brief — available: false only on build failure.
-    // The brief content (findings count, confidence) is its own signal.
-    // Empty findings are valid — they mean "nothing notable."
+    // Load actual intelligence and effectiveness records for meaningful findings.
+    // If loading fails, the brief still runs with what's available.
+    let effectivenessRecords: any[] = [];
+    if (storeAvailability.effectivenessStore) {
+      try { effectivenessRecords = await this.#infra.effectivenessStore.list(); } catch { /* partial */ }
+    }
     let strategicBrief: PipelineHealthInput["strategicBrief"];
     try {
       const briefBuilder = new StrategicBriefBuilder();
       const briefOptions: StrategicBriefOptions = { window: windowDays as 30 | 90 | 180, generatedAt: new Date().toISOString() };
       const briefInput = {
-        intelligenceReports: [] as any[],
-        effectivenessReports: [] as any[],
-        evidenceRecords: [] as any[],
+        intelligenceReports: intelRecords,
+        effectivenessReports: effectivenessRecords,
+        evidenceRecords: evRecords,
       };
       const brief = briefBuilder.build(briefInput, briefOptions);
       strategicBrief = {
@@ -902,17 +917,100 @@ export class PipelineHealthCollector {
 }
 ```
 
-- [ ] **Step 3: Run full test suite to verify no regressions**
+- [ ] **Step 3: Write a lightweight collector test with mock infra**
+
+```typescript
+// tests/adaptation/pipeline-health-collector.vitest.ts
+import { describe, it, expect, vi } from "vitest";
+import { PipelineHealthCollector } from "../../src/adaptation/pipeline-health-collector.js";
+
+function makeMockInfra(overrides: Record<string, any> = {}) {
+  const defaultStore = { list: vi.fn().mockResolvedValue([]), load: vi.fn().mockResolvedValue({}) };
+  return {
+    proposalStore: { list: vi.fn().mockResolvedValue([{ id: "p1", status: "pending" }, { id: "p2", status: "applied" }, { id: "p3", status: "rejected" }]) },
+    evidenceStore: { query: vi.fn().mockResolvedValue({ records: [{ timestamp: new Date().toISOString() }], total: 1, truncated: false }) },
+    effectivenessStore: { ...defaultStore, list: vi.fn().mockResolvedValue([{ id: "e1" }]) },
+    intelligenceStore: { ...defaultStore, list: vi.fn().mockResolvedValue([{ id: "i1" }]) },
+    contextBuilder: {
+      build: vi.fn().mockResolvedValue({
+        id: "ctx", confidence: 0.8, ageDays: 5, lineageCompleteness: "complete" as const,
+        dataFreshness: { newestArtifactAgeDays: 2, oldestArtifactAgeDays: 10 },
+      }),
+    },
+    riskScoreBuilder: { build: vi.fn().mockReturnValue({ id: "risk", confidence: 0.75, overallRisk: 0.4 }) },
+    recommendationEngine: { recommend: vi.fn().mockReturnValue({ id: "rec", confidence: 0.82, recommendation: "approve" }) },
+    ...overrides,
+  };
+}
+
+describe("PipelineHealthCollector", () => {
+  it("collects pending + window-scoped proposals", async () => {
+    const collector = new PipelineHealthCollector(makeMockInfra());
+    const input = await collector.collect(30);
+    expect(input.proposalCounts.total).toBe(3);
+    expect(input.proposalCounts.pending).toBe(1);
+    expect(input.scopedProposalInputs.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("includes risk and recommendation confidence", async () => {
+    const collector = new PipelineHealthCollector(makeMockInfra());
+    const input = await collector.collect(30);
+    if (input.scopedProposalInputs.length > 0) {
+      const data = input.scopedProposalInputs[0];
+      expect(data.contextConfidence).toBe(0.8);
+      expect(data.riskConfidence).toBe(0.75);
+      expect(data.recommendationConfidence).toBe(0.82);
+    }
+  });
+
+  it("skips failed context builds", async () => {
+    const infra = makeMockInfra({
+      contextBuilder: {
+        build: vi.fn().mockRejectedValue(new Error("Store error")),
+      },
+    });
+    const collector = new PipelineHealthCollector(infra);
+    const input = await collector.collect(30);
+    expect(input.scopedProposalInputs.length).toBe(0);
+  });
+
+  it("detects unavailable ProposalStore", async () => {
+    const infra = makeMockInfra({
+      proposalStore: { list: vi.fn().mockRejectedValue(new Error("ECONNREFUSED")) },
+    });
+    const collector = new PipelineHealthCollector(infra);
+    const input = await collector.collect(30);
+    expect(input.storeAvailability.proposalStore).toBe(false);
+    expect(input.storeErrors?.proposalStore).toBe("ECONNREFUSED");
+  });
+
+  it("sets strategicBrief available when build succeeds", async () => {
+    const collector = new PipelineHealthCollector(makeMockInfra());
+    const input = await collector.collect(30);
+    expect(input.strategicBrief.available).toBe(true);
+    expect(typeof input.strategicBrief.confidence).toBe("number");
+  });
+});
+```
+
+- [ ] **Step 4: Run collector tests**
+
+```bash
+npx vitest run tests/adaptation/pipeline-health-collector.vitest.ts 2>&1 | tail -10
+```
+Expected: 5+ tests passing
+
+- [ ] **Step 5: Run full test suite to verify no regressions**
 
 ```bash
 npx vitest run 2>&1 | tail -5
 ```
 Expected: 930+ tests passing
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/adaptation/pipeline-health-collector.ts
+git add src/adaptation/pipeline-health-collector.ts tests/adaptation/pipeline-health-collector.vitest.ts
 git commit -m "feat(p6.6a): PipelineHealthCollector I/O layer"
 ```
 
