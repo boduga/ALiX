@@ -79,9 +79,16 @@ export function computeSignalCoherence(
   let support = 0;
   let contradict = 0;
 
-  // Evidence completeness supports when high
-  if (ctx.confidence >= 0.7) support++;
-  else if (ctx.confidence < 0.4) contradict++;
+  // Evidence completeness — recommendation-aware
+  // For reject/defer, low confidence supports the recommendation
+  // (the rules fire precisely because evidence is insufficient)
+  if (recommendation === "reject" || recommendation === "defer") {
+    if (ctx.confidence < 0.4) support++;
+    else if (ctx.confidence >= 0.7) contradict++;
+  } else {
+    if (ctx.confidence >= 0.7) support++;
+    else if (ctx.confidence < 0.4) contradict++;
+  }
 
   // Risk assessment support depends on recommendation
   if (riskScore) {
@@ -96,9 +103,15 @@ export function computeSignalCoherence(
     }
   }
 
-  // Lineage completeness supports confident recommendations
-  if (ctx.lineageCompleteness === "complete") support++;
-  else if (ctx.lineageCompleteness === "broken") contradict++;
+  // Lineage completeness — recommendation-aware
+  // For reject, broken lineage supports the recommendation
+  // (broken lineage is a required trigger for the reject rule)
+  if (recommendation === "reject") {
+    if (ctx.lineageCompleteness === "broken") support++;
+  } else {
+    if (ctx.lineageCompleteness === "complete") support++;
+    else if (ctx.lineageCompleteness === "broken") contradict++;
+  }
 
   // Effectiveness trend alignment
   if (ctx.effectivenessTrend.sampleSize > 0) {
@@ -186,6 +199,8 @@ export class RecommendationEngine {
       confidence: coherence,
       reasons,
       proposalId: ctx.proposalId,
+      riskScoreId: riskScore?.id,
+      risks: riskScore?.risks,
       evidenceRefs: [...(ctx.evidenceRefs ?? [])],
       warnings: ctx.warnings?.length ? [...ctx.warnings] : undefined,
       sourceArtifacts: [...ctx.sourceArtifacts],
