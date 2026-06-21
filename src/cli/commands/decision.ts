@@ -18,6 +18,7 @@ import { LineageBuilder } from "../../adaptation/lineage-builder.js";
 import { EffectivenessStore } from "../../adaptation/effectiveness-store.js";
 import { IntelligenceStore } from "../../adaptation/intelligence-store.js";
 import { DecisionContextBuilder } from "../../adaptation/decision-context-builder.js";
+import { RiskScoreBuilder } from "../../adaptation/risk-score-builder.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -40,9 +41,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "context":
       await runContext(rest);
       return;
+    case "risk":
+      await runRisk(rest);
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json]");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json]");
       process.exit(1);
   }
 }
@@ -142,4 +146,73 @@ async function runContext(args: string[]): Promise<void> {
       console.log(`   · ${r}`);
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// runRisk
+// ---------------------------------------------------------------------------
+
+async function runRisk(args: string[]): Promise<void> {
+  const id = args[0];
+  if (!id) {
+    console.error("Usage: alix decision risk <proposal-id> [--json]");
+    process.exit(1);
+  }
+
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+
+  const proposalStore = new ProposalStore(join(cwd, PROPOSALS_DIR));
+  const evidenceStore = new EvidenceStore({ storeDir: join(cwd, EVIDENCE_DIR) });
+  const effStore = new EffectivenessStore(join(cwd, EFFECTIVENESS_DIR));
+  const intelStore = new IntelligenceStore(join(cwd, INTELLIGENCE_DIR));
+  const lineageBuilder = new LineageBuilder(
+    proposalStore,
+    evidenceStore,
+    effStore,
+    intelStore,
+  );
+  const ctxBuilder = new DecisionContextBuilder(
+    proposalStore,
+    evidenceStore,
+    lineageBuilder,
+    effStore,
+    intelStore,
+  );
+  const riskBuilder = new RiskScoreBuilder();
+
+  const ctx = await ctxBuilder.build(id);
+  const risk = riskBuilder.build(ctx);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(risk, null, 2));
+    return;
+  }
+
+  // Terminal renderer
+  const riskIcon =
+    risk.outcome === "low" ? "🟢" :
+    risk.outcome === "medium" ? "🟡" :
+    risk.outcome === "high" ? "🟠" :
+    "🔴";
+
+  console.log(`Risk Score: ${risk.id}`);
+  console.log(`────────────────────────────────`);
+  console.log(`${riskIcon} Overall risk: ${risk.outcome} (${(risk.overallRisk * 100).toFixed(0)}%)`);
+  console.log(`   Confidence: ${(risk.confidence * 100).toFixed(0)}%`);
+  console.log(``);
+  console.log(`Dimensions:`);
+  for (const r of risk.risks) {
+    const dimIcon =
+      r.score < 0.3 ? "🟢" :
+      r.score < 0.6 ? "🟡" :
+      r.score < 0.85 ? "🟠" :
+      "🔴";
+    console.log(`   ${dimIcon} ${r.dimension}: ${(r.score * 100).toFixed(0)}%`);
+    for (const reason of r.reasons) {
+      console.log(`       · ${reason}`);
+    }
+  }
+  console.log(``);
+  console.log(`Sources: ${risk.sourceArtifacts.length} artifact(s) used`);
 }
