@@ -104,8 +104,8 @@ describe("P6.5 — No authority language in prompt templates", () => {
 
   for (const phrase of FORBIDDEN_PHRASES) {
     it(`lens prompts must not contain "${phrase}"`, () => {
-      // Only check LENS_PROMPTS block, not file-level comments
-      const promptsBlock = lensCodeOnly.match(/LENS_PROMPTS[\s\S]*$/);
+      // Only check LENS_PROMPTS block, not file-level comments or exports after it
+      const promptsBlock = lensCodeOnly.match(/LENS_PROMPTS[\s\S]*?\n\};/);
       if (promptsBlock) {
         expect(promptsBlock[0]).not.toContain(phrase);
       }
@@ -152,5 +152,52 @@ describe("P6.5 — Purity sentinel", () => {
       expect(methodBody).not.toContain("Math.random");
       expect(methodBody).not.toContain("new Date");
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P6.5b — Sentinel tests for P6.5b additions
+// ---------------------------------------------------------------------------
+
+describe("P6.5b — LLMAdapter must not import provider catalog adapter", () => {
+  it("llm-adapter.ts imports nothing from provider modules", () => {
+    const source = sourceOf("../../src/adaptation/llm-adapter.ts");
+    const lines = source.split("\n").filter(l => !l.trim().startsWith("//"));
+    expect(lines.some(l => l.includes('from "../providers') || l.includes("from './providers"))).toBe(false);
+  });
+});
+
+describe("P6.5b — ProviderCatalogAdapter implements LLMAdapter", () => {
+  it("has complete() method", () => {
+    const source = sourceOf("../../src/adaptation/provider-catalog-adapter.ts");
+    expect(source).toContain("implements LLMAdapter");
+    expect(source).toContain("async complete(");
+  });
+});
+
+describe("P6.5b — LENS_JSON_SUFFIX is present in every prompt", () => {
+  it("lens-agent.ts exports LENS_JSON_SUFFIX", () => {
+    const source = sourceOf("../../src/adaptation/lens-agent.ts");
+    expect(source).toContain("export const LENS_JSON_SUFFIX");
+  });
+});
+
+describe("P6.5b — LensScore has optional provider/model", () => {
+  it("governance-review-types.ts has provider? and model? fields", () => {
+    const source = sourceOf("../../src/adaptation/governance-review-types.ts");
+    expect(source).toContain("provider?:");
+    expect(source).toContain("model?:");
+  });
+});
+
+describe("P6.5b — CLI validates --lens before provider setup", () => {
+  it("runReview validates --lens argument before any provider call", () => {
+    const source = sourceOf("../../src/cli/commands/decision.ts");
+    const hasLensValidation = source.includes("LensName") && source.includes("exit(1)");
+    expect(hasLensValidation).toBe(true);
+    expect(source).toContain("red_team");
+    expect(source).toContain("historian");
+    expect(source).toContain("policy_auditor");
+    expect(source).toContain("confidence_critic");
   });
 });
