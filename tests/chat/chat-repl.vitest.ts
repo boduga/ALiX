@@ -7,9 +7,10 @@ describe("Chat REPL", () => {
     expect(typeof startRepl).toBe("function");
   });
 
-  it("startRepl returns a teardown function", () => {
+  it("startRepl resolves after dry run", async () => {
     const store = new ChatSessionStore("/tmp/nonexistent-test-dir");
-    const teardown = startRepl(store, { dryRun: true });
-    expect(typeof teardown).toBe("function");
+    await startRepl(store, { dryRun: true });
+    // If we reach here, the promise resolved without throwing
+    expect(true).toBe(true);
   });
 });

@@ -307,7 +307,7 @@ describe("OutcomeStore", () => {
   describe("no delete", () => {
     it("has no delete method", () => {
       // The store should have no delete/remove methods
-      const storeAny = store as Record<string, unknown>;
+      const storeAny = store as unknown as Record<string, unknown>;
       expect(typeof storeAny.delete).not.toBe("function");
       expect(typeof storeAny.remove).not.toBe("function");
       expect(typeof storeAny.clear).not.toBe("function");

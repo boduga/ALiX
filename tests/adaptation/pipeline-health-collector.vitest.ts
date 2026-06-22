@@ -68,7 +68,7 @@ function makeMockInfra(overrides: Record<string, any> = {}) {
       recommend: vi.fn().mockReturnValue({ id: "rec", confidence: 0.82, recommendation: "approve" }),
     },
     ...overrides,
-  };
+  } as any;
 }
 
 // ---------------------------------------------------------------------------

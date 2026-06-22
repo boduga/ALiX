@@ -1241,8 +1241,8 @@ if (command === "chat") {
   const store = new ChatSessionStore(storeDir);
 
   const effectiveSessionId = forceNew ? undefined : sessionId;
-  startRepl(store, { sessionId: effectiveSessionId, jsonMode });
-  return; // REPL owns lifecycle
+  await startRepl(store, { sessionId: effectiveSessionId, jsonMode });
+  process.exit(0);
 }
 
 if (command === "run") {

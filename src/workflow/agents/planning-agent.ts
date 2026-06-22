@@ -65,8 +65,8 @@ export class PlanningAgent {
     if (!validation.valid) {
       return {
         success: false,
-        error: validation.error,
-        code: validation.code,
+        error: validation.error!,
+        code: validation.code!,
       };
     }
 

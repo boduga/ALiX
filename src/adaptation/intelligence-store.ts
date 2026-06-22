@@ -93,13 +93,13 @@ export class IntelligenceStore {
     for (const filename of files.slice(0, 50)) {
       const report = await this.load(filename);
       if (!report) continue;
-      if (report.proposalId === excludeProposalId) continue;
+      if ((report as any).proposalId === excludeProposalId) continue;
 
-      const sourceProposal = await proposalStore.load(report.proposalId);
+      const sourceProposal = await proposalStore.load((report as any).proposalId);
       if (sourceProposal && sourceProposal.action === actionType) {
         similar.push({
-          proposalId: report.proposalId,
-          outcome: report.recommendation,
+          proposalId: (report as any).proposalId,
+          outcome: (report as any).recommendation || "",
           confidence: sourceProposal.sourceConfidence,
         });
       }

@@ -13,7 +13,7 @@ export interface ReplOptions {
   dryRun?: boolean;
 }
 
-export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () => void {
+export async function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): Promise<void> {
   let closed = false;
 
   const run = async () => {
@@ -181,10 +181,10 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
     }
   };
 
-  run().catch((err) => {
+  const promise = run().catch((err) => {
     console.error("Chat REPL error:", err);
     closed = true;
   });
 
-  return () => { closed = true; };
+  await promise;
 }
