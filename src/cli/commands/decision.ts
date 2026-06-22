@@ -44,6 +44,7 @@ import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
+import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
@@ -280,6 +281,17 @@ async function runRecommend(args: string[]): Promise<void> {
   const ctx = await infra.contextBuilder.build(id);
   const risk = riskBuilder.build(ctx);
   const recommendation = recEngine.recommend(ctx, risk);
+
+  // P7.5p.1b — persist the recommendation so the outcome CLI can read its confidence back
+  try {
+    const recStore = new ApprovalRecommendationStore();
+    await recStore.append(recommendation);
+  } catch (err) {
+    console.error(
+      `Warning: failed to persist recommendation ${recommendation.id}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
   if (jsonMode) {
     console.log(JSON.stringify(recommendation, null, 2));
