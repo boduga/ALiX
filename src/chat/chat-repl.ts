@@ -2,6 +2,7 @@ import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import type { ChatSessionStore } from "./chat-session-store.js";
 import type { ChatMessage } from "./chat-types.js";
+import { routeMessage } from "./chat-intent-router.js";
 
 export interface ReplOptions {
   sessionId?: string;
@@ -90,12 +91,19 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
       };
       await store.appendMessage(sessionId!, userMsg);
 
-      // Basic echo/response for P7.6a
+      // Route and respond
       let response = "";
       if (trimmed.startsWith("/")) {
-        response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6b-P7.6d.`;
+        response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
       } else {
-        response = `[${sessionId!}] ${trimmed}`;
+        const decision = routeMessage(trimmed);
+        userMsg.route = decision.route;
+        userMsg.routeConfidence = decision.confidence;
+        if (decision.route === "unknown" && decision.confidence < 0.5) {
+          response = `Not sure what to do with that. Try /help to see available commands.`;
+        } else {
+          response = `[${decision.route}] (confidence: ${decision.confidence.toFixed(2)}) — routing coming in P7.6c/P7.6d.`;
+        }
       }
 
       const assistantMsg: ChatMessage = {
