@@ -11,15 +11,16 @@ describe("ExecutionIntent types", () => {
   // -----------------------------------------------------------------------
 
   describe("IntentSource", () => {
-    it("accepts all four source values", () => {
-      const sources: IntentSource[] = ["cli_run", "skill_run", "agent", "recipe"];
-      expect(sources).toHaveLength(4);
+    it("accepts all five source values including chat", () => {
+      const sources: IntentSource[] = ["cli_run", "skill_run", "agent", "recipe", "chat"];
+      expect(sources).toHaveLength(5);
       // Each value is a valid IntentSource at the type level
       const x: IntentSource = "cli_run";
       const y: IntentSource = "skill_run";
       const z: IntentSource = "agent";
       const w: IntentSource = "recipe";
-      expect([x, y, z, w].sort()).toEqual(["agent", "cli_run", "recipe", "skill_run"]);
+      const v: IntentSource = "chat";
+      expect([x, y, z, w, v].sort()).toEqual(["agent", "chat", "cli_run", "recipe", "skill_run"]);
     });
   });
 
