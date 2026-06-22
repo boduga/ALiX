@@ -1577,6 +1577,136 @@ if (command === "extension") {
   process.exit(0);
 }
 
+if (command === "skill") {
+  const { homedir } = await import("node:os");
+  const { join: pjoin } = await import("node:path");
+  const { readFile } = await import("node:fs/promises");
+  const { ExtensionRegistry } = await import("./extensions/registry.js");
+  const { SkillLoader } = await import("./extensions/skill-loader.js");
+
+  const storePath = pjoin(homedir(), ".alix", "extensions");
+  const registry = new ExtensionRegistry(storePath);
+
+  const sub = args[0];
+  if (sub === "list") {
+    const skills = registry.list({ type: "skill" });
+    console.log(`Installed skills (${skills.length}):`);
+    for (const ext of skills) {
+      const m = ext.manifest;
+      const trigger = (m as any).trigger ? ` trigger:${(m as any).trigger}` : "";
+      console.log(`  ${m.name.padEnd(15)} — ${m.description} (v${m.version})${trigger}`);
+    }
+  } else if (sub === "show") {
+    const id = args[1];
+    if (!id) { console.error("Usage: alix skill show <id>"); process.exit(1); }
+    const ext = registry.get(`skill/${id}`);
+    if (!ext) { console.error(`Skill not found: ${id}`); process.exit(1); }
+    const m = ext.manifest;
+    const skillDir = pjoin(storePath, `skill-${m.name}`);
+    console.log(`Skill: ${m.name}`);
+    console.log(`  Name:        ${m.name}`);
+    console.log(`  Version:     ${m.version}`);
+    console.log(`  Description: ${m.description}`);
+    console.log(`  Type:        ${m.type}`);
+    console.log(`  Trigger:     ${(m as any).trigger ?? "none"}`);
+    console.log(`  Path:        ${skillDir}/`);
+    console.log();
+
+    // Load SKILL.md for preview
+    let skillContent: string | null = null;
+    try {
+      skillContent = await readFile(pjoin(skillDir, "SKILL.md"), "utf8");
+    } catch { /* SKILL.md may not exist */ }
+    if (skillContent) {
+      const lines = skillContent.split("\n");
+      const preview = lines.slice(0, 20).join("\n");
+      console.log(`  SKILL.md (first 20 lines):`);
+      console.log(preview);
+    } else {
+      console.log("  SKILL.md: (not found)");
+    }
+  } else if (sub === "install") {
+    const src = args[1];
+    if (!src) { console.error("Usage: alix skill install <path>"); process.exit(1); }
+    const installed = await registry.install(src);
+    if (installed) {
+      console.log(`Installed: ${installed.manifest.name} (v${installed.manifest.version})`);
+    } else {
+      console.error("Install failed: no EXTENSION.yaml found or manifest invalid");
+      process.exit(1);
+    }
+  } else if (sub === "run") {
+    const id = args[1];
+    if (!id) { console.error("Usage: alix skill run <id> [--input '...'] [--prompt '...'] [--json]"); process.exit(1); }
+    const ext = registry.get(`skill/${id}`);
+    if (!ext) { console.error(`Skill not found: ${id}`); process.exit(1); }
+
+    // Parse flags from args (skip sub and id at positions 0-1)
+    const restArgs = args.slice(2);
+    const inputIdx = restArgs.indexOf("--input");
+    const promptIdx = restArgs.indexOf("--prompt");
+    const jsonFlag = restArgs.includes("--json");
+
+    let inputJson: Record<string, string> | undefined;
+    if (inputIdx >= 0 && restArgs[inputIdx + 1]) {
+      try {
+        inputJson = JSON.parse(restArgs[inputIdx + 1]);
+      } catch {
+        console.error("Invalid JSON for --input");
+        process.exit(1);
+      }
+    }
+
+    const promptText = (promptIdx >= 0 && restArgs[promptIdx + 1])
+      ? restArgs[promptIdx + 1]
+      : undefined;
+
+    const m = ext.manifest;
+    const skillDir = pjoin(storePath, `skill-${m.name}`);
+    const loader = new SkillLoader(skillDir);
+    const loaded = await loader.load("SKILL", inputJson);
+    if (!loaded) {
+      console.error(`Failed to load skill: ${id} (SKILL.md not found in ${skillDir})`);
+      process.exit(1);
+    }
+
+    const substitutedCount = inputJson
+      ? loaded.variables.filter(v => v in inputJson).length
+      : 0;
+
+    if (jsonFlag) {
+      console.log(JSON.stringify({
+        skill: m.name,
+        version: m.version,
+        content: loaded.content,
+        variables: loaded.variables,
+        substituted: substitutedCount,
+      }, null, 2));
+    } else {
+      console.log(`Skill: ${m.name}`);
+      console.log("─".repeat(28));
+      console.log(loaded.content);
+      console.log("─".repeat(28));
+      console.log(`Rendered skill (${substitutedCount} variable${substitutedCount !== 1 ? "s" : ""} substituted)`);
+    }
+
+    // --prompt: future provider integration slot
+    if (promptText) {
+      console.log(`\n(prompt="..." received — provider dispatch not yet implemented)`);
+    }
+  } else {
+    console.log("Usage: alix skill [list|show|install|run]");
+    console.log("  list              — list installed skills");
+    console.log("  show <id>         — show skill details and SKILL.md content");
+    console.log("  install <path>    — install a skill from a directory");
+    console.log("  run <id>          — render and optionally run a skill");
+    console.log("    --input '{...}' — JSON variables for substitution");
+    console.log("    --prompt '...'  — additional prompt context");
+    console.log("    --json          — output rendered skill as JSON");
+  }
+  process.exit(0);
+}
+
 // --- alix agent <role> "prompt" --- runs subagent in same process (no recursion)
 const agentRole = process.argv[3];
 if (command === "agent" && agentRole) {
