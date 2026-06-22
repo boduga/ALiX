@@ -1579,7 +1579,7 @@ if (command === "extension") {
 
 if (command === "skill") {
   const { homedir } = await import("node:os");
-  const { join: pjoin } = await import("node:path");
+  const { join: pjoin, dirname } = await import("node:path");
   const { readFile } = await import("node:fs/promises");
   const { ExtensionRegistry } = await import("./extensions/registry.js");
   const { SkillLoader } = await import("./extensions/skill-loader.js");
@@ -1602,7 +1602,7 @@ if (command === "skill") {
     const ext = registry.get(`skill/${id}`);
     if (!ext) { console.error(`Skill not found: ${id}`); process.exit(1); }
     const m = ext.manifest;
-    const skillDir = pjoin(storePath, `skill-${m.name}`);
+    const skillDir = dirname(ext.path);
     console.log(`Skill: ${m.name}`);
     console.log(`  Name:        ${m.name}`);
     console.log(`  Version:     ${m.version}`);
@@ -1662,7 +1662,7 @@ if (command === "skill") {
       : undefined;
 
     const m = ext.manifest;
-    const skillDir = pjoin(storePath, `skill-${m.name}`);
+    const skillDir = dirname(ext.path);
     const loader = new SkillLoader(skillDir);
     const loaded = await loader.load("SKILL", inputJson);
     if (!loaded) {
