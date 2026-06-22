@@ -2,7 +2,7 @@
 
 **Slice:** P7a foundation (Tasks 1–3, 6). P7b accuracy reporting (Task 4) and P7c lens calibration (Task 5) deferred.
 
-**CLI namespace:** `alix decision outcome record/show` — under the decision pipeline for full lifecycle discoverability.
+**CLI namespace:** `alix decision outcome record|show` — under `decision` for full lifecycle discoverability. P7b adds `report`. P7c adds `lens-calibration`.
 
 **Key invariant:** Outcome ≠ Recommendation. P7 records what happened; it does not mutate recommendations, governance reviews, or trigger actions.
 
@@ -38,17 +38,20 @@ Acceptance:
 - No delete by default
 - Evidence references preserved
 
-## Task 3 — Outcome CLI
+## Task 3 — Outcome CLI (P7a)
+
+**Namespace:** `alix decision outcome record/show`
 
 Commands:
-- alix outcome record
-- alix outcome show
-- alix outcome report
+- `alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json]`
+- `alix decision outcome show <subject-id> [--json]`
 
 Acceptance:
 - Can record success/failure/neutral/unknown
+- `governanceReviewId` is optional (reviews are ephemeral in P6.5b)
 - JSON output available
 - Terminal renderer available
+- `alix decision outcome report` deferred to P7b
 
 ---
 ## P7b — Deferred
