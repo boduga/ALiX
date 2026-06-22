@@ -9,7 +9,7 @@
  * @module
  */
 
-import type { LensAgent, LENS_PROMPTS, LENS_JSON_SUFFIX } from "./lens-agent.js";
+import type { LensAgent } from "./lens-agent.js";
 import type { LLMAdapter } from "./llm-adapter.js";
 import type {
   LensScore,
