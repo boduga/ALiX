@@ -1,8 +1,8 @@
 # P7 — Outcome Intelligence Implementation Plan
 
-**Slice:** P7a foundation (Tasks 1–3, 6). P7b accuracy reporting (Task 4) and P7c lens calibration (Task 5) deferred.
+**Slices:** P7a foundation (Tasks 1–3, 6) ✅. P7b accuracy reporting (Task 4) — active. P7c lens calibration (Task 5) — deferred.
 
-**CLI namespace:** `alix decision outcome record|show` — under `decision` for full lifecycle discoverability. P7b adds `report`. P7c adds `lens-calibration`.
+**CLI namespace:** `alix decision outcome record|show|report` — under `decision` for full lifecycle discoverability. P7c adds `lens-calibration`.
 
 **Key invariant:** Outcome ≠ Recommendation. P7 records what happened; it does not mutate recommendations, governance reviews, or trigger actions.
 
@@ -51,16 +51,16 @@ Acceptance:
 - `governanceReviewId` is optional (reviews are ephemeral in P6.5b)
 - JSON output available
 - Terminal renderer available
-- `alix decision outcome report` deferred to P7b
+- `alix decision outcome report [--window N] [--json]` added in P7b
 
 ---
-## P7b — Deferred
+## P7b — Active
 
-The following tasks build on P7a's OutcomeStore to produce analytical reports. Deferred until P7a is validated.
+Task 4 builds on P7a's OutcomeStore to produce recommendation accuracy reports. P7c (lens calibration) still deferred.
 
 ---
 
-## Task 4 — Recommendation Accuracy Builder (P7b)
+## Task 4 — RecommendationAccuracyBuilder (P7b)
 
 Inputs:
 - recommendations
