@@ -48,9 +48,10 @@ Existing Proposal Lifecycle
   → Governance Review (P6.5)
   → Operator Queue (P6.2)
   → Human Approval
-  → Apply (after approval)
   ↓
-P8 Calibration takes effect ONLY after approval and apply
+P8 calibration does not take effect in P8.
+Approved learning_adjustment proposals become operator-approved intent.
+Actual calibration application is deferred to P8.9/P9.
 ```
 
 ## Non-Negotiables
