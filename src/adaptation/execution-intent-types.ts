@@ -17,7 +17,7 @@ import type { ProposalAction, ProposalTarget } from "./adaptation-types.js";
 // Intent source kind
 // ---------------------------------------------------------------------------
 
-export type IntentSource = "cli_run" | "skill_run" | "agent" | "recipe";
+export type IntentSource = "cli_run" | "skill_run" | "agent" | "recipe" | "chat";
 
 // ---------------------------------------------------------------------------
 // Intent lifecycle status

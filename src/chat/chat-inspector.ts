@@ -113,7 +113,10 @@ export async function inspectIntents(intentDir?: string): Promise<string> {
     const store = new IntentStore(dir);
     const all = await store.list();
     if (all.length === 0) return "No intents found.";
-    return all
+    // Dedup by id — last write wins (append-only store is additive)
+    const seen = new Map<string, typeof all[number]>();
+    for (const i of all) seen.set(i.id, i);
+    return Array.from(seen.values())
       .map((i) => `${i.id} [${i.status}] ${i.rationale ? i.rationale.slice(0, 120) : "(no rationale)"}`)
       .join("\n");
   } catch (err) {

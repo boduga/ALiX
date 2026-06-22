@@ -58,7 +58,7 @@ export async function handleCreateIntent(
   const intent = {
     id: "",
     generatedAt: new Date().toISOString(),
-    source: "skill_run" as const,
+    source: "chat" as const,
     input: description,
     outputSummary: description,
     status: "captured" as const,

@@ -52,125 +52,133 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
     const rl = createInterface({ input, output, prompt: "> " });
     rl.prompt();
 
-    for await (const line of rl) {
-      const trimmed = line.trim();
-      if (closed) break;
+    try {
+      for await (const line of rl) {
+        const trimmed = line.trim();
+        if (closed) break;
 
-      if (!trimmed) { rl.prompt(); continue; }
+        if (!trimmed) { rl.prompt(); continue; }
 
-      if (trimmed === "/quit" || trimmed === "/exit") break;
-      if (trimmed === "/help") {
-        const help = [
-          "  /help                          — show this message",
-          "  /quit                          — exit chat",
-          "",
-          "  /proposals                     — show pending proposals",
-          "  /skills                        — list installed skills",
-          "  /intents                       — list captured intents",
-          "  /outcomes                      — recent outcomes",
-          "",
-          "  /run-skill <id> <input>       — run a skill",
-          "  /intent <description>          — create an execution intent",
-          "  /propose <intent-id>           — map intent to proposal",
-          "",
-          "  Anything else is answered directly.",
-        ].join("\n");
-        if (opts.jsonMode) {
-          console.log(JSON.stringify({ type: "help", commands: help }));
+        if (trimmed === "/quit" || trimmed === "/exit") break;
+        if (trimmed === "/help") {
+          const help = [
+            "  /help                          — show this message",
+            "  /quit                          — exit chat",
+            "",
+            "  /proposals                     — show pending proposals",
+            "  /skills                        — list installed skills",
+            "  /intents                       — list captured intents",
+            "  /outcomes                      — recent outcomes",
+            "",
+            "  /run-skill <id> <input>       — run a skill",
+            "  /intent <description>          — create an execution intent",
+            "  /propose <intent-id>           — map intent to proposal",
+            "",
+            "  Anything else is answered directly.",
+          ].join("\n");
+          if (opts.jsonMode) {
+            console.log(JSON.stringify({ type: "help", commands: help }));
+          } else {
+            console.log(help);
+          }
+          rl.prompt();
+          continue;
+        }
+
+        // Store user message
+        const userMsg: ChatMessage = {
+          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          role: "user",
+          content: trimmed,
+          createdAt: new Date().toISOString(),
+        };
+        await store.appendMessage(sessionId!, userMsg);
+
+        // Route and respond
+        let response = "";
+        if (trimmed.startsWith("/")) {
+          // ponytail: broad try-catch around all handler dispatches so a single
+          // handler error doesn't kill the entire REPL session.
+          try {
+            if (trimmed === "/proposals") {
+              response = await inspectProposals();
+            } else if (trimmed === "/skills") {
+              response = await inspectSkills();
+            } else if (trimmed === "/outcomes") {
+              response = await inspectOutcomes();
+            } else if (trimmed === "/intents") {
+              response = await inspectIntents();
+            } else if (trimmed === "/run-skill" || trimmed.startsWith("/run-skill ")) {
+              const args = trimmed.slice("/run-skill".length).trim().split(/\s+/);
+              const skillId = args[0];
+              const skillInput = args.slice(1).join(" ");
+              if (!skillId) {
+                response = "Usage: /run-skill <skill-id> [input]";
+              } else {
+                response = await handleRunSkill(skillId, skillInput);
+              }
+            } else if (trimmed === "/intent" || trimmed.startsWith("/intent ")) {
+              const description = trimmed.slice("/intent".length).trim();
+              if (!description) {
+                response = "Usage: /intent <description>";
+              } else {
+                response = await handleCreateIntent(description, sessionId!);
+              }
+            } else if (trimmed === "/propose" || trimmed.startsWith("/propose ")) {
+              const intentId = trimmed.slice("/propose".length).trim();
+              if (!intentId) {
+                response = "Usage: /propose <intent-id>";
+              } else {
+                response = await handleProposeIntent(intentId);
+              }
+            } else {
+              response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
+            }
+          } catch (err) {
+            response = `Error: ${err instanceof Error ? err.message : String(err)}`;
+          }
         } else {
-          console.log(help);
+          const decision = routeMessage(trimmed);
+          userMsg.route = decision.route;
+          userMsg.routeConfidence = decision.confidence;
+          if (decision.route === "unknown" && decision.confidence < 0.7) {
+            response = `Not sure what to do with that. Try /help to see available commands.`;
+          } else {
+            response = `[${decision.route}] (confidence: ${decision.confidence.toFixed(2)}) — routing coming in P7.6c/P7.6d.`;
+          }
+        }
+
+        const assistantMsg: ChatMessage = {
+          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          role: "assistant",
+          content: response,
+          createdAt: new Date().toISOString(),
+        };
+
+        // Populate generatedArtifacts from intent/proposal responses
+        const intentMatch = response.match(/^Intent captured: (intent:[^\s.]+)/);
+        if (intentMatch) {
+          assistantMsg.generatedArtifacts = [{ type: "context" as const, id: intentMatch[1], timestamp: new Date().toISOString() }];
+        }
+        const proposalMatch = response.match(/^Proposal created: (prop-[^\s.]+)/);
+        if (proposalMatch) {
+          assistantMsg.generatedArtifacts = [{ type: "proposal" as const, id: proposalMatch[1], timestamp: new Date().toISOString() }];
+        }
+
+        await store.appendMessage(sessionId!, assistantMsg);
+
+        if (opts.jsonMode) {
+          console.log(JSON.stringify({ type: "response", sessionId: sessionId!, content: response }));
+        } else {
+          console.log(`\n${response}\n`);
         }
         rl.prompt();
-        continue;
       }
-
-      // Store user message
-      const userMsg: ChatMessage = {
-        id: `msg_${Date.now()}`,
-        role: "user",
-        content: trimmed,
-        createdAt: new Date().toISOString(),
-      };
-      await store.appendMessage(sessionId!, userMsg);
-
-      // Route and respond
-      let response = "";
-      if (trimmed.startsWith("/")) {
-        if (trimmed === "/proposals") {
-          response = await inspectProposals();
-        } else if (trimmed === "/skills") {
-          response = await inspectSkills();
-        } else if (trimmed === "/outcomes") {
-          response = await inspectOutcomes();
-        } else if (trimmed === "/intents") {
-          response = await inspectIntents();
-        } else if (trimmed.startsWith("/run-skill ")) {
-          const args = trimmed.slice("/run-skill ".length).trim().split(/\s+/);
-          const skillId = args[0];
-          const skillInput = args.slice(1).join(" ");
-          if (!skillId) {
-            response = "Usage: /run-skill <skill-id> [input]";
-          } else {
-            response = await handleRunSkill(skillId, skillInput);
-          }
-        } else if (trimmed.startsWith("/intent ")) {
-          const description = trimmed.slice("/intent ".length).trim();
-          if (!description) {
-            response = "Usage: /intent <description>";
-          } else {
-            response = await handleCreateIntent(description, sessionId!);
-          }
-        } else if (trimmed.startsWith("/propose ")) {
-          const intentId = trimmed.slice("/propose ".length).trim();
-          if (!intentId) {
-            response = "Usage: /propose <intent-id>";
-          } else {
-            response = await handleProposeIntent(intentId);
-          }
-        } else {
-          response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
-        }
-      } else {
-        const decision = routeMessage(trimmed);
-        userMsg.route = decision.route;
-        userMsg.routeConfidence = decision.confidence;
-        if (decision.route === "unknown" && decision.confidence < 0.7) {
-          response = `Not sure what to do with that. Try /help to see available commands.`;
-        } else {
-          response = `[${decision.route}] (confidence: ${decision.confidence.toFixed(2)}) — routing coming in P7.6c/P7.6d.`;
-        }
-      }
-
-      const assistantMsg: ChatMessage = {
-        id: `msg_${Date.now() + 1}`,
-        role: "assistant",
-        content: response,
-        createdAt: new Date().toISOString(),
-      };
-
-      // Populate generatedArtifacts from intent/proposal responses
-      const intentMatch = response.match(/^Intent captured: (intent:[^\s.]+)/);
-      if (intentMatch) {
-        assistantMsg.generatedArtifacts = [{ type: "context" as const, id: intentMatch[1], timestamp: new Date().toISOString() }];
-      }
-      const proposalMatch = response.match(/^Proposal created: (prop-[^\s.]+)/);
-      if (proposalMatch) {
-        assistantMsg.generatedArtifacts = [{ type: "proposal" as const, id: proposalMatch[1], timestamp: new Date().toISOString() }];
-      }
-
-      await store.appendMessage(sessionId!, assistantMsg);
-
-      if (opts.jsonMode) {
-        console.log(JSON.stringify({ type: "response", sessionId: sessionId!, content: response }));
-      } else {
-        console.log(`\n${response}\n`);
-      }
-      rl.prompt();
+    } finally {
+      closed = true;
+      rl.close();
+      if (!opts.jsonMode) console.log("\nChat ended.");
     }
-
-    closed = true;
-    rl.close();
-    if (!opts.jsonMode) console.log("\nChat ended.");
   };
 
   run().catch((err) => {

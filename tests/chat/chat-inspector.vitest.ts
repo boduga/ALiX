@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { mkdtempSync, existsSync } from "node:fs";
+import { describe, it, expect, afterEach } from "vitest";
+import { mkdtempSync, existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { writeFileSync, mkdirSync } from "node:fs";
@@ -13,8 +13,19 @@ import { writeFileSync, mkdirSync } from "node:fs";
  */
 
 function tempDir(): string {
-  return mkdtempSync(join(tmpdir(), "alix-chat-inspector-"));
+  const d = mkdtempSync(join(tmpdir(), "alix-chat-inspector-"));
+  _tmpDirs.push(d);
+  return d;
 }
+
+const _tmpDirs: string[] = [];
+
+afterEach(() => {
+  for (const d of _tmpDirs) {
+    try { rmSync(d, { recursive: true, force: true }); } catch { /* best-effort */ }
+  }
+  _tmpDirs.length = 0;
+});
 
 describe("ChatInspector", () => {
   // -----------------------------------------------------------------------
