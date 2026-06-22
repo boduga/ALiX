@@ -1637,7 +1637,7 @@ if (command === "skill") {
     }
   } else if (sub === "run") {
     const id = args[1];
-    if (!id) { console.error("Usage: alix skill run <id> [--input '...'] [--prompt '...'] [--json]"); process.exit(1); }
+    if (!id) { console.error("Usage: alix skill run <id> [--input '...'] [--prompt '...'] [--json] [--intent]"); process.exit(1); }
     const ext = registry.get(`skill/${id}`);
     if (!ext) { console.error(`Skill not found: ${id}`); process.exit(1); }
 
@@ -1646,6 +1646,7 @@ if (command === "skill") {
     const inputIdx = restArgs.indexOf("--input");
     const promptIdx = restArgs.indexOf("--prompt");
     const jsonFlag = restArgs.includes("--json");
+    const intentFlag = restArgs.includes("--intent");
 
     let inputJson: Record<string, string> | undefined;
     if (inputIdx >= 0 && restArgs[inputIdx + 1]) {
@@ -1688,6 +1689,44 @@ if (command === "skill") {
       console.log(loaded.content);
       console.log("─".repeat(28));
       console.log(`Rendered skill (${substitutedCount} variable${substitutedCount !== 1 ? "s" : ""} substituted)`);
+    }
+
+    // --intent: capture skill execution as an ExecutionIntent artifact
+    if (intentFlag) {
+      const { IntentStore } = await import("./adaptation/intent-store.js");
+      const intentDir = pjoin(homedir(), ".alix", "execution", "intents");
+      const store = new IntentStore(intentDir);
+
+      const inputText = [
+        inputJson ? `--input: ${JSON.stringify(inputJson)}` : null,
+        promptText ? `--prompt: ${promptText}` : null,
+      ].filter(Boolean).join("; ") || "(no input)";
+
+      const outputSummary = loaded.content.slice(0, 200);
+
+      const intent = {
+        source: "skill_run" as const,
+        skillId: id,
+        input: inputText,
+        outputSummary,
+        status: "captured" as const,
+        rationale: `Skill run: ${m.name} — ${substitutedCount} variable(s) substituted`,
+        sourceArtifacts: [
+          { type: "context" as const, id: `skill:${id}` },
+        ],
+        subject: `Skill run: ${m.name}`,
+        outcome: "captured",
+        confidence: 1,
+        reasons: [`Skill "${m.name}" (${id}) rendered with ${substitutedCount} substituted variable(s)`],
+      };
+
+      await store.append(intent as any);
+
+      // Terminal output — intent captured
+      console.log(`\nIntent captured: ${(intent as any).id || "(id pending)"}`);
+      console.log(`  Source:  skill_run (${id})`);
+      console.log(`  Status:  captured`);
+      console.log(`  Summary: ${outputSummary.slice(0, 80)}${outputSummary.length > 80 ? "..." : ""}`);
     }
 
     // --prompt: future provider integration slot

@@ -16,6 +16,7 @@
  *
  * @module
  */
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
 import { EvidenceStore } from "../../security/evidence/evidence-store.js";
@@ -45,6 +46,8 @@ import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
+import { IntentStore } from "../../adaptation/intent-store.js";
+import type { ExecutionIntent } from "../../adaptation/execution-intent-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -55,6 +58,7 @@ const EVIDENCE_DIR = join(".alix", "security");
 const EFFECTIVENESS_DIR = join(".alix", "adaptation", "effectiveness");
 const INTELLIGENCE_DIR = join(".alix", "adaptation", "intelligence");
 const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
+const INTENTS_DIR = join(homedir(), ".alix", "execution", "intents");
 
 // ---------------------------------------------------------------------------
 // Shared infrastructure factory
@@ -114,9 +118,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "outcome":
       await runOutcome(rest);
       return;
+    case "intent":
+      await runIntent(rest);
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | status [--window N] [--json] | review <proposal-id> [--json] [--lens <name>] | outcome <subcommand> ...");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | status [--window N] [--json] | review <proposal-id> [--json] [--lens <name>] | outcome <subcommand> ... | intent <subcommand> ...");
       process.exit(1);
   }
 }
@@ -1063,4 +1070,73 @@ async function runOutcomeLensCalibration(args: string[]): Promise<void> {
   console.log(`Data available:`);
   console.log(`  Outcomes in window: ${totalOutcomes}`);
   console.log(`  Lens scores persisted: no`);
+}
+
+// ---------------------------------------------------------------------------
+// Intent subcommand — ExecutionIntent capture (P7.5b)
+// ---------------------------------------------------------------------------
+
+async function runIntent(args: string[]): Promise<void> {
+  const subcommand = args[0];
+
+  if (!subcommand || subcommand === "list") {
+    await runIntentList();
+    return;
+  }
+
+  if (subcommand === "show") {
+    const id = args[1];
+    if (!id) {
+      console.error("Usage: alix decision intent show <id>");
+      process.exit(1);
+    }
+    await runIntentShow(id);
+    return;
+  }
+
+  console.error(`Unknown intent subcommand: "${subcommand}"`);
+  console.error("Usage: alix decision intent list | intent show <id>");
+  process.exit(1);
+}
+
+async function runIntentList(): Promise<void> {
+  const store = new IntentStore(INTENTS_DIR);
+  const intents = await store.list();
+
+  if (intents.length === 0) {
+    console.log("No execution intents captured.");
+    return;
+  }
+
+  console.log(`Execution intents (${intents.length}):\n`);
+  for (const intent of intents) {
+    const icon = statusIcon(intent.status);
+    const shortId = intent.id.length > 30 ? intent.id.slice(0, 27) + "..." : intent.id;
+    console.log(`${icon} ${shortId}`);
+    console.log(`   Source:  ${intent.source}${intent.skillId ? ` (${intent.skillId})` : ""}`);
+    console.log(`   Status:  ${intent.status}`);
+    console.log(`   Summary: ${intent.outputSummary.slice(0, 80)}${intent.outputSummary.length > 80 ? "..." : ""}`);
+    console.log();
+  }
+}
+
+async function runIntentShow(id: string): Promise<void> {
+  const store = new IntentStore(INTENTS_DIR);
+  const intent = await store.get(id);
+
+  if (!intent) {
+    console.error(`Intent not found: ${id}`);
+    process.exit(1);
+  }
+
+  console.log(JSON.stringify(intent, null, 2));
+}
+
+function statusIcon(status: string): string {
+  switch (status) {
+    case "captured":   return "\u{1F4E5}";  // inbox tray
+    case "proposed":   return "\u{1F4DD}";  // memo
+    case "discarded":  return "\u{1F5D1}️";  // wastebasket
+    default:           return "⚪";  // white circle
+  }
 }
