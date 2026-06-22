@@ -3,6 +3,7 @@ import { stdin as input, stdout as output } from "node:process";
 import type { ChatSessionStore } from "./chat-session-store.js";
 import type { ChatMessage } from "./chat-types.js";
 import { routeMessage } from "./chat-intent-router.js";
+import { handleRunSkill, handleCreateIntent, handleProposeIntent } from "./chat-skill-bridge.js";
 
 export interface ReplOptions {
   sessionId?: string;
@@ -94,7 +95,32 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
       // Route and respond
       let response = "";
       if (trimmed.startsWith("/")) {
-        response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
+        if (trimmed.startsWith("/run-skill ")) {
+          const args = trimmed.slice("/run-skill ".length).trim().split(/\s+/);
+          const skillId = args[0];
+          const skillInput = args.slice(1).join(" ");
+          if (!skillId) {
+            response = "Usage: /run-skill <skill-id> [input]";
+          } else {
+            response = await handleRunSkill(skillId, skillInput);
+          }
+        } else if (trimmed.startsWith("/intent ")) {
+          const description = trimmed.slice("/intent ".length).trim();
+          if (!description) {
+            response = "Usage: /intent <description>";
+          } else {
+            response = await handleCreateIntent(description, store, sessionId!);
+          }
+        } else if (trimmed.startsWith("/propose ")) {
+          const intentId = trimmed.slice("/propose ".length).trim();
+          if (!intentId) {
+            response = "Usage: /propose <intent-id>";
+          } else {
+            response = await handleProposeIntent(intentId, sessionId!);
+          }
+        } else {
+          response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
+        }
       } else {
         const decision = routeMessage(trimmed);
         userMsg.route = decision.route;
@@ -112,6 +138,17 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
         content: response,
         createdAt: new Date().toISOString(),
       };
+
+      // Populate generatedArtifacts from intent/proposal responses
+      const intentMatch = response.match(/^Intent captured: (intent:[^\s.]+)/);
+      if (intentMatch) {
+        assistantMsg.generatedArtifacts = [{ type: "context" as const, id: intentMatch[1], timestamp: new Date().toISOString() }];
+      }
+      const proposalMatch = response.match(/^Proposal created: (prop-[^\s.]+)/);
+      if (proposalMatch) {
+        assistantMsg.generatedArtifacts = [{ type: "proposal" as const, id: proposalMatch[1], timestamp: new Date().toISOString() }];
+      }
+
       await store.appendMessage(sessionId!, assistantMsg);
 
       if (opts.jsonMode) {
