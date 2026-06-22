@@ -18,6 +18,8 @@ function assertArgs(
       sessionMode: expected.sessionMode,
       resumeSessionId: expected.resumeSessionId,
       planFilePath: expected.planFilePath,
+      intent: expected.intent ?? false,
+      propose: expected.propose ?? false,
     });
   });
 }
@@ -212,6 +214,30 @@ assertArgs("all flags together", [
   planFilePath: "plan.md",
 });
 
+// ---------- 9b. --intent and --propose boolean flags ----------
+
+assertArgs("--intent flag", ["--intent", "run integration tests"], {
+  task: "run integration tests",
+  intent: true,
+});
+
+assertArgs("--propose flag (implies intent)", ["--propose", "run integration tests"], {
+  task: "run integration tests",
+  propose: true,
+});
+
+assertArgs("--intent --propose together", ["--intent", "--propose", "fix bug"], {
+  task: "fix bug",
+  intent: true,
+  propose: true,
+});
+
+assertArgs("--propose --no-stream together", ["--propose", "--no-stream", "deploy"], {
+  task: "deploy",
+  propose: true,
+  noStream: true,
+});
+
 // ---------- 10. Empty args ----------
 
 test("empty args returns defaults", () => {
@@ -223,6 +249,8 @@ test("empty args returns defaults", () => {
     sessionMode: undefined,
     resumeSessionId: undefined,
     planFilePath: undefined,
+    intent: false,
+    propose: false,
   });
 });
 

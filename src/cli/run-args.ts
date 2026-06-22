@@ -5,9 +5,11 @@ export type RunArgs = {
   sessionMode?: "auto" | "ask" | "bypass";
   resumeSessionId?: string;
   planFilePath?: string;
+  intent: boolean;
+  propose: boolean;
 };
 
-const BOOLEAN_FLAGS = new Set(["--no-stream", "--no-plan"]);
+const BOOLEAN_FLAGS = new Set(["--no-stream", "--no-plan", "--intent", "--propose"]);
 const VALUE_FLAGS = new Set(["--mode", "--session-mode", "--resume", "--plan-file"]);
 const VALID_MODES = new Set(["auto", "ask", "bypass"]);
 
@@ -23,7 +25,7 @@ const VALID_MODES = new Set(["auto", "ask", "bypass"]);
  * @returns A `RunArgs` object with parsed flags and the remaining task text
  */
 export function parseRunArgs(rawArgs: string[]): RunArgs {
-  const result: RunArgs = { task: "", noStream: false, noPlan: false, sessionMode: undefined, resumeSessionId: undefined, planFilePath: undefined };
+  const result: RunArgs = { task: "", noStream: false, noPlan: false, sessionMode: undefined, resumeSessionId: undefined, planFilePath: undefined, intent: false, propose: false };
   const taskParts: string[] = [];
   let i = 0;
 
@@ -37,6 +39,8 @@ export function parseRunArgs(rawArgs: string[]): RunArgs {
     if (BOOLEAN_FLAGS.has(flagName)) {
       result.noStream = result.noStream || flagName === "--no-stream";
       result.noPlan = result.noPlan || flagName === "--no-plan";
+      result.intent = result.intent || flagName === "--intent";
+      result.propose = result.propose || flagName === "--propose";
       i++;
       continue;
     }
