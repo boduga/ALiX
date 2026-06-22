@@ -49,4 +49,5 @@ npm-debug.log*
 .worktrees/
 .alix/reports/
 .alix/memory/
+.alix/test-baselines/
 .semantic-search-index.json
