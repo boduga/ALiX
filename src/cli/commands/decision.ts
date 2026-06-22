@@ -44,6 +44,7 @@ import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
+import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -780,10 +781,13 @@ async function runOutcome(args: string[]): Promise<void> {
     case "report":
       await runOutcomeReport(rest);
       return;
+    case "lens-calibration":
+      await runOutcomeLensCalibration(rest);
+      return;
     default:
       console.error(`Unknown outcome subcommand: "${subcommand}"`);
       console.error(
-        "Usage: alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json] | show <subject-id> [--json] | report [--window N] [--json]",
+        "Usage: alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json] | show <subject-id> [--json] | report [--window N] [--json] | lens-calibration [--window N] [--json]",
       );
       console.error(
         `Outcome values: ${VALID_OUTCOMES.join(" | ")}`,
@@ -997,4 +1001,66 @@ async function runOutcomeReport(args: string[]): Promise<void> {
     console.log(`  Partial success:    ${(acc.partialSuccessRate * 100).toFixed(0)}%  (${dist.partial_success}/${acc.knownOutcomes})`);
     console.log(`  Failure rate:       ${(acc.failureRate * 100).toFixed(0)}%  (${dist.failure}/${acc.knownOutcomes})`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// runOutcomeLensCalibration — Lens calibration report (P7c)
+// ---------------------------------------------------------------------------
+
+async function runOutcomeLensCalibration(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const windowIdx = args.indexOf("--window");
+  let windowDays = 30;
+  if (windowIdx !== -1 && windowIdx + 1 < args.length) {
+    const parsed = parseInt(args[windowIdx + 1], 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      console.error("Error: --window requires a positive integer");
+      process.exit(1);
+    }
+    windowDays = parsed;
+  }
+
+  const cwd = process.cwd();
+  const store = new OutcomeStore(join(cwd, OUTCOMES_DIR));
+
+  // Load outcomes within window to show data availability
+  let totalOutcomes = 0;
+  try {
+    const records = await store.queryByWindow(windowDays);
+    totalOutcomes = records.length;
+  } catch {
+    // Store may not exist yet — that's OK
+  }
+
+  const message = {
+    status: "lens_scores_not_persisted",
+    message: "Lens scores are not persisted (P6.5b reviews are ephemeral). The LensCalibrationBuilder is ready and tested, but requires persisted lens scores to produce a calibration report.",
+    note: "P7c observes lens quality. It does not change lens weights.",
+    data_available: {
+      outcomes_in_window: totalOutcomes,
+      lens_scores_persisted: false,
+    },
+    windowDays,
+    generatedAt: new Date().toISOString(),
+  };
+
+  if (jsonMode) {
+    console.log(JSON.stringify(message, null, 2));
+    return;
+  }
+
+  // Terminal renderer
+  console.log(`Lens Calibration — Last ${windowDays} days`);
+  console.log(`═══════════════════════════════════════`);
+  console.log(`⚠ Lens scores not persisted (P6.5b reviews are ephemeral).`);
+  console.log(``);
+  console.log(`The LensCalibrationBuilder is ready and tested,`);
+  console.log(`but requires persisted lens scores to produce`);
+  console.log(`a calibration report.`);
+  console.log(``);
+  console.log(`P7c observes lens quality. It does not change lens weights.`);
+  console.log(``);
+  console.log(`Data available:`);
+  console.log(`  Outcomes in window: ${totalOutcomes}`);
+  console.log(`  Lens scores persisted: no`);
 }

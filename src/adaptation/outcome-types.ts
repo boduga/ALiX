@@ -8,6 +8,7 @@
  */
 
 import type { DecisionArtifact } from "./decision-types.js";
+import type { LensName } from "./governance-review-types.js";
 
 // ---------------------------------------------------------------------------
 // OutcomeValue
@@ -122,4 +123,45 @@ export interface RecommendationAccuracyReport {
     /** Fraction of known outcomes that were failure. */
     failureRate: number;
   };
+}
+
+// ---------------------------------------------------------------------------
+// LensCalibrationEntry / LensCalibrationReport — P7c
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-lens calibration metrics computed from observed outcomes.
+ *
+ * Measures reviewer quality: which governance lenses produce useful signals
+ * vs. noise. P7c observes only — it does NOT change lens weights, modify
+ * council voting, or auto-disable lenses.
+ */
+export interface LensCalibrationEntry {
+  /** Number of observations for this lens. */
+  reviewsAnalyzed: number;
+  /** Total concerns raised across observations where lens warned (verdict !== "agree"). */
+  concernsRaised: number;
+  /** Sum of concerns raised where lens warned AND outcome was failure. */
+  concernsValidated: number;
+  /** Count of observations where lens warned AND outcome was success or partial_success. */
+  falseAlarms: number;
+  /** Count of observations where lens did NOT warn (agree or insufficient_information) AND outcome was failure. */
+  missedFailures: number;
+  /** validatedConcerns / concernsRaised, or 0 if concernsRaised is 0. */
+  predictiveValue: number;
+  /** Calibration tier based on predictiveValue thresholds. */
+  calibration: "strong" | "moderate" | "weak" | "insufficient_data";
+}
+
+/**
+ * Calibration report for all four governance lenses over a time window.
+ *
+ * Extends DecisionArtifact so it participates in the governance pipeline
+ * (provenance, lineage, evidence refs) without breaking existing consumers.
+ */
+export interface LensCalibrationReport extends DecisionArtifact {
+  /** Observation window in days. */
+  windowDays: number;
+  /** Per-lens calibration entries. */
+  lenses: Record<LensName, LensCalibrationEntry>;
 }
