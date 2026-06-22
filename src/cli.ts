@@ -2834,6 +2834,13 @@ if (command === "decision") {
   process.exit(0);
 }
 
+// ── Learning command (P8.7) ───────────────────────────────────────
+if (command === "learning") {
+  const { handleLearningCommand } = await import("./cli/commands/learning.js");
+  await handleLearningCommand(args);
+  process.exit(0);
+}
+
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);

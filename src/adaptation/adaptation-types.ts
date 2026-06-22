@@ -5,7 +5,8 @@ export type ProposalAction =
   | "adjust_skill_definition"
   | "create_improvement_issue"
   | "suggest_routing_weight"
-  | "revert_proposal";
+  | "revert_proposal"
+  | "learning_adjustment";
 
 export type ProposalTarget =
   | { kind: "agent_card"; id: string }
@@ -13,7 +14,18 @@ export type ProposalTarget =
   | { kind: "capability"; capability: string; agentId?: string }
   | { kind: "issue"; title: string }
   | { kind: "routing_weight"; capability: string }
-  | { kind: "revert"; sourceProposalId: string };
+  | { kind: "revert"; sourceProposalId: string }
+  | { kind: "learning"; area: LearningArea };
+
+/**
+ * Which learning subsystem a learning_adjustment proposal targets.
+ * Used only by the P8 learning → proposal bridge.
+ */
+export type LearningArea =
+  | "recommendation"
+  | "risk"
+  | "governance"
+  | "routing";
 
 export type ProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed";
 
