@@ -1,8 +1,9 @@
 # P8 — Adaptive Learning
 
 > **Status:** Spec
-> **Software delivery:** Split into P8.0–P8.8 (9 sub-phases).
-> **P8.0 ships:** Learning types, LearningStore, learning sentinels
+> **Software delivery:** Split into P8.0a–P8.8 (10 sub-phases).
+> **P8.0a ships:** Learning types + governance sentinels (no store yet)
+> **P8.0b ships:** LearningStore (append-only, deferred until builders prove the shape)
 > **P8.1 ships:** Recommendation calibration signal builder + proposals
 > **P8.2 ships:** Risk calibration signal builder + proposals
 > **P8.3 ships:** Governance calibration signal builder + proposals
@@ -71,15 +72,17 @@ Every line of code in P8 enforces these. The sentinel file (P8.6) is not optiona
 
 ---
 
-## P8.0 — Learning Foundations
+## P8.0a — Learning Foundations (Types + Sentinels)
+
+> **Slice first:** Types and sentinels only. No store, no builders, no CLI. The sentinels define the safety boundary before any code that produces data exists.
 
 ### Purpose
 
-Define the core data types, the append-only store, and the structural sentinels that all P8 sub-phases build on.
+Define the core data types and the structural sentinels that all P8 sub-phases build on. The LearningStore is deferred to P8.0b — builders should prove the shape before persistence is introduced.
 
 ### Core Question
 
-What types and storage does ALiX need to represent learning signals, calibration profiles, learning proposals, and learning reports?
+What types and structural safety boundaries does ALiX need before any learning code can be written?
 
 ### Data Model
 
@@ -238,19 +241,46 @@ interface LearningPattern {
 }
 ```
 
-### LearningStore
+### Governance Invariants (P8.0a)
 
-Append-only store for learning artifacts.
+- LearningSignal has NO mutation methods — it's a data object
+- CalibrationProfile is a data object, not a writer — no `.apply()` or `.save()` methods
+- No learning module may import any applier, writer, or mutation path
+- Sentinels are written before any builder code (P8.6 starts in P8.0a)
+
+### Test Strategy (P8.0a)
+
+- Types instantiate with correct field shapes
+- LearningSignal requires valid signalType from the union
+- CalibrationProfile requires previousValue and suggestedValue
+- Sentinel file exists and passes (initially empty, amended per sub-phase)
+
+---
+
+## P8.0b — LearningStore (Append-Only)
+
+> **Deferred until at least one calibration builder (P8.1–P8.4) exists and proves the shape.**
+> Do not implement P8.0b during P8.0a. The store should emerge from what the builders actually need, not from speculation.
+
+### Purpose
+
+Provide append-only persistence for learning signals, calibration profiles, and learning reports.
+
+### Core Question
+
+How should learning artifacts be stored without introducing mutation paths?
+
+### Interface
 
 ```typescript
 interface LearningStore {
   /** Append a signal. Returns the signal with generated ID. */
   appendSignal(signal: LearningSignal): Promise<LearningSignal>;
 
-  /** Append a calibration profile. */
+  /** Append a profile. */
   appendProfile(profile: CalibrationProfile): Promise<CalibrationProfile>;
 
-  /** Append a learning report. */
+  /** Append a report. */
   appendReport(report: LearningReport): Promise<LearningReport>;
 
   /** Query signals by type and time window. */
@@ -272,19 +302,17 @@ interface LearningStore {
 
 **Append-only invariant:** No delete or update methods. No clear or truncate. Historical signals must never be modified.
 
-### Governance Invariants (P8.0)
+### Governance Invariants (P8.0b)
 
+- Same as P8.0a, plus:
 - LearningStore has NO delete, update, clear, or truncate methods
-- LearningSignal has NO mutation methods — it's a data object
-- CalibrationProfile is a data object, not a writer — no `.apply()` or `.save()` methods
 - LearningStore cannot import any applier, writer, or mutation path
 
-### Test Strategy
+### Test Strategy (P8.0b)
 
 - Append a signal → read it back → verify fields
 - Append multiple signals → query by type → verify filtering
-- Append signals with future timestamps → verify window queries exclude them
-- Append-only: assert that `Object.keys(store).filter(k => /delete|update|clear|truncate/i.test(k))` is empty
+- Append-only: assert that no delete/update/clear/truncate methods exist
 - Store directory doesn't exist → auto-creates
 - Corrupt line in JSONL → skips without crashing
 
@@ -542,80 +570,78 @@ Profile: Decrease Red Team weight from 1.0 to 0.75
 
 ## P8.4 — Routing Calibration
 
+> **Observational only in P8.** Routing telemetry may not yet be reliable. P8.4 produces observational reports and proposal shapes — not an actionable optimizer. Full quality/cost/latency optimization is deferred until provider telemetry is proven.
+
 ### Purpose
 
-Measure which provider/model combinations deliver the best outcomes, and propose routing preference adjustments.
+Observe provider/model outcome patterns and surface routing observations for operator awareness.
 
 ### Core Question
 
-When Qwen outperforms Phi for planning tasks but Claude outperforms GPT for governance tasks, how should routing recommendations be updated?
+What routing patterns can ALiX observe from available execution data, and which are worth flagging for operator review?
 
 ### Inputs Consumed
 
-- **Provider performance records** (execution metadata): model, cost, latency, tokens used
-- **OutcomeStore** (P7): outcome quality by provider/model/task type
-- **Task routing records**: which task types went to which providers/models
+- **Execution metadata** (available data): model used, tokens consumed, latency
+- **OutcomeStore** (P7): outcome quality by provider/model/task type (if available)
 
 ### Processing Logic
 
 ```
-For each (provider, model, task_type) combination:
-  quality_score = average outcome quality for this combination
-  cost_score = tokens_used / successful_outcomes
-  latency_score = p95_latency for completions
+For each (provider, model, task_type) combination with sufficient data:
+  quality_score = average outcome quality for this combination (if available)
   failure_rate = failed_runs / total_runs
 
   Compare against other combinations serving the same task_type:
 
-  if quality_score >> average && cost_score <= average:
+  if quality_score significantly higher than peers:
     signal = routing_quality_good
-    profile = Prefer this model for this task type
 
-  if quality_score << average || failure_rate >> average:
+  if quality_score significantly lower than peers OR failure_rate high:
     signal = routing_quality_poor
-    profile = Deprioritize this model for this task type
 
-  if cost_score << average && quality_score >= average:
+  if cost per successful outcome significantly lower than peers:
     signal = routing_cost_efficient
-    profile = Increase preference for this model
 
-  if cost_score >> average && quality_score <= average:
+  if cost per successful outcome significantly higher than peers:
     signal = routing_cost_inefficient
-    profile = Reduce preference for this model
 
-  if latency_score >> threshold:
+  if observed p95 latency exceeds threshold:
     signal = routing_latency_concern
 ```
+
+**Note:** If routing telemetry data is incomplete, only produce signals for dimensions that have reliable data. An empty routing calibration section in the learning report is acceptable — it means "insufficient data to observe patterns."
 
 ### Signals Produced
 
 | Signal Type | When |
 |-------------|------|
-| `routing_quality_good` | Model produces high-quality outcomes |
-| `routing_quality_poor` | Model produces low-quality outcomes or high failure rate |
-| `routing_cost_efficient` | Model provides good quality per token |
-| `routing_cost_inefficient` | Model costs more than alternatives for same quality |
-| `routing_latency_concern` | Model has high p95 latency |
+| `routing_quality_good` | Model produces observably higher-quality outcomes than peers |
+| `routing_quality_poor` | Model produces observably lower-quality or high failure rate |
+| `routing_cost_efficient` | Model has observably lower cost per successful outcome |
+| `routing_cost_inefficient` | Model has observably higher cost per successful outcome |
+| `routing_latency_concern` | p95 latency exceeds threshold |
 
 ### Calibration Profile Produced
 
 | Target | Value |
 |--------|-------|
-| `routing_model_preference` | Adjusted preference weight per (provider, model, task_type) |
+| `routing_model_preference` | Observational preference indicator (informational — no routing table changes in P8) |
 
 ### Example
 
 ```
-Task type: planning
-  Qwen + Phi:     avg quality 0.82, cost $0.003/query, p95 1.2s
-  GPT-4o:         avg quality 0.88, cost $0.015/query, p95 2.1s
+Task type: planning (sufficient data: 142 runs across 3 models)
   Claude Sonnet:  avg quality 0.91, cost $0.008/query, p95 1.8s
+  GPT-4o:         avg quality 0.88, cost $0.015/query, p95 2.1s
+  Qwen + Phi:     avg quality 0.82, cost $0.003/query, p95 1.2s
 
 Signal: routing_quality_good for Claude Sonnet (strength: 0.25, confidence: 0.80)
 Signal: routing_cost_efficient for Qwen+Phi (strength: 0.30, confidence: 0.75)
 
-Profile: Increase Claude Sonnet preference for planning from 1.0 to 1.2
-Profile: Increase Qwen+Phi preference for planning from 1.0 to 1.1
+Observation: Claude Sonnet produces best quality for planning.
+Observation: Qwen+Phi is most cost-efficient for planning.
+Proposal shape: routing_model_preference suggestion (informational, no config change)
 ```
 
 ### Governance Invariants (P8.4)
@@ -624,15 +650,17 @@ Profile: Increase Qwen+Phi preference for planning from 1.0 to 1.1
 - Routing tables/config are never written by the learning layer
 - `routeStore.save()` must never appear in calibration code
 - Provider credentials/endpoints are never exposed to the learning layer
+- P8.4 produces informational observations only — no actionable routing config changes
+- If routing telemetry is incomplete, produce fewer signals rather than speculative ones
 
 ### Test Strategy
 
-- Best quality + average cost → quality signal
-- Poor quality + high cost → poor quality signal + cost inefficient signal
-- Equal performance → no signal (not enough differentiation)
+- Sufficient data with clear quality difference → quality signal
+- Insufficient data for a model → no signal (defer)
+- High failure rate → poor quality signal
+- Equal performance across models → no signal (not enough differentiation)
 - Single model for a task type → no comparative signal (insufficient data)
-- Zero routing records → zero signals
-- Profile correctly maps performance to preference adjustments
+- Zero routing records → empty routing section (graceful)
 
 ---
 
@@ -656,7 +684,12 @@ LearningSignal (P8.0)
         → ProposalFactory converts LearningProposal to AdaptationProposal
           → ProposalStore.save(proposal)
             → Proposal enters standard lifecycle:
-                Pending → Governance Review (P6.5) → Queue (P6.2) → Approve → Apply
+                Pending → Governance Review (P6.5) → Queue (P6.2) → Approved
+
+  P8 stops at approved proposal. The actual Apply step (writing calibration
+  files) is deferred to P8.9/P9. An approved learning_adjustment proposal
+  exists in the store as evidence of operator intent — but no calibration
+  file applier is implemented in P8.
 ```
 
 ### ProposalFactory
@@ -710,8 +743,7 @@ interface ProposalFactory {
 - `ProposalFactory` is instantiated only in the CLI `propose` command — never in `LearningSignalBuilder`, `CalibrationBuilder`, or any automated path
 - `LearningProposal.requiresApproval` is always `true` — the type enforces this
 - No test in P8 may call `proposalStore.save()` from a learning module — sentinel enforces this
-- The `learning_adjustment` action goes through the same `selectApplier` routing as all other proposals
-- `RevertApplier` must support reverting `learning_adjustment` proposals by snapshotting the calibration file before writing (same pattern as P5.2e)
+- `learning_adjustment` proposals have no applier in P8. The approved proposal exists as evidence of operator intent; the actual calibration file write is deferred to P8.9/P9.
 
 ### Test Strategy
 
@@ -721,6 +753,7 @@ interface ProposalFactory {
 - Proposal roundtrips through `ProposalStore.save()` + `ProposalStore.load()`
 - `alix learning propose` CLI command creates a pending proposal
 - `alix propose` (without `--target`) does NOT create learning proposals
+- An approved learning_adjustment proposal has no applier — attempting `apply` produces a clear error
 - Sentinel: learning modules cannot import ProposalStore
 
 ---
@@ -799,16 +832,18 @@ If learning modules import EvidenceEventWriter, confirm only read methods are us
 ### Integration Test
 
 ```
-Full learning → proposal → approve → apply → verify cycle:
+Full learning → proposal → approve cycle:
 1. Seed P7 outcome records
 2. Run `alix learning report --window 90` → produces LearningReport
 3. Run `alix learning propose --target recommendation` → creates pending proposal
 4. Verify proposal has status "pending", action "learning_adjustment"
 5. Approve the proposal via `alix approval approve <id>`
-6. Apply the proposal via `alix approval apply <id>`
-7. Verify the calibration profile file was written
-8. Verify the calibration change is reflected in subsequent runs
+6. Verify proposal now has status "approved"
+7. Verify there is no applier for "learning_adjustment" — attempting apply errors clearly
+8. Evidence chain: verify adaptation_proposed + adaptation_approved evidence records exist
 ```
+
+**Why no Apply in P8:** Calibration file appliers are deferred to P8.9/P9. P8 proves that learning proposals can be created, reviewed, and approved through the standard lifecycle — but no calibration files are written until the applier exists in a later phase.
 
 ---
 
@@ -968,6 +1003,8 @@ Verify that P8 is complete and safe before P9 (Agentic Exchange) begins.
 - [ ] All learning proposals require human approval
 - [ ] CLI `propose` is the only creation path
 - [ ] ProposalFactory is CLI-only (sentinel enforced)
+- [ ] `learning_adjustment` has NO applier — attempting `apply` errors clearly
+- [ ] No calibration file is written by any P8 code path
 
 **Governance Sentinels (P8.6)**
 - [ ] All 8 sentinel tests pass
@@ -996,9 +1033,10 @@ ALiX can:
 ✓ measure outcomes (P7)
 ✓ measure recommendation quality (P7)
 ✓ measure governance quality (P7)
-✓ measure routing quality (P8)
+✓ measure routing quality (P8)*
 ✓ propose calibration improvements (P8)
 ✓ report learning in human-readable form (P8)
+✓ approve learning proposals through standard lifecycle (P8)
 
 ALiX cannot:
 ✗ self-approve
@@ -1008,7 +1046,9 @@ ALiX cannot:
 ✗ self-reconfigure
 ✗ bypass proposal lifecycle
 ✗ auto-generate learning proposals
-```
+✗ apply learning proposals (no applier exists in P8)
+
+*Routing calibration is observational only in P8 — full optimization requires proven telemetry.
 
 ### Why This Gate Matters
 
@@ -1023,19 +1063,21 @@ P8 must be boring. Boring means: the learning layer produces signals, signals be
 The sub-phases should be implemented in this order:
 
 ```
-P8.0  →  Learning Foundations (types + store + sentinels)
+P8.0a  →  Learning Types + Governance Sentinels (no store yet)
   ↓
-P8.6  →  Learning Governance Sentinels (structural enforcement—made early, amended later)
+P8.6  →  Learning Governance Sentinels (amended per sub-phase)
   ↓
 P8.1  →  Recommendation Calibration
+  ↓
+P8.0b  →  LearningStore (deferred until builder proves the shape)
   ↓
 P8.2  →  Risk Calibration
   ↓
 P8.3  →  Governance Calibration
   ↓
-P8.4  →  Routing Calibration
+P8.4  →  Routing Calibration (observational only)
   ↓
-P8.5  →  Learning Proposal Integration
+P8.5  →  Learning Proposal Integration (no applier — stops at approval)
   ↓
 P8.7  →  CLI + Learning Reports
   ↓
@@ -1043,6 +1085,10 @@ P8.8  →  Release Gate
 ```
 
 **Why sentinels before calibration builders:** The sentinels define the safety boundary. Calibration builders are written inside that boundary. This prevents accidental mutation paths from being introduced during implementation.
+
+**Why P8.0b deferred to after P8.1:** Builders prove the data shape before persistence is introduced. Starting without a store forces the design to be driven by actual builder needs, not speculation.
+
+**Why P8.5 stops at approval, not apply:** Learning calibration file appliers are deferred to P8.9/P9. P8 proves that learning proposals flow through the full lifecycle — propose → review → approve — but no code path exists that writes calibration files.
 
 ---
 
@@ -1052,10 +1098,10 @@ P8.8  →  Release Gate
 |------|-----------|--------|------------|
 | Learning proposal creates mutation path | Low | Critical | Sentinels (P8.6) are structural grep-based tests, written before calibration builders |
 | Auto-generated learning proposals bypass human | Low | Critical | `AutomaticProposalGenerator` is explicitly blocked from producing learning proposals (sentinel) |
-| Calibration file written directly | Low | High | Sentinel enforces no writeFileSync/writeFile in learning modules |
+| Calibration file written directly | Low | Critical | No applier exists in P8 for `learning_adjustment` — there is literally no code path that writes calibration files |
+| Learning proposal integration skips lifecycle | Low | Critical | `ProposalFactory` is CLI-only; sentinel enforces no proposalStore.save() in learning modules |
 | Learning signal confidence misinterpreted | Medium | Medium | All signals carry `confidence` field; low-confidence (<0.5) signals are excluded from reports by default |
 | Insufficient data produces misleading signals | Medium | Medium | Strength and confidence scale with sample size; small samples produce low-confidence signals |
 | P8.1–P8.4 builders coupled to P7 store shapes | Medium | Medium | Builders consume P7 types via interfaces, not concrete stores; adapter pattern if shapes diverge |
-| ProposalFactory imported from learning module | Low | Critical | Sentinel enforces CLI-only instantiation |
-| Large number of proposals from calibration runs | Medium | Low | CLI `propose` creates one proposal per target area, not per signal; human reviews at target granularity |
-| LearningStore JSONL corruption | Low | Medium | Corrupt lines are skipped; store auto-creates directory; historical signals never modified |
+| Routing telemetry unreliable | Medium | Low | P8.4 is observational only; empty routing section is acceptable |
+| LearningStore introduces persistence before shape is proven | Low | Low | P8.0b explicitly deferred until a builder exists (P8.0a ships without store) |
