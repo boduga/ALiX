@@ -1637,7 +1637,7 @@ if (command === "skill") {
     }
   } else if (sub === "run") {
     const id = args[1];
-    if (!id) { console.error("Usage: alix skill run <id> [--input '...'] [--prompt '...'] [--json] [--intent]"); process.exit(1); }
+    if (!id) { console.error("Usage: alix skill run <id> [--input '...'] [--prompt '...'] [--json] [--intent] [--propose]"); process.exit(1); }
     const ext = registry.get(`skill/${id}`);
     if (!ext) { console.error(`Skill not found: ${id}`); process.exit(1); }
 
@@ -1647,6 +1647,7 @@ if (command === "skill") {
     const promptIdx = restArgs.indexOf("--prompt");
     const jsonFlag = restArgs.includes("--json");
     const intentFlag = restArgs.includes("--intent");
+    const proposeFlag = restArgs.includes("--propose");
 
     let inputJson: Record<string, string> | undefined;
     if (inputIdx >= 0 && restArgs[inputIdx + 1]) {
@@ -1691,8 +1692,9 @@ if (command === "skill") {
       console.log(`Rendered skill (${substitutedCount} variable${substitutedCount !== 1 ? "s" : ""} substituted)`);
     }
 
-    // --intent: capture skill execution as an ExecutionIntent artifact
-    if (intentFlag) {
+    // --intent / --propose: capture skill execution as an ExecutionIntent artifact
+    // --propose is a superset of --intent: it also maps the intent to a proposal
+    if (intentFlag || proposeFlag) {
       const { IntentStore } = await import("./adaptation/intent-store.js");
       const intentDir = pjoin(homedir(), ".alix", "execution", "intents");
       const store = new IntentStore(intentDir);
@@ -1704,7 +1706,7 @@ if (command === "skill") {
 
       const outputSummary = loaded.content.slice(0, 200);
 
-      const intent = {
+      const intent: Record<string, unknown> = {
         source: "skill_run" as const,
         skillId: id,
         input: inputText,
@@ -1720,6 +1722,12 @@ if (command === "skill") {
         reasons: [`Skill "${m.name}" (${id}) rendered with ${substitutedCount} substituted variable(s)`],
       };
 
+      // --propose: attach proposedAction + proposedTarget for proposal mapping
+      if (proposeFlag) {
+        intent.proposedAction = "adjust_skill_definition";
+        intent.proposedTarget = { kind: "skill", id };
+      }
+
       await store.append(intent as any);
 
       // Terminal output — intent captured
@@ -1727,6 +1735,33 @@ if (command === "skill") {
       console.log(`  Source:  skill_run (${id})`);
       console.log(`  Status:  captured`);
       console.log(`  Summary: ${outputSummary.slice(0, 80)}${outputSummary.length > 80 ? "..." : ""}`);
+
+      // --propose: map intent to proposal
+      if (proposeFlag) {
+        const { homedir: getHomedir } = await import("node:os");
+        const { join: pathJoin } = await import("node:path");
+        const { ProposalStore } = await import("./adaptation/proposal-store.js");
+        const { IntentProposalMapper } = await import("./adaptation/intent-proposal-mapper.js");
+
+        const proposalsDir = pathJoin(process.cwd(), ".alix", "adaptation", "proposals");
+        const proposalStore = new ProposalStore(proposalsDir);
+        const mapper = new IntentProposalMapper(proposalStore);
+
+        const result = await mapper.mapToProposal(intent as any, store);
+
+        if (!result.success) {
+          console.error(`\n  Proposal mapping failed: ${result.errors.join("; ")}`);
+        } else {
+          console.log(`\n  ✅ Proposal created: ${result.proposal!.id}`);
+          console.log(`  Action: ${intent.proposedAction}`);
+          console.log(`  Target: ${JSON.stringify(intent.proposedTarget)}`);
+          console.log();
+          console.log(`  ═══ NEXT STEPS ═══`);
+          console.log(`  Proposal created. Use \`alix decision approve ${result.proposal!.id}\``);
+          console.log(`  and \`alix decision apply ${result.proposal!.id}\` to execute.`);
+          console.log();
+        }
+      }
     }
 
     // --prompt: future provider integration slot
