@@ -74,7 +74,7 @@ export async function startRepl(store: ChatSessionStore, opts: ReplOptions = {})
             "  /intent <description>          — create an execution intent",
             "  /propose <intent-id>           — map intent to proposal",
             "",
-            "  Anything else is answered directly.",
+            "  Anything else — classifies via router. Open-ended Q&A deferred to P8.",
           ].join("\n");
           if (opts.jsonMode) {
             console.log(JSON.stringify({ type: "help", commands: help }));
@@ -132,7 +132,7 @@ export async function startRepl(store: ChatSessionStore, opts: ReplOptions = {})
                 response = await handleProposeIntent(intentId);
               }
             } else {
-              response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
+              response = `[${sessionId!}] Unknown command. Try /help.`;
             }
           } catch (err) {
             response = `Error: ${err instanceof Error ? err.message : String(err)}`;
@@ -144,7 +144,7 @@ export async function startRepl(store: ChatSessionStore, opts: ReplOptions = {})
           if (decision.route === "unknown" && decision.confidence < 0.7) {
             response = `Not sure what to do with that. Try /help to see available commands.`;
           } else {
-            response = `[${decision.route}] (confidence: ${decision.confidence.toFixed(2)}) — routing coming in P7.6c/P7.6d.`;
+            response = `[${decision.route}] (confidence: ${decision.confidence.toFixed(2)}) — router classified, no Q&A engine yet.`;
           }
         }
 
