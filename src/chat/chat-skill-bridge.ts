@@ -47,7 +47,6 @@ export async function handleRunSkill(
 
 export async function handleCreateIntent(
   description: string,
-  _store: unknown,
   sessionId: string,
 ): Promise<string> {
   const { IntentStore } = await import("../adaptation/intent-store.js");
@@ -78,7 +77,6 @@ export async function handleCreateIntent(
 
 export async function handleProposeIntent(
   intentId: string,
-  sessionId: string,
 ): Promise<string> {
   const { IntentStore } = await import("../adaptation/intent-store.js");
   const { ProposalStore } = await import("../adaptation/proposal-store.js");

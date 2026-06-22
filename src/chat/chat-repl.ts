@@ -118,14 +118,14 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
           if (!description) {
             response = "Usage: /intent <description>";
           } else {
-            response = await handleCreateIntent(description, store, sessionId!);
+            response = await handleCreateIntent(description, sessionId!);
           }
         } else if (trimmed.startsWith("/propose ")) {
           const intentId = trimmed.slice("/propose ".length).trim();
           if (!intentId) {
             response = "Usage: /propose <intent-id>";
           } else {
-            response = await handleProposeIntent(intentId, sessionId!);
+            response = await handleProposeIntent(intentId);
           }
         } else {
           response = `[${sessionId!}] Command received: ${trimmed}. Full routing coming in P7.6c-P7.6d.`;
