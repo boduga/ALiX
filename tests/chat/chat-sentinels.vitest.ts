@@ -32,9 +32,9 @@ describe("Chat governance sentinels", () => {
     }
   });
 
-  it("chat must not reference ProposalStore outside skill-bridge", () => {
+  it("chat must not reference ProposalStore outside skill-bridge or inspector", () => {
     for (const f of chatFiles) {
-      if (f.includes("chat-skill-bridge")) continue;
+      if (f.includes("chat-skill-bridge") || f.includes("chat-inspector")) continue;
       const content = readFileSync(f, "utf-8");
       expect(content).not.toMatch(/ProposalStore/);
     }

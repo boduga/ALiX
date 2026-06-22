@@ -4,6 +4,7 @@ import type { ChatSessionStore } from "./chat-session-store.js";
 import type { ChatMessage } from "./chat-types.js";
 import { routeMessage } from "./chat-intent-router.js";
 import { handleRunSkill, handleCreateIntent, handleProposeIntent } from "./chat-skill-bridge.js";
+import { inspectProposals, inspectSkills, inspectOutcomes, inspectIntents } from "./chat-inspector.js";
 
 export interface ReplOptions {
   sessionId?: string;
@@ -95,7 +96,15 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
       // Route and respond
       let response = "";
       if (trimmed.startsWith("/")) {
-        if (trimmed.startsWith("/run-skill ")) {
+        if (trimmed === "/proposals") {
+          response = await inspectProposals();
+        } else if (trimmed === "/skills") {
+          response = await inspectSkills();
+        } else if (trimmed === "/outcomes") {
+          response = await inspectOutcomes();
+        } else if (trimmed === "/intents") {
+          response = await inspectIntents();
+        } else if (trimmed.startsWith("/run-skill ")) {
           const args = trimmed.slice("/run-skill ".length).trim().split(/\s+/);
           const skillId = args[0];
           const skillInput = args.slice(1).join(" ");
