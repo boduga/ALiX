@@ -346,11 +346,12 @@ if (toolCalls.length === 0) {
         return { sessionId, summary: text || "Research completed (max iterations)", streamed: config.model.streaming };
       }
     }
-    // ponytail: no tool calls + no mutations = read-only task (review, Q&A).
-    // The text IS the output — don't wait for the model to say "done".
-    await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
-    await evaluatePattern(log, session, sessionDir, taskType);
-    return { sessionId, summary: text, streamed: config.model.streaming };
+    if (modelSaysDone) {
+      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
+      await evaluatePattern(log, session, sessionDir, taskType);
+      return { sessionId, summary: text, streamed: config.model.streaming };
+    }
+    // Model didn't signal done, continue
   } else if (!skipReasonNoTools) {
     // Run verification
     const verResults: Array<{ check: VerificationCheck; result: VerificationResult }> = [];

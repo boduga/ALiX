@@ -134,7 +134,7 @@ export function startRepl(store: ChatSessionStore, opts: ReplOptions = {}): () =
         const decision = routeMessage(trimmed);
         userMsg.route = decision.route;
         userMsg.routeConfidence = decision.confidence;
-        if (decision.route === "unknown" && decision.confidence < 0.5) {
+        if (decision.route === "unknown" && decision.confidence < 0.7) {
           response = `Not sure what to do with that. Try /help to see available commands.`;
         } else {
           response = `[${decision.route}] (confidence: ${decision.confidence.toFixed(2)}) — routing coming in P7.6c/P7.6d.`;

@@ -5,6 +5,7 @@ export type ChatRoute =
   | "inspect_state"
   | "run_skill"
   | "invoke_agent"       // reserved — wired in P8/P9+
+  | "consult_intelligence" // reserved — P8 accuracy/health queries
   | "create_intent"
   | "propose_intent"
   | "run_task"
