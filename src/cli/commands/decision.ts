@@ -1094,8 +1094,18 @@ async function runIntent(args: string[]): Promise<void> {
     return;
   }
 
+  if (subcommand === "propose") {
+    const id = args[1];
+    if (!id) {
+      console.error("Usage: alix decision intent propose <intent-id>");
+      process.exit(1);
+    }
+    await runIntentPropose(id);
+    return;
+  }
+
   console.error(`Unknown intent subcommand: "${subcommand}"`);
-  console.error("Usage: alix decision intent list | intent show <id>");
+  console.error("Usage: alix decision intent list | intent show <id> | intent propose <intent-id>");
   process.exit(1);
 }
 
@@ -1139,4 +1149,60 @@ function statusIcon(status: string): string {
     case "discarded":  return "\u{1F5D1}️";  // wastebasket
     default:           return "⚪";  // white circle
   }
+}
+
+async function runIntentPropose(id: string): Promise<void> {
+  const intentStore = new IntentStore(INTENTS_DIR);
+  const intent = await intentStore.get(id);
+
+  if (!intent) {
+    console.error(`Intent not found: ${id}`);
+    process.exit(1);
+  }
+
+  // Validate: only "captured" intents can be proposed
+  if (intent.status !== "captured") {
+    console.error(
+      `Intent ${id} status is "${intent.status}" — only "captured" intents can be proposed`,
+    );
+    process.exit(1);
+  }
+
+  // Validate: must have proposedAction + proposedTarget
+  if (!intent.proposedAction || !intent.proposedTarget) {
+    console.error(
+      `Intent ${id} has no proposedAction or proposedTarget — cannot map to proposal`,
+    );
+    process.exit(1);
+  }
+
+  const { IntentProposalMapper } = await import(
+    "../../adaptation/intent-proposal-mapper.js"
+  );
+
+  const proposalsDir = join(process.cwd(), ".alix", "adaptation", "proposals");
+  const proposalStore = new ProposalStore(proposalsDir);
+  const mapper = new IntentProposalMapper(proposalStore);
+
+  const result = await mapper.mapToProposal(intent, intentStore);
+
+  if (!result.success) {
+    console.error(`Proposal mapping failed: ${result.errors.join("; ")}`);
+    process.exit(1);
+  }
+
+  console.log(`✅ Proposal created: ${result.proposal!.id}`);
+  console.log(`  Intent:   ${id}`);
+  console.log(`  Action:   ${result.proposal!.action}`);
+  console.log(`  Target:   ${JSON.stringify(result.proposal!.target)}`);
+  console.log(`  Status:   ${result.proposal!.status}`);
+  console.log();
+  console.log(`═══ NEXT STEPS ═══`);
+  console.log(
+    `Proposal created. Use \`alix decision approve ${result.proposal!.id}\``,
+  );
+  console.log(
+    `and \`alix decision apply ${result.proposal!.id}\` to execute.`,
+  );
+  console.log();
 }
