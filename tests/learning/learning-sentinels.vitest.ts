@@ -135,6 +135,30 @@ describe("P8.6 — Learning Governance Sentinels", () => {
   });
 
   // -----------------------------------------------------------------------
+  // 4b. ProposalFactory is CLI-only (P8.5)
+  // -----------------------------------------------------------------------
+
+  it("must not import ProposalFactory (CLI-only bridge)", () => {
+    const violations = anyImportsFrom(SRC_LEARNING, [
+      "../cli/learning-proposal-factory.js",
+      "../cli/learning-proposal-factory",
+    ]);
+    expect(violations).toEqual([]);
+  });
+
+  it("must not import ProposalStore or ApprovalGate (lifecycle mutation)", () => {
+    const violations = anyImportsFrom(SRC_LEARNING, [
+      "../adaptation/proposal-store.js",
+      "../adaptation/proposal-store",
+      "../adaptation/approval-gate.js",
+      "../adaptation/approval-gate",
+      "../cli/commands/adaptation.js",
+      "../cli/commands/adaptation",
+    ]);
+    expect(violations).toEqual([]);
+  });
+
+  // -----------------------------------------------------------------------
   // 5. CalibrationProfile is a data object (no apply/save methods)
   // -----------------------------------------------------------------------
 

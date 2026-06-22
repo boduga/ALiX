@@ -409,6 +409,17 @@ function selectApplier(
       const revertApplier = new RevertApplier(snapshotsDir, writer);
       return (p) => revertApplier.apply(p);
     }
+    case "learning": {
+      // P8.5 — learning calibration appliers are deferred to P8.9/P9.
+      // An approved learning_adjustment proposal is recorded as operator
+      // intent, but no calibration file is written in P8. The gate never
+      // receives an applier, so zero mutation occurs.
+      throw new Error(
+        `No applier for learning proposal ${proposal.id} (area "${proposal.target.area}"). ` +
+          `Learning calibration application is deferred to P8.9/P9. ` +
+          `The approved proposal is recorded as operator intent.`,
+      );
+    }
     default:
       throw new Error(
         `No applier registered for target.kind "${proposal.target.kind}" (proposal ${proposal.id}). ` +
@@ -502,6 +513,8 @@ function describeTarget(p: AdaptationProposal): string {
       return `routing_weight:${p.target.capability}`;
     case "revert":
       return `revert proposal ${p.target.sourceProposalId}`;
+    case "learning":
+      return `learning:${p.target.area}`;
   }
 }
 

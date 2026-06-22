@@ -268,7 +268,7 @@ describe("LearningStore", () => {
 
   describe("append-only", () => {
     it("has no delete/update/clear/truncate methods", () => {
-      const anyStore = store as Record<string, unknown>;
+      const anyStore = store as unknown as Record<string, unknown>;
       expect(typeof anyStore.delete).not.toBe("function");
       expect(typeof anyStore.update).not.toBe("function");
       expect(typeof anyStore.clear).not.toBe("function");
