@@ -71,6 +71,9 @@ if (!command || command === "--help" || command === "-h") {
   console.log(`ALiX ${ALIX_VERSION}
 
 Usage:
+  alix chat                Start interactive ALiX chat session
+  alix chat --session <id> Resume a previous chat session
+  alix chat --new          Start a new chat session
   alix run "<task>"        Plans first, then executes (approve/reject/edit the plan)
   alix run "<task>" --no-plan  Execute directly without planning phase
   alix run "<task>" --no-stream  Disable streaming output
@@ -1223,6 +1226,23 @@ if (command === "config" && args[0] === "show") {
   }
   console.log(JSON.stringify(output, null, 2));
   process.exit(0);
+}
+
+if (command === "chat") {
+  const { ChatSessionStore } = await import("./chat/chat-session-store.js");
+  const { startRepl } = await import("./chat/chat-repl.js");
+
+  const sessionIdx = args.indexOf("--session");
+  const sessionId = sessionIdx >= 0 && sessionIdx + 1 < args.length ? args[sessionIdx + 1] : undefined;
+  const jsonMode = args.includes("--json");
+  const forceNew = args.includes("--new");
+
+  const storeDir = join(homedir(), ".alix", "chat", "sessions");
+  const store = new ChatSessionStore(storeDir);
+
+  const effectiveSessionId = forceNew ? undefined : sessionId;
+  startRepl(store, { sessionId: effectiveSessionId, jsonMode });
+  return; // REPL owns lifecycle
 }
 
 if (command === "run") {
