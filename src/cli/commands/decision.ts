@@ -10,6 +10,8 @@
  * - `alix decision brief` — render strategic brief (P6.3)
  * - `alix decision status` — render pipeline health report (P6.6a)
  * - `alix decision review <proposal-id>` — live governance lens review (P6.5b)
+ * - `alix decision outcome record <subject-id>` — record a decision outcome (P7a)
+ * - `alix decision outcome show <subject-id>` — show recorded outcomes (P7a)
  *
  * @module
  */
@@ -38,6 +40,8 @@ import type { LensName, LensScore, GovernanceReview } from "../../adaptation/gov
 import type { GovernanceReviewInput } from "../../adaptation/governance-review-types.js";
 import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
+import { OutcomeStore } from "../../adaptation/outcome-store.js";
+import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -47,6 +51,7 @@ const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 const EVIDENCE_DIR = join(".alix", "security");
 const EFFECTIVENESS_DIR = join(".alix", "adaptation", "effectiveness");
 const INTELLIGENCE_DIR = join(".alix", "adaptation", "intelligence");
+const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 
 // ---------------------------------------------------------------------------
 // Shared infrastructure factory
@@ -103,9 +108,12 @@ export async function handleDecisionCommand(args: string[]): Promise<void> {
     case "review":
       await runReview(rest);
       return;
+    case "outcome":
+      await runOutcome(rest);
+      return;
     default:
       console.error(`Unknown decision subcommand: "${subcommand}"`);
-      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | status [--window N] [--json] | review <proposal-id> [--json] [--lens <name>]");
+      console.error("Usage: alix decision context <proposal-id> [--json] | risk <proposal-id> [--json] | recommend <proposal-id> [--json] | queue [--json] [--limit N] | brief [--window N] [--json] | status [--window N] [--json] | review <proposal-id> [--json] [--lens <name>] | outcome <subcommand> ...");
       process.exit(1);
   }
 }
@@ -742,4 +750,181 @@ function renderReview(review: GovernanceReview, singleLens?: LensName): void {
   }
 
   console.log(`Sources: ${review.sourceArtifacts.length} artifact(s)`);
+}
+
+// ---------------------------------------------------------------------------
+// runOutcome — Outcome Tracking CLI (P7a)
+// ---------------------------------------------------------------------------
+
+const VALID_OUTCOMES: OutcomeValue[] = [
+  "success",
+  "partial_success",
+  "neutral",
+  "failure",
+  "unknown",
+];
+
+async function runOutcome(args: string[]): Promise<void> {
+  const subcommand = args[0] ?? "";
+  const rest = args.slice(1);
+
+  switch (subcommand) {
+    case "record":
+      await runOutcomeRecord(rest);
+      return;
+    case "show":
+      await runOutcomeShow(rest);
+      return;
+    default:
+      console.error(`Unknown outcome subcommand: "${subcommand}"`);
+      console.error(
+        "Usage: alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json] | show <subject-id> [--json]",
+      );
+      console.error(
+        `Outcome values: ${VALID_OUTCOMES.join(" | ")}`,
+      );
+      process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runOutcomeRecord
+// ---------------------------------------------------------------------------
+
+async function runOutcomeRecord(args: string[]): Promise<void> {
+  const subjectId = args[0];
+  if (!subjectId) {
+    console.error(
+      "Usage: alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json]",
+    );
+    console.error(
+      `Outcome values: ${VALID_OUTCOMES.join(" | ")}`,
+    );
+    process.exit(1);
+  }
+
+  const outcomeIdx = args.indexOf("--outcome");
+  if (outcomeIdx === -1 || outcomeIdx + 1 >= args.length) {
+    console.error("Error: --outcome is required");
+    console.error(
+      `Valid values: ${VALID_OUTCOMES.join(" | ")}`,
+    );
+    process.exit(1);
+  }
+  const outcomeValue = args[outcomeIdx + 1] as OutcomeValue;
+  if (!VALID_OUTCOMES.includes(outcomeValue)) {
+    console.error(
+      `Error: invalid outcome "${outcomeValue}". Valid: ${VALID_OUTCOMES.join(" | ")}`,
+    );
+    process.exit(1);
+  }
+
+  const jsonMode = args.includes("--json");
+
+  const recIdx = args.indexOf("--recommendation");
+  const recommendationId: string | undefined =
+    recIdx !== -1 && recIdx + 1 < args.length
+      ? args[recIdx + 1]
+      : undefined;
+
+  const actionIdx = args.indexOf("--action");
+  const actionTaken: string =
+    actionIdx !== -1 && actionIdx + 1 < args.length
+      ? args[actionIdx + 1]
+      : "unknown";
+
+  const cwd = process.cwd();
+  const store = new OutcomeStore(join(cwd, OUTCOMES_DIR));
+
+  const record: OutcomeRecord = {
+    id: `outcome:${subjectId}:${Date.now()}`,
+    subjectId,
+    subjectType: "proposal",
+    outcome: outcomeValue,
+    generatedAt: new Date().toISOString(),
+    recommendationId,
+    actionTaken,
+    observationWindowDays: 30,
+    confidence: 1,
+    reasons: [],
+    evidenceRefs: [],
+    subject: `Outcome: ${subjectId}`,
+  };
+
+  await store.append(record);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(record, null, 2));
+    return;
+  }
+
+  const outcomeIcon =
+    record.outcome === "success" ? "✅" :
+    record.outcome === "partial_success" ? "⚠️" :
+    record.outcome === "neutral" ? "➖" :
+    record.outcome === "failure" ? "❌" :
+    "❓";
+
+  console.log(`Outcome recorded: ${record.id}`);
+  console.log(`──────────────────────────────`);
+  console.log(`${outcomeIcon} ${record.outcome} — ${record.subject}`);
+  console.log(`   Subject:      ${record.subjectId} (${record.subjectType})`);
+  if (record.recommendationId) {
+    console.log(`   Recommendation: ${record.recommendationId}`);
+  }
+  console.log(`   Action taken:  ${record.actionTaken}`);
+  console.log(`   Observation window: ${record.observationWindowDays} days`);
+}
+
+// ---------------------------------------------------------------------------
+// runOutcomeShow
+// ---------------------------------------------------------------------------
+
+async function runOutcomeShow(args: string[]): Promise<void> {
+  const subjectId = args[0];
+  if (!subjectId) {
+    console.error("Usage: alix decision outcome show <subject-id> [--json]");
+    process.exit(1);
+  }
+
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+  const store = new OutcomeStore(join(cwd, OUTCOMES_DIR));
+
+  const records = await store.queryBySubject(subjectId);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(records, null, 2));
+    return;
+  }
+
+  if (records.length === 0) {
+    console.log(`No outcomes recorded for ${subjectId}`);
+    return;
+  }
+
+  console.log(`Outcomes for ${subjectId}: ${records.length} record(s)`);
+  console.log(`═══════════════════════════════════════`);
+  console.log(``);
+
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    const outcomeIcon =
+      r.outcome === "success" ? "✅" :
+      r.outcome === "partial_success" ? "⚠️" :
+      r.outcome === "neutral" ? "➖" :
+      r.outcome === "failure" ? "❌" :
+      "❓";
+
+    console.log(` ${i + 1}. ${outcomeIcon} ${r.outcome}  ${r.id}`);
+    console.log(`    Date:     ${new Date(r.generatedAt).toLocaleDateString()}`);
+    console.log(`    Action:   ${r.actionTaken}`);
+    if (r.recommendationId) {
+      console.log(`    Rec:      ${r.recommendationId}`);
+    }
+    console.log(`    Window:   ${r.observationWindowDays} days`);
+    if (i < records.length - 1) {
+      console.log(``);
+    }
+  }
 }
