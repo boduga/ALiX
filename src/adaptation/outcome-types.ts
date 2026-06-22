@@ -83,3 +83,43 @@ export interface OutcomeEvidence {
   /** Confidence in this evidence (0–1) */
   confidence: number;
 }
+
+// ---------------------------------------------------------------------------
+// RecommendationAccuracyReport — P7b
+// ---------------------------------------------------------------------------
+
+/**
+ * Accuracy report computed from outcome records over a time window.
+ *
+ * Measures how often decisions and recommendations produced successful
+ * outcomes. Accuracy is computed from known (non-unknown) outcomes only,
+ * so the denominator excludes "unknown" records that haven't yet resolved.
+ *
+ * Pure data type — no storage dependencies.
+ */
+export interface RecommendationAccuracyReport {
+  /** Observation window in days. */
+  windowDays: number;
+  /** ISO timestamp when this report was generated. */
+  generatedAt: string;
+  /** Total outcomes in the window (includes unknown). */
+  totalOutcomes: number;
+  /** Distribution across all five outcome values. */
+  outcomeDistribution: Record<OutcomeValue, number>;
+  /**
+   * Accuracy metrics computed from known outcomes only.
+   * unknown records are excluded from the denominator, so
+   * successRate + partialSuccessRate + failureRate + neutralRatio <= 1.
+   * When knownOutcomes === 0, all rates are 0.
+   */
+  accuracy: {
+    /** Number of outcomes with a definitive value (totalOutcomes - unknown). */
+    knownOutcomes: number;
+    /** Fraction of known outcomes that were success. */
+    successRate: number;
+    /** Fraction of known outcomes that were partial_success. */
+    partialSuccessRate: number;
+    /** Fraction of known outcomes that were failure. */
+    failureRate: number;
+  };
+}

@@ -12,6 +12,7 @@
  * - `alix decision review <proposal-id>` — live governance lens review (P6.5b)
  * - `alix decision outcome record <subject-id>` — record a decision outcome (P7a)
  * - `alix decision outcome show <subject-id>` — show recorded outcomes (P7a)
+ * - `alix decision outcome report [--window N] [--json]` — accuracy report (P7b)
  *
  * @module
  */
@@ -42,6 +43,7 @@ import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
+import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (matches adaptation.ts pattern)
@@ -775,10 +777,13 @@ async function runOutcome(args: string[]): Promise<void> {
     case "show":
       await runOutcomeShow(rest);
       return;
+    case "report":
+      await runOutcomeReport(rest);
+      return;
     default:
       console.error(`Unknown outcome subcommand: "${subcommand}"`);
       console.error(
-        "Usage: alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json] | show <subject-id> [--json]",
+        "Usage: alix decision outcome record <subject-id> --outcome <value> [--recommendation <id>] [--action <taken>] [--json] | show <subject-id> [--json] | report [--window N] [--json]",
       );
       console.error(
         `Outcome values: ${VALID_OUTCOMES.join(" | ")}`,
@@ -926,5 +931,70 @@ async function runOutcomeShow(args: string[]): Promise<void> {
     if (i < records.length - 1) {
       console.log(``);
     }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runOutcomeReport — Accuracy report (P7b)
+// ---------------------------------------------------------------------------
+
+async function runOutcomeReport(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const windowIdx = args.indexOf("--window");
+  let windowDays = 30;
+  if (windowIdx !== -1 && windowIdx + 1 < args.length) {
+    const parsed = parseInt(args[windowIdx + 1], 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      console.error("Error: --window requires a positive integer");
+      process.exit(1);
+    }
+    windowDays = parsed;
+  }
+
+  const cwd = process.cwd();
+  const store = new OutcomeStore(join(cwd, OUTCOMES_DIR));
+
+  // Load and window-filter records
+  const records = await store.queryByWindow(windowDays);
+
+  // Build accuracy report
+  const builder = new RecommendationAccuracyBuilder();
+  const report = builder.build(records, { windowDays });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // ── Terminal renderer ──
+
+  const dist = report.outcomeDistribution;
+
+  console.log(`Outcome Report — Last ${report.windowDays} days`);
+  console.log(`═══════════════════════════════════════`);
+  console.log(`Total outcomes: ${report.totalOutcomes}`);
+
+  // Distribution table with percentages of total
+  const pct = (count: number): string => {
+    if (report.totalOutcomes === 0) return "0%";
+    return `${((count / report.totalOutcomes) * 100).toFixed(0)}%`;
+  };
+
+  console.log(`  success:          ${String(dist.success).padStart(2)}  (${pct(dist.success)})`);
+  console.log(`  partial_success:  ${String(dist.partial_success).padStart(2)}  (${pct(dist.partial_success)})`);
+  console.log(`  neutral:          ${String(dist.neutral).padStart(2)}  (${pct(dist.neutral)})`);
+  console.log(`  failure:          ${String(dist.failure).padStart(2)}  (${pct(dist.failure)})`);
+  console.log(`  unknown:          ${String(dist.unknown).padStart(2)}  (${pct(dist.unknown)})`);
+
+  console.log(``);
+
+  const acc = report.accuracy;
+  if (acc.knownOutcomes === 0) {
+    console.log(`Accuracy: no known outcomes to measure (all ${report.totalOutcomes} are unknown)`);
+  } else {
+    console.log(`Accuracy (known outcomes only, n=${acc.knownOutcomes}):`);
+    console.log(`  Success rate:       ${(acc.successRate * 100).toFixed(0)}%  (${dist.success}/${acc.knownOutcomes})`);
+    console.log(`  Partial success:    ${(acc.partialSuccessRate * 100).toFixed(0)}%  (${dist.partial_success}/${acc.knownOutcomes})`);
+    console.log(`  Failure rate:       ${(acc.failureRate * 100).toFixed(0)}%  (${dist.failure}/${acc.knownOutcomes})`);
   }
 }
