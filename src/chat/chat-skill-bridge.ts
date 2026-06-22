@@ -48,13 +48,16 @@ export async function handleRunSkill(
 export async function handleCreateIntent(
   description: string,
   sessionId: string,
+  intentDir?: string,
 ): Promise<string> {
   const { IntentStore } = await import("../adaptation/intent-store.js");
 
-  const intentDir = join(homedir(), ".alix", "execution", "intents");
-  const intentStore = new IntentStore(intentDir);
+  const dir = intentDir ?? join(homedir(), ".alix", "execution", "intents");
+  const intentStore = new IntentStore(dir);
 
   const intent = {
+    id: "",
+    generatedAt: new Date().toISOString(),
     source: "skill_run" as const,
     input: description,
     outputSummary: description,
@@ -67,8 +70,8 @@ export async function handleCreateIntent(
     reasons: [`Intent created from chat session ${sessionId}`],
   };
 
-  await intentStore.append(intent as any);
-  return `Intent captured: ${(intent as any).id || "(id pending)"}`;
+  await intentStore.append(intent);
+  return `Intent captured: ${intent.id || "(id pending)"}`;
 }
 
 // ---------------------------------------------------------------------------
