@@ -49,7 +49,7 @@ No proposal may apply itself.
 The four invariants, structurally enforced:
 
 1. **Translation requires an explicit operator command** — `alix governance propose <recommendation-id>`. No auto-generation. No bulk. No scheduler.
-2. **Eligibility gate** — only recommendations with `confidence >= 0.6` AND `priority !== "low"` may become proposals. The gate fails closed with a clear rejection message.
+2. **Eligibility gate** — only recommendations with `confidence >= 0.6` AND `priority !== "low"` AND `status === "open"` may become proposals. The gate fails closed with a clear rejection message.
 3. **Idempotency** — one recommendation produces at most one `governance_change` proposal. A second `alix governance propose <id>` on the same recommendation is refused, citing the existing proposal ID.
 4. **No approval, no apply, no applier** — the P9.2 module is the *only* P9 file permitted to import `ProposalStore` or call `createProposal`, and even that file is forbidden from importing `ApprovalGate`, any applier, or calling `approve` / `apply` / `runApplier`. The sentinel enforces this with a per-file exception list.
 
@@ -92,7 +92,8 @@ P9.2 produces **one artifact**: a standard P5 `Proposal` (already typed in `src/
   provenance: {
     parentRecommendationId: recommendationId,
     sourceArtifactIds: string[],
-    proposedFromRecommendationId: recommendationId  // fast lookup, not audit source
+    proposedFromRecommendationId: recommendationId,  // fast lookup, not audit source
+    recommendationCategory: rec.category              // denormalized for dashboard/analytics; non-authoritative
   }
 }
 ```
@@ -122,7 +123,7 @@ alix governance propose <recommendation-id> [--json]
 Flow:
 1. Parse `recommendation-id` from args
 2. Load `GovernanceRecommendation` from GovernanceStore
-3. **Eligibility gate** (Q4): if `confidence < 0.6` OR `priority === "low"`, refuse with reason and exit non-zero
+3. **Eligibility gate** (Q4): if `confidence < 0.6` OR `priority === "low"` OR `status !== "open"`, refuse with reason and exit non-zero
 4. **Idempotency check** (Q5): if a `proposal_from_recommendation` edge already exists for this recommendation, refuse with the existing proposal ID and exit non-zero
 5. **Translation** (Q6): build the `Proposal` from the recommendation using the 1:1 `metadata` projection
 6. **Persist**: call `ProposalStore.createProposal(proposal)`
@@ -134,7 +135,16 @@ Flow:
 Steps 6 and 7 are two separate writes to two different stores. The atomicity invariant is:
 
 ```text
-Either the proposal and its provenance edge both exist, or neither does.
+Either:
+
+(A) proposal + provenance edge both exist
+
+or
+
+(B) proposal is marked orphaned and excluded from all normal proposal flows
+
+No proposal may appear as a normal pending proposal without a
+proposal_from_recommendation provenance edge.
 ```
 
 A naive sequence (`createProposal` then `appendEdge`) can fail between the two steps, leaving a proposal without its audit edge. To prevent this, P9.2 uses **compensating tombstone** recovery:
@@ -164,7 +174,7 @@ try {
 }
 ```
 
-The `markOrphaned` operation writes a tombstone to ProposalStore that excludes the proposal from `alix adaptation list` and `alix adaptation show`. A future cleanup task (out of scope for P9.2) may sweep orphaned proposals. The atomicity invariant holds: either both writes succeed, or the proposal is marked orphaned and is not surfaced as a normal pending proposal.
+The `markOrphaned` operation writes a tombstone to ProposalStore that excludes the proposal from `alix adaptation list` and `alix adaptation show`. A future cleanup task (out of scope for P9.2) may sweep orphaned proposals. The atomicity invariant above holds: either both writes succeed (case A), or the proposal is marked orphaned and is not surfaced as a normal pending proposal (case B).
 
 The reverse failure (edge succeeds, then createProposal rolls back) is not possible because the createProposal call happens first; the edge write only proceeds after createProposal returns success.
 
@@ -173,6 +183,7 @@ The reverse failure (edge succeeds, then createProposal rolls back) is not possi
 ```ts
 const MIN_PROPOSAL_CONFIDENCE = 0.6;
 const INELIGIBLE_PRIORITIES = new Set<RecommendationPriority>(["low"]);
+const INELIGIBLE_STATUSES = new Set<RecommendationStatus>(["acknowledged", "dismissed"]);
 
 function isEligible(rec: Recommendation): { eligible: true } | { eligible: false; reason: string } {
   if (rec.confidence < MIN_PROPOSAL_CONFIDENCE) {
@@ -185,6 +196,12 @@ function isEligible(rec: Recommendation): { eligible: true } | { eligible: false
     return {
       eligible: false,
       reason: `priority "${rec.priority}" is not eligible for proposal`
+    };
+  }
+  if (INELIGIBLE_STATUSES.has(rec.status)) {
+    return {
+      eligible: false,
+      reason: `status "${rec.status}" is not eligible for proposal (only "open" recommendations may become proposals)`
     };
   }
   return { eligible: true };
@@ -203,9 +220,15 @@ Recommendation not eligible for proposal:
   priority "low" is not eligible
 ```
 
+Or:
+```text
+Recommendation not eligible for proposal:
+  status "dismissed" is not eligible (only "open" recommendations may become proposals)
+```
+
 Constants are module-scoped in `src/governance/governance-proposal-generator.ts`. Tunable in one place. No override flag. The threshold is part of the spec contract.
 
-**Why these specific values:** `0.6` confidence is the same threshold P9.1's `IntegrityGenerator` uses to flag sub-60% rates as actionable (so any recommendation that survived P9.1's gate is at least at that level — but P9.1 emits low-confidence recs too, hence the gate). `priority !== "low"` mirrors the P9.1 advisory tone: low-priority items are observations, not actions.
+**Why these specific values:** `0.6` confidence is the same threshold P9.1's `IntegrityGenerator` uses to flag sub-60% rates as actionable. `priority !== "low"` mirrors the P9.1 advisory tone: low-priority items are observations, not actions. `status === "open"` closes a real loophole: a recommendation already acknowledged or dismissed by an operator should not spawn a new proposal. This forces explicit re-triage (changing `status` back to `"open"`) before re-proposal, which keeps the audit trail honest.
 
 ### 5. How does idempotency work?
 
@@ -452,17 +475,18 @@ No text parsing. No nullable fields. No heuristics. The P9.1 generator populates
 
 ### Fast lookup field
 
-The proposal's `provenance` block carries one additional field beyond what was originally specified:
+The proposal's `provenance` block carries two denormalized fields beyond what was originally specified:
 
 ```ts
 provenance: {
-  parentRecommendationId: string;      // canonical parent link
-  sourceArtifactIds: string[];         // P9.0 source artifacts
-  proposedFromRecommendationId: string; // denormalized for query efficiency
+  parentRecommendationId: string;       // canonical parent link
+  sourceArtifactIds: string[];          // P9.0 source artifacts
+  proposedFromRecommendationId: string; // fast lookup, not audit source
+  recommendationCategory: RecommendationCategory; // fast lookup, not audit source
 }
 ```
 
-`proposedFromRecommendationId` is **a fast lookup, not the audit source of truth.** The EvidenceChain `proposal_from_recommendation` edge remains the audit-grade link. The field exists so that common queries ("which proposal was created from this recommendation?") don't require an EvidenceChain traversal. If the two ever disagree, the EvidenceChain wins.
+**Both `proposedFromRecommendationId` and `recommendationCategory` are fast lookups, not the audit source of truth.** The EvidenceChain `proposal_from_recommendation` edge remains the audit-grade link; the recommendation itself remains the audit-grade category. The denormalized fields exist so that common queries ("which proposal was created from this recommendation?" and "how many governance_change proposals came from `lens_adjustment`?") don't require an EvidenceChain or GovernanceStore traversal at render time. If any denormalized field ever disagrees with the source-of-truth, the source wins.
 
 **Protected type files (additive extension allowed):** The 6 protected type files are **structurally protected**, not byte-identical. P9.2 is approved to add two new members to unions in `adaptation-types.ts`:
 
