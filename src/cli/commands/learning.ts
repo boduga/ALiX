@@ -66,6 +66,9 @@ export async function handleLearningCommand(args: string[]): Promise<void> {
     case "propose":
       await runPropose(rest);
       return;
+    case "dashboard":
+      await runDashboard(rest);
+      return;
     case "refresh":
       await runRefresh(rest);
       return;
@@ -376,4 +379,41 @@ async function runRefresh(args: string[]): Promise<void> {
     console.log(`    excluded:         ${excluded}`);
     console.log(`    fidelity:         ${diag.fidelity}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// dashboard
+// ---------------------------------------------------------------------------
+
+async function runDashboard(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const windowIdx = args.indexOf("--window");
+  let windowDays = 90;
+  if (windowIdx !== -1 && windowIdx + 1 < args.length) {
+    const parsed = parseInt(args[windowIdx + 1], 10);
+    if (isNaN(parsed) || parsed <= 0) { console.error("Error: --window requires a positive integer"); process.exit(1); }
+    windowDays = parsed;
+  }
+  const limitIdx = args.indexOf("--limit");
+  let limit = 20;
+  if (limitIdx !== -1 && limitIdx + 1 < args.length) {
+    const parsed = parseInt(args[limitIdx + 1], 10);
+    if (isNaN(parsed) || parsed <= 0) { console.error("Error: --limit requires a positive integer"); process.exit(1); }
+    limit = parsed;
+  }
+
+  const { buildDashboardReport } = await import("../../learning/learning-dashboard.js");
+  const report = await buildDashboardReport({
+    cwd: process.cwd(),
+    windowDays,
+    limit,
+  });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  const { renderDashboard } = await import("./dashboard-renderer.js");
+  renderDashboard(report);
 }
