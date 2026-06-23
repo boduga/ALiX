@@ -95,3 +95,33 @@ export interface GovernanceIntegrityReport extends DecisionArtifact {
     outcomeLinkRate: number;
   };
 }
+
+// ---------------------------------------------------------------------------
+// GovernanceRecommendation
+// ---------------------------------------------------------------------------
+
+export interface Recommendation {
+  id: string;
+  source: "health" | "drift" | "lens-review" | "integrity";
+  sourceArtifactId: string;
+  priority: "low" | "medium" | "high" | "critical";
+  confidence: number;
+  status: "open" | "acknowledged" | "dismissed";
+  category:
+    | "lens_adjustment"
+    | "chain_restoration"
+    | "policy_coverage"
+    | "confidence_calibration"
+    | "governance_integrity";
+  title: string;
+  description: string;
+  evidenceRefs: string[];
+  operatorGuidance: string;
+  expectedBenefit: string;
+  risks: string[];
+}
+
+export interface GovernanceRecommendation extends DecisionArtifact {
+  reportType: "governance_recommendation";
+  recommendations: Recommendation[];
+}

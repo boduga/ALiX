@@ -23,6 +23,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { handleGovernanceCommand } from "../../../src/cli/commands/governance.js";
+import { GovernanceStore } from "../../../src/governance/governance-store.js";
 import { GovernanceReviewStore } from "../../../src/adaptation/governance-review-store.js";
 import type { GovernanceReview } from "../../../src/adaptation/governance-review-types.js";
 import { OutcomeStore } from "../../../src/adaptation/outcome-store.js";
@@ -336,5 +337,193 @@ describe("governance CLI integration", () => {
       expect(["keep", "promote", "demote", "retire"]).toContain(lr.recommendation);
       expect(typeof lr.reason).toBe("string");
     }
+  });
+
+  // -- Recommend pipeline ----------------------------------------------------
+  // The recommend pipeline reads four P9.0 artifacts from GovernanceStore via
+  // windowed queries and emits a Recommendation array. To exercise all four
+  // source adapters we seed:
+  //   - 1 lens review (demote, PV=0.30) → 1 medium lens-review rec
+  //   - 1 drift report (severity=high, chain_coverage_drop) → 1 high drift rec
+  //   - 1 integrity report (provenanceRate=40, others=100) → 1 medium integrity rec
+  //   - 1 health report (dashboardIntegrityScore=20) → 1 high health rec
+  // That gives us a mix of priorities and all four sources.
+
+  it("recommend pipeline: end-to-end text rendering shows count and entries", async () => {
+    const store = new GovernanceStore();
+
+    // Lens review: demote historian
+    const lensReview = {
+      id: "lr-1",
+      reportType: "lens_lifecycle",
+      subject: "Lens lifecycle review",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: ["test"],
+      generatedAt: NOW,
+      windowDays: 30,
+      lensReviews: [
+        {
+          lens: "historian",
+          predictiveValue: 0.3,
+          reviewsAnalyzed: 25,
+          falseAlarms: 18,
+          missedFailures: 0,
+          recommendation: "demote",
+          reason: "Low predictive value with sufficient sample",
+        },
+      ],
+    };
+    await store.append("lensReviews", lensReview as never);
+
+    // Drift: high severity chain_coverage_drop
+    const drift = {
+      id: "dr-1",
+      reportType: "governance_drift",
+      subject: "Drift detection",
+      outcome: "computed",
+      confidence: 0.85,
+      reasons: ["test"],
+      generatedAt: NOW,
+      windowDays: 30,
+      findings: [
+        {
+          driftType: "chain_coverage_drop",
+          severity: "high",
+          confidence: 0.85,
+          description: "Chain coverage dropped below threshold",
+          evidenceRefs: ["ev-1"],
+        },
+      ],
+    };
+    await store.append("drift", drift as never);
+
+    // Integrity: provenanceRate below 60
+    const integrity = {
+      id: "in-1",
+      reportType: "governance_integrity",
+      subject: "Integrity report",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: ["test"],
+      generatedAt: NOW,
+      windowDays: 30,
+      metrics: {
+        totalReviews: 10,
+        reviewsWithProvenance: 4,
+        reviewsWithExplanations: 10,
+        reviewsLinkedToOutcomes: 10,
+        untraceableFindings: 0,
+        provenanceRate: 40,
+        explanationRate: 100,
+        outcomeLinkRate: 100,
+      },
+    };
+    await store.append("integrity", integrity as never);
+
+    // Health: dashboardIntegrityScore below 30 → high priority
+    const health = {
+      id: "he-1",
+      reportType: "governance_health",
+      subject: "Health report",
+      outcome: "computed",
+      confidence: 0.8,
+      reasons: ["test"],
+      generatedAt: NOW,
+      windowDays: 30,
+      totalReviews: 5,
+      totalProposals: 3,
+      lensEffectiveness: {},
+      sourceMetrics: {
+        dashboardIntegrityScore: 20,
+        explanationCompleteness: 80,
+        evidenceChainUsage: 80,
+      },
+    };
+    await store.append("health", health as never);
+
+    // Run the CLI (text mode — no --json)
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await handleGovernanceCommand(["recommend"]);
+    const output = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    log.mockRestore();
+
+    // Verify the text renderer shows count and at least one entry
+    expect(output).toContain("Governance Recommendations");
+    expect(output).toContain("Total:       4");
+    // Each of the four source adapters should contribute a header line
+    expect(output.toLowerCase()).toContain("lens-review");
+    expect(output.toLowerCase()).toContain("drift");
+    expect(output.toLowerCase()).toContain("integrity");
+    expect(output.toLowerCase()).toContain("health");
+  });
+
+  it("recommend pipeline: --priority high --json returns filtered JSON array", async () => {
+    const store = new GovernanceStore();
+
+    // Drift with high severity → high priority rec
+    const drift = {
+      id: "dr-2",
+      reportType: "governance_drift",
+      subject: "Drift detection",
+      outcome: "computed",
+      confidence: 0.85,
+      reasons: ["test"],
+      generatedAt: NOW,
+      windowDays: 30,
+      findings: [
+        {
+          driftType: "confidence_drift",
+          severity: "high",
+          confidence: 0.85,
+          description: "High-severity drift signal",
+          evidenceRefs: ["ev-1"],
+        },
+      ],
+    };
+    await store.append("drift", drift as never);
+
+    // Integrity with medium-priority metric below 60
+    const integrity = {
+      id: "in-2",
+      reportType: "governance_integrity",
+      subject: "Integrity report",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: ["test"],
+      generatedAt: NOW,
+      windowDays: 30,
+      metrics: {
+        totalReviews: 10,
+        reviewsWithProvenance: 10,
+        reviewsWithExplanations: 10,
+        reviewsLinkedToOutcomes: 5,
+        untraceableFindings: 0,
+        provenanceRate: 100,
+        explanationRate: 100,
+        outcomeLinkRate: 50,
+      },
+    };
+    await store.append("integrity", integrity as never);
+
+    // Run the CLI with --priority high --json
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    await handleGovernanceCommand(["recommend", "--priority", "high", "--json"]);
+    const output = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    log.mockRestore();
+
+    // Parse — should be an array (not a wrapper artifact)
+    const parsed = JSON.parse(output);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed.length).toBeGreaterThan(0);
+
+    // Every entry must be high priority
+    for (const r of parsed) {
+      expect(r.priority).toBe("high");
+    }
+
+    // We seeded one high-severity drift finding → at least one high rec
+    const sources = new Set(parsed.map((r: { source: string }) => r.source));
+    expect(sources.has("drift")).toBe(true);
   });
 });

@@ -121,4 +121,109 @@ describe("GovernanceStore", () => {
     const store = new GovernanceStore();
     expect(store.getTypeForId("unknown-1")).toBeNull();
   });
+
+  it("appends and lists recommendations records", async () => {
+    const store = new GovernanceStore();
+    await store.append("recommendations", {
+      id: "recommendation-1",
+      subject: "Governance Recommendations",
+      outcome: "computed",
+      confidence: 0.88,
+      reasons: ["drift detected"],
+      generatedAt: "2026-06-23T00:00:00.000Z",
+      reportType: "governance_recommendation",
+      recommendations: [
+        {
+          id: "rec-a",
+          source: "drift",
+          sourceArtifactId: "drift-1",
+          priority: "high",
+          confidence: 0.85,
+          status: "open",
+          category: "confidence_calibration",
+          title: "Recalibrate confidence for red_team lens",
+          description: "Confidence readings from the red_team lens show systematic overconfidence.",
+          evidenceRefs: ["signal-1"],
+          operatorGuidance: "Review the confidence calibration dashboard for red_team lens",
+          expectedBenefit: "Improved decision accuracy through better-calibrated confidence scores",
+          risks: ["Over-correction could suppress valid signals"],
+        },
+      ],
+      evidenceRefs: ["signal-1"],
+    } as any);
+    const records = await store.list("recommendations");
+    expect(records.length).toBe(1);
+    expect(records[0].reportType).toBe("governance_recommendation");
+    expect(records[0].recommendations).toHaveLength(1);
+    expect(records[0].recommendations[0].source).toBe("drift");
+    expect(records[0].recommendations[0].priority).toBe("high");
+    expect(records[0].recommendations[0].operatorGuidance).toBe(
+      "Review the confidence calibration dashboard for red_team lens"
+    );
+  });
+
+  it("queryByWindow filters recommendations by generatedAt", async () => {
+    const store = new GovernanceStore();
+    const recent = new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString();
+    const old = new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString();
+
+    await store.append("recommendations", {
+      id: "recommendation-recent",
+      subject: "Recent",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: [],
+      generatedAt: recent,
+      reportType: "governance_recommendation",
+      recommendations: [{
+        id: "rec-r",
+        source: "health",
+        sourceArtifactId: "health-1",
+        priority: "medium",
+        confidence: 0.9,
+        status: "open",
+        category: "policy_coverage",
+        title: "Expand policy coverage",
+        description: "Policy coverage is below threshold.",
+        evidenceRefs: [],
+        operatorGuidance: "Review current policy coverage gaps",
+        expectedBenefit: "Broader governance protection",
+        risks: [],
+      }],
+      evidenceRefs: [],
+    } as any);
+
+    await store.append("recommendations", {
+      id: "recommendation-old",
+      subject: "Old",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: [],
+      generatedAt: old,
+      reportType: "governance_recommendation",
+      recommendations: [{
+        id: "rec-o",
+        source: "integrity",
+        sourceArtifactId: "integrity-1",
+        priority: "low",
+        confidence: 0.9,
+        status: "dismissed",
+        category: "governance_integrity",
+        title: "Old recommendation",
+        description: "This is old.",
+        evidenceRefs: [],
+        operatorGuidance: "No action needed",
+        expectedBenefit: "None",
+        risks: [],
+      }],
+      evidenceRefs: [],
+    } as any);
+
+    const recentRecords = await store.queryByWindow("recommendations", 7);
+    expect(recentRecords.length).toBe(1);
+    expect(recentRecords[0].id).toBe("recommendation-recent");
+
+    const allRecords = await store.queryByWindow("recommendations", 90);
+    expect(allRecords.length).toBe(2);
+  });
 });
