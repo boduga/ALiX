@@ -5,6 +5,14 @@
 > **Plan home (on approval):** `docs/superpowers/plans/2026-06-23-p9-2-governance-proposals.md`
 > **Governs:** `feature/p9.2-governance-proposals` branch, off `main` at P9.1 squash.
 > **Risk level:** HIGH — this is the first P9 slice that crosses from advisory into the proposal lifecycle. The governance boundary is: **recommendations may become proposals, but the proposal still requires human approval, and no part of the bridge may approve or apply itself.**
+>
+> **Amendments applied (P9.2 design review, 2026-06-23):**
+> 1. **Atomicity** — defined recovery behavior (compensating tombstone) for the two-store write sequence.
+> 2. **No text parsing** — payload translation uses `Recommendation.metadata` directly (a P9.1 amendment was applied; see P9.1 SDS Amendment 1).
+> 3. **Direct lookup** — `GovernanceStore.getRecommendation(id)` replaces the `getTypeForId` + `list` + linear search pattern.
+> 4. **Confidence inheritance** — explicit rule: proposal confidence is inherited from recommendation confidence, no recalculation.
+> 5. **Sentinel precision** — `ALLOWED_IN_FILE` is a symbol-level allowlist, not a file-level exemption.
+> 6. **Fast lookup** — `provenance.proposedFromRecommendationId` added to the proposal structure for query efficiency.
 
 ## Core framing
 
@@ -51,9 +59,11 @@ The four invariants, structurally enforced:
 
 | Source | What P9.2 reads | How |
 |---|---|---|
-| GovernanceStore | `GovernanceRecommendation` by ID | `store.getTypeForId(id)` → `store.list("recommendations")` |
+| GovernanceStore | `GovernanceRecommendation` by ID | `store.getRecommendation(id)` — direct lookup, O(1) |
 | EvidenceChainStore | Existing `proposal_from_recommendation` edges for idempotency check | `chain.findEdges(target=recommendationId, type="proposal_from_recommendation")` |
-| P5 ProposalStore | Write only: `createProposal(proposal)` | The single P9.2 file that may import ProposalStore |
+| P5 ProposalStore | Write only: `createProposal(proposal)` and `markOrphaned(proposalId, reason)` | The single P9.2 file that may import ProposalStore |
+
+`store.getRecommendation(id)` is a hot-path helper added to `GovernanceStore` as part of P9.2. It looks up a recommendation by ID, returns it, or returns `null` if not found. The previous pattern (`getTypeForId` + `list("recommendations")` + linear search) was adequate for P9.1's read-mostly surface but is too slow for P9.2's bridge hot path. Adding the direct lookup is a one-line addition to `GovernanceStore` (no new file, no new type).
 
 P9.2 does NOT consume:
 - `ApprovalGate` (forbidden in the P9.2 module)
@@ -70,18 +80,19 @@ P9.2 produces **one artifact**: a standard P5 `Proposal` (already typed in `src/
   id: "prop-<timestamp>-<rand>",
   action: "governance_change",
   target: { kind: "governance", recommendationId: string },
-  payload: GovernanceChangePayload,     // discriminated union, see Q6
+  payload: GovernanceChangePayload,     // 1:1 projection of Recommendation.metadata
   status: "pending",
   generatedAt: ISO-8601,
   generatedBy: "alix governance propose",
-  confidence: number,                    // copied from source recommendation
+  confidence: number,                    // INHERITED from source recommendation — no recalculation
   evidenceRefs: [
     recommendationId,                    // direct parent
     ...sourceArtifactIds                 // P9.0 artifacts (drift, lens, integrity, health)
   ],
   provenance: {
     parentRecommendationId: recommendationId,
-    sourceArtifactIds: string[]
+    sourceArtifactIds: string[],
+    proposedFromRecommendationId: recommendationId  // fast lookup, not audit source
   }
 }
 ```
@@ -113,12 +124,49 @@ Flow:
 2. Load `GovernanceRecommendation` from GovernanceStore
 3. **Eligibility gate** (Q4): if `confidence < 0.6` OR `priority === "low"`, refuse with reason and exit non-zero
 4. **Idempotency check** (Q5): if a `proposal_from_recommendation` edge already exists for this recommendation, refuse with the existing proposal ID and exit non-zero
-5. **Translation** (Q6): build the `Proposal` from the recommendation using the category-specific payload variant
+5. **Translation** (Q6): build the `Proposal` from the recommendation using the 1:1 `metadata` projection
 6. **Persist**: call `ProposalStore.createProposal(proposal)`
 7. **Record provenance edge**: append a `proposal_from_recommendation` edge to EvidenceChainStore
 8. **Render** (Q8): verbose human-readable output by default, `--json` for machine output
 
-If any step 3, 4, 6, or 7 fails, the proposal is not created. The flow is atomic — either the proposal and its provenance edge both exist, or neither does.
+### Atomicity across two stores
+
+Steps 6 and 7 are two separate writes to two different stores. The atomicity invariant is:
+
+```text
+Either the proposal and its provenance edge both exist, or neither does.
+```
+
+A naive sequence (`createProposal` then `appendEdge`) can fail between the two steps, leaving a proposal without its audit edge. To prevent this, P9.2 uses **compensating tombstone** recovery:
+
+```ts
+const proposal = buildProposalFromRecommendation(rec);
+try {
+  await proposalStore.createProposal(proposal);
+  try {
+    await chain.appendEdge({
+      source: proposal.id,
+      target: rec.id,
+      type: "proposal_from_recommendation",
+      confidence: proposal.confidence,
+      recordedAt: new Date().toISOString()
+    });
+  } catch (edgeError) {
+    // Compensating tombstone: mark the proposal as orphaned
+    await proposalStore.markOrphaned(proposal.id, edgeError.message);
+    throw new BridgeAtomicityError(
+      `Proposal ${proposal.id} created but provenance edge failed: ` +
+      `${edgeError.message}. Proposal marked as orphaned and excluded from the queue.`
+    );
+  }
+} catch (createError) {
+  throw new BridgeError(`Failed to create proposal: ${createError.message}`);
+}
+```
+
+The `markOrphaned` operation writes a tombstone to ProposalStore that excludes the proposal from `alix adaptation list` and `alix adaptation show`. A future cleanup task (out of scope for P9.2) may sweep orphaned proposals. The atomicity invariant holds: either both writes succeed, or the proposal is marked orphaned and is not surfaced as a normal pending proposal.
+
+The reverse failure (edge succeeds, then createProposal rolls back) is not possible because the createProposal call happens first; the edge write only proceeds after createProposal returns success.
 
 ### 4. What is the eligibility gate?
 
@@ -219,28 +267,53 @@ export type GovernanceChangePayload =
 
 The `lens_adjustment.operation` values match exactly the P9.0 `LensLifecycleReview.lensReviews[].recommendation` union (`"keep" | "promote" | "demote" | "retire"`), minus `"keep"` (which is not a change).
 
-**Translation rules per category** (a pure function `recommendationToPayload(rec): GovernanceChangePayload`):
+**Translation rule (1:1 projection of `Recommendation.metadata`):**
 
-| Category | Translation |
-|---|---|
-| `lens_adjustment` | `operation` from rec's `title` parsing (or a new `Recommendation.operation` field added in P9.1a extension — see implementation note below); `lens` from rec's `sourceArtifactId`; `currentPV` and `reviewsAnalyzed` read from the source `LensLifecycleReview` artifact (read-only fetch from GovernanceStore) |
-| `chain_restoration` | `targetArtifactId` from rec's `sourceArtifactId`; `currentRate` and `targetRate` read from the source `GovernanceIntegrityReport.metrics.provenanceRate` (read-only) |
-| `policy_coverage` | `currentCoverage` from rec's `description` (parsed) or from the source `GovernanceHealthReport.policyCoverage`; `targetCoverage` set to a constant (e.g., 0.80) — see implementation note |
-| `confidence_calibration` | `target` from rec's `sourceArtifactId` (the lens or store being recalibrated); `currentCalibration` and `suggestedCalibration` read from the source `LearningStore` calibration profile (read-only) |
-| `governance_integrity` | `issue` from rec's `description`; `recommendationId` echoes the source recommendation id |
+The P9.2 payload is a 1:1 projection of `Recommendation.metadata`. The translation is a pure function with one key rename (`category` → `kind`):
 
-**Implementation note:** Some of these translations require reading additional state (the P9.0 source artifacts, the LearningStore calibration profiles). P9.2 has a `recommendationToPayload` helper that performs these reads. The reads are necessary but the writes are not — P9.2 reads from P8 stores and GovernanceStore but only writes to `ProposalStore` and `EvidenceChainStore` (the single permitted edge type). The sentinel will need a read-only exception for these sources.
+```ts
+function recommendationToPayload(metadata: RecommendationMetadata): GovernanceChangePayload {
+  const { category, ...rest } = metadata;
+  return { kind: category, ...rest } as GovernanceChangePayload;
+}
+```
+
+**No text parsing. No heuristics. No nullable fields.** Every field on the P9.2 payload variant comes from a structured field on `Recommendation.metadata`. The P9.1 generator populates `metadata` at generation time; P9.2 reads it at translation time.
+
+For example, given a P9.1 recommendation:
+```ts
+{
+  category: "chain_restoration",
+  targetArtifactId: "drift-2026-06-23-002",
+  currentRate: 45,
+  targetRate: 80
+}
+```
+
+The P9.2 payload is:
+```ts
+{
+  kind: "chain_restoration",
+  targetArtifactId: "drift-2026-06-23-002",
+  currentRate: 45,
+  targetRate: 80
+}
+```
+
+No transformation of `currentRate` or `targetRate` — the values pass through unchanged. The P9.1 generator is the sole authority on those numbers.
+
+**Why this matters:** the original P9.2 SDS draft had parsing-based translations (`operation` from `title`, `currentCoverage` from `description`). P8.5c explicitly hardened provenance and structured joins. Reintroducing text parsing inside the P9.2 bridge would have been a regression. The P9.1 amendment (adding `metadata`) is a small price for eliminating the parsing surface entirely.
 
 ### 7. What does the sentinel enforce?
 
-The existing sentinel at `tests/governance/governance-sentinels.vitest.ts` is extended with a per-file exception list:
+The existing sentinel at `tests/governance/governance-sentinels.vitest.ts` is extended with a **symbol-level** allowlist for one specific file. The exception is precise: a list of allowed symbols for that file, with everything else still forbidden. No broad file-level exemptions.
 
 ```ts
-const FILE_EXCEPTIONS: Record<string, string[]> = {
+// Symbol-level allowlist: ONLY these symbols may be imported by the bridge file.
+const ALLOWED_IN_FILE: Record<string, string[]> = {
   "src/governance/governance-proposal-generator.ts": [
-    "ProposalStore",        // allowed: the one file that may create proposals
-    "createGovernanceProposal",  // allowed
-    "governance_change"     // allowed: this is the new ProposalAction value
+    "ProposalStore",     // the one mutation surface
+    "createProposal"     // the one method allowed
   ]
   // All other P9 files keep the default deny.
 };
@@ -248,9 +321,10 @@ const FILE_EXCEPTIONS: Record<string, string[]> = {
 
 The sentinel test logic:
 1. For each file in `ALL_FILES`, check `FORBIDDEN_IMPORTS` against the file's import lines.
-2. If the file has an entry in `FILE_EXCEPTIONS`, skip the corresponding symbols in that file's import check.
-3. **Even for the exception file**, the following remain forbidden: `ApprovalGate`, `approve(`, `apply(`, `applier`, `runApplier(`, any applier class.
-4. All other checks (write calls, P8 store paths in `governance-store.ts`, etc.) remain unchanged.
+2. If the file has an entry in `ALLOWED_IN_FILE`, only the symbols in that list are allowed; every other symbol in `FORBIDDEN_IMPORTS` still fails.
+3. The string literal `"governance_change"` in source code is allowed (it is a value, not an import), but importing a constant named `governance_change` is not — the allowlist is by symbol, not by string.
+4. **Even for the exception file**, the following remain unconditionally forbidden: `ApprovalGate`, `approve(`, `apply(`, `applier`, `runApplier(`, any applier class. These do not need an exception; they are forbidden for every P9 file.
+5. All other checks (write calls, P8 store paths in `governance-store.ts`, etc.) remain unchanged.
 
 The exception file is `src/governance/governance-proposal-generator.ts` only. The CLI dispatcher `src/cli/commands/governance.ts` (which invokes the generator) does NOT get the exception — it must call the generator through a function, not by directly constructing proposals.
 
@@ -326,7 +400,7 @@ alix governance propose rec-drift-007 --json
 ## Data model summary
 
 ```ts
-// Already exists (P5) — no changes to adaptation-types.ts
+// Already exists (P5) — additive extension to adaptation-types.ts
 interface Proposal {
   id: string;
   action: ProposalAction;     // extended with "governance_change"
@@ -340,7 +414,7 @@ interface Proposal {
   provenance?: Record<string, unknown>;
 }
 
-// New in P9.2
+// New in P9.2 — the proposal-side payload
 type GovernanceChangePayload =
   | { kind: "lens_adjustment"; operation: "promote" | "demote" | "retire"; lens: string; currentPV: number; reviewsAnalyzed: number; }
   | { kind: "chain_restoration"; targetArtifactId: string; currentRate: number; targetRate: number; }
@@ -351,6 +425,44 @@ type GovernanceChangePayload =
 // New edge type for EvidenceChainStore
 type EdgeType = "..." | "proposal_from_recommendation";
 ```
+
+### Confidence inheritance (explicit rule)
+
+```text
+Proposal.confidence is inherited directly from Recommendation.confidence.
+No recalculation occurs in P9.2. The P9.1 generator is the sole authority
+on recommendation confidence; P9.2 must not transform, scale, or recompute
+it. If a future P-phase needs proposal-side confidence (e.g. after
+applying calibration), it must be a separate, explicit field — not an
+overwrite of `confidence`.
+```
+
+### Translation rule (P9.1 → P9.2)
+
+The P9.2 payload is a **1:1 projection** of `Recommendation.metadata` (a P9.1 amendment, see P9.1 SDS Amendment 1). The translation is a pure function with one key rename:
+
+```ts
+function recommendationToPayload(metadata: RecommendationMetadata): GovernanceChangePayload {
+  const { category, ...rest } = metadata;
+  return { kind: category, ...rest } as GovernanceChangePayload;
+}
+```
+
+No text parsing. No nullable fields. No heuristics. The P9.1 generator populates `metadata` at generation time; P9.2 reads it at translation time. The shape is structurally identical.
+
+### Fast lookup field
+
+The proposal's `provenance` block carries one additional field beyond what was originally specified:
+
+```ts
+provenance: {
+  parentRecommendationId: string;      // canonical parent link
+  sourceArtifactIds: string[];         // P9.0 source artifacts
+  proposedFromRecommendationId: string; // denormalized for query efficiency
+}
+```
+
+`proposedFromRecommendationId` is **a fast lookup, not the audit source of truth.** The EvidenceChain `proposal_from_recommendation` edge remains the audit-grade link. The field exists so that common queries ("which proposal was created from this recommendation?") don't require an EvidenceChain traversal. If the two ever disagree, the EvidenceChain wins.
 
 **Protected type files (additive extension allowed):** The 6 protected type files are **structurally protected**, not byte-identical. P9.2 is approved to add two new members to unions in `adaptation-types.ts`:
 
