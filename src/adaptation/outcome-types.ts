@@ -30,6 +30,32 @@ export type OutcomeValue =
   | "unknown";
 
 // ---------------------------------------------------------------------------
+// OutcomeArtifact
+// ---------------------------------------------------------------------------
+
+/**
+ * P7.5p.1c — OutcomeArtifact is a DecisionArtifact with the `confidence`
+ * field re-declared as optional.
+ *
+ * Declaring `confidence?: number` directly on a subtype of `DecisionArtifact`
+ * (which requires `confidence: number`) is a TypeScript-accepted but
+ * type-unsafe pattern: the compiler permits the syntax, but the resulting
+ * type lies — the value can be `undefined` at runtime while the type says
+ * `number`, creating a footgun for any consumer that treats it as required.
+ *
+ * The `Omit<>` pattern avoids this footgun by re-declaring the field with
+ * the correct optionality on a new intermediate type.
+ */
+type OutcomeArtifact = Omit<DecisionArtifact, "confidence"> & {
+  /**
+   * The confidence of the recommendation that produced this outcome.
+   * Undefined when the recommendation is unknown and no override was given.
+   * P7.5p.1 — never faked to 1.
+   */
+  confidence?: number;
+};
+
+// ---------------------------------------------------------------------------
 // OutcomeRecord
 // ---------------------------------------------------------------------------
 
@@ -40,7 +66,7 @@ export type OutcomeValue =
  * or governance review that produced it. The outcome field is narrowed from
  * the base string type to the OutcomeValue union.
  */
-export interface OutcomeRecord extends DecisionArtifact {
+export interface OutcomeRecord extends OutcomeArtifact {
   /** Identifier of the subject that was acted upon */
   subjectId: string;
   /** Type of the subject (e.g., "proposal", "capability", "agent") */

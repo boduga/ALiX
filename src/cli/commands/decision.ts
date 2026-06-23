@@ -44,6 +44,7 @@ import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
+import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
@@ -280,6 +281,17 @@ async function runRecommend(args: string[]): Promise<void> {
   const ctx = await infra.contextBuilder.build(id);
   const risk = riskBuilder.build(ctx);
   const recommendation = recEngine.recommend(ctx, risk);
+
+  // P7.5p.1b — persist the recommendation so the outcome CLI can read its confidence back
+  try {
+    const recStore = new ApprovalRecommendationStore();
+    await recStore.append(recommendation);
+  } catch (err) {
+    console.error(
+      `Warning: failed to persist recommendation ${recommendation.id}:`,
+      err instanceof Error ? err.message : String(err),
+    );
+  }
 
   if (jsonMode) {
     console.log(JSON.stringify(recommendation, null, 2));
@@ -849,6 +861,41 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
       ? args[actionIdx + 1]
       : "unknown";
 
+  // P7.5p.1c — capture actual recommendation confidence, or undefined.
+  // Never fake confidence: 1. Look up the recommendation in the store;
+  // if not found or no recommendation given, leave confidence undefined
+  // unless an explicit --recommendation-confidence override is supplied.
+  let confidence: number | undefined;
+
+  if (recommendationId) {
+    try {
+      const recStore = new ApprovalRecommendationStore();
+      const stored = await recStore.get(recommendationId);
+      if (stored) {
+        confidence = stored.confidence;
+      }
+    } catch (err) {
+      console.error(
+        `Warning: failed to look up recommendation ${recommendationId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
+  // Parse --recommendation-confidence <0-1> if given. The override wins.
+  const confIdx = args.indexOf("--recommendation-confidence");
+  if (confIdx !== -1 && confIdx + 1 < args.length) {
+    const parsed = parseFloat(args[confIdx + 1]);
+    if (!isNaN(parsed) && parsed >= 0 && parsed <= 1) {
+      confidence = parsed;
+    } else {
+      console.error(
+        `Error: --recommendation-confidence must be a number between 0 and 1 (got "${args[confIdx + 1]}")`,
+      );
+      process.exit(1);
+    }
+  }
+
   const cwd = process.cwd();
   const store = new OutcomeStore(join(cwd, OUTCOMES_DIR));
 
@@ -861,7 +908,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     recommendationId,
     actionTaken,
     observationWindowDays: 30,
-    confidence: 1,
+    confidence,
     reasons: [],
     evidenceRefs: [],
     subject: `Outcome: ${subjectId}`,
@@ -887,6 +934,11 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
   console.log(`   Subject:      ${record.subjectId} (${record.subjectType})`);
   if (record.recommendationId) {
     console.log(`   Recommendation: ${record.recommendationId}`);
+    const confDisplay =
+      record.confidence !== undefined
+        ? (record.confidence * 100).toFixed(0) + "%"
+        : "n/a";
+    console.log(`   Recommendation confidence: ${confDisplay}`);
   }
   console.log(`   Action taken:  ${record.actionTaken}`);
   console.log(`   Observation window: ${record.observationWindowDays} days`);
