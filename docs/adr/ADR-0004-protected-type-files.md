@@ -180,6 +180,16 @@ The P9.2 SDS received a detailed design review after this ADR was written. The r
 
 The P9.1 SDS was also amended (in the same commit) to add `Recommendation.metadata`, a discriminated union keyed on `category`. This lives in `src/governance/governance-types.ts` (also non-protected), so it does not require an ADR-0004 exception.
 
+### Second review round (commit `6d63173a`)
+
+A third P9.2 design review produced 3 more amendments. None touched a protected file either, but one of them is worth recording as the **first concrete example** of the Allowed mutation class from this ADR:
+
+- Amendment 1: atomicity invariant rewording (documentation only).
+- Amendment 2: `status === "open"` added to the eligibility gate. This is a constant + check in `src/governance/governance-proposal-generator.ts` (P9.2-specific).
+- Amendment 3: `provenance.recommendationCategory` added to the proposal structure. This writes a new key into the P5 `provenance: Record<string, unknown>` field. **The P5 `Proposal` type is already loose-typed for `provenance`, so adding a new key is a textbook Allowed mutation** under this ADR's taxonomy — no union member changed, no existing field renamed or retyped, no Forbidden operation occurred. The denormalized field is non-authoritative by design (EvidenceChain and the source recommendation remain the audit sources).
+
+This is the first time a P-phase has actually exercised the "Allowed additive evolution" path for a field on a P5 type. The framework works as intended: the addition required an SDS amendment (approved) and a plan/sentinel enumeration (forthcoming), and no Forbidden mutation occurred. Future P-phases adding fields to P5 `provenance` should follow the same process.
+
 If a future P-phase (P9.2b, P9.3, P10, etc.) needs to add further members to `adaptation-types.ts` or any other protected file, the rule in the "Decision" section above applies — SDS + plan + sentinel must enumerate each new member.
 
 ## Related
