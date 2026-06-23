@@ -6,7 +6,8 @@ export type ProposalAction =
   | "create_improvement_issue"
   | "suggest_routing_weight"
   | "revert_proposal"
-  | "learning_adjustment";
+  | "learning_adjustment"
+  | "governance_change"; // P9.2: P9.1 advisory → P5 lifecycle bridge
 
 export type ProposalTarget =
   | { kind: "agent_card"; id: string }
@@ -15,7 +16,8 @@ export type ProposalTarget =
   | { kind: "issue"; title: string }
   | { kind: "routing_weight"; capability: string }
   | { kind: "revert"; sourceProposalId: string }
-  | { kind: "learning"; area: LearningArea };
+  | { kind: "learning"; area: LearningArea }
+  | { kind: "governance"; recommendationId: string }; // P9.2: governance_change target
 
 /**
  * Which learning subsystem a learning_adjustment proposal targets.
