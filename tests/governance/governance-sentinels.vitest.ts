@@ -1,14 +1,18 @@
 /**
- * P9.0f — Purity sentinel: structural enforcement of P9 governance invariants.
+ * P9.0f/P9.1 — Purity sentinel: structural enforcement of P9 governance invariants.
  *
  * P9 may write only GovernanceStore. All 6 P8 stores are explicitly forbidden:
  * OutcomeStore, ApprovalRecommendationStore, RiskScoreStore, GovernanceReviewStore,
  * LearningStore, EvidenceChainStore. Additionally forbids proposal/applier symbols
  * to structurally eliminate self-mutation risk.
  *
+ * P9.1 extends coverage to include governance-recommendation-generator.ts, the
+ * recommendation-emission surface of the governance pipeline. It must satisfy the
+ * same import + write-call purity rules as governance-store.ts and the CLI.
+ *
  * Rules (per file category):
  *   - BUILDERS (5 files): check write calls ONLY (imports legitimately read P8 stores)
- *   - STORE + CLI (2 files): check BOTH imports AND write calls
+ *   - STORE + CLI + GENERATOR (3 files): check BOTH imports AND write calls
  *   - governance-store.ts EXTRA: must not reference P8 store path strings
  *
  * @module
@@ -93,6 +97,7 @@ const GOVERNANCE_BUILDERS = [
 const ALL_FILES = [
   ...GOVERNANCE_BUILDERS,
   "src/governance/governance-store.ts",
+  "src/governance/governance-recommendation-generator.ts",
   "src/cli/commands/governance.ts",
 ];
 
