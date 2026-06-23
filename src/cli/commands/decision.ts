@@ -47,6 +47,7 @@ import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types
 import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
 import type { ApprovalRecommendation } from "../../adaptation/recommendation-types.js";
 import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
+import { GovernanceReviewStore } from "../../adaptation/governance-review-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
@@ -710,6 +711,16 @@ async function runReview(args: string[]): Promise<void> {
   const council = new GovernanceReviewCouncil();
   const reviewId = `review-${id}-${Date.now()}`;
   const review = council.aggregate(reviewId, id, recommendation.id, scores, input);
+
+  // ---- Persist review (best-effort, P7.5p.3b) ----
+  // Order invariant: lens-run → aggregate → append → render.
+  // Append is best-effort: log-and-continue on failure; never block render.
+  await new GovernanceReviewStore().append(review).catch((err) =>
+    console.warn(
+      `Warning: failed to persist governance review ${reviewId}:`,
+      err instanceof Error ? err.message : String(err),
+    ),
+  );
 
   // ---- Render ----
 
