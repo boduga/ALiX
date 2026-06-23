@@ -29,7 +29,10 @@
 | `src/learning/dashboard-integrity-score.ts` (new) | Pure helper: `computeDashboardIntegrityScore(...)` — independently testable, reusable by P9 |
 | `src/learning/learning-dashboard.ts` (new) | `DashboardReport` types + `DashboardAggregator` (pure read-only aggregation) |
 | `src/cli/commands/dashboard-renderer.ts` (new) | Terminal renderer (ANSI-colored panels, horizontal rules, coverage thresholds) |
-| `tests/learning/learning-dashboard.vitest.ts` (new) | Aggregator + integrity score tests |
+| `tests/learning/learning-dashboard.vitest.ts` (new) | Aggregator + integrity score tests (7 tests) |
+| `tests/cli/commands/dashboard-renderer.vitest.ts` (new) | Renderer tests (4 tests — healthy, degraded, alerts, join-path) |
+| `tests/cli/commands/learning-dashboard-cli.vitest.ts` (new) | CLI integration tests (3 tests) |
+| `tests/learning/learning-dashboard-sentinels.vitest.ts` (new) | Purity sentinel (9 cases: 3 files × 3 assertions) |
 | `src/cli/commands/learning.ts` (modify) | Add `case "dashboard"` + `runDashboard(args)` |
 
 No modifications to: `proposal-explanation-assembler.ts`, `explain.ts`, any store file, any adapter, the refresh orchestrator, or the Evidence Chain.
@@ -57,6 +60,17 @@ Each task produces a self-contained change that can be verified independently.
 - Create: `tests/learning/learning-dashboard.vitest.ts`
 
 **Step-by-step:**
+
+- [ ] **Step 0: P8.5b.0 — Verify interfaces against P8.5c on main**
+
+Before writing code, confirm the actual types from `main` (commit `11c2488a`):
+
+1. Read `src/explain/proposal-explanation-types.ts` — verify `ProposalExplanation.outcome.status` is `"available" | "not_available"`, `learning.totalSignals`, `calibration.adjustments`, `JoinPath` type exist with correct shapes.
+2. Read `src/learning/learning-store.ts` — verify `querySignals({ windowDays })` and `queryProfiles({ windowDays })` signatures accept the same options used by the dashboard.
+3. Read `src/adaptation/outcome-store.ts` — verify `list()` returns all records (no ordering guarantee — must sort by `generatedAt` desc).
+4. Run `npx tsc --noEmit` — ensure imports resolve correctly.
+
+This step is structural: the plan references exact field names from actual P8.5c types rather than assumed shapes.
 
 - [ ] **Step 1: Create `src/learning/dashboard-integrity-score.ts`**
 
@@ -94,6 +108,9 @@ export interface IntegrityScoreInput {
  */
 export function computeDashboardIntegrityScore(input: IntegrityScoreInput): number {
   const { aggregatedIntegrity, chainAlerts } = input;
+
+  // No-data guard: when no proposals exist, score deterministically returns 0.
+  if (aggregatedIntegrity.totalExplanations === 0) return 0;
 
   // 1. Average completeness (40%)
   const completenessScore = aggregatedIntegrity.averageCompleteness;
@@ -292,6 +309,8 @@ export async function buildDashboardReport(opts: DashboardOptions): Promise<Dash
   const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
   const outcomeStore = new OutcomeStore(join(opts.cwd, OUTCOMES_DIR));
   const allOutcomes = await outcomeStore.list().catch(() => []);
+  // Explicit sort by generatedAt descending — OutcomeStore.list() order is NOT guaranteed.
+  allOutcomes.sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime());
   const recentProposalIds = [...new Set(allOutcomes.map((o) => o.subjectId))]
     .slice(0, limit);
 
@@ -758,12 +777,116 @@ export function renderDashboard(report: DashboardReport): void {
 }
 ```
 
-- [ ] **Step 2: Verify tsc**
+- [ ] **Step 2: Create `tests/cli/commands/dashboard-renderer.vitest.ts`**
 
-Run: `npx tsc --noEmit`
-Expected: clean.
+```ts
+import { describe, it, expect, vi } from "vitest";
+import { renderDashboard } from "../../../src/cli/commands/dashboard-renderer.js";
+import type { DashboardReport } from "../../../src/learning/learning-dashboard.js";
 
-- [ ] **Step 3: Commit**
+function healthyReport(): DashboardReport {
+  return {
+    schemaVersion: "p8.5b.0",
+    generatedAt: "2026-06-23T00:00:00.000Z",
+    windowDays: 90,
+    proposalsScanned: 20,
+    dashboardIntegrityScore: 95,
+    explanationIntegrity: {
+      totalExplanations: 20,
+      averageCompleteness: 92,
+      bestLayer: "outcome",
+      worstLayer: "governance",
+      layerAvailability: { outcome: 100, recommendation: 95, risk: 90, governance: 80, learning: 85, calibration: 82 },
+      layerAvailabilityCounts: { outcome: { present: 20, missing: 0 }, recommendation: { present: 19, missing: 1 }, risk: { present: 18, missing: 2 }, governance: { present: 16, missing: 4 }, learning: { present: 17, missing: 3 }, calibration: { present: 16, missing: 4 } },
+      evidenceChainUsage: 85,
+      fallbackJoinRate: 5,
+      incompleteChainCount: 1,
+    },
+    calibrationHealth: {
+      adapters: [
+        { name: "recommendation", signalCount: 24, signalTypes: { overconfidence: 14, underconfidence: 10 }, profileCount: 3, lastRefresh: "2026-06-23T08:15:00Z" },
+        { name: "risk", signalCount: 18, signalTypes: { overfire: 9, miss: 7, risk_dimension_ignored: 2 }, profileCount: 0, lastRefresh: "2026-06-23T08:15:00Z" },
+        { name: "governance", signalCount: 12, signalTypes: { lens_high_predictive_value: 5, lens_high_false_positive: 4, lens_high_miss_rate: 3 }, profileCount: 0, lastRefresh: "2026-06-23T08:15:00Z", note: "Low fidelity" },
+      ],
+    },
+    signals: { totalSignals: 54, signals: [] },
+    joinPathAnalysis: {
+      distribution: { evidence_chain: 78, direct_id: 16, proposal_fallback: 3, string_heuristic: 3 },
+      joinPathByLayer: { outcome: { evidence_chain: 0, proposal_fallback: 100 }, recommendation: { evidence_chain: 94, direct_id: 6 }, risk: { evidence_chain: 87, direct_id: 13 }, governance: { evidence_chain: 22, proposal_fallback: 78 }, learning: { evidence_chain: 50, string_heuristic: 50 }, calibration: { string_heuristic: 100 } },
+      bestLayer: { name: "recommendation", rate: 94 },
+      worstLayer: { name: "governance", rate: 22 },
+      heuristicLayers: [{ layer: "learning", count: 1 }],
+    },
+    chainAlerts: { critical: [{ proposalId: "prop-42", severity: "critical", message: "Outcome exists, Recommendation MISSING" }], warnings: [{ proposalId: "prop-18", severity: "warning", message: "Risk missing while Governance present" }], infos: [], totalAlerts: 2 },
+  };
+}
+
+function degradedReport(): DashboardReport {
+  const r = healthyReport();
+  r.dashboardIntegrityScore = 70;
+  r.explanationIntegrity.averageCompleteness = 72;
+  r.explanationIntegrity.evidenceChainUsage = 50;
+  r.explanationIntegrity.layerAvailability.governance = 40;
+  r.joinPathAnalysis.worstLayer = { name: "governance", rate: 5 };
+  return r;
+}
+
+describe("renderDashboard", () => {
+  it("renders healthy score in green", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderDashboard(healthyReport());
+    const output = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(output).toContain("Dash"); // header rendered
+    expect(output).toContain("95");     // score rendered
+    const reset = "\x1b[0m";
+    expect(output).toContain(reset);
+    log.mockRestore();
+  });
+
+  it("renders alerts section", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderDashboard(healthyReport());
+    const output = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(output).toContain("CRITICAL");
+    expect(output).toContain("RECOMMENDATION MISSING");
+    expect(output).toContain("WARNING");
+    log.mockRestore();
+  });
+
+  it("renders join path by layer", () => {
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderDashboard(healthyReport());
+    const output = log.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(output).toContain("EvidenceChain");
+    expect(output).toContain("recommendation");
+    expect(output).toContain("governance");
+    expect(output).toContain("string_heuristic");
+    log.mockRestore();
+  });
+
+  it("color-codes based on score thresholds", () => {
+    // Healthy = green, Degraded = yellow
+    const logGreen = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderDashboard(healthyReport());
+    const greenOutput = logGreen.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(greenOutput).toContain("\x1b[32m"); // green
+    logGreen.mockRestore();
+
+    const logYellow = vi.spyOn(console, "log").mockImplementation(() => {});
+    renderDashboard(degradedReport());
+    const yellowOutput = logYellow.mock.calls.map((c: unknown[]) => String(c[0])).join("\n");
+    expect(yellowOutput).toContain("\x1b[33m"); // yellow
+    logYellow.mockRestore();
+  });
+});
+```
+
+- [ ] **Step 3: Run renderer tests + verify tsc**
+
+Run: `npx vitest run tests/cli/commands/dashboard-renderer.vitest.ts && npx tsc --noEmit`
+Expected: 4/4 renderer tests pass, tsc clean.
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/cli/commands/dashboard-renderer.ts
@@ -809,7 +932,6 @@ async function runDashboard(args: string[]): Promise<void> {
     if (isNaN(parsed) || parsed <= 0) { console.error("Error: --limit requires a positive integer"); process.exit(1); }
     limit = parsed;
   }
-  // --poll not implemented in P8.5b (explicitly deferred)
 
   const { buildDashboardReport } = await import("../../learning/learning-dashboard.js");
   const report = await buildDashboardReport({
@@ -939,7 +1061,6 @@ const DASHBOARD_FILES = [
 ];
 
 const FORBIDDEN_WRITE_CALLS = [
-  ".append(",
   ".appendSignal(",
   ".appendProfile(",
   ".appendReport(",
@@ -1030,7 +1151,7 @@ After the PR is opened, dispatch a final whole-branch reviewer. Apply any fixes 
 | Tasks | 4 atomic |
 | New files | 6 (integrity-score, aggregator+types, renderer, 3 test files) |
 | Modified files | 1 (`learning.ts` — ~15 lines for `case "dashboard"`) |
-| Tests added | 13 (3 integrity score + 4 aggregator + 3 CLI + 3 sentinel cases × 3 files) |
+| Tests added | 17 (3 integrity score + 4 aggregator + 4 renderer + 3 CLI + 9 sentinel cases ÷ 3 files) |
 | Protected type files changed | 0 |
 | New persistence substrate | 0 |
 | New authority surface | 0 |

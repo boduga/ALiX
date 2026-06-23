@@ -48,17 +48,14 @@ Bounded scans keep future scaling under control regardless of LearningStore size
 ## Command surface
 
 ```bash
-alix learning dashboard [--window <days>] [--limit <n>] [--json] [--poll <seconds>]
+alix learning dashboard [--window <days>] [--limit <n>] [--json]
 ```
 
 - `--window <days>` — default 90. How far back to look for signals/profiles.
 - `--limit <n>` — default 20. Maximum proposals scanned for aggregated explanation integrity data. Bounded by Invariant 2.
 - `--json` — machine-readable output of all panels as a single JSON object.
-- `--poll <seconds>` — optional live-refresh mode. Re-renders the dashboard every N seconds. Default: no polling (single render).
-  - **Poll re-reads stores and re-computes aggregates** — it does NOT re-scan the full history. The bounded proposal set (`--limit`) is loaded each cycle, but store reads are incremental within the active window.
-  - **No polling in `--json` mode** — machine consumers fetch on their own schedule.
 
-**Terminal rendering approach:** Standard terminal output, refreshed in-place using ANSI escape sequences when `--poll` is active. Sections separated by horizontal rules. Color coding for signal/alerts (green = healthy, yellow = degraded, red = critical).
+**Terminal rendering approach:** Standard terminal output. Sections separated by horizontal rules with Unicode box-drawing. Color coding for alerts (green = healthy, yellow = degraded, red = critical).
 
 ## The 5 panels
 
@@ -356,6 +353,7 @@ Returns a single JSON object matching DashboardReport interface.
 |---|---|
 | Web UI | Terminal is the ALiX surface for P8.5b. Web UI is a future concern. |
 | Interactive filter mode | Future. P8.5b uses CLI flags for filtering. |
+| Poll/live-refresh mode (`--poll`) | Deferred. P8.5b ships single-render only. Terminal refresh loops add complexity with little value for first release. |
 | Persistent dashboard state | Ephemeral only. Every render is a fresh aggregation. |
 | Alert persistence | Chain alerts are computed on render, not stored. |
 | P9 governance integration | Dashboard is a data source for P9, not itself a governor. |
