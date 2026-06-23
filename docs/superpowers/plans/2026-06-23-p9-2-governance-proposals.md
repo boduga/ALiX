@@ -232,70 +232,86 @@ the first time in the field."
 
 ---
 
-## Task P9.2a — Types extension + GovernanceStore.getRecommendation
+## Task P9.2a — Types extension + GovernanceStore.findRecommendationById
 
 **Files:**
 - Modify: `src/adaptation/adaptation-types.ts` (additive: extend `ProposalAction` and `ProposalTarget` unions)
 - Create: `src/governance/protected-baselines.ts` (snapshot the current `ProposalAction` and `ProposalTarget.kind` values; the snapshot-equal sentinel test will diff against this)
-- Modify: `src/governance/governance-store.ts` (add `getRecommendation(id): Promise<GovernanceRecommendation | null>` method)
-- Modify: `tests/governance/governance-store.vitest.ts` (add 2 tests for `getRecommendation`)
+- Modify: `src/governance/governance-store.ts` (add `findRecommendationById(id): Promise<{ rec: Recommendation; parent: GovernanceRecommendation } | null>` method)
+- Modify: `tests/governance/governance-store.vitest.ts` (add 2 tests for `findRecommendationById`)
 
 **Interfaces:**
 - Consumes: existing `Proposal` type from `src/adaptation/adaptation-types.ts` (P5)
-- Produces: `getRecommendation(id)` on `GovernanceStore` (P9.2 hot path) and `protected-baselines.ts` (P9.2 sentinel baseline)
+- Produces: `findRecommendationById(id)` on `GovernanceStore` (P9.2 hot path) and `protected-baselines.ts` (P9.2 sentinel baseline)
 
-- [ ] **Step 1: Write the failing test for `getRecommendation`**
+**Note on granularity:** P9.2 operates on a `Recommendation` item (inner), not a `GovernanceRecommendation` report (outer). The CLI command takes an inner-item ID. The lookup helper traces from the inner item to its containing report.
+
+- [ ] **Step 1: Write the failing test for `findRecommendationById`**
 
 In `tests/governance/governance-store.vitest.ts`, add at the end (inside the `describe("GovernanceStore", ...)` block):
 
 ```ts
-  it("getRecommendation returns the matching recommendation by ID", async () => {
+  it("findRecommendationById returns the inner recommendation and its parent report", async () => {
     const store = new GovernanceStore();
     await store.append("recommendations", {
-      id: "recommendation-1",
+      id: "report-1",
       subject: "Test",
       outcome: "computed",
       confidence: 0.9,
       reasons: [],
       generatedAt: new Date().toISOString(),
       reportType: "governance_recommendation",
-      recommendations: [],
+      recommendations: [
+        { id: "rec-a", source: "drift", sourceArtifactId: "d-1", priority: "high", confidence: 0.85, status: "open", category: "chain_restoration", title: "T", description: "T", evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [], metadata: { category: "chain_restoration", targetArtifactId: "d-1", currentRate: 45, targetRate: 80 } },
+        { id: "rec-b", source: "drift", sourceArtifactId: "d-2", priority: "high", confidence: 0.9, status: "open", category: "chain_restoration", title: "T", description: "T", evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [], metadata: { category: "chain_restoration", targetArtifactId: "d-2", currentRate: 50, targetRate: 80 } }
+      ],
       evidenceRefs: []
     } as any);
 
-    const rec = await store.getRecommendation("recommendation-1");
-    expect(rec).not.toBeNull();
-    expect(rec?.id).toBe("recommendation-1");
+    const found = await store.findRecommendationById("rec-b");
+    expect(found).not.toBeNull();
+    expect(found?.rec.id).toBe("rec-b");
+    expect(found?.parent.id).toBe("report-1");
   });
 
-  it("getRecommendation returns null when no match", async () => {
+  it("findRecommendationById returns null when no match", async () => {
     const store = new GovernanceStore();
-    const rec = await store.getRecommendation("does-not-exist");
-    expect(rec).toBeNull();
+    const found = await store.findRecommendationById("does-not-exist");
+    expect(found).toBeNull();
   });
 ```
 
 - [ ] **Step 2: Run tests to verify failure**
 
 Run: `cd /home/babasola/Projects/Monolith && npx vitest run tests/governance/governance-store.vitest.ts 2>&1 | tail -10`
-Expected: FAIL with `store.getRecommendation is not a function`.
+Expected: FAIL with `store.findRecommendationById is not a function`.
 
-- [ ] **Step 3: Implement `getRecommendation` on `GovernanceStore`**
+- [ ] **Step 3: Implement `findRecommendationById` on `GovernanceStore`**
 
 In `src/governance/governance-store.ts`, find the `GovernanceStore` class. Add the new method after the existing `queryByWindow` method:
 
 ```ts
   /**
-   * Hot-path direct lookup for P9.2's advisory-to-proposal bridge.
-   * Returns the `GovernanceRecommendation` with the given id, or null
-   * if not found. Replaces the previous pattern of `getTypeForId` +
-   * `list("recommendations")` + linear search.
+   * P9.2 hot-path lookup. Given an inner `Recommendation` item id,
+   * returns the item along with the containing `GovernanceRecommendation`
+   * report, or null if not found. Linear scan over all reports'
+   * inner items — fine for P9.2's expected volume (a handful of
+   * reports per window, 5–20 items each). If volume grows, a
+   * dedicated `recommendation-items.jsonl` index may be added later.
    */
-  async getRecommendation(id: string): Promise<GovernanceRecommendation | null> {
+  async findRecommendationById(
+    id: string
+  ): Promise<{ rec: Recommendation; parent: GovernanceRecommendation } | null> {
     const all = await this.list("recommendations");
-    return all.find((r) => r.id === id) ?? null;
+    for (const parent of all) {
+      const rec = parent.recommendations.find((r) => r.id === id);
+      if (rec) return { rec, parent };
+    }
+    return null;
   }
 ```
+
+You will need to add `import type { Recommendation } from "./governance-types.js";` (and ensure `Recommendation` is exported from there — it is, from P9.1a).
 
 - [ ] **Step 4: Run tests to verify pass**
 
@@ -522,10 +538,10 @@ import { createGovernanceProposal } from "../../src/governance/governance-propos
 
 describe("createGovernanceProposal", () => {
   it("creates one pending proposal from an open, high-confidence, non-low-priority recommendation", async () => {
-    // Seed GovernanceStore with a recommendation
+    // Seed GovernanceStore with a report containing one inner item
     const govStore = new GovernanceStore();
     await govStore.append("recommendations", {
-      id: "recommendation-1",
+      id: "report-1",
       subject: "Test",
       outcome: "computed",
       confidence: 0.85,
@@ -556,7 +572,8 @@ describe("createGovernanceProposal", () => {
       evidenceRefs: ["drift-1"]
     } as any);
 
-    const result = await createGovernanceProposal({ recommendationId: "recommendation-1" });
+    // CLI takes the inner-item id (rec-a), not the report id (report-1)
+    const result = await createGovernanceProposal({ recommendationId: "rec-a" });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.proposalId).toMatch(/^prop-/);
@@ -569,16 +586,17 @@ describe("createGovernanceProposal", () => {
     expect(created?.action).toBe("governance_change");
     expect(created?.status).toBe("pending");
     expect((created?.target as any).kind).toBe("governance");
-    expect((created?.target as any).recommendationId).toBe("recommendation-1");
+    expect((created?.target as any).recommendationId).toBe("rec-a");
     expect((created?.payload as any).kind).toBe("chain_restoration");
     expect((created?.payload as any).targetArtifactId).toBe("drift-1");
     expect((created?.payload as any).currentRate).toBe(45);
     expect((created?.payload as any).targetRate).toBe(80);
-    expect((created?.payload as any)._provenance.parentRecommendationId).toBe("recommendation-1");
+    expect((created?.payload as any)._provenance.parentRecommendationId).toBe("rec-a");
+    expect((created?.payload as any)._provenance.parentRecommendationReportId).toBe("report-1");
     expect((created?.payload as any)._provenance.recommendationCategory).toBe("chain_restoration");
     expect(created?.sourceRecommendationType).toBe("governance_recommendation");
     expect(created?.sourceConfidence).toBe(0.85);  // inherited, not recalculated
-    expect(created?.evidenceFingerprints).toContain("recommendation-1");
+    expect(created?.evidenceFingerprints).toContain("rec-a");
     expect(created?.provenance).toBe("manual");
   });
 });
@@ -646,7 +664,7 @@ function recommendationToPayload(rec: Recommendation): GovernanceChangePayload {
 }
 
 export async function createGovernanceProposal(opts: {
-  recommendationId: string;
+  recommendationId: string;  // the INNER Recommendation item id, not the report id
   cwd?: string;
   generatedAt?: string;
 }): Promise<CreateProposalResult> {
@@ -655,26 +673,20 @@ export async function createGovernanceProposal(opts: {
   const chainStore = new EvidenceChainStore();
   const generatedAt = opts.generatedAt ?? new Date().toISOString();
 
-  // 1. Load recommendation (hot-path direct lookup)
-  const recommendation = await govStore.getRecommendation(opts.recommendationId);
-  if (!recommendation) {
+  // 1. Load inner recommendation + containing report (hot-path lookup)
+  const found = await govStore.findRecommendationById(opts.recommendationId);
+  if (!found) {
     return { ok: false, reason: `Recommendation not found: ${opts.recommendationId}` };
   }
+  const { rec, parent } = found;
 
-  // 2. Pick the targeted Recommendation (this is the inner one — the
-  // outer GovernanceRecommendation is the envelope)
-  const rec = recommendation.recommendations[0];
-  if (!rec) {
-    return { ok: false, reason: `GovernanceRecommendation ${opts.recommendationId} contains no inner Recommendation` };
-  }
-
-  // 3. Eligibility gate
+  // 2. Eligibility gate
   const gate = isEligible(rec);
   if (!gate.eligible) {
     return { ok: false, reason: `Recommendation not eligible for proposal:\n  ${gate.reason}` };
   }
 
-  // 4. Idempotency check — has this recommendation already been proposed?
+  // 3. Idempotency check — has this recommendation already been proposed?
   const existingChains = await chainStore.getChainForRoot(opts.recommendationId);
   for (const chain of existingChains) {
     for (const link of chain.links) {
@@ -687,7 +699,7 @@ export async function createGovernanceProposal(opts: {
     }
   }
 
-  // 5. Build the proposal
+  // 4. Build the proposal
   // The P5 AdaptationProposal shape is:
   //   { id, createdAt, status, action, target, payload,
   //     sourceRecommendationType, sourceConfidence,
@@ -697,15 +709,15 @@ export async function createGovernanceProposal(opts: {
   //   createdAt = generatedAt
   //   status = "pending"
   //   action = "governance_change"
-  //   target = { kind: "governance", recommendationId }
+  //   target = { kind: "governance", recommendationId }   (inner rec id)
   //   payload = { ...GovernanceChangePayload,
-  //                _provenance: { parentRecommendationId, sourceArtifactIds,
-  //                              proposedFromRecommendationId, recommendationCategory } }
-  //     (the _provenance key is denormalized metadata, namespaced to
-  //      avoid collision with payload-discriminator fields)
+  //                _provenance: { parentRecommendationId (inner),
+  //                              parentRecommendationReportId (outer),
+  //                              sourceArtifactIds,
+  //                              recommendationCategory } }
   //   sourceRecommendationType = "governance_recommendation"
   //   sourceConfidence = rec.confidence  (inherited, not recalculated)
-  //   evidenceFingerprints = [opts.recommendationId, ...rec.evidenceRefs]
+  //   evidenceFingerprints = [inner rec id, ...rec.evidenceRefs]
   //   reason = rec.description (human-readable summary)
   //   provenance = "manual" (P5.2c convention; P9.2 is operator-driven)
   const proposalId = `prop-${generatedAt.replace(/[:.]/g, "-")}-${Math.random().toString(36).slice(2, 8)}`;
@@ -718,8 +730,8 @@ export async function createGovernanceProposal(opts: {
     payload: {
       ...recommendationToPayload(rec),
       _provenance: {
-        parentRecommendationId: opts.recommendationId,
-        proposedFromRecommendationId: opts.recommendationId,
+        parentRecommendationId: opts.recommendationId,        // inner item id
+        parentRecommendationReportId: parent.id,              // outer report id
         sourceArtifactIds: rec.evidenceRefs ?? [],
         recommendationCategory: rec.category
       }
@@ -731,7 +743,7 @@ export async function createGovernanceProposal(opts: {
     provenance: "manual" as const
   };
 
-  // 6. Persist proposal + EvidenceChain link with atomicity recovery
+  // 5. Persist proposal + EvidenceChain link with atomicity recovery
   try {
     await proposalStore.save(proposal as any);
 
@@ -749,7 +761,7 @@ export async function createGovernanceProposal(opts: {
       confidence: rec.confidence,
       reasons: ["P9.2 bridge: recommendation -> proposal"],
       generatedAt,
-      evidenceRefs: [proposalId, opts.recommendationId],
+      evidenceRefs: [proposalId, opts.recommendationId, parent.id],
       rootArtifactId: opts.recommendationId,
       rootArtifactType: "governance_recommendation",
       links: [link],
@@ -759,6 +771,10 @@ export async function createGovernanceProposal(opts: {
       await chainStore.appendChain(chain);
     } catch (edgeError) {
       // Compensating tombstone: case (B)
+      // Note: orphaned is a SYSTEM state, not a lifecycle state. See
+      // the plan's "Orphaned status semantics" section for the
+      // invariant. Orphaned proposals are never eligible for approval
+      // and are excluded from all proposal queues.
       await proposalStore.markOrphaned(proposalId, `EvidenceChain write failed: ${(edgeError as Error).message}`);
       return { ok: false, reason: `Proposal ${proposalId} created but provenance chain failed: ${(edgeError as Error).message}. Proposal marked orphaned and excluded from the queue.` };
     }
@@ -792,10 +808,10 @@ In `tests/governance/governance-proposal-generator.vitest.ts`, add 4 more tests:
   it("rejects with reason when confidence is below threshold", async () => {
     const govStore = new GovernanceStore();
     await govStore.append("recommendations", {
-      id: "rec-low-conf",
+      id: "report-low-conf",
       subject: "T", outcome: "c", confidence: 0.4, reasons: [], generatedAt: new Date().toISOString(),
       reportType: "governance_recommendation", recommendations: [{
-        id: "r", source: "drift", sourceArtifactId: "d", priority: "high", confidence: 0.4,
+        id: "rec-low-conf", source: "drift", sourceArtifactId: "d", priority: "high", confidence: 0.4,
         status: "open", category: "chain_restoration", title: "T", description: "T",
         evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [],
         metadata: { category: "chain_restoration", targetArtifactId: "d", currentRate: 30, targetRate: 80 }
@@ -810,10 +826,10 @@ In `tests/governance/governance-proposal-generator.vitest.ts`, add 4 more tests:
   it("rejects with reason when status is not open", async () => {
     const govStore = new GovernanceStore();
     await govStore.append("recommendations", {
-      id: "rec-dismissed", subject: "T", outcome: "c", confidence: 0.9, reasons: [],
+      id: "report-dismissed", subject: "T", outcome: "c", confidence: 0.9, reasons: [],
       generatedAt: new Date().toISOString(), reportType: "governance_recommendation",
       recommendations: [{
-        id: "r", source: "drift", sourceArtifactId: "d", priority: "high", confidence: 0.9,
+        id: "rec-dismissed", source: "drift", sourceArtifactId: "d", priority: "high", confidence: 0.9,
         status: "dismissed", category: "chain_restoration", title: "T", description: "T",
         evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [],
         metadata: { category: "chain_restoration", targetArtifactId: "d", currentRate: 30, targetRate: 80 }
@@ -828,10 +844,10 @@ In `tests/governance/governance-proposal-generator.vitest.ts`, add 4 more tests:
   it("refuses duplicate (idempotency)", async () => {
     const govStore = new GovernanceStore();
     await govStore.append("recommendations", {
-      id: "rec-dup", subject: "T", outcome: "c", confidence: 0.9, reasons: [],
+      id: "report-dup", subject: "T", outcome: "c", confidence: 0.9, reasons: [],
       generatedAt: new Date().toISOString(), reportType: "governance_recommendation",
       recommendations: [{
-        id: "r", source: "drift", sourceArtifactId: "d", priority: "high", confidence: 0.9,
+        id: "rec-dup", source: "drift", sourceArtifactId: "d", priority: "high", confidence: 0.9,
         status: "open", category: "chain_restoration", title: "T", description: "T",
         evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [],
         metadata: { category: "chain_restoration", targetArtifactId: "d", currentRate: 30, targetRate: 80 }
@@ -845,7 +861,7 @@ In `tests/governance/governance-proposal-generator.vitest.ts`, add 4 more tests:
     expect(second.reason).toMatch(/has already been proposed as/);
   });
 
-  it("returns not-found when recommendation does not exist", async () => {
+  it("returns not-found when inner recommendation does not exist", async () => {
     const result = await createGovernanceProposal({ recommendationId: "does-not-exist" });
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -910,7 +926,7 @@ The existing tests in `tests/cli/commands/governance-integration.vitest.ts` impo
 ```ts
   it("propose creates a pending proposal from an eligible recommendation", async () => {
     // Seed an open, high-confidence, non-low-priority recommendation
-    await seedRecommendation({
+    await seedRecommendation({ recId:
       id: "rec-eligible",
       confidence: 0.85,
       priority: "high",
@@ -939,7 +955,7 @@ The existing tests in `tests/cli/commands/governance-integration.vitest.ts` impo
   });
 
   it("propose --json returns structured success", async () => {
-    await seedRecommendation({
+    await seedRecommendation({ recId:
       id: "rec-eligible-2",
       confidence: 0.85,
       priority: "high",
@@ -968,7 +984,7 @@ The existing tests in `tests/cli/commands/governance-integration.vitest.ts` impo
   });
 
   it("propose rejects with non-zero exit when recommendation is not eligible", async () => {
-    await seedRecommendation({
+    await seedRecommendation({ recId:
       id: "rec-low-conf",
       confidence: 0.3,  // below threshold
       priority: "high",
@@ -1000,7 +1016,8 @@ The existing tests in `tests/cli/commands/governance-integration.vitest.ts` impo
 The `seedRecommendation` helper should be added near the other shared seed helpers at the top of the test file. Its implementation:
 ```ts
 async function seedRecommendation(opts: {
-  id: string;
+  recId: string;          // the INNER Recommendation item id (e.g. "rec-eligible")
+  reportId?: string;      // optional outer report id; defaults to `${recId}-report`
   confidence: number;
   priority: "low" | "medium" | "high" | "critical";
   status: "open" | "acknowledged" | "dismissed";
@@ -1009,7 +1026,7 @@ async function seedRecommendation(opts: {
 }): Promise<void> {
   const govStore = new GovernanceStore();
   await govStore.append("recommendations", {
-    id: opts.id,
+    id: opts.reportId ?? `${opts.recId}-report`,
     subject: "Test",
     outcome: "computed",
     confidence: 0.9,
@@ -1017,7 +1034,7 @@ async function seedRecommendation(opts: {
     generatedAt: new Date().toISOString(),
     reportType: "governance_recommendation",
     recommendations: [{
-      id: opts.id + "-inner",
+      id: opts.recId,           // <-- the inner item id, used by the CLI
       source: "drift",
       sourceArtifactId: "drift-x",
       priority: opts.priority,
@@ -1036,6 +1053,8 @@ async function seedRecommendation(opts: {
   } as any);
 }
 ```
+
+The CLI tests above (Steps 1 in P9.2c) call `seedRecommendation({ recId: "rec-eligible", ... })` etc. The `id:` parameter is renamed to `recId:` to make the inner-vs-outer granularity explicit.
 
 - [ ] **Step 2: Run tests to verify failure**
 
@@ -1131,7 +1150,7 @@ rejection. All passing."
 
 **Interfaces:**
 - Consumes: existing sentinel structure; `protected-baselines.ts` from P9.2a
-- Produces: 4 new sentinel cases — (1) generator file is checked for the new symbols, (2) `ALLOWED_IN_FILE` is enforced, (3) `ProposalAction` snapshot-equal to baseline + documented additions, (4) `ProposalTarget.kind` snapshot-equal to baseline + documented additions
+- Produces: 5 new sentinel cases — (1) generator file is checked for the new symbols, (2) `ALLOWED_IN_FILE` is enforced, (3) `ProposalAction` snapshot-equal to baseline + documented additions, (4) `ProposalTarget.kind` snapshot-equal to baseline + documented additions, (5) `ProposalStatus` snapshot-equal to baseline + documented additions (including `orphaned`)
 
 - [ ] **Step 1: Write the failing test for the new sentinel cases**
 
@@ -1351,11 +1370,50 @@ git push origin alix-p9-2-complete
 | Task | Files | Tests | Pre-req |
 |---|---|---|---|
 | 0 — P9.1 metadata amendment | 2 modified | +5-7 (modified existing) | — |
-| P9.2a — types extension + getRecommendation | 3 modified, 1 new | +2 | Task 0 |
+| P9.2a — types extension + findRecommendationById | 3 modified, 1 new | +2 | Task 0 |
 | P9.2b — ProposalGenerator | 1 new, 2 modified | +6 | Task 0 + P9.2a |
 | P9.2c — CLI | 2 modified | +3 | P9.2b |
 | P9.2d — Sentinel | 1 modified, 1 modified | +4 | P9.2a + P9.2b |
 | P9.2e — Final review + PR | 0 (read-only) | 0 (verifies others) | P9.2a-d |
+
+---
+
+## Cross-cutting invariants (apply to all tasks)
+
+### Orphaned status semantics
+
+`orphaned` is a **system state**, not a lifecycle state. The P5 lifecycle states (`pending`, `approved`, `rejected`, `applied`, `failed`) are operator/business states that drive the approval workflow. `orphaned` is an infrastructure-recovery state used by the P9.2 atomicity guarantee (case B) when an EvidenceChain write fails after a proposal is created.
+
+**Invariants on orphaned proposals:**
+
+- Orphaned proposals are **never eligible for approval.** `alix adaptation approve <id>` must reject with a clear message if the proposal's status is `orphaned`.
+- Orphaned proposals are **excluded from all proposal queues** (i.e., `ProposalStore.list()` filters them out — see the `list` filter change in Task P9.2b Step 3).
+- Orphaned proposals **retain their payload and evidence** for audit; they are not deleted, only hidden from operator-facing lists.
+- A future cleanup task (out of P9.2 scope) may sweep orphaned proposals after a retention period.
+- The `orphanedReason` field on the proposal is the EvidenceChain write error message. It is preserved for post-mortem analysis.
+
+The P9.2d sentinel must include a test asserting: orphaned proposals are filtered from `list()`. The simplest test: create a proposal, mark it orphaned, assert `list()` does not include it.
+
+### Future indexed provenance lookup (P9.2b / P9.3 optimization)
+
+Current idempotency check:
+
+```ts
+const existingChains = await chainStore.getChainForRoot(recommendationId);
+for (const chain of existingChains) {
+  for (const link of chain.links) {
+    if (link.relationType === "proposal_from_recommendation") { ... }
+  }
+}
+```
+
+This iterates all chains rooted at the recommendation. Fine for P9.2's expected volume. If governance volume grows — especially if EvidenceChain starts holding the full P5 lifecycle (proposal → approval → apply) — the lookup should become:
+
+```ts
+findLinksByRelation(recommendationId, "proposal_from_recommendation")
+```
+
+with an index. This is **not** in P9.2's scope. Document it as a P9.2b/P9.3 follow-up if volume becomes a real concern. For now, the linear scan is correct, simple, and matches existing EvidenceChain usage patterns.
 
 **Total: 1 prerequisite PR + 4 implementation tasks + 1 final-review task. 6 PRs total (Task 0 is its own PR, P9.2a-d each get one PR, P9.2e is the final review and merge).**
 

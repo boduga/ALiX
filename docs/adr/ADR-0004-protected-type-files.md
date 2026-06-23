@@ -190,6 +190,19 @@ A third P9.2 design review produced 3 more amendments. None touched a protected 
 
 This is the first time a P-phase has actually exercised the "Allowed additive evolution" path for a field on a P5 type. The framework works as intended: the addition required an SDS amendment (approved) and a plan/sentinel enumeration (forthcoming), and no Forbidden mutation occurred. Future P-phases adding fields to P5 `provenance` should follow the same process.
 
+### P9.2 `orphaned` ProposalStatus (system state, not lifecycle state)
+
+P9.2 also added `"orphaned"` to the `ProposalStatus` union in `adaptation-types.ts` (a third Allowed mutation in the same P9.2 series). **Critical clarification:** `orphaned` is a **system state** (atomicity recovery), not a lifecycle state. The P5 lifecycle states (`pending`, `approved`, `rejected`, `applied`, `failed`) are operator/business states that drive the approval workflow. `orphaned` is an infrastructure-recovery state used when an EvidenceChain write fails after a proposal is created.
+
+**Invariants on `orphaned` proposals:**
+
+- Orphaned proposals are **never eligible for approval** — `alix adaptation approve <id>` must reject with a clear message if the proposal's status is `orphaned`.
+- Orphaned proposals are **excluded from all proposal queues** — `ProposalStore.list()` filters them out.
+- Orphaned proposals **retain their payload and evidence** for audit; they are not deleted, only hidden from operator-facing lists.
+- The `orphanedReason` field on the proposal is the EvidenceChain write error message, preserved for post-mortem analysis.
+
+These invariants are testable in the P9.2d sentinel: a test asserts that `markOrphaned` removes the proposal from `list()`. The system-state-vs-lifecycle-state distinction is **not** enforceable via the type alone (both are string members of the same union); it must be enforced by behavior (filter in `list()`, rejection in `approve`). This is documented in the P9.2 SDS's "Orphaned status semantics" section.
+
 If a future P-phase (P9.2b, P9.3, P10, etc.) needs to add further members to `adaptation-types.ts` or any other protected file, the rule in the "Decision" section above applies — SDS + plan + sentinel must enumerate each new member.
 
 ## Related

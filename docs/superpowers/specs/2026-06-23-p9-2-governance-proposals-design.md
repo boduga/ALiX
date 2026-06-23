@@ -9,10 +9,13 @@
 > **Amendments applied (P9.2 design review, 2026-06-23):**
 > 1. **Atomicity** — defined recovery behavior (compensating tombstone) for the two-store write sequence.
 > 2. **No text parsing** — payload translation uses `Recommendation.metadata` directly (a P9.1 amendment was applied; see P9.1 SDS Amendment 1).
-> 3. **Direct lookup** — `GovernanceStore.getRecommendation(id)` replaces the `getTypeForId` + `list` + linear search pattern.
+> 3. **Inner-item lookup** — `GovernanceStore.findRecommendationById(id)` returns the inner `Recommendation` item along with its containing `GovernanceRecommendation` report. The CLI operates on the **inner** item ID, not the report ID. Replaces the original `getRecommendation(GovernanceRecommendation)` plan; the report-vs-item distinction is now explicit.
 > 4. **Confidence inheritance** — explicit rule: proposal confidence is inherited from recommendation confidence, no recalculation.
 > 5. **Sentinel precision** — `ALLOWED_IN_FILE` is a symbol-level allowlist, not a file-level exemption.
-> 6. **Fast lookup** — `provenance.proposedFromRecommendationId` added to the proposal structure for query efficiency.
+> 6. **Fast lookup** — `provenance.proposedFromRecommendationId` and `provenance.parentRecommendationReportId` added to the proposal structure for query efficiency.
+> 7. **Orphaned lifecycle** — `orphaned` is a system state (atomicity recovery), not a lifecycle state. Orphaned proposals are never eligible for approval and are excluded from all proposal queues.
+> 8. **Atomicity invariant wording** — case A/B rewording: either (A) both writes succeed, or (B) the proposal is `markOrphaned` and excluded from `list()`. No pending proposal may appear without its provenance chain.
+> 9. **Eligibility gate `status === "open"`** — added to the gate to close the operator-workflow loophole.
 
 ## Core framing
 
@@ -27,7 +30,7 @@ No recommendation may approve itself.
 No proposal may apply itself.
 ```
 
-P9.2 is the **advisory-to-proposal bridge**. It reads a `GovernanceRecommendation` produced by P9.1, applies an eligibility gate, and creates exactly one pending `Proposal` with action `governance_change`. The proposal enters the standard P5 lifecycle (`propose → approve → apply`) — P9.2 has no opinion on, and no involvement in, approval or application. Those are owned by existing P5 modules.
+P9.2 is the **advisory-to-proposal bridge**. It reads an inner `Recommendation` item (extracted from a `GovernanceRecommendation` report produced by P9.1), applies an eligibility gate, and creates exactly one pending `Proposal` with action `governance_change`. The proposal enters the standard P5 lifecycle (`propose → approve → apply`) — P9.2 has no opinion on, and no involvement in, approval or application. Those are owned by existing P5 modules.
 
 P9.2 explicitly does NOT:
 - Approve proposals (lifecycle-owned by `ApprovalGate`)
@@ -59,11 +62,11 @@ The four invariants, structurally enforced:
 
 | Source | What P9.2 reads | How |
 |---|---|---|
-| GovernanceStore | `GovernanceRecommendation` by ID | `store.getRecommendation(id)` — direct lookup, O(1) |
-| EvidenceChainStore | Existing `proposal_from_recommendation` edges for idempotency check | `chain.findEdges(target=recommendationId, type="proposal_from_recommendation")` |
+| GovernanceStore | Inner `Recommendation` item by ID + containing `GovernanceRecommendation` report | `store.findRecommendationById(id)` — returns `{ rec, parent }` or null |
+| EvidenceChainStore | Existing `proposal_from_recommendation` chains for idempotency check | `chain.findEdges(target=recommendationId, type="proposal_from_recommendation")` |
 | P5 ProposalStore | Write only: `createProposal(proposal)` and `markOrphaned(proposalId, reason)` | The single P9.2 file that may import ProposalStore |
 
-`store.getRecommendation(id)` is a hot-path helper added to `GovernanceStore` as part of P9.2. It looks up a recommendation by ID, returns it, or returns `null` if not found. The previous pattern (`getTypeForId` + `list("recommendations")` + linear search) was adequate for P9.1's read-mostly surface but is too slow for P9.2's bridge hot path. Adding the direct lookup is a one-line addition to `GovernanceStore` (no new file, no new type).
+`store.findRecommendationById(id)` is a hot-path helper added to `GovernanceStore` as part of P9.2. It takes an **inner** `Recommendation` item ID (not a `GovernanceRecommendation` report ID), linearly scans all reports' inner `recommendations[]` arrays, and returns the matching item along with its parent report. This eliminates the previous ambiguity where P9.2 would index `recommendation.recommendations[0]` and break if a report ever contained multiple items. Linear scan is fine for P9.2's expected volume (a handful of reports per window, 5–20 items each); if volume grows, a dedicated `recommendation-items.jsonl` index may be added later (out of P9.2 scope; see "Future indexed provenance lookup" in the plan).
 
 P9.2 does NOT consume:
 - `ApprovalGate` (forbidden in the P9.2 module)
@@ -90,13 +93,16 @@ P9.2 produces **one artifact**: a standard P5 `Proposal` (already typed in `src/
     ...sourceArtifactIds                 // P9.0 artifacts (drift, lens, integrity, health)
   ],
   provenance: {
-    parentRecommendationId: recommendationId,
+    parentRecommendationId: recommendationId,         // inner item id
+    parentRecommendationReportId: parent.id,           // outer report id (denormalized)
     sourceArtifactIds: string[],
-    proposedFromRecommendationId: recommendationId,  // fast lookup, not audit source
+    proposedFromRecommendationId: recommendationId,     // fast lookup, not audit source
     recommendationCategory: rec.category              // denormalized for dashboard/analytics; non-authoritative
   }
 }
 ```
+
+The proposal's provenance carries **both** the inner recommendation ID and the outer report ID. The inner ID is the canonical link (used by the CLI, the EvidenceChain, and the idempotency check); the outer report ID is denormalized for queries that want to find all proposals from a single report. The EvidenceChain remains the audit source of truth.
 
 And one EvidenceChainStore edge:
 ```ts
