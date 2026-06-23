@@ -124,6 +124,44 @@ function makeSignal(overrides: Partial<LearningSignal> = {}): LearningSignal {
   } as LearningSignal;
 }
 
+async function seedRecommendation(opts: {
+  recId: string;
+  reportId?: string;
+  confidence: number;
+  priority: "low" | "medium" | "high" | "critical";
+  status: "open" | "acknowledged" | "dismissed";
+  category: string;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  const govStore = new GovernanceStore();
+  await govStore.append("recommendations", {
+    id: opts.reportId ?? `${opts.recId}-report`,
+    subject: "Test",
+    outcome: "computed",
+    confidence: 0.9,
+    reasons: [],
+    generatedAt: new Date().toISOString(),
+    reportType: "governance_recommendation",
+    recommendations: [{
+      id: opts.recId,
+      source: "drift",
+      sourceArtifactId: "drift-x",
+      priority: opts.priority,
+      confidence: opts.confidence,
+      status: opts.status,
+      category: opts.category as any,
+      title: "Test rec",
+      description: "Test description",
+      evidenceRefs: [],
+      operatorGuidance: "Test guidance",
+      expectedBenefit: "Test benefit",
+      risks: [],
+      metadata: opts.metadata as any,
+    }],
+    evidenceRefs: [],
+  } as any);
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -525,5 +563,94 @@ describe("governance CLI integration", () => {
     // We seeded one high-severity drift finding → at least one high rec
     const sources = new Set(parsed.map((r: { source: string }) => r.source));
     expect(sources.has("drift")).toBe(true);
+  });
+
+  // -- Propose pipeline -------------------------------------------------------
+
+  it("propose creates pending proposal from eligible recommendation", async () => {
+    await seedRecommendation({
+      recId: "rec-eligible",
+      confidence: 0.85,
+      priority: "high",
+      status: "open",
+      category: "chain_restoration",
+      metadata: { category: "chain_restoration", targetArtifactId: "drift-1", currentRate: 45, targetRate: 80 },
+    });
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((_code?: number) => {
+      throw new Error(`process.exit(${_code})`);
+    }) as never);
+
+    try {
+      await handleGovernanceCommand(["propose", "rec-eligible"]);
+      const allLogs = logSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+      expect(allLogs).toMatch(/Governance proposal created/);
+      expect(allLogs).toMatch(/rec-eligible/);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("propose --json returns structured success", async () => {
+    await seedRecommendation({
+      recId: "rec-eligible-2",
+      confidence: 0.85,
+      priority: "high",
+      status: "open",
+      category: "chain_restoration",
+      metadata: { category: "chain_restoration", targetArtifactId: "drift-2", currentRate: 80, targetRate: 95 },
+    });
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((_code?: number) => {
+      throw new Error(`process.exit(${_code})`);
+    }) as never);
+
+    try {
+      await handleGovernanceCommand(["propose", "rec-eligible-2", "--json"]);
+      const allLogs = logSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+      const parsed = JSON.parse(allLogs);
+      expect(parsed.ok).toBe(true);
+      expect(typeof parsed.proposalId).toBe("string");
+      expect(parsed.proposalId.length).toBeGreaterThan(0);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
+  });
+
+  it("propose rejects ineligible recommendation with exit code 1", async () => {
+    await seedRecommendation({
+      recId: "rec-low-conf",
+      confidence: 0.45,
+      priority: "low",
+      status: "open",
+      category: "chain_restoration",
+      metadata: { category: "chain_restoration", targetArtifactId: "drift-3", currentRate: 40, targetRate: 75 },
+    });
+
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation(((_code?: number) => {
+      throw new Error(`process.exit(${_code})`);
+    }) as never);
+
+    try {
+      await expect(
+        handleGovernanceCommand(["propose", "rec-low-conf"]),
+      ).rejects.toThrow(/process\.exit\(1\)/);
+      const allErrors = errorSpy.mock.calls.map((c) => c.join(" ")).join("\n");
+      expect(allErrors).toMatch(/below threshold/);
+    } finally {
+      logSpy.mockRestore();
+      errorSpy.mockRestore();
+      exitSpy.mockRestore();
+    }
   });
 });

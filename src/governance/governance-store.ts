@@ -19,6 +19,7 @@ import type {
   LensLifecycleReview,
   GovernanceIntegrityReport,
   GovernanceRecommendation,
+  Recommendation,
 } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------
@@ -123,5 +124,31 @@ export class GovernanceStore {
     const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
     const all = await (this.list as (t: ArtifactType) => Promise<any[]>)(type);
     return all.filter((r) => new Date(r.generatedAt).getTime() >= cutoff);
+  }
+
+  // -----------------------------------------------------------------------
+  // findRecommendationById — inner-item lookup (P9.2)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Find a single {@link Recommendation} by its `id` within all stored
+   * {@link GovernanceRecommendation} reports.
+   *
+   * Linear scan over all recommendation reports and their inner
+   * recommendations — acceptable for P9.2's expected volume (a handful
+   * of reports per window, 5–20 items each). If volume grows, a
+   * dedicated `recommendation-items.jsonl` index may be added later.
+   *
+   * @returns The inner recommendation and its parent report, or `null`.
+   */
+  async findRecommendationById(
+    id: string,
+  ): Promise<{ rec: Recommendation; parent: GovernanceRecommendation } | null> {
+    const all = await this.list("recommendations");
+    for (const parent of all) {
+      const rec = parent.recommendations.find((r) => r.id === id);
+      if (rec) return { rec, parent };
+    }
+    return null;
   }
 }

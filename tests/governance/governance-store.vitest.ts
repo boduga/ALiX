@@ -147,6 +147,12 @@ describe("GovernanceStore", () => {
           operatorGuidance: "Review the confidence calibration dashboard for red_team lens",
           expectedBenefit: "Improved decision accuracy through better-calibrated confidence scores",
           risks: ["Over-correction could suppress valid signals"],
+          metadata: {
+            category: "confidence_calibration" as const,
+            target: "red_team",
+            currentCalibration: 0.45,
+            suggestedCalibration: 0.65
+          },
         },
       ],
       evidenceRefs: ["signal-1"],
@@ -160,6 +166,8 @@ describe("GovernanceStore", () => {
     expect(records[0].recommendations[0].operatorGuidance).toBe(
       "Review the confidence calibration dashboard for red_team lens"
     );
+    expect(records[0].recommendations[0].metadata).toBeDefined();
+    expect(records[0].recommendations[0].metadata.category).toBe("confidence_calibration");
   });
 
   it("queryByWindow filters recommendations by generatedAt", async () => {
@@ -225,5 +233,123 @@ describe("GovernanceStore", () => {
 
     const allRecords = await store.queryByWindow("recommendations", 90);
     expect(allRecords.length).toBe(2);
+  });
+
+  it("findRecommendationById returns inner recommendation and its parent report", async () => {
+    const store = new GovernanceStore();
+    await store.append("recommendations", {
+      id: "report-1",
+      subject: "Test",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: [],
+      generatedAt: "2026-06-23T00:00:00.000Z",
+      reportType: "governance_recommendation",
+      recommendations: [
+        {
+          id: "rec-a",
+          source: "drift" as const,
+          sourceArtifactId: "d-1",
+          priority: "high" as const,
+          confidence: 0.85,
+          status: "open" as const,
+          category: "chain_restoration" as const,
+          title: "Restore chain coverage",
+          description: "Chain coverage dropped below threshold.",
+          evidenceRefs: [],
+          operatorGuidance: "Review the chain coverage metrics",
+          expectedBenefit: "Restored traceability across the evidence chain",
+          risks: [],
+          metadata: {
+            category: "chain_restoration" as const,
+            targetArtifactId: "d-1",
+            currentRate: 45,
+            targetRate: 80,
+          },
+        },
+        {
+          id: "rec-b",
+          source: "integrity" as const,
+          sourceArtifactId: "integrity-1",
+          priority: "medium" as const,
+          confidence: 0.72,
+          status: "open" as const,
+          category: "confidence_calibration" as const,
+          title: "Calibrate confidence",
+          description: "Confidence readings show drift.",
+          evidenceRefs: [],
+          operatorGuidance: "Check calibration dashboard",
+          expectedBenefit: "More accurate confidence scores",
+          risks: ["May increase false negatives"],
+          metadata: {
+            category: "confidence_calibration" as const,
+            target: "red_team",
+            currentCalibration: 0.45,
+            suggestedCalibration: 0.65,
+          },
+        },
+      ],
+      evidenceRefs: [],
+    } as any);
+
+    const resultA = await store.findRecommendationById("rec-a");
+    expect(resultA).not.toBeNull();
+    expect(resultA!.rec.id).toBe("rec-a");
+    expect(resultA!.rec.category).toBe("chain_restoration");
+    expect(resultA!.parent.id).toBe("report-1");
+    expect(resultA!.parent.reportType).toBe("governance_recommendation");
+    expect(resultA!.rec.metadata.category).toBe("chain_restoration");
+    expect((resultA!.rec.metadata as any).currentRate).toBe(45);
+    expect((resultA!.rec.metadata as any).targetRate).toBe(80);
+
+    const resultB = await store.findRecommendationById("rec-b");
+    expect(resultB).not.toBeNull();
+    expect(resultB!.rec.id).toBe("rec-b");
+    expect(resultB!.rec.category).toBe("confidence_calibration");
+    expect(resultB!.parent.id).toBe("report-1");
+    expect(resultB!.rec.metadata.category).toBe("confidence_calibration");
+    expect((resultB!.rec.metadata as any).target).toBe("red_team");
+    expect((resultB!.rec.metadata as any).currentCalibration).toBe(0.45);
+    expect((resultB!.rec.metadata as any).suggestedCalibration).toBe(0.65);
+  });
+
+  it("findRecommendationById returns null for non-existent ID", async () => {
+    const store = new GovernanceStore();
+    await store.append("recommendations", {
+      id: "report-1",
+      subject: "Test",
+      outcome: "computed",
+      confidence: 0.9,
+      reasons: [],
+      generatedAt: "2026-06-23T00:00:00.000Z",
+      reportType: "governance_recommendation",
+      recommendations: [
+        {
+          id: "rec-a",
+          source: "drift" as const,
+          sourceArtifactId: "d-1",
+          priority: "high" as const,
+          confidence: 0.85,
+          status: "open" as const,
+          category: "chain_restoration" as const,
+          title: "T",
+          description: "T",
+          evidenceRefs: [],
+          operatorGuidance: "T",
+          expectedBenefit: "T",
+          risks: [],
+          metadata: {
+            category: "chain_restoration" as const,
+            targetArtifactId: "d-1",
+            currentRate: 45,
+            targetRate: 80,
+          },
+        },
+      ],
+      evidenceRefs: [],
+    } as any);
+
+    const result = await store.findRecommendationById("nonexistent");
+    expect(result).toBeNull();
   });
 });

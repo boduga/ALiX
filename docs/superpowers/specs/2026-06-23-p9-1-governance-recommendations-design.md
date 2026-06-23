@@ -1,7 +1,9 @@
 # P9.1 — GovernanceRecommendation Design Spec (SDS)
 
-> **Status:** SDS — design phase. Not yet approved.
+> **Status:** SDS — approved. Merged via PR #117 (squash commit `3bf2c835`), tagged `alix-p9-1-complete`.
 > **Branch:** `feature/p9.1-governance-recommendations`, off `main`.
+>
+> **Amendment 1 (P9.2 design review, 2026-06-23):** added `Recommendation.metadata` as a discriminated union keyed on `category`. The P9.1 generators populate this field directly. P9.2's proposal payload is a 1:1 projection of `metadata` (with one key rename: `category` → `kind`). This eliminates the text-parsing fallback that was originally in the P9.2 SDS draft. Implementation of this amendment ships in P9.2a (a small P9.1 follow-up PR that adds the `metadata` field, populates it in the 4 generators, and runs the existing test suite to confirm zero regression).
 
 ## Core framing
 
@@ -67,7 +69,55 @@ export interface Recommendation {
   operatorGuidance: string;
   expectedBenefit: string;
   risks: string[];
+  /**
+   * Structured, category-specific metadata populated directly by the P9.1
+   * generator. The shape is a discriminated union keyed on `category`.
+   * Each variant mirrors the corresponding P9.2 `governance_change`
+   * payload variant field-for-field, with one key rename
+   * (`category` → `kind`). P9.2's translation is a 1:1 projection: no
+   * text parsing, no heuristics, no nullable fields. See
+   * `RecommendationMetadata` below.
+   */
+  metadata: RecommendationMetadata;
 }
+
+/**
+ * Discriminated union over the 5 P9.1 recommendation categories.
+ * Each variant carries the operation-specific fields that P9.2
+ * needs to construct a `governance_change` proposal payload. The
+ * shape is populated at generation time (P9.1) and consumed at
+ * translation time (P9.2). No string parsing, no re-derivation.
+ */
+export type RecommendationMetadata =
+  | {
+      category: "lens_adjustment";
+      operation: "promote" | "demote" | "retire";
+      lens: string;
+      currentPV: number;
+      reviewsAnalyzed: number;
+    }
+  | {
+      category: "chain_restoration";
+      targetArtifactId: string;
+      currentRate: number;
+      targetRate: number;
+    }
+  | {
+      category: "policy_coverage";
+      currentCoverage: number;
+      targetCoverage: number;
+    }
+  | {
+      category: "confidence_calibration";
+      target: string;
+      currentCalibration: number;
+      suggestedCalibration: number;
+    }
+  | {
+      category: "governance_integrity";
+      issue: string;
+      recommendationId: string;
+    };
 ```
 
 ## How recommendations are produced

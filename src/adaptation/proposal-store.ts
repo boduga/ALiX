@@ -51,6 +51,9 @@ export class ProposalStore {
         const parsed = JSON.parse(
           readFileSync(join(this.dir, f), "utf-8"),
         ) as AdaptationProposal;
+        // P9.2: skip orphaned proposals — they exist on disk for audit
+        // but are not surfaced as normal pending proposals.
+        if (parsed.systemState?.orphaned) continue;
         proposals.push(parsed);
       } catch {
         corruptCount++;
@@ -73,5 +76,18 @@ export class ProposalStore {
     this.validateShape(updated);
     await this.save(updated);
     return updated;
+  }
+
+  /**
+   * P9.2 atomicity recovery: mark a proposal as orphaned so it is
+   * excluded from `list()`. Used when the EvidenceChain edge write
+   * fails after the proposal is created. The proposal's lifecycle
+   * status is preserved (typically "pending"); the systemState
+   * field is set to indicate the infrastructure-recovery state.
+   * The proposal still exists on disk for audit, but is not
+   * surfaced as a normal pending proposal.
+   */
+  async markOrphaned(id: string, reason: string): Promise<void> {
+    await this.update(id, { systemState: { orphaned: true, reason } } as any);
   }
 }

@@ -40,4 +40,23 @@ describe("ProposalStore", () => {
     const pending = await store.list("pending");
     expect(pending.length).toBe(2);
   });
+
+  it("markOrphaned excludes the proposal from list()", async () => {
+    const proposal = {
+      id: "prop-orphan-test",
+      createdAt: "2026-06-23T00:00:00Z",
+      status: "pending" as const,
+      action: "create_agent_card" as const,
+      target: { kind: "agent_card" as const, id: "test-agent" },
+      payload: {},
+      sourceRecommendationType: "capability_gap",
+      sourceConfidence: 0.9,
+      evidenceFingerprints: [],
+      reason: "test orphan",
+    };
+    await store.save(proposal);
+    await store.markOrphaned(proposal.id, "test reason");
+    const all = await store.list();
+    expect(all.find((p) => p.id === proposal.id)).toBeUndefined();
+  });
 });

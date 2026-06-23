@@ -15,13 +15,14 @@ import type {
 } from "../../src/learning/evidence-chain-types.js";
 
 describe("evidence-chain-types: relationships and artifact types", () => {
-  it("exposes exactly five required provenance relationships", () => {
+  it("exposes exactly six required provenance relationships", () => {
     expect(PROVENANCE_RELATIONSHIPS).toEqual([
       "derived_from",
       "supports",
       "generated",
       "approved_from",
       "reviewed_from",
+      "proposal_from_recommendation",
     ]);
   });
 
@@ -70,7 +71,7 @@ describe("evidence-chain-types: relationships and artifact types", () => {
   });
 
   it("PROVENANCE_RELATIONSHIPS is readonly (frozen array)", () => {
-    expect(Object.isFrozen(PROVENANCE_RELATIONSHIPS) || PROVENANCE_RELATIONSHIPS.length === 5).toBe(true);
+    expect(Object.isFrozen(PROVENANCE_RELATIONSHIPS) || PROVENANCE_RELATIONSHIPS.length === 6).toBe(true);
     // attempting mutation should not change the canonical length
     const before = PROVENANCE_RELATIONSHIPS.length;
     try {
@@ -97,13 +98,14 @@ describe("evidence-chain-types: shape contracts", () => {
     expect(link.relationship).toBe("derived_from");
   });
 
-  it("ProvenanceRelationship narrows to the canonical five values", () => {
+  it("ProvenanceRelationship narrows to the canonical six values", () => {
     const r1: ProvenanceRelationship = "derived_from";
     const r2: ProvenanceRelationship = "supports";
     const r3: ProvenanceRelationship = "generated";
     const r4: ProvenanceRelationship = "approved_from";
     const r5: ProvenanceRelationship = "reviewed_from";
-    expect([r1, r2, r3, r4, r5]).toHaveLength(5);
+    const r6: ProvenanceRelationship = "proposal_from_recommendation";
+    expect([r1, r2, r3, r4, r5, r6]).toHaveLength(6);
   });
 
   it("ArtifactType narrows to the canonical twelve values", () => {

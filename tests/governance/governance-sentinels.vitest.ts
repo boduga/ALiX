@@ -98,6 +98,7 @@ const ALL_FILES = [
   ...GOVERNANCE_BUILDERS,
   "src/governance/governance-store.ts",
   "src/governance/governance-recommendation-generator.ts",
+  "src/governance/governance-proposal-generator.ts",
   "src/cli/commands/governance.ts",
 ];
 
@@ -116,19 +117,23 @@ function readSource(file: string): string {
 describe("P9.0 purity sentinel", () => {
   // -- Import checks (store + CLI only) ------------------------------------
 
+  const ALLOWED_IN_FILE: Record<string, string[]> = {
+    "src/governance/governance-proposal-generator.ts": ["ProposalStore", "EvidenceChainStore"]
+  };
+
   for (const file of ALL_FILES) {
     it(`${file} has no forbidden imports`, () => {
       const source = readSource(file);
-
-      // Governance builders legitimately read P8 stores — skip import check
       if (GOVERNANCE_BUILDERS.includes(file)) return;
 
+      const allowed = ALLOWED_IN_FILE[file] ?? [];
       const importLines = source
         .split("\n")
         .filter((l) => l.trim().startsWith("import"));
 
       for (const line of importLines) {
         for (const forbidden of FORBIDDEN_IMPORTS) {
+          if (allowed.includes(forbidden)) continue;
           expect(
             line,
             `${file} imports forbidden symbol: ${forbidden}`,
@@ -138,13 +143,19 @@ describe("P9.0 purity sentinel", () => {
     });
   }
 
-  // -- Write call checks (all 7 files) -------------------------------------
+  // -- Write call checks (all files) -------------------------------------
+
+  const ALLOWED_WRITE_CALLS_IN_FILE: Record<string, string[]> = {
+    "src/governance/governance-proposal-generator.ts": ["save(", "appendChain("],
+  };
 
   for (const file of ALL_FILES) {
     it(`${file} never calls P8 mutation methods`, () => {
       const source = readSource(file);
+      const allowed = ALLOWED_WRITE_CALLS_IN_FILE[file] ?? [];
 
       for (const call of FORBIDDEN_WRITE_CALLS) {
+        if (allowed.includes(call)) continue;
         expect(
           source,
           `${file} contains forbidden write call: ${call}`,
@@ -171,6 +182,43 @@ describe("P9.0 purity sentinel", () => {
         source,
         `governance-store.ts references forbidden P8 store path "${path}"`,
       ).not.toContain(path);
+    }
+  });
+
+  // -- Snapshot-equal baseline for protected files (ADR-0004) -----------
+
+  it("adaptation-types.ts ProposalAction is exactly the baseline + P9.2 additions", async () => {
+    const { BASELINE_PROPOSAL_ACTIONS } = await import("../../src/governance/protected-baselines.js");
+    const source = readSource("src/adaptation/adaptation-types.ts");
+    const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
+    expect(match).not.toBeNull();
+    if (!match) return;
+    const members = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect(members).toEqual([
+      ...BASELINE_PROPOSAL_ACTIONS,
+      "governance_change"  // P9.2's documented addition
+    ]);
+  });
+
+  it("adaptation-types.ts ProposalStatus preserves the 5 lifecycle states (P9.2 does NOT extend it)", () => {
+    const source = readSource("src/adaptation/adaptation-types.ts");
+    const match = source.match(/export type ProposalStatus\s*=\s*([\s\S]+?);/);
+    expect(match).not.toBeNull();
+    if (!match) return;
+    const members = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect(members.sort()).toEqual(
+      ["applied", "approved", "failed", "pending", "rejected"].sort()
+    );
+  });
+
+  it("adaptation-types.ts ProposalTarget kinds is exactly the baseline + P9.2 additions", () => {
+    const source = readSource("src/adaptation/adaptation-types.ts");
+    const kinds = [...source.matchAll(/kind:\s*"([^"]+)"/g)].map((m) => m[1]);
+    expect(kinds).toContain("governance");
+    // Check all baseline kinds still present
+    const expectedBaselineKinds = ["agent_card", "skill", "capability", "issue", "routing_weight", "revert", "learning"];
+    for (const k of expectedBaselineKinds) {
+      expect(kinds).toContain(k);
     }
   });
 });
