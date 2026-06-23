@@ -45,6 +45,7 @@ import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
+import type { ApprovalRecommendation } from "../../adaptation/recommendation-types.js";
 import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
@@ -877,6 +878,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
   // if not found or no recommendation given, leave confidence undefined
   // unless an explicit --recommendation-confidence override is supplied.
   let confidence: number | undefined;
+  let resolvedRecommendation: ApprovalRecommendation | undefined;
 
   if (recommendationId) {
     try {
@@ -884,6 +886,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
       const stored = await recStore.get(recommendationId);
       if (stored) {
         confidence = stored.confidence;
+        resolvedRecommendation = stored;
       }
     } catch (err) {
       console.error(
@@ -891,6 +894,16 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
         err instanceof Error ? err.message : String(err),
       );
     }
+  }
+
+  // P7.5p.2c — resolve riskScoreId from --risk-score-id override OR rec.riskScoreId.
+  // Never fake: missing stays undefined and serializes as absent in JSON.
+  let resolvedRiskScoreId: string | undefined;
+  const rsIdx = args.indexOf("--risk-score-id");
+  if (rsIdx !== -1 && rsIdx + 1 < args.length) {
+    resolvedRiskScoreId = args[rsIdx + 1];
+  } else if (resolvedRecommendation) {
+    resolvedRiskScoreId = resolvedRecommendation.riskScoreId;
   }
 
   // Parse --recommendation-confidence <0-1> if given. The override wins.
@@ -920,6 +933,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     actionTaken,
     observationWindowDays: 30,
     confidence,
+    riskScoreId: resolvedRiskScoreId,
     reasons: [],
     evidenceRefs: [],
     subject: `Outcome: ${subjectId}`,

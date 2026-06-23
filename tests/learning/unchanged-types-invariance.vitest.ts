@@ -12,6 +12,12 @@
  * & { confidence?: number } pattern). Any other change to that file fails
  * the test.
  *
+ * After P7.5p.2c, `src/adaptation/outcome-types.ts` is allowed to
+ * additionally include the `riskScoreId?: string` field on
+ * `OutcomeRecord` (NOT on `OutcomeArtifact` — that remains an Omit
+ * wrapper for `confidence` only). The captured `ALLOWED_DELTA_CONTENT`
+ * reflects the combined P7.5p.1c + P7.5p.2c state.
+ *
  * The 5 strict-protected files (risk-score-types.ts,
  * governance-review-types.ts, adaptation-types.ts, decision-types.ts,
  * learning-types.ts) remain byte-identical to the P8.5a.0 baseline.
