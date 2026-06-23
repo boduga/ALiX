@@ -2841,6 +2841,13 @@ if (command === "learning") {
   process.exit(0);
 }
 
+// ── Explain command (P8.5c) ──────────────────────────────────────
+if (command === "explain") {
+  const { handleExplainCommand } = await import("./cli/commands/explain.js");
+  await handleExplainCommand(args);
+  process.exit(0);
+}
+
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);
