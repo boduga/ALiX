@@ -38,7 +38,7 @@ import { PipelineHealthBuilder } from "../../adaptation/pipeline-health-builder.
 import { ProviderCatalogAdapter } from "../../adaptation/provider-catalog-adapter.js";
 import { LLMLensAgent } from "../../adaptation/llm-lens-agent.js";
 import { GovernanceReviewCouncil } from "../../adaptation/governance-review-council.js";
-import type { LensName, LensScore, GovernanceReview } from "../../adaptation/governance-review-types.js";
+import type { LensName, GovernanceReview } from "../../adaptation/governance-review-types.js";
 import type { GovernanceReviewInput } from "../../adaptation/governance-review-types.js";
 import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
@@ -50,7 +50,7 @@ import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
 import { GovernanceReviewStore } from "../../adaptation/governance-review-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
-import type { LensObservation } from "../../adaptation/lens-calibration-builder.js";
+import { buildLensObservations } from "../../learning/governance-lens-observation-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
 import type { ExecutionIntent } from "../../adaptation/execution-intent-types.js";
 
@@ -1160,33 +1160,13 @@ async function runOutcomeLensCalibration(args: string[]): Promise<void> {
   const reviews = await reviewStore.queryByWindow(windowDays);
   const outcomes = await outcomeStore.queryByWindow(windowDays);
 
-  const outcomeByProposal = new Map<string, OutcomeValue>();
-  for (const o of outcomes) {
-    outcomeByProposal.set(o.subjectId, o.outcome);
-  }
-
-  const observations: LensObservation[] = [];
-  let excludedNoOutcome = 0;
-
-  for (const review of reviews) {
-    const outcome = outcomeByProposal.get(review.proposalId);
-    if (outcome === undefined) {
-      excludedNoOutcome += 1;
-      continue;
-    }
-    for (const ls of review.lensScores) {
-      observations.push({
-        lens: ls.lens,
-        verdict: ls.recommendedVerdict,
-        outcome,
-        concernsRaised:
-          ls.recommendedVerdict === "agree_with_concerns" ||
-          ls.recommendedVerdict === "challenge"
-            ? 1
-            : 0,
-      });
-    }
-  }
+  // Single source of truth for join + concernsRaised derivation (fix #5).
+  // Shared with `GovernanceCalibrationAdapter` so the CLI's report and the
+  // adapter's signals are guaranteed to agree on the same observations.
+  const { observations, excludedNoOutcome } = buildLensObservations(
+    reviews,
+    outcomes,
+  );
 
   const report = new LensCalibrationBuilder().build(observations, {
     windowDays,

@@ -30,7 +30,7 @@ import type {
 } from "./adapter-diagnostics.js";
 
 export interface RiskAdapterOptions {
-  /** Default 30 — observation window in days for `riskStore.queryByWindow`. */
+  /** Default 30 — observation window in days for both stores' `queryByWindow`. */
   windowDays?: number;
   /** Injected for determinism in tests; orchestrator passes run's shared ts. */
   generatedAt?: string;
@@ -63,7 +63,11 @@ export class RiskCalibrationAdapter implements CalibrationAdapter {
       opts?.generatedAt ?? new Date().toISOString();
 
     const riskScores = await this.riskStore.queryByWindow(windowDays);
-    const allOutcomes = await this.outcomeStore.list();
+    // Window filter on outcomes too — same window as risk scores so the join
+    // pairs in-window RiskScores with in-window OutcomeRecords only. Without
+    // this, stale outcomes from any time would join against fresh risk
+    // signals (false positives in calibration). Mirrors governance adapter.
+    const allOutcomes = await this.outcomeStore.queryByWindow(windowDays);
 
     // Group outcomes by subjectId (the proposalId link) for O(1) lookup.
     const outcomesByProposal = new Map<string, OutcomeRecord[]>();

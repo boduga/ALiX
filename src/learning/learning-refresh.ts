@@ -51,6 +51,17 @@ import { GovernanceCalibrationAdapter } from "./governance-calibration-adapter.j
 
 const DEFAULT_WINDOW_DAYS = 30;
 
+// AdapterRegistry keys — the orchestrator validates against this set so
+// invalid `opts.adapter` strings fail loudly with a clean error rather
+// than being silently cast. `Object.keys(buildDefaultAdapters(cwd))`
+// could derive it but we hardcode here to keep validation independent of
+// store construction (cwd-free validation, fast-fail before any I/O).
+const VALID_ADAPTERS: AdapterName[] = [
+  "recommendation",
+  "risk",
+  "governance",
+];
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -111,6 +122,14 @@ export async function runLearningRefresh(
     opts.adapters ?? buildDefaultAdapters(opts.cwd);
 
   const which = opts.adapter ?? "all";
+  // Defense in depth: the CLI validates `opts.adapter` against the same set
+  // but we validate here too so any caller (programmatic, future
+  // subcommand, test) gets a clean error rather than `undefined[x]` later.
+  if (which !== "all" && !VALID_ADAPTERS.includes(which as AdapterName)) {
+    throw new Error(
+      `Invalid adapter: "${which}". Valid: ${VALID_ADAPTERS.join(", ")}, all`,
+    );
+  }
   const selected: CalibrationAdapter[] =
     which === "all"
       ? Object.values(adapters)

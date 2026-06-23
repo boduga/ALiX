@@ -26,12 +26,6 @@ import type {
 } from "../../learning/learning-types.js";
 import { ProposalFactory, buildLearningProposal } from "../learning-proposal-factory.js";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
-import { OutcomeStore } from "../../adaptation/outcome-store.js";
-import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
-import { GovernanceReviewStore } from "../../adaptation/governance-review-store.js";
-import { RecommendationCalibrationAdapter } from "../../learning/recommendation-calibration-adapter.js";
-import { RiskCalibrationAdapter } from "../../learning/risk-calibration-adapter.js";
-import { GovernanceCalibrationAdapter } from "../../learning/governance-calibration-adapter.js";
 import {
   runLearningRefresh,
 } from "../../learning/learning-refresh.js";
@@ -345,22 +339,16 @@ async function runRefresh(args: string[]): Promise<void> {
   const adapter = adapterRaw as AdapterName | "all";
 
   const cwd = process.cwd();
-  const outcomeStore = new OutcomeStore(join(cwd, OUTCOMES_DIR));
-  const riskStore = new RiskScoreStore(join(cwd, ".alix", "risk-scores"));
-  const reviewStore = new GovernanceReviewStore(
-    join(cwd, ".alix", "governance-reviews"),
-  );
 
+  // Delegate adapter construction to the orchestrator's
+  // `buildDefaultAdapters(cwd)` so there's a single source of truth for
+  // store wiring. Previously the CLI built its own adapter map which
+  // duplicated the orchestrator's logic.
   const result = await runLearningRefresh({
     cwd,
     windowDays,
     adapter,
     learningStore: new LearningStore(join(cwd, LEARNING_DIR)),
-    adapters: {
-      recommendation: new RecommendationCalibrationAdapter(outcomeStore),
-      risk: new RiskCalibrationAdapter(riskStore, outcomeStore),
-      governance: new GovernanceCalibrationAdapter(reviewStore, outcomeStore),
-    },
   });
 
   if (parsed.json) {

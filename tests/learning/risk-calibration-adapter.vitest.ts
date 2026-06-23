@@ -288,4 +288,51 @@ describe("RiskCalibrationAdapter", () => {
       }
     }
   });
+
+  it("windows outcomeStore by windowDays — stale outcomes are NOT joined (regression for HIGH-severity #1)", async () => {
+    // Regression: risk adapter previously used `outcomeStore.list()` which
+    // returned outcomes from ALL time, so an in-window RiskScore could pair
+    // with a 400-day-old OutcomeRecord. With the fix, the join uses
+    // `queryByWindow(windowDays)` so stale outcomes are excluded.
+    //
+    // Use direct fixture timestamps so the window filter is deterministic:
+    //   generatedAt: 2026-06-22 (today)
+    //   windowDays:  30
+    //   → windowStart = 2026-05-23, windowEnd = 2026-06-22
+    //
+    // Seed: a RiskScore generated TODAY (in-window) paired with an
+    // OutcomeRecord generated 400 days BEFORE today (out-of-window).
+    // If the adapter correctly windows the outcome store, the join is empty.
+    const today = "2026-06-22T00:00:00.000Z";
+    const ancient = "2025-05-17T00:00:00.000Z"; // ~401 days before today
+
+    await riskStore.append(
+      makeRiskScore({
+        proposalId: "prop-stale-join",
+        generatedAt: today,
+      }),
+    );
+    await outcomeStore.append(
+      makeOutcome({
+        id: "out-stale",
+        subjectId: "prop-stale-join",
+        outcome: "success",
+        generatedAt: ancient,
+      }),
+    );
+
+    const adapter = new RiskCalibrationAdapter(riskStore, outcomeStore);
+    const result = await adapter.calibrate({
+      windowDays: 30,
+      generatedAt: today,
+    });
+
+    // The risk score was IN-window (read), but its stale outcome is OUT of
+    // window — so the join must NOT produce a processed observation.
+    expect(result.diagnostics.sourceRecordsRead).toBe(1); // 1 risk score in-window
+    expect(result.diagnostics.processed).toBe(0); // 0 — stale outcome not joined
+    expect(result.diagnostics.excludedReasons).toEqual({ noOutcome: 1 });
+    expect(result.signals).toEqual([]);
+    expect(result.profiles).toEqual([]);
+  });
 });

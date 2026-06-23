@@ -587,4 +587,19 @@ describe("runLearningRefresh orchestrator", () => {
     expect(result.results[0].diagnostics.notes).toContain("fake-4th adapter ran");
     // Same loop, no special-casing for the fake — registry extensibility proven.
   });
+
+  it("10. invalid opts.adapter throws clean Error (fix #2)", async () => {
+    // Defense in depth: the orchestrator validates `opts.adapter` so any
+    // caller (CLI, programmatic, future subcommand) gets a clean error
+    // rather than `undefined[x]` deeper in the loop. The CLI also
+    // validates, but we test the orchestrator's own guard here.
+    await expect(
+      runLearningRefresh({
+        cwd: tempRoot,
+        adapter: "bogus" as never,
+        learningStore,
+        adapters: buildDefaultAdapters(),
+      }),
+    ).rejects.toThrow(/Invalid adapter: "bogus"\. Valid: recommendation, risk, governance, all/);
+  });
 });

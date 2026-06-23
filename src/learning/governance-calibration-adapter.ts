@@ -20,13 +20,11 @@
  */
 
 import type { GovernanceReview } from "../adaptation/governance-review-types.js";
-import type { GovernanceVerdict, LensScore } from "../adaptation/governance-review-types.js";
 import type { GovernanceReviewStore } from "../adaptation/governance-review-store.js";
 import type { OutcomeStore } from "../adaptation/outcome-store.js";
-import type { OutcomeValue } from "../adaptation/outcome-types.js";
 import { LensCalibrationBuilder } from "../adaptation/lens-calibration-builder.js";
-import type { LensObservation } from "../adaptation/lens-calibration-builder.js";
 import { GovernanceCalibrationBuilder } from "./governance-calibration-builder.js";
+import { buildLensObservations } from "./governance-lens-observation-builder.js";
 import type {
   AdapterResult,
   CalibrationAdapter,
@@ -41,18 +39,9 @@ export interface GovernanceAdapterOptions {
 
 const DEFAULT_WINDOW_DAYS = 30;
 
-/**
- * Does this verdict represent a lens that raised a concern?
- * `agree_with_concerns` and `challenge` both indicate the lens saw
- * something worth flagging. `agree` and `insufficient_information` do not.
- *
- * Module-private to this adapter — mirrors the same-name helper in
- * `LensCalibrationBuilder`, which is also module-private. We re-define
- * locally per plan (no cross-file coupling beyond what's typed).
- */
-function isWarningVerdict(v: GovernanceVerdict): boolean {
-  return v === "agree_with_concerns" || v === "challenge";
-}
+// `isWarningVerdict` and `buildLensObservations` are imported from
+// `governance-lens-observation-builder.ts` (fix #4 + #5) — single source
+// of truth shared with the decision CLI.
 
 /**
  * Adapter turns `(GovernanceReview × OutcomeRecord)` pairs into the input
@@ -78,30 +67,13 @@ export class GovernanceCalibrationAdapter implements CalibrationAdapter {
     const reviews = await this.reviewStore.queryByWindow(windowDays);
     const outcomes = await this.outcomeStore.queryByWindow(windowDays);
 
-    // Build outcomeByProposal for O(1) join lookup.
-    const outcomeByProposal = new Map<string, OutcomeValue>();
-    for (const o of outcomes) {
-      outcomeByProposal.set(o.subjectId, o.outcome);
-    }
-
-    const observations: LensObservation[] = [];
-    let excludedNoOutcome = 0;
-
-    for (const review of reviews as GovernanceReview[]) {
-      const outcome = outcomeByProposal.get(review.proposalId);
-      if (outcome === undefined) {
-        excludedNoOutcome += 1;
-        continue;
-      }
-      for (const ls of review.lensScores as LensScore[]) {
-        observations.push({
-          lens: ls.lens,
-          verdict: ls.recommendedVerdict,
-          outcome,
-          concernsRaised: isWarningVerdict(ls.recommendedVerdict) ? 1 : 0, // LOW_FIDELITY inference
-        });
-      }
-    }
+    // Join + concernsRaised derivation — single source of truth lives in
+    // governance-lens-observation-builder.ts (fix #5). The adapter stays
+    // a thin I/O shell; the helper is pure and shared with the CLI.
+    const { observations, excludedNoOutcome } = buildLensObservations(
+      reviews,
+      outcomes,
+    );
 
     const lensReport = this.lensBuilder.build(observations, { windowDays, generatedAt });
     const sourceReportId = `governance-calibration-window-${windowDays}`;

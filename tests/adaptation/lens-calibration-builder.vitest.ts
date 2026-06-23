@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { LensCalibrationBuilder } from "../../src/adaptation/lens-calibration-builder.js";
+import { LensCalibrationBuilder, isWarningVerdict } from "../../src/adaptation/lens-calibration-builder.js";
 import type { LensObservation } from "../../src/adaptation/lens-calibration-builder.js";
 import type { LensName } from "../../src/adaptation/governance-review-types.js";
 import type { GovernanceVerdict } from "../../src/adaptation/governance-review-types.js";
@@ -457,6 +457,19 @@ describe("LensCalibrationBuilder", () => {
       expect(typeof report.confidence).toBe("number");
       expect(report.reasons.length).toBeGreaterThan(0);
       expect(typeof report.generatedAt).toBe("string");
+    });
+  });
+
+  // Fix #4 — single source of truth for "warning verdict" rule.
+  describe("isWarningVerdict export (fix #4)", () => {
+    it("is exported and classifies verdicts correctly", () => {
+      // Sanity: the symbol exists and behaves. The CLI and governance
+      // adapter now import from here instead of each redefining the rule.
+      expect(typeof isWarningVerdict).toBe("function");
+      expect(isWarningVerdict("agree_with_concerns")).toBe(true);
+      expect(isWarningVerdict("challenge")).toBe(true);
+      expect(isWarningVerdict("agree")).toBe(false);
+      expect(isWarningVerdict("insufficient_information")).toBe(false);
     });
   });
 });
