@@ -16,12 +16,15 @@ import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
 import { ApprovalRecommendationStore } from "../../src/adaptation/approval-recommendation-store.js";
 import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
 import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
+import { LearningStore } from "../../src/learning/learning-store.js";
+import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
 import { assembleProposalExplanation } from "../../src/explain/proposal-explanation-assembler.js";
 
 const OUTCOMES_DIR = join(".alix", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "recommendations");
 const RISK_SCORES_DIR = join(".alix", "risk-scores");
 const GOVERNANCE_REVIEWS_DIR = join(".alix", "governance-reviews");
+const LEARNING_DIR = join(".alix", "learning");
 
 let cwdSpy: ReturnType<typeof vi.spyOn>;
 let tempRoot: string;
@@ -292,5 +295,323 @@ describe("assembleProposalExplanation", () => {
 
     expect(result.explanationIntegrity.layersAvailable).toBe(2);
     expect(result.explanationIntegrity.completenessPercent).toBeCloseTo(33.3, 1);
+  });
+
+  // -------------------------------------------------------------------------
+  // P8.5c.3 — Task 3 tests: EvidenceChain traversal + Learning + Calibration
+  // -------------------------------------------------------------------------
+
+  it("uses EvidenceChain to populate Recommendation layer (joinPath: evidence_chain)", async () => {
+    const outcomeStore = new OutcomeStore(join(tempRoot, OUTCOMES_DIR));
+    await outcomeStore.append({
+      id: "out-1",
+      subject: "Outcome for prop-1",
+      outcome: "success",
+      reasons: [],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      subjectId: "prop-1",
+      subjectType: "proposal",
+      actionTaken: "applied",
+      observationWindowDays: 7,
+    } as any);
+
+    const recStore = new ApprovalRecommendationStore(join(tempRoot, RECOMMENDATIONS_DIR));
+    await recStore.append({
+      id: "rec-1",
+      subject: "Recommendation for prop-1",
+      outcome: "recommended",
+      confidence: 0.85,
+      reasons: [],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      proposalId: "prop-1",
+      recommendation: "approve",
+      sourceArtifacts: [],
+    } as any);
+
+    // Seed an EvidenceChain linking out-1 → rec-1.
+    const chainStore = new EvidenceChainStore(join(tempRoot, LEARNING_DIR));
+    await chainStore.appendChain({
+      id: "chain-1",
+      subject: "Chain for prop-1",
+      outcome: "computed",
+      confidence: 1,
+      reasons: ["x"],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      rootArtifactId: "out-1",
+      rootArtifactType: "outcome_record",
+      links: [
+        {
+          sourceArtifactId: "out-1",
+          sourceArtifactType: "outcome_record",
+          targetArtifactId: "rec-1",
+          targetArtifactType: "recommendation",
+          relationship: "derived_from",
+          recordedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      depth: 1,
+    } as any);
+
+    const result = await assembleProposalExplanation({
+      proposalId: "prop-1",
+      cwd: tempRoot,
+      windowDays: 30,
+    });
+
+    expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
+    expect(result.recommendation.status).toBe("available");
+    if (result.recommendation.status === "available") {
+      expect(result.recommendation.recommendationId).toBe("rec-1");
+      expect(result.recommendation.joinPath).toBe("evidence_chain");
+    }
+  });
+
+  it("increments incompleteChainLayers when EvidenceChain references a missing artifact", async () => {
+    const outcomeStore = new OutcomeStore(join(tempRoot, OUTCOMES_DIR));
+    await outcomeStore.append({
+      id: "out-1",
+      subject: "Outcome for prop-1",
+      outcome: "success",
+      reasons: [],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      subjectId: "prop-1",
+      subjectType: "proposal",
+      actionTaken: "applied",
+      observationWindowDays: 7,
+    } as any);
+
+    // Chain references rec-MISSING which is absent from the store → orphan.
+    const chainStore = new EvidenceChainStore(join(tempRoot, LEARNING_DIR));
+    await chainStore.appendChain({
+      id: "chain-orphan",
+      subject: "Broken chain for prop-1",
+      outcome: "computed",
+      confidence: 1,
+      reasons: ["x"],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      rootArtifactId: "out-1",
+      rootArtifactType: "outcome_record",
+      links: [
+        {
+          sourceArtifactId: "out-1",
+          sourceArtifactType: "outcome_record",
+          targetArtifactId: "rec-MISSING",
+          targetArtifactType: "recommendation",
+          relationship: "derived_from",
+          recordedAt: "2026-06-01T00:00:00.000Z",
+        },
+      ],
+      depth: 1,
+    } as any);
+
+    const result = await assembleProposalExplanation({
+      proposalId: "prop-1",
+      cwd: tempRoot,
+      windowDays: 30,
+    });
+
+    expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
+    expect(result.explanationIntegrity.incompleteChainLayers).toBeGreaterThanOrEqual(1);
+    // Falls through to proposal-fallback, finds nothing → recommendation unavailable.
+    expect(result.recommendation.status).toBe("not_available");
+  });
+
+  it("populates Learning layer via EvidenceChain link from signal to proposal artifact (subject has no proposalId)", async () => {
+    const outcomeStore = new OutcomeStore(join(tempRoot, OUTCOMES_DIR));
+    await outcomeStore.append({
+      id: "out-1",
+      subject: "Outcome for prop-1",
+      outcome: "success",
+      reasons: [],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      subjectId: "prop-1",
+      subjectType: "proposal",
+      actionTaken: "applied",
+      observationWindowDays: 7,
+    } as any);
+
+    // Signal subject intentionally does NOT contain proposalId — the chain
+    // is the ONLY link. evidenceRefs empty so only chain can resolve it.
+    const learningStore = new LearningStore(join(tempRoot, LEARNING_DIR));
+    await learningStore.appendSignal({
+      id: "sig-1",
+      subject: "Overconfidence signal",
+      outcome: "signal_detected",
+      confidence: 0.7,
+      reasons: ["delta"],
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      sourceReportId: "risk-calibration-window-30",
+      signalType: "risk_dimension_overfire",
+      strength: 0.7,
+      summary: "x",
+      evidenceRefs: [],
+    } as any);
+
+    // Chain: rootArtifactId = sig-1 (the signal), links target out-1 (the
+    // proposal artifact). So a signal's chain root resolves to a proposal
+    // artifact → signal is reachable via chain.
+    const chainStore = new EvidenceChainStore(join(tempRoot, LEARNING_DIR));
+    await chainStore.appendChain({
+      id: "chain-sig-1",
+      subject: "Chain linking sig-1 to out-1",
+      outcome: "computed",
+      confidence: 1,
+      reasons: ["x"],
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      rootArtifactId: "sig-1",
+      rootArtifactType: "learning_signal",
+      links: [
+        {
+          sourceArtifactId: "sig-1",
+          sourceArtifactType: "learning_signal",
+          targetArtifactId: "out-1",
+          targetArtifactType: "outcome_record",
+          relationship: "derived_from",
+          recordedAt: "2026-06-22T00:00:00.000Z",
+        },
+      ],
+      depth: 1,
+    } as any);
+
+    const result = await assembleProposalExplanation({
+      proposalId: "prop-1",
+      cwd: tempRoot,
+      windowDays: 30,
+    });
+
+    expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
+    expect(result.learning.totalSignals).toBe(1);
+    expect(result.explanationIntegrity.learningFound).toBe(true);
+    // Adapter classification via sourceReportId prefix.
+    expect(result.learning.adaptersWithSignals).toContain("risk");
+    // No heuristic fallback needed — chain resolved.
+    expect(result.explanationIntegrity.fallbackJoinsUsed).toBe(false);
+    expect(result.learningRefreshHint).toBeNull();
+  });
+
+  it("populates Learning layer via string heuristic fallback (fallbackJoinsUsed: true)", async () => {
+    const outcomeStore = new OutcomeStore(join(tempRoot, OUTCOMES_DIR));
+    await outcomeStore.append({
+      id: "out-1",
+      subject: "Outcome for prop-1",
+      outcome: "success",
+      reasons: [],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      subjectId: "prop-1",
+      subjectType: "proposal",
+      actionTaken: "applied",
+      observationWindowDays: 7,
+    } as any);
+
+    // No chain seeded — heuristic must kick in. Subject contains proposalId.
+    const learningStore = new LearningStore(join(tempRoot, LEARNING_DIR));
+    await learningStore.appendSignal({
+      id: "sig-1",
+      subject: "Signal for prop-1 recommendation",
+      outcome: "signal_detected",
+      confidence: 0.6,
+      reasons: [],
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      sourceReportId: "recommendation-window-30",
+      signalType: "overconfidence",
+      strength: 0.6,
+      summary: "x",
+      evidenceRefs: [],
+    } as any);
+
+    const result = await assembleProposalExplanation({
+      proposalId: "prop-1",
+      cwd: tempRoot,
+      windowDays: 30,
+    });
+
+    expect(result.learning.totalSignals).toBe(1);
+    expect(result.explanationIntegrity.learningFound).toBe(true);
+    expect(result.explanationIntegrity.fallbackJoinsUsed).toBe(true);
+    expect(result.learning.adaptersWithSignals).toContain("recommendation");
+  });
+
+  it("populates Calibration layer via signal evidenceRefs when chain resolves signal", async () => {
+    const outcomeStore = new OutcomeStore(join(tempRoot, OUTCOMES_DIR));
+    await outcomeStore.append({
+      id: "out-1",
+      subject: "Outcome for prop-1",
+      outcome: "success",
+      reasons: [],
+      generatedAt: "2026-06-01T00:00:00.000Z",
+      subjectId: "prop-1",
+      subjectType: "proposal",
+      actionTaken: "applied",
+      observationWindowDays: 7,
+    } as any);
+
+    const learningStore = new LearningStore(join(tempRoot, LEARNING_DIR));
+    await learningStore.appendSignal({
+      id: "sig-1",
+      subject: "Overconfidence signal",
+      outcome: "signal_detected",
+      confidence: 0.7,
+      reasons: ["delta"],
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      sourceReportId: "risk-calibration-window-30",
+      signalType: "risk_dimension_overfire",
+      strength: 0.7,
+      summary: "x",
+      evidenceRefs: [],
+    } as any);
+
+    // Profile references sig-1 via sourceSignalIds. Since sig-1 is a chain
+    // root (links to out-1), the profile is reachable via chain.
+    await learningStore.appendProfile({
+      id: "prof-1",
+      subject: "Confidence multiplier bucket",
+      outcome: "suggested",
+      confidence: 0.7,
+      reasons: ["delta"],
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      target: "recommendation_confidence_multiplier",
+      targetName: "confidence_multiplier_0.8-1.0",
+      previousValue: 1.0,
+      suggestedValue: 0.85,
+      reason: "Observed success rate below midpoint",
+      evidenceRefs: ["sig-1"],
+      sourceSignalIds: ["sig-1"],
+    } as any);
+
+    const chainStore = new EvidenceChainStore(join(tempRoot, LEARNING_DIR));
+    await chainStore.appendChain({
+      id: "chain-sig-1",
+      subject: "Chain linking sig-1 to out-1",
+      outcome: "computed",
+      confidence: 1,
+      reasons: ["x"],
+      generatedAt: "2026-06-22T00:00:00.000Z",
+      rootArtifactId: "sig-1",
+      rootArtifactType: "learning_signal",
+      links: [
+        {
+          sourceArtifactId: "sig-1",
+          sourceArtifactType: "learning_signal",
+          targetArtifactId: "out-1",
+          targetArtifactType: "outcome_record",
+          relationship: "derived_from",
+          recordedAt: "2026-06-22T00:00:00.000Z",
+        },
+      ],
+      depth: 1,
+    } as any);
+
+    const result = await assembleProposalExplanation({
+      proposalId: "prop-1",
+      cwd: tempRoot,
+      windowDays: 30,
+    });
+
+    expect(result.calibration.profilesByTarget).toHaveProperty(
+      "recommendation_confidence_multiplier",
+    );
+    expect(result.calibration.adjustments).toHaveLength(1);
+    expect(result.calibration.adjustments[0].suggestedValue).toBe(0.85);
+    expect(result.explanationIntegrity.calibrationFound).toBe(true);
   });
 });

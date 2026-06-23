@@ -1,24 +1,24 @@
 /**
- * P8.5c.2 — ProposalExplanation assembler.
+ * P8.5c.3 — ProposalExplanation assembler.
  *
- * Pure read-only aggregation. Walks 4 stores (Outcome, Recommendation,
- * Risk, Governance) + (in Task 3) EvidenceChain graph + Learning/Calibration
- * stores, and assembles an ephemeral ProposalExplanation view-model.
+ * Pure read-only aggregation. Walks 4 persisted decision-lifecycle stores
+ * (Outcome, Recommendation, Risk, Governance) + EvidenceChain graph +
+ * Learning/Calibration stores, assembles ephemeral ProposalExplanation
+ * view-model.
  *
- * CORE INVARIANT: this module NEVER writes any store, evidence chain,
- * adapter, proposal surface. Explain reads. Sentinel-enforced in Task 5.
+ * CORE INVARIANT: module NEVER writes any store, evidence chain, adapter,
+ * proposal surface. Explain reads. Sentinel-enforced in Task 5.
  *
  * Layer-resolution priority (locked):
- *   1. EvidenceChain traversal (Task 3 — not yet implemented here)
- *   2. Direct-id OutcomeRecord (recommendationId / riskScoreId /
- *      governanceReviewId) — this task
- *   3. Proposal-based fallback (filter by proposalId / proposal-scoped
- *      query — cross-proposal isolation invariant) — this task
- *   4. String heuristic on subject/sourceReportId (Task 3, deprecated
- *      post-P9; only used for Learning signals)
+ * 1. EvidenceChain traversal (Task 3)
+ * 2. Direct-id OutcomeRecord (recommendationId / riskScoreId /
+ *    governanceReviewId) — Task 2
+ * 3. Proposal-based fallback (filter proposalId / proposal-scoped
+ *    query — cross-proposal isolation invariant) — Task 2
+ * 4. String heuristic on subject/sourceReportId (Task 3, deprecated
+ *    post-P9; LOCKED to Learning + Calibration layers ONLY)
  *
- * This file ships priorities 2 + 3 for the four persisted layers.
- * Priority 1 (chain) + Learning/Calibration layers are filled by Task 3.
+ * This file ships all four priorities across six persisted layers.
  */
 
 import { join } from "node:path";
@@ -26,29 +26,37 @@ import { OutcomeStore } from "../adaptation/outcome-store.js";
 import { ApprovalRecommendationStore } from "../adaptation/approval-recommendation-store.js";
 import { RiskScoreStore } from "../adaptation/risk-score-store.js";
 import { GovernanceReviewStore } from "../adaptation/governance-review-store.js";
-import { riskOutcomeFromScore } from "../adaptation/risk-score-types.js";
-import type { JoinPath, ProposalExplanation, OutcomeLayer, RecommendationLayer, RiskLayer, GovernanceLayer, UnavailableLayer, ExplanationIntegrity } from "./proposal-explanation-types.js";
+import { LearningStore } from "../learning/learning-store.js";
+import { EvidenceChainStore } from "../learning/evidence-chain-store.js";
+import { EXPLAIN_MAX_DEPTH } from "../learning/evidence-chain-types.js";
+import type { LearningSignal, CalibrationProfile } from "../learning/learning-types.js";
+import type { RiskScore, RiskDimension, RiskOutcome } from "../adaptation/risk-score-types.js";
+import type { GovernanceReview } from "../adaptation/governance-review-types.js";
+import type {
+  JoinPath,
+  ProposalExplanation,
+  OutcomeLayer,
+  RecommendationLayer,
+  RiskLayer,
+  GovernanceLayer,
+  LearningLayer,
+  CalibrationLayer,
+  UnavailableLayer,
+  ExplanationIntegrity,
+} from "./proposal-explanation-types.js";
 
 // ---------------------------------------------------------------------------
-// Constants — store directory layout (mirrors the per-store STORE_DIR).
+// Constants — store directory layout (mirrors per-store STORE_DIR).
 // ---------------------------------------------------------------------------
 
 const OUTCOMES_DIR = join(".alix", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "recommendations");
 const RISK_SCORES_DIR = join(".alix", "risk-scores");
 const GOVERNANCE_REVIEWS_DIR = join(".alix", "governance-reviews");
+const LEARNING_DIR = join(".alix", "learning");
 
-/**
- * Refresh hint rendered when the Learning layer is empty. Real learning
- * data is assembled in Task 3; in Task 2 the Learning layer is always
- * empty so the hint is always returned.
- */
 const REFRESH_HINT =
-  "Learning layer empty — run `alix learning refresh` to populate signals, or the proposal has no recorded learning within the window.";
-
-// ---------------------------------------------------------------------------
-// Public options
-// ---------------------------------------------------------------------------
+  "Learning layer is empty for this proposal. Run `alix learning refresh` to regenerate signals from recent outcomes.";
 
 export interface AssembleProposalExplanationOptions {
   proposalId: string;
@@ -57,12 +65,48 @@ export interface AssembleProposalExplanationOptions {
 }
 
 // ---------------------------------------------------------------------------
+// resolveChainReachable — Priority 1 helper (EvidenceChain traversal)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the set of artifact IDs reachable from `rootArtifactId` via the
+ * EvidenceChain graph. Walks `chain.links` for every chain rooted at the
+ * given artifact, collecting target IDs up to EXPLAIN_MAX_DEPTH hops.
+ *
+ * Returns `{ reachable, usedChain }`. `usedChain` is true when at least
+ * one chain exists for the root (so `evidenceChainUsed` can be set even
+ * if the chain is broken/orphaned — see incompleteChainLayers).
+ *
+ * Read-only. Calls only `getChainForRoot`.
+ */
+async function resolveChainReachable(
+  chainStore: EvidenceChainStore,
+  rootArtifactId: string,
+): Promise<{ reachable: Set<string>; usedChain: boolean }> {
+  const reachable = new Set<string>();
+  let usedChain = false;
+  if (!rootArtifactId) return { reachable, usedChain };
+  const chains = await chainStore.getChainForRoot(rootArtifactId).catch(() => []);
+  if (chains.length === 0) return { reachable, usedChain };
+  usedChain = true;
+  for (const chain of chains) {
+    let hops = 0;
+    for (const link of chain.links) {
+      if (hops >= EXPLAIN_MAX_DEPTH) break;
+      hops++;
+      if (link.targetArtifactId) reachable.add(link.targetArtifactId);
+    }
+  }
+  return { reachable, usedChain };
+}
+
+// ---------------------------------------------------------------------------
 // assembleProposalExplanation
 // ---------------------------------------------------------------------------
 
 /**
- * Assemble a ProposalExplanation view-model by walking the 4 persisted
- * decision-lifecycle stores. Read-only. See module doc for the layer
+ * Assemble ProposalExplanation view-model by walking 6 persisted stores +
+ * the EvidenceChain graph. Read-only. See module doc for the layer
  * resolution priority ladder.
  */
 export async function assembleProposalExplanation(
@@ -71,17 +115,15 @@ export async function assembleProposalExplanation(
   const { proposalId, cwd, windowDays } = opts;
   const generatedAt = new Date().toISOString();
 
-  // Track whether any layer used a fallback join (for explanationIntegrity).
+  // Track integrity flags across all layers.
   let fallbackJoinsUsed = false;
-  // Task 3 will populate both of these via EvidenceChain traversal.
   let incompleteChainLayers = 0;
   let evidenceChainUsed = false;
 
   // ---- Layer 1: Outcome ------------------------------------------------
   // Outcome is always proposal-scoped (queried by subjectId === proposalId).
-  // There is no direct-id or chain join for the Outcome itself — the
-  // OutcomeRecord IS the proposal anchor. joinPath is therefore always
-  // proposal_fallback in the Task 2 terminology.
+  // There is no direct-id or chain join for Outcome itself — OutcomeRecord
+  // IS the proposal anchor. joinPath therefore always proposal_fallback.
   const outcomeStore = new OutcomeStore(join(cwd, OUTCOMES_DIR));
   const matchingOutcomes = await outcomeStore.queryBySubject(proposalId).catch(() => []);
   matchingOutcomes.sort(
@@ -95,44 +137,82 @@ export async function assembleProposalExplanation(
         outcome: mostRecentOutcome.outcome,
         observedAt: mostRecentOutcome.generatedAt,
         sourceArtifactIds: [mostRecentOutcome.id],
-        // Outcome is always proposal-scoped (no direct-id or chain link for
-        // the OutcomeRecord itself — it is the anchor artifact).
+        // Outcome is always proposal-scoped (no direct-id or chain link to
+        // OutcomeRecord itself — anchor artifact).
         joinPath: "proposal_fallback",
       }
-    : {
-        status: "not_available",
-        reason: `no OutcomeRecord for proposal ${proposalId}`,
-      };
+    : { status: "not_available", reason: `no OutcomeRecord for proposal ${proposalId}` };
 
-  // ---- Layer 2: Recommendation (direct-id → proposal-fallback) ---------
+  // ---- EvidenceChain graph (Priority 1 for layers 2-4) -----------------
+  const chainStore = new EvidenceChainStore(join(cwd, LEARNING_DIR));
+  let chainReachable = new Set<string>();
+  if (mostRecentOutcome) {
+    const { reachable, usedChain } = await resolveChainReachable(chainStore, mostRecentOutcome.id);
+    chainReachable = reachable;
+    if (usedChain) evidenceChainUsed = true;
+  }
+
+  // ---- Layer 2: Recommendation (chain → direct-id → proposal fallback) -
   let recommendation: RecommendationLayer | UnavailableLayer = {
     status: "not_available",
     reason: `no ApprovalRecommendation linked to proposal ${proposalId}`,
   };
 
   const recStore = new ApprovalRecommendationStore(join(cwd, RECOMMENDATIONS_DIR));
+
+  // Helper: build an available recommendation layer from a record.
+  // Some persisted fixtures (P7.5p.1 era + test fixtures) carry a
+  // `recommendation` alias; prefer the typed `decision` field, fall back to
+  // alias for backwards-compat with existing stores.
+  const buildRecommendationLayer = (
+    rec: {
+      id: string;
+      confidence: number | undefined;
+      reasons: string[];
+      proposalId?: string;
+      decision?: string;
+      recommendation?: string;
+    },
+    joinPath: JoinPath,
+  ): RecommendationLayer => {
+    const recAny = rec as unknown as Record<string, unknown>;
+    const decision =
+      (recAny["recommendation"] as string | undefined) ??
+      (recAny["decision"] as string | undefined) ??
+      "unknown";
+    return {
+      status: "available",
+      recommendationId: rec.id,
+      decision,
+      confidence: rec.confidence,
+      reasons: rec.reasons,
+      sourceArtifactIds: [rec.id],
+      joinPath,
+    };
+  };
+
+  // Priority 1: EvidenceChain traversal. For each chain-reachable target,
+  // attempt to load it from the recommendation store; on a hit that
+  // matches the proposal, mark evidence_chain. A chain link to a missing
+  // artifact (orphan) increments incompleteChainLayers.
+  if (recommendation.status === "not_available") {
+    for (const targetId of chainReachable) {
+      const rec = await recStore.get(targetId).catch(() => null);
+      if (rec && rec.proposalId === proposalId) {
+        recommendation = buildRecommendationLayer(rec, "evidence_chain");
+        break;
+      }
+      // Chain referenced an artifact not present in this store (orphan).
+      incompleteChainLayers++;
+    }
+  }
   // Priority 2: direct-id from OutcomeRecord.recommendationId.
-  if (mostRecentOutcome?.recommendationId) {
+  if (recommendation.status === "not_available" && mostRecentOutcome?.recommendationId) {
     const rec = await recStore.get(mostRecentOutcome.recommendationId).catch(() => null);
     if (rec) {
-      // Note: ApprovalRecommendation carries `recommendation` (the typed
-      // field). Some persisted fixtures (P7.5p.1 era + test fixtures) also
-      // carry a `decision` alias; prefer the typed field, fall back to the
-      // alias for backwards-compat with existing stores.
-      const recAny = rec as unknown as Record<string, unknown>;
-      const decision =
-        (recAny["recommendation"] as string | undefined) ??
-        (recAny["decision"] as string | undefined) ??
-        "unknown";
-      recommendation = {
-        status: "available",
-        recommendationId: rec.id,
-        decision,
-        confidence: rec.confidence,
-        reasons: rec.reasons,
-        sourceArtifactIds: [rec.id],
-        joinPath: "direct_id",
-      };
+      recommendation = buildRecommendationLayer(rec, "direct_id");
+    } else {
+      incompleteChainLayers++;
     }
   }
   // Priority 3: proposal-scoped fallback (list().filter(proposalId)).
@@ -140,25 +220,12 @@ export async function assembleProposalExplanation(
     const allRecs = await recStore.list().catch(() => []);
     const matching = allRecs.find((r) => r.proposalId === proposalId);
     if (matching) {
-      const recAny = matching as unknown as Record<string, unknown>;
-      const decision =
-        (recAny["recommendation"] as string | undefined) ??
-        (recAny["decision"] as string | undefined) ??
-        "unknown";
-      recommendation = {
-        status: "available",
-        recommendationId: matching.id,
-        decision,
-        confidence: matching.confidence,
-        reasons: matching.reasons,
-        sourceArtifactIds: [matching.id],
-        joinPath: "proposal_fallback",
-      };
+      recommendation = buildRecommendationLayer(matching, "proposal_fallback");
       fallbackJoinsUsed = true;
     }
   }
 
-  // ---- Layer 3: Risk (direct-id → proposal-fallback) -------------------
+  // ---- Layer 3: Risk (chain → direct-id → proposal-fallback) -----------
   let risk: RiskLayer | UnavailableLayer = {
     status: "not_available",
     reason: `no RiskScore linked to proposal ${proposalId}`,
@@ -166,47 +233,62 @@ export async function assembleProposalExplanation(
 
   const riskStore = new RiskScoreStore(join(cwd, RISK_SCORES_DIR));
 
-  const buildRiskLayer = (r: import("../adaptation/risk-score-types.js").RiskScore): RiskLayer => {
-    const dimensions = Object.entries(r.dimensions).map(([dim, score]) => {
-      const item = r.risks.find((x) => x.dimension === dim);
-      return {
-        dimension: dim as import("../adaptation/risk-score-types.js").RiskDimension,
-        score,
-        confidence: item?.confidence ?? 0,
-        reasons: item?.reasons ?? [],
-      };
-    });
+  const buildRiskLayer = (
+    r: RiskScore,
+    joinPath: JoinPath,
+  ): RiskLayer => {
+    const overallRisk = r.overallRisk;
+    const outcomeVal: RiskOutcome =
+      overallRisk < 0.3 ? "low" : overallRisk < 0.6 ? "medium" : overallRisk < 0.85 ? "high" : "critical";
+    const dimensions = Object.entries(r.dimensions).map(([dim, score]) => ({
+      dimension: dim as RiskDimension,
+      score,
+      confidence: r.risks.find((x: { dimension: string }) => x.dimension === dim)?.confidence ?? 0,
+      reasons: r.risks.find((x: { dimension: string }) => x.dimension === dim)?.reasons ?? [],
+    }));
     return {
       status: "available",
       riskScoreId: r.id,
-      overallRisk: r.overallRisk,
-      outcome: riskOutcomeFromScore(r.overallRisk),
+      overallRisk,
+      outcome: outcomeVal,
       dimensions,
       sourceArtifactIds: [r.id],
-      joinPath: "direct_id",
+      joinPath,
     };
   };
 
-  // Priority 2: direct-id from OutcomeRecord.riskScoreId.
-  if (mostRecentOutcome?.riskScoreId) {
-    const r = await riskStore.get(mostRecentOutcome.riskScoreId).catch(() => null);
-    if (r) {
-      risk = buildRiskLayer(r);
+  // Priority 1: EvidenceChain traversal.
+  if (risk.status === "not_available") {
+    for (const targetId of chainReachable) {
+      const r = await riskStore.get(targetId).catch(() => null);
+      if (r) {
+        risk = buildRiskLayer(r, "evidence_chain");
+        break;
+      }
+      incompleteChainLayers++;
     }
   }
-  // Priority 3: proposal-scoped fallback. RiskScore id format is
-  // `risk-<proposalId>` (confirmed at src/adaptation/risk-score-builder.ts).
+  // Priority 2: direct-id OutcomeRecord.riskScoreId.
+  if (risk.status === "not_available" && mostRecentOutcome?.riskScoreId) {
+    const r = await riskStore.get(mostRecentOutcome.riskScoreId).catch(() => null);
+    if (r) {
+      risk = buildRiskLayer(r, "direct_id");
+    } else {
+      incompleteChainLayers++;
+    }
+  }
+  // Priority 3: proposal-scoped fallback. RiskScore IDs follow `risk-<proposalId>`
+  // (confirmed at src/adaptation/risk-score-builder.ts).
   if (risk.status === "not_available") {
     const allRisks = await riskStore.queryByWindow(windowDays).catch(() => []);
     const matching = allRisks.find((r) => r.id === `risk-${proposalId}`);
     if (matching) {
-      const layer = buildRiskLayer(matching);
-      risk = { ...layer, joinPath: "proposal_fallback" };
+      risk = buildRiskLayer(matching, "proposal_fallback");
       fallbackJoinsUsed = true;
     }
   }
 
-  // ---- Layer 4: Governance (direct-id → proposal-fallback) -------------
+  // ---- Layer 4: Governance (chain → direct-id → proposal-fallback) -----
   let governance: GovernanceLayer | UnavailableLayer = {
     status: "not_available",
     reason: `no GovernanceReview linked to proposal ${proposalId}`,
@@ -215,7 +297,7 @@ export async function assembleProposalExplanation(
   const govStore = new GovernanceReviewStore(join(cwd, GOVERNANCE_REVIEWS_DIR));
 
   const buildGovernanceLayer = (
-    g: import("../adaptation/governance-review-types.js").GovernanceReview,
+    g: GovernanceReview,
     joinPath: JoinPath,
   ): GovernanceLayer => ({
     status: "available",
@@ -231,51 +313,142 @@ export async function assembleProposalExplanation(
     joinPath,
   });
 
-  // Priority 2: direct-id from OutcomeRecord.governanceReviewId.
-  if (mostRecentOutcome?.governanceReviewId) {
+  // Priority 1: EvidenceChain traversal.
+  if (governance.status === "not_available") {
+    for (const targetId of chainReachable) {
+      const g = await govStore.get(targetId).catch(() => null);
+      if (g && g.proposalId === proposalId) {
+        governance = buildGovernanceLayer(g, "evidence_chain");
+        break;
+      }
+      incompleteChainLayers++;
+    }
+  }
+  // Priority 2: direct-id OutcomeRecord.governanceReviewId.
+  if (governance.status === "not_available" && mostRecentOutcome?.governanceReviewId) {
     const g = await govStore.get(mostRecentOutcome.governanceReviewId).catch(() => null);
     if (g) {
       governance = buildGovernanceLayer(g, "direct_id");
+    } else {
+      incompleteChainLayers++;
     }
   }
-  // Priority 3: proposal-scoped fallback. MUST use queryByProposal —
-  // cross-proposal isolation invariant (never list().at(-1)).
+  // Priority 3: proposal-scoped fallback. MUST use queryByProposal
+  // (cross-proposal isolation invariant — never list().at(-1)).
   if (governance.status === "not_available") {
-    const forProposal = await govStore.queryByProposal(proposalId).catch(() => []);
-    if (forProposal.length > 0) {
-      // queryByProposal returns oldest-first; the LAST element is the most
-      // recent review (per the store's documented contract).
-      const mostRecentReview = forProposal[forProposal.length - 1];
+    const matching = await govStore.queryByProposal(proposalId).catch(() => null);
+    if (matching && matching.length > 0) {
+      const mostRecentReview = matching[matching.length - 1];
       governance = buildGovernanceLayer(mostRecentReview, "proposal_fallback");
       fallbackJoinsUsed = true;
     }
   }
 
-  // ---- Layers 5 + 6 (filled in Task 3) ---------------------------------
-  // Learning + Calibration layers. Empty placeholders in Task 2 — Task 3
-  // adds EvidenceChain traversal + Learning/Calibration store reads.
-  const learning = {
-    signalsByAdapter: {} as Record<string, never[]>,
-    adaptersWithSignals: [] as string[],
-    totalSignals: 0,
-  };
-  const calibration = {
-    profilesByTarget: {} as Record<string, never[]>,
-    adjustments: [] as {
-      target: string;
-      previousValue: number;
-      suggestedValue: number;
-      reason: string;
-    }[],
+  // ---- Layer 5: Learning Signals (chain → heuristic) -------------------
+  // String heuristics are LOCKED to Learning + Calibration layers only.
+  const learningStore = new LearningStore(join(cwd, LEARNING_DIR));
+  const allSignals = await learningStore.querySignals({ windowDays }).catch(() => []);
+  const allProfiles = await learningStore.queryProfiles({ windowDays }).catch(() => []);
+
+  // Collect proposal-scoped artifact ids for chain-root resolution.
+  const proposalArtifactIds = new Set<string>();
+  if (mostRecentOutcome) proposalArtifactIds.add(mostRecentOutcome.id);
+  if (recommendation.status === "available")
+    proposalArtifactIds.add((recommendation as RecommendationLayer).recommendationId);
+  if (risk.status === "available") proposalArtifactIds.add((risk as RiskLayer).riskScoreId);
+  if (governance.status === "available")
+    proposalArtifactIds.add((governance as GovernanceLayer).reviewId);
+
+  // Inbound chain edges: find chain roots whose links target any
+  // proposal-scoped artifact. Signals whose id equals such a root are
+  // reachable via the chain.
+  const allChains = await chainStore.listChains().catch(() => []);
+  const chainRootsForSignals = new Set<string>();
+  for (const chain of allChains) {
+    for (const link of chain.links) {
+      if (proposalArtifactIds.has(link.targetArtifactId)) {
+        chainRootsForSignals.add(chain.rootArtifactId);
+        evidenceChainUsed = true;
+      }
+    }
+  }
+
+  const matchingSignals: LearningSignal[] = [];
+  // Priority 1+2: chain-reachable signals.
+  for (const sig of allSignals) {
+    if (chainRootsForSignals.has(sig.id)) {
+      matchingSignals.push(sig);
+    }
+  }
+  // Priority 3: string heuristic fallback (subject/sourceReportId contains proposalId).
+  // LOCKED invariant: heuristics permitted ONLY in Learning + Calibration.
+  if (matchingSignals.length === 0) {
+    for (const sig of allSignals) {
+      if (sig.subject?.includes(proposalId) || sig.sourceReportId?.includes(proposalId)) {
+        matchingSignals.push(sig);
+        fallbackJoinsUsed = true;
+      }
+    }
+  }
+
+  // Classify signals by adapter via sourceReportId prefix (registry-aligned).
+  const signalsByAdapter: Record<string, LearningSignal[]> = {};
+  for (const sig of matchingSignals) {
+    const adapter = adapterForReport(sig.sourceReportId);
+    if (!signalsByAdapter[adapter]) signalsByAdapter[adapter] = [];
+    signalsByAdapter[adapter].push(sig);
+  }
+  const adaptersWithSignals = Object.keys(signalsByAdapter).sort();
+  const learning: LearningLayer = {
+    signalsByAdapter,
+    adaptersWithSignals,
+    totalSignals: matchingSignals.length,
   };
 
-  // ---- ExplanationIntegrity (preliminary — refined in Task 3) ---------
+  // ---- Layer 6: Calibration Profiles (chain → heuristic) ---------------
+  // String heuristics LOCKED to Calibration here too.
+  const matchingProfiles: CalibrationProfile[] = [];
+  // Priority 1+2: chain — profiles reachable when their sourceSignalIds or
+  // evidenceRefs intersect chain roots (the signal ids that link back to
+  // proposal artifacts).
+  const chainSignalRoots = chainRootsForSignals;
+  for (const prof of allProfiles) {
+    const refs = [...(prof.sourceSignalIds ?? []), ...(prof.evidenceRefs ?? [])];
+    if (refs.some((r) => chainSignalRoots.has(r))) {
+      matchingProfiles.push(prof);
+    }
+  }
+  // Priority 3: heuristic fallback (subject/evidenceRefs includes proposalId).
+  if (matchingProfiles.length === 0) {
+    for (const prof of allProfiles) {
+      if (prof.subject?.includes(proposalId) || prof.evidenceRefs?.includes(proposalId)) {
+        matchingProfiles.push(prof);
+        fallbackJoinsUsed = true;
+      }
+    }
+  }
+  const profilesByTarget: Record<string, CalibrationProfile[]> = {};
+  for (const prof of matchingProfiles) {
+    if (!profilesByTarget[prof.target]) profilesByTarget[prof.target] = [];
+    profilesByTarget[prof.target].push(prof);
+  }
+  const calibration: CalibrationLayer = {
+    profilesByTarget,
+    adjustments: matchingProfiles.map((p) => ({
+      target: p.target,
+      previousValue: p.previousValue,
+      suggestedValue: p.suggestedValue,
+      reason: p.reason,
+    })),
+  };
+
+  // ---- ExplanationIntegrity (refined — now real) -----------------------
   const outcomeFound = outcome.status === "available";
   const recommendationFound = recommendation.status === "available";
   const riskFound = risk.status === "available";
   const governanceFound = governance.status === "available";
-  const learningFound = false; // Task 3
-  const calibrationFound = false; // Task 3
+  const learningFound = learning.totalSignals > 0;
+  const calibrationFound = matchingProfiles.length > 0;
   const found = [
     outcomeFound,
     recommendationFound,
@@ -314,4 +487,22 @@ export async function assembleProposalExplanation(
     explanationIntegrity,
     learningRefreshHint: learningFound ? null : REFRESH_HINT,
   };
+}
+
+// ---------------------------------------------------------------------------
+// adapterForReport — classify a signal by its source report id prefix.
+// ---------------------------------------------------------------------------
+
+/**
+ * Map a LearningSignal.sourceReportId to the AdapterRegistry key it
+ * originated from. Registry-aligned: keys mirror the P8.5a.2 AdapterRegistry
+ * ("recommendation", "risk", "governance"). Unknown prefixes default to
+ * "recommendation" (the oldest adapter surface) so signals are never
+ * silently dropped.
+ */
+function adapterForReport(sourceReportId: string): string {
+  if (sourceReportId?.startsWith("risk-calibration-")) return "risk";
+  if (sourceReportId?.startsWith("governance-calibration-")) return "governance";
+  if (sourceReportId?.startsWith("recommendation-")) return "recommendation";
+  return "recommendation";
 }
