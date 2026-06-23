@@ -917,6 +917,32 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     resolvedRiskScoreId = resolvedRecommendation.riskScoreId;
   }
 
+  // P7.5p.3c — resolve governanceReviewId from --governance-review-id override OR
+  // the most recent stored GovernanceReview for THIS proposal.
+  // Never fake: missing stays undefined and serializes as absent in JSON.
+  // Auto-lookup MUST be queryByProposal(subjectId), never list().at(-1) — the
+  // governance-boundary invariant forbids a review for a different proposal from
+  // leaking into this outcome's link. Cross-proposal isolation is locked by test #7.
+  let resolvedGovernanceReviewId: string | undefined;
+  const grIdx = args.indexOf("--governance-review-id");
+  if (grIdx !== -1 && grIdx + 1 < args.length) {
+    resolvedGovernanceReviewId = args[grIdx + 1];
+  } else {
+    try {
+      const reviewStore = new GovernanceReviewStore();
+      const reviews = await reviewStore.queryByProposal(subjectId);
+      if (reviews.length > 0) {
+        // Most recent = last-appended for THIS proposal (append order preserved).
+        resolvedGovernanceReviewId = reviews[reviews.length - 1].id;
+      }
+    } catch (err) {
+      console.error(
+        `Warning: failed to look up governance review for ${subjectId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   // Parse --recommendation-confidence <0-1> if given. The override wins.
   const confIdx = args.indexOf("--recommendation-confidence");
   if (confIdx !== -1 && confIdx + 1 < args.length) {
@@ -945,6 +971,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     observationWindowDays: 30,
     confidence,
     riskScoreId: resolvedRiskScoreId,
+    governanceReviewId: resolvedGovernanceReviewId,
     reasons: [],
     evidenceRefs: [],
     subject: `Outcome: ${subjectId}`,
