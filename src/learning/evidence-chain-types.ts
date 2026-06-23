@@ -32,7 +32,8 @@ export type ProvenanceRelationship =
   | "supports" // A provides evidence for B (e.g., outcome supports decision)
   | "generated" // A generated B (e.g., profile generated proposal)
   | "approved_from" // A approved from B (e.g., proposal approved from review)
-  | "reviewed_from"; // A was reviewed from B (e.g., review was on recommendation)
+  | "reviewed_from" // A was reviewed from B (e.g., review was on recommendation)
+  | "proposal_from_recommendation"; // P9.2: recommendation -> proposal bridge
 
 export const PROVENANCE_RELATIONSHIPS: readonly ProvenanceRelationship[] =
   Object.freeze([
@@ -41,6 +42,7 @@ export const PROVENANCE_RELATIONSHIPS: readonly ProvenanceRelationship[] =
     "generated",
     "approved_from",
     "reviewed_from",
+    "proposal_from_recommendation", // P9.2
   ] as const);
 
 export function isProvenanceRelationship(v: unknown): v is ProvenanceRelationship {

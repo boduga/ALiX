@@ -65,4 +65,12 @@ export interface AdaptationProposal {
    * created before this field was introduced.
    */
   provenance?: "auto" | "manual";
+  /**
+   * P9.2 system-state metadata. Used for infrastructure-recovery
+   * flags (currently only `orphaned`). Distinct from ProposalStatus:
+   * the lifecycle status (pending/approved/rejected/applied/failed)
+   * is preserved unchanged. systemState is invisible to lifecycle
+   * code; it's a recovery flag in metadata.
+   */
+  systemState?: { orphaned: true; reason: string };
 }
