@@ -20,7 +20,7 @@ import { LearningStore } from "../../src/learning/learning-store.js";
 import { EvidenceChainStore } from "../../src/learning/evidence-chain-store.js";
 import { assembleProposalExplanation } from "../../src/explain/proposal-explanation-assembler.js";
 
-const OUTCOMES_DIR = join(".alix", "outcomes");
+const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "recommendations");
 const RISK_SCORES_DIR = join(".alix", "risk-scores");
 const GOVERNANCE_REVIEWS_DIR = join(".alix", "governance-reviews");
@@ -411,7 +411,9 @@ describe("assembleProposalExplanation", () => {
     });
 
     expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
-    expect(result.explanationIntegrity.incompleteChainLayers).toBeGreaterThanOrEqual(1);
+    // Single broken chain edge → exactly one distinct orphaned target
+    // (deduplicated across the three layer loops — was 3x before fix).
+    expect(result.explanationIntegrity.incompleteChainLayers).toBe(1);
     // Falls through to proposal-fallback, finds nothing → recommendation unavailable.
     expect(result.recommendation.status).toBe("not_available");
   });

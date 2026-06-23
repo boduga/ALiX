@@ -11,6 +11,7 @@ const FORBIDDEN_IMPORTS = [
   "AgentCardApplier",
   "SkillApplier",
   "RevertApplier",
+  "runLearningRefresh",
 ];
 
 const EXPLAIN_FILES = [
@@ -64,6 +65,18 @@ describe("Explain module purity sentinel", () => {
       const src = readFileSync(join(process.cwd(), file), "utf-8");
       for (const call of FORBIDDEN_FS_WRITES) {
         expect(src, `${file} uses ${call}`).not.toContain(call);
+      }
+    });
+
+    it(`${file} never references a forbidden mutation surface anywhere (incl. dynamic import)`, () => {
+      // Flat whole-file substring check: catches static imports, dynamic
+      // `await import(...)`, `require(...)`, and any incidental reference.
+      // The read-only assembler/CLI legitimately never name ProposalStore,
+      // ApprovalGate, appliers, or runLearningRefresh, so a flat check is
+      // safe and closes the gap left by the import-line-only filter above.
+      const src = readFileSync(join(process.cwd(), file), "utf-8");
+      for (const forbidden of FORBIDDEN_IMPORTS) {
+        expect(src, `${file} references forbidden surface ${forbidden}`).not.toContain(forbidden);
       }
     });
   }
