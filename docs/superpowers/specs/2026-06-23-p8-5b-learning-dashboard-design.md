@@ -42,8 +42,8 @@ Maximum proposal scan count: 20 (default), configurable via --limit.
 ```
 
 P8.5c explain is operator-facing (single proposal).
-P8.5b dashboard is potentially recurring (--poll mode).
-Bounded scans keep future scaling under control regardless of LearningStore size.
+P8.5b dashboard scans up to `--limit` proposals (default 20).
+Bounded scans keep rendering fast regardless of LearningStore size.
 
 ## Command surface
 

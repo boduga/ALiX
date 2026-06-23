@@ -11,8 +11,9 @@
 ## Global Constraints
 
 - **Read-only invariant:** DashboardAggregator and renderer MUST NOT write to any store. No append/appendSignal/appendProfile/appendReport/appendChain calls. No runLearningRefresh invocation. No proposal/mutation surface. Sentinel-enforced in Task 4.
-- **Bounded scan invariant:** `assembleProposalExplanation` MUST be called for at most `--limit` proposals (default 20, max configurable). NOT unbounded. This protects recurring `--poll` mode from becoming expensive.
+- **Bounded scan invariant:** `assembleProposalExplanation` MUST be called for at most `--limit` proposals (default 20, max configurable). NOT unbounded. This keeps dashboard rendering fast regardless of LearningStore size.
 - **No second explanation engine:** DashboardAggregator reuses `assembleProposalExplanation` from the Explain module. Does NOT build its own joins. Provenance logic stays in one place.
+- **`dashboardIntegrityScore` is a derived operational metric, NOT a governance artifact.** It must never be written back into `ExplanationIntegrity`, `LearningStore`, `EvidenceChain`, or any governance surface. It is a computed summary for operator visibility and P9 input — never authoritative governance state.
 - **Ephemeral output:** `DashboardReport` is computed on render, never persisted. On termination, it's gone.
 - **6 protected type files remain byte-identical to main:** `risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `outcome-types.ts`. The new `DashboardReport` types live in `src/learning/learning-dashboard.ts` (NEW file — no edits to existing type files).
 - **No new stores.** No new adapters. No new authority surface. No changes to the Explain module or any existing adapter.
@@ -83,8 +84,11 @@ The pure helper. Exported function `computeDashboardIntegrityScore(...)`. Separa
  * Pure function. No I/O, no store access, no side effects.
  * Independently testable. Reusable by P9 Meta-Governance.
  *
- * Core invariant: the score is a derived metric, not a persisted artifact.
- * Different weightings produce different scores for the same input data.
+ * Core invariant: the score is a derived operational metric, NOT a governance
+ * artifact. It must never be written back into ExplanationIntegrity, LearningStore,
+ * EvidenceChain, or any governance surface. Different weightings produce different
+ * scores for the same input data — it is computed for operator visibility and P9
+ * input, never authoritative governance state.
  */
 
 import type { AggregatedIntegrity, ChainAlertPanel } from "./learning-dashboard.js";
