@@ -2848,6 +2848,13 @@ if (command === "explain") {
   process.exit(0);
 }
 
+// ── Governance command (P9.0b) ───────────────────────────────────
+if (command === "governance") {
+  const { handleGovernanceCommand } = await import("./cli/commands/governance.js");
+  await handleGovernanceCommand(args);
+  process.exit(0);
+}
+
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);

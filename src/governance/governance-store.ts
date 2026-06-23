@@ -57,6 +57,16 @@ export class GovernanceStore {
     return join(this.storeDir, FILES[type]);
   }
 
+  /** Resolve which JSONL file an artifact ID belongs to based on its prefix. */
+  getTypeForId(id: string): "health" | "assessment" | "drift" | "lensReviews" | "integrity" | null {
+    if (id.startsWith("health-")) return "health";
+    if (id.startsWith("assessment-")) return "assessment";
+    if (id.startsWith("drift-")) return "drift";
+    if (id.startsWith("lens-review-")) return "lensReviews";
+    if (id.startsWith("integrity-")) return "integrity";
+    return null;
+  }
+
   // -----------------------------------------------------------------------
   // append — overloaded per artifact type
   // -----------------------------------------------------------------------

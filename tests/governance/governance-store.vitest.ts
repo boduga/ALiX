@@ -106,4 +106,19 @@ describe("GovernanceStore", () => {
     const store = new GovernanceStore();
     expect(await store.list("health")).toEqual([]);
   });
+
+  it("getTypeForId resolves health-xxx to health", () => {
+    const store = new GovernanceStore();
+    expect(store.getTypeForId("health-1")).toBe("health");
+  });
+
+  it("getTypeForId resolves drift-xxx to drift", () => {
+    const store = new GovernanceStore();
+    expect(store.getTypeForId("drift-1")).toBe("drift");
+  });
+
+  it("getTypeForId returns null for unknown prefix", () => {
+    const store = new GovernanceStore();
+    expect(store.getTypeForId("unknown-1")).toBeNull();
+  });
 });
