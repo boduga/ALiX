@@ -38,7 +38,7 @@ import { PipelineHealthBuilder } from "../../adaptation/pipeline-health-builder.
 import { ProviderCatalogAdapter } from "../../adaptation/provider-catalog-adapter.js";
 import { LLMLensAgent } from "../../adaptation/llm-lens-agent.js";
 import { GovernanceReviewCouncil } from "../../adaptation/governance-review-council.js";
-import type { LensName, LensScore, GovernanceReview } from "../../adaptation/governance-review-types.js";
+import type { LensName, GovernanceReview } from "../../adaptation/governance-review-types.js";
 import type { GovernanceReviewInput } from "../../adaptation/governance-review-types.js";
 import { detectProvider, PROVIDERS } from "../../providers/catalog.js";
 import { createProvider } from "../../providers/registry.js";
@@ -50,6 +50,7 @@ import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
 import { GovernanceReviewStore } from "../../adaptation/governance-review-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
+import { buildLensObservations } from "../../learning/governance-lens-observation-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
 import type { ExecutionIntent } from "../../adaptation/execution-intent-types.js";
 
@@ -1127,6 +1128,13 @@ async function runOutcomeReport(args: string[]): Promise<void> {
 
 // ---------------------------------------------------------------------------
 // runOutcomeLensCalibration — Lens calibration report (P7c)
+//
+// P8.5a.2c: lens scores ARE now persisted (P7.5p.3 GovernanceReviewStore).
+// This command reads live GovernanceReview × OutcomeStore data, joins by
+// proposalId, derives LensObservation[] on demand, and returns a real
+// LensCalibrationReport. The P8.5a.2c governance adapter writes signals to
+// LearningStore via the orchestrator — this CLI path stays read-only and
+// returns the calibration report itself (not signals).
 // ---------------------------------------------------------------------------
 
 async function runOutcomeLensCalibration(args: string[]): Promise<void> {
@@ -1143,48 +1151,56 @@ async function runOutcomeLensCalibration(args: string[]): Promise<void> {
   }
 
   const cwd = process.cwd();
-  const store = new OutcomeStore(join(cwd, OUTCOMES_DIR));
+  const generatedAt = new Date().toISOString();
 
-  // Load outcomes within window to show data availability
-  let totalOutcomes = 0;
-  try {
-    const records = await store.queryByWindow(windowDays);
-    totalOutcomes = records.length;
-  } catch {
-    // Store may not exist yet — that's OK
-  }
+  // Live read: lens scores ARE persisted (P7.5p.3).
+  const reviewStore = new GovernanceReviewStore();
+  const outcomeStore = new OutcomeStore(join(cwd, OUTCOMES_DIR));
 
-  const message = {
-    status: "lens_scores_not_persisted",
-    message: "Lens scores are not persisted (P6.5b reviews are ephemeral). The LensCalibrationBuilder is ready and tested, but requires persisted lens scores to produce a calibration report.",
-    note: "P7c observes lens quality. It does not change lens weights.",
-    data_available: {
-      outcomes_in_window: totalOutcomes,
-      lens_scores_persisted: false,
-    },
+  const reviews = await reviewStore.queryByWindow(windowDays);
+  const outcomes = await outcomeStore.queryByWindow(windowDays);
+
+  // Single source of truth for join + concernsRaised derivation (fix #5).
+  // Shared with `GovernanceCalibrationAdapter` so the CLI's report and the
+  // adapter's signals are guaranteed to agree on the same observations.
+  const { observations, excludedNoOutcome } = buildLensObservations(
+    reviews,
+    outcomes,
+  );
+
+  const report = new LensCalibrationBuilder().build(observations, {
     windowDays,
-    generatedAt: new Date().toISOString(),
-  };
+    generatedAt,
+  });
 
   if (jsonMode) {
-    console.log(JSON.stringify(message, null, 2));
+    console.log(JSON.stringify(report, null, 2));
     return;
   }
 
-  // Terminal renderer
+  // Terminal renderer — live lens calibration report.
   console.log(`Lens Calibration — Last ${windowDays} days`);
   console.log(`═══════════════════════════════════════`);
-  console.log(`⚠ Lens scores not persisted (P6.5b reviews are ephemeral).`);
+  console.log(`Reviews analyzed: ${reviews.length}`);
+  console.log(`Observations (lens scores × outcomes): ${observations.length}`);
+  if (excludedNoOutcome > 0) {
+    console.log(`Excluded (no matching outcome): ${excludedNoOutcome}`);
+  }
   console.log(``);
-  console.log(`The LensCalibrationBuilder is ready and tested,`);
-  console.log(`but requires persisted lens scores to produce`);
-  console.log(`a calibration report.`);
+  console.log(`Per-lens:`);
+  for (const [lens, entry] of Object.entries(report.lenses)) {
+    const pv = (entry.predictiveValue * 100).toFixed(0);
+    console.log(
+      `  ${lens.padEnd(20)} reviews=${String(entry.reviewsAnalyzed).padStart(3)}  PV=${pv.padStart(3)}%  (${entry.calibration})`,
+    );
+  }
   console.log(``);
-  console.log(`P7c observes lens quality. It does not change lens weights.`);
-  console.log(``);
-  console.log(`Data available:`);
-  console.log(`  Outcomes in window: ${totalOutcomes}`);
-  console.log(`  Lens scores persisted: no`);
+  console.log(
+    `concernsRaised is inferred (1 for warning verdict, 0 otherwise) — fidelity is "low".`,
+  );
+  console.log(
+    `P8.5a.2c orchestrator writes governance signals to LearningStore.`,
+  );
 }
 
 // ---------------------------------------------------------------------------

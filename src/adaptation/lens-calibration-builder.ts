@@ -33,8 +33,11 @@ const ALL_LENSES: LensName[] = ["red_team", "historian", "policy_auditor", "conf
  * Does this verdict represent a lens that raised a concern?
  * agree_with_concerns and challenge both indicate the lens saw something
  * worth flagging. agree and insufficient_information do not.
+ *
+ * EXPORTED so callers (governance-calibration-adapter, decision CLI) share
+ * the same single rule instead of each redefining it.
  */
-function isWarningVerdict(v: GovernanceVerdict): boolean {
+export function isWarningVerdict(v: GovernanceVerdict): boolean {
   return v === "agree_with_concerns" || v === "challenge";
 }
 

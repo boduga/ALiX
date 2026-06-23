@@ -26,12 +26,19 @@ import type {
 } from "../../learning/learning-types.js";
 import { ProposalFactory, buildLearningProposal } from "../learning-proposal-factory.js";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
+import {
+  runLearningRefresh,
+} from "../../learning/learning-refresh.js";
+import type {
+  AdapterName,
+} from "../../learning/adapter-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const LEARNING_DIR = join(".alix", "learning");
+const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 
 const TARGET_AREAS = ["recommendation", "risk", "governance", "routing"] as const;
@@ -59,10 +66,13 @@ export async function handleLearningCommand(args: string[]): Promise<void> {
     case "propose":
       await runPropose(rest);
       return;
+    case "refresh":
+      await runRefresh(rest);
+      return;
     default:
       console.error(`Unknown learning subcommand: "${subcommand}"`);
       console.error(
-        "Usage: alix learning report [--window N] [--json] [--target <area>] | propose --target <area> [--dry-run]",
+        "Usage: alix learning report [--window N] [--json] [--target <area>] | propose --target <area> [--dry-run] | refresh [--window N] [--adapter <name>] [--json]",
       );
       process.exit(1);
   }
@@ -282,6 +292,7 @@ interface ParsedFlags {
   json?: boolean;
   target?: string;
   "dry-run"?: boolean;
+  adapter?: string;
 }
 
 function parseFlags(args: string[]): ParsedFlags {
@@ -295,7 +306,74 @@ function parseFlags(args: string[]): ParsedFlags {
       if (!isNaN(parsed) && parsed > 0) flags.window = parsed;
     } else if (a === "--target") {
       flags.target = args[++i];
+    } else if (a === "--adapter") {
+      flags.adapter = args[++i];
     }
   }
   return flags;
+}
+
+// ---------------------------------------------------------------------------
+// runRefresh — P8.5a.2d: orchestrator CLI entry point.
+// ---------------------------------------------------------------------------
+
+const VALID_ADAPTERS = new Set<AdapterName | "all">([
+  "recommendation",
+  "risk",
+  "governance",
+  "all",
+]);
+
+async function runRefresh(args: string[]): Promise<void> {
+  const parsed = parseFlags(args);
+
+  const windowDays = parsed.window ?? 30;
+  const adapterRaw = parsed.adapter ?? "all";
+
+  if (!VALID_ADAPTERS.has(adapterRaw as AdapterName | "all")) {
+    console.error(
+      `Invalid --adapter value: "${adapterRaw}". Must be one of: recommendation | risk | governance | all.`,
+    );
+    process.exit(1);
+  }
+  const adapter = adapterRaw as AdapterName | "all";
+
+  const cwd = process.cwd();
+
+  // Delegate adapter construction to the orchestrator's
+  // `buildDefaultAdapters(cwd)` so there's a single source of truth for
+  // store wiring. Previously the CLI built its own adapter map which
+  // duplicated the orchestrator's logic.
+  const result = await runLearningRefresh({
+    cwd,
+    windowDays,
+    adapter,
+    learningStore: new LearningStore(join(cwd, LEARNING_DIR)),
+  });
+
+  if (parsed.json) {
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+    return;
+  }
+
+  // Human-readable summary.
+  console.log(`Learning refresh ${result.refreshRunId}`);
+  console.log(`  window: ${windowDays}d`);
+  console.log(`  adapter(s): ${adapter}`);
+  console.log(`  report: ${result.reportId ?? "(append failed — see logs)"}`);
+  console.log("");
+  for (const r of result.results) {
+    const diag = r.diagnostics;
+    const excluded =
+      Object.keys(diag.excludedReasons).length === 0
+        ? "none"
+        : JSON.stringify(diag.excludedReasons);
+    console.log(`  ${diag.adapter}:`);
+    console.log(`    signals emitted:  ${r.signals.length}`);
+    console.log(`    profiles emitted: ${r.profiles.length}`);
+    console.log(`    source read:      ${diag.sourceRecordsRead}`);
+    console.log(`    processed:        ${diag.processed}`);
+    console.log(`    excluded:         ${excluded}`);
+    console.log(`    fidelity:         ${diag.fidelity}`);
+  }
 }
