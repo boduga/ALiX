@@ -1,11 +1,12 @@
 /**
  * P9.0f — `alix governance` CLI dispatcher + terminal renderers.
  *
- * Four subcommands, each consuming one or more P9 builders:
+ * Five subcommands, each consuming one or more P9 builders:
  *   - health  — buildGovernanceHealth + buildGovernanceAssessment
  *   - drift   — detectGovernanceDrift
  *   - lens-review — reviewLenses
  *   - integrity — buildGovernanceIntegrity
+ *   - recommend — generateRecommendations (P9.1)
  *
  * Each subcommand stores its artifact via GovernanceStore.append() and renders
  * either ANSI-colored terminal output or raw JSON.
@@ -18,12 +19,14 @@
  */
 
 import { GovernanceStore } from "../../governance/governance-store.js";
+import { generateRecommendations } from "../../governance/governance-recommendation-generator.js";
 import type {
   GovernanceHealthReport,
   GovernanceAssessment,
   GovernanceDriftReport,
   LensLifecycleReview,
   GovernanceIntegrityReport,
+  Recommendation,
 } from "../../governance/governance-types.js";
 
 // ---------------------------------------------------------------------------
@@ -104,6 +107,71 @@ function parseFlags(args: string[]): ParsedOpts {
   return { windowDays, jsonMode };
 }
 
+const VALID_PRIORITIES = ["low", "medium", "high", "critical"] as const;
+const VALID_SOURCES = ["health", "drift", "lens-review", "integrity"] as const;
+
+interface ParsedRecommendOpts {
+  windowDays: number;
+  jsonMode: boolean;
+  priority: (typeof VALID_PRIORITIES)[number] | null;
+  source: (typeof VALID_SOURCES)[number] | null;
+}
+
+function parseRecommendFlags(args: string[]): ParsedRecommendOpts {
+  const jsonMode = args.includes("--json");
+
+  const windowIdx = args.indexOf("--window");
+  let windowDays = 30;
+  if (windowIdx !== -1) {
+    if (windowIdx + 1 >= args.length) {
+      console.error("Error: --window requires a value (positive integer)");
+      process.exit(1);
+    }
+    const parsed = parseInt(args[windowIdx + 1], 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      console.error("Error: --window requires a positive integer");
+      process.exit(1);
+    }
+    windowDays = parsed;
+  }
+
+  let priority: ParsedRecommendOpts["priority"] = null;
+  const priorityIdx = args.indexOf("--priority");
+  if (priorityIdx !== -1) {
+    if (priorityIdx + 1 >= args.length) {
+      console.error("Error: --priority requires a value (low|medium|high|critical)");
+      process.exit(1);
+    }
+    const v = args[priorityIdx + 1];
+    if (!(VALID_PRIORITIES as readonly string[]).includes(v)) {
+      console.error(
+        `Error: --priority must be one of: ${VALID_PRIORITIES.join(", ")}`,
+      );
+      process.exit(1);
+    }
+    priority = v as ParsedRecommendOpts["priority"];
+  }
+
+  let source: ParsedRecommendOpts["source"] = null;
+  const sourceIdx = args.indexOf("--source");
+  if (sourceIdx !== -1) {
+    if (sourceIdx + 1 >= args.length) {
+      console.error("Error: --source requires a value (health|drift|lens-review|integrity)");
+      process.exit(1);
+    }
+    const v = args[sourceIdx + 1];
+    if (!(VALID_SOURCES as readonly string[]).includes(v)) {
+      console.error(
+        `Error: --source must be one of: ${VALID_SOURCES.join(", ")}`,
+      );
+      process.exit(1);
+    }
+    source = v as ParsedRecommendOpts["source"];
+  }
+
+  return { windowDays, jsonMode, priority, source };
+}
+
 // ---------------------------------------------------------------------------
 // Top-level dispatcher
 // ---------------------------------------------------------------------------
@@ -121,12 +189,14 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runLensReview(rest);
     case "integrity":
       return runIntegrity(rest);
+    case "recommend":
+      return runRecommend(rest);
     default:
       console.error(
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|recommend} [--window <days>] [--json]",
       );
       process.exit(1);
   }
@@ -237,6 +307,34 @@ async function runIntegrity(args: string[]): Promise<void> {
   }
 
   renderIntegrity(report);
+}
+
+// ---------------------------------------------------------------------------
+// runRecommend — `alix governance recommend [--window <days>] [--json]
+//                            [--priority <level>] [--source <source>]`
+// ---------------------------------------------------------------------------
+
+async function runRecommend(args: string[]): Promise<void> {
+  const { windowDays, jsonMode, priority, source } = parseRecommendFlags(args);
+  const cwd = process.cwd();
+  const generatedAt = new Date().toISOString();
+
+  const artifact = await generateRecommendations({ cwd, windowDays, generatedAt });
+
+  let recs: Recommendation[] = artifact.recommendations;
+  if (priority) {
+    recs = recs.filter((r) => r.priority === priority);
+  }
+  if (source) {
+    recs = recs.filter((r) => r.source === source);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(recs, null, 2));
+    return;
+  }
+
+  renderRecommendations(artifact.id, recs, generatedAt);
 }
 
 // ---------------------------------------------------------------------------
@@ -382,4 +480,56 @@ function renderIntegrity(report: GovernanceIntegrityReport): void {
     `  Outcome Link Rate:   ` +
       colorForRate(m.outcomeLinkRate) + `${m.outcomeLinkRate}%` + RESET,
   );
+}
+
+// -- Recommendations --------------------------------------------------------
+
+function colorForPriority(priority: string): string {
+  switch (priority) {
+    case "critical":
+    case "high":
+      return RED;
+    case "medium":
+      return YELLOW;
+    case "low":
+      return GREEN;
+    default:
+      return DIM;
+  }
+}
+
+function renderRecommendations(
+  artifactId: string,
+  recs: Recommendation[],
+  generatedAt: string,
+): void {
+  console.log(BOLD + "Governance Recommendations" + RESET);
+  console.log(`Artifact ID: ${artifactId}`);
+  console.log(`Generated:   ${generatedAt}`);
+  console.log(`Total:       ${recs.length}`);
+  console.log(BAR);
+
+  if (recs.length === 0) {
+    console.log(
+      DIM +
+        "No recommendations in this window (or all filtered out)." +
+        RESET,
+    );
+    return;
+  }
+
+  for (const r of recs) {
+    console.log(
+      colorForPriority(r.priority) +
+        `[${r.priority.toUpperCase()}]` +
+        RESET +
+        ` (${r.source}/${r.category}) ${r.title}`,
+    );
+    console.log(`  ${DIM}${r.description}${RESET}`);
+    console.log(`  ${CYAN}→ ${r.operatorGuidance}${RESET}`);
+    if (r.expectedBenefit) {
+      console.log(`  ${GREEN}Expected benefit:${RESET} ${r.expectedBenefit}`);
+    }
+    console.log("");
+  }
 }
