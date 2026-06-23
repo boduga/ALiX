@@ -260,7 +260,7 @@ export async function buildDashboardReport(opts: DashboardOptions): Promise<Dash
   const calibrationHealth: CalibrationHealthPanel = {
     adapters: adapterNames.map((name) => {
       const sigs = allSignals.filter((s) => adapterForReport(s.sourceReportId) === name);
-      const projs = allProfiles.filter((p) => p.target.startsWith(name === "risk" ? "" : name));
+      const projs = allProfiles.filter((p) => p.target.startsWith(name));
       const types: Record<string, number> = {};
       for (const s of sigs) { types[s.signalType] = (types[s.signalType] ?? 0) + 1; }
       const lastRefresh = sigs.length > 0 ? [...sigs].sort((a, b) => new Date(b.generatedAt).getTime() - new Date(a.generatedAt).getTime())[0].generatedAt : null;
