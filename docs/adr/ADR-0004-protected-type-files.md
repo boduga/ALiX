@@ -101,6 +101,18 @@ The 5 other protected files (`governance-review-types.ts`, `risk-score-types.ts`
    - Only the two documented additive members added: `"governance_change"` and `{ kind: "governance"; recommendationId: string }`
 4. ⏳ Future P-phases that touch any of the 6 protected files must follow this ADR.
 
+## Subsequent amendments (timeline note)
+
+The P9.2 SDS received a detailed design review after this ADR was written. The review produced 5 amendments + 1 architectural enhancement, all applied in commit `d70e4ece`. **None of those amendments touched any of the 6 protected files.** The protected-type scope of this ADR is unchanged:
+
+- The 1:1 metadata projection (P9.1 amendment) lives in `src/governance/governance-types.ts` (a non-protected new file from P9.0).
+- The compensating-tombstone atomicity, `getRecommendation` helper, confidence inheritance rule, sentinel `ALLOWED_IN_FILE` precision, and `proposedFromRecommendationId` provenance field are all in non-protected files or in documentation.
+- The two additive members on `adaptation-types.ts` (per the original "Decision" section above) remain the only protected-file change required by P9.2.
+
+The P9.1 SDS was also amended (in the same commit) to add `Recommendation.metadata`, a discriminated union keyed on `category`. This lives in `src/governance/governance-types.ts` (also non-protected), so it does not require an ADR-0004 exception.
+
+If a future P-phase (P9.2b, P9.3, P10, etc.) needs to add further members to `adaptation-types.ts` or any other protected file, the rule in the "Decision" section above applies — SDS + plan + sentinel must enumerate each new member.
+
 ## Related
 
 - P9.0 meta-governance SDS: `docs/superpowers/specs/2026-06-23-p9-meta-governance-design.md` (section 5 stages P9.2 as proposal generation)
