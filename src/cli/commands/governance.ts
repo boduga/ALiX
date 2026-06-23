@@ -1,0 +1,385 @@
+/**
+ * P9.0f — `alix governance` CLI dispatcher + terminal renderers.
+ *
+ * Four subcommands, each consuming one or more P9 builders:
+ *   - health  — buildGovernanceHealth + buildGovernanceAssessment
+ *   - drift   — detectGovernanceDrift
+ *   - lens-review — reviewLenses
+ *   - integrity — buildGovernanceIntegrity
+ *
+ * Each subcommand stores its artifact via GovernanceStore.append() and renders
+ * either ANSI-colored terminal output or raw JSON.
+ *
+ * CORE INVARIANT: this module NEVER writes any P8 store. It only calls P9
+ * builders (which are read-only analysers) and GovernanceStore (the single
+ * permitted P9 write target). Sentinel-enforced.
+ *
+ * @module
+ */
+
+import { GovernanceStore } from "../../governance/governance-store.js";
+import type {
+  GovernanceHealthReport,
+  GovernanceAssessment,
+  GovernanceDriftReport,
+  LensLifecycleReview,
+  GovernanceIntegrityReport,
+} from "../../governance/governance-types.js";
+
+// ---------------------------------------------------------------------------
+// ANSI helpers
+// ---------------------------------------------------------------------------
+
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const RED = "\x1b[31m";
+const CYAN = "\x1b[36m";
+const MAGENTA = "\x1b[35m";
+
+function colorForSeverity(severity: string): string {
+  switch (severity) {
+    case "critical":
+    case "high":
+      return RED;
+    case "medium":
+      return YELLOW;
+    case "low":
+      return GREEN;
+    default:
+      return RESET;
+  }
+}
+
+function colorForRecommendation(rec: string): string {
+  switch (rec) {
+    case "retire":
+      return RED;
+    case "demote":
+      return YELLOW;
+    case "promote":
+      return GREEN;
+    case "keep":
+      return CYAN;
+    default:
+      return RESET;
+  }
+}
+
+function colorForRate(rate: number): string {
+  if (rate >= 80) return GREEN;
+  if (rate >= 50) return YELLOW;
+  return RED;
+}
+
+// ---------------------------------------------------------------------------
+// Flag parsing
+// ---------------------------------------------------------------------------
+
+interface ParsedOpts {
+  windowDays: number;
+  jsonMode: boolean;
+}
+
+function parseFlags(args: string[]): ParsedOpts {
+  const jsonMode = args.includes("--json");
+  const windowIdx = args.indexOf("--window");
+  let windowDays = 90;
+
+  if (windowIdx !== -1) {
+    if (windowIdx + 1 >= args.length) {
+      console.error("Error: --window requires a value (positive integer)");
+      process.exit(1);
+    }
+    const parsed = parseInt(args[windowIdx + 1], 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      console.error("Error: --window requires a positive integer");
+      process.exit(1);
+    }
+    windowDays = parsed;
+  }
+
+  return { windowDays, jsonMode };
+}
+
+// ---------------------------------------------------------------------------
+// Top-level dispatcher
+// ---------------------------------------------------------------------------
+
+export async function handleGovernanceCommand(args: string[]): Promise<void> {
+  const subcommand = args[0];
+  const rest = args.slice(1);
+
+  switch (subcommand) {
+    case "health":
+      return runHealth(rest);
+    case "drift":
+      return runDrift(rest);
+    case "lens-review":
+      return runLensReview(rest);
+    case "integrity":
+      return runIntegrity(rest);
+    default:
+      console.error(
+        `Unknown governance subcommand: "${subcommand ?? ""}"`,
+      );
+      console.error(
+        "Usage: alix governance {health|drift|lens-review|integrity} [--window <days>] [--json]",
+      );
+      process.exit(1);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// runHealth — `alix governance health [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runHealth(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const cwd = process.cwd();
+  const store = new GovernanceStore();
+
+  // Dynamic import the builders (as specified by the plan)
+  const { buildGovernanceHealth } = await import(
+    "../../governance/governance-health-builder.js"
+  );
+  const { buildGovernanceAssessment } = await import(
+    "../../governance/governance-assessment.js"
+  );
+
+  const report = await buildGovernanceHealth({ cwd, windowDays });
+  await store.append("health", report);
+
+  const assessment = buildGovernanceAssessment(report);
+  await store.append("assessment", assessment);
+
+  if (jsonMode) {
+    console.log(
+      JSON.stringify({ health: report, assessment }, null, 2),
+    );
+    return;
+  }
+
+  renderHealth(report);
+  console.log("");
+  renderAssessment(assessment);
+}
+
+// ---------------------------------------------------------------------------
+// runDrift — `alix governance drift [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runDrift(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const cwd = process.cwd();
+  const store = new GovernanceStore();
+
+  const { detectGovernanceDrift } = await import(
+    "../../governance/governance-drift-detector.js"
+  );
+
+  const report = await detectGovernanceDrift({ cwd, windowDays });
+  await store.append("drift", report);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  renderDrift(report);
+}
+
+// ---------------------------------------------------------------------------
+// runLensReview — `alix governance lens-review [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runLensReview(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const cwd = process.cwd();
+  const store = new GovernanceStore();
+
+  const { reviewLenses } = await import(
+    "../../governance/governance-lens-review.js"
+  );
+
+  const review = await reviewLenses({ cwd, windowDays });
+  await store.append("lensReviews", review);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(review, null, 2));
+    return;
+  }
+
+  renderLensReview(review);
+}
+
+// ---------------------------------------------------------------------------
+// runIntegrity — `alix governance integrity [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runIntegrity(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const cwd = process.cwd();
+  const store = new GovernanceStore();
+
+  const { buildGovernanceIntegrity } = await import(
+    "../../governance/governance-integrity.js"
+  );
+
+  const report = await buildGovernanceIntegrity({ cwd, windowDays });
+  await store.append("integrity", report);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  renderIntegrity(report);
+}
+
+// ---------------------------------------------------------------------------
+// Terminal renderers
+// ---------------------------------------------------------------------------
+
+const BAR = "═══════════════════════════════════════════════════════════════";
+
+// -- Health ------------------------------------------------------------------
+
+function renderHealth(report: GovernanceHealthReport): void {
+  console.log(BOLD + "Governance Health" + RESET);
+  console.log(`Generated: ${report.generatedAt}`);
+  console.log(BAR);
+  console.log(`Total Reviews:    ${report.totalReviews}`);
+  console.log(`Total Proposals:  ${report.totalProposals}`);
+  console.log(`Policy Coverage:  ${report.policyCoverage}%`);
+  console.log("");
+
+  console.log(BOLD + "Source Metrics" + RESET);
+  console.log(
+    `  Dashboard Integrity:    ${report.sourceMetrics.dashboardIntegrityScore ?? "n/a"}`,
+  );
+  console.log(
+    `  Explanation Completeness: ${report.sourceMetrics.explanationCompleteness ?? "n/a"}%`,
+  );
+  console.log(
+    `  Evidence Chain Usage:   ${report.sourceMetrics.evidenceChainUsage ?? "n/a"}%`,
+  );
+  console.log(
+    `  Incomplete Chain Layers: ${report.sourceMetrics.incompleteChainLayers}`,
+  );
+
+  const lenses = Object.entries(report.lensEffectiveness);
+  if (lenses.length > 0) {
+    console.log("");
+    console.log(BOLD + "Lens Effectiveness" + RESET);
+    for (const [lens, value] of lenses) {
+      console.log(`  ${lens}: ${value}%`);
+    }
+  }
+}
+
+// -- Assessment ---------------------------------------------------------------
+
+function renderAssessment(assessment: GovernanceAssessment): void {
+  console.log(BOLD + "Governance Assessment" + RESET);
+  console.log(`Generated: ${assessment.generatedAt}`);
+  console.log(BAR);
+  console.log(
+    `Governance Confidence: ${(assessment.governanceConfidence * 100).toFixed(1)}%`,
+  );
+  console.log(
+    `Unresolved Issues:    ${assessment.unresolvedGovernanceIssues}`,
+  );
+  console.log("");
+  console.log(BOLD + "Notes" + RESET);
+  for (const note of assessment.assessmentNotes) {
+    console.log(`  ${note}`);
+  }
+}
+
+// -- Drift -------------------------------------------------------------------
+
+function renderDrift(report: GovernanceDriftReport): void {
+  console.log(BOLD + "Governance Drift" + RESET);
+  console.log(`Generated: ${report.generatedAt}`);
+  console.log(`Findings:  ${report.findings.length}`);
+  console.log(BAR);
+
+  if (report.findings.length === 0) {
+    console.log(GREEN + "  No drift detected." + RESET);
+    return;
+  }
+
+  for (const finding of report.findings) {
+    const color = colorForSeverity(finding.severity);
+    console.log("");
+    console.log(
+      color + BOLD + `  [${finding.severity.toUpperCase()}]` + RESET +
+        ` ${finding.driftType}`,
+    );
+    console.log(`  ${finding.description}`);
+    console.log(DIM + `  Confidence: ${finding.confidence}` + RESET);
+    console.log(`  Recommendation: ${finding.recommendation}`);
+  }
+}
+
+// -- Lens Review -------------------------------------------------------------
+
+function renderLensReview(review: LensLifecycleReview): void {
+  console.log(BOLD + "Lens Lifecycle Review" + RESET);
+  console.log(`Generated: ${review.generatedAt}`);
+  console.log(`Lenses Reviewed: ${review.lensReviews.length}`);
+  console.log(BAR);
+
+  if (review.lensReviews.length === 0) {
+    console.log(DIM + "  No calibration data available for any lens." + RESET);
+    return;
+  }
+
+  for (const lr of review.lensReviews) {
+    const recColor = colorForRecommendation(lr.recommendation);
+    console.log("");
+    console.log(BOLD + `  ${lr.lens}` + RESET);
+    console.log(`    Predictive Value:  ${lr.predictiveValue}`);
+    console.log(`    Reviews Analyzed:  ${lr.reviewsAnalyzed}`);
+    console.log(`    False Alarms:      ${lr.falseAlarms}`);
+    console.log(`    Missed Failures:   ${lr.missedFailures}`);
+    console.log(
+      `    Recommendation:    ` +
+        recColor + lr.recommendation.toUpperCase() + RESET,
+    );
+    console.log(`    Reason: ${lr.reason}`);
+  }
+}
+
+// -- Integrity ---------------------------------------------------------------
+
+function renderIntegrity(report: GovernanceIntegrityReport): void {
+  const m = report.metrics;
+  console.log(BOLD + "Governance Integrity" + RESET);
+  console.log(`Generated: ${report.generatedAt}`);
+  console.log(BAR);
+
+  console.log(`Total Reviews:              ${m.totalReviews}`);
+  console.log("");
+  console.log(`Reviews with Provenance:    ${m.reviewsWithProvenance}`);
+  console.log(`Reviews with Explanations:  ${m.reviewsWithExplanations}`);
+  console.log(`Reviews Linked to Outcomes: ${m.reviewsLinkedToOutcomes}`);
+  console.log(`Untraceable Findings:       ${m.untraceableFindings}`);
+  console.log("");
+  console.log(BOLD + "Rates" + RESET);
+  console.log(
+    `  Provenance Rate:     ` +
+      colorForRate(m.provenanceRate) + `${m.provenanceRate}%` + RESET,
+  );
+  console.log(
+    `  Explanation Rate:    ` +
+      colorForRate(m.explanationRate) + `${m.explanationRate}%` + RESET,
+  );
+  console.log(
+    `  Outcome Link Rate:   ` +
+      colorForRate(m.outcomeLinkRate) + `${m.outcomeLinkRate}%` + RESET,
+  );
+}
