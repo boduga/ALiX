@@ -147,6 +147,12 @@ describe("GovernanceStore", () => {
           operatorGuidance: "Review the confidence calibration dashboard for red_team lens",
           expectedBenefit: "Improved decision accuracy through better-calibrated confidence scores",
           risks: ["Over-correction could suppress valid signals"],
+          metadata: {
+            category: "confidence_calibration" as const,
+            target: "red_team",
+            currentCalibration: 0.45,
+            suggestedCalibration: 0.65
+          },
         },
       ],
       evidenceRefs: ["signal-1"],
@@ -160,6 +166,8 @@ describe("GovernanceStore", () => {
     expect(records[0].recommendations[0].operatorGuidance).toBe(
       "Review the confidence calibration dashboard for red_team lens"
     );
+    expect(records[0].recommendations[0].metadata).toBeDefined();
+    expect(records[0].recommendations[0].metadata.category).toBe("confidence_calibration");
   });
 
   it("queryByWindow filters recommendations by generatedAt", async () => {

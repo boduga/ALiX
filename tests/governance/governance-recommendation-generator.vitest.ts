@@ -181,6 +181,13 @@ describe("generateLensRecommendations", () => {
     expect(recs[0].sourceArtifactId).toBe(review.id);
     expect(recs[0].priority).toBe("medium");
     expect(recs[0].status).toBe("open");
+    expect(recs[0].metadata).toEqual({
+      category: "lens_adjustment",
+      operation: "demote",
+      lens: "red_team",
+      currentPV: 0.3,
+      reviewsAnalyzed: 25,
+    });
   });
 });
 
@@ -220,6 +227,12 @@ describe("generateDriftRecommendations", () => {
     expect(recs[0].priority).toBe("high");
     expect(recs[0].category).toBe("governance_integrity");
     expect(recs[0].sourceArtifactId).toBe(report.id);
+    expect(recs[0].metadata.category).toBe("governance_integrity");
+    const meta = recs[0].metadata;
+    if (meta.category === "governance_integrity") {
+      expect(meta.issue).toBe("Lens red_team has degraded predictive value");
+      expect(meta.recommendationId).toBe(recs[0].id);
+    }
   });
 });
 
@@ -249,6 +262,12 @@ describe("generateIntegrityRecommendations", () => {
     expect(recs[0].category).toBe("chain_restoration");
     expect(recs[0].priority).toBe("medium"); // 40 ≤ rate < 60
     expect(recs[0].sourceArtifactId).toBe(report.id);
+    expect(recs[0].metadata).toEqual({
+      category: "chain_restoration",
+      targetArtifactId: report.id,
+      currentRate: 40,
+      targetRate: 80,
+    });
   });
 });
 
@@ -274,6 +293,11 @@ describe("generateHealthRecommendations", () => {
     expect(recs[0].category).toBe("policy_coverage");
     expect(recs[0].priority).toBe("high"); // < 30
     expect(recs[0].sourceArtifactId).toBe(report.id);
+    expect(recs[0].metadata).toEqual({
+      category: "policy_coverage",
+      currentCoverage: 25,
+      targetCoverage: 80,
+    });
   });
 });
 
@@ -346,6 +370,12 @@ describe("generateRecommendations", () => {
       windowDays: 30,
       store,
     });
+
+    // Every recommendation must have metadata populated.
+    for (const rec of artifact.recommendations) {
+      expect(rec.metadata).toBeDefined();
+      expect(rec.metadata.category).toBe(rec.category);
+    }
 
     // The aggregated artifact should contain one recommendation per source.
     const sources = new Set(artifact.recommendations.map((r) => r.source));

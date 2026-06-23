@@ -98,6 +98,13 @@ export function generateLensRecommendations(
         confidence,
         status: "open",
         category: "lens_adjustment",
+        metadata: {
+          category: "lens_adjustment",
+          operation: entry.recommendation === "retire" ? "retire" : "demote",
+          lens: entry.lens,
+          currentPV: entry.predictiveValue,
+          reviewsAnalyzed: entry.reviewsAnalyzed,
+        },
         title,
         description: `Lens "${entry.lens}" lifecycle recommendation: ${entry.recommendation}. ${entry.reason}`,
         evidenceRefs: [review.id],
@@ -146,14 +153,37 @@ export function generateDriftRecommendations(
         category = "governance_integrity";
       }
 
+      const recId = shortId("rec_drift", report.generatedAt);
+      const metadata: Recommendation["metadata"] =
+        category === "confidence_calibration"
+          ? {
+              category: "confidence_calibration",
+              target: finding.evidenceRefs[0] ?? report.id,
+              currentCalibration: finding.confidence,
+              suggestedCalibration: Math.min(1, finding.confidence + 0.15),
+            }
+          : category === "chain_restoration"
+            ? {
+                category: "chain_restoration",
+                targetArtifactId: finding.evidenceRefs[0] ?? report.id,
+                currentRate: Math.round(finding.confidence * 100),
+                targetRate: 80,
+              }
+            : {
+                category: "governance_integrity",
+                issue: finding.description,
+                recommendationId: recId,
+              };
+
       recs.push({
-        id: shortId("rec_drift", report.generatedAt),
+        id: recId,
         source: "drift",
         sourceArtifactId: report.id,
         priority: finding.severity,
         confidence: clamp01(finding.confidence),
         status: "open",
         category,
+        metadata,
         title: truncate(finding.description, TITLE_MAX),
         description: finding.description,
         operatorGuidance: "Review finding and consider remediation",
@@ -202,14 +232,32 @@ export function generateIntegrityRecommendations(
       const priority: Recommendation["priority"] = rate < 40 ? "high" : "medium";
       const confidence = clamp01(1 - rate / 100);
 
+      const recId = shortId("rec_integrity", report.generatedAt);
+      const metadata: Recommendation["metadata"] =
+        m.category === "chain_restoration"
+          ? {
+              category: "chain_restoration",
+              targetArtifactId: report.id,
+              currentRate: rate,
+              targetRate: 80,
+            }
+          : {
+              category: "governance_integrity",
+              issue:
+                `${m.label} is ${rate}% (threshold: 60%). ` +
+                `This indicates that governance review artifacts in the analysis window are not carrying the expected ${m.label.toLowerCase()}.`,
+              recommendationId: recId,
+            };
+
       recs.push({
-        id: shortId("rec_integrity", report.generatedAt),
+        id: recId,
         source: "integrity",
         sourceArtifactId: report.id,
         priority,
         confidence,
         status: "open",
         category: m.category,
+        metadata,
         title: `${m.label} at ${rate}%`,
         description:
           `${m.label} is ${rate}% (threshold: 60%). ` +
@@ -275,6 +323,11 @@ export function generateHealthRecommendations(
       confidence: clamp01(1 - weakest.value / 100),
       status: "open",
       category: "policy_coverage",
+      metadata: {
+        category: "policy_coverage",
+        currentCoverage: weakest.value,
+        targetCoverage: 80,
+      },
       title: `Governance layer at ${weakest.value}% availability`,
       description: `Weakest layer: ${weakest.layer.label} at ${weakest.value}%`,
       operatorGuidance:
