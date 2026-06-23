@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -85,6 +85,14 @@ describe("createGovernanceProposal", () => {
     expect(created?.sourceConfidence).toBe(0.85);
     expect(created?.evidenceFingerprints).toContain("rec-a");
     expect(created?.provenance).toBe("manual");
+
+    // Verify EvidenceChain link was persisted
+    const chains = await chainStore.getChainForRoot("rec-a");
+    expect(chains.length).toBeGreaterThanOrEqual(1);
+    const chain = chains[0];
+    expect(chain.rootArtifactId).toBe("rec-a");
+    expect(chain.links[0].relationship).toBe("proposal_from_recommendation");
+    expect(chain.links[0].sourceArtifactId).toBe(result.proposalId);
   });
 
   it("rejects with reason when confidence is below threshold", async () => {
@@ -162,5 +170,39 @@ describe("createGovernanceProposal", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.reason).toMatch(/Recommendation not found: does-not-exist/);
+  });
+
+  it("atomically orphans the proposal when evidence-chain write fails (case B)", async () => {
+    // Seed an eligible recommendation
+    await govStore.append("recommendations", {
+      id: "report-case-b", subject: "T", outcome: "c", confidence: 0.9, reasons: [],
+      generatedAt: "2026-06-23T00:00:00.000Z", reportType: "governance_recommendation",
+      recommendations: [{
+        id: "rec-case-b", source: "drift", sourceArtifactId: "d", priority: "high",
+        confidence: 0.85, status: "open", category: "chain_restoration", title: "T", description: "T",
+        evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [],
+        metadata: { category: "chain_restoration", targetArtifactId: "d", currentRate: 45, targetRate: 80 }
+      }], evidenceRefs: []
+    } as any);
+
+    // Mock chainStore.appendChain to reject
+    const brokenChainStore = new EvidenceChainStore();
+    vi.spyOn(brokenChainStore, "appendChain").mockRejectedValue(new Error("Disk full"));
+
+    const result = await createGovernanceProposal({
+      recommendationId: "rec-case-b",
+      govStore,
+      proposalStore: propStore,
+      chainStore: brokenChainStore,
+    });
+
+    // The result should be { ok: false } — the proposal was orphaned
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toMatch(/Proposal .* created but provenance chain failed/);
+
+    // The proposal should exist but be excluded from list()
+    const all = await propStore.list();
+    expect(all.find((p) => p.id?.includes("rec-case-b"))).toBeUndefined();
   });
 });

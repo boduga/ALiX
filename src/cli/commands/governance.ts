@@ -209,7 +209,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         process.exit(1);
       }
       if (json) {
-        console.log(JSON.stringify({ ok: true, proposalId: result.proposalId }));
+        console.log(JSON.stringify({ ok: true, proposalId: result.proposalId, recommendationId }));
       } else {
         console.log(`Governance proposal created.`);
         console.log(`  Proposal:        ${result.proposalId}`);
