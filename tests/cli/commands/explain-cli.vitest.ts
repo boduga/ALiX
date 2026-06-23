@@ -60,13 +60,24 @@ describe("alix explain proposal — CLI", () => {
     expect(output).toContain("0/6 layers available");
   });
 
-  it("--json: prints valid JSON with proposalId and explanationIntegrity.totalLayers === 6", async () => {
+  it("--json: prints valid JSON matching ProposalExplanation contract", async () => {
     await handleExplainCommand(["proposal", "prop-1", "--json"]);
 
     const output = terminalOutput();
     const parsed = JSON.parse(output);
     expect(parsed.proposalId).toBe("prop-1");
     expect(parsed.explanationIntegrity.totalLayers).toBe(6);
+    // Assert the full contract shape that P8.5b Dashboard will consume:
+    expect(parsed.explanationIntegrity.completenessPercent).toBe(0);
+    expect(parsed.outcome).toHaveProperty("status");
+    expect(parsed.recommendation).toHaveProperty("status");
+    expect(parsed.risk).toHaveProperty("status");
+    expect(parsed.governance).toHaveProperty("status");
+    expect(parsed.learning).toHaveProperty("signalsByAdapter");
+    expect(parsed.learning).toHaveProperty("totalSignals");
+    expect(parsed.calibration).toHaveProperty("profilesByTarget");
+    expect(parsed.calibration).toHaveProperty("adjustments");
+    expect(parsed.learningRefreshHint).not.toBeNull();
   });
 
   it("empty stores: refresh hint rendered when Learning layer empty", async () => {
