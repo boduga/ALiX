@@ -45,6 +45,8 @@ import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
+import type { ApprovalRecommendation } from "../../adaptation/recommendation-types.js";
+import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
@@ -280,6 +282,16 @@ async function runRecommend(args: string[]): Promise<void> {
 
   const ctx = await infra.contextBuilder.build(id);
   const risk = riskBuilder.build(ctx);
+
+  // P7.5p.2b — persist the RiskScore so P8.2 risk calibration can join RiskScore × OutcomeRecord.
+  // Best-effort: log-and-continue on failure; never block the recommendation output.
+  await new RiskScoreStore().append(risk).catch((err) =>
+    console.warn(
+      `[alix] warning: failed to persist risk score ${risk.id}:`,
+      err instanceof Error ? err.message : String(err),
+    ),
+  );
+
   const recommendation = recEngine.recommend(ctx, risk);
 
   // P7.5p.1b — persist the recommendation so the outcome CLI can read its confidence back
@@ -866,6 +878,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
   // if not found or no recommendation given, leave confidence undefined
   // unless an explicit --recommendation-confidence override is supplied.
   let confidence: number | undefined;
+  let resolvedRecommendation: ApprovalRecommendation | undefined;
 
   if (recommendationId) {
     try {
@@ -873,6 +886,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
       const stored = await recStore.get(recommendationId);
       if (stored) {
         confidence = stored.confidence;
+        resolvedRecommendation = stored;
       }
     } catch (err) {
       console.error(
@@ -880,6 +894,16 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
         err instanceof Error ? err.message : String(err),
       );
     }
+  }
+
+  // P7.5p.2c — resolve riskScoreId from --risk-score-id override OR rec.riskScoreId.
+  // Never fake: missing stays undefined and serializes as absent in JSON.
+  let resolvedRiskScoreId: string | undefined;
+  const rsIdx = args.indexOf("--risk-score-id");
+  if (rsIdx !== -1 && rsIdx + 1 < args.length) {
+    resolvedRiskScoreId = args[rsIdx + 1];
+  } else if (resolvedRecommendation) {
+    resolvedRiskScoreId = resolvedRecommendation.riskScoreId;
   }
 
   // Parse --recommendation-confidence <0-1> if given. The override wins.
@@ -909,6 +933,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     actionTaken,
     observationWindowDays: 30,
     confidence,
+    riskScoreId: resolvedRiskScoreId,
     reasons: [],
     evidenceRefs: [],
     subject: `Outcome: ${subjectId}`,

@@ -77,6 +77,14 @@ export interface OutcomeRecord extends OutcomeArtifact {
   recommendationId?: string;
   /** Reference to the P6.5b governance review (always null for now — reviews are ephemeral) */
   governanceReviewId?: string;
+  /**
+   * The id of the RiskScore that informed the recommendation linked to
+   * this outcome. Undefined when no RiskScore is associated with the
+   * recommendation and no override was given. Outcome-specific provenance,
+   * not a generic artifact concern.
+   * P7.5p.2 — never faked to a placeholder.
+   */
+  riskScoreId?: string;
   /** Description of what action was taken */
   actionTaken: string;
   /** Outcome classification */
