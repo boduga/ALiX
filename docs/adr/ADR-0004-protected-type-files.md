@@ -190,20 +190,38 @@ A third P9.2 design review produced 3 more amendments. None touched a protected 
 
 This is the first time a P-phase has actually exercised the "Allowed additive evolution" path for a field on a P5 type. The framework works as intended: the addition required an SDS amendment (approved) and a plan/sentinel enumeration (forthcoming), and no Forbidden mutation occurred. Future P-phases adding fields to P5 `provenance` should follow the same process.
 
-### P9.2 `orphaned` ProposalStatus (system state, not lifecycle state)
+### P9.2 `orphaned` system state (not a ProposalStatus member)
 
-P9.2 also added `"orphaned"` to the `ProposalStatus` union in `adaptation-types.ts` (a third Allowed mutation in the same P9.2 series). **Critical clarification:** `orphaned` is a **system state** (atomicity recovery), not a lifecycle state. The P5 lifecycle states (`pending`, `approved`, `rejected`, `applied`, `failed`) are operator/business states that drive the approval workflow. `orphaned` is an infrastructure-recovery state used when an EvidenceChain write fails after a proposal is created.
+P9.2 introduces a system-recovery state for atomicity violations (case B in the SDS's atomicity contract). After a design review, the implementation does **NOT** add `"orphaned"` to the `ProposalStatus` union. Instead, `orphaned` is a field on a new optional `systemState` metadata block:
 
-**Invariants on `orphaned` proposals:**
+```ts
+proposal: {
+  ...proposal,
+  systemState?: { orphaned: true; reason: string }
+}
+```
 
-- Orphaned proposals are **never eligible for approval** — `alix adaptation approve <id>` must reject with a clear message if the proposal's status is `orphaned`.
-- Orphaned proposals are **excluded from all proposal queues** — `ProposalStore.list()` filters them out.
+**Why this is the correct design:** `ProposalStatus` is the P5 lifecycle vocabulary. Every existing P5 consumer (`ApprovalGate`, the appliers, the `alix adaptation` CLI, the Explain engine, every dashboard) reasons about the 5 states (`pending`, `approved`, `rejected`, `applied`, `failed`). Adding a 6th state would force every consumer to decide "what does `orphaned` mean for me?" — and the answer is "it means infrastructure-recovery; ignore it like a tombstone." That answer is exactly what system-state metadata is for, not lifecycle states.
+
+`AdaptationProposal` is **not** on the 6 protected-files list. Adding the optional `systemState` field to it is a new-field-on-a-non-protected-file change, which does not require an ADR-0004 exception. The P5 lifecycle vocabulary in `adaptation-types.ts` stays exactly:
+
+```ts
+type ProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed";
+```
+
+No new union member, no snapshot-equal sentinel case, no extra ADR extension.
+
+**Invariants on `orphaned` proposals** (enforced by behavior, not by type):
+
+- The proposal's `ProposalStatus` remains `"pending"` even when `systemState.orphaned` is set. The lifecycle does not advance.
+- Orphaned proposals are **never eligible for approval** — `alix adaptation approve <id>` must reject with a clear message if the proposal's `systemState.orphaned` is set.
+- Orphaned proposals are **excluded from all proposal queues** — `ProposalStore.list()` filters via `!p.systemState?.orphaned`.
 - Orphaned proposals **retain their payload and evidence** for audit; they are not deleted, only hidden from operator-facing lists.
-- The `orphanedReason` field on the proposal is the EvidenceChain write error message, preserved for post-mortem analysis.
+- The `systemState.reason` field is the EvidenceChain write error message, preserved for post-mortem analysis.
 
-These invariants are testable in the P9.2d sentinel: a test asserts that `markOrphaned` removes the proposal from `list()`. The system-state-vs-lifecycle-state distinction is **not** enforceable via the type alone (both are string members of the same union); it must be enforced by behavior (filter in `list()`, rejection in `approve`). This is documented in the P9.2 SDS's "Orphaned status semantics" section.
+The P9.2d sentinel must include a test asserting: orphaned proposals are filtered from `list()`. The system-state-vs-lifecycle-state distinction is **enforceable by behavior** (list filter, approve rejection); it does not require type-level enforcement.
 
-If a future P-phase (P9.2b, P9.3, P10, etc.) needs to add further members to `adaptation-types.ts` or any other protected file, the rule in the "Decision" section above applies — SDS + plan + sentinel must enumerate each new member.
+If a future P-phase (P9.2b, P9.3, P10, etc.) needs to add further members to `adaptation-types.ts` or any other protected file, the rule in the "Decision" section above applies — SDS + plan + sentinel must enumerate each new member. New `systemState` flags on `AdaptationProposal` are NOT subject to the ADR; that file is not on the protected list.
 
 ## Related
 

@@ -425,7 +425,7 @@ Expected: empty. The only protected-file change in P9.2a is the additive extensi
 ```bash
 cd /home/babasola/Projects/Monolith
 git add src/adaptation/adaptation-types.ts src/governance/governance-store.ts src/governance/protected-baselines.ts tests/governance/governance-store.vitest.ts
-git commit -m "feat(p9.2a): types extension + GovernanceStore.getRecommendation
+git commit -m "feat(p9.2a): types extension + GovernanceStore.findRecommendationById
 
 Additive extensions to adaptation-types.ts (per ADR-0004 Allowed
 class):
@@ -433,7 +433,7 @@ class):
   ProposalTarget   += { kind: 'governance', recommendationId: string }
 
 New method on GovernanceStore:
-  getRecommendation(id) -> Promise<GovernanceRecommendation | null>
+  findRecommendationById(id) -> Promise<{ rec: Recommendation; parent: GovernanceRecommendation } | null>
   Replaces the getTypeForId + list + linear search pattern in the
   P9.2 bridge hot path.
 
@@ -458,7 +458,7 @@ byte-identical to main."
 - Modify: `src/adaptation/proposal-store.ts` (add `markOrphaned(id, reason)` method — required for atomicity recovery)
 
 **Interfaces:**
-- Consumes: `GovernanceStore.getRecommendation(id)`, `ProposalStore.save(proposal)`, `ProposalStore.update(id, patch)`, `EvidenceChainStore.appendChain(chain)`, `EvidenceChainStore.getChainForRoot(recommendationId)`
+- Consumes: `GovernanceStore.findRecommendationById(id)`, `ProposalStore.save(proposal)`, `ProposalStore.update(id, patch)`, `EvidenceChainStore.appendChain(chain)`, `EvidenceChainStore.getChainForRoot(recommendationId)`
 - Produces: `createGovernanceProposal({ recommendationId, cwd?, generatedAt? }): Promise<{ ok: true; proposalId: string } | { ok: false; reason: string }>`
 
 - [ ] **Step 1: Write the failing test for `markOrphaned` on `ProposalStore`**
@@ -483,42 +483,41 @@ Expected: FAIL with `store.markOrphaned is not a function`.
 
 - [ ] **Step 3: Implement `markOrphaned` on `ProposalStore`**
 
-In `src/adaptation/proposal-store.ts`, find the `ProposalStore` class and add the new method after `update`. (Note: `ProposalStatus` is currently `pending | approved | rejected | applied | failed`. P9.2 adds a new variant `"orphaned"` to that union — see the additional change in `adaptation-types.ts` below this code block.)
+In `src/adaptation/proposal-store.ts`, find the `ProposalStore` class and add the new method after `update`. (Note: `ProposalStatus` is unchanged at `pending | approved | rejected | applied | failed`. P9.2 does NOT extend it. Instead, `markOrphaned` writes a `systemState` field — see the additional change in `adaptation-types.ts` below this code block.)
 
 ```ts
   /**
    * P9.2 atomicity recovery: mark a proposal as orphaned so it is
    * excluded from `list()`. Used when the EvidenceChain edge write
-   * fails after the proposal is created. The proposal still exists
-   * on disk for audit, but is not surfaced as a normal pending
-   * proposal. A future cleanup task (out of P9.2 scope) may sweep
-   * orphaned proposals.
+   * fails after the proposal is created. The proposal's lifecycle
+   * status is preserved (typically "pending"); the systemState
+   * field is set to indicate the infrastructure-recovery state.
+   * The proposal still exists on disk for audit, but is not
+   * surfaced as a normal pending proposal. A future cleanup task
+   * (out of P9.2 scope) may sweep orphaned proposals.
    */
   async markOrphaned(id: string, reason: string): Promise<void> {
-    await this.update(id, { status: "orphaned", error: reason } as any);
+    await this.update(id, { systemState: { orphaned: true, reason } } as any);
   }
 ```
 
-Also update `src/adaptation/adaptation-types.ts` — add `"orphaned"` to the `ProposalStatus` union (another Allowed additive extension per ADR-0004):
+Also note: **P9.2b does NOT add `"orphaned"` to the `ProposalStatus` union.** That was an earlier design that was corrected (see the "Orphaned system-state semantics" section above). The `ProposalStatus` union stays at the original 5 lifecycle states. Instead, `markOrphaned` writes a `systemState` field on the proposal.
+
+**`systemState` field on `AdaptationProposal`** (read `src/adaptation/adaptation-types.ts` to see the current interface — it does NOT yet have `systemState`; P9.2b adds it as an optional field):
 
 ```ts
-export type ProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed" | "orphaned";
+// In src/adaptation/adaptation-types.ts, add to the AdaptationProposal interface:
+  /**
+   * P9.2 system-state metadata. Used for infrastructure-recovery
+   * flags (currently only `orphaned`). Distinct from ProposalStatus:
+   * the lifecycle status (pending/approved/rejected/applied/failed)
+   * is preserved unchanged. systemState is invisible to lifecycle
+   * code; it's a recovery flag in metadata.
+   */
+  systemState?: { orphaned: true; reason: string };
 ```
 
-And update `src/governance/protected-baselines.ts` (created in P9.2a) to add `BASELINE_PROPOSAL_STATUSES`:
-
-```ts
-export const BASELINE_PROPOSAL_STATUSES: readonly string[] = [
-  "pending",
-  "approved",
-  "rejected",
-  "applied",
-  "failed"
-  // "orphaned" added in P9.2b
-] as const;
-```
-
-Also update the `list` filter logic in `ProposalStore` (read the file to find the filter that excludes non-pending statuses) so that `status: "orphaned"` proposals are excluded. The simplest implementation: filter on `status !== "orphaned"`. If the existing code already filters on a different criterion, mirror that pattern.
+This is a **new optional field** on a non-protected file, so it does not require an ADR-0004 exception. The 6 protected files remain unchanged for systemState; the only protected-file changes in P9.2 are the two enumerated extensions: `ProposalAction += "governance_change"` and `ProposalTarget += { kind: "governance"; recommendationId: string }`.
 
 - [ ] **Step 4: Run test to verify pass**
 
@@ -638,7 +637,6 @@ import type { LearningEvidenceChain, ProvenanceLink } from "../learning/evidence
 
 const MIN_PROPOSAL_CONFIDENCE = 0.6;
 const INELIGIBLE_PRIORITIES = new Set<"low">(["low"]);
-const INELIGIBLE_STATUSES = new Set<"acknowledged" | "dismissed">(["acknowledged", "dismissed"]);
 
 export type CreateProposalResult =
   | { ok: true; proposalId: string }
@@ -651,7 +649,11 @@ function isEligible(rec: Recommendation): { eligible: true } | { eligible: false
   if (INELIGIBLE_PRIORITIES.has(rec.priority as "low")) {
     return { eligible: false, reason: `priority "${rec.priority}" is not eligible for proposal` };
   }
-  if (INELIGIBLE_STATUSES.has(rec.status as "acknowledged" | "dismissed")) {
+  // Status gate is fail-closed: ONLY "open" is eligible. Any other
+  // status (acknowledged, dismissed, archived, paused, future values)
+  // is rejected. This is the correct inverse of a Set-includes check,
+  // which would let unknown future statuses pass through.
+  if (rec.status !== "open") {
     return { eligible: false, reason: `status "${rec.status}" is not eligible for proposal (only "open" recommendations may become proposals)` };
   }
   return { eligible: true };
@@ -795,7 +797,7 @@ Expected: PASS. (May surface 2-3 type errors — see Step 9.)
 
 The `proposalStore.save(proposal as any)` and `proposalStore.markOrphaned(...)` calls may surface type mismatches because the existing `AdaptationProposal` type in `adaptation-types.ts` is strict. Two fixes:
 - (a) Widen the `as any` to specific fields: `as unknown as Parameters<ProposalStore["save"]>[0]`
-- (b) If the `status: "orphaned"` is not yet in the `ProposalStatus` union, it was added in Step 3. Confirm.
+- (b) If `systemState` is not yet on the `AdaptationProposal` interface, it was added in Step 3 above (with the optional `systemState?: { orphaned: true; reason: string }` field). Confirm.
 
 Run: `cd /home/babasola/Projects/Monolith && npx tsc --noEmit 2>&1 | tail -15`
 Expected: clean (or specific narrow errors you can fix by adjusting the cast).
@@ -877,7 +879,7 @@ Expected: PASS. All 5 + existing tests pass.
 - [ ] **Step 12: Verify the 5 non-`adaptation-types.ts` protected files are still unchanged**
 
 Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
-Expected: empty. The protected-file change in P9.2b is only the additive `ProposalStatus += "orphaned"` extension to `adaptation-types.ts`.
+Expected: empty. The only protected-file change in P9.2b is the additive `ProposalAction += "governance_change"` extension to `adaptation-types.ts` (already done in P9.2a). P9.2b does NOT touch any protected file.
 
 - [ ] **Step 13: Commit**
 
@@ -898,7 +900,7 @@ New module src/governance/governance-proposal-generator.ts:
   - This is the SINGLE P9 file permitted to import ProposalStore
 
 Additive extensions to adaptation-types.ts (Allowed per ADR-0004):
-  ProposalStatus += 'orphaned'
+  (no ProposalStatus change — orphan is systemState metadata, not a status)
 
 New method on ProposalStore:
   markOrphaned(id, reason) - case (B) recovery; excludes from list()
@@ -1112,7 +1114,7 @@ Expected: PASS. The 4 existing governance CLI subcommands (health, drift, lens-r
 - [ ] **Step 6: Verify 6 protected type files are unchanged from main**
 
 Run: `cd /home/babasola/Projects/Monolith && git diff main..HEAD -- src/adaptation/risk-score-types.ts src/adaptation/governance-review-types.ts src/adaptation/adaptation-types.ts src/adaptation/decision-types.ts src/adaptation/learning-types.ts src/adaptation/outcome-types.ts | head -3`
-Expected: the only diff is the additive extension to `adaptation-types.ts` from P9.2a + P9.2b (ProposalAction + governance, ProposalStatus + orphaned, ProposalTarget + governance). All other 5 protected files are byte-identical to main.
+Expected: the only diff is the additive extension to `adaptation-types.ts` from P9.2a (ProposalAction + governance, ProposalTarget + governance). P9.2b does NOT touch any protected file — it adds `systemState` to the `AdaptationProposal` interface, which is on a non-protected file (the `AdaptationProposal` type lives in `adaptation-types.ts` but is not a `ProposalAction`/`ProposalTarget`/`ProposalStatus` member). All other 5 protected files are byte-identical to main.
 
 - [ ] **Step 7: Commit**
 
@@ -1150,7 +1152,7 @@ rejection. All passing."
 
 **Interfaces:**
 - Consumes: existing sentinel structure; `protected-baselines.ts` from P9.2a
-- Produces: 5 new sentinel cases — (1) generator file is checked for the new symbols, (2) `ALLOWED_IN_FILE` is enforced, (3) `ProposalAction` snapshot-equal to baseline + documented additions, (4) `ProposalTarget.kind` snapshot-equal to baseline + documented additions, (5) `ProposalStatus` snapshot-equal to baseline + documented additions (including `orphaned`)
+- Produces: 4 new sentinel cases — (1) generator file is checked for the new symbols, (2) `ALLOWED_IN_FILE` is enforced, (3) `ProposalAction` snapshot-equal to baseline + documented additions, (4) `ProposalTarget.kind` snapshot-equal to baseline + documented additions. (Note: `ProposalStatus` is NOT a new sentinel case because P9.2 does NOT add to it; the orphan system-state is metadata on `AdaptationProposal`, not a `ProposalStatus` member.)
 
 - [ ] **Step 1: Write the failing test for the new sentinel cases**
 
@@ -1198,17 +1200,18 @@ In `tests/governance/governance-sentinels.vitest.ts`, add inside the existing `d
     ]);
   });
 
-  it("adaptation-types.ts ProposalStatus is exactly the baseline + P9.2 additions", async () => {
-    const { BASELINE_PROPOSAL_STATUSES } = await import("../../src/governance/protected-baselines.js");
+  it("adaptation-types.ts ProposalStatus preserves the 5 lifecycle states (P9.2 does NOT extend it)", async () => {
     const source = readSource("src/adaptation/adaptation-types.ts");
     const match = source.match(/export type ProposalStatus\s*=\s*([\s\S]+?);/);
     expect(match).not.toBeNull();
     if (!match) return;
     const members = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
-    expect(members).toEqual([
-      ...BASELINE_PROPOSAL_STATUSES,
-      "orphaned"  // P9.2's documented addition
-    ]);
+    // P9.2 does NOT add to ProposalStatus. The 5 lifecycle states are
+    // preserved exactly. The orphan system-state is metadata on
+    // AdaptationProposal.systemState, not a ProposalStatus member.
+    expect(members.sort()).toEqual(
+      ["applied", "approved", "failed", "pending", "rejected"].sort()
+    );
   });
 
   it("adaptation-types.ts ProposalTarget kinds is exactly the baseline + P9.2 additions", async () => {
@@ -1251,7 +1254,7 @@ export const BASELINE_PROPOSAL_STATUSES: readonly string[] = [
   "approved",
   "applied",
   "rejected"
-  // "orphaned" added in P9.2b
+  // (no ProposalStatus additions in P9.2)
 ] as const;
 ```
 
@@ -1380,19 +1383,39 @@ git push origin alix-p9-2-complete
 
 ## Cross-cutting invariants (apply to all tasks)
 
-### Orphaned status semantics
+### Orphaned system-state semantics
 
 `orphaned` is a **system state**, not a lifecycle state. The P5 lifecycle states (`pending`, `approved`, `rejected`, `applied`, `failed`) are operator/business states that drive the approval workflow. `orphaned` is an infrastructure-recovery state used by the P9.2 atomicity guarantee (case B) when an EvidenceChain write fails after a proposal is created.
 
+**Crucial architectural decision:** `orphaned` is **NOT** a member of `ProposalStatus`. The P5 lifecycle vocabulary is preserved exactly. Instead, `orphaned` is a field on a new `systemState` metadata block:
+
+```ts
+proposal: {
+  ...proposal,
+  systemState?: { orphaned: true; reason: string }
+}
+```
+
+This is enforced by `ProposalStore.list()`:
+
+```ts
+list(): list.filter((p) => !p.systemState?.orphaned)
+```
+
+The benefit: every existing P5 consumer of `ProposalStatus` (`ApprovalGate`, the appliers, the `alix adaptation` CLI, the Explain engine, every dashboard) keeps its 5-state vocabulary unchanged. `orphaned` is invisible to lifecycle code; it's a recovery flag in metadata.
+
 **Invariants on orphaned proposals:**
 
-- Orphaned proposals are **never eligible for approval.** `alix adaptation approve <id>` must reject with a clear message if the proposal's status is `orphaned`.
-- Orphaned proposals are **excluded from all proposal queues** (i.e., `ProposalStore.list()` filters them out — see the `list` filter change in Task P9.2b Step 3).
+- The proposal's `ProposalStatus` remains `"pending"` even when `systemState.orphaned` is set. The lifecycle does not advance.
+- Orphaned proposals are **never eligible for approval.** `alix adaptation approve <id>` must reject with a clear message if the proposal's `systemState.orphaned` is set.
+- Orphaned proposals are **excluded from all proposal queues** (i.e., `ProposalStore.list()` filters them out via `!p.systemState?.orphaned`).
 - Orphaned proposals **retain their payload and evidence** for audit; they are not deleted, only hidden from operator-facing lists.
 - A future cleanup task (out of P9.2 scope) may sweep orphaned proposals after a retention period.
-- The `orphanedReason` field on the proposal is the EvidenceChain write error message. It is preserved for post-mortem analysis.
+- The `systemState.orphanedReason` field is the EvidenceChain write error message, preserved for post-mortem analysis.
 
-The P9.2d sentinel must include a test asserting: orphaned proposals are filtered from `list()`. The simplest test: create a proposal, mark it orphaned, assert `list()` does not include it.
+The P9.2d sentinel must include a test asserting: orphaned proposals are filtered from `list()`. The simplest test: create a proposal, set `systemState: { orphaned: true, reason: "..." }`, assert `list()` does not include it.
+
+**No protected-file change is needed for this.** `AdaptationProposal` is not on the protected-files list; P9.2 can add `systemState?: { orphaned: true; reason: string }` to it without an ADR-0004 exception. The 6 protected files (`risk-score-types.ts`, `governance-review-types.ts`, `adaptation-types.ts`, `decision-types.ts`, `learning-types.ts`, `outcome-types.ts`) receive **only** the two ADR-0004-enumerated extensions: `ProposalAction += "governance_change"` and `ProposalTarget += { kind: "governance"; recommendationId: string }`.
 
 ### Future indexed provenance lookup (P9.2b / P9.3 optimization)
 
