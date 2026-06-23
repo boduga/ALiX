@@ -191,12 +191,42 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runIntegrity(rest);
     case "recommend":
       return runRecommend(rest);
+    case "propose": {
+      const recommendationId = rest[0];
+      if (!recommendationId) {
+        console.error("Usage: alix governance propose <recommendation-id>");
+        process.exit(2);
+      }
+      const json = rest.includes("--json");
+      const { createGovernanceProposal } = await import("../../governance/governance-proposal-generator.js");
+      const result = await createGovernanceProposal({ recommendationId });
+      if (!result.ok) {
+        if (json) {
+          console.log(JSON.stringify({ ok: false, reason: result.reason }));
+        } else {
+          console.error(result.reason);
+        }
+        process.exit(1);
+      }
+      if (json) {
+        console.log(JSON.stringify({ ok: true, proposalId: result.proposalId }));
+      } else {
+        console.log(`Governance proposal created.`);
+        console.log(`  Proposal:        ${result.proposalId}`);
+        console.log(`  Recommendation:  ${recommendationId}`);
+        console.log(``);
+        console.log(`Review and approve:`);
+        console.log(`  alix governance explain ${result.proposalId}`);
+        console.log(`  alix adaptation approve ${result.proposalId}`);
+      }
+      return;
+    }
     default:
       console.error(
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|recommend} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|recommend|propose} [--window <days>] [--json]",
       );
       process.exit(1);
   }
