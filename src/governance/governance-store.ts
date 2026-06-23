@@ -18,6 +18,7 @@ import type {
   GovernanceDriftReport,
   LensLifecycleReview,
   GovernanceIntegrityReport,
+  GovernanceRecommendation,
 } from "./governance-types.js";
 
 // ---------------------------------------------------------------------------
@@ -32,6 +33,7 @@ const FILES: Record<string, string> = {
   drift: "drift.jsonl",
   lensReviews: "lens-reviews.jsonl",
   integrity: "integrity.jsonl",
+  recommendations: "recommendations.jsonl",
 };
 
 type ArtifactType = keyof typeof FILES;
@@ -58,12 +60,13 @@ export class GovernanceStore {
   }
 
   /** Resolve which JSONL file an artifact ID belongs to based on its prefix. */
-  getTypeForId(id: string): "health" | "assessment" | "drift" | "lensReviews" | "integrity" | null {
+  getTypeForId(id: string): "health" | "assessment" | "drift" | "lensReviews" | "integrity" | "recommendations" | null {
     if (id.startsWith("health-")) return "health";
     if (id.startsWith("assessment-")) return "assessment";
     if (id.startsWith("drift-")) return "drift";
     if (id.startsWith("lens-review-")) return "lensReviews";
     if (id.startsWith("integrity-")) return "integrity";
+    if (id.startsWith("recommendation-")) return "recommendations";
     return null;
   }
 
@@ -76,6 +79,7 @@ export class GovernanceStore {
   async append(type: "drift", record: GovernanceDriftReport): Promise<void>;
   async append(type: "lensReviews", record: LensLifecycleReview): Promise<void>;
   async append(type: "integrity", record: GovernanceIntegrityReport): Promise<void>;
+  async append(type: "recommendations", record: GovernanceRecommendation): Promise<void>;
   async append(type: ArtifactType, record: any): Promise<void> {
     this.ensureDir();
     const line = JSON.stringify(record) + "\n";
@@ -91,6 +95,7 @@ export class GovernanceStore {
   async list(type: "drift"): Promise<GovernanceDriftReport[]>;
   async list(type: "lensReviews"): Promise<LensLifecycleReview[]>;
   async list(type: "integrity"): Promise<GovernanceIntegrityReport[]>;
+  async list(type: "recommendations"): Promise<GovernanceRecommendation[]>;
   async list(type: ArtifactType): Promise<any[]> {
     const path = this.filePath(type);
     if (!existsSync(path)) return [];
@@ -113,6 +118,7 @@ export class GovernanceStore {
   async queryByWindow(type: "drift", windowDays: number): Promise<GovernanceDriftReport[]>;
   async queryByWindow(type: "lensReviews", windowDays: number): Promise<LensLifecycleReview[]>;
   async queryByWindow(type: "integrity", windowDays: number): Promise<GovernanceIntegrityReport[]>;
+  async queryByWindow(type: "recommendations", windowDays: number): Promise<GovernanceRecommendation[]>;
   async queryByWindow(type: ArtifactType, windowDays: number): Promise<any[]> {
     const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
     const all = await (this.list as (t: ArtifactType) => Promise<any[]>)(type);

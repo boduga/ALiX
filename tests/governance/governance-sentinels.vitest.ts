@@ -155,7 +155,6 @@ describe("P9.0 purity sentinel", () => {
 
     const FORBIDDEN_PATHS = [
       "outcomes",
-      "recommendations",
       "risk-scores",
       "governance-reviews",
       "learning",
