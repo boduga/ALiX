@@ -49,19 +49,41 @@ The protected-type invariant is restated as:
 ```text
 Protected means no breaking mutation.
 Protected does not mean no approved additive evolution.
-
-Existing union members, type aliases, interfaces, and exported symbols
-in the 6 protected files must remain unchanged (same name, same shape).
-
-Additive new members — new union values, new variants, new exported
-symbols — are allowed only when:
-
-  1. An approved SDS explicitly calls for the extension.
-  2. The implementation plan explicitly enumerates the new members.
-  3. A sentinel assertion in the per-phase test suite verifies that
-     all pre-existing members are unchanged and only the documented
-     additive members were added.
 ```
+
+### Mutation classes (testable)
+
+The 6 protected files are governed by three explicit mutation classes. Every change must be classifiable into one of these.
+
+**Allowed (with SDS + plan + sentinel):**
+
+- New union members (e.g., adding `"governance_change"` to `ProposalAction`)
+- New interface properties marked optional (e.g., `proposedFromRecommendationId?: string`)
+- New exported symbols (functions, types, interfaces, constants) that do not shadow existing ones
+- New discriminated-union variants (e.g., adding `{ kind: "governance"; ... }` to `ProposalTarget`)
+
+**Forbidden (no SDS, no plan, no exception — period):**
+
+- Renaming any existing member
+- Deleting any existing member
+- Changing any existing member's type
+- Making an optional field required
+- Changing a discriminator value
+- Reordering members in a way that changes ordinal semantics (TypeScript itself does not rely on union order, but downstream consumers may)
+
+**Requires a new ADR (out of scope for any single-phase SDS):**
+
+- Breaking shape evolution (any change in the Forbidden list)
+- Migration of existing contracts (renaming with compatibility shims, dual-write, etc.)
+- Removal of deprecated members (deprecation → removal is a multi-phase process)
+
+### Approval process for Allowed mutations
+
+Additive new members are allowed only when:
+
+1. An approved SDS explicitly calls for the extension (and names the new members).
+2. The implementation plan explicitly enumerates the new members in its Global Constraints section.
+3. A sentinel assertion in the per-phase test suite verifies the change is classifiable as Allowed (no Forbidden mutations occurred).
 
 Under this rule, P9.2 is permitted to add `"governance_change"` to `ProposalAction` and `{ kind: "governance"; recommendationId: string }` to `ProposalTarget`, because:
 
@@ -79,6 +101,30 @@ The 5 other protected files (`governance-review-types.ts`, `risk-score-types.ts`
 - The protection rule is now semantically clear: existing shapes are frozen, new shapes are allowed only via an approved process.
 - Future P-phases have a precedent: if P9.3 or P10 needs to add a new `ProposalAction` value, the rule above applies and the SDS + plan + sentinel must enumerate it.
 - TypeScript's own design treats unions this way (see `@types/*` packages, which add new members to `React.HTMLAttributes` etc. without breaking consumers). The ALiX invariant now matches TypeScript's mental model.
+- **The three-class mutation taxonomy (Allowed / Forbidden / Requires-new-ADR) is testable.** A future reviewer can classify any change against the taxonomy without appealing to precedent. This is the difference between a rule and a guideline.
+- **The snapshot-and-exact-equal sentinel pattern catches accidental removals at compile-test time**, not at human-review time. The cost of a mistake is a CI failure, not a post-merge rollback.
+
+### Scope: foundational, not P9-only
+
+This ADR is broader than P9. It establishes the pattern for every future P-phase that needs to evolve a protected contract:
+
+- P9 governance actions (the immediate P9.2 use case)
+- P10 policy actions
+- P11 orchestration actions
+- Future agent lifecycle actions
+- Future workflow lifecycle actions
+
+The previous "byte-identical forever" rule forced every new action type to become an architectural argument: should we abuse an existing type, hide behind payload indirection, use module augmentation, or carve out an exception? Each option is a one-off decision with no process backbone. Under this ADR, the process is already defined:
+
+```text
+Need a new contract?
+  1. Write SDS (names the new members)
+  2. Write Plan (restates them in Global Constraints)
+  3. Add Sentinel (snapshot + exact-equal assertion)
+  4. Additive only (no Forbidden mutations)
+```
+
+The mutation taxonomy and the sentinel pattern are reusable across all future phases. They are not P9.2-specific.
 
 ### Negative
 
@@ -90,16 +136,39 @@ The 5 other protected files (`governance-review-types.ts`, `risk-score-types.ts`
 
 - The P9.2 SDS has been updated to reflect this rule. The decision-deferred caveat in the "Data model summary" section has been replaced with the explicit enumeration of the two additive members.
 - Future P-phase plans can use the same template: "the 6 protected type files are structurally protected; this plan adds the following additive members: …"
+- The mutation taxonomy and sentinel pattern will be cited by future P-phase plans rather than re-derived each time. This is the intended outcome.
 
 ## Implementation
 
 1. ✅ The P9.2 SDS (`docs/superpowers/specs/2026-06-23-p9-2-governance-proposals-design.md`) has been updated to reflect this rule and enumerate the two additive members.
-2. ⏳ The P9.2 implementation plan (to be written) will restate the rule in its Global Constraints section and enumerate the same two members.
-3. ⏳ The P9.2 sentinel will assert:
-   - All pre-existing `ProposalAction` members unchanged
-   - All pre-existing `ProposalTarget` variants unchanged
-   - Only the two documented additive members added: `"governance_change"` and `{ kind: "governance"; recommendationId: string }`
-4. ⏳ Future P-phases that touch any of the 6 protected files must follow this ADR.
+2. ⏳ The P9.2 implementation plan (to be written) will restate the rule in its Global Constraints section and enumerate the same additive members.
+3. ⏳ The P9.2 sentinel will:
+   - **Snapshot the protected exports** as a baseline before the phase starts.
+   - **Assert the snapshot at every CI run** with an exact-equality test, not a subset test:
+
+     ```ts
+     // Sentinel example for adaptation-types.ts
+     import { BASELINE_PROPOSAL_ACTIONS, BASELINE_PROPOSAL_TARGET_KINDS } from "./protected-baselines.js";
+
+     it("adaptation-types.ts ProposalAction is exactly the baseline + documented additions", () => {
+       expect(currentProposalActions).toEqual([
+         ...BASELINE_PROPOSAL_ACTIONS,
+         "governance_change"   // the only documented addition for P9.2
+       ]);
+     });
+
+     it("adaptation-types.ts ProposalTarget kinds is exactly the baseline + documented additions", () => {
+       expect(currentTargetKinds).toEqual([
+         ...BASELINE_PROPOSAL_TARGET_KINDS,
+         "governance"          // the only documented addition for P9.2
+       ]);
+     });
+     ```
+
+   - **Catch accidental removals** immediately: if a future PR removes a member, the test fails with a clear diff showing what was removed.
+   - **Catch undocumented additions**: if a PR adds a member not in the SDS/plan, the test fails (the expected list does not include it).
+
+4. ⏳ Future P-phases that touch any of the 6 protected files must follow this ADR, including the snapshot-and-exact-equal sentinel pattern. The snapshot baseline is updated at the start of each phase that adds new members; the test enumerates the expected additions.
 
 ## Subsequent amendments (timeline note)
 
