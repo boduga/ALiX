@@ -15,7 +15,7 @@
  */
 
 import { join } from "node:path";
-import type { GovernanceRecommendation, Recommendation } from "./governance-types.js";
+import type { Recommendation } from "./governance-types.js";
 import type { GovernanceChangePayload } from "./governance-types.js";
 import { GovernanceStore } from "./governance-store.js";
 import { ProposalStore } from "../adaptation/proposal-store.js";

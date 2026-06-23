@@ -121,6 +121,23 @@ describe("createGovernanceProposal", () => {
     expect(result.reason).toMatch(/status "dismissed" is not eligible/);
   });
 
+  it("rejects with reason when priority is low", async () => {
+    await govStore.append("recommendations", {
+      id: "report-low-pri", subject: "T", outcome: "c", confidence: 0.9, reasons: [],
+      generatedAt: "2026-06-23T00:00:00.000Z", reportType: "governance_recommendation",
+      recommendations: [{
+        id: "rec-low-pri", source: "drift", sourceArtifactId: "d", priority: "low",
+        confidence: 0.9, status: "open", category: "chain_restoration", title: "T", description: "T",
+        evidenceRefs: [], operatorGuidance: "T", expectedBenefit: "T", risks: [],
+        metadata: { category: "chain_restoration", targetArtifactId: "d", currentRate: 50, targetRate: 80 }
+      }], evidenceRefs: []
+    } as any);
+    const result = await createGovernanceProposal({ recommendationId: "rec-low-pri", govStore, proposalStore: propStore, chainStore });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.reason).toMatch(/priority.*"low".*not eligible/);
+  });
+
   it("refuses duplicate (idempotency)", async () => {
     await govStore.append("recommendations", {
       id: "report-dup", subject: "T", outcome: "c", confidence: 0.9, reasons: [],

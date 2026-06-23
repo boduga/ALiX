@@ -173,3 +173,43 @@ export interface GovernanceRecommendation extends DecisionArtifact {
   reportType: "governance_recommendation";
   recommendations: Recommendation[];
 }
+
+// ---------------------------------------------------------------------------
+// GovernanceChangePayload — P9.2 proposal payload
+// ---------------------------------------------------------------------------
+
+/**
+ * P9.2 — The typed payload carried by a governance_change proposal.
+ * Mirrors RecommendationMetadata with the key rename category -> kind.
+ * 5 variants, one per recommendation category.
+ */
+export type GovernanceChangePayload =
+  | {
+      kind: "lens_adjustment";
+      operation: "promote" | "demote" | "retire";
+      lens: string;
+      currentPV: number;
+      reviewsAnalyzed: number;
+    }
+  | {
+      kind: "chain_restoration";
+      targetArtifactId: string;
+      currentRate: number;
+      targetRate: number;
+    }
+  | {
+      kind: "policy_coverage";
+      currentCoverage: number;
+      targetCoverage: number;
+    }
+  | {
+      kind: "confidence_calibration";
+      target: string;
+      currentCalibration: number;
+      suggestedCalibration: number;
+    }
+  | {
+      kind: "governance_integrity";
+      issue: string;
+      recommendationId: string;
+    };
