@@ -45,6 +45,7 @@ import { createProvider } from "../../providers/registry.js";
 import { OutcomeStore } from "../../adaptation/outcome-store.js";
 import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types.js";
 import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
+import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
@@ -280,6 +281,16 @@ async function runRecommend(args: string[]): Promise<void> {
 
   const ctx = await infra.contextBuilder.build(id);
   const risk = riskBuilder.build(ctx);
+
+  // P7.5p.2b — persist the RiskScore so P8.2 risk calibration can join RiskScore × OutcomeRecord.
+  // Best-effort: log-and-continue on failure; never block the recommendation output.
+  await new RiskScoreStore().append(risk).catch((err) =>
+    console.warn(
+      `[alix] warning: failed to persist risk score ${risk.id}:`,
+      err instanceof Error ? err.message : String(err),
+    ),
+  );
+
   const recommendation = recEngine.recommend(ctx, risk);
 
   // P7.5p.1b — persist the recommendation so the outcome CLI can read its confidence back
