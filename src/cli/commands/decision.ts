@@ -47,6 +47,7 @@ import type { OutcomeRecord, OutcomeValue } from "../../adaptation/outcome-types
 import { ApprovalRecommendationStore } from "../../adaptation/approval-recommendation-store.js";
 import type { ApprovalRecommendation } from "../../adaptation/recommendation-types.js";
 import { RiskScoreStore } from "../../adaptation/risk-score-store.js";
+import { GovernanceReviewStore } from "../../adaptation/governance-review-store.js";
 import { RecommendationAccuracyBuilder } from "../../adaptation/recommendation-accuracy-builder.js";
 import { LensCalibrationBuilder } from "../../adaptation/lens-calibration-builder.js";
 import { IntentStore } from "../../adaptation/intent-store.js";
@@ -711,6 +712,16 @@ async function runReview(args: string[]): Promise<void> {
   const reviewId = `review-${id}-${Date.now()}`;
   const review = council.aggregate(reviewId, id, recommendation.id, scores, input);
 
+  // ---- Persist review (best-effort, P7.5p.3b) ----
+  // Order invariant: lens-run → aggregate → append → render.
+  // Append is best-effort: log-and-continue on failure; never block render.
+  await new GovernanceReviewStore().append(review).catch((err) =>
+    console.warn(
+      `Warning: failed to persist governance review ${reviewId}:`,
+      err instanceof Error ? err.message : String(err),
+    ),
+  );
+
   // ---- Render ----
 
   if (jsonMode) {
@@ -906,6 +917,32 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     resolvedRiskScoreId = resolvedRecommendation.riskScoreId;
   }
 
+  // P7.5p.3c — resolve governanceReviewId from --governance-review-id override OR
+  // the most recent stored GovernanceReview for THIS proposal.
+  // Never fake: missing stays undefined and serializes as absent in JSON.
+  // Auto-lookup MUST be queryByProposal(subjectId), never list().at(-1) — the
+  // governance-boundary invariant forbids a review for a different proposal from
+  // leaking into this outcome's link. Cross-proposal isolation is locked by test #7.
+  let resolvedGovernanceReviewId: string | undefined;
+  const grIdx = args.indexOf("--governance-review-id");
+  if (grIdx !== -1 && grIdx + 1 < args.length) {
+    resolvedGovernanceReviewId = args[grIdx + 1];
+  } else {
+    try {
+      const reviewStore = new GovernanceReviewStore();
+      const reviews = await reviewStore.queryByProposal(subjectId);
+      if (reviews.length > 0) {
+        // Most recent = last-appended for THIS proposal (append order preserved).
+        resolvedGovernanceReviewId = reviews[reviews.length - 1].id;
+      }
+    } catch (err) {
+      console.error(
+        `Warning: failed to look up governance review for ${subjectId}:`,
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+  }
+
   // Parse --recommendation-confidence <0-1> if given. The override wins.
   const confIdx = args.indexOf("--recommendation-confidence");
   if (confIdx !== -1 && confIdx + 1 < args.length) {
@@ -934,6 +971,7 @@ async function runOutcomeRecord(args: string[]): Promise<void> {
     observationWindowDays: 30,
     confidence,
     riskScoreId: resolvedRiskScoreId,
+    governanceReviewId: resolvedGovernanceReviewId,
     reasons: [],
     evidenceRefs: [],
     subject: `Outcome: ${subjectId}`,
