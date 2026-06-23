@@ -49,7 +49,7 @@ import type {
 // Constants — store directory layout (mirrors per-store STORE_DIR).
 // ---------------------------------------------------------------------------
 
-const OUTCOMES_DIR = join(".alix", "outcomes");
+const OUTCOMES_DIR = join(".alix", "adaptation", "outcomes");
 const RECOMMENDATIONS_DIR = join(".alix", "recommendations");
 const RISK_SCORES_DIR = join(".alix", "risk-scores");
 const GOVERNANCE_REVIEWS_DIR = join(".alix", "governance-reviews");
@@ -117,8 +117,16 @@ export async function assembleProposalExplanation(
 
   // Track integrity flags across all layers.
   let fallbackJoinsUsed = false;
-  let incompleteChainLayers = 0;
   let evidenceChainUsed = false;
+  // Distinct chain-linked artifact ids whose store lookup failed (orphans).
+  // Counted once across all three layer loops (Recommendation/Risk/Governance)
+  // regardless of how many loops re-iterate the same reachable set, so a single
+  // broken chain edge reports `incompleteChainLayers === 1`, not 3x.
+  // Direct-id misses only count when a chain is actually in use for this
+  // proposal (evidenceChainUsed === true) — a no-chain direct-id miss is a
+  // stale foreign key, not a chain failure, and must NOT set
+  // incompleteChainLayers while evidenceChainUsed stays false.
+  const orphanedChainTargets = new Set<string>();
 
   // ---- Layer 1: Outcome ------------------------------------------------
   // Outcome is always proposal-scoped (queried by subjectId === proposalId).
@@ -194,7 +202,7 @@ export async function assembleProposalExplanation(
   // Priority 1: EvidenceChain traversal. For each chain-reachable target,
   // attempt to load it from the recommendation store; on a hit that
   // matches the proposal, mark evidence_chain. A chain link to a missing
-  // artifact (orphan) increments incompleteChainLayers.
+  // artifact (orphan) records its target id for deduplicated counting.
   if (recommendation.status === "not_available") {
     for (const targetId of chainReachable) {
       const rec = await recStore.get(targetId).catch(() => null);
@@ -202,17 +210,20 @@ export async function assembleProposalExplanation(
         recommendation = buildRecommendationLayer(rec, "evidence_chain");
         break;
       }
-      // Chain referenced an artifact not present in this store (orphan).
-      incompleteChainLayers++;
+      // Chain-referenced artifact missing from this store (orphan). Record
+      // the distinct target id; counted once across all layer loops.
+      orphanedChainTargets.add(targetId);
     }
   }
   // Priority 2: direct-id from OutcomeRecord.recommendationId.
+  // A direct-id miss only counts as a chain failure when a chain is in use
+  // for this proposal; otherwise it is a stale foreign key, not a chain edge.
   if (recommendation.status === "not_available" && mostRecentOutcome?.recommendationId) {
     const rec = await recStore.get(mostRecentOutcome.recommendationId).catch(() => null);
     if (rec) {
       recommendation = buildRecommendationLayer(rec, "direct_id");
-    } else {
-      incompleteChainLayers++;
+    } else if (evidenceChainUsed) {
+      orphanedChainTargets.add(mostRecentOutcome.recommendationId);
     }
   }
   // Priority 3: proposal-scoped fallback (list().filter(proposalId)).
@@ -257,24 +268,32 @@ export async function assembleProposalExplanation(
     };
   };
 
-  // Priority 1: EvidenceChain traversal.
+  // Priority 1: EvidenceChain traversal. RiskScore carries no proposalId
+  // field, so the only scope check available is the ID convention
+  // `risk-<proposalId>` (used at Priority 3). Reject chain targets that do
+  // not match this proposal to avoid cross-proposal data leakage.
   if (risk.status === "not_available") {
     for (const targetId of chainReachable) {
+      if (targetId !== `risk-${proposalId}`) {
+        continue;
+      }
       const r = await riskStore.get(targetId).catch(() => null);
       if (r) {
         risk = buildRiskLayer(r, "evidence_chain");
         break;
       }
-      incompleteChainLayers++;
+      orphanedChainTargets.add(targetId);
     }
   }
   // Priority 2: direct-id OutcomeRecord.riskScoreId.
+  // A direct-id miss only counts as a chain failure when a chain is in use
+  // for this proposal; otherwise it is a stale foreign key, not a chain edge.
   if (risk.status === "not_available" && mostRecentOutcome?.riskScoreId) {
     const r = await riskStore.get(mostRecentOutcome.riskScoreId).catch(() => null);
     if (r) {
       risk = buildRiskLayer(r, "direct_id");
-    } else {
-      incompleteChainLayers++;
+    } else if (evidenceChainUsed) {
+      orphanedChainTargets.add(mostRecentOutcome.riskScoreId);
     }
   }
   // Priority 3: proposal-scoped fallback. RiskScore IDs follow `risk-<proposalId>`
@@ -321,16 +340,18 @@ export async function assembleProposalExplanation(
         governance = buildGovernanceLayer(g, "evidence_chain");
         break;
       }
-      incompleteChainLayers++;
+      orphanedChainTargets.add(targetId);
     }
   }
   // Priority 2: direct-id OutcomeRecord.governanceReviewId.
+  // A direct-id miss only counts as a chain failure when a chain is in use
+  // for this proposal; otherwise it is a stale foreign key, not a chain edge.
   if (governance.status === "not_available" && mostRecentOutcome?.governanceReviewId) {
     const g = await govStore.get(mostRecentOutcome.governanceReviewId).catch(() => null);
     if (g) {
       governance = buildGovernanceLayer(g, "direct_id");
-    } else {
-      incompleteChainLayers++;
+    } else if (evidenceChainUsed) {
+      orphanedChainTargets.add(mostRecentOutcome.governanceReviewId);
     }
   }
   // Priority 3: proposal-scoped fallback. MUST use queryByProposal
@@ -458,6 +479,10 @@ export async function assembleProposalExplanation(
     calibrationFound,
   ];
   const layersAvailable = found.filter(Boolean).length;
+  // Distinct orphaned chain-linked artifacts (deduplicated across all three
+  // layer loops and direct-id gates). A no-chain direct-id miss never entered
+  // the set, so evidenceChainUsed and incompleteChainLayers stay consistent.
+  const incompleteChainLayers = orphanedChainTargets.size;
 
   const explanationIntegrity: ExplanationIntegrity = {
     outcomeFound,
