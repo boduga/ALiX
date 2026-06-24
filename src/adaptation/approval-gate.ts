@@ -19,6 +19,7 @@
  */
 
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
+import type { GovernanceCriteriaResult } from "../governance/governance-types.js";
 import type { ProposalStore } from "./proposal-store.js";
 import type { AdaptationProposal, ProposalTarget } from "./adaptation-types.js";
 
@@ -28,6 +29,11 @@ export type Applier = (proposal: AdaptationProposal) => Promise<void>;
 /** A human or system identifier approving/rejecting a proposal. */
 export type Actor = string;
 
+/** P9.3: Governance criteria callback — pure read-only validation. */
+export type GovernanceCriteriaFn = (
+  proposal: AdaptationProposal,
+) => Promise<GovernanceCriteriaResult>;
+
 /** Error entry from a batch approval operation. */
 export type ApprovalBatchError = { id: string; error: string };
 
@@ -35,6 +41,7 @@ export class ApprovalGate {
   constructor(
     private readonly store: ProposalStore,
     private readonly writer: EvidenceEventWriter,
+    private readonly governanceCriteria?: GovernanceCriteriaFn,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -49,6 +56,40 @@ export class ApprovalGate {
    */
   async approve(id: string, by: Actor): Promise<AdaptationProposal> {
     const existing = await this.requirePending(id);
+
+    // P9.3: governance criteria check for governance_change proposals
+    if (existing.action === "governance_change" && this.governanceCriteria) {
+      const result = await this.governanceCriteria(existing);
+
+      if (!result.passed) {
+        // Record denial evidence — proposal status does NOT change
+        // Includes integrityScore (0–100) and threshold (60) for self-contained audit.
+        await this.writer.recordGovernanceApprovalDenied(id, {
+          criterion: result.failedCriterion ?? "unknown",
+          integrityScore: result.integrityScore,
+          threshold: 60,
+        });
+        throw new Error(
+          `Governance approval denied: ${result.failedCriterion}` +
+          (result.integrityScore !== undefined
+            ? ` (integrityScore: ${result.integrityScore})`
+            : ""),
+        );
+      }
+
+      // Record decision evidence BEFORE status transition.
+      // Fail-closed: if recording fails, do NOT transition to approved.
+      const decisionRecorded = await this.writer.recordGovernanceApprovalDecision(id, {
+        integrityScore: result.integrityScore ?? 0,
+        threshold: 60,
+        passed: true,
+      });
+      if (!decisionRecorded) {
+        throw new Error(
+          `Governance approval failed: unable to record governance_approval_decision for ${id}`,
+        );
+      }
+    }
 
     const approvedAt = new Date().toISOString();
     const updated = await this.store.update(id, {
