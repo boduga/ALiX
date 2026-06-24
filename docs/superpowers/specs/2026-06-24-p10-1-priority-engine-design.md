@@ -26,7 +26,7 @@ All inputs are 0–100. Output is 0–100. Higher = higher priority.
 2. **The TrendStore is the only new write path.** It may append snapshots to `.alix/executive/trends.jsonl`. Everything else remains read-only.
 3. **Trend snapshots are append-only.** The priority engine never modifies an existing snapshot. Snapshot pruning is deferred.
 4. **All three factor scores are 0–100 integers.**
-5. **No new mutation paths, no new evidence types, no sentinel changes.**
+5. **No new mutation paths, no new evidence types.** The P10 sentinel is extended with a scoped write exception for `src/executive/trend-store.ts:save` — the only approved P10.1 write path. All other P10.1 files remain fully read-only and are added to the sentinel scan list.
 
 ## Types
 
@@ -158,11 +158,19 @@ Priority scoring runs automatically as part of `alix executive dashboard`. The h
 2. Calls `computeExecutivePriorities(healthReport, { cwd })` (P10.1 — new)
 3. Calls `renderExecutiveDashboard(healthReport, priorityReport, { jsonMode })` (renderer updated)
 
-No separate `--priorities` flag needed — the dashboard always shows priority-ranked output.
+No separate `--priorities` flag needed — the dashboard always shows priority-ranked output. The renderer signature becomes:
+
+```ts
+export function renderExecutiveDashboard(
+  healthReport: ExecutiveHealthReport,
+  priorityReport: ExecutivePriorityReport,
+  opts?: { jsonMode?: boolean },
+): void;
+```
 
 ### Dashboard display
 
-The text renderer adds a "Pri" column to panel 0:
+The text renderer adds a "Trend" column to panel 0. **Note:** the example below shows `trendScore = 0` for all subsystems, which represents an improving or stable prior window. On first run (no prior snapshot), `trendScore = 25` (neutral-low).
 
 ```
 Executive Health Summary
