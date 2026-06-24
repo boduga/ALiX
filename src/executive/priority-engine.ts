@@ -123,7 +123,7 @@ export function buildPriorityReport(
   healthReport: ExecutiveHealthReport,
   priorSnapshot: ExecutiveTrendSnapshot | null,
 ): ExecutivePriorityReport {
-  const generatedAt = new Date().toISOString();
+  const generatedAt = healthReport.generatedAt;
   const entries: ExecutivePriorityEntry[] = healthReport.rankedSubsystems.map((sub) => {
     const healthDeficit = 100 - sub.score;
     const priorScore = priorSnapshot?.subsystemScores[sub.subsystem];
