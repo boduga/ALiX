@@ -321,21 +321,27 @@ function buildDriftIntegrityGapsPanel(reports: {
 
   if (reports.integrity) {
     const m = reports.integrity.metrics;
-    if (m.provenanceRate < 60) {
-      rows.push({ source: "integrity", severity: m.provenanceRate < 40 ? "high" : "medium",
-        message: `Provenance rate ${m.provenanceRate}% (threshold: 60%)`, reference: "integrity.provenanceRate" });
-    }
-    if (m.explanationRate < 60) {
-      rows.push({ source: "integrity", severity: m.explanationRate < 40 ? "high" : "medium",
-        message: `Explanation rate ${m.explanationRate}% (threshold: 60%)`, reference: "integrity.explanationRate" });
-    }
-    if (m.outcomeLinkRate < 60) {
-      rows.push({ source: "integrity", severity: m.outcomeLinkRate < 40 ? "high" : "medium",
-        message: `Outcome link rate ${m.outcomeLinkRate}% (threshold: 60%)`, reference: "integrity.outcomeLinkRate" });
+    // Empty-state guard: a fresh repo with no reviews produces 0/0 rates
+    // that are mathematically below the 60% threshold. Surfacing those
+    // as gap rows is misleading — there is no evidence to evaluate.
+    if (m.totalReviews > 0) {
+      if (m.provenanceRate < 60) {
+        rows.push({ source: "integrity", severity: m.provenanceRate < 40 ? "high" : "medium",
+          message: `Provenance rate ${m.provenanceRate}% (threshold: 60%)`, reference: "integrity.provenanceRate" });
+      }
+      if (m.explanationRate < 60) {
+        rows.push({ source: "integrity", severity: m.explanationRate < 40 ? "high" : "medium",
+          message: `Explanation rate ${m.explanationRate}% (threshold: 60%)`, reference: "integrity.explanationRate" });
+      }
+      if (m.outcomeLinkRate < 60) {
+        rows.push({ source: "integrity", severity: m.outcomeLinkRate < 40 ? "high" : "medium",
+          message: `Outcome link rate ${m.outcomeLinkRate}% (threshold: 60%)`, reference: "integrity.outcomeLinkRate" });
+      }
     }
   }
 
-  if (reports.lensReview) {
+  if (reports.lensReview && reports.lensReview.lensReviews.length > 0) {
+    // Empty-state guard: with no lenses reviewed, there is nothing to retire.
     for (const lr of reports.lensReview.lensReviews) {
       if (lr.recommendation === "retire") {
         rows.push({ source: "lens-review", severity: "medium",
