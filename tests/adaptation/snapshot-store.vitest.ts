@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, renameSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -121,13 +121,15 @@ describe("SnapshotStore", () => {
     const origMode = 0o777;
     chmodSync(dir, 0o444); // read-only
 
-    // Save should throw because the directory is read-only
-    await expect(store.save(snapshot)).rejects.toThrow();
+    try {
+      // Save should throw because the directory is read-only
+      await expect(store.save(snapshot)).rejects.toThrow();
 
-    // Restore permissions for cleanup
-    chmodSync(dir, origMode);
-
-    // Final snapshot file should NOT exist — no partial artifact
-    expect(existsSync(targetPath)).toBe(false);
+      // Final snapshot file should NOT exist — no partial artifact
+      expect(existsSync(targetPath)).toBe(false);
+    } finally {
+      // Restore permissions for cleanup
+      chmodSync(dir, origMode);
+    }
   });
 });
