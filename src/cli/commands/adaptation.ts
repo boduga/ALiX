@@ -38,6 +38,7 @@ import type { Applier } from "../../adaptation/approval-gate.js";
 import { AgentCardApplier } from "../../adaptation/appliers/agent-card-applier.js";
 import { SkillApplier } from "../../adaptation/appliers/skill-applier.js";
 import { RevertApplier } from "../../adaptation/revert-applier.js";
+import { GovernanceChangeApplier } from "../../adaptation/appliers/governance-change-applier.js";
 import { SnapshotStore } from "../../adaptation/snapshot-store.js";
 import { nextProposalId } from "../../adaptation/recommendation-to-proposal.js";
 import { EffectivenessReporter } from "../../adaptation/effectiveness-reporter.js";
@@ -386,7 +387,8 @@ async function runApply(
  * genuinely unexpected target kinds — the gate never runs for them, so no
  * mutation occurs.
  */
-function selectApplier(
+/** @internal Exported for test access only. */
+export function selectApplier(
   cwd: string,
   proposal: AdaptationProposal,
   writer: EvidenceEventWriter,
@@ -409,6 +411,10 @@ function selectApplier(
       const revertApplier = new RevertApplier(snapshotsDir, writer);
       return (p) => revertApplier.apply(p);
     }
+    case "governance": {
+      const applier = new GovernanceChangeApplier(cwd, snapshotStore, writer);
+      return (p) => applier.apply(p);
+    }
     case "learning": {
       // P8.5 — learning calibration appliers are deferred to P8.9/P9.
       // An approved learning_adjustment proposal is recorded as operator
@@ -423,7 +429,7 @@ function selectApplier(
     default:
       throw new Error(
         `No applier registered for target.kind "${proposal.target.kind}" (proposal ${proposal.id}). ` +
-          `Supports "agent_card", "skill", and "revert".`,
+          `Supports "agent_card", "skill", "revert", and "governance".`,
       );
   }
 }
@@ -515,6 +521,8 @@ function describeTarget(p: AdaptationProposal): string {
       return `revert proposal ${p.target.sourceProposalId}`;
     case "learning":
       return `learning:${p.target.area}`;
+    case "governance":
+      return `governance:${p.target.recommendationId}`;
   }
 }
 

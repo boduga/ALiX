@@ -70,7 +70,9 @@ export type EvidenceType =
   // P9.3 governance proposal lifecycle
   | "governance_approval_denied"
   | "governance_approval_decision"
-  | "governance_orphan_cleaned";
+  | "governance_orphan_cleaned"
+  // P9.4a governance mutation applied
+  | "governance_mutation_applied";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -117,6 +119,7 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "governance_approval_denied",
   "governance_approval_decision",
   "governance_orphan_cleaned",
+  "governance_mutation_applied",
 ]);
 
 // ---------------------------------------------------------------------------

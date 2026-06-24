@@ -248,3 +248,14 @@ export type GovernanceOrphanCleanedPayload = {
   proposalId: string;
   reason: string;
 };
+
+// ---- P9.4a — Governance mutation applied evidence --------------------------
+
+export type GovernanceMutationAppliedPayload = {
+  proposalId: string;
+  payloadKind: string;
+  targetFile: string;
+  snapshotId: string;
+  beforeHash: string;
+  afterHash: string;
+};

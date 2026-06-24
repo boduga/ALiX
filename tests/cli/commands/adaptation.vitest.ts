@@ -22,7 +22,10 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, readFileSync, existsSync
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import type { ReflectionReport } from "../../../src/reflection/reflection-types.js";
-import type { AdaptationProposal } from "../../../src/adaptation/adaptation-types.js";
+import type { AdaptationProposal, ProposalTarget } from "../../../src/adaptation/adaptation-types.js";
+import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
+import type { EvidenceEventWriter } from "../../../src/workflow/evidence-writer.js";
+import { selectApplier } from "../../../src/cli/commands/adaptation.js";
 
 // ---------------------------------------------------------------------------
 // process.cwd override helpers
@@ -130,6 +133,24 @@ function mockExit(): { spy: ReturnType<typeof vi.spyOn>; calls: () => (string | 
     throw new Error(`process.exit(${code})`);
   });
   return { spy, calls: () => calls };
+}
+
+function makeGovernanceProposal(overrides: Partial<AdaptationProposal> = {}): AdaptationProposal {
+  return {
+    id: "prop-gov-001",
+    createdAt: "2026-06-23T00:00:00.000Z",
+    status: "approved",
+    action: "governance_change",
+    target: { kind: "governance", recommendationId: "rec-001" } as ProposalTarget,
+    payload: { kind: "confidence_calibration", target: "red_team", currentCalibration: 0.7, suggestedCalibration: 0.75 },
+    sourceRecommendationType: "governance",
+    sourceConfidence: 0.85,
+    evidenceFingerprints: [],
+    reason: "Test governance proposal",
+    approvedBy: "test-operator",
+    approvedAt: "2026-06-23T12:00:00.000Z",
+    ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -813,5 +834,55 @@ describe("adaptation CLI", () => {
       exit.spy.mockRestore();
       c.restore();
     });
+  });
+});
+
+// -------------------------------------------------------------------------
+// selectApplier governance routing
+// -------------------------------------------------------------------------
+
+describe("selectApplier governance routing", () => {
+  let cwd: string;
+  let snapDir: string;
+  let snapshotStore: SnapshotStore;
+  let writer: EvidenceEventWriter;
+
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "route-gov-"));
+    snapDir = mkdtempSync(join(tmpdir(), "snap-"));
+    snapshotStore = new SnapshotStore(snapDir);
+    writer = { recordSnapshotTaken: vi.fn() } as any;
+  });
+
+  afterEach(() => {
+    rmSync(cwd, { recursive: true, force: true });
+    rmSync(snapDir, { recursive: true, force: true });
+  });
+
+  it("routes target.kind === governance to GovernanceChangeApplier", () => {
+    const proposal = makeGovernanceProposal();
+    const applier = selectApplier(cwd, proposal, writer);
+    expect(applier).toBeInstanceOf(Function);
+    // Should not throw — governance is now a valid route
+    expect(() => applier).not.toThrow();
+  });
+
+  it("still throws for target.kind === learning", () => {
+    const proposal = makeGovernanceProposal({
+      target: { kind: "learning", area: "test" } as any,
+    });
+    expect(() => selectApplier(cwd, proposal, writer)).toThrow(/learning/i);
+  });
+
+  it("unsupported governance payload kind fails inside applier, not selectApplier", async () => {
+    // selectApplier should return a function without throwing
+    const proposal = makeGovernanceProposal({
+      payload: { kind: "chain_restoration" } as any,
+    });
+    const applier = selectApplier(cwd, proposal, writer);
+    expect(applier).toBeInstanceOf(Function);
+
+    // The applier should throw when called
+    await expect(applier(proposal)).rejects.toThrow(/does not support/i);
   });
 });

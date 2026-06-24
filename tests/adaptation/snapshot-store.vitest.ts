@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -93,5 +93,44 @@ describe("SnapshotStore", () => {
     expect(loaded).not.toBeNull();
     const valid = await store.verify(loaded!);
     expect(valid).toBe(false);
+  });
+
+  it("save writes via temp file then renames to final", async () => {
+    const snapshot = makeSnapshot();
+    await store.save(snapshot);
+
+    // Final snapshot file exists and has correct content
+    const targetPath = join(dir, `${snapshot.proposalId}.json`);
+    expect(existsSync(targetPath)).toBe(true);
+
+    // .tmp file should not remain after successful save
+    const tmpPath = targetPath + ".tmp";
+    expect(existsSync(tmpPath)).toBe(false);
+
+    // Content is valid JSON matching the snapshot
+    const loaded = await store.load(snapshot.proposalId);
+    expect(loaded).not.toBeNull();
+    expect(loaded!.proposalId).toBe(snapshot.proposalId);
+  });
+
+  it("failed write does not leave a partial final snapshot", async () => {
+    const snapshot = makeSnapshot();
+    const targetPath = join(dir, `${snapshot.proposalId}.json`);
+
+    // Make the directory read-only to force a write failure
+    const stat = statSync(dir);
+    const origMode = stat.mode;
+    chmodSync(dir, 0o444); // read-only
+
+    try {
+      // Save should throw because the directory is read-only
+      await expect(store.save(snapshot)).rejects.toThrow();
+
+      // Final snapshot file should NOT exist — no partial artifact
+      expect(existsSync(targetPath)).toBe(false);
+    } finally {
+      // Restore permissions for cleanup
+      chmodSync(dir, origMode);
+    }
   });
 });

@@ -524,6 +524,24 @@ export class EvidenceEventWriter {
     return this.appendEvent("governance_orphan_cleaned", { proposalId, ...payload });
   }
 
+  /**
+   * Record that a governance_change proposal was successfully applied via
+   * GovernanceChangeApplier. Carries mutation metadata for audit.
+   * Writer: GovernanceChangeApplier.
+   */
+  async recordGovernanceMutationApplied(
+    proposalId: string,
+    payload: {
+      payloadKind: string;
+      targetFile: string;
+      snapshotId: string;
+      beforeHash: string;
+      afterHash: string;
+    },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("governance_mutation_applied", { proposalId, ...payload });
+  }
+
   // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------
