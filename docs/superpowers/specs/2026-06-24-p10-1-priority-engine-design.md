@@ -12,13 +12,61 @@ P10.0 answers "what is unhealthy?" P10.1 answers **"what matters most?"** — ad
 
 This is the priority substrate that P10.2 (Objective Generator) and P9.6 (InvestigationRecommendation) will consume.
 
-## The formula
+## Architecture
 
 ```
-priorityScore = healthDeficit * 0.60 + trendScore * 0.25 + blastRadius * 0.15
+Subsystem
+      │
+      ▼
+Health Report  (P10.0 — pure measurement)
+      │
+      ▼
+Priority Engine  (P10.1 — this spec)
+      │
+      ▼
+Priority Report  (P10.1 — enriched, derived)
+      │
+      ▼
+Executive Dashboard  (renders both reports; never recomputes priority)
 ```
 
-All inputs are 0–100. Output is 0–100. Higher = higher priority.
+The dashboard **never recomputes priority**. It simply renders the Health Report and the Priority Report side by side. This separation makes it easy for P10.2 (Objective Generator) and P9.6 (InvestigationRecommendation) to consume the same priority data without coupling to the dashboard or the health layer.
+
+## Extensible factor model
+
+Instead of a hardcoded formula, the engine operates on a registered set of priority factors:
+
+```ts
+interface PriorityFactor {
+  name: string;
+  /** Relative weight in the composite score. Weights sum to 1.0. */
+  weight: number;
+  /** Current computed value, 0–100. */
+  value: number;
+}
+```
+
+The composite score is the weighted sum:
+
+```
+priorityScore = Σ(weight × value)
+```
+
+For P10.1 the registered factors are:
+
+| Factor | Weight | Source |
+|--------|--------|--------|
+| Health Deficit | 0.60 | 100 - P10.0 subsystem score |
+| Trend | 0.25 | Rolling window comparison via trends.jsonl |
+| Blast Radius | 0.15 | Static config table |
+
+Future phases (P10.2, P9.6) can register additional factors without changing the engine:
+
+- Objective Alignment
+- Investigation Cost
+- Operator Override
+
+This is a structural choice now that prevents engine rewrites later.
 
 ## Core invariants
 
@@ -78,9 +126,12 @@ interface ExecutiveTrendSnapshot {
 
 Read the most recent prior snapshot. Compute delta = currentScore - priorScore.
 
+```ts
+const TREND_SENSITIVITY = 5;  // named constant for future tuning
+trendScore = clamp(50 - delta * TREND_SENSITIVITY, 0, 100);
 ```
-trendScore = clamp(50 - delta * 5, 0, 100)
-```
+
+`TREND_SENSITIVITY` is a named constant rather than a magic number. Future phases can adjust sensitivity without altering the algorithm.
 
 | Scenario | delta | trendScore | Meaning |
 |----------|-------|------------|---------|
@@ -135,6 +186,8 @@ The async variant reads the trend snapshot from the TrendStore.
 ### 2. Trend store — `src/executive/trend-store.ts`
 
 Reads and appends trend snapshots from `.alix/executive/trends.jsonl`. Thin wrapper over `readFileSync` / `writeFileSync` / `appendFileSync`.
+
+**TrendStore is derived state — a cache, not authoritative governance state.** If `trends.jsonl` is deleted, ALiX loses trend history but does not lose correctness: `loadLatest()` returns `null`, the engine uses `trendScore = 25` (neutral-low), and the system continues without error. Rebuilding history is possible by re-running executive health over time. This distinction matters for backup, migration, and repair tooling.
 
 ```ts
 export class ExecutiveTrendStore {
