@@ -15,7 +15,11 @@ export async function runDashboard(args: string[]): Promise<void> {
 
   let windowDays = 90;
   const windowIdx = args.indexOf("--window");
-  if (windowIdx !== -1 && windowIdx + 1 < args.length) {
+  if (windowIdx !== -1) {
+    if (windowIdx + 1 >= args.length) {
+      console.error("Error: --window requires a positive integer");
+      process.exit(1);
+    }
     const parsed = parseInt(args[windowIdx + 1], 10);
     if (isNaN(parsed) || parsed <= 0) {
       console.error("Error: --window requires a positive integer");

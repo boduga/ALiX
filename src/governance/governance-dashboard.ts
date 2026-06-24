@@ -55,7 +55,7 @@ export interface InvestigationQueueRow {
   recommendationId: string;
   category: "chain_restoration" | "governance_integrity";
   severity: "low" | "medium" | "high" | "critical";
-  createdAt: string;
+  sourceArtifactId: string;
   operatorGuidance: string;
 }
 
@@ -115,7 +115,6 @@ export interface GovernanceDashboardReport {
 
 import { join } from "node:path";
 import { buildGovernanceHealth } from "./governance-health-builder.js";
-import { buildGovernanceAssessment } from "./governance-assessment.js";
 import { detectGovernanceDrift } from "./governance-drift-detector.js";
 import { buildGovernanceIntegrity } from "./governance-integrity.js";
 import { reviewLenses } from "./governance-lens-review.js";
@@ -169,10 +168,6 @@ export async function buildGovernanceDashboardReport(
     reviewLenses({ cwd: opts.cwd, windowDays, generatedAt }).catch(() => null),
   ]);
 
-  // buildGovernanceAssessment is pure synchronous; consume the health report
-  // (signature differs from brief's `{ reports: [] }`; takes GovernanceHealthReport).
-  const _assessment = health ? buildGovernanceAssessment(health) : null;
-
   // ---- 2. Read stores ---------------------------------------------------
   const govStore = new GovernanceStore(join(opts.cwd, GOVERNANCE_DIR));
   const proposalStore = new ProposalStore(join(opts.cwd, ADAPTATION_DIR, "proposals"));
@@ -184,9 +179,14 @@ export async function buildGovernanceDashboardReport(
   const pendingProposalsRaw = await proposalStore.list("pending").catch(() => []);
   const approvedProposalsRaw = await proposalStore.list("approved").catch(() => []);
   const appliedProposalsRaw = await proposalStore.list("applied").catch(() => []);
+  const failedProposalsRaw = await proposalStore.list("failed").catch(() => []);
 
   // ---- 3. Build each panel --------------------------------------------
   const openMutations = buildOpenMutationsPanel(pendingProposalsRaw, approvedProposalsRaw);
+  const blockedUnsupportedKinds = countBlockedUnsupportedKinds(
+    pendingProposalsRaw,
+    approvedProposalsRaw,
+  );
   const investigationQueue = buildInvestigationQueuePanel(allRecs);
   const mutationHistory = await buildMutationHistoryPanel(appliedProposalsRaw, snapshotStore);
   const revertReadiness = buildRevertReadinessPanel(mutationHistory);
@@ -200,9 +200,9 @@ export async function buildGovernanceDashboardReport(
     totalKinds: TOTAL_KINDS,
     supportedKindList: [...SUPPORTED_MUTATION_KINDS],
     pendingProposals: openMutations.totalCount,
-    blockedUnsupportedKinds: 0, // future: count proposals whose kind is not in SUPPORTED
+    blockedUnsupportedKinds,
     investigationOnlyRecs: investigationQueue.totalCount,
-    recentApplyFailures: 0, // future: filter applied proposals by recent failures
+    recentApplyFailures: failedProposalsRaw.length,
     revertReadinessPercent: revertReadiness.percentReady,
     revertReadyCount: revertReadiness.ready,
     totalAppliedMutations: revertReadiness.total,
@@ -246,6 +246,27 @@ function buildOpenMutationsPanel(
   return { rows, totalCount: rows.length };
 }
 
+/**
+ * Count pending + approved governance_change proposals whose payload.kind is
+ * NOT in SUPPORTED_MUTATION_KINDS (i.e., the 2 deferred kinds: chain_restoration
+ * or governance_integrity). These are proposals that exist but cannot be applied
+ * by ALiX right now.
+ */
+function countBlockedUnsupportedKinds(
+  pending: AdaptationProposal[],
+  approved: AdaptationProposal[],
+): number {
+  let count = 0;
+  for (const p of [...pending, ...approved]) {
+    if (p.action !== "governance_change") continue;
+    const payload = p.payload as { kind?: string };
+    if (!payload.kind) continue;
+    if (SUPPORTED_MUTATION_KINDS.has(payload.kind)) continue;
+    count++;
+  }
+  return count;
+}
+
 function buildInvestigationQueuePanel(allRecs: Recommendation[]): InvestigationQueuePanel {
   const rows: InvestigationQueueRow[] = [];
   for (const rec of allRecs) {
@@ -255,7 +276,7 @@ function buildInvestigationQueuePanel(allRecs: Recommendation[]): InvestigationQ
       recommendationId: rec.id,
       category: rec.category as "chain_restoration" | "governance_integrity",
       severity: rec.priority,
-      createdAt: rec.sourceArtifactId, // best-effort; recs don't carry their own createdAt
+      sourceArtifactId: rec.sourceArtifactId,
       operatorGuidance: rec.operatorGuidance,
     });
   }
