@@ -11,7 +11,7 @@
 ## Global Constraints
 
 1. `report.schemaVersion = "p10.0.0"` (string literal, exact value).
-2. The aggregator is **the only place** that touches the data layer. Renderers, handlers, and adapters do not call any write API.
+2. The aggregator is **the only place** that touches the data layer. Renderers, handlers, and adapters may read stores/files but never write.
 3. The handler is extracted to `src/cli/commands/executive-dashboard-handler.ts` so the sentinel can scan a precise file.
 4. The sentinel scans the 10 P10.0 executive files (aggregator, 6 adapters, renderer, handler, dispatcher). It forbids mutation write paths (appliers, approve/apply/reject verbs, `ProposalStore.save` / `ProposalStore.markOrphaned`, all `record*` evidence write methods) but **permits** read-only store queries (`.list`, `.load`, `.loadVerified`).
 5. The 8 subsystems are exactly: `governance`, `learning`, `adaptation`, `agents`, `tools`, `workflow`, `memory`, `security`. Sort is **ascending** (worst first).
@@ -44,6 +44,19 @@
  *
  * @module
  */
+
+import { buildGovernanceHealth } from "../governance/governance-health-builder.js";
+import { buildGovernanceAssessment } from "../governance/governance-assessment.js";
+import { buildDashboardReport } from "../learning/learning-dashboard.js";
+import { buildAgentHealth } from "./adapters/agent-health.js";
+import { buildToolHealth } from "./adapters/tool-health.js";
+import { buildWorkflowHealth } from "./adapters/workflow-health.js";
+import { buildMemoryHealth } from "./adapters/memory-health.js";
+import { buildSecurityHealth } from "./adapters/security-health.js";
+import { buildAdaptationHealth } from "./adapters/adaptation-health.js";
+import type { GovernanceHealthReport } from "../governance/governance-types.js";
+import type { GovernanceAssessment } from "../governance/governance-types.js";
+import type { DashboardReport } from "../learning/learning-dashboard.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -189,24 +202,11 @@ git commit -m "P10.0: add 6 Tier-2 health adapter stubs"
 - Consumes: types from Task 1; Tier-1 sources (`buildGovernanceHealth`, `buildGovernanceAssessment`, `buildDashboardReport` from `src/learning/learning-dashboard.js`); 6 Tier-2 adapters from Task 2
 - Produces: `buildExecutiveHealthReport(opts)` — the only public runtime export
 
-- [ ] **Step 1: Append the imports and constants**
+- [ ] **Step 1: Append the constants and the aggregator function**
 
-Append to `src/executive/executive-health.ts`:
+The imports are already at the top of the file (added in Task 1, Step 1). Append the constants and aggregator function:
 
 ```ts
-import { buildGovernanceHealth } from "../governance/governance-health-builder.js";
-import { buildGovernanceAssessment } from "../governance/governance-assessment.js";
-import { buildDashboardReport } from "../learning/learning-dashboard.js";
-import { buildAgentHealth } from "./adapters/agent-health.js";
-import { buildToolHealth } from "./adapters/tool-health.js";
-import { buildWorkflowHealth } from "./adapters/workflow-health.js";
-import { buildMemoryHealth } from "./adapters/memory-health.js";
-import { buildSecurityHealth } from "./adapters/security-health.js";
-import { buildAdaptationHealth } from "./adapters/adaptation-health.js";
-import type { GovernanceHealthReport } from "../governance/governance-types.js";
-import type { GovernanceAssessment } from "../governance/governance-types.js";
-import type { DashboardReport } from "../learning/learning-dashboard.js";
-
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -218,7 +218,7 @@ const STATUS_BOUNDARY_WARNING = 80;
 
 - [ ] **Step 2: Append the aggregator function and helpers**
 
-Append:
+Append (after the constants block):
 
 ```ts
 // ---------------------------------------------------------------------------
@@ -756,6 +756,8 @@ git commit -m "P10.0: implement 6 Tier-2 health adapters with real signal"
 - Produces: `renderExecutiveDashboard(report, opts?)` — writes to stdout
 
 - [ ] **Step 1: Create the renderer**
+
+**Note on prose strings:** the sentinel scans for `.approve(`, `.apply(`, `.reject(` as substrings. Avoid display strings like "executive apply paths: none" in the renderer — phrase them as "executive mutation paths: none" instead. Otherwise the sentinel will false-positive on prose that contains `.apply(` as part of a sentence.
 
 ```ts
 /**
