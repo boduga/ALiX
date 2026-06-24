@@ -21,6 +21,7 @@
 import { join } from "node:path";
 import { GovernanceStore } from "../../governance/governance-store.js";
 import { generateRecommendations } from "../../governance/governance-recommendation-generator.js";
+import { runDashboard } from "./governance-dashboard-handler.js";
 import type {
   GovernanceHealthReport,
   GovernanceAssessment,
@@ -232,6 +233,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runGovernanceCleanup(rest);
     case "explain":
       return runGovernanceExplain(rest);
+    case "dashboard":
+      return runDashboard(rest);
     default:
       console.error(
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
