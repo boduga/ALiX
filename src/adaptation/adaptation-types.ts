@@ -72,5 +72,5 @@ export interface AdaptationProposal {
    * is preserved unchanged. systemState is invisible to lifecycle
    * code; it's a recovery flag in metadata.
    */
-  systemState?: { orphaned: true; reason: string };
+  systemState?: { orphaned: true; reason: string; cleaned?: boolean };
 }

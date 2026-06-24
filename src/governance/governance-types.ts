@@ -213,3 +213,38 @@ export type GovernanceChangePayload =
       issue: string;
       recommendationId: string;
     };
+
+// ---- P9.3 -- Governance approval criteria result --------------------------
+
+/**
+ * Result of running governance approval criteria against a governance_change
+ * proposal. Returned by the pure read-only criteria module. `details` is
+ * reserved for richer governance diagnostics in P9.4+.
+ */
+export type GovernanceCriteriaResult = {
+  passed: boolean;
+  failedCriterion?: string;
+  integrityScore?: number;
+  details?: Record<string, unknown>;
+};
+
+// ---- P9.3 -- Evidence event payload types for governance lifecycle ---------
+
+export type GovernanceApprovalDeniedPayload = {
+  proposalId: string;
+  criterion: string;
+  integrityScore?: number;
+  threshold?: number;
+};
+
+export type GovernanceApprovalDecisionPayload = {
+  proposalId: string;
+  integrityScore: number;
+  threshold: number;
+  passed: true;
+};
+
+export type GovernanceOrphanCleanedPayload = {
+  proposalId: string;
+  reason: string;
+};

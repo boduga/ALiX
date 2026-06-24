@@ -99,6 +99,7 @@ const ALL_FILES = [
   "src/governance/governance-store.ts",
   "src/governance/governance-recommendation-generator.ts",
   "src/governance/governance-proposal-generator.ts",
+  "src/governance/governance-approval-criteria.ts", // NEW: P9.3
   "src/cli/commands/governance.ts",
 ];
 
@@ -118,7 +119,8 @@ describe("P9.0 purity sentinel", () => {
   // -- Import checks (store + CLI only) ------------------------------------
 
   const ALLOWED_IN_FILE: Record<string, string[]> = {
-    "src/governance/governance-proposal-generator.ts": ["ProposalStore", "EvidenceChainStore"]
+    "src/governance/governance-proposal-generator.ts": ["ProposalStore", "EvidenceChainStore"],
+    "src/governance/governance-approval-criteria.ts": ["EvidenceChainStore"], // NEW: P9.3 read-only store
   };
 
   for (const file of ALL_FILES) {
@@ -220,5 +222,16 @@ describe("P9.0 purity sentinel", () => {
     for (const k of expectedBaselineKinds) {
       expect(kinds).toContain(k);
     }
+  });
+
+  it("adaptation-types.ts ProposalAction preserves all P9.2 actions (P9.3 does NOT extend it)", () => {
+    const source = readSource("src/adaptation/adaptation-types.ts");
+    const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
+    expect(match).not.toBeNull();
+    if (!match) return;
+    const members = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+    expect(members).toContain("governance_change");
+    expect(members).toContain("create_agent_card");
+    expect(members.length).toBeGreaterThanOrEqual(9);
   });
 });
