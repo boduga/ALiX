@@ -316,9 +316,24 @@ All governance mutation snapshots use the same contract (`proposalId`, `filePath
 
 | Feature | Notes |
 |---------|-------|
-| `chain_restoration`, `policy_coverage`, `governance_integrity` | Deferred to P9.4b+ |
-| Strategy/method abstraction per category | Deferred until 4+ supported kinds |
-| Cross-process mutation lock | Process-local only for P9.4a |
+| `chain_restoration` | **Reclassified to P9.6** as an `InvestigationRecommendation` — describes an investigation workflow, not a config mutation. See [P9.4c close-out](2026-06-24-p9-4c-p9-4-close-out.md) and the mutation-capable invariant. |
+| `governance_integrity` | **Reclassified to P9.6** as an `InvestigationRecommendation` — same reason: investigation workflow, no on-disk target. |
+| Strategy/method abstraction per category | Not needed — single applier with internal routing is sufficient for 3 kinds |
+| Cross-process mutation lock | Process-local only for P9.4 |
 | Auto-apply of governance proposals | Never — full propose→approve→apply lifecycle required |
 | Git rollback or branch operations | Out of scope by design — ALiX adapts its own configuration |
 | PV mutation in lens_adjustment | PV is measured evidence, not writable config |
+
+## Final P9.4 status (closed by P9.4c)
+
+P9.4 ships **3 of 5** `governance_change` mutation kinds:
+
+| Kind | Status | Target file | Shipped in |
+|------|--------|-------------|-----------|
+| `confidence_calibration` | ✅ Supported | `.alix/governance/calibration.json` | P9.4a |
+| `lens_adjustment` | ✅ Supported | `.alix/governance/lens-registry.json` | P9.4a |
+| `policy_coverage` | ✅ Supported | `.alix/governance/policy-coverage.json` | P9.4b |
+| `chain_restoration` | ⏳ Deferred to P9.6 | None — investigation workflow | — |
+| `governance_integrity` | ⏳ Deferred to P9.6 | None — investigation workflow | — |
+
+See [P9.4c close-out spec](2026-06-24-p9-4c-p9-4-close-out.md) for the reclassification rationale and the mutation-capable invariant.

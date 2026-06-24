@@ -75,3 +75,8 @@ Tests in `tests/adaptation/appliers/governance-change-applier.vitest.ts`:
 | Auto-create on missing file | Fail closed; bootstrap slice separately |
 | Schema migration | Not needed — new file, no existing data |
 | New evidence infrastructure | P9.4a's `governance_mutation_applied` handles all kinds |
+| `chain_restoration`, `governance_integrity` mutation support | Deferred to P9.6 — both are investigation workflows, not config mutations. See [P9.4c close-out](2026-06-24-p9-4c-p9-4-close-out.md). |
+
+## P9.4 final status (closed by P9.4c)
+
+P9.4 ships **3 supported `governance_change` kinds**: `confidence_calibration`, `lens_adjustment` (both P9.4a), and `policy_coverage` (P9.4b). The 2 remaining kinds (`chain_restoration`, `governance_integrity`) are reclassified to P9.6 `InvestigationRecommendation` because they describe investigation workflows, not safe config mutations. See the [P9.4c close-out spec](2026-06-24-p9-4c-p9-4-close-out.md) for the mutation-capable invariant.
