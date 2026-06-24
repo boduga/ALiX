@@ -49,10 +49,10 @@ export async function buildToolHealth(opts: ToolHealthOptions): Promise<ToolHeal
         .filter((f) => f.endsWith(".json") || f.endsWith(".jsonl"))
         .slice(0, MAX_FILES);
       for (const f of files) {
-        scanned += 1;
         try {
-          const stat = readFileSync(join(dir, f));
-          const slice = stat.length > MAX_FILE_BYTES ? stat.subarray(0, MAX_FILE_BYTES) : stat;
+          const content = readFileSync(join(dir, f));
+          scanned += 1;
+          const slice = content.length > MAX_FILE_BYTES ? content.subarray(0, MAX_FILE_BYTES) : content;
           const spans = detector.detect(slice.toString("utf-8"));
           for (const s of spans) {
             total += 1;
