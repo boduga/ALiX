@@ -38,13 +38,12 @@ export type ExecutiveSubsystemName =
 export type ExecutiveStatus = "healthy" | "warning" | "critical";
 
 export interface ExecutiveSubsystemHealth {
-  name: ExecutiveSubsystemName;
+  /** Subsystem identifier. */
+  subsystem: ExecutiveSubsystemName;
   /** Integer 0-100, higher is better. */
   score: number;
   /** One-sentence human-readable summary of the current health state. */
   summary: string;
-  /** Subsystem identifier (alias of `name` for downstream consumers). */
-  subsystem: ExecutiveSubsystemName;
   /** Health status derived from score. */
   status: ExecutiveStatus;
   /** Top issues to surface to the executive. */
@@ -186,7 +185,6 @@ function buildGovernanceEntry(
 ): ExecutiveSubsystemHealth {
   if (!health && !assessment) {
     return {
-      name: "governance",
       subsystem: "governance",
       score: 0,
       status: "critical",
@@ -204,7 +202,6 @@ function buildGovernanceEntry(
     topIssues.push(`${assessment.unresolvedGovernanceIssues} unresolved governance issues`);
   }
   return {
-    name: "governance",
     subsystem: "governance",
     score,
     status: scoreToStatus(score),
@@ -218,7 +215,6 @@ function buildLearningEntry(
 ): ExecutiveSubsystemHealth {
   if (!report) {
     return {
-      name: "learning",
       subsystem: "learning",
       score: 0,
       status: "critical",
@@ -228,7 +224,6 @@ function buildLearningEntry(
   }
   const score = clampScore(report.dashboardIntegrityScore);
   return {
-    name: "learning",
     subsystem: "learning",
     score,
     status: scoreToStatus(score),
@@ -243,7 +238,6 @@ function buildAdapterEntry(
 ): ExecutiveSubsystemHealth {
   if (!report) {
     return {
-      name: subsystem,
       subsystem,
       score: 0,
       status: "critical",
@@ -253,7 +247,6 @@ function buildAdapterEntry(
   }
   const score = clampScore(report.score);
   return {
-    name: subsystem,
     subsystem,
     score,
     status: scoreToStatus(score),
