@@ -73,6 +73,9 @@ export interface GovernanceChangeApplierOptions {
 export class GovernanceChangeApplier {
   private static lock: Promise<void> = Promise.resolve();
 
+  /** Fingerprint of the most recent snapshot taken during apply(). */
+  private lastSnapshotFingerprint: string = "";
+
   constructor(
     private readonly cwd: string,
     private readonly snapshotStore: SnapshotStore,
@@ -142,6 +145,18 @@ export class GovernanceChangeApplier {
 
       // (9) Write atomically
       atomicWriteJson(targetFile, mutated);
+
+      // (10) Compute afterHash for audit evidence
+      const afterHash = this.computeFileHash(targetFile);
+
+      // (11) Record governance mutation evidence with full metadata
+      await this.writer.recordGovernanceMutationApplied(proposal.id, {
+        payloadKind: payload.kind,
+        targetFile,
+        snapshotId: this.lastSnapshotFingerprint,
+        beforeHash: validatedHash,
+        afterHash,
+      });
     } finally {
       // Release lock — next governance mutation can proceed
       release();
@@ -301,6 +316,8 @@ export class GovernanceChangeApplier {
       contentHash,
       filePath,
     });
+
+    this.lastSnapshotFingerprint = fingerprint;
   }
 
   // -----------------------------------------------------------------------

@@ -71,7 +71,10 @@ describe("GovernanceChangeApplier", () => {
     tempRoot = mkdtempSync(join(tmpdir(), "gov-applier-"));
     snapDir = mkdtempSync(join(tmpdir(), "snap-"));
     snapshotStore = new SnapshotStore(snapDir);
-    writer = { recordSnapshotTaken: vi.fn().mockResolvedValue(null) } as any;
+    writer = {
+      recordSnapshotTaken: vi.fn().mockResolvedValue(null),
+      recordGovernanceMutationApplied: vi.fn().mockResolvedValue(null),
+    } as any;
   });
 
   afterEach(() => {
@@ -203,11 +206,12 @@ describe("GovernanceChangeApplier", () => {
     expect(content.lenses[0].enabled).toBe(false);
   });
 
-  // 12. records snapshot evidence on success
-  it("records snapshot evidence on success", async () => {
+  // 12. records governance mutation evidence with full metadata
+  it("records governance mutation evidence with all metadata", async () => {
     makeCalibrationFile(tempRoot, [{ target: "red_team", value: 0.7 }]);
     const recordSnapshotTaken = vi.fn().mockResolvedValue(null);
-    const localWriter = { recordSnapshotTaken } as any;
+    const recordGovernanceMutationApplied = vi.fn().mockResolvedValue(null);
+    const localWriter = { recordSnapshotTaken, recordGovernanceMutationApplied } as any;
     const applier = new GovernanceChangeApplier(tempRoot, snapshotStore, localWriter);
     const proposal = makeGovernanceProposal();
     await applier.apply(proposal);
@@ -220,13 +224,25 @@ describe("GovernanceChangeApplier", () => {
         filePath: expect.stringContaining("calibration.json"),
       }),
     );
+
+    // P9.4a: governance mutation applied evidence MUST include full metadata
+    expect(recordGovernanceMutationApplied).toHaveBeenCalledWith(
+      proposal.id,
+      expect.objectContaining({
+        payloadKind: "confidence_calibration",
+        targetFile: expect.stringContaining("calibration.json"),
+        snapshotId: expect.any(String),
+        beforeHash: expect.any(String),
+        afterHash: expect.any(String),
+      }),
+    );
   });
 
   // 13. full end-to-end apply with snapshot and verify
   it("full end-to-end apply with snapshot and verify", async () => {
     const localSnapDir = mkdtempSync(join(tmpdir(), "snap-"));
     const snapStore = new SnapshotStore(localSnapDir);
-    const snapWriter = { recordSnapshotTaken: vi.fn().mockResolvedValue(null) } as any;
+    const snapWriter = { recordSnapshotTaken: vi.fn().mockResolvedValue(null), recordGovernanceMutationApplied: vi.fn().mockResolvedValue(null) } as any;
     makeCalibrationFile(tempRoot, [{ target: "red_team", value: 0.7 }]);
 
     const applier = new GovernanceChangeApplier(tempRoot, snapStore, snapWriter);
@@ -254,7 +270,7 @@ describe("GovernanceChangeApplier", () => {
   it("revert governance mutation restores original content", async () => {
     const localSnapDir = mkdtempSync(join(tmpdir(), "snap-"));
     const snapStore = new SnapshotStore(localSnapDir);
-    const snapWriter = { recordSnapshotTaken: vi.fn().mockResolvedValue(null) } as any;
+    const snapWriter = { recordSnapshotTaken: vi.fn().mockResolvedValue(null), recordGovernanceMutationApplied: vi.fn().mockResolvedValue(null) } as any;
 
     // Set up original file
     const originalCalibrations = [{ target: "red_team", value: 0.7 }];
