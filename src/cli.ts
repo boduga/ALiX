@@ -2855,6 +2855,13 @@ if (command === "governance") {
   process.exit(0);
 }
 
+// ── Executive command (P10.0) ────────────────────────────────────
+if (command === "executive") {
+  const { handleExecutiveCommand } = await import("./cli/commands/executive.js");
+  await handleExecutiveCommand(args);
+  process.exit(0);
+}
+
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);
