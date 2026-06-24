@@ -487,6 +487,44 @@ export class EvidenceEventWriter {
   }
 
   // -----------------------------------------------------------------------
+  // Governance approval lifecycle (P9.3)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Record that a governance_change proposal was denied by the approval
+   * criteria. Writer: ApprovalGate.
+   */
+  async recordGovernanceApprovalDenied(
+    proposalId: string,
+    payload: { criterion: string; integrityScore?: number; threshold?: number },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("governance_approval_denied", { proposalId, ...payload });
+  }
+
+  /**
+   * Record that a governance_change proposal passed approval criteria.
+   * Recorded BEFORE the proposal transitions to "approved".
+   * Writer: ApprovalGate.
+   */
+  async recordGovernanceApprovalDecision(
+    proposalId: string,
+    payload: { integrityScore: number; threshold: number; passed: true },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("governance_approval_decision", { proposalId, ...payload });
+  }
+
+  /**
+   * Record that an orphaned governance_change proposal has been cleaned
+   * (tombstoned, not deleted). Writer: governance CLI.
+   */
+  async recordGovernanceOrphanCleaned(
+    proposalId: string,
+    payload: { reason: string },
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("governance_orphan_cleaned", { proposalId, ...payload });
+  }
+
+  // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------
 

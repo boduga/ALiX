@@ -66,7 +66,11 @@ export type EvidenceType =
   // P5.2b effectiveness assessment
   | "adaptation_effectiveness"
   // P5.5 capability evolution intelligence
-  | "reflection_report";
+  | "reflection_report"
+  // P9.3 governance proposal lifecycle
+  | "governance_approval_denied"
+  | "governance_approval_decision"
+  | "governance_orphan_cleaned";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -109,6 +113,10 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "adaptation_effectiveness",
   // P5.5 capability evolution intelligence
   "reflection_report",
+  // P9.3 governance proposal lifecycle
+  "governance_approval_denied",
+  "governance_approval_decision",
+  "governance_orphan_cleaned",
 ]);
 
 // ---------------------------------------------------------------------------
