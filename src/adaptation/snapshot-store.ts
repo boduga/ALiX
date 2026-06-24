@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { assertSafePathComponent } from "../security/path-assert.js";
@@ -20,11 +20,13 @@ export class SnapshotStore {
   async save(snapshot: AdaptationSnapshot): Promise<void> {
     assertSafePathComponent(snapshot.proposalId);
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true });
-    writeFileSync(
-      join(this.dir, `${snapshot.proposalId}.json`),
-      JSON.stringify(snapshot, null, 2),
-      "utf-8",
-    );
+
+    const targetPath = join(this.dir, `${snapshot.proposalId}.json`);
+    const tmpPath = targetPath + ".tmp";
+
+    // Atomic write: write to .tmp, then rename (atomic on same filesystem per POSIX)
+    writeFileSync(tmpPath, JSON.stringify(snapshot, null, 2), "utf-8");
+    renameSync(tmpPath, targetPath);
   }
 
   async load(proposalId: string): Promise<AdaptationSnapshot | null> {
