@@ -33,9 +33,11 @@ Terminal formatter. Consumes the typed report. Renders 6 panels in fixed order. 
 export function renderGovernanceDashboard(report: GovernanceDashboardReport, opts?: { jsonMode?: boolean }): void
 ```
 
-### 3. CLI dispatcher — `src/cli/commands/governance.ts` (modify)
+### 3. CLI dispatcher — `src/cli/commands/governance.ts` (modify) + `src/cli/commands/governance-dashboard-handler.ts` (new)
 
-New subcommand: `alix governance dashboard [--window <days>] [--json]`. The dispatcher parses args, calls the aggregator, hands the report to the renderer. The dispatcher never touches the data layer directly.
+The `dashboard` subcommand is registered in `governance.ts` (one new `case` in the switch). The actual handler logic (`runDashboard`) lives in its own file, `governance-dashboard-handler.ts`. This separation is required so the sentinel can scan a precise file (see "Sentinel" below) without false-positiving on the rest of the dispatcher.
+
+`alix governance dashboard [--window <days>] [--json]` — the handler parses args, calls the aggregator, hands the report to the renderer. The handler never touches the data layer directly.
 
 ## Data flow
 
@@ -133,7 +135,19 @@ This is the "what to fix" panel. No mutation paths — read-only.
 
 New test file: `tests/governance/governance-dashboard-sentinels.vitest.ts`.
 
-The check is **scoped to the dashboard's three files only** (aggregator, renderer, CLI subcommand handler). It forbids the import or call of any **mutation write path** while still permitting read-only store queries.
+**Scoping rule:** the sentinel scans **only the three dashboard files** (the new aggregator, the new renderer, and the new `runDashboard` handler — extracted to a dedicated function). The existing `governance.ts` CLI dispatcher imports used by other subcommands (propose, explain, list, etc.) are **out of scope** and must not be flagged. This is enforced by giving the sentinel an explicit `DASHBOARD_FILES` allowlist:
+
+```ts
+const DASHBOARD_FILES = [
+  "src/governance/governance-dashboard.ts",
+  "src/cli/commands/governance-dashboard-renderer.ts",
+  "src/cli/commands/governance-dashboard-handler.ts",  // extracted runDashboard
+];
+```
+
+The handler is extracted to its own file (rather than placed inside `governance.ts`) so the sentinel can scan it precisely without false positives on the rest of the dispatcher.
+
+The check forbids the import or call of any **mutation write path** while still permitting read-only store queries:
 
 ```ts
 const FORBIDDEN_IN_DASHBOARD = [
@@ -188,18 +202,19 @@ If a forbidden symbol is detected, the test fails with a file:line reference.
 
 For each of the 3 dashboard files, scan for any forbidden symbol from `FORBIDDEN_IN_DASHBOARD`. Fail with file:line if found.
 
-## File layout (8 files)
+## File layout (9 files)
 
 | # | Path | Action | Purpose |
 |---|------|--------|---------|
 | 1 | `src/governance/governance-dashboard.ts` | NEW | Aggregator: `buildGovernanceDashboardReport` |
 | 2 | `src/cli/commands/governance-dashboard-renderer.ts` | NEW | Terminal formatter: `renderGovernanceDashboard` |
-| 3 | `src/cli/commands/governance.ts` | MODIFY | Add `dashboard` subcommand handler |
-| 4 | `tests/governance/governance-dashboard.vitest.ts` | NEW | 7-9 unit tests |
-| 5 | `tests/cli/commands/governance-dashboard-cli.vitest.ts` | NEW | 2-3 CLI tests |
-| 6 | `tests/governance/governance-dashboard-sentinels.vitest.ts` | NEW | Purity sentinel |
-| 7 | `docs/superpowers/specs/2026-06-24-p9-5-governance-dashboard-design.md` | NEW | This spec |
-| 8 | `docs/superpowers/plans/2026-06-24-p9-5-governance-dashboard.md` | NEW | Implementation plan (post-approval) |
+| 3 | `src/cli/commands/governance-dashboard-handler.ts` | NEW | `runDashboard` CLI handler (extracted for sentinel scoping) |
+| 4 | `src/cli/commands/governance.ts` | MODIFY | Register `dashboard` subcommand case (delegates to handler) |
+| 5 | `tests/governance/governance-dashboard.vitest.ts` | NEW | 7-9 unit tests |
+| 6 | `tests/cli/commands/governance-dashboard-cli.vitest.ts` | NEW | 2-3 CLI tests |
+| 7 | `tests/governance/governance-dashboard-sentinels.vitest.ts` | NEW | Purity sentinel (scoped to 3 dashboard files) |
+| 8 | `docs/superpowers/specs/2026-06-24-p9-5-governance-dashboard-design.md` | NEW | This spec |
+| 9 | `docs/superpowers/plans/2026-06-24-p9-5-governance-dashboard.md` | NEW | Implementation plan (post-approval) |
 
 ## Explicitly out of scope (P9.5.0)
 
