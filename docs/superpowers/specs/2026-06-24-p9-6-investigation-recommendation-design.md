@@ -264,4 +264,4 @@ alix governance investigate update <id> --assign "@operator" — assign investig
 | Removing legacy paths from `governance-recommendation-generator.ts` | Future deprecation | Both generators coexist during migration; legacy removal is a separate phase |
 | Operator queue convergence with P6.2 | Cross-phase design | Let both ship first, then decide on unification |
 | CLI batch operations (bulk update, bulk dismiss) | Future | YAGNI — single-item CLI is sufficient for P9.6 |
-| Auto-resolve after operator action | Future | P9.6 is read-only; auto-resolve requires workflow hooks |
+| Auto-resolve after operator action | Future | P9.6 has no mutation/apply path. Auto-resolve requires workflow hooks |
