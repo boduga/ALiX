@@ -79,8 +79,30 @@ beforeEach(() => {
   adapterMock.buildWorkflowHealth.mockResolvedValue({ score: 100, summary: "workflow", topIssues: [] });
   adapterMock.buildMemoryHealth.mockResolvedValue({ score: 100, summary: "memory", topIssues: [] });
   adapterMock.buildSecurityHealth.mockResolvedValue({ score: 100, summary: "security", topIssues: [] });
-  adapterMock.buildGovernanceHealth.mockResolvedValue(null);
-  adapterMock.buildGovernanceAssessment.mockResolvedValue({
+  // Governance: return a real (non-null) health report so the synchronous
+  // buildGovernanceAssessment call inside the aggregator has something to
+  // assess. The assessment is now called synchronously (post-Promise.all),
+  // so it uses mockReturnValue rather than mockResolvedValue.
+  adapterMock.buildGovernanceHealth.mockResolvedValue({
+    reportType: "governance_health",
+    id: "test",
+    subject: "test",
+    outcome: "ok",
+    confidence: 1,
+    reasons: [],
+    generatedAt: GENERATED_AT,
+    totalReviews: 0,
+    totalProposals: 0,
+    lensEffectiveness: {},
+    policyCoverage: 0,
+    sourceMetrics: {
+      dashboardIntegrityScore: null,
+      explanationCompleteness: null,
+      evidenceChainUsage: null,
+      incompleteChainLayers: 0,
+    },
+  });
+  adapterMock.buildGovernanceAssessment.mockReturnValue({
     governanceConfidence: 1.0,
     unresolvedGovernanceIssues: 0,
   } as never);
@@ -128,7 +150,7 @@ describe("buildExecutiveHealthReport", () => {
     adapterMock.buildWorkflowHealth.mockResolvedValue({ score: 70, summary: "workflow", topIssues: [] });
     adapterMock.buildMemoryHealth.mockResolvedValue({ score: 50, summary: "memory", topIssues: [] });
     adapterMock.buildSecurityHealth.mockResolvedValue({ score: 80, summary: "security", topIssues: [] });
-    adapterMock.buildGovernanceAssessment.mockResolvedValue({
+    adapterMock.buildGovernanceAssessment.mockReturnValue({
       governanceConfidence: 0.6,
       unresolvedGovernanceIssues: 1,
     } as never);
@@ -147,7 +169,7 @@ describe("buildExecutiveHealthReport", () => {
     adapterMock.buildWorkflowHealth.mockResolvedValue({ score: 100, summary: "d", topIssues: [] });
     adapterMock.buildMemoryHealth.mockResolvedValue({ score: 100, summary: "e", topIssues: [] });
     adapterMock.buildSecurityHealth.mockResolvedValue({ score: 100, summary: "f", topIssues: [] });
-    adapterMock.buildGovernanceAssessment.mockResolvedValue({ governanceConfidence: 0.8, unresolvedGovernanceIssues: 0 } as never);
+    adapterMock.buildGovernanceAssessment.mockReturnValue({ governanceConfidence: 0.8, unresolvedGovernanceIssues: 0 } as never);
     adapterMock.buildDashboardReport.mockResolvedValue({ dashboardIntegrityScore: 100 } as never);
 
     const report = await buildExecutiveHealthReport({ cwd, windowDays: 30, generatedAt: GENERATED_AT });
@@ -162,7 +184,7 @@ describe("buildExecutiveHealthReport", () => {
     adapterMock.buildWorkflowHealth.mockResolvedValue({ score: 100, summary: "d", topIssues: [] });
     adapterMock.buildMemoryHealth.mockResolvedValue({ score: 100, summary: "e", topIssues: [] });
     adapterMock.buildSecurityHealth.mockResolvedValue({ score: 100, summary: "f", topIssues: [] });
-    adapterMock.buildGovernanceAssessment.mockResolvedValue({ governanceConfidence: 0.4, unresolvedGovernanceIssues: 0 } as never);
+    adapterMock.buildGovernanceAssessment.mockReturnValue({ governanceConfidence: 0.4, unresolvedGovernanceIssues: 0 } as never);
     adapterMock.buildDashboardReport.mockResolvedValue({ dashboardIntegrityScore: 100 } as never);
 
     const report = await buildExecutiveHealthReport({ cwd, windowDays: 30, generatedAt: GENERATED_AT });
@@ -219,7 +241,7 @@ describe("buildExecutiveHealthReport", () => {
     adapterMock.buildWorkflowHealth.mockResolvedValue({ score: 100, summary: "d", topIssues: [] });
     adapterMock.buildMemoryHealth.mockResolvedValue({ score: 100, summary: "e", topIssues: [] });
     adapterMock.buildSecurityHealth.mockRejectedValue(new Error("boom"));
-    adapterMock.buildGovernanceAssessment.mockResolvedValue({ governanceConfidence: 1, unresolvedGovernanceIssues: 0 } as never);
+    adapterMock.buildGovernanceAssessment.mockReturnValue({ governanceConfidence: 1, unresolvedGovernanceIssues: 0 } as never);
     adapterMock.buildDashboardReport.mockResolvedValue({ dashboardIntegrityScore: 100 } as never);
 
     const report = await buildExecutiveHealthReport({ cwd, windowDays: 30, generatedAt: GENERATED_AT });

@@ -94,34 +94,12 @@ export async function buildExecutiveHealthReport(
   const windowDays = opts.windowDays ?? DEFAULT_WINDOW_DAYS;
 
   // ---- 1. Fan out all health sources in parallel --------------------
-  // NOTE: buildGovernanceAssessment takes a single GovernanceHealthReport
-  // (not { reports: [] }). The brief's "no-op" pattern is satisfied by
-  // passing an empty/zeroed synthetic report so the assessment reflects
-  // "no governance activity" rather than crashing the aggregator.
-  const emptyGovHealth: GovernanceHealthReport = {
-    reportType: "governance_health",
-    id: "executive-noop",
-    subject: "executive-noop",
-    outcome: "noop",
-    confidence: 0,
-    reasons: ["executive noop synthetic report"],
-    generatedAt,
-    totalReviews: 0,
-    totalProposals: 0,
-    lensEffectiveness: {},
-    policyCoverage: 0,
-    sourceMetrics: {
-      dashboardIntegrityScore: null,
-      explanationCompleteness: null,
-      evidenceChainUsage: null,
-      incompleteChainLayers: 0,
-    },
-  };
-
-  const [govHealth, govAssessment, learnReport, adaptation, agents, tools, workflow, memory, security] =
+  // NOTE: buildGovernanceAssessment is intentionally NOT fanned out here.
+  // It needs the real govHealth (from buildGovernanceHealth) to produce a
+  // meaningful assessment, so we run it sequentially after the batch.
+  const [govHealth, learnReport, adaptation, agents, tools, workflow, memory, security] =
     await Promise.all([
       buildGovernanceHealth({ cwd: opts.cwd, windowDays, generatedAt }).catch(() => null),
-      Promise.resolve().then(() => buildGovernanceAssessment(emptyGovHealth)).catch(() => null),
       buildDashboardReport({ cwd: opts.cwd, windowDays, generatedAt }).catch(() => null),
       buildAdaptationHealth({ cwd: opts.cwd, windowDays, generatedAt }).catch(() => null),
       buildAgentHealth({ cwd: opts.cwd, windowDays, generatedAt }).catch(() => null),
@@ -131,7 +109,17 @@ export async function buildExecutiveHealthReport(
       buildSecurityHealth({ cwd: opts.cwd, windowDays, generatedAt }).catch(() => null),
     ]);
 
-  // ---- 2. Build the 8 subsystem entries -----------------------------
+  // ---- 2. Compute governance assessment from real govHealth ---------
+  let govAssessment: GovernanceAssessment | null = null;
+  if (govHealth) {
+    try {
+      govAssessment = buildGovernanceAssessment(govHealth);
+    } catch {
+      govAssessment = null;
+    }
+  }
+
+  // ---- 3. Build the 8 subsystem entries -----------------------------
   const subsystems: ExecutiveSubsystemHealth[] = [
     buildGovernanceEntry(govHealth, govAssessment),
     buildLearningEntry(learnReport),
