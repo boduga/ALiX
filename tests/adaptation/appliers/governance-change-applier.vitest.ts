@@ -11,7 +11,6 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { createHash } from "node:crypto";
 import { SnapshotStore } from "../../../src/adaptation/snapshot-store.js";
 import { GovernanceChangeApplier } from "../../../src/adaptation/appliers/governance-change-applier.js";
 import type { AdaptationProposal, ProposalTarget } from "../../../src/adaptation/adaptation-types.js";

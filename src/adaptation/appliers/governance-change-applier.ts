@@ -17,7 +17,7 @@
  * @module
  */
 
-import { existsSync, readFileSync, writeFileSync, renameSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync, renameSync, openSync, fsyncSync, closeSync } from "node:fs";
 import { join } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import type { AdaptationProposal } from "../adaptation-types.js";
@@ -51,7 +51,13 @@ function readJson(path: string): Record<string, unknown> {
 
 function atomicWriteJson(path: string, data: Record<string, unknown>): void {
   const tmpPath = path + ".tmp";
-  writeFileSync(tmpPath, JSON.stringify(data, null, 2), "utf-8");
+  const fd = openSync(tmpPath, "w");
+  try {
+    writeFileSync(fd, JSON.stringify(data, null, 2), "utf-8");
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
   renameSync(tmpPath, path);
 }
 
@@ -180,6 +186,8 @@ export class GovernanceChangeApplier {
         }
         break;
       }
+      default:
+        throw new Error(`Unknown governance payload kind for schema validation: ${kind}`);
     }
   }
 
@@ -218,6 +226,8 @@ export class GovernanceChangeApplier {
         }
         break;
       }
+      default:
+        throw new Error(`Unknown governance payload kind for value validation: ${(payload as any).kind}`);
     }
   }
 
@@ -249,6 +259,11 @@ export class GovernanceChangeApplier {
           case "retire":
             lenses[idx] = { ...lenses[idx], status: "retired", enabled: false };
             break;
+          default:
+            throw new Error(
+              `Unsupported lens_adjustment operation: "${(payload as any).operation}". ` +
+              `Expected "promote", "demote", or "retire".`,
+            );
         }
         return { ...data, lenses };
       }

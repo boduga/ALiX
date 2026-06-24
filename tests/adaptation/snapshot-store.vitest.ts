@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, chmodSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -118,7 +118,8 @@ describe("SnapshotStore", () => {
     const targetPath = join(dir, `${snapshot.proposalId}.json`);
 
     // Make the directory read-only to force a write failure
-    const origMode = 0o777;
+    const stat = statSync(dir);
+    const origMode = stat.mode;
     chmodSync(dir, 0o444); // read-only
 
     try {
