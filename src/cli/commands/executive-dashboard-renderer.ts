@@ -12,6 +12,7 @@ import type {
   ExecutiveSubsystemHealth,
   ExecutiveStatus,
 } from "../../executive/executive-health.js";
+import type { ExecutivePriorityReport } from "../../executive/priority-engine.js";
 
 export interface RenderOptions {
   jsonMode?: boolean;
@@ -31,47 +32,54 @@ const STATUS_LABEL: Record<ExecutiveStatus, string> = {
 
 export function renderExecutiveDashboard(
   report: ExecutiveHealthReport,
+  priorityReport: ExecutivePriorityReport,
   opts: RenderOptions = {},
 ): void {
   if (opts.jsonMode) {
-    console.log(JSON.stringify(report, null, 2));
+    console.log(JSON.stringify({ health: report, priority: priorityReport }, null, 2));
     return;
   }
 
-  console.log("=".repeat(72));
+  console.log("=".repeat(78));
   console.log("EXECUTIVE DASHBOARD");
   console.log(`Schema: ${report.schemaVersion}    Generated: ${report.generatedAt}    Window: ${report.windowDays}d`);
-  console.log("=".repeat(72));
+  console.log("=".repeat(78));
 
-  renderHealthSummary(report);
+  renderHealthSummary(report, priorityReport);
   console.log("");
-  renderPriorities(report);
-  console.log("=".repeat(72));
+  renderPriorities(priorityReport);
+  console.log("=".repeat(78));
 }
 
-function renderHealthSummary(report: ExecutiveHealthReport): void {
+function renderHealthSummary(
+  healthReport: ExecutiveHealthReport,
+  priorityReport: ExecutivePriorityReport,
+): void {
   console.log("\n[0] EXECUTIVE HEALTH SUMMARY");
-  console.log(`Overall Score: ${report.overallScore}\n`);
-  console.log("  Subsystem      Score   Status");
-  console.log("  -------------  -----   --------------");
-  for (const s of report.rankedSubsystems) {
-    const emoji = STATUS_EMOJI[s.status];
-    const label = STATUS_LABEL[s.status];
-    const line = `  ${pad(s.subsystem, 13)}  ${pad(String(s.score), 5)}   ${emoji} ${label}`;
-    console.log(line);
+  console.log(`Overall Score: ${healthReport.overallScore}\n`);
+  console.log("  Subsystem      Score   Trend   Blast   Pri      Status");
+  console.log("  -------------  -----   -----   -----   ------   --------------");
+  for (const entry of priorityReport.priorities) {
+    const status = healthReport.rankedSubsystems.find(
+      (s) => s.subsystem === entry.subsystem,
+    )?.status ?? "unknown";
+    const emoji = STATUS_EMOJI[status as ExecutiveStatus] ?? "-";
+    console.log(
+      `  ${pad(entry.subsystem, 13)}  ${pad(String(entry.healthScore), 5)}  ${pad(String(entry.trendScore), 5)}  ${pad(String(entry.blastRadius), 5)}  ${pad(entry.priorityScore.toFixed(1), 6)}   ${emoji} ${status}`,
+    );
   }
 }
 
-function renderPriorities(report: ExecutiveHealthReport): void {
-  const top3 = report.rankedSubsystems.slice(0, 3);
+function renderPriorities(priorityReport: ExecutivePriorityReport): void {
+  const top3 = priorityReport.priorities.slice(0, 3);
   console.log(`\n[1] EXECUTIVE PRIORITIES (top ${top3.length})`);
   if (top3.length === 0) {
     console.log("  (none)");
     return;
   }
-  top3.forEach((s, i) => {
-    console.log(`\n  ${i + 1}. ${capitalize(s.subsystem)}`);
-    console.log(`     ${s.summary}.`);
+  top3.forEach((entry, i) => {
+    console.log(`\n  ${i + 1}. ${capitalize(entry.subsystem)}`);
+    console.log(`     Score: ${entry.healthScore} | Trend: ${entry.trendScore} | Blast: ${entry.blastRadius} | Pri: ${entry.priorityScore.toFixed(1)}`);
   });
 }
 
