@@ -1,17 +1,24 @@
 /**
- * P10.0 — Executive Dashboard CLI handler.
+ * P10.0 + P10.1 — Executive Dashboard CLI handler.
  *
- * Extracted to its own file so the executive sentinel can scan a precise
- * target. Mirrors P9.5's governance-dashboard-handler pattern.
+ * Extracted to its own file so the dashboard sentinel can scan a precise
+ * target. This handler coordinates the P10.0 health aggregator, the P10.1
+ * priority engine, and the TrendStore.
  *
  * @module
  */
 
+import { join } from "node:path";
 import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
+import { buildPriorityReport } from "../../executive/priority-engine.js";
+import { ExecutiveTrendStore } from "../../executive/trend-store.js";
 import { renderExecutiveDashboard } from "./executive-dashboard-renderer.js";
+
+const EXECUTIVE_DIR = join(".alix", "executive");
 
 export async function runDashboard(args: string[]): Promise<void> {
   const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
 
   let windowDays = 90;
   const windowIdx = args.indexOf("--window");
@@ -28,10 +35,19 @@ export async function runDashboard(args: string[]): Promise<void> {
     windowDays = parsed;
   }
 
-  const report = await buildExecutiveHealthReport({
-    cwd: process.cwd(),
-    windowDays,
-  });
+  // P10.0: Build health report
+  const healthReport = await buildExecutiveHealthReport({ cwd, windowDays });
 
-  renderExecutiveDashboard(report, { jsonMode });
+  // P10.1: Load prior trend snapshot
+  const trendStore = new ExecutiveTrendStore(join(cwd, EXECUTIVE_DIR));
+  const priorSnapshot = await trendStore.loadLatest();
+
+  // P10.1: Build priority report
+  const priorityReport = buildPriorityReport(healthReport, priorSnapshot);
+
+  // P10.1: Persist current scores as a trend snapshot for future runs
+  await trendStore.save(healthReport);
+
+  // Render both reports
+  renderExecutiveDashboard(healthReport, priorityReport, { jsonMode });
 }
