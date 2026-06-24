@@ -178,7 +178,7 @@ export interface ExecutiveHealthReport {
 
 ## Sentinel
 
-`tests/executive/executive-sentinels.vitest.ts` — single sentinel scanning the 4 P10.0 dashboard files (aggregator, renderer, handler, top-level dispatcher) and the 6 adapter files. **One sentinel for the whole P10.0 slice.**
+`tests/executive/executive-sentinels.vitest.ts` — single sentinel scanning the P10.0 executive files: aggregator, adapters, renderer, handler, dispatcher. **One sentinel for the whole P10.0 slice.**
 
 ```ts
 const EXECUTIVE_FILES = [
@@ -241,7 +241,7 @@ The check enforces: the 10 P10.0 files do not import any of these symbols. It do
 | 15 | `docs/superpowers/specs/2026-06-24-p10-0-executive-intelligence-design.md` | NEW | This spec |
 | (16) | `docs/superpowers/plans/2026-06-24-p10-0-executive-intelligence.md` | NEW | Implementation plan (post-approval) |
 
-**Total: 15 source/test/doc files + 1 plan file (post-approval) = 16 deliverables.** The 15-figure count above reflects the SDS itself; the plan is added once approved.
+**Total: 16 deliverables.** The table above includes the spec and the (post-approval) plan rows.
 
 ## Testing
 
