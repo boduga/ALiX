@@ -47,24 +47,19 @@ buildGovernanceDashboardReport(opts)
   ├─ P9.0 builders (parallel)         ──→ primary panel + panel 5
   │     buildGovernanceHealth
   │     buildGovernanceAssessment
-  │     buildGovernanceDrift
+  │     detectGovernanceDrift
   │     buildGovernanceIntegrity
-  │     buildLensLifecycleReview
+  │     reviewLenses
   │
   ├─ GovernanceStore                  ──→ primary panel + panel 2
-  │     .listRecommendations()        │    (open recs by kind)
-  │     .findRecommendationById()     │
+  │     .list("recommendations")      │    (open recs by kind)
   │
   ├─ ProposalStore                    ──→ primary panel + panels 1, 3
-  │     .list()                       │    (pending, applied governance_change)
-  │     .load()                       │
-  │
-  ├─ EvidenceStore (read)             ──→ panels 3, 4
-  │     governance_mutation_applied   │    (revert event history)
-  │     adaptation_revert_applied     │
+  │     .list(status?)                │    (pending, approved, applied governance_change)
   │
   └─ SnapshotStore                    ──→ panel 4
-        .existsForProposal()          │    (revert readiness per mutation)
+        .load(proposalId)             │    (snapshot existence per applied mutation)
+        .loadVerified(proposalId)     │    (integrity verification)
         │
         ▼
   GovernanceDashboardReport (typed, JSON-serializable)
@@ -72,6 +67,8 @@ buildGovernanceDashboardReport(opts)
         ▼
   renderGovernanceDashboard(report)   → terminal output (text or --json)
 ```
+
+**Note on data sources:** Mutation history (panel 3) and revert readiness (panel 4) are derived from `ProposalStore.list("applied")` joined with `SnapshotStore.loadVerified` per proposal — not from evidence reads. The `EvidenceEventWriter` is write-only; the dashboard's authoritative source for "what was applied and is it revertable?" is the proposal + snapshot stores. This keeps the read path stable and avoids inventing a new evidence read API.
 
 The aggregator is the only place that touches the data layer. Renderers, sentinels, and downstream consumers all see a typed `GovernanceDashboardReport`. This is the same boundary P8.5b established.
 
