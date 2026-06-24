@@ -10,7 +10,7 @@
 import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
 import { renderExecutiveDashboard } from "./executive-dashboard-renderer.js";
 
-export async function runExecutiveDashboard(args: string[]): Promise<void> {
+export async function runDashboard(args: string[]): Promise<void> {
   const jsonMode = args.includes("--json");
 
   let windowDays = 90;
