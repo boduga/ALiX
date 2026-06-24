@@ -32,10 +32,12 @@ import type { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 const GOV_DIR = ".alix/governance";
 const CALIBRATION_FILE = "calibration.json";
 const LENS_REGISTRY_FILE = "lens-registry.json";
+const POLICY_COVERAGE_FILE = "policy-coverage.json";
 
 const SUPPORTED_KINDS = new Set<string>([
   "confidence_calibration",
   "lens_adjustment",
+  "policy_coverage",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -141,7 +143,7 @@ export class GovernanceChangeApplier {
       }
 
       // (8) Mutate
-      const mutated = this.applyMutation(payload, data);
+      const mutated = this.applyMutation(payload, proposal, data);
 
       // (9) Write atomically
       atomicWriteJson(targetFile, mutated);
@@ -174,6 +176,8 @@ export class GovernanceChangeApplier {
         return join(govDir, CALIBRATION_FILE);
       case "lens_adjustment":
         return join(govDir, LENS_REGISTRY_FILE);
+      case "policy_coverage":
+        return join(govDir, POLICY_COVERAGE_FILE);
       default:
         throw new Error(`Unknown governance payload kind: ${kind}`);
     }
@@ -197,6 +201,14 @@ export class GovernanceChangeApplier {
         if (!Array.isArray(data.lenses)) {
           throw new Error(
             "Invalid lens-registry.json schema: expected 'lenses' array",
+          );
+        }
+        break;
+      }
+      case "policy_coverage": {
+        if (typeof data.currentCoverage !== "number" || typeof data.targetCoverage !== "number") {
+          throw new Error(
+            "Invalid policy-coverage.json schema: expected numeric 'currentCoverage' and 'targetCoverage'",
           );
         }
         break;
@@ -241,6 +253,15 @@ export class GovernanceChangeApplier {
         }
         break;
       }
+      case "policy_coverage": {
+        const pc = data as { currentCoverage: number };
+        if (pc.currentCoverage !== payload.currentCoverage) {
+          throw new Error(
+            `Policy coverage drift: expected currentCoverage ${payload.currentCoverage}, found ${pc.currentCoverage}`,
+          );
+        }
+        break;
+      }
       default:
         throw new Error(`Unknown governance payload kind for value validation: ${(payload as any).kind}`);
     }
@@ -252,6 +273,7 @@ export class GovernanceChangeApplier {
 
   private applyMutation(
     payload: GovernanceChangePayload,
+    proposal: AdaptationProposal,
     data: Record<string, unknown>,
   ): Record<string, unknown> {
     switch (payload.kind) {
@@ -281,6 +303,14 @@ export class GovernanceChangeApplier {
             );
         }
         return { ...data, lenses };
+      }
+      case "policy_coverage": {
+        return {
+          ...data,
+          targetCoverage: payload.targetCoverage,
+          updatedByProposalId: proposal.id,
+          updatedAt: new Date().toISOString(),
+        };
       }
       default:
         throw new Error(`Unsupported governance mutation kind: ${(payload as any).kind}`);

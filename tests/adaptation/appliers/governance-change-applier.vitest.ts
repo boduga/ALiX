@@ -309,4 +309,90 @@ describe("GovernanceChangeApplier", () => {
 
     rmSync(localSnapDir, { recursive: true, force: true });
   });
+
+  // -------------------------------------------------------------------------
+  // P9.4b — policy_coverage mutation tests
+  // -------------------------------------------------------------------------
+
+  function makePolicyCoverageFile(dir: string, currentCoverage: number, targetCoverage: number): string {
+    const govDir = join(dir, ".alix", "governance");
+    mkdirSync(govDir, { recursive: true });
+    const path = join(govDir, "policy-coverage.json");
+    writeFileSync(
+      path,
+      JSON.stringify({ currentCoverage, targetCoverage, updatedByProposalId: "", updatedAt: "" }, null, 2),
+      "utf-8",
+    );
+    return path;
+  }
+
+  it("applies policy_coverage successfully", async () => {
+    makePolicyCoverageFile(tempRoot, 0.62, 0.80);
+    const proposal = makeGovernanceProposal({
+      payload: { kind: "policy_coverage", currentCoverage: 0.62, targetCoverage: 0.85 },
+    });
+    const applier = new GovernanceChangeApplier(tempRoot, snapshotStore, writer);
+    await applier.apply(proposal);
+
+    const path = join(tempRoot, ".alix", "governance", "policy-coverage.json");
+    const content = JSON.parse(readFileSync(path, "utf-8"));
+    expect(content.targetCoverage).toBe(0.85);
+    expect(content.currentCoverage).toBe(0.62);
+    expect(content.updatedByProposalId).toBe("prop-gov-001");
+    expect(content.updatedAt).toBeTruthy();
+  });
+
+  it("rejects policy_coverage with current coverage drift", async () => {
+    makePolicyCoverageFile(tempRoot, 0.62, 0.80);
+    const proposal = makeGovernanceProposal({
+      payload: { kind: "policy_coverage", currentCoverage: 0.70, targetCoverage: 0.85 },
+    });
+    const applier = new GovernanceChangeApplier(tempRoot, snapshotStore, writer);
+    await expect(applier.apply(proposal)).rejects.toThrow(/drift|currentCoverage/i);
+  });
+
+  it("rejects policy_coverage when file does not exist", async () => {
+    const proposal = makeGovernanceProposal({
+      payload: { kind: "policy_coverage", currentCoverage: 0.62, targetCoverage: 0.85 },
+    });
+    const applier = new GovernanceChangeApplier(tempRoot, snapshotStore, writer);
+    await expect(applier.apply(proposal)).rejects.toThrow(/not found/i);
+  });
+
+  it("rejects policy_coverage with invalid schema (missing numeric fields)", async () => {
+    const govDir = join(tempRoot, ".alix", "governance");
+    mkdirSync(govDir, { recursive: true });
+    writeFileSync(
+      join(govDir, "policy-coverage.json"),
+      JSON.stringify({ currentCoverage: "not-a-number", targetCoverage: 0.80, updatedByProposalId: "", updatedAt: "" }),
+      "utf-8",
+    );
+    const proposal = makeGovernanceProposal({
+      payload: { kind: "policy_coverage", currentCoverage: 0.62, targetCoverage: 0.85 },
+    });
+    const applier = new GovernanceChangeApplier(tempRoot, snapshotStore, writer);
+    await expect(applier.apply(proposal)).rejects.toThrow(/schema|numeric|currentCoverage/i);
+  });
+
+  it("records governance_mutation_applied for policy_coverage", async () => {
+    makePolicyCoverageFile(tempRoot, 0.62, 0.80);
+    const recordGovernanceMutationApplied = vi.fn().mockResolvedValue(null);
+    const localWriter = { recordSnapshotTaken: vi.fn().mockResolvedValue(null), recordGovernanceMutationApplied } as any;
+    const applier = new GovernanceChangeApplier(tempRoot, snapshotStore, localWriter);
+    const proposal = makeGovernanceProposal({
+      payload: { kind: "policy_coverage", currentCoverage: 0.62, targetCoverage: 0.85 },
+    });
+    await applier.apply(proposal);
+
+    expect(recordGovernanceMutationApplied).toHaveBeenCalledWith(
+      proposal.id,
+      expect.objectContaining({
+        payloadKind: "policy_coverage",
+        targetFile: expect.stringContaining("policy-coverage.json"),
+        snapshotId: expect.any(String),
+        beforeHash: expect.any(String),
+        afterHash: expect.any(String),
+      }),
+    );
+  });
 });
