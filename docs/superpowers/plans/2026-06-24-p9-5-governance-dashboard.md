@@ -13,7 +13,7 @@
 1. `report.schemaVersion = "p9.5.0"` (string literal, exact value).
 2. The dashboard aggregator is **the only place** that touches the data layer. Renderer and handler consume the typed report.
 3. The handler is extracted to `src/cli/commands/governance-dashboard-handler.ts` so the sentinel can scan a precise file.
-4. The sentinel forbids mutation write paths (appliers, approve/apply/reject verbs, `ProposalStore.save` / `ProposalStore.markOrphaned`, all `record*` evidence write methods) but **permits** read-only store queries (`.list`, `.load`, `.existsForProposal`, `.queryByWindow`).
+4. The sentinel forbids mutation write paths (appliers, approve/apply/reject verbs, `ProposalStore.save` / `ProposalStore.markOrphaned`, all `record*` evidence write methods) but **permits** read-only store queries (`.list`, `.load`, `.loadVerified`).
 5. Supported mutation kinds (3): `confidence_calibration`, `lens_adjustment`, `policy_coverage`. Investigation-only kinds (2): `chain_restoration`, `governance_integrity`. See P9.4c close-out.
 6. P9.0 builders used (all exist in `src/governance/`): `buildGovernanceHealth`, `buildGovernanceAssessment`, `detectGovernanceDrift`, `buildGovernanceIntegrity`, `reviewLenses`.
 7. Stores used (read-only): `GovernanceStore` (`.list("recommendations")`), `ProposalStore` (`.list(status?)` + `.load(id)`), `SnapshotStore` (`.load(proposalId)` + `.loadVerified(proposalId)`).

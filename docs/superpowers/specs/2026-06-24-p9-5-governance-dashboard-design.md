@@ -171,7 +171,7 @@ const FORBIDDEN_IN_DASHBOARD = [
 ];
 ```
 
-The check enforces: the three dashboard files do not import any of these symbols. It does **NOT** forbid importing `ProposalStore`, `GovernanceStore`, `SnapshotStore`, or `EvidenceStore` for **read** operations (`.list`, `.load`, `.findRecommendationById`, `.queryByWindow`, `.existsForProposal`, etc.). This is structural enforcement of the read-only invariant while still allowing the data layer to function.
+The check enforces: the three dashboard files do not import any of these symbols. It does **NOT** forbid importing `ProposalStore`, `GovernanceStore`, or `SnapshotStore` for **read** operations (`.list`, `.load`, etc.). This is structural enforcement of the read-only invariant while still allowing the data layer to function.
 
 If a forbidden symbol is detected, the test fails with a file:line reference.
 
