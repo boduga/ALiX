@@ -26,24 +26,27 @@ import type { AdaptationProposal, ProposalTarget } from "../../src/adaptation/ad
 // module, so the remaining fields are stubs.
 // ---------------------------------------------------------------------------
 
-let assemblerReturnValue: Record<string, unknown> = {
-  explanationIntegrity: { completenessPercent: 85 },
+let assemblerReturnValue: { completenessPercent: number; _shouldReject: boolean } = {
+  completenessPercent: 85,
+  _shouldReject: false,
 };
 
 vi.mock("../../src/explain/proposal-explanation-assembler.js", () => ({
-  assembleProposalExplanation: vi.fn().mockImplementation(() =>
-    Promise.resolve(assemblerReturnValue),
-  ),
+  assembleProposalExplanation: vi.fn(() => {
+    if (assemblerReturnValue._shouldReject) return Promise.reject(new Error("mock failure"));
+    return Promise.resolve({
+      explanationIntegrity: { completenessPercent: assemblerReturnValue.completenessPercent },
+    });
+  }),
 }));
 
-// Import the mocked assembler so we can change its behaviour per test.
-import { assembleProposalExplanation } from "../../src/explain/proposal-explanation-assembler.js";
-
-function setAssemblerCompleteness(percent: number) {
-  assemblerReturnValue = {
-    explanationIntegrity: { completenessPercent: percent },
-  };
-  vi.mocked(assembleProposalExplanation).mockResolvedValue(assemblerReturnValue as never);
+function setAssemblerCompleteness(v: number | "reject") {
+  if (v === "reject") {
+    assemblerReturnValue._shouldReject = true;
+  } else {
+    assemblerReturnValue._shouldReject = false;
+    assemblerReturnValue.completenessPercent = v;
+  }
 }
 
 // The criteria module must be imported dynamically *after* the mock so
@@ -346,5 +349,44 @@ describe("runGovernanceCriteria", () => {
     expect(result.details!.recommendationConfidence).toBe(0.85);
     expect(result.details!.recommendationStatus).toBe("open");
     expect(result.details!.proposalAction).toBe("governance_change");
+  });
+
+  // =======================================================================
+  // Test 9: rejects proposal with missing recommendationId in target
+  // =======================================================================
+
+  it("rejects proposal with missing recommendationId in target", async () => {
+    const cwd = makeTempDir();
+    const proposal = makeGovernanceProposal({
+      target: { kind: "governance" } as ProposalTarget,
+    });
+    // No need to seed stores — criterion 2 will fail before reaching them
+    const { runGovernanceCriteria } = await importCriteria();
+    const result = await runGovernanceCriteria({ proposal, cwd });
+    expect(result.passed).toBe(false);
+    expect(result.failedCriterion).toContain("missing");
+  });
+
+  // =======================================================================
+  // Test 10: rejects proposal when explanation assembly fails
+  // =======================================================================
+
+  it("rejects proposal when explanation assembly fails", async () => {
+    const cwd = makeTempDir();
+    const proposal = makeGovernanceProposal();
+
+    // Seed enough for criteria 1-5 to pass
+    await seedValidChain(cwd);
+    await seedValidRecommendation(cwd);
+
+    // Make assembler reject
+    setAssemblerCompleteness("reject");
+
+    const { runGovernanceCriteria } = await importCriteria();
+    const result = await runGovernanceCriteria({ proposal, cwd });
+
+    expect(result.passed).toBe(false);
+    expect(result.failedCriterion).toBe("explanation assembly failed");
+    expect(result.integrityScore).toBe(0);
   });
 });
