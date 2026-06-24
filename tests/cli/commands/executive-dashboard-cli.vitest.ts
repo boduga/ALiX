@@ -47,9 +47,11 @@ describe("runDashboard", () => {
     const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("");
     log.mockRestore();
     const parsed = JSON.parse(out);
-    expect(parsed.schemaVersion).toBe("p10.0.0");
-    expect(parsed.rankedSubsystems).toBeDefined();
-    expect(parsed.rankedSubsystems.length).toBe(8);
+    expect(parsed.health.schemaVersion).toBe("p10.0.0");
+    expect(parsed.health.rankedSubsystems).toBeDefined();
+    expect(parsed.health.rankedSubsystems.length).toBe(8);
+    expect(parsed.priority.schemaVersion).toBe("p10.1.0");
+    expect(parsed.priority.priorities.length).toBe(8);
   });
 
   it("respects --window flag", async () => {
@@ -59,6 +61,6 @@ describe("runDashboard", () => {
     const out = log.mock.calls.map((c: unknown[]) => String(c[0])).join("");
     log.mockRestore();
     const parsed = JSON.parse(out);
-    expect(parsed.windowDays).toBe(7);
+    expect(parsed.health.windowDays).toBe(7);
   });
 });

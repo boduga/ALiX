@@ -31,6 +31,8 @@ import { join } from "node:path";
 
 const EXECUTIVE_FILES = [
   "src/executive/executive-health.ts",
+  "src/executive/priority-engine.ts",
+  "src/executive/trend-store.ts",
   "src/executive/adapters/agent-health.ts",
   "src/executive/adapters/tool-health.ts",
   "src/executive/adapters/workflow-health.ts",
@@ -70,6 +72,10 @@ const FORBIDDEN_IN_EXECUTIVE = [
   "recordAdaptationFailed",
   "recordRevertApplied",
   "recordRevertFailed",
+  // File-system write functions (TrendStore is the only exception)
+  "writeFileSync",
+  "mkdirSync",
+  "appendFileSync",
 ];
 
 // ---------------------------------------------------------------------------
@@ -84,7 +90,7 @@ function readSource(file: string): string {
 // Sentinel tests — one per file
 // ---------------------------------------------------------------------------
 
-describe("P10.0 executive purity sentinel", () => {
+describe("P10.1 executive purity sentinel", () => {
   for (const file of EXECUTIVE_FILES) {
     it(`${file} has no mutation write paths`, () => {
       // 1. Read the file. If missing, throw an error referencing the missing path.
@@ -97,6 +103,11 @@ describe("P10.0 executive purity sentinel", () => {
         // 3. If any forbidden substring is found, throw a descriptive error with `file:line`.
         for (const forbidden of FORBIDDEN_IN_EXECUTIVE) {
           if (line.includes(forbidden)) {
+            // Scoped exception: trend-store.ts is the only approved write path
+            if (file === "src/executive/trend-store.ts" &&
+                (forbidden === "writeFileSync" || forbidden === "mkdirSync" || forbidden === "appendFileSync")) {
+              continue;
+            }
             throw new Error(
               `Executive purity violation in ${file}:${i + 1} — ` +
               `forbidden symbol "${forbidden}" found in line: ${line.trim()}`,
