@@ -256,7 +256,7 @@ P10.4a execution orchestration
   ├─ investigation steps → StepRunner marks waiting_for_bridge (future bridge)
   │
   ├─ create_remediation_proposal → P10.4b: creates pending proposal
-  │                                  ↓ human approves/apply via alix adaptation
+  │                                  ↓ human approves/applies via alix adaptation
   └─ apply_remediation            → P10.4c: checks proposal was applied
                                      ↓ if yes: step completed
                                      ↓ if no:  stay waiting_for_bridge
