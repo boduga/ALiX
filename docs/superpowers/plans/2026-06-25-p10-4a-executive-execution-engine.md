@@ -304,12 +304,35 @@ export function allStepIds(plan: PersistedExecutionPlan): string[] {
 }
 
 /** Validates that a state's step IDs match the plan's step IDs. Fail closed. */
+/**
+ * Validates that every plan step has exactly one StepRuntimeState and
+ * no extra step IDs exist in the state map.
+ *
+ * Checks both directions:
+ *   plan ⊆ state   (every plan step must have a runtime state)
+ *   state ⊆ plan   (no unknown step IDs in the runtime state)
+ *
+ * This is a constitutional invariant — enforced at init time and at
+ * every ExecutionEngine entry point.
+ */
 export function validateStateStepIds(
   plan: PersistedExecutionPlan,
   state: PlanExecutionState,
 ): void {
   const planIds = new Set(plan.steps.map(s => s.id));
-  for (const stepId of Object.keys(state.stepStates)) {
+  const stateIds = new Set(Object.keys(state.stepStates));
+
+  // Direction 1: every plan step has exactly one state entry
+  for (const stepId of planIds) {
+    if (!stateIds.has(stepId)) {
+      throw new Error(
+        `Plan step "${stepId}" has no runtime state in plan "${plan.id}" — every plan step must have exactly one StepRuntimeState`,
+      );
+    }
+  }
+
+  // Direction 2: no unknown step IDs in state
+  for (const stepId of stateIds) {
     if (!planIds.has(stepId)) {
       throw new Error(
         `State step ID "${stepId}" not found in plan "${plan.id}" — step IDs are immutable`,
@@ -848,6 +871,10 @@ export class ExecutionStateStore {
         createdAt: now,
       },
     };
+
+    // Enforce the constitutional invariant at init time:
+    // exactly one StepRuntimeState per plan step, no extras, no gaps
+    validateStateStepIds(plan, state);
 
     saveState(this.dir, state);
     return state;
@@ -1420,27 +1447,22 @@ export class StepRunner {
     executionId: string,
   ): Promise<StepRunnerResult> {
     const startMs = Date.now();
-
-    // P10.4a: "execute" is thin — it records what the step would do
-    // and emits evidence. Real diagnostic/audit logic ships in P10.4b+.
     const evidenceIds: string[] = [];
-    // P10.4a: evidence records 0 duration because no real work is done.
-    // P10.4b+ will pass the actual duration when real execution logic is added.
+
+    // P10.4a: "execute" is thin — it records intent + emits evidence.
     const result = await this.writer.recordExecutiveStepExecuted({
       planId, // NOT step.objectiveId — planId is the real correlation key
       stepId: step.id,
       action: step.action,
-      durationMs: 0, // P10.4a advisory: evidence always shows 0ms
+      durationMs: 0, // P10.4a: advisory — evidence shows 0ms intent time
       summary: `Advisory execution of ${step.action} for ${step.targetSubsystem}`,
       executionId,
     });
     if (result?.id) evidenceIds.push(result.id);
 
-    // Duration returned to ExecutionEngine measures real wall-clock time
-    // of the runner call (evidence recording + any orchestration overhead).
-    // P10.4a: evidence durationMs and runner durationMs may disagree — that
-    // is correct because evidence records "advisory time" and runner records
-    // "actual time." P10.4b+ will reconcile them when real logic ships.
+    // Single real wall-clock measurement for the runner result. In P10.4a
+    // this disagrees with evidence.durationMs (evidence is 0 advisory) —
+    // P10.4b+ will reconcile by passing the same duration to both.
     const durationMs = Date.now() - startMs;
     return {
       outcome: "executed",
