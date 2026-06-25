@@ -65,6 +65,7 @@ jobs:
       - name: Node unit tests
         run: npm run test:unit:node
       - name: Vitest
+        if: always()
         run: npm run test:vitest
 
   # ─── Lane 3: Integration + Soak Tier 1 + Doctor ───────────────────────
