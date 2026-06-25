@@ -16,6 +16,10 @@
 - ExecutionStateStore.update() mutator MUST NOT modify planTransitions array. Only the store appends transitions with monotonically increasing sequence.
 - Step IDs are immutable after persistence — no rename API.
 - Only ExecutionEngine may generate executionId. StepRunner receives it as parameter.
+- StepRunner.execute(planId, step, executionId) receives the REAL planId as first param, NOT step.objectiveId (which is the objective identifier, not the plan identifier).
+- runReadySteps() uses ONE executionId for the entire batch, shared by every step.
+- ExecutionStateStore.update() uses SERIALIZATION-HASH comparison to detect in-place mutation of planTransitions (not just length check).
+- Plan lifecycle timestamps use an explicit STATUS_TIMESTAMP_MAP, not a dynamic key cast.
 - `nextRunnableSteps()` recomputed after every completed step in runReadySteps().
 - P10.4a files MUST NOT import/use: GovernanceChangeApplier, AgentCardApplier, SkillApplier, RevertApplier, ProposalStore.*, ApprovalGate, ProposalApprovalGate, .approve(), .apply(), .reject(), InvestigationRecommendationGenerator, InvestigationStore, recordAdaptationApproved, recordAdaptationApplied, recordAdaptationRejected, recordAdaptationFailed, recordRevertApplied, recordRevertFailed, randomUUID, Math.random.
 - Evidence events use existing `EvidenceEventWriter.appendEvent()` pattern (pass type string + payload object). No need to modify AlixEvent envelope.
@@ -866,11 +870,16 @@ export class ExecutionStateStore {
     const current = loadRawState(this.dir, planId);
     if (!current) throw new Error(`Execution state not found: ${planId}`);
 
+    // Compute hash of transitions BEFORE mutation (defense against in-place mutation)
+    const beforeHash = JSON.stringify(current.planTransitions);
+
     // Apply mutator (deep clone prevents side effects on the original)
     const mutated: PlanExecutionState = mutator(JSON.parse(JSON.stringify(current)));
 
-    // Validate mutator did not touch transitions
-    if (mutated.planTransitions.length !== current.planTransitions.length) {
+    // Validate mutator did not touch transitions (hash comparison, not just length
+    // — a length check misses in-place mutations like planTransitions[0].reason = "evil")
+    const afterHash = JSON.stringify(mutated.planTransitions);
+    if (beforeHash !== afterHash) {
       throw new Error(
         "Mutator MUST NOT modify planTransitions — only the store appends transitions",
       );
@@ -889,8 +898,20 @@ export class ExecutionStateStore {
     // Update plan-level status if status changed in this transition
     if (transition.from !== transition.to) {
       mutated.status = transition.to;
-      const tsKey = transition.to as keyof typeof mutated.timestamps;
-      if (!mutated.timestamps[tsKey]) {
+
+      // Explicit status→timestamp mapping (NOT a dynamic cast — that would
+      // silently accept unknown status values like "paused" and create
+      // unreachable timestamp keys)
+      const STATUS_TIMESTAMP_MAP: Partial<Record<PlanStatus, keyof PlanExecutionState["timestamps"]>> = {
+        approved: "approvedAt",
+        running: "runningAt",
+        completed: "completedAt",
+        failed: "failedAt",
+        blocked: "blockedAt",
+        cancelled: "cancelledAt",
+      };
+      const tsKey = STATUS_TIMESTAMP_MAP[transition.to];
+      if (tsKey && !mutated.timestamps[tsKey]) {
         (mutated.timestamps as Record<string, string | undefined>)[tsKey] = mutated.planTransitions[mutated.planTransitions.length - 1].at;
       }
     }
@@ -1358,19 +1379,20 @@ export class StepRunner {
   /**
    * Execute a single step according to its behavior class.
    * Caller (ExecutionEngine) generates executionId and passes it in.
+   * planId is the real plan identifier (NOT step.objectiveId).
    */
-  async execute(step: ExecutionStep, executionId: string): Promise<StepRunnerResult> {
+  async execute(planId: string, step: ExecutionStep, executionId: string): Promise<StepRunnerResult> {
     const behavior = behaviorFor(step.action);
 
     switch (behavior) {
       case "read-only":
-        return this.executeReadOnly(step, executionId);
+        return this.executeReadOnly(planId, step, executionId);
 
       case "investigation":
-        return this.recordIntent(step, executionId, "investigation");
+        return this.recordIntent(planId, step, executionId, "investigation");
 
       case "mutation":
-        return this.recordIntent(step, executionId, "mutation");
+        return this.recordIntent(planId, step, executionId, "mutation");
 
       default: {
         const _exhaustive: never = behavior;
@@ -1380,6 +1402,7 @@ export class StepRunner {
   }
 
   private async executeReadOnly(
+    planId: string,
     step: ExecutionStep,
     executionId: string,
   ): Promise<StepRunnerResult> {
@@ -1389,7 +1412,7 @@ export class StepRunner {
     // and emits evidence. Real diagnostic/audit logic ships in P10.4b+.
     const evidenceIds: string[] = [];
     const result = await this.writer.recordExecutiveStepExecuted({
-      planId: step.objectiveId, // step.objectiveId becomes the correlation key
+      planId, // NOT step.objectiveId — planId is the real correlation key
       stepId: step.id,
       action: step.action,
       durationMs: 0,
@@ -1412,6 +1435,7 @@ export class StepRunner {
   }
 
   private async recordIntent(
+    planId: string,
     step: ExecutionStep,
     executionId: string,
     behaviorClass: string,
@@ -1420,7 +1444,7 @@ export class StepRunner {
     const evidenceIds: string[] = [];
 
     const result = await this.writer.recordExecutiveStepIntentRecorded({
-      planId: step.objectiveId,
+      planId, // NOT step.objectiveId
       stepId: step.id,
       action: step.action,
       behaviorClass,
@@ -1480,49 +1504,54 @@ describe("StepRunner", () => {
     runner = new StepRunner(writer);
   });
 
-  it("executes a read-only step", async () => {
+  it("executes a read-only step with planId", async () => {
     const step = makeStep({ id: "step-1", action: "diagnose_root_cause" });
-    const result = await runner.execute(step, "exec-1");
+    const result = await runner.execute("plan-1", step, "exec-1");
     expect(result.outcome).toBe("executed");
     expect(result.newStepStatus).toBe("completed");
     expect(result.warnings).toHaveLength(0);
     expect(result.retryable).toBe(false);
     expect(writer.recordExecutiveStepExecuted).toHaveBeenCalled();
+    // Verify the evidence received the REAL planId, not objectiveId
+    const evtCall = vi.mocked(writer.recordExecutiveStepExecuted).mock.calls[0][0];
+    expect(evtCall.planId).toBe("plan-1");
   });
 
   it("execute audit_metrics is read-only", async () => {
     const step = makeStep({ id: "step-2", action: "audit_metrics" });
-    const result = await runner.execute(step, "exec-1");
+    const result = await runner.execute("plan-1", step, "exec-1");
     expect(result.outcome).toBe("executed");
     expect(result.newStepStatus).toBe("completed");
   });
 
   it("handles investigation step as waiting_for_bridge", async () => {
     const step = makeStep({ id: "step-3", action: "triage_investigations" });
-    const result = await runner.execute(step, "exec-1");
+    const result = await runner.execute("plan-1", step, "exec-1");
     expect(result.outcome).toBe("intent_recorded");
     expect(result.newStepStatus).toBe("waiting_for_bridge");
     expect(result.warnings.length).toBeGreaterThan(0);
     expect(writer.recordExecutiveStepIntentRecorded).toHaveBeenCalled();
+    const evtCall = vi.mocked(writer.recordExecutiveStepIntentRecorded).mock.calls[0][0];
+    expect(evtCall.planId).toBe("plan-1");
   });
 
   it("handles mutation step as waiting_for_bridge", async () => {
     const step = makeStep({ id: "step-4", action: "create_remediation_proposal" });
-    const result = await runner.execute(step, "exec-1");
+    const result = await runner.execute("plan-1", step, "exec-1");
     expect(result.outcome).toBe("intent_recorded");
     expect(result.newStepStatus).toBe("waiting_for_bridge");
   });
 
   it("generates evidence IDs for read-only execution", async () => {
     const step = makeStep({ id: "step-5", action: "review_baseline_metrics" });
-    const result = await runner.execute(step, "exec-1");
+    const result = await runner.execute("plan-1", step, "exec-1");
     expect(result.evidenceIds.length).toBeGreaterThan(0);
   });
 
   it("returns retryable=false for all behaviors", async () => {
     for (const action of ["diagnose_root_cause" as const, "triage_investigations" as const, "create_remediation_proposal" as const]) {
       const step = makeStep({ id: `step-${action}`, action });
-      const result = await runner.execute(step, "exec-2");
+      const result = await runner.execute("plan-1", step, "exec-2");
       expect(result.retryable).toBe(false);
     }
   });
@@ -1534,7 +1563,7 @@ describe("StepRunner", () => {
     ];
     for (const action of roActions) {
       const step = makeStep({ id: `step-${action}`, action });
-      const result = await runner.execute(step, "exec-3");
+      const result = await runner.execute("plan-1", step, "exec-3");
       expect(result.outcome).toBe("executed");
     }
   });
@@ -1545,7 +1574,7 @@ describe("StepRunner", () => {
     ];
     for (const action of invActions) {
       const step = makeStep({ id: `step-${action}`, action });
-      const result = await runner.execute(step, "exec-4");
+      const result = await runner.execute("plan-1", step, "exec-4");
       expect(result.newStepStatus).toBe("waiting_for_bridge");
     }
   });
@@ -1556,7 +1585,7 @@ describe("StepRunner", () => {
     ];
     for (const action of mutActions) {
       const step = makeStep({ id: `step-${action}`, action });
-      const result = await runner.execute(step, "exec-5");
+      const result = await runner.execute("plan-1", step, "exec-5");
       expect(result.newStepStatus).toBe("waiting_for_bridge");
     }
   });
@@ -1695,27 +1724,26 @@ export class ExecutionEngine {
   }
 
   // -----------------------------------------------------------------------
-  // Single-step execution
+  // Core execution path (shared by runStep and runReadySteps)
   // -----------------------------------------------------------------------
 
   /**
-   * Run one step. Throws if not runnable. Generates fresh executionId.
+   * Execute one step: mark in_progress -> runner.execute -> persist result ->
+   * check completion. Single canonical implementation that both runStep() and
+   * runReadySteps() delegate to. executionId is caller-provided:
+   * runStep() generates its own, runReadySteps() passes the shared batch ID.
    */
-  async runStep(planId: string, stepId: string): Promise<ExecutiveStepExecutionResult> {
+  private async executeStepInternal(
+    planId: string,
+    stepId: string,
+    executionId: string,
+  ): Promise<ExecutiveStepExecutionResult> {
     const plan = this.planStore.load(planId);
-    const state = this.stateStore.load(planId);
-    if (!state) throw new Error(`Execution state not found: ${planId}`);
-
-    // Check runnable
-    const runnable = this.nextRunnableSteps(planId);
-    if (!runnable.includes(stepId)) {
-      throw new Error(`Step ${stepId} is not runnable (dependencies incomplete or not pending)`);
-    }
-
     const step = plan.steps.find(s => s.id === stepId);
     if (!step) throw new Error(`Step ${stepId} not found in plan ${planId}`);
 
-    const executionId = generateExecutionId();
+    const state = this.stateStore.load(planId);
+    if (!state) throw new Error(`Execution state not found: ${planId}`);
 
     // Mark in_progress
     this.stateStore.update(
@@ -1731,10 +1759,10 @@ export class ExecutionEngine {
       },
     );
 
-    // Execute via StepRunner (executionId passed, never generated here)
-    const result = await this.runner.execute(step, executionId);
+    // Execute via StepRunner (planId + executionId passed, never generated here)
+    const result = await this.runner.execute(planId, step, executionId);
 
-    // Mark completed/waiting_for_bridge/blocked based on runner result
+    // Mark terminal based on runner result
     const finalState = this.stateStore.update(
       planId,
       { from: state.status, to: state.status, executionId },
@@ -1752,7 +1780,7 @@ export class ExecutionEngine {
       },
     );
 
-    // Check if all steps are terminal → plan completed
+    // Check if all steps are terminal -> plan completed
     this.maybeCompletePlan(plan, finalState, executionId);
 
     return {
@@ -1765,30 +1793,52 @@ export class ExecutionEngine {
   }
 
   // -----------------------------------------------------------------------
-  // Batch execution
+  // Single-step execution (entry point)
+  // -----------------------------------------------------------------------
+
+  /**
+   * Run one step. Throws if not runnable.
+   * One executionId per invocation (the constitutional invariant).
+   */
+  async runStep(planId: string, stepId: string): Promise<ExecutiveStepExecutionResult> {
+    const runnable = this.nextRunnableSteps(planId);
+    if (!runnable.includes(stepId)) {
+      throw new Error(`Step ${stepId} is not runnable (dependencies incomplete or not pending)`);
+    }
+
+    const executionId = generateExecutionId();
+    return this.executeStepInternal(planId, stepId, executionId);
+  }
+
+  // -----------------------------------------------------------------------
+  // Batch execution (entry point)
   // -----------------------------------------------------------------------
 
   /**
    * Run all currently runnable steps sequentially.
+   *
+   * CONSTITUTIONAL INVARIANT: ONE executionId shared by EVERY step in the
+   * batch. All state updates and evidence events share the same correlation
+   * context.
+   *
    * Scheduling policy:
-   *   1. nextRunnableSteps() — initial DAG query
+   *   1. nextRunnableSteps() - initial DAG query
    *   2. Sort by stepNumber ascending
-   *   3. Execute ONE step at a time
+   *   3. Execute ONE step at a time (via executeStepInternal)
    *   4. Persist state after every step (atomic write)
    *   5. AFTER each step: RECOMPUTE nextRunnableSteps()
-   *   6. Continue until no runnable steps remain (or failure — P10.4a: no failure path)
+   *   6. Continue until no runnable steps remain
    *   7. Return array of results
    *
-   * Generates ONE fresh executionId shared by all steps in the batch.
+   * NOTE: Each outer-loop iteration reloads plan + state from disk so the
+   * DAG query always sees the latest committed state. This is intentional.
    */
   async runReadySteps(planId: string): Promise<ExecutiveStepExecutionResult[]> {
     const executionId = generateExecutionId();
     const results: ExecutiveStepExecutionResult[] = [];
 
-    // Loop: compute → execute → recompute
     let runnable = this.nextRunnableSteps(planId);
     while (runnable.length > 0) {
-      // Sort by stepNumber
       const plan = this.planStore.load(planId);
       const sortedSteps = runnable
         .map(id => ({ id, step: plan.steps.find(s => s.id === id)! }))
@@ -1796,64 +1846,16 @@ export class ExecutionEngine {
         .sort((a, b) => a.step.stepNumber - b.step.stepNumber);
 
       for (const { id } of sortedSteps) {
-        const plan2 = this.planStore.load(planId);
-        const state2 = this.stateStore.load(planId);
-
         // Recheck runnable (state may have changed since last iteration)
-        const currentRunnable = this.computeNextRunnableIds(plan2, state2!);
+        const state2 = this.stateStore.load(planId);
+        const currentRunnable = this.computeNextRunnableIds(plan, state2!);
         if (!currentRunnable.includes(id)) continue;
 
-        // Run step (reuses runStep but passes the shared executionId — re-generate inside)
-        const step = plan2.steps.find(s => s.id === id)!;
-        const stepExecutionId = generateExecutionId();
-
-        // Mark in_progress
-        this.stateStore.update(
-          planId,
-          { from: state2!.status, to: state2!.status, executionId: stepExecutionId },
-          s => {
-            if (s.stepStates[id]) {
-              s.stepStates[id].status = "in_progress";
-              s.stepStates[id].startedAt = new Date().toISOString();
-              s.stepStates[id].lastExecutionId = stepExecutionId;
-            }
-            return s;
-          },
-        );
-
-        // Execute
-        const result = await this.runner.execute(step, stepExecutionId);
-
-        // Mark terminal
-        const state3 = this.stateStore.update(
-          planId,
-          { from: state2!.status, to: state2!.status, executionId: stepExecutionId },
-          s => {
-            if (s.stepStates[id]) {
-              s.stepStates[id].status = result.newStepStatus;
-              s.stepStates[id].completedAt = new Date().toISOString();
-              s.stepStates[id].durationMs = result.durationMs;
-              s.stepStates[id].evidenceIds = result.evidenceIds;
-              s.stepStates[id].summary = result.summary;
-              s.stepStates[id].warnings = result.warnings;
-              s.stepStates[id].lastExecutionId = stepExecutionId;
-            }
-            return s;
-          },
-        );
-
-        this.maybeCompletePlan(plan2, state3, executionId);
-
-        results.push({
-          stepId: id,
-          status: result.newStepStatus,
-          durationMs: result.durationMs,
-          evidenceIds: result.evidenceIds,
-          executionId,
-        });
+        // Uses the SAME executionId as the batch
+        const result = await this.executeStepInternal(planId, id, executionId);
+        results.push(result);
       }
 
-      // After batch iteration, recompute runnable
       runnable = this.nextRunnableSteps(planId);
     }
 
