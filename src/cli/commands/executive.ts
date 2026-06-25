@@ -177,10 +177,19 @@ async function handlePlanCommand(args: string[]): Promise<void> {
     }
 
     case "reject": {
-      const [planId] = params;
-      if (!planId) { console.error("Usage: plan reject <planId> --reason <text>"); process.exit(1); }
+      if (params.length === 0) { console.error("Usage: plan reject <planId> [--reason <text>]"); process.exit(1); }
+      let planId: string;
+      let reason: string;
       const reasonIdx = params.indexOf("--reason");
-      const reason = reasonIdx >= 0 ? params.slice(reasonIdx + 1).join(" ") : "No reason given";
+      if (params[0] === "--reason") {
+        // --reason comes before planId: alix executive plan reject --reason bad plan-1
+        planId = params[1] ?? "";
+        reason = params.slice(2).join(" ") || "No reason given";
+      } else {
+        planId = params[0];
+        reason = reasonIdx >= 0 ? params.slice(reasonIdx + 1).join(" ") : "No reason given";
+      }
+      if (!planId) { console.error("Usage: plan reject <planId> [--reason <text>]"); process.exit(1); }
       const gate = createApprovalGate();
       const by = process.env.USER ?? "operator";
       try {

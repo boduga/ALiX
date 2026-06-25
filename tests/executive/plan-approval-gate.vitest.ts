@@ -91,7 +91,7 @@ describe("PlanApprovalGate", () => {
     });
 
     const result = gate.reject("plan-test-1", "user", "wrong priorities", "exec-1");
-    expect(result.status).toBe("cancelled");
+    expect(result.status).toBe("rejected");
     expect(result.approval.rejectedBy).toBe("user");
     expect(writer.recordExecutivePlanRejected).toHaveBeenCalledWith({
       planId: "plan-test-1",
@@ -111,5 +111,14 @@ describe("PlanApprovalGate", () => {
     vi.mocked(planStore.load).mockReturnValue(mockPlan());
     vi.mocked(stateStore.load).mockReturnValue(mockState({ planId: "different-plan" }));
     expect(() => gate.approve("plan-test-1", "user", "exec-1")).toThrow("planId mismatch");
+  });
+
+  it("throws from planStore.load when rejecting nonexistent plan", () => {
+    vi.mocked(stateStore.load).mockReturnValue(mockState());
+    vi.mocked(planStore.load).mockImplementation(() => {
+      throw new Error("Plan not found: nonexistent-plan");
+    });
+    expect(() => gate.reject("nonexistent-plan", "user", "reason", "exec-1"))
+      .toThrow("Plan not found: nonexistent-plan");
   });
 });

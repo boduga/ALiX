@@ -44,6 +44,20 @@ function validatePlan(plan: ExecutionPlan): void {
       throw new Error(`${prefix} is missing required field "priorityScore"`);
     }
   }
+  // Validate dependsOn references point to real steps within the same plan
+  const stepIds = new Set(plan.steps.map(s => s.id));
+  for (let i = 0; i < plan.steps.length; i++) {
+    const step = plan.steps[i];
+    if (step.dependsOn) {
+      for (const depId of step.dependsOn) {
+        if (!stepIds.has(depId)) {
+          throw new Error(
+            `Plan validation failed: step[${i}] depends on unknown step '${depId}' — valid steps: [${[...stepIds].join(', ')}]`,
+          );
+        }
+      }
+    }
+  }
 }
 
 export class PlanStore {
@@ -116,14 +130,13 @@ export class PlanStore {
   list(): PersistedExecutionPlan[] {
     if (!existsSync(this.dir)) return [];
     return readdirSync(this.dir)
-      .filter(f => f.endsWith(".json") && !f.endsWith("-state.json"))
+      .filter(f => f.endsWith(".json"))
       .map(f => {
         try {
           const raw = readFileSync(join(this.dir, f), "utf-8");
           const parsed = JSON.parse(raw);
-          // Only PersistedExecutionPlan has contentHash; execution state files don't.
-          // This robust check avoids false positives for plan IDs ending in "state"
-          // (e.g., "health-state.json" is a plan file, not a state file).
+          // Only PersistedExecutionPlan has contentHash; execution state files
+          // don't. This check alone discriminates plan files from state files.
           if (!parsed.contentHash || !parsed.id) return null;
           return this.load(parsed.id);
         } catch { return null; }

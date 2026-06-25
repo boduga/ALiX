@@ -294,9 +294,13 @@ export class ExecutionEngine {
           return s;
         },
       );
+      const totalDurationMs = plan.steps.reduce((sum, s) => {
+        const stepState = state.stepStates[s.id];
+        return sum + (stepState?.durationMs ?? 0);
+      }, 0);
       this.writer.recordExecutivePlanCompleted({
         planId: plan.id,
-        totalDurationMs: 0,
+        totalDurationMs,
         executionId,
       }).catch(() => {});
     }

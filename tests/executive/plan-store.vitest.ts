@@ -149,6 +149,15 @@ describe("PlanStore", () => {
     expect(list[0].id).toBe("plan-good");
   });
 
+  it("lists plans whose id ends in 'state'", async () => {
+    // Plans ending in "state" (e.g. "genesis-state") must appear in list()
+    // because contentHash is the discriminator, not the filename.
+    const plan = makeTestPlan({ id: "genesis-state" });
+    await store.save(plan);
+    const list = store.list();
+    expect(list.map(p => p.id)).toContain("genesis-state");
+  });
+
   // -----------------------------------------------------------------------
   // Validation tests
   // -----------------------------------------------------------------------
@@ -211,6 +220,29 @@ describe("PlanStore", () => {
     plan.steps = [step as typeof plan.steps[0]];
     await expect(store.save(plan)).rejects.toThrow(
       'is missing required field "priorityScore"',
+    );
+  });
+
+  it("rejects step with invalid dependsOn reference", async () => {
+    const plan = makeTestPlan({
+      steps: [
+        {
+          id: "step-1",
+          action: "diagnose_root_cause",
+          title: "Diagnose monitoring gaps",
+          stepNumber: 1,
+          targetSubsystem: "governance",
+          dependsOn: ["nonexistent-step"],
+          status: "pending",
+          objectiveId: "obj-1",
+          priorityScore: 85,
+          objectiveScore: 80,
+          riskLevel: "medium",
+        },
+      ],
+    });
+    await expect(store.save(plan)).rejects.toThrow(
+      "depends on unknown step 'nonexistent-step'",
     );
   });
 

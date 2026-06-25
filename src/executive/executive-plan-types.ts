@@ -29,7 +29,8 @@ export type PlanStatus =
   | "completed"
   | "failed"
   | "blocked"
-  | "cancelled";
+  | "cancelled"
+  | "rejected";
 
 export type ApprovalStatus = "pending" | "approved" | "rejected";
 

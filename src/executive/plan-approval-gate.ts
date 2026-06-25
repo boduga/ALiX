@@ -90,9 +90,8 @@ export class PlanApprovalGate {
     const state = this.stateStore.load(planId);
     if (!state) throw new Error(`Execution state not found: ${planId}`);
 
-    // Validate plan existence + consistency (matching approve())
+    // planStore.load() throws if plan not found — serves as existence check
     const plan = this.planStore.load(planId);
-    if (!plan) throw new Error(`Plan not found: ${planId}`);
     if (state.planId !== plan.id) {
       throw new Error(
         `State planId mismatch: state="${state.planId}" != plan="${plan.id}"`,
@@ -109,9 +108,9 @@ export class PlanApprovalGate {
     const now = new Date().toISOString();
     const updated = this.stateStore.update(
       planId,
-      { from: state.status, to: "cancelled", executionId, reason },
+      { from: state.status, to: "rejected", executionId, reason },
       s => {
-        s.status = "cancelled";
+        s.status = "rejected";
         s.approval = {
           status: "rejected",
           rejectedBy: by,

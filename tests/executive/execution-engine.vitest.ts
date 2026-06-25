@@ -243,5 +243,39 @@ describe("ExecutionEngine", () => {
       expect(results.map(r => r.stepId)).toEqual(["step-A", "step-B", "step-C"]);
       expect(results.every(r => r.status === "completed")).toBe(true);
     });
+
+    it("records positive totalDurationMs on plan completion", async () => {
+      const plan = makePlan([
+        { id: "step-1", action: "diagnose_root_cause", stepNumber: 1 },
+      ]);
+      vi.mocked(planStore.load).mockReturnValue(plan);
+      let currentState: PlanExecutionState = makeState(["step-1"]);
+      currentState.status = "running";
+      vi.mocked(stateStore.load).mockImplementation(() => JSON.parse(JSON.stringify(currentState)));
+
+      const mockResult = {
+        outcome: "executed", newStepStatus: "completed", durationMs: 42,
+        evidenceIds: ["evt-1"], generatedArtifacts: [], warnings: [], retryable: false,
+      };
+      vi.mocked(runner.execute).mockResolvedValue(mockResult as any);
+
+      vi.mocked(stateStore.update).mockImplementation((_id, _t, mutator) => {
+        const s = JSON.parse(JSON.stringify(currentState));
+        mutator(s);
+        currentState = s;
+        return JSON.parse(JSON.stringify(s));
+      });
+
+      await engine.runReadySteps("plan-test-1");
+
+      expect(writer.recordExecutivePlanCompleted).toHaveBeenCalledWith(
+        expect.objectContaining({
+          planId: "plan-test-1",
+          totalDurationMs: expect.any(Number),
+        }),
+      );
+      const callArgs = (writer.recordExecutivePlanCompleted as any).mock.calls[0][0];
+      expect(callArgs.totalDurationMs).toBeGreaterThan(0);
+    });
   });
 });
