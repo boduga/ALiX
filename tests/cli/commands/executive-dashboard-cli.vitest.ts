@@ -29,7 +29,7 @@ afterEach(() => {
 });
 
 describe("runDashboard", () => {
-  it("renders 4 panel headers in text mode", async () => {
+  it("renders 5 panel headers in text mode", async () => {
     const log = vi.spyOn(console, "log").mockImplementation(() => {});
     const { runDashboard } = await import("../../../src/cli/commands/executive-dashboard-handler.js");
     await runDashboard([]);
@@ -39,6 +39,7 @@ describe("runDashboard", () => {
     expect(out).toContain("EXECUTIVE HEALTH SUMMARY");
     expect(out).toContain("EXECUTIVE PRIORITIES");
     expect(out).toContain("EXECUTIVE OBJECTIVES");
+    expect(out).toContain("EXECUTIVE PLAN");
   });
 
   it("emits valid JSON in --json mode", async () => {
@@ -55,6 +56,9 @@ describe("runDashboard", () => {
     expect(parsed.priority.priorities.length).toBe(8);
     expect(parsed.objectives.schemaVersion).toBe("p10.2.0");
     expect(Array.isArray(parsed.objectives.objectives)).toBe(true);
+    expect(parsed.plan.plannerVersion).toBe("1.0");
+    expect(parsed.plan.planStatus).toBe("draft");
+    expect(Array.isArray(parsed.plan.steps)).toBe(true);
   });
 
   it("respects --window flag", async () => {
@@ -65,5 +69,7 @@ describe("runDashboard", () => {
     log.mockRestore();
     const parsed = JSON.parse(out);
     expect(parsed.health.windowDays).toBe(7);
+    expect(parsed.objectives.windowDays).toBe(7);
+    expect(parsed.plan.windowDays).toBe(7);
   });
 });

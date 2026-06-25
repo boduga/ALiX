@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
 import { buildPriorityReport } from "../../executive/priority-engine.js";
 import { buildObjectiveReport } from "../../executive/objective-engine.js";
+import { buildExecutionPlan } from "../../executive/planning-engine.js";
 import { ExecutiveTrendStore } from "../../executive/trend-store.js";
 import { GovernanceStore } from "../../governance/governance-store.js";
 import { InvestigationStore } from "../../governance/investigation-store.js";
@@ -58,6 +59,9 @@ export async function runDashboard(args: string[]): Promise<void> {
   const investigations = await listCompatibleInvestigations(govStore, invStore);
   const objectiveReport = buildObjectiveReport(healthReport, priorityReport, investigations);
 
-  // Render all 4 panels
-  renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, { jsonMode });
+  // P10.2: Build objective report
+  const plan = buildExecutionPlan(objectiveReport);
+
+  // Render all 5 panels
+  renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, plan, { jsonMode });
 }

@@ -12,7 +12,7 @@
  * sentinel fails before the change can be merged.
  *
  * Rules:
- *   - One test per P10.0 executive file (10 tests total).
+ *   - One test per P10 executive file (14 tests total).
  *   - For each line, if it .includes(any forbidden substring), throw a descriptive
  *     error with file:line.
  *   - Implementer may tighten regex (e.g., require word boundary) on false positive,
@@ -42,6 +42,8 @@ const EXECUTIVE_FILES = [
   "src/cli/commands/executive-dashboard-renderer.ts",
   "src/cli/commands/executive-dashboard-handler.ts",
   "src/cli/commands/executive.ts",
+  "src/executive/planning-engine.ts",
+  "src/executive/objective-engine.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -90,7 +92,7 @@ function readSource(file: string): string {
 // Sentinel tests — one per file
 // ---------------------------------------------------------------------------
 
-describe("P10.1 executive purity sentinel", () => {
+describe("P10 executive purity sentinel", () => {
   for (const file of EXECUTIVE_FILES) {
     it(`${file} has no mutation write paths`, () => {
       // 1. Read the file. If missing, throw an error referencing the missing path.
