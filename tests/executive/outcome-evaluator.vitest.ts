@@ -192,6 +192,17 @@ describe("evaluatePlanOutcome — fail-closed guards", () => {
     expect(result.evaluationStatus).toBe("plan_not_executed");
   });
 
+  it("returns plan_not_executed when plan status is 'approved'", () => {
+    const plan = makePlan();
+    const state = makeCompletedState({ status: "approved" });
+    const baseline = makeSnapshot("2026-06-01T00:00:00.000Z", { workflow: 50 });
+    const current = makeSnapshot("2026-06-15T00:00:00.000Z", { workflow: 70 });
+
+    const result = evaluatePlanOutcome(plan, state, baseline, current);
+
+    expect(result.evaluationStatus).toBe("plan_not_executed");
+  });
+
   it("returns insufficient_data when baseline is null", () => {
     const plan = makePlan();
     const state = makeCompletedState({ status: "completed" });

@@ -140,7 +140,7 @@ function computeDelta(
 // ---------------------------------------------------------------------------
 
 const NOT_EXECUTED_STATUSES: PlanStatus[] = [
-  "draft", "running", "blocked", "cancelled", "rejected",
+  "draft", "approved", "running", "blocked", "cancelled", "rejected",
 ];
 
 // ---------------------------------------------------------------------------
