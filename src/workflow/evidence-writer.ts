@@ -98,7 +98,7 @@ export interface ExecutivePlanSavedPayload {
   planId: string;
   contentHash: string;
   stepCount: number;
-  executionId: string;
+  executionId?: string;
 }
 
 export interface ExecutivePlanApprovedPayload {
