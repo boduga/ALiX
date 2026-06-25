@@ -11,7 +11,11 @@
 import { join } from "node:path";
 import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
 import { buildPriorityReport } from "../../executive/priority-engine.js";
+import { buildObjectiveReport } from "../../executive/objective-engine.js";
 import { ExecutiveTrendStore } from "../../executive/trend-store.js";
+import { GovernanceStore } from "../../governance/governance-store.js";
+import { InvestigationStore } from "../../governance/investigation-store.js";
+import { listCompatibleInvestigations } from "../../governance/investigation-compat.js";
 import { renderExecutiveDashboard } from "./executive-dashboard-renderer.js";
 
 const EXECUTIVE_DIR = join(".alix", "executive");
@@ -48,6 +52,12 @@ export async function runDashboard(args: string[]): Promise<void> {
   // P10.1: Persist current scores as a trend snapshot for future runs
   await trendStore.save(healthReport);
 
-  // Render both reports
-  renderExecutiveDashboard(healthReport, priorityReport, { jsonMode });
+  // P10.2: Load P9.6 investigations and build objective report
+  const govStore = new GovernanceStore(join(cwd, ".alix", "governance"));
+  const invStore = new InvestigationStore(join(cwd, ".alix", "governance"));
+  const investigations = await listCompatibleInvestigations(govStore, invStore);
+  const objectiveReport = buildObjectiveReport(healthReport, priorityReport, investigations);
+
+  // Render all 4 panels
+  renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, { jsonMode });
 }

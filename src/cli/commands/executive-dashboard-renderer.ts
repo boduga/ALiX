@@ -12,11 +12,20 @@ import type {
   ExecutiveSubsystemHealth,
   ExecutiveStatus,
 } from "../../executive/executive-health.js";
+import type { ExecutiveObjectiveReport } from "../../executive/objective-engine.js";
 import type { ExecutivePriorityReport } from "../../executive/priority-engine.js";
 
 export interface RenderOptions {
   jsonMode?: boolean;
 }
+
+const RESET = "\x1b[0m";
+const BOLD = "\x1b[1m";
+const DIM = "\x1b[2m";
+const GREEN = "\x1b[32m";
+const YELLOW = "\x1b[33m";
+const RED = "\x1b[31m";
+const CYAN = "\x1b[36m";
 
 const STATUS_EMOJI: Record<ExecutiveStatus, string> = {
   healthy: "🟢",
@@ -33,10 +42,15 @@ const STATUS_LABEL: Record<ExecutiveStatus, string> = {
 export function renderExecutiveDashboard(
   report: ExecutiveHealthReport,
   priorityReport: ExecutivePriorityReport,
+  objectiveReport: ExecutiveObjectiveReport,
   opts: RenderOptions = {},
 ): void {
   if (opts.jsonMode) {
-    console.log(JSON.stringify({ health: report, priority: priorityReport }, null, 2));
+    console.log(JSON.stringify({
+      health: report,
+      priority: priorityReport,
+      objectives: objectiveReport,
+    }, null, 2));
     return;
   }
 
@@ -48,6 +62,8 @@ export function renderExecutiveDashboard(
   renderHealthSummary(report, priorityReport);
   console.log("");
   renderPriorities(priorityReport);
+  console.log("");
+  renderObjectives(objectiveReport);
   console.log("=".repeat(78));
 }
 
@@ -81,6 +97,31 @@ function renderPriorities(priorityReport: ExecutivePriorityReport): void {
     console.log(`\n  ${i + 1}. ${capitalize(entry.subsystem)}`);
     console.log(`     Score: ${entry.healthScore} | Trend: ${entry.trendScore} | Blast: ${entry.blastRadius} | Pri: ${entry.priorityScore.toFixed(1)}`);
   });
+}
+
+function renderObjectives(objectiveReport: ExecutiveObjectiveReport): void {
+  console.log(`\n[2] EXECUTIVE OBJECTIVES (${objectiveReport.objectives.length})`);
+  if (objectiveReport.objectives.length === 0) {
+    console.log("  (none)");
+    return;
+  }
+  for (const obj of objectiveReport.objectives) {
+    const typeColor = obj.objectiveType === "stabilize" ? RED
+      : obj.objectiveType === "investigate" ? YELLOW
+      : obj.objectiveType === "improve" ? CYAN
+      : GREEN;
+    const typeIcon = obj.objectiveType === "stabilize" ? "🔴"
+      : obj.objectiveType === "investigate" ? "🟡"
+      : obj.objectiveType === "improve" ? "🔵"
+      : "🟢";
+    console.log(
+      `\n  ${typeIcon} ${typeColor}${capitalize(obj.objectiveType)}${RESET}: ${obj.title}`,
+    );
+    console.log(`     Score: ${obj.objectiveScore} | Priority: ${obj.priorityScore} | Target: ${obj.targetSubsystems.join(", ")}`);
+    if (obj.supportingInvestigations.length > 0) {
+      console.log(`     Investigations: ${obj.supportingInvestigations.length} open`);
+    }
+  }
 }
 
 function pad(s: string, n: number): string {
