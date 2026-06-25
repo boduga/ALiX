@@ -118,12 +118,16 @@ tests/cli/commands/executive-plan-cli.vitest.ts   NEW
 
 ### `PersistedExecutionPlan` (immutable; plan.json)
 
+The immutable plan MUST NOT contain operational lifecycle. All execution state (status, approval, transitions, timestamps) belongs in `PlanExecutionState`. The persisted plan is the P10.3 `ExecutionPlan` shape (steps, dependencies, objectives, planner metadata) plus a content hash.
+
 ```typescript
 interface PersistedExecutionPlan extends ExecutionPlan {
   /** SHA-256 of the canonical JSON content; integrity check on read. */
   contentHash: string;
 }
 ```
+
+**Removed from persisted shape:** `planStatus` (P10.3 had this for "draft | ready | blocked"; in P10.4a it is fully derived from `PlanExecutionState.status` plus step runtime status). P10.4a's persistence layer never stores `planStatus`; if the P10.3 shape needs the field for in-memory display, derive it on read.
 
 Stored at `.alix/executive/plans/<planId>.json`. Content is byte-identical to P10.3 output. Hash is computed at write time and re-verified on load.
 
@@ -186,10 +190,15 @@ interface StepRuntimeState {
   durationMs?: number;
   evidenceIds: string[];
   summary?: string;
-  generatedArtifacts: string[];         // references to outputs
+  generatedArtifacts: GeneratedArtifactRef[];
   warnings: string[];
   /** Which executionId run last touched this step. */
   lastExecutionId?: string;
+}
+
+interface GeneratedArtifactRef {
+  type: "proposal" | "report" | "investigation" | "document" | "evidence" | "other";
+  id: string;
 }
 
 type StepRuntimeStatus =
@@ -213,6 +222,9 @@ One canonical source of truth is always better than four synchronized collection
 
 ```typescript
 interface PlanTransition {
+  /** Monotonically increasing sequence number. Starts at 1, increments per transition.
+   *  Makes replay deterministic even if timestamps collide (e.g., batched updates). */
+  sequence: number;
   from: PlanStatus;
   to: PlanStatus;
   at: string;
@@ -221,6 +233,8 @@ interface PlanTransition {
   reason?: string;
 }
 ```
+
+`sequence` is the canonical ordering key for transitions, not `at`. Consumers sorting transitions MUST sort by `sequence`.
 
 ---
 
@@ -313,7 +327,18 @@ class ExecutionEngine {
   runStep(planId: string, stepId: string): Promise<StepExecutionResult>;
 
   /** Run all currently runnable steps sequentially.
-   *  Generates ONE fresh executionId shared by all steps in the batch. */
+   *  Generates ONE fresh executionId shared by all steps in the batch.
+   *
+   *  Scheduling policy (P10.4a):
+   *    1. nextRunnableSteps() — pure DAG query
+   *    2. Sort by stepNumber ascending (display ordering, deterministic)
+   *    3. Execute ONE step at a time
+   *    4. Persist state after every step (atomic write)
+   *    5. Stop on first failed/blocked step (skip — P10.4a no failure path)
+   *    6. Return array of StepExecutionResult
+   *
+   *  Future (P10.6 or later) may introduce parallel scheduling without
+   *  changing the StepRunner interface. */
   runReadySteps(planId: string): Promise<StepExecutionResult[]>;
 }
 
@@ -343,9 +368,13 @@ interface StepRunnerResult {
 
   durationMs: number;
   summary?: string;
-  generatedArtifacts: string[];
+  generatedArtifacts: GeneratedArtifactRef[];
   evidenceIds: string[];
   warnings: string[];
+
+  /** Whether this step is retryable. P10.4a: always false (no failure path yet).
+   *  P10.4c will populate this. The field is reserved now to avoid interface churn. */
+  retryable: boolean;
 
   /** New runtime status for the step. */
   newStepStatus: StepRuntimeStatus;
@@ -377,6 +406,8 @@ interface ExecutiveCorrelation {
 ```
 
 `executionId` is generated when **any** step-execution entry point is called: `runReadySteps()`, `runStep()`, and the per-step work inside `startPlan()` (if it triggers initial step execution). Each entry point invocation generates ONE fresh `executionId` (UUID v4). All evidence events emitted during that invocation — including step events and any resulting plan-level events — share the same `executionId`. This is essential for retry tracing and for reconstructing "which run touched which steps."
+
+**Invariant: only `ExecutionEngine` may generate `executionId`.** All downstream code (`StepRunner`, `PlanApprovalGate` if it emits evidence, evidence writer helpers) receives the `executionId` as a parameter. This guarantees one scheduler invocation = one correlation context, and prevents accidental id collisions if multiple writers are added later.
 
 ---
 
@@ -469,6 +500,9 @@ alix executive plan run <planId>
 
 # Show single step result
 alix executive plan step <planId> <stepId>
+
+# Resume an interrupted plan (P10.4a: aliases `run`; reserved for P10.4c interruption support)
+alix executive plan resume <planId>
 ```
 
 **Two-gate model preserved:**
@@ -496,6 +530,8 @@ const FORBIDDEN_IN_P10_4A = [
   "ProposalStore.markOrphaned",
   "InvestigationRecommendationGenerator",   // future bridge target
   "InvestigationStore",                     // future bridge target
+  // Step-level approval machinery — P10.4a only approves whole plans
+  "ApprovalGate",
   ".approve(", ".apply(", ".reject(",
   // Outcome-recording / mutation evidence — P10.4a does not record outcomes
   "recordAdaptationApproved",
