@@ -131,7 +131,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build
+        shell: bash
+        run: npm run build
       - name: Node unit tests
         shell: bash
         run: npm run test:unit:node
