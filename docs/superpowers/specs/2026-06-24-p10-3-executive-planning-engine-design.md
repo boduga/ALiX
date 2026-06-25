@@ -67,7 +67,14 @@ export interface ExecutionStep {
   status: ExecutionStepStatus;
   /** The objective that generated this step. */
   objectiveId: string;
+  /** Copied from the originating objective's priorityScore. */
+  priorityScore: number;
+  /** Copied from the originating objective's objectiveScore. */
+  objectiveScore: number;
+  /** Risk derived from the originating objective — not hardcoded per type. */
   riskLevel: "low" | "medium" | "high";
+  /** Rough execution estimate for P10.4 scheduling. */
+  estimatedDurationMinutes?: number;
 }
 ```
 
@@ -90,30 +97,51 @@ export interface ExecutionPlan {
 }
 ```
 
-`plannerVersion` is `"1.0"`; `planningAlgorithm` is `"template-v1"`. These enable unambiguous comparison as planning heuristics evolve (template-v2, AI planner, etc).
+`plannerVersion` is a module-level constant (`PLANNER_VERSION = "1.0"`); `planningAlgorithm` is similarly a constant (`PLANNING_ALGORITHM = "template-v1"`). These enable unambiguous comparison as planning heuristics evolve (template-v2, AI planner, etc). Constants prevent drift across modules.
 
 `planStatus` defaults to `"draft"` for every P10.3 plan. P10.4 transitions it.
 `rationale` is set when there are no objectives to plan (e.g., `"No executive objectives available to plan."`).
+
+## Constants
+
+```typescript
+export const PLANNER_VERSION = "1.0";
+export const PLANNING_ALGORITHM = "template-v1";
+```
+
+Named constants avoid drift across modules and make version bumps explicit.
 
 ## Step Templates
 
 Per-objective-type step decomposition. Hardcoded switch with exhaustiveness checking.
 Each step defines both a machine `action` (P10.4 dispatches on this) and a `title` (display only).
 
-| `objectiveType` | Steps (action / title) | Risk |
-|---|---|---|
-| `stabilize` | `diagnose_root_cause` / "Diagnose root causes" | high |
-| | `create_remediation_proposal` / "Create remediation proposal" | high |
-| | `apply_remediation` / "Apply remediation" | high |
-| `investigate` | `triage_investigations` / "Triage open investigations" | medium |
-| | `assign_investigation_ownership` / "Assign investigation ownership" | medium |
-| | `resolve_investigations` / "Resolve investigations" | medium |
-| `improve` | `audit_metrics` / "Audit subsystem metrics" | low |
-| | `identify_optimization_targets` / "Identify optimization targets" | low |
-| | `implement_improvements` / "Implement improvements" | low |
-| `maintain` | `schedule_health_check` / "Schedule health check" | low |
-| | `review_baseline_metrics` / "Review baseline metrics" | low |
-| | `update_documentation` / "Update documentation" | low |
+| `objectiveType` | Steps (action / title) |
+|---|---|
+| `stabilize` | `diagnose_root_cause` / "Diagnose root causes" |
+| | `create_remediation_proposal` / "Create remediation proposal" |
+| | `apply_remediation` / "Apply remediation" |
+| `investigate` | `triage_investigations` / "Triage open investigations" |
+| | `assign_investigation_ownership` / "Assign investigation ownership" |
+| | `resolve_investigations` / "Resolve investigations" |
+| `improve` | `audit_metrics` / "Audit subsystem metrics" |
+| | `identify_optimization_targets` / "Identify optimization targets" |
+| | `implement_improvements` / "Implement improvements" |
+| `maintain` | `schedule_health_check` / "Schedule health check" |
+| | `review_baseline_metrics` / "Review baseline metrics" |
+| | `update_documentation` / "Update documentation" |
+
+### Risk level derivation
+
+`riskLevel` is derived from the objective's scores — not hardcoded per type:
+
+| `priorityScore` or `objectiveScore` | `riskLevel` |
+|---|---|
+| ≥ 70 | `high` |
+| ≥ 40 | `medium` |
+| < 40 | `low` |
+
+This keeps one source of truth. If P10.2 later produces a high-scoring `improve` objective, P10.3 correctly assigns `high` risk instead of silently defaulting to `low`.
 
 When an objective targets multiple subsystems (`targetSubsystems.length > 1`), one step sequence is generated per subsystem. Each sequence gets its own `stepNumber` range and points back to the same `objectiveId`.
 
@@ -124,8 +152,8 @@ The switch has a `default` branch with `assertNever(obj.objectiveType)` to catch
 Rules are declared as data, not embedded in code:
 
 ```typescript
-/** Action → actions it blocks on the same subsystem. */
-const SUBSYSTEM_DEPENDENCY_RULES: Record<string, string[]> = {
+/** Action → actions it blocks on the same subsystem. Typed for compile-time safety. */
+const SUBSYSTEM_DEPENDENCY_RULES: Partial<Record<ExecutionStepAction, ExecutionStepAction[]>> = {
   apply_remediation: ["implement_improvements", "review_baseline_metrics"],
 };
 ```
@@ -155,6 +183,11 @@ export function buildExecutionPlan(
 - Step numbering is **1-based**.
 - `generatedAt` inherited from `objectiveReport.generatedAt`.
 - `windowDays` inherited from `objectiveReport.windowDays`.
+- `plannerVersion` uses the module constant `PLANNER_VERSION`.
+- `planningAlgorithm` uses the module constant `PLANNING_ALGORITHM`.
+- Each step copies `priorityScore` and `objectiveScore` from its originating objective.
+- `riskLevel` is derived from the objective's scores (see derivation table above).
+- `estimatedDurationMinutes` is a per-action default (e.g., `diagnose_root_cause` → 30, `apply_remediation` → 60, `audit_metrics` → 15). Exact values defined as a lookup table in the generator.
 
 ## Integration
 
