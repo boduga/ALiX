@@ -21,7 +21,12 @@
 - Multi-subsystem objectives produce one step sequence per subsystem
 - `generatedAt` inherited from objective report
 - `plannerVersion` and `planningAlgorithm` use module-level constants
-- The `buildStepsForObjective` switch MUST have a `default` with `assertNever()` for compile-time exhaustiveness
+- The `buildStepsForObjective` switch MUST have a `default` with `assertNever()` for both compile-time exhaustiveness and runtime protection against malformed data
+- Step IDs are deterministic — derived from `{objectiveId}-{subsystem}-{action}` (no `Math.random()`)
+- `ESTIMATED_DURATION_MINUTES` is exported as a public constant for P10.4 reuse
+- `SUBSYSTEM_DEPENDENCY_RULES` is immutable (`Object.freeze` + `Readonly` deep type)
+- View-model helpers (`groupStepsBySubsystem`, `buildStepNumberIndex`) live in `planning-engine.ts`, not the renderer
+- After dependency resolution, steps are explicitly sorted by `targetSubsystem` then `stepNumber` for deterministic output
 - All functions return new objects — never mutate inputs
 
 ---
@@ -75,14 +80,25 @@ describe("riskLevelFromScore", () => {
 });
 
 describe("buildStepsForObjective", () => {
-  it("returns 3 steps for stabilize objective", () => {
-    const obj = {
+  function makeObj(overrides: Partial<{
+    id: string;
+    objectiveType: "stabilize" | "investigate" | "improve" | "maintain";
+    targetSubsystems: string[];
+    priorityScore: number;
+    objectiveScore: number;
+  }> = {}): Parameters<typeof buildStepsForObjective>[0] {
+    return {
       id: "obj-1",
-      objectiveType: "stabilize" as const,
+      objectiveType: "stabilize",
       targetSubsystems: ["governance"],
       priorityScore: 65,
       objectiveScore: 42,
-    } as any;
+      ...overrides,
+    };
+  }
+
+  it("returns 3 steps for stabilize objective", () => {
+    const obj = makeObj({ objectiveType: "stabilize" });
     const steps = buildStepsForObjective(obj, "governance", 1);
     expect(steps).toHaveLength(3);
     expect(steps[0].action).toBe("diagnose_root_cause");
@@ -91,13 +107,7 @@ describe("buildStepsForObjective", () => {
   });
 
   it("returns 3 steps for investigate objective", () => {
-    const obj = {
-      id: "obj-2",
-      objectiveType: "investigate" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 40,
-      objectiveScore: 30,
-    } as any;
+    const obj = makeObj({ objectiveType: "investigate", priorityScore: 40, objectiveScore: 30 });
     const steps = buildStepsForObjective(obj, "governance", 4);
     expect(steps).toHaveLength(3);
     expect(steps[0].action).toBe("triage_investigations");
@@ -106,39 +116,21 @@ describe("buildStepsForObjective", () => {
   });
 
   it("returns 3 steps for improve objective", () => {
-    const obj = {
-      id: "obj-3",
-      objectiveType: "improve" as const,
-      targetSubsystems: ["learning"],
-      priorityScore: 30,
-      objectiveScore: 25,
-    } as any;
+    const obj = makeObj({ objectiveType: "improve", targetSubsystems: ["learning"], priorityScore: 30, objectiveScore: 25 });
     const steps = buildStepsForObjective(obj, "learning", 7);
     expect(steps).toHaveLength(3);
     expect(steps[0].action).toBe("audit_metrics");
   });
 
   it("returns 3 steps for maintain objective", () => {
-    const obj = {
-      id: "obj-4",
-      objectiveType: "maintain" as const,
-      targetSubsystems: ["security"],
-      priorityScore: 20,
-      objectiveScore: 15,
-    } as any;
+    const obj = makeObj({ objectiveType: "maintain", targetSubsystems: ["security"], priorityScore: 20, objectiveScore: 15 });
     const steps = buildStepsForObjective(obj, "security", 10);
     expect(steps).toHaveLength(3);
     expect(steps[0].action).toBe("schedule_health_check");
   });
 
   it("sets stepNumber starting from the given startAt (1-based)", () => {
-    const obj = {
-      id: "obj-1",
-      objectiveType: "stabilize" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 65,
-      objectiveScore: 42,
-    } as any;
+    const obj = makeObj();
     const steps = buildStepsForObjective(obj, "governance", 5);
     expect(steps[0].stepNumber).toBe(5);
     expect(steps[1].stepNumber).toBe(6);
@@ -146,13 +138,7 @@ describe("buildStepsForObjective", () => {
   });
 
   it("copies priorityScore and objectiveScore from objective", () => {
-    const obj = {
-      id: "obj-1",
-      objectiveType: "stabilize" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 65,
-      objectiveScore: 42,
-    } as any;
+    const obj = makeObj();
     const steps = buildStepsForObjective(obj, "governance", 1);
     for (const s of steps) {
       expect(s.priorityScore).toBe(65);
@@ -161,14 +147,7 @@ describe("buildStepsForObjective", () => {
   });
 
   it("derives riskLevel from objective scores", () => {
-    // priorityScore=65, objectiveScore=42 → max=65 ≥ 40 → medium
-    const obj = {
-      id: "obj-1",
-      objectiveType: "stabilize" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 65,
-      objectiveScore: 42,
-    } as any;
+    const obj = makeObj();
     const steps = buildStepsForObjective(obj, "governance", 1);
     for (const s of steps) {
       expect(s.riskLevel).toBe("medium");
@@ -176,13 +155,7 @@ describe("buildStepsForObjective", () => {
   });
 
   it("sets objectiveId to the originating objective's id", () => {
-    const obj = {
-      id: "obj-abc",
-      objectiveType: "stabilize" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 65,
-      objectiveScore: 42,
-    } as any;
+    const obj = makeObj({ id: "obj-abc" });
     const steps = buildStepsForObjective(obj, "governance", 1);
     for (const s of steps) {
       expect(s.objectiveId).toBe("obj-abc");
@@ -190,26 +163,16 @@ describe("buildStepsForObjective", () => {
   });
 
   it("generates unique step IDs", () => {
-    const obj = {
-      id: "obj-1",
-      objectiveType: "stabilize" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 65,
-      objectiveScore: 42,
-    } as any;
+    const obj = makeObj();
     const steps = buildStepsForObjective(obj, "governance", 1);
     const ids = steps.map(s => s.id);
+    // IDs are deterministic: step-{obj.id}-{subsystem}-{action}
     expect(new Set(ids).size).toBe(3);
+    expect(ids[0]).toBe("step-obj-1-governance-diagnose_root_cause");
   });
 
   it("sets intra-objective dependsOn for sequential steps", () => {
-    const obj = {
-      id: "obj-1",
-      objectiveType: "stabilize" as const,
-      targetSubsystems: ["governance"],
-      priorityScore: 65,
-      objectiveScore: 42,
-    } as any;
+    const obj = makeObj();
     const steps = buildStepsForObjective(obj, "governance", 1);
     // Step 1 has no dependsOn, Step 2 depends on Step 1's id, Step 3 depends on Step 2's id
     expect(steps[0].dependsOn).toEqual([]);
@@ -254,8 +217,8 @@ import type { ExecutiveObjectiveReport, ExecutiveObjective } from "./objective-e
 export const PLANNER_VERSION = "1.0";
 export const PLANNING_ALGORITHM = "template-v1";
 
-/** Per-action default durations (minutes). */
-const ESTIMATED_DURATION_MINUTES: Partial<Record<ExecutionStepAction, number>> = {
+/** Per-action default durations (minutes). Exported for P10.4 reuse. */
+export const ESTIMATED_DURATION_MINUTES: Partial<Record<ExecutionStepAction, number>> = {
   diagnose_root_cause: 30,
   create_remediation_proposal: 45,
   apply_remediation: 60,
@@ -337,10 +300,21 @@ export interface ExecutionPlan {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function shortId(prefix: string): string {
-  const rand = Math.random().toString(36).slice(2, 8);
+/** Deterministic step ID — enables cross-run comparison. */
+function makeStepId(objectiveId: string, subsystem: string, action: string): string {
+  return `step-${objectiveId}-${subsystem}-${action}`;
+}
+
+/** Plan ID (timestamp-based for uniqueness — plans are not compared across runs). */
+function planId(): string {
   const ts = Date.now().toString(36).slice(-6);
-  return `${prefix}-${ts}-${rand}`;
+  const rand = Math.random().toString(36).slice(2, 6);
+  return `plan-${ts}-${rand}`;
+}
+
+/** Exhaustiveness guard — compile-time + runtime protection for discriminated unions. */
+function assertNever(value: never, message?: string): never {
+  throw new Error(message ?? `Unexpected value: ${value}`);
 }
 
 export function riskLevelFromScore(priorityScore: number, objectiveScore: number): "low" | "medium" | "high" {
@@ -359,8 +333,7 @@ function makeStep(
   dependsOn: string[],
 ): ExecutionStep {
   return {
-    id: shortId("step"),
-    action,
+    id: makeStepId(obj.id, subsystem, action),
     title,
     stepNumber,
     targetSubsystem: subsystem,
@@ -431,11 +404,16 @@ export function buildStepsForObjective(
         if (idx === 0) return step;
         return { ...step, dependsOn: [arr[idx - 1].id] };
       });
+
+    default:
+      return assertNever(obj.objectiveType, `Unknown objective type: ${obj.objectiveType}`);
   }
 }
 ```
 
-Copy the above code exactly. Note: `buildStepsForObjective` does NOT have a `default` case — TypeScript's `switch` on a union type with an explicit `"stabilize" | "investigate" | "improve" | "maintain"` exhaustively covers all variants. If a new variant is added without a corresponding case, TypeScript produces a compile error because the return type isn't satisfied. This is the idiomatic exhaustiveness pattern in this codebase.
+The `default` case with `assertNever()` provides both compile-time exhaustiveness (TypeScript errors because `assertNever` expects `never`) and runtime protection against malformed data.
+
+Copy the above code exactly.
 
 - [ ] **Step 4: Run tests to verify they pass**
 
@@ -470,6 +448,7 @@ Append these to the existing test file:
 
 ```typescript
 import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/executive/planning-engine.js";
+import type { ExecutiveSubsystemName } from "../../src/executive/executive-health.js";
 import type { ExecutiveObjectiveReport } from "../../src/executive/objective-engine.js";
 
 describe("SUBSYSTEM_DEPENDENCY_RULES", () => {
@@ -483,13 +462,13 @@ describe("resolveLocalDependencies", () => {
   it("adds dependency when a blocking step precedes a blocked step on the same subsystem", () => {
     const blocker = {
       id: "s1", action: "apply_remediation" as const, title: "Apply remediation",
-      stepNumber: 3, targetSubsystem: "governance" as any, dependsOn: [] as string[],
+      stepNumber: 3, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
       status: "pending" as const, objectiveId: "o1", priorityScore: 65, objectiveScore: 42,
       riskLevel: "high" as const,
     };
     const blocked = {
       id: "s2", action: "implement_improvements" as const, title: "Implement improvements",
-      stepNumber: 4, targetSubsystem: "governance" as any, dependsOn: [] as string[],
+      stepNumber: 4, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
       status: "pending" as const, objectiveId: "o2", priorityScore: 30, objectiveScore: 20,
       riskLevel: "low" as const,
     };
@@ -500,13 +479,13 @@ describe("resolveLocalDependencies", () => {
   it("does NOT add dependency for cross-subsystem steps", () => {
     const blocker = {
       id: "s1", action: "apply_remediation" as const, title: "Apply remediation",
-      stepNumber: 3, targetSubsystem: "governance" as any, dependsOn: [] as string[],
+      stepNumber: 3, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
       status: "pending" as const, objectiveId: "o1", priorityScore: 65, objectiveScore: 42,
       riskLevel: "high" as const,
     };
     const blocked = {
       id: "s2", action: "implement_improvements" as const, title: "Implement improvements",
-      stepNumber: 4, targetSubsystem: "memory" as any, dependsOn: [] as string[],
+      stepNumber: 4, targetSubsystem: "memory" as ExecutiveSubsystemName, dependsOn: [] as string[],
       status: "pending" as const, objectiveId: "o2", priorityScore: 30, objectiveScore: 20,
       riskLevel: "low" as const,
     };
@@ -517,13 +496,13 @@ describe("resolveLocalDependencies", () => {
   it("does NOT mutate input steps", () => {
     const blocker = {
       id: "s1", action: "apply_remediation" as const, title: "Apply remediation",
-      stepNumber: 3, targetSubsystem: "governance" as any, dependsOn: [] as string[],
+      stepNumber: 3, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
       status: "pending" as const, objectiveId: "o1", priorityScore: 65, objectiveScore: 42,
       riskLevel: "high" as const,
     };
     const blocked = {
       id: "s2", action: "implement_improvements" as const, title: "Implement improvements",
-      stepNumber: 4, targetSubsystem: "governance" as any, dependsOn: [] as string[],
+      stepNumber: 4, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
       status: "pending" as const, objectiveId: "o2", priorityScore: 30, objectiveScore: 20,
       riskLevel: "low" as const,
     };
@@ -661,9 +640,9 @@ Append to `src/executive/planning-engine.ts` (before the closing of the file):
 // ---------------------------------------------------------------------------
 
 /** Action → actions it blocks on the same subsystem. Typed for compile-time safety. */
-export const SUBSYSTEM_DEPENDENCY_RULES: Partial<Record<ExecutionStepAction, ExecutionStepAction[]>> = {
+export const SUBSYSTEM_DEPENDENCY_RULES: Readonly<Partial<Record<ExecutionStepAction, Readonly<ExecutionStepAction[]>>>> = Object.freeze({
   apply_remediation: ["implement_improvements", "review_baseline_metrics"],
-};
+});
 
 /**
  * Resolve subsystem-local dependencies between steps.
@@ -698,6 +677,29 @@ export function resolveLocalDependencies(steps: ExecutionStep[]): ExecutionStep[
   }
 
   return updated;
+}
+
+// ---------------------------------------------------------------------------
+// View-model helpers (consumed by the renderer — keeps presentation logic
+// out of the UI layer)
+// ---------------------------------------------------------------------------
+
+export function groupStepsBySubsystem(steps: ExecutionStep[]): Map<ExecutiveSubsystemName, ExecutionStep[]> {
+  const map = new Map<ExecutiveSubsystemName, ExecutionStep[]>();
+  for (const step of steps) {
+    const group = map.get(step.targetSubsystem) ?? [];
+    group.push(step);
+    map.set(step.targetSubsystem, group);
+  }
+  return map;
+}
+
+export function buildStepNumberIndex(steps: ExecutionStep[]): ReadonlyMap<string, number> {
+  const map = new Map<string, number>();
+  for (const step of steps) {
+    map.set(step.id, step.stepNumber);
+  }
+  return map;
 }
 
 // ---------------------------------------------------------------------------
@@ -743,7 +745,12 @@ export function buildExecutionPlan(
     }
   }
 
-  const resolvedSteps = resolveLocalDependencies(steps);
+  const resolvedSteps = resolveLocalDependencies(steps)
+    .sort((a, b) => {
+      if (a.targetSubsystem < b.targetSubsystem) return -1;
+      if (a.targetSubsystem > b.targetSubsystem) return 1;
+      return a.stepNumber - b.stepNumber;
+    });
 
   return {
     id: shortId("plan"),
@@ -886,6 +893,7 @@ In `src/cli/commands/executive-dashboard-renderer.ts`:
 Add import:
 ```typescript
 import type { ExecutionPlan, ExecutionStep } from "../../executive/planning-engine.js";
+import { groupStepsBySubsystem, buildStepNumberIndex } from "../../executive/planning-engine.js";
 ```
 
 Update `renderExecutiveDashboard` function signature (add `plan` parameter):
@@ -929,19 +937,10 @@ function renderPlan(plan: ExecutionPlan): void {
   }
   console.log(`  Plan Status: ${plan.planStatus}`);
 
-  // Group steps by subsystem
-  const bySubsystem = new Map<string, ExecutionStep[]>();
-  for (const step of plan.steps) {
-    const group = bySubsystem.get(step.targetSubsystem) ?? [];
-    group.push(step);
-    bySubsystem.set(step.targetSubsystem, group);
-  }
-
-  // Build stepNumber → id mapping for human-readable dependency display
-  const idToStepNum = new Map<string, number>();
-  for (const step of plan.steps) {
-    idToStepNum.set(step.id, step.stepNumber);
-  }
+  // Group steps by subsystem and build ID→stepNumber index
+  // (view-model helpers from planning-engine keep presentation logic out of the renderer)
+  const bySubsystem = groupStepsBySubsystem(plan.steps);
+  const idToStepNum = buildStepNumberIndex(plan.steps);
 
   for (const [subsystem, steps] of bySubsystem) {
     console.log(`\n  ${capitalize(subsystem)}: (${steps.length} steps)`);
