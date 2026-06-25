@@ -210,6 +210,10 @@ describe("OutcomeStore", () => {
 
   describe("queryByWindow", () => {
     beforeEach(async () => {
+      // Use fake timers so "now" is a frozen instant, avoiding a race
+      // between record creation and query when window=0.
+      vi.useFakeTimers({ now: new Date("2026-06-22T12:00:00.000Z") });
+
       // Record from 10 days ago
       const tenDaysAgo = new Date();
       tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
@@ -230,13 +234,17 @@ describe("OutcomeStore", () => {
         }),
       );
 
-      // Record from right now
+      // Record from right now (frozen by fake timers)
       await store.append(
         sampleRecord({
           id: "now",
           generatedAt: new Date().toISOString(),
         }),
       );
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
     });
 
     it("returns records within the given window", async () => {
@@ -254,9 +262,9 @@ describe("OutcomeStore", () => {
     });
 
     it("excludes all records with a very small window", async () => {
-      // Window of 0 days — only records generated right at/after "now" qualify.
-      // In practice "now" is generated milliseconds ago so a 0-day window
-      // should still include it.
+      // Window of 0 days — only records generated right at/after the query
+      // time qualify.  Frozen fake timers guarantee "now" matches the query
+      // instant so this is deterministic.
       const results = await store.queryByWindow(0);
       const ids = results.map((r) => r.id);
       expect(ids).toContain("now");

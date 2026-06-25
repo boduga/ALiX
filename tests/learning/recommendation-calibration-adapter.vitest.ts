@@ -1,7 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+
+/** Repo root resolved from test file location (before cwd mock). */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
 import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
 import { RecommendationCalibrationAdapter } from "../../src/learning/recommendation-calibration-adapter.js";
@@ -155,7 +159,7 @@ describe("RecommendationCalibrationAdapter", () => {
     // Read the adapter source as text and assert no forbidden import.
     const { readFileSync: rfs } = await import("node:fs");
     const src = rfs(
-      "/home/babasola/Projects/Monolith/src/learning/recommendation-calibration-adapter.ts",
+      `${REPO_ROOT}/src/learning/recommendation-calibration-adapter.ts`,
       "utf-8",
     );
     const importLines = src.split("\n").filter((l) => l.trim().startsWith("import"));

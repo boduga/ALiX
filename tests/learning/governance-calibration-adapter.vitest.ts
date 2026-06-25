@@ -13,8 +13,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+
+/** Repo root resolved from test file location (before cwd mock). */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 import { GovernanceReviewStore } from "../../src/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
@@ -249,7 +253,7 @@ describe("GovernanceCalibrationAdapter", () => {
 
   it("is pure: adapter file does NOT import any mutation surface", async () => {
     const src = readFileSync(
-      "/home/babasola/Projects/Monolith/src/learning/governance-calibration-adapter.ts",
+      `${REPO_ROOT}/src/learning/governance-calibration-adapter.ts`,
       "utf-8",
     );
     const importLines = src
