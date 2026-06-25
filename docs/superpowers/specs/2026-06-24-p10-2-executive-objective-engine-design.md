@@ -12,7 +12,7 @@
 **P9.6 answers:** What requires investigation?
 **P10.2 answers:** What should ALiX accomplish next?
 
-P10.2 generates strategic objectives — not mutations, not patches, not configuration changes. An `ExecutiveObjective` is a durable strategic artifact that P10.3 (Planning), P10.4 (Execution), and P10.5 (Review) consume without schema redesign.
+P10.2 generates strategic objectives — not mutations, not patches, not configuration changes. An `ExecutiveObjective` is a durable strategic **contract** that P10.3 (Planning), P10.4 (Execution), and P10.5 (Review) consume without schema redesign. However, P10.2 **reports** are computed ephemerally each dashboard run — persistence begins in P10.3 when plans need stable objective IDs.
 
 ## Layer stack
 
@@ -85,7 +85,7 @@ export interface ExecutiveObjective {
 
   /** Explicit provenance — for explainability. */
   derivedFrom: {
-    priorityReportId: string;
+    priorityReportGeneratedAt: string;  // P10.1 reports are ephemeral; generatedAt is the authoritative key
     investigationIds: string[];
   };
 
@@ -103,6 +103,10 @@ Objective
               └── came from
                     └── Executive Health (P10.0)
 ```
+
+### Timestamp rule
+
+`generatedAt` on the `ExecutiveObjectiveReport` must be inherited from the health report timestamp (`healthReport.generatedAt`), not a fresh `new Date()` inside the objective engine. This ensures all four dashboard reports share the same generation timestamp.
 
 ## Invariant: at most one objective per subsystem
 
