@@ -20,8 +20,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+
+/** Repo root resolved from test file location (before cwd mock). */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
 import { OutcomeStore } from "../../src/adaptation/outcome-store.js";
 import type { OutcomeRecord } from "../../src/adaptation/outcome-types.js";
@@ -394,7 +398,7 @@ describe("runLearningRefresh orchestrator", () => {
     // adapter-purity-sentinels.vitest.ts. Here we assert the orchestrator
     // file IS allowed to mention LearningStore.
     const src = readFileSync(
-      "/home/babasola/Projects/Monolith/src/learning/learning-refresh.ts",
+      `${REPO_ROOT}/src/learning/learning-refresh.ts`,
       "utf-8",
     );
     const importLines = src

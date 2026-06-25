@@ -65,6 +65,7 @@ jobs:
       - name: Node unit tests
         run: npm run test:unit:node
       - name: Vitest
+        if: always()
         run: npm run test:vitest
 
   # ─── Lane 3: Integration + Soak Tier 1 + Doctor ───────────────────────
@@ -131,7 +132,9 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build
+        shell: bash
+        run: npm run build
       - name: Node unit tests
         shell: bash
         run: npm run test:unit:node

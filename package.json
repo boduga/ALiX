@@ -37,7 +37,7 @@
     "test:node": "node --test --test-timeout=30000 dist/tests/*.test.js dist/tests/**/*.test.js",
     "test:unit:node": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' ! -path 'dist/tests/pty/*' ! -path 'dist/tests/soak/*' ! -path 'dist/tests/integration/*' ! -path 'dist/tests/cli/commands/skills/*' ! -path 'dist/tests/tests/*' -print0 | xargs -0 node --test --test-timeout=30000",
     "test:integration": "node --test --test-concurrency=1 dist/tests/integration/*.test.js",
-    "test:vitest": "npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
+    "test:vitest": "npx vitest run --config vitest.config.mts",
     "test:manual": "node --test --test-concurrency=1 dist/tests/manual/suite-*.test.js",
     "test:coverage": "c8 node --test dist/tests/*.test.js dist/tests/**/*.test.js && c8 npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
     "coverage:report": "c8 report --reporter=text-summary",

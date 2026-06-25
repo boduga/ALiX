@@ -72,7 +72,17 @@ export type EvidenceType =
   | "governance_approval_decision"
   | "governance_orphan_cleaned"
   // P9.4a governance mutation applied
-  | "governance_mutation_applied";
+  | "governance_mutation_applied"
+  // P10.4a executive execution events
+  | "executive_plan_saved"
+  | "executive_plan_approved"
+  | "executive_plan_rejected"
+  | "executive_plan_started"
+  | "executive_step_executed"
+  | "executive_step_intent_recorded"
+  | "executive_step_blocked"
+  | "executive_plan_completed"
+  | "executive_plan_failed";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -120,6 +130,16 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "governance_approval_decision",
   "governance_orphan_cleaned",
   "governance_mutation_applied",
+  // P10.4a executive execution events
+  "executive_plan_saved",
+  "executive_plan_approved",
+  "executive_plan_rejected",
+  "executive_plan_started",
+  "executive_step_executed",
+  "executive_step_intent_recorded",
+  "executive_step_blocked",
+  "executive_plan_completed",
+  "executive_plan_failed",
 ]);
 
 // ---------------------------------------------------------------------------

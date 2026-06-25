@@ -8,8 +8,12 @@
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, rmSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { join, resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir } from "node:os";
+
+/** Repo root resolved from test file location (before cwd mock). */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 import { RiskScoreStore } from "../../src/adaptation/risk-score-store.js";
 import type { RiskScore } from "../../src/adaptation/risk-score-types.js";
 import { RISK_DIMENSIONS } from "../../src/adaptation/risk-score-types.js";
@@ -267,7 +271,7 @@ describe("RiskCalibrationAdapter", () => {
     // Static assertion: adapter file imports do NOT mention forbidden
     // mutation surfaces or recommendation substrate.
     const src = readFileSync(
-      "/home/babasola/Projects/Monolith/src/learning/risk-calibration-adapter.ts",
+      `${REPO_ROOT}/src/learning/risk-calibration-adapter.ts`,
       "utf-8",
     );
     const importLines = src

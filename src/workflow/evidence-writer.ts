@@ -91,6 +91,72 @@ export interface WorkflowAbortedPayload {
 }
 
 // ---------------------------------------------------------------------------
+// Executive execution events (P10.4a)
+// ---------------------------------------------------------------------------
+
+export interface ExecutivePlanSavedPayload {
+  planId: string;
+  contentHash: string;
+  stepCount: number;
+  executionId?: string;
+}
+
+export interface ExecutivePlanApprovedPayload {
+  planId: string;
+  approvedBy: string;
+  executionId: string;
+}
+
+export interface ExecutivePlanRejectedPayload {
+  planId: string;
+  rejectedBy: string;
+  reason: string;
+  executionId: string;
+}
+
+export interface ExecutivePlanStartedPayload {
+  planId: string;
+  runnableStepCount: number;
+  executionId: string;
+}
+
+export interface ExecutiveStepExecutedPayload {
+  planId: string;
+  stepId: string;
+  action: string;
+  durationMs: number;
+  summary?: string;
+  executionId: string;
+}
+
+export interface ExecutiveStepIntentRecordedPayload {
+  planId: string;
+  stepId: string;
+  action: string;
+  behaviorClass: string;
+  executionId: string;
+}
+
+export interface ExecutiveStepBlockedPayload {
+  planId: string;
+  stepId: string;
+  blockedBy: string[];
+  executionId: string;
+}
+
+export interface ExecutivePlanCompletedPayload {
+  planId: string;
+  totalDurationMs: number;
+  executionId: string;
+}
+
+export interface ExecutivePlanFailedPayload {
+  planId: string;
+  reason: string;
+  executionId: string;
+}
+
+// ---------------------------------------------------------------------------
 // EvidenceEventWriter
 // ---------------------------------------------------------------------------
 
@@ -540,6 +606,64 @@ export class EvidenceEventWriter {
     },
   ): Promise<EvidenceRecord | null> {
     return this.appendEvent("governance_mutation_applied", { proposalId, ...payload });
+  }
+
+  // -----------------------------------------------------------------------
+  // Executive execution events (P10.4a)
+  // -----------------------------------------------------------------------
+
+  async recordExecutivePlanSaved(
+    payload: ExecutivePlanSavedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_plan_saved", { ...payload });
+  }
+
+  async recordExecutivePlanApproved(
+    payload: ExecutivePlanApprovedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_plan_approved", { ...payload });
+  }
+
+  async recordExecutivePlanRejected(
+    payload: ExecutivePlanRejectedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_plan_rejected", { ...payload });
+  }
+
+  async recordExecutivePlanStarted(
+    payload: ExecutivePlanStartedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_plan_started", { ...payload });
+  }
+
+  async recordExecutiveStepExecuted(
+    payload: ExecutiveStepExecutedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_executed", { ...payload });
+  }
+
+  async recordExecutiveStepIntentRecorded(
+    payload: ExecutiveStepIntentRecordedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_intent_recorded", { ...payload });
+  }
+
+  async recordExecutiveStepBlocked(
+    payload: ExecutiveStepBlockedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_blocked", { ...payload });
+  }
+
+  async recordExecutivePlanCompleted(
+    payload: ExecutivePlanCompletedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_plan_completed", { ...payload });
+  }
+
+  async recordExecutivePlanFailed(
+    payload: ExecutivePlanFailedPayload,
+  ): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_plan_failed", { ...payload });
   }
 
   // -----------------------------------------------------------------------

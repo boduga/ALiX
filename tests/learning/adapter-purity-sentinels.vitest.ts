@@ -13,7 +13,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 
-const REPO_ROOT = "/home/babasola/Projects/Monolith";
+const REPO_ROOT = process.cwd();
 
 const ADAPTER_FILES = [
   "src/learning/recommendation-calibration-adapter.ts",

@@ -19,8 +19,16 @@ import { readdirSync, readFileSync as readFileRecursive } from "node:fs";
 import { statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
 import { execSync } from "node:child_process";
 import { handleDecisionCommand } from "../../../src/cli/commands/decision.js";
+
+/**
+ * Repo root resolved from this test file's location (tests/cli/commands/).
+ * Captured at module load time — before beforeEach mocks process.cwd().
+ */
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 import { GovernanceReviewStore } from "../../../src/adaptation/governance-review-store.js";
 import type {
   GovernanceReview,
@@ -187,7 +195,7 @@ describe("P8.5a.2c — lens_scores_not_persisted sentinel retired", () => {
   });
 
   it("grep confirms 'lens_scores_not_persisted' no longer appears anywhere in src/", () => {
-    const repoRoot = "/home/babasola/Projects/Monolith";
+    const repoRoot = REPO_ROOT;
     const srcFiles = walkTsFiles(join(repoRoot, "src"));
 
     let hits = 0;
@@ -201,7 +209,7 @@ describe("P8.5a.2c — lens_scores_not_persisted sentinel retired", () => {
   });
 
   it("grep confirms 'lens_scores_not_persisted' no longer appears anywhere in tests/ (excluding this file)", () => {
-    const repoRoot = "/home/babasola/Projects/Monolith";
+    const repoRoot = REPO_ROOT;
     const testFiles = walkTsFiles(join(repoRoot, "tests")).filter(
       (f) => !f.endsWith("governance-sentinel-retired.vitest.ts"),
     );
@@ -223,7 +231,7 @@ describe("P8.5a.2c — lens_scores_not_persisted sentinel retired", () => {
     try {
       stdout = execSync(
         'grep -rn --exclude="governance-sentinel-retired.vitest.ts" "lens_scores_not_persisted" src/ tests/ || true',
-        { cwd: "/home/babasola/Projects/Monolith" },
+        { cwd: REPO_ROOT },
       ).toString();
     } catch {
       stdout = "";
