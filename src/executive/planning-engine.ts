@@ -2,7 +2,7 @@
  * P10.3 — Executive Planning Engine.
  *
  * Pure function layer that consumes P10.2 Executive Objectives and produces
- * ordered execution plans without dependency resolution.
+ * ordered execution plans.
  *
  * Core invariants:
  *  - No store access — plans computed fresh each dashboard run.

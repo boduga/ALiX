@@ -59,9 +59,9 @@ export async function runDashboard(args: string[]): Promise<void> {
   const investigations = await listCompatibleInvestigations(govStore, invStore);
   const objectiveReport = buildObjectiveReport(healthReport, priorityReport, investigations);
 
-  // P10.3: Build execution plan
+  // P10.2: Build objective report
   const plan = buildExecutionPlan(objectiveReport);
 
-  // Render all 4 panels
+  // Render all 5 panels
   renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, plan, { jsonMode });
 }

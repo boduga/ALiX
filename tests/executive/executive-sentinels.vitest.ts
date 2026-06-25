@@ -43,6 +43,7 @@ const EXECUTIVE_FILES = [
   "src/cli/commands/executive-dashboard-handler.ts",
   "src/cli/commands/executive.ts",
   "src/executive/planning-engine.ts",
+  "src/executive/objective-engine.ts",
 ];
 
 // ---------------------------------------------------------------------------
