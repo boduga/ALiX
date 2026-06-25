@@ -204,7 +204,7 @@ The warning-on-failure approach (rather than a permanent `failed` status) gives 
 
 ## Evidence contract
 
-Three new evidence event types, all under the existing `EvidenceEventWriter`:
+Two new evidence event types, all under the existing `EvidenceEventWriter`:
 
 | Event type | When recorded | Payload |
 |---|---|---|
@@ -213,7 +213,7 @@ Three new evidence event types, all under the existing `EvidenceEventWriter`:
 
 Note: `executive_step_bridge_skipped_duplicate` was considered for the idempotent path but rejected — repeated `runReadySteps()` calls would spam audit logs. Duplicate encounter is silent (no evidence).
 
-The fourth event, `executive_step_bridge_purged`, is **deferred to P10.4c**. It is conceptually the "this bridged proposal was applied" event, but P10.4b has no apply path. Listing it here would be reserving semantics for a future phase that hasn't designed its own contract yet — defer it.
+The third event, `executive_step_bridge_purged`, is **deferred to P10.4c**. It is conceptually the "this bridged proposal was applied" event, but P10.4b has no apply path. Listing it here would be reserving semantics for a future phase that hasn't designed its own contract yet — defer it.
 
 ---
 
@@ -237,7 +237,6 @@ tests/executive/executive-sentinels.vitest.ts                  (+1: add executiv
 
 - `src/executive/step-runner.ts` — unchanged. Engine owns the bridge write.
 - `src/executive/executive-plan-types.ts` — unchanged. No new `StepRuntimeStatus`. Derived readiness is a CLI view.
-- `src/adaptation/adaptation-types.ts` — additive only. No renamed, removed, or shape-changed members.
 
 ---
 
@@ -364,4 +363,4 @@ Under ADR-0004's three-class mutation taxonomy:
 - **Forbidden:** rename, delete, change, optional → required, change discriminator value. ✓ none of these.
 - **Requires new ADR:** breaking shape evolution, contract migration. ✓ none.
 
-SDS present (this document). Plan will be written before implementation. Sentinel enumerates the new members. The protected-type sentinel in `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` asserts both additions are present (catches accidental removal) and that no other `ProposalAction` value is silently added elsewhere (catches undocumented additions).
+SDS present (this document). Plan will be written before implementation. The protected-type sentinel in `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` asserts both documented additions are present.
