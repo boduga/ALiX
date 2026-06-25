@@ -152,6 +152,15 @@ describe("buildExecutiveRemediationProposal (pure) — output shape", () => {
   it("emits sourceRecommendationType='executive_remediation' (matches target.kind precedent)", () => {
     expect(result.sourceRecommendationType).toBe("executive_remediation");
   });
+
+  it("emits reason citing planId and stepId", () => {
+    expect(result.reason).toContain(plan.id);
+    expect(result.reason).toContain(step.id);
+  });
+
+  it("emits sourceConfidence=0 (executive bridge sources have no calibrated confidence)", () => {
+    expect(result.sourceConfidence).toBe(0);
+  });
 });
 
 describe("bridgeCreateRemediationProposal (effectful wrapper)", () => {
