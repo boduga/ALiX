@@ -23,6 +23,7 @@ import { ExecutionEngine } from "../../executive/execution-engine.js";
 import { StepRunner } from "../../executive/step-runner.js";
 import { PlanApprovalGate } from "../../executive/plan-approval-gate.js";
 import { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
+import { ProposalStore } from "../../adaptation/proposal-store.js";
 import { buildExecutionPlan } from "../../executive/planning-engine.js";
 
 // Dashboard pipeline imports for plan save
@@ -43,6 +44,7 @@ export { runDashboard };
 const PLANS_DIR = join(".alix", "executive", "plans");
 const EXECUTIVE_DIR = join(".alix", "executive");
 const GOVERNANCE_DIR = join(".alix", "governance");
+const PROPOSALS_DIR = join(".alix", "adaptation", "proposals");
 
 // ---------------------------------------------------------------------------
 // Factory functions
@@ -54,6 +56,10 @@ function createPlanStore(): PlanStore {
 
 function createStateStore(): ExecutionStateStore {
   return new ExecutionStateStore(PLANS_DIR);
+}
+
+function createProposalStore(): ProposalStore {
+  return new ProposalStore(PROPOSALS_DIR);
 }
 
 /**
@@ -72,7 +78,7 @@ function createApprovalGate(): PlanApprovalGate {
 
 function createEngine(): ExecutionEngine {
   const runner = new StepRunner(writer);
-  return new ExecutionEngine(createPlanStore(), createStateStore(), runner, writer);
+  return new ExecutionEngine(createPlanStore(), createStateStore(), runner, writer, createProposalStore());
 }
 
 // ---------------------------------------------------------------------------

@@ -365,3 +365,57 @@ Under ADR-0004's three-class mutation taxonomy:
 - **Requires new ADR:** breaking shape evolution, contract migration. ✓ none.
 
 SDS present (this document). Plan will be written before implementation. The protected-type sentinel in `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` asserts both documented additions are present.
+
+---
+
+## Post-merge amendments (PR #130 → `6b655b4b`)
+
+Five verified deviations from this SDS were identified during implementation and reviewed as correct. This section amends the SDS to match the implementation.
+
+### Deviation 1 — `bridgeCreateRemediationProposal` signature
+
+**SDS (lines 130/159):** `bridgeCreateRemediationProposal(plan, step, now, append)` — 4 params.
+
+**Implementation:** `bridgeCreateRemediationProposal(plan, step, proposalId, now, append)` — 5 params.
+
+**Why:** `ProposalStore.save()` validates `id` as a non-empty string at write time. The bridge must supply the canonical proposal ID, not rely on the store to backfill one. The SDS's 4-param signature was an oversight during SDS writing.
+
+### Deviation 2 — Dispatch site
+
+**SDS (line 147):** "All bridge state mutation lives in `ExecutionEngine.runReadySteps()`"
+
+**Implementation:** Lives in `executeStepInternal()` — the shared internal method called by both `runStep()` and `runReadySteps()`.
+
+**Why:** Scoping the bridge only to `runReadySteps()` would silently skip the bridge for manual single-step execution (`runStep`). The shared internal path is the only correct site. This deviation was caught during implementation and the SDS was amended mid-cycle.
+
+### Deviation 3 — `sourceRecommendationType`
+
+**SDS:** Missing from the output-shape block.
+
+**Implementation:** `sourceRecommendationType: "executive_remediation"` — the required field on `AdaptationProposal`.
+
+**Why:** `sourceRecommendationType` is a required field on the `AdaptationProposal` interface (`adaptation-types.ts:58`). The value `"executive_remediation"` follows the precedent of `"governance_recommendation"` and `"learning_calibration"` (matches `target.kind`).
+
+### Deviation 4 — EvidenceEventWriter interface
+
+**SDS:** Assumed generic `evidenceWriter.append({type, payload})` interface.
+
+**Implementation:** Concrete `EvidenceEventWriter` class with named public methods: `recordExecutiveStepBridgedToProposal({planId, stepId, proposalId, bridgeVersion})` and `recordExecutiveStepBridgeFailed({planId, stepId, error})`.
+
+**Why:** `EvidenceEventWriter` is a concrete class with a private `append`/`appendEvent` method. Named public methods follow the P10.4a pattern. Each method calls `appendEvent` internally with the correct evidence type.
+
+### Deviation 5 — `evidence-types.ts` protected file extension
+
+**SDS:** Not mentioned.
+
+**Implementation:** 2 additive `EvidenceType` members: `"executive_step_bridged_to_proposal"` and `"executive_step_bridge_failed"`.
+
+**Why:** `EvidenceType` is a protected file under ADR-0004. Additive union members are Allowed. The addition was necessary because the evidence types must be declared in the union before they can be recorded. No snapshot sentinel existed for this file at P10.4b time.
+
+### Additional files (not in SDS)
+
+Four files were modified/created beyond the SDS's file table:
+- `src/cli/commands/adaptation.ts` — `describeTarget` switch arm for `executive_remediation` (forced by TypeScript non-exhaustive check on the new union member)
+- `tests/governance/governance-sentinels.vitest.ts` — baseline amendment for the new `ProposalAction` value
+- `tests/executive/executive-bridge.vitest.ts` — 28 tests (was 25 planned)
+- `tests/executive/execution-engine-bridge-dispatch.vitest.ts` — 4 integration tests (post-SDS addition)
