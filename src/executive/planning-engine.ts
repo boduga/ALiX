@@ -236,3 +236,136 @@ export function buildStepsForObjective(
       return assertNever(obj.objectiveType, `Unknown objective type: ${obj.objectiveType}`);
   }
 }
+
+// ---------------------------------------------------------------------------
+// Dependency resolution
+// ---------------------------------------------------------------------------
+
+/** Action -> actions it blocks on the same subsystem. Typed for compile-time safety. */
+/** Additional dependency rules will be introduced in P10.4 as execution patterns evolve. */
+export const SUBSYSTEM_DEPENDENCY_RULES: Readonly<Partial<Record<ExecutionStepAction, Readonly<ExecutionStepAction[]>>>> = Object.freeze({
+  apply_remediation: ["implement_improvements", "review_baseline_metrics"],
+});
+
+/**
+ * Resolve subsystem-local dependencies between steps.
+ * Returns new step objects — never mutates inputs.
+ */
+export function resolveLocalDependencies(steps: ExecutionStep[]): ExecutionStep[] {
+  const updated = steps.map(s => ({ ...s, dependsOn: [...s.dependsOn] }));
+
+  // Group by subsystem — cross-subsystem steps are never linked
+  const bySubsystem = new Map<ExecutiveSubsystemName, ExecutionStep[]>();
+  for (const step of updated) {
+    const group = bySubsystem.get(step.targetSubsystem) ?? [];
+    group.push(step);
+    bySubsystem.set(step.targetSubsystem, group);
+  }
+
+  for (const [, subsystemSteps] of bySubsystem) {
+    for (const blocker of subsystemSteps) {
+      const blockedActions = SUBSYSTEM_DEPENDENCY_RULES[blocker.action];
+      if (!blockedActions) continue;
+
+      for (const maybeBlocked of subsystemSteps) {
+        // Only later steps can be blocked
+        if (maybeBlocked.stepNumber <= blocker.stepNumber) continue;
+        if (blockedActions.includes(maybeBlocked.action)) {
+          if (!maybeBlocked.dependsOn.includes(blocker.id)) {
+            maybeBlocked.dependsOn.push(blocker.id);
+          }
+        }
+      }
+    }
+  }
+
+  return updated;
+}
+
+// ---------------------------------------------------------------------------
+// View-model helpers (consumed by the renderer — keeps presentation logic
+// out of the UI layer)
+// ---------------------------------------------------------------------------
+
+export function groupStepsBySubsystem(steps: ExecutionStep[]): Map<ExecutiveSubsystemName, ExecutionStep[]> {
+  const map = new Map<ExecutiveSubsystemName, ExecutionStep[]>();
+  for (const step of steps) {
+    const group = map.get(step.targetSubsystem) ?? [];
+    group.push(step);
+    map.set(step.targetSubsystem, group);
+  }
+  return map;
+}
+
+export function buildStepNumberIndex(steps: ExecutionStep[]): ReadonlyMap<string, number> {
+  const map = new Map<string, number>();
+  for (const step of steps) {
+    map.set(step.id, step.stepNumber);
+  }
+  return map;
+}
+
+// ---------------------------------------------------------------------------
+// Top-level generator
+// ---------------------------------------------------------------------------
+
+/**
+ * Pure function: consume P10.2 objectives and produce an ordered execution plan.
+ */
+export function buildExecutionPlan(
+  objectiveReport: ExecutiveObjectiveReport,
+  sourceReportId?: string,
+): ExecutionPlan {
+  const generatedAt = objectiveReport.generatedAt;
+
+  if (objectiveReport.objectives.length === 0) {
+    return {
+      id: planId(generatedAt, objectiveReport.windowDays),
+      objectives: [],
+      steps: [],
+      generatedAt,
+      windowDays: objectiveReport.windowDays,
+      planStatus: "blocked",
+      sourceReportId,
+      rationale: "No executive objectives available to plan.",
+      plannerVersion: PLANNER_VERSION,
+      planningAlgorithm: PLANNING_ALGORITHM,
+    };
+  }
+
+  let stepCounter = 1;
+  const steps: ExecutionStep[] = [];
+
+  for (const obj of objectiveReport.objectives) {
+    for (const subsystem of obj.targetSubsystems) {
+      const objSteps = buildStepsForObjective(
+        obj,
+        subsystem as ExecutiveSubsystemName,
+        stepCounter,
+      );
+      steps.push(...objSteps);
+      stepCounter += objSteps.length;
+    }
+  }
+
+  // Sort deterministically before dependency resolution
+  // so dependency logic operates on a stable ordering
+  steps.sort((a, b) => {
+    if (a.targetSubsystem < b.targetSubsystem) return -1;
+    if (a.targetSubsystem > b.targetSubsystem) return 1;
+    return a.stepNumber - b.stepNumber;
+  });
+  const resolvedSteps = resolveLocalDependencies(steps);
+
+  return {
+    id: planId(generatedAt, objectiveReport.windowDays),
+    objectives: objectiveReport.objectives.map(o => o.id),
+    steps: resolvedSteps,
+    generatedAt,
+    windowDays: objectiveReport.windowDays,
+    planStatus: "draft",
+    sourceReportId,
+    plannerVersion: PLANNER_VERSION,
+    planningAlgorithm: PLANNING_ALGORITHM,
+  };
+}

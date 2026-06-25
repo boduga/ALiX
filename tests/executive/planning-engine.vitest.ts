@@ -139,3 +139,191 @@ describe("buildStepsForObjective", () => {
     expect(steps[2].dependsOn).toEqual([steps[1].id]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Task 2: Dependency resolution and buildExecutionPlan
+// ---------------------------------------------------------------------------
+
+import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/executive/planning-engine.js";
+import type { ExecutiveSubsystemName } from "../../src/executive/executive-health.js";
+import type { ExecutiveObjectiveReport } from "../../src/executive/objective-engine.js";
+
+describe("SUBSYSTEM_DEPENDENCY_RULES", () => {
+  it("defines apply_remediation as blocking implement_improvements and review_baseline_metrics", () => {
+    expect(SUBSYSTEM_DEPENDENCY_RULES.apply_remediation).toContain("implement_improvements");
+    expect(SUBSYSTEM_DEPENDENCY_RULES.apply_remediation).toContain("review_baseline_metrics");
+  });
+});
+
+describe("resolveLocalDependencies", () => {
+  it("adds dependency when a blocking step precedes a blocked step on the same subsystem", () => {
+    const blocker = {
+      id: "s1", action: "apply_remediation" as const, title: "Apply remediation",
+      stepNumber: 3, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
+      status: "pending" as const, objectiveId: "o1", priorityScore: 65, objectiveScore: 42,
+      riskLevel: "high" as const,
+    };
+    const blocked = {
+      id: "s2", action: "implement_improvements" as const, title: "Implement improvements",
+      stepNumber: 4, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
+      status: "pending" as const, objectiveId: "o2", priorityScore: 30, objectiveScore: 20,
+      riskLevel: "low" as const,
+    };
+    const result = resolveLocalDependencies([blocker, blocked]);
+    expect(result[1].dependsOn).toContain("s1");
+  });
+
+  it("does NOT add dependency for cross-subsystem steps", () => {
+    const blocker = {
+      id: "s1", action: "apply_remediation" as const, title: "Apply remediation",
+      stepNumber: 3, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
+      status: "pending" as const, objectiveId: "o1", priorityScore: 65, objectiveScore: 42,
+      riskLevel: "high" as const,
+    };
+    const blocked = {
+      id: "s2", action: "implement_improvements" as const, title: "Implement improvements",
+      stepNumber: 4, targetSubsystem: "memory" as ExecutiveSubsystemName, dependsOn: [] as string[],
+      status: "pending" as const, objectiveId: "o2", priorityScore: 30, objectiveScore: 20,
+      riskLevel: "low" as const,
+    };
+    const result = resolveLocalDependencies([blocker, blocked]);
+    expect(result[1].dependsOn).toEqual([]);
+  });
+
+  it("does NOT mutate input steps", () => {
+    const blocker = {
+      id: "s1", action: "apply_remediation" as const, title: "Apply remediation",
+      stepNumber: 3, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
+      status: "pending" as const, objectiveId: "o1", priorityScore: 65, objectiveScore: 42,
+      riskLevel: "high" as const,
+    };
+    const blocked = {
+      id: "s2", action: "implement_improvements" as const, title: "Implement improvements",
+      stepNumber: 4, targetSubsystem: "governance" as ExecutiveSubsystemName, dependsOn: [] as string[],
+      status: "pending" as const, objectiveId: "o2", priorityScore: 30, objectiveScore: 20,
+      riskLevel: "low" as const,
+    };
+    const originalDependsOn = [...blocked.dependsOn];
+    resolveLocalDependencies([blocker, blocked]);
+    expect(blocked.dependsOn).toEqual(originalDependsOn);
+  });
+});
+
+describe("buildExecutionPlan", () => {
+  function makeObjectiveReport(overrides: Partial<ExecutiveObjectiveReport> = {}): ExecutiveObjectiveReport {
+    return {
+      schemaVersion: "p10.2.0",
+      generatedAt: "2026-06-24T12:00:00.000Z",
+      windowDays: 90,
+      objectives: [
+        {
+          id: "obj-gov", objectiveType: "stabilize", status: "proposed",
+          priorityScore: 65, objectiveScore: 42,
+          title: "Stabilize Governance", description: "", rationale: "",
+          evidenceRefs: [], suggestedActions: [],
+          targetSubsystems: ["governance"],
+          supportingInvestigations: [], derivedFrom: { priorityReportGeneratedAt: "", investigationIds: [] },
+          blockers: [], generatedAt: "",
+        },
+        {
+          id: "obj-sec", objectiveType: "maintain", status: "proposed",
+          priorityScore: 20, objectiveScore: 15,
+          title: "Maintain Security", description: "", rationale: "",
+          evidenceRefs: [], suggestedActions: [],
+          targetSubsystems: ["security"],
+          supportingInvestigations: [], derivedFrom: { priorityReportGeneratedAt: "", investigationIds: [] },
+          blockers: [], generatedAt: "",
+        },
+      ],
+      ...overrides,
+    };
+  }
+
+  it("returns plan with planStatus: draft for non-empty objectives", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    expect(plan.planStatus).toBe("draft");
+  });
+
+  it("returns plan with planStatus: blocked and rationale for empty objectives", () => {
+    const report = makeObjectiveReport({ objectives: [] });
+    const plan = buildExecutionPlan(report);
+    expect(plan.planStatus).toBe("blocked");
+    expect(plan.rationale).toBeDefined();
+    expect(plan.steps).toHaveLength(0);
+  });
+
+  it("produces 3 steps per (objective, subsystem)", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    // 2 objectives, each with 1 subsystem → 6 steps
+    expect(plan.steps).toHaveLength(6);
+  });
+
+  it("numbers steps starting from 1", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    expect(plan.steps[0].stepNumber).toBe(1);
+    expect(plan.steps[plan.steps.length - 1].stepNumber).toBe(plan.steps.length);
+  });
+
+  it("generates stable step IDs", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    const ids = plan.steps.map(s => s.id);
+    expect(ids.every(id => id.startsWith("step-"))).toBe(true);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+
+  it("copies objective IDs to plan.objectives", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    expect(plan.objectives).toContain("obj-gov");
+    expect(plan.objectives).toContain("obj-sec");
+  });
+
+  it("inherits generatedAt from objective report", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    expect(plan.generatedAt).toBe("2026-06-24T12:00:00.000Z");
+  });
+
+  it("inherits windowDays from objective report", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    expect(plan.windowDays).toBe(90);
+  });
+
+  it("sets plannerVersion and planningAlgorithm from constants", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport());
+    expect(plan.plannerVersion).toBe("1.0");
+    expect(plan.planningAlgorithm).toBe("template-v1");
+  });
+
+  it("forwards sourceReportId when provided", () => {
+    const plan = buildExecutionPlan(makeObjectiveReport(), "report-abc");
+    expect(plan.sourceReportId).toBe("report-abc");
+  });
+
+  it("produces deterministic plan IDs for identical inputs", () => {
+    const report = makeObjectiveReport();
+    const plan1 = buildExecutionPlan(report);
+    const plan2 = buildExecutionPlan(report);
+    expect(plan1.id).toBe(plan2.id);
+  });
+
+  it("generates multi-subsystem steps when objective targets multiple subsystems", () => {
+    const report = makeObjectiveReport({
+      objectives: [
+        {
+          id: "obj-multi", objectiveType: "stabilize", status: "proposed",
+          priorityScore: 65, objectiveScore: 42,
+          title: "Multi", description: "", rationale: "",
+          evidenceRefs: [], suggestedActions: [],
+          targetSubsystems: ["governance", "memory"],
+          supportingInvestigations: [], derivedFrom: { priorityReportGeneratedAt: "", investigationIds: [] },
+          blockers: [], generatedAt: "",
+        },
+      ],
+    });
+    const plan = buildExecutionPlan(report);
+    // 1 objective × 2 subsystems × 3 steps = 6 steps
+    expect(plan.steps).toHaveLength(6);
+    const subsystems = [...new Set(plan.steps.map(s => s.targetSubsystem))];
+    expect(subsystems).toContain("governance");
+    expect(subsystems).toContain("memory");
+  });
+});
