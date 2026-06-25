@@ -82,7 +82,10 @@ export type EvidenceType =
   | "executive_step_intent_recorded"
   | "executive_step_blocked"
   | "executive_plan_completed"
-  | "executive_plan_failed";
+  | "executive_plan_failed"
+  // P10.4b executive proposal bridge events
+  | "executive_step_bridged_to_proposal"
+  | "executive_step_bridge_failed";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -140,6 +143,9 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "executive_step_blocked",
   "executive_plan_completed",
   "executive_plan_failed",
+  // P10.4b executive proposal bridge events
+  "executive_step_bridged_to_proposal",
+  "executive_step_bridge_failed",
 ]);
 
 // ---------------------------------------------------------------------------
