@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   buildExecutiveRemediationProposal,
   bridgeCreateRemediationProposal,
@@ -7,6 +10,14 @@ import {
 } from "../../src/executive/executive-bridge.js";
 import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
 import type { ExecutionStep } from "../../src/executive/planning-engine.js";
+
+const HERE = dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = resolve(HERE, "../..");
+const BRIDGE_SRC = resolve(REPO_ROOT, "src/executive/executive-bridge.ts");
+
+function readBridgeSource(): string {
+  return readFileSync(BRIDGE_SRC, "utf8");
+}
 
 const NOW = "2026-06-25T12:00:00.000Z";
 const PROPOSAL_ID = "proposal-test-1";
@@ -189,5 +200,46 @@ describe("bridgeCreateRemediationProposal (effectful wrapper)", () => {
     // wrapper returns references — does not touch any module-level state.
     // If global state is introduced later, this test would catch it.
     expect(result.artifactRef.type).toBe("proposal");
+  });
+});
+
+describe("P10.4b purity invariants (source-text greps)", () => {
+  it("executive-bridge.ts does not import ProposalStore directly", () => {
+    const src = readBridgeSource();
+    expect(src).not.toMatch(/from\s+["'][^"']*proposal-store/);
+    expect(src).not.toMatch(/import\s+\{[^}]*ProposalStore[^}]*\}\s+from/);
+  });
+
+  it("executive-bridge.ts does not import ApprovalGate", () => {
+    const src = readBridgeSource();
+    expect(src).not.toMatch(/ApprovalGate/);
+  });
+
+  it("executive-bridge.ts does not import any applier", () => {
+    const src = readBridgeSource();
+    // Only inspect actual import statements — docstrings must be allowed
+    // to mention "apply" because the bridge's hard-boundary contract is
+    // exactly "may not approve/apply/reject proposals".
+    const importLines = src
+      .split("\n")
+      .filter((line) => /^\s*import\b/.test(line));
+    const importBlob = importLines.join("\n");
+    expect(importBlob).not.toMatch(/Applier/);
+    expect(importBlob).not.toMatch(/apply/i);
+  });
+
+  it("executive-bridge.ts only depends on types from adaptation-types.ts (plus its own executive types)", () => {
+    const src = readBridgeSource();
+    // Allowed: adaptation-types (types only), executive-health, executive-plan-types, planning-engine, the file's own directory.
+    const forbiddenImportPaths = [
+      /from\s+["'][^"']*approval-gate/,
+      /from\s+["'][^"']*proposal-store/,
+      /from\s+["'][^"']*step-runner/,
+      /from\s+["'][^"']*execution-state-store/,
+      /from\s+["'][^"']*plan-store/,
+    ];
+    for (const pattern of forbiddenImportPaths) {
+      expect(src).not.toMatch(pattern);
+    }
   });
 });
