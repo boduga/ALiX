@@ -666,6 +666,23 @@ export class EvidenceEventWriter {
     return this.appendEvent("executive_plan_failed", { ...payload });
   }
 
+  async recordExecutiveStepBridgedToProposal(payload: {
+    planId: string;
+    stepId: string;
+    proposalId: string;
+    bridgeVersion: string;
+  }): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_bridged_to_proposal", { ...payload });
+  }
+
+  async recordExecutiveStepBridgeFailed(payload: {
+    planId: string;
+    stepId: string;
+    error: string;
+  }): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_bridge_failed", { ...payload });
+  }
+
   // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------

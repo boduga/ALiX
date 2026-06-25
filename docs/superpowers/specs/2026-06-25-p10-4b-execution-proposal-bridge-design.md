@@ -127,7 +127,7 @@ The `provenance` field is a closed union (`"auto" | "manual"`) on a protected ty
    ↓ for step.action === "create_remediation_proposal":
    ↓   if step.generatedArtifacts contains { type: "proposal", id } → skip silently (idempotency)
    ↓   else:
-   ↓     result = await bridgeCreateRemediationProposal(plan, step, now, append)
+   ↓     result = await bridgeCreateRemediationProposal(plan, step, proposalId, nowIso, append)
    ↓     stepState.generatedArtifacts.push(result.artifactRef)
    ↓     evidenceWriter.append("executive_step_bridged_to_proposal", payload)
    ↓   stepState.status stays "waiting_for_bridge"  (no transition)
@@ -144,7 +144,7 @@ The `provenance` field is a closed union (`"auto" | "manual"`) on a protected ty
 
 ### Step 4 in detail — the only P10.4b write surface
 
-All bridge state mutation lives in `ExecutionEngine.runReadySteps()`. `StepRunner` is unchanged. Concretely:
+All bridge state mutation lives in `ExecutionEngine.executeStepInternal()` — the shared internal method called by both `runStep()` and `runReadySteps()`. Scoping the bridge only to `runReadySteps()` would silently skip the bridge for manual single-step execution; the shared internal path is the only correct site. `StepRunner` is unchanged. Concretely:
 
 ```ts
 // In ExecutionEngine, where create_remediation_proposal steps are dispatched:
@@ -156,8 +156,9 @@ if (step.action === "create_remediation_proposal") {
   }
 
   try {
+    // proposalId is a caller-generated stable ID; ProposalStore.save() validates non-empty `id`.
     const result = await bridgeCreateRemediationProposal(
-      plan, step, nowIso, (proposal) => proposalStore.save(proposal),
+      plan, step, proposalId, nowIso, (proposal) => proposalStore.save(proposal),
     );
     stepState.generatedArtifacts.push(result.artifactRef);
     await evidenceWriter.append({
@@ -204,7 +205,7 @@ The warning-on-failure approach (rather than a permanent `failed` status) gives 
 
 ## Evidence contract
 
-Three new evidence event types, all under the existing `EvidenceEventWriter`:
+Two new evidence event types, all under the existing `EvidenceEventWriter`:
 
 | Event type | When recorded | Payload |
 |---|---|---|
@@ -213,7 +214,7 @@ Three new evidence event types, all under the existing `EvidenceEventWriter`:
 
 Note: `executive_step_bridge_skipped_duplicate` was considered for the idempotent path but rejected — repeated `runReadySteps()` calls would spam audit logs. Duplicate encounter is silent (no evidence).
 
-The fourth event, `executive_step_bridge_purged`, is **deferred to P10.4c**. It is conceptually the "this bridged proposal was applied" event, but P10.4b has no apply path. Listing it here would be reserving semantics for a future phase that hasn't designed its own contract yet — defer it.
+The third event, `executive_step_bridge_purged`, is **deferred to P10.4c**. It is conceptually the "this bridged proposal was applied" event, but P10.4b has no apply path. Listing it here would be reserving semantics for a future phase that hasn't designed its own contract yet — defer it.
 
 ---
 
@@ -237,7 +238,6 @@ tests/executive/executive-sentinels.vitest.ts                  (+1: add executiv
 
 - `src/executive/step-runner.ts` — unchanged. Engine owns the bridge write.
 - `src/executive/executive-plan-types.ts` — unchanged. No new `StepRuntimeStatus`. Derived readiness is a CLI view.
-- `src/adaptation/adaptation-types.ts` — additive only. No renamed, removed, or shape-changed members.
 
 ---
 
@@ -364,4 +364,4 @@ Under ADR-0004's three-class mutation taxonomy:
 - **Forbidden:** rename, delete, change, optional → required, change discriminator value. ✓ none of these.
 - **Requires new ADR:** breaking shape evolution, contract migration. ✓ none.
 
-SDS present (this document). Plan will be written before implementation. Sentinel enumerates the new members. The protected-type sentinel in `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` asserts both additions are present (catches accidental removal) and that no other `ProposalAction` value is silently added elsewhere (catches undocumented additions).
+SDS present (this document). Plan will be written before implementation. The protected-type sentinel in `tests/adaptation/adaptation-types-p10-4b-snapshot.vitest.ts` asserts both documented additions are present.

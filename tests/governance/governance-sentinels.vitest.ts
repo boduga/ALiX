@@ -189,7 +189,7 @@ describe("P9.0 purity sentinel", () => {
 
   // -- Snapshot-equal baseline for protected files (ADR-0004) -----------
 
-  it("adaptation-types.ts ProposalAction is exactly the baseline + P9.2 additions", async () => {
+  it("adaptation-types.ts ProposalAction is exactly the baseline + P9.2 + P10.4b additions", async () => {
     const { BASELINE_PROPOSAL_ACTIONS } = await import("../../src/governance/protected-baselines.js");
     const source = readSource("src/adaptation/adaptation-types.ts");
     const match = source.match(/export type ProposalAction\s*=\s*([\s\S]+?);/);
@@ -198,7 +198,8 @@ describe("P9.0 purity sentinel", () => {
     const members = [...match[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
     expect(members).toEqual([
       ...BASELINE_PROPOSAL_ACTIONS,
-      "governance_change"  // P9.2's documented addition
+      "governance_change", // P9.2's documented addition
+      "executive_remediation_request", // P10.4b's documented addition (ADR-0004 allowed)
     ]);
   });
 

@@ -523,6 +523,9 @@ function describeTarget(p: AdaptationProposal): string {
       return `learning:${p.target.area}`;
     case "governance":
       return `governance:${p.target.recommendationId}`;
+    case "executive_remediation":
+      // P10.4b: executive → proposal bridge; render step + subsystem for human inspection.
+      return `executive_remediation:${p.target.stepId}@${p.target.subsystem}`;
   }
 }
 

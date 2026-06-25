@@ -14,10 +14,12 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { bridgeCreateRemediationProposal, EXECUTIVE_BRIDGE_VERSION } from "./executive-bridge.js";
 import type { PlanStore } from "./plan-store.js";
 import type { ExecutionStateStore } from "./execution-state-store.js";
 import type { StepRunner } from "./step-runner.js";
 import type { EvidenceEventWriter } from "../workflow/evidence-writer.js";
+import type { ProposalStore } from "../adaptation/proposal-store.js";
 import type { PersistedExecutionPlan, PlanExecutionState } from "./executive-plan-types.js";
 import type { ExecutiveStepExecutionResult, StepRuntimeStatus } from "./executive-plan-types.js";
 import { validateStateStepIds } from "./executive-plan-types.js";
@@ -32,6 +34,7 @@ export class ExecutionEngine {
     private readonly stateStore: ExecutionStateStore,
     private readonly runner: StepRunner,
     private readonly writer: EvidenceEventWriter,
+    private readonly proposalStore?: ProposalStore, // P10.4b — optional backward compat
   ) {}
 
   // -----------------------------------------------------------------------
@@ -153,6 +156,62 @@ export class ExecutionEngine {
     // Execute via StepRunner (planId + executionId passed, never generated here)
     const result = await this.runner.execute(planId, step, executionId);
 
+    // ─── P10.4b executive bridge dispatch ─────────────────────────────────
+    // Bridge `create_remediation_proposal` steps into existing P5/P9
+    // proposal lifecycle. Idempotent: silent no-op if generatedArtifacts
+    // already contains { type: "proposal" } ref. Status stays
+    // "waiting_for_bridge" — human completes proposal via existing
+    // alix adaptation lifecycle.
+    if (step.action === "create_remediation_proposal" && this.proposalStore) {
+      const stepState = this.stateStore.load(planId)?.stepStates[stepId];
+      const existingRef = stepState?.generatedArtifacts.find(
+        a => a.type === "proposal",
+      );
+      if (!existingRef) {
+        const proposalId = `proposal-${randomUUID()}`;
+        const now = new Date().toISOString();
+        try {
+          const bridgeResult = await bridgeCreateRemediationProposal(
+            plan, step, proposalId, now,
+            (proposal) => this.proposalStore!.save(proposal),
+          );
+          this.stateStore.update(
+            planId,
+            { from: state.status, to: state.status, executionId },
+            s => {
+              if (s.stepStates[stepId]) {
+                s.stepStates[stepId].generatedArtifacts.push(bridgeResult.artifactRef);
+              }
+              return s;
+            },
+          );
+          await this.writer.recordExecutiveStepBridgedToProposal({
+            planId: plan.id,
+            stepId: step.id,
+            proposalId: bridgeResult.proposal.id,
+            bridgeVersion: EXECUTIVE_BRIDGE_VERSION,
+          });
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          this.stateStore.update(
+            planId,
+            { from: state.status, to: state.status, executionId },
+            s => {
+              if (s.stepStates[stepId]) {
+                s.stepStates[stepId].warnings.push(`executive bridge failed: ${msg}`);
+              }
+              return s;
+            },
+          );
+          await this.writer.recordExecutiveStepBridgeFailed({
+            planId: plan.id,
+            stepId: step.id,
+            error: msg,
+          });
+        }
+      }
+    }
+
     // Mark terminal based on runner result
     const finalState = this.stateStore.update(
       planId,
@@ -164,7 +223,11 @@ export class ExecutionEngine {
           s.stepStates[stepId].durationMs = result.durationMs;
           s.stepStates[stepId].evidenceIds = result.evidenceIds;
           s.stepStates[stepId].summary = result.summary;
-          s.stepStates[stepId].warnings = result.warnings;
+          // P10.4b — accumulate warnings so the bridge failure warning
+          // (set earlier in this invocation when the bridge throws) is
+          // preserved alongside any runner warnings. Matches the
+          // generatedArtifacts accumulation pattern above.
+          s.stepStates[stepId].warnings = [...s.stepStates[stepId].warnings, ...result.warnings];
           s.stepStates[stepId].lastExecutionId = executionId;
         }
         return s;
