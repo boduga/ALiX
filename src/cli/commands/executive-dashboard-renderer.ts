@@ -14,6 +14,14 @@ import type {
 } from "../../executive/executive-health.js";
 import type { ExecutiveObjectiveReport } from "../../executive/objective-engine.js";
 import type { ExecutivePriorityReport } from "../../executive/priority-engine.js";
+import type {
+  ExecutionPlan,
+  ExecutionStep,
+} from "../../executive/planning-engine.js";
+import {
+  groupStepsBySubsystem,
+  buildStepNumberIndex,
+} from "../../executive/planning-engine.js";
 
 export interface RenderOptions {
   jsonMode?: boolean;
@@ -43,6 +51,7 @@ export function renderExecutiveDashboard(
   report: ExecutiveHealthReport,
   priorityReport: ExecutivePriorityReport,
   objectiveReport: ExecutiveObjectiveReport,
+  plan: ExecutionPlan,
   opts: RenderOptions = {},
 ): void {
   if (opts.jsonMode) {
@@ -50,6 +59,7 @@ export function renderExecutiveDashboard(
       health: report,
       priority: priorityReport,
       objectives: objectiveReport,
+      plan,
     }, null, 2));
     return;
   }
@@ -64,6 +74,8 @@ export function renderExecutiveDashboard(
   renderPriorities(priorityReport);
   console.log("");
   renderObjectives(objectiveReport);
+  console.log("");
+  renderPlan(plan);
   console.log("=".repeat(78));
 }
 
@@ -120,6 +132,39 @@ function renderObjectives(objectiveReport: ExecutiveObjectiveReport): void {
     console.log(`     Score: ${obj.objectiveScore} | Priority: ${obj.priorityScore} | Target: ${obj.targetSubsystems.join(", ")}`);
     if (obj.supportingInvestigations.length > 0) {
       console.log(`     Investigations: ${obj.supportingInvestigations.length} open`);
+    }
+  }
+}
+
+function renderPlan(plan: ExecutionPlan): void {
+  console.log(`\n[3] EXECUTIVE PLAN`);
+  console.log(`\n  Plan ID: ${plan.id}`);
+
+  // Empty plan
+  if (plan.steps.length === 0) {
+    console.log(`  Status: ${plan.planStatus}`);
+    if (plan.rationale) console.log(`  ${plan.rationale}`);
+    return;
+  }
+
+  console.log(`  Plan Status: ${plan.planStatus}`);
+
+  // Group steps by subsystem and build ID-to-stepNumber index
+  const bySubsystem = groupStepsBySubsystem(plan.steps);
+  const idToStepNum = buildStepNumberIndex(plan.steps);
+
+  for (const [subsystem, steps] of bySubsystem) {
+    console.log(`\n  ${capitalize(subsystem)}: (${steps.length} steps)`);
+    for (const step of steps) {
+      const depText = step.dependsOn.length > 0
+        ? ` [blocked by ${step.dependsOn.map(d => idToStepNum.get(d)).join(", ")}]`
+        : "";
+      const blockerText = plan.steps.some(s =>
+        s.targetSubsystem === step.targetSubsystem && s.dependsOn.includes(step.id)
+      ) ? ` [blocks ${plan.steps.filter(s => s.dependsOn.includes(step.id)).map(s => s.stepNumber).join(", ")}]`
+        : "";
+      const annot = depText || blockerText || "";
+      console.log(`    ${step.stepNumber}. ${step.title.padEnd(40)} ${pad(step.riskLevel.toUpperCase(), 6)}${annot}`);
     }
   }
 }
