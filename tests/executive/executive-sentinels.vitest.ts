@@ -52,6 +52,8 @@ const EXECUTIVE_FILES = [
   "src/executive/plan-approval-gate.ts",
   "src/executive/step-runner.ts",
   "src/executive/execution-engine.ts",
+  // P10.4b files
+  "src/executive/executive-bridge.ts",
 ];
 
 // ---------------------------------------------------------------------------
