@@ -76,7 +76,7 @@ P10.4a Orchestrate plan execution ← THIS SPEC
 
 **PlanStore** — persists immutable `ExecutionPlan` content. Append-once.
 **ExecutionStateStore** — persists mutable execution state. Single canonical `stepStates` map keyed by step ID.
-**PlanApprovalGate** — validates the whole plan is approvable (status === draft, has steps, planStatus !== blocked). Records approval into `ExecutionStateStore.approval`. Does NOT inspect step actions or DAG.
+**PlanApprovalGate** — validates the whole plan is approvable (state status === draft, approval status === pending, plan has ≥1 step). Records approval into `ExecutionStateStore.approval`. Does NOT inspect step actions or DAG.
 **ExecutionEngine** — scheduler. Computes `nextRunnableSteps` (DAG-respecting), drives `runStep`, drives plan status transitions.
 **StepRunner** — per-behavior execution. Returns rich `StepRunnerResult` (outcome, durationMs, summary, generatedArtifacts[], evidenceIds[], warnings[]).
 
@@ -199,6 +199,10 @@ interface StepRuntimeState {
 interface GeneratedArtifactRef {
   type: "proposal" | "report" | "investigation" | "document" | "evidence" | "other";
   id: string;
+  /** Optional URI for artifacts that live outside ALiX (GitHub issue,
+   *  markdown file, PDF, etc.). Reserved now so P10.5 / future phases can
+   *  surface external artifacts without another interface change. */
+  uri?: string;
 }
 
 type StepRuntimeStatus =
@@ -266,7 +270,13 @@ class ExecutionStateStore {
   load(planId: string): Promise<PlanExecutionState>;
 
   /** Atomically update state. Validates status transition + transition history.
-   *  Returns the new state. */
+   *  Returns the new state.
+   *
+   *  INVARIANT: the `mutator` callback MUST NOT modify `planTransitions[]`
+   *  directly. Only the store appends transitions (with monotonically
+   *  increasing `sequence`). Two implementations writing to the history
+   *  array would double-record events and break replay determinism.
+   *  Mutators MAY update `stepStates`, `approval`, `status`, and `timestamps`. */
   update(
     planId: string,
     transition: Omit<PlanTransition, "at">,
@@ -276,6 +286,8 @@ class ExecutionStateStore {
 ```
 
 Atomic write: write to `plan-state.json.tmp` then rename.
+
+**Startup consistency invariant:** When `ExecutionEngine` or any other consumer loads a plan, it MUST verify `state.planId === plan.id`. If they differ (e.g., orphaned state file, manual copy), fail closed. This prevents orphaned execution state from driving a different plan.
 
 ### PlanApprovalGate (lightweight validator)
 
@@ -295,8 +307,7 @@ class PlanApprovalGate {
 **Validations performed by `approve()`:**
 - Plan exists in `PlanStore`
 - Current state `status === "draft"` AND `approval.status === "pending"`
-- Plan has at least 1 step (empty plans are kept in `blocked` and cannot be approved)
-- Plan `planStatus !== "blocked"` (P10.3 sets `blocked` for empty objectives)
+- Plan has at least 1 step (`PersistedExecutionPlan.steps.length > 0`) — empty plans are kept in `blocked` and cannot be approved. This replaces any reference to a removed `planStatus` field; the empty-steps check IS the blocked-plan check.
 
 **What `PlanApprovalGate` does NOT do:**
 - Inspect step actions or behavior classes
@@ -330,12 +341,15 @@ class ExecutionEngine {
    *  Generates ONE fresh executionId shared by all steps in the batch.
    *
    *  Scheduling policy (P10.4a):
-   *    1. nextRunnableSteps() — pure DAG query
+   *    1. nextRunnableSteps() — initial pure DAG query
    *    2. Sort by stepNumber ascending (display ordering, deterministic)
    *    3. Execute ONE step at a time
    *    4. Persist state after every step (atomic write)
-   *    5. Stop on first failed/blocked step (skip — P10.4a no failure path)
-   *    6. Return array of StepExecutionResult
+   *    5. AFTER each completed step: RECOMPUTE nextRunnableSteps()
+   *       — a step that was blocked by an earlier completed dep may now
+   *       be runnable, and newly completed steps may unblock downstream work
+   *    6. Continue until no runnable steps remain OR a step fails/blocks
+   *    7. Return array of StepExecutionResult for the entire batch
    *
    *  Future (P10.6 or later) may introduce parallel scheduling without
    *  changing the StepRunner interface. */
@@ -407,7 +421,20 @@ interface ExecutiveCorrelation {
 
 `executionId` is generated when **any** step-execution entry point is called: `runReadySteps()`, `runStep()`, and the per-step work inside `startPlan()` (if it triggers initial step execution). Each entry point invocation generates ONE fresh `executionId` (UUID v4). All evidence events emitted during that invocation — including step events and any resulting plan-level events — share the same `executionId`. This is essential for retry tracing and for reconstructing "which run touched which steps."
 
-**Invariant: only `ExecutionEngine` may generate `executionId`.** All downstream code (`StepRunner`, `PlanApprovalGate` if it emits evidence, evidence writer helpers) receives the `executionId` as a parameter. This guarantees one scheduler invocation = one correlation context, and prevents accidental id collisions if multiple writers are added later.
+### Constitutional invariant (P10.4a)
+
+**Only `ExecutionEngine` may generate `executionId`.** All downstream code (`StepRunner`, `PlanApprovalGate` if it emits evidence, evidence writer helpers) receives the `executionId` as a parameter. This is a binding ownership rule — like `Recommend≠Decide` and `Learning≠Mutation` — and guarantees one scheduler invocation = one correlation context. P10.4a's purity sentinel enforces this: `StepRunner` and `PlanApprovalGate` MUST NOT contain `randomUUID`, `Math.random`, or any other id-generation primitive.
+
+### Step ID immutability
+
+**Step IDs are immutable after persistence.** They are treated as primary keys. The following MUST all reference step IDs and never mutate them:
+- `dependsOn` arrays on other steps
+- `StepRuntimeState.lastExecutionId`
+- Evidence events (`executive_step_*`)
+- `GeneratedArtifactRef.id` (when an artifact is associated with a step)
+- `PlanTransition.lastUpdatedStepId`
+
+P10.4a's persistence layer does not provide any API to rename a step. A future renumbering feature (if ever added) would require a migration that rewrites all references atomically — out of scope for P10.4a.
 
 ---
 
@@ -531,7 +558,10 @@ const FORBIDDEN_IN_P10_4A = [
   "InvestigationRecommendationGenerator",   // future bridge target
   "InvestigationStore",                     // future bridge target
   // Step-level approval machinery — P10.4a only approves whole plans
+  // Both abstract and concrete names are forbidden so future renames don't
+  // accidentally bypass the sentinel.
   "ApprovalGate",
+  "ProposalApprovalGate",
   ".approve(", ".apply(", ".reject(",
   // Outcome-recording / mutation evidence — P10.4a does not record outcomes
   "recordAdaptationApproved",
@@ -596,3 +626,12 @@ PlanStore is the FIRST P10 file that writes to disk. Sentinel allows `writeFileS
 4. **`waiting_for_bridge` semantics.** When P10.4b ships, mutation steps will leave `waiting_for_bridge` and become `in_progress` → `completed` via the proposal lifecycle. The investigation bridge is independent and may land later. P10.4a must not encode any assumption about which bridge lands first.
 
 5. **One execution engine, multiple concurrent plans.** P10.4a assumes single-process, single-thread per `runReadySteps()`. Future distributed execution would need a lock per plan. Document this as a known limitation.
+
+6. **Future `BehaviorRunner` hierarchy (P10.4c+).** When the read-only execution logic grows sophisticated (real diagnostics, real audits, real doc updates), it may become worthwhile to split `StepRunner` into:
+   ```
+   StepRunner
+     ├─ ReadOnlyRunner        (audits, diagnostics, scheduled checks)
+     ├─ InvestigationRunner   (P9.6 bridge; future)
+     └─ MutationRunner        (P10.4b bridge; Proposal → Approval → Apply)
+   ```
+   The current `StepRunner` interface is forward-compatible with this split — the only change is internal dispatch. NOT planned for P10.4a.
