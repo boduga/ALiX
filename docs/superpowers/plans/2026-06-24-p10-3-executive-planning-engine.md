@@ -26,7 +26,7 @@
 - `ESTIMATED_DURATION_MINUTES` is exported as a public constant for P10.4 reuse
 - `SUBSYSTEM_DEPENDENCY_RULES` is immutable (`Object.freeze` + `Readonly` deep type)
 - View-model helpers (`groupStepsBySubsystem`, `buildStepNumberIndex`) live in `planning-engine.ts`, not the renderer
-- Steps are sorted by `targetSubsystem` then `stepNumber` before dependency resolution, so dep logic operates on stable ordering
+- Steps are sorted by `targetSubsystem` before numbering, then `stepNumber` is assigned sequentially — array index always matches display order
 - All functions return new objects — never mutate inputs
 
 ---
@@ -327,7 +327,8 @@ function makeStepId(objectiveId: string, subsystem: string, action: string): str
 
 /** Plan ID (timestamp-based for uniqueness — plans are not compared across runs). */
 function planId(generatedAt: string, windowDays: number): string {
-  // Deterministic: derived from timestamp + window, same inputs → same ID
+  // Deterministic: derived from generatedAt + windowDays. Same inputs → same ID.
+  // Only step IDs are deterministic (plan IDs are derived from report metadata).
   const ts = generatedAt.replace(/[^0-9]/g, "").slice(-6);
   return `plan-${ts}-${windowDays}`;
 }
@@ -465,7 +466,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 - [ ] **Step 1: Write the failing tests**
 
-Append these to the existing test file:
+Add these tests to the existing file. Merge imports with the existing import block at the top:
 
 ```typescript
 import { buildExecutionPlan, resolveLocalDependencies, SUBSYSTEM_DEPENDENCY_RULES } from "../../src/executive/planning-engine.js";
@@ -759,28 +760,29 @@ export function buildExecutionPlan(
     };
   }
 
-  let stepCounter = 1;
   const steps: ExecutionStep[] = [];
 
+  // Phase 1: Generate raw steps (no numbering yet)
   for (const obj of objectiveReport.objectives) {
     for (const subsystem of obj.targetSubsystems) {
       const objSteps = buildStepsForObjective(
         obj,
         subsystem as ExecutiveSubsystemName,
-        stepCounter,
+        0, // placeholder — stepNumber reassigned after sort
       );
       steps.push(...objSteps);
-      stepCounter += objSteps.length;
     }
   }
 
-  // Sort deterministically before dependency resolution
-  // so dependency logic operates on a stable ordering
+  // Phase 2: Sort by subsystem, then number sequentially
+  // This guarantees display order always matches stepNumber
   steps.sort((a, b) => {
     if (a.targetSubsystem < b.targetSubsystem) return -1;
     if (a.targetSubsystem > b.targetSubsystem) return 1;
     return a.stepNumber - b.stepNumber;
   });
+  steps.forEach((step, idx) => { step.stepNumber = idx + 1; });
+
   const resolvedSteps = resolveLocalDependencies(steps);
 
   return {
@@ -923,7 +925,7 @@ In `src/cli/commands/executive-dashboard-renderer.ts`:
 
 Add import:
 ```typescript
-import type { ExecutionPlan, ExecutionStep } from "../../executive/planning-engine.js";
+import type { ExecutionPlan } from "../../executive/planning-engine.js";
 import { groupStepsBySubsystem, buildStepNumberIndex } from "../../executive/planning-engine.js";
 ```
 
