@@ -21,6 +21,7 @@ import type { AdaptationProposal } from "../adaptation/adaptation-types.js";
 import type { PersistedExecutionPlan } from "./executive-plan-types.js";
 import type { ExecutionStep } from "./planning-engine.js";
 import type { ExecutiveSubsystemName } from "./executive-health.js";
+import type { GeneratedArtifactRef } from "./executive-plan-types.js";
 
 /** Bump when bridge payload schema changes. Persisted on every proposal. */
 export const EXECUTIVE_BRIDGE_VERSION = "1.0";
@@ -108,5 +109,39 @@ export function buildExecutiveRemediationProposal(
       requiresHumanSpecification: true,
       requestedFields: ["action", "target", "payload"],
     },
+  };
+}
+
+/** Result bridging one executive step into proposal lifecycle. */
+export interface ExecutiveBridgeResult {
+  /** saved proposal — `proposal.id` reflects canonical ID assigned by `ProposalStore.save`. */
+  proposal: AdaptationProposal;
+  /** Durable cross-reference key appended `StepRuntimeState.generatedArtifacts`. */
+  artifactRef: GeneratedArtifactRef;
+}
+
+/**
+ * EFFECTFUL: wrap `buildExecutiveRemediationProposal` `ProposalStore.save`
+ * callback return durable reference engine should append
+ * `StepRuntimeState.generatedArtifacts`.
+ *
+ * wrapper does NOT mutate any global state — caller drives
+ * `StepRuntimeState`. function only persists one proposal returns
+ * reference caller should record.
+ *
+ * @throws any error thrown by `append` — caller decides whether retry.
+ */
+export async function bridgeCreateRemediationProposal(
+  plan: PersistedExecutionPlan,
+  step: ExecutionStep,
+  proposalId: string,
+  now: string,
+  append: (proposal: AdaptationProposal) => Promise<void>,
+): Promise<ExecutiveBridgeResult> {
+  const draft = buildExecutiveRemediationProposal(plan, step, proposalId, now);
+  await append(draft);
+  return {
+    proposal: draft,
+    artifactRef: { type: "proposal", id: proposalId },
   };
 }

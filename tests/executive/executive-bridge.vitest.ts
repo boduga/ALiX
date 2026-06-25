@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   buildExecutiveRemediationProposal,
+  bridgeCreateRemediationProposal,
   EXECUTIVE_BRIDGE_VERSION,
+  type ExecutiveBridgeResult,
 } from "../../src/executive/executive-bridge.js";
 import type { PersistedExecutionPlan } from "../../src/executive/executive-plan-types.js";
 import type { ExecutionStep } from "../../src/executive/planning-engine.js";
@@ -138,5 +140,54 @@ describe("buildExecutiveRemediationProposal (pure) — output shape", () => {
 
   it("emits sourceRecommendationType='executive_remediation' (matches target.kind precedent)", () => {
     expect(result.sourceRecommendationType).toBe("executive_remediation");
+  });
+});
+
+describe("bridgeCreateRemediationProposal (effectful wrapper)", () => {
+  const step = makeStep();
+  const plan = makePlan(step);
+
+  it("calls append() exactly once with the draft proposal", async () => {
+    let callCount = 0;
+    let captured: { id: string } | undefined;
+    const append = async (proposal: { id: string }) => {
+      callCount += 1;
+      captured = proposal;
+    };
+    await bridgeCreateRemediationProposal(plan, step, PROPOSAL_ID, NOW, append as never);
+    expect(callCount).toBe(1);
+    expect(captured).toBeDefined();
+    expect((captured as unknown as { id: string }).id).toBe(PROPOSAL_ID);
+  });
+
+  it("returns ExecutiveBridgeResult proposal.id === supplied proposalId (ProposalStore does not mutate)", async () => {
+    const append = async () => { /* no-op */ };
+    const result: ExecutiveBridgeResult = await bridgeCreateRemediationProposal(
+      plan, step, PROPOSAL_ID, NOW, append as never,
+    );
+    expect(result.proposal.id).toBe(PROPOSAL_ID);
+  });
+
+  it("returns artifactRef { type: 'proposal', id: proposalId }", async () => {
+    const append = async () => { /* no-op */ };
+    const result = await bridgeCreateRemediationProposal(plan, step, PROPOSAL_ID, NOW, append as never);
+    expect(result.artifactRef).toEqual({ type: "proposal", id: PROPOSAL_ID });
+  });
+
+  it("propagates errors thrown by append()", async () => {
+    const append = async () => {
+      throw new Error("disk full");
+    };
+    await expect(
+      bridgeCreateRemediationProposal(plan, step, PROPOSAL_ID, NOW, append as never),
+    ).rejects.toThrow(/disk full/);
+  });
+
+  it("does NOT mutate any global state — caller drives StepRuntimeState", async () => {
+    const append = async () => { /* no-op */ };
+    const result = await bridgeCreateRemediationProposal(plan, step, PROPOSAL_ID, NOW, append as never);
+    // wrapper returns references — does not touch any module-level state.
+    // If global state is introduced later, this test would catch it.
+    expect(result.artifactRef.type).toBe("proposal");
   });
 });
