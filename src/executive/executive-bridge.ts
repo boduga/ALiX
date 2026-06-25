@@ -47,7 +47,7 @@ const VALID_SUBSYSTEMS: readonly ExecutiveSubsystemName[] = [
  * `requiresHumanSpecification: true` with an explicit `requestedFields` list
  * so the human-facing surface can guide the user.
  *
- * The caller supplies the canonical proposal ID — `ProposalStore.save()`
+ * The caller supplies the canonical proposal ID — the store
  * validates `id` as a non-empty string and writes under `${id}.json`. The
  * wrapper captures `draft.id` (already known, no post-save read).
  *
@@ -114,14 +114,14 @@ export function buildExecutiveRemediationProposal(
 
 /** Result bridging one executive step into proposal lifecycle. */
 export interface ExecutiveBridgeResult {
-  /** saved proposal — `proposal.id` reflects canonical ID assigned by `ProposalStore.save`. */
+  /** saved proposal — `proposal.id` reflects canonical ID assigned by the store. */
   proposal: AdaptationProposal;
   /** Durable cross-reference key appended `StepRuntimeState.generatedArtifacts`. */
   artifactRef: GeneratedArtifactRef;
 }
 
 /**
- * EFFECTFUL: wrap `buildExecutiveRemediationProposal` `ProposalStore.save`
+ * EFFECTFUL: wrap `buildExecutiveRemediationProposal` + persistence
  * callback return durable reference engine should append
  * `StepRuntimeState.generatedArtifacts`.
  *
