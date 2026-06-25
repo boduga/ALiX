@@ -223,7 +223,11 @@ export class ExecutionEngine {
           s.stepStates[stepId].durationMs = result.durationMs;
           s.stepStates[stepId].evidenceIds = result.evidenceIds;
           s.stepStates[stepId].summary = result.summary;
-          s.stepStates[stepId].warnings = result.warnings;
+          // P10.4b — accumulate warnings so the bridge failure warning
+          // (set earlier in this invocation when the bridge throws) is
+          // preserved alongside any runner warnings. Matches the
+          // generatedArtifacts accumulation pattern above.
+          s.stepStates[stepId].warnings = [...s.stepStates[stepId].warnings, ...result.warnings];
           s.stepStates[stepId].lastExecutionId = executionId;
         }
         return s;
