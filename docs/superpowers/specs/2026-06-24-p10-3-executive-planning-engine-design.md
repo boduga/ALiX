@@ -25,6 +25,26 @@ P10.5  Review         (closed-loop evaluation)
 ## Types
 
 All types live in a new file `src/executive/planning-engine.ts`.
+Uses `ExecutiveSubsystemName` from `executive-health.ts` (P10.0).
+
+### Type helpers
+
+```typescript
+/** Machine-readable action kind — P10.4 uses this, never the display title. */
+export type ExecutionStepAction =
+  | "diagnose_root_cause"
+  | "create_remediation_proposal"
+  | "apply_remediation"
+  | "triage_investigations"
+  | "assign_investigation_ownership"
+  | "resolve_investigations"
+  | "audit_metrics"
+  | "identify_optimization_targets"
+  | "implement_improvements"
+  | "schedule_health_check"
+  | "review_baseline_metrics"
+  | "update_documentation";
+```
 
 ### ExecutionStep
 
@@ -32,14 +52,18 @@ All types live in a new file `src/executive/planning-engine.ts`.
 export type ExecutionStepStatus = "pending" | "in_progress" | "completed" | "blocked";
 
 export interface ExecutionStep {
-  /** 1-based step number in the overall plan sequence. */
+  /** Stable identity — survives replanning, used for dependsOn. */
+  id: string;
+  /** Machine action kind — P10.4 dispatches on this, never on title. */
+  action: ExecutionStepAction;
+  /** Human-readable title for display (terminal / JSON). */
+  title: string;
+  /** 1-based step number in the overall plan sequence (display / ordering). */
   stepNumber: number;
-  /** Short action description (operator-facing). */
-  action: string;
-  /** Subsystem this step operates on. */
-  targetSubsystem: string;
-  /** 1-based step numbers this step depends on (subsystem-local only). */
-  dependsOn: number[];
+  /** Subsystem this step operates on (typed — compile-time guarantee). */
+  targetSubsystem: ExecutiveSubsystemName;
+  /** Step IDs this step depends on (subsystem-local only). Stable references. */
+  dependsOn: string[];
   status: ExecutionStepStatus;
   /** The objective that generated this step. */
   objectiveId: string;
@@ -61,30 +85,35 @@ export interface ExecutionPlan {
   planStatus: "draft" | "ready" | "blocked";
   sourceReportId?: string;
   rationale?: string;
+  plannerVersion: string;
+  planningAlgorithm: string;
 }
 ```
+
+`plannerVersion` is `"1.0"`; `planningAlgorithm` is `"template-v1"`. These enable unambiguous comparison as planning heuristics evolve (template-v2, AI planner, etc).
 
 `planStatus` defaults to `"draft"` for every P10.3 plan. P10.4 transitions it.
 `rationale` is set when there are no objectives to plan (e.g., `"No executive objectives available to plan."`).
 
 ## Step Templates
 
-Per-objective-type step decomposition. Hardcoded switch with exhaustiveness checking:
+Per-objective-type step decomposition. Hardcoded switch with exhaustiveness checking.
+Each step defines both a machine `action` (P10.4 dispatches on this) and a `title` (display only).
 
-| `objectiveType` | Steps | Risk |
+| `objectiveType` | Steps (action / title) | Risk |
 |---|---|---|
-| `stabilize` | 1. Diagnose root causes | high |
-| | 2. Create remediation proposal | high |
-| | 3. Apply remediation | high |
-| `investigate` | 1. Triage open investigations | medium |
-| | 2. Assign investigation ownership | medium |
-| | 3. Resolve investigations | medium |
-| `improve` | 1. Audit subsystem metrics | low |
-| | 2. Identify optimization targets | low |
-| | 3. Implement improvements | low |
-| `maintain` | 1. Schedule health check | low |
-| | 2. Review baseline metrics | low |
-| | 3. Update documentation | low |
+| `stabilize` | `diagnose_root_cause` / "Diagnose root causes" | high |
+| | `create_remediation_proposal` / "Create remediation proposal" | high |
+| | `apply_remediation` / "Apply remediation" | high |
+| `investigate` | `triage_investigations` / "Triage open investigations" | medium |
+| | `assign_investigation_ownership` / "Assign investigation ownership" | medium |
+| | `resolve_investigations` / "Resolve investigations" | medium |
+| `improve` | `audit_metrics` / "Audit subsystem metrics" | low |
+| | `identify_optimization_targets` / "Identify optimization targets" | low |
+| | `implement_improvements` / "Implement improvements" | low |
+| `maintain` | `schedule_health_check` / "Schedule health check" | low |
+| | `review_baseline_metrics` / "Review baseline metrics" | low |
+| | `update_documentation` / "Update documentation" | low |
 
 When an objective targets multiple subsystems (`targetSubsystems.length > 1`), one step sequence is generated per subsystem. Each sequence gets its own `stepNumber` range and points back to the same `objectiveId`.
 
@@ -92,17 +121,25 @@ The switch has a `default` branch with `assertNever(obj.objectiveType)` to catch
 
 ## Dependency Resolution
 
-Rules applied in `resolveLocalDependencies()`:
+Rules are declared as data, not embedded in code:
 
-1. **Intra-objective:** steps within the same objective already have `dependsOn` set by the template (diagnose → propose → apply).
+```typescript
+/** Action → actions it blocks on the same subsystem. */
+const SUBSYSTEM_DEPENDENCY_RULES: Record<string, string[]> = {
+  apply_remediation: ["implement_improvements", "review_baseline_metrics"],
+};
+```
 
-2. **Same subsystem, same type:** `stabilize`'s "Apply remediation" blocks all `improve`/`maintain` steps on the same subsystem that come after it.
+A generic `resolveLocalDependencies(steps)` function:
 
-3. **Same subsystem, different type:** No additional cross-objective dependencies unless a `stabilize` is present (rule 2).
-
+1. Groups steps by `targetSubsystem`.
+2. Checks `SUBSYSTEM_DEPENDENCY_RULES` for each step: if a step's `action` appears as a key, all later steps on the same subsystem whose action is in the value list get that step's `id` added to their `dependsOn`.
+3. **Intra-objective** dependencies are already set by the template (diagnose → propose → apply).
 4. **Cross-subsystem:** No dependencies ever. `stabilize(governance)` does not block `improve(memory)`.
 
 Function returns new step objects — never mutates inputs in place.
+
+When a new blocker relationship is needed (e.g., `investigate` steps block `apply`), a single line is added to the rules table — no code change in the resolver.
 
 ## Top-Level Generator
 
@@ -137,7 +174,7 @@ renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, plan, { 
   Plan Status: draft | ready | blocked
 
   governance: (X steps)
-    1. Diagnose root causes              high   [blocker for 2, 3]
+    1. Diagnose root causes              high   [blocker for 2]
     2. Create remediation proposal       high   [blocked by 1]
     3. Apply remediation                 high   [blocked by 2]
 
@@ -147,6 +184,8 @@ renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, plan, { 
 
   ...
 ```
+
+Dependencies reference step IDs internally but render as step numbers for readability.
 
 JSON envelope:
 
