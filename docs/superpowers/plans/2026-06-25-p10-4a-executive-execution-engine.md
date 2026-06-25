@@ -20,7 +20,8 @@
 - runReadySteps() uses ONE executionId for the entire batch, shared by every step.
 - ExecutionStateStore.update() uses SERIALIZATION-HASH comparison to detect in-place mutation of planTransitions (not just length check).
 - Plan lifecycle timestamps use an explicit STATUS_TIMESTAMP_MAP, not a dynamic key cast.
-- `nextRunnableSteps()` recomputed after every completed step in runReadySteps().
+- ExecutionStateStore.init() MUST initialize exactly one StepRuntimeState for every plan step — no extra step IDs, no missing step IDs. validateStateStepIds() enforces this at runtime.
+- runReadySteps() recomputes next runnable steps after every completed step within the batch.
 - P10.4a files MUST NOT import/use: GovernanceChangeApplier, AgentCardApplier, SkillApplier, RevertApplier, ProposalStore.*, ApprovalGate, ProposalApprovalGate, .approve(), .apply(), .reject(), InvestigationRecommendationGenerator, InvestigationStore, recordAdaptationApproved, recordAdaptationApplied, recordAdaptationRejected, recordAdaptationFailed, recordRevertApplied, recordRevertFailed, randomUUID, Math.random.
 - Evidence events use existing `EvidenceEventWriter.appendEvent()` pattern (pass type string + payload object). No need to modify AlixEvent envelope.
 - waiting_for_bridge IS a runtime-reachable StepRuntimeStatus for investigation+mutation steps. NOT a placeholder.
@@ -204,6 +205,12 @@ export type StepRuntimeStatus =
 
 export interface GeneratedArtifactRef {
   type: "proposal" | "report" | "investigation" | "document" | "evidence" | "other";
+  /**
+   * Stable forever — used as a cross-reference key across all execution
+   * phases. Once assigned, an artifact ID MUST NEVER change. Future
+   * proposal IDs, investigation IDs, evidence IDs, and report IDs are
+   * expected to remain stable for the entire lifecycle of the artifact.
+   */
   id: string;
   /** Optional URI for external artifacts. Reserved, not populated in P10.4a. */
   uri?: string;
@@ -873,7 +880,13 @@ export class ExecutionStateStore {
     // Compute hash of transitions BEFORE mutation (defense against in-place mutation)
     const beforeHash = JSON.stringify(current.planTransitions);
 
-    // Apply mutator (deep clone prevents side effects on the original)
+    // Apply mutator (deep clone prevents side effects on the original).
+    // Using JSON.parse(JSON.stringify) rather than structuredClone because
+    // structuredClone loses methods/functions (irrelevant here) and has
+    // inconsistent Node.js support across minor versions. JSON round-trip
+    // is slower but completely deterministic. If a future implementer wants
+    // to "modernize" this, verify that Node >= 22 supports all edge cases
+    // (circular refs, TypedArrays, Map, Set) — none of which exist here.
     const mutated: PlanExecutionState = mutator(JSON.parse(JSON.stringify(current)));
 
     // Validate mutator did not touch transitions (hash comparison, not just length
@@ -1411,16 +1424,23 @@ export class StepRunner {
     // P10.4a: "execute" is thin — it records what the step would do
     // and emits evidence. Real diagnostic/audit logic ships in P10.4b+.
     const evidenceIds: string[] = [];
+    // P10.4a: evidence records 0 duration because no real work is done.
+    // P10.4b+ will pass the actual duration when real execution logic is added.
     const result = await this.writer.recordExecutiveStepExecuted({
       planId, // NOT step.objectiveId — planId is the real correlation key
       stepId: step.id,
       action: step.action,
-      durationMs: 0,
+      durationMs: 0, // P10.4a advisory: evidence always shows 0ms
       summary: `Advisory execution of ${step.action} for ${step.targetSubsystem}`,
       executionId,
     });
     if (result?.id) evidenceIds.push(result.id);
 
+    // Duration returned to ExecutionEngine measures real wall-clock time
+    // of the runner call (evidence recording + any orchestration overhead).
+    // P10.4a: evidence durationMs and runner durationMs may disagree — that
+    // is correct because evidence records "advisory time" and runner records
+    // "actual time." P10.4b+ will reconcile them when real logic ships.
     const durationMs = Date.now() - startMs;
     return {
       outcome: "executed",
@@ -1839,6 +1859,11 @@ export class ExecutionEngine {
 
     let runnable = this.nextRunnableSteps(planId);
     while (runnable.length > 0) {
+      // NOTE: Plan is reloaded per outer iteration (not inside the inner loop)
+      // because plans are immutable — loading once here is safe even though
+      // the state changes after every executed step. A future "optimizer" that
+      // tries to cache the plan across iterations would be correct but
+      // unnecessary; immutability guarantees no staleness.
       const plan = this.planStore.load(planId);
       const sortedSteps = runnable
         .map(id => ({ id, step: plan.steps.find(s => s.id === id)! }))
@@ -2102,6 +2127,42 @@ describe("ExecutionEngine", () => {
 
       const results = await engine.runReadySteps("plan-test-1");
       expect(results.length).toBeGreaterThan(0);
+      expect(results.every(r => r.status === "completed")).toBe(true);
+    });
+
+    it("completes a linear DAG chain (A->B->C) in one runReadySteps invocation", async () => {
+      // Verifies the "recompute after every step" invariant directly:
+      // A completes -> B becomes runnable -> B completes -> C becomes runnable.
+      // All three execute within a single runReadySteps call.
+      const plan = makePlan([
+        { id: "step-A", action: "diagnose_root_cause", stepNumber: 1 },
+        { id: "step-B", action: "audit_metrics", stepNumber: 2, dependsOn: ["step-A"] },
+        { id: "step-C", action: "identify_optimization_targets", stepNumber: 3, dependsOn: ["step-B"] },
+      ]);
+      vi.mocked(planStore.load).mockReturnValue(plan);
+      const state = makeState(["step-A", "step-B", "step-C"]);
+      state.status = "running";
+      vi.mocked(stateStore.load).mockReturnValue(state);
+
+      const mockResult = {
+        outcome: "executed", newStepStatus: "completed", durationMs: 5,
+        evidenceIds: ["evt-1"], generatedArtifacts: [], warnings: [], retryable: false,
+      };
+      vi.mocked(runner.execute).mockResolvedValue(mockResult as any);
+
+      // Simulate: each stateStore.update call completes the step
+      vi.mocked(stateStore.update).mockImplementation((_id, _t, mutator) => {
+        const s = JSON.parse(JSON.stringify(state));
+        mutator(s);
+        for (const [, stepState] of Object.entries(s.stepStates) as [string, any][]) {
+          if (stepState.status === "in_progress") stepState.status = "completed";
+        }
+        return s;
+      });
+
+      const results = await engine.runReadySteps("plan-test-1");
+      expect(results).toHaveLength(3);
+      expect(results.map(r => r.stepId)).toEqual(["step-A", "step-B", "step-C"]);
       expect(results.every(r => r.status === "completed")).toBe(true);
     });
   });
@@ -2393,6 +2454,14 @@ Add to `FORBIDDEN_IN_EXECUTIVE`:
 Add a scoped exception for `plan-store.ts` and `execution-state-store.ts` allowing `writeFileSync`, `mkdirSync`, `renameSync`, `readFileSync`, `readdirSync`, `openSync`, `fsyncSync`, `closeSync` ONLY in those two files.
 
 ---
+
+## Implementer notes (not blockers, documented for future reference)
+
+1. **Canonical JSON serialization for contentHash.** PlanStore hashes `JSON.stringify(plan)` at save time and verifies `JSON.stringify(content)` at load time. This works because property ordering from a single TypeScript compilation is deterministic. However, JSON spec does not guarantee property ordering — if a compiler upgrade or code formatter ever reorders the object literal keys, the hash breaks silently. A future implementer may want to replace `JSON.stringify` with a canonical serializer (e.g., `safe-stable-stringify`). For P10.4a's single-version runtime, this is not required.
+
+2. **Composition root for CLI wiring.** The CLI dispatcher constructs `PlanStore`, `ExecutionStateStore`, `EvidenceEventWriter`, `StepRunner`, `ExecutionEngine`, and `PlanApprovalGate` anew for every command handler. As ALiX grows across Health, Priority, Objectives, Planning, Execution, Review, Governance, and Investigations, this pattern will become unwieldy. A future refactor should introduce a dependency injection container or composition root. Not required for P10.4a.
+
+3. **Completion semantics.** A plan transitions to `completed` when every step is either `completed` or `waiting_for_bridge`. This means a plan with pending bridge work is marked "completed" even though real mutation work remains. This is architecturally correct (P10.4a owns orchestration, not mutation dispatch) but may confuse operators. Future phases may introduce `bridge_pending` or `executive_completed` to distinguish executive completion from overall completion.
 
 ## Self-review
 
