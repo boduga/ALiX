@@ -157,7 +157,7 @@ function renderPlan(plan: ExecutionPlan): void {
     console.log(`\n  ${capitalize(subsystem)}: (${steps.length} steps)`);
     for (const step of steps) {
       const depText = step.dependsOn.length > 0
-        ? ` [blocked by ${step.dependsOn.map(d => idToStepNum.get(d)).join(", ")}]`
+        ? ` [blocked by ${step.dependsOn.map(d => idToStepNum.get(d) ?? "missing:" + d.slice(0, 8)).join(", ")}]`
         : "";
       const blockerText = plan.steps.some(s =>
         s.targetSubsystem === step.targetSubsystem && s.dependsOn.includes(step.id)

@@ -143,7 +143,20 @@ function assertNever(value: never, message?: string): never {
   throw new Error(message ?? `Unexpected value: ${value}`);
 }
 
+/** All known subsystem names, derived from ExecutiveSubsystemName union. */
+const VALID_SUBSYSTEMS: readonly string[] = [
+  "governance", "security", "adaptation", "learning",
+  "memory", "tools", "workflow", "agents",
+];
+
+export function isExecutiveSubsystemName(value: string): value is ExecutiveSubsystemName {
+  return VALID_SUBSYSTEMS.includes(value);
+}
+
 export function riskLevelFromScore(priorityScore: number, objectiveScore: number): "low" | "medium" | "high" {
+  if (!Number.isFinite(priorityScore) || !Number.isFinite(objectiveScore)) {
+    throw new Error(`Invalid executive objective score: priorityScore=${priorityScore}, objectiveScore=${objectiveScore}`);
+  }
   const max = Math.max(priorityScore, objectiveScore);
   if (max >= 70) return "high";
   if (max >= 40) return "medium";
@@ -338,9 +351,12 @@ export function buildExecutionPlan(
 
   for (const obj of objectiveReport.objectives) {
     for (const subsystem of obj.targetSubsystems) {
+      if (!isExecutiveSubsystemName(subsystem)) {
+        throw new Error(`Invalid objective targetSubsystem: "${subsystem}" in objective ${obj.id}`);
+      }
       const objSteps = buildStepsForObjective(
         obj,
-        subsystem as ExecutiveSubsystemName,
+        subsystem,
         stepCounter,
       );
       steps.push(...objSteps);
