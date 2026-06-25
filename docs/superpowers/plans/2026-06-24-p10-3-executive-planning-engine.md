@@ -26,7 +26,7 @@
 - `ESTIMATED_DURATION_MINUTES` is exported as a public constant for P10.4 reuse
 - `SUBSYSTEM_DEPENDENCY_RULES` is immutable (`Object.freeze` + `Readonly` deep type)
 - View-model helpers (`groupStepsBySubsystem`, `buildStepNumberIndex`) live in `planning-engine.ts`, not the renderer
-- After dependency resolution, steps are explicitly sorted by `targetSubsystem` then `stepNumber` for deterministic output
+- Steps are sorted by `targetSubsystem` then `stepNumber` before dependency resolution, so dep logic operates on stable ordering
 - All functions return new objects — never mutate inputs
 
 ---
@@ -297,6 +297,26 @@ export interface ExecutionPlan {
 }
 
 // ---------------------------------------------------------------------------
+// Action name constants (refactoring-safe — use these, not raw strings)
+// ---------------------------------------------------------------------------
+
+/** @see ExecutionStepAction for the full union type. */
+export const STEP_ACTION = {
+  DIAGNOSE_ROOT_CAUSE: "diagnose_root_cause",
+  CREATE_REMEDIATION_PROPOSAL: "create_remediation_proposal",
+  APPLY_REMEDIATION: "apply_remediation",
+  TRIAGE_INVESTIGATIONS: "triage_investigations",
+  ASSIGN_INVESTIGATION_OWNERSHIP: "assign_investigation_ownership",
+  RESOLVE_INVESTIGATIONS: "resolve_investigations",
+  AUDIT_METRICS: "audit_metrics",
+  IDENTIFY_OPTIMIZATION_TARGETS: "identify_optimization_targets",
+  IMPLEMENT_IMPROVEMENTS: "implement_improvements",
+  SCHEDULE_HEALTH_CHECK: "schedule_health_check",
+  REVIEW_BASELINE_METRICS: "review_baseline_metrics",
+  UPDATE_DOCUMENTATION: "update_documentation",
+} as const satisfies Record<string, ExecutionStepAction>;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -306,10 +326,10 @@ function makeStepId(objectiveId: string, subsystem: string, action: string): str
 }
 
 /** Plan ID (timestamp-based for uniqueness — plans are not compared across runs). */
-function planId(): string {
-  const ts = Date.now().toString(36).slice(-6);
-  const rand = Math.random().toString(36).slice(2, 6);
-  return `plan-${ts}-${rand}`;
+function planId(generatedAt: string, windowDays: number): string {
+  // Deterministic: derived from timestamp + window, same inputs → same ID
+  const ts = generatedAt.replace(/[^0-9]/g, "").slice(-6);
+  return `plan-${ts}-${windowDays}`;
 }
 
 /** Exhaustiveness guard — compile-time + runtime protection for discriminated unions. */
@@ -334,6 +354,7 @@ function makeStep(
 ): ExecutionStep {
   return {
     id: makeStepId(obj.id, subsystem, action),
+    action,
     title,
     stepNumber,
     targetSubsystem: subsystem,
@@ -601,6 +622,13 @@ describe("buildExecutionPlan", () => {
     expect(plan.sourceReportId).toBe("report-abc");
   });
 
+  it("produces deterministic plan IDs for identical inputs", () => {
+    const report = makeObjectiveReport();
+    const plan1 = buildExecutionPlan(report);
+    const plan2 = buildExecutionPlan(report);
+    expect(plan1.id).toBe(plan2.id);
+  });
+
   it("generates multi-subsystem steps when objective targets multiple subsystems", () => {
     const report = makeObjectiveReport({
       objectives: [
@@ -640,6 +668,7 @@ Append to `src/executive/planning-engine.ts` (before the closing of the file):
 // ---------------------------------------------------------------------------
 
 /** Action → actions it blocks on the same subsystem. Typed for compile-time safety. */
+/** Additional dependency rules will be introduced in P10.4 as execution patterns evolve. */
 export const SUBSYSTEM_DEPENDENCY_RULES: Readonly<Partial<Record<ExecutionStepAction, Readonly<ExecutionStepAction[]>>>> = Object.freeze({
   apply_remediation: ["implement_improvements", "review_baseline_metrics"],
 });
@@ -717,7 +746,7 @@ export function buildExecutionPlan(
 
   if (objectiveReport.objectives.length === 0) {
     return {
-      id: shortId("plan"),
+      id: planId(generatedAt, objectiveReport.windowDays),
       objectives: [],
       steps: [],
       generatedAt,
@@ -745,15 +774,17 @@ export function buildExecutionPlan(
     }
   }
 
-  const resolvedSteps = resolveLocalDependencies(steps)
-    .sort((a, b) => {
-      if (a.targetSubsystem < b.targetSubsystem) return -1;
-      if (a.targetSubsystem > b.targetSubsystem) return 1;
-      return a.stepNumber - b.stepNumber;
-    });
+  // Sort deterministically before dependency resolution
+  // so dependency logic operates on a stable ordering
+  steps.sort((a, b) => {
+    if (a.targetSubsystem < b.targetSubsystem) return -1;
+    if (a.targetSubsystem > b.targetSubsystem) return 1;
+    return a.stepNumber - b.stepNumber;
+  });
+  const resolvedSteps = resolveLocalDependencies(steps);
 
   return {
-    id: shortId("plan"),
+    id: planId(generatedAt, objectiveReport.windowDays),
     objectives: objectiveReport.objectives.map(o => o.id),
     steps: resolvedSteps,
     generatedAt,
