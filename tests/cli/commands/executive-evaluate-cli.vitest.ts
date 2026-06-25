@@ -270,18 +270,20 @@ describe("executive evaluate CLI", () => {
     c.restore();
   });
 
-  it("shows error when plan does not exist", async () => {
+  it("returns plan_not_found JSON when plan does not exist", async () => {
     const execDir = join(tempRoot, ".alix", "executive");
     mkdirSync(join(execDir, "plans"), { recursive: true });
 
-    const exit = mockExit();
     const c = captureConsole();
 
-    await expect(handleExecutiveCommand(["evaluate", "nonexistent-plan"]))
-      .rejects.toThrow("process.exit");
-    expect(c.err().join("")).toContain("not found");
+    await handleExecutiveCommand(["evaluate", "nonexistent-plan", "--json"]);
 
-    exit.restore();
+    const output = c.out().join("\n");
+    const parsed = JSON.parse(output);
+    expect(parsed.evaluationStatus).toBe("plan_not_found");
+    expect(parsed.planId).toBe("nonexistent-plan");
+    expect(parsed.warnings.length).toBeGreaterThan(0);
+
     c.restore();
   });
 
@@ -330,7 +332,7 @@ describe("executive evaluate CLI", () => {
     c.restore();
   });
 
-  it("handles contentHash mismatch gracefully", async () => {
+  it("returns plan_not_found JSON on contentHash mismatch", async () => {
     const plansDir = join(tempRoot, ".alix", "executive", "plans");
     mkdirSync(plansDir, { recursive: true });
 
@@ -338,18 +340,20 @@ describe("executive evaluate CLI", () => {
     const planData = { id: "tampered-plan", steps: [], contentHash: "0".repeat(64) };
     writeFileSync(join(plansDir, "tampered-plan.json"), JSON.stringify(planData), "utf-8");
 
-    const exit = mockExit();
     const c = captureConsole();
 
-    await expect(handleExecutiveCommand(["evaluate", "tampered-plan"]))
-      .rejects.toThrow("process.exit");
-    expect(c.err().join("")).toContain("contentHash mismatch");
+    await handleExecutiveCommand(["evaluate", "tampered-plan", "--json"]);
 
-    exit.restore();
+    const output = c.out().join("\n");
+    const parsed = JSON.parse(output);
+    expect(parsed.evaluationStatus).toBe("plan_not_found");
+    expect(parsed.planId).toBe("tampered-plan");
+    expect(parsed.warnings.length).toBeGreaterThan(0);
+
     c.restore();
   });
 
-  it("handles missing state file gracefully", async () => {
+  it("returns plan_not_found JSON when state file is missing", async () => {
     const execDir = join(tempRoot, ".alix", "executive");
     const plansDir = join(execDir, "plans");
     mkdirSync(plansDir, { recursive: true });
@@ -357,14 +361,16 @@ describe("executive evaluate CLI", () => {
     writePlan(plansDir, makeCompletedPlan("no-state-plan"));
     // Do NOT create state file
 
-    const exit = mockExit();
     const c = captureConsole();
 
-    await expect(handleExecutiveCommand(["evaluate", "no-state-plan"]))
-      .rejects.toThrow("process.exit");
-    expect(c.err().join("")).toContain("state not found");
+    await handleExecutiveCommand(["evaluate", "no-state-plan", "--json"]);
 
-    exit.restore();
+    const output = c.out().join("\n");
+    const parsed = JSON.parse(output);
+    expect(parsed.evaluationStatus).toBe("plan_not_found");
+    expect(parsed.planId).toBe("no-state-plan");
+    expect(parsed.warnings.length).toBeGreaterThan(0);
+
     c.restore();
   });
 });

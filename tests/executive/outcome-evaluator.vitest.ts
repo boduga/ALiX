@@ -233,6 +233,19 @@ describe("evaluatePlanOutcome — fail-closed guards", () => {
 
     expect(result.evaluationStatus).toBe("insufficient_data");
   });
+
+  it("passes through when status is 'failed' (terminal state → evaluation)", () => {
+    const step = makeStep({ action: "apply_remediation", objectiveId: "obj-1", targetSubsystem: "workflow" });
+    const plan = makePlan({ steps: [step] });
+    const state = makeCompletedState({ status: "failed" });
+    const baseline = makeSnapshot("2026-06-01T00:00:00.000Z", { workflow: 50 });
+    const current = makeSnapshot("2026-06-15T00:00:00.000Z", { workflow: 70 });
+
+    const result = evaluatePlanOutcome(plan, state, baseline, current);
+
+    expect(result.evaluationStatus).toBe("completed");
+    expect(result.objectives.length).toBeGreaterThan(0);
+  });
 });
 
 // -----------------------------------------------------------------------

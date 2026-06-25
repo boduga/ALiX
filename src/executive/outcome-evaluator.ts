@@ -20,9 +20,10 @@ import type { ExecutiveObjectiveType } from "./objective-engine.js";
 export type EvaluationStatus =
   | "completed"
   | "insufficient_data"
-  | "plan_not_executed";
-// NOTE: plan_not_found lives only in the CLI handler — the pure
-// evaluator receives a plan object, so it cannot return this status.
+  | "plan_not_executed"
+  | "plan_not_found";
+// NOTE: plan_not_found is used only by the CLI handler — the pure
+// evaluator receives a plan object, so it never returns this status.
 
 export type OutcomeClassification =
   | "improved"
