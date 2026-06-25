@@ -21,7 +21,7 @@ P10.4c is the **executive lifecycle reconciler** — it observes the external P5
 P10.4a = executive orchestrator (records intent, never mutates)
 P10.4b = executive proposal bridge (creates pending proposals only)
 P10.4c = executive apply reconciler (this spec — observes applied proposals, completes steps)
-P10.4d = executive apply bridge (future — applies proposals automatically with human approval)
+P10.4d = executive apply automation (future — applies proposals automatically; requires separate approval-first design, not a mechanical follow-up)
 ```
 
 ## Why this exists
@@ -192,8 +192,10 @@ if (step.action === "apply_remediation" && this.proposalStore) {
     // Override the waiting_for_bridge from StepRunner — proposal is applied
     result.newStepStatus = "completed";
     result.summary = `Proposal ${reconcileResult.matchedProposalId} was applied`;
-    // Clear warnings from any previous bridge failure (reconciliation succeeded)
-    result.warnings = [];
+    // Append reconciler note; do NOT clear prior warnings (they may contain
+    // useful history from previous run attempts). The caller accumulates
+    // warnings from both the runner result and the bridge dispatch, so
+    // clearing would erase prior context.
     await this.writer.recordExecutiveStepAppliedRemediation({
       planId: plan.id,
       stepId: step.id,
@@ -227,7 +229,7 @@ The `proposalStore` guard ensures no-op when the store isn't wired (same as P10.
 - `src/executive/step-behavior.ts` — no changes
 - `src/executive/step-runner.ts` — no changes
 - `src/cli/commands/executive.ts` — no changes
-- `tests/executive/executive-sentinels.vitest.ts` — no changes (reconciler is pure, no forbidden symbols)
+- `tests/executive/executive-sentinels.vitest.ts` — likely needs allowlist update (new `executive-apply-reconciler.ts` file must be listed if the sentinel enumerates executive file paths; verify at implementation time)
 
 ## Test cases
 
