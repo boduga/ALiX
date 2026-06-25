@@ -161,6 +161,7 @@ describe("ExecutionEngine", () => {
     it("throws for non-runnable step", async () => {
       vi.mocked(planStore.load).mockReturnValue(makePlan());
       const state = makeState();
+      state.status = "running";
       state.stepStates["step-1"].status = "completed";
       vi.mocked(stateStore.load).mockReturnValue(state);
       await expect(engine.runStep("plan-test-1", "step-1")).rejects.toThrow("not runnable");

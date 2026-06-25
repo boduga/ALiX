@@ -89,6 +89,16 @@ export class PlanApprovalGate {
   reject(planId: string, by: string, reason: string, executionId: string): PlanExecutionState {
     const state = this.stateStore.load(planId);
     if (!state) throw new Error(`Execution state not found: ${planId}`);
+
+    // Validate plan existence + consistency (matching approve())
+    const plan = this.planStore.load(planId);
+    if (!plan) throw new Error(`Plan not found: ${planId}`);
+    if (state.planId !== plan.id) {
+      throw new Error(
+        `State planId mismatch: state="${state.planId}" != plan="${plan.id}"`,
+      );
+    }
+
     if (!VALID_REJECT_FROM.includes(state.status)) {
       throw new Error(`Cannot reject plan in status: ${state.status}`);
     }

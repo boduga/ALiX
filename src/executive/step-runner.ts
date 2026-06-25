@@ -56,17 +56,19 @@ export class StepRunner {
     const startMs = Date.now();
     const evidenceIds: string[] = [];
 
-    // P10.4a: "execute" is thin — it records intent + emits evidence.
-    const durationMs = Date.now() - startMs; // single measurement for evidence + result
+    // Evidence recording IS the execution for read-only steps
     const result = await this.writer.recordExecutiveStepExecuted({
       planId, // NOT step.objectiveId — planId is the real correlation key
       stepId: step.id,
       action: step.action,
-      durationMs,
+      durationMs: 0, // placeholder — measured below after evidence write
       summary: `Advisory execution of ${step.action} for ${step.targetSubsystem}`,
       executionId,
     });
     if (result?.id) evidenceIds.push(result.id);
+
+    // Single wall-clock measurement capturing evidence write + execution
+    const durationMs = Date.now() - startMs;
     return {
       outcome: "executed",
       durationMs,

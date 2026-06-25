@@ -192,6 +192,12 @@ export class ExecutionEngine {
    * One executionId per invocation (the constitutional invariant).
    */
   async runStep(planId: string, stepId: string): Promise<ExecutiveStepExecutionResult> {
+    const state = this.stateStore.load(planId);
+    if (!state) throw new Error(`Execution state not found: ${planId}`);
+    if (state.status !== "running") {
+      throw new Error(`Cannot run steps in plan with status "${state.status}" — must be "running"`);
+    }
+
     const runnable = this.nextRunnableSteps(planId);
     if (!runnable.includes(stepId)) {
       throw new Error(`Step ${stepId} is not runnable (dependencies incomplete or not pending)`);
@@ -225,6 +231,12 @@ export class ExecutionEngine {
    * DAG query always sees the latest committed state. This is intentional.
    */
   async runReadySteps(planId: string): Promise<ExecutiveStepExecutionResult[]> {
+    const state = this.stateStore.load(planId);
+    if (!state) throw new Error(`Execution state not found: ${planId}`);
+    if (state.status !== "running") {
+      throw new Error(`Cannot run steps in plan with status "${state.status}" — must be "running"`);
+    }
+
     const executionId = generateExecutionId();
     const results: ExecutiveStepExecutionResult[] = [];
 
@@ -244,7 +256,8 @@ export class ExecutionEngine {
       for (const { id } of sortedSteps) {
         // Recheck runnable (state may have changed since last iteration)
         const state2 = this.stateStore.load(planId);
-        const currentRunnable = this.computeNextRunnableIds(plan, state2!);
+        if (!state2) throw new Error(`Execution state vanished for plan ${planId} during runReadySteps`);
+        const currentRunnable = this.computeNextRunnableIds(plan, state2);
         if (!currentRunnable.includes(id)) continue;
 
         // Uses the SAME executionId as the batch

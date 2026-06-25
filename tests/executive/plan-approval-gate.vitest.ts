@@ -83,6 +83,7 @@ describe("PlanApprovalGate", () => {
   });
 
   it("rejects plan and records evidence", () => {
+    vi.mocked(planStore.load).mockReturnValue(mockPlan());
     vi.mocked(stateStore.load).mockReturnValue(mockState());
     vi.mocked(stateStore.update).mockImplementation((_id, _t, mutator) => {
       const state = mockState();
@@ -101,6 +102,7 @@ describe("PlanApprovalGate", () => {
   });
 
   it("rejects rejection for approved plan", () => {
+    vi.mocked(planStore.load).mockReturnValue(mockPlan());
     vi.mocked(stateStore.load).mockReturnValue(mockState({ status: "running" }));
     expect(() => gate.reject("plan-test-1", "user", "no", "exec-1")).toThrow("Cannot reject");
   });

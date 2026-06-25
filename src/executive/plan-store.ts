@@ -19,7 +19,7 @@ import {
   fsyncSync,
   closeSync,
 } from "node:fs";
-import { join, parse } from "node:path";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
 import type { ExecutionPlan } from "./planning-engine.js";
 import type { PersistedExecutionPlan } from "./executive-plan-types.js";
@@ -116,11 +116,17 @@ export class PlanStore {
   list(): PersistedExecutionPlan[] {
     if (!existsSync(this.dir)) return [];
     return readdirSync(this.dir)
-      .filter(f => f.endsWith(".json") && f.endsWith("-state.json") === false)
-      .map(f => parse(f).name)
-      .map(id => {
-        try { return this.load(id); }
-        catch { return null; }
+      .filter(f => f.endsWith(".json") && !f.endsWith("-state.json"))
+      .map(f => {
+        try {
+          const raw = readFileSync(join(this.dir, f), "utf-8");
+          const parsed = JSON.parse(raw);
+          // Only PersistedExecutionPlan has contentHash; execution state files don't.
+          // This robust check avoids false positives for plan IDs ending in "state"
+          // (e.g., "health-state.json" is a plan file, not a state file).
+          if (!parsed.contentHash || !parsed.id) return null;
+          return this.load(parsed.id);
+        } catch { return null; }
       })
       .filter((p): p is PersistedExecutionPlan => p !== null)
       .sort((a, b) => b.generatedAt.localeCompare(a.generatedAt));
