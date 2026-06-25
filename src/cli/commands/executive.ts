@@ -15,6 +15,7 @@
 
 import { join } from "node:path";
 import { runDashboard } from "./executive-dashboard-handler.js";
+import { handleEvaluate } from "./executive-evaluate-handler.js";
 
 // P10.4a plan subcommand imports
 import { PlanStore } from "../../executive/plan-store.js";
@@ -88,9 +89,12 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
     case "plan":
       return handlePlanCommand(rest);
 
+    case "evaluate":
+      return handleEvaluate(rest);
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan");
+      console.error("Available: dashboard, plan, evaluate");
       process.exit(1);
   }
 }
