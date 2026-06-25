@@ -156,6 +156,12 @@ export interface ExecutivePlanFailedPayload {
   executionId: string;
 }
 
+export interface ExecutiveStepAppliedRemediationPayload {
+  planId: string;
+  stepId: string;
+  proposalId: string;
+}
+
 // ---------------------------------------------------------------------------
 // EvidenceEventWriter
 // ---------------------------------------------------------------------------
@@ -681,6 +687,14 @@ export class EvidenceEventWriter {
     error: string;
   }): Promise<EvidenceRecord | null> {
     return this.appendEvent("executive_step_bridge_failed", { ...payload });
+  }
+
+  async recordExecutiveStepAppliedRemediation(payload: {
+    planId: string;
+    stepId: string;
+    proposalId: string;
+  }): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_applied_remediation", { ...payload });
   }
 
   // -----------------------------------------------------------------------

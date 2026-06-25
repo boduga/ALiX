@@ -15,6 +15,7 @@
 
 import { randomUUID } from "node:crypto";
 import { bridgeCreateRemediationProposal, EXECUTIVE_BRIDGE_VERSION } from "./executive-bridge.js";
+import { reconcileApplyStep } from "./executive-apply-reconciler.js";
 import type { PlanStore } from "./plan-store.js";
 import type { ExecutionStateStore } from "./execution-state-store.js";
 import type { StepRunner } from "./step-runner.js";
@@ -209,6 +210,26 @@ export class ExecutionEngine {
             error: msg,
           });
         }
+      }
+    }
+
+    // ─── P10.4c executive apply reconciler ──────────────────────────────────
+    // Reconcile `apply_remediation` steps by observing the linked proposal's
+    // lifecycle status. If the proposal is "applied", mark the step completed.
+    // Otherwise stay "waiting_for_bridge". Do NOT clear prior warnings.
+    if (step.action === "apply_remediation" && this.proposalStore) {
+      const proposals = await this.proposalStore.list();
+      const reconcileResult = reconcileApplyStep(plan, step, proposals);
+      if (reconcileResult.stepCompleted) {
+        result.newStepStatus = "completed";
+        result.summary = `Proposal ${reconcileResult.matchedProposalId} was applied`;
+        // Append reconciler note; do NOT clear prior warnings (they may contain
+        // useful history from previous run attempts).
+        await this.writer.recordExecutiveStepAppliedRemediation({
+          planId: plan.id,
+          stepId: step.id,
+          proposalId: reconcileResult.matchedProposalId!,
+        });
       }
     }
 
