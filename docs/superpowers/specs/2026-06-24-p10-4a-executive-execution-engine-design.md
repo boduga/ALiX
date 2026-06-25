@@ -309,11 +309,11 @@ class ExecutionEngine {
   /** Returns step IDs whose dependsOn are all completed AND status === "pending". */
   nextRunnableSteps(planId: string): Promise<string[]>;
 
-  /** Run one step. Throws if not runnable. */
+  /** Run one step. Throws if not runnable. Generates fresh executionId. */
   runStep(planId: string, stepId: string): Promise<StepExecutionResult>;
 
   /** Run all currently runnable steps sequentially.
-   *  One executionId for the entire invocation. */
+   *  Generates ONE fresh executionId shared by all steps in the batch. */
   runReadySteps(planId: string): Promise<StepExecutionResult[]>;
 }
 
@@ -334,6 +334,7 @@ class StepRunner {
 
   /** Execute a single step according to its behavior class. */
   execute(step: ExecutionStep, executionId: string): Promise<StepRunnerResult>;
+  // Caller (ExecutionEngine) generates the executionId and passes it in.
 }
 
 interface StepRunnerResult {
@@ -375,7 +376,7 @@ interface ExecutiveCorrelation {
 }
 ```
 
-`executionId` is generated when `runReadySteps()` is called. All steps in that batch share the same `executionId`. Plan-level events (e.g., `executive_plan_started`) carry the same `executionId` as the batch that triggered them. This is essential for retry tracing.
+`executionId` is generated when **any** step-execution entry point is called: `runReadySteps()`, `runStep()`, and the per-step work inside `startPlan()` (if it triggers initial step execution). Each entry point invocation generates ONE fresh `executionId` (UUID v4). All evidence events emitted during that invocation — including step events and any resulting plan-level events — share the same `executionId`. This is essential for retry tracing and for reconstructing "which run touched which steps."
 
 ---
 
