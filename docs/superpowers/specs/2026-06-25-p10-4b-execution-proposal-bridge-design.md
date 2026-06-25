@@ -127,7 +127,7 @@ The `provenance` field is a closed union (`"auto" | "manual"`) on a protected ty
    ↓ for step.action === "create_remediation_proposal":
    ↓   if step.generatedArtifacts contains { type: "proposal", id } → skip silently (idempotency)
    ↓   else:
-   ↓     result = await bridgeCreateRemediationProposal(plan, step, now, append)
+   ↓     result = await bridgeCreateRemediationProposal(plan, step, proposalId, nowIso, append)
    ↓     stepState.generatedArtifacts.push(result.artifactRef)
    ↓     evidenceWriter.append("executive_step_bridged_to_proposal", payload)
    ↓   stepState.status stays "waiting_for_bridge"  (no transition)
@@ -144,7 +144,7 @@ The `provenance` field is a closed union (`"auto" | "manual"`) on a protected ty
 
 ### Step 4 in detail — the only P10.4b write surface
 
-All bridge state mutation lives in `ExecutionEngine.runReadySteps()`. `StepRunner` is unchanged. Concretely:
+All bridge state mutation lives in `ExecutionEngine.executeStepInternal()` — the shared internal method called by both `runStep()` and `runReadySteps()`. Scoping the bridge only to `runReadySteps()` would silently skip the bridge for manual single-step execution; the shared internal path is the only correct site. `StepRunner` is unchanged. Concretely:
 
 ```ts
 // In ExecutionEngine, where create_remediation_proposal steps are dispatched:
@@ -156,8 +156,9 @@ if (step.action === "create_remediation_proposal") {
   }
 
   try {
+    // proposalId is a caller-generated stable ID; ProposalStore.save() validates non-empty `id`.
     const result = await bridgeCreateRemediationProposal(
-      plan, step, nowIso, (proposal) => proposalStore.save(proposal),
+      plan, step, proposalId, nowIso, (proposal) => proposalStore.save(proposal),
     );
     stepState.generatedArtifacts.push(result.artifactRef);
     await evidenceWriter.append({
