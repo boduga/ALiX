@@ -1,3 +1,5 @@
+import type { ExecutiveSubsystemName } from "../executive/executive-health.js";
+
 export type ProposalAction =
   | "create_agent_card"
   | "update_agent_card"
@@ -7,7 +9,8 @@ export type ProposalAction =
   | "suggest_routing_weight"
   | "revert_proposal"
   | "learning_adjustment"
-  | "governance_change"; // P9.2: P9.1 advisory → P5 lifecycle bridge
+  | "governance_change" // P9.2: P9.1 advisory → P5 lifecycle bridge
+  | "executive_remediation_request"; // P10.4b: P10.4a executive bridge → P5 lifecycle
 
 export type ProposalTarget =
   | { kind: "agent_card"; id: string }
@@ -17,7 +20,14 @@ export type ProposalTarget =
   | { kind: "routing_weight"; capability: string }
   | { kind: "revert"; sourceProposalId: string }
   | { kind: "learning"; area: LearningArea }
-  | { kind: "governance"; recommendationId: string }; // P9.2: governance_change target
+  | { kind: "governance"; recommendationId: string } // P9.2: governance_change target
+  | {
+      kind: "executive_remediation"; // P10.4b — additive under ADR-0004
+      planId: string;
+      stepId: string;
+      objectiveId: string;
+      subsystem: ExecutiveSubsystemName;
+    };
 
 /**
  * Which learning subsystem a learning_adjustment proposal targets.
