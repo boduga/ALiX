@@ -118,7 +118,6 @@ export function createAutomaticOutcomeEvaluator(
   executiveDir: string,
 ): AutomaticOutcomeEvaluator {
   const outcomesDir = join(executiveDir, "outcomes");
-  const trendsDir = join(executiveDir, "trends");
   return new AutomaticOutcomeEvaluator(
     new OutcomeReportStore(outcomesDir),
     new ExecutiveTrendStore(executiveDir),
