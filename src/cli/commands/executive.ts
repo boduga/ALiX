@@ -105,7 +105,7 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
 
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn");
       process.exit(1);
   }
 }
