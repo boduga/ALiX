@@ -16,11 +16,13 @@ import { PlanStore } from "../../executive/plan-store.js";
 import { ExecutionStateStore } from "../../executive/execution-state-store.js";
 import { ExecutiveTrendStore } from "../../executive/trend-store.js";
 import { evaluatePlanOutcome } from "../../executive/outcome-evaluator.js";
+import { OutcomeReportStore } from "../../executive/outcome-store.js";
 import type { ExecutiveOutcomeEvaluationReport } from "../../executive/outcome-evaluator.js";
 import type { PlanStatus } from "../../executive/executive-plan-types.js";
 
 const PLANS_DIR = join(".alix", "executive", "plans");
 const EXECUTIVE_DIR = join(".alix", "executive");
+const OUTCOMES_DIR = join(".alix", "executive", "outcomes");
 
 // ---------------------------------------------------------------------------
 // Error-report builder (no plan or state could be loaded)
@@ -95,11 +97,26 @@ export async function handleEvaluate(args: string[]): Promise<void> {
   // ── Evaluate ──────────────────────────────────────────────────────
   const report = evaluatePlanOutcome(plan, state, baseline, current);
 
+  // ── Save (before render) ──────────────────────────────────────────
+  const saveMode = args.includes("--save");
+  let savedId: string | undefined;
+  if (saveMode) {
+    const outcomeStore = new OutcomeReportStore(join(cwd, OUTCOMES_DIR));
+    savedId = outcomeStore.save(report);
+  }
+
   // ── Render ────────────────────────────────────────────────────────
   if (jsonMode) {
-    console.log(JSON.stringify(report, null, 2));
+    if (saveMode) {
+      const output: Record<string, unknown> = { report };
+      if (savedId) output.savedReportId = savedId;
+      console.log(JSON.stringify(output, null, 2));
+    } else {
+      console.log(JSON.stringify(report, null, 2));
+    }
   } else {
     renderEvaluationTable(report);
+    if (savedId) console.log(`Report saved: ${savedId}`);
   }
 }
 
