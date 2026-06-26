@@ -71,7 +71,7 @@ This works because:
 - `OutcomeReportStore.save()` computes the `reportId` from `report.generatedAt`, so the saved file matches the idempotency key
 - The override happens **only** in the automatic path
 - The CLI `evaluate` flow keeps `new Date()` for fresh timestamps
-- The evaluator's return value is never aliased or mutated
+- The hook constructs a new report object and **never mutates** the object returned by `evaluatePlanOutcome()`. The evaluator's return value is treated as immutable.
 
 ## 5. Shared report-ID helper
 
@@ -100,7 +100,24 @@ const existing = outcomeStore.load(reportId);
 
 The integrity-error path is the forensic-preservation rule: a corrupted audit artifact is never overwritten by an automatic evaluation. Unexpected runtime errors (permissions, I/O failures) follow the same generic best-effort skip-and-warn path as evaluator failures — they cannot block plan completion.
 
-The integrity-error distinction is implemented by wrapping `load()` with a small adapter that classifies thrown errors. Integrity errors are detected by message content (`contentHash`, `integrity`, `mismatch`) or by a tagged error subclass.
+The integrity-error distinction is implemented via a typed error subclass — the normative approach:
+
+```
+// in outcome-store.ts
+export class OutcomeReportIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OutcomeReportIntegrityError";
+  }
+}
+```
+
+`OutcomeReportStore.load()` throws `OutcomeReportIntegrityError` for:
+- contentHash mismatch
+- invalid JSON / malformed wrapper
+- schema version mismatch
+
+The hook checks with `err instanceof OutcomeReportIntegrityError`. Runtime errors (permission, I/O) are untyped `Error` and follow the generic best-effort path.
 
 ## 7. Persistence ordering
 
@@ -113,6 +130,8 @@ await hook.run(plan, state)   // awaited, wrapped in try/catch
 ```
 
 The hook is awaited inside `maybeCompletePlan()` so the evaluation is **attempted before the engine returns to the caller**. Failures are swallowed (warn + return) — they never prevent the plan from completing. The engine returns the same result regardless of hook success or failure.
+
+> The engine waits for the hook attempt to finish, but not for it to succeed.
 
 Never evaluate before the completion has been durably committed. Otherwise the hook could fire on a state that wasn't actually persisted.
 
@@ -157,12 +176,14 @@ That is **two distinct terminal transitions** with different timestamps. Each sh
 
 **Replay contract**: replaying the same persisted terminal state (e.g. restoring from backup, re-running the engine against a historical plan) **must never create additional outcome reports**. The idempotency check on `(planId, terminalTimestamp)` enforces this — if the report already exists, the hook is a no-op.
 
+> **Invariant:** A persisted terminal transition may be replayed indefinitely without producing additional outcome reports.
+
 ## 10. Files changed
 
 | Action | Path | Notes |
 |--------|------|-------|
 | **Create** | `src/executive/outcome-report-id.ts` | Standalone `buildOutcomeReportId(planId, generatedAt)` helper |
-| **Modify** | `src/executive/outcome-store.ts` | Import `buildOutcomeReportId`; the store uses it for filename generation |
+| **Modify** | `src/executive/outcome-store.ts` | Import `buildOutcomeReportId`; the store uses it for filename generation; add `OutcomeReportIntegrityError` class; throw it on hash mismatch / invalid schema / malformed JSON |
 | **Create** | `src/executive/automatic-outcome-hook.ts` | `AutomaticOutcomeEvaluator` class implementing `OutcomeEvaluationHook` |
 | **Modify** | `src/executive/execution-engine.ts` | Wire hook into `maybeCompletePlan()` + accept `OutcomeEvaluationHook` constructor injection |
 | **Modify** | `tests/executive/executive-sentinels.vitest.ts` | Add `automatic-outcome-hook.ts` to allowlist |
@@ -203,6 +224,9 @@ That is **two distinct terminal transitions** with different timestamps. Each sh
 - Hook failure does not block the plan from completing (returns `recordExecutivePlanCompleted` evidence normally)
 - Plan transition order: persist completed state → record completion evidence → run automatic outcome hook
 - Replay against persisted terminal state creates no additional outcome reports
+- **Integrity-error path (integration)**: pre-existing report file with contentHash mismatch → `OutcomeReportStore.load()` throws `OutcomeReportIntegrityError` → hook warns to stderr → save is **NOT** called → original corrupted file remains untouched → plan completes normally
+
+The integrity-error integration test is the most important forensic invariant in the entire design. It must verify that a corrupted audit artifact on disk is never silently overwritten by an automatic evaluation.
 
 ## 13. Architectural invariants
 
