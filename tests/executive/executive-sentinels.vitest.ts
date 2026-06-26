@@ -56,6 +56,8 @@ const EXECUTIVE_FILES = [
   "src/executive/executive-bridge.ts",
   // P10.4c files
   "src/executive/executive-apply-reconciler.ts",
+  // P10.5b files
+  "src/executive/outcome-store.ts",
   // P10.5a files
   "src/executive/outcome-evaluator.ts",
   "src/cli/commands/executive-evaluate-handler.ts",
@@ -191,9 +193,11 @@ describe("P10 executive purity sentinel", () => {
               continue;
             }
 
-            // Scoped exception: plan-store.ts and execution-state-store.ts are
-            // approved write paths for P10.4a plan persistence (atomic save pattern)
-            if ((file === "src/executive/plan-store.ts" || file === "src/executive/execution-state-store.ts") &&
+            // Scoped exception: plan-store.ts, execution-state-store.ts, and
+            // outcome-store.ts are approved write paths
+            if ((file === "src/executive/plan-store.ts" ||
+                 file === "src/executive/execution-state-store.ts" ||
+                 file === "src/executive/outcome-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {
