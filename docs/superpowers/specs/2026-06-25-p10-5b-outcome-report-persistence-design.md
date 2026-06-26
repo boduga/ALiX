@@ -118,11 +118,12 @@ There is no separate index. List reads and verifies every file. For the expected
 When `--save` is present:
 
 1. Run the existing evaluation pipeline (unchanged).
-2. After rendering, call `store.save(report)`.
-3. Print `"Report saved: outcome-<planId>-<sanitizedTs>"` to stdout.
-4. Non‑zero exit or earlier errors bypass the save — the handler exits before reaching the save step.
+2. Call `store.save(report)` — if save fails, the error propagates before any output is printed.
+3. Render the evaluation output (terminal table or JSON).
+4. In terminal mode, print a confirmation line after the report: `"Report saved: outcome-<planId>-<sanitizedTs>"`.
+5. Non‑zero exit or earlier errors bypass the save — the handler exits before reaching the save step.
 
-The evaluation output and behavior are **identical** with or without `--save`. The save is additive.
+Save-before-render ensures that a save failure is visible immediately and doesn't produce a successful evaluation followed by an error. The evaluation output and behavior are **identical** with or without `--save`. The save is additive.
 
 ### `alix executive outcomes list [--json]`
 
@@ -135,7 +136,7 @@ outcome-plan-abc-20260625T180000000Z           | plan-abc | completed        | +
 outcome-plan-def-20260626T090000000Z           | plan-def | plan_not_executed | 0   | 2026-06-26T09:00:00.000Z
 ```
 
-3. `--json` mode: prints `OutcomeReportMeta[]` as JSON.
+3. `--json` mode: prints `OutcomeReportMeta[]` as JSON — only valid reports appear in the array; corruption warnings are printed to stderr and never included in JSON output.
 
 ### `alix executive outcomes show <reportId> [--json]`
 
