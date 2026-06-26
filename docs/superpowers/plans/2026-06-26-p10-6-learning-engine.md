@@ -532,7 +532,7 @@ export function computeLearningTrends(
   return {
     trendStatus: TREND_OK,
     generatedAt,
-    window,
+    requestedWindow,
     inputReportCount: reports.length,
     analyzedReportCount: completedReports.length,
     skippedReportCount: skipped,
@@ -603,7 +603,7 @@ function summarizeOutcomes(outcomes: OutcomeClass[]): {
 npx vitest run tests/executive/learning-engine.vitest.ts
 ```
 
-Expected: All 10 tests pass.
+Expected: All 14 tests pass.
 
 - [ ] **Step 5: Commit**
 
@@ -873,7 +873,7 @@ function renderTable(result: TrendResult): void {
     return;
   }
 
-  console.log(`\nExecutive Learning Trends (last ${result.window} plans)`);
+  console.log(`\nExecutive Learning Trends (last ${result.requestedWindow} plans)`);
   console.log(`Generated: ${result.generatedAt}\n`);
 
   renderSubsystemTable(result.subsystemTrends);
@@ -1032,7 +1032,7 @@ git push origin alix-p10-6-complete
 |---|---|
 | §1 Output surface (`alix executive learn trends`) | Task 2 + Task 3 |
 | §2 Data flow (list → slice → load → filter → aggregate) | Task 2 (CLI handler), Task 1 (function) |
-| §3a Pure function types + `computeLearningTrends(reports, window?)` | Task 1 |
+| §3a Pure function types + `computeLearningTrends(reports, requestedWindow?)` | Task 1 |
 | §3b CLI handler | Task 2 |
 | §3c CLI routing | Task 3 |
 | §4 Sentinel plan (EXECUTIVE_FILES only, no write exception) | Task 3 |
