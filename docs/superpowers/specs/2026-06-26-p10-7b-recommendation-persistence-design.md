@@ -30,7 +30,7 @@ P10.7b must not evaluate outcomes.
 P10.7b only reserves fields for P10.7c / P10.8.
 ```
 
-The store writes a `RecommendationReport` artifact whose reserved fields (`proposalId`, `governanceStatus`, `disposition`, `outcomeConfidence`, `outcomeSummary`, per-recommendation `evidenceReportIds`) exist in the schema but are **never populated in P10.7b**. Population belongs to P10.7c (proposal bridge) and P10.8 (effectiveness intelligence). This invariant prevents P10.7b from leaking into the next two slices.
+The store writes a `RecommendationReport` artifact. The report-level `evidenceReportIds` field is populated in P10.7b. The per-recommendation reserved fields are `proposalId`, `governanceStatus`, `disposition`, `outcomeConfidence`, and `outcomeSummary` — they exist in the schema but are **never populated in P10.7b**. Population belongs to P10.7c (proposal bridge) and P10.8 (effectiveness intelligence). This invariant prevents P10.7b from leaking into the next two slices.
 
 ## Domain separation
 
