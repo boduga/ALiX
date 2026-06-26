@@ -67,6 +67,9 @@ const EXECUTIVE_FILES = [
   "src/executive/outcome-evaluator.ts",
   "src/cli/commands/executive-evaluate-handler.ts",
   "src/cli/commands/executive-learn-handler.ts",
+  // P10.7a files
+  "src/executive/recommendation-engine.ts",
+  "src/cli/commands/executive-recommend-handler.ts",
 ];
 
 // ---------------------------------------------------------------------------
