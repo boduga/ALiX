@@ -24,6 +24,8 @@ import type { ProposalStore } from "../adaptation/proposal-store.js";
 import type { PersistedExecutionPlan, PlanExecutionState } from "./executive-plan-types.js";
 import type { ExecutiveStepExecutionResult, StepRuntimeStatus } from "./executive-plan-types.js";
 import { validateStateStepIds } from "./executive-plan-types.js";
+import type { OutcomeEvaluationHook } from "./automatic-outcome-hook.js";
+import { createAutomaticOutcomeEvaluator } from "./automatic-outcome-hook.js";
 
 function generateExecutionId(): string {
   return randomUUID();
@@ -36,6 +38,7 @@ export class ExecutionEngine {
     private readonly runner: StepRunner,
     private readonly writer: EvidenceEventWriter,
     private readonly proposalStore?: ProposalStore, // P10.4b — optional backward compat
+    private readonly outcomeHook: OutcomeEvaluationHook = createAutomaticOutcomeEvaluator(".alix/executive"),
   ) {}
 
   // -----------------------------------------------------------------------
@@ -256,7 +259,7 @@ export class ExecutionEngine {
     );
 
     // Check if all steps are terminal -> plan completed
-    this.maybeCompletePlan(plan, finalState, executionId);
+    await this.maybeCompletePlan(plan, finalState, executionId);
 
     return {
       stepId,
@@ -359,17 +362,17 @@ export class ExecutionEngine {
   // Helpers
   // -----------------------------------------------------------------------
 
-  private maybeCompletePlan(
+  private async maybeCompletePlan(
     plan: PersistedExecutionPlan,
     state: PlanExecutionState,
     executionId: string,
-  ): void {
+  ): Promise<void> {
     const allDone = plan.steps.every(s => {
       const r = state.stepStates[s.id];
       return r?.status === "completed" || r?.status === "waiting_for_bridge";
     });
     if (allDone && state.status === "running") {
-      this.stateStore.update(
+      const updatedState = this.stateStore.update(
         plan.id,
         { from: "running", to: "completed", executionId },
         s => {
@@ -387,6 +390,22 @@ export class ExecutionEngine {
         totalDurationMs,
         executionId,
       }).catch(() => {});
+
+      // P10.5c — automatic outcome evaluation hook (best-effort, awaited).
+      // Fires AFTER durable completion + completion evidence. Pass the
+      // post-completion state so the hook has access to the terminal
+      // timestamp. The hook itself never throws upward (it swallows its
+      // own errors), but we wrap with try/catch as paranoia so plan
+      // completion is never blocked even if a misbehaving stub violates
+      // the interface contract.
+      try {
+        await this.outcomeHook.run(plan, updatedState);
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn(
+          `[execution-engine] Outcome evaluation hook threw — swallowing to preserve plan completion: ${msg}`,
+        );
+      }
     }
   }
 }
