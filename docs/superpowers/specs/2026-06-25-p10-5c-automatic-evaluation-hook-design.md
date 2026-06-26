@@ -156,11 +156,14 @@ This is the single place where `running → completed` is set. The hook fires im
 
 ```
 interface OutcomeEvaluationHook {
-  run(plan: PersistedExecutionPlan, state: PlanExecutionState): Promise<void> | void;
+  run(
+    plan: PersistedExecutionPlan,
+    state: PlanExecutionState,
+  ): Promise<void>;
 }
 ```
 
-The default implementation is a real `AutomaticOutcomeEvaluator` instance; tests pass in stubs. The hook's `run()` may be async so future revisions can add metrics, tracing, or batched I/O without breaking the engine signature.
+The default implementation is a real `AutomaticOutcomeEvaluator` instance; tests pass in stubs. `run()` is **always** `Promise<void>` — a consistent asynchronous contract. Stub implementations in tests use `async run() {}`. The engine can `await hook.run(plan, state)` without considering synchronous implementations.
 
 ## 9. Idempotency scope
 
