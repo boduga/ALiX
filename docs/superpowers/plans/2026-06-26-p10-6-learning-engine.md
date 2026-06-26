@@ -270,6 +270,76 @@ describe("computeLearningTrends", () => {
     expect(result.subsystemTrends).toEqual([]);
     expect(result.objectiveTrends).toEqual([]);
   });
+
+  it("sorts by tie-break rules — same avgDelta and count → alphabetical", () => {
+    const reports = [
+      makeReport({
+        planId: "p1",
+        objectives: [
+          obj("o1", "stabilize", ["aa-subsystem"], 5, "improved"),
+          obj("o2", "stabilize", ["bb-subsystem"], 5, "improved"),
+        ],
+      }),
+    ];
+    const result = computeLearningTrends(reports);
+    expect(result.subsystemTrends[0].subsystem).toBe("aa-subsystem");
+    expect(result.subsystemTrends[1].subsystem).toBe("bb-subsystem");
+  });
+
+  it("rounds averageDelta to one decimal place", () => {
+    const reports = [
+      makeReport({
+        planId: "p1",
+        objectives: [
+          obj("o1", "stabilize", ["workflow"], 1.05, "improved"),
+          obj("o2", "stabilize", ["workflow"], 1.95, "improved"),
+        ],
+      }),
+    ];
+    const result = computeLearningTrends(reports);
+    const wf = result.subsystemTrends.find(s => s.subsystem === "workflow")!;
+    expect(wf.averageDelta).toBe(1.5);
+    expect(wf.averageDelta).not.toBe(1.499999999999999);
+  });
+
+  it("counts two objectives targeting same subsystem as two occurrences", () => {
+    const reports = [
+      makeReport({
+        planId: "p1",
+        objectives: [
+          obj("o1", "stabilize", ["workflow"], 5, "improved"),
+          obj("o2", "improve", ["workflow"], 3, "mixed"),
+        ],
+      }),
+    ];
+    const result = computeLearningTrends(reports);
+    const wf = result.subsystemTrends.find(s => s.subsystem === "workflow")!;
+    expect(wf.occurrenceCount).toBe(2);
+  });
+
+  it("orders by all three sort keys: avgDelta desc → count desc → name asc", () => {
+    // A: avg=5, count=3
+    // B: avg=5, count=2
+    // C: avg=5, count=3
+    // Expected: A → C → B (A beats C on name asc, C beats B on count desc)
+    const reports = [
+      makeReport({
+        planId: "p1",
+        objectives: [
+          obj("o1", "stabilize", ["A"], 5, "improved"),
+          obj("o2", "stabilize", ["A"], 5, "improved"),
+          obj("o3", "stabilize", ["A"], 5, "improved"),
+          obj("o4", "stabilize", ["B"], 5, "improved"),
+          obj("o5", "stabilize", ["B"], 5, "improved"),
+          obj("o6", "stabilize", ["C"], 5, "improved"),
+          obj("o7", "stabilize", ["C"], 5, "improved"),
+          obj("o8", "stabilize", ["C"], 5, "improved"),
+        ],
+      }),
+    ];
+    const result = computeLearningTrends(reports);
+    expect(result.subsystemTrends.map(s => s.subsystem)).toEqual(["A", "C", "B"]);
+  });
 });
 ```
 
@@ -321,10 +391,13 @@ export interface ObjectiveTrend {
   averageDelta: number;
 }
 
+export const TREND_OK = "ok";
+export const TREND_INSUFFICIENT_DATA = "insufficient_data";
+
 export interface TrendResult {
-  trendStatus: "ok" | "insufficient_data";
+  trendStatus: typeof TREND_OK | typeof TREND_INSUFFICIENT_DATA;
   generatedAt: string;
-  window: number;
+  requestedWindow: number;
   inputReportCount: number;
   analyzedReportCount: number;
   skippedReportCount: number;
@@ -335,16 +408,10 @@ export interface TrendResult {
   subsystemTrends: SubsystemTrend[];
   objectiveTrends: ObjectiveTrend[];
   warnings: string[];
+  loadWarnings: string[];
 }
 
 type OutcomeClass = "improved" | "degraded" | "unchanged" | "mixed";
-
-interface Contribution {
-  type: "subsystem" | "objective";
-  group: string;
-  delta: number;
-  outcome: OutcomeClass;
-}
 
 // ---------------------------------------------------------------------------
 // Pure aggregation
@@ -352,14 +419,15 @@ interface Contribution {
 
 export function computeLearningTrends(
   reports: ExecutiveOutcomeEvaluationReport[],
+  requestedWindow: number = reports.length,
 ): TrendResult {
   const generatedAt = new Date().toISOString();
 
   if (reports.length === 0) {
     return {
-      trendStatus: "insufficient_data",
+      trendStatus: TREND_INSUFFICIENT_DATA,
       generatedAt,
-      window: 0,
+      requestedWindow: 0,
       inputReportCount: 0,
       analyzedReportCount: 0,
       skippedReportCount: 0,
@@ -370,6 +438,7 @@ export function computeLearningTrends(
       subsystemTrends: [],
       objectiveTrends: [],
       warnings: [],
+      loadWarnings: [],
     };
   }
 
@@ -380,9 +449,9 @@ export function computeLearningTrends(
 
   if (completedReports.length === 0) {
     return {
-      trendStatus: "insufficient_data",
+      trendStatus: TREND_INSUFFICIENT_DATA,
       generatedAt,
-      window: reports.length,
+      requestedWindow: reports.length,
       inputReportCount: reports.length,
       analyzedReportCount: 0,
       skippedReportCount: skipped,
@@ -393,6 +462,7 @@ export function computeLearningTrends(
       subsystemTrends: [],
       objectiveTrends: [],
       warnings: [],
+      loadWarnings: [],
     };
   }
 
@@ -439,11 +509,8 @@ export function computeLearningTrends(
     subsystemTrends.push({
       subsystem,
       occurrenceCount: deltas.length,
-      successRate: outcomes.filter(o => o === "improved").length / outcomes.length,
-      mixedRate: outcomes.filter(o => o === "mixed").length / outcomes.length,
-      degradationRate: outcomes.filter(o => o === "degraded").length / outcomes.length,
-      unchangedRate: outcomes.filter(o => o === "unchanged").length / outcomes.length,
-      averageDelta: mean(deltas),
+      ...summarizeOutcomes(outcomes),
+      averageDelta: round1(mean(deltas)),
     });
   }
 
@@ -453,22 +520,19 @@ export function computeLearningTrends(
     objectiveTrends.push({
       objectiveType,
       occurrenceCount: deltas.length,
-      successRate: outcomes.filter(o => o === "improved").length / outcomes.length,
-      mixedRate: outcomes.filter(o => o === "mixed").length / outcomes.length,
-      degradationRate: outcomes.filter(o => o === "degraded").length / outcomes.length,
-      unchangedRate: outcomes.filter(o => o === "unchanged").length / outcomes.length,
-      averageDelta: mean(deltas),
+      ...summarizeOutcomes(outcomes),
+      averageDelta: round1(mean(deltas)),
     });
   }
 
   // Sort: averageDelta desc → occurrenceCount desc → name asc
-  subsystemTrends.sort(compareTrend);
-  objectiveTrends.sort(compareTrend);
+  subsystemTrends.sort(compareSubsystemTrend);
+  objectiveTrends.sort(compareObjectiveTrend);
 
   return {
-    trendStatus: "ok",
+    trendStatus: TREND_OK,
     generatedAt,
-    window: reports.length,
+    window,
     inputReportCount: reports.length,
     analyzedReportCount: completedReports.length,
     skippedReportCount: skipped,
@@ -479,6 +543,7 @@ export function computeLearningTrends(
     subsystemTrends,
     objectiveTrends,
     warnings: [],
+    loadWarnings: [],
   };
 }
 
@@ -486,17 +551,24 @@ export function computeLearningTrends(
 // Helpers
 // ---------------------------------------------------------------------------
 
+function round1(v: number): number {
+  return Math.round(v * 10) / 10;
+}
+
 function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function compareTrend(
-  a: { averageDelta: number; occurrenceCount: number },
-  b: { averageDelta: number; occurrenceCount: number },
-): number {
+function compareSubsystemTrend(a: SubsystemTrend, b: SubsystemTrend): number {
   if (b.averageDelta !== a.averageDelta) return b.averageDelta - a.averageDelta;
   if (b.occurrenceCount !== a.occurrenceCount) return b.occurrenceCount - a.occurrenceCount;
-  return 0; // name asc handled at render time since names differ
+  return a.subsystem.localeCompare(b.subsystem);
+}
+
+function compareObjectiveTrend(a: ObjectiveTrend, b: ObjectiveTrend): number {
+  if (b.averageDelta !== a.averageDelta) return b.averageDelta - a.averageDelta;
+  if (b.occurrenceCount !== a.occurrenceCount) return b.occurrenceCount - a.occurrenceCount;
+  return a.objectiveType.localeCompare(b.objectiveType);
 }
 
 function incrementTotal(
@@ -507,6 +579,21 @@ function incrementTotal(
   else if (outcome === "mixed") t.mixed++;
   else if (outcome === "degraded") t.degraded++;
   else t.unchanged++;
+}
+
+function summarizeOutcomes(outcomes: OutcomeClass[]): {
+  successRate: number;
+  mixedRate: number;
+  degradationRate: number;
+  unchangedRate: number;
+} {
+  const total = outcomes.length || 1;
+  return {
+    successRate: outcomes.filter(o => o === "improved").length / total,
+    mixedRate: outcomes.filter(o => o === "mixed").length / total,
+    degradationRate: outcomes.filter(o => o === "degraded").length / total,
+    unchangedRate: outcomes.filter(o => o === "unchanged").length / total,
+  };
 }
 ```
 
@@ -765,13 +852,9 @@ export async function handleLearnCommand(args: string[]): Promise<void> {
     }
   }
 
-  const result = computeLearningTrends(reports);
-  // Override window to reflect what was requested
-  result.window = windowN;
-  // Add load-level warnings
-  for (const w of warnings) {
-    if (!result.warnings.includes(w)) result.warnings.push(w);
-  }
+  const result = computeLearningTrends(reports, windowN);
+  // Add load-level warnings (separate from analytical warnings)
+  result.loadWarnings = warnings;
 
   if (useJson) {
     console.log(JSON.stringify(result, null, 2));
@@ -793,35 +876,43 @@ function renderTable(result: TrendResult): void {
   console.log(`\nExecutive Learning Trends (last ${result.window} plans)`);
   console.log(`Generated: ${result.generatedAt}\n`);
 
-  if (result.subsystemTrends.length > 0) {
-    console.log(`${"Subsystem".padEnd(16)} ${"Occurrences".padEnd(12)} ${"Success".padEnd(9)} ${"Mixed".padEnd(8)} ${"Degraded".padEnd(10)} ${"Avg Δ"}`);
-    console.log("-".repeat(65));
-    for (const t of result.subsystemTrends) {
-      console.log(
-        `${t.subsystem.padEnd(16)} ${String(t.occurrenceCount).padEnd(12)} ${fmtPct(t.successRate).padEnd(9)} ${fmtPct(t.mixedRate).padEnd(8)} ${fmtPct(t.degradationRate).padEnd(10)} ${fmtDelta(t.averageDelta)}`,
-      );
-    }
-  }
-
-  console.log();
-
-  if (result.objectiveTrends.length > 0) {
-    console.log(`${"Objective Type".padEnd(16)} ${"Occurrences".padEnd(12)} ${"Success".padEnd(9)} ${"Mixed".padEnd(8)} ${"Degraded".padEnd(10)} ${"Avg Δ"}`);
-    console.log("-".repeat(65));
-    for (const t of result.objectiveTrends) {
-      console.log(
-        `${t.objectiveType.padEnd(16)} ${String(t.occurrenceCount).padEnd(12)} ${fmtPct(t.successRate).padEnd(9)} ${fmtPct(t.mixedRate).padEnd(8)} ${fmtPct(t.degradationRate).padEnd(10)} ${fmtDelta(t.averageDelta)}`,
-      );
-    }
-  }
+  renderSubsystemTable(result.subsystemTrends);
+  renderObjectiveTable(result.objectiveTrends);
 
   console.log(
     `\nInput: ${result.inputReportCount} reports | Skipped: ${result.skippedReportCount} (evaluationStatus ≠ completed)`,
   );
   if (result.warnings.length > 0) {
     for (const w of result.warnings) {
-      console.error(`Warning: ${w}`);
+      console.error(`Analytical warning: ${w}`);
     }
+  }
+  if (result.loadWarnings.length > 0) {
+    for (const w of result.loadWarnings) {
+      console.error(`Load warning: ${w}`);
+    }
+  }
+}
+
+function renderSubsystemTable(trends: SubsystemTrend[]): void {
+  if (trends.length === 0) return;
+  console.log(`${"Subsystem".padEnd(16)} ${"Occurrences".padEnd(12)} ${"Success".padEnd(9)} ${"Mixed".padEnd(8)} ${"Degraded".padEnd(10)} ${"Avg Δ"}`);
+  console.log("-".repeat(65));
+  for (const t of trends) {
+    console.log(
+      `${t.subsystem.padEnd(16)} ${String(t.occurrenceCount).padEnd(12)} ${fmtPct(t.successRate).padEnd(9)} ${fmtPct(t.mixedRate).padEnd(8)} ${fmtPct(t.degradationRate).padEnd(10)} ${fmtDelta(t.averageDelta)}`,
+    );
+  }
+}
+
+function renderObjectiveTable(trends: ObjectiveTrend[]): void {
+  if (trends.length === 0) return;
+  console.log(`${"Objective Type".padEnd(16)} ${"Occurrences".padEnd(12)} ${"Success".padEnd(9)} ${"Mixed".padEnd(8)} ${"Degraded".padEnd(10)} ${"Avg Δ"}`);
+  console.log("-".repeat(65));
+  for (const t of trends) {
+    console.log(
+      `${t.objectiveType.padEnd(16)} ${String(t.occurrenceCount).padEnd(12)} ${fmtPct(t.successRate).padEnd(9)} ${fmtPct(t.mixedRate).padEnd(8)} ${fmtPct(t.degradationRate).padEnd(10)} ${fmtDelta(t.averageDelta)}`,
+    );
   }
 }
 
@@ -941,7 +1032,7 @@ git push origin alix-p10-6-complete
 |---|---|
 | §1 Output surface (`alix executive learn trends`) | Task 2 + Task 3 |
 | §2 Data flow (list → slice → load → filter → aggregate) | Task 2 (CLI handler), Task 1 (function) |
-| §3a Pure function types + `computeLearningTrends()` | Task 1 |
+| §3a Pure function types + `computeLearningTrends(reports, window?)` | Task 1 |
 | §3b CLI handler | Task 2 |
 | §3c CLI routing | Task 3 |
 | §4 Sentinel plan (EXECUTIVE_FILES only, no write exception) | Task 3 |
