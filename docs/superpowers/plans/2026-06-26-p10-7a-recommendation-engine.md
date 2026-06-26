@@ -643,6 +643,28 @@ function makeInsufficientReport(planId: string): ExecutiveOutcomeEvaluationRepor
   };
 }
 
+/** A completed report whose single objective left `workflow` unchanged (delta 0). */
+function makeUnchangedReport(planId: string): ExecutiveOutcomeEvaluationReport {
+  return {
+    schemaVersion: "p10.5.0",
+    generatedAt: new Date().toISOString(),
+    planId,
+    planStatus: "completed",
+    evaluationStatus: "completed",
+    evaluatedSubsystems: ["workflow"],
+    objectives: [{
+      objectiveId: "o1",
+      objectiveType: "stabilize",
+      targetSubsystems: ["workflow"],
+      subsystemDeltas: [{ subsystem: "workflow", baselineScore: 60, currentScore: 60, delta: 0 }],
+      aggregateDelta: 0,
+      outcome: "unchanged",
+    }],
+    overallDelta: 0,
+    warnings: [],
+  };
+}
+
 let tempRoot: string;
 let execDir: string;
 
@@ -711,6 +733,11 @@ describe("executive recommend CLI", () => {
   });
 
   it("prints the empty-result block when trends are ok but no signal fires", async () => {
+    // Seed 3 stable/unchanged reports so trendStatus is "ok" with no actionable signal.
+    // (Zero reports would yield trendStatus "insufficient_data", not "ok".)
+    const store = new OutcomeReportStore(join(execDir, "outcomes"));
+    for (let i = 0; i < 3; i++) store.save(makeUnchangedReport(`p${i}`));
+
     const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
     const c = captureConsole();
     await handleRecommendCommand(["--window", "10"]);
