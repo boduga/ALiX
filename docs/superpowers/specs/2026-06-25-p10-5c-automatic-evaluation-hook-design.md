@@ -54,11 +54,16 @@ Auto-evaluation never fails a plan completion. All failures are logged to stderr
 
 ## 4. generatedAt override
 
-The pure `evaluatePlanOutcome()` uses `new Date().toISOString()` internally for `report.generatedAt`. The automatic hook overrides this after evaluation so the saved report has a deterministic timestamp:
+The pure `evaluatePlanOutcome()` uses `new Date().toISOString()` internally for `report.generatedAt`. The automatic hook builds a **new object** with the deterministic timestamp — it does not mutate the evaluator's return value, to preserve the pure-output contract:
 
 ```
-const report = evaluatePlanOutcome(plan, state, baseline, current);
-report.generatedAt = terminalTimestamp;
+const evaluated = evaluatePlanOutcome(plan, state, baseline, current);
+
+const report = {
+  ...evaluated,
+  generatedAt: terminalTimestamp,
+};
+
 outcomeStore.save(report);
 ```
 
@@ -66,44 +71,104 @@ This works because:
 - `OutcomeReportStore.save()` computes the `reportId` from `report.generatedAt`, so the saved file matches the idempotency key
 - The override happens **only** in the automatic path
 - The CLI `evaluate` flow keeps `new Date()` for fresh timestamps
+- The evaluator's return value is never aliased or mutated
 
-## 5. Architectural decisions
+## 5. Shared report-ID helper
 
-### 5a. No new evidence types
+To prevent drift between the idempotency check and the filename, the `buildReportId` logic is exposed from a shared location rather than duplicated. The store exposes it as `OutcomeReportStore.buildReportId(planId, generatedAt)`, and the hook imports it from there:
+
+```
+import { OutcomeReportStore } from "./outcome-store.js";
+
+const reportId = OutcomeReportStore.buildReportId(plan.id, terminalTimestamp);
+const existing = outcomeStore.load(reportId);
+```
+
+This guarantees the idempotency key and the saved filename are always computed identically.
+
+## 6. Best-effort rules (with forensic preservation)
+
+| Condition | Action |
+|-----------|--------|
+| `terminalTimestamp` missing | `console.warn` to stderr, skip evaluation |
+| `evaluatePlanOutcome()` throws | `console.warn`, skip |
+| `outcomeStore.save()` throws | `console.warn`, skip |
+| `outcomeStore.load()` returns `null` (no existing report) | evaluate and save |
+| `outcomeStore.load()` returns a valid report (already evaluated) | skip — idempotent |
+| `outcomeStore.load()` throws an integrity error (hash mismatch / corrupt file) | `console.warn`, **skip — do not overwrite** |
+
+Auto-evaluation never fails a plan completion. **It also never overwrites a corrupted report** — that would destroy forensic evidence. Corruption warnings go to stderr; the audit artifact stays untouched for human review.
+
+## 7. Persistence ordering
+
+The hook fires **after** the durable completion, not before:
+
+```
+persist completed state  (stateStore.update)
+record completion evidence (recordExecutivePlanCompleted)
+run automatic outcome hook (best-effort, async)
+```
+
+Never evaluate before the completion has been durably committed. Otherwise the hook could fire on a state that wasn't actually persisted.
+
+## 8. Architectural decisions
+
+### 8a. No new evidence types
 
 The existing `executive_plan_completed` evidence event is unchanged. Auto-evaluation does not emit additional evidence. The persisted report file is itself the audit trail.
 
-### 5b. The hook lives in `maybeCompletePlan()`
+### 8b. The hook lives in `maybeCompletePlan()`
 
 This is the single place where `running → completed` is set. The hook fires immediately after the state transition + the existing `recordExecutivePlanCompleted()` evidence call. Best-effort wrapping in a `try { ... } catch { console.warn(...) }`.
 
-### 5c. CLI / sentinel impact
+### 8c. CLI / sentinel impact
 
 - `execution-engine.ts` is in the executive purity sentinel allowlist — adding new function calls is fine.
-- The new helper module is **not** an executive layer file. It is a coordinator between `ExecutionEngine` and `OutcomeReportStore`. It can live at `src/executive/automatic-outcome-hook.ts` (already-pure-of-mutation beyond `OutcomeReportStore.save()`).
+- The new helper module lives at `src/executive/automatic-outcome-hook.ts` and is added to the executive sentinel allowlist. Its only mutation is `OutcomeReportStore.save()`, mirroring the same scoped-exception pattern used for `OutcomeReportStore`.
 
-### 5d. Constructor injection
+### 8d. Interface-based injection
 
-`ExecutionEngine` should accept the new hook function as an optional constructor parameter so tests can stub it without writing real outcome files. Default: a real implementation. This avoids polluting tests with side-effect files.
+`ExecutionEngine` accepts the hook as an `OutcomeEvaluationHook` interface (not a bare function). This leaves room for future cross-cutting concerns without changing the constructor signature:
 
-## 6. Files changed
+```
+interface OutcomeEvaluationHook {
+  run(plan: PersistedExecutionPlan, state: PlanExecutionState): Promise<void> | void;
+}
+```
+
+The default implementation is a real `AutomaticOutcomeEvaluator` instance; tests pass in stubs. The hook's `run()` may be async so future revisions can add metrics, tracing, or batched I/O without breaking the engine signature.
+
+## 9. Idempotency scope
+
+Idempotency is scoped to `(planId, terminalTimestamp)`, **not** simply `planId`.
+
+Today, a plan transitions once to a terminal status, and the timestamp makes the reportId unique. But future recovery workflows could allow:
+
+```
+running → failed → completed
+```
+
+That is **two distinct terminal transitions** with different timestamps. Each should produce its own report. The current implementation handles this correctly because the reportId encodes the timestamp — and the spec rule above makes this explicit so future implementers don't tighten idempotency to `planId` alone.
+
+## 10. Files changed
 
 | Action | Path | Notes |
 |--------|------|-------|
-| **Create** | `src/executive/automatic-outcome-hook.ts` | Pure helper `runAutomaticOutcomeEvaluation()` |
-| **Modify** | `src/executive/execution-engine.ts` | Wire hook into `maybeCompletePlan()` + accept constructor injection |
-| **Modify** | `tests/executive/execution-engine-apply-dispatch.vitest.ts` (or equivalent) | Add auto-evaluation integration tests |
+| **Modify** | `src/executive/outcome-store.ts` | Export `buildReportId(planId, generatedAt)` as static method |
+| **Create** | `src/executive/automatic-outcome-hook.ts` | `AutomaticOutcomeEvaluator` class implementing `OutcomeEvaluationHook` |
+| **Modify** | `src/executive/execution-engine.ts` | Wire hook into `maybeCompletePlan()` + accept `OutcomeEvaluationHook` constructor injection |
+| **Modify** | `tests/executive/executive-sentinels.vitest.ts` | Add `automatic-outcome-hook.ts` to allowlist |
 | **Create** | `tests/executive/automatic-outcome-hook.vitest.ts` | Unit tests for the helper |
+| **Modify** | `tests/executive/execution-engine-apply-dispatch.vitest.ts` (or equivalent) | Add auto-evaluation integration tests |
 
-## 7. Files NOT modified
+## 11. Files NOT modified
 
 - `src/executive/outcome-evaluator.ts` — unchanged. Pure function stays pure.
-- `src/executive/outcome-store.ts` — unchanged.
 - `src/cli/commands/executive-evaluate-handler.ts` — manual CLI flow unchanged.
 - No new evidence types.
 - No protected type files (ADR-0004).
 
-## 8. Tests
+## 12. Tests
 
 ### Unit tests for `automatic-outcome-hook.ts`
 
@@ -111,19 +176,25 @@ This is the single place where `running → completed` is set. The hook fires im
 - Triggers when status is `failed`
 - Skips when `terminalTimestamp` is missing (with warn)
 - Skips when `outcomeStore.load(reportId) !== null` (idempotent)
+- Builds a new report object — does not mutate the evaluator's return value
 - Override `generatedAt` to `terminalTimestamp`
 - Save failures don't throw — only warn
+- **Corruption path**: existing report file fails hash verification → warning emitted → **no save attempted**
 
 ### Integration tests for `ExecutionEngine`
 
 - Plan transition to `completed` triggers hook exactly once
 - Repeated transitions (replay) skip on second call
 - Hook failure does not block the plan from completing (returns `recordExecutivePlanCompleted` evidence normally)
+- Plan transition order: persist completed state → record completion evidence → run automatic outcome hook
 
-## 9. Architectural invariants
+## 13. Architectural invariants
 
 - The hook is **best-effort** — it never throws upward.
-- The hook is **idempotent** — repeat invocations for the same `terminalTimestamp` produce the same outcome.
-- The pure evaluator is untouched — `evaluatePlanOutcome()` retains its `new Date()` `generatedAt` for manual use; only the automatic path overrides it.
+- The hook is **idempotent** scoped to `(planId, terminalTimestamp)`.
+- The hook **never overwrites corrupted audit artifacts** — corruption warnings to stderr, no save.
+- The pure evaluator is untouched — its return value is never aliased or mutated.
 - `OutcomeReportStore` is the single source of truth for persisted reports — no duplicate indexes or caches.
+- Idempotency key and filename generation share one helper.
 - No mutation beyond `OutcomeReportStore.save()`. No evidence. No new scoring. No approval changes.
+- Auto-evaluation fires **after** the completion is durably committed.
