@@ -100,7 +100,7 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       const { handleLearnCommand } = await import(
         "./executive-learn-handler.js"
       );
-      return handleLearnCommand(args);
+      return handleLearnCommand(rest);
     }
 
     default:
