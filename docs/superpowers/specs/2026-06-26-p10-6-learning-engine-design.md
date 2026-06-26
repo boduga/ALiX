@@ -63,7 +63,7 @@ outcomeStore.list()
   → for each: outcomeStore.load(reportId)
   → full ExecutiveOutcomeEvaluationReport[]
 
-computeLearningTrends(reports, opts)
+computeLearningTrends(reports)
   ↓
   filter reports where evaluationStatus === "completed"
   for each completed report:
@@ -76,8 +76,8 @@ computeLearningTrends(reports, opts)
     subsystemTrends:  group by subsystem name
     objectiveTrends:  group by objectiveType string
 
-  sort subsystemTrends by averageDelta desc
-  sort objectiveTrends by averageDelta desc
+  sort subsystemTrends by averageDelta desc, then occurrenceCount desc, then name asc
+  sort objectiveTrends by averageDelta desc, then occurrenceCount desc, then name asc
 
   return TrendResult
 ```
@@ -86,7 +86,7 @@ computeLearningTrends(reports, opts)
 
 | Metric | Source | Computation |
 |--------|--------|-------------|
-| `occurrenceCount` | dimension group size | Count of occurrences across all windowed reports. Each report contributes at most one occurrence per unique subsystem within each of its objectives. |
+| `occurrenceCount` | dimension group size | Count of occurrences across all windowed reports. Grouped per `(objective, subsystem)` — each objective's subsystemDelta contributes exactly one occurrence to that subsystem's trend. A single report with two objectives targeting the same subsystem counts as **two** occurrences. |
 | `successRate` | outcome per occurrence | `count(outcome === "improved") / total` |
 | `mixedRate` | outcome per occurrence | `count(outcome === "mixed") / total` |
 | `degradationRate` | outcome per occurrence | `count(outcome === "degraded") / total` |
@@ -114,10 +114,6 @@ src/executive/learning-engine.ts
 ```
 
 ```ts
-export interface LearnTrendsOptions {
-  window: number;
-}
-
 export interface SubsystemTrend {
   subsystem: string;
   occurrenceCount: number;
@@ -156,7 +152,6 @@ export interface TrendResult {
 
 export function computeLearningTrends(
   reports: ExecutiveOutcomeEvaluationReport[],
-  opts: LearnTrendsOptions,
 ): TrendResult
 ```
 
@@ -166,7 +161,7 @@ The function:
 - Filters to `evaluationStatus === "completed"`
 - Groups by subsystem and objectiveType
 - Computes per-group metrics using the source column from §2
-- Sorts by `averageDelta desc`
+- Sorts by `averageDelta desc`, then `occurrenceCount desc`, then name ascending
 - Returns `TrendResult`
 
 **Corner cases:**
@@ -184,7 +179,7 @@ src/cli/commands/executive-learn-handler.ts
 Responsible for:
 1. Constructing `OutcomeReportStore` (read-only path: `.alix/executive/outcomes`)
 2. Calling `outcomeStore.list()` and `outcomeStore.load()` for the window range
-3. Calling `computeLearningTrends(reports, opts)`
+3. Calling `computeLearningTrends(reports)`
 4. Rendering terminal table or `JSON.stringify(trendResult)`
 
 ```ts
