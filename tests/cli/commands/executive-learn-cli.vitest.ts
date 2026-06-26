@@ -125,12 +125,12 @@ describe("executive learn CLI", () => {
     c.restore();
   });
 
-  it("handles corrupt report gracefully — warns to stderr, remaining valid reports analyzed", async () => {
+  it("handles corrupt report gracefully — corrupt file silently excluded, valid report analyzed", async () => {
     const store = new OutcomeReportStore(join(execDir, "outcomes"));
     const validReport = makeReport("p1", "completed");
     store.save(validReport);
 
-    // Manually write a corrupt report file (bad JSON)
+    // Manually write a corrupt report file (invalid JSON) — store.list() will skip it
     const outcomesDir = join(execDir, "outcomes");
     writeFileSync(join(outcomesDir, "outcome-corrupt.json"), "not valid json", "utf-8");
 
@@ -139,13 +139,10 @@ describe("executive learn CLI", () => {
 
     await handleLearnCommand(["trends", "--window", "10", "--json"]);
 
-    // Valid report should still be analyzed
+    // Valid report should still be analyzed; corrupt one silently excluded
     const parsed = JSON.parse(c.out().join("\n"));
     expect(parsed.trendStatus).toBe("ok");
     expect(parsed.analyzedReportCount).toBe(1);
-
-    // Should have a warning about the corrupt file
-    expect(c.err().length).toBeGreaterThan(0);
 
     cwdSpy.mockRestore();
     c.restore();

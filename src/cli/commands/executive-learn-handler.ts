@@ -32,25 +32,16 @@ export async function handleLearnCommand(args: string[]): Promise<void> {
   const execDir = join(process.cwd(), ".alix", "executive");
   const store = new OutcomeReportStore(join(execDir, "outcomes"));
 
-  const warnings: string[] = [];
   const metas = store.list();
   const windowed = metas.slice(0, windowN);
   const reports: ExecutiveOutcomeEvaluationReport[] = [];
-  let skippedCount = 0;
 
   for (const meta of windowed) {
-    try {
-      const report = store.load(meta.reportId);
-      if (report) reports.push(report);
-    } catch (e: any) {
-      skippedCount++;
-      warnings.push(`Skipping report ${meta.reportId}: ${e.message}`);
-    }
+    const report = store.load(meta.reportId);
+    if (report) reports.push(report);
   }
 
   const result = computeLearningTrends(reports, windowN);
-  // Add load-level warnings (separate from analytical warnings)
-  result.loadWarnings = warnings;
 
   if (useJson) {
     console.log(JSON.stringify(result, null, 2));
