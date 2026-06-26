@@ -123,7 +123,7 @@ When `--save` is present:
 4. In terminal mode, print a confirmation line after the report: `"Report saved: outcome-<planId>-<sanitizedTs>"`.
 5. Non‑zero exit or earlier errors bypass the save — the handler exits before reaching the save step.
 
-Save-before-render ensures that a save failure is visible immediately and doesn't produce a successful evaluation followed by an error. The evaluation output and behavior are **identical** with or without `--save`. The save is additive.
+Save-before-render ensures that a save failure is visible immediately and doesn't produce a successful evaluation followed by an error. When save succeeds, the evaluation output is **identical** with or without `--save` — the only difference is the final `"Report saved: <id>"` line in terminal mode. The save is additive.
 
 ### `alix executive outcomes list [--json]`
 
