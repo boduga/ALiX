@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createHash } from "node:crypto";
@@ -371,6 +371,67 @@ describe("executive evaluate CLI", () => {
     expect(parsed.planId).toBe("no-state-plan");
     expect(parsed.warnings.length).toBeGreaterThan(0);
 
+    c.restore();
+  });
+
+  it("saves report when --save flag is passed", async () => {
+    const execDir = join(tempRoot, ".alix", "executive");
+    const plansDir = join(execDir, "plans");
+    const outcomesDir = join(execDir, "outcomes");
+    mkdirSync(plansDir, { recursive: true });
+
+    writePlan(plansDir, makeCompletedPlan("save-me"));
+    writeState(plansDir, makeCompletedState("save-me"));
+    writeTrends(execDir, [{ id: "s1", generatedAt: "2026-06-01T00:00:00.000Z", windowDays: 7, subsystemScores: { workflow: 40 } }]);
+
+    const c = captureConsole();
+    await handleExecutiveCommand(["evaluate", "save-me", "--save"]);
+    const output = c.out().join("\n");
+    expect(output).toContain("Report saved:");
+    expect(output).toContain("outcome-save-me-");
+    const files = readdirSync(outcomesDir).filter(f => f.startsWith("outcome-save-me-"));
+    expect(files.length).toBe(1);
+    c.restore();
+  });
+
+  it("--save with --json returns wrapper object with savedReportId", async () => {
+    const execDir = join(tempRoot, ".alix", "executive");
+    const plansDir = join(execDir, "plans");
+    mkdirSync(plansDir, { recursive: true });
+
+    writePlan(plansDir, makeCompletedPlan("save-json"));
+    writeState(plansDir, makeCompletedState("save-json"));
+    writeTrends(execDir, [{ id: "s1", generatedAt: "2026-06-01T00:00:00.000Z", windowDays: 7, subsystemScores: { workflow: 40 } }]);
+
+    const c = captureConsole();
+    await handleExecutiveCommand(["evaluate", "save-json", "--json", "--save"]);
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.report).toBeDefined();
+    expect(parsed.report.evaluationStatus).toBe("completed");
+    expect(parsed.report.planId).toBe("save-json");
+    expect(parsed.savedReportId).toMatch(/^outcome-save-json-/);
+    c.restore();
+  });
+
+  it("--save persists plan_not_executed reports", async () => {
+    const execDir = join(tempRoot, ".alix", "executive");
+    const plansDir = join(execDir, "plans");
+    const outcomesDir = join(execDir, "outcomes");
+    mkdirSync(plansDir, { recursive: true });
+
+    writePlan(plansDir, makeCompletedPlan("blocked-plan"));
+    writeState(plansDir, { planId: "blocked-plan", status: "blocked", approval: { status: "pending" }, stepStates: {}, planTransitions: [], timestamps: { createdAt: "2026-06-10T00:00:00.000Z" } });
+    writeTrends(execDir, [{ id: "s1", generatedAt: "2026-06-01T00:00:00.000Z", windowDays: 7, subsystemScores: { workflow: 50 } }]);
+
+    const c = captureConsole();
+    await handleExecutiveCommand(["evaluate", "blocked-plan", "--save", "--json"]);
+    const output = c.out().join("\n");
+    const jsonStart = output.indexOf("{");
+    const parsed = JSON.parse(output.slice(jsonStart));
+    expect(parsed.report.evaluationStatus).toBe("plan_not_executed");
+    expect(parsed.savedReportId).toMatch(/^outcome-blocked-plan-/);
+    const files = readdirSync(outcomesDir).filter(f => f.startsWith("outcome-blocked-plan-"));
+    expect(files.length).toBe(1);
     c.restore();
   });
 });
