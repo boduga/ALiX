@@ -622,8 +622,8 @@ Append to `tests/cli/commands/executive-recommend-cli.vitest.ts` (inside the exi
     expect(parsed.schemaVersion).toBe("p10.7b.0");
     expect(parsed.id).toMatch(/^recommendation-/);
     expect(typeof parsed.contentHash).toBe("string");
-    expect(parsed.evidenceReportIds.length).toBeGreaterThan(0);
-    expect(parsed.recommendations.length).toBeGreaterThan(0);
+    expect(parsed.report.evidenceReportIds.length).toBeGreaterThan(0);
+    expect(parsed.report.recommendations.length).toBeGreaterThan(0);
 
     cwdSpy.mockRestore();
     c.restore();
@@ -641,9 +641,9 @@ Append to `tests/cli/commands/executive-recommend-cli.vitest.ts` (inside the exi
 
     const parsed = JSON.parse(c.out().join("\n"));
     // Newest-first: pC and pB are the first two; pA is excluded by the window.
-    expect(parsed.evidenceReportIds).toContain(idB);
-    expect(parsed.evidenceReportIds).not.toContain(idA);
-    expect(parsed.evidenceReportIds).toHaveLength(2);
+    expect(parsed.report.evidenceReportIds).toContain(idB);
+    expect(parsed.report.evidenceReportIds).not.toContain(idA);
+    expect(parsed.report.evidenceReportIds).toHaveLength(2);
 
     cwdSpy.mockRestore();
     c.restore();

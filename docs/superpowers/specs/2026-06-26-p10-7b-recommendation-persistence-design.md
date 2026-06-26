@@ -88,11 +88,13 @@ export interface NewRecommendationReport {
   loadWarnings: string[];
 }
 
-/** The persisted artifact (store wrapper around NewRecommendationReport). */
-export interface RecommendationReport extends NewRecommendationReport {
+/** The persisted artifact (store wrapper around the payload, matching the
+ *  `PersistedOutcomeReport` precedent from `OutcomeReportStore`). */
+export interface RecommendationReport {
   schemaVersion: "p10.7b.0";
   id: string;
   contentHash: string;
+  report: NewRecommendationReport;
 }
 
 export interface RecommendationReportMeta {
