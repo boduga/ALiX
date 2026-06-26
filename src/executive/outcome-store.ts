@@ -25,6 +25,7 @@ import {
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import type { ExecutiveOutcomeEvaluationReport } from "./outcome-evaluator.js";
+import { buildOutcomeReportId } from "./outcome-report-id.js";
 
 // ---------------------------------------------------------------------------
 // Public types
@@ -53,12 +54,17 @@ function sha256(input: string): string {
   return createHash("sha256").update(input, "utf-8").digest("hex");
 }
 
-function sanitizeTimestamp(iso: string): string {
-  return iso.replace(/[-:]/g, "").replace(".", "");
-}
-
-function buildReportId(planId: string, generatedAt: string): string {
-  return `outcome-${planId}-${sanitizeTimestamp(generatedAt)}`;
+/**
+ * Thrown by OutcomeReportStore.load() when the persisted report's integrity
+ * cannot be verified: contentHash mismatch, malformed JSON, or unknown
+ * schema version. Used by callers to detect and preserve corrupted audit
+ * artifacts instead of overwriting them.
+ */
+export class OutcomeReportIntegrityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OutcomeReportIntegrityError";
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -69,7 +75,7 @@ export class OutcomeReportStore {
   constructor(private readonly dir: string) {}
 
   save(report: ExecutiveOutcomeEvaluationReport): string {
-    const id = buildReportId(report.planId, report.generatedAt);
+    const id = buildOutcomeReportId(report.planId, report.generatedAt);
     const contentHash = sha256(JSON.stringify(report));
 
     const wrapper: PersistedOutcomeReport = {
@@ -105,16 +111,20 @@ export class OutcomeReportStore {
     try {
       parsed = JSON.parse(raw) as PersistedOutcomeReport;
     } catch {
-      throw new Error(`Outcome report ${reportId}: invalid JSON`);
+      throw new OutcomeReportIntegrityError(
+        `Outcome report ${reportId}: invalid JSON`,
+      );
     }
 
     if (parsed.schemaVersion !== "p10.5b.0") {
-      throw new Error(`Outcome report ${reportId}: unknown schemaVersion "${parsed.schemaVersion}"`);
+      throw new OutcomeReportIntegrityError(
+        `Outcome report ${reportId}: unknown schemaVersion "${parsed.schemaVersion}"`,
+      );
     }
 
     const expectedHash = sha256(JSON.stringify(parsed.report));
     if (parsed.contentHash !== expectedHash) {
-      throw new Error(
+      throw new OutcomeReportIntegrityError(
         `Outcome report ${reportId}: contentHash mismatch — expected ${expectedHash}, got ${parsed.contentHash}`,
       );
     }
