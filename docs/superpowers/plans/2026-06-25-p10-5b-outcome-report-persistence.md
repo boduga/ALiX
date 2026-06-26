@@ -27,6 +27,17 @@
 
 ---
 
+### Task 0: Create feature branch
+
+- [ ] **Step 1: Create and push the feature branch**
+
+```bash
+git checkout -b feature/p10-5b-outcome-report-persistence
+git push -u origin feature/p10-5b-outcome-report-persistence
+```
+
+---
+
 ### Task 1: OutcomeReportStore + sentinel updates + unit tests
 
 **Files:**
@@ -48,7 +59,7 @@ Verify the atomic write pattern (openSync → writeFileSync → fsyncSync → cl
 Create `tests/executive/outcome-store.vitest.ts`:
 
 ```ts
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -409,7 +420,7 @@ Append to `tests/cli/commands/executive-evaluate-cli.vitest.ts` (before the clos
     c.restore();
   });
 
-  it("--save with --json includes saved message", async () => {
+  it("--save with --json returns wrapper object with savedReportId", async () => {
     const execDir = join(tempRoot, ".alix", "executive");
     const plansDir = join(execDir, "plans");
     mkdirSync(plansDir, { recursive: true });
@@ -420,12 +431,11 @@ Append to `tests/cli/commands/executive-evaluate-cli.vitest.ts` (before the clos
 
     const c = captureConsole();
     await handleExecutiveCommand(["evaluate", "save-json", "--json", "--save"]);
-    const joined = c.out().join("\n");
-    const jsonStart = joined.indexOf("{");
-    const parsed = JSON.parse(joined.slice(jsonStart));
-    expect(parsed.evaluationStatus).toBe("completed");
-    expect(parsed.planId).toBe("save-json");
-    expect(joined).toContain("Report saved:");
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.report).toBeDefined();
+    expect(parsed.report.evaluationStatus).toBe("completed");
+    expect(parsed.report.planId).toBe("save-json");
+    expect(parsed.savedReportId).toMatch(/^outcome-save-json-/);
     c.restore();
   });
 
@@ -488,9 +498,10 @@ const OUTCOMES_DIR = join(".alix", "executive", "outcomes");
 
   // ── Render ────────────────────────────────────────────────────────
   if (jsonMode) {
-    const parts: string[] = [JSON.stringify(report, null, 2)];
-    if (savedId) parts.push(`Report saved: ${savedId}`);
-    console.log(parts.join("\n"));
+    // Wrap report + savedReportId so --json --save remains valid JSON
+    const output: Record<string, unknown> = { report };
+    if (savedId) output.savedReportId = savedId;
+    console.log(JSON.stringify(output, null, 2));
   } else {
     renderEvaluationTable(report);
     if (savedId) console.log(`Report saved: ${savedId}`);
@@ -837,17 +848,9 @@ npx gitnexus detect_changes --repo ALiX
 
 Expected: Low risk, no affected processes.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Push and create PR**
 
 ```bash
-git add -A
-git commit -m "chore(p10-5b): final review fixes"
-```
-
-- [ ] **Step 5: Push and create PR**
-
-```bash
-git checkout -b feature/p10-5b-outcome-report-persistence
-git push -u origin feature/p10-5b-outcome-report-persistence
+git push
 gh pr create --base main --head feature/p10-5b-outcome-report-persistence --title "P10.5b Outcome Report Persistence" --body "..."
 ```
