@@ -75,16 +75,16 @@ This works because:
 
 ## 5. Shared report-ID helper
 
-To prevent drift between the idempotency check and the filename, the `buildReportId` logic is exposed from a shared location rather than duplicated. The store exposes it as `OutcomeReportStore.buildReportId(planId, generatedAt)`, and the hook imports it from there:
+To prevent drift between the idempotency check and the filename, the `buildReportId` logic is exposed from a shared module rather than duplicated. The hook imports it directly so the storage class is not a dependency of the hook:
 
 ```
-import { OutcomeReportStore } from "./outcome-store.js";
+import { buildOutcomeReportId } from "./outcome-report-id.js";
 
-const reportId = OutcomeReportStore.buildReportId(plan.id, terminalTimestamp);
+const reportId = buildOutcomeReportId(plan.id, terminalTimestamp);
 const existing = outcomeStore.load(reportId);
 ```
 
-This guarantees the idempotency key and the saved filename are always computed identically.
+`OutcomeReportStore.save()` calls the same `buildOutcomeReportId()` internally. This guarantees the idempotency key and the saved filename are always computed identically, and the helper is independently unit-testable.
 
 ## 6. Best-effort rules (with forensic preservation)
 
@@ -95,9 +95,12 @@ This guarantees the idempotency key and the saved filename are always computed i
 | `outcomeStore.save()` throws | `console.warn`, skip |
 | `outcomeStore.load()` returns `null` (no existing report) | evaluate and save |
 | `outcomeStore.load()` returns a valid report (already evaluated) | skip — idempotent |
-| `outcomeStore.load()` throws an integrity error (hash mismatch / corrupt file) | `console.warn`, **skip — do not overwrite** |
+| `outcomeStore.load()` throws an **integrity error** (hash mismatch / invalid schema / malformed JSON) | `console.warn`, **skip — do not overwrite** |
+| `outcomeStore.load()` throws an **unexpected runtime error** (permission, I/O, etc.) | `console.warn`, follow the generic best-effort path |
 
-Auto-evaluation never fails a plan completion. **It also never overwrites a corrupted report** — that would destroy forensic evidence. Corruption warnings go to stderr; the audit artifact stays untouched for human review.
+The integrity-error path is the forensic-preservation rule: a corrupted audit artifact is never overwritten by an automatic evaluation. Unexpected runtime errors (permissions, I/O failures) follow the same generic best-effort skip-and-warn path as evaluator failures — they cannot block plan completion.
+
+The integrity-error distinction is implemented by wrapping `load()` with a small adapter that classifies thrown errors. Integrity errors are detected by message content (`contentHash`, `integrity`, `mismatch`) or by a tagged error subclass.
 
 ## 7. Persistence ordering
 
@@ -106,8 +109,10 @@ The hook fires **after** the durable completion, not before:
 ```
 persist completed state  (stateStore.update)
 record completion evidence (recordExecutivePlanCompleted)
-run automatic outcome hook (best-effort, async)
+await hook.run(plan, state)   // awaited, wrapped in try/catch
 ```
+
+The hook is awaited inside `maybeCompletePlan()` so the evaluation is **attempted before the engine returns to the caller**. Failures are swallowed (warn + return) — they never prevent the plan from completing. The engine returns the same result regardless of hook success or failure.
 
 Never evaluate before the completion has been durably committed. Otherwise the hook could fire on a state that wasn't actually persisted.
 
@@ -150,15 +155,19 @@ running → failed → completed
 
 That is **two distinct terminal transitions** with different timestamps. Each should produce its own report. The current implementation handles this correctly because the reportId encodes the timestamp — and the spec rule above makes this explicit so future implementers don't tighten idempotency to `planId` alone.
 
+**Replay contract**: replaying the same persisted terminal state (e.g. restoring from backup, re-running the engine against a historical plan) **must never create additional outcome reports**. The idempotency check on `(planId, terminalTimestamp)` enforces this — if the report already exists, the hook is a no-op.
+
 ## 10. Files changed
 
 | Action | Path | Notes |
 |--------|------|-------|
-| **Modify** | `src/executive/outcome-store.ts` | Export `buildReportId(planId, generatedAt)` as static method |
+| **Create** | `src/executive/outcome-report-id.ts` | Standalone `buildOutcomeReportId(planId, generatedAt)` helper |
+| **Modify** | `src/executive/outcome-store.ts` | Import `buildOutcomeReportId`; the store uses it for filename generation |
 | **Create** | `src/executive/automatic-outcome-hook.ts` | `AutomaticOutcomeEvaluator` class implementing `OutcomeEvaluationHook` |
 | **Modify** | `src/executive/execution-engine.ts` | Wire hook into `maybeCompletePlan()` + accept `OutcomeEvaluationHook` constructor injection |
 | **Modify** | `tests/executive/executive-sentinels.vitest.ts` | Add `automatic-outcome-hook.ts` to allowlist |
-| **Create** | `tests/executive/automatic-outcome-hook.vitest.ts` | Unit tests for the helper |
+| **Create** | `tests/executive/outcome-report-id.vitest.ts` | Unit tests for the helper |
+| **Create** | `tests/executive/automatic-outcome-hook.vitest.ts` | Unit tests for the hook |
 | **Modify** | `tests/executive/execution-engine-apply-dispatch.vitest.ts` (or equivalent) | Add auto-evaluation integration tests |
 
 ## 11. Files NOT modified
@@ -180,6 +189,12 @@ That is **two distinct terminal transitions** with different timestamps. Each sh
 - Override `generatedAt` to `terminalTimestamp`
 - Save failures don't throw — only warn
 - **Corruption path**: existing report file fails hash verification → warning emitted → **no save attempted**
+- **`completedAt` and `failedAt` both present**: `completedAt` wins (timestamp selection)
+
+### Unit tests for `outcome-report-id.ts`
+
+- `buildOutcomeReportId("plan-1", "2026-06-25T12:00:00.000Z")` produces `outcome-plan-1-20260625T120000000Z`
+- The filename produced matches `OutcomeReportStore.save()` behavior
 
 ### Integration tests for `ExecutionEngine`
 
@@ -187,6 +202,7 @@ That is **two distinct terminal transitions** with different timestamps. Each sh
 - Repeated transitions (replay) skip on second call
 - Hook failure does not block the plan from completing (returns `recordExecutivePlanCompleted` evidence normally)
 - Plan transition order: persist completed state → record completion evidence → run automatic outcome hook
+- Replay against persisted terminal state creates no additional outcome reports
 
 ## 13. Architectural invariants
 
