@@ -103,9 +103,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleLearnCommand(rest);
     }
 
+    case "recommend": {
+      const { handleRecommendCommand } = await import(
+        "./executive-recommend-handler.js"
+      );
+      return handleRecommendCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend");
       process.exit(1);
   }
 }
