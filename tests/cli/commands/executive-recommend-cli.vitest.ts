@@ -26,12 +26,10 @@ function captureConsole() {
 let __reportCallCounter = 0;
 function __nextIsoTimestamp(): string {
   __reportCallCounter += 1;
-  // Use the current millisecond plus a counter suffix to guarantee uniqueness
-  // even within the same ms. The store accepts any valid ISO-8601 string.
-  const base = Date.now();
-  // Pad counter into microseconds within the ms so lexicographic sort still
-  // works correctly (newer counter => larger numeric value).
-  return new Date(base + __reportCallCounter / 1_000_000).toISOString();
+  // Use the current millisecond plus a whole-ms counter offset to guarantee
+  // distinct ISO-8601 timestamps even within the same real millisecond.
+  // (The previous microsecond offset was truncated by toISOString().)
+  return new Date(Date.now() + __reportCallCounter).toISOString();
 }
 
 /** A completed report whose single objective degraded `workflow` by 4 points. */
