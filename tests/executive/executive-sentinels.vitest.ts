@@ -197,11 +197,10 @@ describe("P10 executive purity sentinel", () => {
             }
 
             // Scoped exception: plan-store.ts, execution-state-store.ts,
-            // outcome-store.ts, and automatic-outcome-hook.ts are approved write paths
+            // and outcome-store.ts are approved write paths
             if ((file === "src/executive/plan-store.ts" ||
                  file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts" ||
-                 file === "src/executive/automatic-outcome-hook.ts") &&
+                 file === "src/executive/outcome-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {

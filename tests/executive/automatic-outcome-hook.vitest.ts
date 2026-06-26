@@ -295,4 +295,24 @@ describe("AutomaticOutcomeEvaluator", () => {
     await expect(evaluator.run(plan, state)).resolves.toBeUndefined();
     expect(warnSpy).toHaveBeenCalled();
   });
+
+  it("skips and warns when load() throws a non-integrity runtime error — no save", async () => {
+    const plan = makePlan("p9", "2026-06-10T00:00:00.000Z");
+    const state = makeCompletedState("p9", "2026-06-15T12:00:00.000Z");
+    const saveSpy = vi.spyOn(outcomeStore, "save");
+    vi.spyOn(outcomeStore, "load").mockImplementationOnce(() => {
+      throw new Error("EACCES: simulated runtime error");
+    });
+    const evaluator = new AutomaticOutcomeEvaluator(outcomeStore, trendStore);
+
+    await expect(evaluator.run(plan, state)).resolves.toBeUndefined();
+
+    // A non-integrity runtime error follows the generic skip-and-warn path
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining("Unexpected load error"),
+    );
+    // save must NOT be called — a runtime-failed load means we can't read,
+    // so we don't overwrite (forensic invariant)
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
 });
