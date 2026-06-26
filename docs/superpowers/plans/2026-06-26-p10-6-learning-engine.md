@@ -427,7 +427,7 @@ export function computeLearningTrends(
     return {
       trendStatus: TREND_INSUFFICIENT_DATA,
       generatedAt,
-      requestedWindow: 0,
+      requestedWindow,
       inputReportCount: 0,
       analyzedReportCount: 0,
       skippedReportCount: 0,
@@ -451,7 +451,7 @@ export function computeLearningTrends(
     return {
       trendStatus: TREND_INSUFFICIENT_DATA,
       generatedAt,
-      requestedWindow: reports.length,
+      requestedWindow,
       inputReportCount: reports.length,
       analyzedReportCount: 0,
       skippedReportCount: skipped,
