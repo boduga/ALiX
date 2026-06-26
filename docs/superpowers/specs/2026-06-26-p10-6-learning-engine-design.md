@@ -100,6 +100,7 @@ computeLearningTrends(reports)
 - `outcomeStore.list()` returns all reports sorted by `generatedAt desc`
 - Slice to `min(window, reports.length)`
 - Load full reports for the sliced range
+- **Only successfully loaded reports are passed into `computeLearningTrends()`.** Reports skipped due to integrity errors are excluded from both `inputReportCount` and `skippedReportCount`, and instead generate a warning in `warnings[]`.
 - Filter to `evaluationStatus === "completed"` before aggregating
 - The remaining reports (non-completed) are counted in `skippedReportCount`
 
@@ -167,7 +168,7 @@ The function:
 **Corner cases:**
 - Empty `reports` array → `trendStatus: "insufficient_data"`, empty trends
 - All reports non-completed → `trendStatus: "insufficient_data"`, `analyzedReportCount: 0`, `skippedReportCount: inputReportCount`
-- Report with 0 objectives → contributes to `inputReportCount` but adds no dimension data (counted as analyzed, not skipped)
+- Report with 0 objectives → contributes to `inputReportCount` but adds no dimension data (counted as analyzed, not skipped). This is treated as a valid completed report rather than malformed input.
 - Report with 0 `subsystemDeltas` in its objectives → subsystem dimension gets no contribution from this report; other dimensions unaffected
 
 ### 3b. CLI handler
