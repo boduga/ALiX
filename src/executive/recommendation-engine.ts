@@ -31,7 +31,7 @@ export interface RecommendationDraft {
   signal: RecommendationSignal;
   severity: RecommendationSeverity;
   recommendation: string;
-  confidence: number;
+  signalConfidence: number;
   occurrenceCount: number;
   averageDelta: number;
   evidenceReportIds?: string[];
@@ -137,7 +137,7 @@ function classifySubsystem(trend: SubsystemTrend): RecommendationDraft | null {
       signal: "low_confidence",
       severity: "low",
       recommendation: `Collect more data on ${subsystem} before acting`,
-      confidence: round2(Math.min(CAP_LOW, occurrenceCount * 0.1)),
+      signalConfidence: round2(Math.min(CAP_LOW, occurrenceCount * 0.1)),
       occurrenceCount,
       averageDelta,
     };
@@ -153,7 +153,7 @@ function classifySubsystem(trend: SubsystemTrend): RecommendationDraft | null {
       recommendation: severity === "high"
         ? `Investigate ${subsystem} regressions`
         : `Monitor ${subsystem} for continued degradation`,
-      confidence: round2(Math.min(
+      signalConfidence: round2(Math.min(
         CAP_HIGH,
         Math.abs(averageDelta) * 0.15 + degradationRate * 0.4 + Math.min(occurrenceCount / 10, 0.2),
       )),
@@ -169,7 +169,7 @@ function classifySubsystem(trend: SubsystemTrend): RecommendationDraft | null {
       signal: "persistent_instability",
       severity: "medium",
       recommendation: `Review ${subsystem} for stability improvements`,
-      confidence: round2(Math.min(
+      signalConfidence: round2(Math.min(
         CAP_INSTABILITY,
         mixedRate * 0.5 + Math.min(occurrenceCount / 10, 0.3),
       )),
@@ -185,7 +185,7 @@ function classifySubsystem(trend: SubsystemTrend): RecommendationDraft | null {
       signal: "improving_trend",
       severity: "info",
       recommendation: `Continue current ${subsystem} optimizations`,
-      confidence: round2(Math.min(
+      signalConfidence: round2(Math.min(
         CAP_HIGH,
         averageDelta * 0.1 + successRate * 0.4 + Math.min(occurrenceCount / 10, 0.2),
       )),
@@ -203,7 +203,7 @@ function classifySubsystem(trend: SubsystemTrend): RecommendationDraft | null {
 // ---------------------------------------------------------------------------
 
 function compareRecommendation(a: RecommendationDraft, b: RecommendationDraft): number {
-  if (b.confidence !== a.confidence) return b.confidence - a.confidence;
+  if (b.signalConfidence !== a.signalConfidence) return b.signalConfidence - a.signalConfidence;
   const aAbs = Math.abs(a.averageDelta);
   const bAbs = Math.abs(b.averageDelta);
   if (bAbs !== aAbs) return bAbs - aAbs;

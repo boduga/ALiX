@@ -83,7 +83,7 @@ function renderTable(result: RecommendationResult): void {
   for (const r of result.subsystemRecommendations) {
     console.log(
       `${r.subsystem.padEnd(18)} ${r.signal.padEnd(24)} ${r.severity.padEnd(9)} ` +
-      `${r.confidence.toFixed(2).padEnd(6)} ${String(r.occurrenceCount).padEnd(12)} ` +
+      `${r.signalConfidence.toFixed(2).padEnd(6)} ${String(r.occurrenceCount).padEnd(12)} ` +
       `${fmtDelta(r.averageDelta).padEnd(7)} ${r.recommendation}`,
     );
   }

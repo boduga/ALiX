@@ -125,7 +125,7 @@ describe("executive recommend CLI", () => {
     expect(parsed.subsystemRecommendations.length).toBeGreaterThan(0);
     expect(parsed.subsystemRecommendations[0]).toHaveProperty("signal");
     expect(parsed.subsystemRecommendations[0]).toHaveProperty("severity");
-    expect(parsed.subsystemRecommendations[0]).toHaveProperty("confidence");
+    expect(parsed.subsystemRecommendations[0]).toHaveProperty("signalConfidence");
 
     cwdSpy.mockRestore();
     c.restore();
