@@ -56,6 +56,8 @@ const EXECUTIVE_FILES = [
   "src/executive/executive-bridge.ts",
   // P10.4c files
   "src/executive/executive-apply-reconciler.ts",
+  // P10.6 files
+  "src/executive/learning-engine.ts",
   // P10.5b files
   "src/executive/outcome-store.ts",
   "src/executive/outcome-report-id.ts",
@@ -64,6 +66,7 @@ const EXECUTIVE_FILES = [
   // P10.5a files
   "src/executive/outcome-evaluator.ts",
   "src/cli/commands/executive-evaluate-handler.ts",
+  "src/cli/commands/executive-learn-handler.ts",
 ];
 
 // ---------------------------------------------------------------------------
