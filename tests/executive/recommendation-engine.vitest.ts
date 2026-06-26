@@ -51,7 +51,7 @@ describe("computeRecommendations — signal detection", () => {
       severity: "high",
       recommendation: "Investigate workflow regressions",
       // min(0.95, 3.2*0.15 + 0.5*0.4 + min(0.8,0.2)) = min(0.95, 0.48+0.2+0.2) = 0.88
-      confidence: 0.88,
+      signalConfidence: 0.88,
       occurrenceCount: 8,
       averageDelta: -3.2,
     });
@@ -75,7 +75,7 @@ describe("computeRecommendations — signal detection", () => {
     expect(rec.severity).toBe("medium");
     expect(rec.recommendation).toBe("Monitor routing for continued degradation");
     // min(0.95, 2.0*0.15 + 0.4*0.4 + min(0.5,0.2)) = min(0.95, 0.3+0.16+0.2) = 0.66
-    expect(rec.confidence).toBe(0.66);
+    expect(rec.signalConfidence).toBe(0.66);
   });
 
   it("classifies an improving subsystem as improving_trend info severity", () => {
@@ -96,7 +96,7 @@ describe("computeRecommendations — signal detection", () => {
     expect(rec.severity).toBe("info");
     expect(rec.recommendation).toBe("Continue current memory_cache optimizations");
     // min(0.95, 2.5*0.1 + 0.6*0.4 + min(0.4,0.2)) = min(0.95, 0.25+0.24+0.2) = 0.69
-    expect(rec.confidence).toBe(0.69);
+    expect(rec.signalConfidence).toBe(0.69);
   });
 
   it("classifies a mixed-dominant subsystem as persistent_instability", () => {
@@ -117,7 +117,7 @@ describe("computeRecommendations — signal detection", () => {
     expect(rec.severity).toBe("medium");
     expect(rec.recommendation).toBe("Review routing for stability improvements");
     // min(0.9, 0.5*0.5 + min(0.5,0.3)) = min(0.9, 0.25+0.3) = 0.55
-    expect(rec.confidence).toBe(0.55);
+    expect(rec.signalConfidence).toBe(0.55);
   });
 
   it("classifies a low-occurrence subsystem as low_confidence", () => {
@@ -138,7 +138,7 @@ describe("computeRecommendations — signal detection", () => {
     expect(rec.severity).toBe("low");
     expect(rec.recommendation).toBe("Collect more data on anomaly_detector before acting");
     // min(0.3, 1*0.1) = 0.1
-    expect(rec.confidence).toBe(0.1);
+    expect(rec.signalConfidence).toBe(0.1);
   });
 });
 
@@ -161,7 +161,7 @@ describe("computeRecommendations — precedence", () => {
     expect(rec.signal).toBe("low_confidence");
     expect(rec.severity).toBe("low");
     // min(0.3, 2*0.1) = 0.2
-    expect(rec.confidence).toBe(0.2);
+    expect(rec.signalConfidence).toBe(0.2);
   });
 });
 
@@ -223,7 +223,7 @@ describe("computeRecommendations — sorting", () => {
       ],
     });
     const result = computeRecommendations(trends, undefined, GENERATED_AT);
-    expect(result.subsystemRecommendations.map(r => r.confidence)).toEqual([0.88, 0.69, 0.55]);
+    expect(result.subsystemRecommendations.map(r => r.signalConfidence)).toEqual([0.88, 0.69, 0.55]);
   });
 });
 

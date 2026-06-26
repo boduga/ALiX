@@ -70,6 +70,8 @@ const EXECUTIVE_FILES = [
   // P10.7a files
   "src/executive/recommendation-engine.ts",
   "src/cli/commands/executive-recommend-handler.ts",
+  // P10.7b files
+  "src/executive/recommendation-report-store.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -203,10 +205,12 @@ describe("P10 executive purity sentinel", () => {
             }
 
             // Scoped exception: plan-store.ts, execution-state-store.ts,
-            // and outcome-store.ts are approved write paths
+            // outcome-store.ts, and recommendation-report-store.ts are
+            // approved write paths.
             if ((file === "src/executive/plan-store.ts" ||
                  file === "src/executive/execution-state-store.ts" ||
-                 file === "src/executive/outcome-store.ts") &&
+                 file === "src/executive/outcome-store.ts" ||
+                 file === "src/executive/recommendation-report-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {
