@@ -21,7 +21,7 @@
 | CLI path | `alix executive learn trends [--window N] [--json]` |
 | Window default | 10 |
 | CLI ownage | CLI slices window, passes only loaded reports to pure function |
-| Store integrity | Reports that fail integrity check when loading are excluded from both inputReportCount and skippedReportCount; their failure is recorded in warnings[] |
+| Store integrity | Reports that fail integrity check when loading are excluded from both inputReportCount and skippedReportCount; their failure is recorded in loadWarnings[] (separate from analytical warnings[]) |
 
 ---
 ---
@@ -407,8 +407,8 @@ export interface TrendResult {
   totalUnchanged: number;
   subsystemTrends: SubsystemTrend[];
   objectiveTrends: ObjectiveTrend[];
-  warnings: string[];
-  loadWarnings: string[];
+  warnings: string[];        // analytical warnings from the learning engine
+  loadWarnings: string[];    // integrity/load problems from report loading
 }
 
 type OutcomeClass = "improved" | "degraded" | "unchanged" | "mixed";
@@ -420,8 +420,8 @@ type OutcomeClass = "improved" | "degraded" | "unchanged" | "mixed";
 export function computeLearningTrends(
   reports: ExecutiveOutcomeEvaluationReport[],
   requestedWindow: number = reports.length,
+  generatedAt: string = new Date().toISOString(),
 ): TrendResult {
-  const generatedAt = new Date().toISOString();
 
   if (reports.length === 0) {
     return {
