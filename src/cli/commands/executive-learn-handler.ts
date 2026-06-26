@@ -37,8 +37,12 @@ export async function handleLearnCommand(args: string[]): Promise<void> {
   const reports: ExecutiveOutcomeEvaluationReport[] = [];
 
   for (const meta of windowed) {
-    const report = store.load(meta.reportId);
-    if (report) reports.push(report);
+    try {
+      const report = store.load(meta.reportId);
+      if (report) reports.push(report);
+    } catch (e: any) {
+      console.warn(`Skipping report ${meta.reportId}: ${e.message}`);
+    }
   }
 
   const result = computeLearningTrends(reports, windowN);

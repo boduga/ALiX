@@ -147,4 +147,23 @@ describe("executive learn CLI", () => {
     cwdSpy.mockRestore();
     c.restore();
   });
+
+  it("--window 1 limits analysis to 1 report", async () => {
+    const store = new OutcomeReportStore(join(execDir, "outcomes"));
+    saveReport(store, makeReport("p1", "completed"));
+    saveReport(store, makeReport("p2", "completed"));
+
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+
+    await handleLearnCommand(["trends", "--window", "1", "--json"]);
+
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.inputReportCount).toBe(1);
+    expect(parsed.analyzedReportCount).toBe(1);
+    expect(parsed.requestedWindow).toBe(1);
+
+    cwdSpy.mockRestore();
+    c.restore();
+  });
 });

@@ -138,7 +138,7 @@ export interface ObjectiveTrend {
 export interface TrendResult {
   trendStatus: "ok" | "insufficient_data";
   generatedAt: string;
-  window: number;
+  requestedWindow: number;
   inputReportCount: number;
   analyzedReportCount: number;
   skippedReportCount: number;
@@ -149,10 +149,13 @@ export interface TrendResult {
   subsystemTrends: SubsystemTrend[];
   objectiveTrends: ObjectiveTrend[];
   warnings: string[];
+  loadWarnings: string[];
 }
 
 export function computeLearningTrends(
   reports: ExecutiveOutcomeEvaluationReport[],
+  requestedWindow?: number,
+  generatedAt?: string,
 ): TrendResult
 ```
 
@@ -248,6 +251,8 @@ If the sentinel linter detects forbidden imports (e.g., `writeFileSync` transiti
 - `--json` includes `skippedReportCount` when non-completed reports exist
 - Empty store → CLI outputs `insufficient_data` JSON without crash
 - **Corrupt report resilience**: pre-existing report file with bad contentHash → warning to stderr, remaining valid reports still analyzed, JSON output remains valid
+
+Total: 14 tests (10 unit + 4 integration). All 14 tests pass.
 
 ## 7. Deferred to P10.6b
 
