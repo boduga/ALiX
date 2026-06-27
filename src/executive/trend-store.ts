@@ -57,6 +57,38 @@ export class ExecutiveTrendStore {
   }
 
   /**
+   * Find the most recent trend snapshot whose `generatedAt` is on or before
+   * the given `before` timestamp (ISO 8601 string comparison).
+   * Iterates the entire JSONL file (O(n) in snapshot count).
+   * Returns null when no snapshot satisfies the constraint (fail-closed).
+   */
+  async findBaseline(before: string): Promise<ExecutiveTrendSnapshot | null> {
+    const path = join(this.dir, TRENDS_FILE);
+    if (!existsSync(path)) return null;
+
+    const content = readFileSync(path, "utf-8").trim();
+    if (!content) return null;
+
+    const lines = content.split("\n").filter((l) => l.trim());
+    let best: ExecutiveTrendSnapshot | null = null;
+
+    for (const line of lines) {
+      try {
+        const snap = JSON.parse(line) as ExecutiveTrendSnapshot;
+        if (snap.generatedAt <= before) {
+          if (!best || snap.generatedAt > best.generatedAt) {
+            best = snap;
+          }
+        }
+      } catch {
+        // malformed line — skip silently
+      }
+    }
+
+    return best;
+  }
+
+  /**
    * Append a new trend snapshot derived from the current health report.
    * The snapshot captures each subsystem's current score for future trend
    * comparisons.

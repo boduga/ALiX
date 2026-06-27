@@ -54,6 +54,27 @@ const EXECUTIVE_FILES = [
   "src/executive/execution-engine.ts",
   // P10.4b files
   "src/executive/executive-bridge.ts",
+  // P10.4c files
+  "src/executive/executive-apply-reconciler.ts",
+  // P10.6 files
+  "src/executive/learning-engine.ts",
+  // P10.5b files
+  "src/executive/outcome-store.ts",
+  "src/executive/outcome-report-id.ts",
+  // P10.5c files
+  "src/executive/automatic-outcome-hook.ts",
+  // P10.5a files
+  "src/executive/outcome-evaluator.ts",
+  "src/cli/commands/executive-evaluate-handler.ts",
+  "src/cli/commands/executive-learn-handler.ts",
+  // P10.7a files
+  "src/executive/recommendation-engine.ts",
+  "src/cli/commands/executive-recommend-handler.ts",
+  // P10.7b files
+  "src/executive/recommendation-report-store.ts",
+  // P10.7c files
+  "src/executive/executive-bridge-recommendations.ts",
+  "src/cli/commands/executive-bridge-handler.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -186,9 +207,13 @@ describe("P10 executive purity sentinel", () => {
               continue;
             }
 
-            // Scoped exception: plan-store.ts and execution-state-store.ts are
-            // approved write paths for P10.4a plan persistence (atomic save pattern)
-            if ((file === "src/executive/plan-store.ts" || file === "src/executive/execution-state-store.ts") &&
+            // Scoped exception: plan-store.ts, execution-state-store.ts,
+            // outcome-store.ts, and recommendation-report-store.ts are
+            // approved write paths.
+            if ((file === "src/executive/plan-store.ts" ||
+                 file === "src/executive/execution-state-store.ts" ||
+                 file === "src/executive/outcome-store.ts" ||
+                 file === "src/executive/recommendation-report-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {
