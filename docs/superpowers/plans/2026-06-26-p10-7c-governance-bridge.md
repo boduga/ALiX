@@ -287,7 +287,7 @@ Expected: FAIL — module not found.
  * @module
  */
 
-import type { AdaptationProposal } from "../../adaptation/adaptation-types.js";
+import type { AdaptationProposal } from "../adaptation/adaptation-types.js";
 import type {
   RecommendationReport,
   ExecutiveRecommendation,
@@ -358,12 +358,12 @@ function buildDraftProposal(
       signalConfidence: rec.signalConfidence,
       occurrenceCount: rec.occurrenceCount,
       averageDelta: rec.averageDelta,
-      evidenceReportIds: report.evidenceReportIds,
+      evidenceReportIds: report.report.evidenceReportIds,
       recommendationText: rec.recommendation,
     },
     sourceRecommendationType: "executive_learning",
     sourceConfidence: rec.signalConfidence,
-    evidenceFingerprints: [...report.evidenceReportIds],
+    evidenceFingerprints: [...report.report.evidenceReportIds],
     reason: `${rec.subsystem} — ${rec.recommendation}`,
     provenance: "manual",
   };
