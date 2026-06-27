@@ -252,4 +252,15 @@ describe("executive effectiveness CLI", () => {
     cwdSpy.mockRestore();
     c.restore();
   });
+
+  it("no reports in store → no_data status", async () => {
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleEffectivenessCommand(["--json"]);
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.effectivenessStatus).toBe("no_data");
+    expect(parsed.signalCalibration).toEqual([]);
+    cwdSpy.mockRestore();
+    c.restore();
+  });
 });

@@ -27,7 +27,11 @@ import {
   computeRecommendationEffectiveness,
   EFFECTIVENESS_NO_DATA,
 } from "../../executive/recommendation-effectiveness.js";
-import type { EffectivenessResult, RecommendationEntry } from "../../executive/recommendation-effectiveness.js";
+import type {
+  EffectivenessResult,
+  RecommendationEntry,
+  ProposalStatus,
+} from "../../executive/recommendation-effectiveness.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -35,6 +39,7 @@ import type { EffectivenessResult, RecommendationEntry } from "../../executive/r
 
 const MS_PER_DAY = 86_400_000;
 const DEFAULT_THRESHOLD_DAYS = 7;
+const DEFAULT_SINCE_DAYS = 30;
 
 // ---------------------------------------------------------------------------
 // CLI handler
@@ -48,12 +53,12 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
   const sinceIndex = args.indexOf("--since");
   const sinceDays =
     sinceIndex !== -1 && sinceIndex + 1 < args.length
-      ? Math.max(1, parseInt(args[sinceIndex + 1], 10))
-      : undefined;
+      ? Math.max(1, parseInt(args[sinceIndex + 1], 10) || DEFAULT_SINCE_DAYS)
+      : DEFAULT_SINCE_DAYS;
   const thresholdIndex = args.indexOf("--threshold");
   const thresholdDays =
     thresholdIndex !== -1 && thresholdIndex + 1 < args.length
-      ? Math.max(1, parseInt(args[thresholdIndex + 1], 10))
+      ? Math.max(1, parseInt(args[thresholdIndex + 1], 10) || DEFAULT_THRESHOLD_DAYS)
       : DEFAULT_THRESHOLD_DAYS;
   const useJson = args.includes("--json");
 
@@ -173,7 +178,7 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
           signalConfidence: rec.signalConfidence,
           recommendation: rec.recommendation,
           proposalId: rec.proposalId,
-          proposalStatus: proposalStatus as any,
+          proposalStatus: proposalStatus as ProposalStatus | null | undefined,
           ageDays,
         },
         thresholdDays,
