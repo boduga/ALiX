@@ -27,7 +27,7 @@ alix executive recommendation-effectiveness [--report <id>] [--since <days>] [--
         │
         ├─ RecommendationReportStore.list() → load() each      ── P10.7b (read)
         ├─ ProposalStore.load(proposalId) for each bridged rec ── adaptation (read)
-        ├─ EffectivenessStore.list() → Map<proposalId, outcome> ── P5.2b (read) ← NEW
+        ├─ readdirSync + per-file JSON.parse → Map<proposalId, outcome> ── P5.2b (read) ← NEW
         ├─ classifyRecommendation() → disposition               ── pure (unchanged)
         ├─ applyEffectivenessData() → effectivenessOutcome      ── pure (NEW)
         ├─ computeRecommendationEffectiveness() → calibrations  ── pure (extended)
@@ -182,21 +182,38 @@ import type { EffectivenessOutcome } from "../../executive/recommendation-effect
 
 ### 2. Load effectiveness data (after proposal loading, before classification)
 
+Read the effectiveness directory directly with per-file try/catch, rather than calling `EffectivenessStore.list()`, so a single corrupt entry doesn't degrade the entire join:
+
 ```ts
-const effectivenessStore = new EffectivenessStore(
-  join(cwd, ".alix", "adaptation", "effectiveness"),
-);
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
+const effectivenessDir = join(cwd, ".alix", "adaptation", "effectiveness");
 const outcomeMap = new Map<string, EffectivenessOutcome>();
-try {
-  const effectivenessReports = await effectivenessStore.list();
-  for (const rep of effectivenessReports) {
-    // Maps ProposalEffectivenessReport.recommendation ("keep"|"revert"|"investigate") to EffectivenessOutcome
-    outcomeMap.set(rep.proposalId, rep.recommendation as EffectivenessOutcome);
+
+if (existsSync(effectivenessDir)) {
+  const files = readdirSync(effectivenessDir).filter((f) => f.endsWith(".json"));
+  for (const file of files) {
+    try {
+      const raw = readFileSync(join(effectivenessDir, file), "utf-8");
+      const report = JSON.parse(raw);
+      outcomeMap.set(report.proposalId, report.recommendation as EffectivenessOutcome);
+    } catch (e: any) {
+      console.warn(`Skipping corrupt effectiveness report: ${file} — ${e.message}`);
+    }
   }
-} catch {
-  // Graceful degradation: effectiveness store missing or corrupt → all applied recs get no_data
 }
+// If directory is missing, empty, or all entries are corrupt → outcomeMap stays empty
+// → applyEffectivenessData maps all applied recs to "no_data"
 ```
+
+**Degradation behavior:**
+| Condition | Effect |
+|---|---|
+| Store directory missing | Empty map → all applied recs → `no_data` |
+| Store directory empty | Empty map → all applied recs → `no_data` |
+| Single corrupt entry | Warn + skip that entry; all other entries process normally |
+| All entries corrupt | Empty map → all applied recs → `no_data` (with N warnings)
 
 ### 3. Apply effectiveness data (after building entries, before aggregation)
 
