@@ -27,6 +27,9 @@ export type RecommendationDisposition =
 
 export type ProposalStatus = "pending" | "approved" | "rejected" | "applied" | "failed";
 
+/** P10.8b: effectiveness outcome from ProposalEffectivenessReport.recommendation. */
+export type EffectivenessOutcome = "keep" | "revert" | "investigate" | "no_data";
+
 export interface ClassifyInput {
   subsystem: string;
   signal: string;
@@ -51,6 +54,8 @@ export interface RecommendationEntry {
   recommendation: string;
   proposalId?: string;
   disposition: RecommendationDisposition;
+  /** P10.8b: effectiveness outcome. Only present when disposition === "applied". */
+  effectivenessOutcome?: EffectivenessOutcome;
   ageDays: number;
 }
 
@@ -69,6 +74,13 @@ export interface SignalCalibration {
   bridgedCount: number;
   /** bridgedCount / total, [0..1], 2-decimal rounded. */
   actionRate: number;
+  /** P10.8b: effectiveness outcome tallies */
+  appliedKeep: number;
+  appliedRevert: number;
+  appliedInvestigate: number;
+  appliedNoData: number;
+  effectivenessRate: number;
+  effectivenessCoverage: number;
 }
 
 export const EFFECTIVENESS_OK = "ok";
@@ -119,6 +131,28 @@ export function classifyRecommendation(
 }
 
 // ---------------------------------------------------------------------------
+// Effectiveness data join (P10.8b)
+// ---------------------------------------------------------------------------
+
+/**
+ * Join recommendation entries with effectiveness outcomes from
+ * ProposalEffectivenessReport data. Pure function — returns new array,
+ * does not mutate inputs.
+ */
+export function applyEffectivenessData(
+  entries: RecommendationEntry[],
+  outcomeByProposalId: Map<string, EffectivenessOutcome>,
+): RecommendationEntry[] {
+  return entries.map((entry) => {
+    if (entry.disposition === "applied" && entry.proposalId !== undefined) {
+      const outcome = outcomeByProposalId.get(entry.proposalId);
+      return { ...entry, effectivenessOutcome: outcome ?? "no_data" };
+    }
+    return { ...entry, effectivenessOutcome: undefined };
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Aggregation
 // ---------------------------------------------------------------------------
 
@@ -157,6 +191,9 @@ export function computeRecommendationEffectiveness(
         proposalMissing: 0,
         bridgedCount: 0,
         actionRate: 0,
+        appliedKeep: 0, appliedRevert: 0,
+        appliedInvestigate: 0, appliedNoData: 0,
+        effectivenessRate: 0, effectivenessCoverage: 0,
       };
       signalMap.set(entry.signal, cal);
     }
@@ -173,6 +210,16 @@ export function computeRecommendationEffectiveness(
       case "failed":                   cal.failed++; cal.bridgedCount++; break;
       case "proposal_missing":         cal.proposalMissing++; cal.bridgedCount++; break;
     }
+
+    // P10.8b: effectiveness tallying
+    if (entry.disposition === "applied" && entry.effectivenessOutcome) {
+      switch (entry.effectivenessOutcome) {
+        case "keep": cal.appliedKeep++; break;
+        case "revert": cal.appliedRevert++; break;
+        case "investigate": cal.appliedInvestigate++; break;
+        case "no_data": cal.appliedNoData++; break;
+      }
+    }
   }
 
   // Compute actionRate per signal
@@ -181,6 +228,16 @@ export function computeRecommendationEffectiveness(
     cal.actionRate = cal.total > 0
       ? Math.round((cal.bridgedCount / cal.total) * 100) / 100
       : 0;
+
+    // P10.8b: effectiveness metrics
+    const assessedCount = cal.appliedKeep + cal.appliedRevert + cal.appliedInvestigate;
+    cal.effectivenessRate = assessedCount > 0
+      ? Math.round((cal.appliedKeep / assessedCount) * 100) / 100
+      : 0;
+    cal.effectivenessCoverage = (assessedCount + cal.appliedNoData) > 0
+      ? Math.round((assessedCount / (assessedCount + cal.appliedNoData)) * 100) / 100
+      : 0;
+
     signalCalibration.push(cal);
   }
 
