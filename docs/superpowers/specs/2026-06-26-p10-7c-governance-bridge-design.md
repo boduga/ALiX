@@ -12,15 +12,19 @@ alix executive bridge [--report <id>] [--json]
         │
         ├─ RecommendationReportStore.load(reportId | latest)            ── P10.7b (read)
         ├─ computeExecutiveProposals(report, generatedAt) → BridgeResult ── NEW (pure)
-        │     └─ builds drafts with id:"" (store assigns canonical id)
-        ├─ ProposalStore.save(draft) × N                               ── adaptation (write)
-        │     └─ returns canonical proposalId per save
-        ├─ Apply bridgedUpdates (patch proposalId + governanceStatus)
-        ├─ RecommendationReportStore.save(updatedPayload)               ── P10.7b (overwrite)
+        │     └─ drafts: [{ recIndex, proposal (id: "") }] + skippedCount
+        │
+        ├─ if drafts.length === 0  →  print "No eligible recommendations to bridge." and exit
+        │   (NO proposal saves, NO report rewrites — true no-op)
+        │
+        ├─ for each draft: ProposalStore.save(draft.proposal) → saved.id ── adaptation (write)
+        ├─ collect updates: [{ recIndex, proposalId: saved.id, status: "proposed" }]
+        ├─ build updatedReport via copy-on-write (loaded report object never mutated)
+        ├─ RecommendationReportStore.save(updatedReport)                ── P10.7b (overwrite)
         └─ print summary (created proposalIds + skippedCount + updated reportId)
 ```
 
-The pure function is fully testable (no I/O, no global state, no id generator). The handler owns all store interaction.
+The pure function answers only "which proposals should exist?" — it knows nothing about canonical ids, persistence, or report-update construction. The handler owns all I/O and constructs the update records from the store's returned ids.
 
 ## Hard governance boundary (non-negotiable)
 
@@ -49,23 +53,21 @@ This mirrors the P10.4b executive bridge pattern: pure function + effectful wrap
 ```ts
 import type { AdaptationProposal } from "../../adaptation/adaptation-types.js";
 import type { RecommendationReport } from "./recommendation-report-store.js";
-import type { ExecutiveRecommendation } from "./recommendation-report-store.js";
 
-/** A pending bridge update to apply to a single recommendation. */
-export interface ExecutiveBridgeUpdate {
+/** A single bridgeable recommendation paired with the proposal draft that
+ *  should exist for it. The pure function only answers "which proposals
+ *  should exist?" — it does NOT know about persistence, canonical ids,
+ *  or report-update construction. */
+export interface ExecutiveDraftProposal {
   /** Index of the recommendation within report.report.recommendations. */
   recIndex: number;
-  /** Canonical proposalId assigned by ProposalStore.save(). */
-  proposalId: string;
-  status: "proposed";
+  /** Draft proposal (id:""; the store assigns the canonical id on save). */
+  proposal: AdaptationProposal;
 }
 
 /** Output of the pure bridge function. */
 export interface ExecutiveBridgeResult {
-  /** Draft proposals (id:""; store will assign canonical ids on save). */
-  newProposals: AdaptationProposal[];
-  /** Per-recommendation updates to apply (in recIndex order). */
-  bridgedUpdates: ExecutiveBridgeUpdate[];
+  drafts: ExecutiveDraftProposal[];
   /** Recommendations skipped due to eligibility (non-actionable or already-proposed). */
   skippedCount: number;
 }
@@ -140,13 +142,28 @@ export function computeExecutiveProposals(
 
 1. Resolve report id (from `--report` or `list()[0]`). If no report, exit cleanly.
 2. `result = computeExecutiveProposals(report, now())` — pure, testable.
-3. For each draft in `result.newProposals`: `saved = await proposalStore.save(draft)`; capture `saved.id`.
-4. Build updated report payload:
-   - Copy `report.report`.
-   - For each `result.bridgedUpdates[i]`: set `report.report.recommendations[update.recIndex].proposalId = update.proposalId` and `.governanceStatus = "proposed"`.
-   - All other fields unchanged (enforced by the read-modify-save pattern; the only mutations are the two field assignments per bridged rec).
-5. `recommendationStore.save(updatedPayload)` — same `generatedAt` → same id → atomic overwrite with new `contentHash`.
-6. Print summary.
+3. **No-op short-circuit:** if `result.drafts.length === 0`, print "No eligible recommendations to bridge." and return. No proposal saves, no report rewrites.
+4. For each `result.drafts[i]`: `saved = await proposalStore.save(drafts[i].proposal)`; collect `{ recIndex: drafts[i].recIndex, proposalId: saved.id, status: "proposed" }`.
+5. Build updated report via **copy-on-write** (the loaded `report` object is never mutated):
+   ```ts
+   const updatedReport = {
+     ...report,
+     report: {
+       ...report.report,
+       recommendations: report.report.recommendations.map((rec, i) => {
+         const update = collected.find((u) => u.recIndex === i);
+         return update
+           ? { ...rec, proposalId: update.proposalId, governanceStatus: update.status }
+           : rec;
+       }),
+     },
+   };
+   ```
+   Non-bridged recommendations pass through unchanged (`signal`, `severity`, `recommendation`, `signalConfidence`, `occurrenceCount`, `averageDelta`, and all other fields preserved bit-for-bit).
+6. `recommendationStore.save(updatedReport)` — same `generatedAt` → same id → atomic overwrite with new `contentHash`.
+7. Print summary.
+
+The handler owns the construction of `bridgedUpdates` from the store's saved ids. The pure function never sees `proposalId` assignment or `governanceStatus` mutation — it only proposes what *should* exist.
 
 ## Mutation surface (handler)
 
@@ -178,25 +195,27 @@ Sentinel: handler is in `src/cli/commands/executive-bridge-handler.ts`, added to
 - Eligibility: `improving_trend` skipped.
 - Eligibility: `low_confidence` skipped.
 - Eligibility: `proposalId` already set → skipped.
-- Mixed (some eligible, some not) → correct split between `newProposals` and `skippedCount`.
+- Mixed (some eligible, some not) → correct split between `drafts.length` and `skippedCount`.
+- Each draft carries `recIndex` pointing at the source recommendation's index.
 - Proposal shape: `action === "create_improvement_issue"`, `target.kind === "issue"`.
 - Proposal shape: payload contains `source: "executive_learning"` + the 9 executive context fields.
 - Proposal shape: `sourceRecommendationType === "executive_learning"`, `sourceConfidence === rec.signalConfidence`.
 - Proposal shape: `status === "pending"`, `provenance === "manual"`.
 - Proposal shape: `id === ""` (store-assigns-id sentinel).
-- Empty report → empty `newProposals`, `skippedCount: 0`.
+- Empty report → empty `drafts`, `skippedCount: 0`.
 - Determinism: same `(report, generatedAt)` → same output.
+- Pure function makes no reference to `bridgedUpdates`, `proposalId` assignment, or `governanceStatus` (separation of concerns).
 
 **CLI tests** (`executive-bridge-cli.vitest.ts`):
-- Bridges a persisted report: creates N proposals, report updated with `proposalId`/`governanceStatus` on bridged recs.
+- Bridges a persisted report: creates N proposals, report updated with `proposalId`/`governanceStatus: "proposed"` on bridged recs.
 - Default `--report` (omitted) bridges the latest report.
 - `--json` outputs `{ ok, reportId, createdProposalIds, skippedCount }`.
 - Idempotent re-run: second call creates 0 new proposals; bridged recs are skipped.
 - Already-proposed (pre-set `proposalId`): that rec is skipped.
-- No eligible recs (all `improving_trend` / `low_confidence`): 0 proposals created, `skippedCount` equals report length, report updated but only with no-op (since no bridge updates). Actually: no proposal saves means no bridged updates to apply → report is unchanged on disk (still re-saved with same contentHash). Verify: re-saved report equals loaded report byte-equivalent.
-- Non-bridged recs are unchanged: `signal`, `severity`, `recommendation`, `signalConfidence`, etc. preserved bit-for-bit.
+- **No-op short-circuit:** when zero drafts, the handler performs ZERO proposal saves and ZERO report saves. Verified by asserting no files appear under `.alix/adaptation/proposals/` and no `.alix/executive/recommendations/recommendation-*.json` mtime changes after a no-op bridge.
+- **Non-bridged recs unchanged:** after a partial bridge, the non-bridged recommendations retain their original `signal`, `severity`, `recommendation`, `signalConfidence`, `occurrenceCount`, `averageDelta` bit-for-bit (copy-on-write verification).
 - No `--report` and no reports in store: clean message, exit cleanly.
-- The created proposals exist in `ProposalStore.list()` after the bridge (verified via load).
+- The created proposals exist in `ProposalStore.list()` after the bridge (verified via load) and carry the canonical `sourceConfidence` + `evidenceFingerprints`.
 
 **Sentinel:**
 - Both new files added to `EXECUTIVE_FILES`; no scoped exceptions required.
