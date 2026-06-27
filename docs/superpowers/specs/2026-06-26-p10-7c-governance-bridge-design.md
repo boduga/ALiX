@@ -143,7 +143,7 @@ export function computeExecutiveProposals(
 1. Resolve report id (from `--report` or `list()[0]`). If no report, exit cleanly.
 2. `result = computeExecutiveProposals(report, now())` — pure, testable.
 3. **No-op short-circuit:** if `result.drafts.length === 0`, print "No eligible recommendations to bridge." and return. No proposal saves, no report rewrites.
-4. For each `result.drafts[i]`: `saved = await proposalStore.save(drafts[i].proposal)`; collect `{ recIndex: drafts[i].recIndex, proposalId: saved.id, status: "proposed" }`.
+4. For each `result.drafts[i]` **in array order** (which mirrors the source report's recommendation order): `saved = await proposalStore.save(drafts[i].proposal)`; collect `{ recIndex: drafts[i].recIndex, proposalId: saved.id, status: "proposed" }`. **Partial-failure contract:** if any `save()` throws, the loop stops immediately — no report is built, no report is rewritten, the error is surfaced. Already-created proposals remain `pending` in `ProposalStore` (they are valid proposals, visible via `alix governance list`). The invariant: **the recommendation report is never ahead of reality.** A later rerun finds the still-unbridged recs (`proposalId === undefined`) and bridges them.
 5. Build updated report via **copy-on-write** (the loaded `report` object is never mutated):
    ```ts
    const updatedReport = {
@@ -161,7 +161,7 @@ export function computeExecutiveProposals(
    ```
    Non-bridged recommendations pass through unchanged (`signal`, `severity`, `recommendation`, `signalConfidence`, `occurrenceCount`, `averageDelta`, and all other fields preserved bit-for-bit).
 6. `recommendationStore.save(updatedReport)` — same `generatedAt` → same id → atomic overwrite with new `contentHash`.
-7. Print summary.
+7. Print summary. **`createdProposalIds` are emitted in the same order as the source report's recommendations** (deterministic — the pure function iterates `report.report.recommendations` in order, the save loop preserves that order, the collected ids inherit it).
 
 The handler owns the construction of `bridgedUpdates` from the store's saved ids. The pure function never sees `proposalId` assignment or `governanceStatus` mutation — it only proposes what *should* exist.
 
@@ -216,6 +216,8 @@ Sentinel: handler is in `src/cli/commands/executive-bridge-handler.ts`, added to
 - **Non-bridged recs unchanged:** after a partial bridge, the non-bridged recommendations retain their original `signal`, `severity`, `recommendation`, `signalConfidence`, `occurrenceCount`, `averageDelta` bit-for-bit (copy-on-write verification).
 - No `--report` and no reports in store: clean message, exit cleanly.
 - The created proposals exist in `ProposalStore.list()` after the bridge (verified via load) and carry the canonical `sourceConfidence` + `evidenceFingerprints`.
+- **Ordering:** when a report contains multiple eligible recommendations, `createdProposalIds` are emitted in the same order as the recommendations appear in the source report. Verified by bridging a report with eligible recs at indices 0, 1, 2 and asserting `createdProposalIds[0]` corresponds to recIndex 0, `[1]` to recIndex 1, etc.
+- **Partial-failure (transactional):** when `ProposalStore.save()` throws on the Nth call, the handler stops immediately: the first N-1 proposals remain `pending` in `ProposalStore` (verified via list), the recommendation report is NOT rewritten (verified by checking its mtime/contentHash are unchanged), and the error is surfaced to the caller. A subsequent rerun finds the still-unbridged recs (`proposalId === undefined`) and bridges them — proving the report was never ahead of reality.
 
 **Sentinel:**
 - Both new files added to `EXECUTIVE_FILES`; no scoped exceptions required.
