@@ -447,10 +447,10 @@ export function computeRecommendationEffectiveness(
 
 function sortRecommendations(entries: RecommendationEntry[]): RecommendationEntry[] {
   return [...entries].sort((a, b) => {
-    // Newest first by generatedAt (ISO string → lexical == chronological)
     const dateCmp = b.generatedAt.localeCompare(a.generatedAt);
     if (dateCmp !== 0) return dateCmp;
-    // Stable tiebreak: recIndex ascending within same report
+    const reportCmp = a.reportId.localeCompare(b.reportId);
+    if (reportCmp !== 0) return reportCmp;
     return a.recIndex - b.recIndex;
   });
 }
