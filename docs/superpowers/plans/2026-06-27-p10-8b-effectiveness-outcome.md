@@ -190,7 +190,7 @@ describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)"
 ```bash
 npx vitest run tests/executive/recommendation-effectiveness.vitest.ts --reporter=verbose 2>&1 | head -40
 ```
-Expected: FAIL — 13 failures (6 `applyEffectivenessData` + 5 effectiveness metrics + 2 existing tests that reference new `SignalCalibration` fields).
+Expected: FAIL — new tests fail because `applyEffectivenessData` and new `SignalCalibration` fields don't exist yet.
 
 - [ ] **Step 5: Implement — add type, interface changes, pure function, and aggregation changes**
 
@@ -500,7 +500,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   it("terminal table shows effectiveness columns when applied recs exist", async () => {
     const proposal: AdaptationProposal = {
       id: "eff-prop-1", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-a" },
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
@@ -540,7 +540,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   it("JSON output includes effectivenessOutcome and calibration fields", async () => {
     const proposal: AdaptationProposal = {
       id: "eff-prop-2", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-b" },
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
@@ -569,7 +569,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
     // Don't seed any effectiveness files — directory doesn't exist
     const proposal: AdaptationProposal = {
       id: "eff-prop-3", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-c" },
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
@@ -593,13 +593,13 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   it("some proposals have effectiveness data, some don't → correct split", async () => {
     const pKeep: AdaptationProposal = {
       id: "eff-p-keep", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-d" },
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
     const pNoData: AdaptationProposal = {
       id: "eff-p-nodata", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-e" },
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
@@ -685,16 +685,7 @@ npx vitest run tests/executive/executive-sentinels.vitest.ts --reporter=verbose 
 ```
 Expected: PASS — all sentinel tests (no new files added, both modified files already in EXECUTIVE_FILES).
 
-- [ ] **Step 4: Commit Task 3 (or amend if no new files)**
-
-If sentinel and full suite both pass, this is a no-op commit to mark the verification:
-
-```bash
-git add tests/executive/executive-sentinels.vitest.ts
-# Only if any sentinel changes were needed (expected: none)
-# Otherwise just log verification
-echo "P10.8b implementation complete: 1900+/0 tests, tsc clean, sentinel passes" >> /dev/null
-```
+- [ ] **(No commit needed)** No sentinel files changed — verification is recorded in the final review/PR body.
 
 ---
 
