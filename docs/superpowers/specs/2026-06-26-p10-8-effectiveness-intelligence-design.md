@@ -117,7 +117,7 @@ switch input.proposalStatus:
 ```
 
 - `ageDays` is computed in the CLI (`now - report.generatedAt`) and passed to the pure function — keeps tests deterministic. Only unbridged recs read `ageDays`; bridged recs never use it.
-- `proposalStatus` is fetched by the CLI handler (via `ProposalStore.load`), then passed to the pure classifier. `null` means the load returned null (file missing); `undefined` means the rec has no proposalId.
+- `proposalStatus` is fetched by the CLI handler (via `ProposalStore.load`), then passed to the pure classifier. A throw or null from `ProposalStore.load` is caught by the handler and returned as `null` — covering both missing proposal files (`null` return) and corrupt proposal files (throw). `undefined` means the rec has no proposalId. In all failure cases, `proposal_missing` is set and a descriptive `loadWarnings` entry is appended.
 
 ## Aggregation function
 
@@ -157,6 +157,8 @@ export interface EffectivenessResult {
 export interface RecommendationEntry {
   reportId: string;
   generatedAt: string;
+  /** Index within the source report's recommendations array (stable ordering). */
+  recIndex: number;
   subsystem: string;
   signal: string;
   severity: string;
@@ -220,7 +222,7 @@ Subcommand list updated to include `recommendation-effectiveness`.
 
 ## Sentinel
 
-Three new files:
+Two new files:
 - `src/executive/recommendation-effectiveness.ts` — pure classification + aggregation functions, types
 - `src/cli/commands/executive-effectiveness-handler.ts` — CLI handler (reads, no writes)
 
