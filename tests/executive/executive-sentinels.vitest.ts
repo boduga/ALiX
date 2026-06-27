@@ -72,6 +72,9 @@ const EXECUTIVE_FILES = [
   "src/cli/commands/executive-recommend-handler.ts",
   // P10.7b files
   "src/executive/recommendation-report-store.ts",
+  // P10.7c files
+  "src/executive/executive-bridge-recommendations.ts",
+  "src/cli/commands/executive-bridge-handler.ts",
 ];
 
 // ---------------------------------------------------------------------------
