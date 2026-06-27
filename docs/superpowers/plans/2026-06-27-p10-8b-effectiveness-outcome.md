@@ -32,118 +32,9 @@
 - Consumes: existing `RecommendationEntry`, `SignalCalibration`, `EffectivenessResult`, `computeRecommendationEffectiveness()`.
 - Produces: `EffectivenessOutcome` type, `applyEffectivenessData()` pure function, extended `RecommendationEntry`, extended `SignalCalibration`, extended `computeRecommendationEffectiveness()`.
 
-- [ ] **Step 1: Add `EffectivenessOutcome` type to `recommendation-effectiveness.ts`**
+- [ ] **Step 1: Write failing tests for `applyEffectivenessData`**
 
-Add after the existing `ProposalStatus` type on line 28:
-
-```ts
-/** P10.8b: effectiveness outcome from ProposalEffectivenessReport.recommendation. */
-export type EffectivenessOutcome = "keep" | "revert" | "investigate" | "no_data";
-```
-
-- [ ] **Step 2: Add `effectivenessOutcome` field to `RecommendationEntry`**
-
-Modify the `RecommendationEntry` interface (line 43-55) — add after `disposition: RecommendationDisposition;`:
-
-```ts
-  /** P10.8b: effectiveness outcome. Only present when disposition === "applied". */
-  effectivenessOutcome?: EffectivenessOutcome;
-```
-
-- [ ] **Step 3: Add effectiveness fields to `SignalCalibration`**
-
-Modify the `SignalCalibration` interface (line 57-72) — add after `applied: number;`:
-
-```ts
-  // P10.8b: effectiveness breakdown of applied recommendations
-  appliedKeep: number;
-  appliedRevert: number;
-  appliedInvestigate: number;
-  appliedNoData: number;
-  /** appliedKeep / (appliedKeep + appliedRevert + appliedInvestigate), [0..1], 2-decimal.
-   *  NaN (no assessed recs) → 0. */
-  effectivenessRate: number;
-  /** (appliedKeep + appliedRevert + appliedInvestigate) /
-   *  (appliedKeep + appliedRevert + appliedInvestigate + appliedNoData), [0..1], 2-decimal.
-   *  NaN (no applied recs) → 0. */
-  effectivenessCoverage: number;
-```
-
-- [ ] **Step 4: Write the `applyEffectivenessData()` pure function**
-
-Add after the `classifyRecommendation()` function (after line 119):
-
-```ts
-// ---------------------------------------------------------------------------
-// Effectiveness data enrichment (P10.8b)
-// ---------------------------------------------------------------------------
-
-/**
- * Enrich recommendation entries with effectiveness outcome data from
- * ProposalEffectivenessReport.
- *
- * Pure function: returns new array, does not mutate input.
- * Orthogonal to classifyRecommendation — only enriches entries whose
- * disposition is already "applied" and have a proposalId.
- */
-export function applyEffectivenessData(
-  entries: readonly RecommendationEntry[],
-  outcomeByProposalId: ReadonlyMap<string, EffectivenessOutcome>,
-): RecommendationEntry[] {
-  return entries.map((entry) => {
-    if (entry.disposition === "applied" && entry.proposalId !== undefined) {
-      const outcome = outcomeByProposalId.get(entry.proposalId);
-      return { ...entry, effectivenessOutcome: outcome ?? "no_data" };
-    }
-    return { ...entry, effectivenessOutcome: undefined };
-  });
-}
-```
-
-- [ ] **Step 5: Initialize new effectiveness counters in `computeRecommendationEffectiveness()`**
-
-In the `SignalCalibration` initializer block (lines 151-160), add effectiveness fields after `actionRate: 0`:
-
-```ts
-        appliedKeep: 0, appliedRevert: 0,
-        appliedInvestigate: 0, appliedNoData: 0,
-        effectivenessRate: 0, effectivenessCoverage: 0,
-```
-
-- [ ] **Step 6: Add effectiveness tallying in the switch block**
-
-After the existing `switch (entry.disposition)` block (line 175, after the closing brace), add:
-
-```ts
-    // P10.8b: effectiveness tallying
-    if (entry.disposition === "applied" && entry.effectivenessOutcome) {
-      switch (entry.effectivenessOutcome) {
-        case "keep":        cal.appliedKeep++; break;
-        case "revert":      cal.appliedRevert++; break;
-        case "investigate": cal.appliedInvestigate++; break;
-        case "no_data":     cal.appliedNoData++; break;
-      }
-    }
-```
-
-- [ ] **Step 7: Compute effectiveness metrics per signal**
-
-After the actionRate computation (line 183), before the `signalCalibration.push(cal)` call, add:
-
-```ts
-    // P10.8b: effectiveness rate + coverage
-    const assessedCount = cal.appliedKeep + cal.appliedRevert + cal.appliedInvestigate;
-    cal.effectivenessRate = assessedCount > 0
-      ? Math.round((cal.appliedKeep / assessedCount) * 100) / 100
-      : 0;
-    cal.effectivenessCoverage = (assessedCount + cal.appliedNoData) > 0
-      ? Math.round((assessedCount / (assessedCount + cal.appliedNoData)) * 100) / 100
-      : 0;
-```
-
-- [ ] **Step 8: Write failing tests for `applyEffectivenessData`**
-
-Add a new describe block at the end of `tests/executive/recommendation-effectiveness.vitest.ts`:
+Add to the end of `tests/executive/recommendation-effectiveness.vitest.ts` — writes tests before the function exists:
 
 ```ts
 import { applyEffectivenessData } from "../../src/executive/recommendation-effectiveness.js";
@@ -166,27 +57,23 @@ describe("applyEffectivenessData", () => {
 
   it("leaves non-applied entries untouched", () => {
     const entry = baseEntry({ disposition: "stale", proposalId: undefined });
-    const map = new Map<string, EffectivenessOutcome>([["p1", "keep"]]);
-    const result = applyEffectivenessData([entry], map);
+    const result = applyEffectivenessData([entry], new Map());
     expect(result[0].effectivenessOutcome).toBeUndefined();
   });
 
   it("applied entry with proposalId NOT in map → no_data", () => {
-    const map = new Map<string, EffectivenessOutcome>();
-    const result = applyEffectivenessData([baseEntry()], map);
+    const result = applyEffectivenessData([baseEntry()], new Map());
     expect(result[0].effectivenessOutcome).toBe("no_data");
   });
 
   it("applied entry with no proposalId → no effectivenessOutcome", () => {
     const entry = baseEntry({ proposalId: undefined });
-    const map = new Map<string, EffectivenessOutcome>([["p1", "keep"]]);
-    const result = applyEffectivenessData([entry], map);
+    const result = applyEffectivenessData([entry], new Map());
     expect(result[0].effectivenessOutcome).toBeUndefined();
   });
 
   it("empty entries array → empty array", () => {
-    const map = new Map<string, EffectivenessOutcome>();
-    const result = applyEffectivenessData([], map);
+    const result = applyEffectivenessData([], new Map());
     expect(result).toEqual([]);
   });
 
@@ -201,14 +88,14 @@ describe("applyEffectivenessData", () => {
 });
 ```
 
-- [ ] **Step 9: Run tests to verify `applyEffectivenessData` tests fail**
+- [ ] **Step 2: Run tests to verify `applyEffectivenessData` tests fail**
 
 ```bash
 npx vitest run tests/executive/recommendation-effectiveness.vitest.ts --reporter=verbose 2>&1 | head -30
 ```
-Expected: FAIL — `applyEffectivenessData is not a function` or similar.
+Expected: FAIL — `applyEffectivenessData is not a function`
 
-- [ ] **Step 10: Write failing tests for effectiveness-aware `computeRecommendationEffectiveness`**
+- [ ] **Step 3: Write failing tests for effectiveness-aware `computeRecommendationEffectiveness`**
 
 Add after the `applyEffectivenessData` describe block:
 
@@ -250,8 +137,7 @@ describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)"
     ];
     const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
     const cal = result.signalCalibration[0];
-    // assessed = 1 keep + 1 revert = 2, rate = 1/2 = 0.5
-    expect(cal.effectivenessRate).toBe(0.5);
+    expect(cal.effectivenessRate).toBe(0.5); // 1/2 assessed
   });
 
   it("effectivenessCoverage includes no_data in denominator", () => {
@@ -261,8 +147,7 @@ describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)"
     ];
     const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
     const cal = result.signalCalibration[0];
-    // assessed = 1, total assessed+no_data = 2, coverage = 0.5
-    expect(cal.effectivenessCoverage).toBe(0.5);
+    expect(cal.effectivenessCoverage).toBe(0.5); // 1/2
   });
 
   it("effectivenessRate is 0 when no assessed recs", () => {
@@ -279,7 +164,7 @@ describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)"
       { reportId: "r1", generatedAt: "2026-06-26T00:00:00.000Z", recIndex: 0,
         subsystem: "wf", signal: "degrading_trend", severity: "high",
         signalConfidence: 0.88, recommendation: "x", ageDays: 1,
-        disposition: "stale", proposalId: undefined },
+        disposition: "stale" },
     ];
     const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
     const cal = result.signalCalibration[0];
@@ -300,36 +185,117 @@ describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)"
 });
 ```
 
-- [ ] **Step 11: Run tests to verify effectiveness tests fail**
+- [ ] **Step 4: Run tests to verify all new tests fail**
 
 ```bash
 npx vitest run tests/executive/recommendation-effectiveness.vitest.ts --reporter=verbose 2>&1 | head -40
 ```
-Expected: FAIL — some tests fail because `applyEffectivenessData` or new `SignalCalibration` fields don't exist yet.
+Expected: FAIL — 13 failures (6 `applyEffectivenessData` + 5 effectiveness metrics + 2 existing tests that reference new `SignalCalibration` fields).
 
-- [ ] **Step 12: Run the full test suite to see baseline failures**
+- [ ] **Step 5: Implement — add type, interface changes, pure function, and aggregation changes**
+
+All implementation changes go into `src/executive/recommendation-effectiveness.ts`:
+
+**(a) Add `EffectivenessOutcome` type after `ProposalStatus` on line 28:**
+```ts
+/** P10.8b: effectiveness outcome from ProposalEffectivenessReport.recommendation. */
+export type EffectivenessOutcome = "keep" | "revert" | "investigate" | "no_data";
+```
+
+**(b) Add `effectivenessOutcome` field to `RecommendationEntry` after `disposition`:**
+```ts
+  /** P10.8b: effectiveness outcome. Only present when disposition === "applied". */
+  effectivenessOutcome?: EffectivenessOutcome;
+```
+
+**(c) Add effectiveness fields to `SignalCalibration` after `applied: number;`:**
+```ts
+  // P10.8b: effectiveness breakdown of applied recommendations
+  appliedKeep: number;
+  appliedRevert: number;
+  appliedInvestigate: number;
+  appliedNoData: number;
+  /** appliedKeep / (appliedKeep + appliedRevert + appliedInvestigate), [0..1], 2-decimal. */
+  effectivenessRate: number;
+  /** assessed / (assessed + appliedNoData), [0..1], 2-decimal. */
+  effectivenessCoverage: number;
+```
+
+**(d) Add `applyEffectivenessData()` after `classifyRecommendation`:**
+```ts
+/**
+ * Enrich recommendation entries with effectiveness outcome data from
+ * ProposalEffectivenessReport. Pure: returns new array, does not mutate input.
+ */
+export function applyEffectivenessData(
+  entries: readonly RecommendationEntry[],
+  outcomeByProposalId: ReadonlyMap<string, EffectivenessOutcome>,
+): RecommendationEntry[] {
+  return entries.map((entry) => {
+    if (entry.disposition === "applied" && entry.proposalId !== undefined) {
+      const outcome = outcomeByProposalId.get(entry.proposalId);
+      return { ...entry, effectivenessOutcome: outcome ?? "no_data" };
+    }
+    return { ...entry, effectivenessOutcome: undefined };
+  });
+}
+```
+
+**(e) Initialize effectiveness counters in `SignalCalibration` initializer** (lines 151-160), add after `actionRate: 0`:
+```ts
+        appliedKeep: 0, appliedRevert: 0,
+        appliedInvestigate: 0, appliedNoData: 0,
+        effectivenessRate: 0, effectivenessCoverage: 0,
+```
+
+**(f) Add effectiveness tallying after the `switch (entry.disposition)` block breaks** (after line 175):
+```ts
+    // P10.8b: effectiveness tallying
+    if (entry.disposition === "applied" && entry.effectivenessOutcome) {
+      switch (entry.effectivenessOutcome) {
+        case "keep":        cal.appliedKeep++; break;
+        case "revert":      cal.appliedRevert++; break;
+        case "investigate": cal.appliedInvestigate++; break;
+        case "no_data":     cal.appliedNoData++; break;
+      }
+    }
+```
+
+**(g) Compute effectiveness metrics after actionRate** (before `signalCalibration.push(cal)`):
+```ts
+    const assessedCount = cal.appliedKeep + cal.appliedRevert + cal.appliedInvestigate;
+    cal.effectivenessRate = assessedCount > 0
+      ? Math.round((cal.appliedKeep / assessedCount) * 100) / 100
+      : 0;
+    cal.effectivenessCoverage = (assessedCount + cal.appliedNoData) > 0
+      ? Math.round((assessedCount / (assessedCount + cal.appliedNoData)) * 100) / 100
+      : 0;
+```
+
+- [ ] **Step 6: Run tests to verify all new tests pass**
+
+```bash
+npx vitest run tests/executive/recommendation-effectiveness.vitest.ts --reporter=verbose 2>&1 | tail -30
+```
+Expected: PASS — 11 new tests plus existing tests all green.
+
+- [ ] **Step 7: Run the full test suite to verify no regressions**
 
 ```bash
 npx vitest run --reporter=verbose 2>&1 | tail -20
 ```
-Expected: FAIL — some existing tests also fail because `SignalCalibration` now requires new fields that aren't initialized in test fixtures.
+Expected: PASS — existing CLI tests may need `SignalCalibration` JSON assertions updated if they check exact object shapes (not just specific field values).
 
-- [ ] **Step 13: Fix existing tests — add effectiveness fields to all `SignalCalibration` fixtures**
+- [ ] **Step 8: Fix any test fixtures that assert exact `SignalCalibration` shape**
 
-Search for all places where `SignalCalibration` objects are constructed in test files. Every fixture needs the new fields. For example, in `tests/executive/recommendation-effectiveness.vitest.ts`, the `computeRecommendationEffectiveness` test that constructs a `cal` inline (lines 148-184 in the original) already initializes all fields via the function — but direct `SignalCalibration` mocks need the new fields.
-
-Key locations to update:
-- `tests/cli/commands/executive-effectiveness-cli.vitest.ts` — any test that asserts `.signalCalibration[0]` shape in JSON output (the existing `awaitingReview` and `bridgedCount` checks) will get additional fields automatically from `JSON.parse` — test assertions that check exact equality on calibration objects need updating.
-- Any test that constructs a full `EffectivenessResult` or `SignalCalibration` literal — add the new fields with value 0 or 0.
-
-- [ ] **Step 14: Run tests to verify all pass**
+The `executive-effectiveness-cli.vitest.ts` tests assert individual fields like `cal.awaitingReview` and `cal.bridgedCount` — those work fine because `JSON.parse` includes all fields including the new zeros. Only fix if a test does `toEqual({...})` on a calibration object. Search:
 
 ```bash
-npx vitest run --reporter=verbose 2>&1 | tail -20
+grep -n 'toEqual\|toStrictEqual' tests/cli/commands/executive-effectiveness-cli.vitest.ts tests/executive/recommendation-effectiveness.vitest.ts
 ```
-Expected: PASS — all tests green.
+If any match on a `SignalCalibration` or `EffectivenessResult` literal, add the new fields.
 
-- [ ] **Step 15: Commit Task 1**
+- [ ] **Step 9: Commit Task 1**
 
 ```bash
 git add src/executive/recommendation-effectiveness.ts tests/executive/recommendation-effectiveness.vitest.ts
@@ -342,7 +308,6 @@ git commit -m "feat(p10-8b): add EffectivenessOutcome type, applyEffectivenessDa
 - Two new metrics: effectivenessRate (excludes no_data) + effectivenessCoverage
 - computeRecommendationEffectiveness tallies effectiveness in per-signal loop
 - 11 new tests: 6 applyEffectivenessData + 5 effectiveness metrics
-- All existing fixtures updated for new required fields
 
 Co-Authored-By: Claude <noreply@anthropic.com>"
 ```
@@ -504,16 +469,20 @@ function renderTable(result: EffectivenessResult): void {
 Add new test cases at the end of `tests/cli/commands/executive-effectiveness-cli.vitest.ts`, before the closing `});`:
 
 ```ts
-import { EffectivenessStore } from "../../../src/adaptation/effectiveness-store.js";
+import { writeFileSync, mkdirSync } from "node:fs";
 import type { ProposalEffectivenessReport } from "../../../src/adaptation/effectiveness-types.js";
 
 describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
+  /** Seed raw JSON files matching ProposalEffectivenessReport shape, not via store API. */
   function seedEffectiveness(reports: ProposalEffectivenessReport[]) {
-    const store = new EffectivenessStore(join(tempRoot, ".alix", "adaptation", "effectiveness"));
-    for (const r of reports) store.save(r);
+    const dir = join(tempRoot, ".alix", "adaptation", "effectiveness");
+    mkdirSync(dir, { recursive: true });
+    for (const r of reports) {
+      writeFileSync(join(dir, `${r.proposalId}.json`), JSON.stringify(r, null, 2), "utf-8");
+    }
   }
 
-  function makeEffectivenessReport(proposalId: string, recommendation: "keep" | "revert" | "investigate"): ProposalEffectivenessReport {
+  function makeEffReport(proposalId: string, recommendation: "keep" | "revert" | "investigate"): ProposalEffectivenessReport {
     return {
       proposalId,
       assessedAt: new Date().toISOString(),
@@ -524,7 +493,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
       primary: null,
       dataSufficient: true,
       recommendation,
-      reason: "test",
+      reason: "effectiveness assessment",
     };
   }
 
@@ -542,7 +511,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
     const rec = makeExecRec({ proposalId: "eff-prop-1" });
     const saved = persist(makeReport([rec]));
 
-    seedEffectiveness([makeEffectivenessReport("eff-prop-1", "keep")]);
+    seedEffectiveness([makeEffReport("eff-prop-1", "keep")]);
 
     const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
     const c = captureConsole();
@@ -552,7 +521,6 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
     expect(output).toMatch(/Rvt/);
     expect(output).toMatch(/EffRt/);
     expect(output).toMatch(/Cov/);
-    expect(output).toMatch(/1/);  // appliedKeep = 1
     cwdSpy.mockRestore();
     c.restore();
   });
@@ -569,10 +537,10 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
     c.restore();
   });
 
-  it("JSON output includes effectivenessOutcome on entries", async () => {
+  it("JSON output includes effectivenessOutcome and calibration fields", async () => {
     const proposal: AdaptationProposal = {
       id: "eff-prop-2", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-a" },
+      action: "update_agent_card", target: { kind: "agent_card", id: "agent-b" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
@@ -582,8 +550,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
 
     const rec = makeExecRec({ proposalId: "eff-prop-2" });
     const saved = persist(makeReport([rec]));
-
-    seedEffectiveness([makeEffectivenessReport("eff-prop-2", "keep")]);
+    seedEffectiveness([makeEffReport("eff-prop-2", "keep")]);
 
     const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
     const c = captureConsole();
@@ -599,17 +566,16 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   });
 
   it("effectiveness store missing → graceful no_data", async () => {
-    // Don't seed any effectiveness files — store directory doesn't exist
+    // Don't seed any effectiveness files — directory doesn't exist
     const proposal: AdaptationProposal = {
       id: "eff-prop-3", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-a" },
+      action: "update_agent_card", target: { kind: "agent_card", id: "agent-c" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
     mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
     const props = new ProposalStore(join(adaptationDir, "proposals"));
     await props.save(proposal);
-
     const saved = persist(makeReport([makeExecRec({ proposalId: "eff-prop-3" })]));
 
     const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
@@ -627,13 +593,13 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
   it("some proposals have effectiveness data, some don't → correct split", async () => {
     const pKeep: AdaptationProposal = {
       id: "eff-p-keep", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-a" },
+      action: "update_agent_card", target: { kind: "agent_card", id: "agent-d" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
     const pNoData: AdaptationProposal = {
       id: "eff-p-nodata", createdAt: new Date().toISOString(), status: "applied",
-      action: "update_agent_card", target: { kind: "agent_card", id: "agent-b" },
+      action: "update_agent_card", target: { kind: "agent_card", id: "agent-e" },
       payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
       evidenceFingerprints: [], reason: "test",
     };
@@ -647,7 +613,7 @@ describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
       makeExecRec({ proposalId: "eff-p-nodata", subsystem: "alpha" }),
     ]));
 
-    seedEffectiveness([makeEffectivenessReport("eff-p-keep", "keep")]);
+    seedEffectiveness([makeEffReport("eff-p-keep", "keep")]);  // no seed for pNoData
 
     const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
     const c = captureConsole();
