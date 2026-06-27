@@ -672,6 +672,25 @@ describe("executive bridge CLI", () => {
     cwdSpy.mockRestore();
     c.restore();
   });
+
+  it("--report <corrupt-id>: integrity failure surfaced distinctly", async () => {
+    // Persist a valid report, then tamper with its contentHash on disk.
+    const saved = persist(makeReport([makeExecRec()]));
+    const reportPath = join(execDir, "recommendations", `${saved.id}.json`);
+    const raw = JSON.parse((await import("node:fs")).readFileSync(reportPath, "utf-8")) as any;
+    raw.contentHash = "tampered-hash";
+    (await import("node:fs")).writeFileSync(reportPath, JSON.stringify(raw, null, 2), "utf-8");
+
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleBridgeCommand(["--report", saved.id, "--json"]);
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.ok).toBe(false);
+    expect(parsed.reason).toMatch(/integrity failure/i);
+    expect(parsed.reason).not.toMatch(/not found/i);
+    cwdSpy.mockRestore();
+    c.restore();
+  });
 });
 ```
 
@@ -738,15 +757,30 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
     reportId = metas[0].reportId;
   }
 
-  const loaded = recommendationStore.load(reportId);
-  if (!loaded) {
-    const reason = `Report not found: ${reportId}`;
+  let loaded: RecommendationReport;
+  try {
+    const result = recommendationStore.load(reportId);
+    if (!result) {
+      const reason = `Report not found: ${reportId}`;
+      if (useJson) console.log(JSON.stringify({ ok: false, reason }));
+      else console.error(reason);
+      return;
+    }
+    loaded = result;
+  } catch (e: any) {
+    // RecommendationReportStore.load throws RecommendationReportIntegrityError on
+    // hash mismatch / bad JSON / unknown schema. Surface distinctly from "not found".
+    const reason = `Report integrity failure for ${reportId}: ${e.message}`;
     if (useJson) console.log(JSON.stringify({ ok: false, reason }));
     else console.error(reason);
     return;
   }
 
   const generatedAt = new Date().toISOString();
+  // generatedAt is captured exactly once before any I/O and reused throughout
+  // the bridge operation (passed to computeExecutiveProposals, reused as the
+  // updated report's savedAt context). Prevents timestamps drifting across
+  // long bridge runs that span multiple proposal saves.
   const result = computeExecutiveProposals(loaded, generatedAt);
 
   // No-op short-circuit: zero eligible drafts → no writes at all
@@ -922,7 +956,7 @@ Expected: PASS — both new files scan cleanly (no forbidden symbols). The test 
 - [ ] **Step 3: Run the full test suite + type-check**
 
 Run: `npx vitest run && npx tsc --noEmit`
-Expected: full suite green (was 2035 at P10.7b; now 2035 + 15 pure + 9 CLI + 2 sentinel = 2061); tsc clean.
+Expected: full suite green (baseline at P10.7b + 26 new tests: 15 pure + 10 CLI + 2 sentinel — the integrity-failure test was added to the CLI block); tsc clean.
 
 - [ ] **Step 4: Commit**
 
