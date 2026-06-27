@@ -140,8 +140,8 @@ export function classifyRecommendation(
  * does not mutate inputs.
  */
 export function applyEffectivenessData(
-  entries: RecommendationEntry[],
-  outcomeByProposalId: Map<string, EffectivenessOutcome>,
+  entries: readonly RecommendationEntry[],
+  outcomeByProposalId: ReadonlyMap<string, EffectivenessOutcome>,
 ): RecommendationEntry[] {
   return entries.map((entry) => {
     if (entry.disposition === "applied" && entry.proposalId !== undefined) {

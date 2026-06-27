@@ -170,6 +170,11 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
         try {
           const raw = readFileSync(join(effectivenessDir, file), "utf-8");
           const report = JSON.parse(raw);
+          const VALID_OUTCOMES = new Set(["keep", "revert", "investigate"]);
+          if (!VALID_OUTCOMES.has(report.recommendation)) {
+            console.warn(`Skipping effectiveness report with unrecognized recommendation "${report.recommendation}": ${file}`);
+            continue;
+          }
           // Map ProposalEffectivenessReport.recommendation to EffectivenessOutcome
           outcomeMap.set(report.proposalId, report.recommendation);
         } catch (e: any) {
@@ -281,6 +286,7 @@ function renderTable(result: EffectivenessResult): void {
       );
       console.log("-".repeat(115));
       for (const cal of result.signalCalibration) {
+        // Use "—" when all applied recs are no_data (assessedSum=0), not "0%"
         const effRate = cal.applied > 0 && (cal.appliedKeep + cal.appliedRevert + cal.appliedInvestigate) > 0
           ? `${(cal.effectivenessRate * 100).toFixed(0)}%`
           : "—";

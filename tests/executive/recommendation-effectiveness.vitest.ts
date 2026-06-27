@@ -262,6 +262,20 @@ describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)"
     expect(cal.effectivenessCoverage).toBe(0);
   });
 
+  it("all applied recs are no_data → effectivenessRate 0, coverage 0", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ proposalId: "p1", effectivenessOutcome: "no_data" }),
+      entry({ proposalId: "p2", recIndex: 1, effectivenessOutcome: "no_data" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const cal = result.signalCalibration[0];
+    expect(cal.applied).toBe(2);
+    expect(cal.appliedNoData).toBe(2);
+    expect(cal.appliedKeep).toBe(0);
+    expect(cal.effectivenessRate).toBe(0);
+    expect(cal.effectivenessCoverage).toBe(0);
+  });
+
   it("all applied recs have effectiveness data → coverage 1.00", () => {
     const entries: RecommendationEntry[] = [
       entry({ effectivenessOutcome: "keep" }),
