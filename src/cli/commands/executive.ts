@@ -110,9 +110,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleRecommendCommand(rest);
     }
 
+    case "bridge": {
+      const { handleBridgeCommand } = await import(
+        "./executive-bridge-handler.js"
+      );
+      return handleBridgeCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge");
       process.exit(1);
   }
 }
