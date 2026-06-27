@@ -479,7 +479,7 @@ function makeReport(recs: ExecutiveRecommendation[]): RecommendationReport {
 
 function persist(report: RecommendationReport): RecommendationReport {
   const store = new RecommendationReportStore(join(tempRoot, ".alix", "executive", "recommendations"));
-  const id = store.save(report);
+  const id = store.save(report.report);  // save() expects NewRecommendationReport (inner payload)
   return store.load(id)!;
 }
 
@@ -845,7 +845,10 @@ export async function handleBridgeCommand(args: string[]): Promise<void> {
     },
   };
 
-  recommendationStore.save(updatedReport);
+  // save() expects NewRecommendationReport (the inner payload), not the
+  // full RecommendationReport wrapper. Pass .report (the nested inner payload)
+  // so the store's contentHash is computed over exactly the right field set.
+  recommendationStore.save(updatedReport.report);
 
   // Summary
   const createdProposalIds = collected.map((c) => c.proposalId);
