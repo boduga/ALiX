@@ -25,7 +25,7 @@ export interface ExecutiveDraftProposal {
   recIndex: number;
   /**
    * Draft proposal with id="" — the effectful handler assigns the canonical
-   * id via nextProposalId() immediately before ProposalStore.save().
+   * id via nextProposalId() immediately before the store persists the proposal.
    */
   proposal: AdaptationProposal;
 }
