@@ -264,3 +264,158 @@ describe("executive effectiveness CLI", () => {
     c.restore();
   });
 });
+
+import type { ProposalEffectivenessReport } from "../../../src/adaptation/effectiveness-types.js";
+
+describe("executive effectiveness CLI — P10.8b effectiveness outcome", () => {
+  /** Seed raw JSON files matching ProposalEffectivenessReport shape, not via store API. */
+  function seedEffectiveness(reports: ProposalEffectivenessReport[]) {
+    const dir = join(tempRoot, ".alix", "adaptation", "effectiveness");
+    mkdirSync(dir, { recursive: true });
+    for (const r of reports) {
+      writeFileSync(join(dir, `${r.proposalId}.json`), JSON.stringify(r, null, 2), "utf-8");
+    }
+  }
+
+  function makeEffReport(proposalId: string, recommendation: "keep" | "revert" | "investigate"): ProposalEffectivenessReport {
+    return {
+      proposalId,
+      assessedAt: new Date().toISOString(),
+      appliedAt: new Date().toISOString(),
+      windowDays: 7,
+      metricsBefore: { workflowsCompleted: 40, workflowsAborted: 10, workflowsBlocked: 2, unresolvedCapabilities: 5, capabilitiesRequested: 20, reviewApprovalRate: 0.8 },
+      metricsAfter: { workflowsCompleted: 43, workflowsAborted: 5, workflowsBlocked: 1, unresolvedCapabilities: 2, capabilitiesRequested: 15, reviewApprovalRate: 0.9 },
+      primary: null,
+      dataSufficient: true,
+      recommendation,
+      reason: "effectiveness assessment",
+    };
+  }
+
+  it("terminal table shows effectiveness columns when applied recs exist", async () => {
+    const proposal: AdaptationProposal = {
+      id: "eff-prop-1", createdAt: new Date().toISOString(), status: "applied",
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
+      payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
+      evidenceFingerprints: [], reason: "test",
+    };
+    mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
+    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    await props.save(proposal);
+
+    const rec = makeExecRec({ proposalId: "eff-prop-1" });
+    const saved = persist(makeReport([rec]));
+
+    seedEffectiveness([makeEffReport("eff-prop-1", "keep")]);
+
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleEffectivenessCommand(["--report", saved.id]);
+    const output = c.out().join("\n");
+    expect(output).toMatch(/Kept/);
+    expect(output).toMatch(/Rvt/);
+    expect(output).toMatch(/EffRt/);
+    expect(output).toMatch(/Cov/);
+    cwdSpy.mockRestore();
+    c.restore();
+  });
+
+  it("terminal table hides effectiveness columns when no applied recs", async () => {
+    const saved = persist(makeReport([makeExecRec({ subsystem: "alpha", signal: "improving_trend" })]));
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleEffectivenessCommand(["--report", saved.id]);
+    const output = c.out().join("\n");
+    expect(output).not.toMatch(/Kept/);
+    expect(output).toMatch(/Bridged/);  // P10.8a-compatible output
+    cwdSpy.mockRestore();
+    c.restore();
+  });
+
+  it("JSON output includes effectivenessOutcome and calibration fields", async () => {
+    const proposal: AdaptationProposal = {
+      id: "eff-prop-2", createdAt: new Date().toISOString(), status: "applied",
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
+      payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
+      evidenceFingerprints: [], reason: "test",
+    };
+    mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
+    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    await props.save(proposal);
+
+    const rec = makeExecRec({ proposalId: "eff-prop-2" });
+    const saved = persist(makeReport([rec]));
+    seedEffectiveness([makeEffReport("eff-prop-2", "keep")]);
+
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleEffectivenessCommand(["--report", saved.id, "--json"]);
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.recommendations[0].effectivenessOutcome).toBe("keep");
+    const cal = parsed.signalCalibration[0];
+    expect(cal.appliedKeep).toBe(1);
+    expect(cal.effectivenessRate).toBe(1.0);
+    expect(cal.effectivenessCoverage).toBe(1.0);
+    cwdSpy.mockRestore();
+    c.restore();
+  });
+
+  it("effectiveness store missing → graceful no_data", async () => {
+    const proposal: AdaptationProposal = {
+      id: "eff-prop-3", createdAt: new Date().toISOString(), status: "applied",
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
+      payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
+      evidenceFingerprints: [], reason: "test",
+    };
+    mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
+    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    await props.save(proposal);
+    const saved = persist(makeReport([makeExecRec({ proposalId: "eff-prop-3" })]));
+
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleEffectivenessCommand(["--report", saved.id, "--json"]);
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.recommendations[0].effectivenessOutcome).toBe("no_data");
+    const cal = parsed.signalCalibration[0];
+    expect(cal.appliedNoData).toBe(1);
+    expect(cal.effectivenessRate).toBe(0);
+    cwdSpy.mockRestore();
+    c.restore();
+  });
+
+  it("some proposals have effectiveness data, some don't → correct split", async () => {
+    const pKeep: AdaptationProposal = {
+      id: "eff-p-keep", createdAt: new Date().toISOString(), status: "applied",
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
+      payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
+      evidenceFingerprints: [], reason: "test",
+    };
+    const pNoData: AdaptationProposal = {
+      id: "eff-p-nodata", createdAt: new Date().toISOString(), status: "applied",
+      action: "create_improvement_issue", target: { kind: "issue", title: "test" },
+      payload: {}, sourceRecommendationType: "trend", sourceConfidence: 0.8,
+      evidenceFingerprints: [], reason: "test",
+    };
+    mkdirSync(join(adaptationDir, "proposals"), { recursive: true });
+    const props = new ProposalStore(join(adaptationDir, "proposals"));
+    await props.save(pKeep);
+    await props.save(pNoData);
+
+    const saved = persist(makeReport([
+      makeExecRec({ proposalId: "eff-p-keep" }),
+      makeExecRec({ proposalId: "eff-p-nodata", subsystem: "alpha" }),
+    ]));
+
+    seedEffectiveness([makeEffReport("eff-p-keep", "keep")]);
+
+    const cwdSpy = vi.spyOn(process, "cwd").mockReturnValue(tempRoot);
+    const c = captureConsole();
+    await handleEffectivenessCommand(["--report", saved.id, "--json"]);
+    const parsed = JSON.parse(c.out().join("\n"));
+    expect(parsed.recommendations[0].effectivenessOutcome).toBe("keep");
+    expect(parsed.recommendations[1].effectivenessOutcome).toBe("no_data");
+    cwdSpy.mockRestore();
+    c.restore();
+  });
+});

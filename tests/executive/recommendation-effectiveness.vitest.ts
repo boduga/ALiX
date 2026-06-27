@@ -2,10 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   classifyRecommendation,
   computeRecommendationEffectiveness,
+  applyEffectivenessData,
   EFFECTIVENESS_OK,
   EFFECTIVENESS_NO_DATA,
 } from "../../src/executive/recommendation-effectiveness.js";
-import type { ClassifyInput, RecommendationEntry } from "../../src/executive/recommendation-effectiveness.js";
+import type { ClassifyInput, RecommendationEntry, EffectivenessOutcome } from "../../src/executive/recommendation-effectiveness.js";
 
 const GENERATED_AT = "2026-06-26T00:00:00.000Z";
 // Helper: make a basic classify input
@@ -146,5 +147,162 @@ describe("computeRecommendationEffectiveness — determinism", () => {
   it("injected generatedAt stamps the result", () => {
     const result = computeRecommendationEffectiveness([], 7, "2099-09-09T00:00:00.000Z");
     expect(result.generatedAt).toBe("2099-09-09T00:00:00.000Z");
+  });
+});
+
+describe("applyEffectivenessData", () => {
+  const baseEntry = (over: Partial<RecommendationEntry> = {}): RecommendationEntry => ({
+    reportId: "r1", generatedAt: "2026-06-26T00:00:00.000Z", recIndex: 0,
+    subsystem: "wf", signal: "degrading_trend", severity: "high",
+    signalConfidence: 0.88, recommendation: "x", ageDays: 1,
+    disposition: "applied", proposalId: "p1",
+    ...over,
+  });
+
+  it("sets effectivenessOutcome for applied entries with matching proposalId", () => {
+    const map = new Map<string, EffectivenessOutcome>([["p1", "keep"]]);
+    const result = applyEffectivenessData([baseEntry()], map);
+    expect(result[0].effectivenessOutcome).toBe("keep");
+  });
+
+  it("leaves non-applied entries untouched", () => {
+    const entry = baseEntry({ disposition: "stale", proposalId: undefined });
+    const map = new Map<string, EffectivenessOutcome>([["p1", "keep"]]);
+    const result = applyEffectivenessData([entry], map);
+    expect(result[0].effectivenessOutcome).toBeUndefined();
+    expect(result[0].disposition).toBe("stale");
+  });
+
+  it("uses no_data for applied entry when proposalId not in map", () => {
+    const map = new Map<string, EffectivenessOutcome>();
+    const result = applyEffectivenessData([baseEntry()], map);
+    expect(result[0].effectivenessOutcome).toBe("no_data");
+  });
+
+  it("sets effectivenessOutcome to undefined for non-applied entries even with proposalId", () => {
+    const entry = baseEntry({ disposition: "rejected", proposalId: "p2" });
+    const map = new Map<string, EffectivenessOutcome>([["p2", "revert"]]);
+    const result = applyEffectivenessData([entry], map);
+    expect(result[0].effectivenessOutcome).toBeUndefined();
+  });
+
+  it("returns empty array when given empty input", () => {
+    const map = new Map<string, EffectivenessOutcome>();
+    const result = applyEffectivenessData([], map);
+    expect(result).toEqual([]);
+  });
+
+  it("handles multiple entries with mixed outcomes", () => {
+    const map = new Map<string, EffectivenessOutcome>([["p1", "keep"], ["p3", "investigate"]]);
+    const entries = [
+      baseEntry({ recIndex: 0, proposalId: "p1" }),
+      baseEntry({ recIndex: 1, proposalId: "p2" }),
+      baseEntry({ recIndex: 2, proposalId: "p3" }),
+      baseEntry({ recIndex: 3, proposalId: "p4" }),
+    ];
+    const result = applyEffectivenessData(entries, map);
+    expect(result[0].effectivenessOutcome).toBe("keep");
+    expect(result[1].effectivenessOutcome).toBe("no_data");
+    expect(result[2].effectivenessOutcome).toBe("investigate");
+    expect(result[3].effectivenessOutcome).toBe("no_data");
+  });
+});
+
+describe("computeRecommendationEffectiveness — effectiveness metrics (P10.8b)", () => {
+  function entry(over: Partial<RecommendationEntry> = {}): RecommendationEntry {
+    return {
+      reportId: "r1", generatedAt: "2026-06-26T00:00:00.000Z", recIndex: 0,
+      subsystem: "wf", signal: "degrading_trend", severity: "high",
+      signalConfidence: 0.88, recommendation: "x", ageDays: 1,
+      disposition: "applied", proposalId: "p1",
+      ...over,
+    };
+  }
+
+  it("tallies appliedKeep/Revert/Investigate/NoData per signal", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ proposalId: "p1", effectivenessOutcome: "keep" }),
+      entry({ proposalId: "p2", recIndex: 1, effectivenessOutcome: "revert" }),
+      entry({ proposalId: "p3", recIndex: 2, effectivenessOutcome: "keep" }),
+      entry({ proposalId: "p4", recIndex: 3, effectivenessOutcome: "no_data" }),
+      entry({ proposalId: "p5", recIndex: 4, effectivenessOutcome: "investigate" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const cal = result.signalCalibration[0];
+    expect(cal.applied).toBe(5);
+    expect(cal.appliedKeep).toBe(2);
+    expect(cal.appliedRevert).toBe(1);
+    expect(cal.appliedInvestigate).toBe(1);
+    expect(cal.appliedNoData).toBe(1);
+  });
+
+  it("effectivenessRate excludes no_data denominator", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ effectivenessOutcome: "keep" }),
+      entry({ recIndex: 1, effectivenessOutcome: "no_data" }),
+      entry({ recIndex: 2, effectivenessOutcome: "revert" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const cal = result.signalCalibration[0];
+    expect(cal.appliedKeep).toBe(1);
+    expect(cal.appliedRevert).toBe(1);
+    expect(cal.appliedNoData).toBe(1);
+    expect(cal.effectivenessRate).toBe(0.5);
+    expect(cal.effectivenessCoverage).toBe(0.67);
+  });
+
+  it("no applied entries → zero effectiveness metrics", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ disposition: "stale" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const cal = result.signalCalibration[0];
+    expect(cal.applied).toBe(0);
+    expect(cal.effectivenessRate).toBe(0);
+    expect(cal.effectivenessCoverage).toBe(0);
+  });
+
+  it("all applied recs are no_data → effectivenessRate 0, coverage 0", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ proposalId: "p1", effectivenessOutcome: "no_data" }),
+      entry({ proposalId: "p2", recIndex: 1, effectivenessOutcome: "no_data" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const cal = result.signalCalibration[0];
+    expect(cal.applied).toBe(2);
+    expect(cal.appliedNoData).toBe(2);
+    expect(cal.appliedKeep).toBe(0);
+    expect(cal.effectivenessRate).toBe(0);
+    expect(cal.effectivenessCoverage).toBe(0);
+  });
+
+  it("all applied recs have effectiveness data → coverage 1.00", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ effectivenessOutcome: "keep" }),
+      entry({ recIndex: 1, effectivenessOutcome: "revert" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const cal = result.signalCalibration[0];
+    expect(cal.effectivenessCoverage).toBe(1.0);
+  });
+
+  it("multi-signal effectiveness metrics", () => {
+    const entries: RecommendationEntry[] = [
+      entry({ signal: "degrading_trend", effectivenessOutcome: "keep" }),
+      entry({ recIndex: 1, signal: "improving_trend", effectivenessOutcome: "keep" }),
+      entry({ recIndex: 2, signal: "improving_trend", effectivenessOutcome: "no_data" }),
+    ];
+    const result = computeRecommendationEffectiveness(entries, 7, GENERATED_AT);
+    const deg = result.signalCalibration.find(s => s.signal === "degrading_trend")!;
+    expect(deg.appliedKeep).toBe(1);
+    expect(deg.appliedNoData).toBe(0);
+    expect(deg.effectivenessRate).toBe(1.0);
+    expect(deg.effectivenessCoverage).toBe(1.0);
+
+    const imp = result.signalCalibration.find(s => s.signal === "improving_trend")!;
+    expect(imp.appliedKeep).toBe(1);
+    expect(imp.appliedNoData).toBe(1);
+    expect(imp.effectivenessRate).toBe(1.0);
+    expect(imp.effectivenessCoverage).toBe(0.5);
   });
 });

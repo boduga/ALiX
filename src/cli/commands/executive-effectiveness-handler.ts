@@ -18,16 +18,19 @@
  * @module
  */
 
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { RecommendationReportStore } from "../../executive/recommendation-report-store.js";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
 import type { RecommendationReport } from "../../executive/recommendation-report-store.js";
 import {
+  applyEffectivenessData,
   classifyRecommendation,
   computeRecommendationEffectiveness,
   EFFECTIVENESS_NO_DATA,
 } from "../../executive/recommendation-effectiveness.js";
 import type {
+  EffectivenessOutcome,
   EffectivenessResult,
   RecommendationEntry,
   ProposalStatus,
@@ -157,6 +160,32 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
     }),
   );
 
+  // P10.8b: load effectiveness data from effectiveness store
+  const effectivenessDir = join(cwd, ".alix", "adaptation", "effectiveness");
+  const outcomeMap = new Map<string, EffectivenessOutcome>();
+  try {
+    if (existsSync(effectivenessDir)) {
+      const files = readdirSync(effectivenessDir).filter((f) => f.endsWith(".json"));
+      for (const file of files) {
+        try {
+          const raw = readFileSync(join(effectivenessDir, file), "utf-8");
+          const report = JSON.parse(raw);
+          const VALID_OUTCOMES = new Set(["keep", "revert", "investigate"]);
+          if (!VALID_OUTCOMES.has(report.recommendation)) {
+            console.warn(`Skipping effectiveness report with unrecognized recommendation "${report.recommendation}": ${file}`);
+            continue;
+          }
+          // Map ProposalEffectivenessReport.recommendation to EffectivenessOutcome
+          outcomeMap.set(report.proposalId, report.recommendation);
+        } catch (e: any) {
+          console.warn(`Skipping corrupt effectiveness report: ${file} — ${e.message}`);
+        }
+      }
+    }
+  } catch {
+    // Directory inaccessible — outcomeMap stays empty, all applied recs get no_data
+  }
+
   // Build RecommendationEntry array (sort is handled by aggregation)
   const entries: RecommendationEntry[] = [];
   for (const report of loadedReports) {
@@ -200,8 +229,11 @@ export async function handleEffectivenessCommand(args: string[]): Promise<void> 
     }
   }
 
+  // P10.8b: enrich entries with effectiveness outcome data
+  const enrichedEntries = applyEffectivenessData(entries, outcomeMap);
+
   // Aggregate (includes internal sorting via sortRecommendations)
-  const result = computeRecommendationEffectiveness(entries, thresholdDays, generatedAt);
+  const result = computeRecommendationEffectiveness(enrichedEntries, thresholdDays, generatedAt);
 
   // Render output
   if (useJson) {
@@ -240,24 +272,58 @@ function renderTable(result: EffectivenessResult): void {
     `Reports: ${result.reportCount} | Total recommendations: ${result.totalRecommendations}\n`,
   );
 
+  // Check if any signal has applied recommendations (show effectiveness columns only then)
+  const hasEffectiveness = result.signalCalibration.some((c) => c.applied > 0);
+
   if (result.signalCalibration.length > 0) {
-    console.log(
-      `${"Signal".padEnd(24)} ${"Total".padEnd(6)} ${"Unrev".padEnd(6)} ` +
-        `${"Stale".padEnd(6)} ${"Await".padEnd(6)} ${"Appr".padEnd(6)} ` +
-        `${"Applied".padEnd(8)} ${"Rej".padEnd(5)} ${"Fail".padEnd(5)} ` +
-        `${"Miss".padEnd(5)} ${"Bridged".padEnd(8)} ${"Action Rate"}`,
-    );
-    console.log("-".repeat(100));
-    for (const cal of result.signalCalibration) {
+    if (hasEffectiveness) {
       console.log(
-        `${cal.signal.padEnd(24)} ${String(cal.total).padEnd(6)} ` +
-          `${String(cal.unreviewed).padEnd(6)} ${String(cal.stale).padEnd(6)} ` +
-          `${String(cal.awaitingReview).padEnd(6)} ${String(cal.approvedPendingApply).padEnd(6)} ` +
-          `${String(cal.applied).padEnd(8)} ${String(cal.rejected).padEnd(5)} ` +
-          `${String(cal.failed).padEnd(5)} ${String(cal.proposalMissing).padEnd(5)} ` +
-          `${String(cal.bridgedCount).padEnd(8)} ` +
-          `${(cal.actionRate * 100).toFixed(0)}%`,
+        `${"Signal".padEnd(24)} ${"Total".padEnd(6)} ${"Unrev".padEnd(6)} ` +
+          `${"Stale".padEnd(6)} ${"Await".padEnd(6)} ${"Appr".padEnd(6)} ` +
+          `${"Applied".padEnd(8)} ${"Rej".padEnd(5)} ${"Fail".padEnd(5)} ` +
+          `${"Miss".padEnd(5)} ${"Kept".padEnd(5)} ${"Rvt".padEnd(5)} ` +
+          `${"Inv".padEnd(5)} ${"NoD".padEnd(5)} ${"EffRt".padEnd(6)} ${"Cov".padEnd(5)}`,
       );
+      console.log("-".repeat(115));
+      for (const cal of result.signalCalibration) {
+        // Use "—" when all applied recs are no_data (assessedSum=0), not "0%"
+        const effRate = cal.applied > 0 && (cal.appliedKeep + cal.appliedRevert + cal.appliedInvestigate) > 0
+          ? `${(cal.effectivenessRate * 100).toFixed(0)}%`
+          : "—";
+        const cov = cal.applied > 0
+          ? `${(cal.effectivenessCoverage * 100).toFixed(0)}%`
+          : "—";
+        console.log(
+          `${cal.signal.padEnd(24)} ${String(cal.total).padEnd(6)} ` +
+            `${String(cal.unreviewed).padEnd(6)} ${String(cal.stale).padEnd(6)} ` +
+            `${String(cal.awaitingReview).padEnd(6)} ${String(cal.approvedPendingApply).padEnd(6)} ` +
+            `${String(cal.applied).padEnd(8)} ${String(cal.rejected).padEnd(5)} ` +
+            `${String(cal.failed).padEnd(5)} ${String(cal.proposalMissing).padEnd(5)} ` +
+            `${String(cal.appliedKeep).padEnd(5)} ${String(cal.appliedRevert).padEnd(5)} ` +
+            `${String(cal.appliedInvestigate).padEnd(5)} ${String(cal.appliedNoData).padEnd(5)} ` +
+            `${effRate.padEnd(6)} ${cov.padEnd(5)}`,
+        );
+      }
+    } else {
+      // P10.8a-compatible output — no effectiveness columns
+      console.log(
+        `${"Signal".padEnd(24)} ${"Total".padEnd(6)} ${"Unrev".padEnd(6)} ` +
+          `${"Stale".padEnd(6)} ${"Await".padEnd(6)} ${"Appr".padEnd(6)} ` +
+          `${"Applied".padEnd(8)} ${"Rej".padEnd(5)} ${"Fail".padEnd(5)} ` +
+          `${"Miss".padEnd(5)} ${"Bridged".padEnd(8)} ${"Action Rate"}`,
+      );
+      console.log("-".repeat(100));
+      for (const cal of result.signalCalibration) {
+        console.log(
+          `${cal.signal.padEnd(24)} ${String(cal.total).padEnd(6)} ` +
+            `${String(cal.unreviewed).padEnd(6)} ${String(cal.stale).padEnd(6)} ` +
+            `${String(cal.awaitingReview).padEnd(6)} ${String(cal.approvedPendingApply).padEnd(6)} ` +
+            `${String(cal.applied).padEnd(8)} ${String(cal.rejected).padEnd(5)} ` +
+            `${String(cal.failed).padEnd(5)} ${String(cal.proposalMissing).padEnd(5)} ` +
+            `${String(cal.bridgedCount).padEnd(8)} ` +
+            `${(cal.actionRate * 100).toFixed(0)}%`,
+        );
+      }
     }
   }
 
