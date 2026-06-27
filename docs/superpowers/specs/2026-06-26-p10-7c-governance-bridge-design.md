@@ -75,10 +75,12 @@ export interface ExecutiveBridgeResult {
 
 ### Proposal shape (per bridged recommendation)
 
+The pure function produces a **draft** with `id: ""` (the "id-to-be-assigned" marker). The handler assigns the canonical id via `nextProposalId()` (imported from `../../adaptation/recommendation-to-proposal.js` — the shared P5.1c id scheme) immediately before calling `ProposalStore.save`. This mirrors the P10.4b pattern where the effectful layer, not the store, owns id assignment.
+
 ```ts
-// Produced by the pure function (id is "" — store assigns canonical id on save):
+// Produced by the pure function (id is "" — handler will assign before save):
 {
-  id: "",                               // sentinel: store assigns
+  id: "",                               // sentinel: handler assigns nextProposalId()
   createdAt: generatedAt,
   status: "pending",
   action: "create_improvement_issue",
@@ -143,7 +145,11 @@ export function computeExecutiveProposals(
 1. Resolve report id (from `--report` or `list()[0]`). If no report, exit cleanly.
 2. `result = computeExecutiveProposals(report, now())` — pure, testable.
 3. **No-op short-circuit:** if `result.drafts.length === 0`, print "No eligible recommendations to bridge." and return. No proposal saves, no report rewrites.
-4. For each `result.drafts[i]` **in array order** (which mirrors the source report's recommendation order): `saved = await proposalStore.save(drafts[i].proposal)`; collect `{ recIndex: drafts[i].recIndex, proposalId: saved.id, status: "proposed" }`. **Partial-failure contract:** if any `save()` throws, the loop stops immediately — no report is built, no report is rewritten, the error is surfaced. Already-created proposals remain `pending` in `ProposalStore` (they are valid proposals, visible via `alix governance list`). The invariant: **the recommendation report is never ahead of reality.** A later rerun finds the still-unbridged recs (`proposalId === undefined`) and bridges them.
+4. For each `result.drafts[i]` **in array order** (which mirrors the source report's recommendation order):
+   a. Assign the canonical id to the draft: `drafts[i].proposal.id = nextProposalId()` (imported from `../../adaptation/recommendation-to-proposal.js` — the shared P5.1c id scheme, same `prop-YYYY-MM-DD-NNN` shape).
+   b. `await proposalStore.save(drafts[i].proposal)` (`ProposalStore.save` is async, returns `Promise<void>`; the canonical id is already set on the draft).
+   c. Collect `{ recIndex: drafts[i].recIndex, proposalId: drafts[i].proposal.id, status: "proposed" }`.
+   **Partial-failure contract:** if any `save()` throws, the loop stops immediately — no report is built, no report is rewritten, the error is surfaced. Already-created proposals remain `pending` in `ProposalStore` (they are valid proposals, visible via `alix governance list`). The invariant: **the recommendation report is never ahead of reality.** A later rerun finds the still-unbridged recs (`proposalId === undefined`) and bridges them.
 5. Build updated report via **copy-on-write** (the loaded `report` object is never mutated):
    ```ts
    const updatedReport = {
