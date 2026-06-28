@@ -702,26 +702,6 @@ function emptyReport(
     loadWarnings: [],
   };
 }
-
-  // Build signal correlations
-  const signalCorrelations = aggregateBySignal(entries, recCountBySignal);
-
-  // Report-level stats
-  const reportIds = new Set(entries.map((e) => e.outcomeReportId));
-
-  return {
-    correlationStatus: PSC_OK,
-    correlationMode,
-    correlationLagDays,
-    reportCount: reportIds.size,
-    totalRecommendations: recommendations.length,
-    correlatedRecommendations: matchedRecKeys.size,
-    subsystemCorrelations,
-    signalCorrelations,
-    correlations: entries,
-    loadWarnings: [],
-  };
-}
 ```
 
 - [ ] **Step 6: Run tests to verify they all pass**
@@ -1104,13 +1084,13 @@ function renderTable(result: SubsystemCorrelationReport): void {
   console.log(`\nPredictive Signal Correlation Report (${result.correlationMode}, ${result.correlationLagDays} day lag)`);
   console.log(`Generated: ${result.generatedAt}`);
   console.log(
-    `Reports: ${result.reportCount} | Recommendations: ${result.totalRecommendations} | Correlated: ${result.correlatedRecommendations}\n`,
+    `Outcome reports: ${result.outcomeReportCount} | Recommendations: ${result.totalRecommendations} | Matched: ${result.matchedRecCount} | Unmatched: ${result.unmatchedRecCount}\n`,
   );
 
   if (result.subsystemCorrelations.length > 0) {
     console.log(
       `${"Subsystem".padEnd(16)} ${"Recs".padEnd(6)} ${"Outcomes".padEnd(6)} ` +
-        `${"Correlated".padEnd(8)} ${"Uncorr".padEnd(6)} ${"AvgΔ".padEnd(7)} ` +
+        `${"MatchedΔ".padEnd(8)} ${"Uncorr".padEnd(6)} ${"AvgΔ".padEnd(7)} ` +
         `${"|Δ|".padEnd(6)} ${"Improv".padEnd(6)} ${"Degrade".padEnd(6)} ` +
         `${"NetΔ".padEnd(7)} ${"CorrEff".padEnd(6)}`,
     );
@@ -1118,7 +1098,7 @@ function renderTable(result: SubsystemCorrelationReport): void {
     for (const sub of result.subsystemCorrelations) {
       console.log(
         `${sub.subsystem.padEnd(16)} ${String(sub.recommendationCount).padEnd(6)} ` +
-          `${String(sub.outcomeReportCount).padEnd(6)} ${String(sub.correlationCount).padEnd(8)} ` +
+          `${String(sub.outcomeReportCount).padEnd(6)} ${String(sub.matchedDeltaCount).padEnd(8)} ` +
           `${String(sub.uncorrelatedRecommendationCount).padEnd(6)} ` +
           `${(sub.averageDelta >= 0 ? "+" : "")}${sub.averageDelta.toFixed(1).padEnd(6)} ` +
           `${String(sub.averageAbsoluteDelta.toFixed(1)).padEnd(6)} ` +
@@ -1132,24 +1112,24 @@ function renderTable(result: SubsystemCorrelationReport): void {
   if (result.signalCorrelations.length > 0) {
     console.log("");
     console.log(
-      `${"Signal".padEnd(24)} ${"Recs".padEnd(6)} ${"Correlated".padEnd(8)} ` +
+      `${"Signal".padEnd(24)} ${"Recs".padEnd(6)} ${"MatchedΔ".padEnd(8)} ` +
         `${"AvgΔ".padEnd(7)} ${"|Δ|".padEnd(6)} ${"ImproveRt".padEnd(8)} ${"Coverage".padEnd(8)}`,
     );
     console.log("-".repeat(72));
     for (const sig of result.signalCorrelations) {
-      const rateStr = sig.correlationCount > 0
+      const rateStr = sig.matchedDeltaCount > 0
         ? `${(sig.improvingRate * 100).toFixed(0)}%`
         : "—";
       const covStr = `${(sig.coverageRate * 100).toFixed(0)}%`;
-      const avgDeltaStr = sig.correlationCount > 0
+      const avgDeltaStr = sig.matchedDeltaCount > 0
         ? `${(sig.averageDelta >= 0 ? "+" : "")}${sig.averageDelta.toFixed(1)}`
         : "—";
-      const absDeltaStr = sig.correlationCount > 0
+      const absDeltaStr = sig.matchedDeltaCount > 0
         ? `${sig.averageAbsoluteDelta.toFixed(1)}`
         : "—";
       console.log(
         `${sig.signal.padEnd(24)} ${String(sig.recommendationCount).padEnd(6)} ` +
-          `${String(sig.correlationCount).padEnd(8)} ${avgDeltaStr.padEnd(7)} ` +
+          `${String(sig.matchedDeltaCount).padEnd(8)} ${avgDeltaStr.padEnd(7)} ` +
           `${absDeltaStr.padEnd(6)} ${rateStr.padEnd(8)} ${covStr.padEnd(8)}`,
       );
     }
@@ -1179,9 +1159,10 @@ function emitNoData(useJson: boolean, generatedAt: string, mode: string, lagDays
     correlationStatus: PSC_NO_DATA,
     correlationMode: mode as any,
     correlationLagDays: lagDays,
-    reportCount: 0,
+    outcomeReportCount: 0,
     totalRecommendations: 0,
-    correlatedRecommendations: 0,
+    matchedRecCount: 0,
+    unmatchedRecCount: 0,
     subsystemCorrelations: [],
     signalCorrelations: [],
     correlations: [],
