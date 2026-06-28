@@ -81,6 +81,9 @@ const EXECUTIVE_FILES = [
   // P10.8c files
   "src/executive/subsystem-correlation.ts",
   "src/cli/commands/executive-subsystem-correlation-handler.ts",
+  // P10.9 files
+  "src/executive/executive-dashboard.ts",
+  "src/executive/executive-dashboard-loader.ts",
 ];
 
 // ---------------------------------------------------------------------------

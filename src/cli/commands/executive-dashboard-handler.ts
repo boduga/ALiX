@@ -1,67 +1,48 @@
 /**
- * P10.0 + P10.1 — Executive Dashboard CLI handler.
+ * P10.9 — Executive Dashboard CLI handler.
  *
- * Extracted to its own file so the dashboard sentinel can scan a precise
- * target. This handler coordinates the P10.0 health aggregator, the P10.1
- * priority engine, and the TrendStore.
+ * Coordinates full dashboard pipeline:
+ * 1. Parse CLI flags
+ * 2. Load dashboard snapshot (async I/O)
+ * 3. Build dashboard report (pure)
+ * 4. Render (terminal or JSON)
+ *
+ * Replaces P10.0/P10.1 dashboard which built health reports and planning
+ * engines — moved upstream to respective milestones.
  *
  * @module
  */
 
-import { join } from "node:path";
-import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
-import { buildPriorityReport } from "../../executive/priority-engine.js";
-import { buildObjectiveReport } from "../../executive/objective-engine.js";
-import { buildExecutionPlan } from "../../executive/planning-engine.js";
-import { ExecutiveTrendStore } from "../../executive/trend-store.js";
-import { GovernanceStore } from "../../governance/governance-store.js";
-import { InvestigationStore } from "../../governance/investigation-store.js";
-import { listCompatibleInvestigations } from "../../governance/investigation-compat.js";
-import { renderExecutiveDashboard } from "./executive-dashboard-renderer.js";
+import { loadDashboardSnapshot } from "../../executive/executive-dashboard-loader.js";
+import { buildDashboardReport } from "../../executive/executive-dashboard.js";
+import type { ExecutiveDashboardReport } from "../../executive/executive-dashboard.js";
+import { renderTerminalDashboard } from "./executive-dashboard-renderer.js";
 
-const EXECUTIVE_DIR = join(".alix", "executive");
+const DEFAULT_SINCE_DAYS = 30;
 
 export async function runDashboard(args: string[]): Promise<void> {
-  const jsonMode = args.includes("--json");
+  const brief = args.includes("--brief");
+  const useJson = args.includes("--json");
+
+  const sinceIndex = args.indexOf("--since");
+  const parsedSince = sinceIndex !== -1 && sinceIndex + 1 < args.length
+    ? parseInt(args[sinceIndex + 1], 10)
+    : null;
+  const sinceDays = parsedSince !== null ? (parsedSince >= 0 ? parsedSince : 0) : DEFAULT_SINCE_DAYS;
+
+  const subIdx = args.indexOf("--subsystem");
+  const subsystemFilter = subIdx !== -1 && subIdx + 1 < args.length
+    ? args[subIdx + 1]
+    : undefined;
+
   const cwd = process.cwd();
 
-  let windowDays = 90;
-  const windowIdx = args.indexOf("--window");
-  if (windowIdx !== -1) {
-    if (windowIdx + 1 >= args.length) {
-      console.error("Error: --window requires a positive integer");
-      process.exit(1);
-    }
-    const parsed = parseInt(args[windowIdx + 1], 10);
-    if (isNaN(parsed) || parsed <= 0) {
-      console.error("Error: --window requires a positive integer");
-      process.exit(1);
-    }
-    windowDays = parsed;
+  const snapshot = await loadDashboardSnapshot(cwd, sinceDays);
+  const report = buildDashboardReport(snapshot, { brief, subsystemFilter });
+
+  if (useJson) {
+    console.log(JSON.stringify(report, null, 2));
+  } else {
+    renderTerminalDashboard(report, brief);
   }
-
-  // P10.0: Build health report
-  const healthReport = await buildExecutiveHealthReport({ cwd, windowDays });
-
-  // P10.1: Load prior trend snapshot
-  const trendStore = new ExecutiveTrendStore(join(cwd, EXECUTIVE_DIR));
-  const priorSnapshot = await trendStore.loadLatest();
-
-  // P10.1: Build priority report
-  const priorityReport = buildPriorityReport(healthReport, priorSnapshot);
-
-  // P10.1: Persist current scores as a trend snapshot for future runs
-  await trendStore.save(healthReport);
-
-  // P10.2: Load P9.6 investigations and build objective report
-  const govStore = new GovernanceStore(join(cwd, ".alix", "governance"));
-  const invStore = new InvestigationStore(join(cwd, ".alix", "governance"));
-  const investigations = await listCompatibleInvestigations(govStore, invStore);
-  const objectiveReport = buildObjectiveReport(healthReport, priorityReport, investigations);
-
-  // P10.2: Build objective report
-  const plan = buildExecutionPlan(objectiveReport);
-
-  // Render all 5 panels
-  renderExecutiveDashboard(healthReport, priorityReport, objectiveReport, plan, { jsonMode });
 }
