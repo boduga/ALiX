@@ -66,7 +66,7 @@ export async function loadDashboardSnapshot(
   }
 
   // Phase 2: Load recommendation reports (depends on metas)
-  const loadedReports = await loadReportsInParallel(recMetas, cwd, loadWarnings);
+  const loadedReports = await loadRecommendationReports(recMetas, cwd, loadWarnings);
 
   // Phase 3: Parallel outcome reports + proposal statuses
   const nowMs = Date.now();
@@ -142,7 +142,7 @@ async function listRecommendationMetas(
     : metas;
 }
 
-async function loadReportsInParallel(
+async function loadRecommendationReports(
   metas: RecommendationReportMeta[],
   cwd: string,
   loadWarnings: string[],

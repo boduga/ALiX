@@ -100,7 +100,7 @@ function renderPanel(panel: DashboardPanelData): void {
     case "health":
       console.log(` ${"Subsystem".padEnd(16)} ${"Score".padEnd(7)} ${"Trend".padEnd(5)} ${"Δ".padEnd(8)} ${"Status".padEnd(8)}`);
       for (const row of panel.rows as any) {
-        const trendChar = row.trend === "up" ? "↑" : row.trend === "down" ? "↓" : "→";
+        const trendChar = trendArrow(row.trend);
         console.log(
           ` ${row.subsystem.padEnd(16)} ${String(row.score).padEnd(7)} ${trendChar.padEnd(5)} ${String(row.delta).padEnd(8)} ${icon(row.status).padEnd(8)}`,
         );

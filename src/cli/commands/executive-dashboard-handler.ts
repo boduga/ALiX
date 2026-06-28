@@ -25,9 +25,10 @@ export async function runDashboard(args: string[]): Promise<void> {
   const useJson = args.includes("--json");
 
   const sinceIndex = args.indexOf("--since");
-  const sinceDays = sinceIndex !== -1 && sinceIndex + 1 < args.length
-    ? Math.max(1, parseInt(args[sinceIndex + 1], 10) || DEFAULT_SINCE_DAYS)
-    : DEFAULT_SINCE_DAYS;
+  const parsedSince = sinceIndex !== -1 && sinceIndex + 1 < args.length
+    ? parseInt(args[sinceIndex + 1], 10)
+    : null;
+  const sinceDays = parsedSince !== null ? (parsedSince >= 0 ? parsedSince : 0) : DEFAULT_SINCE_DAYS;
 
   const subIdx = args.indexOf("--subsystem");
   const subsystemFilter = subIdx !== -1 && subIdx + 1 < args.length
