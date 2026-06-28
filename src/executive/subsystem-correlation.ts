@@ -107,11 +107,29 @@ const MS_PER_DAY = 86_400_000;
 // CorrelationMatcher interface
 // ---------------------------------------------------------------------------
 
+/**
+ * An outcome report paired with its store identity. The pure
+ * ExecutiveOutcomeEvaluationReport type carries no id field (the id lives on
+ * the OutcomeReportStore wrapper); threading it here keeps SubsystemCorrelation
+ * .outcomeReportId honest instead of falling back to a timestamp.
+ */
+export interface OutcomeReportRef {
+  id: string;
+  report: ExecutiveOutcomeEvaluationReport;
+}
+
+/** A match result: the report id, the report, and the matched SubsystemDelta. */
+export interface CorrelationMatch {
+  reportId: string;
+  report: ExecutiveOutcomeEvaluationReport;
+  delta: SubsystemDelta;
+}
+
 export interface CorrelationMatcher {
   match(
     rec: RecommendationEntry,
-    reports: readonly ExecutiveOutcomeEvaluationReport[],
-  ): Promise<Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }>>;
+    reports: readonly OutcomeReportRef[],
+  ): Promise<CorrelationMatch[]>;
 }
 
 // ---------------------------------------------------------------------------
@@ -126,12 +144,12 @@ export class SubsystemTimeMatcher implements CorrelationMatcher {
 
   async match(
     rec: RecommendationEntry,
-    reports: readonly ExecutiveOutcomeEvaluationReport[],
-  ): Promise<Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }>> {
-    const results: Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }> = [];
+    reports: readonly OutcomeReportRef[],
+  ): Promise<CorrelationMatch[]> {
+    const results: CorrelationMatch[] = [];
     const recTime = new Date(rec.generatedAt).getTime();
 
-    for (const report of reports) {
+    for (const { id, report } of reports) {
       if (report.evaluationStatus !== "completed") continue;
 
       const reportTime = new Date(report.generatedAt).getTime();
@@ -146,7 +164,7 @@ export class SubsystemTimeMatcher implements CorrelationMatcher {
       for (const objective of report.objectives) {
         for (const sd of objective.subsystemDeltas) {
           if (sd.subsystem !== rec.subsystem) continue;
-          results.push({ report, delta: sd });
+          results.push({ reportId: id, report, delta: sd });
         }
       }
     }
@@ -219,7 +237,10 @@ function matchedRecSet(entries: SubsystemCorrelationEntry[]): Set<string> {
   return set;
 }
 
-function aggregateBySubsystem(entries: SubsystemCorrelationEntry[]): SubsystemCorrelation[] {
+function aggregateBySubsystem(
+  entries: SubsystemCorrelationEntry[],
+  totalRecsBySubsystem: Map<string, number>,
+): SubsystemCorrelation[] {
   const map = new Map<string, SubsystemCorrelationEntry[]>();
   for (const e of entries) {
     const arr = map.get(e.subsystem) ?? [];
@@ -228,14 +249,6 @@ function aggregateBySubsystem(entries: SubsystemCorrelationEntry[]): SubsystemCo
   }
 
   const correlations: SubsystemCorrelation[] = [];
-  const recCountMap = new Map<string, Set<string>>();
-  for (const e of entries) {
-    const key = `${e.reportId}:${e.recIndex}`;
-    const set = recCountMap.get(e.subsystem) ?? new Set();
-    set.add(key);
-    recCountMap.set(e.subsystem, set);
-  }
-
   for (const [subsystem, matches] of map) {
     const totalDeltas = matches.reduce((sum, m) => sum + m.delta, 0);
     const totalAbsDeltas = matches.reduce((sum, m) => sum + Math.abs(m.delta), 0);
@@ -244,14 +257,15 @@ function aggregateBySubsystem(entries: SubsystemCorrelationEntry[]): SubsystemCo
     const unchanged = matches.filter((m) => m.delta === 0).length;
     const deltaCount = matches.length;
     const matchedRecs = matchedRecSet(matches).size;
+    const totalRecs = totalRecsBySubsystem.get(subsystem) ?? 0;
 
     correlations.push({
       subsystem,
-      recommendationCount: recCountMap.get(subsystem)?.size ?? 0,
+      recommendationCount: totalRecs,
       outcomeReportCount: new Set(matches.map((m) => m.outcomeReportId)).size,
       matchedRecommendationCount: matchedRecs,
       matchedDeltaCount: deltaCount,
-      uncorrelatedRecommendationCount: 0, // filled in after aggregation
+      uncorrelatedRecommendationCount: totalRecs - matchedRecs,
       averageDelta: deltaCount > 0 ? round2(totalDeltas / deltaCount) : 0,
       averageAbsoluteDelta: deltaCount > 0 ? round2(totalAbsDeltas / deltaCount) : 0,
       improvingCount: improving,
@@ -305,7 +319,7 @@ function aggregateBySignal(entries: SubsystemCorrelationEntry[], totalRecsBySign
 
 export async function computeSubsystemCorrelation(
   recommendations: readonly RecommendationEntry[],
-  outcomeReports: readonly ExecutiveOutcomeEvaluationReport[],
+  outcomeReports: readonly OutcomeReportRef[],
   matcher: CorrelationMatcher,
   correlationMode: CorrelationMode,
   correlationLagDays: number = DEFAULT_CORRELATION_LAG_DAYS,
@@ -318,16 +332,18 @@ export async function computeSubsystemCorrelation(
   const entries: SubsystemCorrelationEntry[] = [];
   const matchedRecKeys = new Set<string>();
   const recCountBySignal = new Map<string, number>();
+  const recCountBySubsystem = new Map<string, number>();
 
   for (const rec of recommendations) {
     recCountBySignal.set(rec.signal, (recCountBySignal.get(rec.signal) ?? 0) + 1);
+    recCountBySubsystem.set(rec.subsystem, (recCountBySubsystem.get(rec.subsystem) ?? 0) + 1);
 
     const matches = await matcher.match(rec, outcomeReports);
     if (matches.length > 0) {
       matchedRecKeys.add(`${rec.reportId}:${rec.recIndex}`);
     }
 
-    for (const { report, delta } of matches) {
+    for (const { reportId, report, delta } of matches) {
       const lagDays = Math.floor(
         (new Date(report.generatedAt).getTime() - new Date(rec.generatedAt).getTime()) / MS_PER_DAY,
       );
@@ -340,7 +356,7 @@ export async function computeSubsystemCorrelation(
         severity: rec.severity,
         signalConfidence: rec.signalConfidence,
         recommendationDisposition: rec.disposition,
-        outcomeReportId: report.generatedAt,
+        outcomeReportId: reportId,
         outcomeGeneratedAt: report.generatedAt,
         baselineScore: delta.baselineScore,
         currentScore: delta.currentScore,
@@ -354,19 +370,20 @@ export async function computeSubsystemCorrelation(
     return emptyReport(PSC_NO_DATA, recommendations.length, correlationMode, correlationLagDays, generatedAt);
   }
 
-  const subsystemCorrelations = aggregateBySubsystem(entries);
+  const subsystemCorrelations = aggregateBySubsystem(entries, recCountBySubsystem);
   const matchedSubsystems = new Set(subsystemCorrelations.map((s) => s.subsystem));
 
   // Add zero-match entries for subsystems with recommendations but no matches
   for (const rec of recommendations) {
     if (!matchedSubsystems.has(rec.subsystem)) {
+      const totalRecs = recCountBySubsystem.get(rec.subsystem) ?? 0;
       subsystemCorrelations.push({
         subsystem: rec.subsystem,
-        recommendationCount: 0,
+        recommendationCount: totalRecs,
         outcomeReportCount: 0,
         matchedRecommendationCount: 0,
         matchedDeltaCount: 0,
-        uncorrelatedRecommendationCount: 0,
+        uncorrelatedRecommendationCount: totalRecs, // all recs uncorrelated (0 matched)
         averageDelta: 0,
         averageAbsoluteDelta: 0,
         improvingCount: 0,
@@ -378,13 +395,6 @@ export async function computeSubsystemCorrelation(
       });
       matchedSubsystems.add(rec.subsystem);
     }
-  }
-
-  // Compute recommendationCount and uncorrelated counts for all subsystem entries
-  for (const sub of subsystemCorrelations) {
-    const subRecs = recommendations.filter((r) => r.subsystem === sub.subsystem);
-    sub.recommendationCount = subRecs.length;
-    sub.uncorrelatedRecommendationCount = subRecs.length - sub.matchedRecommendationCount;
   }
 
   const signalCorrelations = aggregateBySignal(entries, recCountBySignal);

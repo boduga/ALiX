@@ -8,6 +8,7 @@
 
 import { describe, it, expect } from "vitest";
 import { SubsystemTimeMatcher, computeSubsystemCorrelation, CorrelationMode } from "../../src/executive/subsystem-correlation.js";
+import type { OutcomeReportRef } from "../../src/executive/subsystem-correlation.js";
 import type { RecommendationEntry } from "../../src/executive/recommendation-effectiveness.js";
 import type { ExecutiveOutcomeEvaluationReport, SubsystemDelta } from "../../src/executive/outcome-evaluator.js";
 
@@ -63,6 +64,21 @@ function recEntry(over: Partial<RecommendationEntry> = {}): RecommendationEntry 
 
 const GENERATED_AT = "2026-06-27T00:00:00.000Z";
 
+/** Wrap a report with a store id, matching OutcomeReportRef. */
+function ref(id: string, report: ExecutiveOutcomeEvaluationReport): OutcomeReportRef {
+  return { id, report };
+}
+
+/** makeReport + ref combined. id defaults to "outcome-test". */
+function makeRef(
+  generatedAt: string,
+  subsystem: string,
+  delta: number,
+  id = "outcome-test",
+): OutcomeReportRef {
+  return ref(id, makeReport(generatedAt, subsystem, delta));
+}
+
 // ---------------------------------------------------------------------------
 // SubsystemTimeMatcher.match
 // ---------------------------------------------------------------------------
@@ -86,37 +102,38 @@ describe("SubsystemTimeMatcher.match", () => {
       ],
     };
     const matcher = new SubsystemTimeMatcher("strict", 30);
-    const results = await matcher.match(rec, [report]);
+    const results = await matcher.match(rec, [ref("r1", report)]);
     // Only the workflow delta should match
     expect(results).toHaveLength(1);
     expect(results[0].delta.subsystem).toBe("workflow");
     expect(results[0].delta.delta).toBe(1.5);
+    expect(results[0].reportId).toBe("r1"); // id threaded through matcher
   });
 
   it("strict mode excludes outcomes generatedAt <= rec.generatedAt", async () => {
     const rec = recEntry({ generatedAt: "2026-06-25T00:00:00.000Z" });
-    const report = makeReport("2026-06-25T00:00:00.000Z", "workflow", 1.5); // same time
+    const report = makeRef("2026-06-25T00:00:00.000Z", "workflow", 1.5); // same time
     const matcher = new SubsystemTimeMatcher("strict", 30);
     expect(await matcher.match(rec, [report])).toHaveLength(0);
   });
 
   it("strict mode excludes outcomes beyond lag window", async () => {
     const rec = recEntry({ generatedAt: "2026-06-01T00:00:00.000Z" });
-    const report = makeReport("2026-07-15T00:00:00.000Z", "workflow", 1.5); // > 30 days later
+    const report = makeRef("2026-07-15T00:00:00.000Z", "workflow", 1.5); // > 30 days later
     const matcher = new SubsystemTimeMatcher("strict", 30);
     expect(await matcher.match(rec, [report])).toHaveLength(0);
   });
 
   it("loose mode includes all outcomes regardless of timing", async () => {
     const rec = recEntry({ generatedAt: "2026-06-25T00:00:00.000Z" });
-    const earlier = makeReport("2026-06-20T00:00:00.000Z", "workflow", 1.5);
+    const earlier = makeRef("2026-06-20T00:00:00.000Z", "workflow", 1.5);
     const matcher = new SubsystemTimeMatcher("loose", 30);
     expect(await matcher.match(rec, [earlier])).toHaveLength(1);
   });
 
   it("no matching subsystem returns empty", async () => {
     const rec = recEntry({ subsystem: "security" });
-    const report = makeReport("2026-06-25T00:00:00.000Z", "workflow", 1.5);
+    const report = makeRef("2026-06-25T00:00:00.000Z", "workflow", 1.5);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     expect(await matcher.match(rec, [report])).toHaveLength(0);
   });
@@ -148,8 +165,8 @@ describe("computeSubsystemCorrelation", () => {
 
   it("correctly aggregates per-subsystem correlation metrics", async () => {
     const rec = recEntry({ generatedAt: "2026-06-20T00:00:00.000Z" });
-    const report1 = makeReport("2026-06-22T00:00:00.000Z", "workflow", 3.0);
-    const report2 = makeReport("2026-06-25T00:00:00.000Z", "workflow", -1.0);
+    const report1 = makeRef("2026-06-22T00:00:00.000Z", "workflow", 3.0);
+    const report2 = makeRef("2026-06-25T00:00:00.000Z", "workflow", -1.0);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(
       [rec],
@@ -169,8 +186,8 @@ describe("computeSubsystemCorrelation", () => {
 
   it("averageAbsoluteDelta detects magnitude when signs cancel", async () => {
     const rec = recEntry({ generatedAt: "2026-06-20T00:00:00.000Z" });
-    const report1 = makeReport("2026-06-22T00:00:00.000Z", "workflow", 8.0);
-    const report2 = makeReport("2026-06-25T00:00:00.000Z", "workflow", -8.0);
+    const report1 = makeRef("2026-06-22T00:00:00.000Z", "workflow", 8.0);
+    const report2 = makeRef("2026-06-25T00:00:00.000Z", "workflow", -8.0);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(
       [rec], [report1, report2], matcher, "strict", 30, GENERATED_AT,
@@ -183,7 +200,7 @@ describe("computeSubsystemCorrelation", () => {
   it("uncorrelatedRecommendationCount correctly reflects recs with no match", async () => {
     const rec1 = recEntry({ generatedAt: "2026-06-20T00:00:00.000Z", subsystem: "workflow" });
     const rec2 = recEntry({ generatedAt: "2026-06-20T00:00:00.000Z", subsystem: "security" });
-    const report = makeReport("2026-06-22T00:00:00.000Z", "workflow", 1.0);
+    const report = makeRef("2026-06-22T00:00:00.000Z", "workflow", 1.0);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(
       [rec1, rec2], [report], matcher, "strict", 30, GENERATED_AT,
@@ -196,7 +213,7 @@ describe("computeSubsystemCorrelation", () => {
 
   it("lagDays correctly computed", async () => {
     const rec = recEntry({ generatedAt: "2026-06-20T00:00:00.000Z" });
-    const report = makeReport("2026-06-25T00:00:00.000Z", "workflow", 1.0);
+    const report = makeRef("2026-06-25T00:00:00.000Z", "workflow", 1.0);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(
       [rec], [report], matcher, "strict", 30, GENERATED_AT,
@@ -206,7 +223,7 @@ describe("computeSubsystemCorrelation", () => {
 
   it("recommendationDisposition propagated from RecommendationEntry", async () => {
     const rec = recEntry({ generatedAt: "2026-06-20T00:00:00.000Z", disposition: "applied" });
-    const report = makeReport("2026-06-22T00:00:00.000Z", "workflow", 1.0);
+    const report = makeRef("2026-06-22T00:00:00.000Z", "workflow", 1.0);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(
       [rec], [report], matcher, "strict", 30, GENERATED_AT,
@@ -219,7 +236,7 @@ describe("computeSubsystemCorrelation", () => {
       generatedAt: "2026-06-20T00:00:00.000Z",
       signal: "degrading_trend",
     });
-    const report = makeReport("2026-06-22T00:00:00.000Z", "workflow", 1.0);
+    const report = makeRef("2026-06-22T00:00:00.000Z", "workflow", 1.0);
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(
       [rec], [report], matcher, "strict", 30, GENERATED_AT,
@@ -238,7 +255,7 @@ describe("computeSubsystemCorrelation", () => {
       recIndex: 1,
       subsystem: "memory",
     });
-    const report = makeReport("2026-06-22T00:00:00.000Z", "workflow", 1.0);
+    const report = makeRef("2026-06-22T00:00:00.000Z", "workflow", 1.0);
     // rec2 is about "memory" — won't match workflow report
     const matcher = new SubsystemTimeMatcher("strict", 30);
     const result = await computeSubsystemCorrelation(

@@ -16,8 +16,15 @@
 import { join } from "node:path";
 import { RecommendationReportStore } from "../../executive/recommendation-report-store.js";
 import { OutcomeReportStore } from "../../executive/outcome-store.js";
-import type { RecommendationReport, ExecutiveRecommendation } from "../../executive/recommendation-report-store.js";
-import type { ExecutiveOutcomeEvaluationReport } from "../../executive/outcome-evaluator.js";
+import { ProposalStore } from "../../adaptation/proposal-store.js";
+import type { RecommendationReport } from "../../executive/recommendation-report-store.js";
+import {
+  classifyRecommendation,
+} from "../../executive/recommendation-effectiveness.js";
+import type {
+  RecommendationEntry,
+  ProposalStatus,
+} from "../../executive/recommendation-effectiveness.js";
 import {
   SubsystemTimeMatcher,
   computeSubsystemCorrelation,
@@ -26,20 +33,16 @@ import {
 import type {
   SubsystemCorrelationReport,
   SubsystemCorrelation,
-  SubsystemCorrelationEntry,
-  SignalCorrelation,
   CorrelationMode,
+  OutcomeReportRef,
 } from "../../executive/subsystem-correlation.js";
-import type {
-  RecommendationEntry,
-  RecommendationDisposition,
-} from "../../executive/recommendation-effectiveness.js";
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const DEFAULT_LAG_DAYS = 30;
+const DEFAULT_STALE_THRESHOLD_DAYS = 7;
 const MS_PER_DAY = 86_400_000;
 
 // ---------------------------------------------------------------------------
@@ -107,13 +110,41 @@ export async function handleSubsystemCorrelationCommand(args: string[]): Promise
     return;
   }
 
+  // Collect unique proposal IDs across loaded reports for disposition classification
+  const allProposalIds = new Set<string>();
+  for (const report of loadedReports) {
+    for (const rec of report.report.recommendations) {
+      if (rec.proposalId) allProposalIds.add(rec.proposalId);
+    }
+  }
+
+  // Load proposal statuses (read-only) so recommendations get the real P10.8a
+  // disposition (unreviewed/stale/awaiting_review/applied/rejected/failed/...)
+  // instead of a two-state stub.
+  const proposalStore = new ProposalStore(join(cwd, ".alix", "adaptation", "proposals"));
+  const proposalStatusMap = new Map<string, ProposalStatus | null>();
+  await Promise.all(
+    [...allProposalIds].map(async (pid) => {
+      try {
+        const proposal = await proposalStore.load(pid);
+        proposalStatusMap.set(pid, proposal ? (proposal.status as ProposalStatus) : null);
+      } catch {
+        proposalStatusMap.set(pid, null); // Corrupt/missing — treated as proposal_missing
+      }
+    }),
+  );
+
   // Build RecommendationEntry array inline
   const recommendations: RecommendationEntry[] = [];
   const nowMs = Date.now();
   for (const report of loadedReports) {
     const recs = report.report.recommendations;
+    const ageDays = Math.floor((nowMs - new Date(report.report.generatedAt).getTime()) / MS_PER_DAY);
     for (let i = 0; i < recs.length; i++) {
       const rec = recs[i];
+      const proposalStatus = rec.proposalId
+        ? (proposalStatusMap.get(rec.proposalId) ?? null)
+        : undefined;
       recommendations.push({
         reportId: report.id,
         generatedAt: report.report.generatedAt,
@@ -124,20 +155,34 @@ export async function handleSubsystemCorrelationCommand(args: string[]): Promise
         signalConfidence: rec.signalConfidence,
         recommendation: rec.recommendation,
         proposalId: rec.proposalId,
-        disposition: classifyDisposition(rec),
-        ageDays: Math.floor((nowMs - new Date(report.report.generatedAt).getTime()) / MS_PER_DAY),
+        disposition: classifyRecommendation(
+          {
+            subsystem: rec.subsystem,
+            signal: rec.signal,
+            severity: rec.severity,
+            signalConfidence: rec.signalConfidence,
+            recommendation: rec.recommendation,
+            proposalId: rec.proposalId,
+            proposalStatus,
+            ageDays,
+          },
+          DEFAULT_STALE_THRESHOLD_DAYS,
+        ),
+        ageDays,
       });
     }
   }
 
-  // Load outcome reports
-  const outcomeReports: ExecutiveOutcomeEvaluationReport[] = [];
+  // Load outcome reports paired with their store ids (OutcomeReportRef keeps
+  // SubsystemCorrelationEntry.outcomeReportId honest — the pure report type
+  // has no id field of its own).
+  const outcomeReports: OutcomeReportRef[] = [];
   try {
     const outcomeMetas = outcomeStore.list();
     for (const meta of outcomeMetas) {
       try {
         const report = outcomeStore.load(meta.reportId);
-        if (report) outcomeReports.push(report);
+        if (report) outcomeReports.push({ id: meta.reportId, report });
       } catch (e: any) {
         console.warn(`Skipping corrupt outcome report: ${meta.reportId} — ${e.message}`);
       }
@@ -163,15 +208,6 @@ export async function handleSubsystemCorrelationCommand(args: string[]): Promise
   } else {
     renderTable(result, reportIdArg !== undefined);
   }
-}
-
-// ---------------------------------------------------------------------------
-// Simplified disposition classifier (inline, without proposal store)
-// ---------------------------------------------------------------------------
-
-function classifyDisposition(rec: ExecutiveRecommendation): RecommendationDisposition {
-  if (rec.proposalId === undefined) return "unreviewed";
-  return "awaiting_review";
 }
 
 // ---------------------------------------------------------------------------

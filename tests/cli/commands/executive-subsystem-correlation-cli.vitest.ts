@@ -127,10 +127,16 @@ describe("executive subsystem-correlation CLI", () => {
     await handleSubsystemCorrelationCommand(["--report", saved.id, "--json"]);
     const parsed = JSON.parse(c.out().join("\n"));
     expect(parsed.correlationStatus).toBe("ok");
-    expect(parsed.subsystemCorrelations[0].averageAbsoluteDelta).toBeDefined();
-    expect(parsed.subsystemCorrelations[0].correlationEffectiveness).toBeDefined();
-    expect(parsed.signalCorrelations[0].coverageRate).toBeDefined();
-    expect(parsed.correlations[0].recommendationDisposition).toBeDefined();
+    // Concrete values, not just presence — pins end-to-end wiring.
+    expect(parsed.subsystemCorrelations[0].averageAbsoluteDelta).toBe(5); // |+5|/1
+    expect(parsed.subsystemCorrelations[0].correlationEffectiveness).toBe(1); // 1 improving / 1 delta
+    expect(parsed.subsystemCorrelations[0].matchedRecommendationCount).toBe(1);
+    expect(parsed.subsystemCorrelations[0].matchedDeltaCount).toBe(1);
+    expect(parsed.signalCorrelations[0].coverageRate).toBe(1); // 1 matched / 1 rec
+    expect(parsed.correlations[0].outcomeReportId).toBe("outcome-test-001"); // real store id, not timestamp
+    // Real P10.8a classifier ran — a report this old with no proposalId is "stale",
+    // which the old classifyDisposition stub could never produce (it would say "unreviewed").
+    expect(parsed.correlations[0].recommendationDisposition).toBe("stale");
     cwdSpy.mockRestore();
     c.restore();
   });
