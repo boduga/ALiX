@@ -130,9 +130,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleEffectivenessCommand(rest);
     }
 
+    case "subsystem-correlation": {
+      const { handleSubsystemCorrelationCommand } = await import(
+        "./executive-subsystem-correlation-handler.js"
+      );
+      return handleSubsystemCorrelationCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation");
       process.exit(1);
   }
 }
