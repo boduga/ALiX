@@ -78,6 +78,9 @@ const EXECUTIVE_FILES = [
   // P10.8 files
   "src/executive/recommendation-effectiveness.ts",
   "src/cli/commands/executive-effectiveness-handler.ts",
+  // P10.8c files
+  "src/executive/subsystem-correlation.ts",
+  "src/cli/commands/executive-subsystem-correlation-handler.ts",
 ];
 
 // ---------------------------------------------------------------------------
