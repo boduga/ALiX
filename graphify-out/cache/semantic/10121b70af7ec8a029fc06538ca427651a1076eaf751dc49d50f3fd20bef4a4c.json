@@ -1,1 +1,0 @@
-{"nodes": [], "edges": [{"source": "monolith_alix_alix", "target": "monolith_alix_triage", "relation": "has_document", "confidence": "EXTRACTED", "confidence_score": 1.0, "source_file": "docs/agents/triage-labels.md", "source_location": null, "weight": 1.0}], "hyperedges": []}

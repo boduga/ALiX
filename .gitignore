@@ -51,3 +51,5 @@ npm-debug.log*
 .alix/memory/
 .alix/test-baselines/
 .semantic-search-index.json
+docs/archive/generated-graphify/
+graphify-out/
