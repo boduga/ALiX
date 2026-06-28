@@ -318,3 +318,62 @@ P10.8c does not trigger outcome evaluation.
 3. **Recommendations with no proposalId** — The correlation is by subsystem + time, not by proposal lifecycle. Unbridged recommendations still appear in the analysis. This is intentional: it measures whether the recommendation *signal itself* was predictive, independent of operator action. The `recommendationDisposition` field preserves the P10.8a classification so you can filter by it later.
 
 4. **Multiple signals per subsystem** — A subsystem may have recommendations with different signals (e.g., `degrading_trend` and `persistent_instability`). Both appear as separate entries in `signalCorrelations`, and the subsystem correlation aggregates across all signals for that subsystem.
+
+---
+
+## Executive Analytics Progression
+
+The P10.8 series forms a three-stage executive analytics pipeline:
+
+### P10.8a — Operator Response Intelligence
+
+**Question:** Did people respond?
+
+| Metric | Definition |
+|---|---|
+| Response rate | bridgedCount / total |
+| Action rate | appliedCount / total |
+| Disposition breakdown | unreviewed / stale / awaiting_review / applied / rejected / failed |
+
+### P10.8b — Proposal Effectiveness Intelligence
+
+**Question:** Did the proposal succeed?
+
+| Metric | Definition |
+|---|---|
+| Effectiveness rate | appliedKeep / (keep + revert + investigate) |
+| Coverage | assessed / (assessed + no_data) |
+| Outcome breakdown | keep / revert / investigate / no_data |
+
+### P10.8c — Predictive Signal Intelligence
+
+**Question:** Were our signals actually predictive?
+
+| Metric | Definition |
+|---|---|
+| Correlation effectiveness | improvingCount / correlationCount |
+| Average delta | mean of all matched deltas |
+| Average absolute delta | mean of all matched \|deltas\| |
+| Coverage | correlationCount / recommendationCount |
+
+### Future: P10.9 — Executive Intelligence Dashboard
+
+After P10.8c lands, the recommended next slice is a capstone dashboard consuming all three layers:
+
+```text
+Recommendation Engine Health
+
+Signal quality ............ 86%
+Operator response ......... 74%
+Proposal effectiveness .... 81%
+Prediction accuracy ....... 79%
+Coverage .................. 92%
+
+Most reliable signals
+Most ignored signals
+Most effective proposal types
+Subsystems improving fastest
+Subsystems degrading fastest
+```
+
+This would complete the Executive Intelligence layer and provide a polished interface over the analytics stack built across P10.6-P10.8c.
