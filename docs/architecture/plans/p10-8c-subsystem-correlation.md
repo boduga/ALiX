@@ -21,6 +21,9 @@
 - Loose mode: no extra time gate beyond analysis window.
 - `--mode strict --lag 30` defaults.
 - `CorrelationMatcher.match()` returns `Promise<>` for future async matchers (graph, vector, semantic).
+- `computeSubsystemCorrelation()` accepts an injectable `matcher: CorrelationMatcher` parameter (not `mode + lagDays`) — dependency inversion.
+- `SubsystemCorrelationReport` stores `reportGeneratedAt: string` (the `generatedAt` parameter is now stored in the report, not dead API surface).
+- Confidence bucket utilities live in `src/executive/confidence.ts` shared between P10.8c and future P10.9/P11.
 - All store access goes through `RecommendationReportStore` and `OutcomeReportStore` APIs — no ad-hoc `readFileSync`/`readdirSync`.
 - RecommendationEntry construction reused from P10.8a via extracted `extractRecommendationEntries()` helper.
 - Confidence bucket aggregation (0–0.25, 0.25–0.5, 0.5–0.75, 0.75–1.0) added to per-signal and per-subsystem metrics.
@@ -383,10 +386,11 @@ export interface SubsystemCorrelationReport {
   correlationStatus: typeof PSC_OK | typeof PSC_PARTIAL | typeof PSC_NO_DATA;
   correlationMode: CorrelationMode;
   correlationLagDays: number;
+  reportGeneratedAt: string;
   outcomeReportCount: number;
   totalRecommendations: number;
-  matchedRecCount: number;
-  unmatchedRecCount: number;
+  matchedRecommendationCount: number;
+  unmatchedRecommendationCount: number;
   subsystemCorrelations: SubsystemCorrelation[];
   signalCorrelations: SignalCorrelation[];
   correlations: SubsystemCorrelationEntry[];
@@ -603,15 +607,14 @@ function aggregateBySignal(entries: SubsystemCorrelationEntry[], totalRecsBySign
 export async function computeSubsystemCorrelation(
   recommendations: readonly RecommendationEntry[],
   outcomeReports: readonly ExecutiveOutcomeEvaluationReport[],
+  matcher: CorrelationMatcher,
   correlationMode: CorrelationMode,
   correlationLagDays: number = DEFAULT_CORRELATION_LAG_DAYS,
   generatedAt: string,
 ): Promise<SubsystemCorrelationReport> {
   if (recommendations.length === 0 || outcomeReports.length === 0) {
-    return emptyReport(PSC_NO_DATA, recommendations.length, correlationMode, correlationLagDays);
+    return emptyReport(PSC_NO_DATA, recommendations.length, correlationMode, correlationLagDays, generatedAt);
   }
-
-  const matcher = new SubsystemTimeMatcher(correlationMode, correlationLagDays);
   const entries: SubsystemCorrelationEntry[] = [];
   const matchedRecKeys = new Set<string>();
   const recCountBySignal = new Map<string, number>();
@@ -659,27 +662,29 @@ export async function computeSubsystemCorrelation(
 
   const signalCorrelations = aggregateBySignal(entries, recCountBySignal);
   const outcomeReportIds = new Set(entries.map((e) => e.outcomeReportId));
-  const matchedRecCount = matchedRecKeys.size;
-  const unmatchedRecCount = recommendations.length - matchedRecCount;
+  const matchedRecommendationCount = matchedRecKeys.size;
+  const unmatchedRecommendationCount = recommendations.length - matchedRecommendationCount;
 
   // partial if fewer than half of recs had outcome data
-  const status = matchedRecCount === 0 ? PSC_NO_DATA
-    : matchedRecCount < recommendations.length / 2 ? PSC_PARTIAL
+  const status = matchedRecommendationCount === 0 ? PSC_NO_DATA
+    : matchedRecommendationCount < recommendations.length / 2 ? PSC_PARTIAL
     : PSC_OK;
 
-  return {
+  const report = {
     correlationStatus: status,
     correlationMode,
     correlationLagDays,
+    reportGeneratedAt: generatedAt,
     outcomeReportCount: outcomeReportIds.size,
     totalRecommendations: recommendations.length,
-    matchedRecCount,
-    unmatchedRecCount,
+    matchedRecommendationCount,
+    unmatchedRecommendationCount,
     subsystemCorrelations,
     signalCorrelations,
     correlations: entries,
     loadWarnings: [],
   };
+  return report;
 }
 
 function emptyReport(
@@ -687,15 +692,17 @@ function emptyReport(
   totalRecs: number,
   mode: CorrelationMode,
   lagDays: number,
+  generatedAt: string,
 ): SubsystemCorrelationReport {
   return {
     correlationStatus: status as any,
     correlationMode: mode,
     correlationLagDays: lagDays,
+    reportGeneratedAt: generatedAt,
     outcomeReportCount: 0,
     totalRecommendations: totalRecs,
-    matchedRecCount: 0,
-    unmatchedRecCount: 0,
+    matchedRecommendationCount: 0,
+    unmatchedRecommendationCount: 0,
     subsystemCorrelations: [],
     signalCorrelations: [],
     correlations: [],
@@ -1084,7 +1091,7 @@ function renderTable(result: SubsystemCorrelationReport): void {
   console.log(`\nPredictive Signal Correlation Report (${result.correlationMode}, ${result.correlationLagDays} day lag)`);
   console.log(`Generated: ${result.generatedAt}`);
   console.log(
-    `Outcome reports: ${result.outcomeReportCount} | Recommendations: ${result.totalRecommendations} | Matched: ${result.matchedRecCount} | Unmatched: ${result.unmatchedRecCount}\n`,
+    `Outcome reports: ${result.outcomeReportCount} | Recommendations: ${result.totalRecommendations} | Matched: ${result.matchedRecommendationCount} | Unmatched: ${result.unmatchedRecommendationCount}\n`,
   );
 
   if (result.subsystemCorrelations.length > 0) {
@@ -1161,8 +1168,8 @@ function emitNoData(useJson: boolean, generatedAt: string, mode: string, lagDays
     correlationLagDays: lagDays,
     outcomeReportCount: 0,
     totalRecommendations: 0,
-    matchedRecCount: 0,
-    unmatchedRecCount: 0,
+    matchedRecommendationCount: 0,
+    unmatchedRecommendationCount: 0,
     subsystemCorrelations: [],
     signalCorrelations: [],
     correlations: [],
