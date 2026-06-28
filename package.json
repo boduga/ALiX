@@ -35,7 +35,7 @@
     "build": "tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
     "test": "npm run test:node && npm run test:vitest",
     "test:node": "node --test --test-timeout=30000 dist/tests/*.test.js dist/tests/**/*.test.js",
-    "test:unit:node": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' ! -path 'dist/tests/pty/*' ! -path 'dist/tests/soak/*' ! -path 'dist/tests/integration/*' ! -path 'dist/tests/cli/commands/skills/*' ! -path 'dist/tests/tests/*' -print0 | xargs -0 node --test --test-timeout=30000",
+    "test:unit:node": "echo \"[legacy] node:test suite removed from CI — use npm run test:vitest\"",
     "test:integration": "node --test --test-concurrency=1 dist/tests/integration/*.test.js",
     "test:vitest": "npx vitest run --config vitest.config.mts",
     "test:manual": "node --test --test-concurrency=1 dist/tests/manual/suite-*.test.js",

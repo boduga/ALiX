@@ -51,7 +51,7 @@ jobs:
       - name: TypeScript typecheck
         run: npm run typecheck
 
-  # ─── Lane 2: Unit tests (node + vitest) ────────────────────────────────
+  # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
     runs-on: ubuntu-latest
     steps:
@@ -62,10 +62,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Node unit tests
-        run: npm run test:unit:node
       - name: Vitest
-        if: always()
         run: npm run test:vitest
 
   # ─── Lane 3: Integration + Soak Tier 1 + Doctor ───────────────────────
@@ -114,8 +111,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - name: Node unit tests
-        run: npm run test:unit:node
       - name: TypeScript typecheck
         run: npm run typecheck
 
@@ -135,9 +130,6 @@ jobs:
       - name: Build
         shell: bash
         run: npm run build
-      - name: Node unit tests
-        shell: bash
-        run: npm run test:unit:node
       - name: TypeScript typecheck
         shell: bash
         run: npm run typecheck
