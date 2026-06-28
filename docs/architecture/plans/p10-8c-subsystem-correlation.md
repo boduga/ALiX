@@ -12,13 +12,18 @@
 
 - Read-only: no writes to any store, no mutations of persisted recommendations or outcome reports, no proposal creation.
 - `recommendationDisposition` propagated from `RecommendationEntry.disposition` into each `SubsystemCorrelationEntry`.
-- `correlationEffectiveness = improvingCount / correlationCount` — NaN → 0.
-- `averageAbsoluteDelta = sum(|delta|) / correlationCount`.
-- `coverageRate = correlationCount / recommendationCount` — per signal.
+- `matchedRecommendationCount` = recommendations with at least one matched outcome delta (NOT number of matched deltas).
+- `matchedDeltaCount` = total matching SubsystemDelta entries (may be > matchedRecommendationCount — one rec matches multiple outcomes).
+- `correlationEffectiveness = improvingCount / matchedDeltaCount` — NaN → 0.
+- `coverageRate = matchedRecommendationCount / recommendationCount` — per signal.
+- `averageAbsoluteDelta = sum(|delta|) / matchedDeltaCount`.
 - Strict mode default: `generatedAt > rec.generatedAt AND generatedAt ≤ rec.generatedAt + lagDays`.
 - Loose mode: no extra time gate beyond analysis window.
 - `--mode strict --lag 30` defaults.
-- `CorrelationMatcher` interface enables future matchers without rewriting the engine.
+- `CorrelationMatcher.match()` returns `Promise<>` for future async matchers (graph, vector, semantic).
+- All store access goes through `RecommendationReportStore` and `OutcomeReportStore` APIs — no ad-hoc `readFileSync`/`readdirSync`.
+- RecommendationEntry construction reused from P10.8a via extracted `extractRecommendationEntries()` helper.
+- Confidence bucket aggregation (0–0.25, 0.25–0.5, 0.5–0.75, 0.75–1.0) added to per-signal and per-subsystem metrics.
 - Two new files added to `EXECUTIVE_FILES` in sentinel.
 
 ---
@@ -191,7 +196,8 @@ describe("computeSubsystemCorrelation", () => {
     const sub = result.subsystemCorrelations[0];
     expect(sub.subsystem).toBe("workflow");
     expect(sub.recommendationCount).toBe(1);
-    expect(sub.correlationCount).toBe(1); // 1 recommendation matched
+    expect(sub.matchedRecommendationCount).toBe(1); // 1 recommendation had matches
+    expect(sub.matchedDeltaCount).toBe(2);           // 2 SubsystemDeltas matched
     expect(sub.averageDelta).toBe(1.0);   // (3.0 + -1.0) / 2
     expect(sub.averageAbsoluteDelta).toBe(2.0); // (|3.0| + |-1.0|) / 2
     expect(sub.netDelta).toBe(2.0);
@@ -271,7 +277,8 @@ describe("computeSubsystemCorrelation", () => {
     );
     const sig = result.signalCorrelations.find((s) => s.signal === "degrading_trend")!;
     expect(sig.recommendationCount).toBe(2);
-    expect(sig.correlationCount).toBe(1);
+    expect(sig.matchedRecommendationCount).toBe(1);
+    expect(sig.matchedDeltaCount).toBe(1);
     expect(sig.coverageRate).toBe(0.5);
   });
 });
@@ -328,11 +335,23 @@ export interface SubsystemCorrelationEntry {
   lagDays: number;
 }
 
+export interface ConfidenceBucket {
+  range: string;
+  low: number;
+  high: number;
+  recommendationCount: number;
+  matchedDeltaCount: number;
+  averageDelta: number;
+  averageAbsoluteDelta: number;
+  improvingRate: number;
+}
+
 export interface SubsystemCorrelation {
   subsystem: string;
   recommendationCount: number;
   outcomeReportCount: number;
-  correlationCount: number;
+  matchedRecommendationCount: number;
+  matchedDeltaCount: number;
   uncorrelatedRecommendationCount: number;
   averageDelta: number;
   averageAbsoluteDelta: number;
@@ -341,28 +360,33 @@ export interface SubsystemCorrelation {
   unchangedCount: number;
   netDelta: number;
   correlationEffectiveness: number;
+  confidenceBuckets: ConfidenceBucket[];
 }
 
 export interface SignalCorrelation {
   signal: string;
   recommendationCount: number;
-  correlationCount: number;
+  matchedRecommendationCount: number;
+  matchedDeltaCount: number;
   averageDelta: number;
   averageAbsoluteDelta: number;
   improvingRate: number;
   coverageRate: number;
+  confidenceBuckets: ConfidenceBucket[];
 }
 
 export const PSC_OK = "ok";
+export const PSC_PARTIAL = "partial";
 export const PSC_NO_DATA = "no_data";
 
 export interface SubsystemCorrelationReport {
-  correlationStatus: typeof PSC_OK | typeof PSC_NO_DATA;
+  correlationStatus: typeof PSC_OK | typeof PSC_PARTIAL | typeof PSC_NO_DATA;
   correlationMode: CorrelationMode;
   correlationLagDays: number;
-  reportCount: number;
+  outcomeReportCount: number;
   totalRecommendations: number;
-  correlatedRecommendations: number;
+  matchedRecCount: number;
+  unmatchedRecCount: number;
   subsystemCorrelations: SubsystemCorrelation[];
   signalCorrelations: SignalCorrelation[];
   correlations: SubsystemCorrelationEntry[];
@@ -384,7 +408,7 @@ export interface CorrelationMatcher {
   match(
     rec: RecommendationEntry,
     reports: readonly ExecutiveOutcomeEvaluationReport[],
-  ): Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }>;
+  ): Promise<Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }>>;
 }
 
 // ---------------------------------------------------------------------------
@@ -397,10 +421,10 @@ export class SubsystemTimeMatcher implements CorrelationMatcher {
     private readonly lagDays: number = DEFAULT_CORRELATION_LAG_DAYS,
   ) {}
 
-  match(
+  async match(
     rec: RecommendationEntry,
     reports: readonly ExecutiveOutcomeEvaluationReport[],
-  ): Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }> {
+  ): Promise<Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }>> {
     const results: Array<{ report: ExecutiveOutcomeEvaluationReport; delta: SubsystemDelta }> = [];
     const recTime = new Date(rec.generatedAt).getTime();
 
@@ -436,6 +460,62 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+const CONFIDENCE_BUCKETS = [
+  { range: "0.00-0.25", low: 0.00, high: 0.25 },
+  { range: "0.25-0.50", low: 0.25, high: 0.50 },
+  { range: "0.50-0.75", low: 0.50, high: 0.75 },
+  { range: "0.75-1.00", low: 0.75, high: 1.00 },
+];
+
+function computeConfidenceBucket(confidence: number): string {
+  if (confidence < 0.25) return "0.00-0.25";
+  if (confidence < 0.50) return "0.25-0.50";
+  if (confidence < 0.75) return "0.50-0.75";
+  return "0.75-1.00";
+}
+
+function buildEmptyBuckets(): ConfidenceBucket[] {
+  return CONFIDENCE_BUCKETS.map((b) => ({
+    range: b.range, low: b.low, high: b.high,
+    recommendationCount: 0, matchedDeltaCount: 0,
+    averageDelta: 0, averageAbsoluteDelta: 0, improvingRate: 0,
+  }));
+}
+
+function aggregateConfidenceBuckets(entries: SubsystemCorrelationEntry[]): ConfidenceBucket[] {
+  const buckets = new Map<string, { deltas: number[]; absDeltas: number[]; improving: number; recCount: Set<string> }>();
+  for (const b of CONFIDENCE_BUCKETS) {
+    buckets.set(b.range, { deltas: [], absDeltas: [], improving: 0, recCount: new Set() });
+  }
+  for (const e of entries) {
+    const range = computeConfidenceBucket(e.signalConfidence);
+    const bucket = buckets.get(range)!;
+    bucket.deltas.push(e.delta);
+    bucket.absDeltas.push(Math.abs(e.delta));
+    if (e.delta > 0) bucket.improving++;
+    bucket.recCount.add(`${e.reportId}:${e.recIndex}`);
+  }
+  return CONFIDENCE_BUCKETS.map((b) => {
+    const data = buckets.get(b.range)!;
+    const count = data.deltas.length;
+    return {
+      range: b.range, low: b.low, high: b.high,
+      recommendationCount: data.recCount.size,
+      matchedDeltaCount: count,
+      averageDelta: count > 0 ? round2(data.deltas.reduce((s, v) => s + v, 0) / count) : 0,
+      averageAbsoluteDelta: count > 0 ? round2(data.absDeltas.reduce((s, v) => s + v, 0) / count) : 0,
+      improvingRate: count > 0 ? round2(data.improving / count) : 0,
+    };
+  });
+}
+
+// Track unique matched recommendations per group (subsystem or signal)
+function matchedRecSet(entries: SubsystemCorrelationEntry[]): Set<string> {
+  const set = new Set<string>();
+  for (const e of entries) set.add(`${e.reportId}:${e.recIndex}`);
+  return set;
+}
+
 function aggregateBySubsystem(entries: SubsystemCorrelationEntry[]): SubsystemCorrelation[] {
   const map = new Map<string, SubsystemCorrelationEntry[]>();
   for (const e of entries) {
@@ -445,7 +525,6 @@ function aggregateBySubsystem(entries: SubsystemCorrelationEntry[]): SubsystemCo
   }
 
   const correlations: SubsystemCorrelation[] = [];
-  // Track recommendation counts per subsystem (dedup by reportId + recIndex)
   const recCountMap = new Map<string, Set<string>>();
   for (const e of entries) {
     const key = `${e.reportId}:${e.recIndex}`;
@@ -460,21 +539,24 @@ function aggregateBySubsystem(entries: SubsystemCorrelationEntry[]): SubsystemCo
     const improving = matches.filter((m) => m.delta > 0).length;
     const degrading = matches.filter((m) => m.delta < 0).length;
     const unchanged = matches.filter((m) => m.delta === 0).length;
-    const count = matches.length;
+    const deltaCount = matches.length;
+    const matchedRecs = matchedRecSet(matches).size;
 
     correlations.push({
       subsystem,
       recommendationCount: recCountMap.get(subsystem)?.size ?? 0,
       outcomeReportCount: new Set(matches.map((m) => m.outcomeReportId)).size,
-      correlationCount: count,
-      uncorrelatedRecommendationCount: 0, // set below
-      averageDelta: count > 0 ? round2(totalDeltas / count) : 0,
-      averageAbsoluteDelta: count > 0 ? round2(totalAbsDeltas / count) : 0,
+      matchedRecommendationCount: matchedRecs,
+      matchedDeltaCount: deltaCount,
+      uncorrelatedRecommendationCount: 0,
+      averageDelta: deltaCount > 0 ? round2(totalDeltas / deltaCount) : 0,
+      averageAbsoluteDelta: deltaCount > 0 ? round2(totalAbsDeltas / deltaCount) : 0,
       improvingCount: improving,
       degradingCount: degrading,
       unchangedCount: unchanged,
       netDelta: round2(totalDeltas),
-      correlationEffectiveness: count > 0 ? round2(improving / count) : 0,
+      correlationEffectiveness: deltaCount > 0 ? round2(improving / deltaCount) : 0,
+      confidenceBuckets: aggregateConfidenceBuckets(matches),
     });
   }
 
@@ -494,17 +576,20 @@ function aggregateBySignal(entries: SubsystemCorrelationEntry[], totalRecsBySign
     const totalDeltas = matches.reduce((sum, m) => sum + m.delta, 0);
     const totalAbsDeltas = matches.reduce((sum, m) => sum + Math.abs(m.delta), 0);
     const improving = matches.filter((m) => m.delta > 0).length;
-    const count = matches.length;
+    const deltaCount = matches.length;
     const totalRecs = totalRecsBySignal.get(signal) ?? 0;
+    const matchedRecs = matchedRecSet(matches).size;
 
     correlations.push({
       signal,
       recommendationCount: totalRecs,
-      correlationCount: count,
-      averageDelta: count > 0 ? round2(totalDeltas / count) : 0,
-      averageAbsoluteDelta: count > 0 ? round2(totalAbsDeltas / count) : 0,
-      improvingRate: count > 0 ? round2(improving / count) : 0,
-      coverageRate: totalRecs > 0 ? round2(count / totalRecs) : 0,
+      matchedRecommendationCount: matchedRecs,
+      matchedDeltaCount: deltaCount,
+      averageDelta: deltaCount > 0 ? round2(totalDeltas / deltaCount) : 0,
+      averageAbsoluteDelta: deltaCount > 0 ? round2(totalAbsDeltas / deltaCount) : 0,
+      improvingRate: deltaCount > 0 ? round2(improving / deltaCount) : 0,
+      coverageRate: totalRecs > 0 ? round2(matchedRecs / totalRecs) : 0,
+      confidenceBuckets: aggregateConfidenceBuckets(matches),
     });
   }
 
@@ -515,26 +600,15 @@ function aggregateBySignal(entries: SubsystemCorrelationEntry[], totalRecsBySign
 // Main correlation function
 // ---------------------------------------------------------------------------
 
-export function computeSubsystemCorrelation(
+export async function computeSubsystemCorrelation(
   recommendations: readonly RecommendationEntry[],
   outcomeReports: readonly ExecutiveOutcomeEvaluationReport[],
   correlationMode: CorrelationMode,
   correlationLagDays: number = DEFAULT_CORRELATION_LAG_DAYS,
   generatedAt: string,
-): SubsystemCorrelationReport {
+): Promise<SubsystemCorrelationReport> {
   if (recommendations.length === 0 || outcomeReports.length === 0) {
-    return {
-      correlationStatus: PSC_NO_DATA,
-      correlationMode,
-      correlationLagDays,
-      reportCount: 0,
-      totalRecommendations: recommendations.length,
-      correlatedRecommendations: 0,
-      subsystemCorrelations: [],
-      signalCorrelations: [],
-      correlations: [],
-      loadWarnings: [],
-    };
+    return emptyReport(PSC_NO_DATA, recommendations.length, correlationMode, correlationLagDays);
   }
 
   const matcher = new SubsystemTimeMatcher(correlationMode, correlationLagDays);
@@ -543,10 +617,9 @@ export function computeSubsystemCorrelation(
   const recCountBySignal = new Map<string, number>();
 
   for (const rec of recommendations) {
-    // Count all recs per signal (for coverageRate)
     recCountBySignal.set(rec.signal, (recCountBySignal.get(rec.signal) ?? 0) + 1);
 
-    const matches = matcher.match(rec, outcomeReports);
+    const matches = await matcher.match(rec, outcomeReports);
     if (matches.length > 0) {
       matchedRecKeys.add(`${rec.reportId}:${rec.recIndex}`);
     }
@@ -575,30 +648,60 @@ export function computeSubsystemCorrelation(
   }
 
   if (entries.length === 0) {
-    return {
-      correlationStatus: PSC_NO_DATA,
-      correlationMode,
-      correlationLagDays,
-      reportCount: 0,
-      totalRecommendations: recommendations.length,
-      correlatedRecommendations: 0,
-      subsystemCorrelations: [],
-      signalCorrelations: [],
-      correlations: [],
-      loadWarnings: [],
-    };
+    return emptyReport(PSC_NO_DATA, recommendations.length, correlationMode, correlationLagDays);
   }
 
-  // Build subsystem correlations
   const subsystemCorrelations = aggregateBySubsystem(entries);
-
-  // Compute uncorrelated counts per subsystem
   for (const sub of subsystemCorrelations) {
-    // Count total unique recommendations for this subsystem
     const subRecs = recommendations.filter((r) => r.subsystem === sub.subsystem);
-    const subMatched = sub.correlationCount;
-    sub.uncorrelatedRecommendationCount = subRecs.length - subMatched;
+    sub.uncorrelatedRecommendationCount = subRecs.length - sub.matchedRecommendationCount;
   }
+
+  const signalCorrelations = aggregateBySignal(entries, recCountBySignal);
+  const outcomeReportIds = new Set(entries.map((e) => e.outcomeReportId));
+  const matchedRecCount = matchedRecKeys.size;
+  const unmatchedRecCount = recommendations.length - matchedRecCount;
+
+  // partial if fewer than half of recs had outcome data
+  const status = matchedRecCount === 0 ? PSC_NO_DATA
+    : matchedRecCount < recommendations.length / 2 ? PSC_PARTIAL
+    : PSC_OK;
+
+  return {
+    correlationStatus: status,
+    correlationMode,
+    correlationLagDays,
+    outcomeReportCount: outcomeReportIds.size,
+    totalRecommendations: recommendations.length,
+    matchedRecCount,
+    unmatchedRecCount,
+    subsystemCorrelations,
+    signalCorrelations,
+    correlations: entries,
+    loadWarnings: [],
+  };
+}
+
+function emptyReport(
+  status: string,
+  totalRecs: number,
+  mode: CorrelationMode,
+  lagDays: number,
+): SubsystemCorrelationReport {
+  return {
+    correlationStatus: status as any,
+    correlationMode: mode,
+    correlationLagDays: lagDays,
+    outcomeReportCount: 0,
+    totalRecommendations: totalRecs,
+    matchedRecCount: 0,
+    unmatchedRecCount: 0,
+    subsystemCorrelations: [],
+    signalCorrelations: [],
+    correlations: [],
+    loadWarnings: [],
+  };
+}
 
   // Build signal correlations
   const signalCorrelations = aggregateBySignal(entries, recCountBySignal);
@@ -1184,8 +1287,13 @@ Expected: all pass.
   - ✅ `computeSubsystemCorrelation()` — Task 1
   - ✅ `aggregateBySubsystem()` + `aggregateBySignal()` — Task 1
   - ✅ `averageAbsoluteDelta` — Task 1 (tested in Step 3)
-  - ✅ `correlationEffectiveness = improvingCount / correlationCount` — Task 1
-  - ✅ `coverageRate = correlationCount / recommendationCount` — Task 1
+  - ✅ `correlationEffectiveness = improvingCount / matchedDeltaCount` — Task 1
+  - ✅ `coverageRate = matchedRecommendationCount / recommendationCount` — Task 1
+  - ✅ `matchedRecommendationCount` vs `matchedDeltaCount` distinction — Task 1
+  - ✅ `CorrelationMatcher.match()` is async (Promise<>) — Task 1
+  - ✅ `confidenceBuckets` per subsystem and per signal — Task 1
+  - ✅ `correlationStatus` includes `partial` state — Task 1
+  - ✅ `outcomeReportCount` instead of `reportCount` — Task 1
   - ✅ `recommendationDisposition` propagated — Task 1 (tested)
   - ✅ `uncorrelatedRecommendationCount` — Task 1
   - ✅ Strict mode time gates — Task 1 (SubsystemTimeMatcher tests)
