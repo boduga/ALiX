@@ -89,6 +89,50 @@ export class ExecutiveTrendStore {
   }
 
   /**
+   * P10.9.1-T2 — loadById: resolve a trend snapshot by its unique id.
+   *
+   * Additive read-only resolver. Used by read sites (evaluate handler,
+   * automatic outcome hook) to resolve a `trendSnapshotId` reference stored
+   * in an `ExecutivePlanSnapshot.rawSubsystemState` back to the concrete
+   * `ExecutiveTrendSnapshot` payload the pure evaluator needs.
+   *
+   * Linear scan over JSONL — no index added. The snapshot stack itself is
+   * plan-scoped; this resolver only triggers inside plan-scoped resolution
+   * paths where the cost of one linear scan is dwarfed by the value of
+   * resolving the exact trend snapshot a plan captured against (vs the
+   * time-window lookup that previously produced `insufficient_data`).
+   *
+   * Returns null if:
+   *   - trends.jsonl does not exist
+   *   - the file is empty
+   *   - no line's `id` field matches the requested id
+   *   - the matching line is malformed (silently skipped)
+   *
+   * No behavior change to `loadLatest()` or `findBaseline()`.
+   */
+  async loadById(id: string): Promise<ExecutiveTrendSnapshot | null> {
+    const path = join(this.dir, TRENDS_FILE);
+    if (!existsSync(path)) return null;
+
+    const content = readFileSync(path, "utf-8").trim();
+    if (!content) return null;
+
+    const lines = content.split("\n").filter((l) => l.trim());
+    for (const line of lines) {
+      try {
+        const snap = JSON.parse(line) as ExecutiveTrendSnapshot;
+        if (snap.id === id) {
+          return snap;
+        }
+      } catch {
+        // malformed line — skip silently
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Append a new trend snapshot derived from the current health report.
    * The snapshot captures each subsystem's current score for future trend
    * comparisons.
