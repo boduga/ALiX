@@ -20,6 +20,10 @@
  *   - Fail-loud on missing baseline (warning includes the literal
  *     "baseline not captured for planId=<id>") — surface structural data
  *     gaps instead of silently returning insufficient_data downstream.
+ *   - `execDir` is REQUIRED — there is no legacy time-window fallback.
+ *     The snapshot stack is the only allowed resolution path. Construct
+ *     via `createAutomaticOutcomeEvaluator(executiveDir)` for the
+ *     standard layout.
  *
  * @module
  */
@@ -54,11 +58,10 @@ export class AutomaticOutcomeEvaluator implements OutcomeEvaluationHook {
   constructor(
     private readonly outcomeStore: OutcomeReportStore,
     private readonly trendStore: ExecutiveTrendStore,
-    /** P10.9.1-T2 — optional executive directory for the snapshot stack.
-     *  When provided, the hook uses the plan-scoped snapshot resolution
-     *  path. When omitted (legacy wiring), falls back to the time-window
-     *  trend-store lookup so existing callers do not break. */
-    private readonly execDir?: string,
+    /** Executive directory (e.g. `.alix/executive`) — REQUIRED.
+     *  The hook resolves baseline + current through the plan-scoped
+     *  snapshot stack. There is no legacy time-window fallback path. */
+    private readonly execDir: string,
   ) {}
 
   async run(
@@ -103,23 +106,16 @@ export class AutomaticOutcomeEvaluator implements OutcomeEvaluationHook {
       }
 
       // 3. Resolve baseline + current trend snapshots via the snapshot stack
-      //    (P10.9.1-T2 — symmetric resolution). When execDir is provided,
-      //    use the plan-scoped path; otherwise fall back to the legacy
-      //    time-window lookup for backward compatibility.
-      let baseline: ExecutiveTrendSnapshot | null;
-      let current: ExecutiveTrendSnapshot | null;
-      if (this.execDir) {
-        const resolved = await this.resolveFromSnapshotStack(plan.id, state);
-        baseline = resolved.baseline;
-        current = resolved.current;
-        if (resolved.baselineMissing) {
-          console.warn(
-            `[automatic-outcome-hook] baseline not captured for planId=${plan.id} — plan was never executed by ExecutionEngine (no engine baseline snapshot found on disk). Evaluator will report insufficient_data.`,
-          );
-        }
-      } else {
-        baseline = await this.trendStore.findBaseline(plan.generatedAt);
-        current = await this.trendStore.loadLatest();
+      //    (P10.9.1-T2 — symmetric resolution). The plan-scoped path is the
+      //    only allowed path; the legacy time-window lookup has been removed
+      //    because it produced false-baselines for plans that never executed.
+      const resolved = await this.resolveFromSnapshotStack(plan.id, state);
+      const baseline = resolved.baseline;
+      const current = resolved.current;
+      if (resolved.baselineMissing) {
+        console.warn(
+          `[automatic-outcome-hook] baseline not captured for planId=${plan.id} — plan was never executed by ExecutionEngine (no engine baseline snapshot found on disk). Evaluator will report insufficient_data.`,
+        );
       }
 
       // 4. Evaluate the plan using the pure evaluator
@@ -158,7 +154,7 @@ export class AutomaticOutcomeEvaluator implements OutcomeEvaluationHook {
     current: ExecutiveTrendSnapshot | null;
     baselineMissing: boolean;
   }> {
-    const execDir = this.execDir!;
+    const execDir = this.execDir;
     const snapshotStore = new ExecutiveSnapshotStore(join(execDir, "snapshots"));
     const provider = createDefaultSnapshotProvider(execDir);
 
