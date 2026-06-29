@@ -1,9 +1,23 @@
 /**
- * P10.5a — Executive evaluate CLI handler.
+ * P10.5a + P10.9.1 — Executive evaluate CLI handler.
  *
  * Handles `alix executive evaluate <planId> [--json]`.
  * Wires PlanStore, StateStore, TrendStore together, calls pure
  * evaluatePlanOutcome, renders result as terminal table or JSON.
+ *
+ * P10.9.1 — Read sites + auto-current snapshot.
+ *   - Baseline + current resolution goes through the plan-scoped snapshot
+ *     stack (ExecutiveSnapshotStore.loadBaseline/loadCurrent →
+ *     ExecutiveTrendStore.loadById via trendSnapshotId). No more
+ *     time-window trend-store lookup.
+ *   - Eager auto-capture of current snapshot for plans in terminal status
+ *     when no current snapshot exists yet. Idempotent: subsequent calls
+ *     reuse the captured current snapshot.
+ *   - Fail-loud on missing baseline (insufficient_data warning includes
+ *     "baseline not captured for planId=<id>"). No backfill, no
+ *     fabrication.
+ *   - All snapshot-store + provider operations are wrapped in try/catch
+ *     (best-effort: never break the user-facing command).
  *
  * All loading errors produce a structured ExecutiveOutcomeEvaluationReport
  * so that --json consumers always get machine-readable output.
@@ -17,8 +31,11 @@ import { ExecutionStateStore } from "../../executive/execution-state-store.js";
 import { ExecutiveTrendStore } from "../../executive/trend-store.js";
 import { evaluatePlanOutcome } from "../../executive/outcome-evaluator.js";
 import { OutcomeReportStore } from "../../executive/outcome-store.js";
+import { ExecutiveSnapshotStore } from "../../executive/executive-snapshot-store.js";
+import { createDefaultSnapshotProvider } from "../../executive/executive-snapshot-provider.js";
+import type { ExecutiveTrendSnapshot } from "../../executive/trend-store.js";
 import type { ExecutiveOutcomeEvaluationReport } from "../../executive/outcome-evaluator.js";
-import type { PlanStatus } from "../../executive/executive-plan-types.js";
+import type { PlanExecutionState, PlanStatus } from "../../executive/executive-plan-types.js";
 
 const PLANS_DIR = join(".alix", "executive", "plans");
 const EXECUTIVE_DIR = join(".alix", "executive");
@@ -39,6 +56,109 @@ function errorReport(planId: string, warnings: string[]): ExecutiveOutcomeEvalua
     objectives: [],
     overallDelta: 0,
     warnings,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Snapshot resolution (P10.9.1)
+//
+// Symmetric resolution — both baseline and current go through the same path:
+//   snapshotStore.loadBaseline/Current(planId)
+//     → rawSubsystemState.trendSnapshotId
+//     → trendStore.loadById(...)
+//
+// ExecutivePlanSnapshot is the durable pointer. ExecutiveTrendSnapshot is
+// the evaluator payload. ExecutiveTrendStore.loadById() is the resolver.
+// ---------------------------------------------------------------------------
+
+interface ResolvedSnapshots {
+  baseline: ExecutiveTrendSnapshot | null;
+  current: ExecutiveTrendSnapshot | null;
+  /** Set when the baseline file is missing on disk — used for the fail-loud warning. */
+  baselineMissing: boolean;
+}
+
+async function resolveSnapshots(
+  planId: string,
+  state: PlanExecutionState | null,
+  execDir: string,
+): Promise<ResolvedSnapshots> {
+  const snapshotsDir = join(execDir, "snapshots");
+  const snapshotStore = new ExecutiveSnapshotStore(snapshotsDir);
+  const provider = createDefaultSnapshotProvider(execDir);
+  const trendStore = new ExecutiveTrendStore(execDir);
+
+  let baselineSnapshot = null;
+  let currentSnapshot = null;
+  try {
+    baselineSnapshot = await snapshotStore.loadBaseline(planId);
+  } catch (e) {
+    console.warn(
+      `[executive-evaluate-handler] Failed to load baseline snapshot for plan ${planId}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+  try {
+    currentSnapshot = await snapshotStore.loadCurrent(planId);
+  } catch (e) {
+    console.warn(
+      `[executive-evaluate-handler] Failed to load current snapshot for plan ${planId}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+  }
+
+  // Eager auto-capture of current snapshot — invariant C from p10-9-1 plan.
+  // If the plan is in terminal status AND no current snapshot exists, capture
+  // and save before calling the evaluator. Idempotent: second evaluation
+  // reuses the captured current snapshot.
+  if (
+    state &&
+    (state.status === "completed" || state.status === "failed") &&
+    !currentSnapshot
+  ) {
+    try {
+      const captured = await provider.captureCurrent(planId);
+      await snapshotStore.saveCurrent(captured);
+      currentSnapshot = captured;
+    } catch (e) {
+      console.warn(
+        `[executive-evaluate-handler] Failed to auto-capture current snapshot for plan ${planId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  // Resolve trend snapshots from the captured plan-snapshot references.
+  // Symmetric: baseline uses baselineSnapshot.trendSnapshotId, current uses
+  // currentSnapshot.trendSnapshotId. Both resolve through trendStore.loadById.
+  let baselineTrend: ExecutiveTrendSnapshot | null = null;
+  let currentTrend: ExecutiveTrendSnapshot | null = null;
+
+  if (baselineSnapshot?.rawSubsystemState.trendSnapshotId) {
+    try {
+      baselineTrend = await trendStore.loadById(
+        baselineSnapshot.rawSubsystemState.trendSnapshotId,
+      );
+    } catch (e) {
+      console.warn(
+        `[executive-evaluate-handler] Failed to resolve baseline trend snapshot for plan ${planId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  if (currentSnapshot?.rawSubsystemState.trendSnapshotId) {
+    try {
+      currentTrend = await trendStore.loadById(
+        currentSnapshot.rawSubsystemState.trendSnapshotId,
+      );
+    } catch (e) {
+      console.warn(
+        `[executive-evaluate-handler] Failed to resolve current trend snapshot for plan ${planId}: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  return {
+    baseline: baselineTrend,
+    current: currentTrend,
+    baselineMissing: baselineSnapshot === null,
   };
 }
 
@@ -87,15 +207,18 @@ export async function handleEvaluate(args: string[]): Promise<void> {
     return;
   }
 
-  // ── Load trend snapshots ──────────────────────────────────────────
-  const trendStore = new ExecutiveTrendStore(execDir);
-  const [baseline, current] = await Promise.all([
-    trendStore.findBaseline(plan.generatedAt),
-    trendStore.loadLatest(),
-  ]);
+  // ── Resolve baseline + current trend snapshots via plan-scoped stack (P10.9.1)
+  const resolved = await resolveSnapshots(planId, state, execDir);
+
+  // ── Fail loud on missing baseline (invariant D)
+  if (resolved.baselineMissing) {
+    console.warn(
+      `baseline not captured for planId=${planId} — plan was never executed by ExecutionEngine (no engine baseline snapshot found on disk). Cannot evaluate.`,
+    );
+  }
 
   // ── Evaluate ──────────────────────────────────────────────────────
-  const report = evaluatePlanOutcome(plan, state, baseline, current);
+  const report = evaluatePlanOutcome(plan, state, resolved.baseline, resolved.current);
 
   // ── Save (before render) ──────────────────────────────────────────
   const saveMode = args.includes("--save");
