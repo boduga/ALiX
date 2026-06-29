@@ -14,6 +14,7 @@
  */
 
 import { randomUUID } from "node:crypto";
+import { join } from "node:path";
 import { bridgeCreateRemediationProposal, EXECUTIVE_BRIDGE_VERSION } from "./executive-bridge.js";
 import { reconcileApplyStep } from "./executive-apply-reconciler.js";
 import type { PlanStore } from "./plan-store.js";
@@ -26,6 +27,12 @@ import type { ExecutiveStepExecutionResult, StepRuntimeStatus } from "./executiv
 import { validateStateStepIds } from "./executive-plan-types.js";
 import type { OutcomeEvaluationHook } from "./automatic-outcome-hook.js";
 import { createAutomaticOutcomeEvaluator } from "./automatic-outcome-hook.js";
+import { ExecutiveSnapshotStore } from "./executive-snapshot-store.js";
+import type {
+  ExecutiveSnapshotStore as ExecutiveSnapshotStoreType,
+} from "./executive-snapshot-store.js";
+import type { ExecutiveSnapshotProvider } from "./executive-snapshot-provider.js";
+import { createDefaultSnapshotProvider } from "./executive-snapshot-provider.js";
 
 function generateExecutionId(): string {
   return randomUUID();
@@ -39,6 +46,14 @@ export class ExecutionEngine {
     private readonly writer: EvidenceEventWriter,
     private readonly proposalStore?: ProposalStore, // P10.4b — optional backward compat
     private readonly outcomeHook: OutcomeEvaluationHook = createAutomaticOutcomeEvaluator(".alix/executive"),
+    // P10.9.1 — plan-scoped snapshot capture. Defaults are safe so existing
+    // callers do not need to construct a snapshot store/provider explicitly.
+    private readonly snapshotStore: ExecutiveSnapshotStoreType = new ExecutiveSnapshotStore(
+      join(".alix", "executive", "snapshots"),
+    ),
+    private readonly snapshotProvider: ExecutiveSnapshotProvider = createDefaultSnapshotProvider(
+      ".alix/executive",
+    ),
   ) {}
 
   // -----------------------------------------------------------------------
@@ -142,6 +157,33 @@ export class ExecutionEngine {
 
     const state = this.stateStore.load(planId);
     if (!state) throw new Error(`Execution state not found: ${planId}`);
+
+    // ─── P10.9.1 plan-scoped baseline snapshot capture ────────────────────
+    // Capture an immutable baseline the FIRST time a plan starts executing.
+    // Subsequent runStep / runReadySteps calls are no-ops (hasBaseline gates).
+    //
+    // Why first step execution, not plan start?
+    //   - Plans created but never run -> no baseline (correct: nothing to compare against)
+    //   - Plans with only no-op read-only steps -> still get baseline (correct:
+    //     read-only steps can be auditing actions; plan participants need a
+    //     before-state)
+    //   - Plans that error on first step -> baseline captured (correct: failure
+    //     recovery needs it)
+    //
+    // Best-effort: if the snapshot stack fails, the engine still completes
+    // the step. Snapshot capture is an operator-friendliness feature, not a
+    // critical-path dependency. Mirrors the automatic-outcome-hook pattern.
+    try {
+      if (!(await this.snapshotStore.hasBaseline(planId))) {
+        const baseline = await this.snapshotProvider.captureBaseline(planId);
+        await this.snapshotStore.saveBaseline(baseline);
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      console.warn(
+        `[execution-engine] Baseline snapshot capture failed for plan ${planId}: ${msg}`,
+      );
+    }
 
     // Mark in_progress
     this.stateStore.update(

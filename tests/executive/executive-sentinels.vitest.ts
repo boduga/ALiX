@@ -84,6 +84,10 @@ const EXECUTIVE_FILES = [
   // P10.9 files
   "src/executive/executive-dashboard.ts",
   "src/executive/executive-dashboard-loader.ts",
+  // P10.9.1 files — plan-scoped snapshot stack (ADR-0005)
+  "src/executive/executive-snapshot-store.ts",
+  "src/executive/executive-snapshot-provider.ts",
+  "src/executive/executive-observation-provider.ts",
 ];
 
 // ---------------------------------------------------------------------------
@@ -222,7 +226,10 @@ describe("P10 executive purity sentinel", () => {
             if ((file === "src/executive/plan-store.ts" ||
                  file === "src/executive/execution-state-store.ts" ||
                  file === "src/executive/outcome-store.ts" ||
-                 file === "src/executive/recommendation-report-store.ts") &&
+                 file === "src/executive/recommendation-report-store.ts" ||
+                 // P10.9.1 — snapshot store is an approved write path
+                 // (atomic-write baseline/current, per ADR-0005).
+                 file === "src/executive/executive-snapshot-store.ts") &&
                 (forbidden === "writeFileSync" || forbidden === "mkdirSync" ||
                  forbidden === "renameSync" || forbidden === "openSync" ||
                  forbidden === "fsyncSync" || forbidden === "closeSync")) {

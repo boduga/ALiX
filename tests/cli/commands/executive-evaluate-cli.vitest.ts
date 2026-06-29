@@ -53,6 +53,68 @@ function writeTrends(dir: string, snapshots: Record<string, unknown>[]): void {
   writeFileSync(join(dir, "trends.jsonl"), lines + "\n", "utf-8");
 }
 
+/**
+ * P10.9.1-T2 — write the plan-scoped snapshot files used by the new
+ * resolution path. Each entry is the snapshot's `rawSubsystemState.trendSnapshotId`.
+ *
+ * `snapshots[].id` from writeTrends() is referenced via the snapshot files.
+ */
+function writeSnapshots(
+  execDir: string,
+  planId: string,
+  baselineTrendId: string | undefined,
+  currentTrendId: string | undefined,
+): void {
+  const snapshotsDir = join(execDir, "snapshots");
+  mkdirSync(snapshotsDir, { recursive: true });
+  if (baselineTrendId) {
+    writeFileSync(
+      join(snapshotsDir, `${planId}-baseline.json`),
+      JSON.stringify({
+        metadata: {
+          snapshotVersion: 1,
+          alixVersion: "0.0.0",
+          executiveEngineVersion: "1.0",
+          createdBy: "ExecutionEngine",
+          reason: "execution-start",
+        },
+        planId,
+        capturedAt: "2026-06-10T00:00:00.000Z",
+        captureKind: "baseline",
+        rawSubsystemState: {
+          trendSnapshotId: baselineTrendId,
+          outcomeReportIds: [],
+        },
+        id: `${planId}-baseline`,
+      }),
+      "utf-8",
+    );
+  }
+  if (currentTrendId) {
+    writeFileSync(
+      join(snapshotsDir, `${planId}-current.json`),
+      JSON.stringify({
+        metadata: {
+          snapshotVersion: 1,
+          alixVersion: "0.0.0",
+          executiveEngineVersion: "1.0",
+          createdBy: "EvaluationHandler",
+          reason: "evaluation",
+        },
+        planId,
+        capturedAt: "2026-06-15T00:00:00.000Z",
+        captureKind: "current",
+        rawSubsystemState: {
+          trendSnapshotId: currentTrendId,
+          outcomeReportIds: [],
+        },
+        id: `${planId}-current`,
+      }),
+      "utf-8",
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Console capture helpers
 // ---------------------------------------------------------------------------
@@ -204,6 +266,7 @@ describe("executive evaluate CLI", () => {
         subsystemScores: { workflow: 72, governance: 75, learning: 82 },
       },
     ]);
+    writeSnapshots(execDir, "test-plan-1", "baseline-snap", "current-snap");
 
     const exit = mockExit();
     const c = captureConsole();
@@ -242,6 +305,7 @@ describe("executive evaluate CLI", () => {
         subsystemScores: { workflow: 80 },
       },
     ]);
+    writeSnapshots(execDir, "test-plan-2", "baseline-snap", "current-snap");
 
     const exit = mockExit();
     const c = captureConsole();
@@ -383,6 +447,7 @@ describe("executive evaluate CLI", () => {
     writePlan(plansDir, makeCompletedPlan("save-me"));
     writeState(plansDir, makeCompletedState("save-me"));
     writeTrends(execDir, [{ id: "s1", generatedAt: "2026-06-01T00:00:00.000Z", windowDays: 7, subsystemScores: { workflow: 40 } }]);
+    writeSnapshots(execDir, "save-me", "s1", undefined);
 
     const c = captureConsole();
     await handleExecutiveCommand(["evaluate", "save-me", "--save"]);
@@ -402,6 +467,7 @@ describe("executive evaluate CLI", () => {
     writePlan(plansDir, makeCompletedPlan("save-json"));
     writeState(plansDir, makeCompletedState("save-json"));
     writeTrends(execDir, [{ id: "s1", generatedAt: "2026-06-01T00:00:00.000Z", windowDays: 7, subsystemScores: { workflow: 40 } }]);
+    writeSnapshots(execDir, "save-json", "s1", undefined);
 
     const c = captureConsole();
     await handleExecutiveCommand(["evaluate", "save-json", "--json", "--save"]);
