@@ -33,9 +33,16 @@ function makeSnapshot(overrides: Partial<ExecutiveTrendSnapshot> = {}): Executiv
     id: "snap-default-id",
     generatedAt: "2026-06-15T00:00:00.000Z",
     windowDays: 7,
-    overallScore: 50,
-    rankedSubsystems: [],
-    subsystemScores: { workflow: 50 },
+    subsystemScores: {
+      workflow: 50,
+      tools: 50,
+      governance: 50,
+      security: 50,
+      learning: 50,
+      adaptation: 50,
+      agents: 50,
+      memory: 50,
+    },
     ...overrides,
   };
 }
@@ -80,7 +87,7 @@ describe("ExecutiveTrendStore.loadById", () => {
     const target = makeSnapshot({
       id: "exec-trend-baseline",
       generatedAt: "2026-06-10T00:00:00.000Z",
-      subsystemScores: { workflow: 40 },
+      subsystemScores: { workflow: 40, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 },
     });
     writeTrends(tmpDir, [target]);
 
@@ -95,12 +102,12 @@ describe("ExecutiveTrendStore.loadById", () => {
     const older = makeSnapshot({
       id: "exec-trend-baseline",
       generatedAt: "2026-06-10T00:00:00.000Z",
-      subsystemScores: { workflow: 40 },
+      subsystemScores: { workflow: 40, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 },
     });
     const newer = makeSnapshot({
       id: "exec-trend-current",
       generatedAt: "2026-06-20T00:00:00.000Z",
-      subsystemScores: { workflow: 80 },
+      subsystemScores: { workflow: 80, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 },
     });
     writeTrends(tmpDir, [older, newer]);
 
@@ -133,7 +140,7 @@ describe("ExecutiveTrendStore.loadById", () => {
       makeSnapshot({
         id: "the-only-id",
         generatedAt: "2026-06-10T00:00:00.000Z",
-        subsystemScores: { workflow: 50 },
+        subsystemScores: { workflow: 50, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 },
       }),
     ]);
 
@@ -190,8 +197,8 @@ describe("ExecutiveTrendStore.loadById", () => {
     const store = new ExecutiveTrendStore(tmpDir);
     // save() generates ids from the timestamp — write directly to disk
     writeTrends(tmpDir, [
-      makeSnapshot({ id: "snap-old", generatedAt: "2026-06-10T00:00:00.000Z", subsystemScores: { workflow: 30 } }),
-      makeSnapshot({ id: "snap-new", generatedAt: "2026-06-20T00:00:00.000Z", subsystemScores: { workflow: 90 } }),
+      makeSnapshot({ id: "snap-old", generatedAt: "2026-06-10T00:00:00.000Z", subsystemScores: { workflow: 30, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 } }),
+      makeSnapshot({ id: "snap-new", generatedAt: "2026-06-20T00:00:00.000Z", subsystemScores: { workflow: 90, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 } }),
     ]);
 
     const latest = await store.loadLatest();
@@ -203,9 +210,9 @@ describe("ExecutiveTrendStore.loadById", () => {
   it("findBaseline() still returns the most recent snapshot before the cutoff (no behavior change)", async () => {
     const store = new ExecutiveTrendStore(tmpDir);
     writeTrends(tmpDir, [
-      makeSnapshot({ id: "snap-a", generatedAt: "2026-06-01T00:00:00.000Z", subsystemScores: { workflow: 30 } }),
-      makeSnapshot({ id: "snap-b", generatedAt: "2026-06-10T00:00:00.000Z", subsystemScores: { workflow: 50 } }),
-      makeSnapshot({ id: "snap-c", generatedAt: "2026-06-20T00:00:00.000Z", subsystemScores: { workflow: 90 } }),
+      makeSnapshot({ id: "snap-a", generatedAt: "2026-06-01T00:00:00.000Z", subsystemScores: { workflow: 30, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 } }),
+      makeSnapshot({ id: "snap-b", generatedAt: "2026-06-10T00:00:00.000Z", subsystemScores: { workflow: 50, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 } }),
+      makeSnapshot({ id: "snap-c", generatedAt: "2026-06-20T00:00:00.000Z", subsystemScores: { workflow: 90, tools: 50, governance: 50, security: 50, learning: 50, adaptation: 50, agents: 50, memory: 50 } }),
     ]);
 
     const baseline = await store.findBaseline("2026-06-15T00:00:00.000Z");

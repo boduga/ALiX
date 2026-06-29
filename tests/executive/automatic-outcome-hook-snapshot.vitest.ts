@@ -195,7 +195,7 @@ describe("AutomaticOutcomeEvaluator — snapshot-stack integration (P10.9.1-T2)"
     const state = makeCompletedState(planId, "2026-06-15T12:00:00.000Z");
 
     await hook.run(
-      makePlan(planId, "2026-06-10T00:00:00.000Z") as PersistedExecutionPlan,
+      makePlan(planId, "2026-06-10T00:00:00.000Z") as unknown as PersistedExecutionPlan,
       state,
     );
 
@@ -221,7 +221,7 @@ describe("AutomaticOutcomeEvaluator — snapshot-stack integration (P10.9.1-T2)"
     const state = makeCompletedState(planId, "2026-06-15T12:00:00.000Z");
 
     await hook.run(
-      makePlan(planId, "2026-06-10T00:00:00.000Z") as PersistedExecutionPlan,
+      makePlan(planId, "2026-06-10T00:00:00.000Z") as unknown as PersistedExecutionPlan,
       state,
     );
 
@@ -255,7 +255,7 @@ describe("AutomaticOutcomeEvaluator — snapshot-stack integration (P10.9.1-T2)"
     const state = makeCompletedState(planId, "2026-06-15T12:00:00.000Z");
 
     await hook.run(
-      makePlan(planId, "2026-06-10T00:00:00.000Z") as PersistedExecutionPlan,
+      makePlan(planId, "2026-06-10T00:00:00.000Z") as unknown as PersistedExecutionPlan,
       state,
     );
 
@@ -289,7 +289,7 @@ describe("AutomaticOutcomeEvaluator — snapshot-stack integration (P10.9.1-T2)"
     const state = makeRunningState(planId, "2026-06-15T12:00:00.000Z");
 
     await hook.run(
-      makePlan(planId, "2026-06-10T00:00:00.000Z") as PersistedExecutionPlan,
+      makePlan(planId, "2026-06-10T00:00:00.000Z") as unknown as PersistedExecutionPlan,
       state,
     );
 
@@ -317,7 +317,7 @@ describe("AutomaticOutcomeEvaluator — snapshot-stack integration (P10.9.1-T2)"
 
     const hook = createAutomaticOutcomeEvaluator(execDir);
     const state = makeCompletedState(planId, "2026-06-15T12:00:00.000Z");
-    const plan = makePlan(planId, "2026-06-10T00:00:00.000Z") as PersistedExecutionPlan;
+    const plan = makePlan(planId, "2026-06-10T00:00:00.000Z") as unknown as PersistedExecutionPlan;
 
     await hook.run(plan, state);
 
