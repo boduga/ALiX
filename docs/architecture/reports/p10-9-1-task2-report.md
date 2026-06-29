@@ -135,3 +135,75 @@ DONE. All five locked invariants (A–E) verified by tests. Full vitest
 suite (2237 tests, 207 files) green. `tsc --noEmit` clean. Sentinel
 (44 tests) green. Five atomic commits on branch
 `feature/p10-9-1-operational-completeness`, ready for PR #145.
+
+## Followup: legacy constructor removal (2026-06-29)
+
+The original Task 2 introduced a **dual-mode** `AutomaticOutcomeEvaluator`
+constructor — optional `execDir` parameter; when omitted, the hook fell
+back to the legacy time-window `findBaseline(plan.generatedAt) +
+loadLatest()` lookup that produced the original P10.9.1 bug
+(false-baselines for plans that never executed). This dual-mode shape
+was kept so the 9 existing tests in
+`tests/executive/automatic-outcome-hook.vitest.ts` continued to pass.
+
+The decision was made to remove the legacy path entirely. P10.9.1-T2b
+collapses the dual-mode constructor into the single snapshot-stack
+path that ships to production.
+
+### Changes
+
+| File | Change |
+|---|---|
+| `src/executive/automatic-outcome-hook.ts` | `execDir` is now required (3-arg constructor only). The `if (this.execDir)` branch collapsed to the snapshot-stack path; the `findBaseline + loadLatest` fallback is gone. Non-null `execDir!` assertion removed (typed `string`). JSDoc updated to document `execDir` as REQUIRED with no legacy fallback. |
+| `tests/executive/automatic-outcome-hook.vitest.ts` | All 9 tests migrated to `createAutomaticOutcomeEvaluator(execDir)` factory. Each test now seeds the snapshot stack (`snapshots/<planId>-baseline.json` + `snapshots/<planId>-current.json`) plus a `trends.jsonl` file containing the referenced `ExecutiveTrendSnapshot`s. Test intent preserved (terminalTimestamp determination, idempotency, integrity preservation, best-effort, no evaluator mutation, skip-without-terminal-timestamp). |
+
+### Public API
+
+`createAutomaticOutcomeEvaluator(executiveDir: string)` signature
+unchanged — it already threaded `executiveDir` through to the
+constructor. Production call site
+(`src/executive/execution-engine.ts`) still uses the factory.
+
+`evaluatePlanOutcome` (pure evaluator) untouched.
+
+The snapshot integration tests in
+`tests/executive/automatic-outcome-hook-snapshot.vitest.ts` were
+unchanged — they already used the new factory path.
+
+### Test results (post-fix)
+
+```
+RUN v4.1.6 /home/babasola/Projects/Monolith
+
+ Test Files  207 passed (207)
+      Tests  2237 passed (2237)
+```
+
+`tsc --noEmit` clean. Sentinel (44 tests) green. The dual-mode
+constructor's "two truths" risk (where production fixed the bug but
+tests silently tested the legacy path) is gone.
+
+### Commits
+
+| Hash | Title |
+|---|---|
+| `eb708533` | P10.9.1-T2: Remove dual-mode constructor from AutomaticOutcomeEvaluator |
+| `9c40a3ea` | P10.9.1-T2: Migrate legacy outcome-hook tests to snapshot-stack factory |
+
+### Concerns / deviations
+
+1. **Two test refactors needed.** The "does not mutate the report"
+   test previously monkey-patched `OutcomeReportStore.save()` (the
+   local reference). After migration through the factory the local
+   reference is no longer the one the hook uses; the test was changed
+   to wrap `vi.mocked(evaluatePlanOutcome)` to capture and assert on
+   the pure evaluator's return value. The "save failures do not throw"
+   test now monkey-patches `OutcomeReportStore.prototype.save`
+   temporarily and restores it via `finally`. Both refactors preserve
+   original test intent (no semantic coverage lost).
+
+2. **No production call sites needed updates.** `grep -rn "new
+   AutomaticOutcomeEvaluator" src/` returns only the factory
+   definition. Tests that previously used the 2-arg constructor now use
+   the factory (or, in one case, the 3-arg constructor for save-failure
+   monkey-patching).
