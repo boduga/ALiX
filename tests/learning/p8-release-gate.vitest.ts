@@ -177,7 +177,7 @@ describe("P8.8 release gate — no-mutation boundary", () => {
     expect(reloaded).not.toBeNull();
     expect(reloaded!.appliedAt).toBeUndefined();
     expect(reloaded!.status).not.toBe("applied");
-    // Status is still "approved" — selectApplier threw before the gate could
+    // Status is still "approved" — readiness gate correctly blocks the apply
     // mark it failed. That's fine: what matters is appliedAt is undefined and
     // no calibration file exists.
 
