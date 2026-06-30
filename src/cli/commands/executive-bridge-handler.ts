@@ -78,10 +78,12 @@ export async function handleBridgeStatus(
     if (useJson) {
       console.log(
         JSON.stringify({
+          needsApproval: 0,
           needsSpecification: 0,
           readyToApply: 0,
           manualAction: 0,
           blocked: 0,
+          completed: 0,
           details: [],
         }),
       );
@@ -102,10 +104,12 @@ export async function handleBridgeStatus(
   if (useJson) {
     console.log(
       JSON.stringify({
+        needsApproval: (groups["needs_approval"] ?? []).length,
         needsSpecification: (groups["needs_specification"] ?? []).length,
         readyToApply: (groups["ready_to_apply"] ?? []).length,
         manualAction: (groups["manual_action"] ?? []).length,
         blocked: (groups["blocked"] ?? []).length,
+        completed: (groups["completed"] ?? []).length,
         details: filtered.map((r) => ({
           id: r.proposal.id,
           readiness: r.readiness.readiness,
@@ -117,14 +121,20 @@ export async function handleBridgeStatus(
       }),
     );
   } else {
+    const labels: Record<string, string> = {
+      needs_approval: "Needs approval",
+      needs_specification: "Needs specification",
+      ready_to_apply: "Ready to apply",
+      manual_action: "Manual action",
+      blocked: "Blocked",
+      completed: "Completed",
+    };
     console.log("Bridge Summary");
     console.log("──────────────");
-    console.log(
-      `Needs specification: ${groups["needs_specification"]?.length ?? 0}`,
-    );
-    console.log(`Ready to apply: ${groups["ready_to_apply"]?.length ?? 0}`);
-    console.log(`Manual action: ${groups["manual_action"]?.length ?? 0}`);
-    console.log(`Blocked: ${groups["blocked"]?.length ?? 0}`);
+    for (const [key, label] of Object.entries(labels)) {
+      const count = groups[key]?.length ?? 0;
+      console.log(`${label}: ${count}`);
+    }
 
     console.log("");
     console.log("Detail");
