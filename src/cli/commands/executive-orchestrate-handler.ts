@@ -16,6 +16,7 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
+import { EvidenceStore } from "../../security/evidence/evidence-store.js";
 import {
   reconcileChildProposal,
   planChildReconciliation,
@@ -86,9 +87,8 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
     const { EvidenceEventWriter: EEW } = await import("../../workflow/evidence-writer.js");
 
     const planStore = new PlanStore(join(execDir, "plans"));
-    writer = new EEW(
-      (_type: any, _payload: any) => Promise.resolve({ id: `evt-${Date.now()}` } as any),
-    );
+    const evidenceStore = new EvidenceStore({ storeDir: join(cwd, ".alix", "security") });
+    writer = new EEW((type, payload) => evidenceStore.append(type, payload));
     const runner = new StepRunner(writer);
     engine = new EE(planStore, stateStore!, runner, writer);
   }
