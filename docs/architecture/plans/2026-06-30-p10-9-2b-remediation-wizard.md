@@ -19,6 +19,7 @@
 - **Dry-run parity.** `--dry-run` must execute the identical validation and build pipeline; only `save` is skipped.
 - **Parent immutability.** The parent proposal must never be modified.
 - **R6 — No recursive remediation.** Child proposals must never themselves produce `needs_specification` readiness. Child target kinds must always be applyable (`ready_to_apply`) or manual (`manual_action`).
+- **R7 — Evidence chain preserved.** Child proposals inherit the parent's `evidenceFingerprints` and may append new evidence, but must never discard the parent's fingerprints.
 - **Registry factory, not singleton.** Export `createDefaultRegistry()` instead of a global `registry` instance. Tests create their own registries.
 - **Follow existing patterns.** Dynamic import + handler function in `executive.ts` switch (same as `bridge`, `learn`, `recommend`). CLI test fixtures use temp directories + `ProposalStore` (same pattern as `executive-bridge-status.vitest.ts`).
 
@@ -115,7 +116,7 @@ Contains in order:
    - `private providers: RemediationProvider[]`
    - `register(provider)` — pushes to array
    - `unregister(id)` — filters out
-   - `find(proposal)` — filters via `supports()`, throws if length !== 1
+   - `find(proposal)` — filters via `supports()`, throws if length === 0, throws if length > 1 (ties = error; highest `priority` wins deterministically only when unambiguous by priority sort)
    - `list()` — returns copy
 
 6. **ExecutiveBridgeRemediator class** implementing `RemediationProvider`:
@@ -127,8 +128,8 @@ Contains in order:
 
 8. **Pure functions**:
    - `validateRemediationParent(proposal: AdaptationProposal | undefined): ValidationResult`
-   - `validatePayload(payload: Record<string, unknown>): string | null`
-   - `validateSpecification(spec: RemediationSpec, provider: RemediationProvider): string | null`
+   - `validatePayload(payload: Record<string, unknown>): ValidationResult` (structured, same type as validateRemediationParent)
+   - `validateSpecification(spec: RemediationSpec, provider: RemediationProvider): ValidationResult` (structured, same type)
    - `mergeLineagePayload(additional, lineage): Record<string, unknown>`
 
 - [ ] **Step 4: Run tests to verify they pass**
