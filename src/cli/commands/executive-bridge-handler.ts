@@ -20,14 +20,150 @@ import { join } from "node:path";
 import { RecommendationReportStore } from "../../executive/recommendation-report-store.js";
 import { computeExecutiveProposals } from "../../executive/executive-bridge-recommendations.js";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
+import {
+  computeProposalReadiness,
+  isExecutiveBridgeProposal,
+} from "../../adaptation/proposal-readiness.js";
 import { nextProposalId } from "../../adaptation/recommendation-to-proposal.js";
 import type { RecommendationReport } from "../../executive/recommendation-report-store.js";
+
+// ---------------------------------------------------------------------------
+// Bridge status handler (read-only)
+// ---------------------------------------------------------------------------
+
+/**
+ * P10.9.2a-T3 — `alix executive bridge status`
+ *
+ * Lists bridge proposals with readiness classification. Read-only.
+ * Supports `--json` for machine-readable output and `--plan <planId>`
+ * to filter by executive plan ID.
+ *
+ * @param args - CLI arguments (--json, --plan <planId>)
+ * @param proposalStore - initialised ProposalStore instance
+ */
+export async function handleBridgeStatus(
+  args: string[],
+  proposalStore: ProposalStore,
+): Promise<void> {
+  const useJson = args.includes("--json");
+  const planFilter =
+    args.includes("--plan") && args.indexOf("--plan") + 1 < args.length
+      ? args[args.indexOf("--plan") + 1]
+      : undefined;
+
+  const all = await proposalStore.list();
+
+  // Filter to executive-bridge-relevant proposals
+  const bridgeProposals = all.filter(isExecutiveBridgeProposal);
+
+  // Compute readiness for each
+  const withReadiness = bridgeProposals.map((p) => ({
+    proposal: p,
+    readiness: computeProposalReadiness(p),
+  }));
+
+  // Optional plan filter
+  const filtered = planFilter
+    ? withReadiness.filter(
+        (r) =>
+          (r.proposal.payload as Record<string, unknown>)?.planId ===
+            planFilter ||
+          (
+            r.proposal.target as Record<string, unknown>
+          )?.planId === planFilter,
+      )
+    : withReadiness;
+
+  if (filtered.length === 0) {
+    if (useJson) {
+      console.log(
+        JSON.stringify({
+          needsApproval: 0,
+          needsSpecification: 0,
+          readyToApply: 0,
+          manualAction: 0,
+          blocked: 0,
+          completed: 0,
+          details: [],
+        }),
+      );
+    } else {
+      console.log("No bridge proposals found.");
+    }
+    return;
+  }
+
+  // Aggregate readiness
+  const groups: Record<string, typeof filtered> = {};
+  for (const item of filtered) {
+    const key = item.readiness.readiness;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(item);
+  }
+
+  if (useJson) {
+    console.log(
+      JSON.stringify({
+        needsApproval: (groups["needs_approval"] ?? []).length,
+        needsSpecification: (groups["needs_specification"] ?? []).length,
+        readyToApply: (groups["ready_to_apply"] ?? []).length,
+        manualAction: (groups["manual_action"] ?? []).length,
+        blocked: (groups["blocked"] ?? []).length,
+        completed: (groups["completed"] ?? []).length,
+        details: filtered.map((r) => ({
+          id: r.proposal.id,
+          readiness: r.readiness.readiness,
+          subsystem:
+            (r.proposal.target as Record<string, string>).subsystem ??
+            "unknown",
+          nextCommand: r.readiness.support.nextCommand ?? null,
+        })),
+      }),
+    );
+  } else {
+    const labels: Record<string, string> = {
+      needs_approval: "Needs approval",
+      needs_specification: "Needs specification",
+      ready_to_apply: "Ready to apply",
+      manual_action: "Manual action",
+      blocked: "Blocked",
+      completed: "Completed",
+    };
+    console.log("Bridge Summary");
+    console.log("──────────────");
+    for (const [key, label] of Object.entries(labels)) {
+      const count = groups[key]?.length ?? 0;
+      console.log(`${label}: ${count}`);
+    }
+
+    console.log("");
+    console.log("Detail");
+    console.log("──────");
+    for (const item of filtered) {
+      const subsystem =
+        (item.proposal.target as Record<string, string>).subsystem ?? "unknown";
+      const nextCmd = item.readiness.support.nextCommand ?? "";
+      console.log(
+        `${item.proposal.id.padEnd(30)} ${item.readiness.readiness.padEnd(22)} ${subsystem.padEnd(18)} ${nextCmd}`,
+      );
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // CLI handler
 // ---------------------------------------------------------------------------
 
 export async function handleBridgeCommand(args: string[]): Promise<void> {
+  // P10.9.2a-T3: route `bridge status` subcommand
+  if (args[0] === "status") {
+    const cwd = process.cwd();
+    const proposalStore = new ProposalStore(
+      join(cwd, ".alix", "adaptation", "proposals"),
+    );
+    return handleBridgeStatus(args.slice(1), proposalStore);
+  }
+
   const reportIndex = args.indexOf("--report");
   const reportIdArg =
     reportIndex !== -1 && reportIndex + 1 < args.length ? args[reportIndex + 1] : undefined;

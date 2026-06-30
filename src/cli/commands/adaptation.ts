@@ -64,6 +64,7 @@ import type { CapabilityEvolutionGenerateOptions } from "../../adaptation/capabi
 import { CapabilityEvolutionReporter } from "../../adaptation/capability-evolution-reporter.js";
 import type { CapabilityEvolutionReport } from "../../adaptation/capability-evolution-types.js";
 import { LineageBuilder } from "../../adaptation/lineage-builder.js";
+import { computeProposalReadiness } from "../../adaptation/proposal-readiness.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (mirror the appliers' docstrings)
@@ -179,12 +180,13 @@ async function runList(store: ProposalStore, args: string[]): Promise<void> {
   }
 
   console.log(
-    `${"ID".padEnd(26)} ${"Status".padEnd(10)} ${"Action".padEnd(26)} Target`,
+    `${"ID".padEnd(26)} ${"Status".padEnd(10)} ${"Readiness".padEnd(20)} ${"Applyable".padEnd(10)} ${"Action".padEnd(26)} Target`,
   );
-  console.log("-".repeat(90));
+  console.log("-".repeat(110));
   for (const p of proposals) {
+    const info = computeProposalReadiness(p);
     console.log(
-      `${p.id.padEnd(26)} ${p.status.padEnd(10)} ${p.action.padEnd(26)} ${describeTarget(p)}`,
+      `${p.id.padEnd(26)} ${p.status.padEnd(10)} ${info.readiness.padEnd(20)} ${(info.applyable ? "yes" : "no").padEnd(10)} ${p.action.padEnd(26)} ${describeTarget(p)}`,
     );
   }
   console.log(`\n${proposals.length} proposal${proposals.length === 1 ? "" : "s"}`);
@@ -205,6 +207,15 @@ async function runShow(store: ProposalStore, args: string[]): Promise<void> {
   }
 
   printProposal(proposal);
+
+  // P10.9.2a — derived readiness block
+  const info = computeProposalReadiness(proposal);
+  console.log(`Readiness:      ${info.readiness}`);
+  console.log(`Applyable:      ${info.applyable ? "yes" : "no"}`);
+  if (info.blocker) {
+    console.log(`Blocker:        ${info.blocker}`);
+  }
+  console.log(`Next action:    ${info.nextAction}`);
 }
 
 /** `propose <report.json>` */
@@ -350,14 +361,41 @@ async function runApply(
     process.exit(1);
   }
 
-  // Manual-action kinds have no automated applier by design — the human
-  // performs them out-of-band (create an issue, edit a routing weight,
-  // declare a capability). Surface actionable guidance and return cleanly
-  // (exit 0): this is a successful guided outcome, not an error. We never
-  // reach the gate and never mutate anything.
-  if (isManualKind(proposal.target.kind)) {
-    printManualAction(proposal);
-    return;
+  // P10.9.2a — readiness gate: route/refuse before calling selectApplier
+  const readinessInfo = computeProposalReadiness(proposal);
+
+  switch (readinessInfo.readiness) {
+    case "ready_to_apply":
+      // Proceed to selectApplier below
+      break;
+
+    case "needs_approval":
+      console.error(
+        `Proposal ${id} is not yet approved. Run \`alix adaptation approve ${id}\` first.`,
+      );
+      process.exit(1);
+
+    case "needs_specification":
+      console.error(
+        `Proposal ${id} requires human specification. Run \`${readinessInfo.support.nextCommand ?? `alix executive remediate ${id}`}\` to fill in details.`,
+      );
+      process.exit(1);
+
+    case "manual_action":
+      printManualAction(proposal);
+      return; // clean exit, no mutation
+
+    case "blocked":
+      console.error(
+        `Proposal ${id} is blocked: ${readinessInfo.blocker ?? "unknown reason"}.`,
+      );
+      process.exit(1);
+
+    case "completed":
+      console.error(
+        `Proposal ${id} has already been ${proposal.status}.`,
+      );
+      process.exit(1);
   }
 
   const applier = selectApplier(cwd, proposal, writer);

@@ -155,16 +155,19 @@ describe("P8.8 release gate — no-mutation boundary", () => {
     };
     await store.save(approved);
 
-    // Attempt to apply via the adaptation CLI — must error with the deferral message.
-    // The error is thrown from selectApplier (pre-gate), so it propagates as a raw
-    // error rather than going through the gate's failed-status path. The core
-    // invariant is the same: no mutation occurs, the proposal is never applied.
+    // Attempt to apply via the adaptation CLI — the readiness gate
+    // (P10.9.2a) intercepts the learning proposal as "blocked" and exits
+    // with a deferred-to-P8.9/P9 message.  No mutation occurs, the
+    // proposal is never applied.
     const { handleAdaptationCommand } = await import("../../src/cli/commands/adaptation.js");
     const c = captureConsole();
     const exit = mockExit();
 
     await expect(handleAdaptationCommand(["apply", "prop-gate-approved"]))
-      .rejects.toThrow(/deferred to P8\.9\/P9/);
+      .rejects.toThrow("process.exit(1)");
+
+    const errText = c.err();
+    expect(errText).toContain("deferred to P8.9/P9");
 
     exit.spy.mockRestore();
     c.restore();
@@ -174,7 +177,7 @@ describe("P8.8 release gate — no-mutation boundary", () => {
     expect(reloaded).not.toBeNull();
     expect(reloaded!.appliedAt).toBeUndefined();
     expect(reloaded!.status).not.toBe("applied");
-    // Status is still "approved" — selectApplier threw before the gate could
+    // Status is still "approved" — readiness gate correctly blocks the apply
     // mark it failed. That's fine: what matters is appliedAt is undefined and
     // no calibration file exists.
 
