@@ -22,7 +22,7 @@ Turn `needs_specification` proposals into concrete applyable child proposals via
 ## Architecture
 
 ```
-alix executive remediate <proposalId> [--action <type> --target <id> --reason <text> --payload <file> --json]
+alix executive remediate <proposalId> [--action <type> --target <id> --reason <text> --payload <file> --json --dry-run]
          │
          ▼
   handleRemediateCommand(args)
@@ -31,17 +31,19 @@ alix executive remediate <proposalId> [--action <type> --target <id> --reason <t
          ├─ guard: validateRemediationParent(parent)
          │     (approved + needs_specification + executive_bridge)
          │
+         ├─ --dry-run?                        ───→ print preview, exit
+         │
          ├─ interactive (no flags) ─── non-interactive (flags present)
          │     │                             │
          │     ▼                             ▼
          │  runRemediateWizard()      parse flags directly
-         │  prompt: action type       (--action required)
-         │  prompt: target ID         (--target required)
-         │  prompt: reason            (--reason required)
+         │  (remediator.promptSpec.)   (--action required)
+         │                             (--target required)
+         │                             (--reason required)
          │     │                             │
          │     └─────────┬───────────────────┘
          │               ▼
-         │    buildRemediationChildDraft(parent, spec)
+         │    buildRemediationChildDraft(parent, spec, context)
          │               │  (pure — no I/O, no ids, no timestamps)
          │               ▼
          │    assign id (nextProposalId)
@@ -79,6 +81,12 @@ interface RemediationSpec {
   additionalPayload?: Record<string, unknown>;
 }
 
+interface RemediationContext {
+  actor: string;
+  timestamp?: string;
+  mode: "interactive" | "noninteractive";
+}
+
 interface ChildProposalDraft {
   action: ProposalAction;
   target: ProposalTarget;
@@ -89,10 +97,19 @@ interface ChildProposalDraft {
 }
 ```
 
-## Section 2: Provider Interface & Implementation
+## Section 2: Provider Interface & Registry
 
 ```typescript
 interface ProposalRemediator {
+  /** Unique identifier for this remediator. */
+  readonly id: string;
+
+  /** Human-readable description. */
+  readonly description: string;
+
+  /** Proposal source types this remediator supports. */
+  readonly supportedSources: string[];
+
   /** Whether this remediator handles the given proposal. */
   supports(proposal: AdaptationProposal): boolean;
 
@@ -104,7 +121,32 @@ interface ProposalRemediator {
   buildDraft(
     parent: AdaptationProposal,
     specification: RemediationSpec,
+    context: RemediationContext,
   ): ChildProposalDraft;
+
+  /**
+   * Optional interactive specification prompts for this remediator.
+   * Returns a RemediationSpec, or null if cancelled.
+   */
+  promptSpecification?(parent: AdaptationProposal): Promise<RemediationSpec | null>;
+}
+```
+
+Registry:
+
+```typescript
+const REMEDIATORS: ProposalRemediator[] = [
+  new ExecutiveBridgeRemediator(),
+];
+```
+
+Lookup:
+
+```typescript
+const remediator = REMEDIATORS.find(r => r.supports(parent));
+if (!remediator) {
+  // "No remediator supports proposal <id>"
+  return;
 }
 ```
 
@@ -112,11 +154,22 @@ P10.9.2b registers exactly one implementation:
 
 ```typescript
 class ExecutiveBridgeRemediator implements ProposalRemediator {
+  id = "executive-bridge";
+  description = "Remediate executive bridge recommendations";
+  supportedSources = ["executive_bridge"];
+
   supports(proposal: AdaptationProposal): boolean {
     return isExecutiveBridgeProposal(proposal);
   }
 
-  buildDraft(parent: AdaptationProposal, spec: RemediationSpec): ChildProposalDraft;
+  buildDraft(parent: AdaptationProposal, spec: RemediationSpec, context: RemediationContext): ChildProposalDraft;
+
+  async promptSpecification(parent: AdaptationProposal): Promise<RemediationSpec | null> {
+    // "What kind of remediation?" (1-4)
+    // "Target ID:"
+    // "Reason:"
+    // Returns null if cancelled (Ctrl+C or "n" at confirm)
+  }
 }
 ```
 
@@ -140,33 +193,59 @@ function validateRemediationParent(
 }
 ```
 
+### `mergeLineagePayload`
+
+Reusable helper, unit-tested once, used by all future providers:
+
+```typescript
+function mergeLineagePayload(
+  additional: Record<string, unknown> | undefined,
+  lineage: Record<string, unknown>,
+): Record<string, unknown> {
+  // additional first, lineage second (lineage always wins)
+  return { ...(additional ?? {}), ...lineage };
+}
+```
+
 ### `buildRemediationChildDraft`
 
 ```typescript
 function buildRemediationChildDraft(
   parent: AdaptationProposal,
   spec: RemediationSpec,
+  context: RemediationContext,
 ): ChildProposalDraft {
   const actionSpec = REMEDIATION_ACTIONS[spec.actionName];
 
   // Build lineage payload — these fields are immutable,
   // copied from parent, never overridable by --payload
+  const parentPayload = parent.payload as Record<string, unknown>;
   const lineagePayload = {
+    // Core lineage
     parentProposalId: parent.id,
     parentAction: parent.action,
     parentTarget: parent.target,
     source: "executive_remediate",
-    planId: (parent.payload as Record<string, unknown>)?.planId ?? undefined,
-    stepId: (parent.payload as Record<string, unknown>)?.stepId ?? undefined,
-    objectiveId: (parent.payload as Record<string, unknown>)?.objectiveId ?? undefined,
-    subsystem: (parent.payload as Record<string, unknown>)?.subsystem ?? undefined,
+
+    // "Why" lineage — self-describing audit
+    derivedFrom: "executive_remediation",
+    remediationType: spec.actionName,
+    remediationReason: spec.reason,
+
+    // Inherited plan context
+    planId: parentPayload?.planId ?? undefined,
+    stepId: parentPayload?.stepId ?? undefined,
+    objectiveId: parentPayload?.objectiveId ?? undefined,
+    subsystem: parentPayload?.subsystem ?? undefined,
+
+    // Preserved recommendation metadata
+    recommendationId: parentPayload?.recommendationId ?? undefined,
+    evaluationId: parentPayload?.evaluationId ?? undefined,
+    reflectionId: parentPayload?.reflectionId ?? undefined,
   };
 
   // Merge: additionalPayload first, lineagePayload second (lineage wins)
-  const mergedPayload = {
-    ...(spec.additionalPayload ?? {}),
-    ...lineagePayload,
-  };
+  const mergedPayload = mergeLineagePayload(spec.additionalPayload, lineagePayload);
 
   return {
     action: actionSpec.action,
@@ -211,16 +290,31 @@ alix executive remediate <proposalId> [flags]
 | `--target` | Prompted | Required | Target ID string |
 | `--reason` | Prompted | Required | Human-readable reason |
 | `--payload` | N/A | Optional | Path to JSON file merged into child payload |
+| `--dry-run` | Previews | Previews | Show child draft without saving |
 | `--json` | ❌ (errors only) | Optional | Structured JSON output |
+
+`--json` implies non-interactive: if required flags are missing, returns a structured error JSON and exits (no prompts). `--dry-run` never writes to the proposal store.
 
 ### Interactive wizard (terminal output)
 
 ```
 $ alix executive remediate prop-007
 
-Inspecting prop-007 (executive_remediation | approved | needs_specification)...
+Parent proposal
+───────────────────────────────────────
+  ID:            prop-007
+  Status:        approved
+  Readiness:     needs_specification
+  Source:        executive_bridge
 
-Context: plan p10_exec, recommendation "increase maxIterations"
+  Subsystem:     workflow
+  Plan:          p10_exec
+  Objective:     obj-3
+  Step:          create_remediation
+  Risk:          high
+
+  Recommendation:
+    Increase planner maxIterations from 5 to 10
 
 What kind of remediation?
   1) governance change   → creates: governance_change proposal
@@ -233,9 +327,11 @@ Target ID: skill-agent-planner
 Reason: increase maxIterations from 5 to 10
 
 ── Summary ──
-  Action:  update_skill
-  Target:  skill-agent-planner
-  Reason:  increase maxIterations from 5 to 10
+  Action:        update_skill
+  Target:        skill-agent-planner
+  Reason:        increase maxIterations from 5 to 10
+  Parent:        prop-007
+  Remediation:   skill
 
 Proceed? [Y/n] y
 
@@ -254,6 +350,42 @@ alix executive remediate prop-007 \
   --reason "increase maxIterations from 5 to 10"
 ```
 
+### Dry-run path
+
+```bash
+alix executive remediate prop-007 \
+  --action skill \
+  --target planner \
+  --reason "Increase iterations" \
+  --dry-run
+```
+
+Output:
+
+```
+Child proposal
+───────────────────────────────────────
+  Action:        update_skill
+  Target:        planner
+  Payload:       { parentProposalId: "prop-007", ... }
+  Status:        pending
+  Readiness:     needs_approval
+
+Nothing written.
+```
+
+### Cancellation
+
+```
+Proceed? [Y/n] n
+
+Cancelled.
+
+No proposal created.
+```
+
+`Ctrl+C` also produces `"Cancelled."` with exit code 0. Tested.
+
 ### JSON output (`--json`)
 
 ```json
@@ -266,12 +398,26 @@ alix executive remediate prop-007 \
 }
 ```
 
+Dry-run JSON:
+
+```json
+{
+  "ok": true,
+  "dryRun": true,
+  "parentProposalId": "prop-007",
+  "childAction": "update_skill",
+  "childTarget": { "kind": "skill", "id": "planner" },
+  "childReadiness": "needs_approval"
+}
+```
+
 ### Error cases
 
 | Condition | Output |
 |-----------|--------|
 | Proposal not found | `"Proposal not found: <id>"` |
 | Not remediable | `"Proposal <id> is not eligible for remediation (requires: status=approved, readiness=needs_specification, source=executive_bridge)"` |
+| No remediator supports | `"No remediator supports proposal <id>"` |
 | `--action` missing (flag mode) | `"--action is required. Supported: governance, agent_card, skill, issue"` |
 | Unknown `--action` | `"Invalid action: <x>. Supported: governance, agent_card, skill, issue"` |
 | `--target` missing (flag mode) | `"--target is required"` |
@@ -293,14 +439,20 @@ The following fields are copied from the parent and MUST NOT be modified by the 
 parentProposalId
 parentAction
 parentTarget
-source = "executive_remediate"
+source
+derivedFrom
+remediationType
+remediationReason
 planId
 objectiveId
 stepId
 subsystem
+recommendationId
+evaluationId
+reflectionId
 ```
 
-Enforced by merge order: `additionalPayload` first, lineage payload second (lineage wins).
+Enforced by `mergeLineagePayload`: `additionalPayload` first, lineage payload second (lineage always wins).
 
 ### R3 — One-way lifecycle
 
@@ -318,7 +470,7 @@ True until P10.9.2c introduces orchestration.
 
 ### R4 — Pure builder contract
 
-`buildRemediationChildDraft(parent, spec)`:
+`buildRemediationChildDraft(parent, spec, context)`:
 - Never reads the filesystem
 - Never generates ids
 - Never generates timestamps
@@ -331,8 +483,8 @@ True until P10.9.2c introduces orchestration.
 The handler owns every side effect:
 
 ```
-load proposal → validate → collect specification → build draft
-→ assign id → assign timestamps → save → print
+load proposal → validate → find remediator → collect specification
+→ build draft → assign id → assign timestamps → save → print
 ```
 
 No side effects in the pure layer.
@@ -341,7 +493,7 @@ No side effects in the pure layer.
 
 | File | Action | Purpose |
 |------|--------|---------|
-| `src/executive/executive-remediate.ts` | **Create** | Pure types, constants, `ProposalRemediator` interface, `ExecutiveBridgeRemediator`, `validateRemediationParent`, `buildRemediationChildDraft` |
+| `src/executive/executive-remediate.ts` | **Create** | Pure types, constants, `ProposalRemediator` interface + registry, `ExecutiveBridgeRemediator`, `validateRemediationParent`, `mergeLineagePayload`, `buildRemediationChildDraft` |
 | `tests/executive/executive-remediate.vitest.ts` | **Create** | Unit tests for pure functions |
 | `src/cli/commands/executive-remediate-handler.ts` | **Create** | `handleRemediateCommand`, `runRemediateWizard` |
 | `tests/cli/commands/executive-remediate-cli.vitest.ts` | **Create** | CLI integration tests |
@@ -359,3 +511,6 @@ No side effects in the pure layer.
 - ✅ Full test suite green
 - ✅ Executive purity sentinel green
 - ✅ 100% unit coverage of pure builder and validation functions
+- ✅ `--dry-run` never writes to the proposal store
+- ✅ Interactive cancellation never creates a child proposal
+- ✅ Multiple remediation providers can coexist without modifying `handleRemediateCommand()`
