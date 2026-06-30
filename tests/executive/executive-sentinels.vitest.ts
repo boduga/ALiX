@@ -88,6 +88,10 @@ const EXECUTIVE_FILES = [
   "src/executive/executive-snapshot-store.ts",
   "src/executive/executive-snapshot-provider.ts",
   "src/executive/executive-observation-provider.ts",
+  // P10.9.2b files
+  "src/executive/executive-remediate.ts",
+  "src/cli/commands/executive-remediate-handler.ts",
+  // Future: providers may be discovered dynamically
 ];
 
 // ---------------------------------------------------------------------------
