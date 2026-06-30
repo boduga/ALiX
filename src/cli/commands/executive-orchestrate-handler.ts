@@ -64,10 +64,12 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
   // 3. Set up executive stores (state store needed for BOTH dry-run and effectful path)
   const execDir = join(cwd, ".alix", "executive");
 
+  // Execution state files are stored as <planId>-state.json inside the
+  // plans directory (canonical pattern: ExecutionStateStore(join(execDir, "plans"))).
   let stateStore: ExecutionStateStore | undefined;
-  if (existsSync(join(execDir, "states"))) {
+  if (existsSync(join(execDir, "plans"))) {
     const { ExecutionStateStore: ESS } = await import("../../executive/execution-state-store.js");
-    stateStore = new ESS(join(execDir, "states"));
+    stateStore = new ESS(join(execDir, "plans"));
   }
 
   // Effectful stores only needed for non-dry-run
@@ -75,7 +77,7 @@ export async function handleOrchestrateCommand(args: string[]): Promise<void> {
   let writer: EvidenceEventWriter | undefined;
   if (!dryRun) {
     if (!stateStore) {
-      console.error("Executive state store not found at " + join(execDir, "states"));
+      console.error("Executive state store not found at " + join(execDir, "plans"));
       process.exit(1);
     }
     const { PlanStore } = await import("../../executive/plan-store.js");

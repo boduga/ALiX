@@ -420,12 +420,21 @@ async function runApply(
 
   try {
     const updated = await gate.apply(id, applier);
-    // ★ NEW: fire orchestration hook (best-effort, never blocks apply)
+    // Fire orchestration hook on success (applied)
     if (orchestrator) {
       orchestrator.onProposalTerminal(updated).catch(() => {});
     }
     console.log(`Applied: ${updated.id} → ${updated.action} (${describeTarget(updated)})`);
   } catch (err) {
+    // Fire orchestration hook on failure too — gate.apply() sets status
+    // to "failed" before re-throwing. Best-effort: if reload fails,
+    // the recovery CLI covers missed events.
+    if (orchestrator && proposal) {
+      try {
+        const failed = await store.load(id);
+        if (failed) orchestrator.onProposalTerminal(failed).catch(() => {});
+      } catch { /* non-blocking — recovery CLI covers this */ }
+    }
     console.error(err instanceof Error ? err.message : String(err));
     process.exit(1);
   }

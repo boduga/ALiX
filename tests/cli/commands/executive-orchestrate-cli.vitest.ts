@@ -189,8 +189,10 @@ let tempRoot: string;
 
 beforeEach(() => {
   tempRoot = mkdtempSync(join(tmpdir(), "p10-9-2c-t3-"));
-  // Create the .alix/executive/states dir so the handler constructs stateStore
-  mkdirSync(join(tempRoot, ".alix", "executive", "states"), { recursive: true });
+  // Create the .alix/executive/plans dir so the handler constructs stateStore
+  // (ExecutionStateStore uses the plans directory — state files are stored
+  // as <planId>-state.json alongside plan files)
+  mkdirSync(join(tempRoot, ".alix", "executive", "plans"), { recursive: true });
 
   // Re-initialize mocks per test
   mockList = vi.fn();
