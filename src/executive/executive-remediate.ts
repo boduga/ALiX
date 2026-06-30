@@ -43,27 +43,43 @@ export interface RemediationContext {
 }
 
 /**
- * Structured error codes for parent proposal validation.
- * Maps to human-readable messages via validateRemediationParent.
+ * Structured error codes for validation.
+ *
+ * Used across validateRemediationParent, validatePayload, and
+ * validateSpecification to identify the specific validation failure.
  */
 export type ValidationErrorCode =
   | "NOT_FOUND"
   | "NOT_APPROVED"
   | "NOT_EXECUTIVE"
-  | "WRONG_READINESS";
+  | "WRONG_READINESS"
+  | "RESERVED_KEY"
+  | "UNSUPPORTED_ACTION"
+  | "MISSING_TARGET"
+  | "SHORT_REASON";
+
+/**
+ * Structured error detail attached to a failed validation.
+ */
+export interface ValidationIssue {
+  code: ValidationErrorCode;
+  message: string;
+  field?: string;
+}
 
 /**
  * Result of a validation check.
  *
- * Pattern used by validateRemediationParent:
+ * Pattern:
  *   { valid: true }
- *   { valid: false, code: "...", message: "..." }
+ *   { valid: false, issue: { code: "...", message: "..." } }
+ *
+ * After narrowing via `result.valid`, the `issue` property is
+ * available on the false branch.
  */
-export interface ValidationResult {
-  valid: boolean;
-  code?: ValidationErrorCode;
-  message?: string;
-}
+export type ValidationResult =
+  | { valid: true }
+  | { valid: false; issue: ValidationIssue };
 
 /**
  * Pure proposal draft produced by buildRemediationChildDraft.
@@ -312,30 +328,35 @@ export function validateRemediationParent(
   if (!proposal) {
     return {
       valid: false,
-      code: "NOT_FOUND",
-      message: "Proposal not found",
+      issue: { code: "NOT_FOUND", message: "Proposal not found" },
     };
   }
   if (proposal.status !== "approved") {
     return {
       valid: false,
-      code: "NOT_APPROVED",
-      message: `Proposal status is "${proposal.status}", expected "approved"`,
+      issue: {
+        code: "NOT_APPROVED",
+        message: `Proposal status is "${proposal.status}", expected "approved"`,
+      },
     };
   }
   if (!isExecutiveBridgeProposal(proposal)) {
     return {
       valid: false,
-      code: "NOT_EXECUTIVE",
-      message: "Proposal is not an executive bridge proposal",
+      issue: {
+        code: "NOT_EXECUTIVE",
+        message: "Proposal is not an executive bridge proposal",
+      },
     };
   }
   const readiness = computeProposalReadiness(proposal).readiness;
   if (readiness !== "needs_specification") {
     return {
       valid: false,
-      code: "WRONG_READINESS",
-      message: `Proposal readiness is "${readiness}", expected "needs_specification"`,
+      issue: {
+        code: "WRONG_READINESS",
+        message: `Proposal readiness is "${readiness}", expected "needs_specification"`,
+      },
     };
   }
   return { valid: true };
@@ -343,17 +364,24 @@ export function validateRemediationParent(
 
 /**
  * Validate that a payload does not contain reserved lineage keys.
- * Returns an error string if a reserved key is found, or null if valid.
+ * Returns ValidationResult — structured success or failure with issue.
  */
 export function validatePayload(
   payload: Record<string, unknown>,
-): string | null {
+): ValidationResult {
   for (const key of Object.keys(payload)) {
     if (RESERVED_PAYLOAD_KEYS.has(key)) {
-      return `"${key}" is a reserved lineage field and cannot be set via --payload`;
+      return {
+        valid: false,
+        issue: {
+          code: "RESERVED_KEY",
+          message: `"${key}" is a reserved lineage field and cannot be set via --payload`,
+          field: key,
+        },
+      };
     }
   }
-  return null;
+  return { valid: true };
 }
 
 /**
@@ -364,23 +392,41 @@ export function validatePayload(
  * 2. targetId is non-empty
  * 3. reason is at least 10 characters
  *
- * Returns an error string, or null if valid.
+ * Returns ValidationResult — structured success or failure with issue.
  */
 export function validateSpecification(
   spec: RemediationSpec,
   provider: RemediationProvider,
-): string | null {
+): ValidationResult {
   const actions = provider.supportedActions();
   if (!actions.some((a) => a.action === spec.actionName)) {
-    return `Action "${spec.actionName}" is not supported by provider "${provider.id}"`;
+    return {
+      valid: false,
+      issue: {
+        code: "UNSUPPORTED_ACTION",
+        message: `Action "${spec.actionName}" is not supported by provider "${provider.id}"`,
+      },
+    };
   }
   if (!spec.targetId || spec.targetId.trim().length === 0) {
-    return "targetId is required";
+    return {
+      valid: false,
+      issue: {
+        code: "MISSING_TARGET",
+        message: "targetId is required",
+      },
+    };
   }
   if (!spec.reason || spec.reason.trim().length < 10) {
-    return "reason is required and must be at least 10 characters";
+    return {
+      valid: false,
+      issue: {
+        code: "SHORT_REASON",
+        message: "reason is required and must be at least 10 characters",
+      },
+    };
   }
-  return null;
+  return { valid: true };
 }
 
 /**

@@ -97,8 +97,8 @@ describe("validateRemediationParent", () => {
     const result = validateRemediationParent(undefined);
     expect(result.valid).toBe(false);
     if (!result.valid) {
-      expect(result.code).toBe("NOT_FOUND");
-      expect(result.message).toContain("not found");
+      expect(result.issue.code).toBe("NOT_FOUND");
+      expect(result.issue.message).toContain("not found");
     }
   });
 
@@ -107,8 +107,8 @@ describe("validateRemediationParent", () => {
     const result = validateRemediationParent(parent);
     expect(result.valid).toBe(false);
     if (!result.valid) {
-      expect(result.code).toBe("NOT_APPROVED");
-      expect(result.message).toContain("pending");
+      expect(result.issue.code).toBe("NOT_APPROVED");
+      expect(result.issue.message).toContain("pending");
     }
   });
 
@@ -120,7 +120,7 @@ describe("validateRemediationParent", () => {
     const result = validateRemediationParent(parent);
     expect(result.valid).toBe(false);
     if (!result.valid) {
-      expect(result.code).toBe("NOT_EXECUTIVE");
+      expect(result.issue.code).toBe("NOT_EXECUTIVE");
     }
   });
 
@@ -132,7 +132,7 @@ describe("validateRemediationParent", () => {
     const result = validateRemediationParent(parent);
     expect(result.valid).toBe(false);
     if (!result.valid) {
-      expect(result.code).toBe("WRONG_READINESS");
+      expect(result.issue.code).toBe("WRONG_READINESS");
     }
   });
 
@@ -152,29 +152,38 @@ describe("validateSpecification", () => {
 
   it("rejects unsupported action", () => {
     const spec = makeSpec({ actionName: "invalid_action" });
-    const err = validateSpecification(spec, provider);
-    expect(err).not.toBeNull();
-    expect(err).toContain("not supported");
+    const result = validateSpecification(spec, provider);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.issue.code).toBe("UNSUPPORTED_ACTION");
+      expect(result.issue.message).toContain("not supported");
+    }
   });
 
   it("rejects empty targetId", () => {
     const spec = makeSpec({ targetId: "" });
-    const err = validateSpecification(spec, provider);
-    expect(err).not.toBeNull();
-    expect(err).toContain("targetId");
+    const result = validateSpecification(spec, provider);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.issue.code).toBe("MISSING_TARGET");
+      expect(result.issue.message).toContain("targetId");
+    }
   });
 
   it("rejects short reason (< 10 chars)", () => {
     const spec = makeSpec({ reason: "Short" });
-    const err = validateSpecification(spec, provider);
-    expect(err).not.toBeNull();
-    expect(err).toContain("reason");
+    const result = validateSpecification(spec, provider);
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.issue.code).toBe("SHORT_REASON");
+      expect(result.issue.message).toContain("reason");
+    }
   });
 
-  it("returns null for a valid specification", () => {
+  it("accepts a valid specification", () => {
     const spec = makeSpec();
-    const err = validateSpecification(spec, provider);
-    expect(err).toBeNull();
+    const result = validateSpecification(spec, provider);
+    expect(result.valid).toBe(true);
   });
 });
 
@@ -184,26 +193,33 @@ describe("validateSpecification", () => {
 
 describe("validatePayload", () => {
   it("rejects reserved lineage key", () => {
-    const err = validatePayload({ parentProposalId: "evil" });
-    expect(err).toBe(
-      '"parentProposalId" is a reserved lineage field and cannot be set via --payload',
-    );
+    const result = validatePayload({ parentProposalId: "evil" });
+    expect(result.valid).toBe(false);
+    if (!result.valid) {
+      expect(result.issue.code).toBe("RESERVED_KEY");
+      expect(result.issue.field).toBe("parentProposalId");
+      expect(result.issue.message).toContain("parentProposalId");
+    }
   });
 
   it("accepts empty payload", () => {
-    const err = validatePayload({});
-    expect(err).toBeNull();
+    const result = validatePayload({});
+    expect(result.valid).toBe(true);
   });
 
   it("accepts unknown keys", () => {
-    const err = validatePayload({ extraField: "some-value", count: 42 });
-    expect(err).toBeNull();
+    const result = validatePayload({ extraField: "some-value", count: 42 });
+    expect(result.valid).toBe(true);
   });
 
   it("rejects all reserved keys", () => {
     for (const key of RESERVED_PAYLOAD_KEYS) {
-      const err = validatePayload({ [key]: "test" });
-      expect(err).toContain(key);
+      const result = validatePayload({ [key]: "test" });
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.issue.code).toBe("RESERVED_KEY");
+        expect(result.issue.field).toBe(key);
+      }
     }
   });
 });
