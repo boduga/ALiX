@@ -697,6 +697,17 @@ export class EvidenceEventWriter {
     return this.appendEvent("executive_step_applied_remediation", { ...payload });
   }
 
+  async recordExecutiveStepOrchestrated(payload: {
+    planId: string;
+    stepId: string;
+    parentProposalId: string;
+    childProposalId: string;
+    childStatus: string;
+    newStepStatus: string;
+  }): Promise<EvidenceRecord | null> {
+    return this.appendEvent("executive_step_orchestrated", { ...payload });
+  }
+
   // -----------------------------------------------------------------------
   // Generic / internal
   // -----------------------------------------------------------------------

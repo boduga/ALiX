@@ -144,9 +144,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleSubsystemCorrelationCommand(rest);
     }
 
+    case "orchestrate": {
+      const { handleOrchestrateCommand } = await import(
+        "./executive-orchestrate-handler.js"
+      );
+      return handleOrchestrateCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, remediate, subsystem-correlation");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate");
       process.exit(1);
   }
 }
