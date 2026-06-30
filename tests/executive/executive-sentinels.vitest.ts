@@ -91,6 +91,9 @@ const EXECUTIVE_FILES = [
   // P10.9.2b files
   "src/executive/executive-remediate.ts",
   "src/cli/commands/executive-remediate-handler.ts",
+  // P10.9.2c files
+  "src/executive/executive-orchestrator.ts",
+  "src/cli/commands/executive-orchestrate-handler.ts",
   // Future: providers may be discovered dynamically
 ];
 
@@ -185,6 +188,15 @@ describe("P10 executive purity sentinel", () => {
             // call randomUUID (constitutional invariant: only ExecutionEngine
             // generates executionId).
             if (file === "src/executive/execution-engine.ts" &&
+                forbidden === "randomUUID") {
+              continue;
+            }
+
+            // Scoped exception: executive-orchestrator.ts uses randomUUID
+            // for orchestration-sequence IDs ("orchestration-" prefix), which
+            // are audit-trail correlation keys, not engine-internal executionIds.
+            // Constitutional invariant applies to engine-internal execution flows.
+            if (file === "src/executive/executive-orchestrator.ts" &&
                 forbidden === "randomUUID") {
               continue;
             }
