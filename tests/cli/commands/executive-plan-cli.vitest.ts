@@ -83,15 +83,28 @@ describe("executive plan CLI dispatcher", () => {
     c.restore();
   });
 
-  it("plan save with window arg", async () => {
-    // save handler will fail because there is no .alix dir on disk, but the
+  it("plan create with window arg", async () => {
+    // create handler may fail because there is no .alix dir on disk, but the
     // error message must NOT be a routing error.
     try {
-      await handleExecutiveCommand(["plan", "save", "7"]);
+      await handleExecutiveCommand(["plan", "create", "7"]);
     } catch (e: any) {
       expect(e.message).not.toContain("Unknown plan subcommand");
       expect(e.message).not.toContain("Unknown executive subcommand");
     }
+  });
+
+  it("rejects legacy plan save subcommand", async () => {
+    const exit = mockExit();
+    const c = captureConsole();
+
+    await expect(handleExecutiveCommand(["plan", "save", "7"]))
+      .rejects.toThrow("process.exit(1)");
+    expect(c.err().join("")).toContain("Unknown plan subcommand: save");
+    expect(c.err().join("")).toContain("Available: create, list, show, approve, reject, start, run, step, resume");
+
+    exit.restore();
+    c.restore();
   });
 
   it("plan list on empty dir", async () => {
