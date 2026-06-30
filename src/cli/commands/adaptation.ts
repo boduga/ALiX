@@ -65,6 +65,12 @@ import { CapabilityEvolutionReporter } from "../../adaptation/capability-evoluti
 import type { CapabilityEvolutionReport } from "../../adaptation/capability-evolution-types.js";
 import { LineageBuilder } from "../../adaptation/lineage-builder.js";
 import { computeProposalReadiness } from "../../adaptation/proposal-readiness.js";
+import { ExecutiveOrchestrator } from "../../executive/executive-orchestrator.js";
+import type { OrchestrationHook } from "../../executive/executive-orchestrator.js";
+import { ExecutionStateStore } from "../../executive/execution-state-store.js";
+import { ExecutionEngine } from "../../executive/execution-engine.js";
+import { PlanStore } from "../../executive/plan-store.js";
+import { StepRunner } from "../../executive/step-runner.js";
 
 // ---------------------------------------------------------------------------
 // Constants — .alix path conventions (mirror the appliers' docstrings)
@@ -108,6 +114,17 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
   const writer = new EvidenceEventWriter((type, payload) => evidenceStore.append(type, payload));
   const gate = new ApprovalGate(store, writer);
 
+  // ★ NEW: Construct ExecutiveOrchestrator if executive data exists
+  const plansDir = join(cwd, ".alix", "executive", "plans");
+  let orchestrator: OrchestrationHook | undefined;
+  if (existsSync(plansDir)) {
+    const planStore = new PlanStore(plansDir);
+    const stateStore = new ExecutionStateStore(plansDir);
+    const runner = new StepRunner(writer);
+    const engine = new ExecutionEngine(planStore, stateStore, runner, writer);
+    orchestrator = new ExecutiveOrchestrator(stateStore, engine, writer);
+  }
+
   switch (subcommand) {
     case "list":
       await runList(store, rest);
@@ -125,7 +142,7 @@ export async function handleAdaptationCommand(args: string[]): Promise<void> {
       await runReject(gate, rest);
       return;
     case "apply":
-      await runApply(cwd, store, gate, writer, rest);
+      await runApply(cwd, store, gate, writer, rest, orchestrator);
       return;
     case "effectiveness":
       await runEffectiveness(cwd, store, evidenceStore, rest);
@@ -346,6 +363,7 @@ async function runApply(
   gate: ApprovalGate,
   writer: EvidenceEventWriter,
   args: string[],
+  orchestrator?: OrchestrationHook, // ★ NEW
 ): Promise<void> {
   const id = args[0];
   if (!id) {
@@ -402,6 +420,10 @@ async function runApply(
 
   try {
     const updated = await gate.apply(id, applier);
+    // ★ NEW: fire orchestration hook (best-effort, never blocks apply)
+    if (orchestrator) {
+      orchestrator.onProposalTerminal(updated).catch(() => {});
+    }
     console.log(`Applied: ${updated.id} → ${updated.action} (${describeTarget(updated)})`);
   } catch (err) {
     console.error(err instanceof Error ? err.message : String(err));
