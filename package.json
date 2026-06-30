@@ -30,9 +30,9 @@
     "package.json"
   ],
   "scripts": {
-    "copy:profiles": "shx mkdir -p dist/src/config/profiles && shx cp src/config/profiles/*.json dist/src/config/profiles/",
+    "copy:profiles": "mkdir -p dist/src/config/profiles && cp src/config/profiles/*.json dist/src/config/profiles/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json && npm run copy:profiles && shx mkdir -p dist/src/ui dist/src/db/migrations && shx cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && shx cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
+    "build": "tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
     "test": "npm run test:node && npm run test:vitest",
     "test:node": "node --test --test-timeout=30000 dist/tests/*.test.js dist/tests/**/*.test.js",
     "test:unit:node": "echo \"[legacy] node:test suite removed from CI — use npm run test:vitest\"",
@@ -64,7 +64,6 @@
     "@types/node": "24.0.0",
     "c8": "11.0.0",
     "minimatch": "10.2.5",
-    "shx": "0.4.0",
     "typescript": "5.9.3",
     "vitest": "4.1.6"
   },
