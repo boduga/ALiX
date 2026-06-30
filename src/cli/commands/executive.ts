@@ -3,7 +3,7 @@
  *
  * Top-level entry point for `alix executive ...`. Supports `dashboard` and
  * `plan` subcommands. The `plan` subcommand (P10.4a) provides:
- *   save, list, show, approve, reject, start, run, step, resume
+ *   create, list, show, approve, reject, start, run, step, resume
  *
  * Factory functions construct PlanStore, ExecutionStateStore, StepRunner,
  * ExecutionEngine, and PlanApprovalGate on demand. EvidenceEventWriter is
@@ -28,7 +28,7 @@ import { EvidenceEventWriter } from "../../workflow/evidence-writer.js";
 import { ProposalStore } from "../../adaptation/proposal-store.js";
 import { buildExecutionPlan } from "../../executive/planning-engine.js";
 
-// Dashboard pipeline imports for plan save
+// Dashboard pipeline imports for plan create
 import { buildExecutiveHealthReport } from "../../executive/executive-health.js";
 import { buildPriorityReport } from "../../executive/priority-engine.js";
 import { buildObjectiveReport } from "../../executive/objective-engine.js";
@@ -165,8 +165,8 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
 async function handlePlanCommand(args: string[]): Promise<void> {
   const [cmd, ...params] = args;
   switch (cmd) {
-    case "save": {
-      // Persist current dashboard plan
+    case "create": {
+      // Create and persist current dashboard plan
       const windowN = params[0] ? parseInt(params[0], 10) : 7;
       const cwd = process.cwd();
 
@@ -186,7 +186,7 @@ async function handlePlanCommand(args: string[]): Promise<void> {
       const saved = await store.save(plan);
       const stateStore = createStateStore();
       stateStore.init(saved);
-      console.log(`Plan saved: ${saved.id} (${saved.steps.length} steps)`);
+      console.log(`Plan created: ${saved.id} (${saved.steps.length} steps)`);
       break;
     }
 
@@ -319,7 +319,7 @@ async function handlePlanCommand(args: string[]): Promise<void> {
 
     default:
       console.error(`Unknown plan subcommand: ${cmd ?? "(none)"}`);
-      console.error("Available: save, list, show, approve, reject, start, run, step, resume");
+      console.error("Available: create, list, show, approve, reject, start, run, step, resume");
       process.exit(1);
   }
 }
