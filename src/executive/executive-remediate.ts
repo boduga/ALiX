@@ -57,8 +57,7 @@ export type ValidationErrorCode =
   | "UNSUPPORTED_ACTION"
   | "MISSING_TARGET"
   | "SHORT_REASON"
-  | "UNSUPPORTED_GOVERNANCE_KIND"
-  | "MISSING_GOVERNANCE_KIND";
+  | "UNSUPPORTED_GOVERNANCE_KIND";
 
 /**
  * Structured error detail attached to a failed validation.
