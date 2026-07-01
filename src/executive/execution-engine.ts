@@ -411,7 +411,7 @@ export class ExecutionEngine {
   ): Promise<void> {
     const allDone = plan.steps.every(s => {
       const r = state.stepStates[s.id];
-      return r?.status === "completed" || r?.status === "waiting_for_bridge";
+      return r?.status === "completed";
     });
     if (allDone && state.status === "running") {
       const updatedState = this.stateStore.update(

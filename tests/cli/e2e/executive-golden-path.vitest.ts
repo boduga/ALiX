@@ -10,11 +10,6 @@
  *   → remediate (skill) → approve child → apply child
  *   → orchestrate → evaluate → dashboard
  *
- * NOTE: The orchestrate handler requires the plan to be "running", but
- * plans transition to "completed" once all steps reach terminal states
- * (including "waiting_for_bridge"). When steps auto-complete, orchestrate
- * is skipped. This is a known design gap (P10.9.2d lifecycle reference §11).
- *
  * @module
  */
 
@@ -211,15 +206,15 @@ describe("executive golden path E2E", () => {
     child!.status = "applied";
     await proposalStore.save(child! as AdaptationProposal);
 
-    // ——— Orchestrate (only if plan is still running) ———
+    // ——— Orchestrate: reconcile child status → step state ———
+    // Plan should still be running (waiting_for_bridge is not terminal)
     const planStatus = stateStore.load(plan.id)?.status;
-    if (planStatus === "running") {
-      await expect(
-        handleOrchestrateCommand(["--plan", plan.id]),
-      ).resolves.toBeUndefined();
-      expect(logs.some(l => l.includes("reconciled") || l.includes("scanned") || l.includes("matched"))).toBe(true);
-    }
-    // If plan is completed (all steps terminal), orchestrate is skipped — see known gap.
+    expect(planStatus).toBe("running");
+
+    await expect(
+      handleOrchestrateCommand(["--plan", plan.id]),
+    ).resolves.toBeUndefined();
+    expect(logs.some(l => l.includes("reconciled") || l.includes("scanned") || l.includes("matched"))).toBe(true);
 
     // ——— Evaluate ———
     await expect(
