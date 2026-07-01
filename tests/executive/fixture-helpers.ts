@@ -21,7 +21,7 @@ export const DEFAULT_SKILL_DEFINITION: Record<string, unknown> = {
   version: "1.0.0",
   steps: [
     {
-      id: "step-1",
+      step: "step-1",
       name: "Test Step",
       prompt: "execute test step",
     },
