@@ -20,6 +20,7 @@ import {
   validateRemediationParent,
   validateSpecification,
   validatePayload,
+  resolveActionAlias,
 } from "../../executive/executive-remediate.js";
 import type { AdaptationProposal } from "../../adaptation/adaptation-types.js";
 import type {
@@ -106,7 +107,7 @@ export async function handleRemediateCommand(args: string[]): Promise<void> {
   // Collect specification
   let spec: RemediationSpec;
   if (isFlagMode) {
-    const parsed = parseFlagSpec(args, useJson, provider);
+    const parsed = parseFlagSpec(args, useJson, provider, cwd);
     if (!parsed) {
       // Error already printed by parseFlagSpec.
       if (!useJson) process.exit(1);
@@ -214,15 +215,17 @@ function parseFlagSpec(
   args: string[],
   useJson: boolean,
   provider: RemediationProvider,
+  cwd: string,
 ): RemediationSpec | null {
   const actionIdx = args.indexOf("--action");
   const targetIdx = args.indexOf("--target");
   const reasonIdx = args.indexOf("--reason");
 
-  const actionName =
+  const rawActionName =
     actionIdx >= 0 && actionIdx + 1 < args.length
       ? args[actionIdx + 1]
       : undefined;
+  const actionName = rawActionName ? resolveActionAlias(rawActionName) : undefined;
   const targetId =
     targetIdx >= 0 && targetIdx + 1 < args.length
       ? args[targetIdx + 1]
@@ -324,6 +327,25 @@ function parseFlagSpec(
         return null;
       }
       console.error(`${payloadErr.issue.code}: ${payloadErr.issue.message}`);
+      return null;
+    }
+  }
+
+  // Skill preflight (P10.9.2d): fail early if the skill file is missing
+  if (spec.actionName === "adjust_skill_definition") {
+    const skillPath = join(cwd, ".alix", "skills", "workflow", spec.targetId + ".json");
+    if (!existsSync(skillPath)) {
+      if (useJson) {
+        console.log(
+          JSON.stringify({
+            ok: false,
+            error: "SKILL_NOT_FOUND",
+            message: `Skill file not found: ${skillPath}`,
+          }),
+        );
+        return null;
+      }
+      console.error(`SKILL_NOT_FOUND: Skill file not found at ${skillPath}`);
       return null;
     }
   }
