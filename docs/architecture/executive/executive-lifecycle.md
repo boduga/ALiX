@@ -132,7 +132,8 @@ All commands under `alix executive <subcommand>`.
 | draft | approved | `alix executive plan approve` |
 | draft | rejected | `alix executive plan reject` |
 | approved | running | `alix executive plan start` |
-| running | completed | All steps complete |
+| running | completed | **All** steps `completed` (not `waiting_for_bridge`) |
+| running | — | Stays `running` while any step is `waiting_for_bridge` (resumable) |
 | running | failed | Any step terminates with `failed` status |
 | running | blocked | Any step terminates with `blocked` status |
 | blocked | running | `alix executive plan resume` |
@@ -430,6 +431,8 @@ alix executive recommend
 | Governance applier lock | Process-local only | `GovernanceChangeApplier` serialization lock is per-process. Concurrent CLI invocations could race — mitigated by cross-process evidence lock on the evidence store |
 | No golden path regression test | Unresolved | No automated E2E test exercises the full plan→bridge→remediate→apply→orchestrate→evaluate sequence |
 
+> **Updated 2026-07-01 (P10.9.2e):** `waiting_for_bridge` no longer treated as terminal for plan completion. A plan with active bridge steps remains `running` so orchestrate can operate.
+
 ---
 
 ## 12. Quick Reference: File Map
@@ -462,5 +465,5 @@ alix executive recommend
 ---
 
 > **Last updated:** 2026-07-01
-> **Covers:** P10.0 through P10.9.2d
+> **Covers:** P10.0 through P10.9.2e
 > **Next expected:** P11
