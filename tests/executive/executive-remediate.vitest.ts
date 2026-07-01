@@ -291,13 +291,16 @@ describe("buildRemediationChildDraft", () => {
     expect(draft.target.kind).toBe("skill");
   });
 
-  it("builds a create_issue draft", () => {
+  it("builds a create_issue draft with correct target shape", () => {
     const parent = makeParent();
-    const spec = makeSpec({ actionName: "create_improvement_issue" });
+    const spec = makeSpec({ actionName: "create_improvement_issue", targetId: "Fix workflow remediation gap" });
     const ctx = makeContext();
     const draft = buildRemediationChildDraft(parent, spec, ctx);
     expect(draft.action).toBe("create_improvement_issue");
     expect(draft.target.kind).toBe("issue");
+    // Issue targets use `title`, not `id` — regression guard for describeTarget display
+    expect((draft.target as Record<string, unknown>).title).toBe("Fix workflow remediation gap");
+    expect((draft.target as Record<string, unknown>).id).toBeUndefined();
   });
 
   it("includes lineage fields in payload", () => {

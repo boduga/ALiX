@@ -445,6 +445,26 @@ export function mergeLineagePayload(
 }
 
 /**
+ * Build a ProposalTarget from a target kind and spec targetId.
+ *
+ * Each target kind uses its own field name:
+ * - `issue` → `{ kind: "issue", title: spec.targetId }`
+ * - All others → `{ kind, id: spec.targetId }`
+ *
+ * Pure — deterministic, no I/O.
+ */
+export function buildTarget(
+  kind: ProposalTarget["kind"],
+  targetId: string,
+): ProposalTarget {
+  if (kind === "issue") {
+    return { kind: "issue", title: targetId } as ProposalTarget;
+  }
+  // governance, agent_card, skill, etc. all use `id`
+  return { kind, id: targetId } as unknown as ProposalTarget;
+}
+
+/**
  * Build a child proposal draft from a parent proposal, specification, and context.
  *
  * Pure builder — deterministic, no I/O, no ids, no timestamps.
@@ -511,13 +531,9 @@ export function buildRemediationChildDraft(
     lineagePayload,
   );
 
-  // Build target — cast through unknown since ProposalTarget is a
-  // discriminated union and the runtime shape ({ kind, id }) is valid
-  // for all supported target kinds (skill, governance, agent_card, issue).
-  const target = {
-    kind: actionSpec.targetKind,
-    id: spec.targetId,
-  } as unknown as ProposalTarget;
+  // Build target — each target kind uses its own field name.
+  // governance, agent_card, skill use `id`; issue uses `title`.
+  const target = buildTarget(actionSpec.targetKind, spec.targetId);
 
   return {
     action: actionSpec.action,

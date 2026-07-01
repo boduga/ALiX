@@ -9,7 +9,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync } from "node:fs";
+import { mkdirSync, writeFileSync, rmSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -422,5 +422,48 @@ describe("handleRemediateCommand", () => {
           (e.includes("reason") && e.includes("10")),
       ),
     ).toBe(true);
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 8: Issue target uses title, not id (regression guard)
+  // -----------------------------------------------------------------------
+  it("creates child proposal with issue target using title", async () => {
+    writeProposal(
+      proposalsDir,
+      makeProposal({ id: "prop-issue-target" }),
+    );
+
+    const logs: string[] = [];
+    vi.spyOn(console, "log").mockImplementation((msg) => {
+      logs.push(String(msg));
+    });
+    vi.spyOn(process, "exit").mockImplementation(((code: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as any);
+
+    await handleRemediateCommand([
+      "prop-issue-target",
+      "--action",
+      "create_improvement_issue",
+      "--target",
+      "Fix workflow remediation gap",
+      "--reason",
+      "a valid reason for creating a github issue target",
+    ]);
+
+    // Find the saved child proposal file
+    const files = readdirSync(proposalsDir).filter(f => f.endsWith(".json") && f !== "prop-issue-target.json");
+    expect(files.length).toBeGreaterThan(0);
+
+    const childPath = join(proposalsDir, files[0]);
+    const child = JSON.parse(readFileSync(childPath, "utf-8"));
+
+    expect(child.target.kind).toBe("issue");
+    expect(child.target.title).toBe("Fix workflow remediation gap");
+    expect(child.target.id).toBeUndefined();
+
+    // Verify describeTarget output doesn't contain "undefined"
+    const hasUndefined = logs.some(l => l.includes("undefined"));
+    expect(hasUndefined).toBe(false);
   });
 });
