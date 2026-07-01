@@ -56,7 +56,9 @@ export type ValidationErrorCode =
   | "RESERVED_KEY"
   | "UNSUPPORTED_ACTION"
   | "MISSING_TARGET"
-  | "SHORT_REASON";
+  | "SHORT_REASON"
+  | "UNSUPPORTED_GOVERNANCE_KIND"
+  | "MISSING_GOVERNANCE_KIND";
 
 /**
  * Structured error detail attached to a failed validation.
@@ -250,6 +252,29 @@ export class RemediatorRegistry {
 }
 
 // ---------------------------------------------------------------------------
+// Action alias resolution (P10.9.2d — stabilization)
+// ---------------------------------------------------------------------------
+
+/**
+ * Mapping from shorthand aliases to canonical action names.
+ * Users may type the short form in CLI flags.
+ */
+const ACTION_ALIASES: Record<string, string> = {
+  governance: "governance_change",
+  agent_card: "update_agent_card",
+  skill: "adjust_skill_definition",
+  issue: "create_improvement_issue",
+};
+
+/**
+ * Resolve an action alias to its canonical name.
+ * If the name has no alias mapping, returns it unchanged.
+ */
+export function resolveActionAlias(name: string): string {
+  return ACTION_ALIASES[name] ?? name;
+}
+
+// ---------------------------------------------------------------------------
 // Action-to-target-kind mapping for buildRemediationChildDraft
 // ---------------------------------------------------------------------------
 
@@ -394,6 +419,15 @@ export function validatePayload(
  *
  * Returns ValidationResult — structured success or failure with issue.
  */
+/**
+ * Supported governance change kinds (mirrors the applier's set).
+ */
+const GOVERNANCE_KINDS: ReadonlySet<string> = new Set([
+  "confidence_calibration",
+  "lens_adjustment",
+  "policy_coverage",
+]);
+
 export function validateSpecification(
   spec: RemediationSpec,
   provider: RemediationProvider,
@@ -425,6 +459,21 @@ export function validateSpecification(
         message: "reason is required and must be at least 10 characters",
       },
     };
+  }
+  // Governance preflight (P10.9.2d): validate governance kind when provided in payload
+  if (spec.actionName === "governance_change") {
+    const payload = spec.additionalPayload as Record<string, unknown> | undefined;
+    if (payload && typeof payload.kind === "string") {
+      if (!GOVERNANCE_KINDS.has(payload.kind)) {
+        return {
+          valid: false,
+          issue: {
+            code: "UNSUPPORTED_GOVERNANCE_KIND",
+            message: `Unsupported governance kind "${payload.kind}". Supported: ${[...GOVERNANCE_KINDS].join(", ")}`,
+          },
+        };
+      }
+    }
   }
   return { valid: true };
 }

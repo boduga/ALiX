@@ -114,7 +114,7 @@ export class EvidenceStore {
       payload,
     };
 
-    const lockResult = await acquire(this.config.lockPath);
+    const lockResult = await acquire(this.config.lockPath, { staleRecovery: "auto" });
     if (!lockResult.ok) {
       throw new Error(`Evidence store lock failed: ${lockResult.error}`);
     }
@@ -142,7 +142,7 @@ export class EvidenceStore {
     }
     const timestamp = now();
 
-    const lockResult = await acquire(this.config.lockPath);
+    const lockResult = await acquire(this.config.lockPath, { staleRecovery: "auto" });
     if (!lockResult.ok) {
       throw new Error(`Evidence store lock failed: ${lockResult.error}`);
     }
@@ -246,7 +246,7 @@ export class EvidenceStore {
       return { recordsBefore: 0, recordsAfter: 0, summaryRecord: null };
     }
 
-    const lockResult = await acquire(this.config.lockPath);
+    const lockResult = await acquire(this.config.lockPath, { staleRecovery: "auto" });
     if (!lockResult.ok) {
       throw new Error(`Evidence store lock failed: ${lockResult.error}`);
     }
