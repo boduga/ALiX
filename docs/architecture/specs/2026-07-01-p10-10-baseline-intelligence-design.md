@@ -78,13 +78,40 @@ This abstraction makes P12 (live monitoring) nearly free — sensors don't care 
 
 ## 4. Types
 
-### BaselineArtifact (generic)
+### Subsystem identifier
+
+```typescript
+type BaselineSubsystem =
+  | "memory" | "workflow" | "skills" | "agents"
+  | "tools" | "security" | "governance" | "adaptation"
+  | "demo";
+```
+
+Prevents registry typos (`"Workflow"`, `"workflows"`, `"wf"`). Extensible for future third-party plugins.
+
+### ProviderState
 
 ```typescript
 type ProviderState = "registered" | "ready" | "unavailable";
+```
 
+### ProviderInfo (CLI display metadata)
+
+```typescript
+interface ProviderInfo {
+  subsystem: BaselineSubsystem;
+  version: string;
+  description: string;
+  capabilities: string[];
+  state: ProviderState;
+}
+```
+
+### BaselineArtifact (generic)
+
+```typescript
 interface BaselineArtifact<T = Record<string, number>> {
-  subsystem: string;
+  subsystem: BaselineSubsystem;
   capturedAt: string; // ISO-8601
   data: T;
   metadata?: Record<string, unknown>;
@@ -133,10 +160,11 @@ IDs enable cross-referencing from recommendations.
 type HealthStatus = "excellent" | "healthy" | "warning" | "critical";
 
 interface BaselineComparison {
-  subsystem: string;
+  subsystem: BaselineSubsystem;
   score: number;
   status: HealthStatus;
   drift: DriftItem[];
+  // No recommendations — those belong closer to Executive (P10.10.4).
 }
 ```
 
@@ -148,8 +176,8 @@ Providers are responsible only for **capturing data**, not comparison.
 
 ```typescript
 interface BaselineProvider {
-  /** Canonical subsystem name (e.g. "memory", "skills"). */
-  readonly subsystem: string;
+  /** Canonical subsystem name. */
+  readonly subsystem: BaselineSubsystem;
 
   /** Semantic version of this provider implementation. */
   readonly version: string;
@@ -191,13 +219,16 @@ interface BaselineComparator<T = Record<string, number>> {
 }
 ```
 
-P11.1 includes a **default numeric comparator** that works on `Record<string, number>`. P11.2 will introduce subsystem-specific comparators.
+P10.10.1 includes a **default numeric comparator** that works on `Record<string, number>`. Later phases will introduce subsystem-specific comparators.
 
-The comparator:
-1. Extracts metrics from `data` (numeric fields by default, or via a provided `extractMetrics` function)
-2. Computes per-metric deltas
-3. Calls `computeHealthScore()` to get the overall score
-4. Returns `BaselineComparison` with drift items
+Internal pipeline:
+
+1. `extractMetrics(data)` — pulls numeric fields from artifact data
+2. `buildDriftItems(baseline, current, metrics)` — per-metric delta computation
+3. `computeHealthScore(drift)` — framework-owned (health-score.ts)
+4. `buildComparison(subsystem, drift, score)` — assembles result
+
+No recommendations in comparison output — recommendations belong closer to Executive (P10.10.4).
 
 This keeps providers **dumb sensors** and the framework **smart about health**.
 
@@ -255,12 +286,21 @@ Internally registers the DemoProvider. Later P11.3 phases will register MemoryPr
 
 ```
 alix baseline list            — list registered subsystems (names only)
-alix baseline providers       — show provider table (subsystem, version, capabilities, status)
+alix baseline providers       — show provider metadata table
 alix baseline health          — runAll, print health table sorted by score desc
-alix baseline show <sub>      — runOne, print detailed comparison + drift items
+alix baseline show <sub>      — runOne, print detailed comparison + drift
 ```
 
 `--json` flag on health and show. Plain text by default.
+
+Standard health output:
+
+```
+Subsystem      Score     Status
+demo            61       Warning
+```
+
+This table becomes the canonical health output consumed by future dashboards.
 
 ---
 
@@ -293,9 +333,11 @@ No I/O. No real subsystem data. Pure in-memory fixture.
 
 ```
 src/baseline/
-  baseline-types.ts          — BaselineArtifact<T>, DriftItem, BaselineComparison, HealthStatus
+  baseline-types.ts          — BaselineArtifact<T>, DriftItem, BaselineComparison,
+                               HealthStatus, BaselineSubsystem, ProviderState, ProviderInfo
   baseline-provider.ts       — BaselineProvider interface
-  baseline-comparator.ts     — BaselineComparator interface + default numeric implementation
+  baseline-comparator.ts     — BaselineComparator interface + default numeric
+                               implementation with extractMetrics, buildDriftItems
   baseline-registry.ts       — BaselineRegistry + createDefaultBaselineRegistry()
   health-score.ts            — computeHealthScore pure function
   providers/
