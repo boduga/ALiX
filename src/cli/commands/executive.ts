@@ -158,9 +158,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleCorrelateCommand(rest);
     }
 
+    case "reason": {
+      const { handleReasonCommand } = await import(
+        "./executive-reason-handler.js"
+      );
+      return handleReasonCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate, correlate");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate, correlate, reason");
       process.exit(1);
   }
 }
