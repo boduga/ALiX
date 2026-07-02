@@ -28,6 +28,7 @@ const ALLOWED_FS: string[] = [
   "providers/governance-provider.ts",
   "providers/skills-provider.ts",
   "providers/security-provider.ts",
+  "providers/adaptation-provider.ts",
 ];
 
 const ALLOWED_EXECUTIVE: string[] = [
