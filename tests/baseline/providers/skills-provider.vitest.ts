@@ -64,13 +64,20 @@ describe("SkillsBaselineProvider", () => {
     expect((baselineAgain.data as Record<string, number>).skillCount).toBe(1);
   });
 
-  it("malformed skill file degrades gracefully", async () => {
+  it("malformed skill file does not throw", async () => {
+    const skillsDir = join(tempDir, ".alix", "skills", "workflow");
+    writeFileSync(join(skillsDir, "good.json"), JSON.stringify({ steps: [{ id: "s1" }] }));
+    writeFileSync(join(skillsDir, "bad.json"), "not-json");
+    await expect(provider.captureBaseline()).resolves.toBeDefined();
+  });
+
+  it("invalidSkills increments for malformed JSON", async () => {
     const skillsDir = join(tempDir, ".alix", "skills", "workflow");
     writeFileSync(join(skillsDir, "good.json"), JSON.stringify({ steps: [{ id: "s1" }] }));
     writeFileSync(join(skillsDir, "bad.json"), "not-json");
     const artifact = await provider.captureBaseline();
     const data = artifact.data as Record<string, number>;
-    expect(data.skillCount).toBe(1);  // only good.json
-    expect(data.invalidSkills).toBe(1); // bad.json
+    expect(data.skillCount).toBe(1);
+    expect(data.invalidSkills).toBe(1);
   });
 });
