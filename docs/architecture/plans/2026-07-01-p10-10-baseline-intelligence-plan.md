@@ -31,7 +31,7 @@
 - `src/baseline/providers/demo-provider.ts` — `DemoBaselineProvider`
 
 **Deliverables:**
-- `BaselineProvider` with `subsystem`, `version`, `description` readonly props + `captureBaseline()`, `captureCurrent()` methods
+- `BaselineProvider` with `subsystem`, `version`, `description`, `state` readonly props + `captureBaseline()`, `captureCurrent()` methods
 - No `compare()` on provider (framework-owned)
 - Demo provider with fixture data:
   - subsystem: `"demo"`, version: `"1.0.0"`
@@ -42,9 +42,10 @@
 - 1. subsystem returns "demo"
 - 2. version returns "1.0.0"
 - 3. description is non-empty
-  - 4. capabilities includes "capture"
-- 5. baseline has expected data shape
-- 6. current has expected data shape
+- 4. capabilities includes "capture"
+- 5. state is "ready"
+- 6. baseline has expected data shape
+- 7. current has expected data shape
 
 ---
 

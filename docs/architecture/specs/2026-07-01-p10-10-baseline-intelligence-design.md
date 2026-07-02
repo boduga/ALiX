@@ -81,6 +81,8 @@ This abstraction makes P12 (live monitoring) nearly free — sensors don't care 
 ### BaselineArtifact (generic)
 
 ```typescript
+type ProviderState = "registered" | "ready" | "unavailable";
+
 interface BaselineArtifact<T = Record<string, number>> {
   subsystem: string;
   capturedAt: string; // ISO-8601
@@ -154,6 +156,9 @@ interface BaselineProvider {
 
   /** Human-readable description of what this provider measures. */
   readonly description: string;
+
+  /** Current operational state. */
+  readonly state: ProviderState;
 
   /** Capabilities this provider supports (e.g. "capture", "historical", "trend", "forecast"). */
   readonly capabilities: string[];
