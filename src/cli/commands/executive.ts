@@ -165,9 +165,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleReasonCommand(rest);
     }
 
+    case "strategic-plan": {
+      const { handleStrategicPlanCommand } = await import(
+        "./executive-strategic-plan-handler.js"
+      );
+      return handleStrategicPlanCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate, correlate, reason");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate, correlate, reason, strategic-plan");
       process.exit(1);
   }
 }
