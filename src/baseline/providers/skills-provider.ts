@@ -41,7 +41,6 @@ export class SkillsBaselineProvider implements BaselineProvider {
     let totalSteps = 0;
 
     if (existsSync(dir)) {
-      const { readdirSync } = require("node:fs");
       try {
         const files = readdirSync(dir).filter((f: string) => f.endsWith(".json"));
         for (const file of files) {
