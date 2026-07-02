@@ -35,6 +35,7 @@ const ALLOWED_EXECUTIVE: string[] = [
   "providers/memory-health-provider.ts",
   "providers/agent-runtime-health-provider.ts",
   "providers/workflow-runtime-health-provider.ts",
+  "providers/tools-health-provider.ts",
 ];
 
 // ---------------------------------------------------------------------------
