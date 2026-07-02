@@ -20,13 +20,14 @@
 - Baseline cached on first capture; current re-reads directory
 - Caches like Governance provider
 
-**Tests (6):**
+**Tests (7):**
 - 1. subsystem returns "skills"
 - 2. metadata: version, state, capabilities
 - 3. baseline reads skill files from temp dir
 - 4. missing directory returns 0 metrics
 - 5. baseline cached, current re-reads
 - 6. malformed skill file degrades gracefully
+- 7. invalidSkills increments for malformed JSON
 
 ---
 
@@ -85,7 +86,7 @@
 - Sentinel: allowlist agents and workflow for their respective Executive adapters; skills for fs
 
 **Tests (1):**
-- Registry returns 6 providers with specific names: Demo, Governance, Memory, Skills, Agents, Workflow
+- Registry returns 6 providers with specific names and every provider has `state === "ready"`
 
 ---
 
