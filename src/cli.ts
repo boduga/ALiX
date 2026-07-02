@@ -189,6 +189,7 @@ Usage:
   alix workflow transition <i> <s>  Manually transition an issue
   alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
   alix runtime timeline <graphId>  Show timeline for a graph across all sources
+  alix baseline <subcommand>      Baseline intelligence: list, providers, health, show
   alix daemon start      Start the background daemon
   alix daemon stop       Stop the background daemon
   alix daemon status     Show daemon status
@@ -2862,6 +2863,13 @@ if (command === "executive") {
   process.exit(0);
 }
 
+
+// ── Baseline command (P10.10) ──────────────────────────────────
+if (command === "baseline") {
+  const { handleBaselineCommand } = await import("./cli/commands/baseline.js");
+  await handleBaselineCommand(args);
+  process.exit(0);
+}
 if (command === "research") {
   const { research } = await import("./cli/commands/research.js");
   await research(args);
