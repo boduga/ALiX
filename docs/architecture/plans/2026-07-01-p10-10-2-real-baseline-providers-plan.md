@@ -31,14 +31,14 @@
 
 ---
 
-### Task 2 — Memory Baseline Provider
+### Task 2 — Memory Health Provider
 
 **Files:**
-- `src/baseline/providers/memory-provider.ts`
-- `tests/baseline/providers/memory-provider.vitest.ts`
+- `src/baseline/providers/memory-health-provider.ts`
+- `tests/baseline/providers/memory-health-provider.vitest.ts`
 
 **Deliverables:**
-- `MemoryBaselineProvider` implementing `BaselineProvider`
+- `MemoryHealthProvider` implementing `BaselineProvider` (named to reflect runtime health sensor semantics)
 - subsystem: `"memory"`, version: `"1.0.0"`, state: `"ready"`, capabilities: `["capture"]`
 - Calls `buildMemoryHealthReport()` for current state
 - Stores baseline on first `captureBaseline()` call
@@ -60,7 +60,7 @@
 - `tests/baseline/baseline-registry.vitest.ts` (update test)
 
 **Deliverables:**
-- `createDefaultBaselineRegistry()` registers Demo, Governance, Memory
+- `createDefaultBaselineRegistry()` registers Demo, Governance, MemoryHealth
 - Remove manual registration from CLI handler
 
 **Tests (1):**
