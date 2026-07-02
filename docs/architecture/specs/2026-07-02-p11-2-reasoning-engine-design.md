@@ -1,10 +1,10 @@
 # P11.2 — Reasoning Engine Design Spec
 
-> **Status:** Draft
+> **Status:** Approved with corrections
 > **Phase:** P11.2
 > **Consumes:** `CorrelationGraph` (P11.1)
 > **Produces:** `RootCauseAnalysis`
-> **Determinism:** Core inference deterministic; probabilistic refinement reserved for future P11.X phases
+> **Determinism:** Fully deterministic. No LLM, no probabilistic inference.
 
 ---
 
@@ -55,9 +55,19 @@ export interface LikelyCause {
   confidence: number;
   /** The causal mechanism inferred from the edge properties. */
   mechanism: CausalMechanism;
+  /**
+   * For `degradation_chain` mechanism, the ordered path from root cause to
+   * the primary subsystem. Example: ["memory", "skills", "workflow"].
+   * Omitted for direct mechanisms.
+   */
+  chainPath?: CorrelationSubsystemId[];
   /** Trend snapshot IDs supporting this cause (from edge.evidenceIds + node.evidenceIds). */
   evidenceIds: string[];
-  /** Drift item IDs from the cause subsystem node that contribute to the degradation. */
+  /**
+   * Drift item IDs from the cause subsystem node that contribute to the degradation.
+   * Populated from the existing `DriftItem.id` field (e.g. "memory.fragmentation").
+   * No new drift schema required — P10 baseline types already carry `id`.
+   */
   driftItemIds: string[];
 }
 ```
@@ -99,12 +109,22 @@ export interface CausalFinding {
 ### 2.4 RootCauseAnalysis
 
 ```typescript
-export type AnalysisStatus = "ok" | "no_degradation" | "insufficient_edges" | "stale";
+export type AnalysisStatus =
+  | "ok"
+  | "no_degradation"
+  | "insufficient_history"   // correlation graph has too few snapshots
+  | "insufficient_edges"     // subsystems degraded but no qualifying causal edges found
+  | "stale";                 // correlation graph data is stale
 
 export interface RootCauseAnalysis {
   schemaVersion: "p11.2.0";
+  /** Unique analysis ID, e.g. `reason-{generatedAt}`. */
+  analysisId: string;
   generatedAt: string;
-  /** ID of the CorrelationGraph this analysis was derived from. */
+  /**
+   * Deterministic hash of the source CorrelationGraph content.
+   * Computed as: `sha256(schemaVersion + generatedAt + JSON.stringify(nodes) + JSON.stringify(edges))`
+   */
   correlationGraphId: string;
   /** Overall status of the analysis. */
   status: AnalysisStatus;
@@ -172,9 +192,10 @@ Pure function, no side effects, no I/O. Fully deterministic.
 
 **Step 1 — Status check**
 
-If `graph.status === "insufficient_history"` or `graph.status === "stale"`:
-- Return analysis with `status: "stale"` and empty findings.
-- The caller (engine orchestrator) surfaces this to the CLI.
+Map `graph.status` to `AnalysisStatus`:
+- `graph.status === "insufficient_history"` → analysis `status: "insufficient_history"`, return with empty findings.
+- `graph.status === "stale"` → analysis `status: "stale"`, return with empty findings.
+- Otherwise → proceed to analysis.
 
 **Step 2 — Identify degraded subsystems**
 
@@ -208,12 +229,13 @@ b. For each qualifying edge, determine mechanism and adjusted confidence:
    | `direction === "positive"`, `temporalLag === 0`, `coOccurrenceRate >= 0.5` | `concurrent_degradation` | `edge.correlationConfidence` |
    | `direction === "negative"` | `inverse_correlation` | `edge.correlationConfidence * 0.8` (weaker causal signal) |
 
-c. Check for indirect (chain) causes: walk outgoing edges from each direct cause
-   to find second-order relationships. For chain paths of length 2:
-   - `confidence = edge1.confidence * edge2.confidence`, capped at 0.95
+c. Check for indirect (chain) causes: for each direct cause `B → T`, walk **incoming** edges into `B`
+   to find upstream causes `A` where `A → B`. For each qualifying chain path of length 2:
+   - `confidence = edge(A→B).confidence * edge(B→T).confidence`, capped at 0.95
    - mechanism = `degradation_chain`
+   - `chainPath = [A, B, T]`
    
-   Only include chains where the intermediate node exists in the graph (not missing).
+   Only include chains where the intermediate node `B` exists in the graph (not missing).
 
 d. Merge duplicate causes (same `causeSubsystem` appearing via direct and chain paths):
    - Keep the highest confidence
@@ -221,6 +243,11 @@ d. Merge duplicate causes (same `causeSubsystem` appearing via direct and chain 
    - If mechanisms differ, prefer the direct mechanism
 
 e. Sort by confidence descending, take top `config.maxCausesPerSubsystem`.
+
+f. Post-check: if at least one subsystem was degraded but no finding has any `likelyCauses`
+   (all were filtered below `minCauseConfidence` or no incoming edges existed), set
+   overall analysis `status: "insufficient_edges"`. Individual findings still emitted
+   with empty `likelyCauses[]` and independent-investigation recommendations.
 
 **Step 5 — Determine driving metric**
 
@@ -278,7 +305,7 @@ Delegates to `RootCauseStore.loadLatest()` — reads the last persisted analysis
 
 ### 5.1 Storage format
 
-Append-only JSONL at `.alix/correlation/root-causes.jsonl`. Each line is one `RootCauseAnalysis` JSON object.
+Append-only JSONL at `.alix/reasoning/root-causes.jsonl`. Each line is one `RootCauseAnalysis` JSON object.
 
 Same pattern as `ExecutiveTrendStore` (JSONL append-only):
 - `save(analysis)` — append line to JSONL
@@ -399,12 +426,12 @@ Update the `default` case's available subcommands list.
 
 ## 8. Non-Goals
 
-- **LLM-based reasoning**: P11.2 is deterministic. Probabilistic (LLM) refinement is deferred to a future P11.X phase.
+- **LLM-based reasoning**: P11.2 is fully deterministic. No LLM or probabilistic inference is used.
 - **Multi-graph temporal analysis**: Only operates on the latest CorrelationGraph. Cross-graph trend analysis is a P11.4 concern.
 - **Plan generation**: Recommendations are advisory text, not executable plans. P11.3 Planning Engine converts findings to plans.
 - **Real-time analysis**: On-demand only (`alix executive reason`). No watch mode.
 - **Feedback loop**: P11.2 does not incorporate outcome data. Outcome-aware confidence calibration is P11.4.
-- **Root cause verification**: The analysis is probabilistic; it does not attempt to prove causation.
+- **Root cause verification**: The analysis is confidence-scored and heuristic; it does not prove causation.
 - **Priority ordering across subsystems**: Each degraded subsystem gets independent findings. Cross-subsystem priority ordering is P11.3.
 
 ---

@@ -15,10 +15,10 @@
 
 1. Create `src/reasoning/reasoning-types.ts` with:
    - `CausalMechanism` type union
-   - `LikelyCause` interface
+   - `LikelyCause` interface (with optional `chainPath`)
    - `CausalFinding` interface
-   - `AnalysisStatus` type union
-   - `RootCauseAnalysis` interface (schemaVersion "p11.2.0")
+   - `AnalysisStatus` type union: `"ok" | "no_degradation" | "insufficient_history" | "insufficient_edges" | "stale"`
+   - `RootCauseAnalysis` interface (schemaVersion "p11.2.0", `analysisId`, `correlationGraphId` via SHA-256 hash)
    - `ReasoningEngineConfig` interface
    - `RootCauseAnalysisError` class (extends Error, code "ROOT_CAUSE_ANALYSIS_ERROR")
 
@@ -40,16 +40,17 @@
 
 1. Implement `buildRootCauseAnalysis(graph: CorrelationGraph, config: ReasoningEngineConfig): RootCauseAnalysis`
 2. Logic:
-   - Step 1: Check graph.status — return stale if insufficient_history or stale
+   - Step 1: Map graph.status — insufficient_history → analysis status insufficient_history, stale → stale. Return early with empty findings for either.
    - Step 2: Filter degraded nodes (warning/critical status, or unknown with score < threshold)
    - Step 3: Build adjacency index (Map<target, edges[]> and Map<source, edges[]>)
    - Step 4: For each degraded subsystem, find incoming edges above minCauseConfidence
    - Step 5: Classify each cause by mechanism + adjust confidence
-   - Step 6: Walk chains (2-hop) for additional indirect causes
+   - Step 6: Walk incoming edges into each direct cause (A→B→T) for 2-hop indirect causes
    - Step 7: Deduplicate, sort, take top maxCausesPerSubsystem
    - Step 8: Determine driving metric from largest |drift delta|
    - Step 9: Generate recommendation text via template
-   - Step 10: Assemble RootCauseAnalysis
+   - Step 10: Post-check — if any subsystem was degraded but no finding has likelyCauses, set status to insufficient_edges
+   - Step 11: Assemble RootCauseAnalysis
 
 ### Key design decisions
 
@@ -59,6 +60,12 @@
 - Chain depth: max 2 hops (A→B→C). Deeper chains have too many false positives.
 - Confidences never exceed 0.95 (reserve 0.05 ceiling for future human-in-the-loop)
 - `degradation_chain` mechanism assigned to the whole chain, not per-edge
+- Chain detection walks **incoming** edges into the direct cause (A→B→T, not B→X)
+- `graph.status === "insufficient_history"` maps to analysis status `"insufficient_history"` (not collapsed into `"stale"`)
+- `graph.status === "stale"` maps to analysis status `"stale"` (separate from insufficient_history)
+- `insufficient_edges` status set when subsystems degraded but no qualifying causal edges found
+- `correlationGraphId` = SHA-256 hash of graph content (no P11.1 schema change needed)
+- `analysisId` = `"reason-" + generatedAt`
 
 ### Verification
 
@@ -74,7 +81,7 @@
 ### Steps
 
 1. Implement `RootCauseStore` class:
-   - `constructor(dir: string)` — `.alix/correlation` as default
+   - `constructor(dir: string)` — `.alix/reasoning` as default
    - `save(analysis: RootCauseAnalysis): Promise<void>` — append JSON line to `root-causes.jsonl`
    - `loadLatest(): Promise<RootCauseAnalysis | null>` — read last line from JSONL
    - `loadById(id: string): Promise<RootCauseAnalysis | null>` — scan for matching ID
@@ -162,8 +169,8 @@
 | T3 | concurrent_degradation detection | One warning node with incoming edge, lag=0, coOccurrenceRate=0.8 | mechanism=concurrent_degradation |
 | T4 | inverse_correlation detection | One warning node with incoming edge, negative direction | mechanism=inverse_correlation |
 | T5 | degradation_chain detection | A→B with temporal_cascade, B→C concurrent. C is degraded. | chain finding for C includes A via chain |
-| T6 | stale graph returns stale | Graph with status=stale | status=stale, findings empty |
-| T7 | insufficient_history returns stale | Graph with status=insufficient_history | status=stale, findings empty |
+| T6 | stale graph returns stale | Graph with status=stale | analysis status=stale, findings empty |
+| T7 | insufficient_history returns own status | Graph with status=insufficient_history | analysis status=insufficient_history, findings empty |
 | T8 | low-confidence edges filtered | Edge below minCauseConfidence | Not included in likelyCauses |
 | T9 | maxCausesPerSubsystem respected | 5 qualifying edges, maxCausesPerSubsystem=3 | At most 3 causes |
 | T10 | driving metric from largest delta | Node with drift items [-3, +7, -15] | drivingMetric from delta=-15 |
