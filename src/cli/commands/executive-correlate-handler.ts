@@ -16,6 +16,7 @@ import { CorrelationEngine } from "../../correlation/correlation-engine.js";
 import { CorrelationGraphStore } from "../../correlation/correlation-graph-store.js";
 import { DEFAULT_CORRELATION_CONFIG } from "../../correlation/correlation-config.js";
 import type { CorrelationGraph } from "../../correlation/correlation-types.js";
+import { CorrelationGraphLoadError } from "../../correlation/correlation-types.js";
 
 export async function handleCorrelateCommand(args: string[]): Promise<void> {
   const cwd = process.cwd();
@@ -25,23 +26,30 @@ export async function handleCorrelateCommand(args: string[]): Promise<void> {
   const isStatus = args.includes("--status");
   const store = new CorrelationGraphStore(correlationDir);
 
-  if (isStatus) {
-    // Re-check staleness against the wall clock so a graph saved long ago
-    // reports status: "stale" rather than its compute-time status verbatim.
-    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
-    const staleAfterMs = DEFAULT_CORRELATION_CONFIG.staleAfterWindows * sevenDaysMs;
-    const graph = await store.loadLatest({ staleAfterMs });
-    if (!graph) { console.log("No saved correlation graph found."); return; }
-    printSummary(graph, isJson);
-    return;
-  }
+  try {
+    if (isStatus) {
+      const graph = await store.loadLatest();
+      if (!graph) { console.log("No saved correlation graph found."); return; }
+      printSummary(graph, isJson);
+      return;
+    }
 
-  const registry = createDefaultBaselineRegistry();
-  const trendStore = new ExecutiveTrendStore(executiveDir);
-  const engine = new CorrelationEngine(registry, trendStore, DEFAULT_CORRELATION_CONFIG);
-  const graph = await engine.run();
-  await store.save(graph);
-  printSummary(graph, isJson);
+    const registry = createDefaultBaselineRegistry();
+    const trendStore = new ExecutiveTrendStore(executiveDir);
+    const engine = new CorrelationEngine(registry, trendStore, DEFAULT_CORRELATION_CONFIG);
+    const graph = await engine.run();
+    await store.save(graph);
+    printSummary(graph, isJson);
+  } catch (err: unknown) {
+    if (err instanceof CorrelationGraphLoadError) {
+      console.error(`Error reading correlation graph: ${err.message}`);
+    } else if (err instanceof Error) {
+      console.error(`Correlation error: ${err.message}`);
+    } else {
+      console.error("Unknown correlation error");
+    }
+    process.exit(1);
+  }
 }
 
 function printSummary(graph: CorrelationGraph, isJson: boolean): void {

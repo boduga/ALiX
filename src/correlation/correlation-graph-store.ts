@@ -4,11 +4,13 @@ import { existsSync, mkdirSync, openSync, readFileSync, renameSync, fsyncSync, c
 import { join } from "node:path";
 import type { CorrelationGraph, CorrelationSubsystemId } from "./correlation-types.js";
 import { CorrelationGraphLoadError } from "./correlation-types.js";
+import { PRODUCTION_SUBSYSTEMS } from "./correlation-config.js";
 
-const CANONICAL_SUBSYSTEMS: CorrelationSubsystemId[] = [
-  "memory", "workflow", "skills", "agents",
-  "tools", "security", "governance", "adaptation",
-];
+/** Check if a string is a valid ISO-8601 date (accepted by new Date()). */
+function isISODate(s: string): boolean {
+  const d = new Date(s);
+  return !isNaN(d.getTime()) && s.includes("T");
+}
 
 export class CorrelationGraphStore {
   constructor(private readonly rootDir: string) {}
@@ -74,7 +76,7 @@ export class CorrelationGraphStore {
     }
 
     for (const node of graph.nodes as Array<Record<string, unknown>>) {
-      if (!CANONICAL_SUBSYSTEMS.includes(node.subsystem as CorrelationSubsystemId)) {
+      if (!PRODUCTION_SUBSYSTEMS.includes(node.subsystem as CorrelationSubsystemId)) {
         throw new CorrelationGraphLoadError(
           `Invalid subsystem ID in node: ${String(node.subsystem)}`,
         );
@@ -82,12 +84,12 @@ export class CorrelationGraphStore {
     }
 
     for (const edge of graph.edges as Array<Record<string, unknown>>) {
-      if (!CANONICAL_SUBSYSTEMS.includes(edge.source as CorrelationSubsystemId)) {
+      if (!PRODUCTION_SUBSYSTEMS.includes(edge.source as CorrelationSubsystemId)) {
         throw new CorrelationGraphLoadError(
           `Invalid source subsystem ID in edge: ${String(edge.source)}`,
         );
       }
-      if (!CANONICAL_SUBSYSTEMS.includes(edge.target as CorrelationSubsystemId)) {
+      if (!PRODUCTION_SUBSYSTEMS.includes(edge.target as CorrelationSubsystemId)) {
         throw new CorrelationGraphLoadError(
           `Invalid target subsystem ID in edge: ${String(edge.target)}`,
         );
@@ -114,6 +116,13 @@ export class CorrelationGraphStore {
     }
 
     const result = graph as unknown as CorrelationGraph;
+
+    // Validate generatedAt before staleness math (NaN → NaN > x = false → silent bypass)
+    if (typeof result.generatedAt !== "string" || !isISODate(result.generatedAt)) {
+      throw new CorrelationGraphLoadError(
+        `Invalid or missing generatedAt in graph file: ${String(result.generatedAt)}`,
+      );
+    }
 
     // stale check
     if (opts?.staleAfterMs !== undefined) {
