@@ -155,6 +155,7 @@ Autonomy must remain governed, explainable, and reversible.
               Product Intelligence
      workflow, adaptation, governance,
      learning, executive intelligence,
+     baseline intelligence,
      recommendations, effectiveness
 
 ────────────────────────────────────────────
@@ -203,8 +204,10 @@ P → A
 | Workflow engine | P | Product-level execution workflows |
 | Adaptation lifecycle | P | Proposals, approve/apply/revert |
 | Governance | P | Product governance policy and review |
-| Executive intelligence | P | Health, objectives, plans, outcomes |
+| Executive intelligence | P | Health, objectives, plans, execution, outcomes |
 | Baseline intelligence | P | Subsystem health sensing, provider framework, drift classification |
+| Remediation lifecycle | P | Child proposal generation, remediate wizards, specification |
+| Plan orchestration | P | Plan execution, step-state mgmt, apply reconciliation, resume |
 | Recommendation engine | P | Signal detection and recommendation generation |
 | Recommendation effectiveness | P | Operator action and outcome intelligence |
 | Self-assessment | A | System evaluates its own architecture |
@@ -261,6 +264,8 @@ Examples:
 - `ExecutiveTrendStore`
 - `GovernanceProposalBridge`
 - `RecommendationEffectivenessAnalyzer`
+- `BaselineRegistry`
+- `BaselineComparator`
 
 ### Rule
 
@@ -555,11 +560,18 @@ P12  Operator experience
 
 - Health assessment
 - Trend store
-- Objective generation
-- Planning engine
-- Outcome evaluation
+- Priority and objective generation
+- Planning engine (plan create, approve, start, run, resume)
+- Execution engine (step execution, state management, approval gates)
+- Plan-to-proposal bridge (step → adaptation proposal)
+- Outcome evaluation (including automatic hook)
 - Recommendation engine
+- Recommendation persistence
+- Governance bridge (recommendation → governance proposal)
 - Effectiveness intelligence
+- Remediation wizard (child proposal generation from executive requests)
+- Lifecycle orchestration (proposal → step state reconciliation)
+- Baseline intelligence
 - **P10.9** — Execution lifecycle (subdivided):
   - **P10.9.1** — Operational completeness: auto-baseline, lifecycle introspection, help normalization
   - **P10.9.2** — Remediation & orchestration: proposal readiness, remediation wizard, lifecycle orchestration, stabilization, completion semantics
