@@ -2,8 +2,8 @@
  * P10.10 — BaselineRegistry.
  *
  * Plugin registry matching the pattern established in P10.9.2b
- * (RemediatorRegistry). Providers register by subsystem name;
- * callers discover, describe, and run them.
+ * (ExecutiveBridgeRemediator registry). Providers register by subsystem
+ * name; callers discover, describe, and run them.
  *
  * @module
  */
@@ -12,6 +12,7 @@ import type { ProviderInfo } from "./baseline-types.js";
 import { BaselineSubsystem } from "./baseline-types.js";
 import type { BaselineProvider } from "./baseline-provider.js";
 import type { BaselineComparison } from "./baseline-types.js";
+import { DemoBaselineProvider } from "./providers/demo-provider.js";
 import { NumericComparator } from "./baseline-comparator.js";
 
 // ---------------------------------------------------------------------------
@@ -107,5 +108,7 @@ export class BaselineRegistry {
  * provide a stable import target for the CLI.
  */
 export function createDefaultBaselineRegistry(): BaselineRegistry {
-  return new BaselineRegistry();
+  const registry = new BaselineRegistry();
+  registry.register(new DemoBaselineProvider());
+  return registry;
 }

@@ -4,8 +4,8 @@
  * @module
  */
 
+import type { BaselineSubsystem } from "../../baseline/baseline-types.js";
 import { createDefaultBaselineRegistry, BaselineRegistry } from "../../baseline/baseline-registry.js";
-import { DemoBaselineProvider } from "../../baseline/providers/demo-provider.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,9 +32,8 @@ export async function handleBaselineCommand(args: string[]): Promise<void> {
     return;
   }
 
-  // Build registry with demo provider for P10.10.1
+  // Build registry — factory auto-registers DemoProvider
   const registry = createDefaultBaselineRegistry();
-  registry.register(new DemoBaselineProvider());
 
   switch (subcommand) {
     case "list":
@@ -121,8 +120,9 @@ async function handleShow(
     process.exit(1);
   }
 
+  const sub = subsystem as BaselineSubsystem;
   try {
-    const result = await registry.runOne(subsystem as any);
+    const result = await registry.runOne(sub);
 
     if (useJson) {
       console.log(JSON.stringify(result, null, 2));
@@ -144,8 +144,9 @@ async function handleShow(
         );
       }
     }
-  } catch (e: any) {
-    console.error(`Error: ${e.message}`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(`Error: ${msg}`);
     process.exit(1);
   }
 }

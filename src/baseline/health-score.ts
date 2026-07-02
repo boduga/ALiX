@@ -46,7 +46,7 @@ export function computeHealthScore(
 
   // Compute per-item scores
   const itemScores = drift.map((item) => {
-    const max = Math.max(Math.abs(item.baselineValue), Math.abs(item.currentValue));
+    const max = Math.max(item.baselineValue, item.currentValue);
     if (max === 0) return 0;
     const raw = 1 - Math.min(Math.abs(item.delta) / max, 1);
     return Math.max(0, raw); // clamp to [0, 1]

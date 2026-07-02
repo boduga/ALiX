@@ -62,8 +62,10 @@ describe("BaselineRegistry", () => {
     expect(typeof result.score).toBe("number");
   });
 
-  it("createDefaultBaselineRegistry returns empty registry", () => {
+  it("createDefaultBaselineRegistry registers DemoProvider", () => {
     const reg = createDefaultBaselineRegistry();
-    expect(reg.discover()).toHaveLength(0);
+    const providers = reg.discover();
+    expect(providers.length).toBeGreaterThanOrEqual(1);
+    expect(providers.some((p) => p.subsystem === "demo")).toBe(true);
   });
 });

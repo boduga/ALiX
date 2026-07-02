@@ -2864,6 +2864,7 @@ if (command === "executive") {
 }
 
 
+// ── Baseline command (P10.10) ──────────────────────────────────
 if (command === "baseline") {
   const { handleBaselineCommand } = await import("./cli/commands/baseline.js");
   await handleBaselineCommand(args);
