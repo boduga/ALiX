@@ -2,7 +2,7 @@
 
 import type { CorrelationEngineConfig, CorrelationSubsystemId } from "./correlation-types.js";
 
-const PRODUCTION_SUBSYSTEMS: CorrelationSubsystemId[] = [
+export const PRODUCTION_SUBSYSTEMS: CorrelationSubsystemId[] = [
   "memory", "workflow", "skills", "agents",
   "tools", "security", "governance", "adaptation",
 ];

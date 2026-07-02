@@ -54,6 +54,9 @@ function buildDeltaSeries(
   return { subsystem, deltas, degradedMask };
 }
 
+// NOTE: A standalone copy exists at src/repomap/embedding-cache.ts:155
+// (same number[] signature). Kept here to avoid a dependency from the
+// correlation layer into repomap. Keep in sync if the algorithm changes.
 function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length !== b.length || a.length === 0) return 0;
   let dot = 0, normA = 0, normB = 0;
@@ -71,7 +74,6 @@ function computeEdge(
   source: DeltaSeries,
   target: DeltaSeries,
   maxLag: number,
-  threshold: number,
   maxSamples: number,
   minEdgeConfidence: number,
   snapshotIds: string[],
@@ -86,7 +88,9 @@ function computeEdge(
   let bestLagLen = 0; // aligned overlap length that produced bestSimilarity
   for (let lag = 0; lag <= maxLag; lag++) {
     if (effectiveSamples <= lag) break;
-    const srcEnd = source.deltas.length - lag;
+    // Align A[t] with B[t+lag]: only the target side shifts, so
+    // the usable overlap length is min(sourceLen, targetLen - lag).
+    const srcEnd = source.deltas.length;
     const tgtStart = lag;
     const len = Math.min(srcEnd, target.deltas.length - tgtStart);
     if (len < 1) continue;
@@ -177,6 +181,8 @@ export function buildCorrelationGraph(
   );
   const subsystemSet = new Set(config.canonicalSubsystems);
   const excludedSet = new Set(config.excludedSubsystems);
+  // Collect snapshot IDs for evidence traceability (preserve 1:1 index alignment)
+  const snapshotIds = snapshots.map(s => s.id);
   const nodes: CorrelationNode[] = [];
   const scoreMap = new Map<CorrelationSubsystemId, number>();
 
@@ -187,7 +193,7 @@ export function buildCorrelationGraph(
         score: c.score,
         status: computeNodeStatus(c.score),
         drift: c.drift,
-        evidenceIds: [],
+        evidenceIds: snapshotIds,
       });
       scoreMap.set(c.subsystem as CorrelationSubsystemId, c.score);
     }
@@ -201,7 +207,7 @@ export function buildCorrelationGraph(
         score: 0,
         status: "unknown",
         drift: [],
-        evidenceIds: [],
+        evidenceIds: snapshotIds,
       });
     }
   }
@@ -245,9 +251,6 @@ export function buildCorrelationGraph(
     deltaSeriesMap.set(sub, buildDeltaSeries(sub, scores, config.degradationDeltaThreshold));
   }
 
-  // Collect snapshot IDs for evidence traceability
-  const snapshotIds = snapshots.map(s => s.id).filter(Boolean);
-
   // Compute pairwise edges
   const allSubs = [...deltaSeriesMap.keys()];
   const edges: CorrelationEdge[] = [];
@@ -256,23 +259,19 @@ export function buildCorrelationGraph(
     for (const b of allSubs) {
       if (a === b) continue;
       const bSeries = deltaSeriesMap.get(b)!;
-      const edge = computeEdge(aSeries, bSeries, config.maxTemporalLag, config.degradationDeltaThreshold, config.windowSize, config.minEdgeConfidence, snapshotIds);
+      const edge = computeEdge(aSeries, bSeries, config.maxTemporalLag, config.windowSize, config.minEdgeConfidence, snapshotIds);
       if (edge) edges.push(edge);
     }
   }
 
-  // Determine status
+  // Determine status (early return above already handled insufficient_history)
   let status: CorrelationGraphStatus = "ok";
-  if (snapshots.length < config.minSamples) {
-    status = "insufficient_history";
-  } else {
-    const latest = snapshots[snapshots.length - 1];
-    const latestGeneratedAt = new Date(latest.generatedAt).getTime();
-    const windowDays = latest.windowDays || 7;
-    const staleAfterMs = config.staleAfterWindows * windowDays * 24 * 60 * 60 * 1000;
-    if (Date.now() - latestGeneratedAt > staleAfterMs) {
-      status = "stale";
-    }
+  const latest = snapshots[snapshots.length - 1];
+  const latestGeneratedAt = new Date(latest.generatedAt).getTime();
+  const windowDays = latest.windowDays || 7;
+  const staleAfterMs = config.staleAfterWindows * windowDays * 24 * 60 * 60 * 1000;
+  if (Date.now() - latestGeneratedAt > staleAfterMs) {
+    status = "stale";
   }
 
   return {

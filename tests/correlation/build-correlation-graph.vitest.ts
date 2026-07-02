@@ -32,7 +32,7 @@ describe("buildCorrelationGraph", () => {
   it("returns ok status with edges when subsystems correlate", () => {
     const comparisons = [
       makeComparison("memory", 80), makeComparison("workflow", 75),
-      makeComparison("skills", 85), makeComparison("agents", 70),
+      makeComparison("learning", 85), makeComparison("agents", 70),
       makeComparison("tools", 80), makeComparison("security", 85),
       makeComparison("governance", 80), makeComparison("adaptation", 75),
     ];
