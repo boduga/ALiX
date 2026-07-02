@@ -65,8 +65,10 @@ describe("baseline CLI", () => {
     const json = logs.join("\n");
     const parsed = JSON.parse(json);
     expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed.length).toBe(1);
-    expect(parsed[0].subsystem).toBe("demo");
+    expect(parsed.length).toBe(3);
+    expect(parsed.some((r: any) => r.subsystem === "demo")).toBe(true);
+    expect(parsed.some((r: any) => r.subsystem === "governance")).toBe(true);
+    expect(parsed.some((r: any) => r.subsystem === "memory")).toBe(true);
   });
 
   it("show --json valid JSON", async () => {

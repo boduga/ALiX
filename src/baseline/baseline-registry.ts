@@ -13,6 +13,8 @@ import { BaselineSubsystem } from "./baseline-types.js";
 import type { BaselineProvider } from "./baseline-provider.js";
 import type { BaselineComparison } from "./baseline-types.js";
 import { DemoBaselineProvider } from "./providers/demo-provider.js";
+import { GovernanceBaselineProvider } from "./providers/governance-provider.js";
+import { MemoryHealthProvider } from "./providers/memory-health-provider.js";
 import { NumericComparator } from "./baseline-comparator.js";
 
 // ---------------------------------------------------------------------------
@@ -110,5 +112,7 @@ export class BaselineRegistry {
 export function createDefaultBaselineRegistry(): BaselineRegistry {
   const registry = new BaselineRegistry();
   registry.register(new DemoBaselineProvider());
+  registry.register(new GovernanceBaselineProvider());
+  registry.register(new MemoryHealthProvider());
   return registry;
 }

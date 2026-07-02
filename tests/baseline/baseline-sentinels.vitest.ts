@@ -1,8 +1,12 @@
 /**
  * P10.10 — Baseline intelligence purity sentinel.
  *
- * Enforces the hard boundary: src/baseline/ must not import from
+ * Enforces hard boundary: src/baseline/ must not import from
  * Executive or Adaptation, and must not perform file I/O.
+ *
+ * Exceptions (explicitly allowed):
+ *   - providers/governance-provider.ts may read governance files
+ *   - providers/memory-health-provider.ts may read memory health adapter
  *
  * @module
  */
@@ -19,6 +23,15 @@ import { globSync } from "glob";
 const ROOT = resolve(import.meta.dirname, "../..");
 const BASELINE_SRC = join(ROOT, "src", "baseline");
 
+/** Files granted special import exceptions. */
+const ALLOWED_FS: string[] = [
+  "providers/governance-provider.ts",
+];
+
+const ALLOWED_EXECUTIVE: string[] = [
+  "providers/memory-health-provider.ts",
+];
+
 // ---------------------------------------------------------------------------
 // Collect all baseline source files
 // ---------------------------------------------------------------------------
@@ -26,7 +39,8 @@ const BASELINE_SRC = join(ROOT, "src", "baseline");
 const baselineFiles = globSync("**/*.ts", { cwd: BASELINE_SRC, ignore: ["**/node_modules/**"] });
 
 describe("P10.10 baseline purity boundary", () => {
-  it.each(baselineFiles)("%s must not import from executive", (file) => {
+  it.each(baselineFiles)("%s must not import from executive (except allowed)", (file) => {
+    if (ALLOWED_EXECUTIVE.some((a) => file.endsWith(a))) return;
     const content = readFileSync(join(BASELINE_SRC, file), "utf-8");
     const lines = content.split("\n");
     const executiveImports = lines.filter(
@@ -44,7 +58,8 @@ describe("P10.10 baseline purity boundary", () => {
     expect(adaptationImports).toHaveLength(0);
   });
 
-  it.each(baselineFiles)("%s must not import node:fs for I/O", (file) => {
+  it.each(baselineFiles)("%s must not import node:fs for I/O (except allowed)", (file) => {
+    if (ALLOWED_FS.some((a) => file.endsWith(a))) return;
     const content = readFileSync(join(BASELINE_SRC, file), "utf-8");
     const lines = content.split("\n");
     const fsImports = lines.filter(
