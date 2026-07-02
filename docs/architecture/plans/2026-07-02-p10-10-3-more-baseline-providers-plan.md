@@ -30,15 +30,16 @@
 
 ---
 
-### Task 2 — Agents Health Provider
+### Task 2 — Agent Runtime Health Provider
 
 **Files:**
-- `src/baseline/providers/agents-health-provider.ts`
-- `tests/baseline/providers/agents-health-provider.vitest.ts`
+- `src/baseline/providers/agent-runtime-health-provider.ts`
+- `tests/baseline/providers/agent-runtime-health-provider.vitest.ts`
 
 **Deliverables:**
-- `AgentsHealthProvider` implementing `BaselineProvider`
+- `AgentRuntimeHealthProvider` implementing `BaselineProvider`
 - subsystem: `"agents"`, version: `"1.0.0"`, state: `"ready"`, capabilities: `["capture"]`
+- Named to distinguish from a future configuration-based `AgentBaselineProvider`
 - Calls `buildAgentHealth({ cwd })` from Executive adapter
 - Baseline cached per process; current returns live data
 
@@ -50,15 +51,16 @@
 
 ---
 
-### Task 3 — Workflow Health Provider
+### Task 3 — Workflow Runtime Health Provider
 
 **Files:**
-- `src/baseline/providers/workflow-health-provider.ts`
-- `tests/baseline/providers/workflow-health-provider.vitest.ts`
+- `src/baseline/providers/workflow-runtime-health-provider.ts`
+- `tests/baseline/providers/workflow-runtime-health-provider.vitest.ts`
 
 **Deliverables:**
-- `WorkflowHealthProvider` implementing `BaselineProvider`
+- `WorkflowRuntimeHealthProvider` implementing `BaselineProvider`
 - subsystem: `"workflow"`, version: `"1.0.0"`, state: `"ready"`, capabilities: `["capture"]`
+- Named to distinguish from a future configuration-based `WorkflowBaselineProvider`
 - Calls `buildWorkflowHealth({ cwd })` from Executive adapter
 - Baseline cached per process; current returns live data
 
@@ -83,7 +85,7 @@
 - Sentinel: allowlist agents and workflow for their respective Executive adapters; skills for fs
 
 **Tests (1):**
-- Registry returns 6 providers with correct names
+- Registry returns 6 providers with specific names: Demo, Governance, Memory, Skills, Agents, Workflow
 
 ---
 

@@ -35,10 +35,13 @@ Reads from `.alix/skills/workflow/` directory — counts installed skill definit
 ```json
 {
   "skillCount": 3,
+  "invalidSkills": 0,
   "totalSteps": 12,
   "avgStepsPerSkill": 4
 }
 ```
+
+`invalidSkills` tracks malformed JSON files that exist in the skills directory but can't be parsed. This distinguishes "no skills installed" from "corrupted skill definitions" — a form of configuration drift.
 
 ### Baseline vs Current
 
@@ -48,7 +51,9 @@ Reads from `.alix/skills/workflow/` directory — counts installed skill definit
 
 ---
 
-## 4. Agents Provider
+## 4. Agent Runtime Health Provider
+
+Named `AgentRuntimeHealthProvider` to distinguish runtime health (adapter-based, ephemeral) from a future `AgentBaselineProvider` (configuration-based, persistent).
 
 ### Data source
 
@@ -65,9 +70,13 @@ Calls `buildAgentHealth({ cwd })` from Executive adapter.
 
 Same pattern as MemoryHealthProvider.
 
+**Note:** A future `AgentBaselineProvider` may capture agent card definitions, capabilities, and routing configuration. The registry will need to support multiple providers per subsystem at that point.
+
 ---
 
-## 5. Workflow Provider
+## 5. Workflow Runtime Health Provider
+
+Named `WorkflowRuntimeHealthProvider` to distinguish runtime health from a future configuration-based `WorkflowBaselineProvider`.
 
 ### Data source
 
@@ -113,7 +122,8 @@ tests/baseline/
 - Skills provider: no Executive imports (file-based like Governance)
 - Agents provider: may import `agent-health` adapter only
 - Workflow provider: may import `workflow-health` adapter only
-- No framework changes
+- No framework changes (comparator, health-score, types, CLI untouched)
+- Skills provider must track `invalidSkills` metric separately from `skillCount`
 
 ---
 
@@ -121,7 +131,7 @@ tests/baseline/
 
 | Provider | Tests | Method |
 |----------|-------|--------|
-| Skills | 6 | Temp dir with fixture skill files, missing dir, baseline cache, current re-reads |
-| Agents | 4 | Metadata, baseline caching, current returns fresh data |
-| Workflow | 4 | Metadata, baseline caching, current returns fresh data |
-| Registry | 1 | `discover()` returns 6 providers |
+| Skills | 7 | Temp dir with fixture skill files, missing dir, baseline cache, current re-reads, malformed JSON |
+| AgentRuntime | 4 | Metadata, baseline caching, current returns fresh data |
+| WorkflowRuntime | 4 | Metadata, baseline caching, current returns fresh data |
+| Registry | 1 | Asserts specific provider names: Demo, Governance, Memory, Skills, Agents, Workflow |
