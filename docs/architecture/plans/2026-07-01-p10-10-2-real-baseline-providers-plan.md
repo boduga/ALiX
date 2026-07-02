@@ -5,6 +5,22 @@
 
 ---
 
+## Dependency Graph
+
+```
+Governance Provider
+        │
+Memory Provider
+        │
+        ▼
+Registry Factory  ← registers Demo, Governance, MemoryHealth
+        │
+        ▼
+Sentinel Update   ← allow fs imports for governance, memory adapter for memory
+```
+
+---
+
 ## Tasks
 
 ### Task 1 — Governance Baseline Provider
@@ -16,18 +32,24 @@
 **Deliverables:**
 - `GovernanceBaselineProvider` implementing `BaselineProvider`
 - subsystem: `"governance"`, version: `"1.0.0"`, state: `"ready"`, capabilities: `["capture"]`
-- Reads `.alix/governance/calibration.json`, `lens-registry.json`, `policy-coverage.json`
-- `captureBaseline()` reads current file state
-- `captureCurrent()` re-reads files
-- Missing files produce 0 values (graceful degradation)
+- Observes persisted governance state from the governance store (currently JSON-backed)
+- `captureBaseline()` reads current file state and stores it
+- `captureCurrent()` re-reads files for comparison
+- Graceful degradation for three failure cases:
+  - Missing directory → 0 metrics
+  - Missing individual files → 0 for that file's metrics
+  - Malformed JSON → 0 for that file's metrics (parse error caught)
 
-**Tests (6):**
+**Tests (9):**
 - 1. subsystem returns "governance"
-- 2. baseline reads calibration count
-- 3. baseline reads lens metrics
-- 4. baseline reads coverage metrics
-- 5. missing directory returns 0 metrics
-- 6. current re-reads files (changed values reflected)
+- 2. metadata: version, state, capabilities are all correct
+- 3. baseline reads calibration count
+- 4. baseline reads lens metrics
+- 5. baseline reads coverage metrics
+- 6. missing directory returns 0 metrics
+- 7. missing individual file returns 0 for that file
+- 8. malformed JSON file degrades gracefully (no throw)
+- 9. current re-reads files (changed values reflected)
 
 ---
 
@@ -40,16 +62,17 @@
 **Deliverables:**
 - `MemoryHealthProvider` implementing `BaselineProvider` (named to reflect runtime health sensor semantics)
 - subsystem: `"memory"`, version: `"1.0.0"`, state: `"ready"`, capabilities: `["capture"]`
-- Calls `buildMemoryHealthReport()` for current state
-- Stores baseline on first `captureBaseline()` call
+- `captureBaseline()` captures runtime snapshot once and returns the same artifact on subsequent calls (baseline is immutable until process restarts)
+- `captureCurrent()` calls `buildMemoryHealthReport()` each time
 - Overrides `classifyDrift()` for metric-specific categories
 
-**Tests (5):**
+**Tests (6):**
 - 1. subsystem returns "memory"
-- 2. baseline captures once
-- 3. current calls adapter
-- 4. version is non-empty
-- 5. state is "ready"
+- 2. metadata: version, state, capabilities are all correct
+- 3. baseline captures once and returns same artifact on second call
+- 4. current calls adapter and returns fresh data
+- 5. version is non-empty
+- 6. state is "ready"
 
 ---
 
@@ -64,7 +87,7 @@
 - Remove manual registration from CLI handler
 
 **Tests (1):**
-- `discover()` returns 3 providers
+- `discover()` returns 3 providers with expected names: Demo, Governance, Memory
 
 ---
 
