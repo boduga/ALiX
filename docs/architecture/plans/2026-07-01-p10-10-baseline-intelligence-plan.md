@@ -42,8 +42,9 @@
 - 1. subsystem returns "demo"
 - 2. version returns "1.0.0"
 - 3. description is non-empty
-- 4. baseline has expected data shape
-- 5. current has expected data shape
+  - 4. capabilities includes "capture"
+- 5. baseline has expected data shape
+- 6. current has expected data shape
 
 ---
 
@@ -118,10 +119,9 @@
 - `src/cli/commands/baseline.ts`
 
 **Deliverables:**
-- Routes: `list`, `registry`, `discover`, `health`, `show <subsystem>`
+- Routes: `list`, `providers`, `health`, `show <subsystem>`
 - `list` — prints subsystem names
-- `registry` — prints table (subsystem, version, status)
-- `discover` — prints provider details (subsystem, version, description)
+- `providers` — prints table (subsystem, version, capabilities, status)
 - `health` — runs all, prints score table sorted descending
 - `show <sub>` — runs one, prints detailed drift report
 - `--json` on health and show
@@ -130,8 +130,8 @@
 
 **Tests:** `tests/cli/commands/baseline-cli.vitest.ts`
 - 1. list shows demo
-- 2. registry shows demo row
-- 3. discover shows demo details
+- 2. providers shows demo row
+- 3. providers shows capabilities column
 - 4. health prints score table
 - 5. show demo prints drift report
 - 6. show missing subsystem errors

@@ -135,7 +135,6 @@ interface BaselineComparison {
   score: number;
   status: HealthStatus;
   drift: DriftItem[];
-  recommendations: string[];
 }
 ```
 
@@ -155,6 +154,9 @@ interface BaselineProvider {
 
   /** Human-readable description of what this provider measures. */
   readonly description: string;
+
+  /** Capabilities this provider supports (e.g. "capture", "historical", "trend", "forecast"). */
+  readonly capabilities: string[];
 
   /** Capture a baseline snapshot. */
   captureBaseline(): Promise<BaselineArtifact>;
@@ -248,8 +250,7 @@ Internally registers the DemoProvider. Later P11.3 phases will register MemoryPr
 
 ```
 alix baseline list            — list registered subsystems (names only)
-alix baseline registry        — show provider table (subsystem, version, status)
-alix baseline discover        — show provider details (subsystem, version, description)
+alix baseline providers       — show provider table (subsystem, version, capabilities, status)
 alix baseline health          — runAll, print health table sorted by score desc
 alix baseline show <sub>      — runOne, print detailed comparison + drift items
 ```
@@ -261,9 +262,10 @@ alix baseline show <sub>      — runOne, print detailed comparison + drift item
 ## 10. Demo Provider
 
 ```typescript
-subsystem:   "demo"
-version:     "1.0.0"
-description: "Demo baseline provider for framework testing"
+subsystem:     "demo"
+version:       "1.0.0"
+description:   "Demo baseline provider for framework testing"
+capabilities:  ["capture"]
 ```
 
 Baseline data:
@@ -315,17 +317,17 @@ tests/cli/commands/
 - No imports from real subsystem providers
 - No file I/O for baselines (in-memory only)
 - No changes to Executive dashboard, plan generation, or recommendation pipeline
-- No P10 Executive integration yet (P10.10 feeds P10 in P11.4)
+- No P10 Executive integration yet (P10.10 feeds P10 in P10.10.4)
 - Provider interface exposes `capture` only — no `compare`
 
 ---
 
-## 13. P11.x Roadmap (Reference)
+## 13. P10.10.x Roadmap (Reference)
 
 ```
-P11.1  Framework + Registry + CLI + Demo       ← you are here
-P11.2  Comparison Engine + Drift Engine + Health Engine
-P11.3  Real Providers (Memory, Skills, Agents, Governance, etc.)
-P11.4  Executive Integration (Dashboard, Plans, Recommendations)
-P11.5  Predictive Intelligence (trend analysis, adaptive baselines, forecasting)
+P10.10.1  Framework + Registry + CLI + Demo       ← you are here
+P10.10.2  Default Comparator + Health Engine + Drift Engine
+P10.10.3  Real Providers (Memory, Skills, Agents, Governance, etc.)
+P10.10.4  Executive Integration (Dashboard, Plans, Recommendations)
+P10.10.5  Predictive Intelligence (trend analysis, adaptive baselines, forecasting)
 ```
