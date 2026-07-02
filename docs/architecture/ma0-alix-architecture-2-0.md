@@ -101,6 +101,7 @@ It consumes M-series platform primitives and turns them into workflows, governan
 - Governance
 - Learning engine
 - Executive health reports
+- Baseline intelligence / subsystem health sensing
 - Outcome evaluation
 - Recommendation generation
 - Recommendation persistence
@@ -203,6 +204,7 @@ P → A
 | Adaptation lifecycle | P | Proposals, approve/apply/revert |
 | Governance | P | Product governance policy and review |
 | Executive intelligence | P | Health, objectives, plans, outcomes |
+| Baseline intelligence | P | Subsystem health sensing, provider framework, drift classification |
 | Recommendation engine | P | Signal detection and recommendation generation |
 | Recommendation effectiveness | P | Operator action and outcome intelligence |
 | Self-assessment | A | System evaluates its own architecture |
@@ -558,8 +560,16 @@ P12  Operator experience
 - Outcome evaluation
 - Recommendation engine
 - Effectiveness intelligence
-- **P10.9** — Execution lifecycle: proposal readiness, remediation wizard, lifecycle orchestration, stabilization
-- **P10.10** — Baseline intelligence: provider framework, health scoring, drift classification, subsystem baselines
+- **P10.9** — Execution lifecycle (subdivided):
+  - **P10.9.1** — Operational completeness: auto-baseline, lifecycle introspection, help normalization
+  - **P10.9.2** — Remediation & orchestration: proposal readiness, remediation wizard, lifecycle orchestration, stabilization, completion semantics
+- **P10.10** — Baseline intelligence (subdivided):
+  - **P10.10.1** — Framework: provider interface, registry, comparator, health score, CLI, demo provider ✅
+  - **P10.10.2** — Real providers: Governance (persistent), MemoryHealth (ephemeral), Demo (fixture)
+  - **P10.10.3** — More providers: Skills, Agents, Workflow
+  - **P10.10.3b** — Model cleanup: add `providerType: persistent | ephemeral`, consider `capture()` unification
+  - **P10.10.4** — Executive integration: feed health scores into dashboard, plans, recommendations
+  - **P10.10.5** — Predictive intelligence: trend analysis, adaptive baselines, forecasting
 
 ### P11 — Strategic Planning
 
@@ -690,6 +700,7 @@ src/
     governance/
     learning/
     executive/
+    baseline/
     recommendations/
 
   autonomy/
