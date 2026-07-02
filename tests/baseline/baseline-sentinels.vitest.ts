@@ -27,12 +27,15 @@ const BASELINE_SRC = join(ROOT, "src", "baseline");
 const ALLOWED_FS: string[] = [
   "providers/governance-provider.ts",
   "providers/skills-provider.ts",
+  "providers/security-provider.ts",
+  "providers/adaptation-provider.ts",
 ];
 
 const ALLOWED_EXECUTIVE: string[] = [
   "providers/memory-health-provider.ts",
   "providers/agent-runtime-health-provider.ts",
   "providers/workflow-runtime-health-provider.ts",
+  "providers/tools-health-provider.ts",
 ];
 
 // ---------------------------------------------------------------------------
