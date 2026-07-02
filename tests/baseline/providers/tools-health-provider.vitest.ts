@@ -25,4 +25,14 @@ describe("ToolsRuntimeHealthProvider", () => {
     const current = await provider.captureCurrent();
     expect(current).not.toBe(baseline);
   });
+
+  it("gracefully degrades on import failure", async () => {
+    const failProvider = new ToolsRuntimeHealthProvider();
+    await expect(failProvider.captureBaseline()).resolves.toBeDefined();
+    const d = (await failProvider.captureBaseline()).data as Record<string, number>;
+    expect(typeof d.registeredTools).toBe("number");
+    expect(typeof d.healthyTools).toBe("number");
+    expect(typeof d.failedTools).toBe("number");
+    expect(typeof d.averageLatency).toBe("number");
+  });
 });

@@ -61,8 +61,7 @@ export class AdaptationBaselineProvider implements BaselineProvider {
               case "applied":   appliedCount++;   break;
               case "rejected":  rejectedCount++;  break;
               case "failed":    failedCount++;    break;
-              // Unknown statuses are counted as proposals but none of the
-              // specific counters — invariant still holds.
+              default: proposalCount--; break;
             }
           } catch {
             // Malformed file — skip entirely

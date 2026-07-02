@@ -34,11 +34,7 @@ export class ToolsRuntimeHealthProvider implements BaselineProvider {
     let data: { registeredTools: number; healthyTools: number; failedTools: number; averageLatency: number };
 
     try {
-      // Dynamic import of Executive tool-health adapter (health check pattern)
-      const { buildToolHealth } = await import("../../executive/adapters/tool-health.js");
-      await buildToolHealth({ cwd: process.cwd() });
-
-      // Dynamic import of tool registry for registered tool count
+      // Tool health adapter reserved for future instrumentation
       const { buildDefaultToolIndex } = await import("../../tools/tool-registry.js");
       const { registry } = buildDefaultToolIndex();
       const registeredTools = registry.getAll().length;
