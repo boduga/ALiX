@@ -102,47 +102,41 @@ function estimateEffort(
 
   const mechanism = topCause.mechanism;
 
-  // Check for config-level override first
-  if (config.effortOverrides?.[mechanism] !== undefined) {
-    const overridden = config.effortOverrides[mechanism]!;
-    const rationaleMap: Record<EffortEstimate, string> = {
-      low: "Isolated investigation of the subsystem itself",
-      medium: "Single causal chain — inspect changes in cause subsystem",
-      high: "Complex root cause requiring coordinated changes across subsystems",
-    };
-    return {
-      estimatedEffort: overridden,
-      effortRationale: rationaleMap[overridden],
-    };
-  }
+  // Compute default effort and rationale per mechanism.
+  // Rationale is always mechanism-specific — config overrides affect effort only.
+  let defaultEffort: EffortEstimate;
+  let rationale: string;
 
-  // Default effort mapping per mechanism
   switch (mechanism) {
     case "temporal_cascade":
-      return {
-        estimatedEffort: "medium",
-        effortRationale:
-          "Single causal chain — inspect changes in cause subsystem",
-      };
+      defaultEffort = "medium";
+      rationale = "Single causal chain — inspect changes in cause subsystem";
+      break;
     case "concurrent_degradation":
-      return {
-        estimatedEffort: "high",
-        effortRationale:
-          "Shared root cause requires system-level investigation",
-      };
+      defaultEffort = "high";
+      rationale = "Shared root cause requires system-level investigation";
+      break;
     case "inverse_correlation":
-      return {
-        estimatedEffort: "high",
-        effortRationale:
-          "Potential conflict between subsystems — needs careful tradeoff",
-      };
+      defaultEffort = "high";
+      rationale = "Potential conflict between subsystems — needs careful tradeoff";
+      break;
     case "degradation_chain":
-      return {
-        estimatedEffort: "high",
-        effortRationale:
-          "Spans multiple subsystems — coordinated fix required",
-      };
+      defaultEffort = "high";
+      rationale = "Spans multiple subsystems — coordinated fix required";
+      break;
+    default: {
+      // Exhaustiveness guard — unreachable for known CausalMechanism values
+      const _exhaustive: never = mechanism;
+      void _exhaustive;
+      defaultEffort = "medium";
+      rationale = "Unknown causal mechanism — investigate proactively";
+    }
   }
+
+  // Config override applies to effort only; rationale stays mechanism-specific
+  const estimatedEffort = config.effortOverrides?.[mechanism] ?? defaultEffort;
+
+  return { estimatedEffort, effortRationale: rationale };
 }
 
 // ---------------------------------------------------------------------------
@@ -200,16 +194,7 @@ export function buildStrategicPlan(
   // We validated that findings is a non-nullish array (type carries this).
 
   // -----------------------------------------------------------------------
-  // Step 2 — Build findings index: primarySubsystem → CausalFinding
-  // -----------------------------------------------------------------------
-
-  const findingsIndex = new Map<CorrelationSubsystemId, CausalFinding>();
-  for (const finding of analysis.findings) {
-    findingsIndex.set(finding.primarySubsystem, finding);
-  }
-
-  // -----------------------------------------------------------------------
-  // Step 3 — Build downstream dependency map
+  // Step 2 — Build downstream dependency map
   //
   // For each finding, for each likelyCause, add the finding's primarySubsystem
   // to downstreamMap.get(causeSubsystem) or create entry.
@@ -346,8 +331,7 @@ export function buildStrategicPlan(
     for (const objectiveA of objectives) {
       if (objectiveA === objectiveB) continue;
       if (
-        objectiveA.targetSubsystem === objectiveB.topCauseSubsystem &&
-        objectiveA.urgencyScore >= objectiveB.urgencyScore
+        objectiveA.targetSubsystem === objectiveB.topCauseSubsystem
       ) {
         objectiveB.prerequisites.push(objectiveA.id);
       }

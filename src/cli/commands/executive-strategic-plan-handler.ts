@@ -75,6 +75,8 @@ function printSummary(plan: StrategicPlan, isJson: boolean): void {
 
   if (plan.status === "insufficient_analysis") {
     console.log(`\nNote: Insufficient analysis data. Run 'alix executive reason' to produce a fresh root cause analysis.`);
+  } else if (plan.status === "no_degradation") {
+    console.log(`\nNote: No degradation detected. Run 'alix executive correlate' with a broader window or different metrics to capture degradation signals.`);
   } else if (plan.status === "no_objectives") {
     console.log(`\nNote: No actionable objectives from current analysis.`);
   }

@@ -116,21 +116,18 @@ export class StrategicPlanStore {
       if (line.trim().length === 0) continue;
       try {
         const parsed = JSON.parse(line);
-        if (parsed && typeof parsed === "object" && parsed.planId) {
-          summaries.push({
-            planId: parsed.planId,
-            generatedAt: parsed.generatedAt ?? "",
-            status: parsed.status ?? "no_objectives",
-            objectives: Array.isArray(parsed.objectives)
-              ? parsed.objectives.length
-              : 0,
-            objectivesHigh: parsed.meta?.objectivesHigh ?? 0,
-            objectivesMedium: parsed.meta?.objectivesMedium ?? 0,
-            objectivesLow: parsed.meta?.objectivesLow ?? 0,
-          });
-        }
+        const plan = validatePlan(parsed);
+        summaries.push({
+          planId: plan.planId,
+          generatedAt: plan.generatedAt,
+          status: plan.status,
+          objectives: plan.objectives.length,
+          objectivesHigh: plan.meta.objectivesHigh,
+          objectivesMedium: plan.meta.objectivesMedium,
+          objectivesLow: plan.meta.objectivesLow,
+        });
       } catch {
-        // Skip malformed lines
+        // Skip malformed or invalid lines
       }
     }
 
@@ -175,6 +172,26 @@ export function validatePlan(raw: unknown): StrategicPlan {
   if (typeof obj.correlationGraphId !== "string" || obj.correlationGraphId.length === 0) {
     throw new PlanningEngineError(
       "correlationGraphId must be a non-empty string",
+    );
+  }
+
+  if (typeof obj.planId !== "string" || obj.planId.length === 0) {
+    throw new PlanningEngineError("planId must be a non-empty string");
+  }
+
+  if (typeof obj.generatedAt !== "string" || obj.generatedAt.length === 0) {
+    throw new PlanningEngineError("generatedAt must be a non-empty string");
+  }
+
+  const validStatuses: PlanStatus[] = [
+    "ok",
+    "insufficient_analysis",
+    "no_degradation",
+    "no_objectives",
+  ];
+  if (!validStatuses.includes(obj.status as PlanStatus)) {
+    throw new PlanningEngineError(
+      `Invalid status: expected one of ${validStatuses.join(", ")}, got ${JSON.stringify(obj.status)}`,
     );
   }
 
@@ -257,6 +274,11 @@ export function validatePlan(raw: unknown): StrategicPlan {
     }
 
     for (const prereq of objective.prerequisites) {
+      if (prereq === objective.id) {
+        throw new PlanningEngineError(
+          `objectives[${i}] cannot list itself as a prerequisite`,
+        );
+      }
       if (!objectiveIds.has(prereq)) {
         throw new PlanningEngineError(
           `objectives[${i}] references prerequisite "${prereq}" which does not exist in this plan`,

@@ -7,6 +7,7 @@
 //   load -> pure function -> save -> return
 
 import type { RootCauseAnalysis } from "../reasoning/reasoning-types.js";
+import { RootCauseAnalysisError } from "../reasoning/reasoning-types.js";
 import { RootCauseStore } from "../reasoning/root-cause-store.js";
 import { StrategicPlanStore } from "./strategic-plan-store.js";
 import { buildStrategicPlan } from "./build-strategic-plan.js";
@@ -39,8 +40,15 @@ export class PlanningEngine {
    * and the correct status for those cases.
    */
   async run(): Promise<StrategicPlan> {
-    const analysis: RootCauseAnalysis | null =
-      await this.rootCauseStore.loadLatest();
+    let analysis: RootCauseAnalysis | null;
+    try {
+      analysis = await this.rootCauseStore.loadLatest();
+    } catch (cause: unknown) {
+      throw new PlanningEngineError(
+        "Failed to load root cause analysis: " +
+          (cause instanceof Error ? cause.message : String(cause)),
+      );
+    }
 
     if (analysis === null) {
       throw new PlanningEngineError(
