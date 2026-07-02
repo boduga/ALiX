@@ -15,6 +15,9 @@ import type { BaselineComparison } from "./baseline-types.js";
 import { DemoBaselineProvider } from "./providers/demo-provider.js";
 import { GovernanceBaselineProvider } from "./providers/governance-provider.js";
 import { MemoryHealthProvider } from "./providers/memory-health-provider.js";
+import { SkillsBaselineProvider } from "./providers/skills-provider.js";
+import { AgentRuntimeHealthProvider } from "./providers/agent-runtime-health-provider.js";
+import { WorkflowRuntimeHealthProvider } from "./providers/workflow-runtime-health-provider.js";
 import { NumericComparator } from "./baseline-comparator.js";
 
 // ---------------------------------------------------------------------------
@@ -114,5 +117,8 @@ export function createDefaultBaselineRegistry(): BaselineRegistry {
   registry.register(new DemoBaselineProvider());
   registry.register(new GovernanceBaselineProvider());
   registry.register(new MemoryHealthProvider());
+  registry.register(new SkillsBaselineProvider());
+  registry.register(new AgentRuntimeHealthProvider());
+  registry.register(new WorkflowRuntimeHealthProvider());
   return registry;
 }

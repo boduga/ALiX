@@ -62,13 +62,14 @@ describe("BaselineRegistry", () => {
     expect(typeof result.score).toBe("number");
   });
 
-  it("createDefaultBaselineRegistry registers all three providers", () => {
+  it("createDefaultBaselineRegistry registers all six providers", () => {
     const reg = createDefaultBaselineRegistry();
     const providers = reg.discover();
     const subsystems = providers.map((p) => p.subsystem);
-    expect(subsystems).toContain("demo");
-    expect(subsystems).toContain("governance");
-    expect(subsystems).toContain("memory");
-    expect(providers.length).toBe(3);
+    expect(subsystems).toEqual(["demo", "governance", "memory", "skills", "agents", "workflow"]);
+    expect(providers.length).toBe(6);
+    for (const p of providers) {
+      expect(p.state).toBe("ready");
+    }
   });
 });
