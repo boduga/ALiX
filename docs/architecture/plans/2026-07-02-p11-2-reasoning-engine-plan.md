@@ -15,7 +15,7 @@
 
 1. Create `src/reasoning/reasoning-types.ts` with:
    - `CausalMechanism` type union
-   - `LikelyCause` interface (with optional `chainPath`)
+   - `LikelyCause` interface (with optional `chainPath`, optional `coOccurrenceRate` for concurrent_degradation template)
    - `CausalFinding` interface
    - `AnalysisStatus` type union: `"ok" | "no_degradation" | "insufficient_history" | "insufficient_edges" | "stale"`
    - `RootCauseAnalysis` interface (schemaVersion "p11.2.0", `analysisId`, `correlationGraphId` via SHA-256 hash)
@@ -42,9 +42,9 @@
 2. Logic:
    - Step 1: Map graph.status — insufficient_history → analysis status insufficient_history, stale → stale. Return early with empty findings for either.
    - Step 2: Filter degraded nodes (warning/critical status, or unknown with score < threshold)
-   - Step 3: Build adjacency index (Map<target, edges[]> and Map<source, edges[]>)
+   - Step 3: Build target-indexed edge map (Map<target, edges[]>). Source index is optional — chain detection only walks incoming edges into each direct cause, so target index is sufficient.
    - Step 4: For each degraded subsystem, find incoming edges above minCauseConfidence
-   - Step 5: Classify each cause by mechanism + adjust confidence
+   - Step 5: Classify each cause by mechanism + adjust confidence. For concurrent_degradation causes, store `coOccurrenceRate` from the source edge on `LikelyCause` for the recommendation template.
    - Step 6: Walk incoming edges into each direct cause (A→B→T) for 2-hop indirect causes
    - Step 7: Deduplicate, sort, take top maxCausesPerSubsystem
    - Step 8: Determine driving metric from largest |drift delta|
@@ -60,12 +60,16 @@
 - Chain depth: max 2 hops (A→B→C). Deeper chains have too many false positives.
 - Confidences never exceed 0.95 (reserve 0.05 ceiling for future human-in-the-loop)
 - `degradation_chain` mechanism assigned to the whole chain, not per-edge
+- Recommendation templates format confidence as percentage: `(confidence * 100).toFixed(0) + "%"`, e.g. 0.81 → `"81%"`
 - Chain detection walks **incoming** edges into the direct cause (A→B→T, not B→X)
 - `graph.status === "insufficient_history"` maps to analysis status `"insufficient_history"` (not collapsed into `"stale"`)
 - `graph.status === "stale"` maps to analysis status `"stale"` (separate from insufficient_history)
 - `insufficient_edges` status set when subsystems degraded but no qualifying causal edges found
 - `correlationGraphId` = SHA-256 hash of graph content (no P11.1 schema change needed)
 - `analysisId` = `"reason-" + generatedAt`
+- Confidence formatting: `0.81` displays as `81%` in recommendation templates (multiply by 100)
+- `LikelyCause` stores `coOccurrenceRate?: number` so the concurrent_degradation template can use `{coOccurrenceRate}` without holding onto the source edge
+- Chain detection only needs a target-indexed edge map; source-indexed map is optional (not needed for the implementation)
 
 ### Verification
 
@@ -92,10 +96,10 @@
 2. `RootCauseAnalysisMeta` type:
    ```typescript
    interface RootCauseAnalysisMeta {
-     id: string;
+     analysisId: string;
      status: AnalysisStatus;
      generatedAt: string;
-     degradedSubsystems: number;
+     findings: number; // count of findings in this analysis
    }
    ```
 
