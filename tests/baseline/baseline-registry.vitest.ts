@@ -62,10 +62,13 @@ describe("BaselineRegistry", () => {
     expect(typeof result.score).toBe("number");
   });
 
-  it("createDefaultBaselineRegistry registers DemoProvider", () => {
+  it("createDefaultBaselineRegistry registers all three providers", () => {
     const reg = createDefaultBaselineRegistry();
     const providers = reg.discover();
-    expect(providers.length).toBeGreaterThanOrEqual(1);
-    expect(providers.some((p) => p.subsystem === "demo")).toBe(true);
+    const subsystems = providers.map((p) => p.subsystem);
+    expect(subsystems).toContain("demo");
+    expect(subsystems).toContain("governance");
+    expect(subsystems).toContain("memory");
+    expect(providers.length).toBe(3);
   });
 });
