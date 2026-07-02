@@ -46,7 +46,7 @@ describe("MemoryHealthProvider", () => {
     const current = await provider.captureCurrent();
     // Both may happen in the same millisecond, so compare data reference instead
     expect(current).not.toBe(baseline);
-    // subequent baseline calls return cached artifact
+    // subsequent baseline calls return cached artifact
     const baselineAgain = await provider.captureBaseline();
     expect(baselineAgain).toBe(baseline);
   });

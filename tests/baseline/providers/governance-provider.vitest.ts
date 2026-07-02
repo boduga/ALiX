@@ -6,13 +6,14 @@ import { randomUUID } from "node:crypto";
 import { GovernanceBaselineProvider } from "../../../src/baseline/providers/governance-provider.js";
 
 describe("GovernanceBaselineProvider", () => {
-  const provider = new GovernanceBaselineProvider();
+  let provider: GovernanceBaselineProvider;
   let tempDir: string;
 
   beforeEach(() => {
     tempDir = join(tmpdir(), `gov-provider-${randomUUID()}`);
     mkdirSync(join(tempDir, ".alix", "governance"), { recursive: true });
     vi.spyOn(process, "cwd").mockReturnValue(tempDir);
+    provider = new GovernanceBaselineProvider();
   });
 
   afterEach(() => {
@@ -108,5 +109,30 @@ describe("GovernanceBaselineProvider", () => {
     const data = artifact.data as Record<string, number>;
     expect(data.calibrationCount).toBe(0); // malformed
     expect(data.totalLenses).toBe(1); // valid
+  });
+
+  // -----------------------------------------------------------------------
+  // Current re-reads files after baseline
+  // -----------------------------------------------------------------------
+  it("current re-reads files and reflects changes", async () => {
+    // Initial baseline
+    writeFileSync(
+      join(tempDir, ".alix", "governance", "calibration.json"),
+      JSON.stringify({ calibrations: [{ target: "a", value: 0.8 }] }),
+    );
+    const baseline = await provider.captureBaseline();
+    expect((baseline.data as Record<string, number>).calibrationCount).toBe(1);
+
+    // Change the file
+    writeFileSync(
+      join(tempDir, ".alix", "governance", "calibration.json"),
+      JSON.stringify({ calibrations: [{ target: "a", value: 0.8 }, { target: "b", value: 0.6 }] }),
+    );
+    const current = await provider.captureCurrent();
+    expect((current.data as Record<string, number>).calibrationCount).toBe(2);
+
+    // Baseline should still reflect original capture
+    const baselineAgain = await provider.captureBaseline();
+    expect((baselineAgain.data as Record<string, number>).calibrationCount).toBe(1);
   });
 });

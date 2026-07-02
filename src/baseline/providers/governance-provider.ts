@@ -31,10 +31,16 @@ export class GovernanceBaselineProvider implements BaselineProvider {
   readonly state = "ready" as const;
   readonly capabilities = ["capture"];
 
+  private baselineCache: BaselineArtifact | null = null;
+
   async captureBaseline(): Promise<BaselineArtifact> {
-    return this.capture();
+    if (this.baselineCache) return this.baselineCache;
+    const artifact = await this.capture();
+    this.baselineCache = artifact;
+    return artifact;
   }
 
+  /** Re-reads governance files on every call for comparison. */
   async captureCurrent(): Promise<BaselineArtifact> {
     return this.capture();
   }
