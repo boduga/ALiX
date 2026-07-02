@@ -26,7 +26,11 @@ export async function handleCorrelateCommand(args: string[]): Promise<void> {
   const store = new CorrelationGraphStore(correlationDir);
 
   if (isStatus) {
-    const graph = await store.loadLatest();
+    // Re-check staleness against the wall clock so a graph saved long ago
+    // reports status: "stale" rather than its compute-time status verbatim.
+    const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+    const staleAfterMs = DEFAULT_CORRELATION_CONFIG.staleAfterWindows * sevenDaysMs;
+    const graph = await store.loadLatest({ staleAfterMs });
     if (!graph) { console.log("No saved correlation graph found."); return; }
     printSummary(graph, isJson);
     return;

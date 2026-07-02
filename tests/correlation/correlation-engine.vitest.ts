@@ -51,7 +51,9 @@ describe("CorrelationEngine", () => {
 
   it("run() with trend data produces correlation graph", async () => {
     const subsystemNames = ["memory", "workflow", "learning", "agents", "tools", "security", "governance", "adaptation"];
-    for (let i = 0; i < 8; i++) {
+    // Save oldest-first so loadLatest() returns the most recent and
+    // findBaseline can walk back through distinct older snapshots.
+    for (let i = 7; i >= 0; i--) {
       await trendStore.save({
         schemaVersion: "p10.0.0",
         generatedAt: new Date(Date.now() - i * 86400000).toISOString(),
@@ -72,5 +74,36 @@ describe("CorrelationEngine", () => {
     });
     const graph = await engine.run();
     expect(graph.schemaVersion).toBe("p11.1.0");
+    expect(graph.meta.totalSnapshotsExamined).toBe(8);
+  });
+
+  it("loadTrendHistory walks back distinct snapshots without duplicates", async () => {
+    // Regression test for C1: findBaseline's <= predicate must not re-find
+    // the same snapshot, which would inflate the window with duplicates.
+    const subsystemNames = ["memory", "workflow", "learning", "agents", "tools", "security", "governance", "adaptation"];
+    // Save oldest-first: 4 snapshots at 7-day intervals
+    for (let i = 3; i >= 0; i--) {
+      await trendStore.save({
+        schemaVersion: "p10.0.0",
+        generatedAt: new Date(Date.now() - i * 7 * 86400000).toISOString(),
+        windowDays: 7,
+        overallScore: 80,
+        rankedSubsystems: subsystemNames.map(name => ({
+          subsystem: name as any,
+          score: 80 - i * 5,
+          summary: "trend",
+          status: "healthy" as const,
+          topIssues: [],
+        })),
+      });
+    }
+    const engine = new CorrelationEngine(registry, trendStore, {
+      ...DEFAULT_CORRELATION_CONFIG,
+      minSamples: 1,
+      windowSize: 12,
+    });
+    const graph = await engine.run();
+    // Should have exactly 4 distinct snapshots, not 12 (windowSize) duplicates
+    expect(graph.meta.totalSnapshotsExamined).toBe(4);
   });
 });

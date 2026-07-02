@@ -26,8 +26,11 @@ export class CorrelationEngine {
     snapshots.push(current);
 
     for (let i = 0; i < this.config.windowSize - 1; i++) {
-      const prev = await this.trendStore.findBaseline(current!.generatedAt);
-      if (!prev) break;
+      // Use a timestamp 1ms before the current snapshot's generatedAt to
+      // achieve exclusive semantics — findBaseline only supports <=.
+      const beforeDate = new Date(new Date(current!.generatedAt).getTime() - 1);
+      const prev = await this.trendStore.findBaseline(beforeDate.toISOString());
+      if (!prev || prev.generatedAt === current!.generatedAt) break;
       snapshots.unshift(prev);
       current = prev;
     }

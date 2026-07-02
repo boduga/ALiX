@@ -83,6 +83,7 @@ function computeEdge(
   let bestSimilarity = 0;
   let lag0Similarity = 0;
   let first = true;
+  let bestLagLen = 0; // aligned overlap length that produced bestSimilarity
   for (let lag = 0; lag <= maxLag; lag++) {
     if (effectiveSamples <= lag) break;
     const srcEnd = source.deltas.length - lag;
@@ -99,6 +100,7 @@ function computeEdge(
     if (sim > bestSimilarity) {
       bestSimilarity = sim;
       bestLag = lag;
+      bestLagLen = len;
     }
   }
 
@@ -145,6 +147,13 @@ function computeEdge(
 
   if (correlationConfidence < minEdgeConfidence) return null;
 
+  // Scope provenance to the snapshots whose deltas actually participated in
+  // this edge: source deltas cover indices [0, len), target deltas are shifted
+  // by bestLag, so the union covers snapshot indices [0 .. bestLag + len].
+  const evidenceIds = snapshotIds.length === 0
+    ? []
+    : snapshotIds.slice(0, Math.min(snapshotIds.length, bestLag + bestLagLen + 1));
+
   return {
     source: source.subsystem,
     target: target.subsystem,
@@ -152,7 +161,7 @@ function computeEdge(
     temporalLag: bestLag,
     correlationDirection,
     correlationConfidence,
-    evidenceIds: snapshotIds,
+    evidenceIds,
   };
 }
 
@@ -172,12 +181,12 @@ export function buildCorrelationGraph(
   const scoreMap = new Map<CorrelationSubsystemId, number>();
 
   for (const c of comparisons) {
-    if (subsystemSet.has(c.subsystem as CorrelationSubsystemId)) {
+    if (subsystemSet.has(c.subsystem as CorrelationSubsystemId) && !excludedSet.has(c.subsystem as CorrelationSubsystemId)) {
       nodes.push({
         subsystem: c.subsystem as CorrelationSubsystemId,
         score: c.score,
         status: computeNodeStatus(c.score),
-        drift: c.drift as any,
+        drift: c.drift,
         evidenceIds: [],
       });
       scoreMap.set(c.subsystem as CorrelationSubsystemId, c.score);
