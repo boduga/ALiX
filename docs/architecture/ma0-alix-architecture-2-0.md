@@ -386,6 +386,8 @@ Examples:
 M1.0 Agent Runtime
 M2.0 Memory Platform
 P10.8 Recommendation Effectiveness
+P10.9 Executive Lifecycle
+P10.10 Baseline Intelligence
 A0.1 Self-Assessment
 S1.0 Supply Chain Integrity
 D1.0 Generator Tooling
@@ -556,6 +558,8 @@ P12  Operator experience
 - Outcome evaluation
 - Recommendation engine
 - Effectiveness intelligence
+- **P10.9** — Execution lifecycle: proposal readiness, remediation wizard, lifecycle orchestration, stabilization
+- **P10.10** — Baseline intelligence: provider framework, health scoring, drift classification, subsystem baselines
 
 ### P11 — Strategic Planning
 
