@@ -52,7 +52,8 @@ export async function createProvider(config: { provider: string; model?: string 
 
   const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string }) => ModelAdapter;
   const instance = new ProviderClass({ apiKey, model: config.model });
-  const wrapped = withProviderContracts(instance);
+  // 3-minute default timeout for provider calls
+  const wrapped = withProviderContracts(instance, undefined, 180_000);
   providerCache.set(key, wrapped);
   return wrapped;
 }
