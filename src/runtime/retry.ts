@@ -6,6 +6,8 @@
  * safely retried — not wired into any boundary yet.
  */
 
+import { buildRuntimeDiagnostic, type RuntimeDiagnostic } from "./runtime-diagnostics.js";
+
 // ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
@@ -92,6 +94,7 @@ export async function withRetry<T>(
   operation: string,
   effect: () => Promise<T>,
   policy: Partial<RetryPolicy> = {},
+  onDiagnostic?: (diag: RuntimeDiagnostic) => void,
 ): Promise<T> {
   const merged: RetryPolicy = { ...DEFAULT_POLICY, ...policy };
   const shouldRetry = merged.shouldRetry ?? ((err) => err instanceof Error && err.name === "SideEffectTimeoutError");
@@ -106,9 +109,26 @@ export async function withRetry<T>(
       if (!shouldRetry(err)) {
         throw err;
       }
-      // Exhausted retries — wrap in RetryError
+      // Exhausted retries — emit diagnostic, wrap in RetryError
       if (attempt >= merged.maxRetries) {
+        if (onDiagnostic) {
+          onDiagnostic(buildRuntimeDiagnostic(
+            "retry.exhausted",
+            operation,
+            `failed after ${attempt + 1} attempt(s)`,
+            { attempt: attempt + 1, maxRetries: merged.maxRetries },
+          ));
+        }
         throw new RetryError(operation, attempt + 1, err);
+      }
+      // Emit diagnostic on retry attempt
+      if (onDiagnostic) {
+        onDiagnostic(buildRuntimeDiagnostic(
+          "retry.attempt",
+          operation,
+          `retrying after error: ${err instanceof Error ? err.message : String(err)}`,
+          { attempt: attempt + 1, maxRetries: merged.maxRetries },
+        ));
       }
       // Retry with backoff
       const delay = computeDelay(attempt, merged);
@@ -116,5 +136,6 @@ export async function withRetry<T>(
     }
   }
 
+  // Fallback — should not reach if loop handles all cases
   throw new RetryError(operation, merged.maxRetries + 1, lastError);
 }
