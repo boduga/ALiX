@@ -19,6 +19,7 @@ import type {
 import { PlanningEngineError } from "./planning-types.js";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { StrategicPlanSchema } from "../contracts/plan-schemas.js";
+import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
 
 // Re-export for consumer convenience.
 export type { StrategicPlanSummary };
@@ -34,7 +35,11 @@ const STRATEGIC_PLANS_FILE = "strategic-plans.jsonl";
 // ---------------------------------------------------------------------------
 
 export class StrategicPlanStore {
-  constructor(private readonly dir: string) {}
+  constructor(
+    private readonly dir: string,
+    private readonly onDiagnostic?: (diag: ContractDiagnostic) => void,
+  ) {}
+
 
   /**
    * Persist a validated plan to the JSONL store.
@@ -42,7 +47,16 @@ export class StrategicPlanStore {
    * Creates the storage directory if it does not exist.
    */
   async save(plan: StrategicPlan): Promise<void> {
-    validatePlan(plan);
+    try {
+      validatePlan(plan);
+    } catch (e: unknown) {
+      if (e instanceof PlanningEngineError && this.onDiagnostic) {
+        this.onDiagnostic(
+          buildDiagnostic("planning", "plan.save", "StrategicPlanSchema", e.message, plan.planId),
+        );
+      }
+      throw e;
+    }
 
     const filePath = join(this.dir, STRATEGIC_PLANS_FILE);
     if (!existsSync(this.dir)) {
@@ -295,8 +309,9 @@ export function validatePlan(raw: unknown): StrategicPlan {
   // CorrelationSubsystemId literal, CausalMechanism literal, nested struct).
   const schemaResult = decode(StrategicPlanSchema, obj);
   if (Either.isLeft(schemaResult)) {
+    const formatted = formatErrors(schemaResult.left);
     throw new PlanningEngineError(
-      `StrategicPlan schema validation failed: ${formatErrors(schemaResult.left)}`,
+      `StrategicPlan schema validation failed: ${formatted}`,
     );
   }
 

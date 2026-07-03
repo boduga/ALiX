@@ -6,15 +6,17 @@ import type { Logger } from "../workflow/evidence-writer.js";
 import { assertSafePathComponent } from "../security/path-assert.js";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { AdaptationProposalSchema } from "../contracts/proposal-schemas.js";
+import { buildDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
 
 export class ProposalStore {
   constructor(
     private readonly dir: string,
     private readonly logger: Logger = { warn: (m, meta) => console.warn(m, meta ?? "") },
+    private readonly onDiagnostic?: (diag: ContractDiagnostic) => void,
   ) {}
 
   /** Validate that a proposal has the required structural fields. */
-  private validateShape(proposal: AdaptationProposal): void {
+  private validateShape(proposal: AdaptationProposal, boundary: "proposal.save" | "proposal.load" | "proposal.list" = "proposal.save"): void {
     const errors: string[] = [];
     if (!proposal.id || typeof proposal.id !== "string") errors.push("id must be a non-empty string");
     if (!proposal.createdAt || typeof proposal.createdAt !== "string") errors.push("createdAt must be a string");
@@ -26,7 +28,11 @@ export class ProposalStore {
       errors.push("target must be an object with a 'kind' field");
     }
     if (errors.length > 0) {
-      throw new Error(`Proposal validation failed: ${errors.join("; ")}`);
+      const msg = `Proposal validation failed: ${errors.join("; ")}`;
+      if (this.onDiagnostic) {
+        this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id));
+      }
+      throw new Error(msg);
     }
 
     // -- Effect Schema validation (additional layer on top of manual checks)
@@ -35,15 +41,17 @@ export class ProposalStore {
     // ProposalStatus literal, invalid nested shapes.
     const schemaResult = decode(AdaptationProposalSchema, proposal);
     if (Either.isLeft(schemaResult)) {
-      throw new Error(
-        `Proposal schema validation failed: ${formatErrors(schemaResult.left)}`,
-      );
+      const msg = `Proposal schema validation failed: ${formatErrors(schemaResult.left)}`;
+      if (this.onDiagnostic) {
+        this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id));
+      }
+      throw new Error(msg);
     }
   }
 
   async save(proposal: AdaptationProposal): Promise<void> {
     assertSafePathComponent(proposal.id);
-    this.validateShape(proposal);
+    this.validateShape(proposal, "proposal.save");
     if (!existsSync(this.dir)) mkdirSync(this.dir, { recursive: true });
     writeFileSync(join(this.dir, `${proposal.id}.json`), JSON.stringify(proposal, null, 2), "utf-8");
   }
@@ -55,7 +63,7 @@ export class ProposalStore {
     const raw = JSON.parse(readFileSync(path, "utf-8")) as AdaptationProposal;
     // Validate with Effect Schema — throw on invalid stored data
     // (semantically different from "not found" null return)
-    this.validateShape(raw);
+    this.validateShape(raw, "proposal.load");
     return raw;
   }
 
@@ -73,7 +81,7 @@ export class ProposalStore {
         // but are not surfaced as normal pending proposals.
         if (parsed.systemState?.orphaned) continue;
         // Validate shape with Effect Schema; skip corrupt entries
-        this.validateShape(parsed);
+        this.validateShape(parsed, "proposal.list");
         proposals.push(parsed);
       } catch {
         corruptCount++;
@@ -93,7 +101,7 @@ export class ProposalStore {
     const existing = await this.load(id);
     if (!existing) throw new Error(`Proposal not found: ${id}`);
     const updated = { ...existing, ...patch, id }; // id is immutable
-    this.validateShape(updated);
+    this.validateShape(updated, "proposal.save");
     await this.save(updated);
     return updated;
   }
