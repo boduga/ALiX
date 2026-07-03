@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readdir, readFile as fsReadFile } from "node:fs/promises";
 import { join, resolve, relative } from "node:path";
 import type { ToolResult, FileMatch } from "./types.js";
+import { withRetry } from "../runtime/retry.js";
 
 const IGNORED_DIRS = new Set([".git", "node_modules", "dist", "build", "coverage", ".next", ".alix"]);
 
@@ -25,7 +26,12 @@ export async function readFile(args: { root: string; path: string }): Promise<To
   }
 
   try {
-    const content = await fsReadFile(resolvedPath, "utf8");
+    // File reads are idempotent — safe to retry on transient failures
+    const content = await withRetry(
+      `file.read: ${path}`,
+      () => fsReadFile(resolvedPath, "utf8"),
+      { maxRetries: 1, baseDelayMs: 200 },
+    );
     return { kind: "success", content };
   } catch (err) {
     return { kind: "error", message: err instanceof Error ? err.message : String(err) };
