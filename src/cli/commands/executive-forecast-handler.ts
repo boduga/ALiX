@@ -31,7 +31,14 @@ export async function handleForecastCommand(args: string[]): Promise<void> {
     if (isLatest) {
       const store = new HealthForecastStore(forecastingDir);
       const forecast = await store.loadLatest();
-      if (!forecast) { console.log("No saved health forecast found."); return; }
+      if (!forecast) {
+        if (isJson) {
+          console.log(JSON.stringify({ error: "No saved health forecast found." }));
+        } else {
+          console.log("No saved health forecast found.");
+        }
+        return;
+      }
       printSummary(forecast, isJson);
       return;
     }

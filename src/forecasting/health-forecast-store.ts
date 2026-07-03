@@ -61,7 +61,10 @@ export class HealthForecastStore {
     try {
       const parsed = JSON.parse(lines[lines.length - 1]);
       return validateForecast(parsed);
-    } catch {
+    } catch (e: unknown) {
+      if (e instanceof ForecasterError) {
+        console.warn(`Corrupted forecast entry: ${e.message}`);
+      }
       return null;
     }
   }
@@ -180,6 +183,7 @@ export function validateForecast(raw: unknown): HealthForecast {
   // -- forecastWindows & windowDurationMs --------------
   if (
     typeof obj.forecastWindows !== "number" ||
+    !Number.isFinite(obj.forecastWindows as number) ||
     obj.forecastWindows < 1 ||
     obj.forecastWindows > 3
   ) {
@@ -250,17 +254,41 @@ export function validateForecast(raw: unknown): HealthForecast {
         `projections[${i}].projectedScores must be an array of length ${fw}`,
       );
     }
+    for (let j = 0; j < proj.projectedScores.length; j++) {
+      const val = proj.projectedScores[j];
+      if (typeof val !== "number" || !Number.isFinite(val) || val < 0 || val > 100) {
+        throw new ForecasterError(
+          `projections[${i}].projectedScores[${j}] must be a finite number between 0 and 100`,
+        );
+      }
+    }
 
     if (!Array.isArray(proj.lowerBound) || proj.lowerBound.length !== fw) {
       throw new ForecasterError(
         `projections[${i}].lowerBound must be an array of length ${fw}`,
       );
     }
+    for (let j = 0; j < proj.lowerBound.length; j++) {
+      const val = proj.lowerBound[j];
+      if (typeof val !== "number" || !Number.isFinite(val) || val < 0 || val > 100) {
+        throw new ForecasterError(
+          `projections[${i}].lowerBound[${j}] must be a finite number between 0 and 100`,
+        );
+      }
+    }
 
     if (!Array.isArray(proj.upperBound) || proj.upperBound.length !== fw) {
       throw new ForecasterError(
         `projections[${i}].upperBound must be an array of length ${fw}`,
       );
+    }
+    for (let j = 0; j < proj.upperBound.length; j++) {
+      const val = proj.upperBound[j];
+      if (typeof val !== "number" || !Number.isFinite(val) || val < 0 || val > 100) {
+        throw new ForecasterError(
+          `projections[${i}].upperBound[${j}] must be a finite number between 0 and 100`,
+        );
+      }
     }
   }
 

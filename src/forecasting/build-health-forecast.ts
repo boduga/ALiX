@@ -50,6 +50,7 @@ function isValidIso(value: string): boolean {
 function validateConfig(config: ForecastingEngineConfig): void {
   if (
     typeof config.forecastWindows !== "number" ||
+    !Number.isFinite(config.forecastWindows) ||
     config.forecastWindows < 1 ||
     config.forecastWindows > 3
   ) {
@@ -132,6 +133,14 @@ export function buildHealthForecast(
   validateConfig(config);
 
   // Handle model/plan mismatch: ignore confidence model if it doesn't match
+  if (
+    confidenceModel !== null &&
+    confidenceModel.sourcePlanId !== plan.planId
+  ) {
+    console.warn(
+      `Confidence model "${confidenceModel.modelId}" (plan: ${confidenceModel.sourcePlanId}) does not match current plan "${plan.planId}" — using default confidence 0.5`,
+    );
+  }
   const effectiveConfidenceModel =
     confidenceModel?.sourcePlanId === plan.planId ? confidenceModel : null;
 
@@ -234,9 +243,14 @@ export function buildHealthForecast(
         (u) => u.targetSubsystem === subsystem,
       );
       if (matching.length > 0) {
+        const valid = matching.filter((u) =>
+          Number.isFinite(u.resultingConfidence),
+        );
         const avg =
-          matching.reduce((sum, u) => sum + u.resultingConfidence, 0) /
-          matching.length;
+          valid.length > 0
+            ? valid.reduce((sum, u) => sum + u.resultingConfidence, 0) /
+              valid.length
+            : 0.5;
         forecastConfidence.set(subsystem, roundTo3(avg));
         continue;
       }
@@ -315,15 +329,20 @@ export function buildHealthForecast(
     meta: {
       subsystemsForecast: projections.length,
       highConfidenceForecasts: projections.filter(
-        (p) => p.forecastConfidence >= config.highConfidenceThreshold,
+        (p) =>
+          Number.isFinite(p.forecastConfidence) &&
+          p.forecastConfidence >= config.highConfidenceThreshold,
       ).length,
       mediumConfidenceForecasts: projections.filter(
         (p) =>
+          Number.isFinite(p.forecastConfidence) &&
           p.forecastConfidence >= config.mediumConfidenceThreshold &&
           p.forecastConfidence < config.highConfidenceThreshold,
       ).length,
       lowConfidenceForecasts: projections.filter(
-        (p) => p.forecastConfidence < config.mediumConfidenceThreshold,
+        (p) =>
+          Number.isFinite(p.forecastConfidence) &&
+          p.forecastConfidence < config.mediumConfidenceThreshold,
       ).length,
       trendWindow: config.trendWindow,
     },
