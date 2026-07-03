@@ -6,6 +6,8 @@
  * MCP call boundaries — no wiring into those boundaries yet.
  */
 
+import { buildRuntimeDiagnostic, type RuntimeDiagnostic } from "./runtime-diagnostics.js";
+
 // ---------------------------------------------------------------------------
 // Error type
 // ---------------------------------------------------------------------------
@@ -49,9 +51,13 @@ export function withTimeout<T>(
   operation: string,
   timeoutMs: number,
   effect: () => Promise<T>,
+  onDiagnostic?: (diag: RuntimeDiagnostic) => void,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
+      if (onDiagnostic) {
+        onDiagnostic(buildRuntimeDiagnostic("timeout", operation, `timed out after ${timeoutMs}ms`, { timeoutMs }));
+      }
       reject(new SideEffectTimeoutError(operation, timeoutMs));
     }, timeoutMs);
 
