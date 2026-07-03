@@ -117,6 +117,7 @@ export function withProviderContracts(
   adapter: ModelAdapter,
   onDiagnostic?: (diag: ContractDiagnostic) => void,
   timeoutMs?: number,
+  streamIdleTimeoutMs?: number,
 ): ModelAdapter {
   function emit(diag: ContractDiagnostic): void {
     onDiagnostic?.(diag);
@@ -169,8 +170,14 @@ export function withProviderContracts(
               throw e;
             }
 
-            const stream = adapter.stream!(request);
-            for await (const chunk of stream) {
+            const rawStream = adapter.stream!(request);
+
+            // Wrap with idle timeout when configured
+            const timedStream = streamIdleTimeoutMs
+              ? withStreamIdleTimeout(rawStream, streamIdleTimeoutMs, onDiagnostic)
+              : rawStream;
+
+            for await (const chunk of timedStream) {
               try {
                 yield validateStreamChunk(chunk);
               } catch (e: unknown) {
@@ -184,4 +191,56 @@ export function withProviderContracts(
         }
       : {}),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Stream idle timeout helper
+// ---------------------------------------------------------------------------
+
+/**
+ * Wraps an AsyncGenerator with a per-chunk idle timeout.
+ * Each yielded chunk resets the timer. Stalled streams (no chunk within
+ * the idle window) reject with SideEffectTimeoutError.
+ */
+async function* withStreamIdleTimeout(
+  stream: AsyncGenerator<StreamChunk>,
+  idleTimeoutMs: number,
+  onDiagnostic?: (diag: ContractDiagnostic) => void,
+): AsyncGenerator<StreamChunk> {
+  const iterator = stream[Symbol.asyncIterator]();
+  let timer: ReturnType<typeof setTimeout> | null = null;
+
+  const startTimer = () => {
+    timer = setTimeout(() => {
+      timer = null;
+    }, idleTimeoutMs);
+  };
+
+  const clearTimer = () => {
+    if (timer !== null) {
+      clearTimeout(timer);
+      timer = null;
+    }
+  };
+
+  try {
+    while (true) {
+      // Wait for next chunk with idle timeout
+      const result = await withTimeout(
+        "stream.idle",
+        idleTimeoutMs,
+        () => iterator.next(),
+        onDiagnostic ? (d) => consoleSink.emit(d) : undefined,
+      );
+
+      if (result.done) break;
+      const chunk = result.value;
+
+      clearTimer();
+      yield chunk;
+      startTimer(); // Reset timer for next chunk
+    }
+  } finally {
+    clearTimer();
+  }
 }
