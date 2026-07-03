@@ -13,6 +13,7 @@ import { decode, formatErrors } from "../contracts/helpers.js";
 import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../contracts/llm-schemas.js";
 import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic, type ContractBoundary } from "../contracts/contract-diagnostics.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
+import { formatRuntimeDiagnostic } from "../runtime/runtime-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -134,6 +135,7 @@ export function withProviderContracts(
               `provider.complete:${adapter.id}`,
               timeoutMs,
               () => adapter.complete(validatedRequest),
+              (d) => console.warn(formatRuntimeDiagnostic(d)),
             )
           : await adapter.complete(validatedRequest);
         return validateNormalizedResponse(response);
