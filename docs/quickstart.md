@@ -5,7 +5,7 @@
 ## Prerequisites
 
 - Node.js 24+
-- npm
+- pnpm (enable with `corepack enable`)
 - A model provider API key (DeepSeek, Anthropic, OpenAI, etc.)
 
 ## Install
@@ -13,8 +13,8 @@
 ```bash
 git clone <repo>
 cd ALiX
-npm install
-npm run build
+pnpm install
+pnpm build
 ```
 
 ## Configure

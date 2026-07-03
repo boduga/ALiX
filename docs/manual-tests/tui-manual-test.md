@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- ALiX built (`npm run build`)
+- ALiX built (`pnpm build`)
 - A running terminal with at least 120 columns × 30 rows
 - Daemon not running (for test 1–6)
 

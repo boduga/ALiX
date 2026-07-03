@@ -32,18 +32,18 @@
   "scripts": {
     "copy:profiles": "mkdir -p dist/src/config/profiles && cp src/config/profiles/*.json dist/src/config/profiles/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json && npm run copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
-    "test": "npm run test:node && npm run test:vitest",
+    "build": "tsc -p tsconfig.json && pnpm copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
+    "test": "pnpm test:node && pnpm test:vitest",
     "test:node": "node --test --test-timeout=30000 dist/tests/*.test.js dist/tests/**/*.test.js",
-    "test:unit:node": "echo \"[legacy] node:test suite removed from CI — use npm run test:vitest\"",
+    "test:unit:node": "echo \"[legacy] node:test suite removed from CI — use pnpm test:vitest\"",
     "test:integration": "node --test --test-concurrency=1 dist/tests/integration/*.test.js",
-    "test:vitest": "npx vitest run --config vitest.config.mts",
+    "test:vitest": "vitest run --config vitest.config.mts",
     "test:manual": "node --test --test-concurrency=1 dist/tests/manual/suite-*.test.js",
-    "test:coverage": "c8 node --test dist/tests/*.test.js dist/tests/**/*.test.js && c8 npx vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
+    "test:coverage": "c8 node --test dist/tests/*.test.js dist/tests/**/*.test.js && c8 vitest run tests/autonomy/scope-tracker.vitest.ts tests/memory/user-preference-store.vitest.ts --config vitest.config.mts",
     "coverage:report": "c8 report --reporter=text-summary",
     "verify:deps": "node scripts/verify-deps.mjs",
-    "check": "npm run build && npm run test:node && npm run verify:deps",
-    "test:ci": "npm run test:node:ci && npm run test:vitest",
+    "check": "pnpm build && pnpm test:node && pnpm verify:deps",
+    "test:ci": "pnpm test:node:ci && pnpm test:vitest",
     "test:node:ci": "find dist/tests -name '*.test.js' ! -path 'dist/tests/manual/*' ! -path 'dist/tests/pty/*' ! -path 'dist/tests/soak/*' ! -path 'dist/tests/integration/*' ! -path 'dist/tests/cli/commands/skills/*' ! -path 'dist/tests/tests/*' -print0 | xargs -0 node --test --test-timeout=30000",
     "test:manual:tui": "node --test --test-concurrency=1 dist/tests/manual/suite-p-tui-smoke.test.js",
     "test:pty:tui": "ALIX_PTY_TESTS=1 node --test --test-concurrency=1 dist/tests/pty/tui-pty.test.js",
@@ -54,7 +54,8 @@
     "test:soak:adaptation": "node --test --test-concurrency=1 dist/tests/soak/adaptation-*.soak.test.js",
     "test:stress": "node --test --test-timeout=60000 dist/tests/stress/*.test.js",
     "test:skips:audit": "bash scripts/test-skips-audit.sh",
-    "fresh": "npm run build && node dist/src/cli.js doctor"
+    "check:package-manager": "bash scripts/check-package-manager.sh",
+    "fresh": "pnpm build && node dist/src/cli.js doctor"
   },
   "engines": {
     "node": ">=24"
@@ -63,8 +64,10 @@
     "@types/better-sqlite3": "7.6.13",
     "@types/node": "24.0.0",
     "c8": "11.0.0",
+    "glob": "13.0.6",
     "minimatch": "10.2.5",
     "typescript": "5.9.3",
+    "undici-types": "8.5.0",
     "vitest": "4.1.6"
   },
   "dependencies": {
@@ -73,5 +76,6 @@
     "cli-spinners": "3.4.0",
     "tiktoken": "1.0.22",
     "yaml": "2.9.0"
-  }
+  },
+  "packageManager": "pnpm@11.9.0+sha512.bd682d5d03fe525ef7c9fd6780c6884d1e756ac4c9c9fe00c538782824310dcf90e3ddc4f53835f06dfaebd5085e41855e0bcbb3b60de2ac5bbab89e5036f03b"
 }

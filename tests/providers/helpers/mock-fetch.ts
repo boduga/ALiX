@@ -1,6 +1,9 @@
 export type MockResponse = { status: number; body: unknown };
 
-export function makeMockFetch(responses: MockResponse[]) {
+export function makeMockFetch(responses: MockResponse[]): {
+  calls: Array<{ url: string; init: RequestInit }>;
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
+} {
   let i = 0;
   const calls: Array<{ url: string; init: RequestInit }> = [];
   return {

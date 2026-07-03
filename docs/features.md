@@ -107,10 +107,10 @@ You approve once, ALiX remembers for the session.
 ## Verification
 
 ALiX auto-discovers verification from your `package.json`:
-- `npm test`
-- `npm run build`
-- `npm run typecheck`
-- `npm run lint`
+- `pnpm test`
+- `pnpm build`
+- `pnpm typecheck`
+- `pnpm lint`
 
 After every change, it runs these. Failures trigger repair.
 

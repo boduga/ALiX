@@ -17,24 +17,27 @@ jobs:
     permissions:
       contents: read
     steps:
-      # actions/checkout v4 — pinned to SHA
+      # actions/checkout v4 — pinned SHA
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
-      # actions/setup-node v4 — pinned to SHA
+      # actions/setup-node v4 — pinned SHA
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: Lifecycle script check (Sf.1)
         run: node scripts/verify-lifecycle-scripts.mjs
       - name: Lockfile integrity (Sf.3)
         run: |
-          if ! git diff --exit-code package-lock.json; then
-            echo "ERROR: package-lock.json has uncommitted changes"
+          if ! git diff --exit-code pnpm-lock.yaml; then
+            echo "ERROR: pnpm-lock.yaml has uncommitted changes"
             exit 1
           fi
           echo "Lockfile clean — OK"
+      - name: Package manager policy check
+        run: bash scripts/check-package-manager.sh
       - name: Supply-chain gate (Sf.x)
         run: bash scripts/check-supply-chain.sh
 
@@ -46,10 +49,11 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
       - name: TypeScript typecheck
-        run: npm run typecheck
+        run: pnpm typecheck
 
   # ─── Lane 2: Unit tests (vitest) ──────────────────────────────────────────
   unit:
@@ -59,11 +63,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: Vitest
-        run: npm run test:vitest
+        run: pnpm test:vitest
 
   # ─── Lane 3: Integration + Soak Tier 1 + Doctor ───────────────────────
   integration:
@@ -73,13 +78,14 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: Integration tests
-        run: npm run test:integration
+        run: pnpm test:integration
       - name: Soak Tier 1 (corruption + store load)
-        run: npm run test:soak:quick
+        run: pnpm test:soak:quick
       - name: Doctor health check
         run: node dist/src/cli.js doctor
 
@@ -91,11 +97,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: TUI manual smoke
-        run: npm run test:manual:tui
+        run: pnpm test:manual:tui
 
   # ─── Lane 5: Cross-platform — macOS (Node LTS + current) ──────────────
   unit-macos:
@@ -108,11 +115,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
-      - run: npm ci
-      - run: npm run build
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - name: TypeScript typecheck
-        run: npm run typecheck
+        run: pnpm typecheck
 
   # ─── Lane 6: Cross-platform — Windows (Node LTS) ──────────────────────
   unit-windows:
@@ -125,11 +133,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
-      - run: npm ci
+          cache: pnpm
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
       - name: Build
         shell: bash
-        run: npm run build
+        run: pnpm build
       - name: TypeScript typecheck
         shell: bash
-        run: npm run typecheck
+        run: pnpm typecheck

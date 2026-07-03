@@ -16,8 +16,8 @@ P4.3-S delivers the ALiX Inspector security hardening across 8 milestones. The r
 
 ### Entry Criteria
 - All P4.3-S milestones implemented and committed
-- `npm run build` passes
-- `npm run test:unit:node` passes (all security test suites)
+- `pnpm build` passes
+- `pnpm test:unit:node` passes (all security test suites)
 
 ### Validation Steps
 
@@ -73,7 +73,7 @@ P4.3-S delivers the ALiX Inspector security hardening across 8 milestones. The r
 3. **Verify all security tests run in CI:**
    ```yaml
    - name: Security Tests
-     run: npm run test:unit:node
+     run: pnpm test:unit:node
    ```
 
 ### Acceptance
@@ -142,7 +142,7 @@ P4.3-S delivers the ALiX Inspector security hardening across 8 milestones. The r
 
 2. **Deploy:**
    ```bash
-   npm run build
+   pnpm build
    npm publish --provenance --access public
    ```
 
@@ -166,7 +166,7 @@ If security issues are detected post-deployment:
 
 1. **Revert to previous version:**
    ```bash
-   npm install alix@<previous-version>
+   pnpm install alix@<previous-version>
    ```
 
 2. **Revoke all tokens issued during the affected period:**

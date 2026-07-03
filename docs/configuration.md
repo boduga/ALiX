@@ -99,7 +99,7 @@ See [Inspector Security](security/inspector-security.md) for full details.
 ALiX pins all direct dependencies. Verify with:
 
 ```bash
-npm run verify:deps
+pnpm verify:deps
 ```
 
 See [Supply-Chain Policy](../README.md#supply-chain-policy) for details.
