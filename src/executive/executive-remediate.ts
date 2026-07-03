@@ -508,7 +508,10 @@ export function buildTarget(
   if (kind === "issue") {
     return { kind: "issue", title: targetId } as ProposalTarget;
   }
-  // governance, agent_card, skill, etc. all use `id`
+  if (kind === "governance") {
+    return { kind: "governance", recommendationId: targetId } as ProposalTarget;
+  }
+  // agent_card, skill, etc. use `id`
   return { kind, id: targetId } as unknown as ProposalTarget;
 }
 

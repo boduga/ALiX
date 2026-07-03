@@ -1,8 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { Either } from "effect";
 import type { AdaptationProposal, ProposalStatus } from "./adaptation-types.js";
 import type { Logger } from "../workflow/evidence-writer.js";
 import { assertSafePathComponent } from "../security/path-assert.js";
+import { decode, formatErrors } from "../contracts/helpers.js";
+import { AdaptationProposalSchema } from "../contracts/proposal-schemas.js";
 
 export class ProposalStore {
   constructor(
@@ -25,6 +28,17 @@ export class ProposalStore {
     if (errors.length > 0) {
       throw new Error(`Proposal validation failed: ${errors.join("; ")}`);
     }
+
+    // -- Effect Schema validation (additional layer on top of manual checks)
+    // Catches shape mismatches the manual checks miss: invalid ProposalAction
+    // literal, invalid ProposalTarget discriminated union variant, invalid
+    // ProposalStatus literal, invalid nested shapes.
+    const schemaResult = decode(AdaptationProposalSchema, proposal);
+    if (Either.isLeft(schemaResult)) {
+      throw new Error(
+        `Proposal schema validation failed: ${formatErrors(schemaResult.left)}`,
+      );
+    }
   }
 
   async save(proposal: AdaptationProposal): Promise<void> {
@@ -38,7 +52,11 @@ export class ProposalStore {
     assertSafePathComponent(id);
     const path = join(this.dir, `${id}.json`);
     if (!existsSync(path)) return null;
-    return JSON.parse(readFileSync(path, "utf-8"));
+    const raw = JSON.parse(readFileSync(path, "utf-8")) as AdaptationProposal;
+    // Validate with Effect Schema — throw on invalid stored data
+    // (semantically different from "not found" null return)
+    this.validateShape(raw);
+    return raw;
   }
 
   async list(status?: ProposalStatus): Promise<AdaptationProposal[]> {
@@ -54,6 +72,8 @@ export class ProposalStore {
         // P9.2: skip orphaned proposals — they exist on disk for audit
         // but are not surfaced as normal pending proposals.
         if (parsed.systemState?.orphaned) continue;
+        // Validate shape with Effect Schema; skip corrupt entries
+        this.validateShape(parsed);
         proposals.push(parsed);
       } catch {
         corruptCount++;
