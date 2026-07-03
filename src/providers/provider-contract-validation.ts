@@ -7,10 +7,10 @@
 // Wrapper preserves the full ModelAdapter interface.
 // No streaming validation yet — stream() and negotiate() pass through.
 
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "./types.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
 import { Either } from "effect";
 import { decode, formatErrors } from "../contracts/helpers.js";
-import { NormalizedRequestSchema, NormalizedResponseSchema } from "../contracts/llm-schemas.js";
+import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../contracts/llm-schemas.js";
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -62,22 +62,40 @@ export function validateNormalizedResponse(input: unknown): NormalizedResponse {
   return result.right as unknown as NormalizedResponse;
 }
 
+/**
+ * Validate an unknown input as a StreamChunk.
+ * Returns the decoded chunk on success.
+ * Throws ContractValidationError on failure.
+ */
+export function validateStreamChunk(input: unknown): StreamChunk {
+  const result = decode(StreamChunkSchema, input);
+  if (Either.isLeft(result)) {
+    const formatted = formatErrors(result.left);
+    throw new ContractValidationError(
+      "StreamChunk validation failed",
+      formatted,
+    );
+  }
+  return result.right as unknown as StreamChunk;
+}
+
 // ---------------------------------------------------------------------------
 // Wrapper
 // ---------------------------------------------------------------------------
 
 /**
- * Wrap a ModelAdapter with request/response contract validation.
+ * Wrap a ModelAdapter with request/response/stream contract validation.
  *
  * - Before complete(): validates NormalizedRequest
  * - After complete(): validates NormalizedResponse
- * - stream() and negotiate() pass through unchanged
+ * - Before stream(): validates NormalizedRequest
+ * - Each yielded chunk from stream() is validated against StreamChunkSchema
+ * - negotiate() passes through unchanged
  * - All non-function properties (id, capabilities, etc.) pass through
  */
 export function withProviderContracts(adapter: ModelAdapter): ModelAdapter {
   return {
-    // Forward all existing adapter properties (id, capabilities, stream,
-    // negotiate, and any future ModelAdapter additions)
+    // Forward all existing adapter properties
     ...adapter,
 
     // Override complete with request/response contract validation
@@ -86,5 +104,21 @@ export function withProviderContracts(adapter: ModelAdapter): ModelAdapter {
       const response = await adapter.complete(validatedRequest);
       return validateNormalizedResponse(response);
     },
+
+    // Override stream with request and per-chunk validation
+    // Only present when the adapter provides stream
+    ...(adapter.stream
+      ? {
+          stream: async function* (
+            request: NormalizedRequest,
+          ): AsyncGenerator<StreamChunk> {
+            const validatedRequest = validateNormalizedRequest(request);
+            const stream = adapter.stream!(validatedRequest);
+            for await (const chunk of stream) {
+              yield validateStreamChunk(chunk);
+            }
+          },
+        }
+      : {}),
   };
 }
