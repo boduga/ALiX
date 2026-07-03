@@ -179,9 +179,16 @@ export async function handleExecutiveCommand(args: string[]): Promise<void> {
       return handleConfidenceModelCommand(rest);
     }
 
+    case "forecast": {
+      const { handleForecastCommand } = await import(
+        "./executive-forecast-handler.js"
+      );
+      return handleForecastCommand(rest);
+    }
+
     default:
       console.error(`Unknown executive subcommand: ${subcommand ?? "(none)"}`);
-      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate, correlate, reason, strategic-plan, confidence-model");
+      console.error("Available: dashboard, plan, evaluate, outcomes, learn, recommend, bridge, recommendation-effectiveness, subsystem-correlation, remediate, orchestrate, correlate, reason, strategic-plan, confidence-model, forecast");
       process.exit(1);
   }
 }
