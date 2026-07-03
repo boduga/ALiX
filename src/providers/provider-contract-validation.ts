@@ -12,6 +12,7 @@ import { Either } from "effect";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../contracts/llm-schemas.js";
 import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic, type ContractBoundary } from "../contracts/contract-diagnostics.js";
+import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -114,6 +115,7 @@ function diagProvider(
 export function withProviderContracts(
   adapter: ModelAdapter,
   onDiagnostic?: (diag: ContractDiagnostic) => void,
+  timeoutMs?: number,
 ): ModelAdapter {
   function emit(diag: ContractDiagnostic): void {
     onDiagnostic?.(diag);
@@ -127,7 +129,13 @@ export function withProviderContracts(
     async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
       try {
         const validatedRequest = validateNormalizedRequest(request);
-        const response = await adapter.complete(validatedRequest);
+        const response = timeoutMs
+          ? await withTimeout(
+              `provider.complete:${adapter.id}`,
+              timeoutMs,
+              () => adapter.complete(validatedRequest),
+            )
+          : await adapter.complete(validatedRequest);
         return validateNormalizedResponse(response);
       } catch (e: unknown) {
         if (e instanceof ContractValidationError && onDiagnostic) {
