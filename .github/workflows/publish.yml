@@ -22,6 +22,10 @@ jobs:
     steps:
       # actions/checkout v4 — pinned to SHA
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      # pnpm/action-setup v2 — install pnpm before setup-node for cache:pnpm
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
       # actions/setup-node v4 — pinned to SHA
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
@@ -30,7 +34,6 @@ jobs:
           cache: pnpm
 
       # Sf.7 step 1: Install approved dependencies
-      - run: corepack enable
       - run: pnpm install --frozen-lockfile
 
       # Ensure tag matches package.json version
