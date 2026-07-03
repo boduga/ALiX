@@ -57,3 +57,26 @@ export function formatRuntimeDiagnostic(diag: RuntimeDiagnostic): string {
   if (diag.timeoutMs !== undefined) msg += ` (timeout: ${diag.timeoutMs}ms)`;
   return msg;
 }
+
+// ---------------------------------------------------------------------------
+// Sink abstraction
+// ---------------------------------------------------------------------------
+
+/**
+ * Injectable sink for runtime diagnostics.
+ * Replace `consoleSink` with a custom implementation for structured logging,
+ * filtering, metrics collection, or telemetry integration.
+ */
+export interface DiagnosticSink {
+  emit(diag: RuntimeDiagnostic): void;
+}
+
+/**
+ * Default sink that writes formatted diagnostics to console.warn.
+ * Used by hardened boundaries when no custom sink is provided.
+ */
+export const consoleSink: DiagnosticSink = {
+  emit: (diag: RuntimeDiagnostic) => {
+    console.warn(formatRuntimeDiagnostic(diag));
+  },
+};
