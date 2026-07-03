@@ -11,6 +11,7 @@ import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk }
 import { Either } from "effect";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../contracts/llm-schemas.js";
+import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic, type ContractBoundary } from "../contracts/contract-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -80,6 +81,19 @@ export function validateStreamChunk(input: unknown): StreamChunk {
 }
 
 // ---------------------------------------------------------------------------
+// Diagnostics helpers
+// ---------------------------------------------------------------------------
+
+function diagProvider(
+  boundary: ContractBoundary,
+  schema: string,
+  error: string,
+  entityId?: string,
+): ContractDiagnostic {
+  return buildDiagnostic("provider", boundary, schema, error, entityId);
+}
+
+// ---------------------------------------------------------------------------
 // Wrapper
 // ---------------------------------------------------------------------------
 
@@ -92,30 +106,69 @@ export function validateStreamChunk(input: unknown): StreamChunk {
  * - Each yielded chunk from stream() is validated against StreamChunkSchema
  * - negotiate() passes through unchanged
  * - All non-function properties (id, capabilities, etc.) pass through
+ *
+ * @param onDiagnostic Optional callback fired before throwing on validation
+ *   failure. Receives a structured ContractDiagnostic for observability.
+ *   The error is still thrown after the callback.
  */
-export function withProviderContracts(adapter: ModelAdapter): ModelAdapter {
+export function withProviderContracts(
+  adapter: ModelAdapter,
+  onDiagnostic?: (diag: ContractDiagnostic) => void,
+): ModelAdapter {
+  function emit(diag: ContractDiagnostic): void {
+    onDiagnostic?.(diag);
+  }
+
   return {
     // Forward all existing adapter properties
     ...adapter,
 
     // Override complete with request/response contract validation
     async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
-      const validatedRequest = validateNormalizedRequest(request);
-      const response = await adapter.complete(validatedRequest);
-      return validateNormalizedResponse(response);
+      try {
+        const validatedRequest = validateNormalizedRequest(request);
+        const response = await adapter.complete(validatedRequest);
+        return validateNormalizedResponse(response);
+      } catch (e: unknown) {
+        if (e instanceof ContractValidationError && onDiagnostic) {
+          const diag = diagProvider(
+            e.message.includes("Request") ? "complete.request" : "complete.response",
+            e.message.includes("Request") ? "NormalizedRequestSchema" : "NormalizedResponseSchema",
+            e.details ?? e.message,
+            (request as any).toolCalls?.[0]?.id,
+          );
+          emit(diag);
+        }
+        throw e;
+      }
     },
 
     // Override stream with request and per-chunk validation
-    // Only present when the adapter provides stream
     ...(adapter.stream
       ? {
           stream: async function* (
             request: NormalizedRequest,
           ): AsyncGenerator<StreamChunk> {
-            const validatedRequest = validateNormalizedRequest(request);
-            const stream = adapter.stream!(validatedRequest);
+            // Validate request before starting stream
+            try {
+              validateNormalizedRequest(request);
+            } catch (e: unknown) {
+              if (e instanceof ContractValidationError && onDiagnostic) {
+                emit(diagProvider("stream.request", "NormalizedRequestSchema", e.details ?? e.message));
+              }
+              throw e;
+            }
+
+            const stream = adapter.stream!(request);
             for await (const chunk of stream) {
-              yield validateStreamChunk(chunk);
+              try {
+                yield validateStreamChunk(chunk);
+              } catch (e: unknown) {
+                if (e instanceof ContractValidationError && onDiagnostic) {
+                  emit(diagProvider("stream.chunk", "StreamChunkSchema", e.details ?? e.message));
+                }
+                throw e;
+              }
             }
           },
         }
