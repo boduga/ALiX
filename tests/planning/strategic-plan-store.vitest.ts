@@ -7,7 +7,7 @@ import { existsSync, unlinkSync, rmdirSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { StrategicPlanStore } from "../../src/planning/strategic-plan-store.js";
+import { StrategicPlanStore, validatePlan } from "../../src/planning/strategic-plan-store.js";
 import type { StrategicPlan } from "../../src/planning/planning-types.js";
 
 function makePlan(overrides?: Partial<StrategicPlan>): StrategicPlan {
@@ -221,5 +221,98 @@ describe("StrategicPlanStore", () => {
     appendFileSync(join(dir, "strategic-plans.jsonl"), badPlan, "utf-8");
     const result = await store.loadLatest();
     expect(result).toBeNull();
+  });
+
+  // T19: Effect Schema catches invalid CorrelationSubsystemId literal
+  it("rejects plan with invalid subsystem literal", async () => {
+    const plan = makePlan({
+      planId: "bad-subsystem",
+      objectives: [
+        {
+          id: "obj-1",
+          targetSubsystem: "nonexistent_subsystem" as any,
+          targetMetric: null,
+          topCauseSubsystem: null,
+          currentScore: 50,
+          urgencyScore: 50,
+          expectedImpact: "direct" as any,
+          improvesSubsystems: [],
+          estimatedEffort: "low" as any,
+          effortRationale: "test",
+          prerequisites: [],
+          confidence: null,
+          mechanism: null,
+          sourceFindingSubsystem: "memory" as any,
+          rationale: "test",
+        },
+      ],
+      meta: { totalSubsystemsEvaluated: 8, prioritizedObjectives: 1, objectivesLow: 1, objectivesMedium: 0, objectivesHigh: 0 },
+    });
+
+    await expect(
+      store.save(plan),
+    ).rejects.toThrow(/StrategicPlan schema validation failed/);
+  });
+
+  // T20: Effect Schema catches invalid CausalMechanism literal
+  it("rejects plan with invalid mechanism literal", async () => {
+    const plan = makePlan({
+      planId: "bad-mechanism",
+      objectives: [
+        {
+          id: "obj-1",
+          targetSubsystem: "memory" as any,
+          targetMetric: null,
+          topCauseSubsystem: null,
+          currentScore: 50,
+          urgencyScore: 50,
+          expectedImpact: "direct" as any,
+          improvesSubsystems: [],
+          estimatedEffort: "low" as any,
+          effortRationale: "test",
+          prerequisites: [],
+          confidence: null,
+          mechanism: "resource_exhaustion" as any, // not one of 4 valid values
+          sourceFindingSubsystem: "memory" as any,
+          rationale: "test",
+        },
+      ],
+      meta: { totalSubsystemsEvaluated: 8, prioritizedObjectives: 1, objectivesLow: 1, objectivesMedium: 0, objectivesHigh: 0 },
+    });
+
+    await expect(
+      store.save(plan),
+    ).rejects.toThrow(/StrategicPlan schema validation failed/);
+  });
+
+  // T21: valid plan with all fields populated passes both validations
+  it("accepts plan with all objective fields populated", async () => {
+    const plan = makePlan({
+      planId: "full-plan",
+      objectives: [
+        {
+          id: "obj-full-1",
+          targetSubsystem: "agents" as any,
+          targetMetric: "agents.responseTime",
+          topCauseSubsystem: "tools" as any,
+          currentScore: 45,
+          urgencyScore: 80,
+          expectedImpact: "indirect" as any,
+          improvesSubsystems: ["workflow"] as any[],
+          estimatedEffort: "high" as any,
+          effortRationale: "Complex cross-subsystem issue",
+          prerequisites: [],
+          confidence: 0.85,
+          mechanism: "degradation_chain" as any,
+          sourceFindingSubsystem: "workflow" as any,
+          rationale: "Workflow degraded due to tools bottleneck",
+        },
+      ],
+      meta: { totalSubsystemsEvaluated: 8, prioritizedObjectives: 1, objectivesLow: 0, objectivesMedium: 0, objectivesHigh: 1 },
+    });
+    await store.save(plan);
+    const loaded = await store.loadLatest();
+    expect(loaded).not.toBeNull();
+    expect(loaded!.objectives[0].mechanism).toBe("degradation_chain");
   });
 });
