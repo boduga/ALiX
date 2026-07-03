@@ -7,5 +7,8 @@ autoInstallPeers: true
 sharedWorkspaceLockfile: true
 allowBuilds:
   better-sqlite3: true
+  esbuild: true
   protobufjs: true
   sharp: true
+minimumReleaseAgeExclude:
+  - tsx@4.22.5
