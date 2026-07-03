@@ -7,6 +7,7 @@ import {
   TokenUsageSchema,
   NormalizedResponseSchema,
   NormalizedMessageSchema,
+  NormalizedRequestSchema,
 } from "../../src/contracts/llm-schemas.js";
 
 describe("ToolCallSchema", () => {
@@ -84,5 +85,58 @@ describe("NormalizedMessageSchema", () => {
     } as any);
     assert.strictEqual(msg.role, "user");
     assert.strictEqual(Array.isArray(msg.content), true);
+  });
+});
+
+describe("NormalizedRequestSchema", () => {
+  it("decodes with ToolDef in tools array", () => {
+    const req = Schema.decodeSync(NormalizedRequestSchema)({
+      systemPrompt: "You are a helpful assistant",
+      messages: [{ role: "user", content: "Hi" }],
+      tools: [
+        {
+          name: "file.read",
+          description: "Read a file",
+          input_schema: { type: "object", properties: {}, required: [] },
+        },
+      ],
+    } as any);
+    assert.strictEqual(req.tools?.length, 1);
+  });
+
+  it("decodes with DeferredToolEntry in tools array", () => {
+    const req = Schema.decodeSync(NormalizedRequestSchema)({
+      systemPrompt: "You are a helpful assistant",
+      messages: [{ role: "user", content: "Hi" }],
+      tools: [
+        {
+          name: "mcp_github_repos_list",
+          execName: "mcp.github.repos.list",
+          serverName: "github",
+          toolName: "repos_list",
+          description: "List repositories",
+        },
+      ],
+    } as any);
+    assert.strictEqual((req as any).tools[0].execName, "mcp.github.repos.list");
+  });
+
+  it("decodes with toolResults", () => {
+    const req = Schema.decodeSync(NormalizedRequestSchema)({
+      systemPrompt: "Continue",
+      messages: [{ role: "user", content: "Do it" }],
+      toolResults: [{ toolUseId: "tu-1", content: "Done" }],
+    } as any);
+    assert.strictEqual(req.toolResults?.length, 1);
+  });
+
+  it("rejects tool with neither ToolDef nor DeferredToolEntry shape", () => {
+    assert.throws(() =>
+      Schema.decodeSync(NormalizedRequestSchema)({
+        systemPrompt: "X",
+        messages: [],
+        tools: [{ notATool: true }],
+      } as any)
+    );
   });
 });

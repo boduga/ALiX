@@ -4,6 +4,7 @@
 // Mirrors src/providers/types.ts ToolCall, NormalizedResponse, NormalizedRequest.
 
 import { Schema } from "effect";
+import { ToolDefSchema, NormalizedToolResultSchema, DeferredToolEntrySchema } from "./provider-tool-schemas.js";
 
 // ---------------------------------------------------------------------------
 // TokenUsage
@@ -74,8 +75,8 @@ export const NormalizedMessageSchema = Schema.Struct({
 export const NormalizedRequestSchema = Schema.Struct({
   systemPrompt: Schema.String,
   messages: Schema.Array(NormalizedMessageSchema),
-  tools: Schema.optional(Schema.Array(Schema.Unknown)),
-  toolResults: Schema.optional(Schema.Array(Schema.Unknown)),
+  tools: Schema.optional(Schema.Array(Schema.Union(ToolDefSchema, DeferredToolEntrySchema))),
+  toolResults: Schema.optional(Schema.Array(NormalizedToolResultSchema)),
   temperature: Schema.optional(Schema.Number),
   maxOutputTokens: Schema.optional(Schema.Number),
   stream: Schema.optional(Schema.Boolean),
