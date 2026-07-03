@@ -327,4 +327,76 @@ describe("withProviderContracts", () => {
     });
     assert.strictEqual(r2.text, "Hello from fake adapter");
   });
+
+  // -----------------------------------------------------------------------
+  // Stream idle timeout
+  // -----------------------------------------------------------------------
+
+  it("stream yielding chunks within idle timeout succeeds", async () => {
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        yield { type: "text_delta", text: "A" };
+        yield { type: "text_delta", text: "B" };
+        yield { type: "done" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter, undefined, undefined, 5000);
+    const chunks: StreamChunk[] = [];
+
+    for await (const chunk of wrapped.stream!({
+      systemPrompt: "Fast stream",
+      messages: [{ role: "user" as const, content: "Hi" }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    assert.strictEqual(chunks.length, 3);
+  });
+
+  it("stream stalling before first chunk throws SideEffectTimeoutError", async () => {
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        await new Promise((r) => setTimeout(r, 5000));
+        yield { type: "done" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter, undefined, undefined, 30);
+
+    await assert.rejects(
+      async () => {
+        for await (const _chunk of wrapped.stream!({
+          systemPrompt: "Slow start",
+          messages: [{ role: "user" as const, content: "" }],
+        })) {
+          // should not reach
+        }
+      },
+      (err: unknown) =>
+        err instanceof Error && err.message.includes("stream.idle"),
+    );
+  });
+
+  it("stream stalling between chunks throws SideEffectTimeoutError", async () => {
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        yield { type: "text_delta", text: "First" };
+        await new Promise((r) => setTimeout(r, 5000));
+        yield { type: "done" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter, undefined, undefined, 30);
+
+    await assert.rejects(
+      async () => {
+        for await (const _chunk of wrapped.stream!({
+          systemPrompt: "Stall between",
+          messages: [{ role: "user" as const, content: "" }],
+        })) {
+          // should get first chunk then timeout
+        }
+      },
+      (err: unknown) =>
+        err instanceof Error && err.message.includes("stream.idle"),
+    );
+  });
 });
