@@ -13,6 +13,7 @@ import { ZhipuAIProvider } from "./zhipuai-provider.js";
 import { GrokAIProvider } from "./grokai-provider.js";
 import { DeepSeekProvider } from "./deepseek-provider.js";
 import { lazy } from "../utils/lazy-import.js";
+import { withProviderContracts } from "./provider-contract-validation.js";
 
 // Lazy-load heavy provider modules on first use
 const lazyProviders = {
@@ -51,8 +52,9 @@ export async function createProvider(config: { provider: string; model?: string 
 
   const ProviderClass = await loader() as new (config: { apiKey?: string; model?: string }) => ModelAdapter;
   const instance = new ProviderClass({ apiKey, model: config.model });
-  providerCache.set(key, instance);
-  return instance;
+  const wrapped = withProviderContracts(instance);
+  providerCache.set(key, wrapped);
+  return wrapped;
 }
 
 export function listProviders(): Array<{ id: string; name: string; envKey: string }> {
