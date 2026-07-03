@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/boduga/ALiX/main/security/schemas/lifecycle-allowlist.schema.json",
   "description": "Allowlist of packages permitted to run lifecycle scripts during npm install.",
-  "lastReviewed": "2026-06-18",
+  "lastReviewed": "2026-07-03",
   "policy": {
     "failOnNew": true,
     "failOnExpired": true,
@@ -17,6 +17,15 @@
       "owner": "boduga",
       "created": "2025-06-01",
       "expiry": "2027-06-01"
+    },
+    {
+      "name": "esbuild",
+      "versionRange": ">=0.28.0",
+      "scripts": ["postinstall"],
+      "reason": "JavaScript bundler used by tsx — postinstall downloads a native binary",
+      "owner": "boduga",
+      "created": "2026-07-03",
+      "expiry": "2027-07-03"
     },
     {
       "name": "fsevents",

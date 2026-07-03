@@ -13,12 +13,13 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npx tsx --test tests/**/*.test.ts",
-    "mine": "npx tsx bin/tool-repair.ts mine"
+    "test": "tsx --test tests/**/*.test.ts",
+    "mine": "tsx bin/tool-repair.ts mine"
   },
   "dependencies": {},
   "devDependencies": {
     "@types/node": "24.0.0",
+    "tsx": "4.22.5",
     "typescript": "5.9.3"
   }
 }
