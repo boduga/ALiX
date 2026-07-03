@@ -4,10 +4,19 @@
  * Core invariant: Learning proposes. Governance approves.
  * These are data objects only — no mutation, no side effects, no store imports.
  *
+ * Also contains P11.4 Learning Engine types: ObservationSignal, ConfidenceUpdate,
+ * UpdatedConfidenceModel, and supporting adapter interfaces.
+ *
  * @module
  */
 
 import type { DecisionArtifact } from "../adaptation/decision-types.js";
+import type { CorrelationSubsystemId } from "../correlation/correlation-types.js";
+import type { CausalMechanism } from "../reasoning/reasoning-types.js";
+
+// ===========================================================================
+// P8.0a — Calibration types
+// ===========================================================================
 
 // ---------------------------------------------------------------------------
 // LearningSignal
@@ -160,4 +169,227 @@ export interface LearningReport extends DecisionArtifact {
 
   /** Cross-cutting patterns found. */
   patterns?: LearningPattern[];
+}
+
+// ===========================================================================
+// P11.4 — Learning Engine types
+// ===========================================================================
+
+/**
+ * The type of observed outcome that triggers a confidence update
+ * in the P11.4 Learning Engine.
+ *
+ * "score_improvement"            — Subsystem health score increased after
+ *                                  objective resolution.
+ * "no_action_improvement"        — Score improved even though the objective
+ *                                  was not completed. Audit record only.
+ * "completed_no_improvement"     — Objective was completed but score did
+ *                                  not improve.
+ * "deferred_recurrence"          — Reserved for future recurrence observation.
+ *                                  Never emitted while
+ *                                  recurrenceLearningEnabled === false.
+ */
+export type ObservationSignal =
+  | "score_improvement"
+  | "no_action_improvement"
+  | "completed_no_improvement"
+  | "deferred_recurrence";
+
+/**
+ * A single confidence update produced by one learning observation
+ * in the P11.4 Learning Engine.
+ */
+export interface ConfidenceUpdate {
+  /** The subsystem that was targeted by the objective. */
+  targetSubsystem: CorrelationSubsystemId;
+  /** The causal mechanism that was identified (if any). */
+  mechanism: CausalMechanism | null;
+  /** The observation signal that triggered this update. */
+  signal: ObservationSignal;
+  /** The observed score delta (positive = improvement). */
+  scoreDelta: number;
+  /** Whether the objective was completed. */
+  completed: boolean;
+  /** The urgency score of the objective at plan time. */
+  urgencyScoreAtPlanning: number;
+  /**
+   * The confidence adjustment to apply.
+   * Bounds: -0.05 to +0.05 per cycle.
+   */
+  adjustment: number;
+  /**
+   * Confidence after applying this adjustment.
+   * Clamped to [0.05, 0.95].
+   */
+  resultingConfidence: number;
+  /** Links to the source objective. */
+  sourceObjectiveId: string;
+  /** Links to the source plan. */
+  sourcePlanId: string;
+  /** ISO timestamp of the learning observation. */
+  observedAt: string;
+}
+
+export interface UpdatedConfidenceModel {
+  schemaVersion: "p11.4.0";
+  /** Unique model ID, e.g. `lrn-{safeTimestamp}`. */
+  modelId: string;
+  generatedAt: string;
+  /** Links to the source plan that produced this learning data. */
+  sourcePlanId: string;
+  /** Propagated from StrategicPlan for P11 chain traceability. */
+  rootCauseAnalysisId: string;
+  /** Propagated from StrategicPlan for P11 chain traceability. */
+  correlationGraphId: string;
+  /** Ordered list of confidence updates from this learning cycle. */
+  updates: ConfidenceUpdate[];
+  meta: {
+    primarySignal: "score_improvement";
+    /**
+     * Plan completion is represented via the `completed` boolean on each
+     * ConfidenceUpdate. It is a secondary signal (influences classification)
+     * but is not emitted as a standalone confidence-changing signal.
+     */
+    secondarySignal: "plan_completion";
+    /** Explicitly deferred. Always false in v1. */
+    recurrenceLearningEnabled: false;
+    /** Number of plan objectives inspected this learning cycle. */
+    objectivesEvaluated: number;
+    /** Number of objectives that produced a ConfidenceUpdate record. */
+    objectivesWithSignals: number;
+    /**
+     * Number of objectives skipped due to missing current score
+     * or confidence: null.
+     */
+    objectivesSkipped: number;
+    /**
+     * Number of objectives that were evaluated but produced no
+     * learnable signal (e.g. no action + no improvement).
+     */
+    objectivesWithoutSignal: number;
+    /** ISO timestamp of the earliest subsystem score used as baseline. */
+    baselineTimestamp: string;
+    /** ISO timestamp of the latest subsystem score used as evaluation. */
+    evaluationTimestamp: string;
+  };
+  /**
+   * Rollup summary of this learning cycle.
+   * Provided for downstream consumers (P11.5 Forecasting) to quickly
+   * consume the model without recomputing aggregates.
+   */
+  summary: {
+    positiveUpdates: number;
+    negativeUpdates: number;
+    zeroAdjustmentUpdates: number;
+    averageAdjustment: number;
+  };
+  /**
+   * Per-mechanism adjustment rollup.
+   */
+  mechanismAdjustments: Array<{
+    mechanism: CausalMechanism;
+    samples: number;
+    averageAdjustment: number;
+  }>;
+}
+
+// ---------------------------------------------------------------------------
+// Outcome and score adapters
+// ---------------------------------------------------------------------------
+
+/**
+ * Minimal outcome record for a planning objective.
+ *
+ * Matching priority:
+ * 1. Exact sourceObjectiveId match — always used if present.
+ * 2. targetSubsystem fallback — only when exactly one objective
+ *    in the plan targets that subsystem.
+ * 3. No match — objective treated as incomplete.
+ */
+export interface LearningOutcomeRecord {
+  /** Exact-match preferred. */
+  sourceObjectiveId?: string;
+  sourcePlanId?: string;
+  /**
+   * Fallback — only used when exactly one plan objective targets
+   * this subsystem (avoids ambiguous attribution).
+   */
+  targetSubsystem?: CorrelationSubsystemId;
+  /** Whether the objective was completed. */
+  completed: boolean;
+  completedAt?: string;
+  status?: "completed" | "abandoned" | "failed" | "unknown";
+}
+
+/**
+ * Explicit observation context injected into the pure function.
+ *
+ * All timestamps are provided by the caller (orchestrator) so the
+ * pure function remains deterministic — no Date.now() internally.
+ */
+export interface LearningObservationContext {
+  generatedAt: string;
+  baselineTimestamp: string;
+  evaluationTimestamp: string;
+}
+
+/**
+ * Minimal outcome store adapter for the LearningEngine.
+ */
+export interface LearningOutcomeStore {
+  list(): Promise<LearningOutcomeRecord[]>;
+}
+
+/**
+ * Adapter for loading subsystem health scores at specific points in time.
+ *
+ * When no historical data is available, falls back to the score
+ * captured in the plan objective (currentScore).
+ */
+export interface ScoreSnapshotProvider {
+  loadScoresAt(timestamp: string): Promise<Map<CorrelationSubsystemId, number>>;
+  loadCurrentScores(): Promise<Map<CorrelationSubsystemId, number>>;
+}
+
+// ---------------------------------------------------------------------------
+// Config
+// ---------------------------------------------------------------------------
+
+export interface LearningEngineConfig {
+  maxPositiveAdjustment: number;
+  maxNegativeAdjustment: number;
+  minConfidence: number;
+  maxConfidence: number;
+  minImprovementDelta: number;
+  evaluationWindowMs: number;
+}
+
+// ---------------------------------------------------------------------------
+// Summary
+// ---------------------------------------------------------------------------
+
+export interface ConfidenceModelSummary {
+  modelId: string;
+  generatedAt: string;
+  sourcePlanId: string;
+  objectivesEvaluated: number;
+  objectivesWithSignals: number;
+  objectivesSkipped: number;
+  objectivesWithoutSignal: number;
+  updates: number;
+  positiveUpdates: number;
+  negativeUpdates: number;
+  zeroAdjustmentUpdates: number;
+}
+
+// ---------------------------------------------------------------------------
+// Error
+// ---------------------------------------------------------------------------
+
+export class LearningEngineError extends Error {
+  readonly code = "LEARNING_ENGINE_ERROR";
+  constructor(message: string) {
+    super(message);
+    this.name = "LearningEngineError";
+  }
 }
