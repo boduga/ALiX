@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ModelAdapter, NormalizedRequest, NormalizedResponse } from "../../src/providers/types.js";
+import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "../../src/providers/types.js";
 import { withProviderContracts, ContractValidationError } from "../../src/providers/provider-contract-validation.js";
 
 // ---------------------------------------------------------------------------
@@ -202,6 +202,114 @@ describe("withProviderContracts", () => {
   // -----------------------------------------------------------------------
   // Multiple calls
   // -----------------------------------------------------------------------
+
+  // -----------------------------------------------------------------------
+  // Streaming validation
+  // -----------------------------------------------------------------------
+
+  it("adapter without stream still works", async () => {
+    const adapter = createFakeAdapter({ stream: undefined });
+    const wrapped = withProviderContracts(adapter);
+
+    assert.strictEqual(wrapped.stream, undefined);
+
+    const response = await wrapped.complete({
+      systemPrompt: "No stream",
+      messages: [{ role: "user" as const, content: "Hi" }],
+    });
+    assert.strictEqual(response.text, "Hello from fake adapter");
+  });
+
+  it("valid stream request and chunks pass through", async () => {
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        yield { type: "text_delta", text: "Hello" };
+        yield { type: "done" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+    const chunks: StreamChunk[] = [];
+
+    for await (const chunk of wrapped.stream!({
+      systemPrompt: "Stream test",
+      messages: [{ role: "user" as const, content: "Hi" }],
+    })) {
+      chunks.push(chunk);
+    }
+
+    assert.strictEqual(chunks.length, 2);
+    assert.strictEqual(chunks[0].type, "text_delta");
+    assert.strictEqual((chunks[0] as any).text, "Hello");
+    assert.strictEqual(chunks[1].type, "done");
+  });
+
+  it("all 5 stream chunk variants pass through", async () => {
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        yield { type: "text_delta", text: "A" };
+        yield { type: "tool_call", toolCall: { id: "tc-1", name: "shell.run", args: { command: "ls" } } };
+        yield { type: "usage", usage: { inputTokens: 5, outputTokens: 10 } };
+        yield { type: "done" };
+        yield { type: "error", error: "oops" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+    let count = 0;
+
+    for await (const _chunk of wrapped.stream!({
+      systemPrompt: "All chunks",
+      messages: [{ role: "user" as const, content: "X" }],
+    })) {
+      count++;
+    }
+
+    assert.strictEqual(count, 5);
+  });
+
+  it("malformed stream request fails before calling adapter", async () => {
+    let adapterCalled = false;
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        adapterCalled = true;
+        yield { type: "done" };
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await assert.rejects(
+      async () => {
+        for await (const _chunk of wrapped.stream!({
+          messages: [{ role: "user" as const, content: "X" }],
+        } as any)) {
+          // should not reach
+        }
+      },
+      ContractValidationError,
+    );
+
+    assert.equal(adapterCalled, false, "adapter.stream must not be called");
+  });
+
+  it("malformed yielded chunk fails during iteration", async () => {
+    const adapter = createFakeAdapter({
+      stream: async function* (): AsyncGenerator<StreamChunk> {
+        yield { type: "invalid_type" } as any;
+      },
+    });
+    const wrapped = withProviderContracts(adapter);
+
+    await assert.rejects(
+      async () => {
+        for await (const _chunk of wrapped.stream!({
+          systemPrompt: "Broken stream",
+          messages: [{ role: "user" as const, content: "" }],
+        })) {
+          // should throw on first chunk
+        }
+      },
+      ContractValidationError,
+    );
+  });
 
   it("validates multiple sequential calls", async () => {
     const adapter = createFakeAdapter();
