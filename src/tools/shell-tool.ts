@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { ToolResult } from "./types.js";
+import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
 
 const MAX_BYTES = 80_000;
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -36,31 +37,25 @@ function truncate(text: string, maxBytes: number): string {
   return truncated + `[... ${lines} lines truncated, ${hiddenBytes} bytes hidden]`;
 }
 
-export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number }): Promise<ToolResult> {
-  const command = normalizeCommand(args.command);
-  const { cwd } = args;
-  const timeoutMs = normalizeTimeoutMs(args.timeoutMs);
+/**
+ * Spawn a shell command and return a promise + cancel function.
+ * The promise resolves/rejects when the child process completes or errors.
+ *
+ * Separated from the timeout logic so withTimeout can manage the
+ * timing boundary and cancel() can kill the child on timeout.
+ */
+function spawnCommand(command: string, cwd: string): { promise: Promise<ToolResult>; cancel: () => void } {
+  const child = spawn(command, [], { cwd: cwd || undefined, shell: true });
+  let stdout = "";
+  let stderr = "";
+  let settled = false;
 
-  if (!command || typeof command !== "string" || !command.trim()) {
-    return { kind: "error", message: "shell.run requires a non-empty command string" };
-  }
-
-  return new Promise((resolve) => {
-    const child = spawn(command, [], { cwd: cwd || undefined, shell: true });
-    let stdout = "";
-    let stderr = "";
-    let settled = false;
+  const promise = new Promise<ToolResult>((resolve) => {
     const finish = (result: ToolResult) => {
       if (settled) return;
       settled = true;
-      clearTimeout(timer);
       resolve(result);
     };
-
-    const timer = setTimeout(() => {
-      child.kill("SIGKILL");
-      finish({ kind: "error", message: `Command timed out after ${timeoutMs}ms: ${command}` });
-    }, timeoutMs);
 
     child.stdout.on("data", (chunk) => { stdout += chunk; });
     child.stderr.on("data", (chunk) => { stderr += chunk; });
@@ -79,4 +74,40 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
       finish({ kind: "error", message: `Command failed: ${command} -- ${err.message}` });
     });
   });
+
+  return {
+    promise,
+    cancel: () => {
+      if (!settled) child.kill("SIGKILL");
+    },
+  };
+}
+
+export async function runCommand(args: { command: string; cwd: string; timeoutMs?: number }): Promise<ToolResult> {
+  const command = normalizeCommand(args.command);
+  const { cwd } = args;
+  const timeoutMs = normalizeTimeoutMs(args.timeoutMs);
+
+  if (!command || typeof command !== "string" || !command.trim()) {
+    return { kind: "error", message: "shell.run requires a non-empty command string" };
+  }
+
+  const { promise, cancel } = spawnCommand(command, cwd);
+
+  try {
+    return await withTimeout(
+      `shell.run: ${command.slice(0, 80)}`,
+      timeoutMs,
+      () => promise,
+    );
+  } catch (err: unknown) {
+    if (err instanceof SideEffectTimeoutError) {
+      cancel(); // Kill the child process on timeout
+      return {
+        kind: "error",
+        message: `Command timed out after ${timeoutMs}ms: ${command}`,
+      };
+    }
+    throw err; // Re-throw unexpected errors
+  }
 }
