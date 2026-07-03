@@ -1,8 +1,8 @@
 # Runtime Hardening Phase 1 — Milestone Checkpoint
 
-**Date:** 2026-07-03
-**PRs:** #172–#176
-**Status:** Complete — timeouts + retry primitives + first safe boundary adoption.
+**Date:** 2026-07-03 (updated)
+**PRs:** #172–#179
+**Status:** Complete — timeouts + retry primitives + boundaries + diagnostics.
 
 ## Summary
 
@@ -17,6 +17,8 @@ Delivered typed timeout and retry primitives for external side effects, applied 
 | #174 | feat(runtime): apply timeout wrapper to provider calls | Optional `timeoutMs` param in `withProviderContracts`; 180s default in registry |
 | #175 | feat(runtime): add typed retry primitive | `RetryError`, `RetryPolicy`, `withRetry()` with exponential backoff + jitter |
 | #176 | feat(runtime): apply retry to file.read (idempotent boundary) | `withRetry` wrapping `fsReadFile` in file-tools |
+| #178 | feat(runtime): add timeout and retry diagnostics | `RuntimeDiagnostic` type, `buildRuntimeDiagnostic()`, `formatRuntimeDiagnostic()`, optional `onDiagnostic` in `withTimeout` and `withRetry` |
+| #179 | feat(runtime): emit diagnostics from hardened boundaries | Wire `onDiagnostic` into shell timeout, provider timeout, and file.read retry via `console.warn` |
 
 ## Protected Boundaries
 
@@ -71,6 +73,26 @@ withRetry<T>(operation: string, effect: () => Promise<T>, policy?: Partial<Retry
   - Exhausted retries: rejects with RetryError wrapping the last error
 ```
 
+## Runtime Diagnostics
+
+All three hardened boundaries emit structured runtime diagnostics via `console.warn`:
+
+| Boundary | Diagnostic source | Event types |
+|----------|-------------------|-------------|
+| Shell command execution | `withTimeout` `onDiagnostic` in `shell-tool.ts` | `timeout` |
+| Provider `complete()` | `withTimeout` `onDiagnostic` in `provider-contract-validation.ts` | `timeout` |
+| `file.read` | `withRetry` `onDiagnostic` in `file-tools.ts` | `retry.attempt`, `retry.exhausted` |
+
+Diagnostic format (via `formatRuntimeDiagnostic()`):
+
+```
+[runtime] timeout: shell.run: git status — timed out (timeout: 30000ms)
+[runtime] retry.attempt: file.read: config.json — retrying after error: EMFILE (attempt 1/1)
+[runtime] retry.exhausted: file.read: config.json — failed after 2 attempt(s) (attempt 2/1)
+```
+
+Diagnostics are currently log-based only. No metrics persistence, dashboard integration, or alerting.
+
 ## Non-Goals (explicitly excluded from this phase)
 
 - **No provider stream timeout** — async generator boundary needs a different design (timeout per-chunk vs end-to-end)
@@ -83,7 +105,7 @@ withRetry<T>(operation: string, effect: () => Promise<T>, policy?: Partial<Retry
 
 ## Next Recommended Phase
 
-1. **`feat(runtime): add timeout/retry diagnostics`** (#178) — emit structured runtime diagnostics for timeout and retry events, matching the pattern from the contract diagnostics layer (#170).
+1. **`feat(runtime): add runtime diagnostics sink abstraction`** — move from `console.warn` to an injectable sink (e.g. `DiagnosticSink` interface), enabling structured logging, filtering, and future metrics/telemetry integration without changing diagnostic emission sites.
 2. **Async-generator timeout design for provider streams** — timeout per-chunk or end-to-end with generator cleanup.
 3. **MCP boundary timeout adoption** — apply `withTimeout` to MCP tool calls.
 4. **Selective retry for additional idempotent boundaries** — `dir.search`, `file.exists`.
