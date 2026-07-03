@@ -71,21 +71,17 @@ function seedMinimalProposal(id: string): void {
   const proposalsDir = join(tempRoot, ".alix", "adaptation", "proposals");
   mkdirSync(proposalsDir, { recursive: true });
 
-  const proposal = {
+  const proposal: Record<string, unknown> = {
     id,
-    action: "test-action",
-    target: { file: "test.ts", rationale: "minimal fixture" },
-    rationale: "minimal test proposal",
+    action: "revert_proposal",
+    target: { kind: "revert", sourceProposalId: "prop-original" },
+    reason: "minimal test proposal",
     status: "pending",
     createdAt: new Date().toISOString(),
-    evidenceRefs: [],
     evidenceFingerprints: [],
-    proposedBy: "test-fixture",
-    guardrails: {
-      reversible: true,
-      requiresApproval: true,
-      maxBlastRadius: 1,
-    },
+    payload: {},
+    sourceRecommendationType: "test-fixture",
+    sourceConfidence: 0.5,
   };
   writeFileSync(join(proposalsDir, `${id}.json`), JSON.stringify(proposal));
 }
@@ -201,21 +197,17 @@ describe("decision recommend persists RiskScore (P7.5p.2b)", () => {
 function seedMinimalProposalInRoot(root: string, id: string): void {
   const proposalsDir = join(root, ".alix", "adaptation", "proposals");
   mkdirSync(proposalsDir, { recursive: true });
-  const proposal = {
+  const proposal: Record<string, unknown> = {
     id,
-    action: "test-action",
-    target: { file: "test.ts", rationale: "minimal fixture" },
-    rationale: "minimal test proposal",
+    action: "revert_proposal",
+    target: { kind: "revert", sourceProposalId: "prop-original" },
+    reason: "minimal test proposal",
     status: "pending",
     createdAt: new Date().toISOString(),
-    evidenceRefs: [],
     evidenceFingerprints: [],
-    proposedBy: "test-fixture",
-    guardrails: {
-      reversible: true,
-      requiresApproval: true,
-      maxBlastRadius: 1,
-    },
+    payload: {},
+    sourceRecommendationType: "test-fixture",
+    sourceConfidence: 0.5,
   };
   writeFileSync(join(proposalsDir, `${id}.json`), JSON.stringify(proposal));
 }

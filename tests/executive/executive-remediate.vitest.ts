@@ -270,7 +270,7 @@ describe("buildRemediationChildDraft", () => {
     const draft = buildRemediationChildDraft(parent, spec, ctx);
     expect(draft.action).toBe("governance_change");
     expect(draft.target.kind).toBe("governance");
-    expect((draft.target as Record<string, unknown>).id).toBe("skill-target-1");
+    expect((draft.target as Record<string, unknown>).recommendationId).toBe("skill-target-1");
   });
 
   it("builds an update_agent_card draft", () => {
