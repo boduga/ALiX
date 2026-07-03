@@ -83,3 +83,40 @@ export const NormalizedRequestSchema = Schema.Struct({
   structuredOutputSchema: Schema.optional(Schema.Unknown),
 });
 export type NormalizedRequestFromSchema = typeof NormalizedRequestSchema.Type;
+
+// ---------------------------------------------------------------------------
+// StreamChunk — discriminated union
+// ---------------------------------------------------------------------------
+
+export const TextDeltaSchema = Schema.Struct({
+  type: Schema.Literal("text_delta"),
+  text: Schema.String,
+});
+
+export const ToolCallChunkSchema = Schema.Struct({
+  type: Schema.Literal("tool_call"),
+  toolCall: ToolCallSchema,
+});
+
+export const UsageChunkSchema = Schema.Struct({
+  type: Schema.Literal("usage"),
+  usage: TokenUsageSchema,
+});
+
+export const DoneChunkSchema = Schema.Struct({
+  type: Schema.Literal("done"),
+});
+
+export const ErrorChunkSchema = Schema.Struct({
+  type: Schema.Literal("error"),
+  error: Schema.String,
+});
+
+export const StreamChunkSchema = Schema.Union(
+  TextDeltaSchema,
+  ToolCallChunkSchema,
+  UsageChunkSchema,
+  DoneChunkSchema,
+  ErrorChunkSchema,
+);
+export type StreamChunkFromSchema = typeof StreamChunkSchema.Type;
