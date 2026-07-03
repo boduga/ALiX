@@ -30,9 +30,9 @@
     "package.json"
   ],
   "scripts": {
-    "copy:profiles": "mkdir -p dist/src/config/profiles && cp src/config/profiles/*.json dist/src/config/profiles/",
+    "copy:profiles": "node scripts/copy-build-artifacts.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json && pnpm copy:profiles && mkdir -p dist/src/ui dist/src/db/migrations && cp src/ui/index.html src/ui/app.js src/ui/projection.js src/ui/styles.css dist/src/ui/ && cp src/db/migrations/0001_m09_kernel.sql dist/src/db/migrations/",
+    "build": "tsc -p tsconfig.json && node scripts/copy-build-artifacts.mjs",
     "test": "pnpm test:node && pnpm test:vitest",
     "test:node": "node --test --test-timeout=30000 dist/tests/*.test.js dist/tests/**/*.test.js",
     "test:unit:node": "echo \"[legacy] node:test suite removed from CI — use pnpm test:vitest\"",
