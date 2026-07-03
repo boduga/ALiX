@@ -1,7 +1,10 @@
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification, McpServerCapabilities, Tool, CallToolResult } from "./types.js";
 import type { McpTransport } from "./transport.js";
+import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
+import { consoleSink } from "../runtime/runtime-diagnostics.js";
 
 const PROTOCOL_VERSION = "2024-11-05";
+const DEFAULT_MCP_TIMEOUT_MS = 30_000;
 
 export class McpClient {
   private transport: McpTransport;
@@ -11,7 +14,10 @@ export class McpClient {
   private _tools: Tool[] = [];
   private _serverInfo: { name: string; version: string } | null = null;
 
-  constructor(transport: McpTransport) {
+  constructor(
+    transport: McpTransport,
+    private readonly timeoutMs: number = DEFAULT_MCP_TIMEOUT_MS,
+  ) {
     this.transport = transport;
     transport.onMessage((msg) => this.handleMessage(msg));
   }
@@ -68,12 +74,17 @@ export class McpClient {
   }
 
   async callTool(name: string, args: Record<string, unknown> = {}): Promise<CallToolResult> {
-    const result = await this.transport.send({
-      jsonrpc: "2.0",
-      id: this.nextId(),
-      method: "tools/call",
-      params: { name, arguments: args }
-    });
+    const result = await withTimeout(
+      `mcp.callTool:${name}`,
+      this.timeoutMs,
+      () => this.transport.send({
+        jsonrpc: "2.0",
+        id: this.nextId(),
+        method: "tools/call",
+        params: { name, arguments: args },
+      }),
+      (d) => consoleSink.emit(d),
+    );
 
     if ("error" in result && result.error) {
       throw new Error(`tools/call failed: ${result.error.message}`);
