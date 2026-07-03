@@ -9,7 +9,7 @@
 import type { StrategicPlan } from "../planning/planning-types.js";
 import { StrategicPlanStore } from "../planning/strategic-plan-store.js";
 import { ConfidenceModelStore } from "./confidence-model-store.js";
-import { buildConfidenceModel } from "./build-confidence-model.js";
+import { buildConfidenceModel, buildEmptyModel } from "./build-confidence-model.js";
 import type { UpdatedConfidenceModel, LearningEngineConfig, LearningObservationContext } from "./learning-types.js";
 import type { LearningOutcomeStore, ScoreSnapshotProvider } from "./learning-types.js";
 import { LearningEngineError } from "./learning-types.js";
@@ -51,33 +51,12 @@ export class LearningEngine {
     if (plan.objectives.length === 0) {
       // Nothing to learn from — return empty model
       const generatedAt = new Date().toISOString();
-      return {
-        schemaVersion: "p11.4.0",
-        modelId: "lrn-" + sanitizeTimestamp(generatedAt),
+      const context: LearningObservationContext = {
         generatedAt,
-        sourcePlanId: plan.planId,
-        rootCauseAnalysisId: plan.rootCauseAnalysisId,
-        correlationGraphId: plan.correlationGraphId,
-        updates: [],
-        meta: {
-          primarySignal: "score_improvement",
-          secondarySignal: "plan_completion",
-          recurrenceLearningEnabled: false,
-          objectivesEvaluated: 0,
-          objectivesWithSignals: 0,
-          objectivesSkipped: 0,
-          objectivesWithoutSignal: 0,
-          baselineTimestamp: generatedAt,
-          evaluationTimestamp: generatedAt,
-        },
-        summary: {
-          positiveUpdates: 0,
-          negativeUpdates: 0,
-          zeroAdjustmentUpdates: 0,
-          averageAdjustment: 0,
-        },
-        mechanismAdjustments: [],
+        baselineTimestamp: generatedAt,
+        evaluationTimestamp: generatedAt,
       };
+      return buildEmptyModel(plan, context);
     }
 
     const outcomes = await this.outcomeStore.list();

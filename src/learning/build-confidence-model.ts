@@ -87,6 +87,14 @@ export function buildConfidenceModel(
     );
   }
 
+  if (!plan.planId) {
+    throw new LearningEngineError("Plan must have a non-empty planId");
+  }
+
+  if (!plan.generatedAt) {
+    throw new LearningEngineError("Plan must have a non-empty generatedAt");
+  }
+
   if (baselineTimestamp > evaluationTimestamp) {
     throw new LearningEngineError(
       `baselineTimestamp (${baselineTimestamp}) must not be after evaluationTimestamp (${evaluationTimestamp})`,
@@ -108,8 +116,12 @@ export function buildConfidenceModel(
   // Step 2 — Outcome matching
   // -----------------------------------------------------------------------
 
-  // Keep only outcomes that belong to this plan
-  const planOutcomes = outcomes.filter((o) => o.sourcePlanId === plan.planId);
+  // Keep only outcomes that belong to this plan.
+  // If sourcePlanId is undefined (not set), allow through — it's not
+  // explicitly assigned to a different plan.
+  const planOutcomes = outcomes.filter(
+    (o) => o.sourcePlanId === undefined || o.sourcePlanId === plan.planId,
+  );
 
   // Count how many plan objectives target each subsystem (for fallback guard)
   const subsystemCount = new Map<CorrelationSubsystemId, number>();
@@ -220,6 +232,13 @@ export function buildConfidenceModel(
       case "no_action_improvement":
         adjustment = 0;
         break;
+      default: {
+        // Exhaustiveness guard — deferred_recurrence is never emitted while
+        // recurrenceLearningEnabled === false
+        const _exhaustive: never = signal;
+        void _exhaustive;
+        adjustment = 0;
+      }
     }
 
     // Clamp adjustment to [-maxNegativeAdjustment, +maxPositiveAdjustment]
@@ -381,7 +400,7 @@ function isLaterOutcome(
 /**
  * Build an empty UpdatedConfidenceModel for plans with zero objectives.
  */
-function buildEmptyModel(
+export function buildEmptyModel(
   plan: StrategicPlan,
   context: LearningObservationContext,
 ): UpdatedConfidenceModel {

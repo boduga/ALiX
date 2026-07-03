@@ -295,23 +295,8 @@ export function validateConfidenceModel(raw: unknown): UpdatedConfidenceModel {
     );
   }
 
-  if (
-    typeof meta.baselineTimestamp !== "string" ||
-    meta.baselineTimestamp.length === 0
-  ) {
-    throw new LearningEngineError(
-      "meta.baselineTimestamp must be a non-empty string",
-    );
-  }
-
-  if (
-    typeof meta.evaluationTimestamp !== "string" ||
-    meta.evaluationTimestamp.length === 0
-  ) {
-    throw new LearningEngineError(
-      "meta.evaluationTimestamp must be a non-empty string",
-    );
-  }
+  assertValidIsoTimestamp(meta.baselineTimestamp, "meta.baselineTimestamp");
+  assertValidIsoTimestamp(meta.evaluationTimestamp, "meta.evaluationTimestamp");
 
   // -- summary ----------------------------------------------------------
 
@@ -404,5 +389,47 @@ export function validateConfidenceModel(raw: unknown): UpdatedConfidenceModel {
     }
   }
 
+  // mechanismAdjustments validation
+  if (Array.isArray(obj.mechanismAdjustments)) {
+    for (let i = 0; i < obj.mechanismAdjustments.length; i++) {
+      const ma = obj.mechanismAdjustments[i] as Record<string, unknown>;
+      if (typeof ma.samples !== "number" || (ma.samples as number) <= 0) {
+        throw new LearningEngineError(
+          `mechanismAdjustments[${i}].samples must be > 0`,
+        );
+      }
+      if (
+        typeof ma.averageAdjustment !== "number" ||
+        !Number.isFinite(ma.averageAdjustment as number)
+      ) {
+        throw new LearningEngineError(
+          `mechanismAdjustments[${i}].averageAdjustment must be a finite number`,
+        );
+      }
+    }
+  }
+
   return obj as unknown as UpdatedConfidenceModel;
+}
+
+/**
+ * Assert that a value is a valid ISO 8601 timestamp string.
+ * Performs a lightweight check — parses via Date and verifies the result
+ * is a valid date (not NaN).
+ */
+function assertValidIsoTimestamp(
+  value: unknown,
+  fieldName: string,
+): asserts value is string {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new LearningEngineError(
+      `${fieldName} must be a non-empty string`,
+    );
+  }
+  const d = new Date(value);
+  if (isNaN(d.getTime())) {
+    throw new LearningEngineError(
+      `${fieldName} must be a valid ISO 8601 timestamp, got "${String(value)}"`,
+    );
+  }
 }
