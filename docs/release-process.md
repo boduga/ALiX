@@ -33,7 +33,7 @@ git checkout -b release/v0.2.1
 
 ```bash
 # Edit package.json and src/index.ts (ALIX_VERSION)
-# Do NOT use npm version — it creates a commit we want to review
+# Do NOT use pnpm version — it creates a commit we want to review
 ```
 
 ### 3. Commit and push
@@ -67,6 +67,6 @@ This triggers the `Publish to npm` workflow, which:
 ### 6. Verify
 
 ```bash
-npm view alix versions --json
+pnpm view alix versions --json
 gh release view v0.2.1
 ```

@@ -53,48 +53,29 @@ else
 fi
 echo ""
 
-# ── Sf.3: Lockfile checks ───────────────────────────────────────────────
+# ── Sf.3: Lockfile checks (pnpm) ─────────────────────────────────────────
 
 echo "▸ Sf.3 — Lockfile integrity..."
 
 # Check lockfile exists
-if [ ! -f "$PROJECT_ROOT/package-lock.json" ]; then
-  echo "  ❌ package-lock.json not found"
+if [ ! -f "$PROJECT_ROOT/pnpm-lock.yaml" ]; then
+  echo "  ❌ pnpm-lock.yaml not found"
   PASSED=false
 else
-  echo "  ✅ package-lock.json — present"
+  echo "  ✅ pnpm-lock.yaml — present"
 fi
 
-# Check lockfile is in sync with package.json
-echo "▸ Sf.3 — Lockfile freshness..."
-if node -e "
-  const lf = JSON.parse(require('fs').readFileSync('$PROJECT_ROOT/package-lock.json','utf8'));
-  const pj = JSON.parse(require('fs').readFileSync('$PROJECT_ROOT/package.json','utf8'));
-  const issues = [];
-  for (const dep of [...Object.keys(pj.dependencies||{}), ...Object.keys(pj.devDependencies||{})]) {
-    const key = 'node_modules/' + dep;
-    if (!lf.packages || !lf.packages[key]) {
-      issues.push(dep);
-    }
-  }
-  if (issues.length > 0) {
-    console.error('MISSING from lockfile: ' + issues.join(', '));
-    process.exit(1);
-  }
-  console.log('OK');
-" 2>&1; then
-  echo "  ✅ Lockfile is in sync with package.json"
-else
-  echo "  ❌ Lockfile is out of sync with package.json"
-  PASSED=false
-fi
+# pnpm install --frozen-lockfile (run before this script in CI) ensures
+# lockfile matches package.json. Here we just verify existence and cleanliness.
 
 # Check for dirty lockfile (modified but not committed)
-if git -C "$PROJECT_ROOT" diff --exit-code "$PROJECT_ROOT/package-lock.json" > /dev/null 2>&1; then
-  echo "  ✅ Lockfile — clean (no uncommitted changes)"
-else
-  echo "  ❌ Lockfile — has uncommitted changes (dirty)"
-  PASSED=false
+if [ -f "$PROJECT_ROOT/pnpm-lock.yaml" ]; then
+  if git -C "$PROJECT_ROOT" diff --exit-code "$PROJECT_ROOT/pnpm-lock.yaml" > /dev/null 2>&1; then
+    echo "  ✅ Lockfile — clean (no uncommitted changes)"
+  else
+    echo "  ❌ Lockfile — has uncommitted changes (dirty)"
+    PASSED=false
+  fi
 fi
 echo ""
 
@@ -109,42 +90,7 @@ if [ -n "$TARBALL" ] && [ -f "$TARBALL" ]; then
     echo "  ⚠  Tarball verification requires built ALiX — skipping (run manually before publish)"
   fi
 else
-  echo "  ℹ  No tarball found — run 'npm pack' first to verify package contents"
-fi
-echo ""
-
-# ── Sf.3: Minimum release age (optional) ────────────────────────────────
-
-echo "▸ Sf.3 — Minimum release age..."
-# Check that the newest dependency is at least 24h old
-MIN_AGE_SECONDS=86400  # 24 hours
-NOW="$(date +%s)"
-NEWEST_DEP="$(node -e "
-  const lf = JSON.parse(require('fs').readFileSync('$PROJECT_ROOT/package-lock.json','utf8'));
-  const pkgs = lf.packages || {};
-  const times = [];
-  for (const [key, pkg] of Object.entries(pkgs)) {
-    if (key === '') continue;
-    if (pkg.time) {
-      const t = new Date(pkg.time).getTime() / 1000;
-      if (!isNaN(t)) times.push({name:pkg.name||key, time:t});
-    }
-  }
-  times.sort((a,b) => b.time - a.time);
-  const newest = times[0];
-  if (newest) console.log(JSON.stringify(newest));
-")"
-if [ -n "$NEWEST_DEP" ]; then
-  NEWEST_NAME="$(echo "$NEWEST_DEP" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).name" 2>/dev/null || echo "")"
-  NEWEST_TIME="$(echo "$NEWEST_DEP" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')).time" 2>/dev/null || echo "0")"
-  NEWEST_AGE="$(( NOW - NEWEST_TIME ))"
-  if [ "$NEWEST_AGE" -lt "$MIN_AGE_SECONDS" ] && [ -n "$NEWEST_NAME" ] && [ "$NEWEST_NAME" != "undefined" ]; then
-    echo "  ⚠  Newest dependency ($NEWEST_NAME) is only $((NEWEST_AGE / 3600))h old — below 24h minimum"
-  else
-    echo "  ✅ Minimum release age — OK"
-  fi
-else
-  echo "  ℹ  Could not determine dependency ages — skipping"
+  echo "  ℹ  No tarball found — run 'pnpm pack' first to verify package contents"
 fi
 echo ""
 

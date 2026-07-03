@@ -1,0 +1,11 @@
+packages:
+  - "packages/*"
+
+saveExact: true
+strictPeerDependencies: false
+autoInstallPeers: true
+sharedWorkspaceLockfile: true
+allowBuilds:
+  better-sqlite3: true
+  protobufjs: true
+  sharp: true

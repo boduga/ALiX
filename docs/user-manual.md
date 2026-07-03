@@ -35,8 +35,9 @@ Daemon       → DaemonManager, TaskRegistry, Unix socket server
 ```bash
 git clone https://github.com/boduga/ALiX.git
 cd ALiX
-npm install
-npm run build
+corepack enable
+pnpm install
+pnpm build
 ```
 
 ### Verify installation

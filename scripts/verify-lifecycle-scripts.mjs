@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
 /**
- * P4.3-Sf.1 — Verify lifecycle scripts against allowlist.
+ * P4.3-Sf.1 — Verify lifecycle scripts against allowlist (pnpm edition).
  *
- * Reads package-lock.json and the lifecycle-script allowlist, then
- * checks for unapproved or expired entries. Outputs results to stdout
- * and exits with code 0 (pass) or 1 (fail).
+ * Reads pnpm-workspace.yaml (the pnpm build-approval gate) and the
+ * lifecycle-script allowlist, then checks for unapproved or expired
+ * entries. pnpm itself enforces the first gate — install fails for
+ * unapproved build scripts — so this script verifies policy completeness.
  *
  * Usage:
  *   node scripts/verify-lifecycle-scripts.mjs [--json]
@@ -14,6 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { parse } from "yaml";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -68,22 +70,36 @@ function versionMatches(version, range) {
 }
 
 // ---------------------------------------------------------------------------
-// Load lockfile
+// Load pnpm build approvals (pnpm-workspace.yaml)
 // ---------------------------------------------------------------------------
 
-let lockfile;
+let workspaceConfig;
 try {
-  lockfile = JSON.parse(
-    await readFile(resolve(projectRoot, "package-lock.json"), "utf-8")
+  const yamlText = await readFile(
+    resolve(projectRoot, "pnpm-workspace.yaml"),
+    "utf-8",
   );
+  workspaceConfig = parse(yamlText);
 } catch (err) {
   if (err.code === "ENOENT") {
-    console.error("ERROR: package-lock.json not found.");
+    console.error("ERROR: pnpm-workspace.yaml not found.");
     process.exit(1);
   }
-  console.error(`ERROR: failed to parse package-lock.json: ${err.message}`);
+  console.error(`ERROR: failed to parse pnpm-workspace.yaml: ${err.message}`);
   process.exit(1);
 }
+
+// pnpm v9 stores approved build scripts under `onlyBuiltDependencies` (array)
+// or `allowBuilds` (map). Support both.
+const allowedBuilds = new Set(
+  Array.isArray(workspaceConfig.onlyBuiltDependencies)
+    ? workspaceConfig.onlyBuiltDependencies
+    : workspaceConfig.allowBuilds
+      ? Object.keys(workspaceConfig.allowBuilds).filter(
+          (k) => workspaceConfig.allowBuilds[k] === true,
+        )
+      : [],
+);
 
 // ---------------------------------------------------------------------------
 // Load allowlist
@@ -94,8 +110,8 @@ try {
   allowlist = JSON.parse(
     await readFile(
       resolve(projectRoot, "security/lifecycle-script-allowlist.json"),
-      "utf-8"
-    )
+      "utf-8",
+    ),
   );
 } catch (err) {
   if (err.code === "ENOENT") {
@@ -107,46 +123,21 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// Extract and check
+// Cross-reference pnpm-workspace.yaml allowBuilds with security allowlist
 // ---------------------------------------------------------------------------
 
 const entries = allowlist.packages ?? [];
 const policy = allowlist.policy ?? {};
 const now = new Date();
 
-// Extract lifecycle packages
-const packages = lockfile.packages ?? {};
-const directDeps = new Set();
-const rootPkg = packages[""] ?? {};
-const deps = rootPkg.dependencies ?? {};
-const devDeps = rootPkg.devDependencies ?? {};
-for (const dep of Object.keys({ ...deps, ...devDeps })) directDeps.add(dep);
-
-const lifecyclePackages = [];
-for (const [key, pkg] of Object.entries(packages)) {
-  if (key === "") continue;
-  if (!pkg.hasInstallScript) continue;
-  if (pkg.link) continue;
-
-  const name = pkg.name ?? key.split("node_modules/").pop() ?? key;
-  lifecyclePackages.push({
-    name,
-    version: pkg.version ?? "unknown",
-    path: key,
-    isDirect: directDeps.has(name),
-  });
-}
-
-// Check each package
 const findings = [];
 const approved = [];
-const newUnapproved = [];
+const notInAllowlist = [];
 const expiredEntries = [];
 
-for (const pkg of lifecyclePackages) {
-  const match = entries.find(
-    (e) => e.name === pkg.name && versionMatches(pkg.version, e.versionRange)
-  );
+// Check each pnpm-approved build against the security allowlist
+for (const pkgName of allowedBuilds) {
+  const match = entries.find((e) => e.name === pkgName);
 
   if (match) {
     if (match.expiry && now >= new Date(match.expiry)) {
@@ -154,35 +145,30 @@ for (const pkg of lifecyclePackages) {
       findings.push({
         code: "SC_LIFECYCLE_EXPIRED",
         severity: "error",
-        message: `Allowlist entry for "${pkg.name}" expired on ${match.expiry}.`,
-        package: pkg,
+        message: `Allowlist entry for "${pkgName}" expired on ${match.expiry}.`,
+        package: pkgName,
         details: `Owner: ${match.owner}. Reason: ${match.reason}`,
       });
     } else {
-      approved.push(pkg);
+      approved.push(pkgName);
     }
   } else {
-    newUnapproved.push(pkg);
+    notInAllowlist.push(pkgName);
     findings.push({
       code: "SC_LIFECYCLE_UNEXPECTED",
       severity: "error",
-      message: `Package "${pkg.name}@${pkg.version}" has lifecycle scripts but is not in the allowlist.`,
-      package: pkg,
+      message: `Package "${pkgName}" has pnpm build approval but is not in security/lifecycle-script-allowlist.json.`,
+      package: pkgName,
       details:
         "Add this package to security/lifecycle-script-allowlist.json with a reason, owner, and expiry date.",
     });
   }
 }
 
-// Check for expired entries not matched by any current package
+// Check for expired entries not associated with any current pnpm build approval
 for (const entry of entries) {
   if (entry.expiry && now >= new Date(entry.expiry)) {
-    const isCurrentlyUsed = lifecyclePackages.some(
-      (p) =>
-        p.name === entry.name &&
-        versionMatches(p.version, entry.versionRange)
-    );
-    if (isCurrentlyUsed && !expiredEntries.some((e) => e.name === entry.name)) {
+    if (allowedBuilds.has(entry.name) && !expiredEntries.some((e) => e.name === entry.name)) {
       expiredEntries.push(entry);
       findings.push({
         code: "SC_LIFECYCLE_EXPIRED",
@@ -206,33 +192,28 @@ if (jsonMode) {
     JSON.stringify(
       {
         ok,
-        totalLifecyclePackages: lifecyclePackages.length,
-        approved: approved.map((p) => p.name),
-        newUnapproved: newUnapproved.map((p) => ({
-          name: p.name,
-          version: p.version,
-          path: p.path,
-          isDirect: p.isDirect,
-        })),
+        totalPnpmApprovedBuilds: allowedBuilds.size,
+        approvedInAllowlist: approved,
+        notInAllowlist,
         expiredEntries: expiredEntries.map((e) => e.name),
         findings,
       },
       null,
-      2
-    )
+      2,
+    ),
   );
 } else {
   console.log(`Lifecycle Script Verification — ${ok ? "PASSED" : "FAILED"}\n`);
-  console.log(`Total packages with lifecycle scripts: ${lifecyclePackages.length}`);
-  console.log(`Approved: ${approved.length}`);
-  console.log(`Unapproved: ${newUnapproved.length}`);
+  console.log(`Packages with pnpm build approval: ${allowedBuilds.size}`);
+  console.log(`Approved in security allowlist: ${approved.length}`);
+  console.log(`Missing from allowlist: ${notInAllowlist.length}`);
   console.log(`Expired entries: ${expiredEntries.length}`);
   console.log();
 
-  if (newUnapproved.length > 0) {
-    console.log("NEW UNAPPROVED PACKAGES:");
-    for (const p of newUnapproved) {
-      console.log(`  - ${p.name}@${p.version} (${p.path}) [${p.isDirect ? "direct" : "transitive"}]`);
+  if (notInAllowlist.length > 0) {
+    console.log("MISSING FROM ALLOWLIST (pnpm-approved but not in security/lifecycle-script-allowlist.json):");
+    for (const name of notInAllowlist) {
+      console.log(`  - ${name}`);
     }
     console.log();
   }
@@ -247,8 +228,8 @@ if (jsonMode) {
 
   if (approved.length > 0) {
     console.log("APPROVED:");
-    for (const p of approved) {
-      console.log(`  - ${p.name}@${p.version}`);
+    for (const name of approved) {
+      console.log(`  - ${name}`);
     }
   }
 }

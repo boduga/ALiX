@@ -2,13 +2,13 @@
 
 > **Last updated:** 2026-06-17 (P4.1b — Ollama tool-call parsing complete)
 > **Part of:** P4.1a/P4.1b — Skipped-Test Elimination and Ollama Tool-Call Parsing
-> **Governance:** `npm run test:skips:audit` validates this document against the codebase
+> **Governance:** `pnpm test:skips:audit` validates this document against the codebase
 
 **Target:** 0 unexplained skipped tests. Every skip must have a documented reason, classification, activation condition, and removal criteria.
 
 ## Runner Scope
 
-The count of **4 skipped** reported by `npm run test:node:ci` (3173 pass, 0 fail) refers only to the `node:test` runner configured in CI. The **15 documented items** below include skips in runners excluded from that command:
+The count of **4 skipped** reported by `pnpm test:node:ci` (3173 pass, 0 fail) refers only to the `node:test` runner configured in CI. The **15 documented items** below include skips in runners excluded from that command:
 
 | Runner | Included in `test:node:ci` | Tests |
 |---|---|---|
@@ -161,7 +161,7 @@ Same dependency on real model API.
 
 ## 6. Skipped-Test Governance (CI Validator)
 
-The `npm run test:skips:audit` script (`scripts/test-skips-audit.sh`) runs as part of pre-merge validation. It detects:
+The `pnpm test:skips:audit` script (`scripts/test-skips-audit.sh`) runs as part of pre-merge validation. It detects:
 
 | Check | Detects | Fails CI |
 |---|---|---|

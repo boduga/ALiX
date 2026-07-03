@@ -4,7 +4,7 @@
 
 ## Prerequisites
 
-- ALiX built and configured (`npm run build`, `alix config set-key`)
+- ALiX built and configured (`pnpm build`, `alix config set-key`)
 - Terminal window ready
 
 ---

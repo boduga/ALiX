@@ -8,7 +8,7 @@ ALiX is an autonomous coding agent that runs locally on your machine. This guide
 npm install -g alix
 ```
 
-(Or run from source: `git clone https://github.com/boduga/ALiX && cd ALiX && npm install && npm run build`.)
+(Or run from source: `git clone https://github.com/boduga/ALiX && cd ALiX && corepack enable && pnpm install && pnpm build`.)
 
 Requires Node 24+.
 

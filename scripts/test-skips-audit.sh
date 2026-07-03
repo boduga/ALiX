@@ -4,7 +4,7 @@
 # Detects undocumented skipped tests and validates that every skip
 # in the codebase appears in docs/testing/skipped-tests.md.
 #
-# Usage: npm run test:skips:audit
+# Usage: pnpm test:skips:audit
 #   or:  bash scripts/test-skips-audit.sh
 #
 # Exit codes:

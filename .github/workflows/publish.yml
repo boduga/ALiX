@@ -22,15 +22,19 @@ jobs:
     steps:
       # actions/checkout v4 — pinned to SHA
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+      # pnpm/action-setup v2 — install pnpm before setup-node for cache:pnpm
+      - uses: pnpm/action-setup@v2
+        with:
+          version: latest
       # actions/setup-node v4 — pinned to SHA
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4
         with:
           node-version: "24"
           registry-url: "https://registry.npmjs.org"
-          cache: npm
+          cache: pnpm
 
       # Sf.7 step 1: Install approved dependencies
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
       # Ensure tag matches package.json version
       - name: Verify version consistency
@@ -46,19 +50,19 @@ jobs:
 
       # Sf.7 step 2: Build and test
       - name: Typecheck
-        run: npm run typecheck
+        run: pnpm typecheck
       - name: Build
-        run: npm run build
+        run: pnpm build
       - name: Unit tests
-        run: npm run test:unit:node
+        run: pnpm test:unit:node
       - name: Integration tests
-        run: npm run test:integration
+        run: pnpm test:integration
 
-      # Sf.7 step 3: npm pack --json
+      # Sf.7 step 3: pnpm pack --json
       - name: Pack (Sf.7 step 3)
         id: pack
         run: |
-          TARBALL="$(npm pack --json | node -p "require('fs').readFileSync('/dev/stdin','utf8') ? JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))[0].filename : ''" 2>/dev/null)"
+          TARBALL="$(pnpm pack --json | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))[0].filename" 2>/dev/null)"
           echo "Tarball: $TARBALL"
           echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
 
@@ -78,7 +82,7 @@ jobs:
           TARBALL="${{ steps.pack.outputs.tarball }}"
           TMP_DIR="$(mktemp -d)"
           echo "Installing tarball into $TMP_DIR"
-          if npm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
+          if pnpm install --prefix "$TMP_DIR" "$PWD/$TARBALL" > /dev/null 2>&1; then
             if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
                 ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
                 ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
