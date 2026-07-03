@@ -8,6 +8,7 @@ import {
   NormalizedResponseSchema,
   NormalizedMessageSchema,
   NormalizedRequestSchema,
+  StreamChunkSchema,
 } from "../../src/contracts/llm-schemas.js";
 
 describe("ToolCallSchema", () => {
@@ -136,6 +137,79 @@ describe("NormalizedRequestSchema", () => {
         systemPrompt: "X",
         messages: [],
         tools: [{ notATool: true }],
+      } as any)
+    );
+  });
+});
+
+describe("StreamChunkSchema", () => {
+  it("decodes text_delta", () => {
+    const chunk = Schema.decodeSync(StreamChunkSchema)({
+      type: "text_delta", text: "Hello",
+    } as any);
+    assert.strictEqual(chunk.type, "text_delta");
+  });
+
+  it("decodes tool_call", () => {
+    const chunk = Schema.decodeSync(StreamChunkSchema)({
+      type: "tool_call",
+      toolCall: { id: "tc-1", name: "file.read", args: { path: "x" } },
+    } as any);
+    assert.strictEqual(chunk.type, "tool_call");
+  });
+
+  it("decodes usage", () => {
+    const chunk = Schema.decodeSync(StreamChunkSchema)({
+      type: "usage",
+      usage: { inputTokens: 10, outputTokens: 20 },
+    } as any);
+    assert.strictEqual(chunk.type, "usage");
+  });
+
+  it("decodes done", () => {
+    const chunk = Schema.decodeSync(StreamChunkSchema)({
+      type: "done",
+    } as any);
+    assert.strictEqual(chunk.type, "done");
+  });
+
+  it("decodes error", () => {
+    const chunk = Schema.decodeSync(StreamChunkSchema)({
+      type: "error", error: "Something went wrong",
+    } as any);
+    assert.strictEqual(chunk.type, "error");
+  });
+
+  it("rejects invalid type", () => {
+    assert.throws(() =>
+      Schema.decodeSync(StreamChunkSchema)({
+        type: "invalid",
+      } as any)
+    );
+  });
+
+  it("rejects text_delta missing text", () => {
+    assert.throws(() =>
+      Schema.decodeSync(StreamChunkSchema)({
+        type: "text_delta",
+      } as any)
+    );
+  });
+
+  it("rejects tool_call with malformed toolCall", () => {
+    assert.throws(() =>
+      Schema.decodeSync(StreamChunkSchema)({
+        type: "tool_call",
+        toolCall: { name: "file.read" }, // missing id
+      } as any)
+    );
+  });
+
+  it("rejects usage with malformed usage", () => {
+    assert.throws(() =>
+      Schema.decodeSync(StreamChunkSchema)({
+        type: "usage",
+        usage: { inputTokens: "abc" }, // wrong type
       } as any)
     );
   });
