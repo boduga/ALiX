@@ -305,12 +305,14 @@ ${approvedPlanContent}`);
 
   // Build task loop deps
   // Build execution context for diagnostic correlation
+  const runId = `run-${randomUUID().slice(0, 8)}`;
   const taskContext: ExecutionContext = {
-    runId: `run-${randomUUID().slice(0, 8)}`,
+    runId,
     sessionId: ctx.sessionId,
     workflowId: wfRun.id,
     providerId: ctx.config.model.provider,
     model: ctx.config.model.name,
+    parentRunId: opts?.parentRunId,
   };
 
   const taskLoopDeps: TaskLoopDeps = {
@@ -420,7 +422,7 @@ ${approvedPlanContent}`);
     await ctx.log.append({ ...session, actor: "system", type: "m09.metric", payload: m });
   }
 
-  return result;
+  return { ...result, runId };
 }
 
 export type { RunOpts, RunResult } from "../run.js";

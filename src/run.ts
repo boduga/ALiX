@@ -16,6 +16,8 @@ export type RunResult = {
   summary: string;
   streamed?: boolean;
   reason?: "completed" | "max_repairs" | "max_iterations" | "rejected_scope_expansion";
+  /** Unique run identifier for diagnostic correlation. */
+  runId?: string;
 };
 
 export type RunOpts = {
@@ -28,6 +30,7 @@ export type RunOpts = {
   messages?: NormalizedMessage[];
   skipContext?: boolean;
   disableSkillFactory?: boolean;
+  parentRunId?: string;
   injectedContext?: {
     kind: string;
     content: string;
