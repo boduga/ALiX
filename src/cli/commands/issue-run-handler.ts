@@ -112,9 +112,10 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   const dryRun = args.includes("--dry-run");
   const postComment = args.includes("--comment");
   const proposalMode = args.includes("--proposal");
+  const createPr = args.includes("--pr");
 
   if (!repo || !issueStr) {
-    console.error("Usage: alix issue run --repo <owner/name> --issue <number> [--dry-run] [--proposal] [--comment]");
+    console.error("Usage: alix issue run --repo <owner/name> --issue <number> [--dry-run] [--proposal] [--comment] [--pr]");
     process.exit(1);
   }
 
@@ -229,6 +230,20 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
     console.log(`  Summary:  ${result.summary.slice(0, 500)}`);
   }
   console.log("═══════════════════════════════════════");
+
+  // Create draft PR if requested
+  if (createPr && result.reason === "completed") {
+    const { createDraftPr } = await import("./issue-draft-pr.js");
+    console.log(`\nCreating draft PR for #${issue.number}...`);
+    const prResult = createDraftPr(repo, issue.number, issue.title);
+    if (prResult.success) {
+      console.log(`✅ Draft PR created: ${prResult.prUrl ?? prResult.branchName}`);
+      await eventLog.append({ ...eb, type: "issue.draft_pr_created" as const, payload: { issueNumber: issue.number, runId, branchName: prResult.branchName, prUrl: prResult.prUrl } });
+    } else {
+      console.error(`❌ Draft PR creation failed: ${prResult.error}`);
+      await eventLog.append({ ...eb, type: "issue.draft_pr_failed" as const, payload: { issueNumber: issue.number, runId, error: prResult.error } });
+    }
+  }
 
   // Emit proposal event if in proposal mode
   if (proposalMode) {
