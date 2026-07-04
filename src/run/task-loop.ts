@@ -14,6 +14,7 @@ import type { ModelAdapter, NormalizedMessage, NormalizedRequest, ToolCall, Toke
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
 import type { EventLog } from "../events/event-log.js";
 import type { MemoryStore } from "../utils/memory/store.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 import type { ScopeTracker } from "../autonomy/scope-tracker.js";
 import type { TaskStateMachine } from "../autonomy/state-machine.js";
 import type { TaskType } from "../task-classifier.js";
@@ -132,6 +133,7 @@ post_task?: { command: string; reason: string }[];
   systemPrompt: string;
   onStream?: (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
   hookRunner?: import("../extensions/hook-runner.js").HookRunner;
+  context?: ExecutionContext;
 }
 
 /**
@@ -252,7 +254,8 @@ if (config.model.streaming && provider.stream) {
   const result = await streamToResponse(provider, {
     systemPrompt,
     messages,
-    tools: [...providerTools, ...mcpToolIndex]
+    tools: [...providerTools, ...mcpToolIndex],
+    context: deps.context,
   }, { onStream });
   text = result.text;
   toolCalls = result.toolCalls;
@@ -261,7 +264,8 @@ if (config.model.streaming && provider.stream) {
   const resp = await provider.complete({
     systemPrompt,
     messages,
-    tools: [...providerTools, ...mcpToolIndex]
+    tools: [...providerTools, ...mcpToolIndex],
+    context: deps.context,
   });
   text = resp.text ?? "";
   toolCalls = resp.toolCalls ?? [];

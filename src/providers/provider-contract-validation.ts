@@ -126,10 +126,18 @@ export function withProviderContracts(
   onDiagnostic?: (diag: ContractDiagnostic) => void,
   timeoutMs?: number,
   streamIdleTimeoutMs?: number,
-  context?: ExecutionContext,
+  defaultContext?: ExecutionContext,
 ): ModelAdapter {
   function emit(diag: ContractDiagnostic): void {
     onDiagnostic?.(diag);
+  }
+
+  /** Merge default context with per-request context. Per-request takes precedence. */
+  function resolveContext(request: NormalizedRequest): ExecutionContext | undefined {
+    if (request.context && defaultContext) {
+      return { ...defaultContext, ...request.context };
+    }
+    return request.context ?? defaultContext;
   }
 
   return {
@@ -138,6 +146,7 @@ export function withProviderContracts(
 
     // Override complete with request/response contract validation
     async complete(request: NormalizedRequest): Promise<NormalizedResponse> {
+      const callContext = resolveContext(request);
       try {
         const validatedRequest = validateNormalizedRequest(request);
         const response = timeoutMs
@@ -156,7 +165,7 @@ export function withProviderContracts(
             e.message.includes("Request") ? "NormalizedRequestSchema" : "NormalizedResponseSchema",
             e.details ?? e.message,
             (request as any).toolCalls?.[0]?.id,
-            context,
+            callContext,
           );
           emit(diag);
         }
@@ -170,12 +179,14 @@ export function withProviderContracts(
           stream: async function* (
             request: NormalizedRequest,
           ): AsyncGenerator<StreamChunk> {
+            const callContext = resolveContext(request);
+
             // Validate request before starting stream
             try {
               validateNormalizedRequest(request);
             } catch (e: unknown) {
               if (e instanceof ContractValidationError && onDiagnostic) {
-                emit(diagProvider("stream.request", "NormalizedRequestSchema", e.details ?? e.message, undefined, context));
+                emit(diagProvider("stream.request", "NormalizedRequestSchema", e.details ?? e.message, undefined, callContext));
               }
               throw e;
             }
@@ -192,7 +203,7 @@ export function withProviderContracts(
                 yield validateStreamChunk(chunk);
               } catch (e: unknown) {
                 if (e instanceof ContractValidationError && onDiagnostic) {
-                  emit(diagProvider("stream.chunk", "StreamChunkSchema", e.details ?? e.message, undefined, context));
+                  emit(diagProvider("stream.chunk", "StreamChunkSchema", e.details ?? e.message, undefined, callContext));
                 }
                 throw e;
               }
