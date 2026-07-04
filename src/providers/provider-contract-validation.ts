@@ -13,7 +13,13 @@ import { decode, formatErrors } from "../contracts/helpers.js";
 import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../contracts/llm-schemas.js";
 import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic, type ContractBoundary } from "../contracts/contract-diagnostics.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
-import { consoleSink } from "../runtime/runtime-diagnostics.js";
+import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
+import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
+
+const diagSink = createMultiplexDiagnosticSink(
+  consoleSink,
+  createDiagnosticStoreSink(new DiagnosticEventStore(process.cwd() + "/.alix/diagnostics")),
+);
 
 // ---------------------------------------------------------------------------
 // Error types
@@ -136,7 +142,7 @@ export function withProviderContracts(
               `provider.complete:${adapter.id}`,
               timeoutMs,
               () => adapter.complete(validatedRequest),
-              (d) => consoleSink.emit(d),
+              (d) => diagSink.emit(d),
             )
           : await adapter.complete(validatedRequest);
         return validateNormalizedResponse(response);

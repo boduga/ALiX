@@ -1,7 +1,13 @@
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification, McpServerCapabilities, Tool, CallToolResult } from "./types.js";
 import type { McpTransport } from "./transport.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
-import { consoleSink } from "../runtime/runtime-diagnostics.js";
+import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
+import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
+
+const diagSink = createMultiplexDiagnosticSink(
+  consoleSink,
+  createDiagnosticStoreSink(new DiagnosticEventStore(process.cwd() + "/.alix/diagnostics")),
+);
 
 const PROTOCOL_VERSION = "2024-11-05";
 const DEFAULT_MCP_TIMEOUT_MS = 30_000;
@@ -83,7 +89,7 @@ export class McpClient {
         method: "tools/call",
         params: { name, arguments: args },
       }),
-      (d) => consoleSink.emit(d),
+      (d) => diagSink.emit(d),
     );
 
     if ("error" in result && result.error) {

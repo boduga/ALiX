@@ -1,7 +1,13 @@
 import { spawn } from "node:child_process";
 import type { ToolResult } from "./types.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
-import { consoleSink } from "../runtime/runtime-diagnostics.js";
+import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
+import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
+
+const diagSink = createMultiplexDiagnosticSink(
+  consoleSink,
+  createDiagnosticStoreSink(new DiagnosticEventStore(process.cwd() + "/.alix/diagnostics")),
+);
 
 const MAX_BYTES = 80_000;
 const DEFAULT_TIMEOUT_MS = 120_000;
@@ -100,7 +106,7 @@ export async function runCommand(args: { command: string; cwd: string; timeoutMs
       `shell.run: ${command.slice(0, 80)}`,
       timeoutMs,
       () => promise,
-      (d) => consoleSink.emit(d),
+      (d) => diagSink.emit(d),
     );
   } catch (err: unknown) {
     if (err instanceof SideEffectTimeoutError) {

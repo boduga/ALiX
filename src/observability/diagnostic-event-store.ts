@@ -12,6 +12,7 @@ import type { RuntimeDiagnostic } from "../runtime/runtime-diagnostics.js";
 import type { ContractDiagnostic } from "../contracts/contract-diagnostics.js";
 import { runtimeDiagToEvent, contractDiagToEvent } from "./diagnostic-event.js";
 import type { DiagnosticSink } from "../runtime/runtime-diagnostics.js";
+import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
 
 // ---------------------------------------------------------------------------
 // Store
@@ -69,4 +70,20 @@ export function createDiagnosticStoreSink(store: DiagnosticEventStore): Diagnost
       store.appendRuntime(diag);
     },
   };
+}
+
+/**
+ * Create a default durable diagnostics setup: console + event store.
+ * The event store writes to `.alix/diagnostics/events.jsonl` relative to cwd.
+ * Returns a multiplex sink that preserves console output while persisting
+ * diagnostics for later query.
+ */
+export function createDefaultDiagnosticSink(
+  eventStoreDir?: string,
+): DiagnosticSink & { store: DiagnosticEventStore } {
+  const dir = eventStoreDir ?? join(process.cwd(), ".alix", "diagnostics");
+  const store = new DiagnosticEventStore(dir);
+  const storeSink = createDiagnosticStoreSink(store);
+  const multiplex = createMultiplexDiagnosticSink(consoleSink, storeSink);
+  return Object.assign(multiplex, { store });
 }

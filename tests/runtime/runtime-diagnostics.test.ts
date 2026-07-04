@@ -2,7 +2,7 @@
 
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { buildRuntimeDiagnostic, formatRuntimeDiagnostic } from "../../src/runtime/runtime-diagnostics.js";
+import { buildRuntimeDiagnostic, formatRuntimeDiagnostic, createMultiplexDiagnosticSink } from "../../src/runtime/runtime-diagnostics.js";
 import { withTimeout, SideEffectTimeoutError } from "../../src/runtime/side-effect-timeout.js";
 import { withRetry, RetryError } from "../../src/runtime/retry.js";
 
@@ -103,5 +103,38 @@ describe("withRetry diagnostics", () => {
       Error,
     );
     assert.strictEqual(diagnostics.length, 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Multiplex sink
+// ---------------------------------------------------------------------------
+
+describe("createMultiplexDiagnosticSink", () => {
+  it("emits to all child sinks", () => {
+    const received: any[] = [];
+    const sink1 = { emit: (d: any) => received.push("a:" + d.event) };
+    const sink2 = { emit: (d: any) => received.push("b:" + d.event) };
+
+    const mux = createMultiplexDiagnosticSink(sink1, sink2);
+    const diag = buildRuntimeDiagnostic("timeout", "test", "testing");
+
+    mux.emit(diag);
+    assert.strictEqual(received.length, 2);
+    assert.ok(received[0].startsWith("a:"));
+    assert.ok(received[1].startsWith("b:"));
+  });
+
+  it("isolates failing sinks", () => {
+    const received: any[] = [];
+    const failing = { emit: () => { throw new Error("sink failure"); } };
+    const working = { emit: (d: any) => received.push(d.event) };
+
+    const mux = createMultiplexDiagnosticSink(failing, working);
+    const diag = buildRuntimeDiagnostic("timeout", "test", "survives");
+
+    mux.emit(diag);
+    assert.strictEqual(received.length, 1);
+    assert.strictEqual(received[0], "survives");
   });
 });

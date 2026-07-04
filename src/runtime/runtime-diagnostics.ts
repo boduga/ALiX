@@ -80,3 +80,21 @@ export const consoleSink: DiagnosticSink = {
     console.warn(formatRuntimeDiagnostic(diag));
   },
 };
+
+/**
+ * Create a multiplex sink that fans out to multiple child sinks.
+ * Sink failures are isolated — one failing sink does not block others.
+ */
+export function createMultiplexDiagnosticSink(...sinks: DiagnosticSink[]): DiagnosticSink {
+  return {
+    emit: (diag: RuntimeDiagnostic) => {
+      for (const sink of sinks) {
+        try {
+          sink.emit(diag);
+        } catch {
+          // Isolated failure — continue to next sink
+        }
+      }
+    },
+  };
+}
