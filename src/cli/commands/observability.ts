@@ -19,7 +19,8 @@ export async function handleObservability(args: string[], cwd: string): Promise<
   if (sub === "trends") { const { cmdTrends } = await import("./observability-trends.js"); await cmdTrends(cwd, args.slice(1)); return; }
   if (sub === "alerts") { const { cmdAlerts } = await import("./observability-alerts.js"); await cmdAlerts(cwd, args.slice(1)); return; }
   if (sub === "export") { const { cmdExport } = await import("./observability-export.js"); await cmdExport(cwd, args.slice(1)); return; }
-  throw new Error("Usage: alix observability {health|metrics|trends|alerts|export}");
+  if (sub === "diagnostics") { const { cmdDiagnostics } = await import("./observability-diagnostics.js"); await cmdDiagnostics(cwd, args.slice(1)); return; }
+  throw new Error("Usage: alix observability {health|metrics|trends|alerts|export|diagnostics}");
 }
 
 async function cmdHealth(cwd: string): Promise<void> {
