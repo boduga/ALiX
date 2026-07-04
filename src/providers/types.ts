@@ -1,5 +1,6 @@
 // Message content parts
 import type { DeferredToolEntry } from "../mcp/tool-deferral.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 export type TextPart = {
   type: "text";
@@ -105,6 +106,8 @@ export type NormalizedRequest = {
     properties: Record<string, unknown>;
     required?: string[];
   };
+  /** Execution context for diagnostic correlation. Set by the agent loop. */
+  context?: ExecutionContext;
 };
 
 export type ToolCall = {

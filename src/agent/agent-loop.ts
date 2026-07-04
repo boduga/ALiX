@@ -23,6 +23,7 @@ import { toCanonicalEvent, CanonicalEventSink } from "../kernel/event-envelope.j
 import { randomUUID } from "node:crypto";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
   const metrics = new MinimalMetrics();
@@ -303,6 +304,15 @@ ${approvedPlanContent}`);
   const hooks = await discoverHooks(cwd);
 
   // Build task loop deps
+  // Build execution context for diagnostic correlation
+  const taskContext: ExecutionContext = {
+    runId: `run-${randomUUID().slice(0, 8)}`,
+    sessionId: ctx.sessionId,
+    workflowId: wfRun.id,
+    providerId: ctx.config.model.provider,
+    model: ctx.config.model.name,
+  };
+
   const taskLoopDeps: TaskLoopDeps = {
     config: {
       model: {
@@ -342,6 +352,7 @@ ${approvedPlanContent}`);
     systemPrompt: SYSTEM_PROMPT,
     onStream,
     hookRunner: ctx.hookRunner,
+    context: taskContext,
   };
 
   // Emit task.started before entering the task loop
