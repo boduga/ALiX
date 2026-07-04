@@ -96,9 +96,10 @@ function buildPrompt(issue: IssueData): string {
 export async function handleIssueRunCommand(args: string[]): Promise<void> {
   const repo = parseArg(args, "--repo");
   const issueStr = parseArg(args, "--issue");
+  const dryRun = args.includes("--dry-run");
 
   if (!repo || !issueStr) {
-    console.error("Usage: alix issue run --repo <owner/name> --issue <number>");
+    console.error("Usage: alix issue run --repo <owner/name> --issue <number> [--dry-run]");
     process.exit(1);
   }
 
@@ -160,8 +161,11 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   console.log();
 
   // Stage 4: Run the task
-  const taskPrompt = buildPrompt(issue);
-  await eventLog.append({ ...eb, type: "issue.run_started" as const, payload: { issueNumber: issue.number, title: issue.title, runId, sessionId, workflowId } });
+  let taskPrompt = buildPrompt(issue);
+  if (dryRun) {
+    taskPrompt = `[READ-ONLY ANALYSIS] Analyze this issue and describe what changes would be needed. DO NOT modify any files.\n\n${taskPrompt}`;
+  }
+  await eventLog.append({ ...eb, type: "issue.run_started" as const, payload: { issueNumber: issue.number, title: issue.title, runId, sessionId, workflowId, dryRun } });
 
   console.log(`Running issue #${issue.number}...`);
   console.log();
@@ -177,7 +181,7 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   }
 
   // Stage 5: Summary
-  await eventLog.append({ ...eb, type: "issue.completed" as const, payload: { issueNumber: issue.number, title: issue.title, runId, workflowId, outcome: result.reason ?? "completed", summary: result.summary } });
+  await eventLog.append({ ...eb, type: "issue.completed" as const, payload: { issueNumber: issue.number, title: issue.title, runId, workflowId, outcome: result.reason ?? "completed", dryRun, summary: result.summary } });
 
   const summary: IssueRunSummary = {
     issueNumber: issue.number,
@@ -191,9 +195,10 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
 
   console.log();
   console.log("═══════════════════════════════════════");
-  console.log("  Issue Execution Summary");
+  console.log(`  Issue Execution Summary${dryRun ? " (DRY RUN)" : ""}`);
   console.log("═══════════════════════════════════════");
   console.log(`  Issue:    #${summary.issueNumber} — ${summary.issueTitle}`);
+  console.log(`  Mode:     ${dryRun ? "dry run (no changes)" : "live"}`);
   console.log(`  Eligible: ${summary.eligible ? "yes" : "no"}`);
   console.log(`  Run ID:   ${summary.runId}`);
   console.log(`  Session:  ${summary.sessionId}`);
