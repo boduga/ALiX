@@ -7,6 +7,7 @@
  */
 
 import { buildRuntimeDiagnostic, type RuntimeDiagnostic } from "./runtime-diagnostics.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -52,11 +53,14 @@ export function withTimeout<T>(
   timeoutMs: number,
   effect: () => Promise<T>,
   onDiagnostic?: (diag: RuntimeDiagnostic) => void,
+  context?: ExecutionContext,
 ): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       if (onDiagnostic) {
-        onDiagnostic(buildRuntimeDiagnostic("timeout", operation, `timed out after ${timeoutMs}ms`, { timeoutMs }));
+        const diag = buildRuntimeDiagnostic("timeout", operation, `timed out after ${timeoutMs}ms`, { timeoutMs });
+        if (context) diag.context = context;
+        onDiagnostic(diag);
       }
       reject(new SideEffectTimeoutError(operation, timeoutMs));
     }, timeoutMs);

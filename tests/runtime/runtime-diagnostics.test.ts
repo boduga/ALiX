@@ -138,3 +138,84 @@ describe("createMultiplexDiagnosticSink", () => {
     assert.strictEqual(received[0], "survives");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Context propagation through withTimeout
+// ---------------------------------------------------------------------------
+
+describe("withTimeout context", () => {
+  it("emits diagnostic with context on timeout", async () => {
+    const received: any[] = [];
+    const ctx = { runId: "run-t1", agentId: "coder" };
+
+    await assert.rejects(
+      () =>
+        withTimeout("ctx-timeout", 10, () => new Promise((r) => setTimeout(r, 5000)), (d) => received.push(d), ctx),
+      SideEffectTimeoutError,
+    );
+
+    assert.strictEqual(received.length, 1);
+    assert.deepStrictEqual(received[0].context, ctx);
+  });
+
+  it("without context emits diagnostic without context", async () => {
+    const received: any[] = [];
+
+    await assert.rejects(
+      () =>
+        withTimeout("no-ctx", 10, () => new Promise((r) => setTimeout(r, 5000)), (d) => received.push(d)),
+      SideEffectTimeoutError,
+    );
+
+    assert.strictEqual(received.length, 1);
+    assert.strictEqual(received[0].context, undefined);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Context propagation through withRetry
+// ---------------------------------------------------------------------------
+
+describe("withRetry context", () => {
+  it("emits retry attempt with context", async () => {
+    const received: any[] = [];
+    const ctx = { runId: "run-retry" };
+
+    await assert.rejects(
+      () =>
+        withRetry(
+          "ctx-retry",
+          () => { throw Object.assign(new Error("fail"), { name: "SideEffectTimeoutError" }); },
+          { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 2 },
+          (d) => received.push(d),
+          ctx,
+        ),
+      RetryError,
+    );
+
+    assert.ok(received.length >= 1);
+    assert.deepStrictEqual(received[0].context, ctx);
+  });
+
+  it("retry exhaustion includes context", async () => {
+    const received: any[] = [];
+    const ctx = { agentId: "test-agent" };
+
+    await assert.rejects(
+      () =>
+        withRetry(
+          "ctx-exhaust",
+          () => { throw Object.assign(new Error("fail"), { name: "SideEffectTimeoutError" }); },
+          { maxRetries: 1, baseDelayMs: 1, maxDelayMs: 2 },
+          (d) => received.push(d),
+          ctx,
+        ),
+      RetryError,
+    );
+
+    // Last diagnostic should be retry.exhausted with context
+    const last = received[received.length - 1];
+    assert.strictEqual(last.boundary, "retry.exhausted");
+    assert.deepStrictEqual(last.context, ctx);
+  });
+});
