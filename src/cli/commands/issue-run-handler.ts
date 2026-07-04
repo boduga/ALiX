@@ -15,6 +15,19 @@ import type { RunResult } from "../../run.js";
 import type { ExecutionContext } from "../../observability/execution-context.js";
 import { EventLog } from "../../events/event-log.js";
 
+interface ProposalSummary {
+  issueNumber: number;
+  issueTitle: string;
+  runId?: string;
+  sessionId?: string;
+  workflowId?: string;
+  proposedObjective: string;
+  proposedFiles: string[];
+  proposedVerification: string[];
+  risks: string[];
+  nextAction: string;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -98,9 +111,10 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   const issueStr = parseArg(args, "--issue");
   const dryRun = args.includes("--dry-run");
   const postComment = args.includes("--comment");
+  const proposalMode = args.includes("--proposal");
 
   if (!repo || !issueStr) {
-    console.error("Usage: alix issue run --repo <owner/name> --issue <number> [--dry-run]");
+    console.error("Usage: alix issue run --repo <owner/name> --issue <number> [--dry-run] [--proposal] [--comment]");
     process.exit(1);
   }
 
@@ -163,10 +177,13 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
 
   // Stage 4: Run the task
   let taskPrompt = buildPrompt(issue);
-  if (dryRun) {
+  if (proposalMode) {
+    await eventLog.append({ ...eb, type: "issue.proposal_requested" as const, payload: { issueNumber: issue.number, title: issue.title, runId, sessionId, workflowId } });
+    taskPrompt = `[PROPOSAL MODE] Analyze this issue and produce a structured change proposal. Describe:\n1. Objective — what needs to change\n2. Files to inspect or modify\n3. Verification steps needed\n4. Risks or unknowns\n5. Recommended next action\n\nDO NOT modify any files.\n\n${taskPrompt}`;
+  } else if (dryRun) {
     taskPrompt = `[READ-ONLY ANALYSIS] Analyze this issue and describe what changes would be needed. DO NOT modify any files.\n\n${taskPrompt}`;
   }
-  await eventLog.append({ ...eb, type: "issue.run_started" as const, payload: { issueNumber: issue.number, title: issue.title, runId, sessionId, workflowId, dryRun } });
+  await eventLog.append({ ...eb, type: "issue.run_started" as const, payload: { issueNumber: issue.number, title: issue.title, runId, sessionId, workflowId, dryRun, proposalMode } });
 
   console.log(`Running issue #${issue.number}...`);
   console.log();
@@ -182,7 +199,7 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   }
 
   // Stage 5: Summary
-  await eventLog.append({ ...eb, type: "issue.completed" as const, payload: { issueNumber: issue.number, title: issue.title, runId, workflowId, outcome: result.reason ?? "completed", dryRun, summary: result.summary } });
+  await eventLog.append({ ...eb, type: "issue.completed" as const, payload: { issueNumber: issue.number, title: issue.title, runId, workflowId, outcome: result.reason ?? "completed", dryRun, proposalMode, summary: result.summary } });
 
   const summary: IssueRunSummary = {
     issueNumber: issue.number,
@@ -196,19 +213,27 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
 
   console.log();
   console.log("═══════════════════════════════════════");
-  console.log(`  Issue Execution Summary${dryRun ? " (DRY RUN)" : ""}`);
+  console.log(`  ${proposalMode ? "Proposal Summary (DRY RUN)" : `Issue Execution Summary${dryRun ? " (DRY RUN)" : ""}`}`);
   console.log("═══════════════════════════════════════");
   console.log(`  Issue:    #${summary.issueNumber} — ${summary.issueTitle}`);
-  console.log(`  Mode:     ${dryRun ? "dry run (no changes)" : "live"}`);
+  console.log(`  Mode:     ${proposalMode ? "proposal dry run (no changes)" : dryRun ? "dry run (no changes)" : "live"}`);
   console.log(`  Eligible: ${summary.eligible ? "yes" : "no"}`);
   console.log(`  Run ID:   ${summary.runId}`);
   console.log(`  Session:  ${summary.sessionId}`);
   console.log(`  Workflow: ${summary.workflowId}`);
   console.log(`  Outcome:  ${summary.outcome}`);
+  if (proposalMode) {
+    console.log(`  Note:     Review the agent's proposal above. To apply, re-run without --proposal.`);
+  }
   if (result.summary) {
     console.log(`  Summary:  ${result.summary.slice(0, 500)}`);
   }
   console.log("═══════════════════════════════════════");
+
+  // Emit proposal event if in proposal mode
+  if (proposalMode) {
+    await eventLog.append({ ...eb, type: "issue.proposal_generated" as const, payload: { issueNumber: issue.number, title: issue.title, runId, sessionId, workflowId, outcome: result.reason ?? "completed" } });
+  }
 
   // Optionally post comment to GitHub
   if (postComment) {
