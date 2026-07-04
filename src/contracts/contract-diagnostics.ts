@@ -22,6 +22,8 @@ export type ContractBoundary =
   | "proposal.load"
   | "proposal.list";
 
+import type { ExecutionContext } from "../observability/execution-context.js";
+
 export interface ContractDiagnostic {
   domain: ContractDomain;
   boundary: ContractBoundary;
@@ -29,6 +31,7 @@ export interface ContractDiagnostic {
   error: string;
   entityId?: string;
   timestamp: string;
+  context?: ExecutionContext;
 }
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,8 @@ import type { RuntimeDiagnostic } from "../runtime/runtime-diagnostics.js";
 export type DiagnosticEventType = "contract" | "runtime";
 export type DiagnosticSeverity = "error" | "warning";
 
+import type { ExecutionContext } from "./execution-context.js";
+
 export interface DiagnosticEvent {
   id: string;
   timestamp: string;
@@ -31,6 +33,7 @@ export interface DiagnosticEvent {
   maxRetries?: number;
   timeoutMs?: number;
   error?: string;
+  context?: ExecutionContext;
 }
 
 // ---------------------------------------------------------------------------
@@ -70,6 +73,7 @@ export function runtimeDiagToEvent(diag: RuntimeDiagnostic): DiagnosticEvent {
     maxRetries: diag.maxRetries,
     timeoutMs: diag.timeoutMs,
     error: diag.error,
+    context: diag.context,
   };
 }
 
@@ -87,5 +91,6 @@ export function contractDiagToEvent(diag: ContractDiagnostic): DiagnosticEvent {
     event: diag.error,
     severity: "error",
     error: diag.error,
+    context: diag.context,
   };
 }
