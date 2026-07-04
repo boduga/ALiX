@@ -97,6 +97,7 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   const repo = parseArg(args, "--repo");
   const issueStr = parseArg(args, "--issue");
   const dryRun = args.includes("--dry-run");
+  const postComment = args.includes("--comment");
 
   if (!repo || !issueStr) {
     console.error("Usage: alix issue run --repo <owner/name> --issue <number> [--dry-run]");
@@ -209,6 +210,17 @@ export async function handleIssueRunCommand(args: string[]): Promise<void> {
   }
   console.log("═══════════════════════════════════════");
 
+  // Optionally post comment to GitHub
+  if (postComment) {
+    try {
+      const outcome = result.reason ?? "completed";
+      postIssueComment(repo, issue.number, summary, outcome, dryRun);
+      console.log(`\nComment posted to #${issue.number}.`);
+    } catch (err: unknown) {
+      console.error(`\nFailed to post comment: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
   if (result.reason === "completed") {
     process.exit(0);
   } else {
@@ -220,4 +232,29 @@ function parseArg(args: string[], key: string): string | undefined {
   const idx = args.indexOf(key);
   if (idx >= 0 && idx + 1 < args.length) return args[idx + 1];
   return undefined;
+}
+
+/**
+ * Post a structured comment to a GitHub issue.
+ */
+function postIssueComment(repo: string, issueNumber: number, summary: IssueRunSummary, runOutcome: string, isDryRun: boolean): void {
+  const outcomeIcon = runOutcome === "completed" ? "✅" : "⚠️";
+  const body = [
+    `🤖 **ALiX Issue Execution Report**`,
+    ``,
+    `| Field | Value |`,
+    `|-------|-------|`,
+    `| Issue | #${summary.issueNumber} — ${summary.issueTitle} |`,
+    `| Outcome | ${outcomeIcon} ${runOutcome} |`,
+    `| Mode | ${isDryRun ? "Dry run" : "Live"} |`,
+    `| Run ID | \`${summary.runId}\` |`,
+    `| Session | \`${summary.sessionId}\` |`,
+    `| Workflow | \`${summary.workflowId}\` |`,
+    ``,
+  ].join("\n");
+
+  execSync(
+    `gh issue comment "${issueNumber}" --repo "${repo}" --body "${body.replace(/"/g, '\\"')}"`,
+    { encoding: "utf-8" },
+  );
 }
