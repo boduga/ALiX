@@ -3364,6 +3364,12 @@ if (command === "provider" && args[0] === "doctor") {
   process.exit(0);
 }
 
+if (command === "issue" && args[0] === "run") {
+  const { handleIssueRunCommand } = await import("./cli/commands/issue-run-handler.js");
+  await handleIssueRunCommand(args.slice(1));
+  process.exit(0);
+}
+
 console.error(`Unknown command: ${command}`);
 process.exit(1);
 
