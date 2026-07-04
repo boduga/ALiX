@@ -14,6 +14,8 @@ export type RuntimeBoundary =
   | "retry.attempt"
   | "retry.exhausted";
 
+import type { ExecutionContext } from "../observability/execution-context.js";
+
 export interface RuntimeDiagnostic {
   domain: "runtime";
   boundary: RuntimeBoundary;
@@ -24,6 +26,7 @@ export interface RuntimeDiagnostic {
   timeoutMs?: number;
   error?: string;
   timestamp: string;
+  context?: ExecutionContext;
 }
 
 // ---------------------------------------------------------------------------
