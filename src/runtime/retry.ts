@@ -7,6 +7,7 @@
  */
 
 import { buildRuntimeDiagnostic, type RuntimeDiagnostic } from "./runtime-diagnostics.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 // ---------------------------------------------------------------------------
 // Error type
@@ -95,6 +96,7 @@ export async function withRetry<T>(
   effect: () => Promise<T>,
   policy: Partial<RetryPolicy> = {},
   onDiagnostic?: (diag: RuntimeDiagnostic) => void,
+  context?: ExecutionContext,
 ): Promise<T> {
   const merged: RetryPolicy = { ...DEFAULT_POLICY, ...policy };
   const shouldRetry = merged.shouldRetry ?? ((err) => err instanceof Error && err.name === "SideEffectTimeoutError");
@@ -112,23 +114,27 @@ export async function withRetry<T>(
       // Exhausted retries — emit diagnostic, wrap in RetryError
       if (attempt >= merged.maxRetries) {
         if (onDiagnostic) {
-          onDiagnostic(buildRuntimeDiagnostic(
+          const diag = buildRuntimeDiagnostic(
             "retry.exhausted",
             operation,
             `failed after ${attempt + 1} attempt(s)`,
             { attempt: attempt + 1, maxRetries: merged.maxRetries },
-          ));
+          );
+          if (context) diag.context = context;
+          onDiagnostic(diag);
         }
         throw new RetryError(operation, attempt + 1, err);
       }
       // Emit diagnostic on retry attempt
       if (onDiagnostic) {
-        onDiagnostic(buildRuntimeDiagnostic(
+        const diag = buildRuntimeDiagnostic(
           "retry.attempt",
           operation,
           `retrying after error: ${err instanceof Error ? err.message : String(err)}`,
           { attempt: attempt + 1, maxRetries: merged.maxRetries },
-        ));
+        );
+        if (context) diag.context = context;
+        onDiagnostic(diag);
       }
       // Retry with backoff
       const delay = computeDelay(attempt, merged);
