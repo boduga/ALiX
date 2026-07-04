@@ -8,6 +8,7 @@
 // No streaming validation yet — stream() and negotiate() pass through.
 
 import type { ModelAdapter, NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 import { Either } from "effect";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { NormalizedRequestSchema, NormalizedResponseSchema, StreamChunkSchema } from "../contracts/llm-schemas.js";
@@ -97,8 +98,9 @@ function diagProvider(
   schema: string,
   error: string,
   entityId?: string,
+  context?: ExecutionContext,
 ): ContractDiagnostic {
-  return buildDiagnostic("provider", boundary, schema, error, entityId);
+  return buildDiagnostic("provider", boundary, schema, error, entityId, context);
 }
 
 // ---------------------------------------------------------------------------
@@ -124,6 +126,7 @@ export function withProviderContracts(
   onDiagnostic?: (diag: ContractDiagnostic) => void,
   timeoutMs?: number,
   streamIdleTimeoutMs?: number,
+  context?: ExecutionContext,
 ): ModelAdapter {
   function emit(diag: ContractDiagnostic): void {
     onDiagnostic?.(diag);
@@ -153,6 +156,7 @@ export function withProviderContracts(
             e.message.includes("Request") ? "NormalizedRequestSchema" : "NormalizedResponseSchema",
             e.details ?? e.message,
             (request as any).toolCalls?.[0]?.id,
+            context,
           );
           emit(diag);
         }
@@ -171,7 +175,7 @@ export function withProviderContracts(
               validateNormalizedRequest(request);
             } catch (e: unknown) {
               if (e instanceof ContractValidationError && onDiagnostic) {
-                emit(diagProvider("stream.request", "NormalizedRequestSchema", e.details ?? e.message));
+                emit(diagProvider("stream.request", "NormalizedRequestSchema", e.details ?? e.message, undefined, context));
               }
               throw e;
             }
@@ -188,7 +192,7 @@ export function withProviderContracts(
                 yield validateStreamChunk(chunk);
               } catch (e: unknown) {
                 if (e instanceof ContractValidationError && onDiagnostic) {
-                  emit(diagProvider("stream.chunk", "StreamChunkSchema", e.details ?? e.message));
+                  emit(diagProvider("stream.chunk", "StreamChunkSchema", e.details ?? e.message, undefined, context));
                 }
                 throw e;
               }

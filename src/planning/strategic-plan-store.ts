@@ -20,6 +20,7 @@ import { PlanningEngineError } from "./planning-types.js";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { StrategicPlanSchema } from "../contracts/plan-schemas.js";
 import { buildDiagnostic, formatDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 // Re-export for consumer convenience.
 export type { StrategicPlanSummary };
@@ -38,6 +39,7 @@ export class StrategicPlanStore {
   constructor(
     private readonly dir: string,
     private readonly onDiagnostic?: (diag: ContractDiagnostic) => void,
+    private readonly context?: ExecutionContext,
   ) {}
 
 
@@ -52,7 +54,7 @@ export class StrategicPlanStore {
     } catch (e: unknown) {
       if (e instanceof PlanningEngineError && this.onDiagnostic) {
         this.onDiagnostic(
-          buildDiagnostic("planning", "plan.save", "StrategicPlanSchema", e.message, plan.planId),
+          buildDiagnostic("planning", "plan.save", "StrategicPlanSchema", e.message, plan.planId, this.context),
         );
       }
       throw e;

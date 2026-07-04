@@ -7,12 +7,14 @@ import { assertSafePathComponent } from "../security/path-assert.js";
 import { decode, formatErrors } from "../contracts/helpers.js";
 import { AdaptationProposalSchema } from "../contracts/proposal-schemas.js";
 import { buildDiagnostic, type ContractDiagnostic } from "../contracts/contract-diagnostics.js";
+import type { ExecutionContext } from "../observability/execution-context.js";
 
 export class ProposalStore {
   constructor(
     private readonly dir: string,
     private readonly logger: Logger = { warn: (m, meta) => console.warn(m, meta ?? "") },
     private readonly onDiagnostic?: (diag: ContractDiagnostic) => void,
+    private readonly context?: ExecutionContext,
   ) {}
 
   /** Validate that a proposal has the required structural fields. */
@@ -30,7 +32,7 @@ export class ProposalStore {
     if (errors.length > 0) {
       const msg = `Proposal validation failed: ${errors.join("; ")}`;
       if (this.onDiagnostic) {
-        this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id));
+        this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id, this.context));
       }
       throw new Error(msg);
     }
@@ -43,7 +45,7 @@ export class ProposalStore {
     if (Either.isLeft(schemaResult)) {
       const msg = `Proposal schema validation failed: ${formatErrors(schemaResult.left)}`;
       if (this.onDiagnostic) {
-        this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id));
+        this.onDiagnostic(buildDiagnostic("adaptation", boundary, "AdaptationProposalSchema", msg, proposal.id, this.context));
       }
       throw new Error(msg);
     }

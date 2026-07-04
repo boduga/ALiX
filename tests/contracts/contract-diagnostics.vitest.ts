@@ -125,7 +125,83 @@ describe("withProviderContracts diagnostics", () => {
     expect(diagnostics[0].boundary).toBe("stream.chunk");
   });
 
-  // T5: diagnostic is emitted with proper domain
+  // T5: context is propagated through provider contract diagnostics
+  it("emits diagnostic with context when supplied to withProviderContracts", async () => {
+    const diagnostics: any[] = [];
+    const ctx = { runId: "run-prov-ctx", agentId: "coder" };
+    const wrapped = withProviderContracts(
+      createFakeAdapter(),
+      (d) => diagnostics.push(d),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    await expect(
+      wrapped.complete({ messages: [{ role: "user" as const, content: "Hi" }] } as any),
+    ).rejects.toThrow(ContractValidationError);
+
+    expect(diagnostics.length).toBe(1);
+    expect(diagnostics[0].context).toEqual(ctx);
+  });
+
+  it("context propagates through stream chunk diagnostic", async () => {
+    const diagnostics: any[] = [];
+    const ctx = { runId: "run-stream-ctx" };
+    const wrapped = withProviderContracts(
+      createFakeAdapter({
+        stream: async function* () {
+          yield { type: "invalid" } as any;
+        },
+      }),
+      (d) => diagnostics.push(d),
+      undefined,
+      undefined,
+      ctx,
+    );
+
+    let caught = false;
+    try {
+      for await (const _chunk of wrapped.stream!({ systemPrompt: "X", messages: [{ role: "user" as const, content: "" }] })) {
+        // should not reach
+      }
+    } catch {
+      caught = true;
+    }
+
+    expect(caught).toBe(true);
+    // Check that the stream.chunk diagnostic has context
+    const chunkDiag = diagnostics.find((d: any) => d.boundary === "stream.chunk");
+    expect(chunkDiag?.context).toEqual(ctx);
+  });
+
+  it("diagnostic without context still works", async () => {
+    const diagnostics: any[] = [];
+    const wrapped = withProviderContracts(
+      createFakeAdapter(),
+      (d) => diagnostics.push(d),
+    );
+
+    await expect(
+      wrapped.complete({ messages: [{ role: "user" as const, content: "Hi" }] } as any),
+    ).rejects.toThrow(ContractValidationError);
+
+    expect(diagnostics.length).toBe(1);
+    expect(diagnostics[0].context).toBeUndefined();
+  });
+
+  it("buildDiagnostic propagates context", () => {
+    const ctx = { runId: "run-build-ctx" };
+    const diag = buildDiagnostic("provider", "complete.request", "Schema", "error", "entity-1", ctx);
+    expect(diag.context).toEqual(ctx);
+  });
+
+  it("buildDiagnostic without context works", () => {
+    const diag = buildDiagnostic("provider", "complete.request", "Schema", "error");
+    expect(diag.context).toBeUndefined();
+  });
+
+  // T6: diagnostic is emitted with proper domain
   it("emits diagnostic with correct domain and boundary on malformed request", async () => {
     const diagnostics: any[] = [];
     const wrapped = withProviderContracts(createFakeAdapter(), (d) => diagnostics.push(d));
