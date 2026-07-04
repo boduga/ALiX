@@ -47,6 +47,7 @@ export function buildDiagnostic(
   schema: string,
   error: string,
   entityId?: string,
+  context?: ExecutionContext,
 ): ContractDiagnostic {
   return {
     domain,
@@ -55,6 +56,7 @@ export function buildDiagnostic(
     error: truncateError(error),
     entityId,
     timestamp: new Date().toISOString(),
+    context,
   };
 }
 
