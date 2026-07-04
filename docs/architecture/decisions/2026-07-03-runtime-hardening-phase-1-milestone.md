@@ -1,8 +1,8 @@
 # Runtime Hardening Phase 1 — Milestone Checkpoint
 
-**Date:** 2026-07-03 (updated)
-**PRs:** #172–#179
-**Status:** Complete — timeouts + retry primitives + boundaries + diagnostics.
+**Date:** 2026-07-03 (final)
+**PRs:** #172–#184
+**Status:** Complete — timeouts + retry primitives + boundaries + diagnostics + MCP/stream timeouts.
 
 ## Summary
 
@@ -18,21 +18,50 @@ Delivered typed timeout and retry primitives for external side effects, applied 
 | #175 | feat(runtime): add typed retry primitive | `RetryError`, `RetryPolicy`, `withRetry()` with exponential backoff + jitter |
 | #176 | feat(runtime): apply retry to file.read (idempotent boundary) | `withRetry` wrapping `fsReadFile` in file-tools |
 | #178 | feat(runtime): add timeout and retry diagnostics | `RuntimeDiagnostic` type, `buildRuntimeDiagnostic()`, `formatRuntimeDiagnostic()`, optional `onDiagnostic` in `withTimeout` and `withRetry` |
-| #179 | feat(runtime): emit diagnostics from hardened boundaries | Wire `onDiagnostic` into shell timeout, provider timeout, and file.read retry via `console.warn` |
+| #179 | feat(runtime): emit diagnostics from hardened boundaries | Wire `onDiagnostic` into shell timeout, provider timeout, and file.read retry via `consoleSink` |
+| #181 | feat(runtime): add diagnostics sink abstraction | `DiagnosticSink` interface, `consoleSink` default, replace direct `console.warn` |
+| #182 | feat(runtime): apply timeout to MCP tool calls | `withTimeout` wrapping `McpClient.callTool()` with 30s default |
+| #183 | docs(runtime): design provider stream idle timeout | Per-chunk idle timeout design doc (no code) |
+| #184 | feat(runtime): apply idle timeout to provider streams | `withStreamIdleTimeout` — per-chunk idle timeout in stream wrapper, 60s default |
 
 ## Protected Boundaries
 
-| Boundary | Primitive | Policy | Enforcement |
-|----------|-----------|--------|-------------|
-| Shell command execution | `withTimeout` | Via `normalizeTimeoutMs(args.timeoutMs)` | Kills child on timeout, returns error `ToolResult` |
-| Provider `complete()` | `withTimeout` | 180s default via registry | `SideEffectTimeoutError` propagates through existing error handling |
-| `file.read` | `withRetry` | 1 retry, 200ms base delay | Retries on `SideEffectTimeoutError` only; idempotent by nature |
+| Boundary | Primitive | Policy | Default | Enforcement |
+|----------|-----------|--------|---------|-------------|
+| Shell command execution | `withTimeout` | `normalizeTimeoutMs(args.timeoutMs)` | 120s | Kills child on timeout, returns error `ToolResult` |
+| Provider `complete()` | `withTimeout` | Whole-call timeout | 180s | `SideEffectTimeoutError` through error handling |
+| Provider `stream()` | `withStreamIdleTimeout` | Per-chunk idle timeout | 60s | `SideEffectTimeoutError` on stalled stream |
+| MCP `callTool()` | `withTimeout` | Whole-call timeout | 30s | `SideEffectTimeoutError` through client error handling |
+| `file.read` | `withRetry` | 1 retry, 200ms base delay | — | Retries on `SideEffectTimeoutError`; idempotent by nature |
 
-Intentionally excluded from this phase:
-- Provider `stream()` — no timeout (async generator pattern needs different design)
-- `negotiate()` — no timeout (rarely called, low risk)
-- Mutating tools (`shell.run`, `file.create`, `patch.apply`) — not safe to retry without idempotency guarantees
-- MCP calls — not wired yet (deferred to boundary-specific adoption phase)
+### Provider timeout split
+
+`complete()` and `stream()` have independent timeout semantics:
+
+| Mode | Timeout type | Default | Rationale |
+|------|-------------|---------|-----------|
+| `complete()` | Whole-call timeout | 180s | Single request-response — total duration matters |
+| `stream()` | Per-chunk idle timeout | 60s | Streaming can be long but healthy; only stalled streams are bugs |
+
+### Rejected retry candidates
+
+| Boundary | Tool | Why retry doesn't apply |
+|----------|------|------------------------|
+| `file.exists` | `existsSync` | Synchronous call — no Promise to wrap. Retry adds overhead with zero benefit. |
+| `dir.search` | `readdir` + `fsReadFile` | All failures absorbed internally by catch blocks. Function never throws. `withRetry()` would never trigger. |
+
+Both are correct as-is. No retry wiring needed.
+
+### Remaining non-goals
+
+- **No `negotiate()` timeout** — rarely called, low risk
+- **No retry for mutating tools** — `shell.run`, `file.create`, `patch.apply` are not safe to retry
+- **No provider retries** — streaming and LLM calls are not idempotent
+- **No retry for MCP calls** — not guaranteed idempotent
+- **No whole-stream deadline** — only per-chunk idle timeout implemented
+- **No orchestration rewrite** — agent loop, planner, applier unchanged
+- **No global runtime scheduler** — timeouts and retries are local to each call site
+- **No metrics persistence, dashboard, or alerting** — diagnostics are log-based only via `consoleSink`
 
 ## Runtime Primitives
 
