@@ -221,6 +221,11 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       riskScoreCLI(args.slice(1));
       return;
     }
+    case "approval": {
+      const { approvalCLI } = await import("../../governance/approval-workflow.js");
+      approvalCLI(rest);
+      return;
+    }
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
