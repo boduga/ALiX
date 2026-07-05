@@ -38,6 +38,7 @@ import type {
   LedgerAnalytics,
   PeriodRollup,
 } from "../../governance/ledger-analytics.js";
+import { type FailureAnalysis, failureSeverityForType } from "../../governance/failure-clustering.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -232,6 +233,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
     }
     case "analytics":
       return runAnalytics(rest);
+    case "failure-analysis":
+      return runFailureAnalysis(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -281,7 +284,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
@@ -1030,6 +1033,39 @@ async function runAnalytics(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// runFailureAnalysis — `alix governance failure-analysis [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runFailureAnalysis(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const { FileFailureMemoryStore } = await import("../../governance/failure-memory.js");
+  const { computeFailureAnalysis } = await import(
+    "../../governance/failure-clustering.js",
+  );
+
+  const cwd = process.cwd();
+  const store = new FileFailureMemoryStore(cwd);
+  const records = await store.list();
+
+  // Apply window filter
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffMs = cutoff.getTime();
+  const filtered = records.filter(
+    (r) => new Date(r.timestamp).getTime() >= cutoffMs,
+  );
+
+  const failureAnalysis = computeFailureAnalysis(filtered);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ failureAnalysis }, null, 2));
+    return;
+  }
+
+  renderFailureAnalysis(failureAnalysis, windowDays);
+}
+
+// ---------------------------------------------------------------------------
 // Terminal renderers
 // ---------------------------------------------------------------------------
 
@@ -1124,6 +1160,55 @@ function renderAnalytics(
       console.log(
         ` ${r.date} | ${r.runs} runs${failStr} | avg risk ${r.avgRiskScore.toFixed(1)}`,
       );
+    }
+  }
+}
+
+// -- Failure Analysis --------------------------------------------------------
+
+function severityColor(severity: "high" | "medium" | "low"): string {
+  switch (severity) {
+    case "high": return RED;
+    case "medium": return YELLOW;
+    default: return GREEN;
+  }
+}
+
+function renderFailureAnalysis(analysis: FailureAnalysis, windowDays: number): void {
+  console.log(BOLD + "Governance Failure Analysis" + RESET);
+  console.log(BAR);
+  console.log(`Total Records:  ${analysis.total}`);
+  console.log(`Window:         ${windowDays} days (requested)`);
+  console.log(`Data Span:      ${analysis.timeframeDays} days (actual)`);
+  console.log(`Dominant Type:  ${analysis.dominantType ?? "none"}`);
+  console.log("");
+
+  // Clusters
+  if (analysis.clusters.length > 0) {
+    console.log(BOLD + "By Cluster" + RESET);
+    for (const c of analysis.clusters) {
+      const sev = failureSeverityForType(c.failureType);
+      const color = severityColor(sev);
+      console.log(
+        ` ${color}[${sev.toUpperCase()}]${RESET} ${c.failureType} (${c.count})`,
+      );
+      if (c.commonDetailKeywords.length > 0) {
+        console.log(`    Keywords: ${c.commonDetailKeywords.join(", ")}`);
+      }
+      if (c.commonFilePaths.length > 0) {
+        console.log(`    File paths: ${c.commonFilePaths.join(", ")}`);
+      }
+    }
+    console.log("");
+  }
+
+  // Recurring file paths
+  if (analysis.recurringFilePaths.length > 0) {
+    console.log(BOLD + "Recurring File Paths (2+ records)" + RESET);
+    const maxLen = Math.max(...analysis.recurringFilePaths.map((p) => p.length)) + 4;
+    for (const fp of analysis.recurringFilePaths) {
+      const count = analysis.recurringFilePathCounts[fp] ?? 0;
+      console.log(` ${fp.padEnd(maxLen)}(${count})`);
     }
   }
 }
