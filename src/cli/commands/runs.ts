@@ -128,12 +128,13 @@ async function runList(args: string[]): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function runShow(args: string[]): Promise<void> {
-  const runId = args[0];
+  const jsonMode = args.includes("--json");
+  const positional = args.filter((a) => !a.startsWith("--"));
+  const runId = positional[0];
   if (!runId) {
     console.error("Usage: alix runs show <runId> [--json]");
     process.exit(2);
   }
-  const jsonMode = args.includes("--json");
 
   const cwd = process.cwd();
   const store = createStore(cwd);
