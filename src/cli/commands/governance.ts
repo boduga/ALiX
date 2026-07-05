@@ -193,6 +193,25 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runDrift(rest);
     case "lens-review":
       return runLensReview(rest);
+    case "policies": {
+      const { DEFAULT_GOVERNANCE_POLICIES } = await import("../../governance/autonomous-policy.js");
+      console.log(`P12.1 Autonomous Governance Policies (${DEFAULT_GOVERNANCE_POLICIES.length}):\n`);
+      for (const p of DEFAULT_GOVERNANCE_POLICIES) {
+        const icon = p.decision === "deny" ? "🔴" : p.decision === "ask" ? "🟡" : "🟢";
+        const parts: string[] = [];
+        for (const [k, v] of Object.entries(p.match)) {
+          if (v !== undefined && Array.isArray(v) && v.length > 0) {
+            parts.push(`  ${k}: ${v.join(", ")}`);
+          }
+        }
+        console.log(`${icon} [${p.decision}] ${p.id}`);
+        console.log(`   ${p.description}`);
+        if (parts.length) console.log(parts.join("\n"));
+        if (p.approvalRole) console.log(`   approvalRole: ${p.approvalRole}`);
+        console.log();
+      }
+      return;
+    }
     case "integrity":
       return runIntegrity(rest);
     case "recommend":
@@ -246,7 +265,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|recommend|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
