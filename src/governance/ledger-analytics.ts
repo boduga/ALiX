@@ -95,10 +95,11 @@ export function detectTrend(entries: LedgerEntry[]): TrendDirection {
   const secondRiskAvg = riskAvg(secondHalf);
 
   const badRateDecreased = secondBadRate < firstBadRate;
+  const badRateIncreased = secondBadRate > firstBadRate;
   const riskAvgIncrease = secondRiskAvg - firstRiskAvg;
 
   if (badRateDecreased && riskAvgIncrease <= 5) return "improving";
-  if (!badRateDecreased || riskAvgIncrease > 5) return "degrading";
+  if (badRateIncreased || riskAvgIncrease > 5) return "degrading";
   return "stable";
 }
 
