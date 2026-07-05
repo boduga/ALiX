@@ -34,6 +34,10 @@ import type {
   Recommendation,
 } from "../../governance/governance-types.js";
 import type { InvestigationRecommendation } from "../../governance/investigation-types.js";
+import type {
+  LedgerAnalytics,
+  PeriodRollup,
+} from "../../governance/ledger-analytics.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -226,6 +230,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       approvalCLI(rest);
       return;
     }
+    case "analytics":
+      return runAnalytics(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -275,7 +281,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
@@ -990,10 +996,137 @@ async function runInvestigateGenerate(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// runAnalytics — `alix governance analytics [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runAnalytics(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const { FileLedgerStore } = await import("../../governance/run-ledger.js");
+  const { computeAnalytics, computePeriodRollups } = await import(
+    "../../governance/ledger-analytics.js",
+  );
+
+  const cwd = process.cwd();
+  const store = new FileLedgerStore(cwd);
+  const entries = await store.list();
+
+  // Apply window filter — FileLedgerStore.list() returns newest-first
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffMs = cutoff.getTime();
+  const filtered = entries.filter(
+    (e) => new Date(e.timestamp).getTime() >= cutoffMs,
+  );
+
+  const analytics = computeAnalytics(filtered, windowDays);
+  const rollups = computePeriodRollups(filtered);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ analytics, rollups }, null, 2));
+    return;
+  }
+
+  renderAnalytics(analytics, rollups);
+}
+
+// ---------------------------------------------------------------------------
 // Terminal renderers
 // ---------------------------------------------------------------------------
 
 const BAR = "═══════════════════════════════════════════════════════════════";
+
+// -- Analytics ----------------------------------------------------------------
+
+function colorForTrend(trend: string): string {
+  switch (trend) {
+    case "improving":
+      return GREEN;
+    case "degrading":
+      return RED;
+    default:
+      return YELLOW;
+  }
+}
+
+function colorForRateValue(rate: number): string {
+  if (rate >= 0.8) return GREEN;
+  if (rate >= 0.5) return YELLOW;
+  return RED;
+}
+
+function renderAnalytics(
+  analytics: LedgerAnalytics,
+  rollups: PeriodRollup[],
+): void {
+  console.log(BOLD + "Governance Analytics" + RESET);
+  console.log(BAR);
+
+  // Summary line
+  console.log(
+    `  ${analytics.totalRuns} runs, ${analytics.timeframeDays}d window`,
+  );
+
+  // Trend
+  const trendColor = colorForTrend(analytics.trendDirection);
+  console.log(
+    `  Trend: ${trendColor}${analytics.trendDirection.toUpperCase()}${RESET}`,
+  );
+
+  // Approval rate
+  const rateColor = colorForRateValue(analytics.approvalRate);
+  console.log(
+    `  Approval Rate: ${rateColor}${(analytics.approvalRate * 100).toFixed(1)}%${RESET}`,
+  );
+
+  // Average risk
+  console.log(
+    `  Avg Risk Score: ${analytics.averageRiskScore.toFixed(1)}`,
+  );
+
+  // Outcomes
+  console.log("");
+  console.log(BOLD + "By Outcome" + RESET);
+  for (const [outcome, count] of Object.entries(analytics.byOutcome)) {
+    if (count > 0) {
+      const icon =
+        outcome === "failed"
+          ? "❌"
+          : outcome === "denied"
+            ? "🚫"
+            : "⏹️";
+      console.log(` ${icon} ${outcome}: ${count}`);
+    }
+  }
+  console.log("");
+
+  // Risk levels
+  console.log(BOLD + "By Risk Level" + RESET);
+  for (const [level, count] of Object.entries(analytics.byRiskLevel)) {
+    if (count > 0) {
+      const color = colorForSeverity(level);
+      console.log(` ${color}[${level.toUpperCase()}]${RESET} ${count}`);
+    }
+  }
+  console.log("");
+
+  // Period rollups (last 7 days max)
+  if (rollups.length > 0) {
+    const recent = rollups.slice(-7);
+    console.log(
+      BOLD + `Daily Rollups (last ${recent.length} day(s))` + RESET,
+    );
+    for (const r of recent) {
+      const badCount = r.failures + r.denied;
+      const failStr =
+        badCount > 0
+          ? ` ${RED}${badCount} bad${RESET}`
+          : " 0 bad";
+      console.log(
+        ` ${r.date} | ${r.runs} runs${failStr} | avg risk ${r.avgRiskScore.toFixed(1)}`,
+      );
+    }
+  }
+}
 
 // -- Health ------------------------------------------------------------------
 
