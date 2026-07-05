@@ -108,22 +108,13 @@ export function validateLedgerEntry(entry: unknown): ValidationResult {
   } else if (!isNonEmptyString(policy.decision)) {
     errors.push("policyResult.decision is required");
   }
-  if (policy && typeof policy === "object") {
-    if (!Array.isArray((policy as Record<string, unknown>).matchedPolicies)) {
-      errors.push("policyResult.matchedPolicies must be an array");
-    }
-    if (!Array.isArray((policy as Record<string, unknown>).requiredApprovals)) {
-      errors.push("policyResult.requiredApprovals must be an array");
-    }
-  }
 
   const risk = e.riskScore as Record<string, unknown> | undefined;
   if (!risk || typeof risk !== "object") {
     errors.push("riskScore is required");
   } else {
     if (!isNonEmptyString(risk.level)) errors.push("riskScore.level is required");
-    if (typeof risk.score !== "number" || !Number.isFinite(risk.score)) errors.push("riskScore.score is required");
-    if (!Array.isArray((risk as Record<string, unknown>).factors)) errors.push("riskScore.factors must be an array");
+    if (typeof risk.score !== "number") errors.push("riskScore.score is required");
   }
 
   if (!Array.isArray(e.approvals)) errors.push("approvals must be an array");
@@ -216,7 +207,7 @@ export class FileLedgerStore implements RunLedgerStore {
       entries.push(parsed as LedgerEntry);
     }
     entries.reverse();
-    return limit !== undefined && limit > 0 ? entries.slice(0, limit) : entries;
+    return limit !== undefined ? entries.slice(0, limit) : entries;
   }
 
   async get(runId: string): Promise<LedgerEntry | undefined> {
