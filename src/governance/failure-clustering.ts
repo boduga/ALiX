@@ -49,7 +49,7 @@ const STOP_WORDS = new Set([
   "out", "one", "use", "may", "see", "set", "two", "way", "who", "now",
   "how", "then", "than", "just", "also", "over", "such", "each", "when",
   "what", "which", "file", "could", "would", "should", "about", "will",
-  "been", "into", "more", "some", "them", "than", "very",
+  "into", "more", "some", "them", "very",
 ]);
 
 // ---------------------------------------------------------------------------
@@ -227,17 +227,18 @@ export function computeFailureAnalysis(
     }
   }
   const recurringFilePathCounts: Record<string, number> = {};
-  const recurringFilePaths = [...allFileFreq.entries()]
-    .filter(([, count]) => count >= 2)
-    .sort((a, b) => {
-      const diff = b[1] - a[1];
-      if (diff !== 0) return diff;
-      return a[0].localeCompare(b[0]);
-    })
-    .map(([fp, count]) => {
-      recurringFilePathCounts[fp] = count;
-      return fp;
-    });
+  const recurringFilePaths: string[] = [];
+
+  const entries = [...allFileFreq.entries()].filter(([, count]) => count >= 2);
+  entries.sort((a, b) => {
+    const diff = b[1] - a[1];
+    if (diff !== 0) return diff;
+    return a[0].localeCompare(b[0]);
+  });
+  for (const [fp, count] of entries) {
+    recurringFilePathCounts[fp] = count;
+    recurringFilePaths.push(fp);
+  }
 
   // ---------- Step 6: timeframeDays + total ----------
   const timeframeDays = computeTimeframeDays(records);
