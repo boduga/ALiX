@@ -199,6 +199,10 @@ Usage:
   alix submit "<task>"   Submit a task to the daemon
   alix runs list [--limit N] [--json]  List ledger entries (newest first)
   alix runs show <runId> [--json]     Show a single ledger entry
+  alix failures list [--limit N] [--json]  List failure records (newest first)
+  alix failures show --run <runId> [--json]  Show failures for a run
+  alix failures show --issue <i> [--json]    Show failures for an issue
+  alix failures recall --type <type> [--json]  Find similar failures
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
   alix approvals show <id>  Show approval details
@@ -217,6 +221,13 @@ if (command === "--version" || command === "-v") {
 if (command === "runs") {
   const { handleRunsCommand } = await import("./cli/commands/runs.js");
   await handleRunsCommand(args);
+  process.exit(0);
+}
+
+// ── Failures command (P12.5) ────────────────────────────────────
+if (command === "failures") {
+  const { handleFailuresCommand } = await import("./cli/commands/failures.js");
+  await handleFailuresCommand(args);
   process.exit(0);
 }
 
