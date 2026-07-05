@@ -131,6 +131,13 @@ Usage:
   alix submit "<task>"   Submit a task to the daemon
   alix runs list [--limit N] [--json]  List ledger entries (newest first)
   alix runs show <runId> [--json]     Show a single ledger entry
+  alix runs approve <runId> --gate <g> --by <op> [--reason]  Approve a gate
+  alix runs deny <runId> --gate <g> --by <op> [--reason]     Deny a gate
+  alix runs cancel <runId> --by <op> [--reason]               Cancel a run
+  alix failures list [--limit N] [--json]  List failure records (newest first)
+  alix failures show --run <runId> [--json]  Show failures for a run
+  alix failures show --issue <i> [--json]    Show failures for an issue
+  alix failures recall --type <type> [--json]  Find similar failures
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
   alix approvals show <id>  Show approval details

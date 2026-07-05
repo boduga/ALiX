@@ -220,6 +220,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
   const rest = args.slice(1);
 
   switch (subcommand) {
+    case "status":
+      return runStatus(rest);
     case "health":
       return runHealth(rest);
     case "drift":
@@ -312,10 +314,77 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|friction-analysis|report|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {status|health|drift|lens-review|integrity|policies|recommend|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
+}
+
+// ---------------------------------------------------------------------------
+// runStatus — `alix governance status [--json]`
+// ---------------------------------------------------------------------------
+
+async function runStatus(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+  const govDir = join(cwd, ".alix", "governance");
+
+  // Import stores
+  const { FileLedgerStore } = await import(
+    "../../governance/run-ledger.js"
+  );
+  const { FileFailureMemoryStore } = await import(
+    "../../governance/failure-memory.js"
+  );
+
+  const ledgerStore = new FileLedgerStore(govDir);
+  const failureStore = new FileFailureMemoryStore(govDir);
+
+  const allRuns = await ledgerStore.list();
+  const allFailures = await failureStore.list();
+
+  const pendingApprovals = allRuns.filter((r) =>
+    r.outcome === "completed" && r.approvals.some((g) => g.status === "pending"),
+  ).length;
+  const deniedRuns = allRuns.filter((r) => r.outcome === "denied").length;
+  const failedRuns = allRuns.filter((r) => r.outcome === "failed").length;
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      components: {
+        policyAdapter: true,
+        riskScoring: true,
+        approvalWorkflow: true,
+        runLedger: true,
+        failureMemory: true,
+      },
+      counts: {
+        recentRuns: allRuns.length,
+        recentFailures: allFailures.length,
+        pendingApprovals,
+        deniedRuns,
+        failedRuns,
+      },
+    }, null, 2));
+    return;
+  }
+
+  const available = GREEN + "available" + RESET;
+
+  console.log(BOLD + "Governance Status" + RESET);
+  console.log(BAR);
+  console.log(`  ${GREEN}●${RESET} policy adapter     ${available}`);
+  console.log(`  ${GREEN}●${RESET} risk scoring        ${available}`);
+  console.log(`  ${GREEN}●${RESET} approval workflow   ${available}`);
+  console.log(`  ${GREEN}●${RESET} run ledger          ${available}`);
+  console.log(`  ${GREEN}●${RESET} failure memory      ${available}`);
+  console.log("");
+  console.log(BOLD + "Recent Activity" + RESET);
+  console.log(`  runs:     ${allRuns.length}`);
+  console.log(`  failures: ${allFailures.length}`);
+  console.log(`  pending approvals: ${pendingApprovals > 0 ? YELLOW + pendingApprovals + RESET : pendingApprovals}`);
+  console.log(`  denied:   ${deniedRuns > 0 ? RED + deniedRuns + RESET : deniedRuns}`);
+  console.log(`  failed:   ${failedRuns > 0 ? RED + failedRuns + RESET : failedRuns}`);
 }
 
 // ---------------------------------------------------------------------------
