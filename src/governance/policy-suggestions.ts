@@ -295,7 +295,6 @@ function suggestTighten(
   }
 
   let overlappingFailures = 0;
-  let totalQualifyingFailures = 0;
   for (const failure of failures) {
     if (
       failure.failureType !== "test_failure" &&
@@ -303,7 +302,6 @@ function suggestTighten(
     ) {
       continue;
     }
-    totalQualifyingFailures += 1;
     const paths = failure.filePaths ?? [];
     if (paths.some((p) => matchedPaths.has(p))) {
       overlappingFailures += 1;
@@ -312,7 +310,10 @@ function suggestTighten(
 
   if (overlappingFailures < MIN_SAMPLE_SIZE) return null;
 
-  const ratio = safeRatio(overlappingFailures, totalQualifyingFailures);
+  // H2 confidence: round2(clamp(safeRatio(overlapFailureCount, evidence.matchedCount), 0, 0.85))
+  // per P13.3 Task 1 brief. Numerator = test_failure/verification_timeout
+  // failures on matched paths; denominator = ledger entries matching the policy.
+  const ratio = safeRatio(overlappingFailures, evidence.matchedCount);
   const confidence = round2(clamp(ratio, 0, 0.85));
   if (confidence < MIN_CONFIDENCE) return null;
 
