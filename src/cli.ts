@@ -197,6 +197,8 @@ Usage:
   alix daemon cancel <id>  Cancel a daemon task
   alix daemon doctor     Daemon health check
   alix submit "<task>"   Submit a task to the daemon
+  alix runs list [--limit N] [--json]  List ledger entries (newest first)
+  alix runs show <runId> [--json]     Show a single ledger entry
   alix approvals list     List all approval requests
   alix approvals pending  List pending approvals only
   alix approvals show <id>  Show approval details
@@ -208,6 +210,13 @@ Usage:
 
 if (command === "--version" || command === "-v") {
   console.log(ALIX_VERSION);
+  process.exit(0);
+}
+
+// ── Runs command (P12.4) ────────────────────────────────────────
+if (command === "runs") {
+  const { handleRunsCommand } = await import("./cli/commands/runs.js");
+  await handleRunsCommand(args);
   process.exit(0);
 }
 
