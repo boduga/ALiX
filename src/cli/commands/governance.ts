@@ -45,6 +45,7 @@ import type { GovernanceSignal } from "../../governance/governance-signal.js";
 import type { DecisionKind } from "../../governance/decision-capture.js";
 import type {
   ActionProposalKind,
+  ActionProposalStatus,
   GovernanceActionProposal,
   ActionProposalStatusTransition,
 } from "../../governance/action-queue.js";
