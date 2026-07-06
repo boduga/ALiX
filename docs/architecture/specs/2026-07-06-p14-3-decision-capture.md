@@ -50,7 +50,9 @@ interface OperatorDecision {
   decision: DecisionKind;
   /** Required — rationale for the decision. Must be non-empty. */
   rationale: string;
-  /** Optional backlink to a P14.2 review. */
+  /** Decision-maker identity (resolved via --as → git → env → "operator"). */
+  decider: string;
+  /** Optional backlink to a P14.2 review. Must be for the same signalId. */
   reviewId: string | null;
   /**
    * Placeholder for P14.4. Always null in P14.3 — no action proposals
@@ -76,7 +78,8 @@ type DecisionKind =
 | `signalId` | Required, non-empty string |
 | `decision` | Must be one of the five `DecisionKind` values |
 | `rationale` | Required, non-empty string |
-| `reviewId` | Optional — non-empty string when present |
+| `decider` | Required, non-empty string |
+| `reviewId` | Optional — must reference an existing review for the same `signalId` |
 | `actionProposalId` | Always `null` in P14.3 |
 | `createdAt` | Required, non-empty string |
 
@@ -86,7 +89,7 @@ type DecisionKind =
 |---|---|---|
 | `accept` | Operator agrees with P13 recommendation | Record only — no follow-up in P14.3 |
 | `dismiss` | Operator overrides — not actionable | Record only. Signal preserved for training material (per P14 invariant 5). |
-| `defer` | Needs more info or context | Record only. Decision timestamp captures when to re-evaluate. |
+| `defer` | Needs more info or context | Record only. `createdAt` records when the defer was made. A `deferUntil` field is reserved for a future reminder/scheduling phase. |
 | `escalate` | Warrants higher-level review | Record intent only. P14.4 will create action proposals from these. |
 | `convert_to_issue` | Should be a GitHub issue | Record intent only. P14.4 will bridge to P4.4 issue flow. |
 
@@ -198,6 +201,8 @@ No enforcement — decision is recorded, not executed
 | 8 | No signal mutation | No writes to signal store from P14.3 |
 | 9 | No GitHub issue creation | No issue bridge code in P14.3 |
 | 10 | No audit entry creation | No audit store or write calls |
+| 11 | Decider identity is recorded | `decision.decider` is non-empty and resolved deterministically |
+| 12 | Optional review backlink is valid | `reviewId` exists and `review.signalId` matches `decision.signalId` |
 
 ## Invariants
 
@@ -209,6 +214,8 @@ No enforcement — decision is recorded, not executed
 | 4 | **No action proposals created** — `actionProposalId` is always `null` | Type literal `null`, not `string \| null` |
 | 5 | **Decision store is append-only** — no update, no delete | Store interface lacks mutating methods |
 | 6 | **Signal is not mutated** — decision does not change signal records | No writes to signal store from P14.3 code |
+| 7 | **Decider identity is recorded** — every decision has a non-empty `decider` | Validation rejects empty decider |
+| 8 | **Review backlink integrity** — optional `reviewId` must point to a review for the same `signalId` | `createOperatorDecision` validates the backlink when provided |
 
 ## Files
 

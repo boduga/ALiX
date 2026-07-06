@@ -25,7 +25,12 @@ P14.3 records explicit operator decisions (accept, dismiss, defer, escalate, con
 ```
 1. OperatorDecision type + validateOperatorDecision()
 2. FileDecisionStore (append-only, methods: append/list/getById/getBySignalId/getByKind)
-3. createOperatorDecision() (signal-existence gate, rationale required)
+3. createOperatorDecision()
+   - signal-existence gate
+   - rationale required
+   - decider resolved deterministically
+   - optional reviewId verified against ReviewStore
+   - review.signalId must match decision.signalId
 4. Reader/display helpers (list decisions by kind, render decision detail)
 5. alix governance decide CLI dispatch + handlers:
    a. Parse exactly one kind flag (mutual exclusion)
@@ -54,9 +59,9 @@ Every decision must have a non-empty rationale. This enforces P14 invariant 2 ("
 
 `GovernanceSignal.status` is untouched. The signal's decided state is derived by querying decision records for a `signalId`. P14.5 will introduce formal lifecycle transitions.
 
-### 5. Review backlink is optional
+### 5. Review backlink is optional but validated
 
-`reviewId` is `string | null` — decisions can optionally reference a P14.2 review. This links the decision back to the review chain without requiring one.
+`reviewId` is `string | null`. When provided, it must reference an existing P14.2 review for the same signalId. This preserves the decision → review → signal chain without requiring every decision to have a review.
 
 ## Files
 
@@ -80,6 +85,8 @@ A: src/cli/commands/governance.ts                                   # Add decide
 - [ ] No signal mutation (no signal store writes)
 - [ ] No GitHub issue creation
 - [ ] No audit entry creation
+- [ ] Decider identity is recorded (non-empty, resolved deterministically)
+- [ ] Optional review backlink is valid (review exists for same signalId)
 
 ## Verification
 
