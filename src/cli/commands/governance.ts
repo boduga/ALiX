@@ -185,6 +185,23 @@ function parseRecommendFlags(args: string[]): ParsedRecommendOpts {
   return { windowDays, jsonMode, priority, source };
 }
 
+const VALID_SECTIONS = ["analytics", "failures", "policies", "friction"] as const;
+
+function parseSectionFlag(args: string[]): string | null {
+  const idx = args.indexOf("--section");
+  if (idx === -1) return null;
+  if (idx + 1 >= args.length) {
+    console.error("Error: --section requires a value (analytics|failures|policies|friction)");
+    process.exit(2);
+  }
+  const val = args[idx + 1];
+  if (!(VALID_SECTIONS as readonly string[]).includes(val)) {
+    console.error(`Error: Unknown section "${val}". Valid: ${VALID_SECTIONS.join(", ")}`);
+    process.exit(2);
+  }
+  return val;
+}
+
 // ---------------------------------------------------------------------------
 // Top-level dispatcher
 // ---------------------------------------------------------------------------
@@ -241,6 +258,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runPolicySuggestions(rest);
     case "friction-analysis":
       return runFrictionAnalysis(rest);
+    case "report":
+      return runReport(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -290,7 +309,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|friction-analysis|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|friction-analysis|report|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
@@ -1138,10 +1157,128 @@ async function runFrictionAnalysis(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// runReport — `alix governance report [--section <s>] [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runReport(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const section = parseSectionFlag(args);
+
+  // Dynamic imports for stores and pure functions
+  const { FileLedgerStore } = await import("../../governance/run-ledger.js");
+  const { FileFailureMemoryStore } = await import("../../governance/failure-memory.js");
+  const { computeAnalytics, computePeriodRollups } = await import(
+    "../../governance/ledger-analytics.js",
+  );
+  const { computeFailureAnalysis } = await import("../../governance/failure-clustering.js");
+  const { computePolicySuggestions } = await import(
+    "../../governance/policy-suggestions.js",
+  );
+  const { computeFrictionReport } = await import("../../governance/approval-friction.js");
+
+  const cwd = process.cwd();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffMs = cutoff.getTime();
+
+  // Helper: fetch + filter a store
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const windowed = async <T extends { timestamp: string }>(
+    store: { list: (limit?: number) => Promise<T[]> },
+  ): Promise<T[]> =>
+    (await store.list()).filter((e) => new Date(e.timestamp).getTime() >= cutoffMs);
+
+  // Check if a section should be computed
+  const want = (s: string): boolean => section === null || section === s;
+
+  const result: Record<string, unknown> = {};
+
+  if (want("analytics")) {
+    const entries = await windowed(new FileLedgerStore(cwd));
+    result.analytics = computeAnalytics(entries, windowDays);
+    result.rollups = computePeriodRollups(entries);
+  }
+
+  if (want("failures")) {
+    const records = await windowed(new FileFailureMemoryStore(cwd));
+    result.failureAnalysis = computeFailureAnalysis(records);
+  }
+
+  if (want("policies")) {
+    const entries = await windowed(new FileLedgerStore(cwd));
+    const records = await windowed(new FileFailureMemoryStore(cwd));
+    result.policySuggestions = computePolicySuggestions(entries, records);
+  }
+
+  if (want("friction")) {
+    const entries = await windowed(new FileLedgerStore(cwd));
+    result.frictionReport = computeFrictionReport(entries);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  renderReport(result, windowDays, section);
+}
+
+// ---------------------------------------------------------------------------
 // Terminal renderers
 // ---------------------------------------------------------------------------
 
 const BAR = "═══════════════════════════════════════════════════════════════";
+
+// -- Report (aggregated P13.1-P13.4) -----------------------------------------
+
+function renderReport(result: Record<string, unknown>, windowDays: number, section: string | null): void {
+  console.log(BOLD + "Governance Report" + RESET);
+  console.log(`Window: ${windowDays} days`);
+  console.log(DIM + "  Advisory only — no policies or gates modified." + RESET);
+  console.log(BAR);
+
+  const show = (name: string) => section === null || section === name;
+
+  if (show("analytics") && result.analytics) {
+    console.log("");
+    console.log(BOLD + "◆ Ledger Analytics" + RESET);
+    renderAnalytics(result.analytics as LedgerAnalytics, result.rollups as PeriodRollup[]);
+  } else if (show("analytics")) {
+    console.log("");
+    console.log(BOLD + "◆ Ledger Analytics" + RESET);
+    console.log(DIM + "  No data" + RESET);
+  }
+
+  if (show("failures") && result.failureAnalysis) {
+    console.log("");
+    console.log(BOLD + "◆ Failure Clustering" + RESET);
+    renderFailureAnalysis(result.failureAnalysis as FailureAnalysis, windowDays);
+  } else if (show("failures")) {
+    console.log("");
+    console.log(BOLD + "◆ Failure Clustering" + RESET);
+    console.log(DIM + "  No data" + RESET);
+  }
+
+  if (show("policies") && result.policySuggestions) {
+    console.log("");
+    console.log(BOLD + "◆ Policy Suggestions" + RESET);
+    renderPolicySuggestions(result.policySuggestions as PolicySuggestion[], windowDays);
+  } else if (show("policies")) {
+    console.log("");
+    console.log(BOLD + "◆ Policy Suggestions" + RESET);
+    console.log(DIM + "  No data" + RESET);
+  }
+
+  if (show("friction") && result.frictionReport) {
+    console.log("");
+    console.log(BOLD + "◆ Approval Friction" + RESET);
+    renderFrictionAnalysis(result.frictionReport as FrictionReport, windowDays);
+  } else if (show("friction")) {
+    console.log("");
+    console.log(BOLD + "◆ Approval Friction" + RESET);
+    console.log(DIM + "  No data" + RESET);
+  }
+}
 
 // -- Analytics ----------------------------------------------------------------
 
