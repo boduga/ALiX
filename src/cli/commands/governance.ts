@@ -263,6 +263,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runReport(rest);
     case "inbox":
       return runInbox(rest);
+    case "review":
+      return runReview(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -1851,6 +1853,121 @@ async function runInboxRefresh(args: string[]): Promise<void> {
   if (appended === 0) {
     console.log(DIM + "  (All signals deduplicated against existing inbox items.)" + RESET);
   }
+}
+
+// ---------------------------------------------------------------------------
+// P14.2 — Review
+// ---------------------------------------------------------------------------
+
+async function runReview(args: string[]): Promise<void> {
+  const signalId = args.find((a) => !a.startsWith("-"));
+  if (!signalId) {
+    console.error("Usage: alix governance review <signal-id> [--notes ...] [--classification ...] [--json] [--as ...]");
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const notes = parseInlineFlag(args, "--notes");
+  const classification = parseInlineFlag(args, "--classification");
+  const jsonMode = args.includes("--json");
+  const explicitAs = parseInlineFlag(args, "--as");
+
+  const { FileSignalStore } = await import("../../governance/governance-signal.js");
+  const signalStore = new FileSignalStore(cwd);
+  const signal = await signalStore.getById(signalId);
+
+  if (!signal) {
+    console.error(`Signal not found: ${signalId}`);
+    process.exit(1);
+  }
+
+  // Read-only mode — no --notes or --classification
+  if (notes === null && classification === null) {
+    const { FileReviewStore } = await import("../../governance/operator-review.js");
+    const reviewStore = new FileReviewStore(cwd);
+    const priorReviews = await reviewStore.getBySignalId(signalId);
+
+    if (jsonMode) {
+      console.log(JSON.stringify({ signal, priorReviews }, null, 2));
+      return;
+    }
+
+    renderReviewShow(signal, priorReviews);
+    return;
+  }
+
+  // Create mode
+  if (notes === null && classification === null) {
+    console.error("At least one of --notes or --classification must be provided to create a review.");
+    process.exit(1);
+  }
+
+  const { FileReviewStore, createOperatorReview, resolveReviewer } = await import("../../governance/operator-review.js");
+  const reviewStore = new FileReviewStore(cwd);
+  const reviewer = resolveReviewer(explicitAs ?? undefined);
+  const now = new Date().toISOString();
+  const reviewId = `rev-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}`;
+
+  const review = await createOperatorReview(
+    reviewId,
+    signalId,
+    signalStore,
+    reviewer,
+    notes,
+    classification,
+    now,
+  );
+
+  await reviewStore.append(review);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ signal, review }, null, 2));
+    return;
+  }
+
+  renderReviewCreated(signal, review);
+}
+
+function renderReviewShow(
+  signal: { signalId: string; title: string; severity: string; sourcePhase: string; signalType: string; confidence: number; createdAt: string; description: string },
+  priorReviews: { reviewId: string; reviewer: string; notes: string | null; classification: string | null; createdAt: string }[],
+): void {
+  console.log(BOLD + "Signal Detail" + RESET);
+  console.log(`${DIM}ID:${RESET} ${signal.signalId}`);
+  console.log(`${DIM}Title:${RESET} ${signal.title}`);
+  console.log(`${DIM}Severity:${RESET} ${severityColor(signal.severity === "critical" ? "high" : signal.severity as "high" | "medium" | "low")}${signal.severity.toUpperCase()}${RESET}`);
+  console.log(`${DIM}Source:${RESET} ${signal.sourcePhase} | ${signal.signalType} | Conf: ${(signal.confidence * 100).toFixed(0)}%`);
+  console.log(`${DIM}Created:${RESET} ${signal.createdAt}`);
+  console.log(`${DIM}Description:${RESET} ${signal.description}`);
+  console.log(BAR);
+
+  if (priorReviews.length === 0) {
+    console.log(DIM + "No prior reviews." + RESET);
+  } else {
+    console.log(BOLD + `Prior Reviews (${priorReviews.length})` + RESET);
+    for (const r of priorReviews) {
+      console.log(`  ${CYAN}Review:${RESET} ${r.reviewId} | ${r.reviewer} | ${r.createdAt}`);
+      if (r.notes) console.log(`  ${DIM}Notes:${RESET} ${r.notes}`);
+      if (r.classification) console.log(`  ${DIM}Classification:${RESET} ${r.classification}`);
+      console.log("");
+    }
+  }
+  console.log(DIM + "To create a review, use: --notes \"...\" or --classification \"...\"" + RESET);
+}
+
+function renderReviewCreated(
+  signal: { signalId: string; title: string; severity: string },
+  review: { reviewId: string; reviewer: string; notes: string | null; classification: string | null; createdAt: string },
+): void {
+  console.log(GREEN + "Review Created" + RESET);
+  console.log(`${DIM}Signal:${RESET} ${signal.title} (${signal.signalId})`);
+  console.log(`${DIM}Review ID:${RESET} ${review.reviewId}`);
+  console.log(`${DIM}Reviewer:${RESET} ${review.reviewer}`);
+  if (review.notes) console.log(`${DIM}Notes:${RESET} ${review.notes}`);
+  if (review.classification) console.log(`${DIM}Classification:${RESET} ${review.classification}`);
+  console.log(`${DIM}Created:${RESET} ${review.createdAt}`);
+  console.log(GREEN + "✓ Review appended to store." + RESET);
+  console.log(DIM + "  Advisory only — no signal or policy mutation." + RESET);
 }
 
 // ---------------------------------------------------------------------------
