@@ -1257,10 +1257,10 @@ function renderFailureAnalysis(analysis: FailureAnalysis, windowDays: number): v
 // -- Policy Suggestions ------------------------------------------------------
 
 function confidenceColor(confidence: number): string {
-  // Confidence >=0.75 green, >=0.5 yellow, otherwise red.
-  if (confidence >= 0.75) return GREEN;
-  if (confidence >= 0.5) return YELLOW;
-  return RED;
+  // High-confidence suggestions carry the strongest evidence and warrant urgent human attention → RED.
+  if (confidence >= 0.75) return RED;
+  if (confidence >= 0.6) return YELLOW;
+  return GREEN;
 }
 
 function renderPolicySuggestions(
