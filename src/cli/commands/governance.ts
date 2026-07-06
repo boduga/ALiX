@@ -1896,12 +1896,7 @@ async function runReview(args: string[]): Promise<void> {
     return;
   }
 
-  // Create mode
-  if (notes === null && classification === null) {
-    console.error("At least one of --notes or --classification must be provided to create a review.");
-    process.exit(1);
-  }
-
+  // Create mode — validation is handled by createOperatorReview / validateOperatorReview
   const { FileReviewStore, createOperatorReview, resolveReviewer } = await import("../../governance/operator-review.js");
   const reviewStore = new FileReviewStore(cwd);
   const reviewer = resolveReviewer(explicitAs ?? undefined);
@@ -1911,7 +1906,7 @@ async function runReview(args: string[]): Promise<void> {
   const review = await createOperatorReview(
     reviewId,
     signalId,
-    signalStore,
+    signal, // pass fetched signal to avoid redundant store read inside createOperatorReview
     reviewer,
     notes,
     classification,

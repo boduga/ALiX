@@ -273,12 +273,10 @@ describe("resolveReviewer", () => {
 
 describe("createOperatorReview", () => {
   it("creates a review when signal exists", async () => {
-    const signalStore = {
-      getById: async () => ({ signalId: "sig-1" }),
-    };
+    const signal = { signalId: "sig-1" };
 
     const review = await createOperatorReview(
-      "rev-1", "sig-1", signalStore, "Operator",
+      "rev-1", "sig-1", signal, "Operator",
       "Observed issue", null, NOW,
     );
 
@@ -291,12 +289,10 @@ describe("createOperatorReview", () => {
   });
 
   it("creates a review with classification when notes is null", async () => {
-    const signalStore = {
-      getById: async () => ({ signalId: "sig-1" }),
-    };
+    const signal = { signalId: "sig-1" };
 
     const review = await createOperatorReview(
-      "rev-2", "sig-1", signalStore, "Operator",
+      "rev-2", "sig-1", signal, "Operator",
       null, "false_positive", NOW,
     );
 
@@ -305,34 +301,26 @@ describe("createOperatorReview", () => {
   });
 
   it("throws when signal does not exist", async () => {
-    const signalStore = {
-      getById: async () => null,
-    };
-
     await assert.rejects(
-      () => createOperatorReview("rev-1", "missing-sig", signalStore, "Operator", "notes", null, NOW),
+      () => createOperatorReview("rev-1", "missing-sig", null, "Operator", "notes", null, NOW),
       /Signal not found/,
     );
   });
 
   it("throws when both notes and classification are null", async () => {
-    const signalStore = {
-      getById: async () => ({ signalId: "sig-1" }),
-    };
+    const signal = { signalId: "sig-1" };
 
     await assert.rejects(
-      () => createOperatorReview("rev-1", "sig-1", signalStore, "Operator", null, null, NOW),
+      () => createOperatorReview("rev-1", "sig-1", signal, "Operator", null, null, NOW),
       /Invalid review/,
     );
   });
 
   it("preserves signalId backlink in created review", async () => {
-    const signalStore = {
-      getById: async (id: string) => id === "sig-target" ? { signalId: id } : null,
-    };
+    const signal = { signalId: "sig-target" };
 
     const review = await createOperatorReview(
-      "rev-3", "sig-target", signalStore, "Operator",
+      "rev-3", "sig-target", signal, "Operator",
       "Found issue", "bug", NOW,
     );
 

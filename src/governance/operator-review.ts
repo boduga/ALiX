@@ -50,8 +50,6 @@ export interface ValidationResult {
 
 const REVIEW_FILE = "governance-reviews.jsonl";
 
-const VALID_REVIEWER_MIN_LENGTH = 1;
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -226,31 +224,28 @@ export function resolveReviewer(explicitAs?: string): string {
 /**
  * Create an OperatorReview for a given signal.
  *
- * Checks that the signal exists in the provided store before creating the
- * review. Does NOT mutate the signal record — reviewing status is derived
+ * Does NOT mutate the signal record — reviewing status is derived
  * from the presence of review records for the signalId.
  *
  * @param reviewId - Unique review ID.
- * @param signalId - ID of the signal being reviewed (must exist in signalStore).
- * @param signalStore - Signal store to check signal existence.
+ * @param signalId - ID of the signal being reviewed.
+ * @param signal - The fetched signal object (must be truthy — caller should have verified existence).
  * @param reviewerResolved - Resolved reviewer identity.
  * @param notes - Free-text observations (optional if classification provided).
  * @param classification - Re-classification (optional if notes provided).
  * @param now - ISO timestamp for review creation.
  * @returns The created OperatorReview.
- * @throws If the signal does not exist in signalStore.
  */
 export async function createOperatorReview(
   reviewId: string,
   signalId: string,
-  signalStore: { getById(id: string): Promise<unknown> },
+  signal: unknown,
   reviewerResolved: string,
   notes: string | null,
   classification: string | null,
   now: string,
 ): Promise<OperatorReview> {
   // Verify signal exists — invariant: review cannot be created for missing signal
-  const signal = await signalStore.getById(signalId);
   if (!signal) {
     throw new Error(`Signal not found: ${signalId}. Cannot create review for missing signal.`);
   }
