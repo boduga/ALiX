@@ -1837,6 +1837,12 @@ async function runInboxRefresh(args: string[]): Promise<void> {
   let appended = 0;
   for (const signal of newSignals) {
     await signalStore.append(signal);
+    // Non-fatal audit emission — one POLICY_EVALUATED per new signal
+    try {
+      const { FileAuditStore } = await import("../../governance/audit-store.js");
+      const { signalEvaluatedEvent } = await import("../../governance/audit-emitters.js");
+      await new FileAuditStore(cwd).append(signalEvaluatedEvent(signal));
+    } catch { /* audit failure is non-fatal */ }
     appended++;
   }
 
@@ -2054,6 +2060,13 @@ async function runDecide(args: string[]): Promise<void> {
 
   await decisionStore.append(decision);
 
+  // Non-fatal audit emission — maps DecisionKind to action_allowed/denied/escalated
+  try {
+    const { FileAuditStore } = await import("../../governance/audit-store.js");
+    const { decisionRecordedEvent } = await import("../../governance/audit-emitters.js");
+    await new FileAuditStore(cwd).append(decisionRecordedEvent(decision, signal));
+  } catch { /* audit failure is non-fatal */ }
+
   if (jsonMode) {
     console.log(JSON.stringify({ signal, decision }, null, 2));
     return;
@@ -2261,6 +2274,13 @@ async function runActionsMarkExecuted(cwd: string, args: string[], jsonMode: boo
 
   await store.appendStatusTransition(transition);
 
+  // Non-fatal audit emission — OVERRIDE_APPLIED for mark-executed
+  try {
+    const { FileAuditStore } = await import("../../governance/audit-store.js");
+    const { actionOverriddenEvent } = await import("../../governance/audit-emitters.js");
+    await new FileAuditStore(cwd).append(actionOverriddenEvent(transition, proposal));
+  } catch { /* audit failure is non-fatal */ }
+
   if (jsonMode) {
     console.log(JSON.stringify({ transition, proposal }, null, 2));
     return;
@@ -2315,6 +2335,13 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
   };
 
   await store.appendStatusTransition(transition);
+
+  // Non-fatal audit emission — OVERRIDE_APPLIED for dismiss
+  try {
+    const { FileAuditStore } = await import("../../governance/audit-store.js");
+    const { actionOverriddenEvent } = await import("../../governance/audit-emitters.js");
+    await new FileAuditStore(cwd).append(actionOverriddenEvent(transition, proposal));
+  } catch { /* audit failure is non-fatal */ }
 
   if (jsonMode) {
     console.log(JSON.stringify({ transition, proposal }, null, 2));
