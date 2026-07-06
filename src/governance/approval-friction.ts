@@ -151,11 +151,16 @@ export function computeFrictionReport(entries: LedgerEntry[]): FrictionReport {
     0,
   );
 
+  // occurrence-weighted: totalDenied/total * 0.6 + totalPending/total * 0.4
   const overallFrictionScore =
-    gates.length > 0
-      ? round2(
-          gates.reduce((sum, g) => sum + g.frictionScore, 0) / gates.length,
-        )
+    totalApprovalsRequested > 0
+      ? (() => {
+          const totalDenied = gates.reduce((s, g) => s + g.deniedCount, 0);
+          const totalPending = gates.reduce((s, g) => s + g.pendingCount, 0);
+          const denyRate = totalDenied / totalApprovalsRequested;
+          const pendingRate = totalPending / totalApprovalsRequested;
+          return round2(clamp(denyRate * 0.6 + pendingRate * 0.4, 0, 1));
+        })()
       : 0;
 
   return {
