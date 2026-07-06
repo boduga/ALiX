@@ -356,7 +356,7 @@ export function createActionProposal(
   decision: { decisionId: string; signalId: string; decision: string; rationale: string },
   signal: { signalId: string; title: string; description?: string; severity?: string },
   now: string,
-): Promise<GovernanceActionProposal> {
+): GovernanceActionProposal {
   const kind = KIND_MAP[decision.decision];
   if (!kind) {
     throw new Error(
@@ -443,7 +443,7 @@ export async function refreshProposals(
 
     const proposalId = `prop-${now.replace(/[:.]/g, "-")}-${decision.decisionId.slice(0, 8)}-${Math.random().toString(36).slice(2, 6)}`;
 
-    const proposal = await createActionProposal(
+    const proposal = createActionProposal(
       proposalId,
       decision,
       signal,
