@@ -41,6 +41,7 @@ import type {
 import { type FailureAnalysis, failureSeverityForType } from "../../governance/failure-clustering.js";
 import type { PolicySuggestion } from "../../governance/policy-suggestions.js";
 import type { FrictionReport } from "../../governance/approval-friction.js";
+import type { GovernanceSignal } from "../../governance/governance-signal.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -260,6 +261,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runFrictionAnalysis(rest);
     case "report":
       return runReport(rest);
+    case "inbox":
+      return runInbox(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -1685,4 +1688,177 @@ function renderRecommendations(
     }
     console.log("");
   }
+}
+
+// ---------------------------------------------------------------------------
+// P14.1 — Inbox
+// ---------------------------------------------------------------------------
+
+async function runInbox(args: string[]): Promise<void> {
+  const subcommand = args[0];
+
+  if (subcommand === "refresh") {
+    return runInboxRefresh(args.slice(1));
+  }
+  return runInboxList(args);
+}
+
+async function runInboxList(args: string[]): Promise<void> {
+  const cwd = process.cwd();
+  const { FileSignalStore } = await import("../../governance/governance-signal.js");
+
+  const store = new FileSignalStore(cwd);
+  const signals = await store.list();
+
+  // Parse filters
+  const statusFilter = parseInlineFlag(args, "--status");
+  const sourceFilter = parseInlineFlag(args, "--source");
+  const jsonMode = args.includes("--json");
+
+  let filtered = signals;
+  if (statusFilter) {
+    filtered = filtered.filter((s) => s.status === statusFilter);
+  }
+  if (sourceFilter) {
+    filtered = filtered.filter((s) => s.sourcePhase === sourceFilter);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(filtered, null, 2));
+    return;
+  }
+
+  renderInboxList(filtered, signals.length);
+}
+
+function renderInboxList(signals: GovernanceSignal[], totalStored: number): void {
+  console.log(BOLD + "Governance Signal Inbox" + RESET);
+  console.log(`Total stored: ${totalStored}  |  Showing: ${signals.length}`);
+  console.log(BAR);
+
+  if (signals.length === 0) {
+    console.log(DIM + "No signals match the current filters." + RESET);
+    return;
+  }
+
+  const statusColor: Record<string, string> = {
+    new: YELLOW,
+    reviewing: CYAN,
+    decided: GREEN,
+    dismissed: DIM,
+    escalated: RED,
+  };
+
+  for (const s of signals) {
+    const sevColor = severityColor(s.severity === "critical" ? "high" : s.severity);
+    console.log(
+      sevColor + `[${s.severity.toUpperCase()}]` + RESET +
+      ` ${s.title}`,
+    );
+    console.log(
+      `  ${DIM}ID: ${s.signalId}${RESET}`,
+    );
+    console.log(
+      `  ${DIM}Source: ${s.sourcePhase} | Type: ${s.signalType} | Conf: ${(s.confidence * 100).toFixed(0)}%${RESET}`,
+    );
+    console.log(
+      `  ${statusColor[s.status] ?? DIM}Status: ${s.status}${RESET}  ${DIM}${s.createdAt}${RESET}`,
+    );
+    console.log("");
+  }
+}
+
+async function runInboxRefresh(args: string[]): Promise<void> {
+  const cwd = process.cwd();
+  const { windowDays } = parseFlags(args);
+  const now = new Date().toISOString();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffMs = cutoff.getTime();
+
+  // Helper: fetch + filter a store by window (same pattern as runReport)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const windowed = async <T extends { timestamp: string }>(
+    store: { list: (limit?: number) => Promise<T[]> },
+  ): Promise<T[]> =>
+    (await store.list()).filter((e) => new Date(e.timestamp).getTime() >= cutoffMs);
+
+  // Dynamic imports — P13 modules
+  const { FileLedgerStore } = await import("../../governance/run-ledger.js");
+  const { FileFailureMemoryStore } = await import("../../governance/failure-memory.js");
+  const { computeAnalytics, computePeriodRollups } = await import("../../governance/ledger-analytics.js");
+  const { computeFailureAnalysis } = await import("../../governance/failure-clustering.js");
+  const { computePolicySuggestions } = await import("../../governance/policy-suggestions.js");
+  const { computeFrictionReport } = await import("../../governance/approval-friction.js");
+  const { FileSignalStore, normalizeAllP13Outputs } = await import("../../governance/governance-signal.js");
+
+  // Read P13 store data (same pattern as runReport)
+  const entries = await windowed(new FileLedgerStore(cwd));
+  const records = await windowed(new FileFailureMemoryStore(cwd));
+
+  // Run P13 pure functions
+  const analytics = computeAnalytics(entries, windowDays);
+  const rollups = computePeriodRollups(entries);
+  const failureAnalysis = computeFailureAnalysis(records);
+  const policySuggestions = computePolicySuggestions(entries, records);
+  const frictionReport = computeFrictionReport(entries);
+
+  // Load existing signals for dedup
+  const signalStore = new FileSignalStore(cwd);
+  const existingSignals = await signalStore.list();
+
+  // Normalise and dedup
+  const newSignals = normalizeAllP13Outputs(
+    existingSignals,
+    analytics,
+    rollups,
+    failureAnalysis,
+    policySuggestions,
+    frictionReport,
+    now,
+  );
+
+  // Append new signals
+  let appended = 0;
+  for (const signal of newSignals) {
+    await signalStore.append(signal);
+    appended++;
+  }
+
+  // Report
+  const jsonMode = args.includes("--json");
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      newSignals: appended,
+      totalSignals: existingSignals.length + appended,
+      timestamp: now,
+    }, null, 2));
+    return;
+  }
+
+  console.log(BOLD + "Governance Inbox Refresh" + RESET);
+  console.log(`Window: ${windowDays} days`);
+  console.log(`Timestamp: ${now}`);
+  console.log(BAR);
+  console.log(`${GREEN}${appended} new signals${RESET} appended to inbox (${existingSignals.length + appended} total)`);
+  if (appended > 0) {
+    console.log("");
+    console.log(`  ${CYAN}→${RESET} Run \`alix governance inbox\` to view signals`);
+  }
+  console.log(
+    DIM + "  Advisory only — no policies or gates modified." + RESET,
+  );
+  if (appended === 0) {
+    console.log(DIM + "  (All signals deduplicated against existing inbox items.)" + RESET);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Inline helpers (local to this file, for inbox parsing)
+// ---------------------------------------------------------------------------
+
+function parseInlineFlag(args: string[], flag: string): string | null {
+  const idx = args.indexOf(flag);
+  if (idx === -1 || idx + 1 >= args.length) return null;
+  return args[idx + 1];
 }
