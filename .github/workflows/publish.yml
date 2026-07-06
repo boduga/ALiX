@@ -23,7 +23,7 @@ jobs:
       # actions/checkout v4 — pinned to SHA
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
       # pnpm/action-setup v2 — install pnpm before setup-node for cache:pnpm
-      - uses: pnpm/action-setup@v2
+      - uses: pnpm/action-setup@v6
         with:
           version: latest
       # actions/setup-node v4 — pinned to SHA
