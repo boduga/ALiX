@@ -276,6 +276,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runDecide(rest);
     case "actions":
       return runActions(rest);
+    case "audit":
+      return runAudit(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -2326,8 +2328,435 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
 }
 
 // ---------------------------------------------------------------------------
-// Inline helpers (local to this file, for inbox parsing)
+// P14.5b — Audit subcommands
 // ---------------------------------------------------------------------------
+
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  policy_evaluated: CYAN,
+  action_allowed: GREEN,
+  action_denied: RED,
+  action_escalated: YELLOW,
+  human_approval_requested: CYAN,
+  human_approval_granted: GREEN,
+  human_approval_denied: RED,
+  override_applied: MAGENTA,
+};
+
+function eventTypeColor(eventType: string): string {
+  return EVENT_TYPE_COLORS[eventType] ?? RESET;
+}
+
+async function runAudit(rawArgs: string[]): Promise<void> {
+  const args = rawArgs.slice(); // copy
+  const jsonMode = args.includes("--json");
+
+  const sub = args.shift();
+  // Remove --json so subcommand handlers don't see it
+  if (jsonMode) {
+    const idx = args.indexOf("--json");
+    if (idx >= 0) args.splice(idx, 1);
+  }
+
+  const cwd = process.cwd();
+
+  switch (sub) {
+    case undefined:
+    case "list":
+      return runAuditList(cwd, args, jsonMode);
+    case "show":
+      return runAuditShow(cwd, args, jsonMode);
+    case "trace":
+      return runAuditTrace(cwd, args, jsonMode);
+    case "actor":
+      return runAuditActor(cwd, args, jsonMode);
+    case "policy":
+      return runAuditPolicy(cwd, args, jsonMode);
+    case "verify":
+      return runAuditVerify(cwd, jsonMode);
+    case "export":
+      return runAuditExport(cwd, args, jsonMode);
+    default:
+      console.log(
+        RED +
+          'Unknown audit subcommand "' +
+          sub +
+          '". Expected: list, show, trace, actor, policy, verify, export' +
+          RESET,
+      );
+      process.exit(1);
+  }
+}
+
+async function runAuditList(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const {
+    queryByActor,
+    queryByPolicy,
+    queryByTraceId,
+    queryByDecision,
+    queryByTimeRange,
+  } = await import("../../governance/audit-query.js");
+
+  const store = new FileAuditStore(cwd);
+  let events = await store.list();
+
+  // Parse filters
+  const decisionFilter = parseInlineFlag(args, "--decision");
+  const actorTypeFilter = parseInlineFlag(args, "--actor-type");
+  const actorIdFilter = parseInlineFlag(args, "--actor-id");
+  const policyFilter = parseInlineFlag(args, "--policy");
+  const traceFilter = parseInlineFlag(args, "--trace");
+  const fromFilter = parseInlineFlag(args, "--from");
+  const toFilter = parseInlineFlag(args, "--to");
+
+  if (decisionFilter) {
+    events = queryByDecision(events, decisionFilter as any);
+  }
+  if (actorTypeFilter) {
+    events = queryByActor(events, actorTypeFilter as any, actorIdFilter ?? undefined);
+  } else if (actorIdFilter) {
+    events = events.filter((e) => e.actorId === actorIdFilter);
+  }
+  if (policyFilter) {
+    events = queryByPolicy(events, policyFilter);
+  }
+  if (traceFilter) {
+    events = queryByTraceId(events, traceFilter);
+  }
+  if (fromFilter || toFilter) {
+    events = queryByTimeRange(events, fromFilter ?? undefined, toFilter ?? undefined);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(events, null, 2));
+    return;
+  }
+
+  if (events.length === 0) {
+    console.log(DIM + "No audit events found" + RESET);
+    return;
+  }
+
+  console.log(
+    BOLD + "Governance Audit Events (" + events.length + ")" + RESET,
+  );
+  console.log("");
+
+  for (const ev of events.slice(0, 50)) {
+    const color = eventTypeColor(ev.eventType);
+    const tag = ev.eventType.padEnd(30);
+    console.log(
+      color + tag + RESET +
+      ev.timestamp.slice(0, 19).replace("T", " ") + "  " +
+      DIM + ev.eventId + RESET,
+    );
+    console.log(
+      "  " + BOLD + ev.decision + RESET +
+      "  " + DIM + ev.actorType + "/" + ev.actorId + RESET,
+    );
+    if (ev.policyId) {
+      console.log("  " + DIM + "policy: " + ev.policyId + (ev.policyVersion ? " v" + ev.policyVersion : "") + RESET);
+    }
+    console.log("  " + ev.reason.slice(0, 120));
+    console.log("");
+  }
+
+  if (events.length > 50) {
+    console.log(DIM + "... and " + (events.length - 50) + " more" + RESET);
+  }
+}
+
+async function runAuditShow(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const eventId = args.find((a) => !a.startsWith("--"));
+  if (!eventId) {
+    console.log(RED + "Usage: alix governance audit show <event-id>" + RESET);
+    process.exit(1);
+  }
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const store = new FileAuditStore(cwd);
+  const event = await store.getById(eventId);
+
+  if (!event) {
+    console.log(RED + "Audit event not found: " + eventId + RESET);
+    process.exit(1);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(event, null, 2));
+    return;
+  }
+
+  const color = eventTypeColor(event.eventType);
+  console.log("");
+  console.log(BOLD + "Event: " + event.eventId + RESET);
+  console.log("");
+  console.log( BOLD + "Type:" + RESET + "      " + color + event.eventType + RESET);
+  console.log( BOLD + "Timestamp:" + RESET + " " + event.timestamp);
+  console.log("");
+  console.log( BOLD + "Actor:" + RESET + "     " + event.actorType + "/" + event.actorId);
+  console.log( BOLD + "Subject:" + RESET + "   " + event.subjectType + (event.subjectId ? " (" + event.subjectId + ")" : ""));
+  console.log("");
+  console.log( BOLD + "Action:" + RESET + "   " + event.action);
+  console.log( BOLD + "Decision:" + RESET + " " + event.decision);
+  console.log( BOLD + "Risk:" + RESET + "     " + event.riskLevel + (event.requiresHumanReview ? " (requires human review)" : ""));
+  console.log("");
+
+  if (event.policyId) {
+    console.log( BOLD + "Policy:" + RESET + "   " + event.policyId + (event.policyVersion ? " v" + event.policyVersion : ""));
+    if (event.ruleId) console.log("  Rule: " + event.ruleId);
+  }
+
+  console.log( BOLD + "Reason:" + RESET + "   " + event.reason);
+  if (event.evidenceRefs.length > 0) {
+    console.log( BOLD + "Evidence:" + RESET + "  " + event.evidenceRefs.join(", "));
+  }
+
+  if (event.requestId || event.traceId || event.sessionId) {
+    console.log("");
+    console.log( BOLD + "Trace:" + RESET + "     " + (event.traceId ?? "-"));
+    console.log( BOLD + "Request:" + RESET + "   " + (event.requestId ?? "-"));
+    console.log( BOLD + "Session:" + RESET + "   " + (event.sessionId ?? "-"));
+  }
+
+  if (Object.keys(event.metadata).length > 0) {
+    console.log("");
+    console.log( BOLD + "Metadata:" + RESET);
+    console.log( "  " + JSON.stringify(event.metadata));
+  }
+
+  console.log("");
+  console.log( BOLD + "Chain:" + RESET);
+  console.log( "  Hash:          " + event.eventHash);
+  console.log( "  Previous hash: " + (event.previousHash ?? DIM + "(none)" + RESET));
+  console.log("");
+}
+
+async function runAuditTrace(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const traceId = args.find((a) => !a.startsWith("--"));
+  if (!traceId) {
+    console.log(RED + "Usage: alix governance audit trace <trace-id>" + RESET);
+    process.exit(1);
+  }
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { queryByTraceId } = await import("../../governance/audit-query.js");
+
+  const store = new FileAuditStore(cwd);
+  const events = queryByTraceId(await store.list(), traceId);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(events, null, 2));
+    return;
+  }
+
+  if (events.length === 0) {
+    console.log(DIM + "No events found for trace: " + traceId + RESET);
+    return;
+  }
+
+  console.log(
+    BOLD + "Trace: " + traceId + " (" + events.length + " events)" + RESET,
+  );
+  console.log("");
+
+  for (const ev of events) {
+    const color = eventTypeColor(ev.eventType);
+    console.log(
+      color + ev.eventType.padEnd(28) + RESET +
+      ev.timestamp.slice(0, 19).replace("T", " ") + "  " +
+      ev.eventId,
+    );
+    console.log(
+      "  " + BOLD + ev.decision + RESET +
+      "  " + ev.reason.slice(0, 100),
+    );
+    console.log("");
+  }
+}
+
+async function runAuditActor(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const actorId = args.find((a) => !a.startsWith("--"));
+  if (!actorId) {
+    console.log(RED + "Usage: alix governance audit actor <actor-id> [--actor-type <type>]" + RESET);
+    process.exit(1);
+  }
+
+  const actorTypeFilter = parseInlineFlag(args, "--actor-type");
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { queryByActor } = await import("../../governance/audit-query.js");
+
+  const store = new FileAuditStore(cwd);
+  const all = await store.list();
+  const events = actorTypeFilter
+    ? queryByActor(all, actorTypeFilter as any, actorId)
+    : all.filter((e) => e.actorId === actorId);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(events, null, 2));
+    return;
+  }
+
+  if (events.length === 0) {
+    console.log(DIM + "No events found for actor: " + actorId + RESET);
+    return;
+  }
+
+  console.log(
+    BOLD + "Actor: " + actorId + " (" + events.length + " events)" + RESET,
+  );
+  console.log("");
+
+  for (const ev of events) {
+    const color = eventTypeColor(ev.eventType);
+    console.log(
+      color + ev.eventType.padEnd(28) + RESET +
+      ev.timestamp.slice(0, 19).replace("T", " ") + "  " +
+      ev.eventId,
+    );
+    console.log(
+      "  " + BOLD + ev.decision + RESET +
+      "  " + DIM + ev.actorType + RESET +
+      "  " + ev.reason.slice(0, 100),
+    );
+    console.log("");
+  }
+}
+
+async function runAuditPolicy(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const policyId = args.find((a) => !a.startsWith("--"));
+  if (!policyId) {
+    console.log(RED + "Usage: alix governance audit policy <policy-id>" + RESET);
+    process.exit(1);
+  }
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { queryByPolicy } = await import("../../governance/audit-query.js");
+
+  const store = new FileAuditStore(cwd);
+  const events = queryByPolicy(await store.list(), policyId);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(events, null, 2));
+    return;
+  }
+
+  if (events.length === 0) {
+    console.log(DIM + "No events found for policy: " + policyId + RESET);
+    return;
+  }
+
+  console.log(
+    BOLD + "Policy: " + policyId + " (" + events.length + " events)" + RESET,
+  );
+  console.log("");
+
+  for (const ev of events) {
+    const color = eventTypeColor(ev.eventType);
+    console.log(
+      color + ev.eventType.padEnd(28) + RESET +
+      ev.timestamp.slice(0, 19).replace("T", " ") + "  " +
+      ev.eventId,
+    );
+    console.log(
+      "  " + BOLD + ev.decision + RESET +
+      "  " + DIM + ev.actorType + "/" + ev.actorId + RESET +
+      "  " + ev.reason.slice(0, 100),
+    );
+    console.log("");
+  }
+}
+
+async function runAuditVerify(
+  cwd: string,
+  jsonMode: boolean,
+): Promise<void> {
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { verifyChain } = await import("../../governance/audit-chain.js");
+
+  const store = new FileAuditStore(cwd);
+  const events = await store.listChronological();
+  const result = verifyChain(events);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (result.valid) {
+    console.log(GREEN + BOLD + "Chain integrity verified" + RESET);
+    console.log(DIM + "Events: " + result.eventCount + RESET);
+  } else {
+    console.log(RED + BOLD + "Chain integrity FAILED" + RESET);
+    console.log(DIM + "Events: " + result.eventCount + " | Findings: " + result.findings.length + RESET);
+    for (const f of result.findings) {
+      console.log(
+        "  " + RED + f.type + RESET +
+        "  " + DIM + f.eventId + RESET +
+        "  " + f.detail,
+      );
+    }
+  }
+}
+
+async function runAuditExport(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const formatFlag = parseInlineFlag(args, "--format") ?? "jsonl";
+  const format = formatFlag === "json" ? "json" : "jsonl";
+  const doRedact = args.includes("--redact");
+  const outputFlag = parseInlineFlag(args, "--output");
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { exportEvents } = await import("../../governance/audit-export.js");
+
+  const store = new FileAuditStore(cwd);
+  const events = await store.list();
+  const output = exportEvents(events, format, {
+    redact: doRedact,
+    pretty: format === "json",
+  });
+
+  if (outputFlag) {
+    const { writeFile } = await import("node:fs/promises");
+    await writeFile(outputFlag, output, "utf8");
+    if (jsonMode) {
+      console.log(
+        JSON.stringify({ exported: outputFlag, count: events.length, format, redacted: doRedact }),
+      );
+    } else {
+      console.log(
+        GREEN + "Exported " + events.length + " events to " + outputFlag + RESET,
+      );
+    }
+  } else {
+    // Print to stdout
+    process.stdout.write(output);
+  }
+}
 
 function parseInlineFlag(args: string[], flag: string): string | null {
   const idx = args.indexOf(flag);
