@@ -137,6 +137,47 @@ describe("validateGovernanceSignal", () => {
     assert.ok(result.errors.some((e) => e.includes("status")));
   });
 
+  it("rejects empty evidenceRefs", () => {
+    const result = validateGovernanceSignal(validSignal({ evidenceRefs: [] }));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("non-empty")));
+  });
+
+  it("rejects evidenceRefs missing source", () => {
+    const result = validateGovernanceSignal(validSignal({
+      evidenceRefs: [{ source: "", id: "test-1", description: "Test evidence" }],
+    }));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("source")));
+  });
+
+  it("rejects evidenceRefs missing id", () => {
+    const result = validateGovernanceSignal(validSignal({
+      evidenceRefs: [{ source: "ledger-analytics", id: "", description: "Test evidence" }],
+    }));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("id")));
+  });
+
+  it("rejects evidenceRefs missing description", () => {
+    const result = validateGovernanceSignal(validSignal({
+      evidenceRefs: [{ source: "ledger-analytics", id: "test-1", description: "" }],
+    }));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("description")));
+  });
+
+  it("rejects evidenceRefs with multiple items where one is invalid", () => {
+    const result = validateGovernanceSignal(validSignal({
+      evidenceRefs: [
+        { source: "ledger-analytics", id: "test-1", description: "Valid" },
+        { source: "", id: "bad", description: "Bad source" },
+      ],
+    }));
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("[1].source")));
+  });
+
   it("accepts all valid source phases", () => {
     for (const phase of ["p13.1", "p13.2", "p13.3", "p13.4"]) {
       const result = validateGovernanceSignal(validSignal({ sourcePhase: phase }));

@@ -129,7 +129,18 @@ export function validateGovernanceSignal(entry: unknown): ValidationResult {
   }
   if (!isNonEmptyString(s.title)) errors.push("title is required");
   if (!isNonEmptyString(s.description)) errors.push("description is required");
-  if (!Array.isArray(s.evidenceRefs)) errors.push("evidenceRefs must be an array");
+  if (!Array.isArray(s.evidenceRefs)) {
+    errors.push("evidenceRefs must be an array");
+  } else if (s.evidenceRefs.length === 0) {
+    errors.push("evidenceRefs must be non-empty (invariant 3: every signal must link to evidence)");
+  } else {
+    for (let i = 0; i < s.evidenceRefs.length; i++) {
+      const ref = s.evidenceRefs[i] as Record<string, unknown>;
+      if (!isNonEmptyString(ref.source)) errors.push(`evidenceRefs[${i}].source is required`);
+      if (!isNonEmptyString(ref.id)) errors.push(`evidenceRefs[${i}].id is required`);
+      if (!isNonEmptyString(ref.description)) errors.push(`evidenceRefs[${i}].description is required`);
+    }
+  }
   if (!isNonEmptyString(s.recommendation)) errors.push("recommendation is required");
   if (s.metadata === undefined || s.metadata === null || typeof s.metadata !== "object") {
     errors.push("metadata must be an object");
