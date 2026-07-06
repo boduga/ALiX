@@ -19,6 +19,7 @@
  */
 
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { GovernanceStore } from "../../governance/governance-store.js";
 import { InvestigationStore } from "../../governance/investigation-store.js";
 import { generateRecommendations } from "../../governance/governance-recommendation-generator.js";
@@ -1879,7 +1880,7 @@ async function runInboxRefresh(args: string[]): Promise<void> {
 // ---------------------------------------------------------------------------
 
 async function runReview(args: string[]): Promise<void> {
-  const signalId = args.find((a) => !a.startsWith("-"));
+  const signalId = extractPositionalArg(args, ["--as", "--notes", "--classification"]);
   if (!signalId) {
     console.error("Usage: alix governance review <signal-id> [--notes ...] [--classification ...] [--json] [--as ...]");
     process.exit(1);
@@ -1920,7 +1921,7 @@ async function runReview(args: string[]): Promise<void> {
   const reviewStore = new FileReviewStore(cwd);
   const reviewer = resolveReviewer(explicitAs ?? undefined);
   const now = new Date().toISOString();
-  const reviewId = `rev-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}`;
+  const reviewId = `rev-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
 
   const review = await createOperatorReview(
     reviewId,
@@ -1998,7 +1999,7 @@ const KIND_MAP: Record<string, string> = {
 };
 
 async function runDecide(args: string[]): Promise<void> {
-  const signalId = args.find((a) => !a.startsWith("-"));
+  const signalId = extractPositionalArg(args, ["--as", "--review", "--reason"]);
   if (!signalId) {
     console.error("Usage: alix governance decide <signal-id> --<kind> --reason \"...\" [--as ...] [--review ...] [--json]");
     process.exit(1);
@@ -2024,7 +2025,7 @@ async function runDecide(args: string[]): Promise<void> {
   const decisionKind = KIND_MAP[providedKindFlags[0]!]!;
 
   // Rationale required
-  if (!rationale) {
+  if (!rationale || !rationale.trim()) {
     console.error("Rationale is required and must be non-empty. Use --reason \"...\"");
     process.exit(1);
   }
@@ -2044,7 +2045,7 @@ async function runDecide(args: string[]): Promise<void> {
   const reviewStore = new FileReviewStore(cwd);
   const decider = resolveReviewer(explicitAs ?? undefined);
   const now = new Date().toISOString();
-  const decisionId = `dec-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}`;
+  const decisionId = `dec-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
 
   const decision = await createOperatorDecision(
     decisionId,
@@ -2788,5 +2789,26 @@ async function runAuditExport(
 function parseInlineFlag(args: string[], flag: string): string | null {
   const idx = args.indexOf(flag);
   if (idx === -1 || idx + 1 >= args.length) return null;
-  return args[idx + 1];
+  const value = args[idx + 1];
+  if (value.startsWith("--")) return null; // next arg is another flag, not a value
+  return value;
+}
+
+/**
+ * Extract a positional argument from args, skipping over flag values consumed
+ * by parseInlineFlag for the given known value-taking flags.
+ *
+ * Unlike args.find(a => !a.startsWith("-")), this correctly skips flag values
+ * even when they don't start with "-".
+ */
+function extractPositionalArg(args: string[], valueFlags: string[]): string | undefined {
+  const consumed = new Set<number>();
+  for (const flag of valueFlags) {
+    const idx = args.indexOf(flag);
+    if (idx !== -1) {
+      consumed.add(idx);
+      if (idx + 1 < args.length) consumed.add(idx + 1);
+    }
+  }
+  return args.find((a, i) => !a.startsWith("-") && !consumed.has(i));
 }

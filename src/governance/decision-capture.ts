@@ -18,7 +18,7 @@
 // Imports
 // ---------------------------------------------------------------------------
 
-import { readFile, appendFile, mkdir, stat } from "node:fs/promises";
+import { readFile, appendFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -141,27 +141,18 @@ export class FileDecisionStore implements DecisionStore {
     return join(this.dir, DECISION_FILE);
   }
 
-  private async dirExists(): Promise<boolean> {
-    try { await stat(this.dir); return true; }
-    catch { return false; }
-  }
-
   private async ensureDir(): Promise<void> {
-    if (!(await this.dirExists())) {
-      await mkdir(this.dir, { recursive: true });
-    }
-  }
-
-  private async fileExists(): Promise<boolean> {
-    try { await stat(this.filePath); return true; }
-    catch { return false; }
+    // mkdir with recursive is a no-op on existing directories — no stat needed.
+    await mkdir(this.dir, { recursive: true });
   }
 
   private async readAll(): Promise<OperatorDecision[]> {
-    if (!(await this.fileExists())) {
+    let content: string;
+    try {
+      content = await readFile(this.filePath, "utf8");
+    } catch {
       return [];
     }
-    const content = await readFile(this.filePath, "utf8");
     const lines = content.trim().split("\n").filter(Boolean);
     const decisions: OperatorDecision[] = [];
     for (const line of lines) {
@@ -192,7 +183,7 @@ export class FileDecisionStore implements DecisionStore {
 
   async list(limit?: number): Promise<OperatorDecision[]> {
     const decisions = await this.readAll();
-    return limit !== undefined && limit > 0 ? decisions.slice(0, limit) : decisions;
+    return limit !== undefined && limit >= 0 ? decisions.slice(0, limit) : decisions;
   }
 
   async getById(decisionId: string): Promise<OperatorDecision | null> {
@@ -256,8 +247,8 @@ export async function createOperatorDecision(
   reviewStore: { getById(id: string): Promise<unknown> } | null,
   now: string,
 ): Promise<OperatorDecision> {
-  // Signal-existence gate
-  if (!signal) {
+  // Signal-existence gate — verify signal exists and has a signalId
+  if (!signal || typeof signal !== "object" || !("signalId" in (signal as object))) {
     throw new Error(`Signal not found: ${signalId}. Cannot create decision for missing signal.`);
   }
 
@@ -295,10 +286,6 @@ export async function createOperatorDecision(
     createdAt: now,
   };
 
-  const validation = validateOperatorDecision(decision);
-  if (!validation.valid) {
-    throw new Error(`Invalid decision: ${validation.errors.join("; ")}`);
-  }
-
+  // Validation delegated to store.append() — the write gate, not duplicated here.
   return decision;
 }
