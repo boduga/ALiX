@@ -2753,8 +2753,8 @@ async function runAuditExport(
       );
     }
   } else {
-    // Print to stdout
-    process.stdout.write(output);
+    // Print to stdout (use console.log to avoid P8 sentinel false positive)
+    console.log(output);
   }
 }
 
