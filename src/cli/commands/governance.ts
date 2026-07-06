@@ -2741,15 +2741,15 @@ async function runAuditExport(
   });
 
   if (outputFlag) {
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(outputFlag, output, "utf8");
+    // Delegate file write to separate export module (preserves P8 store invariant)
+    const { exportAuditEventsToFile } = await import("./governance-audit-exporter.js");
+    const result = await exportAuditEventsToFile(outputFlag, output, format, doRedact);
+
     if (jsonMode) {
-      console.log(
-        JSON.stringify({ exported: outputFlag, count: events.length, format, redacted: doRedact }),
-      );
+      console.log(JSON.stringify(result, null, 2));
     } else {
       console.log(
-        GREEN + "Exported " + events.length + " events to " + outputFlag + RESET,
+        GREEN + "Exported " + result.count + " events to " + result.exported + RESET,
       );
     }
   } else {
