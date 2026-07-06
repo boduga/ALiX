@@ -39,6 +39,7 @@ import type {
   PeriodRollup,
 } from "../../governance/ledger-analytics.js";
 import { type FailureAnalysis, failureSeverityForType } from "../../governance/failure-clustering.js";
+import type { PolicySuggestion } from "../../governance/policy-suggestions.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -235,6 +236,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runAnalytics(rest);
     case "failure-analysis":
       return runFailureAnalysis(rest);
+    case "policy-suggestions":
+      return runPolicySuggestions(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -284,7 +287,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
@@ -1066,6 +1069,44 @@ async function runFailureAnalysis(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// runPolicySuggestions — `alix governance policy-suggestions [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runPolicySuggestions(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const { FileLedgerStore } = await import("../../governance/run-ledger.js");
+  const { FileFailureMemoryStore } = await import("../../governance/failure-memory.js");
+  const { computePolicySuggestions } = await import(
+    "../../governance/policy-suggestions.js",
+  );
+
+  const cwd = process.cwd();
+  const ledger = new FileLedgerStore(cwd);
+  const failures = new FileFailureMemoryStore(cwd);
+
+  // Window filter applied independently to each store.
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffMs = cutoff.getTime();
+
+  const ledgerEntries = (await ledger.list()).filter(
+    (e) => new Date(e.timestamp).getTime() >= cutoffMs,
+  );
+  const failureRecords = (await failures.list()).filter(
+    (r) => new Date(r.timestamp).getTime() >= cutoffMs,
+  );
+
+  const policySuggestions = computePolicySuggestions(ledgerEntries, failureRecords);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ policySuggestions }, null, 2));
+    return;
+  }
+
+  renderPolicySuggestions(policySuggestions, windowDays);
+}
+
+// ---------------------------------------------------------------------------
 // Terminal renderers
 // ---------------------------------------------------------------------------
 
@@ -1210,6 +1251,49 @@ function renderFailureAnalysis(analysis: FailureAnalysis, windowDays: number): v
       const count = analysis.recurringFilePathCounts[fp] ?? 0;
       console.log(` ${fp.padEnd(maxLen)}(${count})`);
     }
+  }
+}
+
+// -- Policy Suggestions ------------------------------------------------------
+
+function confidenceColor(confidence: number): string {
+  // Confidence >=0.75 green, >=0.5 yellow, otherwise red.
+  if (confidence >= 0.75) return GREEN;
+  if (confidence >= 0.5) return YELLOW;
+  return RED;
+}
+
+function renderPolicySuggestions(
+  suggestions: PolicySuggestion[],
+  windowDays: number,
+): void {
+  console.log(BOLD + "Governance Policy Suggestions" + RESET);
+  console.log(BAR);
+  console.log(`Window: ${windowDays} days`);
+  console.log(
+    DIM + `${suggestions.length} suggestion(s) — advisory only, no policy files modified` + RESET,
+  );
+  console.log("");
+
+  if (suggestions.length === 0) {
+    console.log(
+      DIM + "  No suggestions. Either insufficient evidence or policies look healthy." + RESET,
+    );
+    return;
+  }
+
+  for (const s of suggestions) {
+    const color = confidenceColor(s.confidence);
+    const pid = s.policyId ? ` ${s.policyId}` : " (no policyId)";
+    console.log(
+      `${color}[${s.confidence.toFixed(2)}]${RESET} ${s.type}${pid} ${DIM}${s.sourceHeuristic}${RESET}`,
+    );
+    console.log(`    Reason: ${s.reason}`);
+    console.log(`    Recommendation: ${s.recommendation}`);
+    console.log(
+      `    Evidence: matched=${s.evidence.matchedCount}, denied=${s.evidence.deniedCount}, bypassed=${s.evidence.bypassedCount}, related=${s.evidence.relatedFailureCount}`,
+    );
+    console.log("");
   }
 }
 
