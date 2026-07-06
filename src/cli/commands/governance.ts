@@ -40,6 +40,7 @@ import type {
 } from "../../governance/ledger-analytics.js";
 import { type FailureAnalysis, failureSeverityForType } from "../../governance/failure-clustering.js";
 import type { PolicySuggestion } from "../../governance/policy-suggestions.js";
+import type { FrictionReport } from "../../governance/approval-friction.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -238,6 +239,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runFailureAnalysis(rest);
     case "policy-suggestions":
       return runPolicySuggestions(rest);
+    case "friction-analysis":
+      return runFrictionAnalysis(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -287,7 +290,7 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|friction-analysis|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
@@ -1107,6 +1110,34 @@ async function runPolicySuggestions(args: string[]): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
+// runFrictionAnalysis — `alix governance friction-analysis [--window <days>] [--json]`
+// ---------------------------------------------------------------------------
+
+async function runFrictionAnalysis(args: string[]): Promise<void> {
+  const { windowDays, jsonMode } = parseFlags(args);
+  const { FileLedgerStore } = await import("../../governance/run-ledger.js");
+  const { computeFrictionReport } = await import("../../governance/approval-friction.js");
+
+  const cwd = process.cwd();
+  const store = new FileLedgerStore(cwd);
+  const entries = await store.list();
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - windowDays);
+  const cutoffMs = cutoff.getTime();
+  const filtered = entries.filter((e) => new Date(e.timestamp).getTime() >= cutoffMs);
+
+  const frictionReport = computeFrictionReport(filtered);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ frictionReport }, null, 2));
+    return;
+  }
+
+  renderFrictionAnalysis(frictionReport, windowDays);
+}
+
+// ---------------------------------------------------------------------------
 // Terminal renderers
 // ---------------------------------------------------------------------------
 
@@ -1294,6 +1325,37 @@ function renderPolicySuggestions(
       `    Evidence: matched=${s.evidence.matchedCount}, denied=${s.evidence.deniedCount}, bypassed=${s.evidence.bypassedCount}, related=${s.evidence.relatedFailureCount}`,
     );
     console.log("");
+  }
+}
+
+// -- Approval Friction Analysis ---------------------------------------------
+
+function frictionColor(score: number): string {
+  if (score >= 0.6) return RED;
+  if (score >= 0.3) return YELLOW;
+  return GREEN;
+}
+
+function renderFrictionAnalysis(report: FrictionReport, windowDays: number): void {
+  console.log(BOLD + "Governance Approval Friction Analysis" + RESET);
+  console.log(BAR);
+  console.log(`Window:                    ${windowDays} days`);
+  console.log(`Total Approvals Requested: ${report.totalApprovalsRequested}`);
+  console.log(`Overall Friction Score:    ${frictionColor(report.overallFrictionScore)}${report.overallFrictionScore.toFixed(2)}${RESET}`);
+  console.log(`Highest Friction Gate:     ${report.highestFrictionGate ?? "none"}`);
+  console.log(`Average time to approve:   not available (no request timestamps)`);
+  console.log(DIM + "  Advisory only — no approval gates modified." + RESET);
+  console.log("");
+
+  if (report.gates.length > 0) {
+    console.log(BOLD + "By Gate" + RESET);
+    for (const g of report.gates) {
+      const color = frictionColor(g.frictionScore);
+      console.log(
+        `  ${color}${g.frictionScore.toFixed(2)}${RESET}  ${g.gate}` +
+        ` (${g.totalOccurrences} occurrences: ${g.deniedCount} denied, ${g.pendingCount} pending, ${g.approvedCount} approved)`,
+      );
+    }
   }
 }
 
