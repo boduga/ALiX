@@ -2094,11 +2094,10 @@ function isActionsSubcommand(s: string): s is ActionsSubcommand {
   return ["list", "refresh", "mark-executed", "dismiss"].includes(s);
 }
 
-const VALID_ACTIONS_KIND_FLAGS = ["--kind", "--status", "--json"] as const;
-const ACTIONS_KIND_MAP: Record<string, ActionProposalKind> = {
-  escalation_review: "escalation_review",
-  github_issue: "github_issue",
-};
+/** Generate a transition ID from a timestamp and proposal ID. */
+function transitionId(now: string, proposalId: string): string {
+  return `trans-${now.replace(/[:.]/g, "-")}-${proposalId.slice(0, 8)}-${Math.random().toString(36).slice(2, 6)}`;
+}
 
 async function runActions(args: string[]): Promise<void> {
   const cwd = process.cwd();
@@ -2128,30 +2127,31 @@ async function runActionsList(cwd: string, args: string[], jsonMode: boolean): P
 
   const proposals = await store.list();
 
+  // Resolve effective statuses for all proposals once — then filter and render synchronously.
+  // This avoids the O(N*M) repeated file-read pattern and the async-filter correctness bug.
+  const statusMap = new Map<string, ActionProposalStatus>();
+  for (const p of proposals) {
+    const transitions = await store.getTransitions(p.proposalId);
+    statusMap.set(p.proposalId, deriveEffectiveStatus(p, transitions));
+  }
+
   // Apply filters
-  const statusFilter = parseInlineFlag(args, "--status") as string | null;
-  const kindFilter = parseInlineFlag(args, "--kind") as string | null;
+  const statusFilter = parseInlineFlag(args, "--status") as ActionProposalStatus | null;
+  const kindFilter = parseInlineFlag(args, "--kind") as ActionProposalKind | null;
 
   let filtered = proposals;
   if (statusFilter) {
-    filtered = filtered.filter(async (p) => {
-      const transitions = await store.getTransitions(p.proposalId);
-      const effective = deriveEffectiveStatus(p, transitions);
-      return effective === statusFilter;
-    });
+    filtered = filtered.filter((p) => statusMap.get(p.proposalId) === statusFilter);
   }
   if (kindFilter) {
-    filtered = filtered.filter((p) => p.kind === (ACTIONS_KIND_MAP[kindFilter] ?? kindFilter));
+    filtered = filtered.filter((p) => p.kind === kindFilter);
   }
 
   if (jsonMode) {
-    // Resolve all effective statuses for JSON output
-    const withStatus = await Promise.all(
-      filtered.map(async (p) => {
-        const transitions = await store.getTransitions(p.proposalId);
-        return { ...p, effectiveStatus: deriveEffectiveStatus(p, transitions) };
-      }),
-    );
+    const withStatus = filtered.map((p) => ({
+      ...p,
+      effectiveStatus: statusMap.get(p.proposalId) ?? "pending",
+    }));
     console.log(JSON.stringify(withStatus, null, 2));
     return;
   }
@@ -2165,8 +2165,7 @@ async function runActionsList(cwd: string, args: string[], jsonMode: boolean): P
   console.log(BAR);
 
   for (const p of filtered) {
-    const transitions = await store.getTransitions(p.proposalId);
-    const effective = deriveEffectiveStatus(p, transitions);
+    const effective = statusMap.get(p.proposalId) ?? "pending";
     const statusColor = effective === "dismissed" ? DIM : effective === "marked_executed_elsewhere" ? GREEN : YELLOW;
     const kindColor = p.kind === "escalation_review" ? MAGENTA : CYAN;
 
@@ -2195,7 +2194,7 @@ async function runActionsRefresh(cwd: string, jsonMode: boolean): Promise<void> 
   const signalStore = new FileSignalStore(cwd);
   const now = new Date().toISOString();
 
-  const created = await refreshProposals(decisionStore, actionQueueStore, signalStore, now);
+  const created = await refreshProposals(signalStore, decisionStore, actionQueueStore, now);
 
   if (jsonMode) {
     console.log(JSON.stringify({ created: created.length, proposals: created }, null, 2));
@@ -2216,7 +2215,8 @@ async function runActionsRefresh(cwd: string, jsonMode: boolean): Promise<void> 
 }
 
 async function runActionsMarkExecuted(cwd: string, args: string[], jsonMode: boolean): Promise<void> {
-  const proposalId = args.find((a) => !a.startsWith("-") && !isActionsSubcommand(a));
+  const subIdx = args.findIndex((a) => isActionsSubcommand(a));
+  const proposalId = subIdx >= 0 ? args.slice(subIdx + 1).find((a) => !a.startsWith("-")) : undefined;
   if (!proposalId) {
     console.error("Usage: alix governance actions mark-executed <proposal-id> --ref <reference> [--json]");
     process.exit(1);
@@ -2245,10 +2245,10 @@ async function runActionsMarkExecuted(cwd: string, args: string[], jsonMode: boo
   }
 
   const now = new Date().toISOString();
-  const transitionId = `trans-${now.replace(/[:.]/g, "-")}-${proposalId.slice(0, 8)}-${Math.random().toString(36).slice(2, 6)}`;
+  const tid = transitionId(now, proposalId);
 
   const transition: ActionProposalStatusTransition = {
-    transitionId,
+    transitionId: tid,
     proposalId,
     status: "marked_executed_elsewhere",
     reason: null,
@@ -2266,11 +2266,12 @@ async function runActionsMarkExecuted(cwd: string, args: string[], jsonMode: boo
   console.log(GREEN + "Proposal marked as executed elsewhere" + RESET);
   console.log(`${DIM}Proposal:${RESET} ${proposalId} (${proposal.title})`);
   console.log(`${DIM}Ref:${RESET} ${executionRef}`);
-  console.log(`${DIM}Transition:${RESET} ${transitionId}`);
+  console.log(`${DIM}Transition:${RESET} ${tid}`);
 }
 
 async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean): Promise<void> {
-  const proposalId = args.find((a) => !a.startsWith("-") && !isActionsSubcommand(a));
+  const subIdx = args.findIndex((a) => isActionsSubcommand(a));
+  const proposalId = subIdx >= 0 ? args.slice(subIdx + 1).find((a) => !a.startsWith("-")) : undefined;
   if (!proposalId) {
     console.error("Usage: alix governance actions dismiss <proposal-id> --reason \"...\" [--json]");
     process.exit(1);
@@ -2299,11 +2300,11 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
   }
 
   const now = new Date().toISOString();
-  const transitionId = `trans-${now.replace(/[:.]/g, "-")}-${proposalId.slice(0, 8)}-${Math.random().toString(36).slice(2, 6)}`;
+  const tid = transitionId(now, proposalId);
 
   const transition: ActionProposalStatusTransition = {
-    transitionId,
-    proposalId: proposalId,
+    transitionId: tid,
+    proposalId,
     status: "dismissed",
     reason: reason.trim(),
     executionRef: null,
@@ -2320,7 +2321,7 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
   console.log(YELLOW + "Proposal dismissed" + RESET);
   console.log(`${DIM}Proposal:${RESET} ${proposalId} (${proposal.title})`);
   console.log(`${DIM}Reason:${RESET} ${reason.trim()}`);
-  console.log(`${DIM}Transition:${RESET} ${transitionId}`);
+  console.log(`${DIM}Transition:${RESET} ${tid}`);
 }
 
 // ---------------------------------------------------------------------------

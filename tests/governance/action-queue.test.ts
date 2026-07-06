@@ -510,7 +510,7 @@ describe("createActionProposal", () => {
     const decision = { decisionId: "dec-3", signalId: "sig-3", decision: "accept", rationale: "Agreed" };
     const signal = { signalId: "sig-3", title: "Test" };
 
-    await assert.rejects(
+    assert.throws(
       () => createActionProposal("prop-3", decision, signal, NOW),
       /not eligible/,
     );
@@ -520,7 +520,7 @@ describe("createActionProposal", () => {
     const decision = { decisionId: "dec-4", signalId: "sig-4", decision: "dismiss", rationale: "False positive" };
     const signal = { signalId: "sig-4", title: "Test" };
 
-    await assert.rejects(
+    assert.throws(
       () => createActionProposal("prop-4", decision, signal, NOW),
       /not eligible/,
     );
@@ -530,7 +530,7 @@ describe("createActionProposal", () => {
     const decision = { decisionId: "dec-5", signalId: "sig-5", decision: "defer", rationale: "Need more info" };
     const signal = { signalId: "sig-5", title: "Test" };
 
-    await assert.rejects(
+    assert.throws(
       () => createActionProposal("prop-5", decision, signal, NOW),
       /not eligible/,
     );
@@ -590,7 +590,7 @@ describe("refreshProposals", () => {
         : null,
     };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
 
     assert.equal(created.length, 2);
     assert.equal(created[0]!.kind, "escalation_review");
@@ -617,7 +617,7 @@ describe("refreshProposals", () => {
         id === "s2" ? { signalId: "s2", title: "Suggestion" } : null,
     };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
 
     // Only d2 should generate a proposal; d1 already has one
     assert.equal(created.length, 1);
@@ -640,7 +640,7 @@ describe("refreshProposals", () => {
       getById: async () => null,
     };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
 
     // d1 already has a proposal (even if later dismissed), so no new proposal
     assert.equal(created.length, 0);
@@ -662,7 +662,7 @@ describe("refreshProposals", () => {
       getById: async () => null,
     };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
     assert.equal(created.length, 0);
   });
 
@@ -678,7 +678,7 @@ describe("refreshProposals", () => {
       getById: async () => null,
     };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
     assert.equal(created.length, 0);
   });
 
@@ -695,7 +695,7 @@ describe("refreshProposals", () => {
         id === "s1" ? { signalId: "s1", title: "Alert 1" } : null, // s2 missing
     };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
 
     assert.equal(created.length, 1);
     assert.equal(created[0]!.decisionId, "d1");
@@ -706,7 +706,7 @@ describe("refreshProposals", () => {
     const decisionStore = { list: async () => [] };
     const signalStore = { getById: async () => null };
 
-    const created = await refreshProposals(decisionStore, store, signalStore, NOW);
+    const created = await refreshProposals(signalStore, decisionStore, store, NOW);
     assert.deepEqual(created, []);
   });
 });

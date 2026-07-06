@@ -279,7 +279,7 @@ export class FileActionQueueStore implements ActionQueueStore {
 
   async list(limit?: number): Promise<GovernanceActionProposal[]> {
     const proposals = await this.readProposals();
-    return limit !== undefined && limit >= 0 ? proposals.slice(0, limit) : proposals;
+    return limit !== undefined && limit > 0 ? proposals.slice(0, limit) : proposals;
   }
 
   async getById(proposalId: string): Promise<GovernanceActionProposal | null> {
@@ -351,7 +351,7 @@ const KIND_MAP: Record<string, ActionProposalKind> = {
  * @returns The created GovernanceActionProposal.
  * @throws If decision kind is not eligible for action proposal derivation.
  */
-export async function createActionProposal(
+export function createActionProposal(
   proposalId: string,
   decision: { decisionId: string; signalId: string; decision: string; rationale: string },
   signal: { signalId: string; title: string; description?: string; severity?: string },
@@ -378,7 +378,11 @@ export async function createActionProposal(
     createdAt: now,
   };
 
-  // validateActionProposal is a pure check — delegate enforcement to the store's append gate
+  const validation = validateActionProposal(proposal);
+  if (!validation.valid) {
+    throw new Error(`Invalid action proposal: ${validation.errors.join("; ")}`);
+  }
+
   return proposal;
 }
 
@@ -395,20 +399,20 @@ export async function createActionProposal(
  * just pending ones. This prevents dismissed or executed proposals from being
  * recreated on subsequent refresh runs.
  *
+ * @param signalStore - The P14.1 signal store for fetching signal details.
  * @param decisionStore - The P14.3 DecisionStore to scan.
  * @param actionQueueStore - This P14.4 ActionQueueStore for dedup and append.
- * @param signalStore - The P14.1 signal store for fetching signal details.
  * @param now - ISO timestamp to stamp on new proposals.
  * @returns The list of newly created proposals.
  */
 export async function refreshProposals(
+  signalStore: {
+    getById(id: string): Promise<{ signalId: string; title: string; description?: string; severity?: string } | null>;
+  },
   decisionStore: {
     list(limit?: number): Promise<{ decisionId: string; signalId: string; decision: string; rationale: string }[]>;
   },
   actionQueueStore: ActionQueueStore,
-  signalStore: {
-    getById(id: string): Promise<{ signalId: string; title: string; description?: string; severity?: string } | null>;
-  },
   now: string,
 ): Promise<GovernanceActionProposal[]> {
   const allDecisions = await decisionStore.list();
