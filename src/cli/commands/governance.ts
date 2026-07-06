@@ -42,6 +42,7 @@ import { type FailureAnalysis, failureSeverityForType } from "../../governance/f
 import type { PolicySuggestion } from "../../governance/policy-suggestions.js";
 import type { FrictionReport } from "../../governance/approval-friction.js";
 import type { GovernanceSignal } from "../../governance/governance-signal.js";
+import type { DecisionKind } from "../../governance/decision-capture.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -265,6 +266,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runInbox(rest);
     case "review":
       return runReview(rest);
+    case "decide":
+      return runDecide(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -1963,6 +1966,115 @@ function renderReviewCreated(
   console.log(`${DIM}Created:${RESET} ${review.createdAt}`);
   console.log(GREEN + "✓ Review appended to store." + RESET);
   console.log(DIM + "  Advisory only — no signal or policy mutation." + RESET);
+}
+
+// ---------------------------------------------------------------------------
+// P14.3 — Decision Capture
+// ---------------------------------------------------------------------------
+
+const KIND_FLAGS = ["--accept", "--dismiss", "--defer", "--escalate", "--convert-to-issue"] as const;
+const KIND_MAP: Record<string, string> = {
+  "--accept": "accept",
+  "--dismiss": "dismiss",
+  "--defer": "defer",
+  "--escalate": "escalate",
+  "--convert-to-issue": "convert_to_issue",
+};
+
+async function runDecide(args: string[]): Promise<void> {
+  const signalId = args.find((a) => !a.startsWith("-"));
+  if (!signalId) {
+    console.error("Usage: alix governance decide <signal-id> --<kind> --reason \"...\" [--as ...] [--review ...] [--json]");
+    process.exit(1);
+  }
+
+  const cwd = process.cwd();
+  const jsonMode = args.includes("--json");
+  const explicitAs = parseInlineFlag(args, "--as");
+  const reviewId = parseInlineFlag(args, "--review");
+  const rationale = parseInlineFlag(args, "--reason");
+
+  // Exactly one kind flag
+  const providedKindFlags = KIND_FLAGS.filter((f) => args.includes(f));
+  if (providedKindFlags.length === 0) {
+    console.error("Exactly one decision kind flag is required: --accept, --dismiss, --defer, --escalate, or --convert-to-issue.");
+    process.exit(1);
+  }
+  if (providedKindFlags.length > 1) {
+    console.error(`Multiple decision kind flags provided: ${providedKindFlags.join(", ")}. Exactly one is allowed.`);
+    process.exit(1);
+  }
+
+  const decisionKind = KIND_MAP[providedKindFlags[0]!]!;
+
+  // Rationale required
+  if (!rationale) {
+    console.error("Rationale is required and must be non-empty. Use --reason \"...\"");
+    process.exit(1);
+  }
+
+  const { FileSignalStore } = await import("../../governance/governance-signal.js");
+  const signalStore = new FileSignalStore(cwd);
+  const signal = await signalStore.getById(signalId);
+
+  if (!signal) {
+    console.error(`Signal not found: ${signalId}`);
+    process.exit(1);
+  }
+
+  const { FileDecisionStore, createOperatorDecision, resolveReviewer } = await import("../../governance/decision-capture.js");
+  const { FileReviewStore } = await import("../../governance/operator-review.js");
+  const decisionStore = new FileDecisionStore(cwd);
+  const reviewStore = new FileReviewStore(cwd);
+  const decider = resolveReviewer(explicitAs ?? undefined);
+  const now = new Date().toISOString();
+  const decisionId = `dec-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}`;
+
+  const decision = await createOperatorDecision(
+    decisionId,
+    signalId,
+    signal,
+    decisionKind as DecisionKind,
+    rationale,
+    decider,
+    reviewId,
+    reviewStore,
+    now,
+  );
+
+  await decisionStore.append(decision);
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ signal, decision }, null, 2));
+    return;
+  }
+
+  renderDecisionCreated(signal, decision);
+}
+
+function renderDecisionCreated(
+  signal: { signalId: string; title: string; severity: string },
+  decision: {
+    decisionId: string;
+    decision: string;
+    rationale: string;
+    decider: string;
+    reviewId: string | null;
+    actionProposalId: null;
+    createdAt: string;
+  },
+): void {
+  console.log(GREEN + "Decision Captured" + RESET);
+  console.log(`${DIM}Signal:${RESET} ${signal.title} (${signal.signalId})`);
+  console.log(`${DIM}Decision:${RESET} ${CYAN}${decision.decision}${RESET}`);
+  console.log(`${DIM}Rationale:${RESET} ${decision.rationale}`);
+  console.log(`${DIM}Decider:${RESET} ${decision.decider}`);
+  if (decision.reviewId) console.log(`${DIM}Review:${RESET} ${decision.reviewId}`);
+  console.log(`${DIM}Decision ID:${RESET} ${decision.decisionId}`);
+  console.log(`${DIM}Created:${RESET} ${decision.createdAt}`);
+  console.log(BAR);
+  console.log(GREEN + "✓ Decision appended to store." + RESET);
+  console.log(DIM + "  Advisory only — no action taken. No signal, policy, or gate mutation." + RESET);
 }
 
 // ---------------------------------------------------------------------------
