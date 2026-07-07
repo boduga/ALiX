@@ -113,10 +113,6 @@ function epochMs(ts: string): number {
   return Number.isNaN(d) ? NaN : d;
 }
 
-function isDecisionEvent(eventType: GovernanceEventType): boolean {
-  return DECISION_EVENT_TYPES.has(eventType);
-}
-
 // ---------------------------------------------------------------------------
 // Metric functions
 // ---------------------------------------------------------------------------

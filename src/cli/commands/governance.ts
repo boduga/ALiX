@@ -2929,7 +2929,6 @@ async function runAuditStats(
 
   // Apply time filter (inclusive lower, exclusive upper)
   if (fromArg !== null) {
-    const fromMs = new Date(fromArg).getTime();
     events = events.filter((e) => e.timestamp >= fromArg!);
   }
   if (toArg !== null) {
