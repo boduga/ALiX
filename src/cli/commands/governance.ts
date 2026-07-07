@@ -2376,12 +2376,16 @@ async function runAudit(rawArgs: string[]): Promise<void> {
 
   switch (sub) {
     case undefined:
+      printAuditHelp();
+      return;
     case "list":
       return runAuditList(cwd, args, jsonMode);
     case "show":
       return runAuditShow(cwd, args, jsonMode);
     case "trace":
       return runAuditTrace(cwd, args, jsonMode);
+    case "timeline":
+      return runAuditTimeline(cwd, args, jsonMode);
     case "actor":
       return runAuditActor(cwd, args, jsonMode);
     case "policy":
@@ -2395,11 +2399,121 @@ async function runAudit(rawArgs: string[]): Promise<void> {
         RED +
           'Unknown audit subcommand "' +
           sub +
-          '". Expected: list, show, trace, actor, policy, verify, export' +
+          '". Expected: list, show, trace, timeline, actor, policy, verify, export' +
           RESET,
       );
       process.exit(1);
   }
+}
+
+/**
+ * P14.8 — Help for bare `alix governance audit` (no subcommand).
+ * Prints the subcommand surface + examples; exits 0.
+ */
+function printAuditHelp(): void {
+  console.log(BOLD + "alix governance audit — Governance Audit Trail inspection" + RESET);
+  console.log("");
+  console.log(DIM + "Subcommands:" + RESET);
+  console.log("  list       List audit events (filters: --limit, --event-type, --subject,");
+  console.log("             --risk, --decision, --actor-type, --actor-id, --policy, --trace, --from, --to)");
+  console.log("  show       Show a single event in detail (--related for correlated events)");
+  console.log("  trace      Events for a trace id");
+  console.log("  timeline   Compact chronological timeline (--trace, --actor-id, --limit)");
+  console.log("  actor      Events for an actor id (--actor-type)");
+  console.log("  policy     Events for a policy id");
+  console.log("  verify     Verify the hash chain");
+  console.log("  export     Export the audit trail to a file");
+  console.log("");
+  console.log(DIM + "All subcommands accept --json for machine-readable output." + RESET);
+  console.log("");
+  console.log(DIM + "Examples:" + RESET);
+  console.log("  alix governance audit list --limit 20 --event-type action_escalated");
+  console.log("  alix governance audit timeline --trace req-123");
+  console.log("  alix governance audit show aud-abc123 --related");
+}
+
+// ---------------------------------------------------------------------------
+// P14.8 — Pure format helpers (unit-testable; return strings, no console I/O)
+// ---------------------------------------------------------------------------
+
+/** Structural subset of GovernanceAuditEvent needed for timeline rendering. */
+interface TimelineEvent {
+  timestamp: string;
+  eventType: string;
+  actorType: string;
+  actorId: string;
+  subjectType: string;
+  subjectId: string | null;
+  traceId: string | null;
+  decision: string;
+}
+
+/**
+ * Render a metadata object as indented key:value lines.
+ * Scalar values render as `key: value`; nested objects/arrays fall back to
+ * compact JSON so nothing is silently dropped. Returns "" for empty metadata.
+ */
+export function formatMetadata(metadata: Record<string, unknown>): string {
+  const keys = Object.keys(metadata);
+  if (keys.length === 0) return "";
+  return keys
+    .map((k) => {
+      const v = metadata[k];
+      const rendered =
+        v === null || v === undefined
+          ? "-"
+          : typeof v === "object"
+            ? JSON.stringify(v)
+            : String(v);
+      return `  ${k}: ${rendered}`;
+    })
+    .join("\n");
+}
+
+/**
+ * Render one compact timeline line for an event.
+ * Format: <timestamp>  <eventType>  <actorType>:<actorId>  <subjectType>:<subjectId>  <decision/traceId>
+ */
+export function formatTimelineLine(ev: TimelineEvent): string {
+  const ts = ev.timestamp.slice(0, 19).replace("T", " ");
+  const subject = ev.subjectId ? `${ev.subjectType}:${ev.subjectId}` : ev.subjectType;
+  const tail = ev.traceId ?? ev.decision;
+  return `${ts}  ${ev.eventType}  ${ev.actorType}:${ev.actorId}  ${subject}  ${tail}`;
+}
+
+/**
+ * P14.8 `show --related` — compute correlated events deterministically.
+ * Order: (1) same traceId, (2) same sessionId, (3) parent/child via parentEventId,
+ * (4) de-dup by eventId, (5) chronological, (6) exclude the event itself.
+ * Pure: takes all events + the focal event id, returns the related list.
+ */
+export function computeRelatedEvents<
+  T extends { eventId: string; traceId: string | null; sessionId: string | null; parentEventId: string | null; timestamp: string },
+>(all: T[], focalId: string): T[] {
+  const focal = all.find((e) => e.eventId === focalId);
+  if (!focal) return [];
+
+  const seen = new Set<string>([focalId]);
+  const matches = new Set<string>();
+
+  for (const e of all) {
+    if (e.eventId === focalId) continue;
+    const sameTrace = focal.traceId !== null && e.traceId === focal.traceId;
+    const sameSession = focal.sessionId !== null && e.sessionId === focal.sessionId;
+    const parentChild =
+      (focal.parentEventId !== null && e.eventId === focal.parentEventId) ||
+      (e.parentEventId !== null && e.parentEventId === focalId);
+    if (sameTrace || sameSession || parentChild) {
+      if (!seen.has(e.eventId)) {
+        seen.add(e.eventId);
+        matches.add(e.eventId);
+      }
+    }
+  }
+
+  return all
+    .filter((e) => matches.has(e.eventId))
+    .sort((a, b) => (a.timestamp < b.timestamp ? -1 : a.timestamp > b.timestamp ? 1 : 0));
 }
 
 async function runAuditList(
@@ -2427,6 +2541,37 @@ async function runAuditList(
   const traceFilter = parseInlineFlag(args, "--trace");
   const fromFilter = parseInlineFlag(args, "--from");
   const toFilter = parseInlineFlag(args, "--to");
+  const eventTypeFilter = parseInlineFlag(args, "--event-type");
+  const subjectFilter = parseInlineFlag(args, "--subject");
+  const riskFilter = parseInlineFlag(args, "--risk");
+  const limitArg = parseInlineFlag(args, "--limit");
+
+  // P14.8 — validate enum filters against the canonical sets
+  if (eventTypeFilter) {
+    const { VALID_EVENT_TYPES } = await import("../../governance/audit-types.js");
+    if (!(VALID_EVENT_TYPES as readonly string[]).includes(eventTypeFilter)) {
+      console.log(RED + `Invalid --event-type "${eventTypeFilter}". Valid: ${VALID_EVENT_TYPES.join(", ")}` + RESET);
+      process.exit(1);
+    }
+  }
+  if (riskFilter) {
+    const { VALID_RISK_LEVELS } = await import("../../governance/audit-types.js");
+    if (!(VALID_RISK_LEVELS as readonly string[]).includes(riskFilter)) {
+      console.log(RED + `Invalid --risk "${riskFilter}". Valid: ${VALID_RISK_LEVELS.join(", ")}` + RESET);
+      process.exit(1);
+    }
+  }
+
+  // P14.8 --limit: positive integer, default 50, reject 0/negative/non-number
+  let limit = 50;
+  if (limitArg !== null) {
+    const parsed = Number(limitArg);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      console.log(RED + `Invalid --limit "${limitArg}". Must be a positive integer.` + RESET);
+      process.exit(1);
+    }
+    limit = parsed;
+  }
 
   if (decisionFilter) {
     events = queryByDecision(events, decisionFilter as any);
@@ -2445,6 +2590,17 @@ async function runAuditList(
   if (fromFilter || toFilter) {
     events = queryByTimeRange(events, fromFilter ?? undefined, toFilter ?? undefined);
   }
+  // P14.8 — exact-match filters (case-sensitive, consistent with existing filters)
+  if (eventTypeFilter) {
+    events = events.filter((e) => e.eventType === eventTypeFilter);
+  }
+  if (subjectFilter) {
+    // matches subjectId OR subjectType
+    events = events.filter((e) => e.subjectId === subjectFilter || e.subjectType === subjectFilter);
+  }
+  if (riskFilter) {
+    events = events.filter((e) => e.riskLevel === riskFilter);
+  }
 
   if (jsonMode) {
     console.log(JSON.stringify(events, null, 2));
@@ -2461,7 +2617,7 @@ async function runAuditList(
   );
   console.log("");
 
-  for (const ev of events.slice(0, 50)) {
+  for (const ev of events.slice(0, limit)) {
     const color = eventTypeColor(ev.eventType);
     const tag = ev.eventType.padEnd(30);
     console.log(
@@ -2480,8 +2636,8 @@ async function runAuditList(
     console.log("");
   }
 
-  if (events.length > 50) {
-    console.log(DIM + "... and " + (events.length - 50) + " more" + RESET);
+  if (events.length > limit) {
+    console.log(DIM + "... and " + (events.length - limit) + " more" + RESET);
   }
 }
 
@@ -2492,9 +2648,11 @@ async function runAuditShow(
 ): Promise<void> {
   const eventId = args.find((a) => !a.startsWith("--"));
   if (!eventId) {
-    console.log(RED + "Usage: alix governance audit show <event-id>" + RESET);
+    console.log(RED + "Usage: alix governance audit show <event-id> [--related]" + RESET);
     process.exit(1);
   }
+
+  const relatedRequested = args.includes("--related");
 
   const { FileAuditStore } = await import("../../governance/audit-store.js");
   const store = new FileAuditStore(cwd);
@@ -2505,8 +2663,11 @@ async function runAuditShow(
     process.exit(1);
   }
 
+  // P14.8 — related events (deterministic correlation via computeRelatedEvents)
+  const related = relatedRequested ? computeRelatedEvents(await store.list(), event.eventId) : [];
+
   if (jsonMode) {
-    console.log(JSON.stringify(event, null, 2));
+    console.log(JSON.stringify(relatedRequested ? { ...event, related } : event, null, 2));
     return;
   }
 
@@ -2545,7 +2706,20 @@ async function runAuditShow(
   if (Object.keys(event.metadata).length > 0) {
     console.log("");
     console.log( BOLD + "Metadata:" + RESET);
-    console.log( "  " + JSON.stringify(event.metadata));
+    console.log(formatMetadata(event.metadata));
+  }
+
+  if (relatedRequested) {
+    console.log("");
+    console.log( BOLD + "Related events (" + related.length + "):" + RESET);
+    if (related.length === 0) {
+      console.log(DIM + "  (none)" + RESET);
+    } else {
+      for (const r of related) {
+        console.log("  " + eventTypeColor(r.eventType) + r.eventType + RESET + "  " +
+          r.timestamp.slice(0, 19).replace("T", " ") + "  " + DIM + r.eventId + RESET);
+      }
+    }
   }
 
   console.log("");
@@ -2600,6 +2774,56 @@ async function runAuditTrace(
     );
     console.log("");
   }
+}
+
+/**
+ * P14.8 — `audit timeline`: compact chronological view (oldest→newest).
+ * Optional --trace / --actor-id / --limit. Presentation only.
+ */
+async function runAuditTimeline(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const traceFilter = parseInlineFlag(args, "--trace");
+  const actorIdFilter = parseInlineFlag(args, "--actor-id");
+  const limitArg = parseInlineFlag(args, "--limit");
+
+  let limit = Infinity;
+  if (limitArg !== null) {
+    const parsed = Number(limitArg);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      console.log(RED + `Invalid --limit "${limitArg}". Must be a positive integer.` + RESET);
+      process.exit(1);
+    }
+    limit = parsed;
+  }
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { queryByTraceId } = await import("../../governance/audit-query.js");
+  const store = new FileAuditStore(cwd);
+
+  let events = await store.listChronological(); // oldest → newest
+  if (traceFilter) events = queryByTraceId(events, traceFilter);
+  if (actorIdFilter) events = events.filter((e) => e.actorId === actorIdFilter);
+  events = events.slice(0, limit);
+
+  if (jsonMode) {
+    console.log(JSON.stringify(events, null, 2));
+    return;
+  }
+
+  if (events.length === 0) {
+    console.log(DIM + "No audit events" + RESET);
+    return;
+  }
+
+  console.log(BOLD + "Governance Audit Timeline (" + events.length + ")" + RESET);
+  console.log(DIM + "time  eventType  actor  subject  ref   (oldest → newest)" + RESET);
+  for (const ev of events) {
+    console.log(eventTypeColor(ev.eventType) + formatTimelineLine(ev) + RESET);
+  }
+  console.log("");
 }
 
 async function runAuditActor(
