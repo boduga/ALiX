@@ -2789,7 +2789,7 @@ async function runAuditTimeline(
   const actorIdFilter = parseInlineFlag(args, "--actor-id");
   const limitArg = parseInlineFlag(args, "--limit");
 
-  let limit = Infinity;
+  let limit = 50;
   if (limitArg !== null) {
     const parsed = Number(limitArg);
     if (!Number.isInteger(parsed) || parsed <= 0) {
