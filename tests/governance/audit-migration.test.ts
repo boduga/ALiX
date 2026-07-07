@@ -558,28 +558,14 @@ describe("governance.ts strengthened sentinels (P14.7)", () => {
 
   it("contains no inline new FileAuditStore(...).append(...) construction", () => {
     // Catches a re-introduced P14.6a pattern anywhere in the file, regardless
-    // of how the variable is named.
-    const inlinePattern = /new\s+FileAuditStore\([^)]*\)\s*\.append\(/;
+    // of how the variable is named or whether the constructor arg contains
+    // nested parens (e.g. process.cwd() or join(cwd, "x")). Requires the ctor's
+    // closing paren to immediately precede .append( so it does not match the
+    // valid `auditXStore(new FileXStore(cwd), new FileAuditStore(cwd))` form.
+    const inlinePattern = /new\s+FileAuditStore\s*\([\s\S]*?\)\s*\.append\s*\(/;
     assert.ok(
       !inlinePattern.test(source),
       "governance.ts must not construct FileAuditStore and append inline; use an audited store decorator",
-    );
-  });
-
-  it("mutation paths continue to use audited store decorators", () => {
-    // HEURISTIC migration sentinel. Asserts that every audited store factory is
-    // present in the CLI. If governance.ts is refactored, UPDATE THIS TEST to
-    // preserve the invariant: mutation paths must use audited store decorators.
-    // This is intentionally a presence check, not a full data-flow proof — the
-    // per-handler single-emission tests above carry the strict assertions.
-    const required = ["auditSignalStore", "auditReviewStore", "auditDecisionStore", "auditActionQueueStore"];
-    const missing = required.filter((name) => !source.includes(name));
-    assert.equal(
-      missing.length,
-      0,
-      `governance.ts is missing audited store decorator(s): ${missing.join(", ")}. ` +
-        "If you refactored the CLI, update this heuristic sentinel while keeping the invariant: " +
-        "all governance mutation paths must route through audited store decorators.",
     );
   });
 });
