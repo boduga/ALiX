@@ -1,12 +1,20 @@
 /**
  * Tests for P14.6c — CLI Migration to Store-Level Audit Decorators.
+ * Extended by P14.7 — Governance Audit Hardening / Coverage Closure.
  *
  * Proves each governance CLI mutation emits exactly one audit event through
  * store-level decorators, with no duplicate or missing emissions.
  *
- * Sentinel tests (9-10) scan governance.ts as text to verify:
- * - No direct P14.6a emitter calls remain
- * - Audited decorator factories are wired in
+ * Coverage blocks:
+ *  - Per-store migration invariants (P14.6c): single emission, read silence,
+ *    failure propagation, non-fatal audit.
+ *  - refreshProposals integration (P14.7 / Issue #241): the indirect write path.
+ *  - Full-matrix single emission (P14.7): correct eventType per mutation.
+ *  - Read-only silence matrix (P14.7): every read method audit-silent.
+ *  - Sentinel tests scan governance.ts as text to verify:
+ *      * No direct P14.6a emitter calls remain
+ *      * No audit-emitters import at all
+ *      * Audited decorator factories are wired into mutation paths
  *
  * @module
  */
@@ -17,9 +25,10 @@
 
 import { describe, it, mock } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -35,12 +44,16 @@ import {
   auditReviewStore,
 } from "../../src/governance/audit-decorators.js";
 
+import { FileSignalStore } from "../../src/governance/governance-signal.js";
+import { FileDecisionStore } from "../../src/governance/decision-capture.js";
+import { FileActionQueueStore, refreshProposals } from "../../src/governance/action-queue.js";
+
 import type { GovernanceSignal, SignalStore, SignalType } from "../../src/governance/governance-signal.js";
 import type { OperatorDecision, DecisionStore, DecisionKind } from "../../src/governance/decision-capture.js";
 import type { GovernanceActionProposal, ActionQueueStore, ActionProposalStatusTransition, ActionProposalKind } from "../../src/governance/action-queue.js";
 import type { OperatorReview, ReviewStore } from "../../src/governance/operator-review.js";
 import type { AuditStore } from "../../src/governance/audit-store.js";
-import type { GovernanceAuditEventInput } from "../../src/governance/audit-types.js";
+import type { GovernanceAuditEvent, GovernanceAuditEventInput } from "../../src/governance/audit-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -137,6 +150,37 @@ function createMockAuditStore(): AuditStore {
     getById: mock.fn(async (_id: string) => null),
     size: mock.fn(async () => 0),
   };
+}
+
+/**
+ * In-memory spy audit store — captures every GovernanceAuditEventInput so
+ * tests can assert on count AND event type (not just call count).
+ */
+function createSpyAuditStore(): { store: AuditStore; events: GovernanceAuditEventInput[] } {
+  const events: GovernanceAuditEventInput[] = [];
+  const store: AuditStore = {
+    append: async (input: GovernanceAuditEventInput): Promise<GovernanceAuditEvent> => {
+      events.push(input);
+      return { ...input, previousHash: null, eventHash: "spy-hash" } as GovernanceAuditEvent;
+    },
+    list: async () => [],
+    listChronological: async () => [],
+    getById: async (_id: string) => null,
+    size: async () => events.length,
+  };
+  return { store, events };
+}
+
+// ---------------------------------------------------------------------------
+// Temp dir helpers (for end-to-end File-store seeding)
+// ---------------------------------------------------------------------------
+
+function makeTempDir(prefix: string): string {
+  return mkdtempSync(join(tmpdir(), prefix));
+}
+
+function cleanupTempDir(dir: string): void {
+  rmSync(dir, { recursive: true, force: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -496,6 +540,51 @@ describe("governance.ts migration sentinel", () => {
 });
 
 // ---------------------------------------------------------------------------
+// P14.7 — Strengthened regression sentinels
+// ---------------------------------------------------------------------------
+
+describe("governance.ts strengthened sentinels (P14.7)", () => {
+  const CLI_PATH = resolve(__dirname, "../../src/cli/commands/governance.ts");
+  const source: string = readFileSync(CLI_PATH, "utf8");
+
+  it("does not import the audit-emitters module at all", () => {
+    // The CLI must never touch emitters directly — only via decorators.
+    // Stronger than per-symbol checks: bans the whole module.
+    assert.ok(
+      !source.includes("audit-emitters"),
+      "governance.ts must not import audit-emitters; audit emission must flow through audited store decorators",
+    );
+  });
+
+  it("contains no inline new FileAuditStore(...).append(...) construction", () => {
+    // Catches a re-introduced P14.6a pattern anywhere in the file, regardless
+    // of how the variable is named.
+    const inlinePattern = /new\s+FileAuditStore\([^)]*\)\s*\.append\(/;
+    assert.ok(
+      !inlinePattern.test(source),
+      "governance.ts must not construct FileAuditStore and append inline; use an audited store decorator",
+    );
+  });
+
+  it("mutation paths continue to use audited store decorators", () => {
+    // HEURISTIC migration sentinel. Asserts that every audited store factory is
+    // present in the CLI. If governance.ts is refactored, UPDATE THIS TEST to
+    // preserve the invariant: mutation paths must use audited store decorators.
+    // This is intentionally a presence check, not a full data-flow proof — the
+    // per-handler single-emission tests above carry the strict assertions.
+    const required = ["auditSignalStore", "auditReviewStore", "auditDecisionStore", "auditActionQueueStore"];
+    const missing = required.filter((name) => !source.includes(name));
+    assert.equal(
+      missing.length,
+      0,
+      `governance.ts is missing audited store decorator(s): ${missing.join(", ")}. ` +
+        "If you refactored the CLI, update this heuristic sentinel while keeping the invariant: " +
+        "all governance mutation paths must route through audited store decorators.",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Sentinel: governance.ts contains audited store factory usage
 // ---------------------------------------------------------------------------
 
@@ -517,5 +606,235 @@ describe("governance.ts migration sentinel — audited wrappers present", () => 
 
   it("contains auditActionQueueStore", () => {
     assert.ok(source.includes("auditActionQueueStore"), "auditActionQueueStore not found in governance.ts");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P14.7 / Issue #241 — refreshProposals integration (indirect write path)
+// ---------------------------------------------------------------------------
+
+describe("refreshProposals via audited action queue store", () => {
+  it("emits exactly one action_escalated event per created proposal", async () => {
+    const dir = makeTempDir("gov-p147-refresh-");
+    try {
+      const signalStore = new FileSignalStore(dir);
+      await signalStore.append(makeSignal({ signalId: "sig-refresh-1" }));
+
+      const decisionStore = new FileDecisionStore(dir);
+      await decisionStore.append(makeDecision("escalate", {
+        decisionId: "dec-refresh-1",
+        signalId: "sig-refresh-1",
+      }));
+
+      const { store: auditStore, events } = createSpyAuditStore();
+      const actionQueueStore = auditActionQueueStore(new FileActionQueueStore(dir), auditStore);
+
+      const created = await refreshProposals(signalStore, decisionStore, actionQueueStore, NOW);
+
+      assert.equal(created.length, 1);
+      assert.equal(events.length, 1);
+      assert.equal(events[0]!.eventType, "action_escalated");
+      assert.equal(events[0]!.subjectId, created[0]!.proposalId);
+    } finally {
+      cleanupTempDir(dir);
+    }
+  });
+
+  it("emits exactly two events for two eligible decisions (escalate + convert_to_issue)", async () => {
+    const dir = makeTempDir("gov-p147-refresh-");
+    try {
+      const signalStore = new FileSignalStore(dir);
+      await signalStore.append(makeSignal({ signalId: "sig-a" }));
+      await signalStore.append(makeSignal({ signalId: "sig-b" }));
+
+      const decisionStore = new FileDecisionStore(dir);
+      await decisionStore.append(makeDecision("escalate", { decisionId: "dec-a", signalId: "sig-a" }));
+      await decisionStore.append(makeDecision("convert_to_issue", { decisionId: "dec-b", signalId: "sig-b" }));
+
+      const { store: auditStore, events } = createSpyAuditStore();
+      const actionQueueStore = auditActionQueueStore(new FileActionQueueStore(dir), auditStore);
+
+      const created = await refreshProposals(signalStore, decisionStore, actionQueueStore, NOW);
+
+      assert.equal(created.length, 2);
+      assert.equal(events.length, 2);
+      assert.equal(events[0]!.eventType, "action_escalated");
+      assert.equal(events[1]!.eventType, "action_escalated");
+    } finally {
+      cleanupTempDir(dir);
+    }
+  });
+
+  it("emits zero new events on re-run (dedup)", async () => {
+    const dir = makeTempDir("gov-p147-refresh-");
+    try {
+      const signalStore = new FileSignalStore(dir);
+      await signalStore.append(makeSignal({ signalId: "sig-dedup" }));
+
+      const decisionStore = new FileDecisionStore(dir);
+      await decisionStore.append(makeDecision("escalate", { decisionId: "dec-dedup", signalId: "sig-dedup" }));
+
+      const { store: auditStore, events } = createSpyAuditStore();
+      const actionQueueStore = auditActionQueueStore(new FileActionQueueStore(dir), auditStore);
+
+      const firstRun = await refreshProposals(signalStore, decisionStore, actionQueueStore, NOW);
+      assert.equal(firstRun.length, 1);
+      assert.equal(events.length, 1);
+
+      // Re-run over the same data — proposals already exist, so no new writes
+      const secondRun = await refreshProposals(signalStore, decisionStore, actionQueueStore, NOW);
+      assert.equal(secondRun.length, 0);
+      assert.equal(events.length, 1, "re-run must not emit new audit events");
+    } finally {
+      cleanupTempDir(dir);
+    }
+  });
+
+  it("emits zero events when the decision's signal is missing", async () => {
+    const dir = makeTempDir("gov-p147-refresh-");
+    try {
+      const signalStore = new FileSignalStore(dir);
+      const decisionStore = new FileDecisionStore(dir);
+      // Eligible decision, but no matching signal in the store
+      await decisionStore.append(makeDecision("escalate", { decisionId: "dec-orphan", signalId: "sig-missing" }));
+
+      const { store: auditStore, events } = createSpyAuditStore();
+      const actionQueueStore = auditActionQueueStore(new FileActionQueueStore(dir), auditStore);
+
+      const created = await refreshProposals(signalStore, decisionStore, actionQueueStore, NOW);
+
+      assert.equal(created.length, 0);
+      assert.equal(events.length, 0);
+    } finally {
+      cleanupTempDir(dir);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P14.7 — Full-matrix single audit emission (correct eventType per mutation)
+// ---------------------------------------------------------------------------
+
+describe("full-matrix single audit emission (correct eventType)", () => {
+  it("signal append emits exactly one policy_evaluated event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditSignalStore(createMockSignalStore(), audit);
+
+    await store.append(makeSignal());
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "policy_evaluated");
+  });
+
+  it("review append emits exactly one human_approval_requested event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditReviewStore(createMockReviewStore(), audit);
+
+    await store.append(makeReview());
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "human_approval_requested");
+  });
+
+  it("decide accept emits exactly one action_allowed event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditDecisionStore(createMockDecisionStore(), audit);
+
+    await store.append(makeDecision("accept"));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "action_allowed");
+  });
+
+  it("decide dismiss emits exactly one action_denied event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditDecisionStore(createMockDecisionStore(), audit);
+
+    await store.append(makeDecision("dismiss"));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "action_denied");
+  });
+
+  it("decide escalate emits exactly one action_escalated event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditDecisionStore(createMockDecisionStore(), audit);
+
+    await store.append(makeDecision("escalate"));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "action_escalated");
+  });
+
+  it("actions mark-executed emits exactly one override_applied event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditActionQueueStore(createMockActionQueueStore(), audit);
+
+    await store.appendStatusTransition(makeTransition("marked_executed_elsewhere"));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "override_applied");
+  });
+
+  it("actions dismiss transition emits exactly one override_applied event", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditActionQueueStore(createMockActionQueueStore(), audit);
+
+    await store.appendStatusTransition(makeTransition("dismissed"));
+
+    assert.equal(events.length, 1);
+    assert.equal(events[0]!.eventType, "override_applied");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P14.7 — Read-only operations remain audit-silent (consolidated matrix)
+// ---------------------------------------------------------------------------
+
+describe("read-only operations remain audit-silent (matrix)", () => {
+  it("audited signal store read methods emit zero events", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditSignalStore(createMockSignalStore(), audit);
+
+    await store.list();
+    await store.getById("any");
+    await store.query({ severity: "high" });
+
+    assert.equal(events.length, 0);
+  });
+
+  it("audited decision store read methods emit zero events", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditDecisionStore(createMockDecisionStore(), audit);
+
+    await store.list();
+    await store.getById("any");
+    await store.getBySignalId("any");
+    await store.getByKind("accept");
+
+    assert.equal(events.length, 0);
+  });
+
+  it("audited action queue store read methods emit zero events", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditActionQueueStore(createMockActionQueueStore(), audit);
+
+    await store.list();
+    await store.getById("any");
+    await store.getByDecisionId("any");
+    await store.getTransitions("any");
+
+    assert.equal(events.length, 0);
+  });
+
+  it("audited review store read methods emit zero events", async () => {
+    const { store: audit, events } = createSpyAuditStore();
+    const store = auditReviewStore(createMockReviewStore(), audit);
+
+    await store.list();
+    await store.getById("any");
+    await store.getBySignalId("any");
+
+    assert.equal(events.length, 0);
   });
 });
