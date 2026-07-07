@@ -2386,6 +2386,8 @@ async function runAudit(rawArgs: string[]): Promise<void> {
       return runAuditTrace(cwd, args, jsonMode);
     case "timeline":
       return runAuditTimeline(cwd, args, jsonMode);
+    case "stats":
+      return runAuditStats(cwd, args, jsonMode);
     case "actor":
       return runAuditActor(cwd, args, jsonMode);
     case "policy":
@@ -2399,7 +2401,7 @@ async function runAudit(rawArgs: string[]): Promise<void> {
         RED +
           'Unknown audit subcommand "' +
           sub +
-          '". Expected: list, show, trace, timeline, actor, policy, verify, export' +
+          '". Expected: list, show, trace, timeline, stats, actor, policy, verify, export' +
           RESET,
       );
       process.exit(1);
@@ -2423,6 +2425,7 @@ function printAuditHelp(): void {
   console.log("  policy     Events for a policy id");
   console.log("  verify     Verify the hash chain");
   console.log("  export     Export the audit trail to a file");
+  console.log("  stats      Governance metrics (--window, --from, --to, --top)");
   console.log("");
   console.log(DIM + "All subcommands accept --json for machine-readable output." + RESET);
   console.log("");
@@ -2824,6 +2827,232 @@ async function runAuditTimeline(
     console.log(eventTypeColor(ev.eventType) + formatTimelineLine(ev) + RESET);
   }
   console.log("");
+}
+
+/**
+ * P15.1 — `audit stats`: governance audit metrics and diagnostics.
+ *
+ * Sub-subcommand: `before-after <bf> <bt> <af> <at>` for two-window comparison.
+ * Flags: --window (minutes, default 60), --from, --to, --top (default 10), --json.
+ */
+async function runAuditStats(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  // Detect before-after sub-subcommand
+  if (args.includes("before-after")) {
+    const idx = args.indexOf("before-after");
+    const isoArgs = [args[idx + 1], args[idx + 2], args[idx + 3], args[idx + 4]];
+    if (isoArgs.some((a) => !a)) {
+      console.log(RED + "Usage: alix governance audit stats before-after <bf> <bt> <af> <at> [--json]" + RESET);
+      process.exit(1);
+    }
+    for (const a of isoArgs) {
+      if (Number.isNaN(new Date(a).getTime())) {
+        console.log(RED + `Invalid ISO timestamp: "${a}"` + RESET);
+        process.exit(1);
+      }
+    }
+
+    const { FileAuditStore } = await import("../../governance/audit-store.js");
+    const { beforeAfterComparison } = await import("../../governance/audit-metrics.js");
+    const store = new FileAuditStore(cwd);
+    const events = await store.list();
+    const result = beforeAfterComparison(events, isoArgs[0]!, isoArgs[1]!, isoArgs[2]!, isoArgs[3]!);
+
+    if (jsonMode) {
+      console.log(JSON.stringify(result, null, 2));
+      return;
+    }
+
+    console.log(BOLD + "Governance Audit — Before/After" + RESET);
+    console.log(`  ${DIM}Before:${RESET} ${isoArgs[0]} → ${isoArgs[1]}  (${result.before.totalEvents} events)`);
+    console.log(`  ${DIM}After:${RESET}  ${isoArgs[2]} → ${isoArgs[3]}  (${result.after.totalEvents} events)`);
+    console.log("");
+    console.log(BOLD + "Delta:" + RESET);
+    console.log(`  totalEvents:    ${deltaSign(result.delta.totalEvents)}${result.delta.totalEvents}`);
+    console.log(`  allowed rate:   ${deltaSign(result.delta.decisionRates.allowed)}${result.delta.decisionRates.allowed.toFixed(3)}`);
+    console.log(`  denied rate:    ${deltaSign(result.delta.decisionRates.denied)}${result.delta.decisionRates.denied.toFixed(3)}`);
+    console.log(`  escalated rate: ${deltaSign(result.delta.decisionRates.escalated)}${result.delta.decisionRates.escalated.toFixed(3)}`);
+    console.log(`  overridden rate:${deltaSign(result.delta.decisionRates.overridden)}${result.delta.decisionRates.overridden.toFixed(3)}`);
+    if (result.delta.riskDistribution && Object.keys(result.delta.riskDistribution).length > 0) {
+      console.log("  risk delta:");
+      for (const [k, v] of Object.entries(result.delta.riskDistribution).sort()) {
+        console.log(`    ${k}: ${deltaSign(v)}${v}`);
+      }
+    }
+    console.log("");
+    return;
+  }
+
+  // Standard stats
+  const windowArg = parseInlineFlag(args, "--window");
+  const fromArg = parseInlineFlag(args, "--from");
+  const toArg = parseInlineFlag(args, "--to");
+  const topArg = parseInlineFlag(args, "--top");
+
+  // Validate
+  let windowMs = 60 * 60 * 1000; // default 60 minutes
+  if (windowArg !== null) {
+    const parsed = Number(windowArg);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      console.log(RED + `Invalid --window "${windowArg}". Must be a positive integer of minutes.` + RESET);
+      process.exit(1);
+    }
+    windowMs = parsed * 60 * 1000;
+  }
+
+  if (fromArg !== null && Number.isNaN(new Date(fromArg).getTime())) {
+    console.log(RED + `Invalid --from "${fromArg}". Must be an ISO timestamp.` + RESET);
+    process.exit(1);
+  }
+  if (toArg !== null && Number.isNaN(new Date(toArg).getTime())) {
+    console.log(RED + `Invalid --to "${toArg}". Must be an ISO timestamp.` + RESET);
+    process.exit(1);
+  }
+
+  let topN = 10;
+  if (topArg !== null) {
+    const parsed = Number(topArg);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      console.log(RED + `Invalid --top "${topArg}". Must be a positive integer.` + RESET);
+      process.exit(1);
+    }
+    topN = parsed;
+  }
+
+  // Fetch events
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const store = new FileAuditStore(cwd);
+  let events = await store.list();
+
+  // Apply time filter (inclusive lower, exclusive upper)
+  if (fromArg !== null) {
+    events = events.filter((e) => e.timestamp >= fromArg!);
+  }
+  if (toArg !== null) {
+    events = events.filter((e) => e.timestamp < toArg!);
+  }
+
+  // Compute metrics
+  const {
+    eventTypeDistribution,
+    decisionRates,
+    riskDistribution,
+    timeWindowedCounts,
+    topActors,
+    topSubjects,
+    policyActivity,
+    traceVolume,
+  } = await import("../../governance/audit-metrics.js");
+
+  const dist = eventTypeDistribution(events);
+  const rates = decisionRates(events);
+  const risk = riskDistribution(events);
+  const buckets = timeWindowedCounts(events, windowMs);
+  const actors = topActors(events, topN);
+  const subjects = topSubjects(events, topN);
+  const policies = policyActivity(events);
+  const trace = traceVolume(events);
+
+  // Render
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      totalEvents: events.length,
+      eventTypeDistribution: dist,
+      decisionRates: rates,
+      riskDistribution: risk,
+      timeBuckets: buckets,
+      actors,
+      subjects,
+      policies,
+      traceVolume: trace,
+    }, null, 2));
+    return;
+  }
+
+  console.log(BOLD + `Governance Audit Metrics (${events.length} events, ${windowArg ?? "60"}m window)` + RESET);
+  console.log(DIM + "─".repeat(50) + RESET);
+  console.log("");
+
+  // Event type distribution
+  const sortedTypes = Object.entries(dist).sort((a, b) => a[0].localeCompare(b[0]));
+  console.log(BOLD + "Event type distribution:" + RESET);
+  for (const [type, count] of sortedTypes) {
+    const color = eventTypeColor(type as any);
+    console.log(`  ${color}${type.padEnd(25)}${RESET} ${count}`);
+  }
+  console.log("");
+
+  // Decision rates
+  console.log(BOLD + "Decision rates:" + RESET);
+  for (const [k, v] of Object.entries(rates)) {
+    console.log(`  ${k.padEnd(12)} ${(v as number).toFixed(3)}`);
+  }
+  console.log("");
+
+  // Risk distribution
+  const sortedRisk = Object.entries(risk).sort((a, b) => a[0].localeCompare(b[0]));
+  console.log(BOLD + "Risk distribution:" + RESET);
+  for (const [level, count] of sortedRisk) {
+    const color = level === "critical" ? RED : level === "high" ? YELLOW : level === "medium" ? "" : DIM;
+    console.log(`  ${color}${level.padEnd(10)}${RESET} ${count}`);
+  }
+  console.log("");
+
+  // Top actors
+  console.log(BOLD + `Top actors (${actors.length}):` + RESET);
+  for (const a of actors) {
+    console.log(`  ${a.actorId.padEnd(30)} ${a.count}  ${DIM}last: ${a.lastSeen.slice(0, 19).replace("T", " ")}${RESET}`);
+  }
+  console.log("");
+
+  // Top subjects
+  if (subjects.length > 0) {
+    console.log(BOLD + `Top subjects (${subjects.length}):` + RESET);
+    for (const s of subjects) {
+      console.log(`  ${s.subjectType}/${s.subjectId.padEnd(20)} ${s.count}`);
+    }
+    console.log("");
+  }
+
+  // Policy activity
+  if (policies.length > 0) {
+    console.log(BOLD + `Policy activity (${policies.length}):` + RESET);
+    for (const p of policies) {
+      console.log(`  ${p.policyId.padEnd(25)} ${p.count}`);
+    }
+    console.log("");
+  }
+
+  // Trace volume
+  if (events.length > 0) {
+    console.log(BOLD + "Trace volume:" + RESET);
+    console.log(`  with trace:  ${trace.eventsWithTrace}  (${(trace.traceRatio * 100).toFixed(0)}%)`);
+    console.log(`  without:     ${trace.totalEvents - trace.eventsWithTrace}`);
+    console.log("");
+  }
+
+  // Time buckets
+  if (buckets.length > 0) {
+    console.log(BOLD + "Time buckets (" + (windowArg ?? "60") + "m intervals):" + RESET);
+    for (const b of buckets) {
+      console.log(`  ${b.windowStart.slice(0, 19).replace("T", " ")}  ${b.count}`);
+    }
+    console.log("");
+  }
+
+  // Time window summary
+  if (events.length > 0) {
+    console.log(DIM + `Time window: ${events.reduce((a, b) => a.timestamp < b.timestamp ? a : b).timestamp.slice(0, 19).replace("T", " ")} → ${events.reduce((a, b) => a.timestamp > b.timestamp ? a : b).timestamp.slice(0, 19).replace("T", " ")}` + RESET);
+    console.log("");
+  }
+}
+
+/** Format a signed delta for display. */
+function deltaSign(v: number): string {
+  return v > 0 ? "+" : v < 0 ? "" : " ";
 }
 
 async function runAuditActor(
