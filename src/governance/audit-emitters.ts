@@ -15,10 +15,11 @@
 // Imports
 // ---------------------------------------------------------------------------
 
-import type { GovernanceAuditEventInput, GovernanceEventType } from "./audit-types.js";
+import type { GovernanceAuditEventInput, GovernanceEventType, RiskLevel } from "./audit-types.js";
 import type { GovernanceSignal } from "./governance-signal.js";
 import type { OperatorDecision, DecisionKind } from "./decision-capture.js";
 import type { GovernanceActionProposal, ActionProposalStatusTransition } from "./action-queue.js";
+import type { OperatorReview } from "./operator-review.js";
 
 // ---------------------------------------------------------------------------
 // Decision kind → event type mapping
@@ -173,6 +174,103 @@ export function actionOverriddenEvent(
       transitionStatus: transition.status,
       executionRef: transition.executionRef,
       proposalKind: proposal?.kind ?? null,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Proposal kind → risk level mapping
+// ---------------------------------------------------------------------------
+
+const PROPOSAL_RISK_MAP: Record<string, RiskLevel> = {
+  escalation_review: "high",
+  github_issue: "medium",
+};
+
+// ---------------------------------------------------------------------------
+// Action proposed
+// ---------------------------------------------------------------------------
+
+/**
+ * Create an audit event for an action proposal being created in the queue.
+ *
+ * Maps to ACTION_ESCALATED — a proposal represents an escalated decision
+ * that has been converted into an actionable item. This is a distinct
+ * factory from decisionRecordedEvent() because proposal action escalation
+ * is a separate governance event from operator decision recording.
+ */
+export function actionProposedEvent(
+  proposal: GovernanceActionProposal,
+  traceId?: string,
+): GovernanceAuditEventInput {
+  return {
+    eventId: `aud-${proposal.proposalId}`,
+    timestamp: proposal.createdAt,
+    eventType: "action_escalated",
+    actorType: "system",
+    actorId: "governance",
+    subjectType: "proposal",
+    subjectId: proposal.proposalId,
+    action: "escalate",
+    decision: "escalated",
+    policyId: null,
+    policyVersion: null,
+    ruleId: null,
+    reason: `Action proposal "${proposal.title}" (${proposal.kind}) created from decision ${proposal.decisionId}`,
+    evidenceRefs: [proposal.decisionId, proposal.signalId],
+    requestId: null,
+    traceId: traceId ?? null,
+    sessionId: null,
+    parentEventId: null,
+    riskLevel: PROPOSAL_RISK_MAP[proposal.kind] ?? "medium",
+    requiresHumanReview: true,
+    metadata: {
+      proposalKind: proposal.kind,
+      sourceDecisionId: proposal.decisionId,
+      targetRef: null,
+    },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Review submitted
+// ---------------------------------------------------------------------------
+
+/**
+ * Create an audit event for an operator review being submitted on a signal.
+ *
+ * Maps to HUMAN_APPROVAL_REQUESTED — the review represents a human operator
+ * examining a governance signal and providing notes/classification.
+ */
+export function reviewSubmittedEvent(
+  review: OperatorReview,
+  traceId?: string,
+): GovernanceAuditEventInput {
+  return {
+    eventId: `aud-${review.reviewId}`,
+    timestamp: review.createdAt,
+    eventType: "human_approval_requested",
+    actorType: "human",
+    actorId: review.reviewer,
+    subjectType: "signal",
+    subjectId: review.signalId,
+    action: "submit_review",
+    decision: "allowed",
+    policyId: null,
+    policyVersion: null,
+    ruleId: null,
+    reason: `Review by ${review.reviewer} on signal ${review.signalId}`,
+    evidenceRefs: [review.signalId],
+    requestId: null,
+    traceId: traceId ?? null,
+    sessionId: null,
+    parentEventId: null,
+    riskLevel: "medium",
+    requiresHumanReview: false,
+    metadata: {
+      reviewId: review.reviewId,
+      hasNotes: review.notes !== null,
+      hasClassification: review.classification !== null,
     },
   };
 }
