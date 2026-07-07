@@ -1819,8 +1819,12 @@ async function runInboxRefresh(args: string[]): Promise<void> {
   const policySuggestions = computePolicySuggestions(entries, records);
   const frictionReport = computeFrictionReport(entries);
 
-  // Load existing signals for dedup
-  const signalStore = new FileSignalStore(cwd);
+  // Create audited signal store — outgoing append emits exactly one audit event
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { auditSignalStore } = await import("../../governance/audit-decorators.js");
+  const auditStore = new FileAuditStore(cwd);
+  const signalStore = auditSignalStore(new FileSignalStore(cwd), auditStore);
+
   const existingSignals = await signalStore.list();
 
   // Normalise and dedup
@@ -1834,16 +1838,10 @@ async function runInboxRefresh(args: string[]): Promise<void> {
     now,
   );
 
-  // Append new signals
+  // Append new signals — decorator handles audit emission
   let appended = 0;
   for (const signal of newSignals) {
     await signalStore.append(signal);
-    // Non-fatal audit emission — one POLICY_EVALUATED per new signal
-    try {
-      const { FileAuditStore } = await import("../../governance/audit-store.js");
-      const { signalEvaluatedEvent } = await import("../../governance/audit-emitters.js");
-      await new FileAuditStore(cwd).append(signalEvaluatedEvent(signal));
-    } catch { /* audit failure is non-fatal */ }
     appended++;
   }
 
@@ -1916,9 +1914,11 @@ async function runReview(args: string[]): Promise<void> {
     return;
   }
 
-  // Create mode — validation is handled by createOperatorReview / validateOperatorReview
+  // Create mode — use audited review store for single audit emission
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { auditReviewStore } = await import("../../governance/audit-decorators.js");
   const { FileReviewStore, createOperatorReview, resolveReviewer } = await import("../../governance/operator-review.js");
-  const reviewStore = new FileReviewStore(cwd);
+  const reviewStore = auditReviewStore(new FileReviewStore(cwd), new FileAuditStore(cwd));
   const reviewer = resolveReviewer(explicitAs ?? undefined);
   const now = new Date().toISOString();
   const reviewId = `rev-${now.replace(/[:.]/g, "-")}-${signalId.slice(0, 8)}-${randomUUID().slice(0, 8)}`;
@@ -2041,7 +2041,9 @@ async function runDecide(args: string[]): Promise<void> {
 
   const { FileDecisionStore, createOperatorDecision, resolveReviewer } = await import("../../governance/decision-capture.js");
   const { FileReviewStore } = await import("../../governance/operator-review.js");
-  const decisionStore = new FileDecisionStore(cwd);
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { auditDecisionStore } = await import("../../governance/audit-decorators.js");
+  const decisionStore = auditDecisionStore(new FileDecisionStore(cwd), new FileAuditStore(cwd));
   const reviewStore = new FileReviewStore(cwd);
   const decider = resolveReviewer(explicitAs ?? undefined);
   const now = new Date().toISOString();
@@ -2060,13 +2062,6 @@ async function runDecide(args: string[]): Promise<void> {
   );
 
   await decisionStore.append(decision);
-
-  // Non-fatal audit emission — maps DecisionKind to action_allowed/denied/escalated
-  try {
-    const { FileAuditStore } = await import("../../governance/audit-store.js");
-    const { decisionRecordedEvent } = await import("../../governance/audit-emitters.js");
-    await new FileAuditStore(cwd).append(decisionRecordedEvent(decision, signal));
-  } catch { /* audit failure is non-fatal */ }
 
   if (jsonMode) {
     console.log(JSON.stringify({ signal, decision }, null, 2));
@@ -2205,10 +2200,12 @@ async function runActionsRefresh(cwd: string, jsonMode: boolean): Promise<void> 
   const { FileActionQueueStore } = await import("../../governance/action-queue.js");
   const { FileDecisionStore } = await import("../../governance/decision-capture.js");
   const { FileSignalStore } = await import("../../governance/governance-signal.js");
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { auditActionQueueStore } = await import("../../governance/audit-decorators.js");
 
-  const actionQueueStore = new FileActionQueueStore(cwd);
   const decisionStore = new FileDecisionStore(cwd);
   const signalStore = new FileSignalStore(cwd);
+  const actionQueueStore = auditActionQueueStore(new FileActionQueueStore(cwd), new FileAuditStore(cwd));
   const now = new Date().toISOString();
 
   const created = await refreshProposals(signalStore, decisionStore, actionQueueStore, now);
@@ -2246,7 +2243,9 @@ async function runActionsMarkExecuted(cwd: string, args: string[], jsonMode: boo
   }
 
   const { FileActionQueueStore, deriveEffectiveStatus } = await import("../../governance/action-queue.js");
-  const store = new FileActionQueueStore(cwd);
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { auditActionQueueStore } = await import("../../governance/audit-decorators.js");
+  const store = auditActionQueueStore(new FileActionQueueStore(cwd), new FileAuditStore(cwd));
 
   const proposal = await store.getById(proposalId);
   if (!proposal) {
@@ -2275,13 +2274,6 @@ async function runActionsMarkExecuted(cwd: string, args: string[], jsonMode: boo
 
   await store.appendStatusTransition(transition);
 
-  // Non-fatal audit emission — OVERRIDE_APPLIED for mark-executed
-  try {
-    const { FileAuditStore } = await import("../../governance/audit-store.js");
-    const { actionOverriddenEvent } = await import("../../governance/audit-emitters.js");
-    await new FileAuditStore(cwd).append(actionOverriddenEvent(transition, proposal));
-  } catch { /* audit failure is non-fatal */ }
-
   if (jsonMode) {
     console.log(JSON.stringify({ transition, proposal }, null, 2));
     return;
@@ -2308,7 +2300,9 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
   }
 
   const { FileActionQueueStore, deriveEffectiveStatus } = await import("../../governance/action-queue.js");
-  const store = new FileActionQueueStore(cwd);
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const { auditActionQueueStore } = await import("../../governance/audit-decorators.js");
+  const store = auditActionQueueStore(new FileActionQueueStore(cwd), new FileAuditStore(cwd));
 
   const proposal = await store.getById(proposalId);
   if (!proposal) {
@@ -2336,13 +2330,6 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
   };
 
   await store.appendStatusTransition(transition);
-
-  // Non-fatal audit emission — OVERRIDE_APPLIED for dismiss
-  try {
-    const { FileAuditStore } = await import("../../governance/audit-store.js");
-    const { actionOverriddenEvent } = await import("../../governance/audit-emitters.js");
-    await new FileAuditStore(cwd).append(actionOverriddenEvent(transition, proposal));
-  } catch { /* audit failure is non-fatal */ }
 
   if (jsonMode) {
     console.log(JSON.stringify({ transition, proposal }, null, 2));
