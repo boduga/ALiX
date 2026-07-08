@@ -216,7 +216,7 @@ function makeVolumeAnomaly(
     windowStart,
     windowEnd,
     evidenceEventIds: ids,
-    reason: `${type === "volume_spike" ? "Spike" : "Drop"} in ${monitoredType}: ${current} events (baseline ${baseline}, ${type === "volume_spike" ? "×" : "×"}${(current / (baseline || 1)).toFixed(1)})`,
+    reason: `${type === "volume_spike" ? "Spike" : "Drop"} in ${monitoredType}: ${current} events (baseline ${baseline}, ${type === "volume_spike" ? `×${(current / (baseline || 1)).toFixed(1)}` : `${((current / (baseline || 1)) * 100).toFixed(0)}% of baseline`})`,
     metadata: { monitoredType, current, baseline },
   };
 }
@@ -233,11 +233,18 @@ function detectRiskAnomalies(
   if (countDecisionEvents(events) < 5 || countDecisionEvents(baselineEvents) < 5) return [];
 
   const anomalies: GovernanceAuditAnomaly[] = [];
-  const currentRisk = riskDistribution(events);
-  const baselineRisk = riskDistribution(baselineEvents);
-  const currentRates = decisionRates(events);
-  const baselineRates = decisionRates(baselineEvents);
-  const totalCurrent = events.length;
+
+  // Risk distribution over decision-bearing events only (per spec requirement)
+  const currentDecisionEvents = events.filter((e) => DECISION_BEARING_TYPES.has(e.eventType));
+  const baselineDecisionEvents = baselineEvents.filter((e) => DECISION_BEARING_TYPES.has(e.eventType));
+
+  const currentRisk = riskDistribution(currentDecisionEvents);
+  const baselineRisk = riskDistribution(baselineDecisionEvents);
+
+  const baselineTotal = baselineDecisionEvents.length;
+  const totalCurrent = currentDecisionEvents.length;
+
+  if (baselineTotal === 0 || totalCurrent === 0) return [];
 
   const emitWindowStart = events.reduce((a, b) => a.timestamp < b.timestamp ? a : b).timestamp;
   const emitWindowEnd = events.reduce((a, b) => a.timestamp > b.timestamp ? a : b).timestamp;
@@ -245,9 +252,8 @@ function detectRiskAnomalies(
   // Critical risk shift
   const criticalBaseline = baselineRisk["critical"] ?? 0;
   const criticalCurrent = currentRisk["critical"] ?? 0;
-  const baselineTotal = baselineEvents.length;
-  const criticalBaselineRatio = baselineTotal > 0 ? criticalBaseline / baselineTotal : 0;
-  const criticalCurrentRatio = totalCurrent > 0 ? criticalCurrent / totalCurrent : 0;
+  const criticalBaselineRatio = criticalBaseline / baselineTotal;
+  const criticalCurrentRatio = criticalCurrent / totalCurrent;
 
   if (criticalCurrentRatio > criticalBaselineRatio + 0.15) {
     const ids = events.filter((e) => e.riskLevel === "critical").map((e) => e.eventId);
