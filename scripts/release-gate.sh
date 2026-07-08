@@ -70,7 +70,7 @@ run_step "Performance budgets" node dist/src/cli.js doctor --performance
 
 echo "▸ pnpm pack --json..."
 PACK_JSON="$(pnpm pack --json --pack-destination "$PROJECT_ROOT" 2>/dev/null)"
-TARBALL="$(echo "$PACK_JSON" | node -p "JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'))[0].filename" 2>/dev/null)"
+TARBALL="$(echo "$PACK_JSON" | node -p "const parsed = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8')); (Array.isArray(parsed) ? parsed[0] : parsed).filename" 2>/dev/null)"
 
 if [ -z "$TARBALL" ] || [ ! -f "$PROJECT_ROOT/$TARBALL" ]; then
   echo "  ❌ pnpm pack failed — no tarball produced"
@@ -107,7 +107,7 @@ if [ -n "$TARBALL" ] && [ -f "$PROJECT_ROOT/$TARBALL" ]; then
   echo "▸ Pack-once smoke test (install tarball in clean temp dir)..."
   TMP_DIR="$(mktemp -d)"
 
-  if pnpm install --prefix "$TMP_DIR" "$PROJECT_ROOT/$TARBALL" > /dev/null 2>&1; then
+  if pnpm install --config.dangerously-allow-all-builds=true --prefix "$TMP_DIR" "$PROJECT_ROOT/$TARBALL" > /dev/null 2>&1; then
     if (cd "$TMP_DIR" && ./node_modules/.bin/alix init > /dev/null 2>&1 && \
         ./node_modules/.bin/alix doctor > /dev/null 2>&1 && \
         ./node_modules/.bin/alix models doctor --json > /dev/null 2>&1); then
