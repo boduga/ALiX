@@ -2388,6 +2388,8 @@ async function runAudit(rawArgs: string[]): Promise<void> {
       return runAuditTimeline(cwd, args, jsonMode);
     case "stats":
       return runAuditStats(cwd, args, jsonMode);
+    case "anomalies":
+      return runAuditAnomalies(cwd, args, jsonMode);
     case "actor":
       return runAuditActor(cwd, args, jsonMode);
     case "policy":
@@ -2401,7 +2403,7 @@ async function runAudit(rawArgs: string[]): Promise<void> {
         RED +
           'Unknown audit subcommand "' +
           sub +
-          '". Expected: list, show, trace, timeline, stats, actor, policy, verify, export' +
+          '". Expected: list, show, trace, timeline, stats, anomalies, actor, policy, verify, export' +
           RESET,
       );
       process.exit(1);
@@ -2426,6 +2428,7 @@ function printAuditHelp(): void {
   console.log("  verify     Verify the hash chain");
   console.log("  export     Export the audit trail to a file");
   console.log("  stats      Governance metrics (--window, --from, --to, --top)");
+  console.log("  anomalies  Detect anomalies (--recent, --baseline, --severity, --type)");
   console.log("");
   console.log(DIM + "All subcommands accept --json for machine-readable output." + RESET);
   console.log("");
@@ -3053,6 +3056,135 @@ async function runAuditStats(
 /** Format a signed delta for display. */
 function deltaSign(v: number): string {
   return v > 0 ? "+" : v < 0 ? "" : " ";
+}
+
+/**
+ * P15.2 — `audit anomalies`: deterministic, explainable anomaly detection.
+ * Computed on demand — no persistent anomaly store.
+ *
+ * Flags: --recent (min, default 60), --baseline (min, default 1440),
+ *        --since, --until, --severity, --type, --json.
+ */
+async function runAuditAnomalies(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const { detectAnomalies } = await import("../../governance/audit-anomalies.js");
+
+  const recentArg = parseInlineFlag(args, "--recent");
+  const baselineArg = parseInlineFlag(args, "--baseline");
+  const sinceArg = parseInlineFlag(args, "--since");
+  const untilArg = parseInlineFlag(args, "--until");
+  const severityFilter = parseInlineFlag(args, "--severity");
+  const typeFilter = parseInlineFlag(args, "--type");
+
+  // Determine time boundaries
+  const now = new Date().toISOString();
+  let recentMinutes = 60;
+  let baselineMinutes = 1440;
+
+  if (recentArg !== null) {
+    const p = Number(recentArg);
+    if (!Number.isInteger(p) || p <= 0) {
+      console.log(RED + `Invalid --recent "${recentArg}". Must be a positive integer of minutes.` + RESET);
+      process.exit(1);
+    }
+    recentMinutes = p;
+  }
+  if (baselineArg !== null) {
+    const p = Number(baselineArg);
+    if (!Number.isInteger(p) || p <= 0) {
+      console.log(RED + `Invalid --baseline "${baselineArg}". Must be a positive integer of minutes.` + RESET);
+      process.exit(1);
+    }
+    baselineMinutes = p;
+  }
+
+  let recentStart: string;
+  let recentEnd: string;
+  let baselineStart: string | undefined;
+  let baselineEnd: string | undefined;
+
+  if (sinceArg !== null) {
+    if (Number.isNaN(new Date(sinceArg).getTime())) {
+      console.log(RED + `Invalid --since "${sinceArg}". Must be an ISO timestamp.` + RESET);
+      process.exit(1);
+    }
+    recentStart = sinceArg;
+    recentEnd = untilArg ?? now;
+    // Baseline is the window of baselineMinutes immediately before recentStart
+    const baselineMs = new Date(recentStart).getTime() - baselineMinutes * 60 * 1000;
+    baselineStart = new Date(baselineMs).toISOString();
+    baselineEnd = recentStart;
+  } else {
+    recentEnd = now;
+    recentStart = new Date(new Date(now).getTime() - recentMinutes * 60 * 1000).toISOString();
+    baselineEnd = recentStart;
+    baselineStart = new Date(new Date(now).getTime() - (recentMinutes + baselineMinutes) * 60 * 1000).toISOString();
+  }
+
+  const { FileAuditStore } = await import("../../governance/audit-store.js");
+  const store = new FileAuditStore(cwd);
+  const allEvents = await store.list();
+
+  // Filter recent window (inclusive lower, exclusive upper)
+  const recentEvents = allEvents.filter(
+    (e) => e.timestamp >= recentStart && e.timestamp < recentEnd,
+  );
+
+  // Filter baseline window
+  const baselineEvents = baselineStart
+    ? allEvents.filter((e) => e.timestamp >= baselineStart! && e.timestamp < baselineEnd!)
+    : [];
+
+  const includeBaseline = baselineEvents.length > 0;
+
+  const anomalies = detectAnomalies(recentEvents, includeBaseline ? baselineEvents : undefined);
+
+  // Client-side filters
+  let filtered = anomalies;
+  if (severityFilter) {
+    const allowed = ["critical", "warning", "info"];
+    if (!(allowed as string[]).includes(severityFilter)) {
+      console.log(RED + `Invalid --severity "${severityFilter}". Valid: ${allowed.join(", ")}` + RESET);
+      process.exit(1);
+    }
+    filtered = filtered.filter((a) => {
+      const order = { critical: 0, warning: 1, info: 2 };
+      return order[a.severity] >= order[severityFilter as "critical" | "warning" | "info"];
+    });
+  }
+  if (typeFilter) {
+    filtered = filtered.filter((a) => a.type === typeFilter);
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify(filtered, null, 2));
+    return;
+  }
+
+  if (filtered.length === 0) {
+    console.log(DIM + "No anomalies detected" + RESET);
+    return;
+  }
+
+  console.log(BOLD + `Governance Audit Anomalies (${filtered.length} found)` + RESET);
+  console.log(DIM + "─".repeat(50) + RESET);
+  console.log("");
+
+  let currentSeverity = "";
+  for (const a of filtered) {
+    if (a.severity !== currentSeverity) {
+      currentSeverity = a.severity;
+      const sevLabel = a.severity === "critical" ? RED + "CRITICAL" : a.severity === "warning" ? YELLOW + "WARNING" : BOLD + "INFO";
+      console.log(sevLabel + RESET + ":");
+    }
+    console.log(`  ${a.type} — ${a.reason}`);
+    console.log(`  ${DIM}Evidence: ${a.evidenceEventIds.join(", ") || "(none)"}${RESET}`);
+    console.log(`  ${DIM}Window: ${a.windowStart.slice(0, 19).replace("T", " ")} → ${a.windowEnd.slice(0, 19).replace("T", " ")}${RESET}`);
+    console.log("");
+  }
 }
 
 async function runAuditActor(
