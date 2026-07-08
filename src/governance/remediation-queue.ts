@@ -24,7 +24,7 @@ export interface GovernanceRemediationProposal {
   windowStart: string;
   windowEnd: string;
   evidenceRefs: string[];
-  status: "open";
+  status: GovernanceRemediationProposalStatus;
   createdAt: string;
   responseKind: GovernanceRemediationResponseKind;
   proposedAction: string;

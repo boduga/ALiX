@@ -17,7 +17,7 @@ export type ResponseRecommendationKind =
 
 export interface GovernanceResponseRecommendation {
   recommendationId: string;
-  source: "anomaly";
+  source: "anomaly" | "workbench_signal";
   sourceIds: string[];
   severity: ResponseRecommendationSeverity;
   responseKind: ResponseRecommendationKind;
@@ -28,6 +28,7 @@ export interface GovernanceResponseRecommendation {
   proposedAction: string;
   reversible: true;
   createdAt: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface GovernanceResponseRecommendationOptions {
