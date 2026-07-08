@@ -2392,6 +2392,8 @@ async function runAudit(rawArgs: string[]): Promise<void> {
       return runAuditAnomalies(cwd, args, jsonMode);
     case "effectiveness":
       return runAuditEffectiveness(cwd, args, jsonMode);
+    case "report":
+      return runAuditReport(cwd, args, jsonMode);
     case "actor":
       return runAuditActor(cwd, args, jsonMode);
     case "policy":
@@ -2405,7 +2407,7 @@ async function runAudit(rawArgs: string[]): Promise<void> {
         RED +
           'Unknown audit subcommand "' +
           sub +
-          '". Expected: list, show, trace, timeline, stats, anomalies, effectiveness, actor, policy, verify, export' +
+          '". Expected: list, show, trace, timeline, stats, anomalies, effectiveness, report, actor, policy, verify, export' +
           RESET,
       );
       process.exit(1);
@@ -2432,6 +2434,7 @@ function printAuditHelp(): void {
   console.log("  stats      Governance metrics (--window, --from, --to, --top)");
   console.log("  anomalies      Detect anomalies (--recent, --baseline, --severity, --type)");
   console.log("  effectiveness  Operator outcome signals (--since, --until, --stale-days)");
+  console.log("  report     Governance observability report (--section, --since, --until, --json)");
   console.log("");
   console.log(DIM + "All subcommands accept --json for machine-readable output." + RESET);
   console.log("");
@@ -3333,6 +3336,108 @@ async function runAuditEffectiveness(
     console.log(`  ${op.operatorId}: ${op.count} reviews`);
   }
   console.log("");
+}
+
+/**
+ * P15.4 — `alix governance audit report`.
+ * Composition layer: aggregates P15.1 trends, P15.2 anomalies, P15.3a effectiveness.
+ */
+async function runAuditReport(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const sinceArg = parseInlineFlag(args, "--since");
+  const untilArg = parseInlineFlag(args, "--until");
+  const sectionArg = parseInlineFlag(args, "--section");
+  const now = new Date().toISOString();
+
+  const sections = sectionArg !== null
+    ? sectionArg === "all"
+      ? ["trends", "anomalies", "effectiveness"]
+      : [sectionArg]
+    : ["trends", "anomalies", "effectiveness"];
+
+  const since = sinceArg ?? new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const until = untilArg ?? now;
+
+  const [
+    { FileAuditStore },
+    { FileDecisionStore },
+    { FileReviewStore },
+    { FileActionQueueStore },
+    { buildReport },
+  ] = await Promise.all([
+    import("../../governance/audit-store.js"),
+    import("../../governance/decision-capture.js"),
+    import("../../governance/operator-review.js"),
+    import("../../governance/action-queue.js"),
+    import("../../governance/report-orchestrator.js"),
+  ]);
+
+  const auditStore = new FileAuditStore(cwd);
+  const decisionStore = new FileDecisionStore(cwd);
+  const reviewStore = new FileReviewStore(cwd);
+  const actionStore = new FileActionQueueStore(cwd);
+
+  const allProposals = await actionStore.list();
+  const allTransitions: ActionProposalStatusTransition[] = [];
+  for (const p of allProposals) {
+    const t = await actionStore.getTransitions(p.proposalId);
+    allTransitions.push(...t);
+  }
+
+  const [allEvents, allDecisions, allReviews] = await Promise.all([
+    auditStore.list(),
+    decisionStore.list(),
+    reviewStore.list(),
+  ]);
+
+  const report = buildReport(
+    allEvents, allDecisions, allReviews,
+    allProposals, allTransitions,
+    { since, until, now, staleThresholdDays: 7, sections: sections as any },
+  );
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  console.log(BOLD + `Governance Audit Report (${since.slice(0, 10)} → ${until.slice(0, 10)})` + RESET);
+  console.log(DIM + "═".repeat(50) + RESET);
+  console.log("");
+
+  if (report.trends) {
+    const t = report.trends;
+    console.log(BOLD + "Trends:" + RESET);
+    console.log(`  events: ${t.totalEvents}`);
+    if (t.eventTypeDistribution) {
+      const et = Object.entries(t.eventTypeDistribution as Record<string, number>).sort();
+      for (const [k, v] of et) console.log(`  ${k}: ${v}`);
+    }
+    console.log("");
+  }
+
+  if (report.anomalies) {
+    const list = report.anomalies as any[];
+    console.log(BOLD + "Anomalies:" + RESET + (list.length > 0 ? "" : DIM + " none detected" + RESET));
+    for (const a of list) {
+      const s = a.severity === "critical" ? RED + "CRITICAL" : a.severity === "warning" ? YELLOW + "WARNING" : "INFO";
+      console.log(`  ${s + RESET} ${a.type} — ${a.reason}`);
+    }
+    console.log("");
+  }
+
+  if (report.effectiveness) {
+    const e = report.effectiveness as any;
+    console.log(BOLD + "Effectiveness:" + RESET);
+    console.log(`  stability:     ${((e.decisionStability?.reversalRate ?? 0) * 100).toFixed(0)}% reversal`);
+    console.log(`  escalation:    ${((e.escalationEffectiveness?.escalationToActionRate ?? 0) * 100).toFixed(0)}% to action`);
+    console.log(`  completeness:  ${((e.reviewCompleteness?.completenessRate ?? 0) * 100).toFixed(0)}% with notes+class`);
+    console.log(`  stale deferred: ${e.staleDecisions?.staleCount ?? 0} > ${e.staleDecisions?.staleThresholdDays ?? 7}d`);
+    console.log("");
+  }
 }
 
 async function runAuditActor(
