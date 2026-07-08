@@ -2390,6 +2390,8 @@ async function runAudit(rawArgs: string[]): Promise<void> {
       return runAuditStats(cwd, args, jsonMode);
     case "anomalies":
       return runAuditAnomalies(cwd, args, jsonMode);
+    case "effectiveness":
+      return runAuditEffectiveness(cwd, args, jsonMode);
     case "actor":
       return runAuditActor(cwd, args, jsonMode);
     case "policy":
@@ -2403,7 +2405,7 @@ async function runAudit(rawArgs: string[]): Promise<void> {
         RED +
           'Unknown audit subcommand "' +
           sub +
-          '". Expected: list, show, trace, timeline, stats, anomalies, actor, policy, verify, export' +
+          '". Expected: list, show, trace, timeline, stats, anomalies, effectiveness, actor, policy, verify, export' +
           RESET,
       );
       process.exit(1);
@@ -2428,7 +2430,8 @@ function printAuditHelp(): void {
   console.log("  verify     Verify the hash chain");
   console.log("  export     Export the audit trail to a file");
   console.log("  stats      Governance metrics (--window, --from, --to, --top)");
-  console.log("  anomalies  Detect anomalies (--recent, --baseline, --severity, --type)");
+  console.log("  anomalies      Detect anomalies (--recent, --baseline, --severity, --type)");
+  console.log("  effectiveness  Operator outcome signals (--since, --until, --stale-days)");
   console.log("");
   console.log(DIM + "All subcommands accept --json for machine-readable output." + RESET);
   console.log("");
@@ -3185,6 +3188,151 @@ async function runAuditAnomalies(
     console.log(`  ${DIM}Window: ${a.windowStart.slice(0, 19).replace("T", " ")} → ${a.windowEnd.slice(0, 19).replace("T", " ")}${RESET}`);
     console.log("");
   }
+}
+
+/**
+ * P15.3a — `audit effectiveness`: operator outcome signals.
+ * Decision stability, escalation effectiveness, review completeness,
+ * stale/stuck deferrals, throughput context (no ranking).
+ *
+ * Flags: --since, --until, --stale-days, --json.
+ */
+async function runAuditEffectiveness(
+  cwd: string,
+  args: string[],
+  jsonMode: boolean,
+): Promise<void> {
+  const sinceArg = parseInlineFlag(args, "--since");
+  const untilArg = parseInlineFlag(args, "--until");
+  const staleArg = parseInlineFlag(args, "--stale-days");
+  const now = new Date().toISOString();
+
+  const staleThresholdDays = staleArg !== null ? (() => {
+    const p = Number(staleArg);
+    if (!Number.isInteger(p) || p <= 0) {
+      console.log(RED + `Invalid --stale-days "${staleArg}". Must be a positive integer.` + RESET);
+      process.exit(1);
+    }
+    return p;
+  })() : 7;
+
+  // Default: last 7 days
+  const since = sinceArg ?? new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const until = untilArg ?? now;
+
+  if (sinceArg !== null && Number.isNaN(new Date(sinceArg).getTime())) {
+    console.log(RED + `Invalid --since "${sinceArg}". Must be an ISO timestamp.` + RESET);
+    process.exit(1);
+  }
+  if (untilArg !== null && Number.isNaN(new Date(untilArg).getTime())) {
+    console.log(RED + `Invalid --until "${untilArg}". Must be an ISO timestamp.` + RESET);
+    process.exit(1);
+  }
+
+  // Audit lookahead: include events up to until + staleThresholdDays
+  const auditUntil = new Date(new Date(until).getTime() + staleThresholdDays * 86_400_000).toISOString();
+
+  const [
+    { FileAuditStore },
+    { FileDecisionStore },
+    { FileReviewStore },
+    { FileActionQueueStore },
+    { computeEffectiveness },
+  ] = await Promise.all([
+    import("../../governance/audit-store.js"),
+    import("../../governance/decision-capture.js"),
+    import("../../governance/operator-review.js"),
+    import("../../governance/action-queue.js"),
+    import("../../governance/operator-effectiveness.js"),
+  ]);
+
+  const auditStore = new FileAuditStore(cwd);
+  const decisionStore = new FileDecisionStore(cwd);
+  const reviewStore = new FileReviewStore(cwd);
+  const actionStore = new FileActionQueueStore(cwd);
+
+  const allProposalsList = await actionStore.list();
+  const allTransitionsFull = [];
+  for (const p of allProposalsList) {
+    const txns = await actionStore.getTransitions(p.proposalId);
+    allTransitionsFull.push(...txns);
+  }
+  const [allEvents, allDecisions, allReviews] = await Promise.all([
+    auditStore.list(),
+    decisionStore.list(),
+    reviewStore.list(),
+  ]);
+
+  // Filter decisions/reviews by [since, until)
+  const filteredDecisions = allDecisions.filter(
+    (d: { createdAt: string }) => d.createdAt >= since && d.createdAt < until,
+  );
+  const filteredReviews = allReviews.filter(
+    (r: { createdAt: string }) => r.createdAt >= since && r.createdAt < until,
+  );
+  const filteredEvents = allEvents.filter(
+    (e: { timestamp: string }) => e.timestamp >= since && e.timestamp < auditUntil,
+  );
+
+  const report = computeEffectiveness(
+    filteredEvents,
+    filteredDecisions,
+    filteredReviews,
+    allProposalsList,
+    allTransitionsFull,
+    { staleThresholdDays, now },
+  );
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // Human output
+  console.log(BOLD + `Operator Effectiveness (${since.slice(0, 10)} → ${until.slice(0, 10)})` + RESET);
+  console.log(DIM + "─".repeat(50) + RESET);
+  console.log("");
+
+  console.log(BOLD + "Decision stability:" + RESET);
+  console.log(`  total decisions: ${report.decisionStability.totalDecisions}`);
+  console.log(`  reversal rate:   ${(report.decisionStability.reversalRate * 100).toFixed(1)}% (${report.decisionStability.reversed}/${report.decisionStability.totalDecisions})`);
+  console.log(`  by kind:         ${Object.entries(report.decisionStability.decisionCounts).map(([k, v]) => `${k}=${v}`).join(", ")}`);
+  console.log("");
+
+  console.log(BOLD + "Escalation effectiveness:" + RESET);
+  console.log(`  total escalations:        ${report.escalationEffectiveness.totalEscalations}`);
+  console.log(`  → proposal rate:          ${(report.escalationEffectiveness.escalationToActionRate * 100).toFixed(0)}%`);
+  console.log(`  → resolution rate:        ${(report.escalationEffectiveness.resolutionRate * 100).toFixed(0)}%`);
+  console.log(`  → pending:                ${report.escalationEffectiveness.pendingEscalations}`);
+  if (report.escalationEffectiveness.medianResolutionMs !== null) {
+    console.log(`  → median time to resolve:  ${(report.escalationEffectiveness.medianResolutionMs / 60000).toFixed(0)}m`);
+  }
+  console.log("");
+
+  console.log(BOLD + "Review completeness:" + RESET);
+  console.log(`  total reviews:      ${report.reviewCompleteness.totalReviews}`);
+  console.log(`  with notes:         ${report.reviewCompleteness.withNotes}`);
+  console.log(`  with classif.:      ${report.reviewCompleteness.withClassification}`);
+  console.log(`  with both:          ${report.reviewCompleteness.withBoth}`);
+  console.log(`  completeness rate:  ${(report.reviewCompleteness.completenessRate * 100).toFixed(0)}%`);
+  console.log("");
+
+  console.log(BOLD + "Stale decisions:" + RESET);
+  console.log(`  total deferred:  ${report.staleDecisions.totalDeferred}`);
+  console.log(`  stale (≥${report.staleDecisions.staleThresholdDays}d): ${report.staleDecisions.staleCount}`);
+  if (report.staleDecisions.averageStaleDays !== null) {
+    console.log(`  avg stale age:   ${report.staleDecisions.averageStaleDays.toFixed(1)}d`);
+  }
+  console.log("");
+
+  console.log(BOLD + "Throughput (descriptive):" + RESET);
+  for (const op of report.throughputContext.decisionsByOperator) {
+    console.log(`  ${op.operatorId}: ${op.count} decisions`);
+  }
+  for (const op of report.throughputContext.reviewsByOperator) {
+    console.log(`  ${op.operatorId}: ${op.count} reviews`);
+  }
+  console.log("");
 }
 
 async function runAuditActor(
