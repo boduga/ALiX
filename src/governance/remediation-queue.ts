@@ -12,7 +12,8 @@ export type GovernanceRemediationProposalStatus =
   | "open"
   | "accepted"
   | "dismissed"
-  | "resolved";
+  | "resolved"
+  | "superseded";
 
 export type GovernanceRemediationResponseKind = ResponseRecommendationKind;
 
