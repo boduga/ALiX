@@ -323,6 +323,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runDashboard(rest);
     case "investigate":
       return runInvestigate(rest);
+    case "execution":
+      return runExecution(rest);
     default:
       console.error(
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
@@ -2340,6 +2342,112 @@ async function runActionsDismiss(cwd: string, args: string[], jsonMode: boolean)
   console.log(`${DIM}Proposal:${RESET} ${proposalId} (${proposal.title})`);
   console.log(`${DIM}Reason:${RESET} ${reason.trim()}`);
   console.log(`${DIM}Transition:${RESET} ${tid}`);
+}
+
+// ---------------------------------------------------------------------------
+// P17.5 — Execution report subcommands
+// ---------------------------------------------------------------------------
+
+async function runExecution(args: string[]): Promise<void> {
+  const sub = args[0];
+  const jsonMode = args.includes("--json");
+
+  switch (sub) {
+    case "report":
+      return runExecutionReport(args.slice(1), jsonMode);
+    default:
+      console.log("Unknown execution subcommand. Usage:");
+      console.log("  alix governance execution report [--since <iso>] [--until <iso>] [--json]");
+  }
+}
+
+async function runExecutionReport(args: string[], jsonMode: boolean): Promise<void> {
+  const { buildExecutionReport } = await import("../../governance/execution-report.js");
+  const { ExecutionStore } = await import("../../governance/execution-store.js");
+
+  const cwd = process.cwd();
+  const since = parseInlineFlag(args, "--since") ?? undefined;
+  const until = parseInlineFlag(args, "--until") ?? undefined;
+
+  // Load available data from stores.
+  // Note: stores for remediation proposals and execution plans not yet implemented —
+  // these are currently pure-function modules without persistence. The report builder
+  // accepts empty arrays for those inputs until their respective stores are added.
+  const attemptStore = new ExecutionStore(cwd);
+  const attempts = await attemptStore.list();
+
+  // Build the report with whatever data is available
+  const report = buildExecutionReport({
+    remediations: [],
+    executionPlans: [],
+    approvals: [],
+    attempts,
+    options: {
+      since,
+      until,
+      now: new Date().toISOString(),
+    },
+  });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(report, null, 2));
+    return;
+  }
+
+  // Text output
+  const { GREEN: G, RED: R, YELLOW: Y, CYAN: C, DIM: D, RESET: X } = {
+    GREEN: "\x1b[32m",
+    RED: "\x1b[31m",
+    YELLOW: "\x1b[33m",
+    CYAN: "\x1b[36m",
+    DIM: "\x1b[2m",
+    RESET: "\x1b[0m",
+  };
+
+  const t = report.totals;
+  console.log(`\n  ${C}Execution Report${X}`);
+  console.log(`  ${D}${report.windowStart} — ${report.windowEnd}${X}`);
+  console.log("");
+  console.log(`  ${D}Totals:${X}`);
+  console.log(`    Accepted:     ${t.accepted}`);
+  console.log(`    Planned:      ${t.planned}`);
+  console.log(`    Approved:     ${t.approved}`);
+  console.log(`    Rejected:     ${t.rejected}`);
+  console.log(`    Executed:     ${t.executed}`);
+  console.log(`    Failed:       ${t.failed}`);
+  console.log(`    Partial:      ${t.partial}`);
+  console.log(`    Reverted:     ${t.reverted}`);
+  console.log(`    Unresolved:   ${t.unresolved}`);
+  console.log(`    Superseded:   ${t.superseded}`);
+
+  if (report.items.length === 0) return;
+
+  console.log(`\n  ${D}Items:${X}`);
+  for (const item of report.items) {
+    const attention = item.requiresAttention ? R + " ATTENTION" + X : "";
+    const state = colorForState(item.executionState);
+    console.log(
+      `  ${D}${item.remediationId}${X}` +
+      `  ${state}${item.executionState ?? "no_plan"}${X}` +
+      attention
+    );
+    console.log(`    ${D}Status:${X} ${item.remediationStatus}  ${D}Plan:${X} ${item.planId ?? "—"}`);
+    console.log(`    ${D}Updated:${X} ${item.updatedAt}`);
+    if (item.unresolved) console.log(`    ${Y}Unresolved${X}`);
+  }
+}
+
+function colorForState(state: string | null): string {
+  switch (state) {
+    case "executed": return "\x1b[32m";  // GREEN
+    case "failed":
+    case "partial":  return "\x1b[31m";  // RED
+    case "reverted": return "\x1b[33m";  // YELLOW
+    case "approved": return "\x1b[36m";  // CYAN
+    case "rejected": return "\x1b[31m";  // RED
+    case "draft":    return "\x1b[2m";   // DIM
+    default:         return "\x1b[0m";   // RESET
+  }
 }
 
 // ---------------------------------------------------------------------------
