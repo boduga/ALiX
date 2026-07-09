@@ -119,6 +119,7 @@ Default section order:
 ## User Preferences
 
 - When the user requests a durable behavior change, record it here or in the relevant child AGENTS.md.
+- Always use the `caveman` skill for user-facing communication. Keep full technical accuracy; suspend compression only when its auto-clarity exception applies.
 - Prefer subagent-driven development with two-stage review (spec compliance → code quality).
 - Keep Inspector read-only; do not add POST endpoints for execution.
 - CLI-first for all approval and audit actions.
