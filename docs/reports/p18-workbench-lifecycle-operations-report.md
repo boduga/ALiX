@@ -1,9 +1,9 @@
 # P18 — Governance Workbench & Lifecycle Operations
 
-**Report Date:** _To be filled on merge_
+**Report Date:** 2026-07-09
 **Status:** Final Checkpoint
 **Tag:** `alix-p18-governance-workbench-complete`
-**Commit:** _To be filled on merge_
+**Commit:** `b17bd079`
 
 ---
 
