@@ -239,6 +239,7 @@ export interface ReplayCandidateLesson {
 
 export interface CounterfactualReplayOutcome {
   replayId: string;
+  sourceLifecycleId: string;
   scenarioId: string;
 
   originalOutcome: ReplayOriginalOutcome;

@@ -286,6 +286,10 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
 	      return runHandoff(rest);
     case "intelligence":
       return runIntelligence(rest);
+    case "replay": {
+      const { handleGovernanceReplayCommand } = await import("./governance-replay.js");
+      return handleGovernanceReplayCommand(rest);
+    }
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
