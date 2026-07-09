@@ -282,7 +282,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
     case "readiness":
       return runReadiness(rest);
     case "handoff":
-      return runHandoff(rest);
+      if (rest[0] === "evidence" || rest[0] === "closure") { return runHandoffClosureAction(rest); }
+	      return runHandoff(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -3095,6 +3096,220 @@ async function runHandoff(args: string[]): Promise<void> {
 }
 
 // P20-HANDOFF-END
+
+// P21-CLOSURE-START
+// ---------------------------------------------------------------------------
+// P21 — Closure CLI
+// ---------------------------------------------------------------------------
+
+async function runClosureEvidenceAppend(args: string[], bundle: any): Promise<void> {
+  const ref = {
+    evidenceId: args[2] ?? "",
+    handoffId: args[1] ?? "",
+    preparedRecordId: null,
+    kind: "manual_verification_note" as const,
+    uri: null,
+    label: "",
+    summary: "",
+    submittedBy: "",
+    submittedAt: new Date().toISOString(),
+    contentHash: null,
+    auditRefs: [],
+  };
+  throw new Error("Usage: alix governance handoff evidence append --handoff <id> --kind <kind> --label <text> --summary <text> --submitted-by <op> [--uri <url>] [--prepared-record <id>] [--content-hash <hash>] [--json]");
+}
+
+async function runHandoffClosureAction(args: string[]): Promise<void> {
+  const subcommand = args[0] ?? "";
+  const jsonMode = args.includes("--json");
+
+  try {
+    if (!["evidence", "closure"].includes(subcommand)) {
+      throw new Error("usage: alix governance handoff {evidence|closure} ...");
+    }
+
+    if (subcommand === "closure" && args[1] === "report") {
+      const { buildHumanExecutionClosureReport } = await import(
+        "../../governance/human-execution-closure-report.js"
+      );
+      const { readFileSync, existsSync } = await import("node:fs");
+      const inputPath = closureFlag(args, "--input");
+      if (!inputPath) throw new Error("--input is required");
+      if (!existsSync(inputPath)) throw new Error(`input not found: "${inputPath}"`);
+
+      const bundle = JSON.parse(readFileSync(inputPath, "utf-8"));
+      const report = buildHumanExecutionClosureReport(
+        bundle.handoffRefs ?? [],
+        bundle.evidenceRefs ?? [],
+        bundle.closureReviews ?? [],
+        {
+          since: closureFlag(args, "--since") ?? undefined,
+          until: closureFlag(args, "--until") ?? undefined,
+          now: new Date().toISOString(),
+        },
+      );
+
+      if (jsonMode) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        console.log(`Closure Report (${report.items.length} items)`);
+        console.log(`  Window: ${report.windowStart} — ${report.windowEnd}`);
+        console.log("  Totals:");
+        console.log(`    Awaiting evidence: ${report.totals.awaitingEvidence}`);
+        console.log(`    Evidence submitted: ${report.totals.withEvidence - report.totals.accepted - report.totals.rejected - report.totals.incomplete - report.totals.needsFollowUp}`);
+        console.log(`    Accepted: ${report.totals.accepted}`);
+        console.log(`    Rejected: ${report.totals.rejected}`);
+        console.log(`    Incomplete: ${report.totals.incomplete}`);
+        console.log(`    Needs follow-up: ${report.totals.needsFollowUp}`);
+        for (const item of report.items) {
+          const flag = item.followUpRequired ? " ⚠" : "  ";
+          console.log(`${flag} ${item.handoffId} | ${item.status} | ${item.evidenceCount} ev`);
+        }
+      }
+      return;
+    }
+
+    if (subcommand === "evidence" && args[1] === "append") {
+      const handoffId = closureFlag(args, "--handoff");
+      const kind = closureFlag(args, "--kind");
+      const label = closureFlag(args, "--label");
+      const summary = closureFlag(args, "--summary");
+      const submittedBy = closureFlag(args, "--submitted-by");
+      const uri = closureFlag(args, "--uri");
+      const preparedRecordId = closureFlag(args, "--prepared-record");
+      const contentHash = closureFlag(args, "--content-hash");
+      const inputPath = closureFlag(args, "--input");
+
+      if (!handoffId) throw new Error("--handoff is required");
+      if (!kind) throw new Error("--kind is required");
+      if (!label) throw new Error("--label is required");
+      if (!summary) throw new Error("--summary is required");
+      if (!submittedBy) throw new Error("--submitted-by is required");
+
+      const { readFileSync, existsSync } = await import("node:fs");
+      if (!inputPath || !existsSync(inputPath)) throw new Error("--input path required (bundle with store config)");
+      const bundle = JSON.parse(readFileSync(inputPath, "utf-8"));
+
+      const { FileEvidenceLedgerStore } = await import("../../governance/human-execution-evidence-ledger.js");
+      const { FileClosureReviewStore } = await import("../../governance/human-execution-closure-review.js");
+      const { AuditedClosureRecorder } = await import("../../governance/audited-human-execution-closure.js");
+      const { mkdirSync, existsSync: dirExists } = await import("node:fs");
+      const { dirname } = await import("node:path");
+
+      const storeDir = bundle.storeDir ?? ".alix/governance";
+      const evPath = `${storeDir}/human-execution-evidence-ledger.jsonl`;
+      const revPath = `${storeDir}/human-execution-closure-reviews.jsonl`;
+      const auditPath = `${storeDir}/p21-audit-events.jsonl`;
+
+      const evStore = new FileEvidenceLedgerStore(evPath);
+      const revStore = new FileClosureReviewStore(revPath, () => evStore.listEvidence());
+      const recorder = new AuditedClosureRecorder(evStore, revStore, auditPath);
+
+      const evidenceRef = {
+        evidenceId: `${handoffId}-${kind}-${Date.now()}`,
+        handoffId,
+        preparedRecordId: preparedRecordId ?? null,
+        kind: kind as any,
+        uri: uri ?? null,
+        label,
+        summary,
+        submittedBy,
+        submittedAt: new Date().toISOString(),
+        contentHash: contentHash ?? null,
+        auditRefs: [],
+      };
+
+      const result = await recorder.appendEvidence(evidenceRef);
+      if (jsonMode) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`Evidence appended: ${result.evidenceId}`);
+        console.log(`  Handoff: ${result.handoffId}`);
+        console.log(`  Audit refs: ${result.auditRefs.join(", ")}`);
+      }
+      return;
+    }
+
+    if (subcommand === "closure" && args[1] === "review") {
+      const handoffId = closureFlag(args, "--handoff");
+      const decision = closureFlag(args, "--decision");
+      const rationale = closureFlag(args, "--rationale");
+      const reviewedBy = closureFlag(args, "--reviewed-by");
+      const evidenceIdsRaw = closureFlag(args, "--evidence");
+      const followUpSummary = closureFlag(args, "--follow-up-summary");
+      const inputPath = closureFlag(args, "--input");
+
+      if (!handoffId) throw new Error("--handoff is required");
+      if (!decision) throw new Error("--decision is required");
+      if (!rationale) throw new Error("--rationale is required");
+      if (!reviewedBy) throw new Error("--reviewed-by is required");
+      if (!evidenceIdsRaw) throw new Error("--evidence is required (comma-separated IDs)");
+
+      const { readFileSync, existsSync } = await import("node:fs");
+      if (!inputPath || !existsSync(inputPath)) throw new Error("--input path required");
+      const bundle = JSON.parse(readFileSync(inputPath, "utf-8"));
+
+      const { FileEvidenceLedgerStore } = await import("../../governance/human-execution-evidence-ledger.js");
+      const { FileClosureReviewStore } = await import("../../governance/human-execution-closure-review.js");
+      const { AuditedClosureRecorder } = await import("../../governance/audited-human-execution-closure.js");
+
+      const storeDir = bundle.storeDir ?? ".alix/governance";
+      const evPath = `${storeDir}/human-execution-evidence-ledger.jsonl`;
+      const revPath = `${storeDir}/human-execution-closure-reviews.jsonl`;
+      const auditPath = `${storeDir}/p21-audit-events.jsonl`;
+
+      const evStore = new FileEvidenceLedgerStore(evPath);
+      const revStore = new FileClosureReviewStore(revPath, () => evStore.listEvidence());
+      const recorder = new AuditedClosureRecorder(evStore, revStore, auditPath);
+
+      const evidenceIds = evidenceIdsRaw.split(",").map((s: string) => s.trim());
+      const internalDecision = decision.replace(/-/g, "_");
+
+      const review = {
+        closureReviewId: `cr-${handoffId}-${Date.now()}`,
+        handoffId,
+        preparedRecordId: closureFlag(args, "--prepared-record") ?? null,
+        decision: internalDecision as any,
+        rationale,
+        reviewedBy,
+        reviewedAt: new Date().toISOString(),
+        evidenceIds,
+        followUpRequired: internalDecision === "needs_follow_up" || internalDecision === "incomplete",
+        followUpSummary: followUpSummary ?? null,
+        auditRefs: [],
+      };
+
+      const result = await recorder.appendReview(review);
+      if (jsonMode) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`Closure review recorded: ${result.closureReviewId}`);
+        console.log(`  Handoff: ${result.handoffId}`);
+        console.log(`  Decision: ${result.decision}`);
+        console.log(`  Audit refs: ${result.auditRefs.join(", ")}`);
+      }
+      return;
+    }
+
+    throw new Error("usage: alix governance handoff {evidence append ...|closure review ...|closure report ...}");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (jsonMode) {
+      console.log(JSON.stringify({ ok: false, code: "closure_error", message }));
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+}
+
+function closureFlag(args: string[], name: string): string | null {
+  const idx = args.indexOf(name);
+  if (idx === -1 || idx + 1 >= args.length) return null;
+  return args[idx + 1];
+}
+
+// P21-CLOSURE-END
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
   policy_evaluated: CYAN,
