@@ -27,6 +27,14 @@ Never add:
 
 Every P19 computation requires a matching approved P17 approval. Every gate decision requires matching P18 lifecycle visibility. `controlledExecutionAuthorization` always equals `"not_available_in_p19"`.
 
+## Verified Repository Contracts
+
+- Package manager: `pnpm@11.9.0`; use package scripts through `pnpm`.
+- `ExecutionActionKind` is exported from `src/governance/execution-plans.ts`. If that export changes before implementation, derive it as `GovernanceExecutionAction["kind"]` rather than duplicating its union.
+- `WorkbenchLifecycleTrace`, `GovernanceWorkbenchInput`, and `buildLifecycleTrace` are exported from `src/governance/governance-workbench.ts`.
+- `GovernanceWorkbenchInput.investigations` exists and is optional.
+- Feature-branch work may create P19 report/checkpoint commits, but the final P19 tag must be created from verified `main` after PR merge.
+
 ## File Map
 
 | File | Responsibility |
@@ -2344,7 +2352,7 @@ git add \
 git commit -m "docs: seal P19 automation readiness"
 ```
 
-- [ ] **Step 6: Final change detection and tag**
+- [ ] **Step 6: Final feature-branch change detection and PR handoff**
 
 Run:
 
@@ -2352,16 +2360,26 @@ Run:
 gitnexus_detect_changes(scope="compare", base_ref="alix-p18-governance-workbench-complete")
 ```
 
-Review all affected symbols and flows. If scope matches P19, tag:
+Review all affected symbols and flows. If scope matches P19, push the feature branch and open the PR through the normal repository workflow. Do not create or push the P19 tag from the feature branch.
+
+- [ ] **Step 7: Tag verified main after PR merge**
+
+After the PR is merged, switch to `main`, update it to the merged commit, confirm the worktree is clean, and rerun final verification:
 
 ```bash
+git switch main
+git pull --ff-only origin main
+pnpm build
+node --test dist/tests/governance/*.test.js
+node --test dist/tests/cli/governance-readiness-cli.test.js
+pnpm typecheck
+git status --short
 git tag -a alix-p19-governance-automation-readiness-complete \
   -m "P19 governance automation readiness complete"
-git push origin HEAD
 git push origin alix-p19-governance-automation-readiness-complete
 ```
 
-Tag only after every verification command passes and working tree is clean.
+Expected before tagging: all verification commands pass, `git status --short` has no output, and `HEAD` is the merged `origin/main`.
 
 ## Final Acceptance Checklist
 
