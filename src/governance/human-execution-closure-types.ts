@@ -40,3 +40,23 @@ export interface HumanExecutionEvidenceLedgerEntry {
   appendedBy: string;
   auditRefs: string[];
 }
+
+export type HumanExecutionClosureDecision =
+  | "accepted"
+  | "rejected"
+  | "incomplete"
+  | "needs_follow_up";
+
+export interface HumanExecutionClosureReview {
+  closureReviewId: string;
+  handoffId: string;
+  preparedRecordId: string | null;
+  decision: HumanExecutionClosureDecision;
+  rationale: string;
+  reviewedBy: string;
+  reviewedAt: string;
+  evidenceIds: string[];
+  followUpRequired: boolean;
+  followUpSummary: string | null;
+  auditRefs: string[];
+}
