@@ -296,6 +296,12 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       console.log(output);
       return;
     }
+    case "policy-review": {
+      const { handleGovernancePolicyReviewCommand } = await import("./governance-policy-review.js");
+      const output = await handleGovernancePolicyReviewCommand(rest, { cwd: process.cwd() });
+      console.log(output);
+      return;
+    }
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
