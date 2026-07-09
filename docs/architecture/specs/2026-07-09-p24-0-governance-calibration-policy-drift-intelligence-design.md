@@ -472,7 +472,7 @@ policy writers
 
 ### P24.2 — Policy Drift Detector (10 tests)
 
-1. Empty inputs produce zero signals.
+1. Empty inputs produce an `evidence_coverage` signal with direction `"insufficient_evidence"` and severity `"none"` or `"low"` (not zero signals, not a crash).
 2. Calibration skew detected when overconfident rate exceeds threshold.
 3. Calibration skew detected when underconfident rate exceeds threshold.
 4. No calibration skew signal when accurate rate is within band.
