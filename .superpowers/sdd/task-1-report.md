@@ -1,29 +1,48 @@
-# P10.8b Task 1 — Report
+# Task 1 Report — P25.1 Policy Review Candidate Model
 
-## Summary
+## Commits Made
 
-Implemented the pure function layer for EffectivenessOutcome tracking in the recommendation effectiveness analyzer.
-
-## Changes
-
-### Source: `src/executive/recommendation-effectiveness.ts`
-- Added `EffectivenessOutcome` type (`"keep" | "revert" | "investigate" | "no_data"`)
-- Added `effectivenessOutcome?: EffectivenessOutcome` field to `RecommendationEntry`
-- Added 6 fields to `SignalCalibration`: `appliedKeep`, `appliedRevert`, `appliedInvestigate`, `appliedNoData`, `effectivenessRate`, `effectivenessCoverage`
-- Added `applyEffectivenessData()` pure function — joins recommendation entries with effectiveness outcome map, returns new array (no mutation)
-- Added effectiveness tallying in `computeRecommendationEffectiveness()` after the disposition switch block
-- Added effectiveness metrics computation (`effectivenessRate`, `effectivenessCoverage`) in the per-signal calibration loop
-
-### Test: `tests/executive/recommendation-effectiveness.vitest.ts`
-- 6 new tests for `applyEffectivenessData` (matching proposalId, untouched non-applied, no_data fallback, undefined for non-applied, empty input, mixed outcomes)
-- 5 new tests for `computeRecommendationEffectiveness` effectiveness metrics (per-signal tallies, rate excluding no_data, zero metrics, coverage 1.0, multi-signal)
+```
+752a37a5 feat(P25.1): policy review candidate model — types, transitions, store interface
+```
 
 ## Test Results
 
-- Focused: 27/27 PASS (11 new + 16 existing)
-- Full suite: 2100/2100 PASS across 197 test files
-- `npx tsc --noEmit`: clean (no errors)
+```
+▶ PolicyReviewCandidateTypes
+  ✔ 7 status values
+  ✔ 3 event types
+  ✔ ALLOWED_TRANSITIONS covers proposed→under_review
+  ✔ ALLOWED_TRANSITIONS covers proposed→dismissed
+  ✔ ALLOWED_TRANSITIONS covers proposed→deferred
+  ✔ ALLOWED_TRANSITIONS covers under_review→needs_info
+  ✔ ALLOWED_TRANSITIONS covers under_review→deferred
+  ✔ ALLOWED_TRANSITIONS covers under_review→accepted_for_policy_review
+  ✔ ALLOWED_TRANSITIONS covers under_review→dismissed
+  ✔ ALLOWED_TRANSITIONS covers needs_info→under_review
+  ✔ ALLOWED_TRANSITIONS covers needs_info→deferred
+  ✔ ALLOWED_TRANSITIONS covers needs_info→dismissed
+  ✔ ALLOWED_TRANSITIONS covers deferred→under_review
+  ✔ ALLOWED_TRANSITIONS covers deferred→dismissed
+  ✔ ALLOWED_TRANSITIONS covers accepted_for_policy_review→closed
+  ✔ ALLOWED_TRANSITIONS covers dismissed→closed
+  ✔ ALLOWED_TRANSITIONS does NOT proposed→closed
+  ✔ ALLOWED_TRANSITIONS does NOT dismissed→under_review
+  ✔ ALLOWED_TRANSITIONS does NOT closed→anything
+  ✔ candidate interface correct boundary flags
+```
+
+**20/20 pass, 0 fail**
+
+## TypeScript
+
+- `npx tsc --noEmit` — clean (no errors)
+
+## Files Created
+
+- `src/governance/policy-review-candidate-types.ts` (342 lines) — types, store interface, state machine map, DEFAULT_STORE_ROOT
+- `tests/governance/policy-review-candidate-types.test.ts` (20 tests)
 
 ## Concerns
 
-None. All existing imports preserved. No inline SignalCalibration constructions found in existing tests, so no existing tests needed updates.
+None.
