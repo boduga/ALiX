@@ -75,13 +75,13 @@ Write `tests/governance/policy-drift-types.test.ts`:
 ```typescript
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import {
+import { DEFAULT_POLICY_DRIFT_THRESHOLDS } from "../../src/governance/policy-drift-types.js";
+import type {
   PolicyDriftSignalKind,
   PolicyDriftDirection,
   PolicyDriftSeverity,
   PolicyDriftSignal,
   PolicyDriftThresholds,
-  DEFAULT_POLICY_DRIFT_THRESHOLDS,
 } from "../../src/governance/policy-drift-types.js";
 
 describe("PolicyDriftTypes", () => {
@@ -442,7 +442,7 @@ describe("detectPolicyDrift", () => {
   it("detects calibration_skew when overconfident rate exceeds threshold", () => {
     const calibrations = Array.from({ length: 20 }, (_, i) => cal({
       handoffId: `ho-${i}`,
-      calibration: i < 14 ? "overconfident" : "accurate",
+      calibration: i < 12 ? "overconfident" : "accurate",
     }));
     const signals = detectPolicyDrift({
       calibrations,
@@ -455,7 +455,7 @@ describe("detectPolicyDrift", () => {
     assert.ok(skew, "expected calibration_skew signal");
     assert.equal(skew!.direction, "too_loose");
     assert.equal(skew!.severity, "medium");
-    assert.equal(skew!.rates.overconfidentRate, 0.70);
+    assert.equal(skew!.rates.overconfidentRate, 0.6);
   });
 
   it("detects calibration_skew high when overconfident rate >= 0.70 with >= 20 samples", () => {
@@ -541,7 +541,7 @@ describe("detectPolicyDrift", () => {
     });
     const trend = signals.find(s => s.kind === "trend_direction");
     assert.ok(trend, "expected trend_direction signal");
-    assert.equal(trend!.direction, "degrading");
+    assert.equal(trend!.direction, "too_loose");
     assert.ok(trend!.trend);
     assert.equal(trend!.trend!.direction, "degrading");
     assert.ok(trend!.trend!.delta > 0);
@@ -561,9 +561,8 @@ describe("detectPolicyDrift", () => {
     assert.equal(coverage!.direction, "insufficient_evidence");
   });
 
-  it("detects volatility when sequential windows swing without direction", () => {
-    // 3 windows of data: high overconfident, then low overconfident, then high again
-    // Use previousCalibrations + calibrations to simulate swing
+  it("does not emit volatility with only two windows (requires 3+ windows)", () => {
+    // With only 2 windows, volatility cannot be detected. Verify no crash.
     const prevCal = Array.from({ length: 20 }, () => cal({ calibration: "overconfident" }));
     const currCal = Array.from({ length: 20 }, () => cal({ calibration: "accurate" }));
     const signals = detectPolicyDrift({
@@ -576,9 +575,10 @@ describe("detectPolicyDrift", () => {
       previousWindowEnd: PREV_END,
       previousCalibrations: prevCal,
     });
-    // If overconfident dropped from ~100% to 0%, direction should be "improving"
-    // No volatility yet — would need 3+ windows. Check no crash.
+    // Overconfident dropped from ~100% to 0% → improvement, no volatility
     assert.ok(Array.isArray(signals));
+    const volatility = signals.find(s => s.kind === "volatility");
+    assert.equal(volatility, undefined);
   });
 
   it("produces deterministic output for same inputs", () => {
@@ -705,7 +705,7 @@ function deterministicId(kind: string, windowStart: string, windowEnd: string, i
 
 
 function safeDiv(n: number, d: number): number {
-  return d === 0 ? 0 : Math.round((n / d) * 100) / 100;
+  return d === 0 ? 0 : n / d;
 }
 
 // ---------------------------------------------------------------------------
@@ -1842,7 +1842,8 @@ describe("toDriftFindings", () => {
       signal({ signalId: "s-2", severity: "medium" }),
     ]);
     assert.equal(findings.length, 1);
-    assert.equal(findings[0]!.description, "medium");
+    assert.equal(findings[0]!.severity, "medium");
+    assert.ok(findings[0]!.description.includes("calibration_skew"));
   });
 });
 ```
@@ -1892,7 +1893,9 @@ export function toDriftFindings(signals: PolicyDriftSignal[]): DriftFinding[] {
       confidence: signal.confidence,
       evidenceRefs,
       description: `${signal.kind} — ${signal.direction} (severity: ${signal.severity})`,
-      recommendation: `Review governance calibration for ${signal.kind}. ${signal.rationale.join(" ")}`,
+      recommendation:
+        "No policy change is proposed. This policy_drift projection is read-only " +
+        "and may be reviewed through the governed human process.",
     });
   }
 
@@ -1956,38 +1959,54 @@ import { handleGovernanceCalibrationCommand } from "../../src/cli/commands/gover
 
 describe("handleGovernanceCalibrationCommand", () => {
 
-  it("returns help text when no subcommand given", () => {
+  it("returns usage when no subcommand given", () => {
     const result = handleGovernanceCalibrationCommand([], { cwd: "/tmp" });
     assert.ok(result.includes("usage"));
   });
 
-  it("handles detect with empty data gracefully", () => {
+  it("returns error when --input is missing", () => {
     const result = handleGovernanceCalibrationCommand(["detect"], { cwd: "/tmp" });
-    assert.ok(result);
-    assert.ok(!result.includes("ERROR"));
+    assert.ok(result.includes("ERROR"));
+    assert.ok(result.includes("--input"));
   });
 
-  it("handles report with empty data gracefully", () => {
-    const result = handleGovernanceCalibrationCommand(["report"], { cwd: "/tmp" });
-    assert.ok(result);
-    assert.ok(!result.includes("ERROR"));
+  it("returns error for non-existent input file", () => {
+    const result = handleGovernanceCalibrationCommand(["report", "--input", "/tmp/nonexistent.json"], { cwd: "/tmp" });
+    assert.ok(result.includes("ERROR"));
   });
 
-  it("handles report --json with empty data", () => {
-    const result = handleGovernanceCalibrationCommand(["report", "--json"], { cwd: "/tmp" });
-    assert.ok(result);
+  it("handles report --json with empty bundle", () => {
+    // Write a minimal empty bundle to a temp location
+    const fs = require("node:fs");
+    const bundlePath = "/tmp/p24-empty-bundle.json";
+    fs.writeFileSync(bundlePath, JSON.stringify({
+      calibrations: [],
+      replayDiffs: [],
+      candidateLessons: [],
+      readOnly: true,
+    }));
+    const result = handleGovernanceCalibrationCommand(
+      ["report", "--json", "--input", bundlePath],
+      { cwd: "/tmp" },
+    );
     const parsed = JSON.parse(result);
     assert.ok(parsed.signals !== undefined);
+    assert.equal(parsed.signals.length, 0);
   });
 
-  it("handles bands with empty data gracefully", () => {
-    const result = handleGovernanceCalibrationCommand(["bands"], { cwd: "/tmp" });
+  it("handles bands with empty bundle", () => {
+    const result = handleGovernanceCalibrationCommand(
+      ["bands", "--input", "/tmp/p24-empty-bundle.json"],
+      { cwd: "/tmp" },
+    );
     assert.ok(result);
-    assert.ok(!result.includes("ERROR"));
   });
 
-  it("handles --window flag", () => {
-    const result = handleGovernanceCalibrationCommand(["detect", "--window", "90"], { cwd: "/tmp" });
+  it("handles --input with --window flag", () => {
+    const result = handleGovernanceCalibrationCommand(
+      ["detect", "--input", "/tmp/p24-empty-bundle.json", "--window", "90"],
+      { cwd: "/tmp" },
+    );
     assert.ok(result);
   });
 
@@ -2061,29 +2080,32 @@ function isoDaysAgo(days: number): string {
 // Bundle readers (CLI boundary — owns fs access)
 // ---------------------------------------------------------------------------
 
-function tryReadJson<T>(filePath: string): T[] | null {
+// ---------------------------------------------------------------------------
+// Input bundle format
+// ---------------------------------------------------------------------------
+
+export interface CalibrationInputBundle {
+  calibrations: CalibrationInput[];
+  replayDiffs: ReplayDiffInput[];
+  candidateLessons: CandidateLessonInput[];
+  /** Optional previous-window data for trend detection */
+  previousWindow?: {
+    windowStart: string;
+    windowEnd: string;
+    calibrations: CalibrationInput[];
+  };
+  // Boundary marker — P24 reads, never writes
+  readonly readOnly: true;
+}
+
+function loadInputBundle(filePath: string): CalibrationInputBundle | null {
   if (!existsSync(filePath)) return null;
   try {
     const raw = readFileSync(filePath, "utf-8");
-    return JSON.parse(raw) as T[];
+    return JSON.parse(raw) as CalibrationInputBundle;
   } catch {
     return null;
   }
-}
-
-function loadCalibrations(cwd: string): CalibrationInput[] {
-  const path = `${cwd}/.alix/calibration/calibrations.json`;
-  return tryReadJson<CalibrationInput>(path) ?? [];
-}
-
-function loadReplayDiffs(cwd: string): ReplayDiffInput[] {
-  const path = `${cwd}/.alix/replay/diffs.json`;
-  return tryReadJson<ReplayDiffInput>(path) ?? [];
-}
-
-function loadCandidateLessons(cwd: string): CandidateLessonInput[] {
-  const path = `${cwd}/.alix/replay/lessons.json`;
-  return tryReadJson<CandidateLessonInput>(path) ?? [];
 }
 
 // ---------------------------------------------------------------------------
@@ -2091,30 +2113,30 @@ function loadCandidateLessons(cwd: string): CandidateLessonInput[] {
 // ---------------------------------------------------------------------------
 
 function handleDetect(args: string[], cwd: string): string {
+  const inputPath = flag(args, "--input");
+  if (!inputPath) {
+    return "ERROR: --input <path> is required. Provide a P24 input bundle JSON file.\n" + usage();
+  }
+
+  const bundle = loadInputBundle(inputPath);
+  if (!bundle) {
+    return "ERROR: Could not load input bundle. Verify the file exists and is valid JSON.\n" + usage();
+  }
+
   const windowFlag = flag(args, "--window");
   const windowDays = windowFlag ? parseInt(windowFlag, 10) : 90;
-
   const since = flag(args, "--since") ?? isoDaysAgo(windowDays);
   const until = flag(args, "--until") ?? now();
 
-  // Previous window: same duration before `since`
-  const prevSinceMs = new Date(since).getTime() - (new Date(until).getTime() - new Date(since).getTime());
-  const prevSince = new Date(prevSinceMs).toISOString();
-  const prevUntil = since;
-
-  const calibrations = loadCalibrations(cwd);
-  const replayDiffs = loadReplayDiffs(cwd);
-  const candidateLessons = loadCandidateLessons(cwd);
-
   const signals = detectPolicyDrift({
-    calibrations,
-    replayDiffs,
-    candidateLessons,
+    calibrations: bundle.calibrations,
+    replayDiffs: bundle.replayDiffs,
+    candidateLessons: bundle.candidateLessons,
     windowStart: since,
     windowEnd: until,
-    previousWindowStart: prevSince,
-    previousWindowEnd: prevUntil,
-    previousCalibrations: calibrations, // Simplified: same data for now
+    previousWindowStart: bundle.previousWindow?.windowStart,
+    previousWindowEnd: bundle.previousWindow?.windowEnd,
+    previousCalibrations: bundle.previousWindow?.calibrations,
   });
 
   const bands = buildConfidenceBands(signals, { windowStart: since, windowEnd: until });
@@ -2146,19 +2168,25 @@ function handleDetect(args: string[], cwd: string): string {
 // ---------------------------------------------------------------------------
 
 function handleReport(args: string[], cwd: string): string {
+  const inputPath = flag(args, "--input");
+  if (!inputPath) {
+    return "ERROR: --input <path> is required.\n" + usage();
+  }
+
+  const bundle = loadInputBundle(inputPath);
+  if (!bundle) {
+    return "ERROR: Could not load input bundle.\n" + usage();
+  }
+
   const windowFlag = flag(args, "--window");
   const windowDays = windowFlag ? parseInt(windowFlag, 10) : 90;
   const since = flag(args, "--since") ?? isoDaysAgo(windowDays);
   const until = flag(args, "--until") ?? now();
 
-  const calibrations = loadCalibrations(cwd);
-  const replayDiffs = loadReplayDiffs(cwd);
-  const candidateLessons = loadCandidateLessons(cwd);
-
   const signals = detectPolicyDrift({
-    calibrations,
-    replayDiffs,
-    candidateLessons,
+    calibrations: bundle.calibrations,
+    replayDiffs: bundle.replayDiffs,
+    candidateLessons: bundle.candidateLessons,
     windowStart: since,
     windowEnd: until,
   });
@@ -2178,19 +2206,25 @@ function handleReport(args: string[], cwd: string): string {
 // ---------------------------------------------------------------------------
 
 function handleBands(args: string[], cwd: string): string {
+  const inputPath = flag(args, "--input");
+  if (!inputPath) {
+    return "ERROR: --input <path> is required.\n" + usage();
+  }
+
+  const bundle = loadInputBundle(inputPath);
+  if (!bundle) {
+    return "ERROR: Could not load input bundle.\n" + usage();
+  }
+
   const windowFlag = flag(args, "--window");
   const windowDays = windowFlag ? parseInt(windowFlag, 10) : 90;
   const since = flag(args, "--since") ?? isoDaysAgo(windowDays);
   const until = flag(args, "--until") ?? now();
 
-  const calibrations = loadCalibrations(cwd);
-  const replayDiffs = loadReplayDiffs(cwd);
-  const candidateLessons = loadCandidateLessons(cwd);
-
   const signals = detectPolicyDrift({
-    calibrations,
-    replayDiffs,
-    candidateLessons,
+    calibrations: bundle.calibrations,
+    replayDiffs: bundle.replayDiffs,
+    candidateLessons: bundle.candidateLessons,
     windowStart: since,
     windowEnd: until,
   });
@@ -2223,7 +2257,7 @@ function handleBands(args: string[], cwd: string): string {
 
 function usage(): string {
   return (
-    "usage: alix governance calibration {detect|report|bands} [--window N] [--since <iso>] [--until <iso>] [--json]\n" +
+    "usage: alix governance calibration {detect|report|bands} --input <bundle.json> [--window N] [--since <iso>] [--until <iso>] [--json]\n" +
     "\n" +
     "Subcommands:\n" +
     "  detect      Run policy drift detector, show signal summary\n" +
@@ -2231,6 +2265,7 @@ function usage(): string {
     "  bands       Confidence bands only (text, or --json for JSON)\n" +
     "\n" +
     "Flags:\n" +
+    "  --input     Path to P24 input bundle JSON (calibrations + replay diffs)\n" +
     "  --window N  Look back N days (default: 90)\n" +
     "  --since     Explicit window start (overrides --window)\n" +
     "  --until     Explicit window end (default: now)\n" +
@@ -2365,7 +2400,8 @@ Create `docs/architecture/checkpoints/2026-07-09-p24-5-governance-calibration-po
 
 ### Tests
 
-- [ ] All 26 tests pass
+- [ ] All 47 P24 tests pass
+- [ ] All pre-existing governance tests pass
 - [ ] tsc clean
 
 ## Seal Statement
