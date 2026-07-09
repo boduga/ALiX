@@ -290,6 +290,12 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       const { handleGovernanceReplayCommand } = await import("./governance-replay.js");
       return handleGovernanceReplayCommand(rest);
     }
+    case "calibration": {
+      const { handleGovernanceCalibrationCommand } = await import("./governance-calibration.js");
+      const output = handleGovernanceCalibrationCommand(rest, { cwd: process.cwd() });
+      console.log(output);
+      return;
+    }
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
