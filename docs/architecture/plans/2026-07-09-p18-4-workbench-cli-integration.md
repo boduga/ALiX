@@ -20,10 +20,13 @@ Already done.
 
 ## Task 3 — Harden `runWorkbenchTrace`
 
-- Load all stores (attempts from ExecutionStore, plans/approvals/remediations from placeholder)
-- Call `buildWorkbenchSnapshot` → generate trace from snapshot + inline trace building
+- Load all currently available stores read-only (ExecutionStore for attempts)
+- For stores not yet implemented, pass empty arrays with TODO — behavior stays deterministic
+- Call `buildWorkbenchSnapshot`
+- Select the trace item/remediation from the snapshot; render its data
 - Render populated hops with `●` and gaps with `○`
 - Not-found handling for unknown remediationId
+- No duplicate lifecycle classification logic in CLI handler
 
 ## Task 4 — Harden `runWorkbenchSummary`
 
