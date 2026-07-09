@@ -175,11 +175,11 @@ export function classifyExecutionReadiness(
       ),
     );
   }
-  if (reversibleMutatingActions.length > 0) {
+  if (mutatingActions.length > 0 && irreversibleActions.length === 0) {
     reasons.push(
       reason(
         "reversible_mutation",
-        reversibleMutatingActions,
+        mutatingActions,
         "Approved actions require reversible mutation",
       ),
     );

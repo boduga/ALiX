@@ -221,6 +221,32 @@ describe("classifyExecutionReadiness", () => {
     assert.equal(assessment.facts.reversible, false);
   });
 
+  it("does not describe mutation as reversible when any approved action is irreversible", () => {
+    const actions = [
+      makeAction({ actionId: "irreversible", reversible: false }),
+      makeAction({
+        actionId: "mutation",
+        kind: "update_config",
+        mutationRequired: true,
+      }),
+    ];
+    const assessment = classifyExecutionReadiness(
+      makePlan(actions),
+      makeApproval({ approvedActionIds: ["mutation", "irreversible"] }),
+      { now: NOW },
+    );
+
+    assert.equal(assessment.readinessLevel, "irreversible");
+    assert.equal(
+      assessment.reasons.some((item) => item.code === "irreversible_action"),
+      true,
+    );
+    assert.equal(
+      assessment.reasons.some((item) => item.code === "reversible_mutation"),
+      false,
+    );
+  });
+
   it("classifies reversible mutation before simulator coverage", () => {
     const action = makeAction({
       kind: "update_config",
