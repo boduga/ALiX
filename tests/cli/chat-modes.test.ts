@@ -2,6 +2,48 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { join } from "node:path";
+import { buildChatSystemPrompt, executeWorkspaceTool, formatChatToolFailureMessage, isChatToolFailure, resolveChatMode, selectChatToolExecutor } from "../../src/cli/commands/chat.js";
+
+describe("workspace chat tools", () => {
+  it("uses provider-safe tool names", () => {
+    const resolved = resolveChatMode({ workspace: true });
+    for (const tool of resolved.tools) {
+      assert.match(tool.name, /^[a-zA-Z0-9_-]+$/);
+    }
+  });
+
+  it("surfaces web_search failure without stale fallback", () => {
+    const result = "Error: BRAVE_API_KEY env var not set";
+    assert.equal(isChatToolFailure(result), true);
+    const message = formatChatToolFailureMessage("web_search", result);
+    assert.ok(message.includes("web_search failed"));
+    assert.ok(message.includes("BRAVE_API_KEY"));
+    assert.ok(message.includes("cannot verify current information"));
+  });
+
+  it("routes web tools to chat executor in workspace mode", () => {
+    assert.equal(selectChatToolExecutor("workspace", "web_search"), "chat");
+    assert.equal(selectChatToolExecutor("workspace", "web_fetch"), "chat");
+    assert.equal(selectChatToolExecutor("workspace", "file_read"), "workspace");
+    assert.equal(selectChatToolExecutor("workspace", "dir_list"), "workspace");
+    assert.equal(selectChatToolExecutor("workspace", "dir_search"), "workspace");
+    assert.equal(selectChatToolExecutor("workspace", "workspace_pwd"), "workspace");
+  });
+
+  it("supports pwd and directory listing tools", async () => {
+    const pwd = await executeWorkspaceTool("workspace_pwd", {});
+    assert.equal(pwd, process.cwd());
+
+    const listing = await executeWorkspaceTool("dir_list", { path: "." });
+    assert.ok(listing.includes("package.json"), listing);
+  });
+
+  it("includes model identity in chat prompt", () => {
+    const prompt = buildChatSystemPrompt(true, "google/gemini-2.5-pro");
+    assert.ok(prompt.includes("google/gemini-2.5-pro"));
+    assert.ok(prompt.includes("which model"));
+  });
+});
 
 describe("parseChatArgs (via CLI)", () => {
   const cli = join(process.cwd(), "dist", "src", "cli.js");

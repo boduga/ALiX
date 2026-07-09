@@ -71,143 +71,81 @@ if (!command || command === "--help" || command === "-h") {
   console.log(`ALiX ${ALIX_VERSION}
 
 Usage:
-  alix chat                Start interactive ALiX chat session
-  alix chat --session <id> Resume a previous chat session
-  alix chat --new          Start a new chat session
-  alix run "<task>"        Plans first, then executes (approve/reject/edit the plan)
-  alix run "<task>" --no-plan  Execute directly without planning phase
-  alix run "<task>" --no-stream  Disable streaming output
-  alix run "<task>" --mode=auto|ask|bypass  Set session permission mode
-  alix run --resume <id>  Resume an interrupted session
-  alix session list       List past sessions
-  alix session show <id>  Show session details
-  alix graph plan "<task>"  Plan a multi-node TaskGraph (dry-run, no execution)
-  alix graph list         List saved graphs
-  alix graph inspect <id> Show graph node details and status
-  alix graph export <id> --format mermaid|json  Export graph
-  alix graph run <id>     Execute a planned graph sequentially
-  alix graph run <id> --enforce-capabilities  Halt on capability policy violations
-  alix graph preflight <id>   Preflight capability check for each node
-  alix graph runs <id>        Show graph run history (sessions, attempts, reports)
-  alix graph rerun <id> --node <id>  Rerun a failed graph node
-  alix graph continue <id>  Resume execution after approval
-  alix sop list           List registered SOPs
-  alix sop show <id>      Show SOP details and manifest
-  alix sop run <id> --topic "<topic>"  Run an SOP (--plan-only to skip execution)
-  alix sop doctor         Validate all registered SOPs
-  alix sop run <id> --topic "<topic>" --enforce-capabilities  Enforce capability policy
-  alix report list        List report artifacts
-  alix report show <id>   Show report metadata and artifacts
-  alix report open <id>   Print final report to stdout
-  alix report path <id>   Print absolute path to report directory
-  alix metrics            Show M0.9 metrics for latest session (--raw for per-event)
-  alix demo local         Run M0.9 demo (read-only task, kernel artifact display)
-  alix db doctor          Check database health
-  alix db migrate         Run M0.9 kernel database migration
-  alix serve               Start the Inspector server (requires ui.enabled: true)
-  alix inspector open      Start the Inspector web UI and open browser
-  alix config show
-  alix config get <path>         Get config value at dot-path
-  alix config set <path> <value> Set config value, record provenance
-  alix config delete <path>      Delete config value, record provenance
-  alix config history [--json]   Show mutation history
-  alix config provenance [--json] [<path>]  Show provenance log
-  alix config rollback <version> --force --reason "..."  Force anti-rollback override
-  alix config set-key     Interactive API key setup for 11 providers
-  alix config set-default-model  Interactive model selection (fetches from provider API)
-  alix config set-tier [tier]    Set model for a subagent tier (interactive, fetches from provider API)
-  alix tui              Launch the terminal UI dashboard for agent sessions
-  alix mcp list           List connected MCP servers and their tools
-  alix mcp add            Add an MCP server (interactive prompts)
-  alix mcp remove <name>  Disconnect an MCP server
-  alix mcp discover <pkg> Discover an npm MCP package
-  alix mcp test <name>    Test an MCP server connection
-  alix init              Initialize project with git, config, and sensible defaults
-  alix extension list     List installed extensions
-  alix extension install <path>  Install an extension from a directory
-  alix extension uninstall <id>   Uninstall an extension (e.g. skill/my-skill)
-  alix extension search <query>  Search extensions by name, description, or tag
-  alix agent <role> "<prompt>"   Spawn a subagent (explorer|reviewer|test_investigator|docs_researcher|worker)
-  alix memory list [--query <text>]  List memory entries
-  alix memory add --name <n> --content <c>  Add a memory entry
-  alix registry list      List all loaded agents and tools
-  alix registry agents    List agent cards only
-  alix registry tools     List tool cards only
-  alix registry doctor    Check card file health and loading status
-  alix doctor             Run comprehensive system health check
-  alix doctor --performance     Check latest benchmark data against performance budgets
-  alix models doctor         Diagnose hardware, providers, and profile compatibility
-  alix models fit            Rank model profiles for your system
-  alix models list-profiles  List available model profiles
-  alix models show-profile   Show profile details
-  alix models apply-profile  Apply a profile to config
-  alix models install-profile  Pull models and apply profile
-  alix benchmark run          Run performance benchmarks
-  alix benchmark run --suite quick   Run quick benchmarks only
-  alix benchmark compare <id> <id>  Compare two benchmark runs
-  alix provider doctor       Test all configured providers (complete + stream)
-  alix provider doctor google  Test a specific provider
+  Core:
+    alix chat [--session <id>|--new]
+    alix run "<task>" [--no-plan] [--no-stream] [--mode=auto|ask|bypass] [--resume <id>]
+    alix submit "<task>"
+    alix session list|show <id>
+    alix plan "<task>"
+    alix review <plan-id>
+    alix apply <plan-id>
 
-  alix security doctor       Check Inspector boundary state and security config
-  alix security gate         Run the security acceptance gate
-  alix security config keygen    Generate config signing keypair
-  alix security config sign      Sign the current config
-  alix security config verify    Verify config signature and anti-rollback
-  alix security config trust-key <path>  Import a trusted public key
-  alix security config allow-rollback --reason "..."  Accept current config version
-  alix security supply-chain lifecycle-check     Check lifecycle scripts against allowlist
-  alix security supply-chain exceptions list      List all audit exceptions
-  alix security supply-chain exceptions check     Check npm audit against exceptions policy
-  alix security supply-chain verify-tarball <p>   Verify tarball contents against policy
-  alix credential list        List stored credentials (no values)
-  alix credential get <p> <l>  Get credential value
-  alix credential set <p> <l> <v> Store credential
-  alix credential delete <p> <l> Delete credential
-  alix credential migrate      Migrate credentials from config [--dry-run]
-  alix policy list        List loaded policy rules
-  alix policy doctor      Check policy file health and loading status
-  alix policy eval        Evaluate a capability or risk level against policy
-  alix audit list [--limit N]    Show recent audit events
-  alix audit by-graph <id>       Show audit events for a graph
-  alix audit by-approval <id>    Show audit events for an approval
-  alix audit by-action <action>  Filter by action type
-  alix audit verify              Stream-verify audit log integrity
-  alix audit verify --json       Structured integrity report
-  alix audit checkpoint --output <path>  Create signed checkpoint
-  alix audit checkpoint-verify <path>    Verify checkpoint evidence
-  alix evidence list [--kind <type>] [--limit <n>] [--json]
-                                   List evidence records
-  alix evidence show <fingerprint> Show evidence record by fingerprint
-  alix evidence query --kind <type> [--after <iso>] [--before <iso>] [--json]
-                                   Query evidence by type and time range
-  alix evidence verify             Run fingerprint chain verification
-  alix reflection report           Generate a reflection report with observability metrics
-  alix adaptation <subcommand>     Guided adaptation: list/show/propose/approve/reject/apply
-  alix decision context <id>   Show DecisionContext for a proposal (P6.0a)
-  alix workflow status <issue>     Show workflow state for an issue
-  alix workflow list               List active workflow entries
-  alix workflow transition <i> <s>  Manually transition an issue
-  alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
-  alix runtime timeline <graphId>  Show timeline for a graph across all sources
-  alix baseline <subcommand>      Baseline intelligence: list, providers, health, show
-  alix daemon start      Start the background daemon
-  alix daemon stop       Stop the background daemon
-  alix daemon status     Show daemon status
-  alix daemon tasks      List daemon tasks (--status <filter>)
-  alix daemon cancel <id>  Cancel a daemon task
-  alix daemon doctor     Daemon health check
-  alix submit "<task>"   Submit a task to the daemon
-  alix runs list [--limit N] [--json]  List ledger entries (newest first)
-  alix runs show <runId> [--json]     Show a single ledger entry
-  alix failures list [--limit N] [--json]  List failure records (newest first)
-  alix failures show --run <runId> [--json]  Show failures for a run
-  alix failures show --issue <i> [--json]    Show failures for an issue
-  alix failures recall --type <type> [--json]  Find similar failures
-  alix approvals list     List all approval requests
-  alix approvals pending  List pending approvals only
-  alix approvals show <id>  Show approval details
-  alix approvals approve <id> [--reason "..."]  Approve a pending request
-  alix approvals deny <id> [--reason "..."]  Deny a pending request
+  Graphs, SOPs, reports:
+    alix graph plan|list|inspect|export|run|preflight|runs|rerun|continue
+    alix sop list|show|run|doctor
+    alix report list|show|open|path
+    alix metrics [--raw]
+    alix demo local
+
+  Project and UI:
+    alix init
+    alix serve
+    alix inspector open
+    alix inspector auth create|list|rotate|revoke|doctor
+    alix tui
+    alix db doctor|migrate
+    alix config show|get|set|delete|history|provenance|rollback|set-key|set-default-model|set-tier
+
+  Extensions, agents, memory:
+    alix mcp list|add|remove|discover|test
+    alix extension list|install|uninstall|search
+    alix skill list|show|install|run
+    alix skills <skill-name> [args]
+    alix agent <role> "<prompt>"
+    alix memory list|add|search|stats
+    alix registry list|agents|tools|doctor
+
+  Health, models, providers:
+    alix doctor [--performance]
+    alix models doctor|fit|list-profiles|show-profile|apply-profile|install-profile
+    alix benchmark run|compare
+    alix provider doctor [provider]
+
+  Security, policy, audit:
+    alix security doctor|gate
+    alix security config keygen|sign|verify|trust-key|allow-rollback
+    alix security supply-chain lifecycle-check|exceptions|verify-tarball
+    alix credential list|get|set|delete|migrate
+    alix policy list|doctor|eval
+    alix audit list|by-graph|by-approval|by-action|verify|checkpoint|checkpoint-verify
+    alix evidence list|show|query|verify
+
+  Runtime and operations:
+    alix runtime events|timeline
+    alix daemon start|stop|status|tasks|cancel|doctor
+    alix runs list|show|append
+    alix failures list|show|recall|append
+    alix approvals list|pending|show|approve|deny
+    alix approval list|show|approve|deny|revoke|expire
+    alix workflow status|list|transition
+    alix reflection report
+
+  Intelligence:
+    alix adaptation list|show|propose|approve|reject|apply|effectiveness|generate|revert|intelligence|prioritize|capability-evolution|lineage
+    alix decision context|risk|recommend|queue|brief|status|review|outcome|intent
+    alix learning report|propose|dashboard|refresh
+    alix explain proposal|governance
+    alix governance health|drift|lens-review|policies|integrity|recommend|risk-score|approval|analytics|failure-analysis|policy-suggestions|friction-analysis|report|inbox|review|decide|actions|audit|propose|approve|reject|list|cleanup|explain|dashboard|investigate|execution
+    alix executive dashboard|plan|evaluate|outcomes|learn|recommend|bridge|recommendation-effectiveness|remediate|subsystem-correlation|orchestrate|correlate|reason|strategic-plan|confidence-model|forecast
+    alix baseline list|providers|health|show
+    alix research "<query>"
+    alix issue run <issue>
+
+  Coordination:
+    alix coordination run|tick|resume|status|results|cancel|list|inspect|watch|workers|approvals|ownership|events|conflicts|conflict|conflict-resolve|conflict-dismiss|conflict-accept-divergence
+    alix ownership list|history|show|acquire|release|renew|conflicts|prune
+    alix recovery scan|inspect|repair|verify
+    alix observability <subcommand>
 `);
   process.exit(0);
 }
@@ -1246,23 +1184,6 @@ if (command === "config" && args[0] === "show") {
     // readline confirm would be ideal but this is a safety prompt
   }
   console.log(JSON.stringify(output, null, 2));
-  process.exit(0);
-}
-
-if (command === "chat") {
-  const { ChatSessionStore } = await import("./chat/chat-session-store.js");
-  const { startRepl } = await import("./chat/chat-repl.js");
-
-  const sessionIdx = args.indexOf("--session");
-  const sessionId = sessionIdx >= 0 && sessionIdx + 1 < args.length ? args[sessionIdx + 1] : undefined;
-  const jsonMode = args.includes("--json");
-  const forceNew = args.includes("--new");
-
-  const storeDir = join(homedir(), ".alix", "chat", "sessions");
-  const store = new ChatSessionStore(storeDir);
-
-  const effectiveSessionId = forceNew ? undefined : sessionId;
-  await startRepl(store, { sessionId: effectiveSessionId, jsonMode });
   process.exit(0);
 }
 
@@ -3392,4 +3313,3 @@ if (command === "issue" && args[0] === "run") {
 
 console.error(`Unknown command: ${command}`);
 process.exit(1);
-
