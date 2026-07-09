@@ -641,6 +641,7 @@ export function evaluateCounterfactual(
 
   return {
     replayId: dataset.replayId,
+    sourceLifecycleId: dataset.sourceLifecycleId,
     scenarioId: scenario.scenarioId,
     originalOutcome: original,
     counterfactualOutcome,
