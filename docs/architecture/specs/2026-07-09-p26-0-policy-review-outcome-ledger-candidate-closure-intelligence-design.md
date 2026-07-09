@@ -207,6 +207,23 @@ interface PolicyReviewOutcomeLedger {
 
 ---
 
+### 8.3 Error Handling
+
+Errors are caught at the CLI boundary and returned as user-facing messages. The store throws structured errors; the CLI catches and formats them.
+
+| Error | Source | CLI Behavior |
+|-------|--------|-------------|
+| Empty rationale | Store validation | `catch` → `"ERROR: rationale must be non-empty"` |
+| Empty recordedBy | Store validation | `catch` → `"ERROR: recordedBy must be non-empty"` |
+| Invalid outcome type | Store validation | `catch` → `"ERROR: Invalid outcome type: ..."` |
+| Duplicate outcome ID | Store duplicate check | `catch` → `"ERROR: duplicate outcomeId: ... already exists"` |
+| Filesystem error (permissions, disk) | Store I/O | `catch` → `"ERROR: {message}"` |
+| Missing candidate ID | CLI argument parse | `"ERROR: <candidateId> is required."` |
+
+The CLI handler wraps every `recordOutcome` call in a `try/catch` block. Read operations (`list`, `show`) that encounter errors return empty/graceful results — they never throw uncatchable errors.
+
+---
+
 ## 9. Outcome Analytics (P26.3)
 
 ### 9.1 Analytics
