@@ -2443,17 +2443,31 @@ async function runExecutionReport(args: string[], jsonMode: boolean): Promise<vo
 // P18 — Governance Workbench CLI handlers
 // ---------------------------------------------------------------------------
 
+const WK_CYAN = "\x1b[36m";
+const WK_DIM = "\x1b[2m";
+const WK_RED = "\x1b[31m";
+const WK_YELLOW = "\x1b[33m";
+const WK_GREEN = "\x1b[32m";
+const WK_RESET = "\x1b[0m";
+
+const QUEUE_LABELS: Record<string, string> = {
+  needs_acceptance: "Needs Acceptance",
+  needs_planning: "Needs Planning",
+  needs_approval: "Needs Approval",
+  needs_followup: "Needs Follow-up",
+};
+
 async function runWorkbench(args: string[]): Promise<void> {
   const sub = args[0] ?? "";
   const jsonMode = args.includes("--json");
 
   switch (sub) {
     case "queue":
-      return runWorkbenchQueue(args.slice(1), jsonMode);
+      return runWorkbenchQueue(jsonMode);
     case "trace":
       return runWorkbenchTrace(args.slice(1), jsonMode);
     case "summary":
-      return runWorkbenchSummary(args.slice(1), jsonMode);
+      return runWorkbenchSummary(jsonMode);
     default:
       console.log("Unknown workbench subcommand. Usage:");
       console.log("  alix governance workbench queue [--json]");
@@ -2462,7 +2476,7 @@ async function runWorkbench(args: string[]): Promise<void> {
   }
 }
 
-async function runWorkbenchQueue(args: string[], jsonMode: boolean): Promise<void> {
+async function loadWorkbenchSnapshot() {
   const { buildWorkbenchSnapshot } = await import("../../governance/governance-workbench.js");
   const { ExecutionStore } = await import("../../governance/execution-store.js");
 
@@ -2470,66 +2484,75 @@ async function runWorkbenchQueue(args: string[], jsonMode: boolean): Promise<voi
   const attemptStore = new ExecutionStore(cwd);
   const attempts = await attemptStore.list();
 
-  const snapshot = buildWorkbenchSnapshot({
+  // TODO: Load remediation, plan, and approval stores when they are
+  // implemented. Until then, pass empty arrays — behavior stays deterministic.
+  return buildWorkbenchSnapshot({
     remediations: [],
     executionPlans: [],
     approvals: [],
     attempts,
     options: { now: new Date().toISOString() },
   });
+}
+
+// ---------------------------------------------------------------------------
+// runWorkbenchQueue
+// ---------------------------------------------------------------------------
+
+async function runWorkbenchQueue(jsonMode: boolean): Promise<void> {
+  const snapshot = await loadWorkbenchSnapshot();
 
   if (jsonMode) {
-    console.log(JSON.stringify({ queues: snapshot.queue, summary: snapshot.summary }, null, 2));
+    console.log(JSON.stringify({ queue: snapshot.queue, summary: snapshot.summary }, null, 2));
     return;
   }
 
-  const YELLOW = "\x1b[33m";
-  const RED = "\x1b[31m";
-  const GREEN = "\x1b[32m";
-  const CYAN = "\x1b[36m";
-  const DIM = "\x1b[2m";
-  const RESET = "\x1b[0m";
-  const queueLabels: Record<string, string> = {
-    needs_acceptance: "Needs Acceptance",
-    needs_planning: "Needs Planning",
-    needs_approval: "Needs Approval",
-    needs_followup: "Needs Follow-up",
-  };
+  const total = snapshot.summary.queueCounts.total;
+  if (total === 0) {
+    console.log(`${WK_GREEN}No pending items. All remediations resolved.${WK_RESET}`);
+    return;
+  }
 
   for (const [queueName, items] of Object.entries(snapshot.queue)) {
     if (items.length === 0) continue;
-    console.log(`\n${CYAN}${queueLabels[queueName] ?? queueName} (${items.length})${RESET}`);
-    console.log(`${DIM}${"—".repeat(60)}${RESET}`);
+    console.log(`\n${WK_CYAN}${QUEUE_LABELS[queueName] ?? queueName} (${items.length})${WK_RESET}`);
+    console.log(`${WK_DIM}${"—".repeat(60)}${WK_RESET}`);
     for (const item of items) {
-      const sevColor = item.severity === "critical" ? RED : item.severity === "warning" ? YELLOW : DIM;
-      console.log(
-        `  ${sevColor}${item.severity.toUpperCase()}${RESET} ${item.remediationId}`,
-      );
-      console.log(`    ${DIM}Reason:${RESET} ${item.reason}`);
-      console.log(`    ${DIM}Plan:${RESET} ${item.planId ?? "—"}  ${DIM}Approval:${RESET} ${item.approvalId ?? "—"}`);
-      console.log(`    ${DIM}Created:${RESET} ${item.createdAt}`);
+      const sevColor = item.severity === "critical" ? WK_RED
+        : item.severity === "warning" ? WK_YELLOW
+        : WK_DIM;
+      console.log(`  ${sevColor}${item.severity.toUpperCase()}${WK_RESET} ${item.remediationId}`);
+      console.log(`    ${WK_DIM}Reason:${WK_RESET} ${item.reason}`);
+      console.log(`    ${WK_DIM}Plan:${WK_RESET} ${item.planId ?? "—"}  ${WK_DIM}Approval:${WK_RESET} ${item.approvalId ?? "—"}`);
+      console.log(`    ${WK_DIM}Created:${WK_RESET} ${item.createdAt}`);
     }
-  }
-
-  if (snapshot.summary.queueCounts.total === 0) {
-    console.log(`${GREEN}No pending items. All remediations resolved.${RESET}`);
   }
 }
 
-async function runWorkbenchTrace(args: string[], jsonMode: boolean): Promise<void> {
-  const { buildWorkbenchSnapshot } = await import("../../governance/governance-workbench.js");
-  const { ExecutionStore } = await import("../../governance/execution-store.js");
+// ---------------------------------------------------------------------------
+// runWorkbenchTrace
+// ---------------------------------------------------------------------------
 
+async function runWorkbenchTrace(args: string[], jsonMode: boolean): Promise<void> {
   const remediationId = args.find((a) => !a.startsWith("--"));
   if (!remediationId) {
     console.error("Usage: alix governance workbench trace <remediationId> [--json]");
     return;
   }
 
+  const { ExecutionStore } = await import("../../governance/execution-store.js");
+  const { buildWorkbenchSnapshot, buildLifecycleTrace }
+    = await import("../../governance/governance-workbench.js");
+
   const cwd = process.cwd();
   const attemptStore = new ExecutionStore(cwd);
   const attempts = await attemptStore.list();
 
+  // Load snapshot for summary context; build trace via the exported pure function
+  // with whatever store data is available. The read model handles all lifecycle
+  // classification — the CLI only renders. Currently only ExecutionStore has
+  // persistence; other stores pass empty arrays with TODO for when they land.
+  /* TODO: Load remediation, plan, and approval stores when implemented */
   const snapshot = buildWorkbenchSnapshot({
     remediations: [],
     executionPlans: [],
@@ -2538,65 +2561,91 @@ async function runWorkbenchTrace(args: string[], jsonMode: boolean): Promise<voi
     options: { now: new Date().toISOString() },
   });
 
+  // Build index maps from available data for buildLifecycleTrace
+  const attemptsByPlan = new Map();
+  for (const attempt of attempts) {
+    const existing = attemptsByPlan.get(attempt.planId);
+    if (existing === undefined || attempt.startedAt >= existing.startedAt) {
+      attemptsByPlan.set(attempt.planId, attempt);
+    }
+  }
+
+  const trace = buildLifecycleTrace(
+    remediationId,
+    [],                                              // remediations — TODO
+    new Map(),                                       // plansByRemediation — TODO
+    new Map(),                                       // approvalsByPlan — TODO
+    attemptsByPlan,
+    new Map(),                                       // signalsById — TODO
+    new Map(),                                       // investigationsById — TODO
+    new Map(),                                       // reportItemsByRemediation — TODO
+  );
+
   if (jsonMode) {
-    // We can only trace if we had remediation data
-    const trace = {
-      remediationId,
-      hops: [
-        { kind: "proposal", id: remediationId, status: "unknown", summary: "Remediation data not yet available from stores", timestamp: "", gap: false },
-      ],
-    };
     console.log(JSON.stringify({ trace }, null, 2));
     return;
   }
 
-  const CYAN2 = "\x1b[36m";
-  const DIM2 = "\x1b[2m";
-  const RESET2 = "\x1b[0m";
-  console.log(`\n${CYAN2}Lifecycle Trace: ${remediationId}${RESET2}`);
-  console.log(`${DIM2}${"—".repeat(60)}${RESET2}`);
-  console.log(`${DIM2}Remediation data not yet available from stores${RESET2}`);
-  console.log(`${DIM2}Available attempts: ${attempts.length}${RESET2}`);
+  console.log(`\n${WK_CYAN}Lifecycle Trace: ${remediationId}${WK_RESET}`);
+  console.log(`${WK_DIM}${"—".repeat(60)}${WK_RESET}`);
+
+  if (!trace || trace.hops.length === 0) {
+    console.log(`${WK_DIM}Remediation not found: ${remediationId}${WK_RESET}`);
+    return;
+  }
+
+  // All hops would be gaps when no stores are populated — show a clear message
+  const allGaps = trace.hops.every((h) => h.gap);
+  if (allGaps) {
+    console.log(`${WK_DIM}No lifecycle data found for: ${remediationId}${WK_RESET}`);
+    console.log(`${WK_DIM}Cause: remediation stores not yet available from CLI (attempts: ${attempts.length})${WK_RESET}`);
+    return;
+  }
+
+  for (const hop of trace.hops) {
+    const marker = hop.gap ? `${WK_DIM}○${WK_RESET}` : "●";
+    const color = hop.gap ? WK_DIM : WK_RESET;
+    const id = hop.id || "—";
+    const status = hop.status || "—";
+    console.log(`  ${hop.kind.padEnd(12)} ${marker} ${color}${id}${WK_RESET}  ${WK_DIM}${status}${WK_RESET}  ${color}${hop.summary}${WK_RESET}`);
+  }
 }
 
-async function runWorkbenchSummary(args: string[], jsonMode: boolean): Promise<void> {
-  const { buildWorkbenchSnapshot } = await import("../../governance/governance-workbench.js");
-  const { ExecutionStore } = await import("../../governance/execution-store.js");
+// ---------------------------------------------------------------------------
+// runWorkbenchSummary
+// ---------------------------------------------------------------------------
 
-  const cwd = process.cwd();
-  const attemptStore = new ExecutionStore(cwd);
-  const attempts = await attemptStore.list();
-
-  const snapshot = buildWorkbenchSnapshot({
-    remediations: [],
-    executionPlans: [],
-    approvals: [],
-    attempts,
-    options: { now: new Date().toISOString() },
-  });
+async function runWorkbenchSummary(jsonMode: boolean): Promise<void> {
+  const snapshot = await loadWorkbenchSnapshot();
 
   if (jsonMode) {
     console.log(JSON.stringify(snapshot.summary, null, 2));
     return;
   }
 
-  const CYAN2 = "\x1b[36m";
-  const DIM2 = "\x1b[2m";
-  const GREEN2 = "\x1b[32m";
-  const RESET2 = "\x1b[0m";
+  const s = snapshot.summary;
 
-  console.log(`\n${CYAN2}Governance Workbench Summary${RESET2}`);
-  console.log(`${DIM2}${"—".repeat(60)}${RESET2}`);
-  console.log(`  ${DIM2}Queues:${RESET2}`);
-  console.log(`    ${snapshot.summary.queueCounts.needs_acceptance} needs acceptance`);
-  console.log(`    ${snapshot.summary.queueCounts.needs_planning}  needs planning`);
-  console.log(`    ${snapshot.summary.queueCounts.needs_approval}  needs approval`);
-  console.log(`    ${snapshot.summary.queueCounts.needs_followup}  needs follow-up`);
-  console.log(`    ${GREEN2}${snapshot.summary.queueCounts.total}${RESET2} total pending`);
+  console.log(`\n${WK_CYAN}Governance Workbench Summary${WK_RESET}`);
+  console.log(`${WK_DIM}${"—".repeat(60)}${WK_RESET}`);
+  console.log(`  ${WK_DIM}Queues:${WK_RESET}`);
+  console.log(`    ${s.queueCounts.needs_acceptance} needs acceptance`);
+  console.log(`    ${s.queueCounts.needs_planning} needs planning`);
+  console.log(`    ${s.queueCounts.needs_approval} needs approval`);
+  console.log(`    ${s.queueCounts.needs_followup} needs follow-up`);
+  console.log(`    ${WK_GREEN}${s.queueCounts.total}${WK_RESET} total pending`);
 
-  if (snapshot.summary.oldestItems.length > 0) {
-    console.log(`\n  ${DIM2}Oldest pending items:${RESET2}`);
-    for (const item of snapshot.summary.oldestItems) {
+  console.log(`\n  ${WK_DIM}Lifecycle Totals:${WK_RESET}`);
+  console.log(`    ${s.lifecycleTotals.accepted} accepted`);
+  console.log(`    ${s.lifecycleTotals.planned} planned`);
+  console.log(`    ${s.lifecycleTotals.executed} executed`);
+  console.log(`    ${s.lifecycleTotals.failed} failed`);
+  console.log(`    ${s.lifecycleTotals.partial} partial`);
+  console.log(`    ${s.lifecycleTotals.reverted} reverted`);
+  console.log(`    ${s.lifecycleTotals.unresolved} unresolved`);
+
+  if (s.oldestItems.length > 0) {
+    console.log(`\n  ${WK_DIM}Oldest pending items:${WK_RESET}`);
+    for (const item of s.oldestItems) {
       console.log(`    ${item.remediationId} — ${item.reason}`);
     }
   }
