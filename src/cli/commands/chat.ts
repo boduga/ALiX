@@ -1,8 +1,8 @@
 import { createInterface } from "node:readline/promises";
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
-import { mkdir, appendFile, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdir, appendFile, readFile, writeFile, readdir } from "node:fs/promises";
+import { join, resolve, relative } from "node:path";
 import { loadConfig } from "../../config/loader.js";
 import { createProvider } from "../../providers/registry.js";
 import type { NormalizedMessage, NormalizedResponse, ToolCall } from "../../providers/types.js";
@@ -49,6 +49,15 @@ async function executeChatTool(name: string, args: Record<string, unknown>): Pro
     }
   }
   return `Error: Unknown tool "${name}"`;
+}
+
+export function isChatToolFailure(result: string): boolean {
+  return result.startsWith("Error:");
+}
+
+export function formatChatToolFailureMessage(toolName: string, result: string): string {
+  const detail = result.replace(/^Error:\s*/, "").trim();
+  return `Tool ${toolName} failed: ${detail}. I cannot verify current information with that tool right now.`;
 }
 
 export function parseChatArgs(args: string[]): ParseChatArgsResult {
@@ -105,6 +114,17 @@ export type ResolvedChatMode = {
   workspaceAccess: boolean;
 };
 
+export type ChatToolExecutorKind = "chat" | "workspace";
+
+export function selectChatToolExecutor(mode: ChatMode, toolName: string): ChatToolExecutorKind {
+  if (mode !== "workspace") return "chat";
+  if (toolName === "file_read" || toolName === "file_exists" || toolName === "dir_list" || toolName === "dir_search" || toolName === "workspace_pwd" ||
+      toolName === "file.read" || toolName === "file.exists" || toolName === "dir.search") {
+    return "workspace";
+  }
+  return "chat";
+}
+
 export function resolveChatMode(opts: ChatOptions): ResolvedChatMode {
   if (opts.agent) {
     return { mode: "agent", tools: [], mutations: "policy-gated", workspaceAccess: true };
@@ -114,9 +134,11 @@ export function resolveChatMode(opts: ChatOptions): ResolvedChatMode {
       mode: "workspace",
       tools: [
         ...CHAT_TOOLS,
-        { name: "file.read", description: "Read a file's contents", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
-        { name: "file.exists", description: "Check if a file exists", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
-        { name: "dir.search", description: "Search for files matching a pattern", input_schema: { type: "object", properties: { pattern: { type: "string" }, extensions: { type: "array", items: { type: "string" } } }, required: ["pattern"] } },
+        { name: "file_read", description: "Read a file's contents", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+        { name: "file_exists", description: "Check if a file exists", input_schema: { type: "object", properties: { path: { type: "string" } }, required: ["path"] } },
+        { name: "dir_list", description: "List files and directories in a workspace directory", input_schema: { type: "object", properties: { path: { type: "string", description: "Directory path relative to workspace root, default ." } } } },
+        { name: "dir_search", description: "Search file contents for text", input_schema: { type: "object", properties: { pattern: { type: "string" }, extensions: { type: "array", items: { type: "string" } } }, required: ["pattern"] } },
+        { name: "workspace_pwd", description: "Return the absolute workspace directory path", input_schema: { type: "object", properties: {} } },
       ],
       mutations: "disabled",
       workspaceAccess: true,
@@ -137,7 +159,7 @@ function checkModelPath(path: string, cwd: string): string | null {
 }
 
 
-async function executeWorkspaceTool(name: string, args: Record<string, unknown>): Promise<string> {
+export async function executeWorkspaceTool(name: string, args: Record<string, unknown>): Promise<string> {
   const cwd = process.cwd();
   const path = String(args.path || "");
   if (path) {
@@ -150,16 +172,36 @@ async function executeWorkspaceTool(name: string, args: Record<string, unknown>)
     return "Error: Search pattern denied (traversal)";
   }
   switch (name) {
+    case "workspace_pwd": {
+      return cwd;
+    }
+    case "file_read":
     case "file.read": {
       const result = await readFileTool({ root: process.cwd(), path });
       if (result.kind === "error") return `Error: ${result.message}`;
       return result.content || "";
     }
+    case "file_exists":
     case "file.exists": {
       const { existsSync } = await import("node:fs");
       const { resolve } = await import("node:path");
       return existsSync(resolve(process.cwd(), path)) ? "exists" : "not found";
     }
+    case "dir_list": {
+      const target = resolve(cwd, path || ".");
+      let entries;
+      try {
+        entries = await readdir(target, { withFileTypes: true });
+      } catch (err) {
+        return `Error: ${err instanceof Error ? err.message : String(err)}`;
+      }
+      const visible = entries
+        .filter((entry) => !entry.name.startsWith("."))
+        .map((entry) => `${entry.isDirectory() ? "dir " : "file"} ${relative(cwd, join(target, entry.name)) || entry.name}`)
+        .sort();
+      return visible.length > 0 ? visible.join("\n") : "(empty)";
+    }
+    case "dir_search":
     case "dir.search": {
       const dirResult = await searchDirTool({ root: process.cwd(), pattern: String(args.pattern || ""), extensions: (args.extensions as string[]) || [] });
       if (dirResult.kind === "error") return `Error: ${dirResult.message}`;
@@ -265,7 +307,7 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
   const config = await loadConfig(process.cwd());
   const apiKey = config.apiKeys?.[config.model.provider] ?? process.env[`${config.model.provider.toUpperCase()}_API_KEY`] ?? "";
   const provider = await createProvider(config.model, apiKey);
-  const systemPrompt = buildChatSystemPrompt(workspace);
+  const systemPrompt = buildChatSystemPrompt(workspace, `${config.model.provider}/${config.model.name}`);
 
   const rl = createInterface({ input: process.stdin, output: process.stdout });
   const prompt = () => rl.question("> ");
@@ -352,16 +394,25 @@ async function runChatLoop(sessionDir: string, sessionId?: string, resume = fals
       }
 
       // Execute tool calls
+      let toolFailureMessage: string | undefined;
       for (const tc of response.toolCalls) {
         if (!tc || !tc.name || tc.name === "undefined") continue; // skip malformed
         console.log(`  [Calling ${tc.name}...]`);
-        const result = resolved.mode === "workspace"
+        const result = selectChatToolExecutor(resolved.mode, tc.name) === "workspace"
           ? await executeWorkspaceTool(tc.name, tc.args)
           : await executeChatTool(tc.name, tc.args);
+        if (isChatToolFailure(result)) {
+          toolFailureMessage = formatChatToolFailureMessage(tc.name, result);
+          console.log(`  [Failed]\n\n${toolFailureMessage}`);
+          messages.push({ role: "assistant", content: toolFailureMessage });
+          await appendMessage(messagesPath, { role: "assistant", content: toolFailureMessage });
+          break;
+        }
         console.log(`  [Done]\n`);
         messages.push({ role: "assistant", content: JSON.stringify({ type: "tool", name: tc.name, arguments: tc.args }) });
         messages.push({ role: "user", content: JSON.stringify({ type: "tool_result", name: tc.name, result }) });
       }
+      if (toolFailureMessage) break;
     }
 
     input = await prompt();
@@ -421,11 +472,14 @@ const WORKSPACE_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant with read-
 You have access to these tools:
 - web_search(query, count): Search the web for current information
 - web_fetch(url, maxLength): Fetch a URL and get its text content
-- file.read(path): Read a file's contents
-- file.exists(path): Check if a file exists
-- dir.search(pattern, extensions): Search for files matching a pattern
+- file_read(path): Read a file's contents
+- file_exists(path): Check if a file exists
+- dir_list(path): List files and directories
+- dir_search(pattern, extensions): Search file contents for text
+- workspace_pwd(): Return the workspace directory path
 
 You can read files, search directories, and search the web. You CANNOT modify any files.
+For shell-like requests, use workspace_pwd for pwd and dir_list for ls.
 When the user asks you to make changes, explain that you are in read-only mode.`;
 
 const CHAT_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant. Be concise and helpful.
@@ -436,11 +490,14 @@ You have access to these tools:
 
 For questions about current events or facts beyond your training data, use web_search to find up-to-date information. You can then use web_fetch to read full articles. Answer based on the search results.`;
 
-function buildChatSystemPrompt(workspace = false): string {
+export function buildChatSystemPrompt(workspace = false, modelLabel?: string): string {
   const base = workspace ? WORKSPACE_SYSTEM_PROMPT : CHAT_SYSTEM_PROMPT;
+  const modelContext = modelLabel
+    ? `\n\n## Runtime Model\nYou are currently running on ${modelLabel}. If the user asks which model you are using, answer with this provider/model exactly.`
+    : "";
   const projectMemory = loadProjectMemory();
-  if (projectMemory) return `${base}\n\n## Project Memory\n${projectMemory}`;
-  return base;
+  if (projectMemory) return `${base}${modelContext}\n\n## Project Memory\n${projectMemory}`;
+  return `${base}${modelContext}`;
 }
 
 function loadProjectMemory(): string {

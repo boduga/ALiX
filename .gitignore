@@ -16,6 +16,7 @@ coverage/
 npm-debug.log*
 
 # ALiX runtime state
+.alix/
 .alix/sessions/
 .alix/checkpoints/
 .alix/index/
@@ -42,6 +43,9 @@ npm-debug.log*
 # Claude Code
 .claude/
 
+# Local agent skills
+.agents/skills/
+
 # GitNexus index
 .gitnexus/
 
@@ -53,3 +57,12 @@ npm-debug.log*
 .semantic-search-index.json
 docs/archive/generated-graphify/
 graphify-out/
+
+# Release artifacts
+.artifacts/
+alix-*.tgz
+alix-*.sha256
+alix-*.sbom.json
+
+# Temporary analysis output
+tmp-*.json

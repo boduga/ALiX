@@ -13,7 +13,7 @@ import { grokaiSpec } from "./specs/grokai-spec.js";
 import { openrouterSpec } from "./specs/openrouter-spec.js";
 import { localLlamaSpec } from "./specs/local-llama-spec.js";
 import type { ProviderSpec } from "./spec-types.js";
-import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "./types.js";
+import type { NormalizedRequest, NormalizedResponse, StreamChunk, ToolCall } from "./types.js";
 
 const SPECS = new Map<string, ProviderSpec>([
   ["openai", openaiSpec],
@@ -74,6 +74,71 @@ async function fetchWithRetry(url: string, init: RequestInit, maxRetries = 3): P
     }
   }
   return lastErr!;
+}
+
+type PartialToolCall = {
+  id: string;
+  name: string;
+  argsText: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseOpenAiToolDeltaLine(
+  line: string,
+  partialTools: Map<number, PartialToolCall>,
+): { handled: boolean; chunks: StreamChunk[] } {
+  if (!line.startsWith("data: ")) return { handled: false, chunks: [] };
+
+  const data = line.slice(6).trim();
+  if (data === "[DONE]") return { handled: false, chunks: [] };
+
+  let event: any;
+  try {
+    event = JSON.parse(data);
+  } catch {
+    return { handled: false, chunks: [] };
+  }
+
+  const toolDeltas = event?.choices?.[0]?.delta?.tool_calls;
+  if (!Array.isArray(toolDeltas)) return { handled: false, chunks: [] };
+
+  const chunks: StreamChunk[] = [];
+  for (const delta of toolDeltas) {
+    const index = typeof delta?.index === "number" ? delta.index : 0;
+    const existing = partialTools.get(index);
+    const id = typeof delta?.id === "string" ? delta.id : existing?.id;
+    const name = typeof delta?.function?.name === "string" ? delta.function.name : existing?.name;
+
+    if (!id && !existing) continue;
+
+    const partial: PartialToolCall = existing ?? { id: id ?? "", name: name ?? "", argsText: "" };
+    if (id) partial.id = id;
+    if (name) partial.name = name;
+
+    const rawArgs = delta?.function?.arguments;
+    if (rawArgs !== undefined) {
+      partial.argsText += typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs);
+    }
+
+    partialTools.set(index, partial);
+
+    if (!partial.id || !partial.name || partial.argsText.trim() === "") continue;
+
+    try {
+      const args = JSON.parse(partial.argsText) as unknown;
+      if (!isRecord(args)) continue;
+      const toolCall: ToolCall = { id: partial.id, name: partial.name, args };
+      chunks.push({ type: "tool_call", toolCall });
+      partialTools.delete(index);
+    } catch {
+      // Arguments JSON can be split across many deltas.
+    }
+  }
+
+  return { handled: true, chunks };
 }
 
 export async function complete(
@@ -155,6 +220,7 @@ export async function* stream(
   const reader = res!.body!.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  const partialTools = new Map<number, PartialToolCall>();
   try {
     while (true) {
       const { done, value } = await reader.read();
@@ -163,7 +229,14 @@ export async function* stream(
       const lines = buffer.split("\n");
       buffer = lines.pop() ?? "";
       for (const line of lines) {
-        const chunk = spec.fromStreamChunk(line.trim());
+        const trimmedLine = line.trim();
+        const toolDelta = parseOpenAiToolDeltaLine(trimmedLine, partialTools);
+        if (toolDelta.handled) {
+          for (const chunk of toolDelta.chunks) yield chunk;
+          continue;
+        }
+
+        const chunk = spec.fromStreamChunk(trimmedLine);
         if (chunk) yield chunk;
       }
     }

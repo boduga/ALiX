@@ -22,6 +22,7 @@ ALiX uses a three-roadmap architecture:
 
 | Document | Location |
 |---|---|
+| Harness Assessment (2026-07-08) | [`docs/alix-harness-assessment-2026-07-08.md`](alix-harness-assessment-2026-07-08.md) |
 | Architecture Governance | [`docs/architecture/ma0-alix-architecture-2-0.md`](architecture/ma0-alix-architecture-2-0.md) |
 | Roadmap — M-Series | [`docs/roadmap/m-series-platform.md`](roadmap/m-series-platform.md) |
 | Roadmap — P-Series | [`docs/roadmap/p-series-product-intelligence.md`](roadmap/p-series-product-intelligence.md) |

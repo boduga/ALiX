@@ -390,6 +390,44 @@ test("stream: malformed SSE line does not crash stream", async () => {
   }
 });
 
+test("stream: OpenAI-compatible tool call deltas accumulate before yielding", async () => {
+  resetCalls();
+  _setFetchForTesting(wrap(async (url, init) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    return makeStreamResponse([
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_search","function":{"name":"web_search"}}]}}]}',
+      'data: {"choices":[{"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\\"query\\":\\"latest Node.js\\"}"}}]}}]}',
+      'data: [DONE]',
+    ]);
+  }));
+
+  try {
+    const toolCalls = [];
+    for await (const c of stream("openai", "gpt-4o", {
+      ...completionRequest,
+      stream: true,
+      tools: [{
+        name: "web_search",
+        description: "Search the web",
+        input_schema: {
+          type: "object",
+          properties: { query: { type: "string" } },
+          required: ["query"],
+        },
+      }],
+    })) {
+      if (c.type === "tool_call") toolCalls.push(c.toolCall);
+    }
+
+    assert.equal(toolCalls.length, 1);
+    assert.equal(toolCalls[0].id, "call_search");
+    assert.equal(toolCalls[0].name, "web_search");
+    assert.deepEqual(toolCalls[0].args, { query: "latest Node.js" });
+  } finally {
+    _setFetchForTesting(globalThis.fetch);
+  }
+});
+
 test("stream: 500 error yields error chunk", async () => {
   resetCalls();
 _setFetchForTesting(async () => {

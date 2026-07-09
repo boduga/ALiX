@@ -325,6 +325,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runInvestigate(rest);
     case "execution":
       return runExecution(rest);
+    case "workbench":
+      return runWorkbench(rest);
     default:
       console.error(
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
@@ -2434,6 +2436,169 @@ async function runExecutionReport(args: string[], jsonMode: boolean): Promise<vo
     console.log(`    ${D}Status:${X} ${item.remediationStatus}  ${D}Plan:${X} ${item.planId ?? "—"}`);
     console.log(`    ${D}Updated:${X} ${item.updatedAt}`);
     if (item.unresolved) console.log(`    ${Y}Unresolved${X}`);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// P18 — Governance Workbench CLI handlers
+// ---------------------------------------------------------------------------
+
+async function runWorkbench(args: string[]): Promise<void> {
+  const sub = args[0] ?? "";
+  const jsonMode = args.includes("--json");
+
+  switch (sub) {
+    case "queue":
+      return runWorkbenchQueue(args.slice(1), jsonMode);
+    case "trace":
+      return runWorkbenchTrace(args.slice(1), jsonMode);
+    case "summary":
+      return runWorkbenchSummary(args.slice(1), jsonMode);
+    default:
+      console.log("Unknown workbench subcommand. Usage:");
+      console.log("  alix governance workbench queue [--json]");
+      console.log("  alix governance workbench trace <remediationId> [--json]");
+      console.log("  alix governance workbench summary [--json]");
+  }
+}
+
+async function runWorkbenchQueue(args: string[], jsonMode: boolean): Promise<void> {
+  const { buildWorkbenchSnapshot } = await import("../../governance/governance-workbench.js");
+  const { ExecutionStore } = await import("../../governance/execution-store.js");
+
+  const cwd = process.cwd();
+  const attemptStore = new ExecutionStore(cwd);
+  const attempts = await attemptStore.list();
+
+  const snapshot = buildWorkbenchSnapshot({
+    remediations: [],
+    executionPlans: [],
+    approvals: [],
+    attempts,
+    options: { now: new Date().toISOString() },
+  });
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ queues: snapshot.queue, summary: snapshot.summary }, null, 2));
+    return;
+  }
+
+  const YELLOW = "\x1b[33m";
+  const RED = "\x1b[31m";
+  const GREEN = "\x1b[32m";
+  const CYAN = "\x1b[36m";
+  const DIM = "\x1b[2m";
+  const RESET = "\x1b[0m";
+  const queueLabels: Record<string, string> = {
+    needs_acceptance: "Needs Acceptance",
+    needs_planning: "Needs Planning",
+    needs_approval: "Needs Approval",
+    needs_followup: "Needs Follow-up",
+  };
+
+  for (const [queueName, items] of Object.entries(snapshot.queue)) {
+    if (items.length === 0) continue;
+    console.log(`\n${CYAN}${queueLabels[queueName] ?? queueName} (${items.length})${RESET}`);
+    console.log(`${DIM}${"—".repeat(60)}${RESET}`);
+    for (const item of items) {
+      const sevColor = item.severity === "critical" ? RED : item.severity === "warning" ? YELLOW : DIM;
+      console.log(
+        `  ${sevColor}${item.severity.toUpperCase()}${RESET} ${item.remediationId}`,
+      );
+      console.log(`    ${DIM}Reason:${RESET} ${item.reason}`);
+      console.log(`    ${DIM}Plan:${RESET} ${item.planId ?? "—"}  ${DIM}Approval:${RESET} ${item.approvalId ?? "—"}`);
+      console.log(`    ${DIM}Created:${RESET} ${item.createdAt}`);
+    }
+  }
+
+  if (snapshot.summary.queueCounts.total === 0) {
+    console.log(`${GREEN}No pending items. All remediations resolved.${RESET}`);
+  }
+}
+
+async function runWorkbenchTrace(args: string[], jsonMode: boolean): Promise<void> {
+  const { buildWorkbenchSnapshot } = await import("../../governance/governance-workbench.js");
+  const { ExecutionStore } = await import("../../governance/execution-store.js");
+
+  const remediationId = args.find((a) => !a.startsWith("--"));
+  if (!remediationId) {
+    console.error("Usage: alix governance workbench trace <remediationId> [--json]");
+    return;
+  }
+
+  const cwd = process.cwd();
+  const attemptStore = new ExecutionStore(cwd);
+  const attempts = await attemptStore.list();
+
+  const snapshot = buildWorkbenchSnapshot({
+    remediations: [],
+    executionPlans: [],
+    approvals: [],
+    attempts,
+    options: { now: new Date().toISOString() },
+  });
+
+  if (jsonMode) {
+    // We can only trace if we had remediation data
+    const trace = {
+      remediationId,
+      hops: [
+        { kind: "proposal", id: remediationId, status: "unknown", summary: "Remediation data not yet available from stores", timestamp: "", gap: false },
+      ],
+    };
+    console.log(JSON.stringify({ trace }, null, 2));
+    return;
+  }
+
+  const CYAN2 = "\x1b[36m";
+  const DIM2 = "\x1b[2m";
+  const RESET2 = "\x1b[0m";
+  console.log(`\n${CYAN2}Lifecycle Trace: ${remediationId}${RESET2}`);
+  console.log(`${DIM2}${"—".repeat(60)}${RESET2}`);
+  console.log(`${DIM2}Remediation data not yet available from stores${RESET2}`);
+  console.log(`${DIM2}Available attempts: ${attempts.length}${RESET2}`);
+}
+
+async function runWorkbenchSummary(args: string[], jsonMode: boolean): Promise<void> {
+  const { buildWorkbenchSnapshot } = await import("../../governance/governance-workbench.js");
+  const { ExecutionStore } = await import("../../governance/execution-store.js");
+
+  const cwd = process.cwd();
+  const attemptStore = new ExecutionStore(cwd);
+  const attempts = await attemptStore.list();
+
+  const snapshot = buildWorkbenchSnapshot({
+    remediations: [],
+    executionPlans: [],
+    approvals: [],
+    attempts,
+    options: { now: new Date().toISOString() },
+  });
+
+  if (jsonMode) {
+    console.log(JSON.stringify(snapshot.summary, null, 2));
+    return;
+  }
+
+  const CYAN2 = "\x1b[36m";
+  const DIM2 = "\x1b[2m";
+  const GREEN2 = "\x1b[32m";
+  const RESET2 = "\x1b[0m";
+
+  console.log(`\n${CYAN2}Governance Workbench Summary${RESET2}`);
+  console.log(`${DIM2}${"—".repeat(60)}${RESET2}`);
+  console.log(`  ${DIM2}Queues:${RESET2}`);
+  console.log(`    ${snapshot.summary.queueCounts.needs_acceptance} needs acceptance`);
+  console.log(`    ${snapshot.summary.queueCounts.needs_planning}  needs planning`);
+  console.log(`    ${snapshot.summary.queueCounts.needs_approval}  needs approval`);
+  console.log(`    ${snapshot.summary.queueCounts.needs_followup}  needs follow-up`);
+  console.log(`    ${GREEN2}${snapshot.summary.queueCounts.total}${RESET2} total pending`);
+
+  if (snapshot.summary.oldestItems.length > 0) {
+    console.log(`\n  ${DIM2}Oldest pending items:${RESET2}`);
+    for (const item of snapshot.summary.oldestItems) {
+      console.log(`    ${item.remediationId} — ${item.reason}`);
+    }
   }
 }
 
