@@ -67,6 +67,8 @@ const SIMULATOR_SUPPORTED_KINDS = new Set([
   "review_policy",
   "update_config",
 ]);
+const ISO_TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 
 export function approvedActionsFor(
   plan: GovernanceExecutionPlan,
@@ -126,11 +128,11 @@ export function classifyExecutionReadiness(
   const externalActions = actions.filter((action) => action.externalSideEffect);
   const irreversibleActions = actions.filter((action) => !action.reversible);
   const mutatingActions = actions.filter((action) => action.mutationRequired);
-  const unsupportedActions = actions.filter(
-    (action) => !SIMULATOR_SUPPORTED_KINDS.has(action.kind),
-  );
   const reversibleMutatingActions = mutatingActions.filter(
     (action) => action.reversible,
+  );
+  const unsupportedActions = actions.filter(
+    (action) => !SIMULATOR_SUPPORTED_KINDS.has(action.kind),
   );
   const rollbackActionIds = new Set(
     plan.rollbackPlan?.reversibleActions ?? [],
@@ -142,46 +144,69 @@ export function classifyExecutionReadiness(
   const rollbackCoverageComplete = uncoveredRollbackActions.length === 0;
 
   let readinessLevel: ExecutionReadinessLevel;
-  let primaryReason: ExecutionReadinessReason;
   if (externalActions.length > 0) {
     readinessLevel = "external_side_effecting";
-    primaryReason = reason(
-      "external_side_effect",
-      externalActions,
-      "Approved actions include external side effects",
-    );
   } else if (irreversibleActions.length > 0) {
     readinessLevel = "irreversible";
-    primaryReason = reason(
-      "irreversible_action",
-      irreversibleActions,
-      "Approved actions include irreversible operations",
-    );
   } else if (mutatingActions.length > 0) {
     readinessLevel = "reversible";
-    primaryReason = reason(
-      "reversible_mutation",
-      mutatingActions,
-      "Approved actions require reversible mutation",
-    );
   } else if (simulatorCoverageComplete) {
     readinessLevel = "dry_run_capable";
-    primaryReason = reason(
-      "semantic_simulation_supported",
-      actions,
-      "All approved actions support semantic simulation",
-    );
   } else {
     readinessLevel = "manual_only";
-    primaryReason = reason(
-      "manual_action_required",
-      unsupportedActions,
-      "Approved actions require manual operator handling",
-    );
   }
 
-  const reasons = [primaryReason];
-  if (reversibleMutatingActions.length > 0 && plan.rollbackPlan === null) {
+  const reasons: ExecutionReadinessReason[] = [];
+  if (externalActions.length > 0) {
+    reasons.push(
+      reason(
+        "external_side_effect",
+        externalActions,
+        "Approved actions include external side effects",
+      ),
+    );
+  }
+  if (irreversibleActions.length > 0) {
+    reasons.push(
+      reason(
+        "irreversible_action",
+        irreversibleActions,
+        "Approved actions include irreversible operations",
+      ),
+    );
+  }
+  if (reversibleMutatingActions.length > 0) {
+    reasons.push(
+      reason(
+        "reversible_mutation",
+        reversibleMutatingActions,
+        "Approved actions require reversible mutation",
+      ),
+    );
+  }
+  if (simulatorCoverageComplete) {
+    reasons.push(
+      reason(
+        "semantic_simulation_supported",
+        actions,
+        "All approved actions support semantic simulation",
+      ),
+    );
+  }
+  if (unsupportedActions.length > 0) {
+    reasons.push(
+      reason(
+        "manual_action_required",
+        unsupportedActions,
+        "Approved actions require manual operator handling",
+      ),
+    );
+  }
+  if (
+    plan.requiresRollbackPlan &&
+    reversibleMutatingActions.length > 0 &&
+    plan.rollbackPlan === null
+  ) {
     reasons.push(
       reason(
         "rollback_plan_missing",
@@ -189,7 +214,7 @@ export function classifyExecutionReadiness(
         "Reversible mutating actions require a rollback plan",
       ),
     );
-  } else if (!rollbackCoverageComplete) {
+  } else if (plan.requiresRollbackPlan && !rollbackCoverageComplete) {
     reasons.push(
       reason(
         "rollback_coverage_incomplete",
@@ -201,6 +226,14 @@ export function classifyExecutionReadiness(
   reasons.sort((left, right) => left.code.localeCompare(right.code));
 
   const assessedAt = options?.now ?? new Date().toISOString();
+  if (
+    !ISO_TIMESTAMP_PATTERN.test(assessedAt) ||
+    Number.isNaN(Date.parse(assessedAt))
+  ) {
+    throw new ReadinessClassificationError(
+      "assessedAt must be a valid ISO timestamp",
+    );
+  }
   const assessmentId = createHash("sha256")
     .update(
       [

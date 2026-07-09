@@ -173,6 +173,35 @@ describe("classifyExecutionReadiness", () => {
     assert.deepEqual(assessment.reasons[0]!.actionIds, ["external"]);
   });
 
+  it("collects every applicable reason independently of level precedence", () => {
+    const actions = [
+      makeAction({
+        actionId: "external",
+        externalSideEffect: true,
+        reversible: false,
+      }),
+      makeAction({
+        actionId: "manual",
+        kind: "manual_action",
+      }),
+    ];
+    const assessment = classifyExecutionReadiness(
+      makePlan(actions),
+      makeApproval({ approvedActionIds: ["manual", "external"] }),
+      { now: NOW },
+    );
+
+    assert.equal(assessment.readinessLevel, "external_side_effecting");
+    assert.deepEqual(
+      assessment.reasons.map((item) => item.code),
+      [
+        "external_side_effect",
+        "irreversible_action",
+        "manual_action_required",
+      ],
+    );
+  });
+
   it("irreversible actions take precedence over mutation", () => {
     const actions = [
       makeAction({
@@ -266,7 +295,7 @@ describe("classifyExecutionReadiness", () => {
     assert.equal(assessment.facts.rollbackCoverageComplete, true);
     assert.deepEqual(
       assessment.reasons.map((item) => item.code),
-      ["reversible_mutation"],
+      ["reversible_mutation", "semantic_simulation_supported"],
     );
   });
 
@@ -304,7 +333,11 @@ describe("classifyExecutionReadiness", () => {
     assert.equal(assessment.facts.rollbackCoverageComplete, false);
     assert.deepEqual(
       assessment.reasons.map((item) => item.code),
-      ["reversible_mutation", "rollback_coverage_incomplete"],
+      [
+        "reversible_mutation",
+        "rollback_coverage_incomplete",
+        "semantic_simulation_supported",
+      ],
     );
     assert.deepEqual(assessment.reasons[1]!.actionIds, ["uncovered"]);
   });
@@ -315,7 +348,7 @@ describe("classifyExecutionReadiness", () => {
       mutationRequired: true,
     });
     const assessment = classifyExecutionReadiness(
-      makePlan([action]),
+      makePlan([action], { requiresRollbackPlan: true }),
       makeApproval(),
       { now: NOW },
     );
@@ -324,7 +357,29 @@ describe("classifyExecutionReadiness", () => {
     assert.equal(assessment.facts.rollbackCoverageComplete, false);
     assert.deepEqual(
       assessment.reasons.map((item) => item.code),
-      ["reversible_mutation", "rollback_plan_missing"],
+      [
+        "reversible_mutation",
+        "rollback_plan_missing",
+        "semantic_simulation_supported",
+      ],
+    );
+  });
+
+  it("does not report rollback gaps when rollback is not required", () => {
+    const action = makeAction({
+      kind: "update_config",
+      mutationRequired: true,
+    });
+    const assessment = classifyExecutionReadiness(
+      makePlan([action], { requiresRollbackPlan: false, rollbackPlan: null }),
+      makeApproval(),
+      { now: NOW },
+    );
+
+    assert.equal(assessment.facts.rollbackCoverageComplete, false);
+    assert.equal(
+      assessment.reasons.some((item) => item.code.startsWith("rollback_")),
+      false,
     );
   });
 
@@ -349,6 +404,16 @@ describe("classifyExecutionReadiness", () => {
     assert.deepEqual(first, second);
     assert.equal(first.assessmentId, expectedId);
     assert.equal(first.assessedAt, NOW);
+  });
+
+  it("rejects a malformed assessment timestamp", () => {
+    assert.throws(
+      () =>
+        classifyExecutionReadiness(makePlan(), makeApproval(), {
+          now: "July 8, 2026",
+        }),
+      { name: "ReadinessClassificationError", message: /assessedAt/ },
+    );
   });
 
   it("does not mutate plan or approval inputs", () => {
