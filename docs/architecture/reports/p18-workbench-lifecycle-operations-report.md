@@ -65,7 +65,14 @@ The phase delivered **5 slices** across queue views, lifecycle traces, a read mo
 
 ### P18.5 — Workbench Report / Checkpoint
 
-This report.
+| Capability | Detail |
+|------------|--------|
+| **Checkpoint report** | 11-section final report documenting all P18 delivered capabilities |
+| **Verification** | Typecheck + governance tests + CLI tests — all passing on main |
+| **Checkpoint tag** | `alix-p18-governance-workbench-complete` pushed |
+
+**Spec:** `docs/architecture/specs/2026-07-09-p18-5-workbench-report-checkpoint.md`
+**Plan:** `docs/architecture/plans/2026-07-09-p18-5-workbench-report-checkpoint.md`
 
 ---
 
@@ -131,13 +138,13 @@ The trace links up to 7 lifecycle hops in order:
 |----------|--------------|---------------|
 | `signal` | signal.status | No signal linked via investigation.sourceArtifactId |
 | `investigation` | investigation.status | No investigation linked via sourceRecommendationIds |
-| `proposal` | remediation.status | Remediation not found |
+| `proposal` | remediation.status | Remediation ID not found (terminal — trace returns single error hop) |
 | `plan` | "plan_created" | No plan for remediationId |
 | `approval` | approval.decision | No approval for plan |
 | `attempt` | attempt.status | No attempt for plan |
 | `report` | reportItem.executionState | No report item for remediationId |
 
-Gaps are rendered as `○` (dimmed) vs populated hops as `●`. The trace is built by `buildLifecycleTrace()` — a pure function with no store dependencies.
+Gaps in hops 2–7 are traversable: the function continues building subsequent hops. The `proposal` gap is terminal: when the remediation ID anchors trace but no matching remediation exists, the trace returns a single error hop and halts. Gaps are rendered as `○` (dimmed) vs populated hops as `●`.
 
 ---
 
@@ -208,10 +215,10 @@ Three layers of safety enforcement:
 | No audit emitter imports in workbench module | Sentinel tests scan for `audit-emitter`, `auditEmitter`, `emitAuditEvent`, `emitAudit` |
 | No audit emitter imports in CLI handler | Sentinel tests scan `governance.ts` for same patterns |
 | No write/append/transition in CLI workbench section | Sentinel tests scan the workbench handler section |
-| JSON output contains no ANSI codes | Test asserts `\x1b[` not present in JSON output |
 | Read model does not mutate inputs | Test snapshots inputs before/after `buildWorkbenchSnapshot()` call |
-| No operator ranking terms in signal titles | Test asserts titles don't contain `operator failed`, `reviewer incomplete`, `low-quality` |
-| Field names match snapshot type | Test asserts `snapshot.queue` (not `queues`) matches CLI output |
+| JSON output contains no ANSI codes | Test asserts `\x1b[` not present in JSON output |
+
+Additional content and schema regression tests (no operator ranking terms in signal titles, field name match) are documented in Section 9.
 
 ---
 
@@ -230,16 +237,17 @@ Three layers of safety enforcement:
 
 ### Test breakdown by concern
 
-| Concern | Count |
-|---------|-------|
-| Queue classification logic | 10 |
-| Lifecycle trace / hops | 4 |
-| Summary computation | 4 |
-| CLI text rendering | 4 |
-| CLI JSON output | 4 |
-| Sentinels (purity, no-audit, no-write) | 7 |
-| Workbench signal detection | 10 |
-| Remediation state transitions | 11 |
+| Concern | Count | Files |
+|---------|-------|-------|
+| Queue classification logic | 10 | `governance-workbench.test.ts` |
+| Lifecycle trace / hops | 4 | `governance-workbench.test.ts` |
+| Summary computation | 4 | `governance-workbench.test.ts` |
+| CLI text rendering | 4 | `governance-workbench-cli.test.ts` |
+| CLI JSON output | 4 | `governance-workbench-cli.test.ts` |
+| Sentinels (purity, no-audit, no-write) | 5 | `governance-workbench.test.ts` (3) + `governance-workbench-cli.test.ts` (2) |
+| Content/schema regression | 2 | `governance-workbench-cli.test.ts` |
+| Workbench signal detection | 10 | `workbench-signals.test.ts` |
+| Remediation state transitions | 11 | `remediation-lifecycle.test.ts` |
 
 ### Running tests
 
@@ -280,8 +288,11 @@ P18.4 — Workbench CLI Integration ✅
 P18.5 — Workbench Report / Checkpoint ✅
 
 TypeScript:                         clean
-Governance tests (governance/):     54/54 passing
+Governance tests (governance/):     45/45 passing
 CLI tests (cli/):                   9/9 passing
+All P18 tests (combined):         54/54 passing
+
+> **Note:** The P18.4 spec lists 10 required CLI tests; the current implementation has 9. Two tests (trace rendering with populated hops, trace `--json` output) are not yet implemented. One unlisted schema test brings the total to 9.
 No mutation boundary crossed:       verified
 No audit emitter imports:           verified
 No operator ranking drift:          verified

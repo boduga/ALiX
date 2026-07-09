@@ -10,7 +10,7 @@ Close P18 with a checkpoint report documenting the full governance workbench lif
 
 ## Task 1 — Workbench report
 
-Create `docs/reports/p18-workbench-lifecycle-operations-report.md` with the following sections:
+Create `docs/architecture/reports/p18-workbench-lifecycle-operations-report.md` with the following sections:
 
 1. Phase Summary
 2. Delivered Capabilities (per-slice: P18.1→P18.4)
@@ -43,7 +43,7 @@ git push origin alix-p18-governance-workbench-complete
 
 ## Acceptance
 
-- [ ] Report exists at `docs/reports/p18-workbench-lifecycle-operations-report.md`
+- [ ] Report exists at `docs/architecture/reports/p18-workbench-lifecycle-operations-report.md`
 - [ ] All 11 report sections populated
 - [ ] Typecheck clean
 - [ ] Governance tests passing (P18.1–P18.4)
