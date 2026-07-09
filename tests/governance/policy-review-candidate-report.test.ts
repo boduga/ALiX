@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   buildCandidateReport,
   renderCandidateReportText,
+  renderCandidateReportJson,
 } from "../../src/governance/policy-review-candidate-report.js";
 import type { PolicyReviewCandidate } from "../../src/governance/policy-review-candidate-types.js";
 
@@ -60,19 +61,21 @@ describe("buildCandidateReport", () => {
     assert.equal(report.byStatus.under_review, 1);
   });
 
-  it("JSON output is parseable", () => {
+  it("JSON output is parseable via renderCandidateReportJson", () => {
     const report = buildCandidateReport([candidate()]);
-    const json = JSON.stringify(report, null, 2);
+    const json = renderCandidateReportJson(report);
     const parsed = JSON.parse(json);
     assert.equal(parsed.totalCount, 1);
+    assert.ok(json.endsWith("\n"));
   });
 
-  it("includes boundary footer", () => {
+  it("includes complete boundary footer with all 5 clauses", () => {
     const report = buildCandidateReport([]);
     const text = renderCandidateReportText(report);
     assert.ok(text.includes("No policy was changed"));
     assert.ok(text.includes("No threshold was changed"));
     assert.ok(text.includes("No candidate was ranked"));
     assert.ok(text.includes("No candidate was auto-adopted"));
+    assert.ok(text.includes("No review outcome was applied to governance policy"));
   });
 });
