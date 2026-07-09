@@ -281,6 +281,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runAudit(rest);
     case "readiness":
       return runReadiness(rest);
+    case "handoff":
+      return runHandoff(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -2921,6 +2923,178 @@ async function runReadiness(args: string[]): Promise<void> {
 }
 
 // P19-READINESS-END
+
+// P20-HANDOFF-START
+// ---------------------------------------------------------------------------
+// P20 — Handoff CLI
+// ---------------------------------------------------------------------------
+
+function handoffFlag(args: string[], name: string): string | null {
+  const idx = args.indexOf(name);
+  if (idx === -1 || idx + 1 >= args.length) return null;
+  return args[idx + 1];
+}
+
+function renderHandoffReport(report: any): void {
+  console.log(`Handoff Report (${report.items.length} items)`);
+  console.log(`  Window: ${report.windowStart} — ${report.windowEnd}`);
+  console.log("  Totals:");
+  console.log(`    Pending: ${report.totals.pending}`);
+  console.log(`    Completed: ${report.totals.completed}`);
+  console.log(`    Failed: ${report.totals.failed}`);
+  console.log(`    Evidence missing: ${report.totals.evidenceMissing}`);
+  for (const item of report.items) {
+    console.log(`  ${item.handoffId} | ${item.status} | ${item.planId} | ${item.actionCount} actions`);
+  }
+}
+
+async function runHandoff(args: string[]): Promise<void> {
+  const subcommand = args[0] ?? "";
+  const jsonMode = args.includes("--json");
+
+  try {
+    if (subcommand === "report") {
+      const { buildHandoffReport } = await import("../../governance/handoff-report.js");
+      const { readFileSync, existsSync } = await import("node:fs");
+      const inputPath = handoffFlag(args, "--input");
+      if (!inputPath) throw new Error("--input is required");
+      if (!existsSync(inputPath)) throw new Error(`input not found: "${inputPath}"`);
+
+      const bundle = JSON.parse(readFileSync(inputPath, "utf-8"));
+      const report = buildHandoffReport(
+        bundle.handoffs ?? [],
+        bundle.validations ?? [],
+        bundle.attempts ?? [],
+        {
+          since: handoffFlag(args, "--since") ?? undefined,
+          until: handoffFlag(args, "--until") ?? undefined,
+          now: new Date().toISOString(),
+        },
+      );
+      if (jsonMode) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        renderHandoffReport(report);
+      }
+      return;
+    }
+
+    if (!["build", "validate", "prepare-record"].includes(subcommand)) {
+      throw new Error(
+        "usage: alix governance handoff {build|validate|prepare-record|report} <plan-id> --input <path> [--json]",
+      );
+    }
+
+    const planId = args[1];
+    if (!planId) throw new Error(`handoff "${subcommand}" requires a plan ID`);
+
+    const inputPath = handoffFlag(args, "--input");
+    if (!inputPath) throw new Error("--input is required");
+
+    const { readFileSync, existsSync } = await import("node:fs");
+    if (!existsSync(inputPath)) throw new Error(`input not found: "${inputPath}"`);
+
+    const bundle = JSON.parse(readFileSync(inputPath, "utf-8"));
+
+    if (subcommand === "build") {
+      const { buildHandoffPackage } = await import("../../governance/handoff-builder.js");
+      const { classifyExecutionReadiness } = await import("../../governance/execution-readiness.js");
+      const { simulateExecutionPlan } = await import("../../governance/dry-run-simulator.js");
+      const { evaluateReadinessGate } = await import("../../governance/readiness-policy-gate.js");
+      const { buildLifecycleTrace } = await import("../../governance/governance-workbench.js");
+
+      const plan = bundle.executionPlans?.find((p: any) => p.planId === planId);
+      if (!plan) throw new Error(`plan "${planId}" not found`);
+      const approval = bundle.approvals?.find(
+        (a: any) => a.planId === planId && a.decision === "approved",
+      );
+      if (!approval) throw new Error(`approved approval for "${planId}" not found`);
+
+      const now = new Date().toISOString();
+      const assessment = classifyExecutionReadiness(plan, approval, { now });
+      const simulation = simulateExecutionPlan(plan, approval, assessment, { now });
+      const plansMap = new Map<string, any>(bundle.executionPlans?.map((p: any) => [p.remediationId, p]) ?? []);
+      const approvalsMap = new Map<string, any>(bundle.approvals?.map((a: any) => [a.planId, a]) ?? []);
+      const lifecycleTrace = buildLifecycleTrace(
+        plan.remediationId, bundle.remediations ?? [],
+        plansMap, approvalsMap, new Map(), new Map(), new Map(), new Map(),
+      );
+      const decision = evaluateReadinessGate({
+        plan, approval, assessment, simulation,
+        policy: bundle.policy,
+        visibility: { remediationId: plan.remediationId, planId: plan.planId, approvalId: approval.approvalId, lifecycleTrace },
+        options: { now },
+      });
+      const pkg = buildHandoffPackage({ plan, approval, assessment, simulation, decision, lifecycleTrace }, { now });
+
+      if (jsonMode) {
+        console.log(JSON.stringify(pkg, null, 2));
+      } else {
+        console.log("Handoff Package");
+        console.log(`  ID: ${pkg.handoffId}`);
+        console.log(`  Plan: ${pkg.planId} | Disposition: ${pkg.disposition}`);
+        console.log(`  Actions: ${pkg.actions.length}`);
+        console.log(`  Status: ${pkg.status} | Manual only: ${pkg.explicitlyManualOnly}`);
+      }
+      return;
+    }
+
+    if (subcommand === "validate") {
+      const { validateHandoffEvidence } = await import("../../governance/handoff-evidence.js");
+      const handoffs = bundle.handoffs ?? [];
+      const handoff = handoffs.find((h: any) => h.handoffId === planId);
+      if (!handoff) throw new Error(`handoff "${planId}" not found`);
+      const evidencePath = handoffFlag(args, "--evidence");
+      if (!evidencePath || !existsSync(evidencePath)) throw new Error("--evidence path required");
+
+      const evidence = JSON.parse(readFileSync(evidencePath, "utf-8"));
+      const requiredRefs = (handoff.evidence ?? []).filter((e: any) => e.required).map((e: any) => e.ref);
+      const result = validateHandoffEvidence(requiredRefs, evidence);
+
+      if (jsonMode) {
+        console.log(JSON.stringify(result, null, 2));
+      } else {
+        console.log(`Evidence Validation: ${result.valid ? "PASS" : "FAIL"}`);
+        console.log(`  Required: ${result.totalRequired} Captured: ${result.totalCaptured}`);
+        if (result.missingRefs.length) console.log(`  Missing: ${result.missingRefs.join(", ")}`);
+      }
+      return;
+    }
+
+    if (subcommand === "prepare-record") {
+      const { prepareHandoffRecord } = await import("../../governance/handoff-recorder.js");
+      const handoffs = bundle.handoffs ?? [];
+      const handoff = handoffs.find((h: any) => h.handoffId === planId);
+      if (!handoff) throw new Error(`handoff "${planId}" not found`);
+      const evidencePath = handoffFlag(args, "--evidence");
+      if (!evidencePath || !existsSync(evidencePath)) throw new Error("--evidence path required");
+
+      const evidence = JSON.parse(readFileSync(evidencePath, "utf-8"));
+      const record = prepareHandoffRecord(handoff, evidence, { now: new Date().toISOString() });
+
+      if (jsonMode) {
+        console.log(JSON.stringify(record, null, 2));
+      } else {
+        console.log("Handoff Record (not persisted)");
+        console.log(`  Attempt: ${record.attemptId}`);
+        console.log(`  Status: ${record.status}`);
+        console.log(`  Actions: ${record.actionResults.length}`);
+        console.log(`  Executed by: ${record.executedBy}`);
+      }
+      return;
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (jsonMode) {
+      console.log(JSON.stringify({ ok: false, code: "handoff_error", message }));
+    } else {
+      console.error(message);
+    }
+    process.exit(1);
+  }
+}
+
+// P20-HANDOFF-END
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
   policy_evaluated: CYAN,
