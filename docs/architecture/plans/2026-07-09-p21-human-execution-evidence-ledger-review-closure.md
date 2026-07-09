@@ -1,34 +1,31 @@
 # P21 — Human Execution Evidence Ledger & Review Closure Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement the plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Close the loop after manual operator action by persisting evidence in an append-only ledger, assigning closure states, and recording through audited store boundaries. No autonomous execution.
+**Goal:** Record human-submitted evidence about what happened after manual handoffs, review closure states through audited boundaries, and report closure status — without executing, ranking, or auto-closing.
 
 **Design spec:** `docs/architecture/specs/2026-07-09-p21-0-human-execution-evidence-ledger-review-closure-design.md`
 
 ## Implementation Boundaries
 
-Never add:
-- autonomous execution, background jobs, or scheduled tasks;
-- shell, network, MCP, browser, fetch, or subprocess calls;
-- execution adapters, executor imports, or tool invocations;
-- policy mutation;
-- operator ranking;
-- handoff package mutation or deletion;
-- evidence mutation or deletion after append;
-- direct audit emitter imports (use audited store boundaries).
-
-Evidence ledger is append-only. Closure decisions use audited store boundaries only.
+- No autonomous execution, background jobs, or scheduled tasks
+- No shell, network, MCP, browser, fetch, or subprocess calls
+- No execution adapters, executor imports, or tool invocations
+- No policy mutation
+- No operator ranking
+- No handoff package mutation or deletion
+- No evidence mutation or deletion after append
+- No direct audit emitter imports (use audited store boundaries only)
+- No automatic closure inference
 
 ## File Plan
 
 | Slice | Source | Tests |
-|---|---|---|
-| P21.1 | `src/governance/evidence-ledger-store.ts` | `tests/governance/evidence-ledger-store.test.ts` |
-| P21.2 | `src/governance/closure-review.ts` | `tests/governance/closure-review.test.ts` |
-| P21.3 | `src/governance/closure-recorder.ts` | `tests/governance/closure-recorder.test.ts` |
-| P21.4 | `src/governance/closure-report.ts`; `src/cli/commands/governance.ts` | `tests/governance/closure-report.test.ts`; `tests/cli/governance-closure-cli.test.ts` |
-| P21.5 | phase report, checkpoint docs | boundary verification commands |
+|-------|--------|-------|
+| P21.0 | Design spec + plan | — |
+| P21.1 | `src/governance/human-execution-closure-types.ts` + `human-execution-evidence-ledger.ts` | `tests/governance/human-execution-evidence-ledger.test.ts` |
+| P21.2 | `src/governance/human-execution-closure-review.ts` | `tests/governance/human-execution-closure-review.test.ts` |
+| P21.3 | `src/governance/audited-human-execution-closure.ts` | `tests/governance/audited-human-execution-closure.test.ts` |
+| P21.4 | `src/governance/human-execution-closure-report.ts` + `src/cli/commands/governance.ts` | `tests/governance/human-execution-closure-report.test.ts` |
+| P21.5 | Phase report + checkpoint docs | Boundary verification |
 
 ## Task 1: P21.0 Spec + Plan
 
@@ -37,73 +34,73 @@ Evidence ledger is append-only. Closure decisions use audited store boundaries o
 ## Task 2: P21.1 Evidence Ledger Store
 
 **Files:**
-- Create: `src/governance/evidence-ledger-store.ts`
-- Create: `tests/governance/evidence-ledger-store.test.ts`
+- Create: `src/governance/human-execution-closure-types.ts`
+- Create: `src/governance/human-execution-evidence-ledger.ts`
+- Create: `tests/governance/human-execution-evidence-ledger.test.ts`
 
-- [ ] **Step 1:** Create failing tests for append-only store
-- [ ] **Step 2:** Implement `EvidenceLedgerStore` with `append`, `getByHandoffId`, `list`
-- [ ] **Step 3:** Build and run — verify tests pass
-- [ ] **Step 4:** Commit P21.1
+- [ ] Create types file with evidence ref, ledger entry, closure review interfaces
+- [ ] Implement EvidenceLedgerStore with appendEvidence, listEvidence, listEvidenceForHandoff
+- [ ] 8 tests: append, list, duplicate rejection, validation, timestamps
+- [ ] Commit P21.1
 
 ## Task 3: P21.2 Closure Review Model
 
 **Files:**
-- Create: `src/governance/closure-review.ts`
-- Create: `tests/governance/closure-review.test.ts`
+- Create: `src/governance/human-execution-closure-review.ts`
+- Create: `tests/governance/human-execution-closure-review.test.ts`
 
-- [ ] **Step 1:** Create failing tests for closure state transitions
-- [ ] **Step 2:** Implement `ClosureReview`, state machine, transition validation
-- [ ] **Step 3:** Build and run — verify tests pass
-- [ ] **Step 4:** Commit P21.2
+- [ ] Implement state transition validation, closure review store
+- [ ] 10 tests: all transitions, evidence requirements, terminal enforcement
+- [ ] Commit P21.2
 
 ## Task 4: P21.3 Audit-Safe Closure Recorder
 
 **Files:**
-- Create: `src/governance/closure-recorder.ts`
-- Create: `tests/governance/closure-recorder.test.ts`
+- Create: `src/governance/audited-human-execution-closure.ts`
+- Create: `tests/governance/audited-human-execution-closure.test.ts`
 
-- [ ] **Step 1:** Create failing tests for audited recording
-- [ ] **Step 2:** Implement `recordClosureReview` — validates transitions, appends via store
-- [ ] **Step 3:** Build and run — verify tests pass
-- [ ] **Step 4:** Commit P21.3
+- [ ] Implement audited wrappers for evidence append and closure review
+- [ ] 6 tests: audit event emission, auditRefs, sentinel checks
+- [ ] Commit P21.3
 
 ## Task 5: P21.4 Closure Report + CLI
 
 **Files:**
-- Create: `src/governance/closure-report.ts`
-- Create: `tests/governance/closure-report.test.ts`
-- Append: `src/cli/commands/governance.ts` (P21-CLOSURE-START/END delimited section)
+- Create: `src/governance/human-execution-closure-report.ts`
+- Create: `tests/governance/human-execution-closure-report.test.ts`
+- Extend: `src/cli/commands/governance.ts` (P21-CLOSURE-START/END)
 
-- [ ] **Step 1:** Create report builder tests
-- [ ] **Step 2:** Implement `buildClosureReport()`
-- [ ] **Step 3:** Add `alix governance closure` CLI dispatcher and renderers
-- [ ] **Step 4:** Build and run — verify all P21 tests pass
-- [ ] **Step 5:** Commit P21.4
+- [ ] Implement buildClosureReport with derived status
+- [ ] Add CLI: handoff evidence append, handoff closure review, handoff closure report
+- [ ] 11 tests: totals, status, sorting, window filtering, no operator ranking
+- [ ] Commit P21.4
 
 ## Task 6: P21.5 Checkpoint
 
-- [ ] Run full verification
-- [ ] Run P21 sentinel checks
-- [ ] Confirm no autonomous execution
+- [ ] Full verification: typecheck + governance tests
+- [ ] P21 sentinel checks: no execution, no unaudited path, no ranking
 - [ ] Write phase report and checkpoint docs
-- [ ] Merge docs and tag: `alix-p21-human-execution-evidence-ledger-review-closure-complete`
+- [ ] Tag: `alix-p21-human-execution-evidence-ledger-review-closure-complete`
 
-## Verification
+## Sentinels
 
-```bash
-npm run typecheck
-npx tsx --test tests/governance/*.test.ts
-```
+P21 files must reject:
+- `executeAction`, `applyPolicy`, `transitionRemediation` calls
+- `.append(` from CLI paths (must go through audited recorder)
+- Audit emitter imports from pure modules
+- Shell/network/fetch/subprocess imports
+- Execution adapter imports
+- Operator ranking language
 
 ## Acceptance Checklist
 
-- [ ] P21.1 append-only evidence ledger operational
-- [ ] P21.2 closure state transitions validated
-- [ ] P21.3 closure decisions recorded through audited stores
-- [ ] P21.4 closure report + CLI operational
-- [ ] No autonomous execution capability exists
-- [ ] No execution adapter exists
-- [ ] No handoff package mutation
+- [ ] P21.1 evidence ledger append-only and tested
+- [ ] P21.2 closure state transitions enforced
+- [ ] P21.3 audited recorder wraps all writes
+- [ ] P21.4 closure report read-only, text + JSON
+- [ ] No autonomous execution
+- [ ] No execution adapter
 - [ ] No operator ranking
-- [ ] All tests passing
-- [ ] Phase report, checkpoint, commit, and tag exist
+- [ ] No unaudited closure path
+- [ ] All tests passing, typecheck clean
+- [ ] Phase report, checkpoint, tag exist
