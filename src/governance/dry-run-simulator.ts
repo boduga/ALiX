@@ -7,6 +7,9 @@
  */
 
 import { createHash } from "node:crypto";
+
+const ISO_TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 import type {
   ExecutionActionKind,
   GovernanceExecutionAction,
@@ -21,8 +24,7 @@ import {
 export type DryRunActionStatus =
   | "simulated"
   | "manual_required"
-  | "blocked"
-  | "unsupported";
+  | "blocked";
 
 export interface DryRunActionProjection {
   actionId: string;
@@ -58,32 +60,29 @@ export class DryRunSimulationError extends Error {
 }
 
 function sortedUnique(values: string[]): string[] {
-  return [...new Set(values.filter((value) => value.length > 0))].sort();
+  return [...new Set(values)].sort();
 }
 
 function projectAction(
   action: GovernanceExecutionAction,
   blocked: boolean,
 ): DryRunActionProjection {
-  if (blocked) {
-    return {
-      actionId: action.actionId,
-      kind: action.kind,
-      status: "blocked",
-      target: { ...action.target },
-      expectedEffect: action.expectedEffect,
-      preconditions: ["Approved P17 plan and matching P18 visibility required"],
-      risks: ["Readiness level blocks semantic simulation"],
-      rollbackNotes: [],
-    };
-  }
-
   const common = {
     actionId: action.actionId,
     kind: action.kind,
     target: { ...action.target },
     expectedEffect: action.expectedEffect,
   };
+
+  if (blocked) {
+    return {
+      ...common,
+      status: "blocked",
+      preconditions: ["Approved P17 plan and matching P18 visibility required"],
+      risks: ["Readiness level blocks semantic simulation"],
+      rollbackNotes: [],
+    };
+  }
   switch (action.kind) {
     case "investigate_anomaly":
       return {
@@ -105,8 +104,8 @@ function projectAction(
       return {
         ...common,
         status: "simulated",
-        preconditions: ["Operator performs any future config change manually"],
-        risks: ["Config mutation is not performed by this simulation"],
+        preconditions: ["Config change effect is described, not executed"],
+        risks: ["Effect projection does not mutate configuration"],
         rollbackNotes: action.rollbackHint ? [action.rollbackHint] : [],
       };
     case "manual_action":
@@ -131,13 +130,19 @@ export function simulateExecutionPlan(
   options: { now?: string } = {},
 ): DryRunSimulation {
   const actions = approvedActionsFor(plan, approval);
-  if (
-    assessment.planId !== plan.planId ||
-    assessment.remediationId !== plan.remediationId ||
-    assessment.approvalId !== approval.approvalId
-  ) {
+  if (assessment.planId !== plan.planId) {
     throw new DryRunSimulationError(
-      "assessment correlation does not match plan and approval",
+      `assessment planId "${assessment.planId}" does not match plan "${plan.planId}"`,
+    );
+  }
+  if (assessment.remediationId !== plan.remediationId) {
+    throw new DryRunSimulationError(
+      `assessment remediationId "${assessment.remediationId}" does not match remediation "${plan.remediationId}"`,
+    );
+  }
+  if (assessment.approvalId !== approval.approvalId) {
+    throw new DryRunSimulationError(
+      `assessment approvalId "${assessment.approvalId}" does not match approval "${approval.approvalId}"`,
     );
   }
 
@@ -156,6 +161,14 @@ export function simulateExecutionPlan(
       ? "complete"
       : "partial";
   const simulatedAt = options.now ?? new Date().toISOString();
+  if (
+    !ISO_TIMESTAMP_PATTERN.test(simulatedAt) ||
+    Number.isNaN(Date.parse(simulatedAt))
+  ) {
+    throw new DryRunSimulationError(
+      "simulatedAt must be a valid ISO 8601 timestamp",
+    );
+  }
   const simulationId = createHash("sha256")
     .update(
       [
