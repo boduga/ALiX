@@ -279,6 +279,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runActions(rest);
     case "audit":
       return runAudit(rest);
+    case "readiness":
+      return runReadiness(rest);
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
@@ -2664,9 +2666,253 @@ function colorForState(state: string | null): string {
   }
 }
 
+// P19-READINESS-START
 // ---------------------------------------------------------------------------
-// P14.5b — Audit subcommands
+// P19 — Readiness Report CLI
 // ---------------------------------------------------------------------------
+
+function readinessFlag(args: string[], name: string): string | null {
+  const idx = args.indexOf(name);
+  if (idx === -1 || idx + 1 >= args.length) return null;
+  return args[idx + 1];
+}
+
+async function readReadinessBundle(inputPath: string) {
+  const { readFileSync, existsSync } = await import("node:fs");
+  if (!existsSync(inputPath)) {
+    throw new Error(`readiness input not found: "${inputPath}"`);
+  }
+  const parsed = JSON.parse(readFileSync(inputPath, "utf-8"));
+  if (!parsed || typeof parsed !== "object") {
+    throw new Error("readiness input must be a JSON object");
+  }
+  if (!parsed.workbench || !parsed.policy) {
+    throw new Error("readiness input requires workbench and policy");
+  }
+  return parsed;
+}
+
+function readinessPlan(bundle: any, planId: string) {
+  const plan = bundle.workbench.executionPlans.find(
+    (p: any) => p.planId === planId,
+  );
+  if (!plan) throw new Error(`execution plan "${planId}" not found`);
+  const approvals = bundle.workbench.approvals
+    .filter((a: any) => a.planId === planId && a.decision === "approved")
+    .sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt));
+  if (!approvals.length) {
+    throw new Error(`approved approval for plan "${planId}" not found`);
+  }
+  return { plan, approval: approvals[0] };
+}
+
+async function readinessTrace(bundle: any, planId: string) {
+  const { buildLifecycleTrace } = await import(
+    "../../governance/governance-workbench.js"
+  );
+  const { plan } = readinessPlan(bundle, planId);
+  const plans = new Map<string, import("../../governance/execution-plans.js").GovernanceExecutionPlan>(
+    bundle.workbench.executionPlans.map((p: any) => [p.remediationId, p]),
+  );
+  const approvals = new Map<string, import("../../governance/execution-approval.js").GovernanceExecutionApproval>(
+    bundle.workbench.approvals.map((a: any) => [a.planId, a]),
+  );
+  const attempts = new Map<string, import("../../governance/execution-recorder.js").GovernanceExecutionAttempt>(
+    bundle.workbench.attempts.map((a: any) => [a.planId, a]),
+  );
+  const signals = new Map<string, import("../../governance/governance-signal.js").GovernanceSignal>(
+    (bundle.workbench.signals ?? []).map((s: any) => [s.signalId, s]),
+  );
+  const investigations = new Map<string, import("../../governance/investigation-types.js").InvestigationRecommendation>(
+    (bundle.workbench.investigations ?? []).map((i: any) => [i.id, i]),
+  );
+  return buildLifecycleTrace(
+    plan.remediationId,
+    bundle.workbench.remediations ?? [],
+    plans, approvals, attempts, signals, investigations,
+    new Map<string, import("../../governance/execution-report.js").GovernanceExecutionReportItem>(),
+  );
+}
+
+async function computeReadiness(bundle: any, planId: string) {
+  const now = new Date().toISOString();
+  const { plan, approval } = readinessPlan(bundle, planId);
+  const { classifyExecutionReadiness } = await import(
+    "../../governance/execution-readiness.js"
+  );
+  const { simulateExecutionPlan } = await import(
+    "../../governance/dry-run-simulator.js"
+  );
+  const { evaluateReadinessGate } = await import(
+    "../../governance/readiness-policy-gate.js"
+  );
+  const assessment = classifyExecutionReadiness(plan, approval, { now });
+  const simulation = simulateExecutionPlan(plan, approval, assessment, { now });
+  const lifecycleTrace = await readinessTrace(bundle, planId);
+  const decision = evaluateReadinessGate({
+    plan, approval, assessment, simulation,
+    policy: bundle.policy,
+    visibility: {
+      remediationId: plan.remediationId,
+      planId: plan.planId,
+      approvalId: approval.approvalId,
+      lifecycleTrace,
+    },
+    options: { now },
+  });
+  return { assessment, simulation, decision, lifecycleTrace };
+}
+
+function renderReadinessAssessment(assessment: any): void {
+  console.log("Readiness Assessment");
+  console.log(`  ID: ${assessment.assessmentId}`);
+  console.log(`  Plan: ${assessment.planId} | Remediation: ${assessment.remediationId}`);
+  console.log(`  Level: ${assessment.readinessLevel}`);
+  console.log(`  Assessed: ${assessment.assessedAt}`);
+  console.log("  Reasons:");
+  for (const r of assessment.reasons) {
+    console.log(`    ${r.code} — ${r.summary}`);
+  }
+}
+
+function renderReadinessSimulation(simulation: any): void {
+  console.log("Dry-Run Simulation");
+  console.log(`  ID: ${simulation.simulationId}`);
+  console.log(`  Status: ${simulation.status}`);
+  console.log("  Actions:");
+  for (const p of simulation.actionProjections) {
+    console.log(`    ${p.actionId}: ${p.kind} → ${p.status}`);
+    console.log(`      ${p.expectedEffect}`);
+  }
+  if (simulation.rollbackNotes.length) {
+    console.log(`  Rollback: ${simulation.rollbackNotes.join("; ")}`);
+  }
+}
+
+function renderReadinessDecision(decision: any): void {
+  console.log("Gate Decision");
+  console.log(`  ID: ${decision.decisionId}`);
+  console.log(`  Disposition: ${decision.disposition}`);
+  console.log(`  Reasons: ${decision.reasonCodes.join(", ")}`);
+  console.log(`  Authorization: ${decision.controlledExecutionAuthorization}`);
+}
+
+function renderReadinessReport(report: any): void {
+  console.log(`Readiness Report (${report.items.length} items)`);
+  console.log(`  Window: ${report.windowStart} — ${report.windowEnd}`);
+  console.log("  Totals:");
+  console.log(`    Blocked: ${report.totals.blocked}`);
+  console.log(`    Manual only: ${report.totals.manualOnly}`);
+  console.log(`    Dry-run allowed: ${report.totals.dryRunAllowed}`);
+  console.log(`    Not evaluated: ${report.totals.notEvaluated}`);
+  console.log(`    Missing P18 visibility: ${report.totals.missingP18Visibility}`);
+  console.log(`    Future candidates: ${report.totals.futureCandidates}`);
+  for (const item of report.items) {
+    const flag = item.requiresAttention ? " ⚠" : "  ";
+    console.log(`${flag} ${item.remediationId} | ${item.disposition}`);
+    console.log(`     Plan: ${item.planId} | P18:${item.p18TracePresent}`);
+  }
+}
+
+async function runReadiness(args: string[]): Promise<void> {
+  const subcommand = args[0] ?? "";
+  const jsonMode = args.includes("--json");
+
+  try {
+    const inputPath = readinessFlag(args, "--input");
+    if (!inputPath) {
+      throw new Error("--input is required (path to readiness input bundle)");
+    }
+    const bundle = await readReadinessBundle(inputPath);
+
+    if (subcommand === "report") {
+      const { buildExecutionReadinessReport } = await import(
+        "../../governance/execution-readiness-report.js"
+      );
+      const results = [];
+      for (const plan of bundle.workbench.executionPlans) {
+        if (bundle.workbench.approvals.some(
+          (a: any) => a.planId === plan.planId && a.decision === "approved",
+        )) {
+          results.push(await computeReadiness(bundle, plan.planId));
+        }
+      }
+      const report = buildExecutionReadinessReport({
+        assessments: results.map((r: any) => r.assessment),
+        simulations: results.map((r: any) => r.simulation),
+        decisions: results.map((r: any) => r.decision),
+        lifecycleTraces: results.map((r: any) => r.lifecycleTrace),
+        options: {
+          since: parseInlineFlag(args, "--since") ?? undefined,
+          until: parseInlineFlag(args, "--until") ?? undefined,
+          now: new Date().toISOString(),
+        },
+      });
+      if (jsonMode) {
+        console.log(JSON.stringify(report, null, 2));
+      } else {
+        renderReadinessReport(report);
+      }
+      return;
+    }
+
+    if (!["classify", "simulate", "evaluate"].includes(subcommand)) {
+      throw new Error(
+        "usage: alix governance readiness {classify|simulate|evaluate|report} <plan-id> --input <path> [--json]",
+      );
+    }
+
+    const planId = args[1];
+    if (!planId) {
+      throw new Error(`readiness "${subcommand}" requires a plan ID`);
+    }
+
+    if (subcommand === "classify") {
+      const { plan, approval } = readinessPlan(bundle, planId);
+      const { classifyExecutionReadiness } = await import(
+        "../../governance/execution-readiness.js"
+      );
+      const assessment = classifyExecutionReadiness(plan, approval, {
+        now: new Date().toISOString(),
+      });
+      if (jsonMode) {
+        console.log(JSON.stringify(assessment, null, 2));
+      } else {
+        renderReadinessAssessment(assessment);
+      }
+      return;
+    }
+
+    const result = await computeReadiness(bundle, planId);
+
+    if (subcommand === "simulate") {
+      if (jsonMode) {
+        console.log(JSON.stringify(result.simulation, null, 2));
+      } else {
+        renderReadinessSimulation(result.simulation);
+      }
+      return;
+    }
+
+    if (subcommand === "evaluate") {
+      if (jsonMode) {
+        console.log(JSON.stringify(result.decision, null, 2));
+      } else {
+        renderReadinessDecision(result.decision);
+      }
+      return;
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (jsonMode) {
+      console.log(JSON.stringify({ ok: false, code: "readiness_error", message }));
+    } else {
+      console.error(message);
+    }
+  }
+}
+
+// P19-READINESS-END
 
 const EVENT_TYPE_COLORS: Record<string, string> = {
   policy_evaluated: CYAN,
