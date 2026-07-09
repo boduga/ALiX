@@ -93,7 +93,10 @@ interface HandoffInput {
 ### 5.2 Handoff package structure
 
 ```typescript
-type HandoffStatus = "pending" | "in_progress" | "completed" | "failed" | "evidence_missing";
+// HandoffPackage.status is always "pending" at creation.
+// Derived report state (completed, failed, evidence_missing) is computed
+// in P20.4 from the handoff, evidence validations, and execution attempts.
+type HandoffStatus = "pending";
 
 interface HandoffPackageAction {
   actionId: string;
@@ -151,9 +154,20 @@ const handoffId = createHash("sha256")
 
 ## 6. P20.1 — Handoff Package Builder
 
-### 6.1 Purpose
+### 6.1 Eligibility
 
-Convert a readiness-approved plan into an explicit human-readable handoff package. No execution, no persistence, no side effects.
+`buildHandoffPackage` may only accept P19 gate decisions that meet ALL of:
+
+- `decision.disposition === "manual_only"` or `"dry_run_allowed"`;
+- `decision.controlledExecutionAuthorization === "not_available_in_p19"`;
+- valid P17 approval correlation (`approval.decision === "approved"`, planId/remediationId match);
+- valid P18 lifecycle trace correlation (non-gap proposal/plan/approval hops).
+
+Blocked readiness decisions (`disposition === "blocked"`) cannot produce handoff packages. Calling `buildHandoffPackage` on a blocked decision throws a typed error.
+
+### 6.2 Purpose
+
+Convert an eligible readiness-approved plan into an explicit human-readable handoff package. No execution, no persistence, no side effects.
 
 ```typescript
 export function buildHandoffPackage(
@@ -162,20 +176,22 @@ export function buildHandoffPackage(
 ): HandoffPackage;
 ```
 
-### 6.2 Builder rules
+### 6.3 Builder rules
 
-1. Extract approved actions from the plan and approval.
-2. Map each action to a `HandoffPackageAction` with operator instructions derived from:
+1. Validate eligibility (see §6.1). If disposition is `"blocked"`, throw a typed `HandoffBuilderError`.
+2. Extract approved actions from the plan and approval.
+3. Map each action to a `HandoffPackageAction` with operator instructions derived from:
    - The action's `description` and `expectedEffect`.
    - The simulator's projection preconditions and risks.
    - The action's `rollbackHint` and the plan's rollback plan.
-3. Generate evidence requirements:
+4. Generate evidence requirements:
    - Each action that requires evidence (config mutation, external effect) gets an evidence ref.
    - Evidence refs use the format: `${handoffId}/${actionId}/evidence`.
-4. Copy operator instructions from the plan's rollback plan and simulation notes.
-5. Set `status: "pending"`, `executedAt: null`, `executedBy: null`, `evidenceCaptured: false`.
-6. Set `explicitlyManualOnly: true` — ALiX never executes.
-7. Sort actions by `actionId`. Deduplicate and sort notes and instructions.
+5. Copy operator instructions from the plan's rollback plan and simulation notes.
+6. Set `status: "pending"` — the package is immutable. Status is never mutated on the package object. Report state (completed, failed, evidence_missing) is derived by P20.4 from the handoff package, evidence validations, and execution attempts.
+7. Set `executedAt: null`, `executedBy: null`, `evidenceCaptured: false`.
+8. Set `explicitlyManualOnly: true` — ALiX never executes.
+9. Sort actions by `actionId`. Deduplicate and sort notes and instructions.
 
 ## 7. P20.2 — Evidence Capture Contract
 
@@ -214,8 +230,10 @@ interface HandoffEvidenceValidation {
 
 1. Every required evidence ref in the handoff package must have a matching capture.
 2. Matching is by `ref` string equality.
-3. Missing refs → `valid: false`, refs listed in `missingRefs`.
-4. No validation of payload contents — operator attests to correctness.
+3. `capturedAt` must be a valid ISO 8601 timestamp. Invalid timestamps cause validation failure.
+4. `capturedBy` must be a non-empty string. Empty or missing values cause validation failure.
+5. Missing refs → `valid: false`, refs listed in `missingRefs`.
+6. No validation of payload contents — operator attests to correctness.
 
 ## 8. P20.3 — Post-Handoff Recording Flow
 
@@ -260,11 +278,14 @@ export function buildHandoffReport(
 ```text
 alix governance handoff build <plan-id> --input <path> [--json]
 alix governance handoff validate <handoff-id> --evidence <path> [--json]
-alix governance handoff record <handoff-id> --evidence <path> [--json]
+alix governance handoff prepare-record <handoff-id> --input <path> --evidence <path> [--json]
 alix governance handoff report --input <path> [--json] [--since <iso>] [--until <iso>]
 ```
 
-All commands require `--input` and are read-only (build, report) or produce immutable artifacts (validate, record).
+All commands require `--input` and are read-only. Key behavior notes:
+
+- **`prepare-record`** emits a `GovernanceExecutionAttempt` object to stdout (text or JSON). It does **not** call `ExecutionStore.append()` or any persistence method. The caller (operator or CI) decides whether to persist the object. This protects the invariant that P20's recording function is advisory and produces immutable artifacts, not side effects.
+- **`validate`** performs in-memory validation only — no store writes.
 
 ## 10. P20.5 — Checkpoint
 

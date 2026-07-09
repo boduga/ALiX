@@ -66,7 +66,9 @@ Every handoff requires matching approved P17 approval and P18 lifecycle visibili
 - Create: `tests/governance/handoff-recorder.test.ts`
 
 - [ ] **Step 1:** Create failing tests for recording flow
-- [ ] **Step 2:** Implement `recordHandoffExecution()` types and logic
+- [ ] **Step 2:** Implement `prepareHandoffRecord()` types and logic
+  - Returns a `GovernanceExecutionAttempt` object (does not call `.append()`).
+  - `controlledExecutionAuthorization` always `"not_available_in_p20"`.
 - [ ] **Step 3:** Build and run — verify tests pass
 - [ ] **Step 4:** Commit P20.3
 
