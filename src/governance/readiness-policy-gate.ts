@@ -7,6 +7,9 @@
  */
 
 import { createHash } from "node:crypto";
+
+const ISO_TIMESTAMP_PATTERN =
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/;
 import type { GovernanceExecutionPlan } from "./execution-plans.js";
 import type { GovernanceExecutionApproval } from "./execution-approval.js";
 import type { WorkbenchLifecycleTrace } from "./governance-workbench.js";
@@ -123,18 +126,23 @@ export function evaluateReadinessGate(
   if (
     simulation !== null &&
     (simulation.planId !== plan.planId ||
+      simulation.remediationId !== plan.remediationId ||
       simulation.approvalId !== approval.approvalId ||
       simulation.assessmentId !== assessment.assessmentId)
   ) {
     throw new ReadinessGateError(
-      `simulation correlation mismatch: planId="${simulation.planId}" approvalId="${simulation.approvalId}" assessmentId="${simulation.assessmentId}"`,
+      `simulation correlation mismatch: planId="${simulation.planId}" remediationId="${simulation.remediationId}" approvalId="${simulation.approvalId}" assessmentId="${simulation.assessmentId}"`,
     );
   }
 
   // Phase 2: decision rules
   const reasons: string[] = [];
   let disposition: ReadinessDisposition;
-  const visible = visibilityValid(visibility);
+  const visible =
+    visibility.remediationId === plan.remediationId &&
+    visibility.planId === plan.planId &&
+    visibility.approvalId === approval.approvalId &&
+    visibilityValid(visibility);
 
   if (!visible) {
     reasons.push("p18_visibility_missing");
@@ -173,8 +181,15 @@ export function evaluateReadinessGate(
     policy.allowSemanticDryRunFor.includes("reversible");
 
   const evaluatedAt = input.options?.now ?? new Date().toISOString();
+  if (
+    !ISO_TIMESTAMP_PATTERN.test(evaluatedAt) ||
+    Number.isNaN(Date.parse(evaluatedAt))
+  ) {
+    throw new ReadinessGateError(
+      "evaluatedAt must be a valid ISO 8601 timestamp",
+    );
+  }
   const simulationId = simulation?.simulationId ?? null;
-  reasons.sort();
 
   const decisionId = createHash("sha256")
     .update(
