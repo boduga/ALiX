@@ -1,9 +1,24 @@
-import { describe, it } from "node:test";
+import { describe, it, before } from "node:test";
 import assert from "node:assert/strict";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, mkdtempSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { handleGovernanceCalibrationCommand } from "../../src/cli/commands/governance-calibration.js";
 
+let bundlePath: string;
+
 describe("handleGovernanceCalibrationCommand", () => {
+
+  before(() => {
+    const dir = mkdtempSync(join(tmpdir(), "p24-cal-cli-"));
+    bundlePath = join(dir, "empty-bundle.json");
+    writeFileSync(bundlePath, JSON.stringify({
+      calibrations: [],
+      replayDiffs: [],
+      candidateLessons: [],
+      readOnly: true,
+    }));
+  });
 
   it("returns usage when no subcommand given", () => {
     const result = handleGovernanceCalibrationCommand([], { cwd: "/tmp" });
@@ -22,14 +37,6 @@ describe("handleGovernanceCalibrationCommand", () => {
   });
 
   it("handles report --json with empty bundle", () => {
-    // Write a minimal empty bundle to a temp location
-    const bundlePath = "/tmp/p24-empty-bundle.json";
-    writeFileSync(bundlePath, JSON.stringify({
-      calibrations: [],
-      replayDiffs: [],
-      candidateLessons: [],
-      readOnly: true,
-    }));
     const result = handleGovernanceCalibrationCommand(
       ["report", "--json", "--input", bundlePath],
       { cwd: "/tmp" },
@@ -41,7 +48,7 @@ describe("handleGovernanceCalibrationCommand", () => {
 
   it("handles bands with empty bundle", () => {
     const result = handleGovernanceCalibrationCommand(
-      ["bands", "--input", "/tmp/p24-empty-bundle.json"],
+      ["bands", "--input", bundlePath],
       { cwd: "/tmp" },
     );
     assert.ok(result);
@@ -49,7 +56,7 @@ describe("handleGovernanceCalibrationCommand", () => {
 
   it("handles --input with --window flag", () => {
     const result = handleGovernanceCalibrationCommand(
-      ["detect", "--input", "/tmp/p24-empty-bundle.json", "--window", "90"],
+      ["detect", "--input", bundlePath, "--window", "90"],
       { cwd: "/tmp" },
     );
     assert.ok(result);
