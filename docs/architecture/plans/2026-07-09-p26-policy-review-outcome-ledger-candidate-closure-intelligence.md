@@ -130,8 +130,18 @@ describe("PolicyReviewOutcomeTypes", () => {
   });
 
   it("PolicyReviewOutcomeLedger interface has required methods", () => {
-    // Type-level check — if this compiles, the interface is structurally sound
-    const ledger: PolicyReviewOutcomeLedger = null as unknown as PolicyReviewOutcomeLedger;
+    // Type-level check with real mock object
+    const outcome: PolicyReviewOutcome = {
+      outcomeId: "mock-1", candidateId: "c-1", candidateTitle: "",
+      outcomeType: "dismissed_no_change", recordedAt: "", recordedBy: "",
+      rationale: "", evidenceRefs: [], candidateStateAtRecording: "",
+      linkedEventIds: [], notes: "", createdAt: "",
+    };
+    const ledger: PolicyReviewOutcomeLedger = {
+      async recordOutcome() { return outcome; },
+      async listOutcomes() { return []; },
+      async getOutcome() { return null; },
+    };
     assert.ok(typeof ledger.recordOutcome === "function");
     assert.ok(typeof ledger.listOutcomes === "function");
     assert.ok(typeof ledger.getOutcome === "function");
@@ -216,6 +226,9 @@ export interface OutcomeFilter {
 export interface PolicyReviewOutcomeLedger {
   recordOutcome(opts: {
     candidateId: string;
+    candidateTitle?: string;
+    candidateStateAtRecording?: string;
+    linkedEventIds?: string[];
     outcomeType: PolicyReviewOutcomeType;
     recordedBy: string;
     rationale: string;
@@ -469,9 +482,9 @@ function now(): string {
   return new Date().toISOString();
 }
 
-function buildOutcomeId(candidateId: string, outcomeType: string, recordedBy: string, rationale: string, timestamp: string): string {
+function buildOutcomeId(candidateId: string, outcomeType: string, recordedBy: string, rationale: string): string {
   return createHash("sha256")
-    .update(["p26", candidateId, outcomeType, recordedBy, rationale.substring(0, 40), timestamp].join("|"))
+    .update(["p26", candidateId, outcomeType, recordedBy, rationale.substring(0, 40)].join("|"))
     .digest("hex")
     .slice(0, 16);
 }
@@ -525,6 +538,9 @@ export function createPolicyReviewOutcomeLedger(opts: {
 
   async function recordOutcome(opts: {
     candidateId: string;
+    candidateTitle?: string;
+    candidateStateAtRecording?: string;
+    linkedEventIds?: string[];
     outcomeType: PolicyReviewOutcomeType;
     recordedBy: string;
     rationale: string;
@@ -539,7 +555,6 @@ export function createPolicyReviewOutcomeLedger(opts: {
       opts.outcomeType,
       opts.recordedBy,
       opts.rationale,
-      timestamp,
     );
 
     // Reject duplicates
@@ -550,14 +565,14 @@ export function createPolicyReviewOutcomeLedger(opts: {
     const outcome: PolicyReviewOutcome = {
       outcomeId,
       candidateId: opts.candidateId,
-      candidateTitle: "", // Set by CLI if available
+      candidateTitle: opts.candidateTitle ?? "",
       outcomeType: opts.outcomeType,
       recordedAt: timestamp,
       recordedBy: opts.recordedBy,
       rationale: opts.rationale,
       evidenceRefs: opts.evidenceRefs ?? [],
-      candidateStateAtRecording: "",
-      linkedEventIds: [],
+      candidateStateAtRecording: opts.candidateStateAtRecording ?? "",
+      linkedEventIds: opts.linkedEventIds ?? [],
       notes: opts.notes ?? "",
       createdAt: timestamp,
     };
@@ -704,7 +719,7 @@ describe("computeOutcomeAnalytics", () => {
 
   it("empty outcomes produce zero counts", () => {
     const analytics = computeOutcomeAnalytics([]);
-    assert.equal(analytics.totalOutcomes, 0);
+    assert.equal(analytics.totalOutcomeCount, 0);
     for (const count of Object.values(analytics.outcomeDistribution)) {
       assert.equal(count, 0);
     }
@@ -717,7 +732,7 @@ describe("computeOutcomeAnalytics", () => {
       outcome({ outcomeId: "o-3", outcomeType: "dismissed_no_change" }),
     ];
     const analytics = computeOutcomeAnalytics(outcomes);
-    assert.equal(analytics.totalOutcomes, 3);
+    assert.equal(analytics.totalOutcomeCount, 3);
     assert.equal(analytics.outcomeDistribution.dismissed_no_change, 2);
     assert.equal(analytics.outcomeDistribution.accepted_for_policy_work, 1);
   });
@@ -799,7 +814,7 @@ import { OUTCOME_TYPES } from "./policy-review-outcome-types.js";
 // ---------------------------------------------------------------------------
 
 export interface OutcomeAnalytics {
-  totalOutcomes: number;
+  totalOutcomeCount: number;
   outcomeDistribution: Record<string, number>;
   candidatesWithMultipleOutcomes: string[];
   outcomesMissingRationale: string[];
@@ -846,7 +861,7 @@ export function computeOutcomeAnalytics(
     .sort();
 
   return {
-    totalOutcomes: outcomes.length,
+    totalOutcomeCount: outcomes.length,
     outcomeDistribution,
     candidatesWithMultipleOutcomes,
     outcomesMissingRationale,
@@ -926,7 +941,7 @@ describe("buildOutcomeReport", () => {
   it("empty outcomes produce clean report", () => {
     const analytics = computeOutcomeAnalytics([]);
     const report = buildOutcomeReport([], analytics);
-    assert.equal(report.totalOutcomes, 0);
+    assert.equal(report.totalOutcomeCount, 0);
     assert.equal(report.candidatesWithoutOutcomes, 0);
   });
 
@@ -937,7 +952,7 @@ describe("buildOutcomeReport", () => {
     ];
     const analytics = computeOutcomeAnalytics(outcomes);
     const report = buildOutcomeReport(outcomes, analytics);
-    assert.equal(report.totalOutcomes, 2);
+    assert.equal(report.totalOutcomeCount, 2);
     assert.equal(report.outcomeDistribution.dismissed_no_change, 1);
     assert.equal(report.outcomeDistribution.accepted_for_policy_work, 1);
   });
@@ -1073,8 +1088,12 @@ export function buildOutcomeReport(
     footer:
       "P26 records and analyzes human review outcomes for governed policy review candidates.\n" +
       "This report is read-only intelligence.\n" +
-      "It does not apply policy changes, generate patches, change thresholds, rank reviewers,\n" +
-      "auto-adopt outcomes, or auto-close candidates.",
+      "It does not apply policy changes.\n" +
+      "It does not generate patches.\n" +
+      "It does not change thresholds.\n" +
+      "It does not rank reviewers.\n" +
+      "It does not auto-adopt outcomes.\n" +
+      "It does not auto-close candidates.",
   };
 }
 
