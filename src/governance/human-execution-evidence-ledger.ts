@@ -5,7 +5,6 @@
  * No execution, no audit recorder — pure append-only persistence.
  */
 
-import { createHash } from "node:crypto";
 import { readFileSync, appendFileSync, existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type {
