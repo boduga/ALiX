@@ -196,8 +196,7 @@ export type PolicyReviewCandidateEventType =
   | "candidate_opened"
   | "status_changed"
   | "note_added"
-  | "evidence_attached"
-  | "candidate_closed";
+  | "evidence_attached";
 
 export interface PolicyReviewCandidateEvent {
   eventId: string;
@@ -455,7 +454,7 @@ policy-review-candidate-report.ts      (pure report builder)
 policy-review-candidate-store.ts       (file I/O + state machine enforcement)
 ```
 
-The builder MUST NOT import the store. The store MAY import types from the builder.
+The builder MUST NOT import the store. The store MAY import types from `policy-review-candidate-types.ts`. The store MUST NOT import the builder.
 
 ### 13.6 CLI Module
 
@@ -496,14 +495,21 @@ CLI handles command parsing and readFileSync for input bundles. CLI never decide
 9. listCandidates filters by status correctly.
 10. showCandidate returns candidate + full event log.
 
-### P25.4 — Report (4 tests)
+### P25.4 — Report + CLI (11 tests)
 
 1. Empty candidates produce clean report with zero counts.
 2. Report shows candidate counts by status.
 3. Report JSON output is parseable.
 4. Report includes boundary footer.
+5. `build --input` renders candidate previews.
+6. `build --json` returns parseable JSON.
+7. `open <candidateId> --input` persists candidate.
+8. `list` returns persisted candidates.
+9. `show` returns candidate + events.
+10. `transition` rejects invalid transition through store validation.
+11. `report --json` returns parseable JSON.
 
-**Total: 22 tests.**
+**Total: 29 tests.**
 
 ---
 
@@ -511,7 +517,7 @@ CLI handles command parsing and readFileSync for input bundles. CLI never decide
 
 P25 may be sealed only when:
 
-- all 22 P25 tests pass
+- all 29 P25 tests pass
 - no execution adapter imports exist in P25 modules
 - no shell/network/tool execution exists
 - no policy writer imports exist
@@ -558,11 +564,11 @@ P25.3 — Candidate Store (policy-review-candidate-store.ts)
 
 P25.4 — Report + CLI (policy-review-candidate-report.ts, governance-policy-review.ts)
   Pure report builder + CLI handler + governance.ts dispatch.
-  4 tests.
+  11 tests (4 report + 7 CLI).
 
 P25.5 — Checkpoint
   Boundary verification. No execution, mutation, ranking, or auto-adoption.
-  22 tests total.
+  29 tests total.
 ```
 
 ---
