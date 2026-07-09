@@ -330,9 +330,9 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       console.log(output);
       return;
     }
-    case "lineage": {
-      const { handleGovernanceLineageCommand } = await import("./governance-lineage.js");
-      const output = await handleGovernanceLineageCommand(rest, { cwd: process.cwd() });
+    case "policy-review-outcome": {
+      const { handleGovernancePolicyReviewOutcomeCommand } = await import("./governance-policy-review-outcome.js");
+      const output = await handleGovernancePolicyReviewOutcomeCommand(rest, { cwd: process.cwd() });
       console.log(output);
       return;
     }
