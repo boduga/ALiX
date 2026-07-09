@@ -9,6 +9,18 @@
 
 Produce the final read-only operator workflow report and seal P18 — Governance Workbench & Lifecycle Operations. This is a documentation/report/checkpoint slice only: no new behavior, no mutation, no store writes.
 
+## Design rationale
+
+P18.5 exists because P18 delivered 4 implementation slices (P18.1–P18.4) that collectively introduced a new operator-facing surface. A checkpoint report is needed to:
+
+1. **Consolidate** what was delivered across all 4 slices into a single reference
+2. **Verify** that the hard boundary (no mutation, no audit, no ranking) held across the entire phase
+3. **Seal** P18 with a recognizable tag so future phases can reference the governance workbench as a completed milestone
+
+The report serves as the canonical answer to "what did P18 ship?" without requiring a reader to assemble context across 4 specs, 4 plans, 4+ source files, and 4 test suites.
+
+The spec and plan for this slice are intentionally lean: the report IS the primary deliverable, and the spec/plan exist to define its structure and verify completion, not to design new behavior.
+
 ## Hard boundary
 
 No lifecycle mutation. No execution. No approval/rejection. No remediation transitions. No store writes. No audit emitter imports. No operator ranking. No punitive inference. No new workbench behavior unless fixing a discovered report issue.
@@ -19,7 +31,7 @@ No lifecycle mutation. No execution. No approval/rejection. No remediation trans
 
 | Area | Detail |
 |------|--------|
-| Workbench report | `docs/reports/p18-workbench-lifecycle-operations-report.md` documenting all delivered P18 capabilities |
+| Workbench report | `docs/architecture/reports/p18-workbench-lifecycle-operations-report.md` documenting all delivered P18 capabilities |
 | Verification | Typecheck + governance tests + CLI tests; fix any discovered report issues |
 | Checkpoint tag | `alix-p18-governance-workbench-complete` |
 
@@ -47,11 +59,11 @@ The report documents all 5 P18 slices and is organized as:
 
 | File | Change |
 |------|--------|
-| `docs/reports/p18-workbench-lifecycle-operations-report.md` | New — final checkpoint report |
+| `docs/architecture/reports/p18-workbench-lifecycle-operations-report.md` | New — final checkpoint report |
 
 ## Acceptance criteria
 
-1. Final workbench report exists at `docs/reports/p18-workbench-lifecycle-operations-report.md`
+1. Final workbench report exists at `docs/architecture/reports/p18-workbench-lifecycle-operations-report.md`
 2. P18 delivered capabilities documented per slice
 3. Read-only boundary explicitly restated
 4. CLI surface documented (queue, trace, summary; text + JSON)
