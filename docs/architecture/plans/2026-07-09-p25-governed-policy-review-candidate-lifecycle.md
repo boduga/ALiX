@@ -101,14 +101,13 @@ describe("PolicyReviewCandidateTypes", () => {
     assert.equal(statuses.length, 7);
   });
 
-  it("has 4 event types", () => {
+  it("has 3 event types", () => {
     const types: PolicyReviewCandidateEventType[] = [
       "candidate_opened",
       "status_changed",
       "note_added",
-      "evidence_attached",
     ];
-    assert.equal(types.length, 4);
+    assert.equal(types.length, 3);
   });
 
   it("ALLOWED_TRANSITIONS covers proposed→under_review", () => {
@@ -229,8 +228,7 @@ export type PolicyReviewCandidateStatus =
 export type PolicyReviewCandidateEventType =
   | "candidate_opened"
   | "status_changed"
-  | "note_added"
-  | "evidence_attached";
+  | "note_added";
 
 // ---------------------------------------------------------------------------
 // Evidence reference (mirrors P24 PolicyDriftEvidenceRef shape)
@@ -838,13 +836,10 @@ describe("PolicyReviewCandidateStore", () => {
 
   it("listCandidates filters by status", async () => {
     const c1 = sampleCandidate({ candidateId: "p25-list-proposed", status: "proposed" });
-    const c2 = sampleCandidate({
-      candidateId: "p25-list-dismissed",
-      status: "dismissed",
-      title: "Dismissed: calibration skew",
-    });
+    const c2 = sampleCandidate({ candidateId: "p25-list-dismissed", title: "Dismissed: calibration skew" });
     await store.openCandidate({ candidate: c1 });
     await store.openCandidate({ candidate: c2 });
+    await store.transitionCandidate({ candidateId: "p25-list-dismissed", nextStatus: "dismissed", rationale: "Test" });
 
     const proposed = await store.listCandidates({ status: "proposed" });
     assert.ok(proposed.some(c => c.candidateId === "p25-list-proposed"));
@@ -1024,8 +1019,11 @@ export function createPolicyReviewCandidateStore(opts: {
       }
     }
 
-    // Deterministic sort by createdAt ascending
-    candidates.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    // Deterministic sort: createdAt ascending, candidateId as tie-break
+    candidates.sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt) ||
+      a.candidateId.localeCompare(b.candidateId),
+    );
     return candidates;
   }
 
@@ -1042,6 +1040,13 @@ export function createPolicyReviewCandidateStore(opts: {
     if (existing) {
       // Idempotent: return existing, don't duplicate events
       return existing;
+    }
+
+    if (opts.candidate.status !== "proposed") {
+      throw new Error(
+        `openCandidate rejects status "${opts.candidate.status}". ` +
+        `Candidates must be opened with status "proposed".`,
+      );
     }
 
     await writeCandidate(opts.candidate);
@@ -1329,7 +1334,15 @@ export function buildCandidateReport(
   candidates: PolicyReviewCandidate[],
   opts?: { generatedAt?: string },
 ): CandidateReport {
-  const byStatus: Record<string, number> = {};
+  const byStatus: Record<string, number> = {
+    proposed: 0,
+    under_review: 0,
+    needs_info: 0,
+    deferred: 0,
+    accepted_for_policy_review: 0,
+    dismissed: 0,
+    closed: 0,
+  };
   for (const c of candidates) {
     byStatus[c.status] = (byStatus[c.status] ?? 0) + 1;
   }
@@ -1476,16 +1489,16 @@ after(() => {
 
 describe("handleGovernancePolicyReviewCommand", () => {
 
-  it("build --input renders candidate previews", () => {
-    const result = handleGovernancePolicyReviewCommand(
+  it("build --input renders candidate previews", async () => {
+    const result = await handleGovernancePolicyReviewCommand(
       ["build", "--input", bundlePath],
       { cwd: tmpDir },
     );
     assert.ok(result.includes("P25-BUILD"));
   });
 
-  it("build --json returns parseable JSON", () => {
-    const result = handleGovernancePolicyReviewCommand(
+  it("build --json returns parseable JSON", async () => {
+    const result = await handleGovernancePolicyReviewCommand(
       ["build", "--json", "--input", bundlePath],
       { cwd: tmpDir },
     );
@@ -1493,38 +1506,32 @@ describe("handleGovernancePolicyReviewCommand", () => {
     assert.ok(Array.isArray(parsed));
   });
 
-  it("open <candidateId> --input persists candidate", () => {
-    // First build to see candidate IDs, then open one
-    const buildResult = handleGovernancePolicyReviewCommand(
-      ["build", "--json", "--input", bundlePath],
-      { cwd: tmpDir },
-    );
-    // With empty P24 data, no candidates will be generated
-    const result = handleGovernancePolicyReviewCommand(
+  it("open <candidateId> --input persists candidate", async () => {
+    const result = await handleGovernancePolicyReviewCommand(
       ["list"],
       { cwd: tmpDir },
     );
     assert.ok(result);
   });
 
-  it("list returns persisted candidates", () => {
-    const result = handleGovernancePolicyReviewCommand(
+  it("list returns persisted candidates", async () => {
+    const result = await handleGovernancePolicyReviewCommand(
       ["list"],
       { cwd: tmpDir },
     );
     assert.ok(result.includes("P25-LIST"));
   });
 
-  it("transition rejects invalid transition through store validation", () => {
-    const result = handleGovernancePolicyReviewCommand(
+  it("transition rejects invalid transition through store validation", async () => {
+    const result = await handleGovernancePolicyReviewCommand(
       ["transition", "nonexistent-id", "--status", "closed", "--rationale", "test"],
       { cwd: tmpDir },
     );
     assert.ok(result.includes("Candidate not found") || result.includes("ERROR"));
   });
 
-  it("report --json returns parseable JSON", () => {
-    const result = handleGovernancePolicyReviewCommand(
+  it("report --json returns parseable JSON", async () => {
+    const result = await handleGovernancePolicyReviewCommand(
       ["report", "--json"],
       { cwd: tmpDir },
     );
@@ -1532,8 +1539,8 @@ describe("handleGovernancePolicyReviewCommand", () => {
     assert.ok(parsed.totalCount !== undefined);
   });
 
-  it("returns usage when no subcommand given", () => {
-    const result = handleGovernancePolicyReviewCommand([], { cwd: tmpDir });
+  it("returns usage when no subcommand given", async () => {
+    const result = await handleGovernancePolicyReviewCommand([], { cwd: tmpDir });
     assert.ok(result.includes("usage"));
   });
 });
@@ -1618,7 +1625,8 @@ function handleBuild(args: string[], cwd: string): string {
     return "ERROR: Could not load input bundle.\n" + usage();
   }
 
-  const candidates = buildCandidates(bundle.calibrations ?? []);
+  const signals = Array.isArray(bundle) ? bundle : bundle.signals ?? [];
+  const candidates = buildCandidates(signals);
 
   if (hasFlag(args, "--json")) {
     return JSON.stringify(candidates, null, 2) + "\n";
@@ -1657,7 +1665,8 @@ function handleOpen(args: string[], cwd: string): string {
     return "ERROR: Could not load input bundle.\n" + usage();
   }
 
-  const candidates = buildCandidates(bundle.calibrations ?? []);
+  const signals = Array.isArray(bundle) ? bundle : bundle.signals ?? [];
+  const candidates = buildCandidates(signals);
   const candidate = candidates.find(c => c.candidateId === candidateId);
   if (!candidate) {
     return `ERROR: Candidate ${candidateId} not found in input bundle.\n`;
@@ -1845,10 +1854,10 @@ function usage(): string {
 // Main dispatch
 // ---------------------------------------------------------------------------
 
-export function handleGovernancePolicyReviewCommand(
+export async function handleGovernancePolicyReviewCommand(
   args: string[],
   opts: { cwd: string },
-): string | Promise<string> {
+): Promise<string> {
   const cwd = opts.cwd;
   const subcommand = args[0];
 
@@ -1860,17 +1869,17 @@ export function handleGovernancePolicyReviewCommand(
     case "build":
       return handleBuild(args.slice(1), cwd);
     case "open":
-      return handleOpen(args.slice(1), cwd);
+      return await handleOpen(args.slice(1), cwd);
     case "list":
-      return handleList(args.slice(1), cwd);
+      return await handleList(args.slice(1), cwd);
     case "show":
-      return handleShow(args.slice(1), cwd);
+      return await handleShow(args.slice(1), cwd);
     case "transition":
-      return handleTransition(args.slice(1), cwd);
+      return await handleTransition(args.slice(1), cwd);
     case "note":
-      return handleNote(args.slice(1), cwd);
+      return await handleNote(args.slice(1), cwd);
     case "report":
-      return handleReport(args.slice(1), cwd);
+      return await handleReport(args.slice(1), cwd);
     default:
       return usage();
   }
@@ -2003,7 +2012,7 @@ git tag alix-p25-governed-policy-review-candidate-lifecycle-complete
 - [ ] **Step 2: Run full test suite**
 
 Run: `npx tsx --test tests/governance/policy-review-candidate-types.test.ts tests/governance/policy-review-candidate-builder.test.ts tests/governance/policy-review-candidate-store.test.ts tests/governance/policy-review-candidate-report.test.ts tests/governance/policy-review-cli.test.ts 2>&1`
-Expected: All 29 tests pass
+Expected: All 50 tests pass
 
 - [ ] **Step 3: Final tsc check**
 
