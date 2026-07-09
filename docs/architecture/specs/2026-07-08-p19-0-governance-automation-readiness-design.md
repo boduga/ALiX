@@ -261,7 +261,7 @@ interface DryRunSimulation {
 ### 7.4 Status rules
 
 - `blocked`: readiness level is `external_side_effecting` or `irreversible`.
-- `partial`: one or more actions are `manual_required` or `unsupported`, with at least one `simulated`.
+- `partial`: one or more actions are `manual_required` or `unsupported`; zero or more other actions may be `simulated`.
 - `complete`: all approved actions are semantically simulated.
 
 Blocked simulations describe why analysis stopped. They do not invoke any executor.
