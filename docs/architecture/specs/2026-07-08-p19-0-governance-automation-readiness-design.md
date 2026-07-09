@@ -183,10 +183,13 @@ This ordering is deterministic. It does not imply that higher entries are “ris
 
 ### 6.5 Determinism
 
-```text
-assessmentId = sha256(
-  "p19.1" | planId | approvalId | readinessLevel | assessedAt
-).slice(0, 16)
+Hash formulas in this spec describe input ordering. Implement IDs with an explicit array join delimiter:
+
+```typescript
+const assessmentId = createHash("sha256")
+  .update(["p19.1", planId, approvalId, readinessLevel, assessedAt].join("|"))
+  .digest("hex")
+  .slice(0, 16);
 ```
 
 Reasons and action IDs sort lexicographically. Caller arrays remain unchanged.
@@ -265,10 +268,13 @@ Blocked simulations describe why analysis stopped. They do not invoke any execut
 
 ### 7.5 Determinism
 
-```text
-simulationId = sha256(
-  "p19.2" | planId | approvalId | assessmentId | status | simulatedAt
-).slice(0, 16)
+```typescript
+const simulationId = createHash("sha256")
+  .update(
+    ["p19.2", planId, approvalId, assessmentId, status, simulatedAt].join("|"),
+  )
+  .digest("hex")
+  .slice(0, 16);
 ```
 
 Action projections sort by `actionId`. Notes are deduplicated and sorted.
@@ -368,6 +374,28 @@ Rules evaluate in order:
 - policy allows semantic dry run.
 
 That flag is informational. `controlledExecutionAuthorization` is always `"not_available_in_p19"`.
+
+### 8.6 Determinism
+
+```typescript
+const decisionId = createHash("sha256")
+  .update(
+    [
+      "p19.3",
+      planId,
+      approvalId,
+      assessmentId,
+      simulationId ?? "",
+      policyId,
+      disposition,
+      evaluatedAt,
+    ].join("|"),
+  )
+  .digest("hex")
+  .slice(0, 16);
+```
+
+Reason codes sort lexicographically. Caller inputs remain unchanged.
 
 ## 9. P19.4 — Readiness Report and CLI
 
@@ -488,13 +516,23 @@ The checkpoint records delivered behavior and confirms that no execution capabil
 
 ## 11. Sentinel Suite
 
-Source sentinels must reject:
+Source sentinels inspect only:
+
+- `src/governance/execution-readiness.ts`;
+- `src/governance/dry-run-simulator.ts`;
+- `src/governance/readiness-policy-gate.ts`;
+- `src/governance/execution-readiness-report.ts`;
+- the delimited P19 readiness section of `src/cli/commands/governance.ts`.
+
+They must not scan the entire repository or unrelated CLI sections. Forbidden-call checks must match imports and invocation shapes narrowly enough that generic JavaScript constructs such as an unrelated `.apply(` do not fail P19 verification.
+
+Within that scope, sentinels must reject:
 
 | Forbidden category | Examples |
 |---|---|
 | Execution imports | tool executor, shell pool, runtime executor, execution adapter |
 | Tool use | shell, network, MCP, browser, fetch, subprocess invocation |
-| Mutation calls | `.execute(`, `.apply(`, `.mutate(`, `.transition(` |
+| Mutation calls | Known executor APIs and domain mutations such as `executeAction(`, `applyPolicy(`, or `transitionRemediation(` |
 | Store writes | `.append(`, `.write(`, `.save(`, `.delete(` |
 | Audit emitters | direct audit emitter imports or emission calls |
 | Policy writes | policy mutation, policy persistence, policy installation |
