@@ -86,6 +86,9 @@ function traceMatches(
   if (!trace || trace.remediationId !== item.remediationId) return false;
   return (
     trace.hops.some(
+      (hop) => hop.kind === "proposal" && hop.id === item.remediationId && !hop.gap,
+    ) &&
+    trace.hops.some(
       (hop) => hop.kind === "plan" && hop.id === item.planId && !hop.gap,
     ) &&
     trace.hops.some(
@@ -143,7 +146,9 @@ export function buildExecutionReadinessReport(
     const trace = traceByRemediation.get(assessment.remediationId);
     const p18TracePresent = traceMatches(trace, assessment);
     const disposition: ExecutionReadinessReportItem["disposition"] =
-      decision?.disposition ?? "not_evaluated";
+      !p18TracePresent
+        ? "blocked"
+        : decision?.disposition ?? "not_evaluated";
     const reasonCodes = [
       ...(decision?.reasonCodes ?? []),
       ...(!p18TracePresent ? ["p18_visibility_missing"] : []),

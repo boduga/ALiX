@@ -2712,13 +2712,19 @@ async function readinessTrace(bundle: any, planId: string) {
   );
   const { plan } = readinessPlan(bundle, planId);
   const plans = new Map<string, import("../../governance/execution-plans.js").GovernanceExecutionPlan>(
-    bundle.workbench.executionPlans.map((p: any) => [p.remediationId, p]),
+    (bundle.workbench.executionPlans ?? []).map((p: any) => [p.remediationId, p]),
   );
   const approvals = new Map<string, import("../../governance/execution-approval.js").GovernanceExecutionApproval>(
-    bundle.workbench.approvals.map((a: any) => [a.planId, a]),
+    (bundle.workbench.approvals ?? [])
+      .slice()
+      .sort((a: any, b: any) => b.createdAt.localeCompare(a.createdAt))
+      .map((a: any) => [a.planId, a]),
   );
   const attempts = new Map<string, import("../../governance/execution-recorder.js").GovernanceExecutionAttempt>(
-    bundle.workbench.attempts.map((a: any) => [a.planId, a]),
+    (bundle.workbench.attempts ?? [])
+      .slice()
+      .sort((a: any, b: any) => (b.startedAt ?? "").localeCompare(a.startedAt ?? ""))
+      .map((a: any) => [a.planId, a]),
   );
   const signals = new Map<string, import("../../governance/governance-signal.js").GovernanceSignal>(
     (bundle.workbench.signals ?? []).map((s: any) => [s.signalId, s]),
@@ -2858,7 +2864,8 @@ async function runReadiness(args: string[]): Promise<void> {
 
     if (!["classify", "simulate", "evaluate"].includes(subcommand)) {
       throw new Error(
-        "usage: alix governance readiness {classify|simulate|evaluate|report} <plan-id> --input <path> [--json]",
+        "usage: alix governance readiness {classify|simulate|evaluate} <plan-id> --input <path> [--json]\n" +
+        "       alix governance readiness report --input <path> [--json] [--since <iso>] [--until <iso>]",
       );
     }
 
@@ -2909,6 +2916,7 @@ async function runReadiness(args: string[]): Promise<void> {
     } else {
       console.error(message);
     }
+    process.exit(1);
   }
 }
 
