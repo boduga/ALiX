@@ -16,14 +16,15 @@ Already done.
 
 Pure function `buildWorkbenchSnapshot(input)` with:
 
-- **Queue classification** — each remediation classified into one of four queues (needs_acceptance, needs_planning, needs_approval, needs_followup) or none (terminal state)
+- **Queue classification** — each remediation classified into one of four queues (needs_acceptance, needs_planning, needs_approval, needs_followup) or none (terminal state). Each item carries `severity` (info/warning/critical) and `reason`.
 - **Lifecycle trace** — per-remediation hop chain from signal → investigation → proposal → plan → approval → attempt → report, with explicit gaps
 - **Summary** — queue counts, lifecycle state totals, oldest items, staleness
 
 Core invariants:
 - One queue per item, priority wins
 - Derived state only — no mutation of inputs
-- Deterministic ordering within queues
+- Deterministic ordering: queue priority asc → severity desc → createdAt asc → remediationId asc → planId asc (nulls last)
+- No sorting by operator ID, operator count, or operator performance
 
 ## Task 3 — Workbench tests
 

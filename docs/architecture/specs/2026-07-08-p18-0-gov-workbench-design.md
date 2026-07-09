@@ -92,6 +92,41 @@ The workbench classifies each remediation into one of four operator queues:
 
 Items can appear in at most one queue. Priority order: needs_acceptance > needs_planning > needs_approval > needs_followup.
 
+### 4.3.1 Queue item shape
+
+```typescript
+interface WorkbenchQueueItem {
+  queue:
+    | "needs_acceptance"
+    | "needs_planning"
+    | "needs_approval"
+    | "needs_followup";
+
+  remediationId: string;
+  proposalId: string;
+  planId: string | null;
+  approvalId: string | null;
+  latestAttemptId: string | null;
+
+  reason: string;
+  severity: "info" | "warning" | "critical";
+  createdAt: string;
+  updatedAt: string;
+}
+```
+
+### 4.3.2 Deterministic queue sorting
+
+Within a queue, items sort deterministically:
+
+1. Queue priority asc: needs_acceptance → needs_planning → needs_approval → needs_followup
+2. Severity desc: critical → warning → info
+3. `createdAt` asc
+4. `remediationId` asc
+5. `planId` asc, nulls last
+
+No sorting by operator ID, operator count, or operator performance.
+
 ### 4.4 Lifecycle detail
 
 A single remediation's full trace:
