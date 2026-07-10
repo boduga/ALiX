@@ -1,26 +1,24 @@
-# Task 1 Report
+# Task 1: P30.1 — Lineage Types
 
-## Files Created
+**Status:** DONE
 
-- `src/governance/governance-reporting-types.ts` — 7 pure interfaces: `CompliancePackage`, `ComplianceSignalSummary`, `ComplianceCandidateSummary`, `ComplianceOutcomeSummary`, `ComplianceTraceSummary`, `DriftCorrelationAnalytics`, `GovernanceExplanation`
-- `tests/governance/governance-reporting-types.test.ts` — 3 tests: package shape, summary type fields, boundary flags
+**Files created:**
+- `src/governance/governance-lineage-types.ts` — Foundation types: 6 shallow phase refs (SignalRef, CandidateRef, OutcomeRef, TraceRef, ExplanationRef, ComplianceRef), LineageRecord with phasePresence (p24–p29) and 5 boundary flags, LineageIndex with 4 lookup maps
+- `tests/governance/governance-lineage-types.test.ts` — 3 passing tests covering all 6 phase ref shapes, phasePresence booleans, and boundary flags
 
-## Commit
+**Test summary:** 3/3 passing
 
-```
-<commit-hash> feat(P29.1): compliance package types — CompliancePackage, summary types, boundary flags
-```
+**Types defined:**
+- `SignalRef` — signalId, signalKind, windowEnd
+- `CandidateRef` — candidateId, title, status
+- `OutcomeRef` — outcomeId, candidateId, outcomeType
+- `TraceRef` — outcomeId, candidateId, signalKind
+- `ExplanationRef` — explanationId, type
+- `ComplianceRef` — packageId, windowStart, windowEnd
+- `LineageRecord` — lineageId, assembledAt, phasePresence (p24–p29 booleans), 6 optional shallow refs, 5 boundary flags (readOnly, noPolicyMutation, noThresholdChange, noAutoAdoption, noRanking)
+- `LineageIndex` — byCandidateId, bySignalKind, byOutcomeType, byCompliancePackageId (all `Map<string, string[]>`)
 
-Base: main
-
-## Test Results
-
-- `npx tsx --test tests/governance/governance-reporting-types.test.ts`: 3/3 pass
-- `npx tsc --noEmit`: clean compile, zero errors
-
-## Design Notes
-
-- `CompliancePackage` includes 5 readonly literal `true` boundary flags: `readOnly`, `noPolicyMutation`, `noThresholdChange`, `noAutoAdoption`, `noRanking`
-- `DriftCorrelationAnalytics` and `GovernanceExplanation` are supporting types defined in the same file (they did not exist previously)
-- All summary types (`ComplianceSignalSummary`, `ComplianceCandidateSummary`, `ComplianceOutcomeSummary`, `ComplianceTraceSummary`) have required fields only — no optional or nullable fields
-- Type-only import (`import type`) used in test — no runtime dependency on the source module
+**Key design decisions:**
+- All phase refs are deliberately shallow — no full phase objects embedded
+- Boundary flags are readonly literal `true` following existing P24/P25/P29 patterns
+- Store-independent pure types — no stores, no fs, no execution adapters
