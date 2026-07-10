@@ -178,12 +178,14 @@ function createPackageId(windowStart, windowEnd, traceCount): string
 **Key rules:**
 - Phase detection: signals present → "P24", candidates present → "P25", outcomes present → "P26", traces present → "P27", explanations present → "P28"
 - Phase detection describes available evidence, never implies validation or approval
-- packageId: SHA-256 over `windowStart + "|" + windowEnd + "|" + String(traceCount)`
+- packageId: SHA-256 over `windowStart + "|" + windowEnd + "|" + String(traceCount)` — no external clock, randomness, or environment access
+- **Sort all summaries deterministically** before returning: signalSummary by signalId, candidateSummary by candidateId, outcomeSummary by outcomeId, traceSummary by outcomeId
 - Pure function — no I/O, no side effects
 - Missing data produces partial package with available fields
 - No mutation of input data
+- Same evidence → same package (replay stability)
 
-- [ ] Step 1: Write failing tests (8 tests)
+- [ ] Step 1: Write failing tests (10 tests)
   1. Complete package — all sections populated
   2. Missing signals — partial evidence handling
   3. Missing outcomes — partial lifecycle
@@ -192,6 +194,8 @@ function createPackageId(windowStart, windowEnd, traceCount): string
   6. Counts match — inventory accuracy
   7. Input immutability — no mutation
   8. Phase derivation — correct evidence discovery
+  9. Package replay stability — same inputs produce deepEqual packages
+  10. No governance directive language — assertNoGovernanceDirective on all section bodies (scans for should, must, recommend, suggest, prioritize, best, likely, expected, improve, optimize)
 
 Run: `npx tsx --test tests/governance/governance-reporting-builder.test.ts`
 Expected: FAIL
@@ -300,12 +304,13 @@ git commit -m "feat(P29.3): compliance export + CLI — renderComplianceJson/Tex
 - [ ] Step 1: Run full P29 test suite
 
 Run: `npx tsx --test tests/governance/governance-reporting-types.test.ts tests/governance/governance-reporting-builder.test.ts tests/governance/governance-reporting-export.test.ts tests/governance/governance-report.test.ts 2>&1`
-Expected: All 15 tests pass
+Expected: All 17 tests pass
 
 - [ ] Step 2: Static checks
 
 ```bash
 grep -c "recommend\|predict\|execute\|policyWriter\|reviewerScore\|reviewerQuality\|reviewerRanking" src/governance/governance-reporting-*
+grep -c "should\|must\|suggest\|prioritize\|optimize" src/governance/governance-reporting-builder.ts src/governance/governance-reporting-export.ts 2>/dev/null
 ```
 Expected: 0 violations
 
@@ -334,4 +339,4 @@ git tag alix-p29-governance-reporting-compliance-packages-complete
 | P29.2 | 2 | 8 | `feat(P29.2): compliance package builder — deterministic evidence composition` |
 | P29.3 | 3+1 touch | 4 | `feat(P29.3): compliance export + CLI — renderComplianceJson/Text, --output export` |
 | P29.4 | 1 | — | `docs(P29.4): governance reporting compliance packages checkpoint` |
-| **Total** | **10 files** | **15 tests** | **4 commits** |
+| **Total** | **10 files** | **17 tests** | **4 commits** |
