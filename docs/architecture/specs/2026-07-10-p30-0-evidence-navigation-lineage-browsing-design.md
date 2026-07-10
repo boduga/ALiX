@@ -78,9 +78,18 @@ export interface LineageRecord {
   explanationRef: ExplanationRef | null;
   complianceRef: ComplianceRef | null;
 
+  // Phase presence — which phases have evidence for this candidate
+  phasePresence: {
+    p24: boolean;
+    p25: boolean;
+    p26: boolean;
+    p27: boolean;
+    p28: boolean;
+    p29: boolean;
+  };
+
   // Navigation
   relatedCandidates: string[];
-  phaseCount: number;
 
   readonly readOnly: true;
   readonly noPolicyMutation: true;
@@ -147,6 +156,7 @@ export interface LineageIndex {
   byCandidateId: Map<string, LineageRecord>;
   bySignalKind: Map<string, string[]>;  // kind → candidateIds
   byOutcomeType: Map<string, string[]>; // outcome → candidateIds
+  byCompliancePackageId: Map<string, string[]>; // packageId → candidateIds (reverse lookup for auditors)
 }
 ```
 
@@ -177,7 +187,7 @@ function buildLineageRecord(
 - Pure functions — no I/O, no side effects
 - LineageIndex built on-demand from caller-provided data
 - Missing phase data produces null refs for that phase
-- Deterministic lineageId (SHA-256 over candidateId)
+- Deterministic lineageId: SHA-256 of `"alix:p30:lineage:" + candidateId` (namespace-prefixed to prevent hash collisions)
 - relatedCandidates derived from same signalKind peers
 
 ---
@@ -226,13 +236,14 @@ alix governance lineage list [--kind <signalKind>] [--outcome <outcomeType>] [--
 2. All ref types have correct shapes
 3. Boundary flags present
 
-### P30.2 — Builder (6 tests)
+### P30.2 — Builder (7 tests)
 1. Full lineage for candidate with all phases populated
 2. Partial lineage for candidate with missing phases (null refs)
 3. LineageIndex built correctly from input data
 4. LineageRecord returns null for unknown candidateId
 5. relatedCandidates derived from signalKind peers
 6. Deterministic lineageId
+7. Immutability guard — original P24-P29 objects unchanged after buildLineageIndex()
 
 ### P30.3 — CLI (4 tests)
 1. show outputs lineage for existing candidate
@@ -240,7 +251,7 @@ alix governance lineage list [--kind <signalKind>] [--outcome <outcomeType>] [--
 3. list outputs index
 4. --json returns parseable JSON
 
-**Total: 13 tests.**
+**Total: 15 tests.**
 
 ---
 
@@ -259,7 +270,10 @@ alix governance lineage list [--kind <signalKind>] [--outcome <outcomeType>] [--
 ```text
 P30.0 — Design Spec
 P30.1 — Lineage Types (governance-lineage-types.ts) — 3 tests
-P30.2 — Lineage Builder (governance-lineage-builder.ts) — 6 tests
+P30.2 — Lineage Builder (governance-lineage-builder.ts) — 7 tests
 P30.3 — CLI (governance-lineage.ts) — 4 tests
 P30.4 — Checkpoint
+P30.5 — Governance Boundary Audit — 1 test (immutability guard)
+
+Total: 15 tests.
 ```
