@@ -28,13 +28,17 @@
  * @module execution-governor
  */
 
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
 import type {
   ExecutionIntent,
   ExecutionIntentEvent,
   ExecutionEvidence,
 } from "./contracts/execution-intent-contract.js";
 import { deriveIntentStatus } from "./contracts/execution-intent-contract.js";
+import { canonicalStringify } from "../security/audit/canonical-json.js";
+
+/** Domain/version prefix for evidence hash computation. */
+const DOMAIN_PREFIX = "alix-execution-v1:";
 
 // ─── Public Types ─────────────────────────────────────────────────────
 
@@ -337,6 +341,11 @@ export class ExecutionGovernorImpl implements ExecutionGovernor {
       throw new Error(`No events found for intent ${intentId}`);
     }
 
+    const status = deriveIntentStatus(intentEvents);
+    if (status !== "RUNNING") {
+      throw new Error(`Cannot complete intent with status ${status}, expected RUNNING`);
+    }
+
     const session = this.sessions.get(intentId);
     if (!session) {
       throw new Error(`No active session for intent ${intentId}`);
@@ -352,16 +361,25 @@ export class ExecutionGovernorImpl implements ExecutionGovernor {
     intentEvents.push(event);
     this.sessions.delete(intentId);
 
-    const evidence: ExecutionEvidence = {
+    const evidenceBase = {
       evidenceId: randomUUID(),
       intentId,
       startedAt: session.startedAt,
       completedAt: timestamp,
       outcome,
       summary,
-      artifacts: [],
+      artifacts: [] as string[],
       verificationPassed: outcome === "SUCCESS",
-      evidenceHash: "",
+    };
+
+    const canonical = canonicalStringify(evidenceBase);
+    const hash = createHash("sha256");
+    hash.update(DOMAIN_PREFIX, "utf8");
+    hash.update(canonical, "utf8");
+
+    const evidence: ExecutionEvidence = {
+      ...evidenceBase,
+      evidenceHash: hash.digest("hex"),
     };
 
     return evidence;
@@ -387,6 +405,11 @@ export class ExecutionGovernorImpl implements ExecutionGovernor {
       throw new Error(`No events found for intent ${intentId}`);
     }
 
+    const status = deriveIntentStatus(intentEvents);
+    if (status !== "RUNNING") {
+      throw new Error(`Cannot fail intent with status ${status}, expected RUNNING`);
+    }
+
     const session = this.sessions.get(intentId);
     if (!session) {
       throw new Error(`No active session for intent ${intentId}`);
@@ -403,16 +426,25 @@ export class ExecutionGovernorImpl implements ExecutionGovernor {
     intentEvents.push(event);
     this.sessions.delete(intentId);
 
-    const evidence: ExecutionEvidence = {
+    const evidenceBase = {
       evidenceId: randomUUID(),
       intentId,
       startedAt: session.startedAt,
       completedAt: timestamp,
-      outcome: "FAILED",
+      outcome: "FAILED" as const,
       summary: reason,
-      artifacts: [],
+      artifacts: [] as string[],
       verificationPassed: false,
-      evidenceHash: "",
+    };
+
+    const canonical = canonicalStringify(evidenceBase);
+    const hash = createHash("sha256");
+    hash.update(DOMAIN_PREFIX, "utf8");
+    hash.update(canonical, "utf8");
+
+    const evidence: ExecutionEvidence = {
+      ...evidenceBase,
+      evidenceHash: hash.digest("hex"),
     };
 
     return evidence;
@@ -435,6 +467,11 @@ export class ExecutionGovernorImpl implements ExecutionGovernor {
 
     if (!intentEvents || intentEvents.length === 0) {
       throw new Error(`No events found for intent ${intentId}`);
+    }
+
+    const status = deriveIntentStatus(intentEvents);
+    if (status === "COMPLETED" || status === "FAILED" || status === "REVOKED") {
+      throw new Error(`Cannot revoke intent with terminal status ${status}`);
     }
 
     const timestamp = new Date().toISOString();
