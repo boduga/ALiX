@@ -294,3 +294,11 @@ Intent → Reasoning → Planning → Approval → Execution → Evidence → Go
 ```
 
 ALiX becomes progressively more capable while preserving human control, explainability, auditability, reversibility, and governance integrity.
+
+---
+
+# 10. References
+
+- **MA0 Architecture (`docs/architecture/ma0-alix-architecture-2-0.md`)** — Superseded by this document. Retained for detailed ownership matrix, dependency rules, and contract definitions.
+- **P11 Post-Effect Roadmap Alignment (`docs/architecture/decisions/2026-07-04-p11-post-effect-roadmap-alignment.md`)** — Maps temporary phase labels to P11.x project plan.
+- **Governance Checkpoints** — Individual phase checkpoints under `docs/architecture/checkpoints/`.

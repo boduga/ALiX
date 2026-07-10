@@ -1,8 +1,13 @@
 # MA0 — ALiX Architecture 2.0
 
-> **Status:** Proposed architecture governance milestone  
+> **⚠️ SUPERSEDED** — This document has been replaced by `docs/architecture/ALiX_MASTER_ROADMAP.md`.
+> The master roadmap consolidates M, P, X, and A series into a single canonical reference.
+> This file is retained for historical reference and dependency rules (ownership matrix, contract definitions).
+> For roadmap planning, refer to `docs/architecture/ALiX_MASTER_ROADMAP.md`.
+
+> **Status:** Superseded  
 > **Purpose:** Formalize ALiX’s long-term architecture, roadmap taxonomy, ownership boundaries, and dependency rules.  
-> **Applies to:** All future ALiX design specs, implementation plans, PR reviews, architectural decisions, and agentic execution workflows.  
+> **Applies to:** All future ALiX design specs, implementation plans, PR reviews, architectural decisions, and agentic workflow executions — **see ALiX_MASTER_ROADMAP.md instead**.  
 > **Recommended repo path:** `docs/architecture/ma0-alix-architecture-2-0.md`
 
 ---
