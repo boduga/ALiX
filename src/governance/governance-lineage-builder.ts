@@ -74,6 +74,8 @@ export function buildLineageIndex(opts: {
   traces: DriftOutcomeTrace[];
   explanations: GovernanceExplanation[];
   compliancePackages?: CompliancePackage[];
+  /** Optional timestamp. Uses deterministic sentinel when absent (cross-run stability). */
+  assembledAt?: string;
 }): LineageIndex {
   // -----------------------------------------------------------------------
   // Pre-index input data for fast cross-referencing (no mutation of originals)
@@ -193,7 +195,7 @@ export function buildLineageIndex(opts: {
 
     const record: LineageRecord = {
       lineageId,
-      assembledAt: new Date().toISOString(),
+      assembledAt: opts.assembledAt ?? "1970-01-01T00:00:00.000Z",
       phasePresence: {
         p24: signalRef !== undefined,
         p25: true,
