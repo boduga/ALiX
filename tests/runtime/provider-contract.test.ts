@@ -138,29 +138,18 @@ describe("M1.3 — Provider Contract", () => {
     const meta: ProviderSelectionMetadata = {
       provider: "anthropic",
       model: "claude-3-opus-20240229",
-      capabilities: {
-        provider: "anthropic",
-        model: "claude-3-opus-20240229",
-        inputTokenLimit: 200000,
-        outputTokenLimit: 4096,
-        supportsTools: true,
-        supportsStreaming: true,
-        supportsStructuredOutput: true,
-        supportsVision: true,
-      },
+      capabilities: ["streaming", "tool_use", "vision"],
       availability: "available",
     };
 
     // All fields are descriptive — no selection scores or rankings
     assert.equal(typeof meta.provider, "string");
     assert.equal(typeof meta.model, "string");
-    assert.equal(typeof meta.capabilities, "object");
+    assert.ok(Array.isArray(meta.capabilities));
     assert.equal(typeof meta.availability, "string");
 
-    // Verify capabilities sub-fields
-    assert.equal(meta.capabilities.provider, "anthropic");
-    assert.equal(meta.capabilities.supportsTools, true);
-    assert.equal(meta.capabilities.inputTokenLimit, 200000);
+    // capabilities is string[] — list of capability names, not ModelCapabilities
+    assert.equal(meta.capabilities.length, 2);
 
     // Invariant: all fields are descriptive — no selection scores or rankings.
     // The type system ensures "best", "cheapest", "score", "rank" are not

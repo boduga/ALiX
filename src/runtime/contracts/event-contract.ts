@@ -52,12 +52,6 @@ export type { AlixEvent, EventActor, EventMeta, NewEvent };
 
 // ─── Event Actor ────────────────────────────────────────────────
 
-/**
- * Union of every possible event actor.
- * Matches {@link EventActor} in `src/events/types.ts` exactly.
- */
-export type AlixEventActor = EventActor;
-
 // ─── Event Identifiers ──────────────────────────────────────────
 
 /**
@@ -113,7 +107,7 @@ export const EVENT_IMMUTABILITY: EventImmutabilityAssertion = {
  * | Context               | `CONTEXT_EVENT_TYPES`      | 5     |
  * | Policy                | `POLICY_EVENT_TYPES`       | 3     |
  * | Artifact              | `ARTIFACT_EVENT_TYPES`     | 1     |
- * | Approval              | `APPROVAL_EVENT_TYPES`     | 11    |
+ * | Approval              | `APPROVAL_EVENT_TYPES`     | 12    |
  * | Replay                | `REPLAY_EVENT_TYPES`       | 9     |
  * | Rollback              | `ROLLBACK_EVENT_TYPES`     | 8     |
  *
