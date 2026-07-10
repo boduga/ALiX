@@ -199,19 +199,38 @@ export type ExecutionIntentStatus =
   | "REVOKED";
 ```
 
-### 7.3 Contract Rules
+### 7.3 Intent Identity vs Integrity
 
-- Immutable after creation — no field mutation post-creation (`Readonly<T>` at type level)
-- `Readonly<T>` prevents accidental mutation during development
-- Status transitions are append-only (event log)
-- New intent required for changed parameters
-- intentId: SHA-256 of `proposalId + actor + action + target + createdAt` (covers identity + temporal uniqueness)
-- The Governor must never treat CREATED as executable. Execution eligibility requires:
-  - intent exists
-  - AND status === APPROVED
-  - AND approvalReference exists
-  - AND approval timestamp valid
-  - AND expiration not exceeded
+- `intentId` — stable identifier used throughout the system (deterministic SHA-256 of `proposalId + actor + action + target + createdAt`)
+- `intentHash` — cryptographic digest of the canonical serialized immutable intent payload (used to verify integrity, distinct from intentId)
+
+### 7.4 Lifecycle via Append-Only Events
+
+The intent document itself is immutable. Lifecycle changes are represented as append-only events:
+
+```typescript
+export type ExecutionIntentEventType =
+  | "CREATED"
+  | "APPROVED"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "REVOKED";
+```
+
+The Governor derives the current status from the event ledger rather than mutating the intent document. This aligns with the append-only governance model established in P14–P30.
+
+### 7.5 Eligibility Rules
+
+The Governor must never treat CREATED as executable. Execution eligibility requires:
+- intent exists
+- AND status === APPROVED (derived from event ledger)
+- AND approvalReference exists
+- AND approval referenced is still active (not revoked/superseded)
+- AND approval timestamp valid
+- AND expiration not exceeded
+
+New intent required for changed parameters.
 
 ---
 
@@ -247,7 +266,7 @@ export type ExecutionEvidence = Readonly<{
 }>;
 ```
 
-This becomes the bridge for X3 (Evidence Capture → Governance) when that milestone is implemented.
+X2 produces ExecutionEvidence on completion/failure. X3 integrates that evidence into the P14–P30 governance pipeline (Evidence Capture → Governance Bridge).
 
 ### 8.3 Governor Rules
 
@@ -310,7 +329,7 @@ X0 may be sealed when:
 
 - X1 ExecutionIntent contract types defined
 - X2 Governor interface defined and implemented
-- All 10 tests pass
+- All 13 tests pass
 - No existing runtime code modified
 - No agent autonomy introduced
 - No policy mutation paths created
