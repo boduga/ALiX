@@ -267,8 +267,13 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runPolicySuggestions(rest);
     case "friction-analysis":
       return runFrictionAnalysis(rest);
-    case "report":
+    case "report": {
+      if (rest[0] === "compliance") {
+        const { handleGovernanceReportCommand } = await import("./governance-report.js");
+        return handleGovernanceReportCommand(rest, { cwd: process.cwd() });
+      }
       return runReport(rest);
+    }
     case "inbox":
       return runInbox(rest);
     case "review":
