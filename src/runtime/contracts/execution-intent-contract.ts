@@ -155,6 +155,7 @@ const DOMAIN_PREFIX = "alix-execution-v1:";
 // ─── Helper Functions ───────────────────────────────────────────────
 
 import { createHash } from "node:crypto";
+import { canonicalStringify } from "../../security/audit/canonical-json.js";
 
 /**
  * Generate a deterministic intentId from proposalId, actor, and optional timestamp.
@@ -214,74 +215,6 @@ export function deriveIntentStatus(events: readonly ExecutionIntentEvent[]): Exe
   // Sort by timestamp ascending; the most recent event determines status
   const sorted = [...events].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
   return sorted[sorted.length - 1].type as ExecutionIntentStatus;
-}
-
-// ─── Canonical JSON Serialization ───────────────────────────────────
-
-/**
- * Produce a deterministic, canonical JSON string for the given value.
- *
- * Object keys are sorted alphabetically at each nesting level.
- * Arrays preserve their original element order.
- *
- * @throws {TypeError} for non-finite numbers, undefined, functions, or symbols.
- */
-function canonicalStringify(value: unknown): string {
-  return serialize(value);
-}
-
-function serialize(value: unknown): string {
-  if (value === null) return "null";
-
-  const t = typeof value;
-
-  switch (t) {
-    case "string":
-      return JSON.stringify(value);
-    case "number": {
-      if (!Number.isFinite(value)) {
-        throw new TypeError("Canonical JSON: non-finite numbers are not allowed");
-      }
-      if (Object.is(value, -0)) return "0";
-      return JSON.stringify(value);
-    }
-    case "boolean":
-      return value ? "true" : "false";
-    case "object": {
-      if (Array.isArray(value)) return serializeArray(value);
-      return serializeObject(value as Record<string, unknown>);
-    }
-    case "undefined":
-      throw new TypeError("Canonical JSON: undefined is not allowed");
-    case "function":
-      throw new TypeError("Canonical JSON: functions are not allowed");
-    case "symbol":
-      throw new TypeError("Canonical JSON: symbols are not allowed");
-    default:
-      // bigint and other non-JSON types
-      throw new TypeError("Canonical JSON: unsupported type");
-  }
-}
-
-function serializeArray(arr: unknown[]): string {
-  if (arr.length === 0) return "[]";
-  const parts: string[] = [];
-  for (const item of arr) {
-    parts.push(serialize(item));
-  }
-  return "[" + parts.join(",") + "]";
-}
-
-function serializeObject(obj: Record<string, unknown>): string {
-  const keys = Object.keys(obj).sort();
-  if (keys.length === 0) return "{}";
-  const parts: string[] = [];
-  for (const key of keys) {
-    if ({}.hasOwnProperty.call(obj, key)) {
-      parts.push(JSON.stringify(key) + ":" + serialize(obj[key]));
-    }
-  }
-  return "{" + parts.join(",") + "}";
 }
 
 // ─── Invariants ──────────────────────────────────────────────────────

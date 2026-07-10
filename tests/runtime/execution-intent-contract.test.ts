@@ -56,6 +56,23 @@ function fullIntent(): ExecutionIntent {
   };
 }
 
+function sampleEvidence(
+  overrides?: Partial<ExecutionEvidence>,
+): ExecutionEvidence {
+  return {
+    evidenceId: "ev-001",
+    intentId: "intent-001",
+    startedAt: "2026-07-10T10:00:00.000Z",
+    completedAt: "2026-07-10T10:05:00.000Z",
+    outcome: "SUCCESS",
+    summary: "Refactored login flow successfully",
+    artifacts: ["src/auth/login.ts"],
+    verificationPassed: true,
+    evidenceHash: "abc123",
+    ...overrides,
+  };
+}
+
 function sampleEvent(
   overrides: Partial<ExecutionIntentEvent> & { type: ExecutionIntentEvent["type"] },
 ): ExecutionIntentEvent {
@@ -210,10 +227,10 @@ describe("X1 — Execution Intent Contract", () => {
   });
 
   it("ExecutionEvidence outcome is one of SUCCESS, FAILED, PARTIAL", () => {
-    const success: ExecutionEvidence = { ...fullIntent() as unknown as ExecutionEvidence, outcome: "SUCCESS" };
-    const failed: ExecutionEvidence = { ...fullIntent() as unknown as ExecutionEvidence, outcome: "FAILED" };
-    const partial: ExecutionEvidence = { ...fullIntent() as unknown as ExecutionEvidence, outcome: "PARTIAL" };
-    // Just verify the assignments work at type level
+    const success = sampleEvidence({ outcome: "SUCCESS" });
+    const failed = sampleEvidence({ outcome: "FAILED" });
+    const partial = sampleEvidence({ outcome: "PARTIAL" });
+    // Verify outcome values are valid
     assert.ok(["SUCCESS", "FAILED", "PARTIAL"].includes(success.outcome));
     assert.ok(["SUCCESS", "FAILED", "PARTIAL"].includes(failed.outcome));
     assert.ok(["SUCCESS", "FAILED", "PARTIAL"].includes(partial.outcome));

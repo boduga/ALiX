@@ -248,6 +248,125 @@ describe("X2 — Execution Governor", () => {
     assert.equal(typeof evidence.startedAt, "string");
   });
 
+  // ── 8: complete without start — state validation ────────────────────
+
+  it("complete() without start() throws — requires RUNNING status", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({
+        type: "APPROVED",
+        timestamp: "2026-07-10T10:30:00.000Z",
+        actor: "bob",
+      }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+
+    // authorize() creates a session but does NOT make status RUNNING
+    await gov.authorize("intent-001");
+
+    // complete() should reject because status is APPROVED, not RUNNING
+    await assert.rejects(
+      gov.complete("intent-001", "SUCCESS", "Should not complete"),
+      {
+        name: "Error",
+        message: /Cannot complete intent with status APPROVED/,
+      },
+    );
+  });
+
+  // ── 9: fail without start — state validation ────────────────────────
+
+  it("fail() without start() throws — requires RUNNING status", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({
+        type: "APPROVED",
+        timestamp: "2026-07-10T10:30:00.000Z",
+        actor: "bob",
+      }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+
+    await gov.authorize("intent-001");
+
+    await assert.rejects(
+      gov.fail("intent-001", "Should not fail from approved"),
+      {
+        name: "Error",
+        message: /Cannot fail intent with status APPROVED/,
+      },
+    );
+  });
+
+  // ── 10: revoke on CREATED-only intent ───────────────────────────────
+
+  it("revoke() succeeds on CREATED-only intent (non-terminal)", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+
+    await gov.revoke("intent-001", "Cancelled before approval");
+
+    // Verify intent status is now REVOKED
+    const intent = sampleIntent();
+    const result = await gov.validate(intent);
+    assert.equal(result.valid, false);
+    assert.ok(result.reason!.includes("REVOKED"));
+  });
+
+  // ── 11: revoke on terminal state throws ─────────────────────────────
+
+  it("revoke() throws on already-COMPLETED intent", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({ type: "APPROVED", timestamp: "2026-07-10T10:30:00.000Z", actor: "bob" }),
+      event({ type: "RUNNING", timestamp: "2026-07-10T11:00:00.000Z", actor: "bot" }),
+      event({ type: "COMPLETED", timestamp: "2026-07-10T11:30:00.000Z", actor: "bot" }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+
+    await assert.rejects(
+      gov.revoke("intent-001", "Too late to revoke"),
+      {
+        name: "Error",
+        message: /Cannot revoke intent with terminal status COMPLETED/,
+      },
+    );
+  });
+
+  // ── 12: evidenceHash is populated ───────────────────────────────────
+
+  it("complete() produces evidenceHash non-empty hex string", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({ type: "APPROVED", timestamp: "2026-07-10T10:30:00.000Z", actor: "bob" }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+    await gov.start("intent-001");
+
+    const evidence = await gov.complete("intent-001", "SUCCESS", "Task done");
+
+    assert.equal(typeof evidence.evidenceHash, "string");
+    assert.ok(evidence.evidenceHash.length > 0, "evidenceHash must not be empty");
+    assert.ok(/^[0-9a-f]{64}$/.test(evidence.evidenceHash), `evidenceHash "${evidence.evidenceHash}" must be 64-char hex`);
+  });
+
+  it("fail() produces evidenceHash non-empty hex string", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({ type: "APPROVED", timestamp: "2026-07-10T10:30:00.000Z", actor: "bob" }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+    await gov.start("intent-001");
+
+    const evidence = await gov.fail("intent-001", "Something broke");
+
+    assert.equal(typeof evidence.evidenceHash, "string");
+    assert.ok(evidence.evidenceHash.length > 0, "evidenceHash must not be empty");
+    assert.ok(/^[0-9a-f]{64}$/.test(evidence.evidenceHash), `evidenceHash "${evidence.evidenceHash}" must be 64-char hex`);
+  });
+
   // ── 7: revoke + heartbeat rejection ────────────────────────────────
 
   it("revoke() appends REVOKED event; heartbeat() rejected revoked intents", async () => {
