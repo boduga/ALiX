@@ -352,8 +352,15 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       return runGovernanceList(rest);
     case "cleanup":
       return runGovernanceCleanup(rest);
-    case "explain":
+    case "explain": {
+      if (rest[0] === "trace" || rest[0] === "window") {
+        const { handleGovernanceExplainCommand } = await import("./governance-explain.js");
+        const output = handleGovernanceExplainCommand(rest, { cwd: process.cwd() });
+        console.log(output);
+        return;
+      }
       return runGovernanceExplain(rest);
+    }
     case "dashboard":
       return runDashboard(rest);
     case "investigate":
