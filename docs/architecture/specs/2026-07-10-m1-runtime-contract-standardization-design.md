@@ -50,7 +50,26 @@ M1 does NOT rebuild any of these. It formalizes their interfaces so downstream c
 
 ---
 
-## 4. Core Boundary
+## 4. Contract Ownership Rule
+
+M-series contracts become the only dependency boundary for future platform consumers. Future modules (X-series, A-series, P11.9) must import contracts from `src/runtime/`, not concrete implementations from `src/agent/`, `src/providers/`, `src/tools/`, or `src/mcp/`, unless explicitly marked as runtime-internal.
+
+Dependency direction:
+
+```text
+                Contracts (src/runtime/)
+                    ▲
+                    |
+        ┌───────────┴───────────┐
+        |                       |
+ Runtime Implementations   Future Systems
+ (src/agent, src/providers,   (X-Series, A-Series, P11.9)
+  src/tools, src/mcp)
+```
+
+---
+
+## 5. Core Boundary
 
 M1 is explicitly prohibited from:
 
@@ -67,7 +86,7 @@ M1 produces contracts. Downstream consumers implement against those contracts.
 
 ---
 
-## 5. M1.1 — Agent Runtime Contract
+## 6. M1.1 — Agent Runtime Contract
 
 **Source:** `src/autonomy/scope-tracker.ts`, `src/autonomy/state-machine.ts`, `src/agent/agent.ts`
 
@@ -158,7 +177,7 @@ export type ScopeSnapshot = {
 
 ---
 
-## 6. M1.2 — Provider Contract
+## 7. M1.2 — Provider Contract
 
 **Source:** `src/providers/types.ts`, `src/providers/base.ts`, `src/providers/registry.ts`
 
@@ -223,7 +242,21 @@ export type CompleteOptions = {
 };
 ```
 
-### 6.3 Provider Registry
+### 7.3 Provider Selection Metadata
+
+```typescript
+// Describes provider capability — does not decide "best" or "cheapest"
+export interface ProviderSelectionMetadata {
+  provider: string;
+  model: string;
+  capabilities: string[];
+  availability: "available" | "degraded" | "offline";
+}
+```
+
+The provider layer describes capability. It does NOT decide best provider, cheapest provider, or smartest provider. Selection decisions belong to the consumer.
+
+### 7.4 Provider Registry
 
 ```typescript
 // Source: src/providers/registry.ts
@@ -237,7 +270,7 @@ export interface ProviderRegistry {
 
 ---
 
-## 7. M1.3 — Tool Contract
+## 8. M1.3 — Tool Contract
 
 **Source:** `src/tools/types.ts`, `src/tools/executor.ts`, `src/tools/tool-registry.ts`
 
@@ -265,7 +298,21 @@ export type ToolResult =
   | { kind: "error"; message: string; retryable?: boolean; hint?: string };
 ```
 
-### 7.3 Tool Names & Typed Args
+### 8.3 Tool Safety Boundary
+
+Tool contracts expose capability. They do not grant permission.
+
+```text
+Tool Contract:
+  "What can this tool do?"
+
+Security Layer (X-series):
+  "May this agent do it?"
+```
+
+This separation matters for X-series execution safety.
+
+### 8.4 Tool Names & Typed Args
 
 ```typescript
 // Source: src/tools/types.ts
@@ -282,7 +329,7 @@ export type ToolArgs = {
 
 ---
 
-## 8. M1.4 — Event Contract
+## 9. M1.4 — Event Contract
 
 **Source:** `src/events/types.ts`, `src/events/event-log.ts`
 
@@ -359,9 +406,19 @@ export interface EventLogContract {
 
 This contract directly enables P23 replay, P24 drift detection, and P30 lineage by standardizing event fields that governance already consumes.
 
+### 9.4 Event Immutability Rule
+
+Events are append-only, immutable, timestamped, and traceable. The following are forbidden:
+
+- ❌ Event rewriting
+- ❌ Event deletion
+- ❌ Event mutation after emission
+
+This invariant keeps P23 replay, P28 explanation, P29 compliance, and P30 lineage valid.
+
 ---
 
-## 9. M1.5 — Context Contract
+## 10. M1.5 — Context Contract
 
 ### 9.1 Context Identity
 
@@ -391,7 +448,7 @@ export interface ContextTransfer {
 
 ---
 
-## 10. M1.6 — Memory Contract
+## 11. M1.6 — Memory Contract
 
 **Source:** `src/utils/memory/types.ts`, `src/utils/memory/store.ts`, `src/utils/memory/recall.ts`
 
@@ -443,7 +500,7 @@ export interface MemoryStoreContract {
 
 ---
 
-## 11. M1.7 — Runtime Observability Contract
+## 12. M1.7 — Runtime Observability Contract
 
 ### 11.1 Evidence Bridge
 
@@ -483,7 +540,19 @@ Note: Contracts are placed in `src/runtime/` — a new top-level directory for M
 
 None. M1 does not modify existing implementation code.
 
-### 12.3 Untouched Files
+### 12.3 A-Series Compatibility Rule
+
+A-series may consume M contracts. A-series may not modify M contracts without governance review.
+
+Flow:
+
+```text
+A-series proposal → M contract change proposal → Human review → Implementation
+```
+
+No self-modifying foundation.
+
+### 12.4 Untouched Files
 
 - All files in `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`, `src/events/`, `src/autonomy/`, `src/utils/memory/`
 
@@ -529,7 +598,8 @@ M1.4 — Event Contract (src/runtime/event-contract.ts) — 1 test
 M1.5 — Context Contract (src/runtime/context-contract.ts) — 1 test
 M1.6 — Memory Contract (src/runtime/memory-contract.ts) — 1 test
 M1.7 — Observability Contract (src/runtime/observability-contract.ts) — 1 test
-M1.8 — Checkpoint
+M1.8 — Contract Compatibility Audit — verifies contracts match actual runtime
+M1.9 — Checkpoint
 ```
 
 ---
