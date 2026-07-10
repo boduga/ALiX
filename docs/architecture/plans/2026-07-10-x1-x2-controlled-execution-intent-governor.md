@@ -12,8 +12,9 @@
 
 - No execution occurs unless there is an approved execution intent with immutable provenance
 - ExecutionIntent is `Readonly<T>` — compile-time immutability, no field mutation post-creation
-- Lifecycle changes are append-only events — intent document never changes
+- Lifecycle changes are append-only events — intent document never changes, status derived from event stream
 - `intentId` (stable identifier) ≠ `intentHash` (integrity digest) — distinct roles
+- `intentHash` uses canonical serialization (deterministic property ordering, UTF-8, SHA-256)
 - Governor is a gate, not an executor — never contains shell/git/MCP/agent execution logic
 - Governor must never treat CREATED as executable
 - Execution eligibility: intent exists + status APPROVED + approval active + timestamp valid + expiration not exceeded
@@ -65,6 +66,7 @@ export type ExecutionConstraints = Readonly<{
   allowedTools: string[];
 }>;
 
+// The intent document is immutable — status is derived from the event stream
 export type ExecutionIntent = Readonly<{
   intentId: string;
   proposalId: string;
@@ -81,8 +83,16 @@ export type ExecutionIntent = Readonly<{
   approvalReference: string;
   approvedBy: string;
   approvedAt: string;
-  status: ExecutionIntentStatus;
   intentHash: string;
+}>;
+
+// Append-only lifecycle event — the intent document never changes
+export type ExecutionIntentEvent = Readonly<{
+  intentId: string;
+  type: ExecutionIntentEventType;
+  timestamp: string;
+  actor: string;
+  reason?: string;
 }>;
 
 export type ExecutionEvidence = Readonly<{
@@ -103,16 +113,17 @@ export type ExecutionEvidence = Readonly<{
 ```typescript
 export function createIntentId(proposalId: string, actor: string, action: string, target: string, createdAt: string): string;
 export function createIntentHash(intent: Omit<ExecutionIntent, "intentId" | "intentHash">): string;
-export function validateIntentStatusTransition(current: ExecutionIntentStatus, next: ExecutionIntentEventType): boolean;
+export function deriveIntentStatus(events: ExecutionIntentEvent[]): ExecutionIntentStatus;
+export function validateEventTransition(events: ExecutionIntentEvent[], nextType: ExecutionIntentEventType): boolean;
 ```
 
 **Tests (6):**
-1. ExecutionIntent has all required fields (including sourceEvidenceId, createdAt, intentHash) with correct types
-2. Intent lifecycle status transitions are valid (CREATED→APPROVED→RUNNING→COMPLETED is valid; CREATED→RUNNING is invalid)
-3. Deterministic intentHash from proposalId + actor + action + target + createdAt
-4. Deterministic hash stability — same inputs produce same intentHash
-5. Mutation prevention — Readonly<T> prevents accidental field mutation (compile-time check)
-6. validateIntentStatusTransition rejects invalid transitions (e.g., CREATED→RUNNING, COMPLETED→APPROVED)
+1. ExecutionIntent has all required fields (including sourceEvidenceId, createdAt, intentHash) with correct types — no `status` field on the intent document itself
+2. ExecutionIntentEvent has required fields (intentId, type, timestamp, actor, reason?)
+3. deriveIntentStatus correctly computes current status from event sequence ([CREATED, APPROVED, RUNNING] → RUNNING)
+4. validateEventTransition rejects invalid transitions (e.g., CREATED→RUNNING directly without APPROVED event, COMPLETED→APPROVED)
+5. createIntentHash uses canonical serialization (deterministic property ordering) — same inputs produce same hash
+6. Mutation prevention — Readonly<T> prevents accidental field mutation (compile-time check)
 
 Commit: `feat(X1): add execution intent contract — immutable ExecutionIntent, append-only lifecycle, ExecutionEvidence`
 
@@ -156,25 +167,38 @@ export interface ExecutionGovernor {
 ```
 
 **Key implementation rules:**
-- `validate()` checks: intent exists, status === APPROVED, approvalReference exists, approval timestamp valid, expiration not exceeded
-- `validate()` must REJECT CREATED status
-- `authorize()` checks if intent has already been authorized (no double-authorization)
+
+**validate() — pure check, no side effects:**
+- `validate()` is pure — no session creation, no authorization, no state transition, no evidence emission
+- Checks: intent exists, derived status === APPROVED (from event stream), approvalReference exists, approval timestamp valid, expiration not exceeded, referenced approval not revoked/superseded
+- `validate()` must REJECT statuses that are not APPROVED (especially CREATED)
+- Returns a simple `ValidationResult { valid, reason? }`
+
+**authorize() — idempotent:**
+- First authorization of an approved intent: success, creates session
+- Repeated authorization of the same approved intent: returns existing authorization/session (no duplicate)
+- Conflicting authorization attempt (e.g., already running): reject
+
+**start(), heartbeat(), complete(), fail(), revoke():**
 - `start()` creates execution session with timestamp
-- `complete()` produces ExecutionEvidence with SHA-256 evidenceHash
+- `heartbeat()`: only allowed for active sessions, updates last-seen timestamp, rejected after completion/failure/revocation, never mutates the immutable intent
+- `complete()` produces ExecutionEvidence with canonical SHA-256 evidenceHash
 - `fail()` produces ExecutionEvidence with FAILED outcome
-- `revoke()` transitions to REVOKED via event log
+- `revoke()` appends REVOKED event to the event log
+
+**Architectural rules:**
 - Governor never imports from `src/agent/`, `src/providers/`, `src/tools/`, `src/mcp/`
 - Governor never executes shell commands, git operations, or tool calls
-- All transitions logged via event-like pattern (not directly in event-log.ts — that's X3 scope)
+- All transitions stored as ExecutionIntentEvent records (X3 later persists these without changing the X2 API)
 
 **Tests (7):**
 1. `validate()` rejects null/empty intent
-2. `validate()` accepts well-formed intent with APPROVED status and valid constraints
-3. `validate()` rejects CREATED intent (not executable)
-4. `authorize()` creates authorization session
+2. `validate()` accepts well-formed intent with APPROVED-derived status and valid constraints
+3. `validate()` rejects intent when derived status is CREATED (not executable)
+4. `authorize()` creates authorization session; repeated authorize() returns existing session (idempotent)
 5. `complete()` produces ExecutionEvidence with correct fields
 6. `fail()` produces ExecutionEvidence with FAILED outcome
-7. `revoke()` transitions intent to REVOKED status
+7. `revoke()` appends REVOKED event; heartbeat() rejected for revoked intents
 
 Commit: `feat(X2): add execution governor — validate, authorize, complete, fail, revoke`
 
@@ -190,8 +214,8 @@ Commit: `feat(X2): add execution governor — validate, authorize, complete, fai
 - X2 Execution Governor created (gate, not executor)
 - All 13 tests pass (6 + 7)
 - No existing runtime code modified
-- Governor never imports agent/tool/provider/MCP modules
-- Governor rejects CREATED intents
+- Governor never imports agent/tool/provider/MCP modules — verified by static inspection (`grep -c "from.*src/agent\|from.*src/tools\|from.*src/providers\|from.*src/mcp" src/runtime/execution-governor.ts` == 0)
+- Governor rejects non-APPROVED intents
 - tsc clean
 - Tag: `alix-x1-x2-controlled-execution-complete`
 
