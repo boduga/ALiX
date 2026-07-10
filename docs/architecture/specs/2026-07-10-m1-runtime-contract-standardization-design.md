@@ -69,99 +69,169 @@ M1 produces contracts. Downstream consumers implement against those contracts.
 
 ## 5. M1.1 — Agent Runtime Contract
 
-### 5.1 Agent Identity
+**Source:** `src/autonomy/scope-tracker.ts`, `src/autonomy/state-machine.ts`, `src/agent/agent.ts`
+
+### 5.1 Agent State
 
 ```typescript
-export interface AgentIdentity {
-  agentId: string;
-  name: string;
-  kind: string;           // e.g., "assistant", "researcher", "coder"
-  createdAt: string;
-  parentAgentId: string | null;  // null for root agents
-  ownerId: string;
-}
-```
-
-### 5.2 Agent Lifecycle
-
-```typescript
+// Source: src/autonomy/scope-tracker.ts (line 7)
 export type AgentState =
-  | "CREATED"
-  | "REGISTERED"
-  | "READY"
-  | "RUNNING"
-  | "WAITING"
-  | "PAUSED"
-  | "FAILED"
-  | "COMPLETED"
-  | "RETIRED";
+  | "idle"
+  | "planning"
+  | "executing"
+  | "verifying"
+  | "repairing"
+  | "summarizing"
+  | "waiting_approval"
+  | "completed"
+  | "failed"
+  | "stopped";
 ```
 
-### 5.3 Agent Capabilities
+### 5.2 Agent Identity Context
 
 ```typescript
-export interface AgentCapabilities {
-  providerIds: string[];
-  allowedTools: string[];
-  maxConcurrency: number;
-  allowedSubAgents: string[];
-  maxRuntimeMs: number;
-}
-```
-
-### 5.4 Agent Contract Interface
-
-```typescript
-export interface AgentContract {
-  identity: AgentIdentity;
-  state: AgentState;
-  capabilities: AgentCapabilities;
-  ownedResources: string[];
+// Source: src/agent/agent.ts (line 20+)
+export type AgentContext = {
   sessionId: string;
-}
+  sessionDir: string;
+  log: EventLog;
+  config: Awaited<ReturnType<typeof loadConfig>>;
+  provider: ModelAdapter;
+  editFormatPolicy: ReturnType<typeof buildEditFormatPolicy>;
+  mcpManager: McpManager | null;
+  // ... additional fields
+};
+```
+
+### 5.3 Run Controls
+
+```typescript
+// Source: src/autonomy/state-machine.ts
+export type RunLimits = {
+  maxIterations: number;
+  maxRepairs: number;
+  maxFileChanges: number;
+  maxShellCommands: number;
+  maxRuntimeMs: number;
+};
+
+export type RunCounters = {
+  iterations: number;
+  repairs: number;
+  fileChanges: number;
+  shellCommands: number;
+  runtimeMs: number;
+};
+
+export type StateSnapshot = {
+  state: AgentState;
+  counters: RunCounters;
+};
+
+export type RunResult = {
+  success: boolean;
+  reason: string;
+  state: AgentState;
+  counters: RunCounters;
+};
+```
+
+### 5.4 Scope Tracker
+
+```typescript
+// Source: src/autonomy/scope-tracker.ts
+export type TaskScope = {
+  goal: string;
+  files: string[];
+  approvedAt?: string;
+};
+
+export type ScopeSnapshot = {
+  scope: TaskScope | undefined;
+  expansions: Expansion[];
+  approvedPaths: string[];
+  deniedPaths: string[];
+  pendingApproval: string | null;
+};
 ```
 
 ---
 
 ## 6. M1.2 — Provider Contract
 
-### 6.1 Provider Identity
+**Source:** `src/providers/types.ts`, `src/providers/base.ts`, `src/providers/registry.ts`
+
+### 6.1 Model Capabilities
 
 ```typescript
-export interface ProviderContract {
-  id: string;
-  name: string;
-  version: string;
-  capabilities: ProviderCapability[];
-  health(): Promise<ProviderHealth>;
-  execute(request: ProviderRequest): Promise<ProviderResponse>;
-}
+// Source: src/providers/types.ts
+export type ModelCapabilities = {
+  provider: string;
+  model: string;
+  inputTokenLimit: number;
+  outputTokenLimit: number;
+  effectiveContextBudget?: number;
+  supportsTools: boolean;
+  supportsStreaming: boolean;
+  supportsStructuredOutput: boolean;
+};
+
+export type TokenUsage = {
+  inputTokens: number;
+  outputTokens: number;
+};
+
+export type CostProfile = {
+  currency: string;
+  inputPricePerMillion: number;
+  outputPricePerMillion: number;
+  inputTiers?: CostTier[];
+  outputTiers?: CostTier[];
+};
+
+export type NormalizedMessage = {
+  role: "user" | "assistant";
+  content: string | ContentPart[];
+};
 ```
 
-### 6.2 Provider Capability
+### 6.2 Provider Interface
 
 ```typescript
-export interface ProviderCapability {
-  name: string;
-  version: string;
-  models: string[];
-  features: string[];     // e.g., "streaming", "tool_use", "vision"
-  maxTokens: number;
-  rateLimits: {
-    requestsPerMinute: number;
-    tokensPerMinute: number;
-  };
+// Source: src/providers/base.ts
+export interface ModelAdapter {
+  readonly provider: string;
+  readonly model: string;
+  complete(messages: NormalizedMessage[], opts?: CompleteOptions): Promise<ProviderResult>;
+  stream?(messages: NormalizedMessage[], opts?: CompleteOptions): AsyncIterable<ProviderChunk>;
+  embed?(texts: string[]): Promise<number[][]>;
 }
+
+export type ProviderResult = {
+  message: NormalizedMessage;
+  usage: TokenUsage;
+  cost?: number;
+  finishReason?: string;
+};
+
+export type CompleteOptions = {
+  maxTokens?: number;
+  temperature?: number;
+  tools?: ToolDefinition[];
+  structuredOutput?: Record<string, unknown>;
+};
 ```
 
-### 6.3 Provider Health
+### 6.3 Provider Registry
 
 ```typescript
-export interface ProviderHealth {
-  status: "healthy" | "degraded" | "unhealthy";
-  lastChecked: string;
-  responseTimeMs: number;
-  errorRate: number;
+// Source: src/providers/registry.ts
+export interface ProviderRegistry {
+  getProvider(model: string): ModelAdapter;
+  hasProvider(model: string): boolean;
+  listProviders(): string[];
+  getCapabilities(model: string): ModelCapabilities | null;
 }
 ```
 
@@ -169,74 +239,125 @@ export interface ProviderHealth {
 
 ## 7. M1.3 — Tool Contract
 
-### 7.1 Tool Identity
+**Source:** `src/tools/types.ts`, `src/tools/executor.ts`, `src/tools/tool-registry.ts`
+
+### 7.1 Tool Call Request
 
 ```typescript
-export interface ToolContract {
+// Source: src/tools/types.ts
+export type ToolCallRequest = {
+  toolCallId: string;
   name: string;
-  version: string;
-  kind: string;             // e.g., "file", "shell", "web", "mcp", "collaboration"
-  capabilities: string[];
-  provenance: ToolProvenance;
-  execute(input: unknown): Promise<ToolResult>;
-}
+  args: Record<string, unknown>;
+  agentId?: string;
+  sessionId?: string;
+};
 ```
 
-### 7.2 Tool Provenance
+### 7.2 Tool Result
 
 ```typescript
-export interface ToolProvenance {
-  source: "built-in" | "mcp" | "plugin" | "custom";
-  serverId?: string;         // for MCP tools
-  pluginId?: string;         // for plugin tools
-  registeredAt: string;
-  registeredBy: string;
-}
+// Source: src/tools/types.ts — discriminated union
+export type ToolResult =
+  | { kind: "success"; content?: string; output?: string; value?: string;
+      matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number;
+      createdPath?: string; deletedPath?: string; exists?: boolean; completed?: boolean }
+  | { kind: "error"; message: string; retryable?: boolean; hint?: string };
 ```
 
-### 7.3 Tool Result
+### 7.3 Tool Names & Typed Args
 
 ```typescript
-export interface ToolResult {
-  success: boolean;
-  data: unknown;
-  error?: string;
-  durationMs: number;
-  evidence?: ToolEvidence;
-}
+// Source: src/tools/types.ts
+export type ToolName = "file.read" | "file.create" | "file.delete" | "file.exists"
+  | "dir.search" | "shell.run" | "patch.apply" | "done";
+
+export type ToolArgs = {
+  "file.read": { root: string; path: string };
+  "dir.search": { root: string; pattern: string; extensions: string[] };
+  "shell.run": { command: string; cwd: string; timeoutMs?: number };
+  "patch.apply": { root: string; format: string; patchText: string };
+};
 ```
 
 ---
 
 ## 8. M1.4 — Event Contract
 
-### 8.1 Universal Event
+**Source:** `src/events/types.ts`, `src/events/event-log.ts`
+
+### 8.1 Core Event
 
 ```typescript
-export interface ALiXEvent {
-  eventId: string;
-  eventType: string;
+// Source: src/events/types.ts (line 12)
+export type EventActor = "user" | "agent" | "system" | "tool" | "policy" | "verifier" | "subagent" | "authorization" | "coordination";
+
+export type EventMeta = {
+  workflowId?: string;
+  graphId?: string;
+  nodeId?: string;
+  traceId?: string;
+  spanId?: string;
+  replayId?: string;
+};
+
+export type AlixEvent<TType extends string = string, TPayload = unknown> = {
+  id: string;
+  seq: number;
+  version: 1;
+  sessionId: string;
+  runId?: string;
+  parentEventId?: string;
   timestamp: string;
-  source: string;
-  sourceType: "agent" | "provider" | "tool" | "mcp" | "governance" | "system";
-  correlationId: string;
-  causationId: string | null;
-  payload: Record<string, unknown>;
-}
+  type: TType;
+  actor: EventActor;
+  payload: TPayload;
+  meta?: EventMeta;
+};
+
+export type NewEvent<TType extends string = string, TPayload = unknown> = Omit<
+  AlixEvent<TType, TPayload>,
+  "id" | "seq" | "version" | "timestamp"
+>;
 ```
 
-### 8.2 Event Correlation
+### 8.2 Event Type Categories
 
 ```typescript
-export interface EventCorrelation {
-  correlationId: string;
-  eventIds: string[];
-  rootEventId: string;
-  trace: string[];
+// Source: src/events/types.ts
+// 15+ event type categories with typed payloads:
+// TOOL:    tool.requested, tool.started, tool.output, tool.completed, tool.failed
+// PATCH:   patch.proposed, patch.applied, patch.rolled_back, etc.
+// FILE:    file.created, file.deleted
+// AGENT:   agent.message, agent.reasoning, agent.decision
+// MCP:     mcp.tool_invoked
+// OWNER:   ownership.acquired, ownership.released, ownership.conflict, etc.
+// COORD:   coordination.aggregate.*, coordination.synthesis.*
+// COLLAB:  collaboration.finding.*, collaboration.artifact.*, collaboration.tool.*
+// CONFLICT: collaboration.conflict.*
+// CONTEXT: context.repo_map_created, context.bundle_created, etc.
+// POLICY:  policy.decision, approval.requested, approval.resolved
+// APPROVAL: approval.created, .resolved, .expired, .revoked, etc.
+// REPLAY:  replay.* lifecycle events
+// ROLLBACK: rollback.* lifecycle events
+```
+
+### 8.3 Event Log Interface
+
+```typescript
+// Source: src/events/event-log.ts
+export interface EventLogContract {
+  readonly path: string;
+  init(): Promise<void>;
+  append<TType extends string, TPayload>(event: NewEvent<TType, TPayload>): Promise<AlixEvent<TType, TPayload>>;
+  readAll(): Promise<AlixEvent[]>;
+  close(): Promise<void>;
+  watch(listener: (event: AlixEvent) => void): void;
+  unwatch(listener: (event: AlixEvent) => void): void;
 }
 ```
 
-This contract directly enables P23 replay and P30 lineage by standardizing event fields that governance already consumes.
+This contract directly enables P23 replay, P24 drift detection, and P30 lineage by standardizing event fields that governance already consumes.
 
 ---
 
@@ -272,42 +393,51 @@ export interface ContextTransfer {
 
 ## 10. M1.6 — Memory Contract
 
-### 10.1 Memory Provider
+**Source:** `src/utils/memory/types.ts`, `src/utils/memory/store.ts`, `src/utils/memory/recall.ts`
+
+### 10.1 Memory Entry
 
 ```typescript
-export interface MemoryProvider {
-  id: string;
-  kind: "vector" | "graph" | "key-value" | "episodic";
-  store(entry: MemoryEntry): Promise<void>;
-  query(spec: MemoryQuery): Promise<MemoryEntry[]>;
-  stats(): Promise<MemoryStats>;
-}
+// Source: src/utils/memory/types.ts
+export type MemoryType = "user" | "project" | "feedback" | "reference";
+
+export type MemoryEntry = {
+  name: string;
+  description: string;
+  type: MemoryType;
+  content: string;
+  createdAt: string;
+  modifiedAt: string;
+  confidence: number;    // 0.0-1.0, starts at 0.5
+  confirmations: number;
+  source?: string;
+};
 ```
 
-### 10.2 Memory Entry
+### 10.2 Memory Config
 
 ```typescript
-export interface MemoryEntry {
-  id: string;
-  content: unknown;
-  metadata: {
-    source: string;
-    timestamp: string;
-    provenance: string[];
-    correlationId: string;
-  };
-  embedding?: number[];
-}
+// Source: src/utils/memory/types.ts
+export type MemoryConfig = {
+  decayEnabled: boolean;
+  decayDays: number;
+  maxEntriesPerType: number;
+  consolidateSchedule: "daily" | "weekly" | "manual";
+  indexMaxLines: number;
+};
 ```
 
-### 10.3 Memory Query
+### 10.3 Memory Store Interface
 
 ```typescript
-export interface MemoryQuery {
-  text?: string;
-  filter?: Record<string, unknown>;
-  limit?: number;
-  minScore?: number;
+// Source: src/utils/memory/store.ts
+export interface MemoryStoreContract {
+  save(entry: MemoryEntry): Promise<void>;
+  read(name: string): Promise<MemoryEntry | null>;
+  query(type: MemoryType, pattern?: string): Promise<MemoryEntry[]>;
+  delete(name: string): Promise<boolean>;
+  list(): Promise<MemoryEntry[]>;
+  consolidate(): Promise<void>;
 }
 ```
 
@@ -361,17 +491,17 @@ None. M1 does not modify existing implementation code.
 
 ## 13. Testing Plan
 
-Each contract file gets a type-level test verifying the interface is structurally sound.
+Each contract file gets a type-level test verifying the documented types match the actual source types.
 
 ### M1.1–M1.7 — Contract Tests (7 tests)
 
-1. AgentContract interface compiles with all required fields
-2. ProviderContract interface compiles with capability/health specifications
-3. ToolContract interface compiles with provenance/result specifications
-4. ALiXEvent interface compiles with correlation fields
-5. ALiXContext interface compiles with transfer specifications
-6. MemoryProvider interface compiles with entry/query specifications
-7. RuntimeEvidence interface compiles with governance bridge fields
+1. AgentState type matches `src/autonomy/scope-tracker.ts` (10 states: idle, planning, executing, verifying, repairing, summarizing, waiting_approval, completed, failed, stopped)
+2. RunLimits/RunResult types match `src/autonomy/state-machine.ts`
+3. ModelCapabilities/CostProfile types match `src/providers/types.ts`
+4. ToolCallRequest/ToolResult types match `src/tools/types.ts`
+5. AlixEvent generic type matches `src/events/types.ts`
+6. EventLogContract interface matches `src/events/event-log.ts`
+7. MemoryEntry/MemoryConfig types match `src/utils/memory/types.ts`
 
 **Total: 7 tests.**
 
