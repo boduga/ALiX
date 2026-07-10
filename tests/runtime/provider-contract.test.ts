@@ -149,7 +149,7 @@ describe("M1.3 — Provider Contract", () => {
     assert.equal(typeof meta.availability, "string");
 
     // capabilities is string[] — list of capability names, not ModelCapabilities
-    assert.equal(meta.capabilities.length, 2);
+    assert.equal(meta.capabilities.length, 3);
 
     // Invariant: all fields are descriptive — no selection scores or rankings.
     // The type system ensures "best", "cheapest", "score", "rank" are not
