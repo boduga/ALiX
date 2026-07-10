@@ -307,6 +307,12 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       console.log(output);
       return;
     }
+    case "lineage": {
+      const { handleGovernanceLineageCommand } = await import("./governance-lineage.js");
+      const output = await handleGovernanceLineageCommand(rest, { cwd: process.cwd() });
+      console.log(output);
+      return;
+    }
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
