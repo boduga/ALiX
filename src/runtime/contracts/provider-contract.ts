@@ -172,8 +172,8 @@ export type ProviderSelectionMetadata = {
   provider: string;
   /** Model identifier on that provider. */
   model: string;
-  /** Full capabilities descriptor (never partial or projected). */
-  capabilities: ModelCapabilities;
+  /** Capability names this provider supports (e.g., "streaming", "tool_use"). */
+  capabilities: string[];
   /** Current availability as observed by the metadata producer. */
   availability: ProviderAvailability;
 };
