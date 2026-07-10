@@ -338,6 +338,12 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       console.log(output);
       return;
     }
+    case "learning-synthesis": {
+      const { handleGovernanceLearningSynthesisCommand } = await import("./governance-learning-synthesis.js");
+      const output = handleGovernanceLearningSynthesisCommand(rest, { cwd: process.cwd() });
+      console.log(output);
+      return;
+    }
     case "propose": {
       const recommendationId = rest[0];
       if (!recommendationId) {
