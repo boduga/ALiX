@@ -146,30 +146,45 @@ The Governor does not know how agents work, how tools execute, or how optimizati
 ### 7.1 Intent Structure
 
 ```typescript
-export interface ExecutionConstraints {
+export type ExecutionConstraints = Readonly<{
   maxFilesChanged: number;
   allowedPaths: string[];
   blockedPaths: string[];
   verificationRequired: boolean;
   allowedTools: string[];
-}
+}>;
 
-export interface ExecutionIntent {
+export type ExecutionIntent = Readonly<{
   intentId: string;
   proposalId: string;
+
   actor: string;
   action: string;
   target: string;
+
   justification: string;
+
   constraints: ExecutionConstraints;
+
   riskClass: "low" | "medium" | "high";
+
   expectedEffect: string;
+
+  // Governance lineage — points backward into P14-P30 evidence chain
+  sourceEvidenceId: string;
+
+  createdAt: string;
   expiration: string;
+
   approvalReference: string;
   approvedBy: string;
   approvedAt: string;
+
   status: ExecutionIntentStatus;
-}
+
+  // Deterministic hash covering all identity fields
+  intentHash: string;
+}>;
 ```
 
 ### 7.2 Intent Lifecycle
@@ -186,10 +201,17 @@ export type ExecutionIntentStatus =
 
 ### 7.3 Contract Rules
 
-- Immutable after creation — no field mutation post-creation
+- Immutable after creation — no field mutation post-creation (`Readonly<T>` at type level)
+- `Readonly<T>` prevents accidental mutation during development
 - Status transitions are append-only (event log)
 - New intent required for changed parameters
-- intentId is deterministic (SHA-256 over proposalId + actor + action)
+- intentId: SHA-256 of `proposalId + actor + action + target + createdAt` (covers identity + temporal uniqueness)
+- The Governor must never treat CREATED as executable. Execution eligibility requires:
+  - intent exists
+  - AND status === APPROVED
+  - AND approvalReference exists
+  - AND approval timestamp valid
+  - AND expiration not exceeded
 
 ---
 
@@ -209,10 +231,29 @@ export interface ExecutionGovernor {
 }
 ```
 
-### 8.2 Governor Rules
+### 8.2 ExecutionEvidence Contract
+
+```typescript
+export type ExecutionEvidence = Readonly<{
+  evidenceId: string;
+  intentId: string;
+  startedAt: string;
+  completedAt: string;
+  outcome: "SUCCESS" | "FAILED" | "PARTIAL";
+  summary: string;
+  artifacts: string[];
+  verificationPassed: boolean;
+  evidenceHash: string;
+}>;
+```
+
+This becomes the bridge for X3 (Evidence Capture → Governance) when that milestone is implemented.
+
+### 8.3 Governor Rules
 
 - Validates before execution — never during
 - Does not execute actions — only gates them
+- Never treats CREATED intent as executable
 - Produces ExecutionEvidence on completion/failure
 - All state transitions logged to event system
 - No knowledge of agent internals, tool implementations, or optimization logic
@@ -240,23 +281,26 @@ export interface ExecutionGovernor {
 
 ## 10. Testing Plan
 
-### X1 — Execution Intent Contract (4 tests)
+### X1 — Execution Intent Contract (6 tests)
 
-1. ExecutionIntent has all required fields with correct types
-2. Intent lifecycle status transitions are valid
-3. Deterministic intentId from proposalId + actor + action
-4. Immutability assertion — no mutation paths exist in the type
+1. ExecutionIntent has all required fields with correct types (including sourceEvidenceId, createdAt, intentHash)
+2. Intent lifecycle status transitions are valid (CREATED → APPROVED → RUNNING → COMPLETED, never CREATED → RUNNING)
+3. Deterministic intentHash from proposalId + actor + action + target + createdAt
+4. Deterministic hash stability — same inputs produce same intentHash
+5. Mutation prevention — Readonly<T> prevents accidental field mutation (compile-time check)
+6. CREATED status is not executable — validate() rejects CREATED intents
 
-### X2 — Execution Governor (6 tests)
+### X2 — Execution Governor (7 tests)
 
 1. validate rejects null/empty intent
-2. validate accepts well-formed intent with valid constraints
-3. authorize creates authorization event
-4. complete produces ExecutionEvidence with correct fields
-5. fail produces ExecutionEvidence with failure reason
-6. revoke transitions intent to REVOKED status
+2. validate accepts well-formed intent with valid constraints and APPROVED status
+3. validate rejects CREATED intent (not executable)
+4. authorize creates authorization event
+5. complete produces ExecutionEvidence with correct fields
+6. fail produces ExecutionEvidence with failure reason
+7. revoke transitions intent to REVOKED status
 
-**Total: 10 tests.**
+**Total: 13 tests.**
 
 ---
 
