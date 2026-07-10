@@ -97,7 +97,9 @@ function buildLineageRecord(candidateId: string, index: LineageIndex): LineageRe
 - Missing phase data produces null refs — never throws
 - buildLineageRecord returns null for unknown candidateId
 - Immutability guard: builder never mutates input objects (uses `.map()` to create new arrays, spreads to copy objects)
+- Phase refs are deliberately shallow (signalId, candidateId, outcomeType, etc.) — never embed full objects (prevents mutation, circular refs, and unstable JSON)
 - Deterministic sort: records sorted by candidateId
+- Must pass Object.freeze test: frozen inputs must not cause buildLineageIndex to throw or mutate
 
 **Tests (7):**
 1. Full lineage for candidate with all phases populated
@@ -129,11 +131,13 @@ alix governance lineage list [--kind <signalKind>] [--outcome <outcomeType>] [--
 - No writes to any governance store
 - Async dispatch (like P25/P26 patterns)
 
-**Tests (4):**
+**Tests (6):**
 1. show outputs lineage for existing candidate
 2. show handles unknown candidate gracefully (null-format output, not crash)
 3. list outputs index filtered by kind or outcome
 4. --json returns parseable JSON
+5. Cross-run determinism — buildLineageIndex twice with same dataset produces deepEqual results
+6. Object.freeze immutability — freeze all inputs before calling buildLineageIndex, verify no mutation
 
 Commit: `feat(P30.3): lineage CLI — alix governance lineage {show|list}, no write path`
 
@@ -162,6 +166,6 @@ Commit: `docs(P30.4): evidence navigation lineage browsing checkpoint`
 |-------|--------------|-------|--------|
 | P30.1 | 2 | 3 | `feat(P30.1): lineage types — LineageRecord, phase refs, LineageIndex` |
 | P30.2 | 2 | 7 | `feat(P30.2): lineage builder — buildLineageIndex, buildLineageRecord, immutability guard` |
-| P30.3 | 2+1 touch | 4 | `feat(P30.3): lineage CLI — alix governance lineage {show|list}` |
+| P30.3 | 2+1 touch | 6 | `feat(P30.3): lineage CLI — alix governance lineage {show|list}` |
 | P30.4 | 1 | 1 | `docs(P30.4): evidence navigation lineage browsing checkpoint` |
-| **Total** | **8 files** | **15 tests** | **4 commits** |
+| **Total** | **8 files** | **17 tests** | **4 commits** |
