@@ -66,7 +66,7 @@
 - Test: `tests/governance/learning-synthesis-types.test.ts`
 
 **Interfaces:**
-- Produces: `DriftOutcomeTrace`, `LearningSynthesisReport`, `OutcomeCorrelationAnalytics`, `TraceStoreConfig` — consumed by Tasks 2, 3, 4
+- Produces: `DriftOutcomeTrace`, `LearningSynthesisReport`, `DriftCorrelationAnalytics` — consumed by Tasks 2, 3, 4
 
 - [ ] **Step 1: Write the failing type test**
 
@@ -352,6 +352,19 @@ describe("computeCorrelationAnalytics", () => {
     assert.equal(keys.some(k => k.includes("reviewer") || k.includes("ranking")), false);
   });
 
+  it("partial trace with missing candidate preserves available fields (no inferred events)", () => {
+    // Simulate trace built from outcome with no matching candidate
+    const partialTraces = [
+      trace({ candidateId: "missing-candidate", candidateTitle: "",
+              candidateStatus: "", signalKind: "", signalSeverity: "",
+              signalDirection: "", signalId: "" }),
+    ];
+    const analytics = computeCorrelationAnalytics(partialTraces);
+    assert.equal(analytics.totalOutcomes, 1);
+    // Empty signal kind produces empty key — no fabricated data
+    assert.equal(Object.keys(analytics.outcomeBySignalKind).filter(k => k).length, 0);
+  });
+
   it("no predictive scores or likelihood estimates", () => {
     const analytics = computeCorrelationAnalytics([trace()]);
     const json = JSON.stringify(analytics);
@@ -589,6 +602,7 @@ Create `src/governance/learning-synthesis-report.ts`:
  * No threshold changes. No reviewer ranking. No predictive scores.
  */
 
+import { createHash } from "node:crypto";
 import type { DriftOutcomeTrace, LearningSynthesisReport } from "./learning-synthesis-types.js";
 import type { DriftCorrelationAnalytics } from "./learning-synthesis-types.js";
 
@@ -614,22 +628,29 @@ const REQUIRED_FOOTNOTES = [
 export function buildSynthesisReport(
   traces: DriftOutcomeTrace[],
   analytics: DriftCorrelationAnalytics,
-  opts?: { generatedAt?: string; windowStart?: string; windowEnd?: string },
+  opts?: {
+    generatedAt?: string;
+    windowStart?: string;
+    windowEnd?: string;
+    /** Total terminal-state candidates (dismissed, closed, accepted_for_policy_review). Used for completeness & missing-outcome metrics. */
+    totalTerminalCandidates?: number;
+    /** Total terminal candidates that have at least one outcome record. */
+    terminalCandidatesWithOutcomes?: number;
+  },
 ): LearningSynthesisReport {
   const windowStart = opts?.windowStart ?? (traces.length > 0 ? traces[0]!.windowStart : "");
   const windowEnd = opts?.windowEnd ?? (traces.length > 0 ? traces[0]!.windowEnd : "");
   const signals = new Set(traces.map(t => t.signalId));
   const candidates = new Set(traces.map(t => t.candidateId));
 
-  // Count missing outcomes: terminal candidates without outcomes
-  // (computed at build time from trace data)
-  const candidateOutcomeCount = new Map<string, number>();
-  for (const trace of traces) {
-    candidateOutcomeCount.set(trace.candidateId, (candidateOutcomeCount.get(trace.candidateId) ?? 0) + 1);
-  }
-  const missingOutcomes = Array.from(candidateOutcomeCount.entries())
-    .filter(([, count]) => count === 0)
-    .length;
+  // Compute trace completeness: ratio of terminal candidates with outcomes to total terminal candidates
+  const totalTC = opts?.totalTerminalCandidates ?? 0;
+  const withOutcomes = opts?.terminalCandidatesWithOutcomes ?? traces.length;
+  const traceCompleteness = totalTC > 0
+    ? Math.round((withOutcomes / totalTC) * 100) / 100
+    : (traces.length > 0 ? 1 : 0);
+
+  const missingOutcomes = totalTC > 0 ? totalTC - withOutcomes : 0;
 
   // Signal kind frequency
   const signalKindFrequency: Record<string, number> = {};
@@ -638,7 +659,10 @@ export function buildSynthesisReport(
   }
 
   return {
-    reportId: `p27-synthesis`,
+    reportId: createHash("sha256")
+      .update(["p27", windowStart, windowEnd, String(traces.length)].join("|"))
+      .digest("hex")
+      .slice(0, 16),
     windowStart,
     windowEnd,
     generatedAt: opts?.generatedAt ?? new Date().toISOString(),
@@ -648,7 +672,7 @@ export function buildSynthesisReport(
     outcomeBySignalKind: analytics.outcomeBySignalKind,
     outcomeBySeverity: analytics.outcomeBySeverity,
     timeStats: analytics.timeStats,
-    traceCompleteness: analytics.traceCompleteness,
+    traceCompleteness,
     missingOutcomes,
     repeatedPatterns: analytics.repeatedPatterns,
     confidenceByOutcome: {},
@@ -858,10 +882,11 @@ Create `src/cli/commands/governance-learning-synthesis.ts`:
  *   - No predictive scores or likelihood estimates
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { computeCorrelationAnalytics } from "../../governance/learning-synthesis-analytics.js";
 import { buildSynthesisReport, renderSynthesisReportText } from "../../governance/learning-synthesis-report.js";
+import type { DriftOutcomeTrace, DriftCorrelationAnalytics, LearningSynthesisReport } from "../../governance/learning-synthesis-types.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -887,108 +912,128 @@ function readJson<T>(path: string): T | null {
 }
 
 // ---------------------------------------------------------------------------
-// Trace builder (pure computation at CLI boundary)
+// Pure trace builder — extracted from CLI, independently testable
+// ---------------------------------------------------------------------------
+
+export function buildDriftOutcomeTraces(opts: {
+  signals: any[];
+  candidates: Record<string, any>;
+  outcomes: any[];
+}): DriftOutcomeTrace[] {
+  const { signals, candidates, outcomes } = opts;
+  return outcomes.map((outcome: any) => {
+    const candidate = candidates[outcome.candidateId];
+    const signal = signals.find((s: any) =>
+      s.signalId === candidate?.source?.signalId,
+    );
+
+    // Fallback: match by kind + window if signalId doesn't link
+    const resolvedSignal = signal ?? (candidate ? signals.find((s: any) =>
+      s.kind === candidate.source?.signalKind &&
+      s.windowStart === candidate.source?.windowStart,
+    ) : undefined);
+
+    const candidateCreated = candidate?.createdAt ?? outcome.createdAt ?? "";
+    const candidateClosed = candidate?.updatedAt ?? "";
+    const outcomeRecorded = outcome.recordedAt ?? outcome.createdAt ?? "";
+
+    const createMs = candidateCreated ? new Date(candidateCreated).getTime() : 0;
+    const closeMs = candidateClosed ? new Date(candidateClosed).getTime() : 0;
+    const outcomeMs = outcomeRecorded ? new Date(outcomeRecorded).getTime() : 0;
+
+    return {
+      outcomeId: outcome.outcomeId ?? "",
+      candidateId: outcome.candidateId ?? "",
+      signalId: resolvedSignal?.signalId ?? candidate?.source?.signalId ?? "",
+      signalKind: candidate?.source?.signalKind ?? resolvedSignal?.kind ?? "",
+      signalSeverity: candidate?.source?.signalSeverity ?? resolvedSignal?.severity ?? "",
+      signalDirection: candidate?.source?.signalDirection ?? resolvedSignal?.direction ?? "",
+      windowStart: candidate?.source?.windowStart ?? resolvedSignal?.windowStart ?? "",
+      windowEnd: candidate?.source?.windowEnd ?? resolvedSignal?.windowEnd ?? "",
+      candidateTitle: candidate?.title ?? "",
+      candidateStatus: candidate?.status ?? "",
+      candidateCreatedAt: candidateCreated,
+      candidateClosedAt: candidateClosed,
+      outcomeType: outcome.outcomeType ?? "",
+      outcomeRecordedAt: outcomeRecorded,
+      outcomeRationale: outcome.rationale ?? "",
+      timeToReviewDays: (closeMs && createMs) ? Math.round((closeMs - createMs) / (1000 * 60 * 60 * 24)) : 0,
+      timeToOutcomeDays: (outcomeMs && createMs) ? Math.round((outcomeMs - createMs) / (1000 * 60 * 60 * 24)) : 0,
+    };
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Load helpers (CLI-owned I/O)
+// ---------------------------------------------------------------------------
+
+function loadCandidates(cwd: string): Record<string, any> {
+  const dir = join(cwd, ".alix", "governance", "policy-review-candidates");
+  const result: Record<string, any> = {};
+  if (!existsSync(dir)) return result;
+  try {
+    for (const file of readdirSync(dir)) {
+      if (file.endsWith(".json") && !file.endsWith(".events.jsonl")) {
+        const data = readJson<any>(join(dir, file));
+        if (data) result[file.replace(/\.json$/, "")] = data;
+      }
+    }
+  } catch {}
+  return result;
+}
+
+function loadOutcomes(cwd: string): any[] {
+  const dir = join(cwd, ".alix", "governance", "policy-review-outcomes");
+  const result: any[] = [];
+  if (!existsSync(dir)) return result;
+  try {
+    for (const file of readdirSync(dir)) {
+      if (file.endsWith(".json")) {
+        const data = readJson<any>(join(dir, file));
+        if (data) result.push(data);
+      }
+    }
+  } catch {}
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// CLI orchestration — load → buildDriftOutcomeTraces → analytics → report
 // ---------------------------------------------------------------------------
 
 interface BuildResult {
-  traces: any[];
-  analytics: any;
-  report: any;
+  traces: DriftOutcomeTrace[];
+  analytics: DriftCorrelationAnalytics;
+  report: LearningSynthesisReport;
 }
 
 function build(cwd: string, p24BundlePath: string): BuildResult | string {
   // 1. Load P24 bundle
   const bundle = readJson<any>(p24BundlePath);
   if (!bundle) return "ERROR: Could not load P24 bundle.\n";
-
   const signals = Array.isArray(bundle) ? bundle : (bundle.signals ?? []);
   if (signals.length === 0) return "ERROR: No P24 signals found in bundle.\n";
 
-  // 2. Load P25 candidates
-  const candidatesDir = join(cwd, ".alix", "governance", "policy-review-candidates");
-  const candidates: Record<string, any> = {};
-  if (existsSync(candidatesDir)) {
-    const { readdirSync } = require("node:fs");
-    try {
-      const files = readdirSync(candidatesDir);
-      for (const file of files) {
-        if (file.endsWith(".json") && !file.endsWith(".events.jsonl")) {
-          const candidateId = file.replace(/\.json$/, "");
-          const data = readJson<any>(join(candidatesDir, file));
-          if (data) candidates[candidateId] = data;
-        }
-      }
-    } catch {}
-  }
+  // 2. Load data + build traces via pure helper
+  const candidates = loadCandidates(cwd);
+  const outcomes = loadOutcomes(cwd);
+  const traces = buildDriftOutcomeTraces({ signals, candidates, outcomes });
 
-  // 3. Load P26 outcomes
-  const outcomesDir = join(cwd, ".alix", "governance", "policy-review-outcomes");
-  const outcomes: any[] = [];
-  if (existsSync(outcomesDir)) {
-    const { readdirSync } = require("node:fs");
-    try {
-      const files = readdirSync(outcomesDir);
-      for (const file of files) {
-        if (file.endsWith(".json")) {
-          const data = readJson<any>(join(outcomesDir, file));
-          if (data) outcomes.push(data);
-        }
-      }
-    } catch {}
-  }
+  // 3. Compute terminal candidate counts for completeness
+  const terminalStatuses = new Set(["dismissed", "closed", "accepted_for_policy_review"]);
+  const terminalCandidates = Object.values(candidates).filter(
+    (c: any) => terminalStatuses.has(c.status),
+  ).length;
+  const terminalWithOutcomes = new Set(traces.filter(
+    (t: DriftOutcomeTrace) => terminalStatuses.has(t.candidateStatus),
+  ).map((t: DriftOutcomeTrace) => t.candidateId)).size;
 
-  // 4. Build traces: join outcomes → candidates → embedded signal metadata
-  const traces: any[] = [];
-  const processedOutcomes = new Set<string>();
-
-  for (const outcome of outcomes) {
-    const candidate = candidates[outcome.candidateId];
-    const signal = signals.find((s: any) =>
-      s.signalId === candidate?.source?.signalId,
-    );
-
-    // Also try matching by kind if signalId doesn't match directly
-    const resolvedSignal = signal ?? (candidate ? signals.find((s: any) =>
-      s.kind === candidate.source?.signalKind &&
-      s.windowStart === candidate.source?.windowStart,
-    ) : undefined);
-
-    const candidateCreated = candidate?.createdAt ?? outcome.createdAt;
-    const candidateClosed = candidate?.updatedAt ?? "";
-    const outcomeRecorded = outcome.recordedAt ?? outcome.createdAt;
-
-    const createMs = new Date(candidateCreated).getTime();
-    const closeMs = candidateClosed ? new Date(candidateClosed).getTime() : 0;
-    const outcomeMs = outcomeRecorded ? new Date(outcomeRecorded).getTime() : 0;
-
-    traces.push({
-      outcomeId: outcome.outcomeId,
-      candidateId: outcome.candidateId,
-      signalId: resolvedSignal?.signalId ?? candidate?.source?.signalId ?? "",
-      signalKind: candidate?.source?.signalKind ?? resolvedSignal?.kind ?? "",
-      signalSeverity: candidate?.source?.signalSeverity ?? resolvedSignal?.severity ?? "",
-      signalDirection: candidate?.source?.signalDirection ?? resolvedSignal?.direction ?? "",
-      windowStart: candidate?.source?.windowStart ?? "",
-      windowEnd: candidate?.source?.windowEnd ?? "",
-      candidateTitle: candidate?.title ?? "",
-      candidateStatus: candidate?.status ?? "",
-      candidateCreatedAt: candidateCreated,
-      candidateClosedAt: candidateClosed,
-      outcomeType: outcome.outcomeType,
-      outcomeRecordedAt: outcomeRecorded,
-      outcomeRationale: outcome.rationale ?? "",
-      timeToReviewDays: closeMs && createMs ? Math.round((closeMs - createMs) / (1000 * 60 * 60 * 24)) : 0,
-      timeToOutcomeDays: outcomeMs && createMs ? Math.round((outcomeMs - createMs) / (1000 * 60 * 60 * 24)) : 0,
-    });
-
-    processedOutcomes.add(outcome.outcomeId);
-  }
-
-  // 5. Compute analytics
+  // 4. Compute analytics + report
   const analytics = computeCorrelationAnalytics(traces);
-
-  // 6. Build report
-  const report = buildSynthesisReport(traces, analytics);
+  const report = buildSynthesisReport(traces, analytics, {
+    totalTerminalCandidates: terminalCandidates,
+    terminalCandidatesWithOutcomes: terminalWithOutcomes,
+  });
 
   return { traces, analytics, report };
 }
