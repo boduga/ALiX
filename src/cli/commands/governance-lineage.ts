@@ -33,6 +33,10 @@ import type {
   DriftCorrelationAnalytics,
 } from "../../governance/governance-reporting-types.js";
 import type { LineageIndex, LineageRecord } from "../../governance/governance-lineage-types.js";
+import { ExecutionEvidenceStore } from "../../runtime/execution-evidence-store.js";
+import { toExecutionRef } from "../../governance/governance-execution-adapter.js";
+import type { ExecutionRef, ExecutionLineageRef } from "../../governance/governance-execution-types.js";
+import type { ExecutionEvidence } from "../../runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -109,6 +113,9 @@ interface LoadedData {
   traces: DriftOutcomeTrace[];
   explanations: GovernanceExplanation[];
   compliancePackage: CompliancePackage | null;
+  executionEvidence: readonly ExecutionEvidence[];
+  executionRefs: readonly ExecutionRef[];
+  executionLineageRefs: readonly ExecutionLineageRef[];
 }
 
 async function loadData(cwd: string, p24BundlePath?: string | null): Promise<LoadedData> {
@@ -138,6 +145,11 @@ async function loadData(cwd: string, p24BundlePath?: string | null): Promise<Loa
   // P28 explanations — not yet persisted; pass empty
   const explanations: GovernanceExplanation[] = [];
 
+  // Load persisted execution evidence (X3b)
+  const evidenceStore = new ExecutionEvidenceStore(join(cwd, ".alix", "governance"));
+  const executionEvidence = await evidenceStore.list();
+  const executionRefs = executionEvidence.map(toExecutionRef);
+
   // Build P29 compliance package if any data available
   let compliancePackage: CompliancePackage | null = null;
   if (
@@ -148,6 +160,7 @@ async function loadData(cwd: string, p24BundlePath?: string | null): Promise<Loa
   ) {
     const windowEnd = new Date().toISOString();
     const analytics = buildSkeletonAnalytics(signals);
+
     compliancePackage = buildCompliancePackage({
       windowStart: candidates.length > 0 && candidates[0]?.source?.windowStart
         ? candidates[0].source.windowStart
@@ -160,16 +173,11 @@ async function loadData(cwd: string, p24BundlePath?: string | null): Promise<Loa
       traces,
       correlationAnalytics: analytics,
       keyExplanations: explanations,
-      // X3a: Evidence loading placeholder
-      // When evidence persistence is available, load evidence here and pass to builders:
-      // const evidenceStore = new ExecutionEvidenceStore(join(cwd, ".alix", "governance"));
-      // const evidence = await evidenceStore.list();
-      // const executionEvidence = evidence.map(toExecutionRef);
-      executionEvidence: [],
+      executionEvidence,
     });
   }
 
-  return { signals, candidates, outcomes, traces, explanations, compliancePackage };
+  return { signals, candidates, outcomes, traces, explanations, compliancePackage, executionEvidence, executionRefs, executionLineageRefs: [] as const };
 }
 
 // ---------------------------------------------------------------------------
@@ -189,8 +197,8 @@ async function buildIndexFromStores(
     traces: data.traces,
     explanations: data.explanations,
     compliancePackages: data.compliancePackage ? [data.compliancePackage] : [],
-    executionEvidence: [],
-    executionLineageRefs: [],
+    executionEvidence: data.executionRefs,
+    executionLineageRefs: data.executionLineageRefs,
   });
 
   return { index, data };
