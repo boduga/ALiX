@@ -195,12 +195,18 @@ export interface ConfidenceInput {
 export function computeConfidence(input: ConfidenceInput): number {
   const { evidenceCount, baselineCount, patternStrength, recencyFactor } = input;
 
+  // Guard against NaN/Infinity in all inputs
+  const safeCount = Number.isFinite(evidenceCount) ? Math.max(0, evidenceCount) : 0;
+  const safeBaseline = Number.isFinite(baselineCount) ? Math.max(0, baselineCount) : 0;
+  const safeStrength = Number.isFinite(patternStrength) ? Math.max(0, Math.min(1, patternStrength)) : 0;
+  const safeRecency = Number.isFinite(recencyFactor) ? Math.max(0, Math.min(1, recencyFactor)) : 0;
+
   // Guard against division by zero when baseline is 0
-  const evidenceDensity = baselineCount > 0
-    ? Math.min(1, evidenceCount / baselineCount)
+  const evidenceDensity = safeBaseline > 0
+    ? Math.min(1, safeCount / safeBaseline)
     : 0;
 
-  return Math.max(0, Math.min(1, evidenceDensity * patternStrength * recencyFactor));
+  return Math.max(0, Math.min(1, evidenceDensity * safeStrength * safeRecency));
 }
 
 // ---------------------------------------------------------------------------
@@ -332,7 +338,7 @@ export function validateEvolutionProposalDraft(value: unknown): ValidationResult
   }
 
   if (!isNonEmptyString(v.riskClass) || !isValidRiskClass(v.riskClass as string)) {
-    errors.push("riskClass must be one of: low, medium, high");
+    errors.push(`riskClass must be one of: ${VALID_EVOLUTION_RISK_CLASSES.join(", ")}`);
   }
 
   if (!Array.isArray(v.evidenceIds)) {

@@ -322,7 +322,6 @@ describe("validateEvolutionCandidate", () => {
     );
     assert.equal(result.valid, false);
     assert.ok(result.errors.some((e) => e.includes("target")));
-    assert.ok(result.errors.some((e) => e.includes("target")));
   });
 
   it("rejects empty evidenceIds", () => {
