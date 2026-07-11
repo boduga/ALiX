@@ -22,6 +22,7 @@ import {
   type LineageRecord,
   type LineageIndex,
 } from "../../src/governance/governance-lineage-types.js";
+import type { ExecutionRef } from "../../src/governance/governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -32,7 +33,7 @@ describe("GovernanceLineageTypes", () => {
   // Test 1: LineageRecord has all 6 phase refs with correct shapes
   // -----------------------------------------------------------------------
 
-  it("LineageRecord has all 6 phase refs (SignalRef, CandidateRef, OutcomeRef, TraceRef, ExplanationRef, ComplianceRef)", () => {
+  it("LineageRecord has all 6 phase refs (SignalRef, CandidateRef, OutcomeRef, TraceRef, ExplanationRef, ComplianceRef) plus executionRef", () => {
     // Build a complete LineageRecord with all 6 refs populated
     const signalRef: SignalRef = {
       signalId: "sig-001",
@@ -79,6 +80,7 @@ describe("GovernanceLineageTypes", () => {
         p27: true,
         p28: true,
         p29: true,
+        execution: false,
       },
       signalRef,
       candidateRef,
@@ -86,6 +88,7 @@ describe("GovernanceLineageTypes", () => {
       traceRef,
       explanationRef,
       complianceRef,
+      executionRef: null,
       readOnly: true as const,
       noPolicyMutation: true as const,
       noThresholdChange: true as const,
@@ -131,7 +134,7 @@ describe("GovernanceLineageTypes", () => {
   // Test 2: phasePresence has all 6 boolean fields (p24–p29)
   // -----------------------------------------------------------------------
 
-  it("phasePresence has all 6 boolean fields (p24 through p29)", () => {
+  it("phasePresence has all 7 boolean fields (p24 through p29 plus execution)", () => {
     // All true
     const allPresent: LineageRecord["phasePresence"] = {
       p24: true,
@@ -140,6 +143,7 @@ describe("GovernanceLineageTypes", () => {
       p27: true,
       p28: true,
       p29: true,
+      execution: true,
     };
     // All false
     const nonePresent: LineageRecord["phasePresence"] = {
@@ -149,6 +153,7 @@ describe("GovernanceLineageTypes", () => {
       p27: false,
       p28: false,
       p29: false,
+      execution: false,
     };
     // Mixed
     const mixed: LineageRecord["phasePresence"] = {
@@ -158,6 +163,7 @@ describe("GovernanceLineageTypes", () => {
       p27: false,
       p28: true,
       p29: false,
+      execution: true,
     };
 
     assert.equal(allPresent.p24, true);
@@ -214,8 +220,9 @@ describe("GovernanceLineageTypes", () => {
       lineageId: "l2",
       assembledAt: "2026-07-10T00:00:00.000Z",
       phasePresence: {
-        p24: false, p25: false, p26: false, p27: false, p28: false, p29: false,
+        p24: false, p25: false, p26: false, p27: false, p28: false, p29: false, execution: false,
       },
+      executionRef: null,
       readOnly: true as const,
       noPolicyMutation: true as const,
       noThresholdChange: true as const,

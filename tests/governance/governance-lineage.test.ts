@@ -359,6 +359,9 @@ describe("P30.3 — governance-lineage CLI", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
     const index2 = buildLineageIndex({
       signals: [],
@@ -366,6 +369,9 @@ describe("P30.3 — governance-lineage CLI", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const rec1 = buildLineageRecord("cand-det", index1);
@@ -410,6 +416,8 @@ describe("P30.3 — governance-lineage CLI", () => {
       traces: [tr],
       explanations: [expl],
       compliancePackages: [pkg],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const record = buildLineageRecord("cand-immut", index);

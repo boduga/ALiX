@@ -183,7 +183,9 @@ async function buildIndexFromStores(
     outcomes: data.outcomes,
     traces: data.traces,
     explanations: data.explanations,
-    compliancePackages: data.compliancePackage ? [data.compliancePackage] : undefined,
+    compliancePackages: data.compliancePackage ? [data.compliancePackage] : [],
+    executionEvidence: [],
+    executionLineageRefs: [],
   });
 
   return { index, data };
