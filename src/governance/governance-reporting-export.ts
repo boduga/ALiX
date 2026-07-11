@@ -131,6 +131,14 @@ export function renderComplianceText(pkg: CompliancePackage): string {
   lines.push("");
 
   // -----------------------------------------------------------------------
+  // Execution Evidence
+  // -----------------------------------------------------------------------
+  lines.push(`${BOLD}Execution Evidence${RESET}`);
+  lines.push(`  Records:    ${pkg.executionEvidenceCount}`);
+  lines.push(`  Outcomes:   ${pkg.executionOutcomes.success} success, ${pkg.executionOutcomes.failed} failed, ${pkg.executionOutcomes.partial} partial`);
+  lines.push("");
+
+  // -----------------------------------------------------------------------
   // Correlation Analytics
   // -----------------------------------------------------------------------
   lines.push(`${BOLD}Correlation Analytics${RESET}`);

@@ -13,6 +13,8 @@ import { createHash } from "node:crypto";
 import type { PolicyDriftSignal } from "./policy-drift-types.js";
 import type { PolicyReviewCandidate } from "./policy-review-candidate-types.js";
 import type { PolicyReviewOutcome } from "./policy-review-outcome-types.js";
+import type { ExecutionEvidence } from "../runtime/contracts/execution-intent-contract.js";
+import { toComplianceExecutionSummary } from "./governance-execution-adapter.js";
 import type {
   CompliancePackage,
   ComplianceSignalSummary,
@@ -53,6 +55,9 @@ export interface BuildCompliancePackageInput {
   correlationAnalytics: DriftCorrelationAnalytics;
   /** P28 governance explanations — may be empty. */
   keyExplanations: GovernanceExplanation[];
+
+  /** X3a execution evidence — may be empty. */
+  executionEvidence: readonly ExecutionEvidence[];
 }
 
 // ---------------------------------------------------------------------------
@@ -174,6 +179,8 @@ function deriveIncludedPhases(input: BuildCompliancePackageInput): string[] {
   if (input.traces.length > 0) phases.push("P27");
   if (input.keyExplanations.length > 0) phases.push("P28");
 
+  if (input.executionEvidence.length > 0) phases.push("Execution");
+
   return phases;
 }
 
@@ -203,6 +210,13 @@ export function buildCompliancePackage(opts: BuildCompliancePackageInput): Compl
   const candidateSummary = buildCandidateSummaries(opts.candidates);
   const outcomeSummary = buildOutcomeSummaries(opts.outcomes);
   const traceSummary = buildTraceSummaries(opts.traces);
+  const executionSummary = opts.executionEvidence.map(toComplianceExecutionSummary);
+  const executionEvidenceCount = executionSummary.length;
+  const executionOutcomes = {
+    success: opts.executionEvidence.filter((e) => e.outcome === "SUCCESS").length,
+    failed: opts.executionEvidence.filter((e) => e.outcome === "FAILED").length,
+    partial: opts.executionEvidence.filter((e) => e.outcome === "PARTIAL").length,
+  };
   const phasesIncluded = deriveIncludedPhases(opts);
   const packageId = createPackageId(opts.windowStart, opts.windowEnd, opts.traces.length);
 
@@ -221,6 +235,10 @@ export function buildCompliancePackage(opts: BuildCompliancePackageInput): Compl
     candidateSummary,
     outcomeSummary,
     traceSummary,
+
+    executionEvidenceCount,
+    executionOutcomes,
+    executionSummary,
 
     correlationAnalytics: opts.correlationAnalytics,
     keyExplanations: opts.keyExplanations,

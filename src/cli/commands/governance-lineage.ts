@@ -160,6 +160,7 @@ async function loadData(cwd: string, p24BundlePath?: string | null): Promise<Loa
       traces,
       correlationAnalytics: analytics,
       keyExplanations: explanations,
+      executionEvidence: [],
     });
   }
 

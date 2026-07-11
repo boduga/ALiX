@@ -16,6 +16,8 @@ import type { BuildCompliancePackageInput } from "../../src/governance/governanc
 import type { PolicyDriftSignal } from "../../src/governance/policy-drift-types.js";
 import type { PolicyReviewCandidate } from "../../src/governance/policy-review-candidate-types.js";
 import type { PolicyReviewOutcome } from "../../src/governance/policy-review-outcome-types.js";
+import type { ExecutionEvidence } from "../../src/runtime/contracts/execution-intent-contract.js";
+import type { ComplianceExecutionSummary } from "../../src/governance/governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -126,6 +128,23 @@ function trace(
   };
 }
 
+function evidence(
+  overrides: Partial<ExecutionEvidence> = {},
+): ExecutionEvidence {
+  return {
+    evidenceId: "ev-1",
+    intentId: "intent-1",
+    startedAt: "2026-06-20T08:00:00.000Z",
+    completedAt: "2026-06-20T09:00:00.000Z",
+    outcome: "SUCCESS",
+    summary: "Execution completed successfully.",
+    artifacts: ["plan-1.json"],
+    verificationPassed: true,
+    evidenceHash: "abc123def456",
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Full input builder
 // ---------------------------------------------------------------------------
@@ -153,6 +172,7 @@ function fullInput(
       evidenceCoverage: { totalSignals: 10, withOutcome: 7, coverageRate: 0.7 },
       commonPatterns: ["calibration_skew → accepted_for_policy_work"],
     },
+    executionEvidence: [],
     keyExplanations: [
       {
         explanationId: "expl-1",
@@ -384,6 +404,63 @@ describe("buildCompliancePackage (P29.2)", () => {
     const pkg2 = buildCompliancePackage(input);
 
     assert.deepEqual(pkg1, pkg2);
+  });
+
+  it("execution evidence — produces correct executionEvidenceCount and executionSummary", () => {
+    const input = fullInput({
+      executionEvidence: [evidence(), evidence({ evidenceId: "ev-2" })],
+    });
+    const pkg = buildCompliancePackage(input);
+
+    assert.equal(pkg.executionEvidenceCount, 2);
+    assert.equal(pkg.executionSummary.length, 2);
+    assert.equal(pkg.executionSummary[0].evidenceId, "ev-1");
+    assert.equal(pkg.executionSummary[0].intentId, "intent-1");
+    assert.equal(pkg.executionSummary[0].outcome, "SUCCESS");
+    assert.equal(pkg.executionSummary[0].verificationPassed, true);
+    assert.equal(pkg.executionSummary[0].summary, "Execution completed successfully.");
+    assert.equal(pkg.executionSummary[1].evidenceId, "ev-2");
+  });
+
+  it("execution evidence — aggregate outcome counts are correct with mixed outcomes", () => {
+    const input = fullInput({
+      executionEvidence: [
+        evidence({ evidenceId: "ev-s1", outcome: "SUCCESS" }),
+        evidence({ evidenceId: "ev-s2", outcome: "SUCCESS" }),
+        evidence({ evidenceId: "ev-f1", outcome: "FAILED" }),
+        evidence({ evidenceId: "ev-p1", outcome: "PARTIAL" }),
+        evidence({ evidenceId: "ev-p2", outcome: "PARTIAL" }),
+      ],
+    });
+    const pkg = buildCompliancePackage(input);
+
+    assert.equal(pkg.executionOutcomes.success, 2);
+    assert.equal(pkg.executionOutcomes.failed, 1);
+    assert.equal(pkg.executionOutcomes.partial, 2);
+    assert.equal(pkg.executionEvidenceCount, 5);
+    assert.equal(pkg.executionSummary.length, 5);
+  });
+
+  it("execution evidence — deriveIncludedPhases includes Execution when evidence present", () => {
+    const input = fullInput({
+      executionEvidence: [evidence()],
+    });
+    const pkg = buildCompliancePackage(input);
+
+    assert.ok(pkg.phasesIncluded.includes("Execution"));
+    assert.equal(pkg.executionEvidenceCount, 1);
+  });
+
+  it("execution evidence — empty evidence produces zero counts and no Execution phase", () => {
+    const input = fullInput({ executionEvidence: [] });
+    const pkg = buildCompliancePackage(input);
+
+    assert.equal(pkg.executionEvidenceCount, 0);
+    assert.equal(pkg.executionSummary.length, 0);
+    assert.equal(pkg.executionOutcomes.success, 0);
+    assert.equal(pkg.executionOutcomes.failed, 0);
+    assert.equal(pkg.executionOutcomes.partial, 0);
+    assert.equal(pkg.phasesIncluded.includes("Execution"), false);
   });
 
   it("no governance directive language", () => {
