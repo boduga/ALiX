@@ -11,7 +11,9 @@
 
 ## 1. Purpose
 
-A0.2 delivers a deterministic lifecycle state machine for evolution workflows. Every state transition is validated, terminal states are immutable, and every transition emits an evidence record.
+A0.2 delivers a deterministic lifecycle state machine for evolution workflows. Every state transition is validated, terminal states are immutable, and every transition generates a typed transition event.
+
+A0.2 owns lifecycle behavior. It does not persist evidence — transition events are consumed by A0.3 to produce X2/X3b-compatible evidence records.
 
 Pattern reference: X4.1 execution state machine (`src/runtime/execution-state-machine.ts`).
 
@@ -25,19 +27,21 @@ Pattern reference: X4.1 execution state machine (`src/runtime/execution-state-ma
 - All 15 allowed transitions from the transition table
 - Terminal state immutability (ACTIVE, REJECTED, WITHDRAWN, ROLLED_BACK)
 - Evolution tracking by `evolutionId`
-- `transition(evolutionId, to)` — validated state transition
+- `transition(evolutionId, to)` — validated state transition, returns `EvolutionTransitionResult`
 - `getStatus(evolutionId)` — current state lookup
-- Evidence emission on every transition (via summary/event-type mapping)
+- `getHistory(evolutionId)` — transition history as `EvolutionTransitionEvent[]`
+- Transition event generation on every successful transition
+- `createTransitionEvent()` — maps (from, to) to typed event
+- `validateTransition()` — pure helper for transition legality
 - `IllegalEvolutionTransitionError` — typed error for illegal transitions
 - `UnknownEvolutionError` — typed error for unknown evolution IDs
 - `DuplicateEvolutionError` — typed error for duplicate evolution registration
-- Public `transitionTo()` method for testing
 
 ### Deferred
 
 | Capability | Reason |
 |------------|--------|
-| Persistence | A0.3 — Evidence Bridge |
+| Evidence persistence | A0.3 — Evidence Bridge |
 | X2/X3b evidence pipeline | A0.3 — Evidence Bridge |
 | CLI surface | A0.4 — Governance Surface |
 | Automatic proposal generation | A1 |
@@ -53,31 +57,66 @@ Pattern reference: X4.1 execution state machine (`src/runtime/execution-state-ma
 
 ---
 
-## 4. Implementation Tasks
+## 4. Ownership Boundary
 
-### Task 1 — Error Types
+```
+A0.1  Contracts                    owns types
+  ↓
+A0.2  Lifecycle + Events           owns state machine + transition events
+  ↓
+A0.3  Evidence Bridge              owns translating events → evidence
+  ↓
+X2/X3b  Pipeline                   owns capturing + persisting evidence
+  ↓
+P14  Audit                         owns governance audit trail
+```
 
-Add to `evolution-state-machine.ts`:
+A0.2 does **not**:
+- Persist evidence
+- Store audit records
+- Execute governance workflows
+- Mutate runtime
+- Generate evolution proposals
+
+---
+
+## 5. Implementation Tasks
+
+### Task 1 — EvolutionTransitionEvent Type
+
+```typescript
+interface EvolutionTransitionEvent {
+  evolutionId: string;
+  from: EvolutionState;
+  to: EvolutionState;
+  eventType: string;
+  timestamp: string;
+  summary: string;
+}
+```
+
+### Task 2 — Error Types
 
 ```typescript
 class IllegalEvolutionTransitionError extends Error {
+  readonly kind = "IllegalEvolutionTransitionError";
   readonly evolutionId: string;
   readonly currentState: EvolutionState;
   readonly requestedState: EvolutionState;
 }
 
 class UnknownEvolutionError extends Error {
+  readonly kind = "UnknownEvolutionError";
   readonly evolutionId: string;
 }
 
 class DuplicateEvolutionError extends Error {
+  readonly kind = "DuplicateEvolutionError";
   readonly evolutionId: string;
 }
 ```
 
----
-
-### Task 2 — Transition Table
+### Task 3 — Transition Table
 
 ```typescript
 const ALLOWED_TRANSITIONS: Record<EvolutionState, EvolutionState[]> = {
@@ -97,12 +136,10 @@ const ALLOWED_TRANSITIONS: Record<EvolutionState, EvolutionState[]> = {
 
 Terminal states: `ACTIVE`, `REJECTED`, `WITHDRAWN`, `ROLLED_BACK`
 
----
-
-### Task 3 — Evidence Event Mapping
+### Task 4 — Transition Event Mapping
 
 ```typescript
-function transitionToEventType(to: EvolutionState): string {
+function createTransitionEvent(to: EvolutionState): string {
   switch (to) {
     case EvolutionState.DRAFT: return "EvolutionDrafted";
     case EvolutionState.PROPOSED: return "EvolutionProposed";
@@ -119,28 +156,38 @@ function transitionToEventType(to: EvolutionState): string {
 }
 ```
 
----
-
-### Task 4 — EvolutionStateMachine
+### Task 5 — EvolutionStateMachine
 
 ```typescript
 class EvolutionStateMachine {
   private readonly evolutions = new Map<string, EvolutionState>();
-  private readonly history = new Map<string, Array<{ from: EvolutionState; to: EvolutionState; timestamp: string }>>();
+  private readonly history = new Map<string, EvolutionTransitionEvent[]>();
 
   createEvolution(evolutionId: string, initialState?: EvolutionState): void;
 
-  transition(evolutionId: string, to: EvolutionState): void;
+  transition(evolutionId: string, to: EvolutionState): EvolutionTransitionResult;
 
   getStatus(evolutionId: string): EvolutionState;
 
-  getHistory(evolutionId: string): Array<{ from: EvolutionState; to: EvolutionState; timestamp: string }>;
+  getHistory(evolutionId: string): EvolutionTransitionEvent[];
+}
+
+interface EvolutionTransitionResult {
+  previous: EvolutionState;
+  current: EvolutionState;
+  event: EvolutionTransitionEvent;
 }
 ```
 
----
+### Task 6 — Validation Helpers
 
-### Task 5 — Tests
+```typescript
+private isTransitionAllowed(from: EvolutionState, to: EvolutionState): boolean;
+
+private validateTransition(evolutionId: string, to: EvolutionState): void;
+```
+
+### Task 7 — Tests
 
 | # | Test | Verification |
 |---|------|-------------|
@@ -166,15 +213,20 @@ class EvolutionStateMachine {
 | 20 | Unknown evolutionId throws | Error path |
 | 21 | Duplicate creation throws | Error path |
 | 22 | getStatus returns correct state | State tracking |
-| 23 | getHistory returns transition log | History tracking |
-| 24 | Bad input type rejected | Safety |
+| 23 | getHistory returns ordered transition log | History ordering |
+| 24 | Failed transition does not change state | Append-only invariant |
+| 25 | Failed transition does not append to history | History immutability |
+| 26 | Transition result contains correct event | Event correctness |
+| 27 | Repeated identical transition attempt | Stability |
+| 28 | Multiple distinct evolutions coexist | Isolation |
 
 ---
 
-## 5. Invariants
+## 6. Invariants
 
 - **Terminal immutability**: Terminal states cannot transition further
-- **Evidence per transition**: Every transition records evidence
+- **Event per transition**: Every successful transition generates a `EvolutionTransitionEvent`
+- **No side effects on failure**: Failed transitions do not change state or append to history
 - **Deterministic lookup**: Transitions validated against defined table
 - **No persistence**: State machine is in-memory
 - **No contract changes**: A0.1 types remain unmodified

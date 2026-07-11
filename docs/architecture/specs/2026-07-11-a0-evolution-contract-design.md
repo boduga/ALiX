@@ -1,25 +1,45 @@
+I incorporated the refinements: clearer A0/X4 boundary, evolution lineage invariant, evidence contract decoupling, append-only lifecycle history, and the governance authority invariant.
+
 # A0 — Evolution Contract Design Specification
 
 **Date:** 2026-07-11
 **Status:** Design Specification
 **Phase:** A0 — Evolution Contract
+
 **Depends On:**
-- P14 — Governance Infrastructure
-- P15 — Governance Intelligence
-- X1 — Execution Intent Contract
-- X2 — Execution Evidence Capture
-- X3b — Execution Evidence Persistence
-- X4 — Governed Execution Runtime
+
+* P14 — Governance Infrastructure
+* P15 — Governance Intelligence
+* X1 — Execution Intent Contract
+* X2 — Execution Evidence Capture
+* X3b — Execution Evidence Persistence
+* X4 — Governed Execution Runtime
 
 **Checkpoint Target:** `alix-a0-evolution-contract-design-complete`
 
 ---
 
-## 1. Purpose
+# 1. Purpose
 
-A0 defines the **rules, artifacts, and boundaries** for ALiX evolution — the contract that governs how the system changes itself while remaining explainable, auditable, and reversible.
+A0 defines the **rules, artifacts, and boundaries** for ALiX evolution.
 
-The X-series established governed execution: every action follows an explicit lifecycle with deterministic transitions and durable evidence. A0 extends this same discipline to **evolution itself** — changes to policies, agents, workflows, and runtime configuration.
+The X-series established governed execution:
+
+* explicit intent
+* deterministic lifecycle transitions
+* evidence capture
+* durable persistence
+* controlled execution
+
+A0 extends these principles to **system evolution**.
+
+A0 defines how ALiX may evolve policies, agents, workflows, runtime configuration, and governance capabilities while preserving:
+
+* explainability
+* auditability
+* reversibility
+* governance authority
+* evidence lineage
 
 A0 answers:
 
@@ -27,94 +47,235 @@ A0 answers:
 
 ---
 
-## 2. Primary Invariant
+# 2. Primary Invariant
 
-> ALiX may observe, propose, and execute approved evolution workflows; ALiX may not silently evolve outside an explicit governance contract.
+> **ALiX may observe, propose, and execute approved evolution workflows; ALiX may not silently evolve outside an explicit governance contract.**
 
-This invariant has five enforceable consequences:
-
-1. **Evidence-backed** — No capability change without traceable origin. Every evolution must reference the evidence that triggered it.
-2. **Contract-first** — New behavior requires explicit interfaces before implementation.
-3. **Governance-bound** — New agents, policies, workflows, or execution paths inherit governance boundaries. Evolution cannot bypass governance.
-4. **Immutable artifacts** — Every evolution produces immutable evidence: why it happened, what evidence triggered it, who approved it, what changed, what validation occurred, and what the outcome was.
-5. **Not self-modification** — ALiX may propose and model evolution paths, but governance authority remains external.
+This invariant creates five enforceable rules.
 
 ---
 
-## 3. Evolutionary Position in Architecture
+## 2.1 Evidence-backed Evolution
+
+No capability or behavior change may occur without traceable origin.
+
+Every evolution must reference:
+
+* originating evidence
+* triggering signals
+* rationale
+* expected effect
+
+---
+
+## 2.2 Contract-first Evolution
+
+New behavior requires explicit contracts before implementation.
+
+Evolution must define:
+
+* target
+* constraints
+* lifecycle
+* validation requirements
+* rollback expectations
+
+---
+
+## 2.3 Governance-bound Evolution
+
+Evolution inherits all governance boundaries.
+
+New:
+
+* agents
+* policies
+* workflows
+* execution paths
+* runtime capabilities
+
+must enter through governed workflows.
+
+Evolution cannot bypass governance.
+
+---
+
+## 2.4 Immutable Evolution Artifacts
+
+Evolution artifacts are append-only evidence.
+
+Every evolution records:
+
+* why it happened
+* what triggered it
+* who approved it
+* what changed
+* what validation occurred
+* final outcome
+
+Historical artifacts are never modified.
+
+Corrections create new linked artifacts.
+
+---
+
+## 2.5 No Autonomous Authority
+
+ALiX may:
+
+* detect opportunities
+* generate proposals
+* model possible improvements
+
+ALiX may not:
+
+* self-approve changes
+* bypass governance review
+* silently modify production behavior
+
+Governance authority remains external.
+
+---
+
+# 3. Architectural Position
+
+A0 completes the path from intelligence to governed evolution.
 
 ```
 P10 Executive Intelligence
+        |
 P13 Cross-run Learning
+        |
 P14 Governance Infrastructure
+        |
 P15 Governance Intelligence
-        ↓
-X0–X4 Governed Execution Runtime
-        ↓
+        |
+        v
 A0 Evolution Contract
-        ↓
-  A0.1 — Evolution Intent Types
-  A0.2 — Evolution Lifecycle State Machine
-  A0.3 — Evolution Evidence Bridge
-  A0.4 — Evolution Governance Surface
+        |
+        v
+Governed Evolution Workflow
+        |
+        v
+X4 Governed Execution Runtime
+        |
+        v
+X2/X3b Evidence Pipeline
+        |
+        v
+P14 Governance Audit
 ```
 
-A0 sits at the top of the stack. It uses every layer below it:
+A0 does not replace existing layers.
 
-- **P10/P13** — inputs for evolution proposals (intelligence signals, learning outcomes)
-- **P14/P15** — governance boundaries, operator signals, audit trail
-- **X1** — evolution intent modeled as an execution intent
-- **X2/X3b** — evolution evidence captured and persisted via the same evidence pipeline
-- **X4** — evolution executed through the governed execution runtime
+It composes them.
 
 ---
 
-## 4. Evolution Intent Contract
+# 4. Architectural Responsibilities
 
-Every evolution begins with an explicit intent, mirroring X1's `ExecutionIntent`.
+## P10 / P13
+
+Provide evolution inputs:
+
+* intelligence signals
+* learning outcomes
+* recurring patterns
+* improvement opportunities
+
+They identify possibilities.
+
+They do not authorize changes.
+
+---
+
+## P14 / P15
+
+Provide governance control:
+
+* audit trail
+* review boundaries
+* effectiveness signals
+* compliance evidence
+
+They determine whether evolution is acceptable.
+
+---
+
+## X1-X4
+
+Provide execution discipline:
+
+* execution intent
+* execution lifecycle
+* evidence capture
+* governed runtime
+
+They execute approved evolution activities.
+
+---
+
+# 5. Evolution Intent Contract
+
+Every evolution begins with an explicit intent.
+
+The contract mirrors X1 `ExecutionIntent`.
 
 ```typescript
 interface EvolutionIntent {
-  /** Unique identifier for this evolution. */
   evolutionId: string;
 
-  /** What triggered this evolution proposal. */
   origin: EvolutionOrigin;
 
-  /** What the evolution targets. */
   target: EvolutionTarget;
 
-  /** Evidence references supporting this evolution. */
   rationale: EvidenceReference[];
 
-  /** Description of the expected effect. */
   expectedEffect: string;
 
-  /** Risk classification. */
-  riskClass: "low" | "medium" | "high";
+  riskClass:
+    | "low"
+    | "medium"
+    | "high";
 
-  /** Constraints governing how this evolution may be carried out. */
   constraints: EvolutionConstraint[];
 
-  /** When the intent was created. */
   createdAt: string;
 }
+```
 
+---
+
+## 5.1 Evolution Origin
+
+```typescript
 type EvolutionOrigin =
   | "operator"
   | "governance_signal"
   | "learning_outcome"
   | "system_observation";
+```
 
+Origin identifies motivation.
+
+Origin does not grant authority.
+
+---
+
+## 5.2 Evolution Target
+
+```typescript
 interface EvolutionTarget {
-  /** What kind of component the evolution targets. */
+
   kind: EvolutionTargetKind;
-  /** Identifier of the target (policy ID, agent name, etc.). */
+
   id: string;
-  /** Optional before-state hash for integrity verification. */
+
   currentHash?: string;
 }
+```
 
+```typescript
 type EvolutionTargetKind =
   | "policy"
   | "agent_behavior"
@@ -125,361 +286,475 @@ type EvolutionTargetKind =
   | "execution_intent";
 ```
 
-### Invariant
+---
 
-> No evolution exists without an explicit intent.
+## Intent Invariant
 
-An evolution without a traceable `EvolutionIntent` is considered incomplete or invalid.
+> No evolution exists without an explicit EvolutionIntent.
+
+An evolution without intent is invalid.
 
 ---
 
-## 5. Evolution Artifact Model
+# 6. Evolution Artifact Model
 
-Every evolution follows a defined artifact lifecycle, mirroring the X-series execution lifecycle.
+Every evolution produces a linked artifact chain.
 
-### Lifecycle
+```
+EvolutionIntent
+        |
+        v
+EvolutionProposal
+        |
+        v
+EvolutionReview
+        |
+        v
+EvolutionApproval
+        |
+        v
+EvolutionImplementation
+        |
+        v
+EvolutionValidation
+        |
+        v
+EvolutionActivation
+```
+
+---
+
+## Artifact Definitions
+
+| Artifact                | Purpose                       |
+| ----------------------- | ----------------------------- |
+| EvolutionIntent         | Defines trigger and rationale |
+| EvolutionProposal       | Describes intended change     |
+| EvolutionReview         | Governance evaluation         |
+| EvolutionApproval       | Authorization record          |
+| EvolutionImplementation | Actual change evidence        |
+| EvolutionValidation     | Outcome verification          |
+| EvolutionActivation     | Live-state record             |
+
+---
+
+# 7. Evolution Lineage Invariant
+
+Every artifact MUST preserve the originating `evolutionId`.
 
 ```
 EvolutionIntent
       |
-      v
-EvolutionProposal
+      +-- Proposal
       |
-      v
-EvolutionReview
+      +-- Review
       |
-      v
-EvolutionApproval
+      +-- Approval
       |
-      v
-EvolutionImplementation
+      +-- Implementation
       |
-      v
-EvolutionValidation
+      +-- Validation
       |
-      v
-EvolutionActivation
+      +-- Activation
 ```
 
-### Artifact Types
-
-| Artifact | Description | Produced By |
-|----------|-------------|-------------|
-| `EvolutionIntent` | The trigger and rationale for the evolution | Origin system (operator, signal, learning) |
-| `EvolutionProposal` | Concrete description of what changes and how | Planner (human or automated) |
-| `EvolutionReview` | Governance review of the proposal before approval | Human operator |
-| `EvolutionApproval` | Record of who approved the evolution and when | Governance authority |
-| `EvolutionImplementation` | Evidence of what actually changed (diff, before/after) | Execution runtime |
-| `EvolutionValidation` | Evidence that the change produces the expected effect | Validation system |
-| `EvolutionActivation` | Record that the evolution is live and its scope | Activation system |
-
-### Invariant
-
-> Every evolution artifact is immutable after creation. Corrections or updates create new linked artifacts.
+No evolution artifact may exist without lineage to an originating intent.
 
 ---
 
-## 6. Evolution State Machine
+# 8. Evolution Lifecycle State Machine
 
-Evolution proposals follow a defined state machine, mirroring X4's `ExecutionState`.
-
-### States
+Evolution follows a deterministic lifecycle.
 
 ```
 DRAFT
-  |
-  v
+ |
+ v
 PROPOSED
-  |
-  v
+ |
+ v
 UNDER_REVIEW
-  |
-  +---------+---------+
-  |         |         |
-  v         v         v
-APPROVED REJECTED  WITHDRAWN
-  |
-  v
+ |
+ +-------------+-------------+
+ |             |             |
+ v             v             v
+APPROVED    REJECTED    WITHDRAWN
+ |
+ v
 IMPLEMENTING
-  |
-  v
+ |
+ v
 VALIDATING
-  |
-  +---------+---------+
-  |         |         |
-  v         v         v
-ACTIVE  FAILED_     ROLLED_BACK
-        VALIDATION
+ |
+ +-------------+-------------+
+ |             |             |
+ v             v             v
+ACTIVE   FAILED_VALIDATION ROLLED_BACK
 ```
 
-### Transition Rules
+---
 
-| From | To | Trigger |
-|------|----|---------|
-| `DRAFT` | `PROPOSED` | Proposal finalized |
-| `DRAFT` | `WITHDRAWN` | Originator cancels |
-| `PROPOSED` | `UNDER_REVIEW` | Queued for governance review |
-| `PROPOSED` | `REJECTED` | Governance rejects before review |
-| `UNDER_REVIEW` | `APPROVED` | Governance approves |
-| `UNDER_REVIEW` | `REJECTED` | Governance rejects |
-| `UNDER_REVIEW` | `WITHDRAWN` | Originator withdraws during review |
-| `APPROVED` | `IMPLEMENTING` | Execution begins |
-| `APPROVED` | `REJECTED` | Approval expires or is revoked |
-| `IMPLEMENTING` | `VALIDATING` | Implementation completes |
-| `IMPLEMENTING` | `FAILED_VALIDATION` | Validation fails immediately |
-| `VALIDATING` | `ACTIVE` | Validation passes |
-| `VALIDATING` | `FAILED_VALIDATION` | Validation fails |
-| `FAILED_VALIDATION` | `ROLLED_BACK` | Rollback executed |
-| `FAILED_VALIDATION` | `ACTIVE` | Override (explicit approval) |
+# 9. State Contract
 
-### Terminal States
-
-`ACTIVE`, `REJECTED`, `WITHDRAWN`, `ROLLED_BACK`
-
-### Invariant
-
-> Every state transition emits an evolution evidence record. No implicit transitions.
+```typescript
+type EvolutionState =
+  | "draft"
+  | "proposed"
+  | "under_review"
+  | "approved"
+  | "implementing"
+  | "validating"
+  | "active"
+  | "rejected"
+  | "withdrawn"
+  | "failed_validation"
+  | "rolled_back";
+```
 
 ---
 
-## 7. Evolution Boundaries
+# 10. Transition Rules
 
-A0 explicitly prohibits:
-
-| Forbidden | Reason |
-|-----------|--------|
-| **Autonomous production mutation** | Breaks governance boundary. Production changes require explicit approval. |
-| **Silent capability expansion** | Destroys explainability. Every change must have a traceable intent. |
-| **Untracked policy changes** | Destroys auditability. Policy is governance — changes must be immutable events. |
-| **Learning directly modifying runtime** | Bypasses review. Learning outputs are inputs to proposals, not mutations. |
-| **Self-approval** | No system may approve its own evolution. Requires distinct governance authority. |
-
-These are not implementation restrictions — they are **contract-level invariants** that all downstream A-series phases must respect.
+| From              | To                | Trigger                     |
+| ----------------- | ----------------- | --------------------------- |
+| DRAFT             | PROPOSED          | Proposal finalized          |
+| DRAFT             | WITHDRAWN         | Originator cancels          |
+| PROPOSED          | UNDER_REVIEW      | Governance review requested |
+| PROPOSED          | REJECTED          | Governance rejects          |
+| UNDER_REVIEW      | APPROVED          | Approval granted            |
+| UNDER_REVIEW      | REJECTED          | Approval denied             |
+| UNDER_REVIEW      | WITHDRAWN         | Proposal withdrawn          |
+| APPROVED          | IMPLEMENTING      | Execution begins            |
+| IMPLEMENTING      | VALIDATING        | Implementation complete     |
+| IMPLEMENTING      | FAILED_VALIDATION | Immediate failure           |
+| VALIDATING        | ACTIVE            | Validation succeeds         |
+| VALIDATING        | FAILED_VALIDATION | Validation fails            |
+| FAILED_VALIDATION | ROLLED_BACK       | Rollback completes          |
+| FAILED_VALIDATION | ACTIVE            | Explicit override approval  |
 
 ---
 
-## 8. Evolution Evidence Requirements
+## State Invariants
 
-Every evolution artifact must produce evidence that connects back through the chain.
+* Invalid transitions fail.
+* Every transition emits evidence.
+* State history is append-only.
+* Current state is derived from transition history.
 
-### Evidence Package
+---
 
-Every evolution transition produces an evidence record containing:
+# 11. Evolution Evidence Contract
+
+Evolution evidence uses the existing evidence architecture.
+
+A0 consumes the evidence contract.
+
+A0 does not couple to storage internals.
 
 ```typescript
 interface EvolutionEvidence {
-  /** Unique evidence identifier. */
+
   evidenceId: string;
-  /** Reference to the evolution intent. */
+
   evolutionId: string;
-  /** What lifecycle step produced this evidence. */
+
   stage: EvolutionStage;
-  /** Why this change happened. */
+
   rationale: EvidenceReference[];
-  /** What evidence triggered it. */
+
   triggerEvidenceId: string | null;
-  /** Who approved it (null for pre-approval stages). */
+
   approvedBy: string | null;
-  /** What changed (diff, description, or reference). */
+
   change: EvolutionChange;
-  /** What validation occurred. */
+
   validation: EvolutionValidation | null;
-  /** What was the outcome. */
+
   outcome: EvolutionOutcome;
-  /** Link to the execution evidence if executed via X4. */
+
   executionEvidenceId: string | null;
-  /** Timestamp. */
+
   createdAt: string;
 }
 ```
 
-### Evidence Flow
+---
+
+# 12. Evidence Flow
 
 ```
-EvolutionIntent → EvolutionEvidence → X2 Capture → X3b Persist → P14 Audit
-        ↓                                                               ↓
-   Governance consumers                                          P29 Compliance
+Evolution Intent
+        |
+        v
+Evolution Evidence
+        |
+        v
+X2 Evidence Contract
+        |
+        v
+X3b Persistence
+        |
+        v
+P14 Audit Trail
+        |
+        v
+P29 Compliance Packages
 ```
 
-Evolution evidence flows through the same pipeline as execution evidence:
+---
 
-- **X2** captures the evolution evidence record
-- **X3b** persists it durably
-- **P14** incorporates it into the governance audit trail
-- **P29** packages it for compliance
+## Evidence Invariant
 
-### Invariant
+Every evolution evidence package must answer:
 
-> Every evolution produces an evidence package containing: why, trigger, approver, change, validation, outcome.
+* Why did this happen?
+* What triggered it?
+* Who approved it?
+* What changed?
+* What validation occurred?
+* What was the outcome?
 
 ---
 
-## 9. Non-Goals
+# 13. Evolution Boundaries
 
-A0 explicitly does **not** include:
+The following are prohibited:
 
-| Capability | Reason for Exclusion |
-|------------|---------------------|
-| **Automatic policy generation** | A0 defines the contract. Evolution proposal logic is A1+. |
-| **Pattern discovery** | A0 defines artifacts. Discovery is A1. |
-| **Evolution sandbox** | A0 defines boundaries. Sandbox infrastructure is A2. |
-| **Governed adaptation loop** | A0 defines the lifecycle. The loop is A3. |
-| **Actual system mutation** | A0 is contract-only. No mutation code exists in A0. |
-| **Store or persistence** | A0 defines types and interfaces. Persistence comes in A0.2+. |
-| **CLI tools** | A0 is contract-first. CLI surface comes in A0.4. |
+| Forbidden                           | Reason                        |
+| ----------------------------------- | ----------------------------- |
+| Autonomous production mutation      | Violates governance authority |
+| Silent capability expansion         | Violates explainability       |
+| Untracked policy changes            | Violates auditability         |
+| Learning directly modifying runtime | Bypasses governance           |
+| Self-approval                       | Removes independent authority |
 
 ---
 
-## 10. Implementation Phases
+# 14. Evolution Authority Invariant
 
-### Phase A0.1 — Evolution Contract Types
+> Evolution consumes governance evidence; it does not create governance authority.
 
-**Scope:**
-- `EvolutionIntent`, `EvolutionTarget`, `EvolutionOrigin` types
-- `EvolutionProposal`, `EvolutionReview`, `EvolutionApproval` types
-- `EvolutionEvidence` type
-- `EvolutionState` enum
-- Validation rules
-
-**Deliverables:**
-- `src/evolution/contracts/evolution-contract.ts` — types and validation
-- Tests for type validation and invariants
-
-**Excluded:**
-- State machine implementation
-- Store infrastructure
-- CLI
-
----
-
-### Phase A0.2 — Evolution Lifecycle State Machine
-
-**Scope:**
-- `EvolutionStateMachine` — state transitions for the 10-state evolution lifecycle
-- Transition validation
-- Evidence emission for each transition
-
-**Deliverables:**
-- `src/evolution/evolution-state-machine.ts`
-- Tests for full transition matrix
-
-**Excluded:**
-- Persistence
-- Actual system mutation
-
----
-
-### Phase A0.3 — Evolution Evidence Bridge
-
-**Scope:**
-- Connect evolution events to X2 evidence capture
-- Route evolution evidence to X3b persistence
-- Link evolution evidence to governance audit trail (P14)
-
-**Deliverables:**
-- `src/evolution/evolution-evidence-bridge.ts`
-- Integration tests with X3b store
-
-**Excluded:**
-- Governance integration (deferred to A0.4)
-
----
-
-### Phase A0.4 — Evolution Governance Surface
-
-**Scope:**
-- `alix evolution` CLI commands (read-only initially)
-- List, inspect, evidence, status
-- `--json` output
-
-**Deliverables:**
-- CLI handler for `alix evolution list`, `inspect`, `evidence`
-- Human-readable + JSON output
-
-**Excluded:**
-- Mutation commands (approved-by-governance only, future)
-- Automatic proposal generation (A1)
-
----
-
-## 11. A-Series Roadmap
+Correct flow:
 
 ```
-A0  Evolution Contract          ← this phase (contract-first, no mutation)
-A1  Pattern Discovery Engine    ← consume failures/metrics, generate proposals
-A2  Evolution Sandbox           ← test changes before production
-A3  Governed Adaptation Loop    ← propose → review → approve → implement → validate → activate
+Governance Signal
+        |
+        v
+Evolution Proposal
+        |
+        v
+Governance Decision
+        |
+        v
+Approved Execution
+        |
+        v
+Validation Evidence
 ```
 
-Each phase builds on the previous. A0 establishes the contract that all downstream phases must respect.
+Incorrect flow:
+
+```
+Governance Signal
+        |
+        v
+Automatic Change
+```
 
 ---
 
-## 12. Testing Requirements
+# 15. Non-Goals
 
-### Unit Tests
+A0 does not include:
 
-| Area | Coverage |
-|------|----------|
-| Type validation | All `EvolutionIntent` fields validated |
-| Invalid origins rejected | Unknown `EvolutionOrigin` values |
-| Invalid targets rejected | Unknown `EvolutionTargetKind` values |
-| Empty rationale rejected | Evolution with no evidence references |
-| Constraint validation | EvolutionConstraint rules |
-
-### Integration Tests (A0.3+)
-
-- Evolution evidence → X3b persistence → P14 audit
-- Evolution state transitions produce correct evidence
+| Capability                  | Deferred To                  |
+| --------------------------- | ---------------------------- |
+| Automatic policy generation | A1                           |
+| Pattern discovery           | A1                           |
+| Evolution sandbox           | A2                           |
+| Adaptation loop             | A3                           |
+| Production mutation         | Future governed phases       |
+| Persistence implementation  | Future infrastructure phases |
+| CLI mutation commands       | Future governance phases     |
 
 ---
 
-## 13. Completion Criteria
+# 16. Implementation Phases
+
+## A0.1 — Evolution Contract Types
+
+Scope:
+
+* EvolutionIntent
+* EvolutionTarget
+* EvolutionOrigin
+* EvolutionEvidence
+* EvolutionState
+* validation rules
+
+Deliver:
+
+```
+src/evolution/contracts/
+    evolution-contract.ts
+```
+
+Constraints:
+
+* pure module
+* no stores
+* no mutation
+
+---
+
+## A0.2 — Evolution Lifecycle State Machine
+
+Scope:
+
+* deterministic transitions
+* transition validation
+* transition evidence generation
+
+Deliver:
+
+```
+src/evolution/
+    evolution-state-machine.ts
+```
+
+---
+
+## A0.3 — Evolution Evidence Bridge
+
+Scope:
+
+* connect evolution evidence to X2 contract
+* persist through X3b
+* expose governance audit linkage
+
+Deliver:
+
+```
+src/evolution/
+    evolution-evidence-bridge.ts
+```
+
+---
+
+## A0.4 — Evolution Governance Surface
+
+Scope:
+
+Read-only visibility:
+
+```bash
+alix evolution list
+
+alix evolution inspect <id>
+
+alix evolution evidence <id>
+
+alix evolution --json
+```
+
+No mutation commands.
+
+---
+
+# 17. Testing Requirements
+
+## Contract Tests
+
+Required coverage:
+
+* valid EvolutionIntent creation
+* invalid origin rejection
+* invalid target rejection
+* missing rationale rejection
+* constraint validation
+* lineage validation
+
+---
+
+## Lifecycle Tests
+
+Required coverage:
+
+* full valid lifecycle
+* every invalid transition
+* rollback paths
+* evidence emission
+
+---
+
+## Integration Tests
+
+Required:
+
+* evolution evidence → X2 contract
+* X3b persistence path
+* P14 audit linkage
+
+---
+
+# 18. Completion Criteria
 
 A0 is complete when:
 
-- [ ] **A0.1** — Evolution contract types defined with validation
-- [ ] **A0.1** — Primary invariant documented and enforceable
-- [ ] **A0.2** — Evolution state machine with deterministic transitions
-- [ ] **A0.2** — Full transition matrix tested
-- [ ] **A0.3** — Evolution evidence bridge to X2/X3b
-- [ ] **A0.4** — `alix evolution` CLI (read-only)
-- [ ] **A0.4** — Human-readable + JSON output
-- [ ] **All tests pass** — TypeScript clean
-- [ ] **Checkpoint created** — `alix-a0-evolution-contract-complete`
+* [ ] Evolution contracts implemented
+* [ ] Evolution invariants enforced
+* [ ] State machine implemented
+* [ ] Transition matrix tested
+* [ ] Evidence lineage preserved
+* [ ] X2/X3b evidence compatibility verified
+* [ ] Governance boundaries preserved
+* [ ] Read-only governance surface implemented
+* [ ] TypeScript clean
+* [ ] All tests passing
+* [ ] Checkpoint created:
+
+```
+alix-a0-evolution-contract-complete
+```
 
 ---
 
-## 14. Architectural Outcome
+# 19. Architectural Outcome
 
 After A0:
 
 ```
-P10 Intelligence        P13 Learning        P14/P15 Governance
-        |                    |                    |
-        +--------------------+--------------------+
-                             |
-                             v
-                    A0 Evolution Contract
-                             |
-              +--------------+--------------+
-              |              |              |
-              v              v              v
-        Evolution        Evolution      Evolution
-         Intents         Artifacts       Evidence
-              |              |              |
-              +--------------+--------------+
-                             |
-                             v
-                     X4 Governed Execution
-                             |
-                             v
-                    X3b Evidence Persistence
-                             |
-                             v
-                    P14 Governance Audit
+Intelligence
+(P10/P13)
+     |
+     v
+Governance
+(P14/P15)
+     |
+     v
+Evolution Contract
+(A0)
+     |
+     +----------------+
+     |                |
+     v                v
+Evolution          Evidence
+Artifacts          Lineage
+     |                |
+     +----------------+
+              |
+              v
+      Governed Execution
+              |
+              v
+       Audit & Compliance
 ```
 
-A0 closes the gap between governance intelligence and system evolution. The system becomes:
+A0 closes the architectural gap between governance intelligence and system evolution.
 
-> **ALiX is not an autonomous agent framework. It is a governed autonomous evolution platform.**
+Final principle:
+
+> **ALiX is not an autonomous agent framework. ALiX is a governed autonomous evolution platform.**
+
+This is ready to checkpoint as the canonical A0 design specification. The next implementation artifact should be **A0.1 — Evolution Contract Types Implementation Plan**.
+
