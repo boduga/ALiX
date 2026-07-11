@@ -45,8 +45,8 @@ import type {
   UnavailableLayer,
   ExplanationIntegrity,
 } from "./proposal-explanation-types.js";
-import type { ExecutionEvidence } from "../../runtime/contracts/execution-intent-contract.js";
-import type { ExecutionLineageRef } from "../../governance/governance-execution-types.js";
+import type { ExecutionEvidence } from "../runtime/contracts/execution-intent-contract.js";
+import type { ExecutionLineageRef } from "../governance/governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — store directory layout (mirrors per-store STORE_DIR).
