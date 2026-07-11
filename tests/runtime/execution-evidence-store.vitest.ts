@@ -206,4 +206,57 @@ describe("ExecutionEvidenceStore", () => {
     expect(all[0].evidenceId).toBe("ev-001");
     expect(all[1].evidenceId).toBe("ev-001");
   });
+
+  // -----------------------------------------------------------------------
+  // Checksum — field coverage (X3b integrity primitive)
+  // -----------------------------------------------------------------------
+
+  describe("computeEvidenceChecksum — full field coverage", () => {
+    const BASE: ExecutionEvidence = {
+      evidenceId: "ev-001",
+      intentId: "int-001",
+      startedAt: "2026-07-10T10:00:00.000Z",
+      completedAt: "2026-07-10T11:00:00.000Z",
+      outcome: "SUCCESS",
+      summary: "Test execution.",
+      artifacts: ["plan-1.json"],
+      verificationPassed: true,
+      evidenceHash: "",
+    };
+
+    it("changing startedAt changes the checksum", () => {
+      const a = computeEvidenceChecksum(BASE);
+      const b = computeEvidenceChecksum({ ...BASE, startedAt: "2026-07-10T12:00:00.000Z" });
+      expect(a).not.toBe(b);
+    });
+
+    it("changing artifacts changes the checksum", () => {
+      const a = computeEvidenceChecksum(BASE);
+      const b = computeEvidenceChecksum({ ...BASE, artifacts: ["plan-2.json"] });
+      expect(a).not.toBe(b);
+    });
+
+    it("changing verificationPassed changes the checksum", () => {
+      const a = computeEvidenceChecksum(BASE);
+      const b = computeEvidenceChecksum({ ...BASE, verificationPassed: false });
+      expect(a).not.toBe(b);
+    });
+
+    it("equivalent objects with reordered keys produce the same checksum", () => {
+      const normal: ExecutionEvidence = { ...BASE };
+      const reordered: ExecutionEvidence = {
+        verificationPassed: BASE.verificationPassed,
+        artifacts: BASE.artifacts,
+        summary: BASE.summary,
+        outcome: BASE.outcome,
+        completedAt: BASE.completedAt,
+        startedAt: BASE.startedAt,
+        intentId: BASE.intentId,
+        evidenceId: BASE.evidenceId,
+        evidenceHash: "",
+      };
+
+      expect(computeEvidenceChecksum(normal)).toBe(computeEvidenceChecksum(reordered));
+    });
+  });
 });

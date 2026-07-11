@@ -14,6 +14,7 @@ import { appendFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import type { ExecutionEvidence } from "./contracts/execution-intent-contract.js";
+import { canonicalStringify } from "../security/audit/canonical-json.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -146,29 +147,25 @@ export class ExecutionEvidenceStore {
 // ---------------------------------------------------------------------------
 
 /**
- * Compute the expected checksum for an ExecutionEvidence record.
+ * Compute the canonical SHA-256 checksum for an ExecutionEvidence record.
  *
- * Uses SHA-256 over evidenceId + intentId + outcome + completedAt + summary
- * with a domain prefix to prevent hash type confusion.
+ * Covers ALL evidence fields (except evidenceHash, which would be a
+ * self-reference). Uses deterministic canonical JSON serialization with
+ * sorted object keys, so the same data always produces the same hash
+ * regardless of property declaration order.
+ *
+ * Includes a domain/version prefix to prevent hash type confusion across
+ * different ALiX subsystems (execution evidence vs audit vs intents).
  */
-export function computeEvidenceChecksum(evidence: {
-  evidenceId: string;
-  intentId: string;
-  outcome: string;
-  completedAt: string;
-  summary: string;
-}): string {
+export function computeEvidenceChecksum(
+  evidence: ExecutionEvidence,
+): string {
+  // Strip self-referential evidenceHash before canonicalizing
+  const { evidenceHash: _, ...fields } = evidence;
+  const canonical = canonicalStringify(fields);
   const hash = createHash("sha256");
-  hash.update(CHECKSUM_DOMAIN);
-  hash.update(evidence.evidenceId);
-  hash.update("\0");
-  hash.update(evidence.intentId);
-  hash.update("\0");
-  hash.update(evidence.outcome);
-  hash.update("\0");
-  hash.update(evidence.completedAt);
-  hash.update("\0");
-  hash.update(evidence.summary);
+  hash.update(CHECKSUM_DOMAIN, "utf8");
+  hash.update(canonical, "utf8");
   return hash.digest("hex");
 }
 
