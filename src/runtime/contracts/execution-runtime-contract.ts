@@ -138,6 +138,32 @@ export interface RetryPolicy {
   backoffStrategy: BackoffStrategy;
 }
 
+// ─── Rollback Intent ──────────────────────────────────────────────────
+
+/**
+ * Describes a rollback action to undo a previous execution.
+ *
+ * X4 does not decide when rollback is appropriate — that decision
+ * belongs to governance. X4 records and executes the supplied
+ * RollbackIntent.
+ */
+export interface RollbackIntent {
+  /** The FAILED execution to roll back. */
+  executionId: string;
+  /** The original intent ID. */
+  intentId: string;
+  /** Description of the rollback action to perform. */
+  action: string;
+  /** Parameters for the rollback action. */
+  parameters: Record<string, unknown>;
+  /** Why rollback was requested. */
+  reason: string;
+  /** When the rollback intent was created. */
+  createdAt: string;
+  /** Evidence ID that triggered the rollback decision. */
+  sourceEvidenceId: string;
+}
+
 // ─── Runtime Controller Interface ────────────────────────────────────
 
 /**
