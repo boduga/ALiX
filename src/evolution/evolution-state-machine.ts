@@ -125,9 +125,26 @@ const EVENT_TYPE_MAP: Record<EvolutionState, string> = {
 // EvolutionStateMachine
 // ---------------------------------------------------------------------------
 
+export interface EvolutionMetadata {
+  targetKind?: string;
+  targetId?: string;
+  origin?: string;
+  riskClass?: string;
+  createdAt?: string;
+  expectedEffect?: string;
+}
+
+export interface EvolutionSummary {
+  evolutionId: string;
+  state: EvolutionState;
+  targetKind?: string;
+  createdAt?: string;
+}
+
 export class EvolutionStateMachine {
   private readonly evolutions = new Map<string, EvolutionState>();
   private readonly history = new Map<string, EvolutionTransitionEvent[]>();
+  private readonly evolutionMeta = new Map<string, EvolutionMetadata>();
 
   // -----------------------------------------------------------------------
   // Creation
@@ -138,14 +155,20 @@ export class EvolutionStateMachine {
    *
    * @param evolutionId - Unique identifier for the evolution.
    * @param initialState - Starting state (defaults to DRAFT).
+   * @param meta - Optional metadata (target, origin, etc.) for CLI display.
    * @throws {DuplicateEvolutionError} If evolutionId already exists.
    */
-  createEvolution(evolutionId: string, initialState: EvolutionState = EvolutionState.DRAFT): void {
+  createEvolution(
+    evolutionId: string,
+    initialState: EvolutionState = EvolutionState.DRAFT,
+    meta?: EvolutionMetadata,
+  ): void {
     if (this.evolutions.has(evolutionId)) {
       throw new DuplicateEvolutionError(evolutionId);
     }
     this.evolutions.set(evolutionId, initialState);
     this.history.set(evolutionId, []);
+    if (meta) this.evolutionMeta.set(evolutionId, meta);
 
     // Emit the initial creation event
     const event = this.buildTransitionEvent(evolutionId, initialState, initialState);
@@ -216,6 +239,38 @@ export class EvolutionStateMachine {
   getHistory(evolutionId: string): EvolutionTransitionEvent[] {
     this.requireEvolution(evolutionId);
     return [...this.history.get(evolutionId)!];
+  }
+
+  /**
+   * List all tracked evolutions with their current state and metadata.
+   * Returns summaries sorted by createdAt ascending.
+   */
+  listEvolutions(): EvolutionSummary[] {
+    const summaries: EvolutionSummary[] = [];
+    for (const [evolutionId, state] of this.evolutions) {
+      const meta = this.evolutionMeta.get(evolutionId);
+      summaries.push({
+        evolutionId,
+        state,
+        targetKind: meta?.targetKind,
+        createdAt: meta?.createdAt,
+      });
+    }
+    summaries.sort((a, b) => {
+      const ta = a.createdAt ?? "";
+      const tb = b.createdAt ?? "";
+      return ta.localeCompare(tb);
+    });
+    return summaries;
+  }
+
+  /**
+   * Get metadata attached to an evolution at creation time.
+   * Returns undefined if no metadata was stored.
+   */
+  getMetadata(evolutionId: string): EvolutionMetadata | undefined {
+    this.requireEvolution(evolutionId);
+    return this.evolutionMeta.get(evolutionId);
   }
 
   // -----------------------------------------------------------------------

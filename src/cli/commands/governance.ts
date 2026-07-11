@@ -291,6 +291,19 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
 	      return runHandoff(rest);
     case "intelligence":
       return runIntelligence(rest);
+    case "evolution": {
+      const { handleEvolutionCommand } = await import("../../governance/evolution-cli.js");
+      const { EvolutionStateMachine } = await import("../../evolution/evolution-state-machine.js");
+      const { ExecutionEvidenceStore } = await import("../../runtime/execution-evidence-store.js");
+      const cwd = process.cwd();
+      // Use a shared state machine instance — in production this would
+      // be wired through dependency injection. For the read-only CLI we
+      // create a fresh one; evolutions must be created programmatically.
+      const stateMachine = new EvolutionStateMachine();
+      const evidenceStore = new ExecutionEvidenceStore(cwd);
+      const deps = { stateMachine, evidenceStore };
+      return handleEvolutionCommand(rest, deps);
+    }
     case "replay": {
       const { handleGovernanceReplayCommand } = await import("./governance-replay.js");
       return handleGovernanceReplayCommand(rest);
