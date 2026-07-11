@@ -23,6 +23,7 @@ import type { PolicyReviewOutcome } from "../../src/governance/policy-review-out
 import type { DriftOutcomeTrace } from "../../src/governance/governance-reporting-builder.js";
 import type { GovernanceExplanation } from "../../src/governance/governance-reporting-types.js";
 import type { CompliancePackage } from "../../src/governance/governance-reporting-types.js";
+import type { ExecutionRef, ExecutionLineageRef } from "../../src/governance/governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -179,6 +180,30 @@ function makeCompliancePackage(
   };
 }
 
+function makeExecutionRef(
+  overrides: Partial<ExecutionRef> = {},
+): ExecutionRef {
+  return {
+    evidenceId: "exec-evidence-1",
+    intentId: "exec-intent-1",
+    outcome: "SUCCESS",
+    completedAt: "2026-07-05T00:00:00.000Z",
+    evidenceHash: "abcdef123456",
+    ...overrides,
+  };
+}
+
+function makeExecutionLineageRef(
+  overrides: Partial<ExecutionLineageRef> = {},
+): ExecutionLineageRef {
+  return {
+    candidateId: "cand-1",
+    intentId: "exec-intent-1",
+    evidenceId: "exec-evidence-1",
+    ...overrides,
+  };
+}
+
 /** Helper to compute expected lineageId for a candidate. */
 function expectedLineageId(candidateId: string): string {
   return createHash("sha256")
@@ -210,6 +235,8 @@ describe("GovernanceLineageBuilder", () => {
       traces: [tr],
       explanations: [expl],
       compliancePackages: [pkg],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const record = buildLineageRecord(cand.candidateId, index);
@@ -220,13 +247,14 @@ describe("GovernanceLineageBuilder", () => {
     const lid = expectedLineageId(cand.candidateId);
     assert.equal(record.lineageId, lid);
 
-    // phasePresence — all true
+    // phasePresence — all true (execution not populated)
     assert.equal(record.phasePresence.p24, true);
     assert.equal(record.phasePresence.p25, true);
     assert.equal(record.phasePresence.p26, true);
     assert.equal(record.phasePresence.p27, true);
     assert.equal(record.phasePresence.p28, true);
     assert.equal(record.phasePresence.p29, true);
+    assert.equal(record.phasePresence.execution, false);
 
     // Shallow refs — all present
     assert.notEqual(record.signalRef, undefined);
@@ -258,6 +286,9 @@ describe("GovernanceLineageBuilder", () => {
     assert.equal(record.complianceRef!.windowStart, ISO_A);
     assert.equal(record.complianceRef!.windowEnd, ISO_B);
 
+    // executionRef is null when no execution data provided
+    assert.equal(record.executionRef, null);
+
     // Boundary flags
     assert.equal(record.readOnly, true);
     assert.equal(record.noPolicyMutation, true);
@@ -279,6 +310,9 @@ describe("GovernanceLineageBuilder", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const record = buildLineageRecord(cand.candidateId, index);
@@ -296,6 +330,7 @@ describe("GovernanceLineageBuilder", () => {
     assert.equal(record.phasePresence.p27, false);
     assert.equal(record.phasePresence.p28, false);
     assert.equal(record.phasePresence.p29, false);
+    assert.equal(record.phasePresence.execution, false);
 
     // candidateRef present
     assert.notEqual(record.candidateRef, undefined);
@@ -307,6 +342,7 @@ describe("GovernanceLineageBuilder", () => {
     assert.equal(record.traceRef, undefined);
     assert.equal(record.explanationRef, undefined);
     assert.equal(record.complianceRef, undefined);
+    assert.equal(record.executionRef, null);
   });
 
   // -----------------------------------------------------------------------
@@ -380,6 +416,8 @@ describe("GovernanceLineageBuilder", () => {
       traces: [],
       explanations: [],
       compliancePackages: [pkg],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const lidA = expectedLineageId("cand-a");
@@ -415,6 +453,9 @@ describe("GovernanceLineageBuilder", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const result = buildLineageRecord("cand-unknown", index);
@@ -488,6 +529,9 @@ describe("GovernanceLineageBuilder", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const lid1 = expectedLineageId("cand-1");
@@ -520,6 +564,9 @@ describe("GovernanceLineageBuilder", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
     const index2 = buildLineageIndex({
       signals: [],
@@ -527,6 +574,9 @@ describe("GovernanceLineageBuilder", () => {
       outcomes: [],
       traces: [],
       explanations: [],
+      compliancePackages: [],
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     const rec1 = buildLineageRecord("cand-det", index1);
@@ -581,6 +631,8 @@ describe("GovernanceLineageBuilder", () => {
         traces: [tr],
         explanations: [expl],
         compliancePackages: [pkg],
+        executionEvidence: [],
+        executionLineageRefs: [],
       });
     });
 
@@ -591,5 +643,167 @@ describe("GovernanceLineageBuilder", () => {
     assert.equal(tr.outcomeId, "out-1");
     assert.equal(expl.explanationId, "expl-1");
     assert.equal(pkg.packageId, "pkg-1");
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 8: Execution evidence integrated into lineage
+  // -----------------------------------------------------------------------
+
+  it("should produce executionRef when execution evidence and lineage links are provided", () => {
+    const cand = makeCandidate({ candidateId: "cand-exec" });
+    const exec = makeExecutionRef();
+    const link = makeExecutionLineageRef({ candidateId: "cand-exec" });
+
+    const index = buildLineageIndex({
+      signals: [],
+      candidates: [cand],
+      outcomes: [],
+      traces: [],
+      explanations: [],
+      compliancePackages: [],
+      executionEvidence: [exec],
+      executionLineageRefs: [link],
+    });
+
+    const record = buildLineageRecord("cand-exec", index);
+    assert(record !== null);
+    assert.notEqual(record.executionRef, null);
+    assert.equal(record.executionRef!.evidenceId, "exec-evidence-1");
+    assert.equal(record.executionRef!.intentId, "exec-intent-1");
+    assert.equal(record.executionRef!.outcome, "SUCCESS");
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 9: phasePresence.execution is true when link + evidence match
+  // -----------------------------------------------------------------------
+
+  it("should set phasePresence.execution true when link and evidence match", () => {
+    const cand = makeCandidate({ candidateId: "cand-presence" });
+    const exec = makeExecutionRef();
+    const link = makeExecutionLineageRef({ candidateId: "cand-presence" });
+
+    const index = buildLineageIndex({
+      signals: [],
+      candidates: [cand],
+      outcomes: [],
+      traces: [],
+      explanations: [],
+      compliancePackages: [],
+      executionEvidence: [exec],
+      executionLineageRefs: [link],
+    });
+
+    const record = buildLineageRecord("cand-presence", index);
+    assert(record !== null);
+    assert.equal(record.phasePresence.execution, true);
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 10: phasePresence.execution is false when links are empty
+  // -----------------------------------------------------------------------
+
+  it("should set phasePresence.execution false when links are empty, even with evidence present", () => {
+    const cand = makeCandidate({ candidateId: "cand-no-link" });
+    const exec = makeExecutionRef();
+
+    const index = buildLineageIndex({
+      signals: [],
+      candidates: [cand],
+      outcomes: [],
+      traces: [],
+      explanations: [],
+      compliancePackages: [],
+      executionEvidence: [exec],
+      executionLineageRefs: [],
+    });
+
+    const record = buildLineageRecord("cand-no-link", index);
+    assert(record !== null);
+    assert.equal(record.phasePresence.execution, false);
+    assert.equal(record.executionRef, null);
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 11: byIntentId and byEvidenceId index correctly
+  // -----------------------------------------------------------------------
+
+  it("should populate byIntentId and byEvidenceId maps correctly", () => {
+    const candA = makeCandidate({ candidateId: "cand-map-a" });
+    const candB = makeCandidate({ candidateId: "cand-map-b" });
+
+    const execA = makeExecutionRef({
+      evidenceId: "ev-a",
+      intentId: "intent-a",
+    });
+    const execB = makeExecutionRef({
+      evidenceId: "ev-b",
+      intentId: "intent-b",
+    });
+
+    const linkA = makeExecutionLineageRef({
+      candidateId: "cand-map-a",
+      intentId: "intent-a",
+      evidenceId: "ev-a",
+    });
+    const linkB = makeExecutionLineageRef({
+      candidateId: "cand-map-b",
+      intentId: "intent-b",
+      evidenceId: "ev-b",
+    });
+
+    const index = buildLineageIndex({
+      signals: [],
+      candidates: [candA, candB],
+      outcomes: [],
+      traces: [],
+      explanations: [],
+      compliancePackages: [],
+      executionEvidence: [execA, execB],
+      executionLineageRefs: [linkA, linkB],
+    });
+
+    const lidA = expectedLineageId("cand-map-a");
+    const lidB = expectedLineageId("cand-map-b");
+
+    // byIntentId
+    assert.deepEqual([...index.byIntentId.get("intent-a")!], [lidA]);
+    assert.deepEqual([...index.byIntentId.get("intent-b")!], [lidB]);
+
+    // byEvidenceId
+    assert.deepEqual([...index.byEvidenceId.get("ev-a")!], [lidA]);
+    assert.deepEqual([...index.byEvidenceId.get("ev-b")!], [lidB]);
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 12: Deterministic with same execution inputs
+  // -----------------------------------------------------------------------
+
+  it("should produce deterministic lineageIds when execution data is the same", () => {
+    const cand = makeCandidate({ candidateId: "cand-exec-det" });
+    const exec = makeExecutionRef();
+    const link = makeExecutionLineageRef({ candidateId: "cand-exec-det" });
+
+    const opts = {
+      signals: [] as PolicyDriftSignal[],
+      candidates: [cand],
+      outcomes: [] as PolicyReviewOutcome[],
+      traces: [] as DriftOutcomeTrace[],
+      explanations: [] as GovernanceExplanation[],
+      compliancePackages: [] as CompliancePackage[],
+      executionEvidence: [exec] as readonly ExecutionRef[],
+      executionLineageRefs: [link] as readonly ExecutionLineageRef[],
+    };
+
+    const index1 = buildLineageIndex(opts);
+    const index2 = buildLineageIndex(opts);
+
+    const rec1 = buildLineageRecord("cand-exec-det", index1);
+    const rec2 = buildLineageRecord("cand-exec-det", index2);
+    assert(rec1 !== null);
+    assert(rec2 !== null);
+
+    assert.equal(rec1.lineageId, rec2.lineageId);
+    assert.equal(rec1.executionRef!.evidenceId, rec2.executionRef!.evidenceId);
+    assert.equal(rec1.executionRef!.intentId, rec2.executionRef!.intentId);
   });
 });

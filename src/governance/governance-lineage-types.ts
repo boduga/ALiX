@@ -16,6 +16,8 @@
  * @module
  */
 
+import type { ExecutionRef } from "./governance-execution-types.js";
+
 // ---------------------------------------------------------------------------
 // Shallow phase refs (p24–p29)
 // ---------------------------------------------------------------------------
@@ -121,6 +123,7 @@ export interface LineageRecord {
     p27: boolean;
     p28: boolean;
     p29: boolean;
+    execution: boolean;
   };
 
   // ---- Shallow phase refs ----
@@ -137,6 +140,8 @@ export interface LineageRecord {
   explanationRef?: ExplanationRef;
   /** Optional reference to P29 compliance package. */
   complianceRef?: ComplianceRef;
+  /** Optional reference to execution evidence (X3a bridge). */
+  executionRef: ExecutionRef | null;
 
   // ---- Boundary flags (all readonly literal `true`) ----
 
@@ -171,4 +176,8 @@ export interface LineageIndex {
   byOutcomeType: Map<string, string[]>;
   /** Maps compliance packageId → lineageId[]. */
   byCompliancePackageId: Map<string, string[]>;
+  /** Maps execution intentId → lineageId[]. */
+  readonly byIntentId: ReadonlyMap<string, readonly string[]>;
+  /** Maps execution evidenceId → lineageId[]. */
+  readonly byEvidenceId: ReadonlyMap<string, readonly string[]>;
 }

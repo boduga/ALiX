@@ -29,6 +29,7 @@ import type {
   ExplanationRef,
   ComplianceRef,
 } from "./governance-lineage-types.js";
+import type { ExecutionRef, ExecutionLineageRef } from "./governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -73,7 +74,9 @@ export function buildLineageIndex(opts: {
   outcomes: PolicyReviewOutcome[];
   traces: DriftOutcomeTrace[];
   explanations: GovernanceExplanation[];
-  compliancePackages?: CompliancePackage[];
+  compliancePackages: CompliancePackage[];
+  executionEvidence: readonly ExecutionRef[];
+  executionLineageRefs: readonly ExecutionLineageRef[];
   /** Optional timestamp. Uses deterministic sentinel when absent (cross-run stability). */
   assembledAt?: string;
 }): LineageIndex {
@@ -114,6 +117,8 @@ export function buildLineageIndex(opts: {
   const bySignalKind = new Map<string, string[]>();
   const byOutcomeType = new Map<string, string[]>();
   const byCompliancePackageId = new Map<string, string[]>();
+  const byIntentId = new Map<string, string[]>();
+  const byEvidenceId = new Map<string, string[]>();
   const records = new Map<string, LineageRecord>();
 
   // Deterministic iteration over candidates (sorted by candidateId)
@@ -132,11 +137,18 @@ export function buildLineageIndex(opts: {
     );
 
     // Compliance packages that reference this candidate via traceSummary
-    const packages = opts.compliancePackages
-      ? opts.compliancePackages.filter((p) =>
-          p.traceSummary.some((t) => t.candidateId === candidate.candidateId),
-        )
-      : [];
+    const packages = opts.compliancePackages.filter((p) =>
+      p.traceSummary.some((t) => t.candidateId === candidate.candidateId),
+    );
+
+    // ---- Execution evidence matching ----
+    const link = opts.executionLineageRefs.find(
+      (l) => l.candidateId === candidate.candidateId,
+    );
+    const matchedExecutionRef = link
+      ? opts.executionEvidence.find((e) => e.evidenceId === link.evidenceId)
+      : undefined;
+    const phasePresenceExecution = matchedExecutionRef !== undefined;
 
     const lineageId = computeLineageId(candidate.candidateId);
 
@@ -203,6 +215,7 @@ export function buildLineageIndex(opts: {
         p27: traceRef !== undefined,
         p28: explanationRef !== undefined,
         p29: complianceRef !== undefined,
+        execution: phasePresenceExecution,
       },
       signalRef,
       candidateRef,
@@ -210,6 +223,7 @@ export function buildLineageIndex(opts: {
       traceRef,
       explanationRef,
       complianceRef,
+      executionRef: matchedExecutionRef ?? null,
       readOnly: true as const,
       noPolicyMutation: true as const,
       noThresholdChange: true as const,
@@ -251,6 +265,18 @@ export function buildLineageIndex(opts: {
         byCompliancePackageId.set(pkg.packageId, [lineageId]);
       }
     }
+
+    // ---- Index by intentId and evidenceId ----
+    if (link) {
+      byIntentId.set(link.intentId, [
+        ...(byIntentId.get(link.intentId) ?? []),
+        lineageId,
+      ]);
+      byEvidenceId.set(link.evidenceId, [
+        ...(byEvidenceId.get(link.evidenceId) ?? []),
+        lineageId,
+      ]);
+    }
   }
 
   // Return the index with embedded records for buildLineageRecord retrieval.
@@ -261,6 +287,8 @@ export function buildLineageIndex(opts: {
     bySignalKind,
     byOutcomeType,
     byCompliancePackageId,
+    byIntentId,
+    byEvidenceId,
     _records: records,
   };
 
