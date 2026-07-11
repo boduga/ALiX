@@ -79,6 +79,8 @@ export class RetryController {
   private readonly tokens = new Map<string, CancellationToken>();
   /** Set to true when cancel() is called — prevents further retries. */
   private retryAborted = false;
+  /** Set to true when the loop breaks due to an unknown executor error. */
+  private loopAborted = false;
 
   constructor(
     private readonly stateMachine: ExecutionStateMachine,
@@ -178,7 +180,13 @@ export class RetryController {
       } catch (err) {
         // If the executor threw due to cancellation, handle gracefully
         if (err instanceof ExecutionCancelledError) {
-          // State machine cancel was already called — just return
+          // Transition the state machine to CANCELLED so the execution
+          // isn't left dangling in RUNNING
+          try {
+            await this.stateMachine.cancel(exId);
+          } catch {
+            // Best-effort: the state machine may have already transitioned
+          }
           return {
             executionId: exId,
             intentId: intent.intentId,
@@ -188,6 +196,7 @@ export class RetryController {
         }
         // Unknown error — treat as failure
         this.stateMachine.transitionTo(exId, ExecutionState.FAILED);
+        this.loopAborted = true;
         lastResult = {
           executionId: exId,
           intentId: intent.intentId,
@@ -236,14 +245,24 @@ export class RetryController {
           // Check cancellation during backoff
           const cancelled = await this.sleepWithCancellation(delay, token);
           if (cancelled) {
+            // If retry was aborted via controller.cancel(), return CANCELLED
+            // rather than FAILED, so the caller knows cancellation won
+            if (this.retryAborted) {
+              return {
+                executionId: lastResult?.executionId ?? "",
+                intentId: intent.intentId,
+                state: ExecutionState.CANCELLED,
+              };
+            }
             return lastResult;
           }
         }
       }
     }
 
-    // All retries exhausted (only if we had retries to exhaust)
-    if (this.policy.maxAttempts > 1) {
+    // All retries exhausted (only if we had retries to exhaust
+    // and the loop wasn't aborted by an unknown error)
+    if (this.policy.maxAttempts > 1 && !this.loopAborted) {
       this.emitRetryEvidence(
         intent,
         this.policy.maxAttempts,
@@ -268,7 +287,10 @@ export class RetryController {
     if (this.retryAborted) return true;
 
     return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => resolve(false), ms);
+      const timer = setTimeout(() => {
+        clearInterval(interval);
+        resolve(false);
+      }, ms);
 
       // Poll cancellation every 50ms to keep latency low.
       // Checks both the runtime-level abort flag and the

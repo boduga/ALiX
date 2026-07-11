@@ -266,8 +266,12 @@ export class ExecutionStateMachine implements ExecutionRuntime {
     }
 
     this.updateContext(executionId, { state: to });
+
+    // Read fresh context after all updates — updateContext replaces the Map
+    // entry, so the original `context` ref at line 247 is stale.
+    const fresh = this.contexts.get(executionId)!;
     const now = new Date().toISOString();
-    this.emitEvidence(context, from, to, now);
+    this.emitEvidence(fresh, from, to, now);
   }
 
   // -----------------------------------------------------------------------
