@@ -4,6 +4,7 @@
  * Foundation types for governance compliance reporting:
  * - CompliancePackage: aggregated compliance snapshot with boundary flags
  * - 4 summary types: SignalSummary, CandidateSummary, OutcomeSummary, TraceSummary
+ * - 1 execution summary type: ComplianceExecutionSummary (from X3a bridge)
  * - 2 supporting types: DriftCorrelationAnalytics, GovernanceExplanation
  *
  * All types are pure data — no stores, no fs, no execution adapters.
@@ -11,6 +12,12 @@
  *
  * @module
  */
+
+// ---------------------------------------------------------------------------
+// Cross-module imports
+// ---------------------------------------------------------------------------
+
+import type { ComplianceExecutionSummary } from "./governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Supporting types (consumed by CompliancePackage)
@@ -132,6 +139,11 @@ export interface CompliancePackage {
   candidateSummary: ComplianceCandidateSummary[];
   outcomeSummary: ComplianceOutcomeSummary[];
   traceSummary: ComplianceTraceSummary[];
+
+  // Execution evidence
+  executionEvidenceCount: number;
+  executionOutcomes: { readonly success: number; readonly failed: number; readonly partial: number; };
+  executionSummary: readonly ComplianceExecutionSummary[];
 
   // Analytics & explanations
   correlationAnalytics: DriftCorrelationAnalytics;

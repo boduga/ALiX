@@ -1,24 +1,26 @@
-# Task 1: P30.1 — Lineage Types
-
-**Status:** DONE
-
-**Files created:**
-- `src/governance/governance-lineage-types.ts` — Foundation types: 6 shallow phase refs (SignalRef, CandidateRef, OutcomeRef, TraceRef, ExplanationRef, ComplianceRef), LineageRecord with phasePresence (p24–p29) and 5 boundary flags, LineageIndex with 4 lookup maps
-- `tests/governance/governance-lineage-types.test.ts` — 3 passing tests covering all 6 phase ref shapes, phasePresence booleans, and boundary flags
-
-**Test summary:** 3/3 passing
-
-**Types defined:**
-- `SignalRef` — signalId, signalKind, windowEnd
-- `CandidateRef` — candidateId, title, status
-- `OutcomeRef` — outcomeId, candidateId, outcomeType
-- `TraceRef` — outcomeId, candidateId, signalKind
-- `ExplanationRef` — explanationId, type
-- `ComplianceRef` — packageId, windowStart, windowEnd
-- `LineageRecord` — lineageId, assembledAt, phasePresence (p24–p29 booleans), 6 optional shallow refs, 5 boundary flags (readOnly, noPolicyMutation, noThresholdChange, noAutoAdoption, noRanking)
-- `LineageIndex` — byCandidateId, bySignalKind, byOutcomeType, byCompliancePackageId (all `Map<string, string[]>`)
-
-**Key design decisions:**
-- All phase refs are deliberately shallow — no full phase objects embedded
-- Boundary flags are readonly literal `true` following existing P24/P25/P29 patterns
-- Store-independent pure types — no stores, no fs, no execution adapters
+Status: DONE
+Commits: 48784fec
+Test results:
+```
+▶ GovernanceExecutionTypes
+  ✔ ExecutionRef can be instantiated with required fields (0.446604ms)
+  ✔ ExecutionLineageRef can be instantiated with required fields (0.077623ms)
+  ✔ ComplianceExecutionSummary can be instantiated with required fields (0.069154ms)
+  ✔ ExecutionRef accepts all 3 outcome literals (SUCCESS, FAILED, PARTIAL) (0.059363ms)
+  ✔ ComplianceExecutionSummary accepts all 3 outcome literals (0.066017ms)
+  ✔ outcome property value is one of the 3 valid values at runtime (0.103565ms)
+  ✔ ExecutionRef fields are readonly (compile-time check) (0.054082ms)
+  ✔ ExecutionLineageRef fields are readonly (compile-time check) (0.060617ms)
+  ✔ ComplianceExecutionSummary fields are readonly (compile-time check) (0.069279ms)
+  ✔ ExecutionRef structurally excludes artifacts, startedAt, summary, verificationPassed (0.109483ms)
+  ✔ ExecutionLineageRef structurally excludes artifacts, startedAt, summary, verificationPassed (0.061607ms)
+✔ GovernanceExecutionTypes (1.876791ms)
+ℹ tests 11
+ℹ suites 1
+ℹ pass 11
+ℹ fail 0
+```
+tsc --noEmit: clean
+Concerns:
+- Readonly tests use @ts-expect-error directives. If readonly is removed from an interface field, the corresponding @ts-expect-error becomes "unused" and tsc --noEmit catches it (TS2578). Runtime assertions are placed before the forbidden assignments to avoid false negatives (readonly is a compile-time constraint in TypeScript, not enforced at runtime on plain objects).
+- Excess property structural tests confirm ExecutionRef lacks artifacts, startedAt, summary, and verificationPassed. Multiple forbidden fields in one object literal only fire one TS2353 error (on the first excess property), so only one @ts-expect-error is needed for the combined case. Each field is also tested individually.

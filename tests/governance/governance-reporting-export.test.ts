@@ -83,6 +83,19 @@ function minimalPackage(
       },
     ],
 
+    executionEvidenceCount: 1,
+    executionOutcomes: { success: 1, failed: 0, partial: 0 },
+    executionSummary: [
+      {
+        evidenceId: "ev-1",
+        intentId: "intent-1",
+        outcome: "SUCCESS",
+        completedAt: "2026-06-20T09:00:00.000Z",
+        verificationPassed: true,
+        summary: "Execution completed successfully.",
+      },
+    ],
+
     correlationAnalytics: {
       signalToOutcomeCorrelations: [
         {
