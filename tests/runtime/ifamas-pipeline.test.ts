@@ -182,7 +182,7 @@ describe("IFÁ-MAS Passive Diagnostic Pipeline", () => {
     const __dirname = fileURLToPath(new URL(".", import.meta.url));
     const sourcePath = resolve(
       __dirname,
-      "../../../src/runtime/ifamas-pipeline.ts",
+      "../../src/runtime/ifamas-pipeline.ts",
     );
     const source = readFileSync(sourcePath, "utf8");
 

@@ -194,6 +194,9 @@ describe("alix governance report compliance (P29.3)", () => {
             timeToOutcomeDays: 5.0,
           },
         ],
+        executionEvidenceCount: 0,
+        executionOutcomes: { success: 0, failed: 0, partial: 0 },
+        executionSummary: [],
         correlationAnalytics: {
           signalToOutcomeCorrelations: [],
           evidenceCoverage: { totalSignals: 0, withOutcome: 0, coverageRate: 0 },
