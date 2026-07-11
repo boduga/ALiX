@@ -57,7 +57,7 @@ describe("alix explain proposal — CLI", () => {
     expect(output).toContain("Outcome");
     expect(output).toContain("not available");
     expect(output).toContain("Explanation Integrity");
-    expect(output).toContain("0/6 layers available");
+    expect(output).toContain("0/7 layers available");
   });
 
   it("--json: prints valid JSON matching ProposalExplanation contract", async () => {
@@ -66,7 +66,7 @@ describe("alix explain proposal — CLI", () => {
     const output = terminalOutput();
     const parsed = JSON.parse(output);
     expect(parsed.proposalId).toBe("prop-1");
-    expect(parsed.explanationIntegrity.totalLayers).toBe(6);
+    expect(parsed.explanationIntegrity.totalLayers).toBe(7);
     // Assert the full contract shape that P8.5b Dashboard will consume:
     expect(parsed.explanationIntegrity.completenessPercent).toBe(0);
     expect(parsed.outcome).toHaveProperty("status");
