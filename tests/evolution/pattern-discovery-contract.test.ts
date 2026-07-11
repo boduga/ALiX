@@ -316,6 +316,15 @@ describe("validateEvolutionCandidate", () => {
     assert.ok(result.errors.some((e) => e.includes("target")));
   });
 
+  it("rejects array as target", () => {
+    const result = validateEvolutionCandidate(
+      makeEvolutionCandidate({ target: [] as unknown as EvolutionTarget }),
+    );
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("target")));
+    assert.ok(result.errors.some((e) => e.includes("target")));
+  });
+
   it("rejects empty evidenceIds", () => {
     const result = validateEvolutionCandidate(makeEvolutionCandidate({ evidenceIds: [] }));
     assert.equal(result.valid, false);
@@ -383,6 +392,14 @@ describe("validateEvolutionProposalDraft", () => {
     assert.ok(result.errors.some((e) => e.includes("target")));
   });
 
+  it("rejects array as target", () => {
+    const result = validateEvolutionProposalDraft(
+      makeEvolutionProposalDraft({ target: [] as unknown as EvolutionTarget }),
+    );
+    assert.equal(result.valid, false);
+    assert.ok(result.errors.some((e) => e.includes("target")));
+  });
+
   it("rejects confidence outside [0, 1]", () => {
     const result = validateEvolutionProposalDraft(makeEvolutionProposalDraft({ confidence: 1.5 }));
     assert.equal(result.valid, false);
@@ -430,6 +447,7 @@ describe("DiscoveryResult", () => {
     assert.equal(result.candidates.length, 1);
     assert.equal(result.drafts.length, 1);
     assert.equal(result.metadata.evidenceScanned, 100);
+    assert.equal(result.metadata.detectionDurationMs, 250);
     assert.equal(result.metadata.strategiesRun, 2);
   });
 

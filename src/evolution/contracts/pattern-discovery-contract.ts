@@ -18,6 +18,7 @@
 
 import type { EvolutionTarget, EvolutionRiskClass } from "./evolution-contract.js";
 import { VALID_EVOLUTION_RISK_CLASSES } from "./evolution-contract.js";
+import type { ValidationResult } from "./evolution-contract.js";
 
 // ---------------------------------------------------------------------------
 // PatternCategory
@@ -203,15 +204,6 @@ export function computeConfidence(input: ConfidenceInput): number {
 }
 
 // ---------------------------------------------------------------------------
-// Validation Result
-// ---------------------------------------------------------------------------
-
-export interface ValidationResult {
-  valid: boolean;
-  errors: string[];
-}
-
-// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -254,7 +246,7 @@ export function validatePatternObservation(value: unknown): ValidationResult {
     errors.push(`category must be one of: ${VALID_PATTERN_CATEGORIES.join(", ")}`);
   }
 
-  if (typeof v.frequency !== "number" || (v.frequency as number) < 0) {
+  if (typeof v.frequency !== "number" || Number.isNaN(v.frequency) || (v.frequency as number) < 0) {
     errors.push("frequency required and must be a non-negative number");
   }
 
@@ -295,7 +287,7 @@ export function validateEvolutionCandidate(value: unknown): ValidationResult {
     errors.push("confidence required and must be between 0 and 1");
   }
 
-  if (!v.target || typeof v.target !== "object") {
+  if (!v.target || Array.isArray(v.target) || typeof v.target !== "object") {
     errors.push("target required and must be an EvolutionTarget object");
   }
 
@@ -303,7 +295,7 @@ export function validateEvolutionCandidate(value: unknown): ValidationResult {
   if (!isNonEmptyString(v.expectedEffect)) errors.push("expectedEffect required and must be non-empty");
 
   if (!isNonEmptyString(v.riskClass) || !isValidRiskClass(v.riskClass as string)) {
-    errors.push("riskClass must be one of: low, medium, high");
+    errors.push(`riskClass must be one of: ${VALID_EVOLUTION_RISK_CLASSES.join(", ")}`);
   }
 
   if (!Array.isArray(v.evidenceIds) || (v.evidenceIds as unknown[]).length === 0) {
@@ -331,7 +323,7 @@ export function validateEvolutionProposalDraft(value: unknown): ValidationResult
   if (!isNonEmptyString(v.title)) errors.push("title required and must be non-empty");
   if (!isNonEmptyString(v.description)) errors.push("description required and must be non-empty");
 
-  if (!v.target || typeof v.target !== "object") {
+  if (!v.target || Array.isArray(v.target) || typeof v.target !== "object") {
     errors.push("target required and must be an EvolutionTarget object");
   }
 
