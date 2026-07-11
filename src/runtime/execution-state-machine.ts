@@ -127,8 +127,12 @@ export class ExecutionStateMachine implements ExecutionRuntime {
    *
    * This is the low-level entry point for creating executions at a
    * specific state. Use `execute()` for the full lifecycle.
+   *
+   * @param intent - The execution intent.
+   * @param attemptNumber - Optional attempt number (defaults to 1).
+   *   Used by RetryController to track retry sequence.
    */
-  createExecution(intent: ExecutionIntent): string {
+  createExecution(intent: ExecutionIntent, attemptNumber?: number): string {
     const executionId = generateExecutionId();
 
     if (this.contexts.has(executionId)) {
@@ -140,7 +144,7 @@ export class ExecutionStateMachine implements ExecutionRuntime {
       executionId,
       intentId: intent.intentId,
       state: ExecutionState.CREATED,
-      attemptNumber: 1,
+      attemptNumber: attemptNumber ?? 1,
       createdAt: now,
       metadata: {},
     };
@@ -159,16 +163,11 @@ export class ExecutionStateMachine implements ExecutionRuntime {
 
     // CREATED → VALIDATING
     this.transitionTo(executionId, ExecutionState.VALIDATING);
-
     // VALIDATING → READY
     this.transitionTo(executionId, ExecutionState.READY);
-
-    // READY → RUNNING
-    this.updateContext(executionId, { startedAt: new Date() });
+    // READY → RUNNING (transitionTo auto-sets startedAt)
     this.transitionTo(executionId, ExecutionState.RUNNING);
-
-    // RUNNING → SUCCEEDED (no external action in X4.1)
-    this.updateContext(executionId, { completedAt: new Date() });
+    // RUNNING → SUCCEEDED (transitionTo auto-sets completedAt)
     this.transitionTo(executionId, ExecutionState.SUCCEEDED);
 
     return {
@@ -222,6 +221,18 @@ export class ExecutionStateMachine implements ExecutionRuntime {
   }
 
   // -----------------------------------------------------------------------
+  // Public — accessors
+  // -----------------------------------------------------------------------
+
+  /**
+   * Return the latest evidenceId emitted for the given execution.
+   * Returns undefined if no evidence has been emitted yet.
+   */
+  getLatestEvidenceId(executionId: string): string | undefined {
+    return this.latestEvidenceIds.get(executionId);
+  }
+
+  // -----------------------------------------------------------------------
   // Public — transition engine (testable)
   // -----------------------------------------------------------------------
 
@@ -243,6 +254,15 @@ export class ExecutionStateMachine implements ExecutionRuntime {
     const allowed = ALLOWED_TRANSITIONS[from];
     if (!allowed.includes(to)) {
       throw new IllegalStateTransitionError(executionId, from, to);
+    }
+
+    // Auto-set timestamps on lifecycle boundaries
+    if (to === ExecutionState.RUNNING && !context.startedAt) {
+      this.updateContext(executionId, { startedAt: new Date() });
+    }
+    if (TERMINAL_STATES.has(to) || to === ExecutionState.FAILED) {
+      // FAILED is terminal for execution outcome though it can transition to ROLLED_BACK
+      this.updateContext(executionId, { completedAt: new Date() });
     }
 
     this.updateContext(executionId, { state: to });

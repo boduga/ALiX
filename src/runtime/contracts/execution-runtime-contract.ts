@@ -91,7 +91,9 @@ export type ExecutionEventType =
   | "ExecutionCompleted"
   | "ExecutionFailed"
   | "ExecutionCancelled"
-  | "ExecutionRollbackCompleted";
+  | "ExecutionRollbackCompleted"
+  | "ExecutionRetryAttempted"
+  | "ExecutionRetryExhausted";
 
 /**
  * Boundary interface between the runtime and evidence persistence.
@@ -107,6 +109,33 @@ export interface ExecutionEvidenceEmitter {
    * persistence, or collect in memory for testing.
    */
   emit(eventType: ExecutionEventType, evidence: ExecutionEvidence): void;
+}
+
+// ─── Retry Policy ─────────────────────────────────────────────────────
+
+/**
+ * Backoff strategy between retry attempts.
+ */
+export type BackoffStrategy =
+  | { kind: "fixed"; intervalMs: number }
+  | { kind: "exponential"; baseMs: number; maxMs: number }
+  | { kind: "immediate" };
+
+/**
+ * Retry policy for execution attempts.
+ *
+ * Defines boundaries and backoff behavior when an execution attempt
+ * reaches the FAILED state.
+ *
+ * @invariant maxAttempts >= 1
+ */
+export interface RetryPolicy {
+  /** Maximum number of execution attempts (including the first). */
+  maxAttempts: number;
+  /** Failure types eligible for retry (match against summary prefix). */
+  retryableFailures: string[];
+  /** Backoff strategy between attempts. */
+  backoffStrategy: BackoffStrategy;
 }
 
 // ─── Runtime Controller Interface ────────────────────────────────────
