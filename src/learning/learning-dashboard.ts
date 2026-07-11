@@ -109,6 +109,8 @@ export async function buildDashboardReport(opts: DashboardOptions): Promise<Dash
       proposalId,
       cwd: opts.cwd,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
     explanations.push(expl);
   }

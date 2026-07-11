@@ -108,6 +108,8 @@ async function runProposalExplain(args: string[]): Promise<void> {
     proposalId,
     cwd: process.cwd(),
     windowDays,
+    executionEvidence: [],
+    executionLineageRefs: [],
   });
 
   if (jsonMode) {

@@ -45,6 +45,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.proposalId).toBe("prop-1");
@@ -54,7 +56,7 @@ describe("assembleProposalExplanation", () => {
     expect(result.governance.status).toBe("not_available");
     expect(result.learning.totalSignals).toBe(0);
     expect(result.calibration.profilesByTarget).toEqual({});
-    expect(result.explanationIntegrity.totalLayers).toBe(6);
+    expect(result.explanationIntegrity.totalLayers).toBe(7);
     expect(result.explanationIntegrity.layersAvailable).toBe(0);
     expect(result.explanationIntegrity.completenessPercent).toBe(0);
     expect(result.explanationIntegrity.fallbackJoinsUsed).toBe(false);
@@ -93,6 +95,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.outcome.status).toBe("available");
@@ -138,6 +142,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.recommendation.status).toBe("available");
@@ -187,6 +193,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.risk.status).toBe("available");
@@ -241,6 +249,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.governance.status).toBe("available");
@@ -291,10 +301,12 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.explanationIntegrity.layersAvailable).toBe(2);
-    expect(result.explanationIntegrity.completenessPercent).toBeCloseTo(33.3, 1);
+    expect(result.explanationIntegrity.completenessPercent).toBeCloseTo(28.6, 1);
   });
 
   // -------------------------------------------------------------------------
@@ -356,6 +368,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
@@ -408,6 +422,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
@@ -479,6 +495,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.explanationIntegrity.evidenceChainUsed).toBe(true);
@@ -525,6 +543,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.learning.totalSignals).toBe(1);
@@ -607,6 +627,8 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
 
     expect(result.calibration.profilesByTarget).toHaveProperty(

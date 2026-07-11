@@ -13,6 +13,7 @@ export interface ProposalExplanation {
   recommendation: RecommendationLayer | UnavailableLayer;
   risk: RiskLayer | UnavailableLayer;
   governance: GovernanceLayer | UnavailableLayer;
+  execution: ExecutionLayer | UnavailableLayer;
   learning: LearningLayer;
   calibration: CalibrationLayer;
   explanationIntegrity: ExplanationIntegrity;
@@ -64,6 +65,17 @@ export interface GovernanceLayer {
   joinPath: JoinPath;
 }
 
+export interface ExecutionLayer {
+  readonly status: "available";
+  readonly evidenceId: string;
+  readonly intentId: string;
+  readonly evidenceHash: string;
+  readonly outcome: "SUCCESS" | "FAILED" | "PARTIAL";
+  readonly completedAt: string;
+  readonly verificationPassed: boolean;
+  readonly summary: string;
+}
+
 export interface LearningLayer {
   /** Registry-aligned: keys mirror the P8.5a.2 AdapterRegistry. For P8.5c the
    * keys are "recommendation", "risk", "governance". Future adapters drop in
@@ -83,6 +95,7 @@ export interface ExplanationIntegrity {
   recommendationFound: boolean;
   riskFound: boolean;
   governanceFound: boolean;
+  executionFound: boolean;
   learningFound: boolean;
   calibrationFound: boolean;
   evidenceChainUsed: boolean;

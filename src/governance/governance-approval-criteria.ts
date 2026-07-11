@@ -135,6 +135,8 @@ export async function runGovernanceCriteria(opts: {
       proposalId: proposal.id,
       cwd,
       windowDays,
+      executionEvidence: [],
+      executionLineageRefs: [],
     });
     integrityScore = explanation.explanationIntegrity.completenessPercent;
     if (integrityScore < EXPLANATION_INTEGRITY_THRESHOLD) {
