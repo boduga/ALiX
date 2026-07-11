@@ -19,7 +19,10 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 
-import { handleGovernanceLineageCommand } from "../../src/cli/commands/governance-lineage.js";
+import {
+  handleGovernanceLineageCommand,
+  renderLineageShow,
+} from "../../src/cli/commands/governance-lineage.js";
 import {
   buildLineageIndex,
   buildLineageRecord,
@@ -234,6 +237,11 @@ describe("P30.3 — governance-lineage CLI", () => {
       assert.ok(output.includes("P25"), "output should mention P25 phase");
       assert.ok(output.includes("P26"), "output should mention P26 phase");
       assert.ok(output.includes("readOnly"), "output should mention readOnly boundary flag");
+      assert.ok(output.includes("Execution Evidence"), "output should include Execution Evidence section");
+      assert.ok(
+        output.includes("not available (evidence persistence not enabled)"),
+        "output should indicate evidence not available when none loaded",
+      );
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
@@ -424,5 +432,55 @@ describe("P30.3 — governance-lineage CLI", () => {
     assert(record !== null);
     assert.equal(record.phasePresence.p24, true);
     assert.equal(record.phasePresence.p25, true);
+  });
+
+  // -----------------------------------------------------------------------
+  // Test 7: renderLineageShow shows execution evidence when present
+  // -----------------------------------------------------------------------
+
+  it("should render execution evidence details when present in the record", () => {
+    const cand = makeCandidate({ candidateId: "cand-evidence" });
+
+    const index = buildLineageIndex({
+      signals: [],
+      candidates: [cand],
+      outcomes: [],
+      traces: [],
+      explanations: [],
+      compliancePackages: [],
+      executionEvidence: [
+        {
+          evidenceId: "ev-1",
+          intentId: "int-1",
+          outcome: "SUCCESS" as const,
+          completedAt: "2026-07-10T00:00:00.000Z",
+          evidenceHash: "0a1b2c3d",
+        },
+      ],
+      executionLineageRefs: [
+        {
+          candidateId: "cand-evidence",
+          intentId: "int-1",
+          evidenceId: "ev-1",
+        },
+      ],
+    });
+
+    const record = buildLineageRecord("cand-evidence", index);
+    assert(record !== null);
+    assert.equal(record.phasePresence.execution, true, "execution phase should be present");
+    assert.equal(record.executionRef?.evidenceId, "ev-1");
+
+    const output = renderLineageShow(record);
+    assert.ok(output.includes("Execution Evidence"), "should include Execution Evidence header");
+    assert.ok(output.includes("ev-1"), "should show evidence ID");
+    assert.ok(output.includes("int-1"), "should show intent ID");
+    assert.ok(output.includes("SUCCESS"), "should show outcome");
+    assert.ok(output.includes("0a1b2c3d"), "should show evidence hash");
+    assert.ok(output.includes("2026-07-10"), "should show completion timestamp");
+    assert.ok(
+      !output.includes("not available"),
+      "should not include 'not available' when evidence is present",
+    );
   });
 });

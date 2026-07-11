@@ -39,11 +39,14 @@ import type {
   RecommendationLayer,
   RiskLayer,
   GovernanceLayer,
+  ExecutionLayer,
   LearningLayer,
   CalibrationLayer,
   UnavailableLayer,
   ExplanationIntegrity,
 } from "./proposal-explanation-types.js";
+import type { ExecutionEvidence } from "../../runtime/contracts/execution-intent-contract.js";
+import type { ExecutionLineageRef } from "../../governance/governance-execution-types.js";
 
 // ---------------------------------------------------------------------------
 // Constants — store directory layout (mirrors per-store STORE_DIR).
@@ -62,6 +65,8 @@ export interface AssembleProposalExplanationOptions {
   proposalId: string;
   cwd: string;
   windowDays: number;
+  executionEvidence: readonly ExecutionEvidence[];
+  executionLineageRefs: readonly ExecutionLineageRef[];
 }
 
 // ---------------------------------------------------------------------------
@@ -112,7 +117,7 @@ async function resolveChainReachable(
 export async function assembleProposalExplanation(
   opts: AssembleProposalExplanationOptions,
 ): Promise<ProposalExplanation> {
-  const { proposalId, cwd, windowDays } = opts;
+  const { proposalId, cwd, windowDays, executionEvidence, executionLineageRefs } = opts;
   const generatedAt = new Date().toISOString();
 
   // Track integrity flags across all layers.
@@ -365,7 +370,26 @@ export async function assembleProposalExplanation(
     }
   }
 
-  // ---- Layer 5: Learning Signals (chain → heuristic) -------------------
+  // ---- Layer 5: Execution (passed as parameters — not from store) ------
+  const link = executionLineageRefs.find((ref) => ref.candidateId === proposalId);
+  const matched = link
+    ? executionEvidence.find((e) => e.evidenceId === link.evidenceId)
+    : undefined;
+
+  const execution: ExecutionLayer | UnavailableLayer = matched
+    ? {
+        status: "available",
+        evidenceId: matched.evidenceId,
+        intentId: matched.intentId,
+        evidenceHash: matched.evidenceHash,
+        outcome: matched.outcome,
+        completedAt: matched.completedAt,
+        verificationPassed: matched.verificationPassed,
+        summary: matched.summary,
+      }
+    : { status: "not_available", reason: `no ExecutionEvidence for proposal ${proposalId}` };
+
+  // ---- Layer 6: Learning Signals (chain → heuristic) -------------------
   // String heuristics are LOCKED to Learning + Calibration layers only.
   const learningStore = new LearningStore(join(cwd, LEARNING_DIR));
   const allSignals = await learningStore.querySignals({ windowDays }).catch(() => []);
@@ -464,6 +488,7 @@ export async function assembleProposalExplanation(
   };
 
   // ---- ExplanationIntegrity (refined — now real) -----------------------
+  const executionFound = execution.status === "available";
   const outcomeFound = outcome.status === "available";
   const recommendationFound = recommendation.status === "available";
   const riskFound = risk.status === "available";
@@ -475,6 +500,7 @@ export async function assembleProposalExplanation(
     recommendationFound,
     riskFound,
     governanceFound,
+    executionFound,
     learningFound,
     calibrationFound,
   ];
@@ -489,14 +515,15 @@ export async function assembleProposalExplanation(
     recommendationFound,
     riskFound,
     governanceFound,
+    executionFound,
     learningFound,
     calibrationFound,
     evidenceChainUsed,
     fallbackJoinsUsed,
     incompleteChainLayers,
-    totalLayers: 6,
+    totalLayers: 7,
     layersAvailable,
-    completenessPercent: Math.round((layersAvailable / 6) * 1000) / 10,
+    completenessPercent: Math.round((layersAvailable / 7) * 1000) / 10,
   };
 
   return {
@@ -507,6 +534,7 @@ export async function assembleProposalExplanation(
     recommendation,
     risk,
     governance,
+    execution,
     learning,
     calibration,
     explanationIntegrity,

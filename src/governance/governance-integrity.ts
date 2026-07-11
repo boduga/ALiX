@@ -78,6 +78,8 @@ export async function buildGovernanceIntegrity(opts: {
         proposalId: review.proposalId,
         cwd,
         windowDays,
+        executionEvidence: [],
+        executionLineageRefs: [],
       }),
     ),
   );

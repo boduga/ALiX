@@ -773,6 +773,8 @@ async function runGovernanceExplain(args: string[]): Promise<void> {
     proposalId,
     cwd,
     windowDays: 90,
+    executionEvidence: [],
+    executionLineageRefs: [],
   });
 
   // Query evidence events for governance approval history

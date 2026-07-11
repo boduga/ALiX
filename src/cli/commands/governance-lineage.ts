@@ -160,6 +160,11 @@ async function loadData(cwd: string, p24BundlePath?: string | null): Promise<Loa
       traces,
       correlationAnalytics: analytics,
       keyExplanations: explanations,
+      // X3a: Evidence loading placeholder
+      // When evidence persistence is available, load evidence here and pass to builders:
+      // const evidenceStore = new ExecutionEvidenceStore(join(cwd, ".alix", "governance"));
+      // const evidence = await evidenceStore.list();
+      // const executionEvidence = evidence.map(toExecutionRef);
       executionEvidence: [],
     });
   }
@@ -268,7 +273,7 @@ async function handleList(args: string[], cwd: string): Promise<string> {
 // ---------------------------------------------------------------------------
 
 /** Render a single LineageRecord as terminal text. */
-function renderLineageShow(record: LineageRecord): string {
+export function renderLineageShow(record: LineageRecord): string {
   let out = "";
 
   out += `Lineage: ${record.lineageId}\n`;
@@ -339,6 +344,19 @@ function renderLineageShow(record: LineageRecord): string {
   out += `  noThresholdChange: ${record.noThresholdChange}\n`;
   out += `  noAutoAdoption:    ${record.noAutoAdoption}\n`;
   out += `  noRanking:         ${record.noRanking}\n`;
+  out += `\n`;
+
+  // X3a execution evidence
+  out += `Execution Evidence:\n`;
+  if (record.phasePresence.execution && record.executionRef) {
+    out += `  Evidence ID:   ${record.executionRef.evidenceId}\n`;
+    out += `  Intent ID:     ${record.executionRef.intentId}\n`;
+    out += `  Outcome:       ${record.executionRef.outcome}\n`;
+    out += `  Completed At:  ${record.executionRef.completedAt}\n`;
+    out += `  Evidence Hash: ${record.executionRef.evidenceHash}\n`;
+  } else {
+    out += `  Execution evidence: not available (evidence persistence not enabled)\n`;
+  }
 
   return out;
 }
