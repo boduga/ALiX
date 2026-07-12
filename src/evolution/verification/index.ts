@@ -23,3 +23,7 @@ export * from "./replay/deterministic-event-merge.js";
 export * from "./replay/replay-engine.js";
 export * from "./contracts/counterfactual-contract.js";
 export * from "./evaluation/counterfactual-evaluator.js";
+export * from "./evidence/verification-report.js";
+export * from "./evidence/verification-evidence.js";
+export * from "./evidence/evidence-ledger.js";
+export * from "./evidence/lineage-tracker.js";
