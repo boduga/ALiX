@@ -46,9 +46,10 @@ export interface PatternDiscoveryEngineConfig {
   /**
    * Optional proposal generator for A1.2 candidate generation.
    *
-   * When provided, the engine populates `result.candidates` and
-   * `result.drafts` after strategies execute. When absent,
-   * both remain empty stubs (backward-compatible behavior).
+   * When provided, the engine additionally populates `result.drafts`
+   * from candidates after strategies execute. `result.candidates` is
+   * always populated from detected patterns regardless of this option.
+   * When absent, only `result.drafts` remains an empty stub.
    */
   readonly generator?: EvolutionProposalGenerator;
 }
@@ -112,8 +113,12 @@ export class PatternDiscoveryEngine {
       try {
         const patterns = await strategy.run(context);
         patternArrays.push(patterns);
-      } catch {
+      } catch (err) {
         strategiesFailed.push(strategy.name);
+        // Preserve error message for operator diagnostic visibility.
+        // Error isolation invariant is maintained — a failing strategy
+        // never blocks subsequent strategies regardless of error type.
+        console.warn(`[PatternDiscoveryEngine] Strategy "${strategy.name}" failed: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
@@ -123,6 +128,7 @@ export class PatternDiscoveryEngine {
 
     const metadata: DiscoveryResult["metadata"] = {
       evidenceScanned: evidence.length,
+      governanceEventsScanned: governanceEvents.length,
       detectionDurationMs,
       strategiesRun: this.config.strategies.length - strategiesFailed.length,
     };

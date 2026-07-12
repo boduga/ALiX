@@ -157,8 +157,10 @@ export interface DiscoveryResult {
 
   /** Metadata about the discovery run. */
   metadata: {
-    /** Number of evidence records scanned. */
+    /** Number of execution evidence records scanned. */
     evidenceScanned: number;
+    /** Number of governance audit events scanned. */
+    governanceEventsScanned?: number;
     /** Duration of the detection run in milliseconds. */
     detectionDurationMs: number;
     /** Number of detection strategies executed. */

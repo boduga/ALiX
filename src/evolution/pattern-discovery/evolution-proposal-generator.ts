@@ -185,12 +185,22 @@ export interface EvolutionProposalGenerator {
 export class DefaultEvolutionProposalGenerator implements EvolutionProposalGenerator {
   readonly name = "DefaultEvolutionProposalGenerator";
 
+  private readonly config: Required<EvolutionProposalGeneratorConfig>;
+
+  constructor(config?: EvolutionProposalGeneratorConfig) {
+    this.config = {
+      evolutionIdPrefix: config?.evolutionIdPrefix ?? "evol-",
+      proposalIdPrefix: config?.proposalIdPrefix ?? "prop-",
+      draftIdPrefix: config?.draftIdPrefix ?? "draft-",
+    };
+  }
+
   generate(candidate: EvolutionCandidate): GenerateProposalResult {
-    const evolutionId = `evol-${generateId()}`;
+    const evolutionId = `${this.config.evolutionIdPrefix}${generateId()}`;
     const now = nowIso();
 
     const proposal: EvolutionProposal = {
-      proposalId: `prop-${generateId()}`,
+      proposalId: `${this.config.proposalIdPrefix}${generateId()}`,
       evolutionId,
       title: this.deriveTitle(candidate.description),
       description: candidate.description,
@@ -201,7 +211,7 @@ export class DefaultEvolutionProposalGenerator implements EvolutionProposalGener
     };
 
     const draft: EvolutionProposalDraft = {
-      draftId: `draft-${generateId()}`,
+      draftId: `${this.config.draftIdPrefix}${generateId()}`,
       sourcePatternId: candidate.sourcePatternId,
       title: proposal.title,
       description: candidate.description,
@@ -217,13 +227,20 @@ export class DefaultEvolutionProposalGenerator implements EvolutionProposalGener
 
   /**
    * Derive a proposal title from the candidate description.
-   * Uses the first sentence or truncates to 80 characters.
+   *
+   * Uses the first `.␣` (period followed by space) or `.\n` sequence
+   * as a sentence boundary, avoiding false splits on periods inside
+   * URLs, version strings, or abbreviations. Falls back to truncation
+   * at 80 characters with word-boundary awareness.
    */
   private deriveTitle(description: string): string {
-    // Use the first sentence if it ends with a period
-    const sentenceEnd = description.indexOf(".");
-    if (sentenceEnd > 0 && sentenceEnd <= 80) {
-      return description.slice(0, sentenceEnd);
+    // Find the first sentence-ending period (period + space or period + end-of-string)
+    const sentenceMatch = description.match(/\.(?:\s|$)/);
+    if (sentenceMatch && sentenceMatch.index !== undefined) {
+      const end = sentenceMatch.index + 1; // include the period
+      if (end > 0 && end <= 81) {
+        return description.slice(0, end);
+      }
     }
     // Otherwise truncate to 80 characters, breaking at a word boundary
     if (description.length <= 80) return description;
@@ -248,10 +265,10 @@ export class DefaultEvolutionProposalGenerator implements EvolutionProposalGener
  * Configuration for the default proposal generator.
  */
 export interface EvolutionProposalGeneratorConfig {
-  /** Custom ID prefix for generated evolution IDs. */
+  /** Custom ID prefix for generated evolution IDs (default: "evol-"). */
   evolutionIdPrefix?: string;
-  /** Custom ID prefix for generated proposal IDs. */
+  /** Custom ID prefix for generated proposal IDs (default: "prop-"). */
   proposalIdPrefix?: string;
-  /** Custom ID prefix for generated draft IDs. */
+  /** Custom ID prefix for generated draft IDs (default: "draft-"). */
   draftIdPrefix?: string;
 }

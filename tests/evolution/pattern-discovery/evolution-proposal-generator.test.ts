@@ -282,7 +282,7 @@ describe("DefaultEvolutionProposalGenerator", () => {
       description: "First sentence. Second sentence with more detail.",
     });
     const { proposal } = generator.generate(cand);
-    assert.strictEqual(proposal.title, "First sentence");
+    assert.strictEqual(proposal.title, "First sentence.");
   });
 
   it("proposal title truncates at 80 chars with ellipsis for long descriptions", () => {
@@ -367,18 +367,25 @@ describe("EvolutionProposalGenerator invariants", () => {
     assert.ok(generator.name.length > 0);
   });
 
-  it("generator is stateless (no mutable instance properties)", () => {
-    const generator = new DefaultEvolutionProposalGenerator();
+  it("generator accepts config and applies custom prefixes", () => {
+    const gen = new DefaultEvolutionProposalGenerator({
+      evolutionIdPrefix: "custom-evol-",
+      proposalIdPrefix: "custom-prop-",
+      draftIdPrefix: "custom-draft-",
+    });
 
-    // Check that own properties don't include mutable state
-    const ownKeys = Reflect.ownKeys(generator);
-    const stateKeys = ownKeys.filter(
-      (k) => typeof k === "string" && !["name"].includes(k),
-    );
-    assert.strictEqual(
-      stateKeys.length,
-      0,
-      `expected no stateful properties, got: ${stateKeys.join(", ")}`,
-    );
+    const candidate = makeCandidate();
+    const { proposal, draft } = gen.generate(candidate);
+
+    assert.ok(proposal.evolutionId.startsWith("custom-evol-"));
+    assert.ok(proposal.proposalId.startsWith("custom-prop-"));
+    assert.ok(draft.draftId.startsWith("custom-draft-"));
+
+    // Default prefixes work when no config passed
+    const genDefault = new DefaultEvolutionProposalGenerator();
+    const r2 = genDefault.generate(candidate);
+    assert.ok(r2.proposal.evolutionId.startsWith("evol-"));
+    assert.ok(r2.proposal.proposalId.startsWith("prop-"));
+    assert.ok(r2.draft.draftId.startsWith("draft-"));
   });
 });

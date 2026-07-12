@@ -137,6 +137,9 @@ export class ApprovalFrictionStrategy implements DetectionStrategy {
       return [];
     }
 
+    // Guard: no denied events → prevent null deref when threshold is 0
+    if (deniedCount === 0) return [];
+
     // Compute recency factor from the newest denied event
     const sorted = [...deniedEvents].sort((a, b) =>
       a.timestamp.localeCompare(b.timestamp),
