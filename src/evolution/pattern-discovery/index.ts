@@ -14,3 +14,4 @@ export * from "./strategies/execution-failure-strategy.js";
 export * from "./strategies/approval-friction-strategy.js";
 export * from "./strategies/performance-degradation-strategy.js";
 export * from "./strategies/governance-gap-strategy.js";
+export * from "./governance-intake-adapter.js";
