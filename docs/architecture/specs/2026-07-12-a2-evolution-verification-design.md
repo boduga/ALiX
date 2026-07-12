@@ -187,7 +187,20 @@ A verification runtime MUST control:
 | Timeouts | Logical-time timeout, not wall-clock |
 | Hashing | Deterministic canonical serialization (existing X2 contract) |
 
-### 4.5 Verification Metadata
+### 4.5 Reproducibility Levels
+
+Determinism is not binary — it admits degrees of reproducibility. A2 defines four explicit levels:
+
+| Level | Guarantee | Required For |
+|-------|-----------|--------------|
+| **Level 0** | Same inputs produce the same **metrics** (within tolerance) | Preliminary verification, development |
+| **Level 1** | Same inputs produce the same **report** (identical structure) | CI verification, regression checks |
+| **Level 2** | Same inputs produce a **byte-identical** report (no divergence in any field) | Governance submission, audit |
+| **Level 3** | **Cryptographically identical** outputs (report hash is deterministic) | Legal/compliance evidence |
+
+A2 targets **Level 2** as the default for all governance-facing verification runs. A production verification run that cannot achieve Level 2 reproducibility MUST flag the verification as degraded with an explanation of the non-determinism source.
+
+### 4.6 Verification Metadata
 
 Every `VerificationReport` MUST contain sufficient metadata to reproduce the run:
 
@@ -266,13 +279,31 @@ The sandbox:
 
 ---
 
-## 6. Evidence Replay
+## 6. Verification Failure Taxonomy
 
-### 6.1 Replay vs Playback
+Verification failures are categorized explicitly to prevent "verification failed" from becoming a catch-all that masks the underlying problem:
+
+| Failure Class | Meaning | Recovery |
+|---------------|---------|----------|
+| `ReplayConstructionFailure` | Unable to build the replay dataset from source stores | Check store connectivity, data integrity |
+| `SandboxFailure` | Sandbox runtime crashed or became unavailable | Infrastructure issue; retry with fresh sandbox |
+| `DeterminismFailure` | Non-deterministic behaviour detected during replay | Report divergence source; request Level 1+ retry |
+| `CoverageFailure` | Replay coverage fell below minimum threshold | Expand dataset or relax coverage requirements |
+| `ProposalExecutionFailure` | The proposal logic itself threw at replay time | Proposal bug; return to A1 for revision |
+| `MetricCollectionFailure` | Metrics could not be collected or compared | Instrumentation issue; report partial results |
+| `PolicyValidationFailure` | Proposal violates a policy that cannot be replayed | Policy-level rejection; escalate to governance |
+| `TimeoutFailure` | Verification exceeded resource limits | Report partial results; request resource adjustment |
+| `ExpiredEvidenceFailure` | Replay dataset or previous verification has expired | Reconstruct from fresh historical data |
+
+Every failure produces a structured `VerificationFailure` record with the failure class, a human-readable explanation, contributing evidence references, and (where applicable) partial results rather than discarding all output.
+
+## 7. Evidence Replay
+
+### 7.1 Replay vs Playback
 
 Replay is **not** simple event playback. Replay reconstructs the execution context in which events occurred, preserving temporal structure that affects outcomes.
 
-### 6.2 Preserved Context
+### 7.2 Preserved Context
 
 | Context dimension | Preserves | Why it matters |
 |-------------------|-----------|----------------|
@@ -284,20 +315,54 @@ Replay is **not** simple event playback. Replay reconstructs the execution conte
 | Execution lineage | Parent-child relationships between intents | Workflow changes affect downstream executions |
 | Error conditions | Which failures occurred and when | Resilience proposals must encounter the same failure patterns |
 
-### 6.3 Replay Dataset
+### 7.3 Replay Dataset
 
-A replay dataset is a structured collection of:
+A replay dataset is a **first-class object** with identity, metadata, and content-addressed integrity.
 
-- ExecutionEvidence records (X3b)
-- GovernanceAuditEvent records (P14)
-- Evidence chain relationships
-- Resource usage telemetry
-- Policy snapshots
-- Governance state snapshots
+```yaml
+ReplayDataset:
+  dataset_id: "ds-a2-042"
+  dataset_hash: "sha256:abc123..."
 
-The dataset is identified by content hash for determinism verification.
+  window:
+    start: "2026-05-01T00:00:00Z"
+    end: "2026-07-01T00:00:00Z"
 
-### 6.4 Replay Modes
+  sources:
+    execution_evidence:
+      count: 12000
+      store: "X3b"
+      hash: "sha256:def456..."
+    governance_events:
+      count: 4500
+      store: "P14"
+      hash: "sha256:ghi789..."
+
+  evidence_count: 16500
+
+  policy_snapshot:
+    policies_applied: ["policy-retry-v3", "policy-approval-v2"]
+    policy_hashes: {...}
+
+  governance_snapshot:
+    rules_active: 24
+    rule_hashes: {...}
+
+  telemetry_snapshot:
+    resource_profiles: {...}
+    workload_mix: {...}
+
+  construction_metadata:
+    constructed_at: "2026-07-12T10:00:00Z"
+    constructed_from:
+      - execution_evidence_store
+      - audit_store
+    filter_criteria: {...}
+```
+
+Every `VerificationRun` references a `ReplayDataset` by ID and hash rather than embedding dataset contents. This enables dataset reuse across verification runs and cached determinism checks.
+
+### 7.4 Replay Modes
 
 | Mode | Purpose | Dataset |
 |------|---------|---------|
@@ -309,16 +374,18 @@ The dataset is identified by content hash for determinism verification.
 
 ---
 
-## 7. Comparative Evaluation
+## 8. Counterfactual Evaluation
 
-### 7.1 Baseline vs Candidate
+Counterfactual evaluation asks: given historical reality, what would have happened differently under the proposed system? This is conceptually distinct from comparative evaluation (which merely tabulates two sets of numbers) — it requires constructing a simulated alternate history from the same starting conditions and measuring divergence.
+
+### 8.1 Baseline vs Candidate
 
 Every verification run produces two metric sets:
 
 **Baseline:** Replay the current system against historical data.
 **Candidate:** Replay the proposed system against the same data.
 
-### 7.2 Metric Dimensions
+### 8.2 Metric Dimensions
 
 | Dimension | Baseline | Candidate | Delta |
 |-----------|----------|-----------|-------|
@@ -330,7 +397,7 @@ Every verification run produces two metric sets:
 | Failure rate by category | {...} | {...} | {...} |
 | Governance decisions | {...} | {...} | {...} |
 
-### 7.3 Delta Classification
+### 8.3 Delta Classification
 
 Every delta is classified as:
 
@@ -341,9 +408,37 @@ Every delta is classified as:
 | `🔴` | regression | Statistically significant degradation |
 | `⚪` | insufficient_data | Cannot determine significance |
 
-### 7.4 Evidence Package
+### 8.4 Verification Report vs Verification Evidence
 
-The comparison is packaged as `VerificationEvidence`:
+A verification run produces two distinct artifacts with different purposes:
+
+```
+Verification Run
+        │
+        ▼
+Verification Report          (complete execution artifact)
+        │
+        ▼
+Verification Evidence        (immutable governance object)
+```
+
+**Verification Report:**
+- Complete execution artifact containing logs, raw metrics, replay metadata, coverage details, and debugging information
+- May be large — includes every replayed event, timing trace, and intermediate state
+- Used for debugging, audit trace, and reproducing runs
+- Not stored in the evidence ledger
+
+**Verification Evidence:**
+- Immutable governance object distilled from the report
+- Contains only the structured comparison (baseline, candidate, deltas), confidence profile, risk assessment, and lineage
+- Stored in the evidence ledger and consumed by A3
+- Mirrors the X2 pattern: `Execution → Execution Report → Execution Evidence`
+
+This separation keeps governance storage compact while preserving full debug traceability through the report.
+
+### 8.5 Evidence Package
+
+The evidence is packaged as `VerificationEvidence`:
 
 ```yaml
 verification_evidence:
@@ -379,13 +474,23 @@ verification_evidence:
     coverage_score: 0.85
     determinism_score: 1.0
     overall_confidence: 0.83
+
+  # --- Expiry ---
+  # Projected evidence ages. Historical replay from six months ago becomes
+  # less representative after subsequent deployments and policy changes.
+  verified_at: "2026-07-12T16:00:00Z"
+  historical_window:
+    start: "2026-05-01T00:00:00Z"
+    end: "2026-07-01T00:00:00Z"
+  expires_after: "2026-10-12T16:00:00Z"            # 90-day default TTL
+  reverification_required: true                     # fresh run needed after expiry
 ```
 
 ---
 
-## 8. Coverage Model
+## 9. Coverage Model
 
-### 8.1 Tracking
+### 9.1 Tracking
 
 Coverage tracks how much of the historical evidence space the verification exercised:
 
@@ -398,7 +503,7 @@ Coverage tracks how much of the historical evidence space the verification exerc
 | Recommendation categories covered | Which discovery categories were verified |
 | Temporal coverage | Date range of replayed evidence |
 
-### 8.2 Coverage Thresholds
+### 9.2 Coverage Thresholds
 
 Verification evidence MUST include coverage scores. Evidence with coverage below configured thresholds MUST be flagged with reduced confidence.
 
@@ -414,7 +519,7 @@ coverage:
   overall_coverage: 0.81
 ```
 
-### 8.3 Coverage-Adjusted Confidence
+### 9.3 Coverage-Adjusted Confidence
 
 `overall_confidence = min(replay_fidelity, coverage_score, determinism_score) × historical_similarity`
 
@@ -426,11 +531,47 @@ Where:
 
 ---
 
-## 9. Verification Confidence Model
+## 10. Historical Similarity
+
+Historical similarity measures how representative a replay dataset is of current production conditions. It is one of the hardest problems in verification because replay from months ago may incorrectly validate a proposal for today's system.
+
+### 10.1 Dimensions of Similarity
+
+| Dimension | Measures | Drift Risk |
+|-----------|----------|------------|
+| **Workload mix** | Distribution of execution types, intent categories, and request patterns | New features change the workload profile |
+| **Topology** | Agent composition, workflow structure, service dependencies | Deployments add/remove components |
+| **Policy versions** | Active policy rules, thresholds, and constraints | Policy updates change governance behaviour |
+| **Resource utilization** | Memory, CPU, and I/O pressure at replay timestamps | Infrastructure changes shift baselines |
+| **Agent composition** | Which agent types are active and their configuration | Agent updates change behaviour |
+| **Request distribution** | Frequency and ordering of external triggers | Usage patterns evolve |
+
+### 10.2 Similarity Scoring
+
+```yaml
+historical_similarity:
+  workload_similarity: 0.92
+  topology_similarity: 0.88
+  policy_similarity: 0.75       # recent policy change reduced match
+  resource_similarity: 0.95
+  agent_similarity: 0.90
+  distribution_similarity: 0.93
+  overall_similarity: 0.88
+```
+
+A score below a configurable threshold (default: 0.5) MUST reduce `overall_confidence` proportionally. When similarity falls below 0.3, the verification SHOULD recommend `REQUEST_MORE_EVIDENCE` — the historical data is too unlike current production to produce trustworthy projections.
+
+### 10.3 Similarity in the Confidence Model
+
+`overall_confidence = min(replay_fidelity, coverage_score, determinism_score) × historical_similarity`
+
+The multiplicative relationship ensures that low similarity caps confidence regardless of other factors. A perfect replay with 10% historical similarity can at most achieve 0.1 confidence — making the projection's limitations explicit.
+
+## 11. Verification Confidence Model
 
 Every projected evidence item carries explicit confidence information distinguishing how certain the verifier is about its own projections.
 
-### 9.1 Confidence Dimensions
+### 11.1 Confidence Dimensions
 
 | Dimension | Range | Meaning |
 |-----------|-------|---------|
@@ -440,7 +581,19 @@ Every projected evidence item carries explicit confidence information distinguis
 | `statistical_confidence` | 0–1 | Statistical significance of observed deltas |
 | `historical_similarity` | 0–1 | Similarity between test conditions and current production |
 
-### 9.2 Overall Confidence
+### 11.2 Epistemic Confidence
+
+Confidence in verification is **epistemic**, not probabilistic.
+
+`overall_confidence` means "how trustworthy this projection is" — it quantifies the verifier's certainty about its own measurement process, not the probability that a proposal will succeed in production.
+
+These are fundamentally different concepts:
+- **Epistemic confidence:** "We are 83% certain our measurement reflects reality" (trustworthiness of the evidence)
+- **Probabilistic success probability:** "There is an 83% chance this proposal improves outcomes" (requires a predictive model)
+
+A2 produces epistemic confidence. The distinction prevents downstream consumers from treating verification confidence as a success forecast. Governance may combine verification confidence with other signals to form probability estimates, but A2 itself does not.
+
+### 11.3 Overall Confidence
 
 `overall_confidence = derived` (computed from individual dimensions)
 
@@ -452,9 +605,9 @@ The confidence model ensures that:
 
 ---
 
-## 10. Verification Lineage
+## 12. Verification Lineage
 
-### 10.1 Lineage Chain
+### 12.1 Lineage Chain
 
 Every verification report preserves complete lineage:
 
@@ -476,7 +629,7 @@ Verification Evidence (projected)
 Governance Decision ─── consumes verification_id
 ```
 
-### 10.2 Traceability Requirements
+### 12.2 Traceability Requirements
 
 - Every `VerificationEvidence` MUST reference its source `proposal_id`
 - Every `VerificationEvidence` MUST reference its source `verification_id`
@@ -487,9 +640,9 @@ Governance Decision ─── consumes verification_id
 
 ---
 
-## 11. Risk Classification
+## 13. Risk Classification
 
-### 11.1 Classification
+### 13.1 Classification
 
 Verification classifies proposals, not merely accept/reject:
 
@@ -500,7 +653,7 @@ Verification classifies proposals, not merely accept/reject:
 | `HIGH` | Significant regressions projected | One or more critical-metric regressions; confidence > 0.5 |
 | `UNKNOWN` | Insufficient evidence | Coverage < threshold; confidence < 0.3 |
 
-### 11.2 Contributing Factors
+### 13.2 Contributing Factors
 
 Risk classification considers multiple factors:
 
@@ -513,9 +666,41 @@ Risk classification considers multiple factors:
 
 ---
 
-## 12. Governance Recommendation
+## 14. Verification vs Validation
 
-### 12.1 Recommendation from Verification
+A2 encompasses two related but distinct activities, and they must be explicitly separated:
+
+```
+Replay
+  │
+  ▼
+Verification              (did the proposed system behave differently?)
+  │
+  ▼
+Verification Evidence
+  │
+  ▼
+Policy Validation         (is that difference acceptable under governance policy?)
+  │
+  ▼
+Recommendation
+```
+
+**Verification** answers a factual question: *What would happen differently?* It is value-neutral, producing evidence about deltas between baseline and candidate behaviour.
+
+**Validation** answers a policy question: *Is that difference acceptable?* It applies governance policy to the verification evidence, classifying deltas as acceptable, concerning, or unacceptable under current rules.
+
+This separation matters because:
+- Verification is deterministic and reproducible (factual)
+- Validation is policy-dependent and may change as governance rules evolve
+- The same verification evidence can be re-validated under different policies without re-execution
+- Policy changes after a verification run do not invalidate the verification, only the validation
+
+A2 owns both activities but maintains the conceptual boundary. Verification is replay against history. Validation is policy evaluation of the resulting evidence.
+
+## 15. Governance Recommendation
+
+### 15.1 Recommendation from Verification
 
 Rather than a simple `PASS` / `FAIL`, verification recommendations become policy-aware:
 
@@ -527,13 +712,13 @@ Rather than a simple `PASS` / `FAIL`, verification recommendations become policy
 | `REJECT` | Do not adapt | HIGH risk, critical regressions |
 | `ESCALATE` | Cannot determine; human review | UNKNOWN risk, conflicting signals |
 
-### 12.2 Invariant
+### 15.2 Invariant
 
 Governance owns the decision. Verification produces evidence and recommendations.
 
 ---
 
-## 13. Integration Points
+## 16. Integration Points
 
 | Component | Integration | Direction |
 |-----------|-------------|-----------|
@@ -546,7 +731,7 @@ Governance owns the decision. Verification produces evidence and recommendations
 
 ---
 
-## 14. Implementation Slices
+## 17. Implementation Slices
 
 ### A2.0 — Verification Contract Types
 
@@ -602,7 +787,7 @@ Governance owns the decision. Verification produces evidence and recommendations
 
 ---
 
-## 15. Testing Requirements
+## 18. Testing Requirements
 
 | # | Test | Verification |
 |---|------|-------------|
@@ -619,7 +804,7 @@ Governance owns the decision. Verification produces evidence and recommendations
 
 ---
 
-## 16. Relationship to A3
+## 19. Relationship to A3
 
 A2 produces evidence only. It does not mutate governance, modify the runtime, or trigger adaptations.
 
@@ -654,7 +839,7 @@ Adaptation is the only phase that mutates the system, and it occurs only after o
 
 ---
 
-## 17. Non-Goals
+## 20. Non-Goals
 
 A2 does NOT include:
 
@@ -667,4 +852,4 @@ A2 does NOT include:
 | Persistent verification state | Verification runs are reproducible from inputs |
 | UI or dashboard | Future |
 | Automated rollback | A3 |
-| Real-time verification | A2 is batch-oriented over historical data |
+| Real-time verification | A2 is batch-oriented over historical data. Future phases may introduce incremental or online verification using streaming evidence while preserving the same deterministic verification contract. |
