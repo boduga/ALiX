@@ -16,3 +16,8 @@ export * from "./contracts/environment-contract.js";
 export * from "./contracts/replay-contract.js";
 export * from "./confidence/confidence-calculator.js";
 export * from "./evaluation/historical-similarity.js";
+export * from "./replay/logical-clock.js";
+export * from "./replay/seeded-prng.js";
+export * from "./replay/deterministic-scheduler.js";
+export * from "./replay/deterministic-event-merge.js";
+export * from "./replay/replay-engine.js";
