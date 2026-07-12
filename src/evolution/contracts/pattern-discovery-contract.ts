@@ -163,6 +163,8 @@ export interface DiscoveryResult {
     detectionDurationMs: number;
     /** Number of detection strategies executed. */
     strategiesRun: number;
+    /** Names of strategies that failed during this run. */
+    strategiesFailed?: string[];
   };
 }
 
