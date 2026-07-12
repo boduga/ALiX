@@ -112,18 +112,60 @@ interface VerificationRun {
   status: VerificationStatus; failureReason: VerificationFailureKind | null;
 }
 
+interface VerificationReport {
+  reportId: string;
+  verificationId: string;
+  evidenceClass: EvidenceClass;
+  replayMetadata: Record<string, unknown>;
+  executionLogs: readonly string[];
+  metricResults: readonly MetricResult[];
+  diagnostics: readonly Record<string, unknown>[];
+}
+
+interface MetricResult {
+  name: string; baselineValue: number; candidateValue: number; delta: number;
+}
+
+type ReproducibilityLevel = 0 | 1 | 2 | 3;
+
 interface VerificationEvidence {
   evidenceId: string; verificationId: string; proposalId: string;
   replayDatasetId: string;
+  evidenceClass: EvidenceClass;  // always "projected"
   baselineMetrics: Record<string, number>;
   candidateMetrics: Record<string, number>;
   metricDeltas: Record<string, number>;
   behavioralChanges: string[];
   confidenceProfile: ConfidenceProfile;
-  reproducibilityLevel: "deterministic" | "non_deterministic" | "unknown";
+  reproducibilityLevel: ReproducibilityLevel;
   lineage: LineageRecord[];
   verifiedAt: string; expiresAt: string;
   reverificationRequired: boolean; integrityHash: string;
+}
+```
+
+### Key Types (confidence)
+
+```typescript
+interface ConfidenceProfile {
+  replayFidelity: number;      // 0-1
+  coverage: number;            // 0-1
+  determinism: number;         // 0-1
+  historicalSimilarity: number; // 0-1 (overall from assessment)
+  overallConfidence: number;   // 0-1
+}
+// overallConfidence = min(replayFidelity, coverage, determinism) × historicalSimilarity
+
+interface HistoricalSimilarityAssessment {
+  workloadSimilarity: number;
+  topologySimilarity: number;
+  policySimilarity: number;
+  resourceSimilarity: number;
+  agentCompositionSimilarity: number;
+  trafficSimilarity: number;
+  failurePatternSimilarity: number;
+  overallSimilarity: number;       // derived from dimensions
+  coverageGaps: readonly string[];
 }
 ```
 
@@ -132,6 +174,7 @@ interface VerificationEvidence {
 - Evidence class is explicit on every artifact
 - Failure taxonomy is typed — never collapses to "Verification Failed"
 - All contracts are pure types with `Readonly<>` wrappers
+- Confidence formula is fixed: `min(fidelity, coverage, determinism) × similarity`
 
 ---
 
@@ -311,8 +354,10 @@ interface GovernanceRecommendation {
 
 ### Invariants
 - Does not replace A3 decision authority — recommendations are inputs, not binding
+- RecommendationEngine is advisory only: MUST NOT transition EvolutionState, MUST NOT invoke deployment, MUST NOT bypass A3 validation
 - Same evidence + same config = same recommendation (deterministic)
 - Every recommendation carries numeric confidence
+- No recommendation without supporting evidence
 
 ---
 
@@ -322,6 +367,30 @@ interface GovernanceRecommendation {
 |------|------------------|
 | `verification-lifecycle.test.ts` | End-to-end: A2.0→A2.1→A2.2→A2.3→A2.4→A2.5 |
 | `determinism-verification.test.ts` | Same inputs = identical evidence (hash + fields) |
+
+## Invariant Test Matrix
+
+A dedicated `tests/evolution/verification/invariants/` directory enforces cross-cutting architecture invariants:
+
+| Invariant Test | What it verifies |
+|----------------|------------------|
+| **Evidence hierarchy** | Projected evidence cannot override observed evidence. When both exist for the same metric, observed takes precedence. |
+| **Determinism** | Same dataset + same proposal + same environment = same evidence hash (byte-identical). Runs are reproducible across independent invocations. |
+| **Expiration enforcement** | Current time ≥ `expires_at` → bridge rejects read. A3 receives no expired evidence. Expired evidence in ledger is ignored for governance. |
+| **Policy independence** | Same verification evidence evaluated under different governance policies produces the same outcome classification (A2's work). Only the recommendation stage (A2.5) may differ — and without re-running verification. |
+
+## File Count
+
+| Milestone | Source | Tests | Total |
+|-----------|--------|-------|-------|
+| A2.0 | 5 | 3 | 8 |
+| A2.1 | 2 | 2 | 4 |
+| A2.2 | 5 | 5 | 10 |
+| A2.3 | 2 | 2 | 4 |
+| A2.4 | 5 | 5 | 10 |
+| A2.5 | 2 | 2 | 4 |
+| Invariant tests | — | 4 | 4 |
+| **Total** | **21** | **23** | **44** |
 
 ---
 
