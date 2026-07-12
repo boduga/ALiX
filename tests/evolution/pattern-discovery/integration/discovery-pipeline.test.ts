@@ -230,8 +230,8 @@ describe("Pattern discovery integration pipeline", () => {
     // --- Metadata ---
     assert.strictEqual(
       result.metadata.evidenceScanned,
-      5,
-      "evidenceScanned should be 4 evidence + 1 governance event = 5",
+      4,
+      "evidenceScanned should be 4 evidence records",
     );
     assert.strictEqual(result.metadata.strategiesRun, 2);
     assert.ok(

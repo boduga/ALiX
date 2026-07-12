@@ -111,9 +111,9 @@ export class PatternDiscoveryEngine {
     const detectionDurationMs = Date.now() - start;
 
     const metadata: DiscoveryResult["metadata"] = {
-      evidenceScanned: evidence.length + governanceEvents.length,
+      evidenceScanned: evidence.length,
       detectionDurationMs,
-      strategiesRun: this.config.strategies.length,
+      strategiesRun: this.config.strategies.length - strategiesFailed.length,
     };
 
     if (strategiesFailed.length > 0) {
