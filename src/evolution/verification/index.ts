@@ -13,4 +13,6 @@
 export * from "./contracts/verification-contract.js";
 export * from "./contracts/confidence-contract.js";
 export * from "./contracts/environment-contract.js";
+export * from "./contracts/replay-contract.js";
 export * from "./confidence/confidence-calculator.js";
+export * from "./evaluation/historical-similarity.js";
