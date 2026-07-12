@@ -5,15 +5,6 @@
 **Phase:** A1 — Pattern Discovery Engine
 **Slice:** A1.1 — Detection Pipeline
 
-**Depends On:**
-- A0.1 — Evolution Contract Types
-- A0.2 — Evolution Lifecycle State Machine
-- A0.3 — Evolution Evidence Bridge
-- X3b — ExecutionEvidenceStore
-- P14 — Governance Audit Trail
-- P15 — Governance Intelligence
-- A1.0 — Pattern Discovery Contract
-
 **Checkpoint Target:** `alix-a1-1-detection-pipeline-complete`
 
 ---
@@ -22,39 +13,22 @@
 
 A1.1 implements the detection pipeline for the A1 Pattern Discovery Engine.
 
-The pipeline consumes:
+The pipeline consumes historical operational signals:
 - execution evidence from X3b
-- governance audit events from P14
+- governance audit signals from P14
 
 and produces:
 - `PatternObservation` artifacts
 
-A1.1 identifies repeatable operational patterns but does not determine whether evolution should occur.
+A1.1 detects repeatable operational patterns.
 
-The output boundary is:
-
-```
-X3b ExecutionEvidenceStore
-          |
-          |
-P14 AuditStore
-          |
-          v
-+---------------------------+
-| PatternDiscoveryEngine    |
-+---------------------------+
-          |
-          v
-+---------------------------+
-| Detection Strategies      |
-+---------------------------+
-          |
-          v
-PatternObservation[]
-          |
-          v
-DiscoveryResult
-```
+It does **not**:
+- create evolution candidates
+- generate proposals
+- modify runtime behavior
+- modify policies
+- transition lifecycle states
+- approve changes
 
 ---
 
@@ -62,79 +36,82 @@ DiscoveryResult
 
 > Detection strategies consume data, not own data access.
 
-The `PatternDiscoveryEngine` is responsible for:
-- loading evidence
-- loading governance events
-- constructing discovery context
-- invoking strategies
-- collecting results
+The `PatternDiscoveryEngine` owns:
+- evidence loading
+- governance event loading
+- context creation
+- strategy execution
+- result aggregation
+- failure isolation
 
-Strategies are responsible only for:
-- analyzing supplied data
-- identifying patterns
-- returning observations
-
----
-
-## 3. A1.1 Scope
-
-### Provides
-
-A1.1 provides:
-- `DiscoveryContext`
-- `DetectionStrategy` interface
-- `PatternDiscoveryEngine`
-- `ExecutionFailureStrategy`
-- `ApprovalFrictionStrategy`
-- pattern discovery orchestration
-- strategy failure isolation
-- discovery metadata
-
-### Does Not Provide
-
-A1.1 does not provide:
-- candidate generation
-- proposal generation
-- lifecycle state transitions
-- evolution approval
-- runtime mutation
-- persistence of patterns
-- CLI/UI
-
-Those belong to later slices.
+Detection strategies own:
+- analysis algorithms
+- pattern recognition
+- confidence calculation inputs
+- pattern generation
 
 ---
 
-## 4. Architecture
+## 3. Architecture
 
 ```
 X3b
-  |
-  v
-ExecutionEvidenceStore
-  |
-  |
-P14
-  |
-  v
-AuditStore
-  |
-  v
-PatternDiscoveryEngine
-  |
-  +---------------+---------------+
-  |                               |
-  v                               v
-ExecutionFailureStrategy  ApprovalFrictionStrategy
-  |                               |
-  +---------------+---------------+
                   |
                   v
+       ExecutionEvidenceStore
+                  |
+                  |
+                 P14
+                  |
+                  v
+              AuditStore
+                  |
+                  v
+
+       +----------------------+
+       | PatternDiscovery     |
+       | Engine               |
+       +----------------------+
+
+                  |
+                  v
+
+        +----------------+
+        | DiscoveryContext|
+        +----------------+
+
+                  |
+       +----------+----------+
+       |                     |
+       v                     v
+
+ExecutionFailure       ApprovalFriction
+Strategy               Strategy
+
+       |                     |
+
+       +----------+----------+
+
+                  |
+                  v
+
         PatternObservation[]
+
                   |
                   v
+
           DiscoveryResult
 ```
+
+---
+
+## 4. Dependencies
+
+### Required
+
+- A1.0 — Pattern Discovery Contract
+- X3b — ExecutionEvidenceStore
+- P14 — AuditStore
 
 ---
 
@@ -159,8 +136,6 @@ src/evolution/
 
 tests/evolution/
 
-├── pattern-discovery-contract.test.ts
-
 └── pattern-discovery/
     ├── pattern-discovery-engine.test.ts
     ├── strategies/
@@ -172,13 +147,13 @@ tests/evolution/
 
 ---
 
-## 6. DiscoveryContext
+## 6. DiscoveryContext Contract
 
-### Location
+### File
 
 `src/evolution/contracts/discovery-context.ts`
 
-### Contract
+### Interface
 
 ```typescript
 import type { ExecutionEvidence } from "../../runtime/contracts/execution-intent-contract.js";
@@ -199,25 +174,23 @@ export interface DiscoveryContext {
 
 ### Rules
 
-`DiscoveryContext` is:
-- immutable
-- created once per discovery run
-- shared by all strategies
+`DiscoveryContext`:
+- is immutable
+- is created once per discovery execution
+- is shared across all strategies
 
 Strategies must not:
 - mutate context
 - access stores
-- retain references after execution
+- retain context after execution
 
 ---
 
-## 7. DetectionStrategy Contract
+## 7. DetectionStrategy Interface
 
-### Location
+### File
 
 `src/evolution/pattern-discovery/detection-strategy.ts`
-
-### Interface
 
 ```typescript
 import type {
@@ -230,19 +203,9 @@ import type {
 } from "../contracts/discovery-context.js";
 
 export interface DetectionStrategy {
-  /**
-   * Strategy identifier.
-   */
   readonly name: string;
-
-  /**
-   * Pattern category produced.
-   */
   readonly category: PatternCategory;
 
-  /**
-   * Analyze discovery context.
-   */
   run(
     context: DiscoveryContext
   ): Promise<readonly PatternObservation[]>;
@@ -278,44 +241,70 @@ Defaults:
 }
 ```
 
-### Algorithm
+### Detection Algorithm
 
+**Input:** `DiscoveryContext.evidence`
+
+**Steps:**
+
+1. **Filter:** `outcome === "FAILED"`
+
+2. **Filter:** `completedAt >= now - lookbackWindowDays`
+
+3. **Normalize intent IDs.**
+
+4. **Group failures.**
+
+5. **Emit patterns where:** failure count >= `minimumOccurrences`
+
+### Intent ID Normalization
+
+**Rule:** Remove everything after the final `/`.
+
+**Example:**
 ```
-Input:
-  DiscoveryContext.evidence
+Input:  agent/workflow/run-001
+Output: agent/workflow
+```
 
-Process:
-  Filter:
-    outcome === FAILED
-    |
-  Filter:
-    completedAt within lookback window
-    |
-  Group:
-    normalized intentId
-    |
-  Count failures
-    |
-  Threshold check
-    |
-  Generate PatternObservation
+**Examples:**
+
+| Original | Normalized |
+|----------|------------|
+| `agent/task/run-001` | `agent/task` |
+| `workflow/a/b/run-15` | `workflow/a/b` |
+| `workflow/payment` | `workflow/payment` |
+| `task-001` | `task-001` |
+
+**Implementation:**
+```typescript
+function normalizeIntentId(intentId: string): string {
+  const index = intentId.lastIndexOf("/");
+  if (index === -1) {
+    return intentId;
+  }
+  return intentId.slice(0, index);
+}
 ```
 
 ### Pattern Output
 
-Example:
+Each detected pattern:
 ```typescript
 {
+  patternId,
   category: "execution_failure",
-  frequency: 12,
-  confidence: 0.85,
-  evidenceIds: [...],
+  frequency,
+  confidence,
+  evidenceIds,
+  description,
+  firstObserved,
+  lastObserved,
 }
 ```
 
 ### Confidence
 
-Uses:
 ```typescript
 computeConfidence({
   evidenceCount,
@@ -325,23 +314,13 @@ computeConfidence({
 })
 ```
 
-### Edge Cases
-
-| Case | Result |
-|------|--------|
-| No failures | Empty result |
-| Below threshold | Empty result |
-| Old failures | Ignored |
-| Successful executions | Ignored |
-| Missing prefix | Own group |
-
 ---
 
 ## 9. ApprovalFrictionStrategy
 
 ### Purpose
 
-Detect excessive governance denial patterns.
+Detect repeated governance approval friction.
 
 **Category:** `approval_friction`
 
@@ -366,50 +345,123 @@ Defaults:
 }
 ```
 
-### Algorithm
+### Detection Algorithm
 
+**Input:** `DiscoveryContext.governanceEvents`
+
+#### Step 1 — Filter Relevant Events
+
+**Included:**
+- `action_denied`
+- `human_approval_denied`
+
+**Also included:** approved decisions, for denominator calculation.
+
+#### Step 2 — Calculate Denial Rate
+
+**Definition:**
 ```
-Input:
-  DiscoveryContext.governanceEvents
-
-Filter:
-  action_denied
-  human_approval_denied
-
-Calculate:
-  denialRate = deniedEvents / totalEvents
-
-Emit pattern when:
-  totalEvents >= minimumEvents
-  AND
-  denialRate >= threshold
+denialRate =
+  denied approval events
+  ----------------------
+  approval decision events
 ```
 
-### Confidence Calculation
+Where:
+```
+approval decision events = approved + action_denied + human_approval_denied
+```
+
+**Example:**
+```
+100 approval decisions
+85 denied
+15 approved
+
+denialRate = 0.85
+```
+
+#### Step 3 — Threshold Evaluation
+
+Emit pattern only when:
+```
+totalEvents >= minimumEvents
+AND
+denialRate >= denialRateThreshold
+```
+
+### Pattern Output
+
+```typescript
+{
+  patternId,
+  category: "approval_friction",
+  frequency,
+  confidence,
+  evidenceIds,
+  description,
+  firstObserved,
+  lastObserved,
+}
+```
+
+### Confidence
 
 ```typescript
 computeConfidence({
-  evidenceCount: denialCount,
+  evidenceCount: deniedCount,
   baselineCount,
-  patternStrength: min(1, denialRate / threshold),
+  patternStrength:
+    min(
+      1,
+      denialRate / denialRateThreshold
+    ),
   recencyFactor,
 })
 ```
 
-### Edge Cases
+---
 
-| Case | Result |
-|------|--------|
-| Empty audit stream | Empty |
-| No denial events | Empty |
-| Low denial rate | Empty |
-| Insufficient events | Empty |
+## 10. Recency Factor
+
+Both strategies use `recencyFactor` with a shared calculation.
+
+### Formula
+
+```
+recencyFactor =
+  max(
+    0,
+    1 - (ageInDays / lookbackWindowDays)
+  )
+```
+
+### Pattern Timestamp Selection
+
+For patterns containing multiple records: use the **newest** supporting record.
+
+```
+latestObservedTimestamp
+```
+
+### Examples
+
+**Lookback:** 7 days
+
+**Evidence age:**
+
+| Age | Factor |
+|-----|--------|
+| 0 days | 1.0 |
+| 3.5 days | 0.5 |
+| 7 days | 0 |
+| >7 days | 0 |
 
 ---
 
-## 10. PatternDiscoveryEngine
+## 11. PatternDiscoveryEngine
 
-### Location
+### File
 
 `src/evolution/pattern-discovery/pattern-discovery-engine.ts`
 
@@ -426,58 +478,60 @@ export interface PatternDiscoveryEngineConfig {
 ### Responsibilities
 
 The engine:
-1. Loads evidence
-2. Loads governance events
-3. Creates DiscoveryContext
-4. Runs strategies
-5. Aggregates patterns
-6. Produces DiscoveryResult
+1. Loads execution evidence.
+2. Loads governance events.
+3. Creates DiscoveryContext.
+4. Executes strategies.
+5. Aggregates observations.
+6. Returns DiscoveryResult.
 
-### Pipeline
+### Execution Flow
 
 ```
 start timer
-      |
-load ExecutionEvidence
-      |
-load GovernanceAuditEvents
-      |
+    |
+load evidenceStore.list()
+    |
+load auditStore.listChronological()
+    |
 create DiscoveryContext
-      |
+    |
 execute strategies sequentially
-      |
-collect PatternObservation[]
-      |
+    |
+flatten PatternObservation[]
+    |
 return DiscoveryResult
 ```
 
-### Strategy Execution
+### Strategy Failure Isolation
 
-Strategies execute sequentially:
-
+**Algorithm:**
 ```
-for strategy of strategies:
-    try:
-        await strategy.run(context)
-    catch:
-        record failure
-        continue
+for (strategy of strategies) {
+  try {
+    results.push(
+      await strategy.run(context)
+    );
+  } catch {
+    strategiesFailed.push(strategy.name);
+  }
+}
 ```
 
-### Error Isolation Rules
+**Rules:**
 
-| Failure | Behavior |
-|---------|----------|
-| Strategy throws | Continue discovery |
-| Store failure | Propagate error |
-| Empty stores | Empty DiscoveryResult |
+| Event | Behavior |
+|-------|----------|
+| Strategy throws | Continue |
+| Store failure | Propagate |
+| Empty stores | Empty result |
 | All strategies fail | Return failed metadata |
 
 ---
 
-## 11. DiscoveryResult Extension
+## 12. DiscoveryResult Metadata Extension
 
-A1.0 contract extension:
+Extend A1.0:
 
 ```typescript
 metadata: {
@@ -488,56 +542,42 @@ metadata: {
 }
 ```
 
-Backward compatible.
-
----
-
-## 12. Barrel Exports
-
-### Location
-
-`src/evolution/pattern-discovery/index.ts`
-
-### Exports
-
-```typescript
-export * from "./detection-strategy.js";
-export * from "./pattern-discovery-engine.js";
-export * from "./strategies/execution-failure-strategy.js";
-export * from "./strategies/approval-friction-strategy.js";
-```
-
 ---
 
 ## 13. Testing Requirements
 
 ### ExecutionFailureStrategy
 
-| Test | Expected |
-|------|----------|
-| repeated failures | Pattern emitted |
-| below threshold | Empty |
-| outside window | Empty |
-| mixed outcomes | Only failures counted |
-| confidence range | 0–1 |
+Required tests:
+- repeated failures emit pattern
+- threshold prevents false positives
+- old failures ignored
+- successful executions ignored
+- mixed outcomes handled
+- confidence range validated
+- intent normalization verified
 
 ### ApprovalFrictionStrategy
 
-| Test | Expected |
-|------|----------|
-| high denial rate | Pattern emitted |
-| low denial rate | Empty |
-| insufficient events | Empty |
-| no events | Empty |
+Required tests:
+- high denial rate emits pattern
+- low denial rate ignored
+- insufficient events ignored
+- empty audit events handled
+- denominator uses approval decisions only
+- confidence range validated
 
 ### Engine Tests
 
+Required:
+
 | Test | Expected |
 |------|----------|
-| Multiple strategies | Combined output |
-| Strategy failure | Continues execution |
-| Empty stores | Empty result |
-| Ordering | Deterministic ordering |
+| Multiple strategies | Combined patterns |
+| Strategy failure | Other strategies continue |
+| Empty stores | Empty DiscoveryResult |
+| Ordering | Deterministic output |
+| Metadata | Correct counters |
 
 ### Integration Test
 
@@ -548,7 +588,8 @@ export * from "./strategies/approval-friction-strategy.js";
 - DiscoveryResult
 
 **Verify:**
-- stores loaded
+- evidence loaded
+- governance events loaded
 - context created
 - strategies executed
 - patterns returned
@@ -559,40 +600,38 @@ export * from "./strategies/approval-friction-strategy.js";
 
 | Boundary | Enforcement |
 |----------|-------------|
-| No store access in strategies | DiscoveryContext only |
+| Strategies cannot access stores | Context-only input |
+| Engine has no detection logic | Strategy separation |
 | No lifecycle mutation | No A0 state machine imports |
-| No proposals | A1.2 responsibility |
-| No persistence | Derived artifacts only |
-| Immutable analysis | `readonly` context |
-| Independent strategies | DetectionStrategy interface |
+| No proposal generation | A1.2 responsibility |
+| No persistence | Derived observations only |
+| Immutable analysis | `readonly` contracts |
 
 ---
 
 ## 15. Future Extensions
 
-A1.1 enables:
-
 ### A1.2 — Candidate Generation
 
 ```
-PatternObservation[]
+PatternObservation
         |
-EvolutionCandidate[]
+EvolutionCandidate
         |
 EvolutionProposalDraft
 ```
 
-### A1.3 — Additional Strategies
+### A1.3 — Additional Detection Strategies
 
-Future implementations:
+Future:
 - performance degradation
 - governance gaps
-- policy effectiveness
+- policy ineffectiveness
 - agent misbehavior
 
-without changing:
-- engine
-- context
+without modifying:
+- engine contract
+- context contract
 - strategy interface
 
 ---
@@ -602,18 +641,18 @@ without changing:
 A1.1 is complete when:
 
 - ✅ DiscoveryContext implemented
-- ✅ DetectionStrategy contract implemented
+- ✅ DetectionStrategy implemented
 - ✅ PatternDiscoveryEngine implemented
 - ✅ ExecutionFailureStrategy implemented
 - ✅ ApprovalFrictionStrategy implemented
-- ✅ Engine owns all store access
-- ✅ Strategies consume immutable context only
-- ✅ Strategy failures isolated
-- ✅ DiscoveryResult returned
-- ✅ No lifecycle mutation paths exist
-- ✅ All tests pass
-- ✅ TypeScript compilation clean
+- ✅ Intent normalization defined
+- ✅ Denial rate denominator defined
+- ✅ Recency scoring defined
+- ✅ Store ownership remains in engine
+- ✅ Strategies remain stateless
+- ✅ Tests pass
+- ✅ TypeScript clean
 
 **Checkpoint:** `alix-a1-1-detection-pipeline-complete`
 
-After A1.1 completion, ALiX has a governed observation layer capable of discovering repeatable operational patterns while preserving the A0 evolution safety boundary.
+A1.1 establishes the governed observation layer required for A1.2 candidate generation while preserving the A0 evolution safety boundary.
