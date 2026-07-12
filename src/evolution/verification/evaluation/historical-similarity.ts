@@ -234,8 +234,31 @@ function compareFailurePatterns(
   c: ReplayDataset,
   gaps: string[],
 ): number {
-  // Failure pattern similarity is inferred from evidence profile overlap
-  // without direct failure data, we use a neutral score
-  gaps.push("failure_patterns_not_directly_comparable");
-  return 0.5;
+  // Failure pattern similarity estimated from available proxy signals:
+  // evidence count ratio (more data → more reliable failure capture),
+  // construction strategy alignment, and snapshot version overlap.
+
+  if (h.evidenceCount === 0 && c.evidenceCount === 0) return 1.0;
+  if (h.evidenceCount === 0 || c.evidenceCount === 0) {
+    gaps.push("failure_pattern_evidence_missing");
+    return 0;
+  }
+
+  const countRatio = Math.min(h.evidenceCount, c.evidenceCount) /
+                     Math.max(h.evidenceCount, c.evidenceCount);
+
+  const strategyMatch =
+    h.constructionMetadata.constructionStrategy === c.constructionMetadata.constructionStrategy
+      ? 1.0
+      : 0.5;
+
+  // Snapshot compatibility: shared snapshot version keys = comparable failure context
+  const hVersions = Object.keys(h.constructionMetadata.snapshotVersions);
+  const cVersions = Object.keys(c.constructionMetadata.snapshotVersions);
+  const shared = hVersions.filter((k) => cVersions.includes(k)).length;
+  const total = Math.max(hVersions.length, cVersions.length);
+  const snapshotScore = total > 0 ? shared / total : 0.5;
+
+  const score = countRatio * 0.4 + strategyMatch * 0.3 + snapshotScore * 0.3;
+  return Math.max(0, Math.min(1, score));
 }

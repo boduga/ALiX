@@ -90,7 +90,7 @@ export function createVerificationEvidence(input: VerificationEvidenceInput): Ve
     candidateMetrics: { ...input.candidateMetrics },
     metricDeltas: { ...input.metricDeltas },
     behavioralChanges: [...input.behavioralChanges],
-    confidenceProfile: input.confidenceProfile,
+    confidenceProfile: { ...input.confidenceProfile },
     reproducibilityLevel: input.reproducibilityLevel,
     lineage: [...input.lineage],
     verifiedAt: input.verifiedAt,

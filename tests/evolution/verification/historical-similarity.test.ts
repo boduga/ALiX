@@ -162,15 +162,31 @@ describe("computeHistoricalSimilarity", () => {
     assert.ok(result.failurePatternSimilarity >= 0 && result.failurePatternSimilarity <= 1);
   });
 
-  it("always includes failure pattern gap (not directly comparable)", () => {
+  it("records failure pattern gap when evidence is missing on one side", () => {
+    const result = computeHistoricalSimilarity({
+      historicalSnapshot: makeDataset({ evidenceCount: 0 }),
+      currentSnapshot: makeDataset(),
+    });
+
+    assert.ok(
+      result.coverageGaps.some((g) => g.includes("failure_pattern")),
+      "failure pattern gap should be recorded when evidence count is zero",
+    );
+  });
+
+  it("computes meaningful failure pattern score for identical snapshots (no gap)", () => {
     const result = computeHistoricalSimilarity({
       historicalSnapshot: makeDataset(),
       currentSnapshot: makeDataset(),
     });
 
     assert.ok(
-      result.coverageGaps.some((g) => g.includes("failure_patterns")),
-      "failure pattern gap should always be recorded",
+      result.failurePatternSimilarity > 0.9,
+      `identical snapshots should produce high failure pattern similarity, got ${result.failurePatternSimilarity}`,
+    );
+    assert.ok(
+      !result.coverageGaps.some((g) => g.includes("failure_pattern")),
+      "identical snapshots should not produce failure pattern gap",
     );
   });
 

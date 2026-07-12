@@ -18,7 +18,6 @@
 
 import type { VerificationEvidence } from "../contracts/verification-contract.js";
 import type { GovernanceRecommendation, GovernanceRecommendationKind } from "../contracts/recommendation-contract.js";
-import { randomUUID } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // RecommendationConfig
@@ -92,7 +91,7 @@ export class RecommendationEngine {
     const supportingEvidence = this.collectSupportingEvidence(evidence);
 
     return {
-      recommendationId: `rec-${randomUUID()}`,
+      recommendationId: `rec-${evidence.evidenceId}`,
       evidenceId: evidence.evidenceId,
       proposalId: evidence.proposalId,
       kind,
@@ -100,7 +99,7 @@ export class RecommendationEngine {
       reasoning,
       supportingEvidence,
       risks,
-      createdAt: new Date().toISOString(),
+      createdAt: evidence.verifiedAt,
     };
   }
 
@@ -195,7 +194,9 @@ export class RecommendationEngine {
    * classification counts are not provided.
    */
   private inferRegressions(evidence: VerificationEvidence): number {
-    return evidence.behavioralChanges.filter((c) => c.includes("regression")).length;
+    // Match the precise format from counterfactual-evaluator:
+    //   `Metric ${name} regression: ${before} → ${after} (delta ...)`
+    return evidence.behavioralChanges.filter((c) => c.includes(" regression: ")).length;
   }
 
   /**

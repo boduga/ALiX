@@ -111,9 +111,17 @@ export class InMemoryVerificationEvidenceLedger implements VerificationEvidenceL
   private readonly entries = new Map<string, VerificationEvidence>();
 
   async store(evidence: VerificationEvidence): Promise<VerificationEvidence> {
-    // Store a defensive copy
-    this.entries.set(evidence.evidenceId, { ...evidence });
-    return { ...evidence };
+    // Append-only: reject duplicate evidenceId
+    if (this.entries.has(evidence.evidenceId)) {
+      throw new Error(
+        `Evidence ${evidence.evidenceId} already exists (append-only invariant)`,
+      );
+    }
+
+    // Store a defensive deep copy
+    const stored = structuredClone(evidence);
+    this.entries.set(evidence.evidenceId, stored);
+    return structuredClone(evidence);
   }
 
   async get(evidenceId: string): Promise<VerificationEvidence> {
@@ -145,7 +153,7 @@ export class InMemoryVerificationEvidenceLedger implements VerificationEvidenceL
     for (const evidence of this.entries.values()) {
       if (evidence.proposalId !== proposalId) continue;
       if (!includeExpired && isEvidenceExpired(evidence)) continue;
-      if (!includeExpired && !verifyIntegrity(evidence)) continue;
+      if (!verifyIntegrity(evidence)) continue;
       results.push({ ...evidence });
     }
 

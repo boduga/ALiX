@@ -82,18 +82,59 @@ export function computeOverallConfidence(input: ConfidenceInput): ConfidenceProf
  *
  * Pure — no side effects, no I/O, no store access.
  */
+/**
+ * Map of coverage gap prefixes to the dimension field they exclude.
+ */
+const GAP_TO_FIELD: Record<string, keyof HistoricalSimilarityAssessment> = {
+  "evidence_count_zero": "workloadSimilarity",
+  "runtime_version_mismatch": "topologySimilarity",
+  "policy_version_mismatch": "policySimilarity",
+  "metric_gap": "resourceSimilarity",
+  "agent_gap": "agentCompositionSimilarity",
+  "strategy_mismatch": "trafficSimilarity",
+  "failure_pattern": "failurePatternSimilarity",
+};
+
+function getExcludedFields(gaps: readonly string[]): Set<string> {
+  const excluded = new Set<string>();
+  for (const gap of gaps) {
+    for (const [prefix, field] of Object.entries(GAP_TO_FIELD)) {
+      if (gap.startsWith(prefix)) {
+        excluded.add(field);
+        break;
+      }
+    }
+  }
+  return excluded;
+}
+
+const SIMILARITY_FIELDS: Array<keyof HistoricalSimilarityAssessment> = [
+  "workloadSimilarity",
+  "topologySimilarity",
+  "policySimilarity",
+  "resourceSimilarity",
+  "agentCompositionSimilarity",
+  "trafficSimilarity",
+  "failurePatternSimilarity",
+];
+
+/**
+ * Derive the overall similarity score from a HistoricalSimilarityAssessment.
+ *
+ * Uses the mean of all provided dimension scores. Any dimension not comparable
+ * (identifiable by entry in coverageGaps) is excluded from the mean.
+ *
+ * Pure — no side effects, no I/O, no store access.
+ */
 export function computeOverallSimilarity(
   assessment: HistoricalSimilarityAssessment,
 ): number {
-  const dimensions = [
-    assessment.workloadSimilarity,
-    assessment.topologySimilarity,
-    assessment.policySimilarity,
-    assessment.resourceSimilarity,
-    assessment.agentCompositionSimilarity,
-    assessment.trafficSimilarity,
-    assessment.failurePatternSimilarity,
-  ].filter((v) => Number.isFinite(v) && v >= 0 && v <= 1);
+  const excluded = getExcludedFields(assessment.coverageGaps);
+
+  const dimensions = SIMILARITY_FIELDS
+    .filter((field) => !excluded.has(field))
+    .map((field) => assessment[field] as number)
+    .filter((v) => Number.isFinite(v) && v >= 0 && v <= 1);
 
   if (dimensions.length === 0) return 0;
 

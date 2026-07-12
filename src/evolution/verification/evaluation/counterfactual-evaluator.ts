@@ -148,8 +148,8 @@ export class CounterfactualEvaluator {
     }
 
     return {
-      baselineMetrics,
-      candidateMetrics,
+      baselineMetrics: { ...baselineMetrics },
+      candidateMetrics: { ...candidateMetrics },
       metricDeltas,
       behavioralChanges,
       outcomeClassifications,
@@ -184,8 +184,11 @@ export class CounterfactualEvaluator {
     // Zero baseline — cannot compute relative change
     if (baselineValue === 0) {
       if (candidateValue === 0) return "neutral";
-      // Non-zero candidate from zero baseline is an infinite relative change
-      return direction === "higher_is_better" ? "improvement" : "regression";
+      // Non-zero candidate from zero baseline is an infinite relative change.
+      // Classify based on whether the candidate is better or worse per direction.
+      const isIncrease = candidateValue > baselineValue;
+      const isImprovement = direction === "higher_is_better" ? isIncrease : !isIncrease;
+      return isImprovement ? "improvement" : "regression";
     }
 
     const relativeChange = (candidateValue - baselineValue) / Math.abs(baselineValue);
