@@ -9,5 +9,6 @@
 
 export * from "./detection-strategy.js";
 export * from "./pattern-discovery-engine.js";
+export * from "./evolution-proposal-generator.js";
 export * from "./strategies/execution-failure-strategy.js";
 export * from "./strategies/approval-friction-strategy.js";

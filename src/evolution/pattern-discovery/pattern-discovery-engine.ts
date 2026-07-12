@@ -24,6 +24,8 @@ import type {
   PatternObservation,
 } from "../contracts/pattern-discovery-contract.js";
 import type { DetectionStrategy } from "./detection-strategy.js";
+import type { EvolutionProposalGenerator } from "./evolution-proposal-generator.js";
+import { generateCandidates } from "./evolution-proposal-generator.js";
 
 // ---------------------------------------------------------------------------
 // PatternDiscoveryEngineConfig
@@ -40,6 +42,15 @@ export interface PatternDiscoveryEngineConfig {
   readonly evidenceStore: ExecutionEvidenceStore;
   readonly auditStore: AuditStore;
   readonly strategies: DetectionStrategy[];
+
+  /**
+   * Optional proposal generator for A1.2 candidate generation.
+   *
+   * When provided, the engine populates `result.candidates` and
+   * `result.drafts` after strategies execute. When absent,
+   * both remain empty stubs (backward-compatible behavior).
+   */
+  readonly generator?: EvolutionProposalGenerator;
 }
 
 // ---------------------------------------------------------------------------
@@ -106,7 +117,7 @@ export class PatternDiscoveryEngine {
       }
     }
 
-    // Step 4+5: Flatten patterns, build result with metadata
+    // Step 4+5: Flatten patterns, generate candidates + proposals, build result
     const patterns = patternArrays.flat();
     const detectionDurationMs = Date.now() - start;
 
@@ -120,10 +131,18 @@ export class PatternDiscoveryEngine {
       metadata.strategiesFailed = strategiesFailed;
     }
 
+    // Step 6: Generate candidates from patterns (always)
+    const candidates = generateCandidates(patterns);
+
+    // Step 7: If a proposal generator is configured, generate proposals + drafts
+    const drafts = this.config.generator
+      ? candidates.map((c) => this.config.generator!.generate(c).draft)
+      : [];
+
     return {
       patterns,
-      candidates: [],
-      drafts: [],
+      candidates,
+      drafts,
       metadata,
     };
   }

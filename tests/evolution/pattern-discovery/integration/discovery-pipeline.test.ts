@@ -239,8 +239,21 @@ describe("Pattern discovery integration pipeline", () => {
       "detectionDurationMs should be non-negative",
     );
 
-    // Empty stubs are present
-    assert.deepStrictEqual(result.candidates, []);
+    // Candidates are generated from patterns (A1.2)
+    assert.strictEqual(
+      result.candidates.length,
+      2,
+      "should generate 2 candidates (1 per pattern)",
+    );
+    for (const candidate of result.candidates) {
+      assert.ok(candidate.candidateId.startsWith("cand-"), "candidateId should start with cand-");
+      assert.ok(candidate.confidence >= 0 && candidate.confidence <= 1, "confidence should be in [0, 1]");
+      assert.ok(candidate.target.kind.length > 0, "target.kind should be non-empty");
+      assert.ok(candidate.target.id.length > 0, "target.id should be non-empty");
+      assert.ok(candidate.expectedEffect.length > 0, "expectedEffect should be non-empty");
+    }
+
+    // No generator configured → drafts remain empty
     assert.deepStrictEqual(result.drafts, []);
 
     // strategiesFailed should be absent when all strategies succeed
