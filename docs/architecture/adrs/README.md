@@ -15,6 +15,9 @@ This directory contains ALiX's Architecture Decision Records (ADRs).
 | [ADR-0007](ADR-0007-agent-subagent-execution-architecture.md) | Agent / Subagent Execution Architecture | Accepted |
 | [ADR-0008](ADR-0008-session-persistence-recovery.md) | Session Persistence and Recovery Model | Accepted |
 | [ADR-0009](ADR-0009-security-integrity-audit.md) | Security, Integrity, and Audit Architecture | Accepted |
+| [ADR-0010](ADR-0010-executive-intelligence-architecture.md) | Executive Intelligence Architecture | Accepted |
+| [ADR-0011](ADR-0011-evolution-verification-model.md) | Evolution Verification Model | Accepted |
+| [ADR-0012](ADR-0012-patch-mutation-architecture.md) | Patch and Mutation Architecture | Accepted |
 
 ## What is an ADR?
 
