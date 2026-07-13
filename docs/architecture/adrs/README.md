@@ -13,6 +13,8 @@ This directory contains ALiX's Architecture Decision Records (ADRs).
 | [ADR-0005](ADR-0005-plan-scoped-snapshots.md) | Plan-Scoped Snapshots Are Immutable Observations, Not Analytics | Accepted |
 | [ADR-0006](ADR-0006-a-series-governed-evolution-pipeline.md) | A-Series Governed Evolution Pipeline | Accepted |
 | [ADR-0007](ADR-0007-agent-subagent-execution-architecture.md) | Agent / Subagent Execution Architecture | Accepted |
+| [ADR-0008](ADR-0008-session-persistence-recovery.md) | Session Persistence and Recovery Model | Accepted |
+| [ADR-0009](ADR-0009-security-integrity-audit.md) | Security, Integrity, and Audit Architecture | Accepted |
 
 ## What is an ADR?
 
