@@ -33,6 +33,17 @@ import { GovernedExecutionRuntime } from "./execution-runtime.js";
 import { buildExecutionEvidence } from "./execution-evidence-bridge.js";
 
 // ---------------------------------------------------------------------------
+// Completed execution tracking (duplicate prevention)
+// ---------------------------------------------------------------------------
+
+/**
+ * In-memory set of decision IDs that have completed execution in this process.
+ * Enforces the "one execution per decision" invariant across CLI invocations
+ * within the same process lifetime.
+ */
+const completedDecisionIds = new Set<string>();
+
+// ---------------------------------------------------------------------------
 // ExecuteDeps
 // ---------------------------------------------------------------------------
 
@@ -216,7 +227,7 @@ export async function runExecute(
   const proposalAsProposal = proposal as unknown as EvolutionProposal;
 
   // Step 5: Authorize execution
-  const auth = authorizeExecution({ request, proposal: proposalAsProposal, decision });
+  const auth = authorizeExecution({ request, proposal: proposalAsProposal, decision, completedExecutionIds: [...completedDecisionIds] });
 
   // Step 6: If not allowed
   if (!auth.allowed) {
@@ -303,6 +314,9 @@ export async function runExecute(
     decision,
     proposal: proposalAsProposal,
   });
+
+  // Track this decision as completed (duplicate prevention)
+  completedDecisionIds.add(evidence.decisionId);
 
   // Step 13: Output result
   if (jsonMode) {

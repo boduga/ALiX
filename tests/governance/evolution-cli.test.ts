@@ -15,6 +15,7 @@ import { EvolutionStateMachine } from "../../src/evolution/evolution-state-machi
 import { ExecutionEvidenceStore } from "../../src/runtime/execution-evidence-store.js";
 import { handleEvolutionCommand } from "../../src/governance/evolution-cli.js";
 import { EvolutionState } from "../../src/evolution/contracts/evolution-contract.js";
+import { InMemoryGovernanceDecisionStore } from "../../src/evolution/governance/decision-store.js";
 
 // ---------------------------------------------------------------------------
 // Capture console for testing
@@ -54,6 +55,7 @@ function setup(dirs?: { evidenceDir?: string }) {
 
   const evidenceDir = dirs?.evidenceDir ?? mkdtempSync(join(tmpdir(), "evol-cli-"));
   const store = new ExecutionEvidenceStore(evidenceDir);
+  const decisionStore = new InMemoryGovernanceDecisionStore();
 
   const capture = new ConsoleCapture();
 
@@ -63,7 +65,7 @@ function setup(dirs?: { evidenceDir?: string }) {
     } catch { /* ok */ }
   };
 
-  return { sm, store, capture, cleanup };
+  return { sm, store, decisionStore, capture, cleanup };
 }
 
 function addTestEvolution(
@@ -87,10 +89,10 @@ const T = "2026-07-11T10:00:00.000Z";
 
 describe("evolution list", () => {
   it("empty list prints 'No evolutions found'", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     capture.start();
     try {
-      await handleEvolutionCommand(["list"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["list"], { stateMachine: sm, evidenceStore: store, decisionStore });
       assert.ok(capture.output().includes("No evolutions found"));
     } finally {
       capture.restore();
@@ -99,13 +101,13 @@ describe("evolution list", () => {
   });
 
   it("lists evolutions with correct state", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     addTestEvolution(sm, "evol-alpha", EvolutionState.APPROVED, { targetKind: "policy", createdAt: T });
     addTestEvolution(sm, "evol-beta", EvolutionState.DRAFT, { targetKind: "agent_behavior", createdAt: T });
 
     capture.start();
     try {
-      await handleEvolutionCommand(["list"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["list"], { stateMachine: sm, evidenceStore: store, decisionStore });
       const out = capture.output();
       assert.ok(out.includes("evol-alpha"));
       assert.ok(out.includes("evol-beta"));
@@ -118,12 +120,12 @@ describe("evolution list", () => {
   });
 
   it("list --json produces valid JSON", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     addTestEvolution(sm, "evol-json", EvolutionState.ACTIVE, { targetKind: "runtime_config", createdAt: T });
 
     capture.start();
     try {
-      await handleEvolutionCommand(["list", "--json"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["list", "--json"], { stateMachine: sm, evidenceStore: store, decisionStore });
       const parsed = JSON.parse(capture.output());
       assert.ok(Array.isArray(parsed));
       assert.equal(parsed[0].evolutionId, "evol-json");
@@ -135,10 +137,10 @@ describe("evolution list", () => {
   });
 
   it("list empty --json returns []", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     capture.start();
     try {
-      await handleEvolutionCommand(["list", "--json"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["list", "--json"], { stateMachine: sm, evidenceStore: store, decisionStore });
       assert.equal(JSON.parse(capture.output()).length, 0);
     } finally {
       capture.restore();
@@ -149,14 +151,14 @@ describe("evolution list", () => {
 
 describe("evolution show", () => {
   it("shows evolution details", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     addTestEvolution(sm, "evol-show-1", EvolutionState.PROPOSED, {
       targetKind: "policy", targetId: "pol-001", origin: "operator", createdAt: T,
     });
 
     capture.start();
     try {
-      await handleEvolutionCommand(["show", "evol-show-1"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["show", "evol-show-1"], { stateMachine: sm, evidenceStore: store, decisionStore });
       const out = capture.output();
       assert.ok(out.includes("evol-show-1"));
       assert.ok(out.includes("PROPOSED"));
@@ -169,12 +171,12 @@ describe("evolution show", () => {
   });
 
   it("show --json produces valid JSON", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     addTestEvolution(sm, "evol-json-show", EvolutionState.ACTIVE, { targetKind: "workflow", createdAt: T });
 
     capture.start();
     try {
-      await handleEvolutionCommand(["show", "evol-json-show", "--json"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["show", "evol-json-show", "--json"], { stateMachine: sm, evidenceStore: store, decisionStore });
       const parsed = JSON.parse(capture.output());
       assert.equal(parsed.evolutionId, "evol-json-show");
       assert.equal(parsed.state, "ACTIVE");
@@ -186,10 +188,10 @@ describe("evolution show", () => {
   });
 
   it("show with unknown id prints error", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     capture.start();
     try {
-      await handleEvolutionCommand(["show", "nonexistent"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["show", "nonexistent"], { stateMachine: sm, evidenceStore: store, decisionStore });
       assert.ok(capture.output().includes("not found"));
       assert.equal(process.exitCode, 1);
       process.exitCode = 0; // reset
@@ -202,7 +204,7 @@ describe("evolution show", () => {
 
 describe("evolution evidence", () => {
   it("shows evidence records", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     sm.createEvolution("evol-ev-1");
 
     // Write test evidence directly to the store
@@ -220,7 +222,7 @@ describe("evolution evidence", () => {
 
     capture.start();
     try {
-      await handleEvolutionCommand(["evidence", "evol-ev-1"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["evidence", "evol-ev-1"], { stateMachine: sm, evidenceStore: store, decisionStore });
       const out = capture.output();
       assert.ok(out.includes("evol-ev-1"));
       assert.ok(out.includes("evoe-test-001"));
@@ -232,7 +234,7 @@ describe("evolution evidence", () => {
   });
 
   it("evidence --json produces valid JSON", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     sm.createEvolution("evol-ev-json");
 
     await store.append({
@@ -249,7 +251,7 @@ describe("evolution evidence", () => {
 
     capture.start();
     try {
-      await handleEvolutionCommand(["evidence", "evol-ev-json", "--json"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["evidence", "evol-ev-json", "--json"], { stateMachine: sm, evidenceStore: store, decisionStore });
       const parsed = JSON.parse(capture.output());
       assert.equal(parsed.evolutionId, "evol-ev-json");
       assert.equal(parsed.evidence.length, 1);
@@ -261,12 +263,12 @@ describe("evolution evidence", () => {
   });
 
   it("evidence with no records prints message", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     sm.createEvolution("evol-ev-empty");
 
     capture.start();
     try {
-      await handleEvolutionCommand(["evidence", "evol-ev-empty"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["evidence", "evol-ev-empty"], { stateMachine: sm, evidenceStore: store, decisionStore });
       assert.ok(capture.output().includes("No evidence found"));
     } finally {
       capture.restore();
@@ -275,10 +277,10 @@ describe("evolution evidence", () => {
   });
 
   it("evidence with unknown id prints error", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     capture.start();
     try {
-      await handleEvolutionCommand(["evidence", "nonexistent"], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand(["evidence", "nonexistent"], { stateMachine: sm, evidenceStore: store, decisionStore });
       assert.ok(capture.output().includes("not found"));
       process.exitCode = 0;
     } finally {
@@ -290,10 +292,10 @@ describe("evolution evidence", () => {
 
 describe("evolution help", () => {
   it("prints help for no args", async () => {
-    const { sm, store, capture, cleanup } = setup();
+    const { sm, store, decisionStore, capture, cleanup } = setup();
     capture.start();
     try {
-      await handleEvolutionCommand([], { stateMachine: sm, evidenceStore: store });
+      await handleEvolutionCommand([], { stateMachine: sm, evidenceStore: store, decisionStore });
       assert.ok(capture.output().includes("Usage"));
     } finally {
       capture.restore();
