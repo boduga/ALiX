@@ -295,13 +295,20 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       const { handleEvolutionCommand } = await import("../../governance/evolution-cli.js");
       const { EvolutionStateMachine } = await import("../../evolution/evolution-state-machine.js");
       const { ExecutionEvidenceStore } = await import("../../runtime/execution-evidence-store.js");
+      const { InMemoryGovernanceDecisionStore } = await import("../../evolution/governance/decision-store.js");
+      const { GovernanceDecisionBridge } = await import("../../evolution/governance/governance-decision-bridge.js");
+      const { InMemoryVerificationEvidenceLedger } = await import("../../evolution/verification/evidence/evidence-ledger.js");
+      const { DEFAULT_GOVERNANCE_POLICY } = await import("../../evolution/governance/contracts/decision-contract.js");
       const cwd = process.cwd();
       // Use a shared state machine instance — in production this would
       // be wired through dependency injection. For the read-only CLI we
       // create a fresh one; evolutions must be created programmatically.
       const stateMachine = new EvolutionStateMachine();
       const evidenceStore = new ExecutionEvidenceStore(cwd);
-      const deps = { stateMachine, evidenceStore };
+      const evidenceLedger = new InMemoryVerificationEvidenceLedger();
+      const decisionStore = new InMemoryGovernanceDecisionStore();
+      const decisionBridge = new GovernanceDecisionBridge(stateMachine, decisionStore);
+      const deps = { stateMachine, evidenceStore, evidenceLedger, decisionBridge, policyConfig: DEFAULT_GOVERNANCE_POLICY };
       return handleEvolutionCommand(rest, deps);
     }
     case "replay": {
