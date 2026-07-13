@@ -125,7 +125,7 @@ export function generateDecision(
   const confidence = evidence.confidenceProfile.overallConfidence;
   const regressions = inferRegressions(evidence);
 
-  // Step 3: Evidence freshness check
+  // Step 1: Evidence freshness check
   if (isEvidenceExpired(evidence)) {
     if (policyConfig.failClosedOnExpiredEvidence) {
       // Fail-closed: reject expired evidence
@@ -147,8 +147,71 @@ export function generateDecision(
     });
   }
 
-  // Step 3: A2.5 ESCALATE → per escalateBehavior (checked early so an
-  // ESCALATE recommendation overrides the standard evidence-based flow)
+  // Step 3: Confidence < rejectConfidenceThreshold → REJECT
+  if (confidence < policyConfig.rejectConfidenceThreshold) {
+    return buildDecision(evidence, recommendation, policyConfig, {
+      kind: "REJECT",
+      confidence,
+      reasoning:
+        `Confidence ${confidence.toFixed(3)} is below reject threshold ${policyConfig.rejectConfidenceThreshold}`,
+      risks: [`Confidence ${confidence.toFixed(3)} below reject threshold`],
+      decidedBy: "governance_policy",
+    });
+  }
+
+  // Step 4: Regressions > maxAllowedRegressions → REJECT
+  if (regressions > policyConfig.maxAllowedRegressions) {
+    return buildDecision(evidence, recommendation, policyConfig, {
+      kind: "REJECT",
+      confidence,
+      reasoning:
+        `Found ${regressions} regression(s), exceeding max allowed ${policyConfig.maxAllowedRegressions}`,
+      risks: [`${regressions} regression(s) detected exceeding limit`],
+      decidedBy: "governance_policy",
+    });
+  }
+
+  // Step 5: reproducibilityLevel < minReproducibilityLevel → REQUEST_MORE_EVIDENCE
+  if (evidence.reproducibilityLevel < policyConfig.minReproducibilityLevel) {
+    return buildDecision(evidence, recommendation, policyConfig, {
+      kind: "REQUEST_MORE_EVIDENCE",
+      confidence,
+      reasoning:
+        `Reproducibility level ${evidence.reproducibilityLevel} is below minimum ${policyConfig.minReproducibilityLevel}`,
+      risks: [`Reproducibility level ${evidence.reproducibilityLevel} below threshold`],
+      decidedBy: "governance_policy",
+    });
+  }
+
+  // Step 6: confidence >= minApproveConfidence + regressions within limit → APPROVE
+  if (
+    confidence >= policyConfig.minApproveConfidence &&
+    regressions <= policyConfig.maxAllowedRegressions
+  ) {
+    return buildDecision(evidence, recommendation, policyConfig, {
+      kind: "APPROVE",
+      confidence,
+      reasoning:
+        `Confidence ${confidence.toFixed(3)} meets approve threshold with ${regressions} regression(s) (within limit ${policyConfig.maxAllowedRegressions})`,
+      risks: [],
+      decidedBy: "governance_policy",
+    });
+  }
+
+  // Step 7: confidence >= minMonitorConfidence → MONITOR
+  if (confidence >= policyConfig.minMonitorConfidence) {
+    return buildDecision(evidence, recommendation, policyConfig, {
+      kind: "MONITOR",
+      confidence,
+      reasoning:
+        `Confidence ${confidence.toFixed(3)} meets monitor threshold with ${regressions} regression(s)`,
+      risks:
+        regressions > 0 ? [`${regressions} regression(s) detected`] : [],
+      decidedBy: "governance_policy",
+    });
+  }
+
+  // Step 8: A2.5 ESCALATE → per escalateBehavior: REJECT or REQUEST_MORE_EVIDENCE
   if (recommendation?.kind === "ESCALATE") {
     if (policyConfig.escalateBehavior === "reject") {
       return buildDecision(evidence, recommendation, policyConfig, {
@@ -167,70 +230,6 @@ export function generateDecision(
         "A2.5 recommendation is ESCALATE; requesting more evidence per policy escalateBehavior",
       risks: recommendation.risks,
       decidedBy: "auto_escalation",
-    });
-  }
-
-  // Step 4 (flow): Confidence < rejectConfidenceThreshold → REJECT
-  if (confidence < policyConfig.rejectConfidenceThreshold) {
-    return buildDecision(evidence, recommendation, policyConfig, {
-      kind: "REJECT",
-      confidence,
-      reasoning:
-        `Confidence ${confidence.toFixed(3)} is below reject threshold ${policyConfig.rejectConfidenceThreshold}`,
-      risks: [`Confidence ${confidence.toFixed(3)} below reject threshold`],
-      decidedBy: "governance_policy",
-    });
-  }
-
-  // Step 5: Regressions > maxAllowedRegressions → REJECT
-  if (regressions > policyConfig.maxAllowedRegressions) {
-    return buildDecision(evidence, recommendation, policyConfig, {
-      kind: "REJECT",
-      confidence,
-      reasoning:
-        `Found ${regressions} regression(s), exceeding max allowed ${policyConfig.maxAllowedRegressions}`,
-      risks: [`${regressions} regression(s) detected exceeding limit`],
-      decidedBy: "governance_policy",
-    });
-  }
-
-  // Step 6: reproducibilityLevel < minReproducibilityLevel → REQUEST_MORE_EVIDENCE
-  if (evidence.reproducibilityLevel < policyConfig.minReproducibilityLevel) {
-    return buildDecision(evidence, recommendation, policyConfig, {
-      kind: "REQUEST_MORE_EVIDENCE",
-      confidence,
-      reasoning:
-        `Reproducibility level ${evidence.reproducibilityLevel} is below minimum ${policyConfig.minReproducibilityLevel}`,
-      risks: [`Reproducibility level ${evidence.reproducibilityLevel} below threshold`],
-      decidedBy: "governance_policy",
-    });
-  }
-
-  // Step 7: confidence >= minApproveConfidence + regressions within limit → APPROVE
-  if (
-    confidence >= policyConfig.minApproveConfidence &&
-    regressions <= policyConfig.maxAllowedRegressions
-  ) {
-    return buildDecision(evidence, recommendation, policyConfig, {
-      kind: "APPROVE",
-      confidence,
-      reasoning:
-        `Confidence ${confidence.toFixed(3)} meets approve threshold with ${regressions} regression(s) (within limit ${policyConfig.maxAllowedRegressions})`,
-      risks: [],
-      decidedBy: "governance_policy",
-    });
-  }
-
-  // Step 8: confidence >= minMonitorConfidence → MONITOR
-  if (confidence >= policyConfig.minMonitorConfidence) {
-    return buildDecision(evidence, recommendation, policyConfig, {
-      kind: "MONITOR",
-      confidence,
-      reasoning:
-        `Confidence ${confidence.toFixed(3)} meets monitor threshold with ${regressions} regression(s)`,
-      risks:
-        regressions > 0 ? [`${regressions} regression(s) detected`] : [],
-      decidedBy: "governance_policy",
     });
   }
 

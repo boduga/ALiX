@@ -317,7 +317,7 @@ describe("RECOMMENDATION", () => {
   });
 
   it("A2.5 ESCALATE + escalateBehavior=reject → REJECT", () => {
-    const evidence = makeEvidence(0.6, []); // would normally be MONITOR
+    const evidence = makeEvidence(0.4, []); // below minMonitorConfidence (0.5), reaches step 8 ESCALATE
     const recommendation = makeRecommendation("ESCALATE", {
       evidenceId: evidence.evidenceId,
     });
@@ -341,7 +341,7 @@ describe("RECOMMENDATION", () => {
   });
 
   it("A2.5 ESCALATE + escalateBehavior=request_evidence → REQUEST_MORE_EVIDENCE", () => {
-    const evidence = makeEvidence(0.6, []); // would normally be MONITOR
+    const evidence = makeEvidence(0.4, []); // below minMonitorConfidence (0.5), reaches step 8 ESCALATE
     const recommendation = makeRecommendation("ESCALATE", {
       evidenceId: evidence.evidenceId,
     });
