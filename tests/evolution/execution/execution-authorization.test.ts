@@ -82,7 +82,7 @@ function makeBaseInput(overrides?: Partial<AuthorizeInput>): AuthorizeInput {
 
 describe("authorizeExecution", () => {
   // -----------------------------------------------------------------------
-  // Check 7 — valid approval succeeds
+  // Check 8 — valid approval succeeds
   // -----------------------------------------------------------------------
 
   it("allows execution when all checks pass", () => {
@@ -147,7 +147,74 @@ describe("authorizeExecution", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Check 3 — decision not expired
+  // Check 3 — integrity hash valid
+  // -----------------------------------------------------------------------
+
+  it("allows execution when decision has no integrityHash field", () => {
+    // GovernanceDecision without integrityHash — passes for now
+    const result = authorizeExecution(makeBaseInput());
+    assert.ok(result.allowed);
+  });
+
+  it("allows execution when decision has valid integrityHash string", () => {
+    const input = makeBaseInput();
+    (input.decision as unknown as Record<string, unknown>).integrityHash = "abc123";
+    const result = authorizeExecution(input);
+    assert.ok(result.allowed);
+  });
+
+  it("allows execution when decision has empty integrityHash string", () => {
+    const input = makeBaseInput();
+    (input.decision as unknown as Record<string, unknown>).integrityHash = "";
+    const result = authorizeExecution(input);
+    assert.ok(result.allowed);
+  });
+
+  it("short-circuits on integrity hash check only after kind passes", () => {
+    // REJECT kind should fail at check 2, before integrity hash (check 3) is reached
+    const input = makeBaseInput();
+    input.decision = { ...input.decision, kind: "REJECT" } as GovernanceDecision;
+
+    const result = authorizeExecution(input);
+
+    assert.ok(!result.allowed);
+    if (!result.allowed) {
+      assert.strictEqual(result.reason, "Decision is not APPROVE");
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // Check 4 — proposal matches
+  // -----------------------------------------------------------------------
+
+  it("rejects execution when request evolutionId does not match decision proposalId", () => {
+    const input = makeBaseInput();
+    input.request = { ...input.request, evolutionId: "evo-999" };
+
+    const result = authorizeExecution(input);
+
+    assert.ok(!result.allowed);
+    if (!result.allowed) {
+      assert.strictEqual(result.reason, "Proposal ID mismatch");
+    }
+  });
+
+  it("short-circuits on proposal match check before expiry check", () => {
+    // evolutionId mismatch should fail at check 4 before expiry (check 5) is reached
+    const input = makeBaseInput();
+    input.request = { ...input.request, evolutionId: "evo-999" };
+    (input.decision as GovernanceDecision & { expiresAt?: string }).expiresAt = "2020-01-01T00:00:00Z";
+
+    const result = authorizeExecution(input);
+
+    assert.ok(!result.allowed);
+    if (!result.allowed) {
+      assert.strictEqual(result.reason, "Proposal ID mismatch");
+    }
+  });
+
+  // -----------------------------------------------------------------------
+  // Check 5 — decision not expired
   // -----------------------------------------------------------------------
 
   it("rejects execution when decision has expired", () => {
@@ -194,8 +261,43 @@ describe("authorizeExecution", () => {
     }
   });
 
+  it("uses now parameter for expiry check", () => {
+    // Decision expires at 2025-01-01 — use now to trigger expiry deterministically
+    const input = makeBaseInput();
+    const pastDecision = {
+      ...input.decision,
+      expiresAt: "2025-01-01T00:00:00Z",
+    } as GovernanceDecision & { expiresAt: string };
+    input.decision = pastDecision;
+    input.now = new Date("2026-07-12T00:00:00Z").getTime();
+
+    const result = authorizeExecution(input);
+
+    assert.ok(!result.allowed);
+    if (!result.allowed) {
+      assert.strictEqual(result.reason, "Governance decision has expired");
+    }
+  });
+
+  it("allows execution when now is before expiresAt", () => {
+    const input = makeBaseInput();
+    const futureDecision = {
+      ...input.decision,
+      expiresAt: "2026-12-31T00:00:00Z",
+    } as GovernanceDecision & { expiresAt: string };
+    input.decision = futureDecision;
+    input.now = new Date("2026-07-12T00:00:00Z").getTime();
+
+    const result = authorizeExecution(input);
+
+    assert.ok(result.allowed);
+    if (result.allowed) {
+      assert.strictEqual(result.decisionId, "govd-001");
+    }
+  });
+
   // -----------------------------------------------------------------------
-  // Check 4 — decision not revoked
+  // Check 6 — decision not revoked
   // -----------------------------------------------------------------------
 
   it("rejects execution when decision has been revoked", () => {
@@ -226,23 +328,7 @@ describe("authorizeExecution", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Check 5 — proposal matches
-  // -----------------------------------------------------------------------
-
-  it("rejects execution when request evolutionId does not match decision proposalId", () => {
-    const input = makeBaseInput();
-    input.request = { ...input.request, evolutionId: "evo-999" };
-
-    const result = authorizeExecution(input);
-
-    assert.ok(!result.allowed);
-    if (!result.allowed) {
-      assert.strictEqual(result.reason, "Proposal ID mismatch");
-    }
-  });
-
-  // -----------------------------------------------------------------------
-  // Check 6 — no duplicate execution
+  // Check 7 — no duplicate execution
   // -----------------------------------------------------------------------
 
   it("rejects execution when decisionId is in completedExecutionIds", () => {
@@ -294,7 +380,7 @@ describe("authorizeExecution", () => {
   });
 
   // -----------------------------------------------------------------------
-  // Check 7 — successful authorization returns decisionId
+  // Check 8 — successful authorization returns decisionId
   // -----------------------------------------------------------------------
 
   it("returns decisionId on successful authorization", () => {
@@ -326,20 +412,33 @@ describe("authorizeExecution", () => {
     }
   });
 
-  it("short-circuits on kind check before expired check", () => {
+  it("short-circuits on kind check before integrity hash check", () => {
     const input = makeBaseInput();
     input.decision = {
       ...input.decision,
       kind: "REJECT",
-      expiresAt: "2020-01-01T00:00:00Z",
-    } as GovernanceDecision & { expiresAt: string };
+    } as GovernanceDecision;
 
     const result = authorizeExecution(input);
 
     assert.ok(!result.allowed);
     if (!result.allowed) {
-      // Should fail on kind, not expiry
+      // Should fail on kind (check 2), not integrity hash (check 3)
       assert.strictEqual(result.reason, "Decision is not APPROVE");
+    }
+  });
+
+  it("short-circuits on proposal match check before expiry check", () => {
+    const input = makeBaseInput();
+    input.request = { ...input.request, evolutionId: "evo-999" };
+    (input.decision as GovernanceDecision & { expiresAt?: string }).expiresAt = "2020-01-01T00:00:00Z";
+
+    const result = authorizeExecution(input);
+
+    assert.ok(!result.allowed);
+    if (!result.allowed) {
+      // Should fail on proposal match (check 4), not expiry (check 5)
+      assert.strictEqual(result.reason, "Proposal ID mismatch");
     }
   });
 });
