@@ -132,155 +132,111 @@ export class GovernedExecutionRuntime {
    * @param executor - The step executor that performs each step.
    * @returns ExecutionReport with final status and step results.
    */
-  async execute(
-    plan: ExecutionPlan,
-    executor: StepExecutor,
-  ): Promise<ExecutionReport> {
+  async execute(plan: ExecutionPlan, executor: StepExecutor): Promise<ExecutionReport> {
     const startedAt = new Date().toISOString();
+    this.context = { ...this.context, state: "executing" as const };
     const stepResults: ExecutionStepResult[] = [];
-    let rollbackTriggered = false;
-    let rollbackResult: RollbackResult | undefined;
-    let finalStatus: "completed" | "failed" | "rolled_back" = "completed";
-
-    // Transition to executing
-    this.context = { ...this.context, state: "executing" };
 
     for (let i = 0; i < plan.steps.length; i++) {
       const step = plan.steps[i];
-      const stepStartedAt = new Date().toISOString();
+      let success = false;
+      let output: Record<string, unknown> = {};
+      let error: string | undefined;
 
-      // 1. Validate preconditions
-      if (!this.validatePreconditions(step)) {
-        const stepCompletedAt = new Date().toISOString();
-        stepResults.push({
-          stepId: step.stepId,
-          success: false,
-          output: {},
-          startedAt: stepStartedAt,
-          completedAt: stepCompletedAt,
-        });
-
-        finalStatus = "failed";
-        break;
+      // Validate preconditions
+      const preconditionError = this.validatePreconditions(step, this.context.outputs);
+      if (preconditionError) {
+        stepResults.push(this.buildFailedResult(step, preconditionError));
+        return this.finalizeReport(plan.planId, startedAt, stepResults, false);
       }
 
-      // 2. Execute step with retry for idempotent steps
-      let lastError: string | undefined;
-      let output: Record<string, unknown> = {};
-      let success = false;
-
+      // Execute step (with retry for idempotent)
       const maxAttempts = step.idempotent ? 1 + this.config.maxRetries : 1;
-
       for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        const result = await executor.executeStep(step, {
-          ...this.context.outputs,
-          ...step.parameters,
-        });
-
+        const result = await executor.executeStep(step, { ...this.context.outputs });
         if (result.success) {
           success = true;
           output = result.output ?? {};
           break;
         }
-
-        lastError = result.error;
-
-        // If not idempotent, don't retry
-        if (!step.idempotent) {
-          break;
-        }
+        error = result.error;
+        if (attempt < maxAttempts - 1) continue; // retry
       }
 
-      const stepCompletedAt = new Date().toISOString();
-
-      if (success) {
-        // 3. Validate postconditions
-        if (!this.validatePostconditions(step, output)) {
-          stepResults.push({
-            stepId: step.stepId,
-            success: false,
-            output,
-            error: "postcondition not met",
-            startedAt: stepStartedAt,
-            completedAt: stepCompletedAt,
-          });
-
-          finalStatus = "failed";
-          break;
-        }
-
-        // 4. Update context with output
-        const newOutputs = { ...this.context.outputs, [step.stepId]: output };
-
-        // 5. Create checkpoint AFTER execution with correct output hash
-        const checkpoint = this.createCheckpoint(step, newOutputs, plan.environmentHash);
-
-        // Update context with output and checkpoint
-        this.context = {
-          ...this.context,
-          outputs: newOutputs,
-          checkpoints: [...this.context.checkpoints, checkpoint],
-        };
-
-        // 6. Record successful result
+      if (!success) {
         stepResults.push({
-          stepId: step.stepId,
-          success: true,
-          output,
-          startedAt: stepStartedAt,
-          completedAt: stepCompletedAt,
+          stepId: step.stepId, success: false, startedAt: "", completedAt: "",
+          output: {}, error: error ?? "Step failed",
         });
-      } else {
-        // 6. Record failure result
-        stepResults.push({
-          stepId: step.stepId,
-          success: false,
-          output,
-          startedAt: stepStartedAt,
-          completedAt: stepCompletedAt,
-        });
-
-        // 7. Handle failure
         if (this.config.enableRollback) {
-          this.context = { ...this.context, state: "rolling_back" };
-          rollbackTriggered = true;
-
-          rollbackResult = await this.rollback(plan, i, executor);
-
-          if (rollbackResult.success) {
-            finalStatus = "rolled_back";
-          } else {
-            finalStatus = "failed";
-          }
-        } else {
-          finalStatus = "failed";
+          const rollbackResult = await this.rollback(plan, i, executor);
+          const status: "rolled_back" | "failed" = rollbackResult.success ? "rolled_back" : "failed";
+          this.context = { ...this.context, state: status };
+          return {
+            reportId: `rpt-${plan.planId}`,
+            planId: plan.planId,
+            executionId: this.context.executionId,
+            status,
+            stepResults,
+            startedAt, completedAt: new Date().toISOString(),
+            rollbackTriggered: true,
+            rollbackResult,
+          };
         }
-
-        break;
+        return this.finalizeReport(plan.planId, startedAt, stepResults, false);
       }
+
+      // Validate postconditions
+      const postconditionError = this.validatePostconditions(step, output);
+      if (postconditionError) {
+        stepResults.push(this.buildFailedResult(step, postconditionError));
+        if (this.config.enableRollback) {
+          const rollbackResult = await this.rollback(plan, i, executor);
+          const status: "rolled_back" | "failed" = rollbackResult.success ? "rolled_back" : "failed";
+          this.context = { ...this.context, state: status };
+          return {
+            reportId: `rpt-${plan.planId}`,
+            planId: plan.planId,
+            executionId: this.context.executionId,
+            status,
+            stepResults,
+            startedAt, completedAt: new Date().toISOString(),
+            rollbackTriggered: true,
+            rollbackResult,
+          };
+        }
+        return this.finalizeReport(plan.planId, startedAt, stepResults, false);
+      }
+
+      // Update context with step output
+      this.context.outputs[step.stepId] = output;
+
+      // Create checkpoint AFTER successful execution
+      const checkpoint: ExecutionCheckpoint = {
+        stepId: step.stepId,
+        inputHash: createHash("sha256").update(canonicalStringify({ step, outputs: this.context.outputs })).digest("hex"),
+        outputHash: createHash("sha256").update(canonicalStringify(this.context.outputs)).digest("hex"),
+        environmentHash: plan.environmentHash,
+        timestamp: new Date().toISOString(),
+      };
+      this.context = { ...this.context, checkpoints: [...this.context.checkpoints, checkpoint] };
+
+      stepResults.push({
+        stepId: step.stepId, success: true,
+        startedAt: "", completedAt: "",
+        output,
+      });
     }
 
-    // All steps completed successfully
-    if (finalStatus === "completed") {
-      this.context = { ...this.context, state: "completed" };
-    } else if (finalStatus === "rolled_back") {
-      this.context = { ...this.context, state: "rolled_back" };
-    } else {
-      this.context = { ...this.context, state: "failed" };
-    }
-
-    const completedAt = new Date().toISOString();
-
+    this.context = { ...this.context, state: "completed" as const };
     return {
-      reportId: `report-${this.context.executionId}`,
+      reportId: `rpt-${plan.planId}`,
       planId: plan.planId,
       executionId: this.context.executionId,
-      status: finalStatus,
+      status: "completed",
       stepResults,
-      startedAt,
-      completedAt,
-      rollbackTriggered,
-      rollbackResult,
+      startedAt, completedAt: new Date().toISOString(),
+      rollbackTriggered: false,
     };
   }
 
@@ -385,25 +341,26 @@ export class GovernedExecutionRuntime {
    * Validate that all precondition keys exist in the current context outputs.
    * Returns true if all preconditions are satisfied.
    */
-  private validatePreconditions(step: ExecutionStep): boolean {
-    const preconditionKeys = Object.keys(step.preconditions);
-    if (preconditionKeys.length === 0) return true;
-
-    return preconditionKeys.every((key) => key in this.context.outputs);
+  private validatePreconditions(step: ExecutionStep, context: Record<string, unknown>): string | null {
+    for (const key of Object.keys(step.preconditions)) {
+      if (!(key in context)) {
+        return `Precondition not met: ${key}`;
+      }
+    }
+    return null;
   }
 
   /**
    * Validate that all postcondition keys exist in the step output.
    * Returns true if all postconditions are satisfied.
    */
-  private validatePostconditions(
-    step: ExecutionStep,
-    output: Record<string, unknown>,
-  ): boolean {
-    const postconditionKeys = Object.keys(step.postconditions);
-    if (postconditionKeys.length === 0) return true;
-
-    return postconditionKeys.every((key) => key in output);
+  private validatePostconditions(step: ExecutionStep, output: Record<string, unknown>): string | null {
+    for (const key of Object.keys(step.postconditions)) {
+      if (!(key in output)) {
+        return `postcondition not met: ${key}`;
+      }
+    }
+    return null;
   }
 
   /**
@@ -428,6 +385,27 @@ export class GovernedExecutionRuntime {
         .digest("hex"),
       environmentHash: envHash,
       timestamp: new Date().toISOString(),
+    };
+  }
+
+  private buildFailedResult(step: ExecutionStep, error: string): ExecutionStepResult {
+    return {
+      stepId: step.stepId, success: false, startedAt: "", completedAt: "",
+      output: {}, error,
+    };
+  }
+
+  private finalizeReport(planId: string, startedAt: string, stepResults: ExecutionStepResult[], success: boolean) {
+    this.context = { ...this.context, state: success ? ("completed" as const) : ("failed" as const) };
+    return {
+      reportId: `rpt-${planId}`,
+      planId,
+      executionId: this.context.executionId,
+      status: success ? ("completed" as const) : ("failed" as const),
+      stepResults,
+      startedAt,
+      completedAt: new Date().toISOString(),
+      rollbackTriggered: false,
     };
   }
 }
