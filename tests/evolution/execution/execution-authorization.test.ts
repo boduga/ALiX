@@ -24,15 +24,15 @@ import type { ExecutionRequest } from "../../../src/evolution/execution/contract
 function makeBaseInput(overrides?: Partial<AuthorizeInput>): AuthorizeInput {
   const request: ExecutionRequest = {
     requestId: "req-001",
-    evolutionId: "prop-001",
+    evolutionId: "evol-test-001",
     requestedBy: "operator",
     requestedAt: "2026-07-12T00:00:00Z",
     reason: "Test execution",
   };
 
   const proposal: EvolutionProposal = {
-    proposalId: "prop-001",
-    evolutionId: "prop-001",
+    proposalId: "evol-test-001",
+    evolutionId: "evol-test-001",
     title: "Test proposal",
     description: "A proposal for testing",
     change: "Change the thing",
@@ -43,7 +43,7 @@ function makeBaseInput(overrides?: Partial<AuthorizeInput>): AuthorizeInput {
 
   const decision: GovernanceDecision = {
     decisionId: "govd-001",
-    proposalId: "prop-001",
+    proposalId: "evol-test-001",
     evolutionId: "evo-001",
     kind: "APPROVE",
     confidence: 0.95,
