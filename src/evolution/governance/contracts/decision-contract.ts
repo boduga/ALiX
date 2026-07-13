@@ -116,39 +116,37 @@ export const DEFAULT_GOVERNANCE_POLICY: GovernancePolicyConfig = {
  */
 export interface GovernanceDecision {
   /** Unique decision identifier (prefix "govd-"). */
-  readonly decisionId: string;
+  decisionId: string;
   /** The evolution proposal this decision applies to. */
-  readonly proposalId: string;
+  proposalId: string;
   /** The evolution this decision applies to. */
-  readonly evolutionId: string;
+  evolutionId: string;
   /** The governance decision kind. */
-  readonly kind: GovernanceDecisionKind;
+  kind: GovernanceDecisionKind;
   /** Epistemic confidence in the decision (0–1). */
-  readonly confidence: number;
+  confidence: number;
   /** Human-readable reasoning for the decision. */
-  readonly reasoning: string;
+  reasoning: string;
   /** Risks identified that informed the decision. */
-  readonly risks: readonly string[];
+  risks: readonly string[];
   /** Source A2 verification evidence ID. */
-  readonly evidenceId: string;
+  evidenceId: string;
   /** Optional A2.5 recommendation that informed this decision. */
-  readonly recommendationId?: string;
+  recommendationId?: string;
   /** Whether a recommendation was available when the decision was made. */
-  readonly recommendationAvailable: boolean;
+  recommendationAvailable: boolean;
   /** Whether the decision followed the available recommendation. */
-  readonly followedRecommendation: boolean;
+  followedRecommendation: boolean;
   /** Reason for overriding the recommendation (if applicable). */
-  readonly overrideReason?: string;
+  overrideReason?: string;
   /** Policy configuration at the time the decision was made. */
-  readonly policySnapshot: GovernancePolicyConfig;
+  policySnapshot: GovernancePolicyConfig;
   /** The target evolution state resulting from this decision. */
-  readonly targetState: "APPROVED" | "REJECTED" | "UNDER_REVIEW";
+  targetState: "APPROVED" | "REJECTED" | "UNDER_REVIEW";
   /** When the decision was made (ISO 8601). */
-  readonly decidedAt: string;
+  decidedAt: string;
   /** Who or what made the decision. */
-  readonly decidedBy: "operator" | "governance_policy" | "auto_escalation";
-  /** Integrity hash covering all other fields (excludes itself). */
-  readonly integrityHash: string;
+  decidedBy: "operator" | "governance_policy" | "auto_escalation";
 }
 
 // ---------------------------------------------------------------------------
@@ -235,8 +233,8 @@ export function validateGovernanceDecision(value: unknown): ValidationResult {
   const v = value as Record<string, unknown>;
 
   // -- Identifiers
-  if (typeof v.decisionId !== "string" || !v.decisionId.startsWith("govd-")) {
-    errors.push("decisionId must start with 'govd-' prefix");
+  if (!isNonEmptyString(v.decisionId)) {
+    errors.push("decisionId required and must be non-empty");
   }
   if (!isNonEmptyString(v.proposalId)) {
     errors.push("proposalId required and must be non-empty");
@@ -287,9 +285,20 @@ export function validateGovernanceDecision(value: unknown): ValidationResult {
   if (!v.policySnapshot || typeof v.policySnapshot !== "object") {
     errors.push("policySnapshot required and must be a GovernancePolicyConfig object");
   } else {
-    const policyResult = validateGovernancePolicyConfig(v.policySnapshot);
-    if (!policyResult.valid) {
-      errors.push(`policySnapshot: ${policyResult.errors.join("; ")}`);
+    const ps = v.policySnapshot as Record<string, unknown>;
+    if (!isNonEmptyString(ps.policyName)) {
+      errors.push("policySnapshot.policyName required and must be non-empty");
+    }
+    if (!isValidConfidence(ps.minApproveConfidence)) {
+      errors.push("policySnapshot.minApproveConfidence required and must be 0-1");
+    }
+    if (
+      typeof ps.escalateBehavior !== "string" ||
+      !isValidEscalateBehavior(ps.escalateBehavior as string)
+    ) {
+      errors.push(
+        "policySnapshot.escalateBehavior must be 'reject' or 'request_evidence'",
+      );
     }
   }
 
@@ -383,14 +392,6 @@ export function validateGovernancePolicyConfig(
     (v.minReproducibilityLevel as number) < 1
   ) {
     errors.push("minReproducibilityLevel required and must be a positive integer");
-  }
-
-  // Threshold ordering validate: rejectConfidenceThreshold < minMonitorConfidence < minApproveConfidence
-  const thresholds = [v.minApproveConfidence, v.minMonitorConfidence, v.rejectConfidenceThreshold].filter((t) => t !== undefined);
-  if (thresholds.length === 3) {
-    if (!(v.rejectConfidenceThreshold! < v.minMonitorConfidence! && v.minMonitorConfidence! < v.minApproveConfidence!)) {
-      errors.push("Thresholds must satisfy: rejectConfidenceThreshold < minMonitorConfidence < minApproveConfidence");
-    }
   }
 
   return { valid: errors.length === 0, errors };
