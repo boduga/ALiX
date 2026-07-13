@@ -22,6 +22,7 @@ import {
 } from "../../../src/evolution/execution/execution-planner.js";
 import type { EvolutionProposal } from "../../../src/evolution/contracts/evolution-contract.js";
 import type { GovernanceDecision } from "../../../src/evolution/governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../../../src/evolution/governance/decision-engine.js";
 import type {
   ExecutionPlan,
   ExecutionStep,
@@ -78,6 +79,7 @@ function makeDecision(overrides?: Partial<GovernanceDecision>): GovernanceDecisi
     targetState: "APPROVED",
     decidedAt: T,
     decidedBy: "operator",
+    integrityHash: "test-hash",
     ...overrides,
   };
 }

@@ -211,6 +211,7 @@ function makeGovernanceDecision(): GovernanceDecision {
     targetState: "APPROVED",
     decidedAt: T,
     decidedBy: "governance_policy",
+    integrityHash: "test-hash",
   };
 }
 

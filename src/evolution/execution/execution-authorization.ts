@@ -21,6 +21,7 @@
  */
 
 import type { GovernanceDecision } from "../governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../governance/decision-engine.js";
 import type { EvolutionProposal } from "../contracts/evolution-contract.js";
 import type { ExecutionRequest, ExecutionAuthorizationResult } from "./contracts/execution-contract.js";
 
@@ -65,7 +66,7 @@ export interface AuthorizeInput {
  *   1. Decision exists
  *   2. Decision kind is APPROVE
  *   3. Integrity hash valid
- *   4. Request evolutionId matches decision proposalId
+ *   4. Request evolutionId matches decision evolutionId
  *   5. Decision has not expired (if expiresAt is present)
  *   6. Decision has not been revoked (if revokedAt is present)
  *   7. No duplicate execution for this decision
@@ -94,15 +95,16 @@ export function authorizeExecution(
     return { allowed: false, reason: "Decision is not APPROVE" };
   }
 
-  // 3. Integrity hash valid (defensive — verify if hash field exists)
-  // Placeholder: will be strengthened when A3 provides full hash recomputation.
-  // Currently accepts both present and absent hashes.
-  if ("integrityHash" in decision && typeof (decision as unknown as Record<string, unknown>).integrityHash === "string") {
-    void (decision as unknown as Record<string, unknown>).integrityHash;
+  // 3. Integrity hash valid
+  // Recompute the expected hash from the decision's non-integrityHash fields
+  // and reject if it doesn't match the stored hash (tamper detection).
+  const computedHash = computeDecisionIntegrityHash(decision);
+  if (computedHash !== decision.integrityHash) {
+    return { allowed: false, reason: "Decision integrity hash mismatch" };
   }
 
   // 4. Proposal matches
-  if (request.evolutionId !== decision.proposalId) {
+  if (request.evolutionId !== decision.evolutionId) {
     return { allowed: false, reason: "Proposal ID mismatch" };
   }
 

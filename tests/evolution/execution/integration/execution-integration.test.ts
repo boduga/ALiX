@@ -17,6 +17,7 @@ import { GovernedExecutionRuntime, TestStepExecutor } from "../../../../src/evol
 import { buildExecutionEvidence } from "../../../../src/evolution/execution/execution-evidence-bridge.js";
 import type { EvolutionProposal } from "../../../../src/evolution/contracts/evolution-contract.js";
 import type { GovernanceDecision } from "../../../../src/evolution/governance/contracts/decision-contract.js";
+import { computeDecisionIntegrityHash } from "../../../../src/evolution/governance/decision-engine.js";
 import type {
   ExecutionRequest,
   ExecutionEnvironment,
@@ -28,7 +29,7 @@ import type {
 // ---------------------------------------------------------------------------
 
 function makeTestDecision(evolutionId: string, proposalId: string): GovernanceDecision {
-  return {
+  const base: Omit<GovernanceDecision, "integrityHash"> = {
     decisionId: "govd-test-001",
     proposalId,
     evolutionId,
@@ -53,6 +54,7 @@ function makeTestDecision(evolutionId: string, proposalId: string): GovernanceDe
     decidedAt: new Date().toISOString(),
     decidedBy: "governance_policy",
   };
+  return { ...base, integrityHash: computeDecisionIntegrityHash(base) };
 }
 
 function makeTestEnvironment(): ExecutionEnvironment {
