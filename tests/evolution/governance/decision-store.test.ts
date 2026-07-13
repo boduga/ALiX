@@ -44,7 +44,6 @@ function makeDecision(
     targetState: "APPROVED",
     decidedAt: "2026-07-12T10:00:00.000Z",
     decidedBy: "governance_policy",
-    integrityHash: "test-hash",
     ...overrides,
   };
 }
