@@ -18,6 +18,12 @@ import type { GovernanceDecisionBridge } from "../evolution/governance/governanc
 import type { GovernancePolicyConfig } from "../evolution/governance/contracts/decision-contract.js";
 import type { GovernanceDecisionStore } from "../evolution/governance/contracts/decision-store-contract.js";
 import { runExecute } from "../evolution/execution/execution-cli.js";
+import { runObserve } from "../evolution/observation/observation-cli.js";
+import { ObservationEngine } from "../evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../evolution/observation/providers/filesystem-provider.js";
+import { GitObservationProvider } from "../evolution/observation/providers/git-provider.js";
+import { LedgerObservationProvider } from "../evolution/observation/providers/ledger-provider.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,6 +44,19 @@ function red(msg: string): string {
 
 function bold(msg: string): string {
   return `\x1b[1m${msg}\x1b[0m`;
+}
+
+// ---------------------------------------------------------------------------
+// Observation engine builder
+// ---------------------------------------------------------------------------
+
+function buildObservationEngine(deps: EvolutionCLIDeps): ObservationEngine {
+  const engine = new ObservationEngine();
+  engine.register(new CliObservationProvider());
+  engine.register(new FilesystemObservationProvider());
+  engine.register(new GitObservationProvider());
+  engine.register(new LedgerObservationProvider(deps.evidenceStore));
+  return engine;
 }
 
 // ---------------------------------------------------------------------------
@@ -116,6 +135,17 @@ export async function handleEvolutionCommand(
         evidenceLedger: deps.evidenceLedger,
         decisionStore: deps.decisionStore,
       });
+    case "observe":
+      if (!id) {
+        console.log(red("Usage: alix governance evolution observe <evolution-id> [--json] [--reevaluate]"));
+        process.exitCode = 1;
+        return;
+      }
+      await runObserve(id, {
+        engine: buildObservationEngine(deps),
+        evidenceStore: deps.evidenceStore,
+      }, { jsonMode, reevaluate: args.includes("--reevaluate") });
+      return;
     default:
       console.log(red(`Unknown evolution command: ${sub}`));
       printHelp();
@@ -292,6 +322,7 @@ function printHelp(): void {
   console.log("  evidence <id>     Show evidence records for an evolution");
   console.log("  decide <id>       Run governance decision on an evolution (A3)");
   console.log("  execute <id>      Execute an approved evolution (A4)");
+  console.log("  observe <id>      Run outcome observations on an executed evolution (A5)");
   console.log("");
   console.log("Options:");
   console.log("  --json            Machine-readable JSON output");
