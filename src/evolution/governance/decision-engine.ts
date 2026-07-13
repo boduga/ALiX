@@ -16,12 +16,9 @@
  * @module decision-engine
  */
 
-import { createHash } from "node:crypto";
 import type { VerificationEvidence } from "../verification/contracts/verification-contract.js";
 import type { GovernanceRecommendation } from "../verification/contracts/recommendation-contract.js";
 import { isEvidenceExpired } from "../verification/evidence/verification-evidence.js";
-import { inferRegressions } from "../verification/shared.js";
-import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import {
   type GovernanceDecision,
   type GovernanceDecisionKind,
@@ -38,13 +35,9 @@ import {
  *
  * @property policyConfig - Override governance policy config.
  *                          Uses DEFAULT_GOVERNANCE_POLICY if omitted.
- * @property evolutionId - The evolution ID (defaults to evidence.proposalId
- *                         for backward compatibility).
  */
 export interface DecisionConfig {
   policyConfig?: GovernancePolicyConfig;
-  /** The evolution ID (defaults to evidence.proposalId for backward compat). */
-  evolutionId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -125,20 +118,14 @@ export function generateDecision(
   recommendation?: GovernanceRecommendation,
   options?: DecisionConfig,
 ): GovernanceDecision {
-  // Step 1: Resolve policy config and evolution ID
+  // Step 1: Resolve policy config
   const policyConfig = options?.policyConfig ?? DEFAULT_GOVERNANCE_POLICY;
-  const evolutionId = options?.evolutionId ?? evidence.proposalId;
-
-  // TODO(A3): resolve riskClassOverrides when evidence carries a risk class
-  // See GovernancePolicyConfig.riskClassOverrides — once the evidence pipeline
-  // surfaces risk class, merge matching overrides into policyConfig here.
-  void policyConfig.riskClassOverrides;
 
   // Step 2: Read evidence-level inputs
   const confidence = evidence.confidenceProfile.overallConfidence;
   const regressions = inferRegressions(evidence);
 
-  // Step 1: Evidence freshness check
+  // Step 3: Evidence freshness check
   if (isEvidenceExpired(evidence)) {
     if (policyConfig.failClosedOnExpiredEvidence) {
       // Fail-closed: reject expired evidence
@@ -148,7 +135,6 @@ export function generateDecision(
         reasoning: "Evidence has expired; rejecting per fail-closed policy",
         risks: ["Evidence has expired"],
         decidedBy: "governance_policy",
-        evolutionId: evolutionId,
       });
     }
     // Fail-soft: monitor expired evidence
@@ -158,11 +144,33 @@ export function generateDecision(
       reasoning: "Evidence has expired; monitoring due to non-fail-closed policy",
       risks: ["Evidence has expired"],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
-  // Step 3: Confidence < rejectConfidenceThreshold → REJECT
+  // Step 3: A2.5 ESCALATE → per escalateBehavior (checked early so an
+  // ESCALATE recommendation overrides the standard evidence-based flow)
+  if (recommendation?.kind === "ESCALATE") {
+    if (policyConfig.escalateBehavior === "reject") {
+      return buildDecision(evidence, recommendation, policyConfig, {
+        kind: "REJECT",
+        confidence,
+        reasoning:
+          "A2.5 recommendation is ESCALATE; rejecting per policy escalateBehavior",
+        risks: recommendation.risks,
+        decidedBy: "auto_escalation",
+      });
+    }
+    return buildDecision(evidence, recommendation, policyConfig, {
+      kind: "REQUEST_MORE_EVIDENCE",
+      confidence,
+      reasoning:
+        "A2.5 recommendation is ESCALATE; requesting more evidence per policy escalateBehavior",
+      risks: recommendation.risks,
+      decidedBy: "auto_escalation",
+    });
+  }
+
+  // Step 4 (flow): Confidence < rejectConfidenceThreshold → REJECT
   if (confidence < policyConfig.rejectConfidenceThreshold) {
     return buildDecision(evidence, recommendation, policyConfig, {
       kind: "REJECT",
@@ -171,11 +179,10 @@ export function generateDecision(
         `Confidence ${confidence.toFixed(3)} is below reject threshold ${policyConfig.rejectConfidenceThreshold}`,
       risks: [`Confidence ${confidence.toFixed(3)} below reject threshold`],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
-  // Step 4: Regressions > maxAllowedRegressions → REJECT
+  // Step 5: Regressions > maxAllowedRegressions → REJECT
   if (regressions > policyConfig.maxAllowedRegressions) {
     return buildDecision(evidence, recommendation, policyConfig, {
       kind: "REJECT",
@@ -184,11 +191,10 @@ export function generateDecision(
         `Found ${regressions} regression(s), exceeding max allowed ${policyConfig.maxAllowedRegressions}`,
       risks: [`${regressions} regression(s) detected exceeding limit`],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
-  // Step 5: reproducibilityLevel < minReproducibilityLevel → REQUEST_MORE_EVIDENCE
+  // Step 6: reproducibilityLevel < minReproducibilityLevel → REQUEST_MORE_EVIDENCE
   if (evidence.reproducibilityLevel < policyConfig.minReproducibilityLevel) {
     return buildDecision(evidence, recommendation, policyConfig, {
       kind: "REQUEST_MORE_EVIDENCE",
@@ -197,11 +203,10 @@ export function generateDecision(
         `Reproducibility level ${evidence.reproducibilityLevel} is below minimum ${policyConfig.minReproducibilityLevel}`,
       risks: [`Reproducibility level ${evidence.reproducibilityLevel} below threshold`],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
-  // Step 6: confidence >= minApproveConfidence + regressions within limit → APPROVE
+  // Step 7: confidence >= minApproveConfidence + regressions within limit → APPROVE
   if (
     confidence >= policyConfig.minApproveConfidence &&
     regressions <= policyConfig.maxAllowedRegressions
@@ -213,11 +218,10 @@ export function generateDecision(
         `Confidence ${confidence.toFixed(3)} meets approve threshold with ${regressions} regression(s) (within limit ${policyConfig.maxAllowedRegressions})`,
       risks: [],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
-  // Step 7: confidence >= minMonitorConfidence → MONITOR
+  // Step 8: confidence >= minMonitorConfidence → MONITOR
   if (confidence >= policyConfig.minMonitorConfidence) {
     return buildDecision(evidence, recommendation, policyConfig, {
       kind: "MONITOR",
@@ -227,31 +231,6 @@ export function generateDecision(
       risks:
         regressions > 0 ? [`${regressions} regression(s) detected`] : [],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
-    });
-  }
-
-  // Step 8: A2.5 ESCALATE → per escalateBehavior: REJECT or REQUEST_MORE_EVIDENCE
-  if (recommendation?.kind === "ESCALATE") {
-    if (policyConfig.escalateBehavior === "reject") {
-      return buildDecision(evidence, recommendation, policyConfig, {
-        kind: "REJECT",
-        confidence,
-        reasoning:
-          "A2.5 recommendation is ESCALATE; rejecting per policy escalateBehavior",
-        risks: recommendation.risks,
-        decidedBy: "auto_escalation",
-        evolutionId: evolutionId,
-      });
-    }
-    return buildDecision(evidence, recommendation, policyConfig, {
-      kind: "REQUEST_MORE_EVIDENCE",
-      confidence,
-      reasoning:
-        "A2.5 recommendation is ESCALATE; requesting more evidence per policy escalateBehavior",
-      risks: recommendation.risks,
-      decidedBy: "auto_escalation",
-      evolutionId: evolutionId,
     });
   }
 
@@ -263,7 +242,6 @@ export function generateDecision(
       `Confidence ${confidence.toFixed(3)} does not meet any decision threshold; requesting more evidence`,
     risks: [],
     decidedBy: "governance_policy",
-    evolutionId: evolutionId,
   });
 }
 
@@ -313,47 +291,20 @@ function computeRecommendationTracking(
 }
 
 /**
- * Compute a deterministic decisionId from evidenceId and policy config.
+ * Infer regression count from behavioral changes.
  *
- * Different policy configs produce different decisionIds even for the same
- * evidence, preventing ID collisions.
+ * Uses the same pattern as A2.5's `inferRegressions`:
+ * counts behavioral changes matching " regression: ".
+ *
+ * Pure — no side effects.
+ *
+ * @param evidence - Verification evidence with behavioralChanges.
+ * @returns Count of regression-pattern behavioral changes.
  */
-function computeDecisionId(evidenceId: string, policyConfig: GovernancePolicyConfig): string {
-  const hash = createHash("sha256");
-  hash.update(`${evidenceId}:${canonicalStringify(policyConfig)}`);
-  return `govd-${hash.digest("hex").slice(0, 16)}`;
-}
-
-/**
- * Compute the integrity hash for a GovernanceDecision (excluding integrityHash itself).
- *
- * Hash covers: decisionId, proposalId, evolutionId, kind, confidence, reasoning,
- * risks, evidenceId, recommendation-tracking fields, policySnapshot, targetState,
- * decidedAt, decidedBy — all fields except integrityHash.
- *
- * Formula: SHA-256("alix-governance-decision-v1:" + canonicalJSON(decision))
- *
- * @param decision - The decision object without integrityHash.
- * @returns Hex-encoded SHA-256 digest.
- */
-export function computeDecisionIntegrityHash(
-  decision: Omit<GovernanceDecision, "integrityHash">,
-): string {
-  // Strip integrityHash if present (handles cast from GovernanceDecision)
-  const { integrityHash: _unused, ...rest } = decision as unknown as GovernanceDecision;
-  void _unused;
-
-  // Strip undefined values (optional fields like recommendationId, overrideReason)
-  // canonicalStringify does not allow undefined values
-  const clean = Object.fromEntries(
-    Object.entries(rest).filter(([_, v]) => v !== undefined),
-  );
-
-  const payload = canonicalStringify(clean);
-  const hash = createHash("sha256");
-  hash.update("alix-governance-decision-v1:");
-  hash.update(payload, "utf8");
-  return hash.digest("hex");
+function inferRegressions(evidence: VerificationEvidence): number {
+  return evidence.behavioralChanges.filter((c) =>
+    c.includes(" regression: "),
+  ).length;
 }
 
 /**
@@ -377,30 +328,23 @@ function buildDecision(
     reasoning: string;
     risks: readonly string[];
     decidedBy: "operator" | "governance_policy" | "auto_escalation";
-    /** Evolution ID for the generated decision. */
-    evolutionId: string;
   },
 ): GovernanceDecision {
   const tracking = computeRecommendationTracking(recommendation, params.kind);
 
-  const decision: Omit<GovernanceDecision, "integrityHash"> = {
-    decisionId: computeDecisionId(evidence.evidenceId, policyConfig),
+  return {
+    decisionId: `govd-${evidence.evidenceId}`,
     proposalId: evidence.proposalId,
-    evolutionId: params.evolutionId,
+    evolutionId: evidence.proposalId,
     kind: params.kind,
     confidence: params.confidence,
     reasoning: params.reasoning,
     risks: params.risks,
     evidenceId: evidence.evidenceId,
     ...tracking,
-    policySnapshot: structuredClone(policyConfig) as GovernancePolicyConfig,
+    policySnapshot: { ...policyConfig },
     targetState: decisionKindToTargetState(params.kind),
     decidedAt: new Date().toISOString(),
     decidedBy: params.decidedBy,
-  };
-
-  return {
-    ...decision,
-    integrityHash: computeDecisionIntegrityHash(decision),
   };
 }
