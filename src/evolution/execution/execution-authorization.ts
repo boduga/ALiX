@@ -95,11 +95,10 @@ export function authorizeExecution(
   }
 
   // 3. Integrity hash valid (defensive — verify if hash field exists)
-  // Full hash recomputation requires access to the canonical serialization
-  // and will be strengthened when A3 provides it.
+  // Placeholder: will be strengthened when A3 provides full hash recomputation.
+  // Currently accepts both present and absent hashes.
   if ("integrityHash" in decision && typeof (decision as unknown as Record<string, unknown>).integrityHash === "string") {
-    // For now, a decision with a present string hash is allowed.
-    // Longer-term, recompute and compare against the canonical hash.
+    void (decision as unknown as Record<string, unknown>).integrityHash;
   }
 
   // 4. Proposal matches

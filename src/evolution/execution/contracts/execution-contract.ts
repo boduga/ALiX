@@ -162,6 +162,8 @@ export interface ExecutionStepResult {
   readonly success: boolean;
   /** Output produced by the step. */
   readonly output: Record<string, unknown>;
+  /** Error message if the step failed. */
+  readonly error?: string;
   /** When the step started. */
   readonly startedAt: string;
   /** When the step completed. */
@@ -202,7 +204,7 @@ export interface ExecutionReport {
   readonly planId: string;
   /** Reference to the execution context. */
   readonly executionId: string;
-  /** Final status of the execution. */
+  /** Final status of the execution. ("partial" is reserved for future use.) */
   readonly status: "completed" | "failed" | "rolled_back" | "partial";
   /** Ordered results of each step. */
   readonly stepResults: readonly ExecutionStepResult[];

@@ -237,6 +237,32 @@ describe("GovernedExecutionRuntime", () => {
       assert.equal(report.stepResults[0].success, false);
     });
 
+    it("fails step when postconditions are not met", async () => {
+      const plan = makePlan(1);
+      const stepWithPostcondition: ExecutionStep = {
+        stepId: "step-1",
+        operation: "update_config",
+        parameters: {},
+        idempotent: false,
+        preconditions: {},
+        postconditions: { requiredKey: true },
+      };
+      const planWithPostcondition: ExecutionPlan = {
+        ...plan,
+        steps: [stepWithPostcondition],
+        rollbackPlan: [
+          { stepId: "rb-step-1", forwardStepId: "step-1", operation: "rb_1", parameters: {}, rollbackType: "automatic", safe: true },
+        ],
+      };
+
+      const executor = new TestStepExecutor([{ success: true, output: { someKey: "value" } }]);
+      const runtime = new GovernedExecutionRuntime({ enableRollback: false });
+      const report = await runtime.execute(planWithPostcondition, executor);
+
+      assert.strictEqual(report.status, "failed");
+      assert.ok(report.stepResults[0].error?.includes("postcondition"));
+    });
+
     it("retries idempotent steps on failure", async () => {
       const runtime = new GovernedExecutionRuntime({ maxRetries: 2 });
       const idempotentStep = makeStep({
@@ -307,6 +333,52 @@ describe("GovernedExecutionRuntime", () => {
       // Checkpoints should be tracked in the internal context
       // We verify via side-effects of execution (completed status)
       assert.equal(report.stepResults.length, 2);
+    });
+
+    it("propagates step output to context for next step", async () => {
+      const plan = makePlan(1);
+      const step1: ExecutionStep = {
+        stepId: "step-1",
+        operation: "compute",
+        parameters: {},
+        idempotent: false,
+        preconditions: {},
+        postconditions: {},
+      };
+      const step2: ExecutionStep = {
+        stepId: "step-2",
+        operation: "use_result",
+        parameters: {},
+        idempotent: false,
+        preconditions: { "step-1": true },
+        postconditions: {},
+      };
+      const steps = [step1, step2];
+      const planWithSteps: ExecutionPlan = {
+        ...plan,
+        steps,
+        rollbackPlan: steps.map((s) => ({
+          stepId: `rb-${s.stepId}`,
+          forwardStepId: s.stepId,
+          operation: `rollback_${s.operation}`,
+          parameters: {},
+          rollbackType: "automatic" as const,
+          safe: true,
+        })),
+      };
+
+      // step-2 precondition checks that "step-1" key exists in context.outputs
+      // (the runtime stores each step's output under its stepId key)
+      const executor = new TestStepExecutor([
+        { success: true, output: { data: "from step 1" } },
+        { success: true, output: { done: true } },
+      ]);
+
+      const runtime = new GovernedExecutionRuntime({ enableRollback: false });
+      const report = await runtime.execute(planWithSteps, executor);
+
+      assert.strictEqual(report.status, "completed");
+      assert.strictEqual(report.stepResults.length, 2);
     });
 
     it("tracks execution state transitions", async () => {

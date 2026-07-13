@@ -120,14 +120,13 @@ export class GovernedExecutionRuntime {
    * Execute all steps of a plan sequentially.
    *
    * For each step:
-   *   1. Create a checkpoint with input hash (context + step params)
-   *   2. Validate preconditions exist in context
-   *   3. Execute the step via the injected executor
-   *   4. Validate postconditions exist in output
-   *   5. Record result with success/failure and timing
-   *   6. Retry idempotent steps on transient failure up to maxRetries
-   *   7. On success: update context.outputs, push checkpoint
-   *   8. On failure: trigger rollback (if enabled), return report
+   *   1. Validate preconditions exist in context
+   *   2. Execute the step via the injected executor (retry idempotent on transient failure)
+   *   3. Validate postconditions exist in output
+   *   4. Update context.outputs with step output
+   *   5. Create checkpoint with post-execution hash
+   *   6. Record result with success/failure and timing
+   *   7. On failure: trigger rollback (if enabled), return report
    *
    * @param plan - The execution plan to execute.
    * @param executor - The step executor that performs each step.
@@ -150,13 +149,7 @@ export class GovernedExecutionRuntime {
       const step = plan.steps[i];
       const stepStartedAt = new Date().toISOString();
 
-      // 1. Create checkpoint
-      const checkpoint = this.createCheckpoint(step, {
-        ...this.context.outputs,
-        ...step.parameters,
-      });
-
-      // 2. Validate preconditions
+      // 1. Validate preconditions
       if (!this.validatePreconditions(step)) {
         const stepCompletedAt = new Date().toISOString();
         stepResults.push({
@@ -171,7 +164,7 @@ export class GovernedExecutionRuntime {
         break;
       }
 
-      // 3 & 6. Execute step with retry for idempotent steps
+      // 2. Execute step with retry for idempotent steps
       let lastError: string | undefined;
       let output: Record<string, unknown> = {};
       let success = false;
@@ -201,12 +194,13 @@ export class GovernedExecutionRuntime {
       const stepCompletedAt = new Date().toISOString();
 
       if (success) {
-        // 4. Validate postconditions
+        // 3. Validate postconditions
         if (!this.validatePostconditions(step, output)) {
           stepResults.push({
             stepId: step.stepId,
             success: false,
             output,
+            error: "postcondition not met",
             startedAt: stepStartedAt,
             completedAt: stepCompletedAt,
           });
@@ -215,7 +209,20 @@ export class GovernedExecutionRuntime {
           break;
         }
 
-        // 5. Record successful result
+        // 4. Update context with output
+        const newOutputs = { ...this.context.outputs, [step.stepId]: output };
+
+        // 5. Create checkpoint AFTER execution with correct output hash
+        const checkpoint = this.createCheckpoint(step, newOutputs, plan.environmentHash);
+
+        // Update context with output and checkpoint
+        this.context = {
+          ...this.context,
+          outputs: newOutputs,
+          checkpoints: [...this.context.checkpoints, checkpoint],
+        };
+
+        // 6. Record successful result
         stepResults.push({
           stepId: step.stepId,
           success: true,
@@ -223,15 +230,8 @@ export class GovernedExecutionRuntime {
           startedAt: stepStartedAt,
           completedAt: stepCompletedAt,
         });
-
-        // 7. Update context with output and push checkpoint
-        this.context = {
-          ...this.context,
-          outputs: { ...this.context.outputs, [step.stepId]: output },
-          checkpoints: [...this.context.checkpoints, checkpoint],
-        };
       } else {
-        // 5. Record failure result
+        // 6. Record failure result
         stepResults.push({
           stepId: step.stepId,
           success: false,
@@ -240,7 +240,7 @@ export class GovernedExecutionRuntime {
           completedAt: stepCompletedAt,
         });
 
-        // 8. Handle failure
+        // 7. Handle failure
         if (this.config.enableRollback) {
           this.context = { ...this.context, state: "rolling_back" };
           rollbackTriggered = true;
@@ -409,24 +409,24 @@ export class GovernedExecutionRuntime {
   /**
    * Create an execution checkpoint for the given step.
    *
-   * Hashes the combined input context (current outputs + step parameters)
-   * and the current outputs for integrity tracking.
+   * Computes inputHash from the step configuration and all accumulated outputs,
+   * and outputHash from all accumulated outputs for integrity tracking.
+   * Both hashes reflect post-execution state.
    */
   private createCheckpoint(
     step: ExecutionStep,
-    inputContext: Record<string, unknown>,
+    outputs: Record<string, unknown>,
+    envHash: string,
   ): ExecutionCheckpoint {
-    const inputHash = createHash("sha256")
-      .update(canonicalStringify(inputContext))
-      .digest("hex");
-    const outputHash = createHash("sha256")
-      .update(canonicalStringify(this.context.outputs))
-      .digest("hex");
     return {
       stepId: step.stepId,
-      inputHash,
-      outputHash,
-      environmentHash: "",
+      inputHash: createHash("sha256")
+        .update(canonicalStringify({ step, outputs }))
+        .digest("hex"),
+      outputHash: createHash("sha256")
+        .update(canonicalStringify(outputs))
+        .digest("hex"),
+      environmentHash: envHash,
       timestamp: new Date().toISOString(),
     };
   }
