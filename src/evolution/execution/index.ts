@@ -12,3 +12,4 @@
 
 export * from "./contracts/execution-contract.js";
 export * from "./contracts/execution-lifecycle.js";
+export * from "./execution-authorization.js";
