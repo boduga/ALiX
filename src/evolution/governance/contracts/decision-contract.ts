@@ -233,8 +233,8 @@ export function validateGovernanceDecision(value: unknown): ValidationResult {
   const v = value as Record<string, unknown>;
 
   // -- Identifiers
-  if (!isNonEmptyString(v.decisionId)) {
-    errors.push("decisionId required and must be non-empty");
+  if (typeof v.decisionId !== "string" || !v.decisionId.startsWith("govd-")) {
+    errors.push("decisionId must start with 'govd-' prefix");
   }
   if (!isNonEmptyString(v.proposalId)) {
     errors.push("proposalId required and must be non-empty");
@@ -392,6 +392,14 @@ export function validateGovernancePolicyConfig(
     (v.minReproducibilityLevel as number) < 1
   ) {
     errors.push("minReproducibilityLevel required and must be a positive integer");
+  }
+
+  // Threshold ordering validate: rejectConfidenceThreshold < minMonitorConfidence < minApproveConfidence
+  const thresholds = [v.minApproveConfidence, v.minMonitorConfidence, v.rejectConfidenceThreshold].filter((t) => t !== undefined);
+  if (thresholds.length === 3) {
+    if (!(v.rejectConfidenceThreshold! < v.minMonitorConfidence! && v.minMonitorConfidence! < v.minApproveConfidence!)) {
+      errors.push("Thresholds must satisfy: rejectConfidenceThreshold < minMonitorConfidence < minApproveConfidence");
+    }
   }
 
   return { valid: errors.length === 0, errors };

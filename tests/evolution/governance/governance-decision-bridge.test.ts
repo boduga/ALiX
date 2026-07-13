@@ -13,7 +13,7 @@
  * @module governance-decision-bridge
  */
 
-import { describe, it, mock } from "node:test";
+import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { GovernanceDecisionBridge } from "../../../src/evolution/governance/governance-decision-bridge.js";
 import { EvolutionState } from "../../../src/evolution/contracts/evolution-contract.js";

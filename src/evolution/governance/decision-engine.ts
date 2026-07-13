@@ -121,6 +121,11 @@ export function generateDecision(
   // Step 1: Resolve policy config
   const policyConfig = options?.policyConfig ?? DEFAULT_GOVERNANCE_POLICY;
 
+  // TODO(A3): resolve riskClassOverrides when evidence carries a risk class
+  // See GovernancePolicyConfig.riskClassOverrides — once the evidence pipeline
+  // surfaces risk class, merge matching overrides into policyConfig here.
+  void policyConfig.riskClassOverrides;
+
   // Step 2: Read evidence-level inputs
   const confidence = evidence.confidenceProfile.overallConfidence;
   const regressions = inferRegressions(evidence);
@@ -341,7 +346,7 @@ function buildDecision(
     risks: params.risks,
     evidenceId: evidence.evidenceId,
     ...tracking,
-    policySnapshot: { ...policyConfig },
+    policySnapshot: structuredClone(policyConfig) as GovernancePolicyConfig,
     targetState: decisionKindToTargetState(params.kind),
     decidedAt: new Date().toISOString(),
     decidedBy: params.decidedBy,
