@@ -233,10 +233,10 @@ describe("createExecutionPlan", () => {
   });
 
   // -------------------------------------------------------------------------
-  // proposalHash and decisionHash
+  // proposalHash and decisionHash are SHA-256 hex digests
   // -------------------------------------------------------------------------
 
-  it("populates proposalHash and decisionHash as canonical strings", () => {
+  it("populates proposalHash and decisionHash as SHA-256 hex digests", () => {
     const proposal = makeProposal();
     const decision = makeDecision();
     const env = makeEnvironment();
@@ -244,11 +244,11 @@ describe("createExecutionPlan", () => {
 
     const plan = createExecutionPlan(proposal, decision, env, resolver);
 
-    // Hashes should be deterministic strings (canonical JSON output, not hex)
+    // Should be 64-char hex strings (SHA-256 digests)
     assert.strictEqual(typeof plan.proposalHash, "string");
-    assert.ok(plan.proposalHash.length > 0);
+    assert.match(plan.proposalHash, /^[0-9a-f]{64}$/);
     assert.strictEqual(typeof plan.decisionHash, "string");
-    assert.ok(plan.decisionHash.length > 0);
+    assert.match(plan.decisionHash, /^[0-9a-f]{64}$/);
   });
 
   // -------------------------------------------------------------------------
@@ -280,19 +280,61 @@ describe("createExecutionPlan", () => {
 
   it("rollback step IDs use rb- prefix and reference forward step IDs", () => {
     const proposal = makeProposal();
+    (proposal as unknown as Record<string, unknown>).changes = [
+      { operation: "op_a" },
+      { operation: "op_b" },
+    ];
     const decision = makeDecision();
     const env = makeEnvironment();
     const resolver = createDefaultRollbackResolver();
 
     const plan = createExecutionPlan(proposal, decision, env, resolver);
 
-    for (let i = 0; i < plan.steps.length; i++) {
-      const step = plan.steps[i];
-      const rollback = plan.rollbackPlan[i];
+    assert.strictEqual(plan.steps.length, 2);
+    assert.strictEqual(plan.rollbackPlan.length, 2);
 
-      assert.strictEqual(rollback.stepId, `rb-${step.stepId}`);
-      assert.strictEqual(rollback.forwardStepId, step.stepId);
+    for (const step of plan.steps) {
+      const rollback = plan.rollbackPlan.find((rb) => rb.forwardStepId === step.stepId);
+      assert.ok(rollback, `No rollback found for step ${step.stepId}`);
+      assert.strictEqual(rollback!.stepId, `rb-${step.stepId}`);
+      assert.strictEqual(rollback!.forwardStepId, step.stepId);
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // Rollback steps are in reverse order of forward steps
+  // -------------------------------------------------------------------------
+
+  it("rollback steps are in reverse order of forward steps", () => {
+    const proposal = makeProposal();
+    (proposal as unknown as Record<string, unknown>).changes = [
+      { operation: "step_a" },
+      { operation: "step_b" },
+      { operation: "step_c" },
+    ];
+
+    const decision = makeDecision();
+    const env = makeEnvironment();
+    const resolver: RollbackResolver = {
+      createRollback: (step) => ({
+        stepId: `rb-${step.stepId}`,
+        forwardStepId: step.stepId,
+        operation: `rollback_${step.operation}`,
+        parameters: {},
+        rollbackType: "automatic" as const,
+        safe: true,
+      }),
+    };
+
+    const plan = createExecutionPlan(proposal, decision, env, resolver);
+
+    // Create proposal with steps ordered A, B, C
+    // Assert: rollbackPlan[0] reverses step C (last), rollbackPlan[1] reverses B, rollbackPlan[2] reverses A
+    assert.strictEqual(plan.steps.length, 3);
+    assert.strictEqual(plan.rollbackPlan.length, 3);
+    assert.strictEqual(plan.rollbackPlan[0].forwardStepId, plan.steps[2].stepId);
+    assert.strictEqual(plan.rollbackPlan[1].forwardStepId, plan.steps[1].stepId);
+    assert.strictEqual(plan.rollbackPlan[2].forwardStepId, plan.steps[0].stepId);
   });
 
   // -------------------------------------------------------------------------
@@ -553,7 +595,7 @@ describe("createDefaultRollbackResolver", () => {
 // ---------------------------------------------------------------------------
 
 describe("RollbackResolver integration with createExecutionPlan", () => {
-  it("calls resolver for each step in forward order", () => {
+  it("calls resolver in reverse order and stores reversed rollbackPlan", () => {
     const proposal = makeProposal();
     (proposal as unknown as Record<string, unknown>).changes = [
       { operation: "step_one" },
@@ -580,9 +622,12 @@ describe("RollbackResolver integration with createExecutionPlan", () => {
 
     const plan = createExecutionPlan(proposal, decision, env, resolver);
 
-    assert.deepStrictEqual(callOrder, ["step_one", "step_two"]);
-    assert.strictEqual(plan.rollbackPlan[0].operation, "rollback_step_one");
-    assert.strictEqual(plan.rollbackPlan[1].operation, "rollback_step_two");
+    // Resolver is called in reverse order (last step first)
+    assert.deepStrictEqual(callOrder, ["step_two", "step_one"]);
+    // rollbackPlan[0] reverses the last forward step
+    assert.strictEqual(plan.rollbackPlan[0].operation, "rollback_step_two");
+    // rollbackPlan[1] reverses the first forward step
+    assert.strictEqual(plan.rollbackPlan[1].operation, "rollback_step_one");
   });
 
   it("planner can use a custom RollbackResolver implementation", () => {

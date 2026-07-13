@@ -302,12 +302,18 @@ export function createExecutionPlan(
   // 1. Resolve steps from proposal
   const steps = resolveSteps(proposal);
 
-  // 2. Generate rollback for each step (forward order)
-  const rollbackPlan = steps.map((step) => resolver.createRollback(step));
+  // 2. Generate rollback for each step (reverse order — last forward step first)
+  const rollbackPlan = [...steps]
+    .reverse()
+    .map((step) => resolver.createRollback(step));
 
-  // 3. Compute hashes
-  const proposalHash = canonicalStringify(proposal);
-  const decisionHash = canonicalStringify(decision);
+  // 3. Compute hashes — SHA-256 of canonical JSON
+  const proposalHash = createHash("sha256")
+    .update(canonicalStringify(proposal))
+    .digest("hex");
+  const decisionHash = createHash("sha256")
+    .update(canonicalStringify(decision))
+    .digest("hex");
 
   // 4. Compute plan ID
   const planId = createPlanId(proposal, decision, environment);
