@@ -469,10 +469,31 @@ describe("STATE MAPPING", () => {
 // ---------------------------------------------------------------------------
 
 describe("DECISION FIELD INTEGRITY", () => {
-  it("decisionId uses govd- prefix with evidenceId", () => {
+  it("decisionId uses govd- prefix and is deterministic per evidence+policy", () => {
     const evidence = makeEvidence(0.9, []);
     const d = generateDecision(evidence);
-    assert.strictEqual(d.decisionId, `govd-${evidence.evidenceId}`);
+    assert.ok(d.decisionId.startsWith("govd-"), `decisionId must start with govd- prefix (got ${d.decisionId})`);
+    // Deterministic: same evidence + default policy produces same decisionId
+    const d2 = generateDecision(evidence);
+    assert.strictEqual(d.decisionId, d2.decisionId);
+  });
+
+  it("different policy configs produce different decisionIds for same evidence", () => {
+    const evidence = makeEvidence(0.9, []);
+    const d1 = generateDecision(evidence);
+    const d2 = generateDecision(evidence, undefined, {
+      policyConfig: {
+        policyName: "stricter",
+        minApproveConfidence: 0.95,
+        minMonitorConfidence: 0.6,
+        rejectConfidenceThreshold: 0.4,
+        maxAllowedRegressions: 0,
+        escalateBehavior: "reject",
+        failClosedOnExpiredEvidence: true,
+        minReproducibilityLevel: 2,
+      },
+    });
+    assert.notStrictEqual(d1.decisionId, d2.decisionId, "different policies must produce different decisionIds");
   });
 
   it("policySnapshot captures the applied config", () => {

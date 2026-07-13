@@ -305,6 +305,9 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
       // create a fresh one; evolutions must be created programmatically.
       const stateMachine = new EvolutionStateMachine();
       const evidenceStore = new ExecutionEvidenceStore(cwd);
+      // NOTE: In-memory — no evidence persistence between CLI invocations.
+      // The `decide` command requires a persistent VerificationEvidenceLedger
+      // (e.g., backed by X3b storage). In-memory demo only.
       const evidenceLedger = new InMemoryVerificationEvidenceLedger();
       const decisionStore = new InMemoryGovernanceDecisionStore();
       const decisionBridge = new GovernanceDecisionBridge(stateMachine, decisionStore);
