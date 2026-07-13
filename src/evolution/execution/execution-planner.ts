@@ -343,8 +343,8 @@ export function createExecutionPlan(
     integrityHash,
   };
 
-  // 7. Validate plan constraints
-  const errors = validatePlanConstraints(plan, config);
+  // 7. Validate plan constraints (pass pre-computed hash to avoid recomputation)
+  const errors = validatePlanConstraints(plan, config, integrityHash);
   if (errors.length > 0) {
     throw new Error(`Execution plan validation failed: ${errors.join("; ")}`);
   }
@@ -374,6 +374,7 @@ export function createExecutionPlan(
 export function validatePlanConstraints(
   plan: ExecutionPlan,
   config: PlannerConfig = DEFAULT_PLANNER_CONFIG,
+  expectedIntegrityHash?: string,
 ): string[] {
   const errors: string[] = [];
 
@@ -394,8 +395,8 @@ export function validatePlanConstraints(
     );
   }
 
-  // Verify integrity hash is valid (re-compute and compare)
-  const expectedIntegrity = computeIntegrityHash(
+  // Verify integrity hash is valid (use pre-computed hash when available)
+  const expectedIntegrity = expectedIntegrityHash ?? computeIntegrityHash(
     plan.planId,
     plan.proposalId,
     plan.proposalHash,
