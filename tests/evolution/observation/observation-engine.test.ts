@@ -45,6 +45,19 @@ describe("ObservationEngine", () => {
     assert.ok(result.evidence.errorType === "unknown_provider");
   });
 
+  it("dispatches to registered provider by name", async () => {
+    const engine = new ObservationEngine();
+    const provider = makeMockProvider("cli");
+    engine.register(provider);
+
+    const obs: Observation = { observationId: "obs-1", provider: "cli", description: "test" };
+    const result = await engine.observe(obs);
+
+    assert.equal(result.status, "pass");
+    assert.equal(result.observationId, "obs-1");
+    assert.equal((provider.observe as mock.Mock<typeof provider.observe>).mock.callCount(), 1);
+  });
+
   it("returns error result when provider throws", async () => {
     const engine = new ObservationEngine();
     const throwingProvider: ObservationProvider = {
