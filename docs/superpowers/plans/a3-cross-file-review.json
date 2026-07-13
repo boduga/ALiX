@@ -1,0 +1,40 @@
+```json
+[
+  {
+    "file": "src/evolution/governance/decision-engine.ts",
+    "line": 340,
+    "summary": "buildDecision generates decisionId tied 1:1 to evidence, causing unhandled DuplicateDecisionError on second call with same evidence",
+    "failure_scenario": "CLI run alix governance evolution decide <id> twice without new verification evidence between runs. Second invocation calls generateDecision(evidence) producing decisionId govd-{sameEvidenceId}, then bridge.execute() calls decisionStore.store() which throws DuplicateDecisionError at decision-store.ts:40. The bridge's try-catch at bridge.ts:101-108 only wraps transition(), not store() at bridge.ts:77, so the error propagates unhandled and crashes the process."
+  },
+  {
+    "file": "src/evolution/governance/governance-decision-bridge.ts",
+    "line": 83,
+    "summary": "Bridge calls stateMachine.getStatus() outside try-catch after decision is already stored, creating orphaned decision on evolution lookup failure",
+    "failure_scenario": "Decision is persisted at bridge.ts:77 (append-first). Then getStatus(decision.evolutionId) at bridge.ts:83 throws UnknownEvolutionError if no evolution matches that ID. The try-catch at lines 101-108 only covers transition() — the getStatus error escapes unhandled, leaving a stored decision with no corresponding lifecycle state. This is reachable when callers pass evidence whose proposalId differs from the evolution ID."
+  },
+  {
+    "file": "src/evolution/governance/decision-engine.ts",
+    "line": 342,
+    "summary": "buildDecision sets evolutionId = evidence.proposalId, creating undocumented coupling that breaks the bridge when IDs diverge",
+    "failure_scenario": "Line 342 (evolutionId: evidence.proposalId) ties the decision's evolution identity to the evidence's proposalId. The bridge uses decision.evolutionId at lines 83 and 103 to look up and transition the evolution. If createEvolution(evol-042, ...) was called with a different ID than the evidence's proposalId prop-042, getStatus(prop-042) throws UnknownEvolutionError — crash at bridge.ts:83 (outside try-catch). This coupling is not documented in either generateDecision's JSDoc or GovernanceDecision.evolutionId's field description."
+  },
+  {
+    "file": "src/cli/commands/governance.ts",
+    "line": 308,
+    "summary": "CLI creates fresh empty InMemoryVerificationEvidenceLedger per invocation — decide command always fails with no evidence",
+    "failure_scenario": "Line 308: new InMemoryVerificationEvidenceLedger() starts empty on every CLI invocation. runDecide() at governance-decision-cli.ts:132-133 calls evidenceLedger.listByProposal(evolutionId) which returns []. This triggers the 'No verification evidence found' error path at lines 133-144, always producing exit code 1. No A2 verification CLI command populates this ledger, so the decide pipeline is wired but permanently non-functional for end users."
+  },
+  {
+    "file": "src/evolution/governance/contracts/decision-contract.ts",
+    "line": 284,
+    "summary": "validateGovernanceDecision only validates 3 of 8 GovernancePolicyConfig fields in policySnapshot — 5 critical thresholds silently accepted",
+    "failure_scenario": "Lines 284-303 only check policyName, minApproveConfidence, and escalateBehavior. Missing validation: minMonitorConfidence, rejectConfidenceThreshold, maxAllowedRegressions, failClosedOnExpiredEvidence, minReproducibilityLevel. Compare with validateGovernancePolicyConfig (lines 340-406) which validates all 8 fields plus threshold ordering. An operator or bug that produces a decision with invalid policySnapshot fields (e.g., negative maxAllowedRegressions or missing minMonitorConfidence) would pass validateGovernanceDecision but fail validateGovernancePolicyConfig, creating a false sense of correctness."
+  },
+  {
+    "file": "src/evolution/governance/decision-engine.ts",
+    "line": 351,
+    "summary": "buildDecision generates decidedAt via wall clock Date.now() inside a function claiming determinism — sub-millisecond ordering undefined",
+    "failure_scenario": "Line 351: decidedAt = new Date().toISOString() inside generateDecision's private helper. The function JSDoc claims 'MUST be deterministic given the same evidence, recommendation, and config' — except decidedAt. If two decisions are generated in the same millisecond, they share the same timestamp. Any downstream code comparing decidedAt values for ordering (e.g., 'most recent decision' query) would see them as simultaneous. The CLI sorts evidence by verifiedAt, not decidedAt, so present consumers are safe, but future consumers using decidedAt for ordering have no sub-millisecond discrimination."
+  }
+]
+```

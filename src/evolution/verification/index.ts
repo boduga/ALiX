@@ -29,3 +29,4 @@ export * from "./evidence/evidence-ledger.js";
 export * from "./evidence/lineage-tracker.js";
 export * from "./contracts/recommendation-contract.js";
 export * from "./recommendation/recommendation-engine.js";
+export * from "./shared.js";
