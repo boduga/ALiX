@@ -15,7 +15,7 @@
 
 import { readFileSync, existsSync } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { extname, join, relative, resolve } from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { buildObservationResult } from "./shared.js";
@@ -56,7 +56,9 @@ async function scanFiles(dir: string, prefix: string): Promise<string[]> {
 async function countLines(filePath: string): Promise<number> {
   try {
     const content = await readFile(filePath, "utf-8");
-    return content.split("\n").length;
+    const lines = content.split("\n");
+    // Files ending with trailing newline produce a trailing empty element
+    return content.endsWith("\n") ? lines.length - 1 : lines.length;
   } catch {
     return 0;
   }
@@ -77,23 +79,24 @@ export class RepositoryObservationProvider implements ObservationProvider {
     try {
       // File metrics
       const allFiles = await scanFiles(cwd, "");
-      const sourceFiles = allFiles.filter((f) => SOURCE_EXTENSIONS.has(join("x", f).slice(-5)));
+      const sourceFiles = allFiles.filter((f) => SOURCE_EXTENSIONS.has(extname(f)));
       const extensionCounts: Record<string, number> = {};
-      for (const f of allFiles) {
-        const ext = join("x", f).slice(join("x", f).lastIndexOf("."));
+      for (const f of sourceFiles) {
+        const ext = extname(f);
         extensionCounts[ext] = (extensionCounts[ext] ?? 0) + 1;
       }
 
-      // Line count
+      // Line count (batch with concurrency for performance)
       let totalLines = 0;
-      let lineCounts: number[] = [];
-      for (const f of sourceFiles.slice(0, 500)) { // Limit to first 500 files for performance
-        const lines = await countLines(join(cwd, f));
+      let fileCount = 0;
+      const lineBatch = sourceFiles.slice(0, 500);
+      const lineResults = await Promise.all(
+        lineBatch.map((f) => countLines(join(cwd, f))),
+      );
+      for (const lines of lineResults) {
         totalLines += lines;
-        lineCounts.push(lines);
+        fileCount++;
       }
-
-      // Dependency count from package.json
       let dependencyCount = 0;
       let devDependencyCount = 0;
       const pkgPath = join(cwd, "package.json");
@@ -126,13 +129,13 @@ export class RepositoryObservationProvider implements ObservationProvider {
         totalFiles: allFiles.length,
         sourceFiles: sourceFiles.length,
         totalLines,
-        meanLinesPerFile: lineCounts.length > 0 ? Math.round(totalLines / lineCounts.length) : 0,
+        meanLinesPerFile: fileCount > 0 ? Math.round(totalLines / fileCount) : 0,
         extensionCounts,
         dependencyCount,
         devDependencyCount,
         uncommittedChanges,
         currentBranch,
-        scannedFiles: lineCounts.length,
+        scannedFiles: fileCount,
       };
 
       return buildObservationResult(observation, "healthy", evidence);
@@ -144,7 +147,7 @@ export class RepositoryObservationProvider implements ObservationProvider {
         observedAt: new Date().toISOString(),
         evidence: {
           errorType: "provider_exception",
-          message: (err as Error).message ?? String(err),
+          message: String((err as Error)?.message ?? err),
         },
       };
     }

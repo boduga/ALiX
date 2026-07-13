@@ -118,7 +118,7 @@ export class TestSuiteObservationProvider implements ObservationProvider {
         observedAt: new Date().toISOString(),
         evidence: {
           errorType: "provider_exception",
-          message: (err as Error).message ?? String(err),
+          message: String((err as Error)?.message ?? err),
         },
       };
     }
@@ -135,7 +135,7 @@ export class TestSuiteObservationProvider implements ObservationProvider {
  */
 export function parseTestOutput(output: string, durationMs: number): TestSuiteMetrics {
   // Node test runner format: "ℹ tests N  ℹ pass N  ℹ fail N  ℹ duration_ms M"
-  const nodeTestMatch = output.match(/ℹ tests (\d+)[\s\S]*ℹ pass (\d+)[\s\S]*ℹ fail (\d+)[\s\S]*ℹ duration_ms (\d+)/);
+  const nodeTestMatch = output.match(/ℹ tests (\d+)[\s\S]*ℹ pass (\d+)[\s\S]*ℹ fail (\d+)[\s\S]*ℹ duration_ms ([\d.]+)/);
   if (nodeTestMatch) {
     return {
       total: parseInt(nodeTestMatch[1], 10),
@@ -161,8 +161,9 @@ export function parseTestOutput(output: string, durationMs: number): TestSuiteMe
   }
 
   // Mocha format: "N passing (M ms)" or "N failing"
-  const mochaPassing = output.match(/(\d+) passing/);
-  const mochaFailing = output.match(/(\d+) failing/);
+  // Match only at the start of a line (after a newline or at string start)
+  const mochaPassing = output.match(/(?:^|\n)\s*(\d+) passing/);
+  const mochaFailing = output.match(/(?:^|\n)\s*(\d+) failing/);
   if (mochaPassing || mochaFailing) {
     const passed = mochaPassing ? parseInt(mochaPassing[1], 10) : 0;
     const failed = mochaFailing ? parseInt(mochaFailing[1], 10) : 0;
