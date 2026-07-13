@@ -12,7 +12,7 @@
  */
 
 import type { ObservationEngine } from "./observation-engine.js";
-import type { Observation } from "./contracts/observation-contract.js";
+import type { Observation, ObservationResult } from "./contracts/observation-contract.js";
 import { buildObservationEvidence } from "./observation-evidence-bridge.js";
 import type { VerificationEvidence } from "../verification/contracts/verification-contract.js";
 import type { ExecutionEvidenceStore } from "../verification/evidence/evidence-store.js";
@@ -35,6 +35,7 @@ export interface ObserveDeps {
 
 export interface ObserveFlags {
   jsonMode: boolean;
+  /** Reserved: trigger A3 re-evaluation with observed evidence (not yet implemented). */
   reevaluate: boolean;
 }
 
@@ -64,12 +65,19 @@ export async function runObserve(
   // Dispatch to engine
   const results = await engine.observeAll(observations);
 
+  // Enrich results with descriptions from the original observations
+  const descMap = new Map(observations.map((o) => [o.observationId, o.description]));
+  const enrichedResults: Array<ObservationResult & { description?: string }> = results.map((r) => {
+    const desc = descMap.get(r.observationId);
+    return desc ? { ...r, description: desc } : r;
+  });
+
   // Build evidence
   const evidence = buildObservationEvidence({
     proposalId: evolutionId,
     evolutionId,
     environmentHash: "observation-v1",
-    observations: results,
+    observations: enrichedResults,
   });
 
   // Store evidence in ledger
@@ -146,7 +154,8 @@ async function storeObservationEvidence(
 ): Promise<void> {
   const errorCount = Number(evidence.baselineMetrics["errorCount"] ?? 0);
   const failCount = Number(evidence.baselineMetrics["failCount"] ?? 0);
-  const hasFailures = errorCount > 0 || failCount > 0;
+  const inconclusiveCount = Number(evidence.baselineMetrics["inconclusiveCount"] ?? 0);
+  const hasFailures = errorCount > 0 || failCount > 0 || inconclusiveCount > 0;
 
   const record: ExecutionEvidence = {
     evidenceId: evidence.evidenceId,

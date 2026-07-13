@@ -85,18 +85,15 @@ export class ObservationEngine {
    */
   async observeAll(observations: Observation[]): Promise<ObservationResult[]> {
     const results: (ObservationResult | null)[] = new Array(observations.length);
-    const running = new Set<number>();
     let nextIndex = 0;
 
     const startNext = (): Promise<void> => {
       if (nextIndex >= observations.length) return Promise.resolve();
 
       const idx = nextIndex++;
-      running.add(idx);
 
       return this.observe(observations[idx]).then((result) => {
         results[idx] = result;
-        running.delete(idx);
         return startNext();
       });
     };

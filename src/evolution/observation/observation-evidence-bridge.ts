@@ -137,13 +137,15 @@ export function buildObservationEvidence(input: ObservationBuildInput): Verifica
       errorRate: totalCount > 0 ? errorCount / totalCount : 0,
     } as Record<string, number>,
     behavioralChanges,
+    // Observation confidence — measures measurement quality, not projection accuracy.
+    // For observations, replayFidelity/coverage/historicalSimilarity are 1
+    // because we are measuring the actual system state (not projecting).
     confidenceProfile: {
+      replayFidelity: 1,
+      coverage: 1,
+      determinism: 1,
+      historicalSimilarity: 1,
       overallConfidence: meanConfidence,
-      minConfidence: confidences.length > 0 ? Math.min(...confidences) : 0,
-      maxConfidence: confidences.length > 0 ? Math.max(...confidences) : 0,
-      decayFactor: 0,
-      confidenceSources: ["observation"] as readonly string[],
-      contributorCount: observations.length,
     },
     reproducibilityLevel: 0 as const,
     lineage,
@@ -153,13 +155,10 @@ export function buildObservationEvidence(input: ObservationBuildInput): Verifica
     integrityHash: "",
   };
 
-  // Compute integrity hash
-  const { integrityHash: _h, ...withoutHash } = evidence;
+  // Compute integrity hash (exclude integrityHash itself via destructuring)
+  const { integrityHash: _h, ...stripHash } = evidence;
   void _h;
-  const clean = Object.fromEntries(
-    Object.entries(withoutHash).filter(([_, v]) => v !== undefined),
-  );
-  const payload = canonicalStringify(clean);
+  const payload = canonicalStringify(stripHash);
   const hash = createHash("sha256");
   hash.update(EVIDENCE_INTEGRITY_PREFIX);
   hash.update(payload, "utf8");

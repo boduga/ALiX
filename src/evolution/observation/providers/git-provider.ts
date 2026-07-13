@@ -13,6 +13,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { Observation, ObservationResult, ObservationProvider } from "../contracts/observation-contract.js";
+import { buildObservationResult } from "./shared.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -34,25 +35,26 @@ export class GitObservationProvider implements ObservationProvider {
         case "branch": {
           const { stdout } = await execFileAsync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd, timeout: 10_000 });
           const branch = stdout.trim();
-          return this.buildResult(observation, branch, { check, branch });
+          return buildObservationResult(observation, branch, { check, branch });
         }
 
         case "diff": {
-          const { stdout } = await execFileAsync("git", ["diff", "--stat"], { cwd, timeout: 10_000 });
-          const filesChanged = stdout.trim() ? stdout.trim().split("\n").length : 0;
-          return this.buildResult(observation, filesChanged, { check, filesChanged, diff: stdout.trim() });
+          const { stdout } = await execFileAsync("git", ["diff", "--name-only"], { cwd, timeout: 10_000 });
+          const files = stdout.trim().split("\n").filter(Boolean);
+          const filesChanged = files.length;
+          return buildObservationResult(observation, filesChanged, { check, filesChanged, files });
         }
 
         case "files": {
           const { stdout } = await execFileAsync("git", ["ls-files"], { cwd, timeout: 10_000 });
           const files = stdout.trim().split("\n").filter(Boolean);
-          return this.buildResult(observation, files.length, { check, files });
+          return buildObservationResult(observation, files.length, { check, files });
         }
 
         case "clean": {
           const { stdout } = await execFileAsync("git", ["status", "--porcelain"], { cwd, timeout: 10_000 });
           const isClean = stdout.trim().length === 0;
-          return this.buildResult(observation, isClean, { check, isClean, porcelain: stdout.trim() });
+          return buildObservationResult(observation, isClean, { check, isClean, porcelain: stdout.trim() });
         }
 
         default:
@@ -80,28 +82,4 @@ export class GitObservationProvider implements ObservationProvider {
     }
   }
 
-  private buildResult(
-    observation: Observation,
-    observed: unknown,
-    evidence: Record<string, unknown>,
-  ): ObservationResult {
-    const expected = observation.expected;
-    let status: "pass" | "fail" | "error" | "inconclusive";
-
-    if (expected !== undefined) {
-      status = observed === expected ? "pass" : "fail";
-    } else {
-      status = "pass";
-    }
-
-    return {
-      observationId: observation.observationId,
-      status,
-      confidence: 1.0,
-      observedAt: new Date().toISOString(),
-      expected,
-      observed,
-      evidence,
-    };
-  }
 }

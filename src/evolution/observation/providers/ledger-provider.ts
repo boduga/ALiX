@@ -12,6 +12,7 @@
  */
 
 import type { Observation, ObservationResult, ObservationProvider } from "../contracts/observation-contract.js";
+import { buildObservationResult } from "./shared.js";
 import type { ExecutionEvidenceStore } from "../../verification/evidence/evidence-store.js";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@ export class LedgerObservationProvider implements ObservationProvider {
         case "evidence_count": {
           const all = await this.evidenceStore.list();
           const count = all.length;
-          return this.buildResult(observation, count, { check, count });
+          return buildObservationResult(observation, count, { check, count });
         }
 
         case "has_evidence": {
@@ -48,10 +49,10 @@ export class LedgerObservationProvider implements ObservationProvider {
             };
           }
           const all = await this.evidenceStore.list();
-          // Filter by proposalId — the store's evidence records have a proposalId field
-          const matching = all.filter((e: Record<string, unknown>) => e.proposalId === proposalId);
+          // Filter by intentId — ExecutionEvidence stores proposalId as intentId
+          const matching = all.filter((e: Record<string, unknown>) => e.intentId === proposalId);
           const hasEvidence = matching.length > 0;
-          return this.buildResult(observation, hasEvidence, { check, proposalId, count: matching.length });
+          return buildObservationResult(observation, hasEvidence, { check, proposalId, count: matching.length });
         }
 
         default:
@@ -77,28 +78,4 @@ export class LedgerObservationProvider implements ObservationProvider {
     }
   }
 
-  private buildResult(
-    observation: Observation,
-    observed: unknown,
-    evidence: Record<string, unknown>,
-  ): ObservationResult {
-    const expected = observation.expected;
-    let status: "pass" | "fail" | "error" | "inconclusive";
-
-    if (expected !== undefined) {
-      status = observed === expected ? "pass" : "fail";
-    } else {
-      status = "pass";
-    }
-
-    return {
-      observationId: observation.observationId,
-      status,
-      confidence: 1.0,
-      observedAt: new Date().toISOString(),
-      expected,
-      observed,
-      evidence,
-    };
-  }
 }

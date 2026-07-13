@@ -14,6 +14,7 @@ import { access, stat, readFile, constants } from "node:fs/promises";
 import { dirname } from "node:path";
 import { createHash } from "node:crypto";
 import type { Observation, ObservationResult, ObservationProvider } from "../contracts/observation-contract.js";
+import { buildObservationResult } from "./shared.js";
 
 // ---------------------------------------------------------------------------
 // FilesystemObservationProvider
@@ -60,13 +61,13 @@ export class FilesystemObservationProvider implements ObservationProvider {
               };
             }
           }
-          return this.buildResult(observation, exists, { path, check, exists });
+          return buildObservationResult(observation, exists, { path, check, exists });
         }
 
         case "hash": {
           const content = await readFile(path);
           const hash = createHash("sha256").update(content).digest("hex");
-          return this.buildResult(observation, hash, { path, check, hash });
+          return buildObservationResult(observation, hash, { path, check, hash });
         }
 
         case "stat": {
@@ -78,7 +79,7 @@ export class FilesystemObservationProvider implements ObservationProvider {
             mtimeMs: stats.mtimeMs,
             mode: stats.mode,
           };
-          return this.buildResult(observation, statInfo.size, { path, check, ...statInfo });
+          return buildObservationResult(observation, statInfo.size, { path, check, ...statInfo });
         }
 
         default:
@@ -105,28 +106,4 @@ export class FilesystemObservationProvider implements ObservationProvider {
     }
   }
 
-  private buildResult(
-    observation: Observation,
-    observed: unknown,
-    evidence: Record<string, unknown>,
-  ): ObservationResult {
-    const expected = observation.expected;
-    let status: "pass" | "fail" | "error" | "inconclusive";
-
-    if (expected !== undefined) {
-      status = observed === expected ? "pass" : "fail";
-    } else {
-      status = "pass";
-    }
-
-    return {
-      observationId: observation.observationId,
-      status,
-      confidence: 1.0,
-      observedAt: new Date().toISOString(),
-      expected,
-      observed,
-      evidence,
-    };
-  }
 }
