@@ -8,13 +8,14 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  VALID_EVIDENCE_CLASSES,
   validateVerificationEvidence,
   type EvidenceClass,
 } from "../../../../src/evolution/verification/index.js";
 
 describe("Invariant: Evidence hierarchy", () => {
   it("observed > derived > projected precedence is documented in type", () => {
-    const classes: EvidenceClass[] = ["observed", "derived", "projected"];
+    const classes: EvidenceClass[] = [...VALID_EVIDENCE_CLASSES];
     assert.ok(classes.includes("observed"));
     assert.ok(classes.includes("derived"));
     assert.ok(classes.includes("projected"));

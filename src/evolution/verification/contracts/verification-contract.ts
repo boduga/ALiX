@@ -29,11 +29,22 @@ import type { ValidationResult } from "../../contracts/evolution-contract.js";
  * - `observed`: Records what actually happened — immutable, highest confidence.
  * - `derived`: Computed from observed evidence through analytical transforms.
  * - `projected`: Produced through deterministic verification — counterfactual.
+ * - `executed`: Produced by governed execution — real change applied.
  *
- * Downstream consumers MUST respect precedence: `observed > derived > projected`.
+ * Downstream consumers MUST respect precedence: `observed > derived > projected > executed`.
  * Projected evidence MUST NOT override observed evidence for the same metric.
  */
-export type EvidenceClass = "observed" | "derived" | "projected";
+export type EvidenceClass = "observed" | "derived" | "projected" | "executed";
+
+/**
+ * All valid EvidenceClass values.
+ */
+export const VALID_EVIDENCE_CLASSES: readonly EvidenceClass[] = [
+  "observed",
+  "derived",
+  "projected",
+  "executed",
+];
 
 // ---------------------------------------------------------------------------
 // Verification Run Lifecycle
