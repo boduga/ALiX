@@ -11,6 +11,8 @@ This directory contains ALiX's Architecture Decision Records (ADRs).
 | [ADR-0003](ADR-0003-balanced-local-model-decision.md) | Balanced Local Model Decision | Accepted |
 | [ADR-0004](ADR-0004-protected-type-files.md) | Protected Type Files | Accepted |
 | [ADR-0005](ADR-0005-plan-scoped-snapshots.md) | Plan-Scoped Snapshots Are Immutable Observations, Not Analytics | Accepted |
+| [ADR-0006](ADR-0006-a-series-governed-evolution-pipeline.md) | A-Series Governed Evolution Pipeline | Accepted |
+| [ADR-0007](ADR-0007-agent-subagent-execution-architecture.md) | Agent / Subagent Execution Architecture | Accepted |
 
 ## What is an ADR?
 
