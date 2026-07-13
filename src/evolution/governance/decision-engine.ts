@@ -16,9 +16,12 @@
  * @module decision-engine
  */
 
+import { createHash } from "node:crypto";
 import type { VerificationEvidence } from "../verification/contracts/verification-contract.js";
 import type { GovernanceRecommendation } from "../verification/contracts/recommendation-contract.js";
 import { isEvidenceExpired } from "../verification/evidence/verification-evidence.js";
+import { inferRegressions } from "../verification/shared.js";
+import { canonicalStringify } from "../../security/audit/canonical-json.js";
 import {
   type GovernanceDecision,
   type GovernanceDecisionKind,
@@ -35,9 +38,13 @@ import {
  *
  * @property policyConfig - Override governance policy config.
  *                          Uses DEFAULT_GOVERNANCE_POLICY if omitted.
+ * @property evolutionId - The evolution ID (defaults to evidence.proposalId
+ *                         for backward compatibility).
  */
 export interface DecisionConfig {
   policyConfig?: GovernancePolicyConfig;
+  /** The evolution ID (defaults to evidence.proposalId for backward compat). */
+  evolutionId?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +147,7 @@ export function generateDecision(
         reasoning: "Evidence has expired; rejecting per fail-closed policy",
         risks: ["Evidence has expired"],
         decidedBy: "governance_policy",
+        evolutionId: options?.evolutionId,
       });
     }
     // Fail-soft: monitor expired evidence
@@ -226,6 +234,7 @@ export function generateDecision(
           "A2.5 recommendation is ESCALATE; rejecting per policy escalateBehavior",
         risks: recommendation.risks,
         decidedBy: "auto_escalation",
+        evolutionId: options?.evolutionId,
       });
     }
     return buildDecision(evidence, recommendation, policyConfig, {
@@ -295,20 +304,15 @@ function computeRecommendationTracking(
 }
 
 /**
- * Infer regression count from behavioral changes.
+ * Compute a deterministic decisionId from evidenceId and policy config.
  *
- * Uses the same pattern as A2.5's `inferRegressions`:
- * counts behavioral changes matching " regression: ".
- *
- * Pure — no side effects.
- *
- * @param evidence - Verification evidence with behavioralChanges.
- * @returns Count of regression-pattern behavioral changes.
+ * Different policy configs produce different decisionIds even for the same
+ * evidence, preventing ID collisions.
  */
-function inferRegressions(evidence: VerificationEvidence): number {
-  return evidence.behavioralChanges.filter((c) =>
-    c.includes(" regression: "),
-  ).length;
+function computeDecisionId(evidenceId: string, policyConfig: GovernancePolicyConfig): string {
+  const hash = createHash("sha256");
+  hash.update(`${evidenceId}:${canonicalStringify(policyConfig)}`);
+  return `govd-${hash.digest("hex").slice(0, 16)}`;
 }
 
 /**
@@ -332,14 +336,16 @@ function buildDecision(
     reasoning: string;
     risks: readonly string[];
     decidedBy: "operator" | "governance_policy" | "auto_escalation";
+    /** Override evolution ID (defaults to evidence.proposalId). */
+    evolutionId?: string;
   },
 ): GovernanceDecision {
   const tracking = computeRecommendationTracking(recommendation, params.kind);
 
   return {
-    decisionId: `govd-${evidence.evidenceId}`,
+    decisionId: computeDecisionId(evidence.evidenceId, policyConfig),
     proposalId: evidence.proposalId,
-    evolutionId: evidence.proposalId,
+    evolutionId: params.evolutionId ?? evidence.proposalId,
     kind: params.kind,
     confidence: params.confidence,
     reasoning: params.reasoning,

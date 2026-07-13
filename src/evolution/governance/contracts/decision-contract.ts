@@ -116,37 +116,37 @@ export const DEFAULT_GOVERNANCE_POLICY: GovernancePolicyConfig = {
  */
 export interface GovernanceDecision {
   /** Unique decision identifier (prefix "govd-"). */
-  decisionId: string;
+  readonly decisionId: string;
   /** The evolution proposal this decision applies to. */
-  proposalId: string;
+  readonly proposalId: string;
   /** The evolution this decision applies to. */
-  evolutionId: string;
+  readonly evolutionId: string;
   /** The governance decision kind. */
-  kind: GovernanceDecisionKind;
+  readonly kind: GovernanceDecisionKind;
   /** Epistemic confidence in the decision (0–1). */
-  confidence: number;
+  readonly confidence: number;
   /** Human-readable reasoning for the decision. */
-  reasoning: string;
+  readonly reasoning: string;
   /** Risks identified that informed the decision. */
-  risks: readonly string[];
+  readonly risks: readonly string[];
   /** Source A2 verification evidence ID. */
-  evidenceId: string;
+  readonly evidenceId: string;
   /** Optional A2.5 recommendation that informed this decision. */
-  recommendationId?: string;
+  readonly recommendationId?: string;
   /** Whether a recommendation was available when the decision was made. */
-  recommendationAvailable: boolean;
+  readonly recommendationAvailable: boolean;
   /** Whether the decision followed the available recommendation. */
-  followedRecommendation: boolean;
+  readonly followedRecommendation: boolean;
   /** Reason for overriding the recommendation (if applicable). */
-  overrideReason?: string;
+  readonly overrideReason?: string;
   /** Policy configuration at the time the decision was made. */
-  policySnapshot: GovernancePolicyConfig;
+  readonly policySnapshot: GovernancePolicyConfig;
   /** The target evolution state resulting from this decision. */
-  targetState: "APPROVED" | "REJECTED" | "UNDER_REVIEW";
+  readonly targetState: "APPROVED" | "REJECTED" | "UNDER_REVIEW";
   /** When the decision was made (ISO 8601). */
-  decidedAt: string;
+  readonly decidedAt: string;
   /** Who or what made the decision. */
-  decidedBy: "operator" | "governance_policy" | "auto_escalation";
+  readonly decidedBy: "operator" | "governance_policy" | "auto_escalation";
 }
 
 // ---------------------------------------------------------------------------
@@ -285,20 +285,9 @@ export function validateGovernanceDecision(value: unknown): ValidationResult {
   if (!v.policySnapshot || typeof v.policySnapshot !== "object") {
     errors.push("policySnapshot required and must be a GovernancePolicyConfig object");
   } else {
-    const ps = v.policySnapshot as Record<string, unknown>;
-    if (!isNonEmptyString(ps.policyName)) {
-      errors.push("policySnapshot.policyName required and must be non-empty");
-    }
-    if (!isValidConfidence(ps.minApproveConfidence)) {
-      errors.push("policySnapshot.minApproveConfidence required and must be 0-1");
-    }
-    if (
-      typeof ps.escalateBehavior !== "string" ||
-      !isValidEscalateBehavior(ps.escalateBehavior as string)
-    ) {
-      errors.push(
-        "policySnapshot.escalateBehavior must be 'reject' or 'request_evidence'",
-      );
+    const policyResult = validateGovernancePolicyConfig(v.policySnapshot);
+    if (!policyResult.valid) {
+      errors.push(`policySnapshot: ${policyResult.errors.join("; ")}`);
     }
   }
 

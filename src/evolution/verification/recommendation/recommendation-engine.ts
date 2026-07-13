@@ -18,6 +18,7 @@
 
 import type { VerificationEvidence } from "../contracts/verification-contract.js";
 import type { GovernanceRecommendation, GovernanceRecommendationKind } from "../contracts/recommendation-contract.js";
+import { inferRegressions } from "../shared.js";
 
 // ---------------------------------------------------------------------------
 // RecommendationConfig
@@ -194,9 +195,7 @@ export class RecommendationEngine {
    * classification counts are not provided.
    */
   private inferRegressions(evidence: VerificationEvidence): number {
-    // Match the precise format from counterfactual-evaluator:
-    //   `Metric ${name} regression: ${before} → ${after} (delta ...)`
-    return evidence.behavioralChanges.filter((c) => c.includes(" regression: ")).length;
+    return inferRegressions(evidence);
   }
 
   /**

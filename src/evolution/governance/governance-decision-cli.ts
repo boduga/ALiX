@@ -96,7 +96,7 @@ export async function runDecide(
 ): Promise<void> {
   // Step 0: Parse --policy flag
   const policyName = extractPolicyFlag(args);
-  const policyConfig = deps.policyConfig ?? resolvePolicyConfig(policyName);
+  const policyConfig = policyName ? resolvePolicyConfig(policyName) : deps.policyConfig ?? DEFAULT_GOVERNANCE_POLICY;
 
   // Step 1: Validate evolution exists
   let currentState: string;
