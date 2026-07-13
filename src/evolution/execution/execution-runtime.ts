@@ -139,6 +139,7 @@ export class GovernedExecutionRuntime {
 
     for (let i = 0; i < plan.steps.length; i++) {
       const step = plan.steps[i];
+      const stepStartedAt = new Date().toISOString();
       let success = false;
       let output: Record<string, unknown> = {};
       let error: string | undefined;
@@ -146,7 +147,7 @@ export class GovernedExecutionRuntime {
       // Validate preconditions
       const preconditionError = this.validatePreconditions(step, this.context.outputs);
       if (preconditionError) {
-        stepResults.push(this.buildFailedResult(step, preconditionError));
+        stepResults.push(this.buildFailedResult(step, preconditionError, stepStartedAt));
         return this.finalizeReport(plan.planId, startedAt, stepResults, false);
       }
 
@@ -164,24 +165,13 @@ export class GovernedExecutionRuntime {
       }
 
       if (!success) {
+        const retryCompletedAt = new Date().toISOString();
         stepResults.push({
-          stepId: step.stepId, success: false, startedAt: "", completedAt: "",
+          stepId: step.stepId, success: false, startedAt: stepStartedAt, completedAt: retryCompletedAt,
           output: {}, error: error ?? "Step failed",
         });
         if (this.config.enableRollback) {
-          const rollbackResult = await this.rollback(plan, i, executor);
-          const status: "rolled_back" | "failed" = rollbackResult.success ? "rolled_back" : "failed";
-          this.context = { ...this.context, state: status };
-          return {
-            reportId: `rpt-${plan.planId}`,
-            planId: plan.planId,
-            executionId: this.context.executionId,
-            status,
-            stepResults,
-            startedAt, completedAt: new Date().toISOString(),
-            rollbackTriggered: true,
-            rollbackResult,
-          };
+          return this.handleRollbackFailure(plan, i, executor, stepResults, startedAt);
         }
         return this.finalizeReport(plan.planId, startedAt, stepResults, false);
       }
@@ -189,21 +179,9 @@ export class GovernedExecutionRuntime {
       // Validate postconditions
       const postconditionError = this.validatePostconditions(step, output);
       if (postconditionError) {
-        stepResults.push(this.buildFailedResult(step, postconditionError));
+        stepResults.push(this.buildFailedResult(step, postconditionError, stepStartedAt));
         if (this.config.enableRollback) {
-          const rollbackResult = await this.rollback(plan, i, executor);
-          const status: "rolled_back" | "failed" = rollbackResult.success ? "rolled_back" : "failed";
-          this.context = { ...this.context, state: status };
-          return {
-            reportId: `rpt-${plan.planId}`,
-            planId: plan.planId,
-            executionId: this.context.executionId,
-            status,
-            stepResults,
-            startedAt, completedAt: new Date().toISOString(),
-            rollbackTriggered: true,
-            rollbackResult,
-          };
+          return this.handleRollbackFailure(plan, i, executor, stepResults, startedAt);
         }
         return this.finalizeReport(plan.planId, startedAt, stepResults, false);
       }
@@ -221,9 +199,10 @@ export class GovernedExecutionRuntime {
       };
       this.context = { ...this.context, checkpoints: [...this.context.checkpoints, checkpoint] };
 
+      const stepCompletedAt = new Date().toISOString();
       stepResults.push({
         stepId: step.stepId, success: true,
-        startedAt: "", completedAt: "",
+        startedAt: stepStartedAt, completedAt: stepCompletedAt,
         output,
       });
     }
@@ -258,11 +237,21 @@ export class GovernedExecutionRuntime {
   ): Promise<RollbackResult> {
     const startedAt = new Date().toISOString();
     const rollbackStepResults: ExecutionStepResult[] = [];
-    const completedSteps = plan.rollbackPlan.slice(0, failedStepIndex);
 
-    // Execute rollback steps in reverse order
-    for (let i = completedSteps.length - 1; i >= 0; i--) {
-      const rbStep = completedSteps[i];
+    // Find completed forward steps (all steps before the failed step)
+    // This correctly handles the reversed rollbackPlan — we match by forwardStepId
+    // instead of using index-based slicing which breaks when rollbackPlan is reversed.
+    const completedForwardSteps = plan.steps.slice(0, failedStepIndex);
+    const completedStepIds = new Set(completedForwardSteps.map((s) => s.stepId));
+
+    // Select rollback steps for completed forward steps only.
+    // rollbackPlan is in reverse-execution order (built as [...steps].reverse().map(...)),
+    // so forward iteration over the filtered result gives the correct reverse-execution order
+    // (last completed step first).
+    const rollbackSteps = plan.rollbackPlan.filter((rb) => completedStepIds.has(rb.forwardStepId));
+
+    // Execute rollback steps in order (plan is already reversed, so forward iteration = correct reverse order)
+    for (const rbStep of rollbackSteps) {
       const rbStartedAt = new Date().toISOString();
 
       if (!rbStep.safe) {
@@ -388,10 +377,42 @@ export class GovernedExecutionRuntime {
     };
   }
 
-  private buildFailedResult(step: ExecutionStep, error: string): ExecutionStepResult {
+  private buildFailedResult(step: ExecutionStep, error: string, startedAt: string): ExecutionStepResult {
     return {
-      stepId: step.stepId, success: false, startedAt: "", completedAt: "",
+      stepId: step.stepId, success: false, startedAt,
+      completedAt: new Date().toISOString(),
       output: {}, error,
+    };
+  }
+
+  /**
+   * Handle rollback after a step failure — sets state, executes rollback,
+   * constructs and returns the final ExecutionReport.
+   *
+   * Extracted to eliminate duplicate rollback blocks (one for step execution
+   * failure, one for postcondition failure).
+   */
+  private async handleRollbackFailure(
+    plan: ExecutionPlan,
+    failedStepIndex: number,
+    executor: StepExecutor,
+    stepResults: ExecutionStepResult[],
+    startedAt: string,
+  ): Promise<ExecutionReport> {
+    this.context = { ...this.context, state: "rolling_back" as const };
+    const rollbackResult = await this.rollback(plan, failedStepIndex, executor);
+    const status: "rolled_back" | "failed" = rollbackResult.success ? "rolled_back" : "failed";
+    this.context = { ...this.context, state: status };
+    return {
+      reportId: `rpt-${plan.planId}`,
+      planId: plan.planId,
+      executionId: this.context.executionId,
+      status,
+      stepResults,
+      startedAt,
+      completedAt: new Date().toISOString(),
+      rollbackTriggered: true,
+      rollbackResult,
     };
   }
 

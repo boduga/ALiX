@@ -59,7 +59,7 @@ function makePlan(stepCount: number = 1): ExecutionPlan {
     decisionHash: "def456",
     environmentHash: "env789",
     steps,
-    rollbackPlan: steps.map((s) => ({
+    rollbackPlan: [...steps].reverse().map((s) => ({
       stepId: `rb-${s.stepId}`,
       forwardStepId: s.stepId,
       operation: `rollback_${s.operation}`,
@@ -357,7 +357,7 @@ describe("GovernedExecutionRuntime", () => {
       const planWithSteps: ExecutionPlan = {
         ...plan,
         steps,
-        rollbackPlan: steps.map((s) => ({
+        rollbackPlan: [...steps].reverse().map((s) => ({
           stepId: `rb-${s.stepId}`,
           forwardStepId: s.stepId,
           operation: `rollback_${s.operation}`,

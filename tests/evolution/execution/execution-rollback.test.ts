@@ -69,6 +69,7 @@ function makeDecision(overrides?: Partial<GovernanceDecision>): GovernanceDecisi
     targetState: "APPROVED",
     decidedAt: "2026-07-12T00:00:00.000Z",
     decidedBy: "operator",
+    integrityHash: "test-hash",
     ...overrides,
   };
 }
@@ -106,7 +107,7 @@ function makePlan(stepCount: number = 2, overrides?: Partial<ExecutionPlan>): Ex
     decisionHash: "def",
     environmentHash: "env-hash",
     steps,
-    rollbackPlan: steps.map((s) => ({
+    rollbackPlan: [...steps].reverse().map((s) => ({
       stepId: `rb-${s.stepId}`,
       forwardStepId: s.stepId,
       operation: `undo:${s.operation}`,
