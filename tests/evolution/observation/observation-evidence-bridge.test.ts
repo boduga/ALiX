@@ -105,6 +105,7 @@ describe("buildObservationEvidence", () => {
       evolutionId: "evol-001",
       environmentHash: "env-hash",
       observations: [makeResult({ observationId: "o1", status: "pass" })],
+      observedAt: "2026-07-12T00:00:00.000Z",
     };
 
     const a = buildObservationEvidence(input);

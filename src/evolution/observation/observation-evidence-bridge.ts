@@ -43,6 +43,8 @@ export interface ObservationBuildInput {
   readonly environmentHash: string;
   /** Observation results to aggregate into evidence. */
   readonly observations: readonly ObservationResult[];
+  /** Optional observation timestamp (for deterministic contexts). Defaults to now. */
+  readonly observedAt?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -51,6 +53,7 @@ export interface ObservationBuildInput {
 
 export function buildObservationEvidence(input: ObservationBuildInput): VerificationEvidence {
   const { proposalId, evolutionId, environmentHash, observations } = input;
+  const now = input.observedAt ?? new Date().toISOString();
 
   // Aggregate metrics
   const passCount = observations.filter((o) => o.status === "pass").length;
@@ -87,7 +90,7 @@ export function buildObservationEvidence(input: ObservationBuildInput): Verifica
       step: "observation",
       sourceId: input.evolutionId,
       sourceType: "evaluation" as const,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
     },
     ...observations.map((o) => ({
       step: "observation_result" as const,
@@ -109,8 +112,7 @@ export function buildObservationEvidence(input: ObservationBuildInput): Verifica
   const evidenceId = `obs-ev-${idHash.slice(0, 8)}`;
 
   // Build evidence without integrity hash
-  const now = new Date().toISOString();
-  const expiresAt = new Date(Date.now() + DEFAULT_EVIDENCE_TTL_DAYS * MS_PER_DAY).toISOString();
+  const expiresAt = new Date(new Date(now).getTime() + DEFAULT_EVIDENCE_TTL_DAYS * MS_PER_DAY).toISOString();
 
   const evidence = {
     evidenceId,
