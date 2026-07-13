@@ -15,3 +15,4 @@ export * from "./contracts/execution-lifecycle.js";
 export * from "./execution-authorization.js";
 export * from "./execution-planner.js";
 export * from "./execution-runtime.js";
+export * from "./execution-evidence-bridge.js";
