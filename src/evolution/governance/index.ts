@@ -13,3 +13,4 @@
 export * from "./contracts/decision-contract.js";
 export * from "./contracts/decision-store-contract.js";
 export * from "./decision-store.js";
+export * from "./decision-engine.js";
