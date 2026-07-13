@@ -76,40 +76,45 @@ export class GovernanceDecisionBridge {
     // Step 1: Persist decision first (append-first invariant)
     const stored = await this.decisionStore.store(decision);
 
-    // Step 2: Map decision kind to target evolution state (pure, no I/O)
+    // Step 2: Map decision kind to target evolution state
     const targetState = decisionKindToTargetState(decision.kind);
+
+    // Step 3: Get current state and decide if transition is needed
+    const currentState = this.stateMachine.getStatus(decision.evolutionId);
+
+    // Map target state string to EvolutionState enum
     const targetEvolutionState = this.toEvolutionState(targetState);
 
-    // Step 3: Attempt transition (getStatus + transition inside try-catch)
+    // MONITOR and REQUEST_MORE_EVIDENCE both map to UNDER_REVIEW.
+    // If already UNDER_REVIEW, no transition needed.
+    if (targetEvolutionState === currentState) {
+      return {
+        decision: stored,
+        lifecycleTransitioned: false,
+      };
+    }
+
+    // Step 4: Attempt transition
     let transitionResult: EvolutionTransitionResult | undefined;
     let error: string | undefined;
-    let lifecycleTransitioned = false;
 
     try {
-      const currentState = this.stateMachine.getStatus(decision.evolutionId);
-      if (targetEvolutionState !== currentState) {
-        transitionResult = this.stateMachine.transition(
-          decision.evolutionId,
-          targetEvolutionState,
-        );
-        lifecycleTransitioned = true;
-      }
+      transitionResult = this.stateMachine.transition(
+        decision.evolutionId,
+        targetEvolutionState,
+      );
     } catch (err) {
       error = err instanceof Error ? err.message : String(err);
     }
 
-    // Step 4: Emit evidence event if bridge available and transition succeeded
+    // Step 5: Emit evidence event if bridge available and transition succeeded
     if (transitionResult && this.evidenceBridge) {
-      try {
-        this.evidenceBridge.emitTransitionEvent(transitionResult.event);
-      } catch {
-        // Non-fatal: emission failure does not roll back the transition
-      }
+      this.evidenceBridge.emitTransitionEvent(transitionResult.event);
     }
 
     return {
       decision: stored,
-      lifecycleTransitioned,
+      lifecycleTransitioned: !!transitionResult,
       transition: transitionResult,
       error,
     };
