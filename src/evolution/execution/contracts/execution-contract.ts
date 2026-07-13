@@ -14,26 +14,7 @@
 import type { LineageRecord } from "../../verification/contracts/verification-contract.js";
 import type { ValidationResult } from "../../contracts/evolution-contract.js";
 import type { ExecutionState } from "./execution-lifecycle.js";
-
-// ---------------------------------------------------------------------------
-// Execution Request
-// ---------------------------------------------------------------------------
-
-/**
- * Separates operator request from governance approval.
- */
-export interface ExecutionRequest {
-  /** Unique request identifier. */
-  requestId: string;
-  /** Reference to the evolution being requested for execution. */
-  evolutionId: string;
-  /** Who requested the execution. */
-  requestedBy: string;
-  /** When the request was made. */
-  requestedAt: string;
-  /** Optional reason for the execution request. */
-  reason?: string;
-}
+export type { ExecutionRequest } from "./execution-request.js";
 
 // ---------------------------------------------------------------------------
 // Execution Environment
@@ -44,17 +25,17 @@ export interface ExecutionRequest {
  */
 export interface ExecutionEnvironment {
   /** Unique environment identifier. */
-  environmentId: string;
+  readonly environmentId: string;
   /** Hash of the environment configuration. */
-  environmentHash: string;
+  readonly environmentHash: string;
   /** Runtime version used during execution. */
-  runtimeVersion: string;
+  readonly runtimeVersion: string;
   /** Agent configuration key-value pairs. */
-  agentConfiguration: Record<string, string>;
+  readonly agentConfiguration: Record<string, string>;
   /** Baseline metrics measured before execution. */
-  baselineMetrics: Record<string, number>;
+  readonly baselineMetrics: Record<string, number>;
   /** Fingerprint of capabilities available in the environment. */
-  capabilityFingerprint: string;
+  readonly capabilityFingerprint: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -66,17 +47,17 @@ export interface ExecutionEnvironment {
  */
 export interface ExecutionStep {
   /** Unique step identifier. */
-  stepId: string;
+  readonly stepId: string;
   /** Operation to perform. */
-  operation: string;
+  readonly operation: string;
   /** Parameters for the operation. */
-  parameters: Record<string, unknown>;
+  readonly parameters: Record<string, unknown>;
   /** Whether the operation is idempotent. */
-  idempotent: boolean;
+  readonly idempotent: boolean;
   /** Preconditions that must hold before execution. */
-  preconditions: Record<string, unknown>;
+  readonly preconditions: Record<string, unknown>;
   /** Postconditions that must hold after execution. */
-  postconditions: Record<string, unknown>;
+  readonly postconditions: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -88,17 +69,17 @@ export interface ExecutionStep {
  */
 export interface RollbackStep {
   /** Unique step identifier. */
-  stepId: string;
+  readonly stepId: string;
   /** Reference to the forward step being rolled back. */
-  forwardStepId: string;
+  readonly forwardStepId: string;
   /** Operation to perform for rollback. */
-  operation: string;
+  readonly operation: string;
   /** Parameters for the rollback operation. */
-  parameters: Record<string, unknown>;
+  readonly parameters: Record<string, unknown>;
   /** How the rollback is performed. */
-  rollbackType: "automatic" | "manual" | "impossible";
+  readonly rollbackType: "automatic" | "manual" | "impossible";
   /** Whether the rollback is safe to execute. */
-  safe: boolean;
+  readonly safe: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,23 +91,23 @@ export interface RollbackStep {
  */
 export interface ExecutionPlan {
   /** Unique plan identifier. */
-  planId: string;
+  readonly planId: string;
   /** Reference to the originating proposal. */
-  proposalId: string;
+  readonly proposalId: string;
   /** Hash of the proposal at planning time. */
-  proposalHash: string;
+  readonly proposalHash: string;
   /** Reference to the governance decision authorizing execution. */
-  decisionId: string;
+  readonly decisionId: string;
   /** Hash of the decision at planning time. */
-  decisionHash: string;
+  readonly decisionHash: string;
   /** Hash of the target execution environment. */
-  environmentHash: string;
+  readonly environmentHash: string;
   /** Ordered list of execution steps. */
-  steps: readonly ExecutionStep[];
+  readonly steps: readonly ExecutionStep[];
   /** Ordered list of rollback steps. */
-  rollbackPlan: readonly RollbackStep[];
+  readonly rollbackPlan: readonly RollbackStep[];
   /** Integrity hash of the entire plan. */
-  integrityHash: string;
+  readonly integrityHash: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,13 +119,13 @@ export interface ExecutionPlan {
  */
 export interface ExecutionContext {
   /** Unique execution identifier. */
-  executionId: string;
+  readonly executionId: string;
   /** Current execution state. */
-  state: ExecutionState;
+  readonly state: ExecutionState;
   /** Ordered list of checkpoints recorded during execution. */
-  checkpoints: readonly ExecutionCheckpoint[];
+  readonly checkpoints: readonly ExecutionCheckpoint[];
   /** Outputs produced during execution. */
-  outputs: Record<string, unknown>;
+  readonly outputs: Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,15 +137,15 @@ export interface ExecutionContext {
  */
 export interface ExecutionCheckpoint {
   /** Step identifier at which the checkpoint was captured. */
-  stepId: string;
+  readonly stepId: string;
   /** Hash of inputs at checkpoint time. */
-  inputHash: string;
+  readonly inputHash: string;
   /** Hash of outputs at checkpoint time. */
-  outputHash: string;
+  readonly outputHash: string;
   /** Hash of the environment at checkpoint time. */
-  environmentHash: string;
+  readonly environmentHash: string;
   /** When the checkpoint was captured. */
-  timestamp: string;
+  readonly timestamp: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -176,15 +157,15 @@ export interface ExecutionCheckpoint {
  */
 export interface ExecutionStepResult {
   /** Step identifier. */
-  stepId: string;
+  readonly stepId: string;
   /** Whether the step succeeded. */
-  success: boolean;
+  readonly success: boolean;
   /** Output produced by the step. */
-  output: Record<string, unknown>;
+  readonly output: Record<string, unknown>;
   /** When the step started. */
-  startedAt: string;
+  readonly startedAt: string;
   /** When the step completed. */
-  completedAt: string;
+  readonly completedAt: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -196,15 +177,15 @@ export interface ExecutionStepResult {
  */
 export interface RollbackResult {
   /** Whether the rollback succeeded. */
-  success: boolean;
+  readonly success: boolean;
   /** Results of individual rollback steps. */
-  stepResults: readonly ExecutionStepResult[];
+  readonly stepResults: readonly ExecutionStepResult[];
   /** When the rollback started. */
-  startedAt: string;
+  readonly startedAt: string;
   /** When the rollback completed. */
-  completedAt: string;
+  readonly completedAt: string;
   /** Optional reason if rollback failed or was partial. */
-  reason?: string;
+  readonly reason?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -216,23 +197,23 @@ export interface RollbackResult {
  */
 export interface ExecutionReport {
   /** Unique report identifier. */
-  reportId: string;
+  readonly reportId: string;
   /** Reference to the execution plan. */
-  planId: string;
+  readonly planId: string;
   /** Reference to the execution context. */
-  executionId: string;
+  readonly executionId: string;
   /** Final status of the execution. */
-  status: "completed" | "failed" | "rolled_back" | "partial";
+  readonly status: "completed" | "failed" | "rolled_back" | "partial";
   /** Ordered results of each step. */
-  stepResults: readonly ExecutionStepResult[];
+  readonly stepResults: readonly ExecutionStepResult[];
   /** When execution started. */
-  startedAt: string;
+  readonly startedAt: string;
   /** When execution completed. */
-  completedAt: string;
+  readonly completedAt: string;
   /** Whether rollback was triggered. */
-  rollbackTriggered: boolean;
+  readonly rollbackTriggered: boolean;
   /** Result of the rollback, if triggered. */
-  rollbackResult?: RollbackResult;
+  readonly rollbackResult?: RollbackResult;
 }
 
 // ---------------------------------------------------------------------------
@@ -246,25 +227,25 @@ export interface ExecutionReport {
  */
 export interface EvolutionExecutionEvidence {
   /** Unique evidence identifier. */
-  evidenceId: string;
+  readonly evidenceId: string;
   /** Evidence class — always "executed" for execution-generated evidence. */
-  evidenceClass: "executed";
+  readonly evidenceClass: "executed";
   /** Reference to the originating proposal. */
-  proposalId: string;
+  readonly proposalId: string;
   /** Reference to the governance decision authorizing execution. */
-  decisionId: string;
+  readonly decisionId: string;
   /** The execution plan that was executed. */
-  executionPlan: ExecutionPlan;
+  readonly executionPlan: ExecutionPlan;
   /** The execution report produced. */
-  executionReport: ExecutionReport;
+  readonly executionReport: ExecutionReport;
   /** The environment in which execution occurred. */
-  environment: ExecutionEnvironment;
+  readonly environment: ExecutionEnvironment;
   /** Ordered chain of provenance lineage records. */
-  lineage: readonly LineageRecord[];
+  readonly lineage: readonly LineageRecord[];
   /** Canonical integrity hash of the evidence object. */
-  integrityHash: string;
+  readonly integrityHash: string;
   /** When the evidence expires. */
-  expiresAt: string;
+  readonly expiresAt: string;
 }
 
 // ---------------------------------------------------------------------------
