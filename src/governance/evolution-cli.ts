@@ -16,6 +16,7 @@ import type { ExecutionEvidenceStore } from "../runtime/execution-evidence-store
 import type { VerificationEvidenceLedger } from "../evolution/verification/evidence/evidence-ledger.js";
 import type { GovernanceDecisionBridge } from "../evolution/governance/governance-decision-bridge.js";
 import type { GovernancePolicyConfig } from "../evolution/governance/contracts/decision-contract.js";
+import type { GovernanceDecisionStore } from "../evolution/governance/contracts/decision-store-contract.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -62,6 +63,8 @@ export interface EvolutionCLIDeps {
   evidenceLedger?: VerificationEvidenceLedger;
   decisionBridge?: GovernanceDecisionBridge;
   policyConfig?: GovernancePolicyConfig;
+  // A4 Governed Execution deps (optional for backward compat)
+  decisionStore?: GovernanceDecisionStore;
 }
 
 export async function handleEvolutionCommand(
