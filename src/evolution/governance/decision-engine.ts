@@ -125,9 +125,8 @@ export function generateDecision(
   recommendation?: GovernanceRecommendation,
   options?: DecisionConfig,
 ): GovernanceDecision {
-  // Step 1: Resolve policy config and evolution ID
+  // Step 1: Resolve policy config
   const policyConfig = options?.policyConfig ?? DEFAULT_GOVERNANCE_POLICY;
-  const evolutionId = options?.evolutionId ?? evidence.proposalId;
 
   // TODO(A3): resolve riskClassOverrides when evidence carries a risk class
   // See GovernancePolicyConfig.riskClassOverrides — once the evidence pipeline
@@ -148,7 +147,7 @@ export function generateDecision(
         reasoning: "Evidence has expired; rejecting per fail-closed policy",
         risks: ["Evidence has expired"],
         decidedBy: "governance_policy",
-        evolutionId: evolutionId,
+        evolutionId: options?.evolutionId,
       });
     }
     // Fail-soft: monitor expired evidence
@@ -158,7 +157,6 @@ export function generateDecision(
       reasoning: "Evidence has expired; monitoring due to non-fail-closed policy",
       risks: ["Evidence has expired"],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
@@ -171,7 +169,6 @@ export function generateDecision(
         `Confidence ${confidence.toFixed(3)} is below reject threshold ${policyConfig.rejectConfidenceThreshold}`,
       risks: [`Confidence ${confidence.toFixed(3)} below reject threshold`],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
@@ -184,7 +181,6 @@ export function generateDecision(
         `Found ${regressions} regression(s), exceeding max allowed ${policyConfig.maxAllowedRegressions}`,
       risks: [`${regressions} regression(s) detected exceeding limit`],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
@@ -197,7 +193,6 @@ export function generateDecision(
         `Reproducibility level ${evidence.reproducibilityLevel} is below minimum ${policyConfig.minReproducibilityLevel}`,
       risks: [`Reproducibility level ${evidence.reproducibilityLevel} below threshold`],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
@@ -213,7 +208,6 @@ export function generateDecision(
         `Confidence ${confidence.toFixed(3)} meets approve threshold with ${regressions} regression(s) (within limit ${policyConfig.maxAllowedRegressions})`,
       risks: [],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
@@ -227,7 +221,6 @@ export function generateDecision(
       risks:
         regressions > 0 ? [`${regressions} regression(s) detected`] : [],
       decidedBy: "governance_policy",
-      evolutionId: evolutionId,
     });
   }
 
@@ -241,7 +234,7 @@ export function generateDecision(
           "A2.5 recommendation is ESCALATE; rejecting per policy escalateBehavior",
         risks: recommendation.risks,
         decidedBy: "auto_escalation",
-        evolutionId: evolutionId,
+        evolutionId: options?.evolutionId,
       });
     }
     return buildDecision(evidence, recommendation, policyConfig, {
@@ -251,7 +244,6 @@ export function generateDecision(
         "A2.5 recommendation is ESCALATE; requesting more evidence per policy escalateBehavior",
       risks: recommendation.risks,
       decidedBy: "auto_escalation",
-      evolutionId: evolutionId,
     });
   }
 
@@ -263,7 +255,6 @@ export function generateDecision(
       `Confidence ${confidence.toFixed(3)} does not meet any decision threshold; requesting more evidence`,
     risks: [],
     decidedBy: "governance_policy",
-    evolutionId: evolutionId,
   });
 }
 
@@ -325,38 +316,6 @@ function computeDecisionId(evidenceId: string, policyConfig: GovernancePolicyCon
 }
 
 /**
- * Compute the integrity hash for a GovernanceDecision (excluding integrityHash itself).
- *
- * Hash covers: decisionId, proposalId, evolutionId, kind, confidence, reasoning,
- * risks, evidenceId, recommendation-tracking fields, policySnapshot, targetState,
- * decidedAt, decidedBy — all fields except integrityHash.
- *
- * Formula: SHA-256("alix-governance-decision-v1:" + canonicalJSON(decision))
- *
- * @param decision - The decision object without integrityHash.
- * @returns Hex-encoded SHA-256 digest.
- */
-export function computeDecisionIntegrityHash(
-  decision: Omit<GovernanceDecision, "integrityHash">,
-): string {
-  // Strip integrityHash if present (handles cast from GovernanceDecision)
-  const { integrityHash: _unused, ...rest } = decision as unknown as GovernanceDecision;
-  void _unused;
-
-  // Strip undefined values (optional fields like recommendationId, overrideReason)
-  // canonicalStringify does not allow undefined values
-  const clean = Object.fromEntries(
-    Object.entries(rest).filter(([_, v]) => v !== undefined),
-  );
-
-  const payload = canonicalStringify(clean);
-  const hash = createHash("sha256");
-  hash.update("alix-governance-decision-v1:");
-  hash.update(payload, "utf8");
-  return hash.digest("hex");
-}
-
-/**
  * Assemble a GovernanceDecision from evidence and decision parameters.
  *
  * Pure — no side effects.
@@ -377,16 +336,16 @@ function buildDecision(
     reasoning: string;
     risks: readonly string[];
     decidedBy: "operator" | "governance_policy" | "auto_escalation";
-    /** Evolution ID for the generated decision. */
-    evolutionId: string;
+    /** Override evolution ID (defaults to evidence.proposalId). */
+    evolutionId?: string;
   },
 ): GovernanceDecision {
   const tracking = computeRecommendationTracking(recommendation, params.kind);
 
-  const decision: Omit<GovernanceDecision, "integrityHash"> = {
+  return {
     decisionId: computeDecisionId(evidence.evidenceId, policyConfig),
     proposalId: evidence.proposalId,
-    evolutionId: params.evolutionId,
+    evolutionId: params.evolutionId ?? evidence.proposalId,
     kind: params.kind,
     confidence: params.confidence,
     reasoning: params.reasoning,
@@ -397,10 +356,5 @@ function buildDecision(
     targetState: decisionKindToTargetState(params.kind),
     decidedAt: new Date().toISOString(),
     decidedBy: params.decidedBy,
-  };
-
-  return {
-    ...decision,
-    integrityHash: computeDecisionIntegrityHash(decision),
   };
 }

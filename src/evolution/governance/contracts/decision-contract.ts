@@ -147,8 +147,6 @@ export interface GovernanceDecision {
   readonly decidedAt: string;
   /** Who or what made the decision. */
   readonly decidedBy: "operator" | "governance_policy" | "auto_escalation";
-  /** Integrity hash covering all other fields (excludes itself). */
-  readonly integrityHash: string;
 }
 
 // ---------------------------------------------------------------------------
