@@ -23,6 +23,7 @@ import type {
   PatternCategory,
 } from "../../contracts/pattern-discovery-contract.js";
 import { computeConfidence } from "../../contracts/pattern-discovery-contract.js";
+import { normalizeIntentId } from "./strategy-utils.js";
 import type { ExecutionEvidence } from "../../../runtime/contracts/execution-intent-contract.js";
 
 // ---------------------------------------------------------------------------
@@ -58,20 +59,6 @@ function computeLatency(evidence: ExecutionEvidence): number {
   const start = new Date(evidence.startedAt).getTime();
   const end = new Date(evidence.completedAt).getTime();
   return Math.max(0, end - start);
-}
-
-/**
- * Normalize an intent ID by stripping the final path segment (after the
- * last `/`) so that different run suffixes are grouped under the same
- * parent identifier.
- *
- * @example
- * normalizeIntentId("agent/workflow/run-01") // "agent/workflow"
- * normalizeIntentId("task-001")             // "task-001"
- */
-function normalizeIntentId(intentId: string): string {
-  const lastSlash = intentId.lastIndexOf("/");
-  return lastSlash >= 0 ? intentId.slice(0, lastSlash) : intentId;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +171,7 @@ export class PerformanceDegradationStrategy implements DetectionStrategy {
         confidence,
         evidenceIds: sorted.map((e) => e.evidenceId),
         description: `Detected ${(increaseRatio * 100).toFixed(1)}% latency increase for ${normalizedId} (${sorted.length} executions)`,
-        firstObserved: sorted[0].startedAt,
+        firstObserved: sorted[0].completedAt,
         lastObserved: newest.completedAt,
       });
     }

@@ -22,6 +22,7 @@ import type {
   PatternCategory,
 } from "../../contracts/pattern-discovery-contract.js";
 import { computeConfidence } from "../../contracts/pattern-discovery-contract.js";
+import { normalizeIntentId } from "./strategy-utils.js";
 
 // ---------------------------------------------------------------------------
 // ExecutionFailureConfig
@@ -41,30 +42,6 @@ export const DEFAULT_EXECUTION_FAILURE_CONFIG: ExecutionFailureConfig = {
   lookbackWindowDays: 7,
   baselineCount: 10,
 };
-
-// ---------------------------------------------------------------------------
-// normalizeIntentId
-// ---------------------------------------------------------------------------
-
-/**
- * Strip the final path segment (after the last `/`) from an intent ID.
- *
- * Nested intent IDs use a hierarchical scheme where each trailing `/`
- * segment adds specificity. The parent identifier (everything before the
- * final `/`) is what matters for failure grouping.
- *
- * @example
- *   normalizeIntentId("agent/workflow/run-01") // "agent/workflow"
- *   normalizeIntentId("task-001")              // "task-001"
- *
- * @param intentId - Raw intent ID, potentially hierarchical.
- * @returns Parent identifier with the final segment stripped.
- */
-export function normalizeIntentId(intentId: string): string {
-  const index = intentId.lastIndexOf("/");
-  if (index === -1) return intentId;
-  return intentId.slice(0, index);
-}
 
 // ---------------------------------------------------------------------------
 // ExecutionFailureStrategy

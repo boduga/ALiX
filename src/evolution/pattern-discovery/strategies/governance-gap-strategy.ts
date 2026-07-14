@@ -74,7 +74,7 @@ function isResolutionEvent(event: GovernanceAuditEvent): boolean {
 }
 
 /**
- * Build a correlation key for matching escalations to resolutions.
+ * Build a primary correlation key for matching escalations to resolutions.
  *
  * Uses subjectType + subjectId when available, falling back to actorId + action.
  */
@@ -82,6 +82,18 @@ function correlationKey(event: GovernanceAuditEvent): string {
   if (event.subjectId) {
     return `${event.subjectType}:${event.subjectId}`;
   }
+  return `${event.actorType}:${event.actorId}:${event.action}`;
+}
+
+/**
+ * Build a fallback correlation key using actor + action.
+ *
+ * Used when the primary key (which may include subjectId on one event
+ * but not the other) fails to match. Ensures that an escalation and
+ * its resolution are recognized as related even when subjectId was
+ * populated differently between the two events.
+ */
+function correlationKeyFallback(event: GovernanceAuditEvent): string {
   return `${event.actorType}:${event.actorId}:${event.action}`;
 }
 
@@ -157,8 +169,13 @@ export class GovernanceGapStrategy implements DetectionStrategy {
     const unresolvedEscalations: GovernanceAuditEvent[] = [];
 
     for (const escalation of escalations) {
+      // Try primary key first, then fallback actor+action key
+      // (handles subjectId null mismatch between escalation and resolution events)
       const key = correlationKey(escalation);
-      const resolution = resolutions.get(key);
+      const fallbackKey = correlationKeyFallback(escalation);
+      const resolution = key !== fallbackKey
+        ? (resolutions.get(key) ?? resolutions.get(fallbackKey))
+        : resolutions.get(key);
 
       if (!resolution) {
         // No resolution found → unresolved
@@ -179,7 +196,7 @@ export class GovernanceGapStrategy implements DetectionStrategy {
     // (Overrides bypass normal governance — they indicate a gap in policy coverage)
     if (this.config.treatOverrideAsUnresolved) {
       for (const event of windowedEvents) {
-        if (event.eventType === "override_applied" || event.decision === "overridden") {
+        if (event.eventType === "override_applied") {
           // Only count if not already counted as an escalation
           if (!escalations.includes(event)) {
             unresolvedEscalations.push(event);
