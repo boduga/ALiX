@@ -220,6 +220,8 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
   const rest = args.slice(1);
 
   switch (subcommand) {
+    case "status":
+      return runStatus(rest);
     case "health":
       return runHealth(rest);
     case "drift":
@@ -257,83 +259,6 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
     case "approval": {
       const { approvalCLI } = await import("../../governance/approval-workflow.js");
       approvalCLI(rest);
-      return;
-    }
-    case "analytics":
-      return runAnalytics(rest);
-    case "failure-analysis":
-      return runFailureAnalysis(rest);
-    case "policy-suggestions":
-      return runPolicySuggestions(rest);
-    case "friction-analysis":
-      return runFrictionAnalysis(rest);
-    case "report": {
-      if (rest[0] === "compliance") {
-        const { handleGovernanceReportCommand } = await import("./governance-report.js");
-        return handleGovernanceReportCommand(rest, { cwd: process.cwd() });
-      }
-      return runReport(rest);
-    }
-    case "inbox":
-      return runInbox(rest);
-    case "review":
-      return runReview(rest);
-    case "decide":
-      return runDecide(rest);
-    case "actions":
-      return runActions(rest);
-    case "audit":
-      return runAudit(rest);
-    case "readiness":
-      return runReadiness(rest);
-    case "handoff":
-      if (rest[0] === "evidence" || rest[0] === "closure") { return runHandoffClosureAction(rest); }
-	      return runHandoff(rest);
-    case "intelligence":
-      return runIntelligence(rest);
-    case "evolution": {
-      const { handleEvolutionCommand } = await import("../../governance/evolution-cli.js");
-      const { EvolutionStateMachine } = await import("../../evolution/evolution-state-machine.js");
-      const { ExecutionEvidenceStore } = await import("../../runtime/execution-evidence-store.js");
-      const { InMemoryGovernanceDecisionStore } = await import("../../evolution/governance/decision-store.js");
-      const { GovernanceDecisionBridge } = await import("../../evolution/governance/governance-decision-bridge.js");
-      const { InMemoryVerificationEvidenceLedger } = await import("../../evolution/verification/evidence/evidence-ledger.js");
-      const { DEFAULT_GOVERNANCE_POLICY } = await import("../../evolution/governance/contracts/decision-contract.js");
-      const cwd = process.cwd();
-      // Use a shared state machine instance — in production this would
-      // be wired through dependency injection. For the read-only CLI we
-      // create a fresh one; evolutions must be created programmatically.
-      const stateMachine = new EvolutionStateMachine();
-      const evidenceStore = new ExecutionEvidenceStore(cwd);
-      // NOTE: In-memory — no evidence persistence between CLI invocations.
-      // The `decide` command requires a persistent VerificationEvidenceLedger
-      // (e.g., backed by X3b storage). In-memory demo only.
-      const evidenceLedger = new InMemoryVerificationEvidenceLedger();
-      const decisionStore = new InMemoryGovernanceDecisionStore();
-      const decisionBridge = new GovernanceDecisionBridge(stateMachine, decisionStore);
-      const deps = { stateMachine, evidenceStore, evidenceLedger, decisionBridge, policyConfig: DEFAULT_GOVERNANCE_POLICY };
-      return handleEvolutionCommand(rest, deps);
-    }
-    case "replay": {
-      const { handleGovernanceReplayCommand } = await import("./governance-replay.js");
-      return handleGovernanceReplayCommand(rest);
-    }
-    case "calibration": {
-      const { handleGovernanceCalibrationCommand } = await import("./governance-calibration.js");
-      const output = handleGovernanceCalibrationCommand(rest, { cwd: process.cwd() });
-      console.log(output);
-      return;
-    }
-    case "policy-review": {
-      const { handleGovernancePolicyReviewCommand } = await import("./governance-policy-review.js");
-      const output = await handleGovernancePolicyReviewCommand(rest, { cwd: process.cwd() });
-      console.log(output);
-      return;
-    }
-    case "lineage": {
-      const { handleGovernanceLineageCommand } = await import("./governance-lineage.js");
-      const output = await handleGovernanceLineageCommand(rest, { cwd: process.cwd() });
-      console.log(output);
       return;
     }
     case "propose": {
@@ -389,10 +314,77 @@ export async function handleGovernanceCommand(args: string[]): Promise<void> {
         `Unknown governance subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix governance {health|drift|lens-review|integrity|policies|recommend|analytics|failure-analysis|policy-suggestions|friction-analysis|report|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
+        "Usage: alix governance {status|health|drift|lens-review|integrity|policies|recommend|propose|approve|reject|list|cleanup|explain|dashboard|investigate} [--window <days>] [--json]",
       );
       process.exit(1);
   }
+}
+
+// ---------------------------------------------------------------------------
+// runStatus — `alix governance status [--json]`
+// ---------------------------------------------------------------------------
+
+async function runStatus(args: string[]): Promise<void> {
+  const jsonMode = args.includes("--json");
+  const cwd = process.cwd();
+  const govDir = join(cwd, ".alix", "governance");
+
+  // Import stores
+  const { FileLedgerStore } = await import(
+    "../../governance/run-ledger.js"
+  );
+  const { FileFailureMemoryStore } = await import(
+    "../../governance/failure-memory.js"
+  );
+
+  const ledgerStore = new FileLedgerStore(govDir);
+  const failureStore = new FileFailureMemoryStore(govDir);
+
+  const allRuns = await ledgerStore.list();
+  const allFailures = await failureStore.list();
+
+  const pendingApprovals = allRuns.filter((r) =>
+    r.outcome === "completed" && r.approvals.some((g) => g.status === "pending"),
+  ).length;
+  const deniedRuns = allRuns.filter((r) => r.outcome === "denied").length;
+  const failedRuns = allRuns.filter((r) => r.outcome === "failed").length;
+
+  if (jsonMode) {
+    console.log(JSON.stringify({
+      components: {
+        policyAdapter: true,
+        riskScoring: true,
+        approvalWorkflow: true,
+        runLedger: true,
+        failureMemory: true,
+      },
+      counts: {
+        recentRuns: allRuns.length,
+        recentFailures: allFailures.length,
+        pendingApprovals,
+        deniedRuns,
+        failedRuns,
+      },
+    }, null, 2));
+    return;
+  }
+
+  const available = GREEN + "available" + RESET;
+
+  console.log(BOLD + "Governance Status" + RESET);
+  console.log(BAR);
+  console.log(`  ${GREEN}●${RESET} policy adapter     ${available}`);
+  console.log(`  ${GREEN}●${RESET} risk scoring        ${available}`);
+  console.log(`  ${GREEN}●${RESET} approval workflow   ${available}`);
+  console.log(`  ${GREEN}●${RESET} run ledger          ${available}`);
+  console.log(`  ${GREEN}●${RESET} failure memory      ${available}`);
+  console.log("");
+  console.log(BOLD + "Recent Activity" + RESET);
+  console.log(`  runs:     ${allRuns.length}`);
+  console.log(`  failures: ${allFailures.length}`);
+  console.log(`  pending approvals: ${pendingApprovals > 0 ? YELLOW + pendingApprovals + RESET : pendingApprovals}`);
+  console.log(`  denied:   ${deniedRuns > 0 ? RED + deniedRuns + RESET : deniedRuns}`);
+  console.log(`  failed:   ${failedRuns > 0 ? RED + failedRuns + RESET : failedRuns}`);
 }
 
 // ---------------------------------------------------------------------------
