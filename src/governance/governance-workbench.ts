@@ -349,15 +349,7 @@ function queueItemSorter(a: WorkbenchQueueItem, b: WorkbenchQueueItem): number {
 // Lifecycle trace
 // ---------------------------------------------------------------------------
 
-/**
- * Build a lifecycle trace for a single remediation.
- *
- * Returns the ordered chain of hops (signal → investigation → proposal
- * → plan → approval → attempt → report), marking missing hops as gaps.
- *
- * Pure function — no store writes, no mutation, no audit emitter imports.
- */
-export function buildLifecycleTrace(
+function buildLifecycleTrace(
   remediationId: string,
   remediations: GovernanceRemediationProposal[],
   plansByRemediation: Map<string, GovernanceExecutionPlan>,
