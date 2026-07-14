@@ -56,7 +56,7 @@ describe("ObservationEngine", () => {
 
     assert.equal(result.status, "pass");
     assert.equal(result.observationId, "obs-1");
-    assert.equal((provider.observe as mock.Mock<typeof provider.observe>).mock.callCount(), 1);
+    assert.equal((provider.observe as any).mock.callCount(), 1);
   });
   it("returns error result when provider throws", async () => {
     const engine = new ObservationEngine();

@@ -311,7 +311,8 @@ export class ConfigSigner {
       format: "pem",
       type: "pkcs8",
     });
-    const publicKeyObj = createPublicKey(privKeyObj);
+    // createPublicKey accepts KeyObject at runtime but TS types lack this overload
+    const publicKeyObj = createPublicKey(privKeyObj as never);
     return publicKeyObj.export({ type: "spki", format: "pem" }) as string;
   }
 

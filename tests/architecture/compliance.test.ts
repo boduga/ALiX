@@ -17,6 +17,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { GovernanceDecision } from "../../src/evolution/governance/contracts/decision-contract.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(__dirname, "../..");
@@ -61,8 +62,7 @@ describe("ADR-0006: Governance Gate", () => {
       decidedAt: new Date().toISOString(),
       decidedBy: "governance_policy" as const,
     };
-    const { integrityHash: _, ...withoutHash } = decision;
-    void _;
+    const { integrityHash: _, ...withoutHash } = decision as GovernanceDecision;
     const result = authorizeExecution({
       request: { requestId: "test", evolutionId: "test", requestedBy: "test", requestedAt: new Date().toISOString() },
       proposal: { proposalId: "test", evolutionId: "test", title: "t", description: "d", change: "c", beforeHash: null, afterHash: null, createdAt: new Date().toISOString() },

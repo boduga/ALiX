@@ -120,8 +120,8 @@ describe("A5 Observation Integration", () => {
       assert.ok(change.startsWith("Observation"), `Should start with 'Observation': ${change}`);
     }
 
-    // Store and retrieve
-    await evidenceStore.append(evidence);
+    // Store and retrieve (cast — VerificationEvidence structurally compatible)
+    await evidenceStore.append(evidence as any);
     const stored = await evidenceStore.getByEvidenceId(evidence.evidenceId);
     assert.ok(stored);
     assert.equal(stored.evidenceId, evidence.evidenceId);

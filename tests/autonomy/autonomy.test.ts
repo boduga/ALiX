@@ -7,19 +7,19 @@ import { extractMutationPaths, recordMutationInSessionState } from "../../src/ru
 describe("extractInitialScope", () => {
   it("extracts quoted paths", () => {
     const scope = extractInitialScope('Fix "src/foo.ts" and "lib/bar.ts"');
-    assert.ok(scope?.files.includes("src/foo.ts"), scope?.files.join(", "));
-    assert.ok(scope?.files.includes("lib/bar.ts"), scope?.files.join(", "));
+    assert.ok(scope?.files.includes("src/foo.ts"), scope?.files.join(", ")!);
+    assert.ok(scope?.files.includes("lib/bar.ts"), scope?.files.join(", ")!);
   });
 
   it("extracts paths with slashes", () => {
     const scope = extractInitialScope("Update src/config.ts with new defaults");
-    assert.ok(scope?.files.some(p => p.includes("src/config.ts")), scope?.files.join(", "));
+    assert.ok(scope?.files.some(p => p.includes("src/config.ts")), scope?.files.join(", ")!);
   });
 
   it("extracts multiple file types", () => {
     const scope = extractInitialScope("Refactor auth/auth.ts and auth/routes.ts");
-    assert.ok(scope?.files.some(p => p.includes("auth/auth.ts")), scope?.files.join(", "));
-    assert.ok(scope?.files.some(p => p.includes("auth/routes.ts")), scope?.files.join(", "));
+    assert.ok(scope?.files.some(p => p.includes("auth/auth.ts")), scope?.files.join(", ")!);
+    assert.ok(scope?.files.some(p => p.includes("auth/routes.ts")), scope?.files.join(", ")!);
   });
 
   it("returns empty for no files", () => {

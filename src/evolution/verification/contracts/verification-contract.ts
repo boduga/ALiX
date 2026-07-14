@@ -17,6 +17,7 @@
  */
 
 import type { ConfidenceProfile } from "./confidence-contract.js";
+export type { ConfidenceProfile };
 import type { ValidationResult } from "../../contracts/evolution-contract.js";
 
 // ---------------------------------------------------------------------------
