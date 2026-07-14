@@ -358,3 +358,31 @@ function buildDecision(
     decidedBy: params.decidedBy,
   };
 }
+
+/**
+ * Compute an integrity hash for a GovernanceDecision.
+ *
+ * The hash covers all fields except integrityHash itself and any undefined
+ * optional fields. Deterministic — same inputs always produce the same hash.
+ *
+ * @param decision — Decision fields (integrityHash omitted or undefined).
+ * @returns Hex-encoded SHA-256 hash.
+ */
+export function computeDecisionIntegrityHash(
+  decision: Omit<GovernanceDecision, "integrityHash">,
+): string {
+  // Strip integrityHash if present (handles cast from GovernanceDecision)
+  const { integrityHash: _unused, ...rest } = decision as unknown as GovernanceDecision;
+  void _unused;
+
+  // Strip undefined values (optional fields)
+  const clean = Object.fromEntries(
+    Object.entries(rest).filter(([_, v]) => v !== undefined),
+  );
+
+  const payload = canonicalStringify(clean);
+  const hash = createHash("sha256");
+  hash.update("alix-governance-decision-v1:");
+  hash.update(payload, "utf8");
+  return hash.digest("hex");
+}
