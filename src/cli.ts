@@ -80,72 +80,62 @@ Usage:
     alix review <plan-id>
     alix apply <plan-id>
 
-  Graphs, SOPs, reports:
-    alix graph plan|list|inspect|export|run|preflight|runs|rerun|continue
-    alix sop list|show|run|doctor
-    alix report list|show|open|path
-    alix metrics [--raw]
-    alix demo local
-
-  Project and UI:
-    alix init
-    alix serve
-    alix inspector open
-    alix inspector auth create|list|rotate|revoke|doctor
-    alix tui
-    alix db doctor|migrate
-    alix config show|get|set|delete|history|provenance|rollback|set-key|set-default-model|set-tier
-
-  Extensions, agents, memory:
-    alix mcp list|add|remove|discover|test
-    alix extension list|install|uninstall|search
-    alix skill list|show|install|run
-    alix skills <skill-name> [args]
-    alix agent <role> "<prompt>"
-    alix memory list|add|search|stats
-    alix registry list|agents|tools|doctor
-
-  Health, models, providers:
-    alix doctor [--performance]
-    alix models doctor|fit|list-profiles|show-profile|apply-profile|install-profile
-    alix benchmark run|compare
-    alix provider doctor [provider]
-
-  Security, policy, audit:
-    alix security doctor|gate
-    alix security config keygen|sign|verify|trust-key|allow-rollback
-    alix security supply-chain lifecycle-check|exceptions|verify-tarball
-    alix credential list|get|set|delete|migrate
-    alix policy list|doctor|eval
-    alix audit list|by-graph|by-approval|by-action|verify|checkpoint|checkpoint-verify
-    alix evidence list|show|query|verify
-
-  Runtime and operations:
-    alix runtime events|timeline
-    alix daemon start|stop|status|tasks|cancel|doctor
-    alix runs list|show|append
-    alix failures list|show|recall|append
-    alix approvals list|pending|show|approve|deny
-    alix approval list|show|approve|deny|revoke|expire
-    alix workflow status|list|transition
-    alix reflection report
-
-  Intelligence:
-    alix adaptation list|show|propose|approve|reject|apply|effectiveness|generate|revert|intelligence|prioritize|capability-evolution|lineage
-    alix decision context|risk|recommend|queue|brief|status|review|outcome|intent
-    alix learning report|propose|dashboard|refresh
-    alix explain proposal|governance
-    alix governance health|drift|lens-review|policies|integrity|recommend|risk-score|approval|analytics|failure-analysis|policy-suggestions|friction-analysis|report|inbox|review|decide|actions|audit|propose|approve|reject|list|cleanup|explain|dashboard|investigate|execution
-    alix executive dashboard|plan|evaluate|outcomes|learn|recommend|bridge|recommendation-effectiveness|remediate|subsystem-correlation|orchestrate|correlate|reason|strategic-plan|confidence-model|forecast
-    alix baseline list|providers|health|show
-    alix research "<query>"
-    alix issue run <issue>
-
-  Coordination:
-    alix coordination run|tick|resume|status|results|cancel|list|inspect|watch|workers|approvals|ownership|events|conflicts|conflict|conflict-resolve|conflict-dismiss|conflict-accept-divergence
-    alix ownership list|history|show|acquire|release|renew|conflicts|prune
-    alix recovery scan|inspect|repair|verify
-    alix observability <subcommand>
+  alix security doctor       Check Inspector boundary state and security config
+  alix security gate         Run the security acceptance gate
+  alix security config keygen    Generate config signing keypair
+  alix security config sign      Sign the current config
+  alix security config verify    Verify config signature and anti-rollback
+  alix security config trust-key <path>  Import a trusted public key
+  alix security config allow-rollback --reason "..."  Accept current config version
+  alix security supply-chain lifecycle-check     Check lifecycle scripts against allowlist
+  alix security supply-chain exceptions list      List all audit exceptions
+  alix security supply-chain exceptions check     Check npm audit against exceptions policy
+  alix security supply-chain verify-tarball <p>   Verify tarball contents against policy
+  alix credential list        List stored credentials (no values)
+  alix credential get <p> <l>  Get credential value
+  alix credential set <p> <l> <v> Store credential
+  alix credential delete <p> <l> Delete credential
+  alix credential migrate      Migrate credentials from config [--dry-run]
+  alix policy list        List loaded policy rules
+  alix policy doctor      Check policy file health and loading status
+  alix policy eval        Evaluate a capability or risk level against policy
+  alix audit list [--limit N]    Show recent audit events
+  alix audit by-graph <id>       Show audit events for a graph
+  alix audit by-approval <id>    Show audit events for an approval
+  alix audit by-action <action>  Filter by action type
+  alix audit verify              Stream-verify audit log integrity
+  alix audit verify --json       Structured integrity report
+  alix audit checkpoint --output <path>  Create signed checkpoint
+  alix audit checkpoint-verify <path>    Verify checkpoint evidence
+  alix evidence list [--kind <type>] [--limit <n>] [--json]
+                                   List evidence records
+  alix evidence show <fingerprint> Show evidence record by fingerprint
+  alix evidence query --kind <type> [--after <iso>] [--before <iso>] [--json]
+                                   Query evidence by type and time range
+  alix evidence verify             Run fingerprint chain verification
+  alix reflection report           Generate a reflection report with observability metrics
+  alix adaptation <subcommand>     Guided adaptation: list/show/propose/approve/reject/apply
+  alix decision context <id>   Show DecisionContext for a proposal (P6.0a)
+  alix workflow status <issue>     Show workflow state for an issue
+  alix workflow list               List active workflow entries
+  alix workflow transition <i> <s>  Manually transition an issue
+  alix runtime events     Show unified runtime events (--graph, --session, --approval, --action, --limit)
+  alix runtime timeline <graphId>  Show timeline for a graph across all sources
+  alix baseline <subcommand>      Baseline intelligence: list, providers, health, show
+  alix daemon start      Start the background daemon
+  alix daemon stop       Stop the background daemon
+  alix daemon status     Show daemon status
+  alix daemon tasks      List daemon tasks (--status <filter>)
+  alix daemon cancel <id>  Cancel a daemon task
+  alix daemon doctor     Daemon health check
+  alix submit "<task>"   Submit a task to the daemon
+  alix runs list [--limit N] [--json]  List ledger entries (newest first)
+  alix runs show <runId> [--json]     Show a single ledger entry
+  alix approvals list     List all approval requests
+  alix approvals pending  List pending approvals only
+  alix approvals show <id>  Show approval details
+  alix approvals approve <id> [--reason "..."]  Approve a pending request
+  alix approvals deny <id> [--reason "..."]  Deny a pending request
 `);
   process.exit(0);
 }
@@ -159,13 +149,6 @@ if (command === "--version" || command === "-v") {
 if (command === "runs") {
   const { handleRunsCommand } = await import("./cli/commands/runs.js");
   await handleRunsCommand(args);
-  process.exit(0);
-}
-
-// ── Failures command (P12.5) ────────────────────────────────────
-if (command === "failures") {
-  const { handleFailuresCommand } = await import("./cli/commands/failures.js");
-  await handleFailuresCommand(args);
   process.exit(0);
 }
 
