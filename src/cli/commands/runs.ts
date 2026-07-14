@@ -16,13 +16,6 @@ import {
   FileLedgerStore,
   type LedgerEntry,
 } from "../../governance/run-ledger.js";
-import {
-  approveGate,
-  denyGate,
-  type ApprovalGate,
-  type ApprovalGateName,
-  type ApprovalWorkflowResult,
-} from "../../governance/approval-workflow.js";
 
 // ---------------------------------------------------------------------------
 // ANSI helpers
@@ -70,18 +63,12 @@ export async function handleRunsCommand(args: string[]): Promise<void> {
       return runShow(args.slice(1));
     case "append":
       return runAppend(args.slice(1));
-    case "approve":
-      return runApprove(args.slice(1));
-    case "deny":
-      return runDeny(args.slice(1));
-    case "cancel":
-      return runCancel(args.slice(1));
     default:
       console.error(
         `Unknown runs subcommand: "${subcommand ?? ""}"`,
       );
       console.error(
-        "Usage: alix runs {list|show|append|approve|deny|cancel} [options]",
+        "Usage: alix runs {list|show|append} [options]",
       );
       process.exit(1);
   }
@@ -201,211 +188,6 @@ async function runAppend(args: string[]): Promise<void> {
   }
 
   console.log("Ledger entry appended.");
-}
-
-// ---------------------------------------------------------------------------
-// runApprove — `alix runs approve <runId> --gate <gate> --by <op> [--reason]`
-// ---------------------------------------------------------------------------
-
-const VALID_GATES: ApprovalGateName[] = [
-  "proposal", "file_scope", "verification", "pr", "merge",
-];
-
-async function runApprove(args: string[]): Promise<void> {
-  const jsonMode = args.includes("--json");
-
-  const positional = args.filter((a) => !a.startsWith("--"));
-  const runId = positional[0];
-
-  const gateIdx = args.indexOf("--gate");
-  const gateName = gateIdx !== -1 && gateIdx + 1 < args.length
-    ? args[gateIdx + 1] as ApprovalGateName
-    : undefined;
-
-  const byIdx = args.indexOf("--by");
-  const operator = byIdx !== -1 && byIdx + 1 < args.length
-    ? args[byIdx + 1]
-    : undefined;
-
-  const reasonIdx = args.indexOf("--reason");
-  const reason = reasonIdx !== -1 && reasonIdx + 1 < args.length
-    ? args[reasonIdx + 1]
-    : undefined;
-
-  if (!runId || !gateName || !operator) {
-    console.error("Usage: alix runs approve <runId> --gate <gate> --by <operator> [--reason <text>]");
-    process.exit(2);
-  }
-
-  if (!(VALID_GATES as readonly string[]).includes(gateName)) {
-    console.error(`Error: --gate must be one of: ${VALID_GATES.join(", ")}`);
-    process.exit(1);
-  }
-
-  if (gateName === "merge") {
-    console.error("Error: merge gate cannot be approved via operator CLI — merges are never autonomous");
-    process.exit(1);
-  }
-
-  const cwd = process.cwd();
-  const store = createStore(cwd);
-  const entry = await store.get(runId);
-
-  if (!entry) {
-    console.error(`Error: run not found: ${runId}`);
-    process.exit(1);
-  }
-
-  // Wrap approvals in an ApprovalWorkflowResult-like shape for the pure function
-  const workflowResult: ApprovalWorkflowResult = {
-    required: true,
-    gates: entry.approvals,
-    reason: reason ?? "Operator approval",
-  };
-
-  const updated = approveGate(workflowResult, gateName, operator);
-
-  const newEntry: LedgerEntry = {
-    ...entry,
-    approvals: updated.gates,
-    timestamp: new Date().toISOString(),
-  };
-
-  await store.append(newEntry);
-
-  if (jsonMode) {
-    console.log(JSON.stringify({ ok: true, runId, gate: gateName, approvedBy: operator }, null, 2));
-    return;
-  }
-
-  console.log(`Gate ${CYAN}${gateName}${RESET} approved by ${CYAN}${operator}${RESET} for run ${CYAN}${runId}${RESET}`);
-  if (reason) console.log(`  Reason: ${reason}`);
-}
-
-// ---------------------------------------------------------------------------
-// runDeny — `alix runs deny <runId> --gate <gate> --by <op> [--reason]`
-// ---------------------------------------------------------------------------
-
-async function runDeny(args: string[]): Promise<void> {
-  const jsonMode = args.includes("--json");
-
-  const positional = args.filter((a) => !a.startsWith("--"));
-  const runId = positional[0];
-
-  const gateIdx = args.indexOf("--gate");
-  const gateName = gateIdx !== -1 && gateIdx + 1 < args.length
-    ? args[gateIdx + 1] as ApprovalGateName
-    : undefined;
-
-  const byIdx = args.indexOf("--by");
-  const operator = byIdx !== -1 && byIdx + 1 < args.length
-    ? args[byIdx + 1]
-    : undefined;
-
-  const reasonIdx = args.indexOf("--reason");
-  const reason = reasonIdx !== -1 && reasonIdx + 1 < args.length
-    ? args[reasonIdx + 1]
-    : undefined;
-
-  if (!runId || !gateName || !operator) {
-    console.error("Usage: alix runs deny <runId> --gate <gate> --by <operator> [--reason <text>]");
-    process.exit(2);
-  }
-
-  if (!(VALID_GATES as readonly string[]).includes(gateName)) {
-    console.error(`Error: --gate must be one of: ${VALID_GATES.join(", ")}`);
-    process.exit(1);
-  }
-
-  const cwd = process.cwd();
-  const store = createStore(cwd);
-  const entry = await store.get(runId);
-
-  if (!entry) {
-    console.error(`Error: run not found: ${runId}`);
-    process.exit(1);
-  }
-
-  const workflowResult: ApprovalWorkflowResult = {
-    required: true,
-    gates: entry.approvals,
-    reason: reason ?? "Operator denial",
-  };
-
-  const updated = denyGate(workflowResult, gateName, reason);
-
-  const newEntry: LedgerEntry = {
-    ...entry,
-    approvals: updated.gates,
-    outcome: "denied" as const,
-    timestamp: new Date().toISOString(),
-  };
-
-  await store.append(newEntry);
-
-  if (jsonMode) {
-    console.log(JSON.stringify({ ok: true, runId, gate: gateName, deniedBy: operator }, null, 2));
-    return;
-  }
-
-  console.log(`Gate ${CYAN}${gateName}${RESET} denied by ${CYAN}${operator}${RESET} for run ${CYAN}${runId}${RESET}`);
-  if (reason) console.log(`  Reason: ${reason}`);
-}
-
-// ---------------------------------------------------------------------------
-// runCancel — `alix runs cancel <runId> --by <op> [--reason]`
-// ---------------------------------------------------------------------------
-
-async function runCancel(args: string[]): Promise<void> {
-  const jsonMode = args.includes("--json");
-
-  const positional = args.filter((a) => !a.startsWith("--"));
-  const runId = positional[0];
-
-  const byIdx = args.indexOf("--by");
-  const operator = byIdx !== -1 && byIdx + 1 < args.length
-    ? args[byIdx + 1]
-    : undefined;
-
-  const reasonIdx = args.indexOf("--reason");
-  const reason = reasonIdx !== -1 && reasonIdx + 1 < args.length
-    ? args[reasonIdx + 1]
-    : undefined;
-
-  if (!runId || !operator) {
-    console.error("Usage: alix runs cancel <runId> --by <operator> [--reason <text>]");
-    process.exit(2);
-  }
-
-  const cwd = process.cwd();
-  const store = createStore(cwd);
-  const entry = await store.get(runId);
-
-  if (!entry) {
-    console.error(`Error: run not found: ${runId}`);
-    process.exit(1);
-  }
-
-  const newEntry: LedgerEntry = {
-    ...entry,
-    outcome: "cancelled" as const,
-    timestamp: new Date().toISOString(),
-    // Preserve evidence — append `cancel` as a verification-style marker
-    verificationResults: [
-      ...entry.verificationResults,
-      { command: "operator.cancel", status: "operator_cancelled", operator, reason: reason ?? "" },
-    ],
-  };
-
-  await store.append(newEntry);
-
-  if (jsonMode) {
-    console.log(JSON.stringify({ ok: true, runId, cancelledBy: operator }, null, 2));
-    return;
-  }
-
-  console.log(`Run ${CYAN}${runId}${RESET} cancelled by ${CYAN}${operator}${RESET}`);
-  if (reason) console.log(`  Reason: ${reason}`);
 }
 
 // ---------------------------------------------------------------------------
