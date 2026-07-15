@@ -108,9 +108,12 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     payload: { fileCount: repoMap?.files.length ?? 0, sourceCount: repoMap?.sourceFiles.length ?? 0, testCount: repoMap?.testFiles.length ?? 0 }
   });
 
+  const apiKey = config.apiKeys?.[config.model.provider]
+    ?? process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
+    ?? "";
   const provider = await createProvider(
     { provider: config.model.provider, model: config.model.name },
-    process.env[`${config.model.provider.toUpperCase()}_API_KEY`]
+    apiKey,
   );
   const editFormatPolicy = buildEditFormatPolicy({ provider: config.model.provider, preferred: provider.editFormatPreference });
 

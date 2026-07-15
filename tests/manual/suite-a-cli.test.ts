@@ -4,7 +4,7 @@
 import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import {
-  runCli, CLI_PATH, PROJECT_ROOT, tempDir, assertSuccess, assertOutputContains, assertOutputNotContains, needsTty,
+  runCli, CLI_PATH, PROJECT_ROOT, tempDir, assertSuccess, assertOutputContains, assertOutputNotContains, needsTty, needsModel,
 } from "./run-cli.js";
 
 const BASE = ["run", "--session-mode", "bypass", "--no-stream"];
@@ -57,8 +57,9 @@ describe("Suite A: Basic CLI (alix run)", () => {
     assertOutputContains(r, "alix run");
     assertOutputContains(r, "--no-plan");
     assertOutputContains(r, "--no-stream");
-    assertOutputContains(r, "alix serve");
-    assertOutputContains(r, "alix init");
+    assertOutputContains(r, "--session-mode");
+    assertOutputContains(r, "--mode");
+    assertOutputContains(r, "alix chat");
   });
 
   // ── A.10: --version flag ───────────────────────────────────────
