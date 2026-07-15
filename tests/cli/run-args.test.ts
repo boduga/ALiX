@@ -20,6 +20,7 @@ function assertArgs(
       planFilePath: expected.planFilePath,
       intent: expected.intent ?? false,
       propose: expected.propose ?? false,
+      readOnly: expected.readOnly ?? false,
     });
   });
 }
@@ -45,9 +46,9 @@ assertArgs("--no-stream boolean flag", ["--no-stream", "deploy to prod"], {
   noStream: true,
 });
 
-assertArgs("--no-stream at end (positional - treated as task text)", ["deploy", "--no-stream"], {
-  task: "deploy --no-stream",
-  noStream: false,
+assertArgs("--no-stream at end (positional)", ["deploy", "--no-stream"], {
+  task: "deploy",
+  noStream: true,
 });
 
 // ---------- 3. --mode=value format ----------
@@ -86,7 +87,7 @@ assertArgs("--session-mode ask", ["--session-mode", "ask", "run tests"], {
 
 // ---------- 5. Task text containing --no-stream literally ----------
 
-assertArgs("task text containing --no-stream not stripped", [
+assertArgs("--no-stream consumed even when not leading", [
   "add",
   "--no-stream",
   "support",
@@ -94,8 +95,8 @@ assertArgs("task text containing --no-stream not stripped", [
   "the",
   "docs",
 ], {
-  task: "add --no-stream support to the docs",
-  noStream: false,
+  task: "add support to the docs",
+  noStream: true,
 });
 
 assertArgs("task text containing --no-stream after first non-flag", [
@@ -251,6 +252,7 @@ test("empty args returns defaults", () => {
     planFilePath: undefined,
     intent: false,
     propose: false,
+    readOnly: false,
   });
 });
 
@@ -303,34 +305,34 @@ assertArgs("--plan-file without value falls back to task text", ["--plan-file"],
   planFilePath: undefined,
 });
 
-assertArgs("no-stream flag appears in task but not as a leading flag", [
+assertArgs("--no-stream consumed anywhere in args", [
   "the",
   "option",
   "--no-stream",
   "is",
   "documented",
 ], {
-  task: "the option --no-stream is documented",
-  noStream: false,
+  task: "the option is documented",
+  noStream: true,
 });
 
-assertArgs("mode flag buried in task is not consumed", [
+assertArgs("--mode=auto consumed anywhere in args", [
   "please",
   "--mode=auto",
   "the",
   "system",
 ], {
-  task: "please --mode=auto the system",
-  sessionMode: undefined,
+  task: "please the system",
+  sessionMode: "auto",
 });
 
-assertArgs("resume flag buried in task is not consumed", [
+assertArgs("resume consumed anywhere in args", [
   "see",
   "--resume",
   "function",
 ], {
-  task: "see --resume function",
-  resumeSessionId: undefined,
+  task: "see",
+  resumeSessionId: "function",
 });
 
 assertArgs("missing value after --mode consumes nothing extra", ["--mode"], {
@@ -338,12 +340,12 @@ assertArgs("missing value after --mode consumes nothing extra", ["--mode"], {
   sessionMode: undefined,
 });
 
-assertArgs("positional: non-flag token after flag starts task region", [
+assertArgs("flags consumed anywhere in args", [
   "--no-stream",
   "action",
   "--no-plan",
 ], {
-  task: "action --no-plan",
+  task: "action",
   noStream: true,
-  noPlan: false,
+  noPlan: true,
 });
