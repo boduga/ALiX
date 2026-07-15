@@ -16,10 +16,9 @@ const VALID_MODES = new Set(["auto", "ask", "bypass"]);
 /**
  * Parses CLI arguments for the `alix run` command.
  *
- * Only known flags at the start of the argument list are consumed as flags.
- * Everything after the first non-flag token (or after a value flag's value)
- * is treated as task text. This avoids the bug where flag-like strings inside
- * the task text were being stripped by the previous regex-based approach.
+ * Scans the entire arg list for known flags. Flags and their values are
+ * consumed regardless of position relative to the task text. Remaining
+ * unparsed tokens become the task string.
  *
  * @param rawArgs - The arguments array (everything after `alix run`)
  * @returns A `RunArgs` object with parsed flags and the remaining task text
@@ -27,10 +26,11 @@ const VALID_MODES = new Set(["auto", "ask", "bypass"]);
 export function parseRunArgs(rawArgs: string[]): RunArgs {
   const result: RunArgs = { task: "", noStream: false, noPlan: false, sessionMode: undefined, resumeSessionId: undefined, planFilePath: undefined, intent: false, propose: false };
   const taskParts: string[] = [];
-  let i = 0;
+  const consumed = new Array<boolean>(rawArgs.length).fill(false);
 
-  // Phase 1: consume known flags while we see them at the start
-  while (i < rawArgs.length) {
+  for (let i = 0; i < rawArgs.length; i++) {
+    if (consumed[i]) continue;
+
     const arg = rawArgs[i];
     const eqIndex = arg.indexOf("=");
     const flagName = eqIndex >= 0 ? arg.slice(0, eqIndex) : arg;
@@ -41,53 +41,49 @@ export function parseRunArgs(rawArgs: string[]): RunArgs {
       result.noPlan = result.noPlan || flagName === "--no-plan";
       result.intent = result.intent || flagName === "--intent";
       result.propose = result.propose || flagName === "--propose";
-      i++;
+      consumed[i] = true;
       continue;
     }
 
     if (VALUE_FLAGS.has(flagName)) {
       const value = eqValue !== undefined ? eqValue : rawArgs[i + 1];
-      let consumed = 0;
+      const nextConsumed = !eqValue && value !== undefined && i + 1 < rawArgs.length && !consumed[i + 1];
+      let matched = false;
 
       switch (flagName) {
         case "--mode":
         case "--session-mode": {
           if (value !== undefined && VALID_MODES.has(value)) {
             result.sessionMode = value as "auto" | "ask" | "bypass";
-            consumed = eqValue !== undefined ? 1 : 2;
+            matched = true;
           }
           break;
         }
         case "--resume": {
           if (value !== undefined && value.length > 0) {
             result.resumeSessionId = value;
-            consumed = eqValue !== undefined ? 1 : 2;
+            matched = true;
           }
           break;
         }
         case "--plan-file": {
           if (value !== undefined && value.length > 0) {
             result.planFilePath = value;
-            consumed = eqValue !== undefined ? 1 : 2;
+            matched = true;
           }
           break;
         }
       }
 
-      if (consumed > 0) {
-        i += consumed;
+      if (matched) {
+        consumed[i] = true;
+        if (nextConsumed) consumed[i + 1] = true;
         continue;
       }
-      // Invalid or missing value — fall through to treat as task text
     }
 
-    // Not a known flag (or known flag with an invalid value) —
-    // everything from here is task text
-    while (i < rawArgs.length) {
-      taskParts.push(rawArgs[i]);
-      i++;
-    }
-    break;
+    // Not a known flag — add to task text
+    taskParts.push(arg);
   }
 
   result.task = taskParts.join(" ").trim();
