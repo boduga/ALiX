@@ -467,7 +467,7 @@ async function deleteSession(dir: string, id: string): Promise<void> {
   console.log(`Deleted session ${id.slice(0, 8)}`);
 }
 
-const WORKSPACE_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant with read-only access to the current project workspace.
+const WORKSPACE_SYSTEM_PROMPT = `You are ALiX, an AI assistant with read-only access to the current project workspace.
 
 You have access to these tools:
 - web_search(query, count): Search the web for current information
@@ -482,7 +482,7 @@ You can read files, search directories, and search the web. You CANNOT modify an
 For shell-like requests, use workspace_pwd for pwd and dir_list for ls.
 When the user asks you to make changes, explain that you are in read-only mode.`;
 
-const CHAT_SYSTEM_PROMPT = `You are ALiX, an AI coding assistant. Be concise and helpful.
+const CHAT_SYSTEM_PROMPT = `You are ALiX, an AI assistant. Be concise and helpful.
 
 You have access to these tools:
 - web_search(query, count): Search the web for current information
