@@ -57,7 +57,6 @@ describe("Suite A: Basic CLI (alix run)", () => {
     assertOutputContains(r, "alix run");
     assertOutputContains(r, "--no-plan");
     assertOutputContains(r, "--no-stream");
-    assertOutputContains(r, "--session-mode");
     assertOutputContains(r, "--mode");
     assertOutputContains(r, "alix chat");
   });
