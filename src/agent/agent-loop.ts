@@ -193,38 +193,42 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   // Skip context compilation & plan phase on subsequent TUI prompts
   // (context was compiled on the first prompt; tool state is unchanged)
+  // Also skip for shell tasks — the command IS the task, no repo context needed.
   if (!opts?.skipContext) {
-    const contextCompiler = new ContextCompiler({
-      root: cwd,
-      maxTokens: MAX_CONTEXT_TOKENS,
-      eventLog: ctx.log,
-      sessionId: ctx.sessionId,
-    });
-    await contextCompiler.warm();
-    contextBundle = await contextCompiler.compileContext(task, taskType, []);
-    await ctx.log.append({
-      ...session,
-      type: "context.bundle_compiled",
-      payload: buildContextBundleEventPayload(contextBundle),
-    });
+    const skipContext = shellTask || readOnlyTask;
+    if (!skipContext) {
+      const contextCompiler = new ContextCompiler({
+        root: cwd,
+        maxTokens: MAX_CONTEXT_TOKENS,
+        eventLog: ctx.log,
+        sessionId: ctx.sessionId,
+      });
+      await contextCompiler.warm();
+      contextBundle = await contextCompiler.compileContext(task, taskType, []);
+      await ctx.log.append({
+        ...session,
+        type: "context.bundle_compiled",
+        payload: buildContextBundleEventPayload(contextBundle),
+      });
 
-    // Plan phase — only on first prompt or explicit requests
-    const resumedPlan = (ctx as any)._planContent;
-    if (resumedPlan) {
-      approvedPlanContent = resumedPlan;
-    } else if (opts?.planMode !== false) {
-      const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
-      if (planResult.action === "rejected") {
-        const failedRun = transitionWorkflowStatus(wfRun, "failed");
-        await ctx.log.append({
-          ...session, type: "workflow.failed", actor: "system",
-          payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
-          meta: wfMeta,
-        });
-        return { sessionId: ctx.sessionId, summary: "Plan rejected. Task cancelled.", streamed: opts?.streaming };
-      }
-      if (planResult.action === "approved") {
-        approvedPlanContent = planResult.planContent;
+      // Plan phase — only on first prompt or explicit requests
+      const resumedPlan = (ctx as any)._planContent;
+      if (resumedPlan) {
+        approvedPlanContent = resumedPlan;
+      } else if (opts?.planMode !== false) {
+        const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
+        if (planResult.action === "rejected") {
+          const failedRun = transitionWorkflowStatus(wfRun, "failed");
+          await ctx.log.append({
+            ...session, type: "workflow.failed", actor: "system",
+            payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
+            meta: wfMeta,
+          });
+          return { sessionId: ctx.sessionId, summary: "Plan rejected. Task cancelled.", streamed: opts?.streaming };
+        }
+        if (planResult.action === "approved") {
+          approvedPlanContent = planResult.planContent;
+        }
       }
     }
   }
