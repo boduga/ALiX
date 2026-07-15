@@ -1179,7 +1179,7 @@ if (command === "config" && args[0] === "show") {
 
 if (command === "run") {
   const { parseRunArgs } = await import("./cli/run-args.js");
-  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag } = parseRunArgs(args);
+  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly } = parseRunArgs(args);
 
   if (!task && !resumeSessionId) {
     console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose]");
@@ -1205,7 +1205,7 @@ if (command === "run") {
   }
 
   try {
-    const result = await runTask(process.cwd(), task, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode, resumeSessionId, planFilePath });
+    const result = await runTask(process.cwd(), task, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode, resumeSessionId, planFilePath, readOnly });
     if (!result.streamed) {
       console.log(result.summary);
     }

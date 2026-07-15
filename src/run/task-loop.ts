@@ -557,8 +557,8 @@ if (toolCalls.length === 0) {
       messages.push(toolResult.message);
     }
 
-    // Auto-complete for shell tasks after a successful tool call
-    if (deps.shellTask && !toolResult.completed && !toolResult.continue) {
+    // Auto-complete for shell tasks and read-only mode after a successful tool call
+    if ((deps.shellTask || deps.readOnly) && !toolResult.completed && !toolResult.continue) {
       // Extract clean output from tool result message (strip XML tags)
       const raw = typeof toolResult.message?.content === "string" ? toolResult.message.content : "";
       const output = raw.replace(/<[^>]+>/g, "").trim();

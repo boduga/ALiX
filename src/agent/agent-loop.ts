@@ -143,7 +143,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Shell tasks (bare commands like ls, cat) cap at 2 iterations
   const shellTask = isShellTask(task);
   const readOnlyTask = isReadOnlyTask(task) || shellTask;
-  const cappedIterations = shellTask ? Math.min(maxIterations, 2) : maxIterations;
+  const cappedIterations = shellTask ? Math.min(maxIterations, 2) : opts?.readOnly ? Math.min(maxIterations, 4) : maxIterations;
 
   // State machine with hard limits
   const limiter = new RunLimiter({
@@ -234,8 +234,15 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   }
 
   const baseTools = buildToolsForProvider(ctx.provider);
-  const providerTools = shellTask
-    ? baseTools.filter((t) => READ_ONLY_TOOL_NAMES.has(t.name))
+  // Filter tools based on execution mode:
+  //   --read-only:  exclude alix_shell_run, include alix_delegate
+  //   shell task:   only READ_ONLY_TOOL_NAMES (includes shell_run)
+  //   default:      all tools
+  const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
+  readOnlyToolFilter.add("alix_delegate");
+  const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
+  const providerTools = toolFilter
+    ? baseTools.filter((t) => toolFilter.has(t.name))
     : baseTools;
 
   // Setup MCP tool index
@@ -275,6 +282,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   if (shellTask) {
     lines.push(`## Read-Only Mode
 The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+  }
+
+  // For --read-only flag, inject a stricter mode instruction
+  if (opts?.readOnly) {
+    lines.push(`## Read-Only Mode
+You are in read-only mode. You can read files, search the codebase, and delegate to subagents, but you CANNOT run shell commands or modify any files. Answer questions and investigate the codebase. Suggest changes verbally rather than making them.`);
   }
 
   if (matchedSkills && matchedSkills.length > 0) {
@@ -350,7 +363,7 @@ ${approvedPlanContent}`);
     task,
     taskType,
     depth,
-    readOnly: readOnlyTask,
+    readOnly: opts?.readOnly ?? readOnlyTask,
     shellTask,
     memoryStore: ctx.memoryStore,
     sessionId: ctx.sessionId,
