@@ -42,7 +42,8 @@ export function createReplRenderer(
 
   const renderer: AgentRenderer = {
     async start(): Promise<void> {
-      rl = readline.createInterface({ input, output });
+      // terminal: true when stdin is a TTY (interactive), false for piped input
+      rl = readline.createInterface({ input, output, terminal: input.isTTY ?? false });
 
       // Handle EOF (Ctrl+D) gracefully
       rl.on("close", () => {
@@ -96,7 +97,8 @@ export function createReplRenderer(
     },
 
     async render(result: AgentTurnResult): Promise<void> {
-      console.log(result.summary);
+      // When streaming, tokens already printed via onStream — skip summary to avoid dupes
+      if (!result.streamed) console.log(result.summary);
     },
 
     async stop(): Promise<void> {

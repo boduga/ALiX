@@ -1182,7 +1182,7 @@ if (command === "run") {
   const { parseRunArgs } = await import("./cli/run-args.js");
   const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly, chat } = parseRunArgs(args);
 
-  if (!task && !resumeSessionId) {
+  if (!task && !resumeSessionId && !chat) {
     console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose]");
     process.exit(1);
   }

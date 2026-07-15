@@ -272,20 +272,22 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       encoding = resolved.encoding;
     }
 
-    // P5: Task classification
-    taskType = classifyTask(currentTask);
-    depth = detectResearchDepth(currentTask);
+    // P5: Task classification — use a placeholder when no initial task
+    // (chat mode with no initial task; first processTurn message becomes the task)
+    const effectiveTask = currentTask || "Interactive coding session";
+    taskType = classifyTask(effectiveTask);
+    depth = detectResearchDepth(effectiveTask);
     const maxIter = ctx.config.model.maxIterations ?? 10;
-    shellTask = isShellTask(currentTask);
-    readOnlyTask = isReadOnlyTask(currentTask) || shellTask;
+    shellTask = isShellTask(effectiveTask);
+    readOnlyTask = isReadOnlyTask(effectiveTask) || shellTask;
     cappedIterations = shellTask
       ? Math.min(maxIter, 2)
       : config.readOnly
         ? Math.min(maxIter, 4)
         : maxIter;
 
-    // P6: Context compilation (skip for shell / read-only tasks)
-    if (!shellTask && !readOnlyTask) {
+    // P6: Context compilation (skip for shell / read-only tasks, and when no initial task)
+    if (!shellTask && !readOnlyTask && currentTask) {
       const contextCompiler = new ContextCompiler({
         root: config.cwd,
         maxTokens: MAX_CONTEXT_TOKENS,
@@ -539,7 +541,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         taskType,
         depth,
         readOnly: config.readOnly ?? readOnlyTask,
-        shellTask,
+        shellTask: shellTask || (turnCount === 0 && currentTask === "" ? isShellTask(message) : false),
         memoryStore: ctx.memoryStore,
         sessionId: ctx.sessionId,
         sessionDir: ctx.sessionDir,
