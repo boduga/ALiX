@@ -260,7 +260,9 @@ export async function handleToolCall(
   const resultContent =
     execResult.kind === "success"
       ? (execResult.output ?? execResult.content ?? "")
-      : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
+      : execResult.kind === "denied"
+        ? `Access denied: ${(execResult as { reason: string }).reason}`
+        : buildErrorMessage(execResult as { kind: "error"; message: string; retryable?: boolean; hint?: string });
 
   // Stream tool output to stdout if verbose mode - only for read-only tools
   if (deps.verbose && execResult.kind === "success" && resultContent) {
