@@ -1180,7 +1180,7 @@ if (command === "config" && args[0] === "show") {
 
 if (command === "run") {
   const { parseRunArgs } = await import("./cli/run-args.js");
-  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly } = parseRunArgs(args);
+  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly, chat } = parseRunArgs(args);
 
   if (!task && !resumeSessionId) {
     console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose]");
@@ -1206,16 +1206,23 @@ if (command === "run") {
   }
 
   try {
-    const session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId });
-    const result = await session.processTurn(task);
-    if (!result.streamed) {
-      console.log(result.summary);
+    const session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
+    let result: Awaited<ReturnType<typeof session.processTurn>> | undefined;
+    if (chat) {
+      const { createReplRenderer } = await import("./cli/renderers/repl.js");
+      const renderer = createReplRenderer(session);
+      await renderer.start();
+    } else {
+      result = await session.processTurn(task);
+      if (!result.streamed) {
+        console.log(result.summary);
+      }
+      console.log(`Session: ${result.sessionId}`);
     }
-    console.log(`Session: ${result.sessionId}`);
 
     // --intent / --propose: capture execution as an ExecutionIntent artifact
     // --propose is a superset of --intent: it also maps the intent to a proposal
-    if (intentFlag || proposeFlag) {
+    if (result && (intentFlag || proposeFlag)) {
       const { IntentStore } = await import("./adaptation/intent-store.js");
       const intentDir = join(homedir(), ".alix", "execution", "intents");
       const store = new IntentStore(intentDir);
@@ -1294,7 +1301,7 @@ if (command === "run") {
       }
     }
 
-    if (result.reason === "rejected_scope_expansion") {
+    if (result?.reason === "rejected_scope_expansion") {
       process.exit(EXIT_CODES.REJECTED_SCOPE_EXPANSION);
     }
   } catch (err) {
