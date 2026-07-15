@@ -26,6 +26,7 @@ import {
   WebToolsRouter,
   type ToolRouter,
 } from "./tool-router.js";
+import { isSafeShellCommand, executeSafeShell } from "./safe-shell.js";
 
 const LARGE_OUTPUT_THRESHOLD = 10000;
 
@@ -161,6 +162,19 @@ export class ToolExecutor {
       if (contGateResult) return contGateResult;
       await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
       return await this.toolAwareRouter.downstream.execute(request);
+    }
+
+    // Safe shell bypass for ask mode: read-only commands skip policy gate
+    const mode = this.config.permissions.sessionMode ?? "ask";
+    if (mode === "ask" && name === "shell.run") {
+      const command = typeof args?.command === "string" ? args.command : "";
+      if (command && isSafeShellCommand(command)) {
+        const safeResult = await executeSafeShell(command);
+        if (safeResult.allowed) {
+          await this.logEvent(TOOL_EVENT_TYPES.STARTED, { toolCallId, toolName: name, argumentHash, ...replayPayloadFields });
+          return { kind: "success", output: safeResult.output ?? safeResult.error ?? "" };
+        }
+      }
     }
 
     // Unified authorization via ExecutionAuthorization — composes PolicyGate,
