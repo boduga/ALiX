@@ -450,7 +450,6 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       };
     }
 
-    turnCount++;
     updatedAt = new Date().toISOString();
 
     // Emit lifecycle event: turn started
@@ -570,6 +569,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         type: "agent.session.turn.completed",
         payload: { turn: turnCount, error: String(err) },
       });
+      turnCount++;
       throw err;
     }
 
@@ -645,6 +645,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       payload: { turn: turnCount, summary: result.summary },
     });
 
+    turnCount++;
     return {
       summary: result.summary,
       sessionId: ctx.sessionId,
