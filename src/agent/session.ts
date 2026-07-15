@@ -61,6 +61,8 @@ export interface AgentTurnResult {
   readonly summary: string;
   readonly sessionId: string;
   readonly toolCalls: readonly ToolCall[];
+  readonly streamed?: boolean;
+  readonly reason?: string;
 }
 
 export interface AgentSessionState {
@@ -89,6 +91,8 @@ export interface AgentSessionConfig {
   planMode?: boolean;
   /** Load plan from file instead of generating. */
   planFilePath?: string;
+  /** Resume from a prior session. */
+  resumeSessionId?: string;
   /** Parent run ID for execution trace correlation. */
   parentRunId?: string;
   /** Optional stream handler for real-time output. */
@@ -156,6 +160,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   let turnCount = 0;
   const createdAt = new Date().toISOString();
   let updatedAt = new Date().toISOString();
+  let _sessionCompleted = false;
 
   // ---- Internal helpers ----
 
@@ -200,6 +205,41 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       payload: { nodeId: taskNode.id, graphId: taskGraph.id, goal: currentTask },
       meta: graphMeta,
     });
+
+    // Resume path -- reconstruct state from prior session
+    if (config.resumeSessionId) {
+      const { reconstructSession } = await import("../session/resume.js");
+      const reconstructed = await reconstructSession(config.cwd, config.resumeSessionId);
+
+      if (reconstructed.completed) {
+        transitionWorkflowStatus(wfRun, "completed");
+        await ctx.log.append({
+          ...session, type: "workflow.completed", actor: "system",
+          payload: { workflowId: wfRun.id, summary: `Session ${config.resumeSessionId} is already completed. Use a different session or start a new task.` },
+          meta: wfMeta,
+        });
+
+        // Mark session as completed so processTurn returns early
+        _sessionCompleted = true;
+      } else {
+        // Override task with original from persisted session
+        const originalTask = reconstructed.messages.find(m => m.role === "user");
+        if (originalTask && typeof originalTask.content === "string") {
+          currentTask = originalTask.content;
+        }
+
+        // Store reconstructed state on context for downstream use
+        (ctx as any)._resumedMessages = reconstructed.messages;
+        (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
+        (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
+        (ctx as any)._planContent = reconstructed.planContent;
+      }
+
+      await ctx.log.append({
+        ...session, actor: "system", type: "session.resumed",
+        payload: { priorSessionId: config.resumeSessionId, task: currentTask },
+      });
+    }
 
     // P2: Memory context
     memoryContext = await buildMemoryContext(ctx.memoryStore);
@@ -395,6 +435,17 @@ You are in read-only mode. You can read files, search the codebase, and delegate
   async function processTurn(message: string): Promise<AgentTurnResult> {
     if (!initialized) {
       await initialize();
+    }
+
+    // If the session was already completed (resumed completed session), return early
+    if (_sessionCompleted) {
+      return {
+        summary: `Session ${ctx.sessionId} is already completed. Use a different session or start a new task.`,
+        sessionId: ctx.sessionId,
+        toolCalls: [],
+        streamed: false,
+        reason: "completed",
+      };
     }
 
     turnCount++;
@@ -596,6 +647,8 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       summary: result.summary,
       sessionId: ctx.sessionId,
       toolCalls: turnToolCalls,
+      streamed: result.streamed,
+      reason: result.reason,
     };
   }
 

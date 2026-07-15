@@ -5,7 +5,8 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadConfig, DEFAULT_CONFIG } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
-import { EXIT_CODES, runTask } from "./run.js";
+import { EXIT_CODES } from "./run.js";
+import { createAgentSession } from "./agent/session.js";
 import { ApiError } from "./providers/base.js";
 import { PROVIDERS, listModels } from "./providers/catalog.js";
 import type { MemoryType } from "./utils/memory/types.js";
@@ -1205,7 +1206,8 @@ if (command === "run") {
   }
 
   try {
-    const result = await runTask(process.cwd(), task, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode, resumeSessionId, planFilePath, readOnly });
+    const session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId });
+    const result = await session.processTurn(task);
     if (!result.streamed) {
       console.log(result.summary);
     }
