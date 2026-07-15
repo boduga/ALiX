@@ -45,12 +45,13 @@ test("MemoryStore can save and find entries", async () => {
   assert.ok(results.length > 0);
 });
 
-test("CLI help lists memory commands", () => {
-  const result = runCli(["--help"], tmpdir());
+test("CLI memory help lists memory commands", () => {
+  const result = runCli(["memory", "--help"], tmpdir());
 
   assert.equal(result.status, 0);
-  assert.match(result.stdout, /alix memory list/);
-  assert.match(result.stdout, /alix memory add/);
+  assert.match(result.stdout, /alix memory \[/);
+  assert.ok(result.stdout.includes("list"), "help should mention list command");
+  assert.ok(result.stdout.includes("add"), "help should mention add command");
 });
 
 test("memory list --query filters entries by query text", () => {

@@ -180,9 +180,10 @@ describe("IFÁ-MAS Passive Diagnostic Pipeline", () => {
   it("does NOT import ToolExecutor or PolicyGate", () => {
     // Grep the source file for forbidden import references
     const __dirname = fileURLToPath(new URL(".", import.meta.url));
+    // TS compiles tests/ → dist/tests/ (rootDir: "."), so __dirname is dist/tests/runtime/
     const sourcePath = resolve(
       __dirname,
-      "../../src/runtime/ifamas-pipeline.ts",
+      "../../../src/runtime/ifamas-pipeline.ts",
     );
     const source = readFileSync(sourcePath, "utf8");
 

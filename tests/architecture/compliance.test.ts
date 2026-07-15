@@ -20,7 +20,9 @@ import { fileURLToPath } from "node:url";
 import type { GovernanceDecision } from "../../src/evolution/governance/contracts/decision-contract.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PROJECT_ROOT = resolve(__dirname, "../..");
+// TS compiles tests/ → dist/tests/ so __dirname is dist/tests/<group>.
+// We need 3 levels up from dist/tests/architecture/ to reach the repo root.
+const PROJECT_ROOT = resolve(__dirname, "../../..");
 
 // ---------------------------------------------------------------------------
 // ADR-0006: Governance gate — execution requires APPROVE decision

@@ -13,7 +13,7 @@ describe("parseExtensionManifest", () => {
   });
 
   it("parses an MCP extension", () => {
-    const yaml = `name: github-mcp\ntype: mcp\nversion: 2.0.0\ndescription: GitHub MCP server\ncommand: npx\nargs:\n  - -y\n  - @modelcontextprotocol/server-github`;
+    const yaml = `name: github-mcp\ntype: mcp\nversion: 2.0.0\ndescription: GitHub MCP server\ncommand: npx\nargs:\n  - -y\n  - "@modelcontextprotocol/server-github"`;
     const manifest = parseExtensionManifest(yaml, "mcp");
     assert.strictEqual(manifest?.type, "mcp");
     assert.strictEqual((manifest as any).command, "npx");
