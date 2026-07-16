@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { loadConfig, DEFAULT_CONFIG } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
 import { EXIT_CODES } from "./run.js";
-import { createAgentSession } from "./agent/session.js";
+import { createAgentSession, type AgentTurnResult } from "./agent/session.js";
 import { ApiError } from "./providers/base.js";
 import { PROVIDERS, listModels } from "./providers/catalog.js";
 import type { MemoryType } from "./utils/memory/types.js";
@@ -1206,13 +1206,19 @@ if (command === "run") {
   }
 
   try {
-    const session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
-    let result: Awaited<ReturnType<typeof session.processTurn>> | undefined;
+    const { createReplRenderer, createReplEvents } = await import("./cli/renderers/repl.js");
+    let result: AgentTurnResult | undefined;
+    let session: ReturnType<typeof createAgentSession>;
     if (chat) {
-      const { createReplRenderer } = await import("./cli/renderers/repl.js");
-      const renderer = createReplRenderer(session);
+      // Wire a streaming events subscription into both the session and the
+      // renderer (spec §13) so the REPL renders tokens/tool calls as they
+      // arrive instead of waiting for the final summary.
+      const events = createReplEvents();
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events });
+      const renderer = createReplRenderer(session, { events });
       await renderer.start();
     } else {
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
       result = await session.processTurn(task);
       if (!result.streamed) {
         console.log(result.summary);

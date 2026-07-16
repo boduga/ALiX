@@ -11,7 +11,7 @@
 
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
-import type { AgentSession, AgentTurnResult, AgentSessionState } from "../../agent/session.js";
+import type { AgentSession, AgentTurnResult, AgentSessionEvents, AgentSessionState } from "../../agent/session.js";
 
 export interface AgentRenderer {
   start(): Promise<void>;
@@ -22,6 +22,35 @@ export interface AgentRenderer {
 export interface ReplRendererOptions {
   /** Session mode label for /status display (default: "auto"). */
   sessionMode?: string;
+  /**
+   * Optional session event subscription (spec §13). When provided, the
+   * renderer uses this object to stream output to the terminal as the session
+   * emits tokens, tool calls, and tool results.
+   */
+  events?: AgentSessionEvents;
+}
+
+/**
+ * Build a default `AgentSessionEvents` that renders to stdout. Used by the
+ * REPL when the caller does not pass its own `events` object.
+ */
+export function createReplEvents(): AgentSessionEvents {
+  return {
+    onToken(token: string): void {
+      // Tokens stream without newlines — the model output controls spacing.
+      process.stdout.write(token);
+    },
+    onToolCall(call): void {
+      console.log(`\n→ ${call.name}`);
+    },
+    onToolResult(result): void {
+      if (result.isError) {
+        console.log(`  ✗ ${result.content.split("\n")[0]}`);
+      } else if (result.content) {
+        console.log(`  ${result.content.split("\n")[0]}`);
+      }
+    },
+  };
 }
 
 export function createReplRenderer(
@@ -29,6 +58,11 @@ export function createReplRenderer(
   options?: ReplRendererOptions,
 ): AgentRenderer {
   const sessionMode = options?.sessionMode ?? "auto";
+  // The renderer subscribes to its own events so multiple subscribers (e.g.
+  // a logger and the renderer) can co-exist. We do not mutate the session
+  // here — callers wire the same `events` object into `AgentSessionConfig`
+  // when constructing the session.
+  const events = options?.events ?? createReplEvents();
   let rl: readline.Interface | null = null;
 
   /** Print formatted session status. */

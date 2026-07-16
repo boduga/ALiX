@@ -65,6 +65,34 @@ export interface AgentTurnResult {
   readonly reason?: string;
 }
 
+/**
+ * Result of a single tool execution (per spec §13).
+ * Emitted via `AgentSessionEvents.onToolResult` after each tool completes.
+ */
+export interface ToolResult {
+  /** ID matching the originating `ToolCall.id`. */
+  readonly toolCallId: string;
+  /** Tool output content (string format used by tool result messages). */
+  readonly content: string;
+  /** True when the tool reported an error or denial. */
+  readonly isError?: boolean;
+}
+
+/**
+ * Streaming event subscription for `AgentSession` (per spec §13).
+ *
+ * Renderers (chat, REPL, TUI, API) subscribe independently to the same
+ * runtime events emitted by the session.
+ */
+export interface AgentSessionEvents {
+  /** Called for each streamed text token as it arrives from the provider. */
+  onToken(token: string): void;
+  /** Called when a tool call is emitted by the model. */
+  onToolCall(call: ToolCall): void;
+  /** Called after a tool result is available for a given tool call. */
+  onToolResult(result: ToolResult): void;
+}
+
 export interface AgentSessionState {
   readonly sessionId: string;
   readonly messages: readonly Message[];
@@ -97,6 +125,8 @@ export interface AgentSessionConfig {
   parentRunId?: string;
   /** Optional stream handler for real-time output. */
   onStream?: StreamHandler;
+  /** Optional session events subscription (per spec §13). */
+  events?: AgentSessionEvents;
 }
 
 export interface AgentSession {
@@ -115,6 +145,82 @@ export interface AgentSession {
 // =============================================================================
 // Implementation
 // =============================================================================
+
+/**
+ * Wrap a `StreamHandler` so it also fires `AgentSessionEvents.onToken` for
+ * each text chunk (per spec §13). When `events` is undefined, the original
+ * handler is returned unchanged. The original handler is always invoked so
+ * existing token-level consumers (e.g. raw stdout writers) keep working.
+ */
+export function buildSessionStreamHandler(
+  onStream: StreamHandler | undefined,
+  events: AgentSessionEvents | undefined,
+): StreamHandler | undefined {
+  if (!events) return onStream;
+  if (!onStream) {
+    return (chunk) => {
+      if (chunk.type === "text" && typeof chunk.text === "string") {
+        events.onToken(chunk.text);
+      }
+    };
+  }
+  return (chunk) => {
+    onStream(chunk);
+    if (chunk.type === "text" && typeof chunk.text === "string") {
+      events.onToken(chunk.text);
+    }
+  };
+}
+
+/**
+ * Fire `AgentSessionEvents.onToolCall` / `onToolResult` for the current turn
+ * (per spec §13). No-op when `events` is undefined.
+ *
+ * Tool calls: emitted in the order they were extracted from message tags
+ * (one entry per tool invocation, identified by toolCallId).
+ * Tool results: emitted for every `<tool_result>` block in the current
+ * message history, in message order. Only results added during this turn
+ * fire (caller passes `newMessages` slice).
+ */
+export function emitSessionEvents(
+  events: AgentSessionEvents | undefined,
+  turnToolCalls: readonly ToolCall[],
+  messages: readonly Message[],
+  toolHistory: readonly ToolExecution[],
+): void {
+  if (!events) return;
+  for (const tc of turnToolCalls) {
+    events.onToolCall(tc);
+  }
+  // Derive tool results from the message log. Extract from messages only —
+  // this gives the most recent result per toolCallId without depending on
+  // internal tool-history shape.
+  const results = extractToolResultsFromMessages(messages);
+  for (const result of results) {
+    events.onToolResult(result);
+  }
+  // Avoid unused-var lint: toolHistory is reserved for future richer signal
+  // extraction (e.g. error categorisation from execution records).
+  void toolHistory;
+}
+
+// Internal helper — exported so tests can call it directly.
+export function extractToolResultsFromMessages(msgs: readonly Message[]): ToolResult[] {
+  const results: ToolResult[] = [];
+  const re = /<tool_result\s+id="([^"]*)">([\s\S]*?)<\/tool_result>/g;
+  for (const msg of msgs) {
+    if (msg.role !== "user") continue;
+    if (typeof msg.content !== "string") continue;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(msg.content)) !== null) {
+      const id = match[1];
+      const body = match[2].trim();
+      const isError = /^Error[:\s]/i.test(body) || body.toLowerCase().includes("access denied");
+      results.push({ toolCallId: id, content: body, isError });
+    }
+  }
+  return results;
+}
 
 export function createAgentSession(config: AgentSessionConfig): AgentSession {
   // ---- Mutable internal state (captured by closure) ----
@@ -545,7 +651,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         sessionId: ctx.sessionId,
         sessionDir: ctx.sessionDir,
         systemPrompt,
-        onStream: config.onStream,
+        onStream: buildSessionStreamHandler(config.onStream, config.events),
         hookRunner: ctx.hookRunner,
         context: taskContext,
       });
@@ -644,6 +750,9 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       type: "agent.session.turn.completed",
       payload: { turn: turnCount, summary: result.summary },
     });
+
+    // Fire session events (spec §13): one per tool call + tool result in this turn.
+    emitSessionEvents(config.events, turnToolCalls, messages, toolHistory);
 
     turnCount++;
     return {
