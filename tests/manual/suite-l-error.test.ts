@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { runCli, CLI_PATH, PROJECT_ROOT, assertOutputContains } from "./run-cli.js";
+import { runCli, CLI_PATH, PROJECT_ROOT, assertOutputContains, tempDir } from "./run-cli.js";
 
 describe("Suite L: Error Handling", () => {
 
