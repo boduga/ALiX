@@ -20,6 +20,7 @@ function assertArgs(
       planFilePath: expected.planFilePath,
       intent: expected.intent ?? false,
       propose: expected.propose ?? false,
+      chat: expected.chat ?? false,
       readOnly: expected.readOnly ?? false,
     });
   });
@@ -252,6 +253,7 @@ test("empty args returns defaults", () => {
     planFilePath: undefined,
     intent: false,
     propose: false,
+    chat: false,
     readOnly: false,
   });
 });
