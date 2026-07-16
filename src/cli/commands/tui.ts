@@ -6,9 +6,9 @@ import { createInterface, type Interface as RLInterface } from "node:readline";
 import { Tui } from "../../tui/index.js";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
-import { runTask } from "../../run.js";
 import { taskRouter } from "../../runtime/task-router.js";
-import { executeRoute, LocalRuntimeExecutor, type RuntimeContext } from "../../runtime/route-executor.js";
+import { createAgentSession, type AgentSessionEvents, type ToolResult } from "../../agent/session.js";
+import type { ToolCall } from "../../providers/types.js";
 import { WorkspaceManager, promptLabel } from "../../tui/workspace-manager.js";
 import { ApprovalManager } from "../../tui/approval-manager.js";
 
@@ -162,8 +162,14 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   const tui = new Tui({ sessionId: activeSessionId, eventLog: tuiLog, maxTokens: contextInfo.maxTokens });
   await tui.init();
 
-  const mode = opts.sessionMode || activeConfig.permissions?.sessionMode || "bypass";
+  let mode = opts.sessionMode || activeConfig.permissions?.sessionMode || "bypass";
   const daemonMode = opts.daemonMode ?? false;
+  let agentSession: ReturnType<typeof createAgentSession> | null = null;
+  const events: AgentSessionEvents = {
+    onToken: (token: string): void => tui.appendOutput(token, true),
+    onToolCall: (call: ToolCall): void => tui.appendOutput(`\n→ ${call.name}\n`, false),
+    onToolResult: (result: ToolResult): void => tui.appendOutput(`\n${result.content}\n`, false),
+  };
 
   // Sync the --mode flag into config so PolicyGate reads the correct mode
   if (opts.sessionMode) {
@@ -237,6 +243,12 @@ export async function runTui(opts: TuiOptions): Promise<void> {
     activeSessionId = newSessionId;
     activeSessionDir = newSessionDir;
     activeConfig = await loadConfig(nextCwd);
+    if (!opts.sessionMode) {
+      mode = activeConfig.permissions?.sessionMode || "bypass";
+    }
+    // AgentSession is scoped to the active workspace/session and must be
+    // recreated lazily after a workspace switch.
+    agentSession = null;
     tuiLog = new EL(newSessionDir);
     await tuiLog.init();
 
@@ -1075,33 +1087,41 @@ export async function runTui(opts: TuiOptions): Promise<void> {
           onDone: async () => { const fresh = await buildRuntimeSnapshot(activeCwd); if (fresh) applySnapshotToStore(tuiStore, fresh); },
         });
       } else {
-        // Route through the shared task router
-        const route = taskRouter(task);
-        const ctx: RuntimeContext = {
-          cwd: activeCwd, sessionId: activeSessionId, sessionDir: activeSessionDir,
-          eventLog: tuiLog,
-          config: activeConfig,
-          approvalStore: approvalStore,
-          onStream: (chunk) => {
-            if (chunk.type === "text" && typeof chunk.text === "string") {
-              tui.appendOutput(chunk.text, true);
-            }
-          },
-        };
-        const text = await executeRoute(route, ctx, new LocalRuntimeExecutor());
-        if (!text) continue;
-
-        // Check if the output contains an approval-required message
-        const approvalMatch = text.match(/approval_[a-zA-Z0-9_-]+/);
-        if (approvalMatch) {
-          const approvalId = approvalMatch[0];
-          (globalThis as any).__approvalConfirm = { approvalId, text };
-          tui.appendOutput(text, false);
-          tui.appendOutput("Approve? [y/N/details] ", false);
-          continue;
+        // Lazily create one AgentSession per active workspace/session. The
+        // session forwards provider stream chunks through events.onToken, so
+        // passing a second onStream handler here would render every token twice.
+        if (!agentSession) {
+          agentSession = createAgentSession({
+            cwd: activeCwd,
+            task,
+            sessionId: activeSessionId,
+            sessionMode: mode,
+            events,
+          });
         }
 
-        tui.appendOutput(text, false);
+        try {
+          const result = await agentSession.processTurn(task);
+          const text = result.summary;
+          if (!text) continue;
+
+          // Preserve the approval confirmation handshake used by the TUI.
+          const approvalMatch = text.match(/approval_[a-zA-Z0-9_-]+/);
+          if (approvalMatch) {
+            const approvalId = approvalMatch[0];
+            const approvalState = globalThis as typeof globalThis & {
+              __approvalConfirm?: { approvalId: string; text: string };
+            };
+            approvalState.__approvalConfirm = { approvalId, text };
+            tui.appendOutput(text, false);
+            tui.appendOutput("Approve? [y/N/details] ", false);
+            continue;
+          }
+
+          tui.appendOutput(`\n${text}\n`, false);
+        } catch (err) {
+          tui.appendOutput(`\nError: ${err instanceof Error ? err.message : String(err)}\n`, false);
+        }
       }
     } catch (err) {
       if ((err as NodeJS.ErrnoException)?.code === "ERR_USE_AFTER_CLOSE") break;
