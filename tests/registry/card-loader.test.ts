@@ -136,7 +136,7 @@ describe("CardLoader", () => {
     const cards = defaultAgentCards();
     assert.ok(cards.find(c => c.id === "orchestrator.core"));
     assert.ok(cards.find(c => c.id === "research.scout"));
-    assert.equal(cards.length, 6);
+    assert.ok(cards.find(c => c.id === "workflow.execution")); assert.equal(cards.length, 11);
   });
 
   it("defaultToolCards returns expected set", () => {
