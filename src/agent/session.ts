@@ -127,6 +127,13 @@ export interface AgentSessionConfig {
   onStream?: StreamHandler;
   /** Optional session events subscription (per spec §13). */
   events?: AgentSessionEvents;
+  /**
+   * Optional SessionStore for durable persistence (per spec §4). When set,
+   * `save()` and `resume()` route through the store; when omitted, the
+   * legacy in-memory stubs are used (no behavioral change for existing
+   * callers).
+   */
+  store?: import("./session-store.js").SessionStore;
 }
 
 export interface AgentSession {
@@ -781,20 +788,94 @@ You are in read-only mode. You can read files, search the codebase, and delegate
   }
 
   async function save(): Promise<void> {
-    // Stub: save decisions extracted from the event log to memory.
-    // Full persistence is external via a future SessionStore interface.
     if (!ctx) return;
+    // Always run the legacy memory-decision extraction (best-effort).
     try {
       const sessionEvents = await ctx.log.readAll();
       await saveDecisionsToMemory(sessionEvents, ctx.memoryStore);
     } catch {
-      // Best-effort
+      // Best-effort — never let persistence fail a save().
+    }
+
+    // If a SessionStore is wired, persist a full snapshot so /resume works.
+    if (config.store) {
+      try {
+        const state = getState();
+        const snapshot = {
+          sessionId: ctx.sessionId,
+          task: currentTask,
+          sessionMode: ctx.config.permissions.sessionMode ?? "auto",
+          messages: state.messages,
+          toolHistory: state.toolHistory,
+          turnCount: state.turnCount,
+          createdAt: state.createdAt,
+          updatedAt: state.updatedAt,
+          scopeSnapshot: (ctx as any)._scopeSnapshot,
+          stateSnapshot: (ctx as any)._stateSnapshot,
+          completed: _sessionCompleted,
+        };
+        await config.store.save(snapshot);
+      } catch (err) {
+        // Log but don't throw — memory write above is the legacy contract.
+        console.error("SessionStore.save failed:", err);
+      }
     }
   }
 
   async function resume(sessionId: string): Promise<void> {
-    // Stub: reconstruct from a prior persisted session.
     if (!ctx) return;
+
+    // Prefer SessionStore if wired — that's the authoritative source.
+    if (config.store) {
+      const snapshot = await config.store.load(sessionId);
+      if (!snapshot) {
+        // Fall through to legacy reconstruction; if that also fails, the
+        // caller's `processTurn` will surface a fresh-session state.
+        const { reconstructSession } = await import("../session/resume.js");
+        const reconstructed = await reconstructSession(config.cwd, sessionId);
+        if (reconstructed.messages.length > 0) {
+          messages = [...reconstructed.messages];
+          const originalTask = reconstructed.messages.find(m => m.role === "user");
+          if (originalTask && typeof originalTask.content === "string") {
+            currentTask = originalTask.content;
+          }
+        }
+        if (reconstructed.scopeSnapshot) (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
+        if (reconstructed.stateSnapshot) (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
+        if (reconstructed.planContent) (ctx as any)._planContent = reconstructed.planContent;
+        _sessionCompleted = reconstructed.completed;
+      } else {
+        // Replace internal state with the snapshot.
+        messages = [...snapshot.messages];
+        toolHistory = [...snapshot.toolHistory];
+        currentTask = snapshot.task;
+        // createdAt is immutable (captured at session construction); we
+        // adopt the snapshot's value logically but cannot reassign. The
+        // runtime contract is "createdAt is the earliest save timestamp",
+        // which snapshot.createdAt already encodes. We only update the
+        // mutable `updatedAt` so subsequent saves reflect the resume point.
+        updatedAt = snapshot.updatedAt;
+        _sessionCompleted = snapshot.completed === true;
+        if (snapshot.scopeSnapshot !== undefined) {
+          (ctx as any)._scopeSnapshot = snapshot.scopeSnapshot;
+        }
+        if (snapshot.stateSnapshot !== undefined) {
+          (ctx as any)._stateSnapshot = snapshot.stateSnapshot;
+        }
+        // Bring downstream loop into alignment with the restored state.
+        (ctx as any)._resumedMessages = [...snapshot.messages];
+        // tool history isn't surfaced via ctx in the loop today; we keep
+        // it on the AgentSession runtime only. processTurn will continue
+        // from there.
+      }
+      await ctx.log.append({
+        ...session, actor: "system", type: "session.resumed",
+        payload: { priorSessionId: sessionId, task: currentTask },
+      });
+      return;
+    }
+
+    // Legacy path: reconstruct from the persisted session directory.
     const { reconstructSession } = await import("../session/resume.js");
     const reconstructed = await reconstructSession(config.cwd, sessionId);
     if (reconstructed.completed) return;

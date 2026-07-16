@@ -6,12 +6,13 @@
  *
  * P3: Readline-based prompt loop that processes user input through
  * an AgentSession and displays results. Supports /exit, /quit, /save,
- * and /status commands.
+ * /resume, /sessions, and /status commands.
  */
 
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import type { AgentSession, AgentTurnResult, AgentSessionEvents, AgentSessionState } from "../../agent/session.js";
+import type { SessionStore } from "../../agent/session-store.js";
 
 export interface AgentRenderer {
   start(): Promise<void>;
@@ -28,6 +29,12 @@ export interface ReplRendererOptions {
    * emits tokens, tool calls, and tool results.
    */
   events?: AgentSessionEvents;
+  /**
+   * Optional SessionStore reference so the REPL can list available sessions
+   * (`/sessions`) and confirm resumable ids. When omitted, `/resume` and
+   * `/sessions` are unavailable (the legacy in-memory stubs remain).
+   */
+  store?: SessionStore;
 }
 
 /**
@@ -98,23 +105,30 @@ export function createReplRenderer(
           if (trimmed === "") continue;
 
           // Built-in commands
-          switch (trimmed) {
-            case "/exit":
-            case "/quit":
-              break loop;
-            case "/save":
-              try {
-                await session.save();
-                console.log("Saved.");
-              } catch (err) {
-                console.error("Save failed:", err);
-              }
-              continue;
-            case "/status": {
-              const state = session.getState();
-              printStatus(state);
-              continue;
+          if (trimmed === "/exit" || trimmed === "/quit") {
+            break loop;
+          }
+          if (trimmed === "/save") {
+            try {
+              await session.save();
+              console.log("Saved.");
+            } catch (err) {
+              console.error("Save failed:", err);
             }
+            continue;
+          }
+          if (trimmed === "/status") {
+            const state = session.getState();
+            printStatus(state);
+            continue;
+          }
+          if (trimmed === "/sessions") {
+            await handleSessionsCommand(options?.store);
+            continue;
+          }
+          if (trimmed.startsWith("/resume")) {
+            await handleResumeCommand(trimmed, session, options?.store);
+            continue;
           }
 
           // Process as regular user input
@@ -144,4 +158,79 @@ export function createReplRenderer(
   };
 
   return renderer;
+}
+
+/**
+ * `/sessions` command — list the most recent persisted sessions.
+ *
+ * When no store is wired, this command is a no-op (prints a hint).
+ *
+ * Exported for testing — the REPL routes `/sessions` through this function.
+ */
+export async function handleSessionsCommand(
+  store: SessionStore | undefined,
+): Promise<void> {
+  if (!store) {
+    console.log("(No SessionStore wired — list unavailable in this mode.)");
+    return;
+  }
+  const sessions = await store.list(10);
+  if (sessions.length === 0) {
+    console.log("No saved sessions.");
+    return;
+  }
+  console.log("Saved sessions (newest first):");
+  for (const s of sessions) {
+    const shortId = s.sessionId.length > 12 ? s.sessionId.slice(0, 12) + "…" : s.sessionId;
+    const truncated = s.task.length > 60 ? s.task.slice(0, 60) + "…" : s.task;
+    console.log(`  ${shortId}  turns=${s.turnCount}  ${s.updatedAt}  ${truncated}`);
+  }
+}
+
+/**
+ * `/resume <sessionId>` command — restore the runtime state from a prior
+ * persisted session. The user-facing message confirms the id or reports
+ * "not found" when the store has no record of it.
+ *
+ * Exported for testing — the REPL routes `/resume <id>` through this
+ * function. `line` is the full user-entered line (including the leading
+ * `/resume` prefix).
+ */
+export async function handleResumeCommand(
+  line: string,
+  session: AgentSession,
+  store: SessionStore | undefined,
+): Promise<void> {
+  // Trim the leading command and any extra whitespace, accepting a single
+  // id argument. Anything else (multiple ids, missing id) is an error.
+  const rest = line.slice("/resume".length).trim();
+  if (!rest) {
+    console.log("Usage: /resume <sessionId>");
+    return;
+  }
+  const tokens = rest.split(/\s+/);
+  if (tokens.length !== 1) {
+    console.log("Usage: /resume <sessionId>");
+    return;
+  }
+  const sessionId = tokens[0];
+
+  // Pre-flight existence check so we can give a precise error rather than
+  // a silent no-op. We only check when a store is wired — the legacy
+  // `resume(sessionId)` path in AgentSession falls back to disk-based
+  // reconstruction.
+  if (store) {
+    const existing = await store.load(sessionId);
+    if (!existing) {
+      console.log(`Session ${sessionId} not found.`);
+      return;
+    }
+  }
+
+  try {
+    await session.resume(sessionId);
+    console.log(`Resumed session ${sessionId}.`);
+  } catch (err) {
+    console.error("Resume failed:", err);
+  }
 }

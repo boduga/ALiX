@@ -1207,6 +1207,7 @@ if (command === "run") {
 
   try {
     const { createReplRenderer, createReplEvents } = await import("./cli/renderers/repl.js");
+    const { JsonlSessionStore } = await import("./agent/session-store-jsonl.js");
     let result: AgentTurnResult | undefined;
     let session: ReturnType<typeof createAgentSession>;
     if (chat) {
@@ -1214,8 +1215,10 @@ if (command === "run") {
       // renderer (spec §13) so the REPL renders tokens/tool calls as they
       // arrive instead of waiting for the final summary.
       const events = createReplEvents();
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events });
-      const renderer = createReplRenderer(session, { events });
+      const sessionsRoot = join(process.cwd(), ".alix", "sessions");
+      const store = new JsonlSessionStore(sessionsRoot);
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store });
+      const renderer = createReplRenderer(session, { events, store });
       await renderer.start();
     } else {
       session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
