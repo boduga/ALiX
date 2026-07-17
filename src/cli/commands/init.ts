@@ -89,7 +89,16 @@ Examples:
   }
 
   // ── Provider + Model (interactive / flagged / auto via orchestrator). ──
-  const resolution = await resolveInitialProviderAndModel(parsedArgs);
+  let resolution: Awaited<ReturnType<typeof resolveInitialProviderAndModel>>;
+  try {
+    resolution = await resolveInitialProviderAndModel(parsedArgs);
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    throw err;
+  }
   const selectedProvider = resolution.providerId;
   let resolvedModel = resolution.modelId;
   // Defensive: if orchestrator returns empty model, fall back to provider's default.

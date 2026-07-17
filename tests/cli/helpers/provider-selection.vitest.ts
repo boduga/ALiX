@@ -230,7 +230,17 @@ describe("selectProviderInteractive", () => {
     _setUserConfigPathOverride(path);
 
     const avail = await resolveProviders();
-    const available = avail.filter((p) => p.available);
+    const providers = [
+      ...avail.filter((p) => p.id === "openai" || p.id === "anthropic"),
+      {
+        id: "ollama",
+        name: "Ollama",
+        env: "",
+        hint: "",
+        available: true,
+        apiKeySource: "ollama" as const,
+      },
+    ];
     // The function is called indirectly via selectFromList; we verify by
     // the rendered list order — capture promptFn calls.
     const calls: string[] = [];
@@ -238,15 +248,19 @@ describe("selectProviderInteractive", () => {
       calls.push(q);
       return "1";
     };
-    const id = await selectProviderInteractive(avail, promptFn);
+    const id = await selectProviderInteractive(providers, promptFn);
     expect(id).toBe("openai"); // env-first wins selection of "1"
     // The header should mention env-sourced openai before user-sourced anthropic.
     const header = calls[0] ?? "";
     const idxOpenai = header.indexOf("OpenAI");
     const idxAnthropic = header.indexOf("Anthropic");
+    const idxOllama = header.indexOf("Ollama");
     expect(idxOpenai).toBeGreaterThan(-1);
     expect(idxAnthropic).toBeGreaterThan(-1);
+    expect(idxOllama).toBeGreaterThan(-1);
     expect(idxOpenai).toBeLessThan(idxAnthropic);
+    expect(idxOllama).toBeGreaterThan(idxOpenai);
+    expect(idxOllama).toBeGreaterThan(idxAnthropic);
   });
 });
 

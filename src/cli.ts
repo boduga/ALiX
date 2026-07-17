@@ -807,7 +807,6 @@ if (command === "config" && args[0] === "set-key") {
 
 if (command === "config" && args[0] === "set-default-model") {
   const { resolveProviders, getAvailableModels, selectModelInteractive, selectFromList } = await import("./cli/helpers/provider-selection.js");
-  const { getApiKey, setApiKey } = await import("./cli/helpers/api-keys.js");
 
   const avail = await resolveProviders();
   // Show ALL PROVIDERS (no filtering) per spec §15 — behavior preserved.

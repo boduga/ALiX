@@ -13,6 +13,7 @@
  */
 import { PROVIDERS, getInstalledOllamaModels, getDefaultModel, listModels, detectProvider, type ModelInfo } from "../../providers/catalog.js";
 import { getApiKey } from "./api-keys.js";
+import { prompt as defaultPrompt } from "../commands/prompt.js";
 import type { ParsedInitArgs } from "./init-args.js";
 
 export interface ProviderAvailability {
@@ -219,9 +220,6 @@ export async function getAvailableModels(
 
 // ─── Interactive selection (Task 3) ───────────────────────────────────────────
 
-import { prompt as defaultPrompt } from "../commands/prompt.js";
-
-const isInteractive = () => Boolean(process.stdin?.isTTY);
 
 async function reAsk(promptFn: (q: string) => Promise<string>, q: string, tries = 3): Promise<string | null> {
   let last = "";
@@ -343,6 +341,20 @@ export interface InitResolution {
   modelId: string;
 }
 
+async function withSigintMessage<T>(operation: () => Promise<T>): Promise<T> {
+  const onSigint = () => {
+    process.stderr.write("Init cancelled.\n");
+    process.exit(130);
+  };
+
+  process.once("SIGINT", onSigint);
+  try {
+    return await operation();
+  } finally {
+    process.removeListener("SIGINT", onSigint);
+  }
+}
+
 /**
  * Top-level orchestrator for `alix init`. Picks the right mode based on
  * the parsed args + TTY state, then returns `{ providerId, modelId }`
@@ -401,7 +413,7 @@ async function resolveFlagged(
   // No --model provided → prompt for it (interactive + flagged coexists
   // per spec §3 row "TTY + --provider X").
   const models = await getAvailableModels(provider.id, opts.fetchFn);
-  const picked = await selectModelInteractive(models, opts.promptFn);
+  const picked = await withSigintMessage(() => selectModelInteractive(models, opts.promptFn));
   if (!picked) {
     process.stderr.write("Init cancelled.\n");
     process.exit(130);
@@ -413,22 +425,24 @@ async function resolveInteractive(opts: {
   promptFn?: (q: string) => Promise<string>;
   fetchFn?: typeof fetch;
 }): Promise<InitResolution> {
-  const avail = await resolveProviders();
-  if (avail.every((p) => !p.available)) {
-    throw new Error(
-      "No available providers. Set at least one API key (env var or ~/.config/alix/config.json apiKeys) or install Ollama with a model.",
-    );
-  }
-  const pick = await selectProviderInteractive(avail, opts.promptFn);
-  if (!pick) {
-    process.stderr.write("Init cancelled.\n");
-    process.exit(130);
-  }
-  const models = await getAvailableModels(pick, opts.fetchFn);
-  const modelPick = await selectModelInteractive(models, opts.promptFn);
-  if (!modelPick) {
-    process.stderr.write("Init cancelled.\n");
-    process.exit(130);
-  }
-  return { providerId: pick, modelId: modelPick.id };
+  return await withSigintMessage(async () => {
+    const avail = await resolveProviders();
+    if (avail.every((p) => !p.available)) {
+      throw new Error(
+        "No available providers. Set at least one API key (env var or ~/.config/alix/config.json apiKeys) or install Ollama with a model.",
+      );
+    }
+    const pick = await selectProviderInteractive(avail, opts.promptFn);
+    if (!pick) {
+      process.stderr.write("Init cancelled.\n");
+      process.exit(130);
+    }
+    const models = await getAvailableModels(pick, opts.fetchFn);
+    const modelPick = await selectModelInteractive(models, opts.promptFn);
+    if (!modelPick) {
+      process.stderr.write("Init cancelled.\n");
+      process.exit(130);
+    }
+    return { providerId: pick, modelId: modelPick.id };
+  });
 }
