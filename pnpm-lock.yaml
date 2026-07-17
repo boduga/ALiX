@@ -20,9 +20,6 @@ importers:
       effect:
         specifier: 3.21.4
         version: 3.21.4
-      minimatch:
-        specifier: 10.2.5
-        version: 10.2.5
       tiktoken:
         specifier: 1.0.22
         version: 1.0.22
@@ -42,6 +39,9 @@ importers:
       glob:
         specifier: 13.0.6
         version: 13.0.6
+      minimatch:
+        specifier: 10.2.5
+        version: 10.2.5
       typescript:
         specifier: 7.0.2
         version: 7.0.2
