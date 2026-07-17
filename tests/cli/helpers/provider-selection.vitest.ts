@@ -7,6 +7,7 @@ import {
   resolveProviders,
   getAvailableModels,
   _resetModelCache,
+  _clearModelCache,
   _wasModelWarned,
 } from "../../../src/cli/helpers/provider-selection.js";
 import { _setUserConfigPathOverride } from "../../../src/cli/helpers/api-keys.js";
@@ -138,6 +139,25 @@ describe("getAvailableModels", () => {
     process.env.OPENAI_API_KEY = "sk-x";
     const fakeFetch = vi.fn(async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
     await getAvailableModels("openai", fakeFetch);
+    await getAvailableModels("openai", fakeFetch);
+    expect(stderrSpy.mock.calls.length).toBe(1);
+  });
+
+  it("does not retry on permanent 4xx failures (auth/not-found) — only 1 fetch call", async () => {
+    process.env.OPENAI_API_KEY = "sk-x";
+    const fakeFetch = vi.fn(async () => new Response("unauthorized", { status: 401 })) as unknown as typeof fetch;
+    const result = await getAvailableModels("openai", fakeFetch);
+    expect(fakeFetch).toHaveBeenCalledTimes(1);
+    expect(result).toEqual([{ id: "gpt-4o", displayName: "gpt-4o" }]); // DEFAULT_MODELS.openai
+    expect(_wasModelWarned("openai")).toBe(true);
+    expect(stderrSpy).toHaveBeenCalled();
+  });
+
+  it("warns exactly once per provider even after a cache reset between two failures", async () => {
+    process.env.OPENAI_API_KEY = "sk-x";
+    const fakeFetch = vi.fn(async () => new Response("down", { status: 500 })) as unknown as typeof fetch;
+    await getAvailableModels("openai", fakeFetch);
+    _clearModelCache();
     await getAvailableModels("openai", fakeFetch);
     expect(stderrSpy.mock.calls.length).toBe(1);
   });
