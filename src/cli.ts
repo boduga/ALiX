@@ -12,40 +12,9 @@ import { PROVIDERS, listModels } from "./providers/catalog.js";
 import type { MemoryType } from "./utils/memory/types.js";
 import type { ModelInfo } from "./providers/catalog.js";
 import { prompt } from "./cli/commands/prompt.js";
+import { getApiKey, getSavedApiKey, setApiKey } from "./cli/helpers/api-keys.js";
 
 const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
-
-async function getSavedApiKey(providerId: string): Promise<string | null> {
-  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
-  try {
-    const data = JSON.parse(await readFile(userConfigPath, "utf8")) as Record<string, unknown>;
-    const apiKeys = (data as any).apiKeys ?? {};
-    if (typeof apiKeys[providerId] === "string" && apiKeys[providerId]) return apiKeys[providerId];
-  } catch { /* no config yet */ }
-  return null;
-}
-
-async function setApiKey(providerId: string, key: string): Promise<void> {
-  // Try user config first (~/.config/alix/config.json)
-  const userConfigDir = join(homedir(), ".config", "alix");
-  const userConfigPath = join(userConfigDir, "config.json");
-
-  try {
-    await mkdir(userConfigDir, { recursive: true });
-    let existing: Record<string, unknown> = {};
-    try {
-      existing = JSON.parse(await readFile(userConfigPath, "utf8"));
-    } catch {
-      // no existing config
-    }
-    const updated = { ...existing, apiKeys: { ...((existing as any).apiKeys ?? {}), [providerId]: key } };
-    await writeFile(userConfigPath, JSON.stringify(updated, null, 2) + "\n");
-    console.log(`Saved to ${userConfigPath}`);
-  } catch (err) {
-    console.error("Failed to write config:", err);
-    process.exit(1);
-  }
-}
 
 async function selectProvider(): Promise<string> {
   console.log("Select a provider to configure:\n");
