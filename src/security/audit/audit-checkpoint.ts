@@ -161,7 +161,8 @@ export function loadOrCreateCheckpointKeyPair(): CheckpointKeyPair {
   if (existing !== null) {
     // Derive public key from private key.
     const privKey = createPrivateKey(existing);
-    const pubKey = createPublicKey(privKey);
+    // createPublicKey accepts KeyObject at runtime but TS types lack this overload
+    const pubKey = createPublicKey(privKey as never);
     const publicKeyPem = pubKey.export({ type: "spki", format: "pem" }) as string;
     const keyId = computeKeyId(publicKeyPem);
     return { privateKeyPem: existing, publicKeyPem, keyId };

@@ -1,4 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { existsSync, readFileSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 /**
  * Provider catalog - shared definitions for provider selection and model listing.
@@ -178,16 +181,67 @@ export function getDefaultModel(providerId: string): string | undefined {
   return DEFAULT_MODELS[providerId];
 }
 
+// Test seam — override the user-config path without touching real filesystem.
+let userConfigPathOverride: string | undefined;
+
+/** Test seam: override path to user config (~/.config/alix/config.json). */
+export function _setUserConfigPathOverride(path: string | undefined): void {
+  userConfigPathOverride = path;
+}
+
+function resolveUserConfigPath(): string {
+  return userConfigPathOverride ?? join(homedir(), ".config", "alix", "config.json");
+}
+
 /**
- * Detect provider from available environment variables.
+ * Read the `apiKeys` map from the user config (~/.config/alix/config.json).
+ * Returns {} if the file is missing, unreadable, or malformed JSON.
+ * Never throws; never returns the actual key values to logs.
+ */
+export function loadUserConfigApiKeys(): Record<string, string> {
+  try {
+    const path = resolveUserConfigPath();
+    if (!existsSync(path)) return {};
+    const raw = readFileSync(path, "utf8");
+    const parsed = JSON.parse(raw) as { apiKeys?: Record<string, string> };
+    const keys = parsed.apiKeys ?? {};
+    // Defensive: only keep string entries with non-empty values.
+    const out: Record<string, string> = {};
+    for (const [k, v] of Object.entries(keys)) {
+      if (typeof v === "string" && v.length > 0) out[k] = v;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Detect provider from available environment variables, falling back to
+ * the user config's `apiKeys` (in PROVIDERS order), then to ollama.
+ *
+ * Precedence (highest first):
+ *   1. Env vars — `process.env[<PROVIDER.env>]`
+ *   2. User config — `~/.config/alix/config.json` → `apiKeys[<provider>]`
+ *   3. Ollama — always available (may have empty model name)
  */
 export function detectProvider(): { provider: string; model: string } {
+  // 1. Env vars — always win.
   for (const p of PROVIDERS) {
     if (process.env[p.env]) {
       return { provider: p.id, model: getDefaultModel(p.id) ?? "" };
     }
   }
-  // Fallback to ollama with empty model name
+
+  // 2. User config apiKeys — first provider with a non-empty key, in PROVIDERS order.
+  const apiKeys = loadUserConfigApiKeys();
+  for (const p of PROVIDERS) {
+    if (apiKeys[p.id]) {
+      return { provider: p.id, model: getDefaultModel(p.id) ?? "" };
+    }
+  }
+
+  // 3. Final fallback: ollama with empty model name.
   return { provider: "ollama", model: "" };
 }
 

@@ -5,11 +5,16 @@
 import { execSync, type ExecSyncOptions } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolve, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 import { tmpdir, homedir } from "node:os";
 import { randomUUID } from "node:crypto";
 
-// Resolve paths relative to project root (CWD for all tests)
-export const PROJECT_ROOT = process.cwd();
+// Resolve paths relative to project root (stable even if process.chdir() called)
+const __dirname = dirname(fileURLToPath(import.meta.url));
+// Source: tests/manual/run-cli.ts → dist/tests/manual/run-cli.js
+// From dist/tests/manual/, project root is ../../../
+export const PROJECT_ROOT = resolve(__dirname, "../../..");
 export const CLI_PATH = join(PROJECT_ROOT, "dist", "src", "cli.js");
 
 /** Map provider ID to its env var name */

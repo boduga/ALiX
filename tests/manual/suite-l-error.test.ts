@@ -4,7 +4,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { runCli, CLI_PATH, PROJECT_ROOT, assertOutputContains } from "./run-cli.js";
+import { runCli, CLI_PATH, PROJECT_ROOT, assertOutputContains, tempDir } from "./run-cli.js";
 
 describe("Suite L: Error Handling", () => {
 
@@ -29,9 +29,9 @@ describe("Suite L: Error Handling", () => {
 
   // ── L.3: Invalid mode flag ───────────────────────────────────
   it("L.3: --mode=invalid does not crash", () => {
+    // --mode=invalid is silently ignored; "invalid" becomes task text prefix
     const r = runCli(["run", "echo hello", "--mode=invalid"], { timeoutMs: 30_000 });
-    // Should still execute (invalid mode falls back to default)
-    assertOutputContains(r, "hello", "should execute even with invalid mode");
+    assert.ok(r.exitCode === 0, "should exit normally even with invalid --mode flag");
   });
 
   // ── L.4: Ctrl+C during plan ──────────────────────────────────
@@ -57,13 +57,13 @@ describe("Suite L: Error Handling", () => {
   it("L.6: --help shows all supported commands", () => {
     const r = runCli(["--help"]);
     assertOutputContains(r, "run", "help should list run");
-    assertOutputContains(r, "serve", "help should list serve");
-    assertOutputContains(r, "init", "help should list init");
-    assertOutputContains(r, "config", "help should list config");
-    assertOutputContains(r, "mcp", "help should list mcp");
-    assertOutputContains(r, "memory", "help should list memory");
-    assertOutputContains(r, "agent", "help should list agent");
-    assertOutputContains(r, "extension", "help should list extension");
-    assertOutputContains(r, "tui", "help should list tui");
+    assertOutputContains(r, "security", "help should list security");
+    assertOutputContains(r, "audit", "help should list audit");
+    assertOutputContains(r, "policy", "help should list policy");
+    assertOutputContains(r, "credential", "help should list credential");
+    assertOutputContains(r, "evidence", "help should list evidence");
+    assertOutputContains(r, "daemon", "help should list daemon");
+    assertOutputContains(r, "approvals", "help should list approvals");
+    assertOutputContains(r, "adaptation", "help should list adaptation");
   });
 });

@@ -7,7 +7,7 @@ import { describe, it, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { runCli, CLI_PATH, PROJECT_ROOT, tempDir, assertSuccess, assertOutputContains, assertOutputNotContains, needsBrave } from "./run-cli.js";
+import { runCli, CLI_PATH, PROJECT_ROOT, tempDir, assertSuccess, assertOutputContains, assertOutputNotContains, needsModel, needsBrave } from "./run-cli.js";
 
 /**
  * Bootstrap a test directory by copying the project's .alix config.

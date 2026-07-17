@@ -55,9 +55,10 @@ describe("Suite H: Extensions", () => {
 
   // ── H.3: Extension help ──────────────────────────────────────
   it("H.3: extension subcommands appear in --help", () => {
-    const r = runCli(["--help"]);
+    const r = runCli(["extension", "--help"]);
+    assertSuccess(r);
     assertOutputContains(r, "extension");
-    assertOutputContains(r, "extension list");
-    assertOutputContains(r, "extension search");
+    assertOutputContains(r, "list");
+    assertOutputContains(r, "search");
   });
 });

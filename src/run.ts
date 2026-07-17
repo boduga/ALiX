@@ -27,6 +27,7 @@ export type RunOpts = {
   planMode?: boolean;
   resumeSessionId?: string;
   planFilePath?: string;
+  readOnly?: boolean;
   messages?: NormalizedMessage[];
   skipContext?: boolean;
   disableSkillFactory?: boolean;

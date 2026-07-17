@@ -202,7 +202,7 @@ describe("A-Series Closed-Loop Pipeline", () => {
     assert.equal(generatedDecision.kind, "APPROVE");
     assert.equal(generatedDecision.proposalId, proposal.proposalId);
     assert.equal(typeof generatedDecision.integrityHash, "string");
-    assert.ok(generatedDecision.integrityHash.length > 0);
+    assert.ok(generatedDecision.integrityHash!.length > 0);
 
     // Transition to APPROVED
     stateMachine.transition(proposal.evolutionId, EvolutionState.APPROVED);

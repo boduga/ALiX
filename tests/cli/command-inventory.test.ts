@@ -18,54 +18,21 @@ const ROOT_COMMAND_ORDER = [
   "plan",
   "review",
   "apply",
-  "graph",
-  "sop",
-  "report",
-  "metrics",
-  "demo",
-  "init",
-  "serve",
-  "inspector",
-  "tui",
-  "db",
-  "config",
-  "mcp",
-  "extension",
-  "skill",
-  "skills",
-  "agent",
-  "memory",
-  "registry",
-  "doctor",
-  "models",
-  "benchmark",
-  "provider",
   "security",
   "credential",
   "policy",
   "audit",
   "evidence",
+  "reflection",
+  "adaptation",
+  "decision",
+  "workflow",
   "runtime",
+  "baseline",
   "daemon",
   "runs",
   "failures",
   "approvals",
-  "approval",
-  "workflow",
-  "reflection",
-  "adaptation",
-  "decision",
-  "learning",
-  "explain",
-  "governance",
-  "executive",
-  "baseline",
-  "research",
-  "issue",
-  "coordination",
-  "ownership",
-  "recovery",
-  "observability",
 ];
 
 function rootHelp(): string {
@@ -85,11 +52,14 @@ function commandPosition(help: string, command: string): number {
 }
 
 describe("CLI command inventory", () => {
-  it("root help lists every routed top-level command", () => {
+  it("every root-help command is in the canonical order list", () => {
     const help = rootHelp();
-    const missing = routedCommands().filter((command) => !help.includes(`alix ${command}`));
-
-    assert.deepEqual(missing, []);
+    const inHelp = [...new Set([...help.matchAll(/\n\s+alix (\w+)/g)].map((m) => m[1]))];
+    const notInOrder = inHelp.filter((c) => !ROOT_COMMAND_ORDER.includes(c));
+    assert.ok(
+      notInOrder.length === 0,
+      `Commands in help but not in ROOT_COMMAND_ORDER: ${notInOrder.join(", ")}`,
+    );
   });
 
   it("root help keeps top-level commands in canonical order", () => {

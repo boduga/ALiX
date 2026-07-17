@@ -147,6 +147,8 @@ export interface GovernanceDecision {
   readonly decidedAt: string;
   /** Who or what made the decision. */
   readonly decidedBy: "operator" | "governance_policy" | "auto_escalation";
+  /** Integrity hash for tamper detection — set when decision is persisted. */
+  readonly integrityHash?: string;
 }
 
 // ---------------------------------------------------------------------------

@@ -17,6 +17,11 @@ import type { VerificationEvidenceLedger } from "../evolution/verification/evide
 import type { GovernanceDecisionBridge } from "../evolution/governance/governance-decision-bridge.js";
 import type { GovernancePolicyConfig } from "../evolution/governance/contracts/decision-contract.js";
 import type { GovernanceDecisionStore } from "../evolution/governance/contracts/decision-store-contract.js";
+import { ObservationEngine } from "../evolution/observation/observation-engine.js";
+import { CliObservationProvider } from "../evolution/observation/providers/cli-provider.js";
+import { FilesystemObservationProvider } from "../evolution/observation/providers/filesystem-provider.js";
+import { GitObservationProvider } from "../evolution/observation/providers/git-provider.js";
+import { LedgerObservationProvider } from "../evolution/observation/providers/ledger-provider.js";
 
 // ---------------------------------------------------------------------------
 // Helpers

@@ -5,46 +5,16 @@ import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 import { loadConfig, DEFAULT_CONFIG } from "./config/loader.js";
 import { ALIX_VERSION } from "./index.js";
-import { EXIT_CODES, runTask } from "./run.js";
+import { EXIT_CODES } from "./run.js";
+import { createAgentSession, type AgentTurnResult } from "./agent/session.js";
 import { ApiError } from "./providers/base.js";
 import { PROVIDERS, listModels } from "./providers/catalog.js";
 import type { MemoryType } from "./utils/memory/types.js";
 import type { ModelInfo } from "./providers/catalog.js";
 import { prompt } from "./cli/commands/prompt.js";
+import { getApiKey, getSavedApiKey, setApiKey } from "./cli/helpers/api-keys.js";
 
 const MEMORY_TYPES = new Set<MemoryType>(["user", "project", "feedback", "reference"]);
-
-async function getSavedApiKey(providerId: string): Promise<string | null> {
-  const userConfigPath = join(homedir(), ".config", "alix", "config.json");
-  try {
-    const data = JSON.parse(await readFile(userConfigPath, "utf8")) as Record<string, unknown>;
-    const apiKeys = (data as any).apiKeys ?? {};
-    if (typeof apiKeys[providerId] === "string" && apiKeys[providerId]) return apiKeys[providerId];
-  } catch { /* no config yet */ }
-  return null;
-}
-
-async function setApiKey(providerId: string, key: string): Promise<void> {
-  // Try user config first (~/.config/alix/config.json)
-  const userConfigDir = join(homedir(), ".config", "alix");
-  const userConfigPath = join(userConfigDir, "config.json");
-
-  try {
-    await mkdir(userConfigDir, { recursive: true });
-    let existing: Record<string, unknown> = {};
-    try {
-      existing = JSON.parse(await readFile(userConfigPath, "utf8"));
-    } catch {
-      // no existing config
-    }
-    const updated = { ...existing, apiKeys: { ...((existing as any).apiKeys ?? {}), [providerId]: key } };
-    await writeFile(userConfigPath, JSON.stringify(updated, null, 2) + "\n");
-    console.log(`Saved to ${userConfigPath}`);
-  } catch (err) {
-    console.error("Failed to write config:", err);
-    process.exit(1);
-  }
-}
 
 async function selectProvider(): Promise<string> {
   console.log("Select a provider to configure:\n");
@@ -161,7 +131,7 @@ if (command === "runs") {
 
 if (command === "init") {
   const { runInit } = await import("./cli/commands/init.js");
-  await runInit(process.cwd());
+  await runInit(process.cwd(), args);
   process.exit(0);
 }
 
@@ -836,53 +806,37 @@ if (command === "config" && args[0] === "set-key") {
 }
 
 if (command === "config" && args[0] === "set-default-model") {
-  const providerId = await selectProvider();
-  const provider = PROVIDERS.find((p) => p.id === providerId)!;
+  const { resolveProviders, getAvailableModels, selectModelInteractive, selectFromList } = await import("./cli/helpers/provider-selection.js");
 
-  let apiKey = process.env[provider.env] ?? (await getSavedApiKey(providerId));
-  if (!apiKey) {
-    console.log(`\nNo API key found for ${provider.name}.`);
-    const key = await prompt(`Enter API key (${provider.hint}): `);
+  const avail = await resolveProviders();
+  // Show ALL PROVIDERS (no filtering) per spec §15 — behavior preserved.
+  const pick = await selectFromList(
+    avail,
+    (p) => `${p.name} — ${p.apiKeySource}${p.reason ? ` (${p.reason})` : ""}`,
+    { header: "Select a provider:" },
+  );
+  if (!pick) { console.log("Cancelled."); process.exit(0); }
+  const providerId = pick.id;
+
+  let apiKey = await getApiKey(providerId);
+  if (apiKey === undefined) {
+    console.log(`\nNo API key found for ${pick.name}.`);
+    const key = await prompt(`Enter API key (${pick.hint}): `);
     if (!key) { console.log("Cancelled."); process.exit(0); }
     await setApiKey(providerId, key);
     apiKey = key;
-    process.env[provider.env] = key;
+    process.env[pick.env] = key;
   }
 
-  console.log(`\nFetching available models for ${provider.name}...\n`);
-  let models: ModelInfo[];
-  try {
-    models = await listModels(providerId, apiKey);
-  } catch (err) {
-    console.error(`Failed to fetch models: ${err instanceof Error ? err.message : err}`);
-    process.exit(1);
-  }
-
+  console.log(`\nFetching available models for ${pick.name}...\n`);
+  const models = await getAvailableModels(providerId);
   if (models.length === 0) {
     console.log("No models found.");
     process.exit(1);
   }
 
-  // Show up to 50 models with token limits if available
-  const MAX_SHOWN = 50;
-  const shown = models.slice(0, MAX_SHOWN);
-  for (let i = 0; i < shown.length; i++) {
-    const m = shown[i];
-    const tokens = m.maxInputTokens
-      ? ` (in: ${(m.maxInputTokens / 1000).toFixed(0)}k)`
-      : "";
-    console.log(`  ${i + 1}. ${m.displayName}${tokens}`);
-  }
-  if (models.length > MAX_SHOWN) console.log(`  ... and ${models.length - MAX_SHOWN} more`);
-
-  const answer = await prompt(`\nSelect model (1-${shown.length}, 0 to cancel): `);
-  const num = parseInt(answer, 10);
-  if (num === 0 || isNaN(num) || num > shown.length) {
-    console.log("Cancelled.");
-    process.exit(0);
-  }
-
-  const selected = shown[num - 1];
+  const selected = await selectModelInteractive(models);
+  if (!selected) { console.log("Cancelled."); process.exit(0); }
 
   // Save to project config (.alix/config.json) if inside a git repo,
   // otherwise user config (~/.config/alix/config.json)
@@ -901,7 +855,7 @@ if (command === "config" && args[0] === "set-default-model") {
     model: { provider: providerId, name: selected.id },
   };
   await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
-  console.log(`\nDefault model set to "${selected.id}" for ${provider.name}.`);
+  console.log(`\nDefault model set to "${selected.id}" for ${pick.name}.`);
   console.log(`Saved to ${configPath}`);
   process.exit(0);
 }
@@ -1179,9 +1133,9 @@ if (command === "config" && args[0] === "show") {
 
 if (command === "run") {
   const { parseRunArgs } = await import("./cli/run-args.js");
-  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag } = parseRunArgs(args);
+  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly, chat } = parseRunArgs(args);
 
-  if (!task && !resumeSessionId) {
+  if (!task && !resumeSessionId && !chat) {
     console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose]");
     process.exit(1);
   }
@@ -1205,15 +1159,32 @@ if (command === "run") {
   }
 
   try {
-    const result = await runTask(process.cwd(), task, { streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, sessionMode, resumeSessionId, planFilePath });
-    if (!result.streamed) {
-      console.log(result.summary);
+    const { createReplRenderer, createReplEvents } = await import("./cli/renderers/repl.js");
+    const { JsonlSessionStore } = await import("./agent/session-store-jsonl.js");
+    let result: AgentTurnResult | undefined;
+    let session: ReturnType<typeof createAgentSession>;
+    if (chat) {
+      // Wire a streaming events subscription into both the session and the
+      // renderer (spec §13) so the REPL renders tokens/tool calls as they
+      // arrive instead of waiting for the final summary.
+      const events = createReplEvents();
+      const sessionsRoot = join(process.cwd(), ".alix", "sessions");
+      const store = new JsonlSessionStore(sessionsRoot);
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store });
+      const renderer = createReplRenderer(session, { events, store });
+      await renderer.start();
+    } else {
+      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
+      result = await session.processTurn(task);
+      if (!result.streamed) {
+        console.log(result.summary);
+      }
+      console.log(`Session: ${result.sessionId}`);
     }
-    console.log(`Session: ${result.sessionId}`);
 
     // --intent / --propose: capture execution as an ExecutionIntent artifact
     // --propose is a superset of --intent: it also maps the intent to a proposal
-    if (intentFlag || proposeFlag) {
+    if (result && (intentFlag || proposeFlag)) {
       const { IntentStore } = await import("./adaptation/intent-store.js");
       const intentDir = join(homedir(), ".alix", "execution", "intents");
       const store = new IntentStore(intentDir);
@@ -1292,7 +1263,7 @@ if (command === "run") {
       }
     }
 
-    if (result.reason === "rejected_scope_expansion") {
+    if (result?.reason === "rejected_scope_expansion") {
       process.exit(EXIT_CODES.REJECTED_SCOPE_EXPANSION);
     }
   } catch (err) {

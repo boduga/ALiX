@@ -16,7 +16,7 @@ describe("ExtensionRegistry", () => {
     await mkdir(join(root, "skill-my-skill"), { recursive: true });
     await writeFile(join(root, "skill-my-skill", "EXTENSION.yaml"), "name: my-skill\ntype: skill\nversion: 1.0.0\ndescription: A skill\ntrigger: /my");
     await mkdir(join(root, "mcp-github-mcp"), { recursive: true });
-    await writeFile(join(root, "mcp-github-mcp", "EXTENSION.yaml"), "name: github-mcp\ntype: mcp\nversion: 2.0.0\ndescription: GitHub MCP\ncommand: npx\nargs:\n  - -y\n  - @modelcontextprotocol/server-github");
+    await writeFile(join(root, "mcp-github-mcp", "EXTENSION.yaml"), "name: github-mcp\ntype: mcp\nversion: 2.0.0\ndescription: GitHub MCP\ncommand: npx\nargs:\n  - -y\n  - \"@modelcontextprotocol/server-github\"");
 
     const registry = new ExtensionRegistry(root);
     const all = registry.list();
@@ -45,7 +45,7 @@ describe("ExtensionRegistry", () => {
     await mkdir(join(root, "skill-my-skill"), { recursive: true });
     await writeFile(join(root, "skill-my-skill", "EXTENSION.yaml"), "name: my-skill\ntype: skill\nversion: 1.0.0\ndescription: A skill\ntrigger: /my");
     await mkdir(join(root, "mcp-github-mcp"), { recursive: true });
-    await writeFile(join(root, "mcp-github-mcp", "EXTENSION.yaml"), "name: github-mcp\ntype: mcp\nversion: 2.0.0\ndescription: GitHub MCP\ncommand: npx\nargs:\n  - -y\n  - @modelcontextprotocol/server-github");
+    await writeFile(join(root, "mcp-github-mcp", "EXTENSION.yaml"), "name: github-mcp\ntype: mcp\nversion: 2.0.0\ndescription: GitHub MCP\ncommand: npx\nargs:\n  - -y\n  - \"@modelcontextprotocol/server-github\"");
 
     const registry = new ExtensionRegistry(root);
     const skills = registry.list({ type: "skill" });

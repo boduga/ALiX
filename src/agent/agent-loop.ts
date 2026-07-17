@@ -143,7 +143,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   // Shell tasks (bare commands like ls, cat) cap at 2 iterations
   const shellTask = isShellTask(task);
   const readOnlyTask = isReadOnlyTask(task) || shellTask;
-  const cappedIterations = shellTask ? Math.min(maxIterations, 2) : maxIterations;
+  const cappedIterations = shellTask ? Math.min(maxIterations, 2) : opts?.readOnly ? Math.min(maxIterations, 4) : maxIterations;
 
   // State machine with hard limits
   const limiter = new RunLimiter({
@@ -193,45 +193,56 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   // Skip context compilation & plan phase on subsequent TUI prompts
   // (context was compiled on the first prompt; tool state is unchanged)
+  // Also skip for shell tasks — the command IS the task, no repo context needed.
   if (!opts?.skipContext) {
-    const contextCompiler = new ContextCompiler({
-      root: cwd,
-      maxTokens: MAX_CONTEXT_TOKENS,
-      eventLog: ctx.log,
-      sessionId: ctx.sessionId,
-    });
-    await contextCompiler.warm();
-    contextBundle = await contextCompiler.compileContext(task, taskType, []);
-    await ctx.log.append({
-      ...session,
-      type: "context.bundle_compiled",
-      payload: buildContextBundleEventPayload(contextBundle),
-    });
+    const skipContext = shellTask || readOnlyTask;
+    if (!skipContext) {
+      const contextCompiler = new ContextCompiler({
+        root: cwd,
+        maxTokens: MAX_CONTEXT_TOKENS,
+        eventLog: ctx.log,
+        sessionId: ctx.sessionId,
+      });
+      await contextCompiler.warm();
+      contextBundle = await contextCompiler.compileContext(task, taskType, []);
+      await ctx.log.append({
+        ...session,
+        type: "context.bundle_compiled",
+        payload: buildContextBundleEventPayload(contextBundle),
+      });
 
-    // Plan phase — only on first prompt or explicit requests
-    const resumedPlan = (ctx as any)._planContent;
-    if (resumedPlan) {
-      approvedPlanContent = resumedPlan;
-    } else if (opts?.planMode !== false) {
-      const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
-      if (planResult.action === "rejected") {
-        const failedRun = transitionWorkflowStatus(wfRun, "failed");
-        await ctx.log.append({
-          ...session, type: "workflow.failed", actor: "system",
-          payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
-          meta: wfMeta,
-        });
-        return { sessionId: ctx.sessionId, summary: "Plan rejected. Task cancelled.", streamed: opts?.streaming };
-      }
-      if (planResult.action === "approved") {
-        approvedPlanContent = planResult.planContent;
+      // Plan phase — only on first prompt or explicit requests
+      const resumedPlan = (ctx as any)._planContent;
+      if (resumedPlan) {
+        approvedPlanContent = resumedPlan;
+      } else if (opts?.planMode !== false) {
+        const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath);
+        if (planResult.action === "rejected") {
+          const failedRun = transitionWorkflowStatus(wfRun, "failed");
+          await ctx.log.append({
+            ...session, type: "workflow.failed", actor: "system",
+            payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
+            meta: wfMeta,
+          });
+          return { sessionId: ctx.sessionId, summary: "Plan rejected. Task cancelled.", streamed: opts?.streaming };
+        }
+        if (planResult.action === "approved") {
+          approvedPlanContent = planResult.planContent;
+        }
       }
     }
   }
 
   const baseTools = buildToolsForProvider(ctx.provider);
-  const providerTools = shellTask
-    ? baseTools.filter((t) => READ_ONLY_TOOL_NAMES.has(t.name))
+  // Filter tools based on execution mode:
+  //   --read-only:  exclude alix_shell_run, include alix_delegate
+  //   shell task:   only READ_ONLY_TOOL_NAMES (includes shell_run)
+  //   default:      all tools
+  const readOnlyToolFilter = new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"));
+  readOnlyToolFilter.add("alix_delegate");
+  const toolFilter = opts?.readOnly ? readOnlyToolFilter : shellTask ? READ_ONLY_TOOL_NAMES : null;
+  const providerTools = toolFilter
+    ? baseTools.filter((t) => toolFilter.has(t.name))
     : baseTools;
 
   // Setup MCP tool index
@@ -271,6 +282,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   if (shellTask) {
     lines.push(`## Read-Only Mode
 The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+  }
+
+  // For --read-only flag, inject a stricter mode instruction
+  if (opts?.readOnly) {
+    lines.push(`## Read-Only Mode
+You are in read-only mode. You can read files, search the codebase, and delegate to subagents, but you CANNOT run shell commands or modify any files. Answer questions and investigate the codebase. Suggest changes verbally rather than making them.`);
   }
 
   if (matchedSkills && matchedSkills.length > 0) {
@@ -346,7 +363,7 @@ ${approvedPlanContent}`);
     task,
     taskType,
     depth,
-    readOnly: readOnlyTask,
+    readOnly: opts?.readOnly ?? readOnlyTask,
     shellTask,
     memoryStore: ctx.memoryStore,
     sessionId: ctx.sessionId,

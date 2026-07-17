@@ -3,7 +3,9 @@ import { readFile, writeFile, appendFile, mkdir } from "node:fs/promises";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { DEFAULT_CONFIG } from "../../config/defaults.js";
-import { detectProvider } from "../../providers/catalog.js";
+import { getDefaultModel } from "../../providers/catalog.js";
+import { parseInitArgs, InitArgsError } from "../helpers/init-args.js";
+import { resolveInitialProviderAndModel } from "../helpers/provider-selection.js";
 
 const PROJECT_TYPE_FILES: [string, string][] = [
   ["package.json", "Node.js"],
@@ -19,7 +21,7 @@ export interface InitDependencies {
   cwd: string;
 }
 
-export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Promise<void> {
+export async function runInit(cwd: string, argv: string[] = [], deps?: Partial<InitDependencies>): Promise<void> {
   const {
     cwd: workDir = cwd,
   } = deps ?? {};
@@ -59,28 +61,51 @@ export async function runInit(cwd: string, deps?: Partial<InitDependencies>): Pr
   }
   console.log(`Detected: ${projectType} project`);
 
-  // Step 2: Provider + Model (auto-detect from environment)
-  const { provider: selectedProvider, model: selectedModel } = detectProvider();
-  let resolvedModel = selectedModel;
-
-  // If no env-based provider was found, Ollama was auto-detected but no model name known
-  if (!resolvedModel && selectedProvider === "ollama") {
-    const { getInstalledOllamaModels } = await import("../../providers/catalog.js");
-    const installedModels = getInstalledOllamaModels();
-    if (installedModels.length > 0) {
-      resolvedModel = installedModels[0];
-      console.log(`Detected Ollama, selecting: ${resolvedModel}`);
-    } else {
-      console.log([
-        `Detected Ollama, but no installed models were found.`,
-        ``,
-        `Next:`,
-        `  alix models doctor`,
-        `  alix models fit`,
-        `  alix models install-profile minimal-local`,
-      ].join("\n"));
+  // ── Parse + resolve provider/model BEFORE writing config ──
+  let parsedArgs;
+  try {
+    parsedArgs = parseInitArgs(argv);
+  } catch (err) {
+    if (err instanceof InitArgsError) {
+      console.error(err.message);
+      process.exit(1);
     }
-  } else if (resolvedModel) {
+    throw err;
+  }
+  if (parsedArgs.help) {
+    console.log(`Usage: alix init [--provider <id>] [--model <id>] [--help]
+
+Options:
+  --provider <id>   Skip provider selection; use this provider's API key.
+  --model <id>      Skip model selection; validate against provider's live list.
+  --help            Show this help and exit.
+
+Examples:
+  alix init
+  alix init --provider openai
+  alix init --provider openai --model gpt-5
+`);
+    return;
+  }
+
+  // ── Provider + Model (interactive / flagged / auto via orchestrator). ──
+  let resolution: Awaited<ReturnType<typeof resolveInitialProviderAndModel>>;
+  try {
+    resolution = await resolveInitialProviderAndModel(parsedArgs);
+  } catch (err) {
+    if (err instanceof Error) {
+      console.error(err.message);
+      process.exit(1);
+    }
+    throw err;
+  }
+  const selectedProvider = resolution.providerId;
+  let resolvedModel = resolution.modelId;
+  // Defensive: if orchestrator returns empty model, fall back to provider's default.
+  if (resolvedModel === "") {
+    resolvedModel = getDefaultModel(selectedProvider) ?? "";
+  }
+  if (resolvedModel) {
     console.log(`Using: ${selectedProvider} / ${resolvedModel}`);
   }
 

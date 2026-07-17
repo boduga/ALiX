@@ -150,11 +150,15 @@ export function computeFrictionReport(entries: LedgerEntry[]): FrictionReport {
     (sum, g) => sum + g.totalOccurrences,
     0,
   );
+  const totalDenied = gates.reduce((sum, g) => sum + g.deniedCount, 0);
+  const totalPending = gates.reduce((sum, g) => sum + g.pendingCount, 0);
 
+  // Occurrence-weighted: denyRate*0.6 + pendingRate*0.4
   const overallFrictionScore =
-    gates.length > 0
+    totalApprovalsRequested > 0
       ? round2(
-          gates.reduce((sum, g) => sum + g.frictionScore, 0) / gates.length,
+          (totalDenied / totalApprovalsRequested) * 0.6 +
+            (totalPending / totalApprovalsRequested) * 0.4,
         )
       : 0;
 

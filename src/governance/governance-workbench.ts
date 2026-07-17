@@ -349,7 +349,7 @@ function queueItemSorter(a: WorkbenchQueueItem, b: WorkbenchQueueItem): number {
 // Lifecycle trace
 // ---------------------------------------------------------------------------
 
-function buildLifecycleTrace(
+export function buildLifecycleTrace(
   remediationId: string,
   remediations: GovernanceRemediationProposal[],
   plansByRemediation: Map<string, GovernanceExecutionPlan>,
