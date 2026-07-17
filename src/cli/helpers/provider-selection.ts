@@ -11,8 +11,9 @@
  *   - selectModelInteractive()    (Task 3)
  *   - resolveInitialProviderAndModel() (Task 5)
  */
-import { PROVIDERS, getInstalledOllamaModels, getDefaultModel, listModels, type ModelInfo } from "../../providers/catalog.js";
+import { PROVIDERS, getInstalledOllamaModels, getDefaultModel, listModels, detectProvider, type ModelInfo } from "../../providers/catalog.js";
 import { getApiKey } from "./api-keys.js";
+import type { ParsedInitArgs } from "./init-args.js";
 
 export interface ProviderAvailability {
   id: string;
@@ -336,9 +337,6 @@ export async function selectModelInteractive(
 }
 
 // ─── Orchestrator (Task 5) ────────────────────────────────────────────────────
-
-import { detectProvider } from "../../providers/catalog.js";
-import type { ParsedInitArgs } from "./init-args.js";
 
 export interface InitResolution {
   providerId: string;
