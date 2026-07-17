@@ -4,11 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
-  resolveProviders,
-  getAvailableModels,
+  selectFromList,
+  selectProviderInteractive,
+  selectModelInteractive,
   _resetModelCache,
   _clearModelCache,
   _wasModelWarned,
+  resolveProviders,
+  getAvailableModels,
 } from "../../../src/cli/helpers/provider-selection.js";
 import { _setUserConfigPathOverride } from "../../../src/cli/helpers/api-keys.js";
 import { PROVIDERS } from "../../../src/providers/catalog.js";
@@ -160,5 +163,99 @@ describe("getAvailableModels", () => {
     _clearModelCache();
     await getAvailableModels("openai", fakeFetch);
     expect(stderrSpy.mock.calls.length).toBe(1);
+  });
+});
+
+describe("selectFromList", () => {
+  const items = [
+    { id: "a", name: "Alpha" },
+    { id: "b", name: "Beta" },
+  ];
+
+  it("returns the selected item by 1-based number", async () => {
+    const promptFn = async (q: string) => "1";
+    const result = await selectFromList(items, (i) => i.name, { promptFn });
+    expect(result).toEqual({ id: "a", name: "Alpha" });
+  });
+
+  it("returns null when user cancels with 0", async () => {
+    const promptFn = async () => "0";
+    expect(await selectFromList(items, (i) => i.name, { promptFn })).toBeNull();
+  });
+
+  it("re-prompts on invalid input then accepts next valid selection", async () => {
+    const answers = ["99", "abc", "2"];
+    const promptFn = async () => answers.shift() ?? "";
+    expect(await selectFromList(items, (i) => i.name, { promptFn })).toEqual({ id: "b", name: "Beta" });
+  });
+
+  it("re-prompts on empty input then accepts next valid selection", async () => {
+    const answers = ["", "1"];
+    const promptFn = async () => answers.shift() ?? "";
+    expect(await selectFromList(items, (i) => i.name, { promptFn })).toEqual({ id: "a", name: "Alpha" });
+  });
+
+  it("returns null + warns when list is empty", async () => {
+    const promptFn = async () => "1";
+    expect(await selectFromList([], (i) => String(i), { promptFn })).toBeNull();
+    expect(stderrSpy).toHaveBeenCalled();
+  });
+
+  it("includes optional header line in the prompt header", async () => {
+    const promptFn = vi.fn(async (_q: string) => "1");
+    await selectFromList(items, (i) => i.name, { promptFn, header: "Choose:" });
+    const firstCall = promptFn.mock.calls[0] as unknown as [string];
+    expect(firstCall[0]).toContain("Choose:");
+  });
+});
+
+describe("selectProviderInteractive", () => {
+  it("only offers available providers", async () => {
+    const avail = await resolveProviders();
+    // Mark only openai as available for predictability.
+    const filtered = avail.map((p) => (p.id === "openai" ? { ...p, available: true } : { ...p, available: false }));
+    const promptFn = async () => "1";
+    const id = await selectProviderInteractive(filtered, promptFn);
+    expect(id).toBe("openai");
+  });
+
+  it("orders providers by apiKeySource priority: environment > user-config > ollama", async () => {
+    // Force deterministic ordering: openai=env, anthropic=user-config, ollama=available.
+    process.env.OPENAI_API_KEY = "sk-x";
+    const path = join(tmpDir, "config.json");
+    const fs = await import("node:fs/promises");
+    await fs.writeFile(path, JSON.stringify({ apiKeys: { anthropic: "sk-a" } }));
+    _setUserConfigPathOverride(path);
+
+    const avail = await resolveProviders();
+    const available = avail.filter((p) => p.available);
+    // The function is called indirectly via selectFromList; we verify by
+    // the rendered list order — capture promptFn calls.
+    const calls: string[] = [];
+    const promptFn = async (q: string) => {
+      calls.push(q);
+      return "1";
+    };
+    const id = await selectProviderInteractive(avail, promptFn);
+    expect(id).toBe("openai"); // env-first wins selection of "1"
+    // The header should mention env-sourced openai before user-sourced anthropic.
+    const header = calls[0] ?? "";
+    const idxOpenai = header.indexOf("OpenAI");
+    const idxAnthropic = header.indexOf("Anthropic");
+    expect(idxOpenai).toBeGreaterThan(-1);
+    expect(idxAnthropic).toBeGreaterThan(-1);
+    expect(idxOpenai).toBeLessThan(idxAnthropic);
+  });
+});
+
+describe("selectModelInteractive", () => {
+  it("returns the selected ModelInfo", async () => {
+    const models = [
+      { id: "m1", displayName: "Model 1" },
+      { id: "m2", displayName: "Model 2" },
+    ];
+    const promptFn = async () => "2";
+    const result = await selectModelInteractive(models, promptFn);
+    expect(result).toEqual({ id: "m2", displayName: "Model 2" });
   });
 });

@@ -215,3 +215,122 @@ export async function getAvailableModels(
   _modelCache.set(providerId, { models: fallback });
   return fallback;
 }
+
+// ─── Interactive selection (Task 3) ───────────────────────────────────────────
+
+import { prompt as defaultPrompt } from "../commands/prompt.js";
+
+const isInteractive = () => Boolean(process.stdin?.isTTY);
+
+async function reAsk(promptFn: (q: string) => Promise<string>, q: string, tries = 3): Promise<string | null> {
+  let last = "";
+  for (let i = 0; i < tries; i++) {
+    last = (await promptFn(q)).trim();
+    if (last !== "") return last;
+  }
+  return last;
+}
+
+/**
+ * Generic numbered-list picker. Returns the selected item, or `null` on
+ * cancellation (user types `0`) or when the list is empty.
+ *
+ * - Re-prompts on empty / non-numeric / out-of-range input.
+ * - `promptFn` is a test seam; defaults to the global `prompt()` from
+ *   `src/cli/commands/prompt.ts`.
+ */
+export async function selectFromList<T>(
+  items: T[],
+  label: (item: T) => string,
+  opts: { promptFn?: (q: string) => Promise<string>; header?: string } = {},
+): Promise<T | null> {
+  if (items.length === 0) {
+    process.stderr.write("Warning: no items available to select.\n");
+    return null;
+  }
+  const promptFn = opts.promptFn ?? defaultPrompt;
+
+  const header = opts.header ? `${opts.header}\n` : "";
+  let body = header;
+  for (let i = 0; i < items.length; i++) {
+    body += ` ${i + 1}. ${label(items[i]!)}\n`;
+  }
+
+  // Try until we get a valid 1..N integer.
+  // Cancellation is signalled by 0 (or after N tries of empty/invalid input).
+  let answer: string | null = "";
+  for (let tries = 0; tries < 10; tries++) {
+    answer = await reAsk(promptFn, `${body}\nSelect (1-${items.length}, 0 cancel): `);
+    const num = Number.parseInt(answer ?? "", 10);
+    if (num === 0) return null;
+    if (Number.isInteger(num) && num >= 1 && num <= items.length) {
+      return items[num - 1]!;
+    }
+  }
+  return null;
+}
+
+/**
+ * Interactive provider picker — only considers providers with
+ * `available === true`. Returns the chosen provider id or `null`.
+ *
+ * Ordering (spec §13): environment → user-config → ollama. Within each
+ * tier, original `avail` array order (i.e. PROVIDERS array order) is
+ * preserved.
+ */
+const SOURCE_PRIORITY: Record<ProviderAvailability["apiKeySource"], number> = {
+  environment: 0,
+  "user-config": 1,
+  ollama: 2,
+  none: 3,
+};
+
+export async function selectProviderInteractive(
+  avail: ProviderAvailability[],
+  promptFn?: (q: string) => Promise<string>,
+): Promise<string | null> {
+  const available = avail
+    .filter((p) => p.available)
+    .slice() // copy so we don't mutate caller's array
+    .sort((a, b) => {
+      const pa = SOURCE_PRIORITY[a.apiKeySource];
+      const pb = SOURCE_PRIORITY[b.apiKeySource];
+      if (pa !== pb) return pa - pb;
+      // Within same tier, preserve original PROVIDERS order via the input array index.
+      return avail.indexOf(a) - avail.indexOf(b);
+    });
+  const picked = await selectFromList(
+    available,
+    (p) => {
+      const reason = p.reason ? ` (${p.reason})` : "";
+      return `${p.name} — ${p.apiKeySource}${reason}`;
+    },
+    { promptFn, header: "Choose a provider:" },
+  );
+  return picked?.id ?? null;
+}
+
+/**
+ * Interactive model picker. Shows up to 50 models and lets the user pick by
+ * number — see spec §15 for the same `MAX_SHOWN` truncation rule used by
+ * `set-default-model`. Returns the chosen `ModelInfo` or `null`.
+ */
+export async function selectModelInteractive(
+  models: ModelInfo[],
+  promptFn?: (q: string) => Promise<string>,
+): Promise<ModelInfo | null> {
+  const MAX_SHOWN = 50;
+  const shown = models.slice(0, MAX_SHOWN);
+  const picked = await selectFromList(
+    shown,
+    (m) => {
+      const tokens = m.maxInputTokens ? ` (in: ${(m.maxInputTokens / 1000).toFixed(0)}k)` : "";
+      return `${m.displayName}${tokens}`;
+    },
+    { promptFn, header: "Choose a model:" },
+  );
+  if (picked && models.length > MAX_SHOWN) {
+    process.stderr.write(`(Showing first ${MAX_SHOWN} of ${models.length} models.)\n`);
+  }
+  return picked;
+}
