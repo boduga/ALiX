@@ -131,7 +131,7 @@ if (command === "runs") {
 
 if (command === "init") {
   const { runInit } = await import("./cli/commands/init.js");
-  await runInit(process.cwd());
+  await runInit(process.cwd(), args);
   process.exit(0);
 }
 
@@ -806,53 +806,38 @@ if (command === "config" && args[0] === "set-key") {
 }
 
 if (command === "config" && args[0] === "set-default-model") {
-  const providerId = await selectProvider();
-  const provider = PROVIDERS.find((p) => p.id === providerId)!;
+  const { resolveProviders, getAvailableModels, selectModelInteractive, selectFromList } = await import("./cli/helpers/provider-selection.js");
+  const { getApiKey, setApiKey } = await import("./cli/helpers/api-keys.js");
 
-  let apiKey = process.env[provider.env] ?? (await getSavedApiKey(providerId));
-  if (!apiKey) {
-    console.log(`\nNo API key found for ${provider.name}.`);
-    const key = await prompt(`Enter API key (${provider.hint}): `);
+  const avail = await resolveProviders();
+  // Show ALL PROVIDERS (no filtering) per spec §15 — behavior preserved.
+  const pick = await selectFromList(
+    avail,
+    (p) => `${p.name} — ${p.apiKeySource}${p.reason ? ` (${p.reason})` : ""}`,
+    { header: "Select a provider:" },
+  );
+  if (!pick) { console.log("Cancelled."); process.exit(0); }
+  const providerId = pick.id;
+
+  let apiKey = await getApiKey(providerId);
+  if (apiKey === undefined) {
+    console.log(`\nNo API key found for ${pick.name}.`);
+    const key = await prompt(`Enter API key (${pick.hint}): `);
     if (!key) { console.log("Cancelled."); process.exit(0); }
     await setApiKey(providerId, key);
     apiKey = key;
-    process.env[provider.env] = key;
+    process.env[pick.env] = key;
   }
 
-  console.log(`\nFetching available models for ${provider.name}...\n`);
-  let models: ModelInfo[];
-  try {
-    models = await listModels(providerId, apiKey);
-  } catch (err) {
-    console.error(`Failed to fetch models: ${err instanceof Error ? err.message : err}`);
-    process.exit(1);
-  }
-
+  console.log(`\nFetching available models for ${pick.name}...\n`);
+  const models = await getAvailableModels(providerId);
   if (models.length === 0) {
     console.log("No models found.");
     process.exit(1);
   }
 
-  // Show up to 50 models with token limits if available
-  const MAX_SHOWN = 50;
-  const shown = models.slice(0, MAX_SHOWN);
-  for (let i = 0; i < shown.length; i++) {
-    const m = shown[i];
-    const tokens = m.maxInputTokens
-      ? ` (in: ${(m.maxInputTokens / 1000).toFixed(0)}k)`
-      : "";
-    console.log(`  ${i + 1}. ${m.displayName}${tokens}`);
-  }
-  if (models.length > MAX_SHOWN) console.log(`  ... and ${models.length - MAX_SHOWN} more`);
-
-  const answer = await prompt(`\nSelect model (1-${shown.length}, 0 to cancel): `);
-  const num = parseInt(answer, 10);
-  if (num === 0 || isNaN(num) || num > shown.length) {
-    console.log("Cancelled.");
-    process.exit(0);
-  }
-
-  const selected = shown[num - 1];
+  const selected = await selectModelInteractive(models);
+  if (!selected) { console.log("Cancelled."); process.exit(0); }
 
   // Save to project config (.alix/config.json) if inside a git repo,
   // otherwise user config (~/.config/alix/config.json)
@@ -871,7 +856,7 @@ if (command === "config" && args[0] === "set-default-model") {
     model: { provider: providerId, name: selected.id },
   };
   await writeFile(configPath, JSON.stringify(updated, null, 2) + "\n");
-  console.log(`\nDefault model set to "${selected.id}" for ${provider.name}.`);
+  console.log(`\nDefault model set to "${selected.id}" for ${pick.name}.`);
   console.log(`Saved to ${configPath}`);
   process.exit(0);
 }
