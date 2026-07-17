@@ -334,3 +334,103 @@ export async function selectModelInteractive(
   }
   return picked;
 }
+
+// ─── Orchestrator (Task 5) ────────────────────────────────────────────────────
+
+import { detectProvider } from "../../providers/catalog.js";
+import type { ParsedInitArgs } from "./init-args.js";
+
+export interface InitResolution {
+  providerId: string;
+  modelId: string;
+}
+
+/**
+ * Top-level orchestrator for `alix init`. Picks the right mode based on
+ * the parsed args + TTY state, then returns `{ providerId, modelId }`
+ * for `runInit()` to persist.
+ *
+ * Modes (spec §3, §10, §11):
+ *   flagged     — explicit --provider → honor it (works in both TTY and non-TTY).
+ *   auto        — no --provider and non-TTY → use detectProvider().
+ *   interactive — TTY + no --provider → prompt provider (available-only) + model.
+ */
+export async function resolveInitialProviderAndModel(
+  args: ParsedInitArgs,
+  opts: {
+    promptFn?: (q: string) => Promise<string>;
+    fetchFn?: typeof fetch;
+  } = {},
+): Promise<InitResolution> {
+  // ── Explicit --provider always wins (works in TTY + non-TTY). ─────────
+  if (args.provider) {
+    return await resolveFlagged(args, opts);
+  }
+
+  const interactive = Boolean(process.stdin?.isTTY);
+
+  // ── Auto mode (non-TTY + no flags). ──────────────────────────────────
+  if (!interactive) {
+    const det = detectProvider();
+    return { providerId: det.provider, modelId: det.model };
+  }
+
+  // ── Interactive mode (TTY + no flags). ────────────────────────────────
+  return await resolveInteractive(opts);
+}
+
+async function resolveFlagged(
+  args: ParsedInitArgs,
+  opts: { promptFn?: (q: string) => Promise<string>; fetchFn?: typeof fetch },
+): Promise<InitResolution> {
+  const provider = PROVIDERS.find((p) => p.id === args.provider);
+  if (!provider) throw new Error(`Unknown provider: ${args.provider}`);
+
+  // Resolve key for live model lookup. Ollama returns "" (always available).
+  const key = await getApiKey(provider.id);
+  if (key === undefined) {
+    throw new Error(`No API key for provider: ${args.provider}`);
+  }
+
+  if (args.model) {
+    // Validate against live list.
+    const models = await getAvailableModels(provider.id, opts.fetchFn);
+    const found = models.find((m) => m.id === args.model);
+    if (!found) throw new Error(`Model "${args.model}" not found for provider "${args.provider}".`);
+    return { providerId: provider.id, modelId: args.model };
+  }
+
+  // No --model provided → prompt for it (interactive + flagged coexists
+  // per spec §3 row "TTY + --provider X").
+  const models = await getAvailableModels(provider.id, opts.fetchFn);
+  const picked = await selectModelInteractive(models, opts.promptFn);
+  if (!picked) {
+    process.stderr.write("Init cancelled.\n");
+    process.exit(130);
+  }
+  return { providerId: provider.id, modelId: picked.id };
+}
+
+async function resolveInteractive(opts: {
+  promptFn?: (q: string) => Promise<string>;
+  fetchFn?: typeof fetch;
+}): Promise<InitResolution> {
+  const avail = await resolveProviders();
+  if (avail.every((p) => !p.available)) {
+    throw new Error(
+      "No available providers. Set at least one API key (env var or ~/.config/alix/config.json apiKeys) or install Ollama with a model.",
+    );
+  }
+  const pick = await selectProviderInteractive(avail, opts.promptFn);
+  if (!pick) {
+    process.stderr.write("Init cancelled.\n");
+    process.exit(130);
+  }
+  const models = await getAvailableModels(pick, opts.fetchFn);
+  const modelPick = await selectModelInteractive(models, opts.promptFn);
+  if (!modelPick) {
+    process.stderr.write("Init cancelled.\n");
+    process.exit(130);
+  }
+  return { providerId: pick, modelId: modelPick.id };
+}
