@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../../src/tui/views/types.js';
+import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult, TerminalDimensions } from '../../../src/tui/views/types.js';
 
 describe('TuiView contract — render purity', () => {
   it('render returns the same rows for the same context', () => {
@@ -18,15 +18,23 @@ describe('TuiView contract — render purity', () => {
   });
 
   it('perTab is Readonly at the render boundary', () => {
-    // Type-level: this should compile without 'readonly' errors.
-    if (false) {
-      const ctx: ViewRenderContext = null as any;
-      // The line below should be a type error if perTab were mutable. We
-      // simulate the test by reading at the boundary:
-      const _readonly: Readonly<{ scrollOffset: number }> = ctx.perTab;
-      void _readonly;
+    // Compile-time regression guard: if `perTab` ever loses its `Readonly<>`
+    // wrapper, the assignment below would succeed and `@ts-expect-error`
+    // would fail typecheck. The line is wrapped in a try/catch so the
+    // runtime never throws — the check is purely structural at the type
+    // level.
+    const ctx: ViewRenderContext = {
+      snap: null as any,
+      dimensions: { columns: 80, rows: 24 },
+      perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 },
+    };
+    try {
+      // @ts-expect-error — perTab is Readonly<PerTabState>; assignment fails at compile time
+      ctx.perTab.scrollOffset = 1;
+    } catch {
+      // never expected at runtime in TS strict; defensive only.
     }
-    expect(true).toBe(true);
+    expect(ctx).toBeDefined();
   });
 });
 
@@ -55,5 +63,3 @@ describe('TerminalDimensions', () => {
     expect(d.rows).toBe(40);
   });
 });
-
-import type { TerminalDimensions } from '../../../src/tui/views/types.js';
