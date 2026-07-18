@@ -3,7 +3,7 @@ import { createInitialTuiAppState } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { getView } from './views/index.js';
-import { TuiRenderer, type Region } from './render.js';
+import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
 import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import { Navigation } from './navigation.js';
@@ -48,7 +48,7 @@ export class TuiApp {
     this.terminal.enterAltBuffer();
     this.terminal.enterRawMode();
     this.terminal.showCursor(true);
-    this.terminal.onResize(() => this.paintRegion('all'));
+    this.terminal.onResize(() => this.paintFullFrame());
 
     this.opts.daemonMetrics.start();
 
@@ -57,7 +57,7 @@ export class TuiApp {
     if (snap && initialGen === this.state.refreshGeneration) {
       this.state.lastSnapshot = snap;
     }
-    this.paintRegion('all');
+    this.paintFullFrame();
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
     process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
@@ -90,7 +90,7 @@ export class TuiApp {
     const snap = await this.opts.builder.build(generation);
     if (!snap || generation !== this.state.refreshGeneration) return;
     this.state.lastSnapshot = snap;
-    this.paintRegion('all');
+    this.paintFullFrame();
   }
 
   private handleRaw(buf: Buffer): void {
@@ -110,18 +110,18 @@ export class TuiApp {
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
-        this.paintRegion('body');
+        this.paintFullFrame();
         return;
       }
       if (key === '' || key === '\b') {
         perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
-        this.paintRegion('body');
+        this.paintFullFrame();
         return;
       }
       // Printable characters only (ASCII 32+).
       if (key.length === 1 && key.charCodeAt(0) >= 32) {
         perTab.inputBuffer += key;
-        this.paintRegion('body');
+        this.paintFullFrame();
         return;
       }
       // Fall through to view.handleKey for any unhandled control keys.
@@ -166,7 +166,7 @@ export class TuiApp {
       process.exit(0);
       return true;
     }
-    if (key === 'Ctrl+l' || key === '\f') { this.paintRegion('all'); return true; }
+    if (key === 'Ctrl+l' || key === '\f') { this.paintFullFrame(); return true; }
     return false;
   }
 
@@ -177,8 +177,7 @@ export class TuiApp {
     this.state.history.push(prev);
     this.state.activeTab = next;
     this.views[next]?.onActivate?.(this.state.views[next]);
-    this.paintRegion('body');
-    this.paintRegion('tabs');
+    this.paintFullFrame();
   }
 
   private dispatch(action: ViewAction): void {
@@ -186,7 +185,7 @@ export class TuiApp {
       case 'handled': break;
       case 'moveCursor':
         this.state.views[this.state.activeTab].cursor = action.cursor;
-        this.paintRegion('body');
+        this.paintFullFrame();
         break;
       case 'switchTab':
         this.switchTab(action.tab);
@@ -197,7 +196,8 @@ export class TuiApp {
     }
   }
 
-  private paintRegion(region: Region): void {
+  /** Build a complete frame containing all regions and write it to stdout. */
+  private paintFullFrame(): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
     const c = new TerminalCanvas(dims.columns, dims.rows);
@@ -211,53 +211,24 @@ export class TuiApp {
       canvas: c,
     };
 
-    switch (region) {
-      case 'header':
-        c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
-        break;
-
-      case 'body':
-        this.views[this.state.activeTab]!.render(renderCtx);
-        break;
-
-      case 'tabs': {
-        let tabLine = '';
-        for (const id of order) {
-          const active = id === this.state.activeTab;
-          tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
-        }
-        c.write(0, dims.rows - 3, tabLine);
-        break;
-      }
-
-      case 'status': {
-        const mode = session?.mode ?? 'auto';
-        const phase = session?.phase ?? 'Idle';
-        c.write(0, dims.rows - 2, `mode: ${mode}  phase: \x1b[1m${phase}\x1b[0m`);
-        c.write(0, dims.rows - 1, `tokens: —  files: —`);
-        break;
-      }
-
-      case 'all':
-      default: {
-        c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
-        this.views[this.state.activeTab]!.render(renderCtx);
-        let tabLine = '';
-        for (const id of order) {
-          const active = id === this.state.activeTab;
-          tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
-        }
-        c.write(0, dims.rows - 3, tabLine);
-        const mode = session?.mode ?? 'auto';
-        const phase = session?.phase ?? 'Idle';
-        c.write(0, dims.rows - 2, `mode: ${mode}  phase: \x1b[1m${phase}\x1b[0m`);
-        c.write(0, dims.rows - 1, `tokens: —  files: —`);
-        break;
-      }
+    // Header
+    c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
+    // Body (active view writes into the canvas)
+    this.views[this.state.activeTab]!.render(renderCtx);
+    // Tabs
+    let tabLine = '';
+    for (const id of order) {
+      const active = id === this.state.activeTab;
+      tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
     }
+    c.write(0, dims.rows - 3, tabLine);
+    // Status bar
+    const mode = session?.mode ?? 'auto';
+    const phase = session?.phase ?? 'Idle';
+    c.write(0, dims.rows - 2, `mode: ${mode}  phase: \x1b[1m${phase}\x1b[0m`);
+    c.write(0, dims.rows - 1, `tokens: —  files: —`);
 
-    // Write the frame to the terminal — home cursor first so each tick
-    // overwrites the previous frame in-place (no waterfall).
+    // Write the complete frame — cursor home + canvas render.
     process.stdout.write('\x1b[H' + c.renderFrame());
   }
 
