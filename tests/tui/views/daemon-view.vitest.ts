@@ -6,7 +6,8 @@ function ctx(snap: any = null): ViewRenderContext {
   return {
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
     dimensions: { columns: 100, rows: 30 },
-    perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 },
+    perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' },
   };
 }
 

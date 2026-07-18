@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { ApprovalsView } from '../../../src/tui/views/approvals-view.js';
 
 describe('ApprovalsView', () => {
-  const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 }) => ({
+  const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' }) => ({
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
     dimensions: { columns: 100, rows: 30 },
     perTab,
@@ -34,13 +35,16 @@ describe('ApprovalsView', () => {
   it('handleKey returns moveCursor on arrow keys', () => {
     const view = new ApprovalsView();
     const ctxIn = ctx();
-    expect(view.handleKey?.('ArrowDown', { snap: ctxIn.snap, dimensions: ctxIn.dimensions, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 } })).toEqual({ type: 'moveCursor', cursor: 1 });
-    expect(view.handleKey?.('ArrowUp', { snap: ctxIn.snap, dimensions: ctxIn.dimensions, perTab: { cursor: 5, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 } })).toEqual({ type: 'moveCursor', cursor: 4 });
+    expect(view.handleKey?.('ArrowDown', { snap: ctxIn.snap, dimensions: ctxIn.dimensions, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' } })).toEqual({ type: 'moveCursor', cursor: 1 });
+    expect(view.handleKey?.('ArrowUp', { snap: ctxIn.snap, dimensions: ctxIn.dimensions, perTab: { cursor: 5, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' } })).toEqual({ type: 'moveCursor', cursor: 4 });
   });
 
   it('handleKey returns scheduleRefresh on approve (a) and deny (d)', () => {
     const view = new ApprovalsView();
-    const ctxIn: any = { snap: { approvals: { pending: [{ id: 'a1' }] } }, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 } };
+    const ctxIn: any = { snap: { approvals: { pending: [{ id: 'a1' }] } }, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' } };
     expect(view.handleKey?.('a', ctxIn)).toEqual({ type: 'scheduleRefresh' });
     expect(view.handleKey?.('d', ctxIn)).toEqual({ type: 'scheduleRefresh' });
   });

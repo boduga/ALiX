@@ -15,7 +15,8 @@ function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): Vi
   return {
     snap,
     dimensions: overrides.dims ?? { columns: 120, rows: 30 },
-    perTab: overrides.perTab ?? { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 },
+    perTab: overrides.perTab ?? { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' },
   };
 }
 
@@ -43,7 +44,8 @@ describe('ChatView', () => {
 
   it('does not mutate perTab state on render', () => {
     const view = new ChatView();
-    const perTab = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 };
+    const perTab = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' };
     const before = JSON.stringify(perTab);
     view.render({ ...ctx({ perTab }), perTab });
     expect(JSON.stringify(perTab)).toBe(before);

@@ -5,7 +5,8 @@ describe('RuntimeView', () => {
   const ctx = (snap: any = null) => ({
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
     dimensions: { columns: 100, rows: 30 },
-    perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 },
+    perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' },
   });
 
   it('renders current workflow state when available', () => {
@@ -44,7 +45,9 @@ describe('RuntimeView', () => {
 
   it('handleKey scrolls via ArrowDown/Up; search opens on /', () => {
     const view = new RuntimeView();
-    expect(view.handleKey?.('ArrowDown', { snap: { runtime: { events: [{ id: '1' }, { id: '2' }] } } as any, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 } })).toEqual({ type: 'moveCursor', cursor: 1 });
-    expect(view.handleKey?.('/', { snap: {} as any, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 } })).toEqual({ type: 'handled' });
+    expect(view.handleKey?.('ArrowDown', { snap: { runtime: { events: [{ id: '1' }, { id: '2' }] } } as any, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' } })).toEqual({ type: 'moveCursor', cursor: 1 });
+    expect(view.handleKey?.('/', { snap: {} as any, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+            inputBuffer: '' } })).toEqual({ type: 'handled' });
   });
 });

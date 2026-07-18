@@ -26,6 +26,8 @@ export interface PerTabState {
   searchQuery: string;
   expandedSections: string[];
   lastEventArrivedAt: number;
+  /** Partial message typed into the input prompt before submit. */
+  inputBuffer: string;
 }
 
 // Imported from snapshot.ts for use below; re-exported so callers can
@@ -49,6 +51,7 @@ export function createInitialPerTabState(): PerTabState {
     searchQuery: '',
     expandedSections: [],
     lastEventArrivedAt: 0,
+    inputBuffer: '',
   };
 }
 

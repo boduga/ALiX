@@ -214,6 +214,11 @@ export class LegacyTuiRenderer {
 export class TuiRenderer {
   private repaintAreas = new Set<Region>();
   private frame: FrameBuffer = { rows: [], width: 0, height: 0 };
+  private readonly _alivePromise = new Promise<void>((resolve) => {
+    // Store the resolver so cleanup() can unblock the event-loop Promise.
+    (this as any)._aliveResolve = resolve;
+  });
+  private _aliveResolve!: () => void;
 
   constructor(private readonly opts: {
     paint: (region: Region) => void;
@@ -261,7 +266,17 @@ export class TuiRenderer {
     return this.frame;
   }
 
-  /** No-op event loop stub for tests; production overrides this. */
-  async runEventLoop(): Promise<void> {}
-  async cleanup(): Promise<void> {}
+
+  /**
+   * Block the event loop forever (or until `cleanup()` is called) so the
+   * TUI stays alive.  The actual tick timer lives in TuiApp.refresh();
+   * this method only keeps the process open.
+   */
+  async runEventLoop(): Promise<void> {
+    return this._alivePromise;
+  }
+
+  async cleanup(): Promise<void> {
+    this._aliveResolve();
+  }
 }

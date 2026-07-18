@@ -94,6 +94,37 @@ export class TuiApp {
     if (this.tryHandleGlobal(key)) return;
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
+
+    // ── Chat-tab input capture ─────────────────────────────────────
+    if (tab === 'chat') {
+      const perTab = this.state.views.chat;
+      if (key === '\r' || key === '\n') {
+        if (perTab.inputBuffer.trim().length > 0) {
+          // Submit the typed query — for now, echo the submission; the
+          // AgentSession integration lives in a follow-up.
+          void this.submitChatInput(perTab.inputBuffer);
+          perTab.inputBuffer = '';
+        }
+        this.renderer.scheduleRepaint('body');
+        this.renderer.pump();
+        return;
+      }
+      if (key === '' || key === '\b') {
+        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        this.renderer.scheduleRepaint('body');
+        this.renderer.pump();
+        return;
+      }
+      // Printable characters only (ASCII 32+).
+      if (key.length === 1 && key.charCodeAt(0) >= 32) {
+        perTab.inputBuffer += key;
+        this.renderer.scheduleRepaint('body');
+        this.renderer.pump();
+        return;
+      }
+      // Fall through to view.handleKey for any unhandled control keys.
+    }
+
     const view = this.views[tab]!;
     const viewCtx: ViewInputContext = {
       snap: this.state.lastSnapshot,
@@ -102,6 +133,13 @@ export class TuiApp {
     };
     const action = view.handleKey?.(key, viewCtx);
     if (action) this.dispatch(action);
+  }
+
+  /** Stub: wire into AgentSession.processTurn in a follow-up. */
+  private async submitChatInput(text: string): Promise<void> {
+    // Force a snapshot refresh so the session phase transitions.
+    if (!this.state.lastSnapshot) return;
+    await this.refresh();
   }
 
   private tryHandleGlobal(key: string): boolean {
@@ -118,8 +156,11 @@ export class TuiApp {
         }
       }
     }
-    if (key === 'q' || key === 'Q') { void this.stop(); return true; }
-    if (key === 'Ctrl+l') { this.renderer.scheduleRepaint('all'); this.renderer.pump(); return true; }
+    if (key === '' || key === 'q' || key === 'Q') {
+      void this.stop().finally(() => process.exit(0));
+      return true;
+    }
+    if (key === 'Ctrl+l' || key === '\f') { this.renderer.scheduleRepaint('all'); this.renderer.pump(); return true; }
     return false;
   }
 

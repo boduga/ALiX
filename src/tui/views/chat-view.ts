@@ -23,8 +23,12 @@ export class ChatView implements TuiView {
       const c = ctx.canvas;
       c.clear();
 
-      // Prompt line at top.
-      c.write(0, 0, '\x1b[1m alix> \x1b[0m');
+      // Prompt line with the current input buffer.
+      const buf = ctx.perTab?.inputBuffer ?? '';
+      c.write(0, 0, '\x1b[33m alix>\x1b[0m ');
+      c.write(7, 0, buf);
+      // Draw the cursor at the end of the typed text.
+      c.write(7 + buf.length, 0, '\x1b[7m \x1b[0m');
 
       // 4-panel dashboard starting at y = 3.
       renderDashboardOnCanvas(snap, c, 3);
