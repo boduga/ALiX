@@ -66,6 +66,11 @@ export class TuiApp {
     process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
     this.renderer.pump();
+
+    // Block the event loop until stop() is called.  Without this the
+    // process exits immediately after the first frame and tears down
+    // the alternate screen buffer — producing the "flash" symptom.
+    await this.renderer.runEventLoop();
   }
 
   async stop(): Promise<void> {
@@ -73,6 +78,7 @@ export class TuiApp {
     this.detached = true;
     if (this.snapshotTimer) clearInterval(this.snapshotTimer);
     await this.opts.daemonMetrics.stop();
+    await this.renderer.cleanup();
     await this.cleanupSync();
   }
 
