@@ -1109,7 +1109,7 @@ git commit -m "feat(tui): AgentSession.phase tracks lifecycle (Understanding→I
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../src/tui/views/types.js';
+import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../../src/tui/views/types.js';
 
 describe('TuiView contract — render purity', () => {
   it('render returns the same rows for the same context', () => {
@@ -1164,7 +1164,7 @@ describe('TerminalDimensions', () => {
   });
 });
 
-import type { TerminalDimensions } from '../../src/tui/views/types.js';
+import type { TerminalDimensions } from '../../../src/tui/views/types.js';
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1176,7 +1176,8 @@ Expected: FAIL — module not found.
 
 ```ts
 import type { TabId } from '../state.js';
-import type { DashboardSnapshot, PerTabState } from '../state.js';
+import type { DashboardSnapshot } from '../snapshot.js';
+import type { PerTabState } from '../state.js';
 
 export interface TerminalDimensions {
   readonly columns: number;
@@ -1270,8 +1271,8 @@ git commit -m "feat(tui): TuiView contract types (purity + ViewAction union)"
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ChatView } from '../../src/tui/views/chat-view.js';
-import type { ViewRenderContext } from '../../src/tui/views/types.js';
+import { ChatView } from '../../../src/tui/views/chat-view.js';
+import type { ViewRenderContext } from '../../../src/tui/views/types.js';
 
 function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): ViewRenderContext {
   const snap = overrides.snap ?? {
@@ -1336,7 +1337,8 @@ Expected: FAIL — module not found.
 - [ ] **Step 3: Implement `src/tui/views/chat-view.ts`**
 
 ```ts
-import type { DashboardSnapshot, PerTabState } from '../state.js';
+import type { DashboardSnapshot } from '../snapshot.js';
+import type { PerTabState } from '../state.js';
 import { renderDashboardCards } from '../dashboard-renderer.js';
 import type { TuiView, ViewRenderContext, TerminalDimensions } from './types.js';
 
@@ -1403,8 +1405,8 @@ git commit -m "feat(tui): ChatView — input prompt + 4-panel compact dashboard"
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { DaemonView } from '../../src/tui/views/daemon-view.js';
-import type { ViewRenderContext } from '../../src/tui/views/types.js';
+import { DaemonView } from '../../../src/tui/views/daemon-view.js';
+import type { ViewRenderContext } from '../../../src/tui/views/types.js';
 
 function ctx(snap: any = null): ViewRenderContext {
   return {
@@ -1541,7 +1543,7 @@ git commit -m "feat(tui): DaemonView — full daemon subsystem view with CPU/MEM
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ApprovalsView } from '../../src/tui/views/approvals-view.js';
+import { ApprovalsView } from '../../../src/tui/views/approvals-view.js';
 
 describe('ApprovalsView', () => {
   const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 }) => ({
