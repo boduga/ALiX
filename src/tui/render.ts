@@ -22,7 +22,15 @@ import { renderDashboardCards, renderCompactSummary, snapshotFromStore } from ".
 const STATUS = 4;
 const LINE = (n: number) => `\x1b[${n + 1};1H`;
 
-export class TuiRenderer {
+export type Region = 'header' | 'body' | 'tabs' | 'status' | 'all';
+
+export interface FrameBuffer {
+  rows: string[];
+  width: number;
+  height: number;
+}
+
+export class LegacyTuiRenderer {
   private stateTheater = new StateTheaterWidget();
   private budgetBar = new BudgetBarWidget();
   private spinner = new SpinnerWidget({ label: "Thinking..." });
@@ -199,4 +207,61 @@ export class TuiRenderer {
     l.push(clearToEndOfLine() + (isActive ? this.spinner.render() : "") + extra);
     return l.join("\n");
   }
+}
+
+// ── New region / framebuffer abstractions ──────────────────────────
+
+export class TuiRenderer {
+  private repaintAreas = new Set<Region>();
+  private frame: FrameBuffer = { rows: [], width: 0, height: 0 };
+
+  constructor(private readonly opts: {
+    paint: (region: Region) => void;
+    scheduleRepaint: (region: Region) => void;
+  }) {}
+
+  /** Test seam + diff helper. */
+  framesEqual(a: readonly string[], b: readonly string[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  scheduleRepaint(region: Region): void {
+    this.repaintAreas.add(region);
+    this.opts.scheduleRepaint(region);
+  }
+
+  pump(): void {
+    if (this.repaintAreas.size === 0) return;
+
+    if (this.repaintAreas.has('all')) {
+      for (const r of ['header', 'body', 'tabs', 'status'] as Region[]) {
+        this.opts.paint(r);
+      }
+    } else {
+      for (const r of this.repaintAreas) {
+        if (r !== 'all') this.opts.paint(r);
+      }
+    }
+    this.repaintAreas.clear();
+  }
+
+  /** For tests: peek at the queue. */
+  get pendingRegions(): readonly Region[] {
+    return [...this.repaintAreas];
+  }
+
+  /** For tests: replace the frame buffer reference. */
+  setFrame(frame: FrameBuffer): void {
+    this.frame = frame;
+  }
+
+  getFrame(): FrameBuffer {
+    return this.frame;
+  }
+
+  /** No-op event loop stub for tests; production overrides this. */
+  async runEventLoop(): Promise<void> {}
+  async cleanup(): Promise<void> {}
 }

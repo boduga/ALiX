@@ -1,5 +1,5 @@
 import { TuiStore, createTuiStore } from "./store.js";
-import { TuiRenderer } from "./render.js";
+import { LegacyTuiRenderer } from "./render.js";
 import { EventLogBridge } from "./events.js";
 import type { EventLog } from "../events/event-log.js";
 
@@ -12,7 +12,7 @@ export interface TuiOptions {
 
 export class Tui {
   private store: TuiStore;
-  private renderer?: TuiRenderer;
+  private renderer?: LegacyTuiRenderer;
   private bridge: EventLogBridge;
   private options: TuiOptions;
 
@@ -23,7 +23,7 @@ export class Tui {
   }
 
   async init(): Promise<void> {
-    this.renderer = new TuiRenderer(this.store);
+    this.renderer = new LegacyTuiRenderer(this.store);
     this.renderer.start();
     this.renderer.drawLayout();
 
