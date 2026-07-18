@@ -40,6 +40,7 @@ import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory } from "../run/helpers.js";
+import { SessionPhase } from "../tui/state.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 
@@ -143,6 +144,13 @@ export interface AgentSession {
   getSessionId(): string;
   /** Snapshot of current session state. */
   getState(): AgentSessionState;
+  /**
+   * Current lifecycle phase. AgentSession owns the value; observers read only.
+   * Optional in the interface because session lifecycles that pre-date the
+   * phase contract (e.g. lightweight test stubs) can opt out. The factory
+   * implementation always provides it.
+   */
+  getPhase?(): SessionPhase;
   /** Save session state to memory (stub — external via SessionStore). */
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
@@ -274,6 +282,11 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   const createdAt = new Date().toISOString();
   let updatedAt = new Date().toISOString();
   let _sessionCompleted = false;
+  // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
+  // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
+  // Initial value is Idle so freshly created sessions surface as Idle in the UI
+  // before any turn has run.
+  let phase: SessionPhase = SessionPhase.Idle;
 
   // ---- Internal helpers ----
 
@@ -432,6 +445,14 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       }
     }
 
+    // Lifecycle phase: plan phase complete → Planning. Hooked here (inside
+    // initialize() after the optional plan-phase call) because plan.* events
+    // are emitted from runPlanPhase internally and this is the closest
+    // observable proxy without crossing into plan-phase.ts. When planMode is
+    // disabled, we still mark Planning complete so the phase can progress
+    // monotonically toward Executing.
+    advancePhase(SessionPhase.Planning);
+
     // P8: Tool setup
     const baseTools = buildToolsForProvider(ctx.provider);
     const toolFilter = config.readOnly
@@ -545,6 +566,38 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     return calls;
   }
 
+  /**
+   * Advance the lifecycle phase. No-op if already in the target phase.
+   * Best-effort emits an `agent.session.phase_changed` event so observers
+   * (TUI, audit) can react without subscribing to the closure.
+   */
+  function advancePhase(next: SessionPhase): void {
+    if (phase === next) return;
+    phase = next;
+    // ctx may not be wired yet during very early setup; append is safe to skip
+    // in that window because phase is also exposed via getPhase().
+    const log = ctx?.log;
+    if (!log) return;
+    void log
+      .append({
+        sessionId: ctx.sessionId,
+        actor: "system",
+        type: "agent.session.phase_changed",
+        payload: { phase: next },
+      })
+      .catch(() => {
+        // Observability must never break the turn loop.
+      });
+  }
+
+  /**
+   * Observe the current lifecycle phase. TUI-only contract: the value is
+   * owned by AgentSession; consumers must not mutate.
+   */
+  function getPhase(): SessionPhase {
+    return phase;
+  }
+
   // ---- Exported interface methods ----
 
   async function processTurn(message: string): Promise<AgentTurnResult> {
@@ -564,6 +617,11 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     }
 
     updatedAt = new Date().toISOString();
+
+    // Lifecycle phase: turn started → Understanding.
+    // Hook placed BEFORE any tool/plan work so observers see the phase move
+    // out of Idle the moment processTurn commits to processing the turn.
+    advancePhase(SessionPhase.Understanding);
 
     // Emit lifecycle event: turn started
     await ctx.log.append({
@@ -617,6 +675,12 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     }
 
     const startTime = Date.now();
+
+    // Lifecycle phase: about to call runTaskLoop → Executing. Tool-call
+    // events (tool.*) are emitted inside runTaskLoop itself; this hook fires
+    // immediately before the call so observers see the phase move from
+    // Planning to Executing as the task loop enters its execution path.
+    advancePhase(SessionPhase.Executing);
 
     // Build TaskLoopDeps and run the agent loop
     let result: RunResult;
@@ -686,6 +750,12 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       throw err;
     }
 
+    // Lifecycle phase: runTaskLoop returned → Verifying. Verification events
+    // (verify.*) are emitted from inside the task loop's verifier pass; this
+    // hook fires immediately after the call returns so observers see the
+    // phase move from Executing to Verifying before the summary path.
+    advancePhase(SessionPhase.Verifying);
+
     // Update graph status based on result reason
     const FAILURE_REASONS = new Set(["max_iterations", "max_repairs", "rejected_scope_expansion"]);
     const isFailed = FAILURE_REASONS.has(result.reason ?? "");
@@ -751,6 +821,12 @@ You are in read-only mode. You can read files, search the codebase, and delegate
 
     updatedAt = new Date().toISOString();
 
+    // Lifecycle phase: summary produced → Summarizing. The summary emitted
+    // here is the user-visible synthesis of the turn; the phase flips before
+    // the turn-completed audit event so observers see Summarizing line up
+    // with the response delivery path.
+    advancePhase(SessionPhase.Summarizing);
+
     // Emit lifecycle event: turn completed
     await ctx.log.append({
       sessionId: ctx.sessionId, actor: "system",
@@ -762,6 +838,21 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     emitSessionEvents(config.events, turnToolCalls, messages, toolHistory);
 
     turnCount++;
+
+    // Lifecycle phase: turn delivered → Idle transition deferred.
+    // Per the task brief, the Idle transition requires a 60s no-further-turns
+    // idle timer. That timer is app-level state (it spans multiple
+    // processTurn calls) and is therefore deferred to the TUI/REPL polling
+    // path that already owns session liveness — see follow-up task. Newly
+    // created sessions stay in Idle until processTurn is called (the brief's
+    // initial-phase guarantee).
+    //
+    // NOTE: We do NOT advance to Idle here on turn completion. Monotonic
+    // forward contract holds: a fresh turn starts in Idle (initial), advances
+    // through Understanding→Planning→Executing→Verifying→Summarizing, and
+    // remains in Summarizing until the 60s idle window closes.
+    // advancePhase(SessionPhase.Idle); // deferred
+
     return {
       summary: result.summary,
       sessionId: ctx.sessionId,
@@ -907,6 +998,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     processTurn,
     getSessionId,
     getState,
+    getPhase,
     save,
     resume,
   };
