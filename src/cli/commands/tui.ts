@@ -50,14 +50,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const app = new TuiApp({ builder, daemonMetrics });
 
-  let resolveStop: () => void;
-  const exited = new Promise<void>((resolve) => { resolveStop = resolve; });
-  const origStop = app.stop.bind(app);
-  app.stop = async () => { await origStop(); resolveStop(); };
-
   try {
     await app.start();
-    await exited;
+    await app.run();
   } catch (err) {
     await app.stop();
     throw err;

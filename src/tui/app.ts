@@ -66,10 +66,14 @@ export class TuiApp {
     process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
     this.renderer.pump();
+  }
 
-    // Block the event loop until stop() is called.  Without this the
-    // process exits immediately after the first frame and tears down
-    // the alternate screen buffer — producing the "flash" symptom.
+  /**
+   * Block the event loop until `stop()` is called.  Call `start()` first,
+   * then `run()` to keep the process alive.  In tests call only `start()`
+   * — the render loop is not needed for unit assertions.
+   */
+  async run(): Promise<void> {
     await this.renderer.runEventLoop();
   }
 

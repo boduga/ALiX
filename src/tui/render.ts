@@ -214,11 +214,10 @@ export class LegacyTuiRenderer {
 export class TuiRenderer {
   private repaintAreas = new Set<Region>();
   private frame: FrameBuffer = { rows: [], width: 0, height: 0 };
-  private readonly _alivePromise = new Promise<void>((resolve) => {
-    // Store the resolver so cleanup() can unblock the event-loop Promise.
-    (this as any)._aliveResolve = resolve;
-  });
   private _aliveResolve!: () => void;
+  private readonly _alivePromise = new Promise<void>((resolve) => {
+    this._aliveResolve = resolve;
+  });
 
   constructor(private readonly opts: {
     paint: (region: Region) => void;
