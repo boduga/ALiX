@@ -230,6 +230,15 @@ export class TuiApp {
 
     // Write the complete frame — cursor home + canvas render.
     process.stdout.write('\x1b[H' + c.renderFrame());
+
+    // Place the terminal cursor at the chat input position.
+    // Without this the cursor sits at the bottom of the screen but the typed
+    // text appears at the top (where ChatView renders the input buffer),
+    // creating an invisible-typing experience.
+    if (this.state.activeTab === 'chat') {
+      const bufLen = this.state.views.chat.inputBuffer.length;
+      process.stdout.write(`\x1b[1;${7 + bufLen + 1}H`);
+    }
   }
 
   private async cleanupSync(): Promise<void> {
