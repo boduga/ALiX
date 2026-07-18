@@ -28,31 +28,10 @@ export interface PerTabState {
   lastEventArrivedAt: number;
 }
 
-/**
- * Full UI-side state owned by TuiApp. Subsystems are read-only from here.
- *
- * Subsystem fields narrow to real types in Task 2 once snapshot.ts is defined.
- */
-export interface SessionMetadata {
-  readonly mode: 'auto' | 'ask' | 'bypass';
-  readonly phase: SessionPhase;
-  readonly version: string;
-  readonly startedAt: number;
-  readonly turns: number;
-}
-
-/**
- * Placeholder shape during Task 1. Task 2 narrows the subsystem field types.
- */
-export interface DashboardSnapshot {
-  readonly generatedAt: number;
-  readonly session: SessionMetadata | null;
-  readonly daemon: unknown;
-  readonly approvals: unknown;
-  readonly runtime: unknown;
-  readonly sops: unknown;
-  readonly policy: unknown;
-}
+// Imported from snapshot.ts for use below; re-exported so callers can
+// continue importing either from state.ts or directly from snapshot.ts.
+import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';
+export type { DashboardSnapshot, SessionMetadata };
 
 export interface TuiAppState {
   lastSnapshot: DashboardSnapshot | undefined;
