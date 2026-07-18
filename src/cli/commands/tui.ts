@@ -11,6 +11,10 @@ import { createAgentSession, type AgentSessionEvents, type ToolResult } from "..
 import type { ToolCall } from "../../providers/types.js";
 import { WorkspaceManager, promptLabel } from "../../tui/workspace-manager.js";
 import { ApprovalManager } from "../../tui/approval-manager.js";
+import { TuiApp } from "../../tui/app.js";
+import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
+import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
+import { PolicyEngine } from "../../policy/policy-engine.js";
 
 export interface TuiOptions {
   sessionName?: string;
@@ -101,7 +105,7 @@ function echoTask(task: string): void {
   process.stdout.write("\x1b[2m" + "─".repeat(w) + "\x1b[22m\n");
 }
 
-export async function runTui(opts: TuiOptions): Promise<void> {
+export async function runLegacyChatTuiForCompat(opts: TuiOptions): Promise<void> {
   if (!process.stdin.isTTY || !process.stdout.isTTY) {
     console.error("ALiX TUI requires an interactive terminal. Try: alix tui --daemon < /dev/tty");
     process.exitCode = 1;
@@ -1134,4 +1138,50 @@ export async function runTui(opts: TuiOptions): Promise<void> {
   try { rl.close(); } catch { /* already closed */ }
   rl = null;
 
+}
+
+export async function runTui(opts: TuiOptions = {}): Promise<void> {
+  const cwd = process.cwd();
+  const sessionId = opts.sessionName ?? `tui-${Date.now()}`;
+  const sessionDir = join(cwd, '.alix', 'sessions', sessionId);
+  await mkdir(sessionDir, { recursive: true });
+
+  const config = await loadConfig(cwd);
+  const eventLog = new EventLog(sessionDir);
+  await eventLog.init();
+
+  const approvals = new ApprovalManager({
+    listPendingApprovals: async () => [],
+    resolveApproval: async (id, status) => ({ success: false, message: `No approval store` }),
+  });
+
+  const policy = new PolicyEngine(config);
+  const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
+
+  const agentSession = {
+    getMode: () => opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
+    getPhase: () => null,
+    getVersion: () => 'unknown',
+    getStartedAt: () => Date.now(),
+    getTurns: () => 0,
+  } as any;
+
+  const builder = new SnapshotBuilder(
+    agentSession, approvals, policy, null as unknown, eventLog, daemonMetrics,
+  );
+
+  const app = new TuiApp({ builder, daemonMetrics });
+
+  let resolveStop: () => void;
+  const exited = new Promise<void>((resolve) => { resolveStop = resolve; });
+  const origStop = app.stop.bind(app);
+  app.stop = async () => { await origStop(); resolveStop(); };
+
+  try {
+    await app.start();
+    await exited;
+  } catch (err) {
+    await app.stop();
+    throw err;
+  }
 }

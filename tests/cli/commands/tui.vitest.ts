@@ -148,7 +148,7 @@ vi.mock("../../../src/tui/daemon-client.js", () => ({
   formatDaemonEvent: mocks.formatDaemonEvent,
 }));
 
-import { runTui } from "../../../src/cli/commands/tui.js";
+import { runLegacyChatTuiForCompat } from "../../../src/cli/commands/tui.js";
 
 const config = {
   model: { provider: "anthropic", name: "test-model", streaming: true },
@@ -156,7 +156,7 @@ const config = {
   apiKeys: {},
 };
 
-describe("runTui AgentSession integration", () => {
+describe("runLegacyChatTuiForCompat AgentSession integration", () => {
   let stdinDescriptor: PropertyDescriptor | undefined;
   let stdoutDescriptor: PropertyDescriptor | undefined;
 
@@ -183,7 +183,7 @@ describe("runTui AgentSession integration", () => {
   });
 
   it("lazily creates an AgentSession for the first free-form task", async () => {
-    await runTui({});
+    await runLegacyChatTuiForCompat({});
 
     expect(mocks.createAgentSession).toHaveBeenCalledTimes(1);
     expect(mocks.createAgentSession).toHaveBeenCalledWith(expect.objectContaining({
