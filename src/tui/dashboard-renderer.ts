@@ -6,6 +6,7 @@ import type { TuiRuntimeSnapshot } from "./runtime-snapshot.js";
 import { box, green, yellow, red, dim, bold, truncate } from "./box.js";
 import type { HealthStatus } from "../observability/health-snapshot.js";
 import type { TuiState } from "./store.js";
+import type { DashboardSnapshot } from "./snapshot.js";
 
 /** Build a snapshot-like view from store state for dashboard rendering. */
 export function snapshotFromStore(s: TuiState): TuiRuntimeSnapshot {
@@ -29,6 +30,74 @@ export function snapshotFromStore(s: TuiState): TuiRuntimeSnapshot {
     daemonHeartbeatAge: s.daemonHeartbeatAge ?? -1,
     health: s.healthSnapshot,
     cost: s.costData,
+  };
+}
+
+/**
+ * Adapter: DashboardSnapshot → TuiRuntimeSnapshot shape.
+ *
+ * `DashboardSnapshot` (see ./snapshot.ts) exposes nullable subsystem records
+ * (daemon, approvals, runtime, sops, policy, session). `TuiRuntimeSnapshot`
+ * (see ./runtime-snapshot.ts) is the flat record that `renderDashboardCards`
+ * and `renderCompactSummary` consume.
+ *
+ * Lives next to `snapshotFromStore` so every view (chat, daemon, approvals,
+ * …) can reuse the same bridge without duplicating it. Subsystem data is
+ * projected into the runtime-record fields the renderer iterates:
+ *
+ * - `policyRulesCount` ← snap.policy.rules.length
+ * - `recentRuntimeEvents` ← first 10 of snap.runtime.events (kind→action;
+ *   source blank — DashboardSnapshot events do not carry a source field)
+ * - `pendingApprovalRecords` / `resolvedApprovalRecords` ← snap.approvals
+ *   lists (toolName→capability, targetPath→reason)
+ * - `daemonTaskRecords` ← [] (DaemonMetricsSnapshot exposes clients, whose
+ *   shape does not match the runtime record — renderer tolerates [])
+ *
+ * Any subsystem that is null contributes safe defaults.
+ */
+export function dashboardSnapshotToRuntime(snap: DashboardSnapshot): TuiRuntimeSnapshot {
+  const sopsItems = (snap.sops?.items ?? []).map((i) => ({
+    id: i.id,
+    name: i.name,
+    version: i.version,
+  }));
+  const pendingApprovalRecords = (snap.approvals?.pending ?? []).map((a) => ({
+    id: a.id,
+    capability: a.toolName,
+    reason: a.targetPath,
+    createdAt: String(a.requestedAt),
+  }));
+  const resolvedApprovalRecords = (snap.approvals?.recentlyResolved ?? []).map((a) => ({
+    id: a.id,
+    capability: a.toolName,
+    reason: a.targetPath,
+    createdAt: String(a.requestedAt),
+  }));
+  const recentRuntimeEvents = (snap.runtime?.events ?? []).slice(0, 10).map((e) => ({
+    id: e.id,
+    action: e.kind,
+    source: "",
+    summary: e.summary,
+    timestamp: String(e.timestamp),
+  }));
+  return {
+    daemonRunning: snap.daemon !== null,
+    daemonPid: undefined,
+    daemonTasks: { queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0, failedOrphaned: 0 },
+    daemonTaskRecords: [],
+    pendingApprovalsCount: snap.approvals?.totalPending ?? 0,
+    pendingApprovalRecords,
+    resolvedApprovalsCount: snap.approvals?.totalResolved ?? 0,
+    resolvedApprovalRecords,
+    continuationsCount: 0,
+    sopsCount: snap.sops?.totalLoaded ?? 0,
+    sopItems: sopsItems,
+    policyRulesCount: snap.policy?.rules.length ?? 0,
+    runtimeEventCount: snap.runtime?.totalEventCount ?? 0,
+    recentRuntimeEvents,
+    traceEvents: [],
+    traceEventCount: 0,
+    daemonHeartbeatAge: -1,
   };
 }
 

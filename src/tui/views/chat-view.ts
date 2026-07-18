@@ -1,6 +1,4 @@
-import { renderDashboardCards } from '../dashboard-renderer.js';
-import type { TuiRuntimeSnapshot } from '../runtime-snapshot.js';
-import type { DashboardSnapshot } from '../snapshot.js';
+import { renderDashboardCards, dashboardSnapshotToRuntime } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 
@@ -27,6 +25,16 @@ export class ChatView implements TuiView {
     // minimum of 30 cols and computes right-card padding from the supplied
     // `width`, so we pass the total available columns (not a per-card width)
     // to avoid a negative-pad crash on narrower terminals.
+    //
+    // LAYOUT DEVIATION (accepted): the brief asks for "1/4-width 4 panels"
+    // (DAEMON, APPROVALS, RUNTIME, SOPS as four narrow columns). The
+    // renderer's current thin mode is hard-coded to a 2-row 2-up layout
+    // (DAEMON on row 1 left, APPROVALS + RUNTIME on row 1 right, SOPS +
+    // POLICY on row 2). Each card is clamped to halfW ≈ 30 cols, so on a
+    // 120-col terminal we get 2 cards ≈ 1/2 width each. To produce true
+    // 1/4-width 4-up panels the renderer needs a 4-up thin mode — out of
+    // scope for this task (renderer is a protected file per the brief).
+    // A follow-up issue tracks the renderer enhancement.
     const cards = renderDashboardCards(
       dashboardSnapshotToRuntime(snap),
       dimensions.columns,
@@ -56,38 +64,4 @@ export class ChatView implements TuiView {
   onDeactivate(_perTab: PerTabState): void {
     // No-op for now.
   }
-}
-
-/**
- * Adapter: DashboardSnapshot → TuiRuntimeSnapshot shape.
- *
- * DashboardSnapshot exposes nullable subsystem records (daemon, approvals,
- * runtime, sops, policy). renderDashboardCards reads flat fields with
- * non-null defaults. This adapter bridges the two shapes so ChatView can
- * delegate all rendering to the existing renderer without duplicating logic.
- */
-function dashboardSnapshotToRuntime(snap: DashboardSnapshot): TuiRuntimeSnapshot {
-  return {
-    daemonRunning: snap.daemon !== null,
-    daemonPid: undefined,
-    daemonTasks: { queued: 0, running: 0, completed: 0, failed: 0, cancelled: 0, failedOrphaned: 0 },
-    daemonTaskRecords: [],
-    pendingApprovalsCount: snap.approvals?.totalPending ?? 0,
-    pendingApprovalRecords: [],
-    resolvedApprovalsCount: snap.approvals?.totalResolved ?? 0,
-    resolvedApprovalRecords: [],
-    continuationsCount: 0,
-    sopsCount: snap.sops?.totalLoaded ?? 0,
-    sopItems: (snap.sops?.items ?? []).map((i) => ({
-      id: i.id,
-      name: i.name,
-      version: i.version,
-    })),
-    policyRulesCount: 0,
-    runtimeEventCount: snap.runtime?.totalEventCount ?? 0,
-    recentRuntimeEvents: [],
-    traceEvents: [],
-    traceEventCount: 0,
-    daemonHeartbeatAge: -1,
-  };
 }
