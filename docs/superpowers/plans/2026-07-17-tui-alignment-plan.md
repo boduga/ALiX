@@ -92,7 +92,7 @@ Files explicitly **untouched:**
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { SessionPhase, type TuiAppState, type PerTabState, type TabId } from '../../../src/tui/state.js';
+import { SessionPhase, type TuiAppState, type PerTabState, type TabId } from '../../src/tui/state.js';
 
 describe('SessionPhase enum', () => {
   it('defines all six lifecycle phases in canonical order', () => {
@@ -179,14 +179,18 @@ Expected: FAIL with `Cannot find module '../../../src/tui/state.js'`
 ```ts
 /**
  * Lifecycle phase owned by AgentSession. TUI may observe but never mutate.
+ *
+ * String-valued enum (not numeric) so `Object.values(SessionPhase).length === 6`
+ * (TypeScript's numeric-emits reverse-mapping would otherwise double the count)
+ * and so `JSON.stringify(session.phase)` produces a human-readable value.
  */
 export enum SessionPhase {
-  Understanding,
-  Planning,
-  Executing,
-  Verifying,
-  Summarizing,
-  Idle,
+  Understanding = 'Understanding',
+  Planning = 'Planning',
+  Executing = 'Executing',
+  Verifying = 'Verifying',
+  Summarizing = 'Summarizing',
+  Idle = 'Idle',
 }
 
 export type TabId = 'chat' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
@@ -462,13 +466,13 @@ git commit -m "feat(tui): DashboardSnapshot subsystem DTOs with nullable subsyst
 
 ```ts
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SnapshotBuilder } from '../../../src/tui/snapshot-builder.js';
-import type { ApprovalManager } from '../../../src/tui/approval-manager.js';
+import { SnapshotBuilder } from '../../src/tui/snapshot-builder.js';
+import type { ApprovalManager } from '../../src/tui/approval-manager.js';
 import type { AgentSession } from '../../../src/agent/session.js';
 import type { PolicyEngine } from '../../../src/policy/policy-engine.js';
 import type { SopRegistry } from '../../../src/sop/sop-registry.js';
 import type { EventLog } from '../../../src/events/event-log.js';
-import type { DaemonMetricsCollector, DaemonMetricsSnapshot } from '../../../src/tui/daemon-metrics-collector.js';
+import type { DaemonMetricsCollector, DaemonMetricsSnapshot } from '../../src/tui/daemon-metrics-collector.js';
 
 function mkFakes() {
   const session = {
@@ -753,7 +757,7 @@ export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-col
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { DaemonMetricsCollectorImpl } from '../../../src/tui/daemon-metrics-collector.js';
+import { DaemonMetricsCollectorImpl } from '../../src/tui/daemon-metrics-collector.js';
 
 describe('DaemonMetricsCollector — initial state', () => {
   it('returns a valid offline snapshot when no PID is given', async () => {
@@ -998,7 +1002,7 @@ git commit -m "feat(tui): DaemonMetricsCollector with platform reader seam"
 
 ```ts
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { SessionPhase } from '../../../src/tui/state.js';
+import { SessionPhase } from '../../src/tui/state.js';
 
 // These tests exercise the AgentSession phase machinery via a minimal stub
 // session. The full AgentSession setup is heavy; we use vi.mock for it.
@@ -1105,7 +1109,7 @@ git commit -m "feat(tui): AgentSession.phase tracks lifecycle (Understanding→I
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../../src/tui/views/types.js';
+import type { TuiView, ViewRenderContext, ViewInputContext, ViewRenderResult } from '../../src/tui/views/types.js';
 
 describe('TuiView contract — render purity', () => {
   it('render returns the same rows for the same context', () => {
@@ -1160,7 +1164,7 @@ describe('TerminalDimensions', () => {
   });
 });
 
-import type { TerminalDimensions } from '../../../src/tui/views/types.js';
+import type { TerminalDimensions } from '../../src/tui/views/types.js';
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -1266,8 +1270,8 @@ git commit -m "feat(tui): TuiView contract types (purity + ViewAction union)"
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ChatView } from '../../../src/tui/views/chat-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { ChatView } from '../../src/tui/views/chat-view.js';
+import type { ViewRenderContext } from '../../src/tui/views/types.js';
 
 function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): ViewRenderContext {
   const snap = overrides.snap ?? {
@@ -1399,8 +1403,8 @@ git commit -m "feat(tui): ChatView — input prompt + 4-panel compact dashboard"
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { DaemonView } from '../../../src/tui/views/daemon-view.js';
-import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { DaemonView } from '../../src/tui/views/daemon-view.js';
+import type { ViewRenderContext } from '../../src/tui/views/types.js';
 
 function ctx(snap: any = null): ViewRenderContext {
   return {
@@ -1537,7 +1541,7 @@ git commit -m "feat(tui): DaemonView — full daemon subsystem view with CPU/MEM
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { ApprovalsView } from '../../../src/tui/views/approvals-view.js';
+import { ApprovalsView } from '../../src/tui/views/approvals-view.js';
 
 describe('ApprovalsView', () => {
   const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 }) => ({
@@ -1681,7 +1685,7 @@ git commit -m "feat(tui): ApprovalsView — pending list, detail pane, approve/d
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { RuntimeView } from '../../../src/tui/views/runtime-view.js';
+import { RuntimeView } from '../../src/tui/views/runtime-view.js';
 
 describe('RuntimeView', () => {
   const ctx = (snap: any = null) => ({
@@ -1811,7 +1815,7 @@ git commit -m "feat(tui): RuntimeView — workflow state + scrollable event stre
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { SopsView } from '../../../src/tui/views/sops-view.js';
+import { SopsView } from '../../src/tui/views/sops-view.js';
 
 describe('SopsView', () => {
   const ctx = (snap: any = null, perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0 }) => ({
@@ -1891,7 +1895,7 @@ export class SopsView implements TuiView {
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { PolicyView } from '../../../src/tui/views/policy-view.js';
+import { PolicyView } from '../../src/tui/views/policy-view.js';
 
 describe('PolicyView', () => {
   const ctx = (snap: any = null) => ({
@@ -2005,7 +2009,7 @@ git commit -m "feat(tui): SopsView + PolicyView + view registry (VIEWS singleton
 
 ```ts
 import { describe, it, expect } from 'vitest';
-import { TuiRenderer, type Region } from '../../../src/tui/render.js';
+import { TuiRenderer, type Region } from '../../src/tui/render.js';
 
 describe('Region union exhaustiveness', () => {
   it('lists exactly four regions plus the wildcard', () => {
@@ -2447,7 +2451,7 @@ function parseKey(buf: Buffer): string | null {
 
 ```ts
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { TuiApp } from '../../../src/tui/app.js';
+import { TuiApp } from '../../src/tui/app.js';
 
 describe('TuiApp lifecycle', () => {
   let builder: any;
