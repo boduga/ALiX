@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { handlePolicyCommand } from "../../src/cli/commands/tui.js";
-import type { PolicyConfig } from "../../src/cli/commands/tui.js";
+import { handlePolicyCommand } from "../../src/tui/helpers/policy-commands.js";
+import type { PolicyConfig } from "../../src/tui/helpers/policy-commands.js";
 
 describe("/policy command", () => {
   it("show default mode returns bypass with warning icon", () => {

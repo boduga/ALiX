@@ -166,7 +166,11 @@ export class TuiApp {
         break;
       case 'body': {
         const view = views[this.state.activeTab]!;
-        view.render(renderCtx);
+        const result = view.render(renderCtx);
+        if (result.rows.length > 0) {
+          // minimal body render — region layout and cursor math are deferred
+          process.stdout.write('\x1b[J' + result.rows.join('\n') + '\n');
+        }
         break;
       }
       case 'tabs':

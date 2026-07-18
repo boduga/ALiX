@@ -7,6 +7,7 @@ import type {
   SessionMetadata,
   DaemonMetricsSnapshot,
 } from './snapshot.js';
+import { SessionPhase } from './state.js';
 
 /**
  * Subsystem contract for daemon metrics collection. Defined here (rather than
@@ -144,7 +145,7 @@ export class SnapshotBuilder {
     try {
       return Object.freeze({
         mode: ((this.session as any).getMode?.() ?? 'auto') as 'auto' | 'ask' | 'bypass',
-        phase: (this.session as any).getPhase?.() ?? null,
+        phase: (this.session as any).getPhase?.() ?? SessionPhase.Idle,
         version: (this.session as any).getVersion?.() ?? 'unknown',
         startedAt: (this.session as any).getStartedAt?.() ?? Date.now(),
         turns: (this.session as any).getTurns?.() ?? 0,

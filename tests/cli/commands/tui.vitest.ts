@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { handlePolicyCommand } from "../../../src/cli/commands/tui.js";
+import { handlePolicyCommand } from "../../../src/tui/helpers/policy-commands.js";
 
 describe("handlePolicyCommand", () => {
   it("returns current mode when called with empty string", () => {
