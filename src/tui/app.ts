@@ -8,6 +8,7 @@ import type { SnapshotBuilder } from './snapshot-builder.js';
 import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
+import { TerminalCanvas } from './canvas.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -154,32 +155,65 @@ export class TuiApp {
   private paintRegion(region: Region, views: Readonly<Record<TabId, TuiView>>): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
+    const c = new TerminalCanvas(dims.columns, dims.rows);
+    const session = this.state.lastSnapshot.session;
+    const order: readonly TabId[] = ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+
     const renderCtx: ViewRenderContext = {
       snap: this.state.lastSnapshot,
       dimensions: dims,
       perTab: this.state.views[this.state.activeTab],
+      canvas: c,
     };
 
     switch (region) {
       case 'header':
-        // Render in production via TuiRenderer helper (out of scope here)
+        c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
         break;
-      case 'body': {
-        const view = views[this.state.activeTab]!;
-        const result = view.render(renderCtx);
-        if (result.rows.length > 0) {
-          // minimal body render — region layout and cursor math are deferred
-          process.stdout.write('\x1b[J' + result.rows.join('\n') + '\n');
+
+      case 'body':
+        views[this.state.activeTab]!.render(renderCtx);
+        break;
+
+      case 'tabs': {
+        let tabLine = '';
+        for (const id of order) {
+          const active = id === this.state.activeTab;
+          tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
         }
+        c.write(0, dims.rows - 3, tabLine);
         break;
       }
-      case 'tabs':
-      case 'status':
-      case 'all':
-        // Tabs/status regions: defer renderer implementation.
+
+      case 'status': {
+        const mode = session?.mode ?? 'auto';
+        const phase = session?.phase ?? 'Idle';
+        c.write(0, dims.rows - 2, `mode: ${mode}  phase: \x1b[1m${phase}\x1b[0m`);
+        c.write(0, dims.rows - 1, `tokens: —  files: —`);
         break;
+      }
+
+      case 'all':
+      default: {
+        c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
+        views[this.state.activeTab]!.render(renderCtx);
+        let tabLine = '';
+        for (const id of order) {
+          const active = id === this.state.activeTab;
+          tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
+        }
+        c.write(0, dims.rows - 3, tabLine);
+        const mode = session?.mode ?? 'auto';
+        const phase = session?.phase ?? 'Idle';
+        c.write(0, dims.rows - 2, `mode: ${mode}  phase: \x1b[1m${phase}\x1b[0m`);
+        c.write(0, dims.rows - 1, `tokens: —  files: —`);
+        break;
+      }
     }
-    void views;
+
+    // Write the frame to the terminal — home cursor first so each tick
+    // overwrites the previous frame in-place (no waterfall).
+    process.stdout.write('\x1b[H' + c.renderFrame());
   }
 
   private async cleanupSync(): Promise<void> {

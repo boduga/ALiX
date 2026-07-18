@@ -10,6 +10,13 @@ export interface ViewRenderContext {
   readonly snap: DashboardSnapshot;
   readonly dimensions: TerminalDimensions;
   readonly perTab: Readonly<PerTabState>;
+  /**
+   * Optional canvas for coordinate-based terminal rendering.
+   * When present, views should write into the canvas rather than
+   * returning string[] rows.  The caller (TuiApp) is responsible
+   * for rendering the final frame to stdout.
+   */
+  readonly canvas?: import('../canvas.js').TerminalCanvas;
 }
 
 export interface ViewInputContext {
