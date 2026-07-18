@@ -306,6 +306,11 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       sessionMode: config.sessionMode,
     });
 
+    // Lifecycle phase: first turn started → Understanding. This is the earliest
+    // initialization point where ctx.log exists, so both getPhase() observers
+    // and event-log subscribers see Understanding before plan/tool work begins.
+    advancePhase(SessionPhase.Understanding);
+
     session = { sessionId: ctx.sessionId, actor: "system" as const };
 
     // P1: WorkflowRun + TaskGraph
@@ -431,6 +436,14 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       // Also skip when planMode is explicitly false.
       if (config.planMode !== false) {
         const { runPlanPhase } = await import("../run/plan-phase.js");
+
+        // Lifecycle phase: about to call runPlanPhase → Planning. This hook
+        // fires immediately before the call so observers see the phase move
+        // from Understanding to Planning as the plan phase enters its work block.
+        // When planMode is disabled, Planning is skipped entirely so the TUI
+        // moves directly from Understanding to Executing.
+        advancePhase(SessionPhase.Planning);
+
         const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath);
         if (planResult.action === "rejected") {
           transitionWorkflowStatus(wfRun, "failed");
@@ -444,14 +457,6 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         approvedPlanContent = planResult.planContent;
       }
     }
-
-    // Lifecycle phase: plan phase complete → Planning. Hooked here (inside
-    // initialize() after the optional plan-phase call) because plan.* events
-    // are emitted from runPlanPhase internally and this is the closest
-    // observable proxy without crossing into plan-phase.ts. When planMode is
-    // disabled, we still mark Planning complete so the phase can progress
-    // monotonically toward Executing.
-    advancePhase(SessionPhase.Planning);
 
     // P8: Tool setup
     const baseTools = buildToolsForProvider(ctx.provider);
@@ -603,6 +608,10 @@ You are in read-only mode. You can read files, search the codebase, and delegate
   async function processTurn(message: string): Promise<AgentTurnResult> {
     if (!initialized) {
       await initialize();
+    } else {
+      // Lifecycle phase: subsequent turn started → Understanding. First-turn
+      // initialization performs the same transition once ctx.log is available.
+      advancePhase(SessionPhase.Understanding);
     }
 
     // If the session was already completed (resumed completed session), return early
@@ -617,11 +626,6 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     }
 
     updatedAt = new Date().toISOString();
-
-    // Lifecycle phase: turn started → Understanding.
-    // Hook placed BEFORE any tool/plan work so observers see the phase move
-    // out of Idle the moment processTurn commits to processing the turn.
-    advancePhase(SessionPhase.Understanding);
 
     // Emit lifecycle event: turn started
     await ctx.log.append({
@@ -750,10 +754,11 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       throw err;
     }
 
-    // Lifecycle phase: runTaskLoop returned → Verifying. Verification events
-    // (verify.*) are emitted from inside the task loop's verifier pass; this
-    // hook fires immediately after the call returns so observers see the
-    // phase move from Executing to Verifying before the summary path.
+    // Verifying phase begins as the task loop's verifier pass completes; the TUI
+    // shows "Verifying" between this transition and the eventual "Summarizing"
+    // once summary lines are emitted. During the actual verifier pass, the TUI
+    // still shows "Executing": the verifier lives inside runTaskLoop, so this is
+    // the post-verify-pre-result proxy boundary within the two-file scope.
     advancePhase(SessionPhase.Verifying);
 
     // Update graph status based on result reason
