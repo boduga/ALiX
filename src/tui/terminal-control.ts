@@ -33,17 +33,24 @@ export function createTerminalControl(): TerminalControl {
       };
     },
     installEmergencyCleanup(cleanup: () => void) {
-      const handler = () => {
+      // 'exit' handler only does cleanup — never calls process.exit() since
+      // the process is already winding down (calling exit again re-fires the
+      // event and creates an infinite loop, which Node warns about).
+      const exitHandler = () => { try { cleanup(); } catch { /* ignore */ } };
+      // Signal handlers run cleanup, then exit unconditionally so the process
+      // terminates immediately (default SIGINT/SIGTERM behaviour would also
+      // fire 'exit' normally, but our handler traps it first).
+      const signalHandler = () => {
         try { cleanup(); } catch { /* ignore */ }
-        finally { process.exit(130); }
+        process.exit(130);
       };
-      process.on('exit', handler);
-      process.on('SIGINT', handler);
-      process.on('SIGTERM', handler);
-      cleanupFns.push(() => process.off('exit', handler));
+      process.on('exit', exitHandler);
+      process.on('SIGINT', signalHandler);
+      process.on('SIGTERM', signalHandler);
+      cleanupFns.push(() => process.off('exit', exitHandler));
       return () => {
-        process.off('SIGINT', handler);
-        process.off('SIGTERM', handler);
+        process.off('SIGINT', signalHandler);
+        process.off('SIGTERM', signalHandler);
       };
     },
   };

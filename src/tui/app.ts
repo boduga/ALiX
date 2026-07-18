@@ -167,7 +167,11 @@ export class TuiApp {
       }
     }
     if (key === '' || key === 'q' || key === 'Q') {
-      void this.stop().finally(() => process.exit(0));
+      // Terminate immediately. The 'exit' event handler (installed by
+      // installEmergencyCleanup in start()) runs cleanupSync synchronously
+      // to restore the terminal — no async stop() needed, and avoiding the
+      // race between stop() and run() resolving the same _alivePromise.
+      process.exit(0);
       return true;
     }
     if (key === 'Ctrl+l' || key === '\f') { this.renderer.scheduleRepaint('all'); this.renderer.pump(); return true; }
