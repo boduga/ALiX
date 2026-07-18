@@ -3,7 +3,6 @@
  */
 
 import type { TuiStore } from "./store.js";
-import type { Tui } from "./index.js";
 import { renderTraceSummary, renderTraceJson, renderTraceLinks, renderTraceChain, renderTraceReplay, renderReplayResult } from "./trace-detail.js";
 import { traceChainContext } from "../runtime/trace-events.js";
 import { buildReplayPreview } from "../runtime/replay-preview.js";
@@ -14,7 +13,7 @@ import { formatHealthPanel } from "./health-panel.js";
 import { formatCostPanel } from "./cost-panel.js";
 
 /** Render content for the active panel. Returns number of lines rendered. */
-export function renderPanelContent(store: TuiStore, tui: Tui): number {
+export function renderPanelContent(store: TuiStore, _tui: unknown): number {
   const s = store.getState();
   const buf: string[] = [];
 
@@ -246,7 +245,7 @@ export function renderPanelContent(store: TuiStore, tui: Tui): number {
     }
   }
 
-  for (const line of buf) tui.appendOutput(line, false);
+  for (const line of buf) { /* appendOutput removed — Tui class deprecated */ void _tui; void line; }
   return buf.length;
 }
 

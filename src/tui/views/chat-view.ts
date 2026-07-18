@@ -1,4 +1,4 @@
-import { renderDashboardCards, dashboardSnapshotToRuntime, renderDashboardOnCanvas } from '../dashboard-renderer.js';
+import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 
@@ -16,53 +16,26 @@ export class ChatView implements TuiView {
   readonly id: TabId = 'chat';
 
   render(ctx: ViewRenderContext): ViewRenderResult {
-    const { snap, dimensions } = ctx;
+    const c = ctx.canvas!;
+    c.clear();
 
-    // ── Canvas render path (coordinate-based, no waterfall) ────────
-    if (ctx.canvas) {
-      const c = ctx.canvas;
-      c.clear();
+    // Prompt line with the current input buffer.
+    const buf = ctx.perTab.inputBuffer;
+    c.write(0, 0, '\x1b[33m alix>\x1b[0m ');
+    c.write(7, 0, buf);
+    // Draw the cursor at the end of the typed text.
+    c.write(7 + buf.length, 0, '\x1b[7m \x1b[0m');
 
-      // Prompt line with the current input buffer.
-      const buf = ctx.perTab?.inputBuffer ?? '';
-      c.write(0, 0, '\x1b[33m alix>\x1b[0m ');
-      c.write(7, 0, buf);
-      // Draw the cursor at the end of the typed text.
-      c.write(7 + buf.length, 0, '\x1b[7m \x1b[0m');
+    // 4-panel dashboard starting at y = 3.
+    renderDashboard(ctx.snap, c, 3);
 
-      // 4-panel dashboard starting at y = 3.
-      renderDashboardOnCanvas(snap, c, 3);
-
-      // Busy / phase footer.
-      if (snap.session && snap.session.phase !== 'Idle') {
-        c.write(2, 17, `\x1b[33mbusy: ${snap.session.phase}\x1b[0m`);
-      }
-
-      // Return empty rows — the caller writes the full frame from the canvas.
-      return { rows: [] };
+    // Busy / phase footer.
+    if (ctx.snap.session && ctx.snap.session.phase !== 'Idle') {
+      c.write(2, 17, `\x1b[33mbusy: ${ctx.snap.session.phase}\x1b[0m`);
     }
 
-    // ── Legacy string[] render path (no canvas) ────────────────────
-    const rows: string[] = [];
-
-    // Header: input prompt placeholder (real buffer will arrive via perTab state).
-    rows.push('alix> ');
-    rows.push('');
-
-    const cards = renderDashboardCards(
-      dashboardSnapshotToRuntime(snap),
-      dimensions.columns,
-      true /* thin */,
-    );
-    rows.push(...cards);
-
-    // Footer: busy indicator when session is not Idle.
-    if (snap.session && snap.session.phase !== 'Idle') {
-      rows.push('');
-      rows.push(`busy: ${snap.session.phase}`);
-    }
-
-    return { rows };
+    // Return empty rows — the caller writes the full frame from the canvas.
+    return { rows: [] };
   }
 
   handleKey(key: string, _ctx: ViewInputContext): { type: 'handled' } {

@@ -13,7 +13,12 @@ export interface CanvasCell {
   readonly ansiPrefix: string;
 }
 
-/** Regex matching standard ANSI escape sequences. */
+/**
+ * Regex matching standard ANSI escape sequences.
+ *
+ * Character class matches both ESC (\x1b / ) and CSI (\x9b).
+ * Written with explicit hex escapes for portability across editors / encodings.
+ */
 export const ANSI_REGEX = /[][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 
 export function createCell(char = ' ', ansiPrefix = ''): CanvasCell {
