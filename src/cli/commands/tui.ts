@@ -24,7 +24,15 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const sessionDir = join(cwd, '.alix', 'sessions', sessionId);
   await mkdir(sessionDir, { recursive: true });
 
-  const config = await loadConfig(cwd);
+  // The TUI dashboard doesn't need a configured model — it renders panel
+  // content from snapshot data.  loadConfig may throw if no model is
+  // configured (e.g. CI, fresh install); fall back to defaults.
+  let config: Record<string, any>;
+  try {
+    config = await loadConfig(cwd);
+  } catch {
+    config = { permissions: { sessionMode: 'auto' } };
+  }
   const eventLog = new EventLog(sessionDir);
   await eventLog.init();
 
@@ -33,7 +41,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     resolveApproval: async (id, status) => ({ success: false, message: `No approval store` }),
   });
 
-  const policy = new PolicyEngine(config);
+  const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
 
   const agentSession = {
