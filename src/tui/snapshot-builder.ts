@@ -25,15 +25,23 @@ export type SubsystemSnapshotFn = () => Promise<unknown> | unknown;
  * Composes one immutable DashboardSnapshot per refresh tick.
  *
  * Constructor takes injected subsystems. NEVER throws upward. Returns null
- * on generation cancellation.
+ * on generation cancellation (a newer build has been started).
  */
 export class SnapshotBuilder {
   /**
-   * Cache for buildSync(). Populated by the most recent build() call.
-   * Subsystem implementations must be idempotent / cached on their end;
-   * this cache stores the *whole* frozen snapshot for re-read.
+   * Cache for buildSync(). Populated by the most recent build() call. Stored
+   * alongside its generation so buildSync() can honor the caller's generation
+   * argument and return null when the cached snapshot is stale.
    */
   private lastSnapshot: DashboardSnapshot | undefined;
+  private lastSnapshotGeneration: number | undefined;
+
+  /**
+   * The generation of the currently in-flight build(). Updated atomically at
+   * the top of build() so that, between awaits, a still-running build can
+   * detect whether a newer build has begun (and return null in that case).
+   */
+  private currentGeneration: number = 0;
 
   constructor(
     private readonly session: AgentSession,
@@ -47,9 +55,18 @@ export class SnapshotBuilder {
   /**
    * Async build. Polls each subsystem. A subsystem that throws produces
    * null for that field only; the rest of the snapshot is still composed.
+   *
+   * Returns null when:
+   * - generation <= 0 (invalid input; preserves the never-throws contract)
+   * - A newer build() has been started (currentGeneration bumped mid-await)
    */
   async build(generation: number): Promise<DashboardSnapshot | null> {
-    if (generation <= 0) throw new Error('SnapshotBuilder.build: generation must be positive');
+    if (generation <= 0) return null;
+
+    // Atomic update: any in-flight build with an older generation will
+    // observe currentGeneration !== <its generation> at its next await
+    // checkpoint and return null.
+    this.currentGeneration = generation;
 
     const generatedAt = Date.now();
 
@@ -67,15 +84,25 @@ export class SnapshotBuilder {
         sops: null,
         policy: null,
       });
+      this.lastSnapshotGeneration = generation;
     }
 
     // Construct fields locally first; freeze at end. No incremental mutation.
+    // Between every awaited subsystem call, re-check currentGeneration so a
+    // build whose generation has been superseded returns null.
+    if (this.currentGeneration !== generation) return null;
     const session = await this.trySnapshot('session', async () => this.snapshotSession());
+    if (this.currentGeneration !== generation) return null;
     const daemon = await this.trySnapshot('daemon', () => this.daemonMetrics.snapshot());
+    if (this.currentGeneration !== generation) return null;
     const approvals = await this.trySnapshot('approvals', async () => (this.approvals as any).snapshot());
+    if (this.currentGeneration !== generation) return null;
     const runtime = await this.trySnapshot('runtime', async () => (this.eventLog as any).snapshot());
+    if (this.currentGeneration !== generation) return null;
     const sops = await this.trySnapshot('sops', async () => (this.sops as any).snapshot());
+    if (this.currentGeneration !== generation) return null;
     const policy = await this.trySnapshot('policy', async () => (this.policy as any).snapshot());
+    if (this.currentGeneration !== generation) return null;
 
     const snap = Object.freeze({
       generatedAt,
@@ -88,15 +115,19 @@ export class SnapshotBuilder {
     });
 
     this.lastSnapshot = snap;
+    this.lastSnapshotGeneration = generation;
     return snap;
   }
 
   /**
-   * Synchronous read of the cached snapshot. Returns null if no async
-   * build has run yet. Used for keypress-driven refreshes where I/O
-   * must not block.
+   * Synchronous read of the cached snapshot. Returns the cached snapshot
+   * ONLY when its stored generation matches the caller's generation
+   * argument; otherwise returns null. This way a keypress-driven refresh
+   * at generation N reads generation-N data, not stale generation-(N-k)
+   * data.
    */
-  buildSync(_generation: number): DashboardSnapshot | null {
+  buildSync(generation: number): DashboardSnapshot | null {
+    if (this.lastSnapshotGeneration !== generation) return null;
     return this.lastSnapshot ?? null;
   }
 

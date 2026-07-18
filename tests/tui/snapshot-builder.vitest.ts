@@ -87,29 +87,26 @@ describe('SnapshotBuilder.build — failure isolation', () => {
 });
 
 describe('SnapshotBuilder.build — generation cancellation', () => {
-  it('returns null when the generation has been bumped mid-build', async () => {
+  it('returns null for the older build when a newer build starts mid-await', async () => {
     const f = mkFakes();
-    let daemonStarted = false;
     const slowDaemon: DaemonMetricsCollector = {
       start: () => {},
       stop: async () => {},
       snapshot: async () => {
         await new Promise((r) => setTimeout(r, 20));
-        daemonStarted = true;
         return f.daemon.snapshot();
       },
     };
     const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, slowDaemon);
-    const stale = b.build(1);                // generation 1 begins
-    // Simulate caller having bumped generation already
-    const fresh = b.build(2);                // generation 2 begins
-    const [a, c] = await Promise.all([stale, fresh]);
-    expect(daemonStarted).toBe(true);
-    expect(a).not.toBeNull();                // generation 1 finished after stamp
-    expect(c).not.toBeNull();
-    // The contract: build(n) returns null if a newer build was started. We test
-    // the SIMPLEST contract: callers pass generation in and we honor it.
-    // (Full race semantics are covered by app.ts lifecycle tests.)
+    // Fire both builds without awaiting in between.
+    // build(1) starts and immediately suspends on the 20ms slow-daemon await.
+    const stale = b.build(1);
+    // build(2) runs while build(1) is still in-flight, bumping currentGeneration.
+    const fresh = b.build(2);
+    const [build1, build2] = await Promise.all([stale, fresh]);
+    // Contract: the loser of the race resolves to null.
+    expect(build2).not.toBeNull();
+    expect(build1).toBeNull();
   });
 });
 
