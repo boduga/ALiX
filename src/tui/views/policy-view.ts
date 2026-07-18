@@ -1,3 +1,4 @@
+import { writeRowsToCanvas } from '../canvas.js';
 import type { PolicySnapshot } from '../snapshot.js';
 import type { TuiView, ViewRenderContext, ViewInputContext } from './types.js';
 
@@ -23,6 +24,10 @@ export class PolicyView implements TuiView {
 
     rows.push('');
     rows.push('Keys: ↑/↓ navigate  / search');
+    if (ctx.canvas) {
+      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      return { rows: [] };
+    }
     return { rows };
   }
 

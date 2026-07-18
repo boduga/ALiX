@@ -1,3 +1,4 @@
+import { writeRowsToCanvas } from '../canvas.js';
 import type { SopSnapshot } from '../snapshot.js';
 import type { TuiView, ViewRenderContext, ViewInputContext } from './types.js';
 
@@ -12,6 +13,10 @@ export class SopsView implements TuiView {
     if (!s || s.items.length === 0) {
       rows.push('○ no SOPs loaded');
       rows.push(`  total: 0`);
+      if (ctx.canvas) {
+        writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+        return { rows: [] };
+      }
       return { rows };
     }
     rows.push(`  total: ${s.totalLoaded}`);
@@ -26,6 +31,10 @@ export class SopsView implements TuiView {
     }
     rows.push('');
     rows.push('Keys: ↑/↓ navigate  / search  Tab detail');
+    if (ctx.canvas) {
+      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      return { rows: [] };
+    }
     return { rows };
   }
 

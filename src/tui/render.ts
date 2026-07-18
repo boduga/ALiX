@@ -35,10 +35,7 @@ export class TuiRenderer {
     this._aliveResolve = resolve;
   });
 
-  constructor(private readonly opts: {
-    paint: (region: Region) => void;
-    scheduleRepaint: (region: Region) => void;
-  }) {}
+  constructor() {}
 
   /** Test seam + diff helper. */
   framesEqual(a: readonly string[], b: readonly string[]): boolean {
@@ -49,21 +46,9 @@ export class TuiRenderer {
 
   scheduleRepaint(region: Region): void {
     this.repaintAreas.add(region);
-    this.opts.scheduleRepaint(region);
   }
 
   pump(): void {
-    if (this.repaintAreas.size === 0) return;
-
-    if (this.repaintAreas.has('all')) {
-      for (const r of ['header', 'body', 'tabs', 'status'] as Region[]) {
-        this.opts.paint(r);
-      }
-    } else {
-      for (const r of this.repaintAreas) {
-        if (r !== 'all') this.opts.paint(r);
-      }
-    }
     this.repaintAreas.clear();
   }
 

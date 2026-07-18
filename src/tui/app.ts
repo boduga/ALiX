@@ -37,10 +37,7 @@ export class TuiApp {
       policy: getView('policy')!,
     };
     this.terminal = createTerminalControl();
-    this.renderer = new TuiRenderer({
-      paint: (region) => this.paintRegion(region, this.views),
-      scheduleRepaint: () => {},
-    });
+    this.renderer = new TuiRenderer();
   }
 
   private get views(): Readonly<Record<TabId, TuiView>> {
@@ -51,7 +48,7 @@ export class TuiApp {
     this.terminal.enterAltBuffer();
     this.terminal.enterRawMode();
     this.terminal.showCursor(true);
-    this.terminal.onResize(() => this.renderer.scheduleRepaint('all'));
+    this.terminal.onResize(() => this.paintRegion('all'));
 
     this.opts.daemonMetrics.start();
 
@@ -60,12 +57,11 @@ export class TuiApp {
     if (snap && initialGen === this.state.refreshGeneration) {
       this.state.lastSnapshot = snap;
     }
-    this.renderer.scheduleRepaint('all');
+    this.paintRegion('all');
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
     process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
-    this.renderer.pump();
   }
 
   /**
@@ -94,8 +90,7 @@ export class TuiApp {
     const snap = await this.opts.builder.build(generation);
     if (!snap || generation !== this.state.refreshGeneration) return;
     this.state.lastSnapshot = snap;
-    this.renderer.scheduleRepaint('all');
-    this.renderer.pump();
+    this.paintRegion('all');
   }
 
   private handleRaw(buf: Buffer): void {
@@ -115,21 +110,18 @@ export class TuiApp {
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
-        this.renderer.scheduleRepaint('body');
-        this.renderer.pump();
+        this.paintRegion('body');
         return;
       }
       if (key === '' || key === '\b') {
         perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
-        this.renderer.scheduleRepaint('body');
-        this.renderer.pump();
+        this.paintRegion('body');
         return;
       }
       // Printable characters only (ASCII 32+).
       if (key.length === 1 && key.charCodeAt(0) >= 32) {
         perTab.inputBuffer += key;
-        this.renderer.scheduleRepaint('body');
-        this.renderer.pump();
+        this.paintRegion('body');
         return;
       }
       // Fall through to view.handleKey for any unhandled control keys.
@@ -174,7 +166,7 @@ export class TuiApp {
       process.exit(0);
       return true;
     }
-    if (key === 'Ctrl+l' || key === '\f') { this.renderer.scheduleRepaint('all'); this.renderer.pump(); return true; }
+    if (key === 'Ctrl+l' || key === '\f') { this.paintRegion('all'); return true; }
     return false;
   }
 
@@ -185,9 +177,8 @@ export class TuiApp {
     this.state.history.push(prev);
     this.state.activeTab = next;
     this.views[next]?.onActivate?.(this.state.views[next]);
-    this.renderer.scheduleRepaint('body');
-    this.renderer.scheduleRepaint('tabs');
-    this.renderer.pump();
+    this.paintRegion('body');
+    this.paintRegion('tabs');
   }
 
   private dispatch(action: ViewAction): void {
@@ -195,8 +186,7 @@ export class TuiApp {
       case 'handled': break;
       case 'moveCursor':
         this.state.views[this.state.activeTab].cursor = action.cursor;
-        this.renderer.scheduleRepaint('body');
-        this.renderer.pump();
+        this.paintRegion('body');
         break;
       case 'switchTab':
         this.switchTab(action.tab);
@@ -207,7 +197,7 @@ export class TuiApp {
     }
   }
 
-  private paintRegion(region: Region, views: Readonly<Record<TabId, TuiView>>): void {
+  private paintRegion(region: Region): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
     const c = new TerminalCanvas(dims.columns, dims.rows);
@@ -227,7 +217,7 @@ export class TuiApp {
         break;
 
       case 'body':
-        views[this.state.activeTab]!.render(renderCtx);
+        this.views[this.state.activeTab]!.render(renderCtx);
         break;
 
       case 'tabs': {
@@ -251,7 +241,7 @@ export class TuiApp {
       case 'all':
       default: {
         c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
-        views[this.state.activeTab]!.render(renderCtx);
+        this.views[this.state.activeTab]!.render(renderCtx);
         let tabLine = '';
         for (const id of order) {
           const active = id === this.state.activeTab;

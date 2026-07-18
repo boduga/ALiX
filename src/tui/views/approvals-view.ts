@@ -1,3 +1,4 @@
+import { writeRowsToCanvas } from '../canvas.js';
 import type { ApprovalSnapshot } from '../snapshot.js';
 import type { TuiView, ViewRenderContext, ViewInputContext } from './types.js';
 
@@ -35,6 +36,11 @@ export class ApprovalsView implements TuiView {
     }
     rows.push('─'.repeat(dimensions.columns));
     rows.push('Keys: ↑/↓ navigate  a approve  d deny  q back');
+
+    if (ctx.canvas) {
+      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      return { rows: [] };
+    }
 
     return { rows };
   }

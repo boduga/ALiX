@@ -1,3 +1,4 @@
+import { writeRowsToCanvas } from '../canvas.js';
 import type { DaemonMetricsSnapshot } from '../daemon-metrics-collector.js';
 import type { TuiView, ViewRenderContext, TerminalDimensions } from './types.js';
 
@@ -40,6 +41,12 @@ export class DaemonView implements TuiView {
     rows.push(`  sampled:    ${new Date(d.sampledAt).toISOString()}`);
 
     void dimensions;
+
+    if (ctx.canvas) {
+      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      return { rows: [] };
+    }
+
     return { rows };
   }
 }

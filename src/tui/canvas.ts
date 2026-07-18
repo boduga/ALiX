@@ -13,6 +13,17 @@
 
 import { createCell, type CanvasCell, ANSI_REGEX } from "./canvas-cell.js";
 
+export function writeRowsToCanvas(
+  c: TerminalCanvas,
+  rows: string[],
+  startX = 0,
+  startY = 0,
+): void {
+  for (let i = 0; i < rows.length; i++) {
+    c.write(startX, startY + i, rows[i] ?? '');
+  }
+}
+
 export class TerminalCanvas {
   readonly width: number;
   readonly height: number;
