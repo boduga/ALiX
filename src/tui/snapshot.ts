@@ -1,4 +1,6 @@
 import type { SessionPhase } from './state.js';
+import type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
+export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
  * Frozen, immutable view model. Field types are intentionally nullable to
@@ -27,26 +29,9 @@ export interface SessionMetadata {
 }
 
 /**
- * Snapshot of daemon process metrics. null indicates the daemon is not
- * running or unreachable.
+ * DaemonMetricsSnapshot / ClientSnapshot are re-exported from
+ * daemon-metrics-collector.ts (their semantic home).
  */
-export interface DaemonMetricsSnapshot {
-  readonly pid: number | null;
-  readonly uptimeSeconds: number;
-  readonly cpuPercent: number;
-  readonly memoryRssBytes: number;
-  readonly memoryTotalBytes: number;
-  readonly diskUsedBytes: number;
-  readonly diskTotalBytes: number;
-  readonly clients: readonly ClientSnapshot[];
-  readonly sampledAt: number;
-}
-
-export interface ClientSnapshot {
-  readonly id: string;
-  readonly connectedAt: number;
-  readonly lastSeenAt: number;
-}
 
 /**
  * Approval queue snapshot. pending + recently-resolved (within last N).
