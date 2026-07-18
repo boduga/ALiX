@@ -39,6 +39,40 @@ describe('DaemonMetricsCollector — dead daemon', () => {
     c.stop();
   });
 
+  it('zeroes process metrics when readMetrics returns null even if readPid succeeded', async () => {
+    // First phase: pid + metrics both available (live daemon).
+    // Second phase: pid still available but metrics go null (degraded daemon).
+    let metricsAvailable = true;
+    const c = new DaemonMetricsCollectorImpl({
+      readPid: () => 4242,
+      readMetrics: () =>
+        metricsAvailable
+          ? { uptimeSeconds: 10, cpuPercent: 7.5, memoryRssBytes: 9999, memoryTotalBytes: 16384, diskUsedBytes: 1, diskTotalBytes: 10 }
+          : null,
+      readClients: () => [],
+    });
+    c.start();
+    // Drive at least one sample so the cache holds non-zero process metrics.
+    await new Promise((r) => setTimeout(r, 1100));
+    let snap = await c.snapshot();
+    expect(snap.pid).toBe(4242);
+    expect(snap.cpuPercent).toBe(7.5);
+    expect(snap.memoryRssBytes).toBe(9999);
+
+    // Daemon degrades: readPid still succeeds but readMetrics goes null.
+    metricsAvailable = false;
+    await new Promise((r) => setTimeout(r, 1100)); // wait for one tick
+    snap = await c.snapshot();
+    // Invariant: dead-metrics path must produce the same shape as dead-pid path.
+    expect(snap.pid).toBeNull();
+    expect(snap.cpuPercent).toBe(0);
+    expect(snap.memoryRssBytes).toBe(0);
+    expect(snap.memoryTotalBytes).toBe(0);
+    expect(snap.uptimeSeconds).toBe(0);
+    expect(snap.clients).toEqual([]);
+    c.stop();
+  });
+
   it('falls back to system disk even when daemon metrics are unavailable', async () => {
     const c = new DaemonMetricsCollectorImpl({ readPid: () => null, readMetrics: () => null, readClients: () => [] });
     c.start();

@@ -127,10 +127,14 @@ export class DaemonMetricsCollectorImpl implements DaemonMetricsCollector {
     if (m === null) {
       const sysDisk = await readSystemDisk();
       this.cache = Object.freeze({
-        ...this.cache,
         pid: null,
+        uptimeSeconds: 0,
+        cpuPercent: 0,
+        memoryRssBytes: 0,
+        memoryTotalBytes: 0,
         diskUsedBytes: sysDisk.used,
         diskTotalBytes: sysDisk.total,
+        clients: [],
         sampledAt: Date.now(),
       });
       return;
