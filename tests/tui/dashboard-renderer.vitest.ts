@@ -416,7 +416,7 @@ describe('renderDashboard — RUNTIME panel', () => {
     expect(frame).toContain("Live 'runtime' stream");
   });
 
-  it('does NOT paint a drawBox border around RUNTIME', () => {
+  it('paints a drawBox border around RUNTIME', () => {
     const c = new TerminalCanvas(120, 30);
     renderDashboard(runtimeSnap({}), c, 0);
     const frame = stripAnsi(c.renderFrame());
@@ -425,9 +425,10 @@ describe('renderDashboard — RUNTIME panel', () => {
       .split('\n')
       .map((l) => l.slice(2 * pw, 3 * pw))
       .join('\n');
-    expect(col).not.toContain('┌');
-    expect(col).not.toContain('│');
-    expect(col).not.toContain('└');
+    // Box border — corners + vertical sides + horizontal edges.
+    expect(col).toContain('┌');
+    expect(col).toContain('│');
+    expect(col).toContain('└');
   });
 
   it('shows empty-state note when no workflow', () => {
@@ -563,18 +564,18 @@ describe('renderDashboard — SOPS & POLICY panel', () => {
     expect(frame).toContain('Open sops or policy');
   });
 
-  it('does NOT paint a drawBox border around SOPS & POLICY', () => {
+  it('paints a drawBox border around SOPS & POLICY', () => {
     const c = new TerminalCanvas(120, 30);
     renderDashboard(sopsSnap({}), c, 0);
     const frame = stripAnsi(c.renderFrame());
-    const pw = panelW(120); // 30
+    const pw = panelW(120);
     const col = frame
       .split('\n')
       .map((l) => l.slice(3 * pw, 4 * pw))
       .join('\n');
-    expect(col).not.toContain('┌');
-    expect(col).not.toContain('│');
-    expect(col).not.toContain('└');
+    expect(col).toContain('┌');
+    expect(col).toContain('│');
+    expect(col).toContain('└');
   });
 });
 

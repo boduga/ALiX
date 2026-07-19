@@ -9,6 +9,9 @@
 import type { DashboardSnapshot } from "./snapshot.js";
 import type { TerminalCanvas } from "./canvas.js";
 
+/** All dashboard panels share this fixed height (in canvas rows). */
+const PANEL_H = 12;
+
 /**
  * Render the 4-panel dashboard onto the provided canvas at the given
  * starting row.  Each panel is 1/4 of the canvas width.
@@ -165,6 +168,11 @@ function renderDaemonPanel(
 ): void {
   const daemon = snap.daemon;
 
+  // Bounding box around the panel — drawn first so subsequent content
+  // writes overlay it (title at row 0 overwrites part of the top edge,
+  // just like drawBox's built-in title).
+  canvas.drawBox(0, startY, panelW, PANEL_H);
+
   // Row 0 — title bar (always painted so the panel header is present in all states).
   canvas.write(2, startY, "\x1b[32mDAEMON\x1b[0m");
   if (daemon) {
@@ -173,7 +181,7 @@ function renderDaemonPanel(
     canvas.write(panelW - 12, startY, "\x1b[90m○ stopped\x1b[0m");
   }
 
-  // Row 1 — top rule.
+  // Row 1 — top rule (in-box separator between title and content).
   for (let i = 0; i < panelW - 2; i++) canvas.write(2 + i, startY + 1, "\x1b[90m─\x1b[0m");
 
   if (!daemon) {
@@ -304,6 +312,9 @@ function renderApprovalsPanel(
   const x = panelW + 2;
   const contentW = panelW - 4;
 
+  // Bounding box around the panel.
+  canvas.drawBox(panelW, startY, panelW, PANEL_H);
+
   // Row 0 — title bar.
   canvas.write(x, startY, "\x1b[32mAPPROVALS\x1b[0m");
   const counterText = `${totalPending} pending`;
@@ -319,20 +330,18 @@ function renderApprovalsPanel(
     const now = Date.now();
     let row = 2;
     for (const item of items) {
-      if (row + 1 > 9) break; // leave rows 10..11 for rule+footer
+      if (row + 1 > 9) break; // leave row 10 for footer, row 11 for box bottom edge
       paintApprovalItemRow(canvas, x, startY + row, contentW, item);
       paintApprovalSubRow(canvas, x, startY + row + 1, contentW, item, now);
       row += 2;
     }
-    // Bottom rule (only when there were items).
-    for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 10, "\x1b[90m─\x1b[0m");
   }
 
-  // Row 11 — footer hint; add right-aligned "+N more" overflow indicator.
-  canvas.write(x, startY + 11, "\x1b[32mRun 'approvals' to review\x1b[0m");
+  // Row 10 — footer hint (inside the box, just above the bottom edge at row 11).
+  canvas.write(x, startY + 10, "\x1b[32mRun 'approvals' to review\x1b[0m");
   if (overflow > 0) {
     const overflowText = `+${overflow} more`;
-    canvas.write(x + contentW - overflowText.length, startY + 11, `\x1b[90m${overflowText}\x1b[0m`);
+    canvas.write(x + contentW - overflowText.length, startY + 10, `\x1b[90m${overflowText}\x1b[0m`);
   }
 }
 
@@ -386,6 +395,9 @@ function renderRuntimePanel(
   const contentW = panelW - 4;
   const runtime = snap.runtime;
   const workflow = runtime?.workflow ?? null;
+
+  // Bounding box around the panel.
+  canvas.drawBox(panelW * 2, startY, panelW, PANEL_H);
 
   // Row 0 — title bar.
   canvas.write(x, startY, "\x1b[32mRUNTIME\x1b[0m");
@@ -450,18 +462,15 @@ function renderRuntimePanel(
     canvas.write(x, startY + 7, "\x1b[90m○ no active workflow\x1b[0m");
   }
 
-  // Row 9 — bottom rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 9, "\x1b[90m─\x1b[0m");
-
   // Row 10 — footer hint (shortened to fit inside contentW at narrow canvases).
   canvas.write(x, startY + 10, "\x1b[32mLive 'runtime' stream\x1b[0m");
 }
 
 /**
  * Render the redesigned SOPS & POLICY panel at row `startY`. Mirrors the
- * same chrome pattern (title bar + counter, top rule, structured block,
- * mid rule, second structured block, bottom rule, footer hint) used by
- * the other three dashboard panels — no `TerminalCanvas.drawBox`.
+ * same chrome pattern used by the other three dashboard panels:
+ * drawBox-bordered rectangle + internal sections + footer hint inside
+ * the box bottom row.
  */
 function renderSopsAndPolicyPanel(
   canvas: TerminalCanvas,
@@ -473,6 +482,9 @@ function renderSopsAndPolicyPanel(
   const contentW = panelW - 4;
   const sops = snap.sops;
   const policy = snap.policy;
+
+  // Bounding box around the panel.
+  canvas.drawBox(panelW * 3, startY, panelW, PANEL_H);
 
   // Row 0 — title bar.
   canvas.write(x, startY, "\x1b[32mSOPS & POLICY\x1b[0m");
@@ -523,9 +535,6 @@ function renderSopsAndPolicyPanel(
   const vColor = vCount > 0 ? "\x1b[31m" : "";
   canvas.write(x, startY + 9, `Violations: ${vColor}${vCount}\x1b[0m`);
 
-  // Row 10 — bottom rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 10, "\x1b[90m─\x1b[0m");
-
-  // Row 11 — footer hint (shortened for narrow canvases, matches RUNTIME's choice).
-  canvas.write(x, startY + 11, "\x1b[32mOpen sops or policy\x1b[0m");
+  // Row 10 — footer hint (inside the box, just above the bottom edge at row 11).
+  canvas.write(x, startY + 10, "\x1b[32mOpen sops or policy\x1b[0m");
 }
