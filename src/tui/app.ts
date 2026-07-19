@@ -1,5 +1,5 @@
 import type { TabId, TuiAppState } from './state.js';
-import { createInitialTuiAppState } from './state.js';
+import { createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { getView } from './views/index.js';
@@ -201,8 +201,9 @@ export class TuiApp {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
     const c = new TerminalCanvas(dims.columns, dims.rows);
-    const session = this.state.lastSnapshot.session;
-    const order: readonly TabId[] = ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+    const snap = this.state.lastSnapshot;
+    const session = snap.session;
+    const order: readonly TabId[] = ['chat', 'daemon', 'approvals', 'sops', 'policy', 'runtime'];
 
     const renderCtx: ViewRenderContext = {
       snap: this.state.lastSnapshot,
@@ -225,18 +226,54 @@ export class TuiApp {
     for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
     // Body (active view writes into the canvas)
     this.views[this.state.activeTab]!.render(renderCtx);
-    // Tabs
+    // Tabs row (with key-hint suffix, right-aligned).
     let tabLine = '';
     for (const id of order) {
       const active = id === this.state.activeTab;
       tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
     }
-    c.write(0, dims.rows - 3, tabLine);
-    // Status bar
-    const mode = session?.mode ?? 'auto';
-    const phase = session?.phase ?? 'Idle';
-    c.write(0, dims.rows - 2, `mode: ${mode}  phase: \x1b[1m${phase}\x1b[0m`);
-    c.write(0, dims.rows - 1, `tokens: —  files: —`);
+    const tabHintsVisible = '↑/↓ navigate   |   tab next   |   ? help   |   q quit';
+    const hintsLen = tabHintsVisible.length;
+    // Reserve room so the hints fit on the same line, right-aligned.
+    const tabRowBudget = Math.max(0, dims.columns - hintsLen - 1);
+    const tabText = tabLine.length <= tabRowBudget
+      ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
+      : tabLine.slice(0, tabRowBudget);
+    c.write(0, dims.rows - 3, tabText);
+    c.write(dims.columns - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
+
+    // Status row — phase radios (left) | pipeline fields (right).
+    const phaseDefs: ReadonlyArray<{ readonly phase: SessionPhase; readonly label: string }> = [
+      { phase: SessionPhase.Understanding, label: 'UNDERSTANDING' },
+      { phase: SessionPhase.Planning, label: 'PLANNING' },
+      { phase: SessionPhase.Executing, label: 'EXECUTING' },
+      { phase: SessionPhase.Verifying, label: 'VERIFYING' },
+      { phase: SessionPhase.Summarizing, label: 'SUMMARIZING' },
+    ];
+    const activePhase = session?.phase ?? SessionPhase.Idle;
+    let phaseLine = '';
+    for (const p of phaseDefs) {
+      const active = activePhase === p.phase;
+      if (active) phaseLine += `\x1b[32m● ${p.label}\x1b[0m   `;
+      else phaseLine += `\x1b[90m○ ${p.label}\x1b[0m   `;
+    }
+    const sep = `\x1b[90m|\x1b[0m`;
+    const daemonLabel = snap.daemon !== null
+      ? `\x1b[32m● running\x1b[0m`
+      : `\x1b[90m○ stopped\x1b[0m`;
+    const sopCount = snap.sops?.totalLoaded ?? 0;
+    const ruleCount = snap.policy?.rules.length ?? 0;
+    const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
+    const fields = [
+      'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
+      'FILES: 0',         // schema gap: no fileCount field yet
+      `DAEMON: ${daemonLabel}`,
+      `SOPS: ${sopCount}`,
+      `RULES: ${ruleCount}`,
+      `EVENTS: ${eventsCount}`,
+    ];
+    const statusLine = `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`;
+    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
 
     // Write the complete frame — cursor home + canvas render.
     process.stdout.write('\x1b[H' + c.renderFrame());
