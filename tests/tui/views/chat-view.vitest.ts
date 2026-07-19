@@ -19,7 +19,8 @@ function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): Vi
     dimensions: dims,
     perTab: overrides.perTab ?? { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           },
     canvas: new TerminalCanvas(dims.columns, dims.rows),
   };
@@ -57,7 +58,8 @@ describe('ChatView', () => {
     const view = new ChatView();
     const perTab = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           };
     const before = JSON.stringify(perTab);
     const c = ctx({ perTab });

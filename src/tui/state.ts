@@ -30,6 +30,8 @@ export interface PerTabState {
   inputBuffer: string;
   /** Submitted prompts, oldest first; rendered in the chat scrollback. */
   submittedPrompts: string[];
+  /** Agent responses received from AgentSession.processTurn, oldest first. */
+  agentResponses: string[];
 }
 
 // Imported from snapshot.ts for use below; re-exported so callers can
@@ -55,6 +57,7 @@ export function createInitialPerTabState(): PerTabState {
     lastEventArrivedAt: 0,
     inputBuffer: '',
     submittedPrompts: [],
+    agentResponses: [],
   };
 }
 

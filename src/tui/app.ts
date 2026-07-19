@@ -6,6 +6,7 @@ import { getView } from './views/index.js';
 import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
 import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
+import type { AgentSession } from '../agent/session.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
 import { TerminalCanvas } from './canvas.js';
@@ -13,6 +14,8 @@ import { TerminalCanvas } from './canvas.js';
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
   daemonMetrics: DaemonMetricsCollector;
+  /** Agent runtime. Optional — when omitted, submit stays at echo-only. */
+  agentSession?: AgentSession;
   views?: Readonly<Record<TabId, TuiView>>;
 }
 
@@ -105,10 +108,6 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          // Echo the prompt into the chat scrollback so the user sees
-          // what was submitted; the AgentSession.processTurn wiring
-          // is a follow-up that will replace this with a real
-          // response.
           perTab.submittedPrompts.push(perTab.inputBuffer);
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
@@ -140,11 +139,31 @@ export class TuiApp {
     if (action) this.dispatch(action);
   }
 
-  /** Stub: wire into AgentSession.processTurn in a follow-up. */
+  /**
+   * Submit the typed prompt to the agent runtime. The `AgentSession`
+   * is optional — when omitted (e.g., in unit tests), submit falls back
+   * to a placeholder so the scrollback always gets a response line.
+   *
+   * The agent's `summary` is appended to `state.views.chat.agentResponses`
+   * so ChatView.render can paint it on the line below the matching
+   * submitted prompt.
+   */
   private async submitChatInput(text: string): Promise<void> {
-    // Force a snapshot refresh so the session phase transitions.
     if (!this.state.lastSnapshot) return;
-    await this.refresh();
+    const perTab = this.state.views.chat;
+    let summary: string;
+    try {
+      if (this.opts.agentSession) {
+        const result = await this.opts.agentSession.processTurn(text);
+        summary = result.summary;
+      } else {
+        summary = `(no agent session configured — received: ${text})`;
+      }
+    } catch (err) {
+      summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
+    }
+    perTab.agentResponses.push(summary);
+    this.paintFullFrame();
   }
 
   private tryHandleGlobal(key: string): boolean {

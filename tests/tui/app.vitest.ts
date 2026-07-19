@@ -43,7 +43,7 @@ describe('TuiApp -- chat-input dispatch', () => {
   // Build a tui app whose snapshot builder returns a fixed snapshot, so
   // paintFullFrame() has something valid to render. We never paint in
   // these tests — we only drive handleRaw and inspect state.
-  function makeApp() {
+  function makeApp(opts: Partial<{ agentSession: unknown }> = {}) {
     const snap = {
       generatedAt: 1,
       session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
@@ -51,17 +51,19 @@ describe('TuiApp -- chat-input dispatch', () => {
     };
     const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
     const metrics = { start: () => {}, stop: async () => {} };
-    const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    const app = new TuiApp({ builder, daemonMetrics: metrics, agentSession: opts.agentSession } as unknown as TuiAppOptions);
     const internal = app as unknown as {
       handleRaw(buf: Buffer): void;
       getStateForTest(): {
         lastSnapshot: unknown;
-        views: { chat: { inputBuffer: string; submittedPrompts: string[] } };
+        views: { chat: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] } };
       };
     };
     // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
     internal.getStateForTest().lastSnapshot = snap;
     internal.getStateForTest().views.chat.inputBuffer = '';
+    internal.getStateForTest().views.chat.submittedPrompts = [];
+    internal.getStateForTest().views.chat.agentResponses = [];
     return { app, internal };
   }
 
@@ -132,6 +134,36 @@ describe('TuiApp -- chat-input dispatch', () => {
     // Submitting a 2-char buffer should record it (not 'you').
     internal.handleRaw(Buffer.from([0x0d]));
     expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi', 'yo']);
+  });
+
+  it('submit calls agentSession.processTurn and appends the summary to agentResponses', async () => {
+    const agentSession = {
+      processTurn: vi.fn(async (text: string) => ({
+        summary: `reply to: ${text}`,
+        sessionId: 'test-session',
+        toolCalls: [],
+      })),
+    };
+    const { internal } = makeApp({ agentSession });
+    for (const c of 'fix it') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    // submitChatInput is async; await a microtask so the response lands.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(agentSession.processTurn).toHaveBeenCalledWith('fix it');
+    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['fix it']);
+    expect(internal.getStateForTest().views.chat.agentResponses).toEqual(['reply to: fix it']);
+  });
+
+  it('submit without agentSession falls back to a placeholder response', async () => {
+    const { internal } = makeApp({ agentSession: undefined });
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi']);
+    expect(internal.getStateForTest().views.chat.agentResponses.length).toBe(1);
+    expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('hi');
   });
 
   it('round-trips a typed prompt with backspace edits and a final Enter', () => {

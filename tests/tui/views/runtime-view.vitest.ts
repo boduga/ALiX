@@ -7,7 +7,8 @@ describe('RuntimeView', () => {
     dimensions: { columns: 100, rows: 30 },
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           },
   });
 
@@ -49,11 +50,13 @@ describe('RuntimeView', () => {
     const view = new RuntimeView();
     expect(view.handleKey?.('ArrowDown', { snap: { runtime: { events: [{ id: '1' }, { id: '2' }] } } as any, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           } })).toEqual({ type: 'moveCursor', cursor: 1 });
     expect(view.handleKey?.('/', { snap: {} as any, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           } })).toEqual({ type: 'handled' });
   });
 });

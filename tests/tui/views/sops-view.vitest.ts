@@ -6,7 +6,8 @@ describe('SopsView', () => {
     snap: any = null,
     perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           },
   ) => ({
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
@@ -40,7 +41,8 @@ describe('SopsView', () => {
       dimensions: { columns: 100, rows: 30 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           },
     };
     expect(view.handleKey?.('ArrowDown', baseCtx)).toEqual({ type: 'moveCursor', cursor: 1 });
@@ -54,7 +56,8 @@ describe('SopsView', () => {
       dimensions: { columns: 100, rows: 30 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           },
     };
     expect(view.handleKey?.('/', baseCtx)).toEqual({ type: 'handled' });

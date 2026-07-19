@@ -33,19 +33,32 @@ export class ChatView implements TuiView {
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
-    // Scrollback area — show the most recent submitted prompts above
-    // the dashboard. Each prompt occupies one row with a dim → marker
-    // so it reads as a message in a conversation. We show as many as
-    // fit between the prompt (row 4) and the dashboard (row startY).
+    // Scrollback area — alternate between user prompts (→) and
+    // agent responses (←). The most recent turns are shown first
+    // when they overflow the available rows.
     const submitted = ctx.perTab.submittedPrompts;
+    const responses = ctx.perTab.agentResponses;
+    const turns: { kind: 'user' | 'agent'; text: string }[] = [];
+    const maxLen = Math.max(submitted.length, responses.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < submitted.length) turns.push({ kind: 'user', text: submitted[i]! });
+      if (i < responses.length) turns.push({ kind: 'agent', text: responses[i]! });
+    }
     const scrollbackTop = 5;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
-    const recent = submitted.slice(-scrollbackRows);
+    const recent = turns.slice(-scrollbackRows);
+    const textWidth = Math.max(0, ctx.dimensions.columns - 4);
     for (let i = 0; i < recent.length; i++) {
       const rowY = scrollbackTop + i;
-      c.write(0, rowY, '\x1b[90m→ \x1b[0m');
-      c.write(2, rowY, recent[i]!.slice(0, Math.max(0, ctx.dimensions.columns - 4)));
+      const t = recent[i]!;
+      if (t.kind === 'user') {
+        c.write(0, rowY, '\x1b[90m→ \x1b[0m');
+        c.write(2, rowY, t.text.slice(0, textWidth));
+      } else {
+        c.write(0, rowY, '\x1b[36m← \x1b[0m');
+        c.write(2, rowY, t.text.slice(0, textWidth));
+      }
     }
 
     renderDashboard(ctx.snap, c, startY);

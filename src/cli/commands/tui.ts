@@ -50,13 +50,19 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     getVersion: () => 'unknown',
     getStartedAt: () => Date.now(),
     getTurns: () => 0,
+    processTurn: async (message: string) => ({
+      summary: `Acknowledged: ${message}. (Stub: wire a real AgentSession to produce a runtime response.)`,
+      sessionId: 'stub',
+      toolCalls: [],
+      reason: 'stub-agent',
+    }),
   } as any;
 
   const builder = new SnapshotBuilder(
     agentSession, approvals, policy, null as unknown, eventLog, daemonMetrics,
   );
 
-  const app = new TuiApp({ builder, daemonMetrics });
+  const app = new TuiApp({ builder, daemonMetrics, agentSession });
 
   try {
     await app.start();

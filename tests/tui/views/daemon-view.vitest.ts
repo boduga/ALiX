@@ -8,7 +8,8 @@ function ctx(snap: any = null): ViewRenderContext {
     dimensions: { columns: 100, rows: 30 },
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
-            submittedPrompts: []
+            submittedPrompts: [],
+            agentResponses: []
           },
   };
 }
