@@ -7,9 +7,10 @@ export type NavigationKey =
 
 export class Navigation {
   private cursor = 0;
-  private readonly order: readonly TabId[] = ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+  private readonly order: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
   private readonly shortcuts: Readonly<Record<string, TabId>> = {
     c: 'chat',
+    e: 'agent',
     d: 'daemon',
     a: 'approvals',
     r: 'runtime',
@@ -21,8 +22,10 @@ export class Navigation {
     if (rawKey === 'Tab') return { type: 'cycle', forward: true };
     if (rawKey === 'Shift+Tab') return { type: 'cycle', forward: false };
     if (rawKey === 'Escape') return { type: 'home' };
-    if (/^[1-6]$/.test(rawKey)) {
-      const idx = Number(rawKey) - 1;
+    // Up to 7 digit shortcuts match the current TAB_ORDER length.
+    const digitMatch = /^[1-9]$/.exec(rawKey);
+    if (digitMatch) {
+      const idx = Number(digitMatch[0]) - 1;
       if (idx >= 0 && idx < this.order.length) return { type: 'jump', tab: this.order[idx]! };
     }
     const lower = rawKey.toLowerCase();

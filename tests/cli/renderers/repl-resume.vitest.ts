@@ -57,6 +57,7 @@ function makeSessionStub(): AgentSession & {
     resume: vi.fn().mockResolvedValue(undefined),
     save: vi.fn().mockResolvedValue(undefined),
     processTurn: vi.fn(),
+    processChat: vi.fn(),
     getSessionId: vi.fn().mockReturnValue("current"),
     getState: vi.fn().mockReturnValue({
       sessionId: "current",

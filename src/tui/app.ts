@@ -19,7 +19,7 @@ export interface TuiAppOptions {
   views?: Readonly<Record<TabId, TuiView>>;
 }
 
-const TAB_ORDER: readonly TabId[] = ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -33,6 +33,7 @@ export class TuiApp {
   constructor(private readonly opts: TuiAppOptions) {
     this.defaultViews = {
       chat: getView('chat')!,
+      agent: getView('agent')!,
       daemon: getView('daemon')!,
       approvals: getView('approvals')!,
       runtime: getView('runtime')!,
@@ -103,13 +104,39 @@ export class TuiApp {
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
 
-    // ── Chat-tab input capture ─────────────────────────────────────
+    // ── Chat-tab input capture (lightweight chat path) ────────────
     if (tab === 'chat') {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
           perTab.submittedPrompts.push(perTab.inputBuffer);
           void this.submitChatInput(perTab.inputBuffer);
+          perTab.inputBuffer = '';
+        }
+        this.paintFullFrame();
+        return;
+      }
+      if (key === 'Backspace') {
+        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        this.paintFullFrame();
+        return;
+      }
+      // Printable characters only (ASCII 32+).
+      if (key.length === 1 && key.charCodeAt(0) >= 32) {
+        perTab.inputBuffer += key;
+        this.paintFullFrame();
+        return;
+      }
+      // Fall through to view.handleKey for any unhandled control keys.
+    }
+
+    // ── Agent-tab input capture (full processTurn path) ────────────
+    if (tab === 'agent') {
+      const perTab = this.state.views.agent;
+      if (key === 'Enter') {
+        if (perTab.inputBuffer.trim().length > 0) {
+          perTab.submittedPrompts.push(perTab.inputBuffer);
+          void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
         this.paintFullFrame();
@@ -140,24 +167,48 @@ export class TuiApp {
   }
 
   /**
-   * Submit the typed prompt to the agent runtime. The `AgentSession`
-   * is optional — when omitted (e.g., in unit tests), submit falls back
-   * to a placeholder so the scrollback always gets a response line.
-   *
-   * The agent's `summary` is appended to `state.views.chat.agentResponses`
-   * so ChatView.render can paint it on the line below the matching
-   * submitted prompt.
+   * Submit the typed prompt on the chat tab through the lightweight
+   * `processChat` path. Falls back to a placeholder when no
+   * AgentSession is configured (e.g., in unit tests).
    */
   private async submitChatInput(text: string): Promise<void> {
     if (!this.state.lastSnapshot) return;
     const perTab = this.state.views.chat;
     let summary: string;
     try {
+      if (this.opts.agentSession && typeof (this.opts.agentSession as any).processChat === 'function') {
+        const result = await (this.opts.agentSession as any).processChat(text);
+        summary = result.summary;
+      } else if (this.opts.agentSession) {
+        // Older stubs only implement processTurn. Use it as a graceful
+        // downgrade rather than failing the chat submit.
+        const result = await this.opts.agentSession.processTurn(text);
+        summary = result.summary;
+      } else {
+        summary = `[chat] ${text}`;
+      }
+    } catch (err) {
+      summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
+    }
+    perTab.agentResponses.push(summary);
+    this.paintFullFrame();
+  }
+
+  /**
+   * Submit the typed task on the agent tab through the full
+   * `processTurn` path (workflow loop, tool-call capable). Falls back
+   * to a placeholder when no AgentSession is configured.
+   */
+  private async submitAgentInput(text: string): Promise<void> {
+    if (!this.state.lastSnapshot) return;
+    const perTab = this.state.views.agent;
+    let summary: string;
+    try {
       if (this.opts.agentSession) {
         const result = await this.opts.agentSession.processTurn(text);
         summary = result.summary;
       } else {
-        summary = `(no agent session configured — received: ${text})`;
+        summary = `[agent] ${text}`;
       }
     } catch (err) {
       summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;

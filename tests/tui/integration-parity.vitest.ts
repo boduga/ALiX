@@ -119,11 +119,16 @@ describe('TuiApp — parity with legacy chat input', () => {
     await app.start();
     expect(stdinHandler).toBeDefined();
 
-    // TAB_ORDER: chat(0), daemon(1), approvals(2), runtime(3), sops(4), policy(5)
+    // TAB_ORDER: chat(0), agent(1), daemon(2), approvals(3),
+    //            runtime(4), sops(5), policy(6)
     const getTab = () => app!.getStateForTest().activeTab;
     expect(getTab()).toBe('chat');
 
     // Tab → cycle forward one slot
+    stdinHandler!(Buffer.from('\t', 'utf8'));
+    expect(getTab()).toBe('agent');
+
+    // Tab again → daemon
     stdinHandler!(Buffer.from('\t', 'utf8'));
     expect(getTab()).toBe('daemon');
 
@@ -131,32 +136,33 @@ describe('TuiApp — parity with legacy chat input', () => {
     stdinHandler!(Buffer.from('\t', 'utf8'));
     expect(getTab()).toBe('approvals');
 
-    // Tab again → runtime
-    stdinHandler!(Buffer.from('\t', 'utf8'));
-    expect(getTab()).toBe('runtime');
-
     // Digit shortcuts: '1' → position 0 = chat
     stdinHandler!(Buffer.from('1', 'utf8'));
     expect(getTab()).toBe('chat');
 
-    // '2' → position 1 = daemon
+    // '2' → position 1 = agent
     stdinHandler!(Buffer.from('2', 'utf8'));
-    expect(getTab()).toBe('daemon');
+    expect(getTab()).toBe('agent');
 
-    // '3' → position 2 = approvals, '4' → runtime, '5' → sops, '6' → policy
+    // '3' → position 2 = daemon, '4' → approvals, '5' → runtime,
+    // '6' → sops, '7' → policy
     stdinHandler!(Buffer.from('3', 'utf8'));
-    expect(getTab()).toBe('approvals');
+    expect(getTab()).toBe('daemon');
     stdinHandler!(Buffer.from('4', 'utf8'));
-    expect(getTab()).toBe('runtime');
+    expect(getTab()).toBe('approvals');
     stdinHandler!(Buffer.from('5', 'utf8'));
-    expect(getTab()).toBe('sops');
+    expect(getTab()).toBe('runtime');
     stdinHandler!(Buffer.from('6', 'utf8'));
+    expect(getTab()).toBe('sops');
+    stdinHandler!(Buffer.from('7', 'utf8'));
     expect(getTab()).toBe('policy');
 
-    // Single-letter shortcuts: c → chat, d → daemon, a → approvals,
-    // r → runtime, s → sops, p → policy
+    // Single-letter shortcuts: c → chat, e → agent, d → daemon,
+    // a → approvals, r → runtime, s → sops, p → policy
     stdinHandler!(Buffer.from('c', 'utf8'));
     expect(getTab()).toBe('chat');
+    stdinHandler!(Buffer.from('e', 'utf8'));
+    expect(getTab()).toBe('agent');
     stdinHandler!(Buffer.from('d', 'utf8'));
     expect(getTab()).toBe('daemon');
     stdinHandler!(Buffer.from('a', 'utf8'));
@@ -185,7 +191,7 @@ describe('TuiApp — parity with legacy chat input', () => {
 
     // Each tab gets a fresh PerTabState on construction — legacy TuiStore
     // similarly sets initial values for all panels on init.
-    for (const tab of ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'] as const) {
+    for (const tab of ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'] as const) {
       expect(state.views[tab].cursor).toBe(0);
       expect(state.views[tab].scrollOffset).toBe(0);
       expect(state.views[tab].searchQuery).toBe('');

@@ -140,6 +140,20 @@ export interface AgentSessionConfig {
 export interface AgentSession {
   /** Process one user message through the agent loop. */
   processTurn(message: string): Promise<AgentTurnResult>;
+  /**
+   * Process one user message through the lightweight chat path.
+   *
+   * `processChat` is the no-tool-loop conversational entrypoint used by the
+   * TUI's chat tab. Returns the same `AgentTurnResult` shape as
+   * `processTurn` so callers can treat both paths uniformly, but the
+   * underlying runtime is required to skip planning, tool execution,
+   * and verification — chat is for talk, agent is for work.
+   *
+   * The agent tab still uses `processTurn`. Operators opt into the
+   * execution class by choosing the tab — there is no hidden
+   * escalation from chat to agent.
+   */
+  processChat(message: string): Promise<AgentTurnResult>;
   /** The underlying session ID. */
   getSessionId(): string;
   /** Snapshot of current session state. */
@@ -999,8 +1013,25 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     });
   }
 
+  /**
+   * Chat-only path — no tool loop, no planning, no verification.
+   * Returns an echo-style summary via the same `AgentTurnResult` shape
+   * callers expect. Real runtimes should swap this for a no-tools
+   * provider call once the runtime separates chat from agent loops.
+   */
+  async function processChat(message: string): Promise<AgentTurnResult> {
+    await initialize();
+    return {
+      summary: `[chat] ${message}`,
+      sessionId: ctx!.sessionId,
+      toolCalls: [],
+      reason: 'chat',
+    };
+  }
+
   return {
     processTurn,
+    processChat,
     getSessionId,
     getState,
     getPhase,

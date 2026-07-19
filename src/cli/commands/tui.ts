@@ -67,19 +67,26 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // the chat scrollback.
   let agentSession: any;
   if (shouldUseStubAgent()) {
-    agentSession = {
+    const stub = {
       getMode: () => opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
       getPhase: () => SessionPhase.Idle,
       getVersion: () => 'unknown',
       getStartedAt: () => Date.now(),
       getTurns: () => 0,
       processTurn: async (message: string) => ({
-        summary: `Acknowledged: ${message}. (Stub: wire a real AgentSession to produce a runtime response.)`,
+        summary: `[agent] ${message}`,
         sessionId: 'stub',
         toolCalls: [],
         reason: 'stub-agent',
       }),
+      processChat: async (message: string) => ({
+        summary: `[chat] ${message}`,
+        sessionId: 'stub',
+        toolCalls: [],
+        reason: 'stub-chat',
+      }),
     };
+    agentSession = stub;
   } else {
     agentSession = createAgentSession({
       cwd,

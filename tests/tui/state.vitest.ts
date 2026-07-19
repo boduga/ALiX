@@ -53,6 +53,7 @@ describe('TuiAppState defaults', () => {
       activeTab: 'chat' as TabId,
       views: {
         chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
+        agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
         daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
         approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
         runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },

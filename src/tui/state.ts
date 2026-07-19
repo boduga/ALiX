@@ -14,7 +14,7 @@ export enum SessionPhase {
   Idle = 'Idle',
 }
 
-export type TabId = 'chat' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
+export type TabId = 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
 
 /**
  * Serializable UI state preserved per tab across switches. No Set, Map,
@@ -67,6 +67,7 @@ export function createInitialTuiAppState(): TuiAppState {
     activeTab: 'chat',
     views: {
       chat: createInitialPerTabState(),
+      agent: createInitialPerTabState(),
       daemon: createInitialPerTabState(),
       approvals: createInitialPerTabState(),
       runtime: createInitialPerTabState(),

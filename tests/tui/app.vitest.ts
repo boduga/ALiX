@@ -56,7 +56,11 @@ describe('TuiApp -- chat-input dispatch', () => {
       handleRaw(buf: Buffer): void;
       getStateForTest(): {
         lastSnapshot: unknown;
-        views: { chat: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] } };
+        activeTab?: string;
+        views: {
+          chat: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] };
+          agent: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] };
+        };
       };
     };
     // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
@@ -136,9 +140,14 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi', 'yo']);
   });
 
-  it('submit calls agentSession.processTurn and appends the summary to agentResponses', async () => {
+  it('submit calls agentSession.processChat and appends the summary to agentResponses', async () => {
     const agentSession = {
       processTurn: vi.fn(async (text: string) => ({
+        summary: `reply to: ${text}`,
+        sessionId: 'test-session',
+        toolCalls: [],
+      })),
+      processChat: vi.fn(async (text: string) => ({
         summary: `reply to: ${text}`,
         sessionId: 'test-session',
         toolCalls: [],
@@ -150,7 +159,8 @@ describe('TuiApp -- chat-input dispatch', () => {
     // submitChatInput is async; await a microtask so the response lands.
     await Promise.resolve();
     await Promise.resolve();
-    expect(agentSession.processTurn).toHaveBeenCalledWith('fix it');
+    expect(agentSession.processChat).toHaveBeenCalledWith('fix it');
+    expect(agentSession.processTurn).not.toHaveBeenCalled();
     expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['fix it']);
     expect(internal.getStateForTest().views.chat.agentResponses).toEqual(['reply to: fix it']);
   });
@@ -164,6 +174,57 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi']);
     expect(internal.getStateForTest().views.chat.agentResponses.length).toBe(1);
     expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('hi');
+  });
+
+  it('agent tab Enter calls processTurn (not processChat) and routes to agent Responses', async () => {
+    const processChat = vi.fn(async (text: string) => ({
+      summary: `[chat] ${text}`,
+      sessionId: 'test-session',
+      toolCalls: [],
+      reason: 'chat',
+    }));
+    const processTurn = vi.fn(async (text: string) => ({
+      summary: `[agent] ${text}`,
+      sessionId: 'test-session',
+      toolCalls: [],
+      reason: 'agent',
+    }));
+    const agentSession = { processChat, processTurn };
+    const { internal } = makeApp({ agentSession });
+    // Switch to the agent tab.
+    const state = internal.getStateForTest() as unknown as { activeTab: string };
+    state.activeTab = 'agent';
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(processTurn).toHaveBeenCalledWith('hi');
+    expect(processChat).not.toHaveBeenCalled();
+    expect(internal.getStateForTest().views.agent.submittedPrompts).toEqual(['hi']);
+    expect(internal.getStateForTest().views.agent.agentResponses).toEqual(['[agent] hi']);
+  });
+
+  it('chat tab Enter calls processChat (not processTurn)', async () => {
+    const processChat = vi.fn(async (text: string) => ({
+      summary: `[chat] ${text}`,
+      sessionId: 'test-session',
+      toolCalls: [],
+      reason: 'chat',
+    }));
+    const processTurn = vi.fn(async (text: string) => ({
+      summary: `[agent] ${text}`,
+      sessionId: 'test-session',
+      toolCalls: [],
+      reason: 'agent',
+    }));
+    const agentSession = { processChat, processTurn };
+    const { internal } = makeApp({ agentSession });
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(processChat).toHaveBeenCalledWith('hi');
+    expect(processTurn).not.toHaveBeenCalled();
   });
 
   it('round-trips a typed prompt with backspace edits and a final Enter', () => {
