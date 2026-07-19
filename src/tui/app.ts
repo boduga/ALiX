@@ -103,7 +103,7 @@ export class TuiApp {
     // ── Chat-tab input capture ─────────────────────────────────────
     if (tab === 'chat') {
       const perTab = this.state.views.chat;
-      if (key === '\r' || key === '\n') {
+      if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
           // Submit the typed query — for now, echo the submission; the
           // AgentSession integration lives in a follow-up.
@@ -113,7 +113,7 @@ export class TuiApp {
         this.paintFullFrame();
         return;
       }
-      if (key === '' || key === '\b') {
+      if (key === 'Backspace') {
         perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
         this.paintFullFrame();
         return;
