@@ -86,10 +86,11 @@ describe('renderDashboard — DAEMON panel', () => {
       renderDashboard(onlineSnap(), c, 0);
       const frame = c.renderFrame();
       const lines = stripAnsi(frame).split('\n').map((l) => l.slice(2, panelW(120)));
-      // Mid rule between metadata block (rows 2-5) and metrics block (rows 7-9).
-      // Note: there is no separate top rule inside the box — the title sits at
-      // row 1 directly under the box top edge and content follows.
-      expect(/^─+$/.test(lines[6] || '')).toBe(true);
+      // Mid rule between metadata block (rows 3-6) and metrics block (rows 8-10).
+      // Row 2 is left blank as breathing room after the title. The sliced
+      // window can end with the box's right `│` edge — accept either a
+      // pure-dash row or dashes-terminated-by-`│`.
+      expect(/^─+│?$/.test(lines[7] || '')).toBe(true);
     });
   });
 
@@ -132,7 +133,7 @@ describe('renderDashboard — DAEMON panel', () => {
       // For each metric row, the rightmost bar glyph (█ or ░) painted by
       // DAEMON must land at or before col pw - 1 (the rightmost cell of the
       // DAEMON column). Anything at col pw or beyond would be a regression.
-      for (const rowY of [7, 8, 9]) {
+      for (const rowY of [8, 9, 10]) {
         const line = lines[rowY] || '';
         const daemonCol = line.slice(0, pw);
         const lastBarIdx = Math.max(
@@ -156,7 +157,7 @@ describe('renderDashboard — DAEMON panel', () => {
 
       // Rightmost non-blank DAEMON-owned character in the CPU bar row must
       // land at or before col pw - 1.
-      const cpuRow = stripAnsi(lines[7] || '').slice(0, pw);
+      const cpuRow = stripAnsi(lines[8] || '').slice(0, pw);
       // trim trailing spaces
       const trimmed = cpuRow.replace(/\s+$/, '');
       expect(trimmed.length).toBeLessThanOrEqual(pw);

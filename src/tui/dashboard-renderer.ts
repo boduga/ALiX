@@ -181,33 +181,36 @@ function renderDaemonPanel(
 
   if (!daemon) {
     // Offline body: a single dim "not running" line, no metadata, no metrics.
-    canvas.write(2, startY + 2, "\x1b[90m○ not running\x1b[0m");
+    canvas.write(2, startY + 3, "\x1b[90m○ not running\x1b[0m");
     return;
   }
 
-  // Rows 2..5 — metadata block.
+  // Rows 3..6 — metadata block (row 2 left blank as breathing room after the title).
   const metaLabel = (k: string): string => `${k.padEnd(12)}`;
   const contentW = panelW - 4;
   const meta = (rowOffset: number, line: string): void => {
     canvas.write(2, startY + rowOffset, line.slice(0, contentW));
   };
 
-  meta(2, `${metaLabel("PID:")}${daemon.pid ?? "—"}`);
-  meta(3, `${metaLabel("Uptime:")}${fmtUptime(daemon.uptimeSeconds)}`);
-  meta(4, `${metaLabel("Version:")}${snap.session?.version ?? "—"}`);
-  meta(5, `${metaLabel("Workspace:")}—`);
+  meta(3, `${metaLabel("PID:")}${daemon.pid ?? "—"}`);
+  meta(4, `${metaLabel("Uptime:")}${fmtUptime(daemon.uptimeSeconds)}`);
+  meta(5, `${metaLabel("Version:")}${snap.session?.version ?? "—"}`);
+  meta(6, `${metaLabel("Workspace:")}—`);
 
-  // Row 6 — mid rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(2 + i, startY + 6, "\x1b[90m─\x1b[0m");
+  // Row 7 — mid rule (between metadata and metrics).
+  // Width: `panelW - 3` cols centered with 1-col padding on each side, so the
+  // rule stays strictly inside the box's vertical `│` borders instead of
+  // overwriting the right edge.
+  for (let i = 0; i < panelW - 3; i++) canvas.write(2 + i, startY + 7, "\x1b[90m─\x1b[0m");
 
-  // Rows 7..9 — metrics block.
+  // Rows 8..10 — metrics block.
   const cpuFrac = daemon.cpuPercent / 100;
   const memFrac = daemon.memoryTotalBytes > 0 ? daemon.memoryRssBytes / daemon.memoryTotalBytes : 0;
   const diskFrac = daemon.diskTotalBytes > 0 ? daemon.diskUsedBytes / daemon.diskTotalBytes : -1;
 
-  drawLabeledBar(canvas, 2, startY + 7, contentW, "CPU", cpuFrac);
-  drawLabeledBar(canvas, 2, startY + 8, contentW, "MEM", memFrac);
-  drawLabeledBar(canvas, 2, startY + 9, contentW, "DISK", diskFrac);
+  drawLabeledBar(canvas, 2, startY + 8, contentW, "CPU", cpuFrac);
+  drawLabeledBar(canvas, 2, startY + 9, contentW, "MEM", memFrac);
+  drawLabeledBar(canvas, 2, startY + 10, contentW, "DISK", diskFrac);
 }
 
 function truncateWS(s: string, n: number): string {
@@ -434,8 +437,10 @@ function renderRuntimePanel(
     workflow ? `${fmtUptime((now - workflow.startedAt) / 1000)} ago` : "—",
   );
 
-  // Row 6 — mid rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 6, "\x1b[90m─\x1b[0m");
+  // Row 6 — mid rule (between metadata and metrics).
+  // Width: panelW - 3 cols (1-col padding on each side) so the rule stays
+  // inside the box's `│` borders instead of overwriting the right edge.
+  for (let i = 0; i < panelW - 3; i++) canvas.write(x + i, startY + 6, "\x1b[90m─\x1b[0m");
 
   // Row 7 — progress label.
   if (workflow) {
@@ -508,8 +513,10 @@ function renderSopsAndPolicyPanel(
     canvas.write(x, startY + 3, "\x1b[90m○ no SOPs loaded\x1b[0m");
   }
 
-  // Row 7 — mid rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 7, "\x1b[90m─\x1b[0m");
+  // Row 7 — mid rule (between SOP list and Policy block).
+  // Width: panelW - 3 cols (1-col padding on each side) so the rule stays
+  // inside the box's `│` borders instead of overwriting the right edge.
+  for (let i = 0; i < panelW - 3; i++) canvas.write(x + i, startY + 7, "\x1b[90m─\x1b[0m");
 
   // Row 8 — Policy mode.
   const modeText = policy?.enforcementMode ?? "—";
