@@ -25,13 +25,14 @@ export class ChatView implements TuiView {
     // Draw the cursor at the end of the typed text.
     c.write(7 + buf.length, 4, '\x1b[7m \x1b[0m');
 
-    // 4-panel dashboard starting at y = 7 (below header + prompt gap).
-    renderDashboard(ctx.snap, c, 7);
-
-    // Busy / phase footer.
-    if (ctx.snap.session && ctx.snap.session.phase !== 'Idle') {
-      c.write(2, 17, `\x1b[33mbusy: ${ctx.snap.session.phase}\x1b[0m`);
-    }
+    // Pin the 4-panel dashboard to the bottom of the canvas, flush above
+    // the 3-row footer painted by app.ts (tab row at N-3, gap row at N-2,
+    // status row at N-1). Floor at 0 so very small canvases still render
+    // a meaningful frame instead of overlapping the prompt.
+    const PANEL_H = 12;
+    const FOOTER_H = 3;
+    const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
+    renderDashboard(ctx.snap, c, startY);
 
     // Return empty rows — the caller writes the full frame from the canvas.
     return { rows: [] };
