@@ -298,7 +298,6 @@ export class TuiApp {
     const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = this.state.lastSnapshot;
     const session = snap.session;
-    const order: readonly TabId[] = ['chat', 'daemon', 'approvals', 'sops', 'policy', 'runtime'];
 
     const renderCtx: ViewRenderContext = {
       snap: this.state.lastSnapshot,
@@ -323,7 +322,7 @@ export class TuiApp {
     this.views[this.state.activeTab]!.render(renderCtx);
     // Tabs row (with key-hint suffix, right-aligned).
     let tabLine = '';
-    for (const id of order) {
+    for (const id of TAB_ORDER) {
       const active = id === this.state.activeTab;
       tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
     }
