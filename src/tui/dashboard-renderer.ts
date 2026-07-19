@@ -64,20 +64,19 @@ export function renderDashboard(
   renderRuntimePanel(canvas, snap, panelW, startY);
 
   // ── SOPS & POLICY panel (index 3) ───────────────────────────────
-  canvas.drawBox(panelW * 3, startY, panelW, panelH, "SOPS & POLICY");
-  canvas.write(cx(3, 2), startY + 2, `SOPs     ${sops?.totalLoaded ?? 0}`);
-  if (sops && sops.items.length > 0) {
-    canvas.write(cx(3, 2), startY + 3, `  ${sops.items[0]!.id}`);
-  } else {
-    canvas.write(cx(3, 2), startY + 3, "\x1b[90m  none\x1b[0m");
-  }
-  canvas.write(cx(3, 2), startY + 5, `Rules    ${policy?.rules.length ?? 0}`);
-  if (policy && policy.violations.length > 0) {
-    canvas.write(cx(3, 2), startY + 6, `  \x1b[31m${policy.violations.length} violations\x1b[0m`);
-  }
-  if (policy) {
-    canvas.write(cx(3, 2), startY + 7, `mode     ${policy.enforcementMode}`);
-  }
+  // Layout per row (relative to startY):
+  //   0:  title bar — "SOPS & POLICY" (green, left) + "SOPs: N | Rules: M"
+  //       (green when both >0, gray otherwise; right-aligned)
+  //   1:  top rule
+  //   2:  "Loaded SOPs: N" header
+  //   3..5: up to 3 SOP items ("● <name> …… <version>")
+  //   6:  "… and K more" overflow indicator (only when items.length > 3)
+  //   7:  mid rule (between SOP list and Policy block)
+  //   8:  "Policy:     <mode>" (mode in green when 'strict')
+  //   9:  "Violations: <count>" (count in red when >0)
+  //   10: bottom rule
+  //   11: footer hint (shortened to fit narrow canvases)
+  renderSopsAndPolicyPanel(canvas, snap, panelW, startY);
 }
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
@@ -456,4 +455,77 @@ function renderRuntimePanel(
 
   // Row 10 — footer hint (shortened to fit inside contentW at narrow canvases).
   canvas.write(x, startY + 10, "\x1b[32mLive 'runtime' stream\x1b[0m");
+}
+
+/**
+ * Render the redesigned SOPS & POLICY panel at row `startY`. Mirrors the
+ * same chrome pattern (title bar + counter, top rule, structured block,
+ * mid rule, second structured block, bottom rule, footer hint) used by
+ * the other three dashboard panels — no `TerminalCanvas.drawBox`.
+ */
+function renderSopsAndPolicyPanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  panelW: number,
+  startY: number,
+): void {
+  const x = panelW * 3 + 2;
+  const contentW = panelW - 4;
+  const sops = snap.sops;
+  const policy = snap.policy;
+
+  // Row 0 — title bar.
+  canvas.write(x, startY, "\x1b[32mSOPS & POLICY\x1b[0m");
+  const sopCount = sops?.totalLoaded ?? 0;
+  const ruleCount = policy?.rules.length ?? 0;
+  const counterText = `SOPs: ${sopCount} | Rules: ${ruleCount}`;
+  const counterColor = sopCount > 0 && ruleCount > 0 ? "\x1b[32m" : "\x1b[90m";
+  canvas.write(x + contentW - counterText.length, startY, `${counterColor}${counterText}\x1b[0m`);
+
+  // Row 1 — top rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 1, "\x1b[90m─\x1b[0m");
+
+  // Row 2 — Loaded SOPs header.
+  canvas.write(x, startY + 2, `Loaded SOPs: ${sopCount}`);
+
+  // Rows 3..5 — SOP items (up to 3).
+  if (sops && sops.items.length > 0) {
+    const max = Math.min(3, sops.items.length);
+    for (let i = 0; i < max; i++) {
+      const item = sops.items[i]!;
+      const prefix = `● ${item.name} `;
+      const versionBudget = Math.max(0, contentW - prefix.length);
+      const versionText = truncateWS(item.version, versionBudget);
+      canvas.write(x, startY + 3 + i, `● ${item.name}`);
+      canvas.write(x + contentW - versionText.length, startY + 3 + i, versionText);
+    }
+
+    // Row 6 — overflow indicator (only when more items than the cap).
+    const overflow = sops.items.length - max;
+    if (overflow > 0) {
+      canvas.write(x, startY + 6, `\x1b[90m… and ${overflow} more\x1b[0m`);
+    }
+  } else {
+    // Empty-state at row 3 when no SOPs.
+    canvas.write(x, startY + 3, "\x1b[90m○ no SOPs loaded\x1b[0m");
+  }
+
+  // Row 7 — mid rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 7, "\x1b[90m─\x1b[0m");
+
+  // Row 8 — Policy mode.
+  const modeText = policy?.enforcementMode ?? "—";
+  const modeColor = modeText === "strict" ? "\x1b[32m" : "";
+  canvas.write(x, startY + 8, `Policy:     ${modeColor}${modeText}\x1b[0m`);
+
+  // Row 9 — Violations count.
+  const vCount = policy?.recentViolationCount ?? 0;
+  const vColor = vCount > 0 ? "\x1b[31m" : "";
+  canvas.write(x, startY + 9, `Violations: ${vColor}${vCount}\x1b[0m`);
+
+  // Row 10 — bottom rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 10, "\x1b[90m─\x1b[0m");
+
+  // Row 11 — footer hint (shortened for narrow canvases, matches RUNTIME's choice).
+  canvas.write(x, startY + 11, "\x1b[32mOpen sops or policy\x1b[0m");
 }

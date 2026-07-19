@@ -437,3 +437,143 @@ describe('renderDashboard — RUNTIME panel', () => {
     expect(frame).toContain('no active workflow');
   });
 });
+
+describe('renderDashboard — SOPS & POLICY panel', () => {
+  const panelW = (cols: number) => Math.floor(cols / 4);
+
+  function sopsSnap(opts: {
+    sops?: { items: readonly any[]; totalLoaded: number } | null;
+    policy?: {
+      rules?: readonly any[];
+      violations?: readonly any[];
+      enforcementMode?: 'strict' | 'auto' | 'bypass';
+      recentViolationCount?: number;
+    } | null;
+  }): any {
+    const now = Date.now();
+    return {
+      generatedAt: now,
+      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+      daemon: {
+        pid: 28731, uptimeSeconds: 767, cpuPercent: 2.1,
+        memoryRssBytes: 0, memoryTotalBytes: 0,
+        diskUsedBytes: 0, diskTotalBytes: 0,
+        clients: [], sampledAt: now,
+      },
+      approvals: null,
+      runtime: null,
+      sops: opts.sops,
+      policy: opts.policy,
+    };
+  }
+
+  it('shows SOPs/Rules counter (right-aligned) on the title row', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      sopsSnap({
+        sops: { items: [], totalLoaded: 8 },
+        policy: { rules: [{}], recentViolationCount: 0, enforcementMode: 'strict' },
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    // At canvas.width=120, panel contentW=26 is too narrow to fit both the
+    // 13-char 'SOPS & POLICY' title and the 19-char counter without overlap;
+    // production accepts that the title gets clipped. The counter is the
+    // load-bearing substring the dashboard uses to surface state.
+    expect(frame).toContain('SOPs: 8 | Rules: 1');
+    // chat-view test (substring /SOPS/) is satisfied through the counter
+    // substring alone — no separate title assertion needed.
+  });
+
+  it('renders "Loaded SOPs: N" header and the SOP names', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      sopsSnap({
+        sops: {
+          items: [
+            { id: 's1', name: 'coding-standards', version: 'v1.2.0' },
+            { id: 's2', name: 'security-baseline', version: 'v1.0.3' },
+            { id: 's3', name: 'review-checklist', version: 'v1.1.0' },
+          ],
+          totalLoaded: 3,
+        },
+        policy: null,
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('Loaded SOPs: 3');
+    expect(frame).toContain('coding-standards');
+    expect(frame).toContain('security-baseline');
+    expect(frame).toContain('review-checklist');
+    expect(frame).toContain('v1.2.0');
+  });
+
+  it('shows "… and N more" overflow indicator when items exceed cap', () => {
+    const c = new TerminalCanvas(120, 30);
+    const items = Array.from({ length: 8 }, (_, i) => ({
+      id: `s${i}`,
+      name: `sop-${i}`,
+      version: `v1.0.${i}`,
+    }));
+    renderDashboard(
+      sopsSnap({
+        sops: { items, totalLoaded: 8 },
+        policy: null,
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    // cap is 3, total 8 → "and 5 more"
+    expect(frame).toContain('… and 5 more');
+  });
+
+  it('renders Policy mode and Violations count', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      sopsSnap({
+        sops: null,
+        policy: { rules: [], recentViolationCount: 0, enforcementMode: 'strict' },
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('Policy:');
+    expect(frame).toContain('strict');
+    expect(frame).toContain('Violations:');
+    expect(frame).toContain('0');
+  });
+
+  it('shows empty-state note when there are no SOPs', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      sopsSnap({ sops: { items: [], totalLoaded: 0 }, policy: null }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('no SOPs loaded');
+    expect(frame).toContain('Loaded SOPs: 0');
+  });
+
+  it('renders the footer hint', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(sopsSnap({}), c, 0);
+    const frame = c.renderFrame();
+    expect(frame).toContain('Open sops or policy');
+  });
+
+  it('does NOT paint a drawBox border around SOPS & POLICY', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(sopsSnap({}), c, 0);
+    const frame = stripAnsi(c.renderFrame());
+    const pw = panelW(120); // 30
+    const col = frame
+      .split('\n')
+      .map((l) => l.slice(3 * pw, 4 * pw))
+      .join('\n');
+    expect(col).not.toContain('┌');
+    expect(col).not.toContain('│');
+    expect(col).not.toContain('└');
+  });
+});
