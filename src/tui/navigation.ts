@@ -8,29 +8,20 @@ export type NavigationKey =
 export class Navigation {
   private cursor = 0;
   private readonly order: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
-  private readonly shortcuts: Readonly<Record<string, TabId>> = {
-    c: 'chat',
-    e: 'agent',
-    d: 'daemon',
-    a: 'approvals',
-    r: 'runtime',
-    s: 'sops',
-    p: 'policy',
-  };
 
   interpret(rawKey: string): NavigationKey | null {
     if (rawKey === 'Tab') return { type: 'cycle', forward: true };
     if (rawKey === 'Shift+Tab') return { type: 'cycle', forward: false };
     if (rawKey === 'Escape') return { type: 'home' };
-    // Up to 7 digit shortcuts match the current TAB_ORDER length.
-    const digitMatch = /^[1-9]$/.exec(rawKey);
-    if (digitMatch) {
-      const idx = Number(digitMatch[0]) - 1;
+    // Ctrl+digit (encoded by terminals as ESC + digit). Matches up to
+    // 9 tab positions; bounds check below enforces the actual order
+    // length. Single-letter shortcuts removed — Ctrl+digit is the
+    // single shortcut surface.
+    const ctrlDigit = /^Ctrl\+([0-9])$/.exec(rawKey);
+    if (ctrlDigit) {
+      const idx = Number(ctrlDigit[1]) - 1;
       if (idx >= 0 && idx < this.order.length) return { type: 'jump', tab: this.order[idx]! };
     }
-    const lower = rawKey.toLowerCase();
-    const jump = this.shortcuts[lower];
-    if (jump) return { type: 'jump', tab: jump };
     return null;
   }
 

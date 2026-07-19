@@ -375,6 +375,13 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
   if (s === '\x7f' || s === '\b') return 'Backspace';
+  // Ctrl+digit: terminals reliably encode these as ESC + digit (the
+  // standard "Alt+digit" sequence doubles as "Ctrl+digit" for tab
+  // jumping — see xterm, iTerm2, ghostty, kitty). Parse the escape
+  // prefix and surface as 'Ctrl+N' so the navigation layer can match.
+  if (s.length === 2 && s[0] === '\x1b' && s[1] >= '0' && s[1] <= '9') {
+    return `Ctrl+${s[1]}`;
+  }
   if (s === '\x1b' && buf.length >= 3 && buf[1] === 0x5b /* [ */) {
     if (buf[2] === 0x41) return 'ArrowUp';
     if (buf[2] === 0x42) return 'ArrowDown';

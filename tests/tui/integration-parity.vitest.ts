@@ -136,41 +136,35 @@ describe('TuiApp — parity with legacy chat input', () => {
     stdinHandler!(Buffer.from('\t', 'utf8'));
     expect(getTab()).toBe('approvals');
 
-    // Digit shortcuts: '1' → position 0 = chat
-    stdinHandler!(Buffer.from('1', 'utf8'));
-    expect(getTab()).toBe('chat');
+    // Ctrl+digit shortcuts (terminals encode these as ESC + digit).
+    // stdinHandler receives bytes; we send the 2-byte sequence that
+    // parseKey recognises as Ctrl+1 through Ctrl+7.
+    const sendCtrlDigit = (digit: string) => {
+      const buf = Buffer.alloc(2);
+      buf[0] = 0x1b; // ESC
+      buf[1] = digit.charCodeAt(0);
+      stdinHandler!(buf);
+    };
+    sendCtrlDigit('1'); expect(getTab()).toBe('chat');
+    sendCtrlDigit('2'); expect(getTab()).toBe('agent');
+    sendCtrlDigit('3'); expect(getTab()).toBe('daemon');
+    sendCtrlDigit('4'); expect(getTab()).toBe('approvals');
+    sendCtrlDigit('5'); expect(getTab()).toBe('runtime');
+    sendCtrlDigit('6'); expect(getTab()).toBe('sops');
+    sendCtrlDigit('7'); expect(getTab()).toBe('policy');
 
-    // '2' → position 1 = agent
-    stdinHandler!(Buffer.from('2', 'utf8'));
-    expect(getTab()).toBe('agent');
+    // Out-of-range Ctrl+8 / Ctrl+9 / Ctrl+0 are no-ops (bounds-checked).
+    sendCtrlDigit('8'); expect(getTab()).toBe('policy');
+    sendCtrlDigit('9'); expect(getTab()).toBe('policy');
+    sendCtrlDigit('0'); expect(getTab()).toBe('policy');
 
-    // '3' → position 2 = daemon, '4' → approvals, '5' → runtime,
-    // '6' → sops, '7' → policy
-    stdinHandler!(Buffer.from('3', 'utf8'));
-    expect(getTab()).toBe('daemon');
-    stdinHandler!(Buffer.from('4', 'utf8'));
-    expect(getTab()).toBe('approvals');
-    stdinHandler!(Buffer.from('5', 'utf8'));
-    expect(getTab()).toBe('runtime');
-    stdinHandler!(Buffer.from('6', 'utf8'));
-    expect(getTab()).toBe('sops');
-    stdinHandler!(Buffer.from('7', 'utf8'));
-    expect(getTab()).toBe('policy');
-
-    // Single-letter shortcuts: c → chat, e → agent, d → daemon,
-    // a → approvals, r → runtime, s → sops, p → policy
+    // Single-letter shortcuts removed in favor of Ctrl+digit. A raw
+    // letter reaches the active view (or the prompt in chat/agent)
+    // rather than triggering a tab jump.
     stdinHandler!(Buffer.from('c', 'utf8'));
-    expect(getTab()).toBe('chat');
+    expect(getTab()).toBe('policy');
     stdinHandler!(Buffer.from('e', 'utf8'));
-    expect(getTab()).toBe('agent');
-    stdinHandler!(Buffer.from('d', 'utf8'));
-    expect(getTab()).toBe('daemon');
-    stdinHandler!(Buffer.from('a', 'utf8'));
-    expect(getTab()).toBe('approvals');
-    stdinHandler!(Buffer.from('r', 'utf8'));
-    expect(getTab()).toBe('runtime');
-    stdinHandler!(Buffer.from('s', 'utf8'));
-    expect(getTab()).toBe('sops');
+    expect(getTab()).toBe('policy');
     stdinHandler!(Buffer.from('p', 'utf8'));
     expect(getTab()).toBe('policy');
 
