@@ -28,6 +28,8 @@ export interface PerTabState {
   lastEventArrivedAt: number;
   /** Partial message typed into the input prompt before submit. */
   inputBuffer: string;
+  /** Submitted prompts, oldest first; rendered in the chat scrollback. */
+  submittedPrompts: string[];
 }
 
 // Imported from snapshot.ts for use below; re-exported so callers can
@@ -52,6 +54,7 @@ export function createInitialPerTabState(): PerTabState {
     expandedSections: [],
     lastEventArrivedAt: 0,
     inputBuffer: '',
+    submittedPrompts: [],
   };
 }
 

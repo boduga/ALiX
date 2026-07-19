@@ -6,7 +6,9 @@ describe('PolicyView', () => {
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
     dimensions: { columns: 100, rows: 30 },
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
   });
 
   it('renders strict-mode banner when enforcementMode=strict', () => {
@@ -51,7 +53,9 @@ describe('PolicyView', () => {
       snap: ctx().snap,
       dimensions: { columns: 100, rows: 30 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
     };
     expect(view.handleKey?.('ArrowDown', baseCtx)).toEqual({ type: 'moveCursor', cursor: 1 });
     expect(view.handleKey?.('ArrowUp', baseCtx)).toEqual({ type: 'moveCursor', cursor: 0 });

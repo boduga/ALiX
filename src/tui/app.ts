@@ -105,8 +105,11 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          // Submit the typed query — for now, echo the submission; the
-          // AgentSession integration lives in a follow-up.
+          // Echo the prompt into the chat scrollback so the user sees
+          // what was submitted; the AgentSession.processTurn wiring
+          // is a follow-up that will replace this with a real
+          // response.
+          perTab.submittedPrompts.push(perTab.inputBuffer);
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }

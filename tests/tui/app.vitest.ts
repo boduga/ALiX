@@ -56,7 +56,7 @@ describe('TuiApp -- chat-input dispatch', () => {
       handleRaw(buf: Buffer): void;
       getStateForTest(): {
         lastSnapshot: unknown;
-        views: { chat: { inputBuffer: string } };
+        views: { chat: { inputBuffer: string; submittedPrompts: string[] } };
       };
     };
     // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
@@ -109,6 +109,29 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
     internal.handleRaw(Buffer.from([0x0d])); // Enter
     expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+
+  it('Enter records the submitted prompt in submittedPrompts (echoed scrollback)', () => {
+    const { internal } = makeApp();
+    for (const c of 'fix it') internal.handleRaw(Buffer.from(c));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('fix it');
+    // Buffer has 0 entries before submit.
+    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual([]);
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['fix it']);
+  });
+
+  it('each Enter appends the prompt to submittedPrompts (history grows)', () => {
+    const { internal } = makeApp();
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // first submit
+    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi']);
+    for (const c of 'you') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x7f])); // backspace: 'yo'
+    // Submitting a 2-char buffer should record it (not 'you').
+    internal.handleRaw(Buffer.from([0x0d]));
+    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi', 'yo']);
   });
 
   it('round-trips a typed prompt with backspace edits and a final Enter', () => {

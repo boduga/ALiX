@@ -32,6 +32,22 @@ export class ChatView implements TuiView {
     const PANEL_H = 14;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
+
+    // Scrollback area — show the most recent submitted prompts above
+    // the dashboard. Each prompt occupies one row with a dim → marker
+    // so it reads as a message in a conversation. We show as many as
+    // fit between the prompt (row 4) and the dashboard (row startY).
+    const submitted = ctx.perTab.submittedPrompts;
+    const scrollbackTop = 5;
+    const scrollbackBottom = startY - 1;
+    const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
+    const recent = submitted.slice(-scrollbackRows);
+    for (let i = 0; i < recent.length; i++) {
+      const rowY = scrollbackTop + i;
+      c.write(0, rowY, '\x1b[90m→ \x1b[0m');
+      c.write(2, rowY, recent[i]!.slice(0, Math.max(0, ctx.dimensions.columns - 4)));
+    }
+
     renderDashboard(ctx.snap, c, startY);
 
     // Return empty rows — the caller writes the full frame from the canvas.

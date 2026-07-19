@@ -5,7 +5,9 @@ describe('SopsView', () => {
   const ctx = (
     snap: any = null,
     perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
   ) => ({
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
     dimensions: { columns: 100, rows: 30 },
@@ -37,7 +39,9 @@ describe('SopsView', () => {
       snap: ctx().snap,
       dimensions: { columns: 100, rows: 30 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
     };
     expect(view.handleKey?.('ArrowDown', baseCtx)).toEqual({ type: 'moveCursor', cursor: 1 });
     expect(view.handleKey?.('ArrowUp', { ...baseCtx, perTab: { ...baseCtx.perTab, cursor: 1 } })).toEqual({ type: 'moveCursor', cursor: 0 });
@@ -49,7 +53,9 @@ describe('SopsView', () => {
       snap: ctx().snap,
       dimensions: { columns: 100, rows: 30 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
     };
     expect(view.handleKey?.('/', baseCtx)).toEqual({ type: 'handled' });
     expect(view.handleKey?.('x', baseCtx)).toEqual({ type: 'handled' });

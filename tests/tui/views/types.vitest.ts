@@ -11,7 +11,9 @@ describe('TuiView contract — render purity', () => {
       snap: { session: { phase: 'Executing' as any, mode: 'auto' as any, version: '1', startedAt: 0, turns: 0 } as any } as any,
       dimensions: { columns: 80, rows: 24 },
       perTab: { cursor: 0, scrollOffset: 7, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
     };
     const a = fakeView.render(ctx);
     const b = fakeView.render(ctx);
@@ -28,7 +30,9 @@ describe('TuiView contract — render purity', () => {
       snap: null as any,
       dimensions: { columns: 80, rows: 24 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '' },
+            inputBuffer: '',
+            submittedPrompts: []
+          },
     };
     try {
       // @ts-expect-error — perTab is Readonly<PerTabState>; assignment fails at compile time

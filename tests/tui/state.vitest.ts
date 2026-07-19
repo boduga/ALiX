@@ -26,7 +26,7 @@ describe('PerTabState serializability', () => {
       searchQuery: 'hello world',
       expandedSections: ['a', 'b'],
       lastEventArrivedAt: 1_700_000_000,
-      inputBuffer: '',
+      inputBuffer: '', submittedPrompts: [],
     };
     const rt = JSON.parse(JSON.stringify(original)) as PerTabState;
     expect(rt).toEqual(original);
@@ -39,7 +39,7 @@ describe('PerTabState serializability', () => {
       scrollOffset: 0,
       searchQuery: '',
       expandedSections: [],
-    inputBuffer: '',
+    inputBuffer: '', submittedPrompts: [],
       lastEventArrivedAt: 0,
     };
     expect(() => JSON.stringify(sample)).not.toThrow();
@@ -52,12 +52,12 @@ describe('TuiAppState defaults', () => {
       lastSnapshot: undefined,
       activeTab: 'chat' as TabId,
       views: {
-        chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '' },
-        daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '' },
-        approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '' },
-        runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '' },
-        sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '' },
-        policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '' },
+        chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [] },
+        daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [] },
+        approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [] },
+        runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [] },
+        sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [] },
+        policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [] },
       },
       refreshGeneration: 0,
       refreshStatus: 'idle',
