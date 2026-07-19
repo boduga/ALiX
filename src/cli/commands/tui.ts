@@ -19,11 +19,19 @@ export interface TuiOptions {
   daemonMode?: boolean;
 }
 
-/** Set ALIX_TUI_STUB_AGENT=1 to keep the legacy `Acknowledged: ...` stub
- *  for the chat submit response (useful for offline smoke tests or
- *  environments where the agent runtime cannot initialize). */
+/**
+ * By default the TUI uses a stub `agentSession` that responds with a
+ * fixed echo — the real `createAgentSession().processTurn()` does not
+ * yet handle non-actionable inputs (e.g. a "Hi" greeting) gracefully
+ * and reports 'Agent reached maximum iteration' back to the chat.
+ *
+ * Set `ALIX_TUI_REAL_AGENT=1` to opt into the real AgentSession for
+ * actionable queries. The wire-up stays in place so a future runtime
+ * that handles casual chat can be enabled with that one env var.
+ */
 function shouldUseStubAgent(): boolean {
-  return process.env.ALIX_TUI_STUB_AGENT === '1';
+  if (process.env.ALIX_TUI_REAL_AGENT === '1') return false;
+  return true;
 }
 
 export async function runTui(opts: TuiOptions = {}): Promise<void> {
@@ -52,11 +60,11 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
 
-  // Either a real AgentSession runtime, or the legacy echo stub. The
-  // real session is created here (a sync closure factory) and
-  // initializes lazily on first processTurn. If init throws later, the
-  // TuiApp's submitChatInput catches it and surfaces the error in the
-  // chat scrollback.
+  // Either a real AgentSession runtime (opt-in via env), or the stub
+  // echo. The real session is created here (a sync closure factory)
+  // and initializes lazily on first processTurn. If init throws later,
+  // the TuiApp's submitChatInput catches it and surfaces the error in
+  // the chat scrollback.
   let agentSession: any;
   if (shouldUseStubAgent()) {
     agentSession = {
