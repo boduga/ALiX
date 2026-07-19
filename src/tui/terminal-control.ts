@@ -22,8 +22,20 @@ export function createTerminalControl(): TerminalControl {
     showCursor(visible: boolean) {
       process.stdout.write(visible ? '\x1b[?25h' : '\x1b[?25l');
     },
-    enterAltBuffer() { process.stdout.write('\x1b[?1049h'); },
-    exitAltBuffer() { process.stdout.write('\x1b[?1049l'); },
+    enterAltBuffer() {
+      // Set ALIX_TUI_ALT_BUFFER=1 to take over the terminal with the
+      // private alt-buffer mode. Default OFF — runs in the regular
+      // scrollback so the user can highlight and copy rendered text
+      // with the terminal's normal mouse selection.
+      if (process.env.ALIX_TUI_ALT_BUFFER === '1') {
+        process.stdout.write('\x1b[?1049h');
+      }
+    },
+    exitAltBuffer() {
+      if (process.env.ALIX_TUI_ALT_BUFFER === '1') {
+        process.stdout.write('\x1b[?1049l');
+      }
+    },
     onResize(cb: () => void) {
       resizeCb = cb;
       process.stdout.on('resize', cb);
