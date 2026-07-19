@@ -172,26 +172,10 @@ export class TuiApp {
    * AgentSession is configured (e.g., in unit tests).
    */
   private async submitChatInput(text: string): Promise<void> {
-    if (!this.state.lastSnapshot) return;
-    const perTab = this.state.views.chat;
-    let summary: string;
-    try {
-      if (this.opts.agentSession && typeof (this.opts.agentSession as any).processChat === 'function') {
-        const result = await (this.opts.agentSession as any).processChat(text);
-        summary = result.summary;
-      } else if (this.opts.agentSession) {
-        // Older stubs only implement processTurn. Use it as a graceful
-        // downgrade rather than failing the chat submit.
-        const result = await this.opts.agentSession.processTurn(text);
-        summary = result.summary;
-      } else {
-        summary = `[chat] ${text}`;
-      }
-    } catch (err) {
-      summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
-    }
-    perTab.agentResponses.push(summary);
-    this.paintFullFrame();
+    await this.dispatchToSession(text, 'chat', this.state.views.chat, [
+      this.opts.agentSession?.processChat?.bind(this.opts.agentSession),
+      this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
+    ], '[chat]');
   }
 
   /**
@@ -200,21 +184,59 @@ export class TuiApp {
    * to a placeholder when no AgentSession is configured.
    */
   private async submitAgentInput(text: string): Promise<void> {
+    await this.dispatchToSession(text, 'agent', this.state.views.agent, [
+      this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
+    ], '[agent]');
+  }
+
+  /**
+   * Shared submit path used by both submitChatInput and submitAgentInput.
+   * Tries each candidate in turn — first non-throwing call wins. Wraps the
+   * call in a 5s timeout so a hung session (e.g., real
+   * `createAgentSession().processChat` blocked on a network provider) can
+   * never leave the scrollback empty. Errors are also piped to stderr
+   * so silent hangs surface in `node alix tui` logs.
+   */
+  private async dispatchToSession(
+    text: string,
+    kind: 'chat' | 'agent',
+    perTab: { agentResponses: string[] },
+    candidates: Array<((text: string) => Promise<{ summary: string }>) | undefined>,
+    fallbackPrefix: string,
+  ): Promise<void> {
     if (!this.state.lastSnapshot) return;
-    const perTab = this.state.views.agent;
-    let summary: string;
-    try {
-      if (this.opts.agentSession) {
-        const result = await this.opts.agentSession.processTurn(text);
+    let summary: string = `${fallbackPrefix} ${text}`;
+    for (const fn of candidates) {
+      if (!fn) continue;
+      try {
+        const result = await this.raceAgentCall(text, fn);
         summary = result.summary;
-      } else {
-        summary = `[agent] ${text}`;
+        break;
+      } catch (err) {
+        // Stderr is independent of the TUI render — even if paintFullFrame
+        // fails for some reason, the operator sees the failure here.
+        process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
+        summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
+        // Try the next candidate rather than giving up.
       }
-    } catch (err) {
-      summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
     }
     perTab.agentResponses.push(summary);
     this.paintFullFrame();
+  }
+
+  /**
+   * Race an agent call against a 5s timeout. Returns the call's result on
+   * success, throws on either rejection or timeout.
+   */
+  private raceAgentCall(
+    text: string,
+    fn: (text: string) => Promise<{ summary: string }>,
+  ): Promise<{ summary: string }> {
+    const timeoutMs = 5000;
+    const timeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
+    );
+    return Promise.race([fn(text), timeout]);
   }
 
   private tryHandleGlobal(key: string): boolean {

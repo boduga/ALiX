@@ -227,6 +227,51 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(processTurn).not.toHaveBeenCalled();
   });
 
+  it('chat submit falls back to error message when processChat throws — and pipes to stderr', async () => {
+    const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const processChat = vi.fn(async () => { throw new Error('boom'); });
+      const agentSession = { processChat };
+      const { internal } = makeApp({ agentSession });
+      for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+      internal.handleRaw(Buffer.from([0x0d])); // Enter
+      await new Promise((r) => setTimeout(r, 30));
+      expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('agent error');
+      expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('boom');
+      // Stderr was used so silent hangs surface in logs.
+      expect(errSpy).toHaveBeenCalled();
+      const errArg = errSpy.mock.calls.find((c) => String(c[0]).includes('boom'));
+      expect(errArg).toBeDefined();
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
+  it('chat submit falls back when processChat hangs past the 5s timeout', async () => {
+    const errSpy = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      const processChat = vi.fn((_text: string) => new Promise<{ summary: string }>(() => {
+        // Intentionally never resolves — simulates a hung provider.
+      }));
+      const agentSession = { processChat };
+      // Override the 5s timeout with a short one so the test finishes quickly.
+      const origSetTimeout = globalThis.setTimeout;
+      globalThis.setTimeout = ((cb: () => void, ms?: number) => origSetTimeout(cb, Math.min(ms ?? 0, 50))) as typeof setTimeout;
+      try {
+        const { internal } = makeApp({ agentSession });
+        for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+        internal.handleRaw(Buffer.from([0x0d])); // Enter
+        await new Promise((r) => setTimeout(r, 80));
+        const responses = internal.getStateForTest().views.chat.agentResponses;
+        expect(responses[0]).toMatch(/timed out|agent error/);
+      } finally {
+        globalThis.setTimeout = origSetTimeout;
+      }
+    } finally {
+      errSpy.mockRestore();
+    }
+  });
+
   it('round-trips a typed prompt with backspace edits and a final Enter', () => {
     const { internal } = makeApp();
     // Chars in this fixture avoid navigation shortcuts (a/c/d/p/q/r/s/digits).
