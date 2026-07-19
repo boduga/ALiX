@@ -116,11 +116,11 @@ export class TerminalCanvas {
       this.write(x + w - 1, y + j, `${colorCode}│${reset}`);
     }
 
-    // Corners.
-    this.write(x, y, `${colorCode}┌${reset}`);
-    this.write(x + w - 1, y, `${colorCode}┐${reset}`);
-    this.write(x, y + h - 1, `${colorCode}└${reset}`);
-    this.write(x + w - 1, y + h - 1, `${colorCode}┘${reset}`);
+    // Corners (rounded style: ╭ ╮ ╰ ╯ for a softer visual feel).
+    this.write(x, y, `${colorCode}╭${reset}`);
+    this.write(x + w - 1, y, `${colorCode}╮${reset}`);
+    this.write(x, y + h - 1, `${colorCode}╰${reset}`);
+    this.write(x + w - 1, y + h - 1, `${colorCode}╯${reset}`);
 
     // Title — injected over the top border at x+2.
     if (title) {

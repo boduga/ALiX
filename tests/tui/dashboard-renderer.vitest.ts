@@ -426,9 +426,9 @@ describe('renderDashboard — RUNTIME panel', () => {
       .map((l) => l.slice(2 * pw, 3 * pw))
       .join('\n');
     // Box border — corners + vertical sides + horizontal edges.
-    expect(col).toContain('┌');
+    expect(col).toContain('╭');
     expect(col).toContain('│');
-    expect(col).toContain('└');
+    expect(col).toContain('╰');
   });
 
   it('shows empty-state note when no workflow', () => {
@@ -573,9 +573,9 @@ describe('renderDashboard — SOPS & POLICY panel', () => {
       .split('\n')
       .map((l) => l.slice(3 * pw, 4 * pw))
       .join('\n');
-    expect(col).toContain('┌');
+    expect(col).toContain('╭');
     expect(col).toContain('│');
-    expect(col).toContain('└');
+    expect(col).toContain('╰');
   });
 });
 
