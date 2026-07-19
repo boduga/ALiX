@@ -29,7 +29,7 @@ export class ChatView implements TuiView {
     // the 3-row footer painted by app.ts (tab row at N-3, gap row at N-2,
     // status row at N-1). Floor at 0 so very small canvases still render
     // a meaningful frame instead of overlapping the prompt.
-    const PANEL_H = 12;
+    const PANEL_H = 13;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
     renderDashboard(ctx.snap, c, startY);
