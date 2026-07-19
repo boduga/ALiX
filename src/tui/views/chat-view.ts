@@ -17,7 +17,6 @@ export class ChatView implements TuiView {
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-    c.clear();
 
     // Prompt line with the current input buffer (placed below the 3-row header).
     const buf = ctx.perTab.inputBuffer;
