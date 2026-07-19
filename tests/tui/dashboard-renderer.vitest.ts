@@ -315,3 +315,125 @@ describe('renderDashboard — APPROVALS panel', () => {
     expect(runtimeSlice).not.toContain('Requested');
   });
 });
+
+describe('renderDashboard — RUNTIME panel', () => {
+  const panelW = (cols: number) => Math.floor(cols / 4);
+
+  function runtimeSnap(opts: {
+    totalEvents?: number;
+    lastKind?: string;
+    lastTimestampAgo?: number;
+    workflow?: { name: string; currentStep: number; totalSteps: number; startedAtSecondsAgo: number };
+  }): any {
+    const now = Date.now();
+    const events = opts.lastKind
+      ? [{
+          id: 'e1',
+          kind: opts.lastKind,
+          summary: opts.lastKind,
+          timestamp: now - (opts.lastTimestampAgo ?? 2) * 1000,
+        }]
+      : [];
+    const totalEvents = opts.totalEvents ?? events.length;
+    return {
+      generatedAt: now,
+      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+      daemon: {
+        pid: 28731, uptimeSeconds: 767, cpuPercent: 2.1,
+        memoryRssBytes: 0, memoryTotalBytes: 0,
+        diskUsedBytes: 0, diskTotalBytes: 0,
+        clients: [], sampledAt: now,
+      },
+      approvals: null,
+      runtime: {
+        events,
+        workflow: opts.workflow
+          ? {
+              name: opts.workflow.name,
+              currentStep: opts.workflow.currentStep,
+              totalSteps: opts.workflow.totalSteps,
+              startedAt: now - opts.workflow.startedAtSecondsAgo * 1000,
+            }
+          : null,
+        totalEventCount: totalEvents,
+        lastEventAt: events[0]?.timestamp ?? null,
+      },
+      sops: null,
+      policy: null,
+    };
+  }
+
+  it('shows RUNTIME title and "events: N" counter with thousands separator', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(runtimeSnap({ totalEvents: 21530 }), c, 0);
+    const frame = c.renderFrame();
+    expect(frame).toContain('RUNTIME');
+    expect(frame).toContain('events: 21,530');
+  });
+
+  it('formats Started as HH:MM:SS ago when workflow present', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      runtimeSnap({ workflow: { name: 'plan', currentStep: 7, totalSteps: 12, startedAtSecondsAgo: 3 * 60 + 42 } }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('00:03:42 ago');
+    expect(frame).toContain('Started:');
+  });
+
+  it('renders Steps completed label and current/total counts', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      runtimeSnap({ workflow: { name: 'plan', currentStep: 7, totalSteps: 12, startedAtSecondsAgo: 60 } }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('Steps completed: 7 / 12');
+  });
+
+  it('renders the four metadata-row labels', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      runtimeSnap({
+        lastKind: 'exec.completed',
+        lastTimestampAgo: 2,
+        workflow: { name: 'research-and-implement', currentStep: 7, totalSteps: 12, startedAtSecondsAgo: 60 },
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('Last event:');
+    expect(frame).toContain('Active step:');
+    expect(frame).toContain('Workflow:');
+    expect(frame).toContain('Started:');
+  });
+
+  it('renders the "Live \'runtime\' stream" footer hint', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(runtimeSnap({}), c, 0);
+    const frame = c.renderFrame();
+    expect(frame).toContain("Live 'runtime' stream");
+  });
+
+  it('does NOT paint a drawBox border around RUNTIME', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(runtimeSnap({}), c, 0);
+    const frame = stripAnsi(c.renderFrame());
+    const pw = panelW(120);
+    const col = frame
+      .split('\n')
+      .map((l) => l.slice(2 * pw, 3 * pw))
+      .join('\n');
+    expect(col).not.toContain('┌');
+    expect(col).not.toContain('│');
+    expect(col).not.toContain('└');
+  });
+
+  it('shows empty-state note when no workflow', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(runtimeSnap({}), c, 0);
+    const frame = c.renderFrame();
+    expect(frame).toContain('no active workflow');
+  });
+});

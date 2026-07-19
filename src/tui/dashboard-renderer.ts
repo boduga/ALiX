@@ -48,21 +48,20 @@ export function renderDashboard(
   renderApprovalsPanel(canvas, snap, panelW, startY);
 
   // ── RUNTIME panel (index 2) ─────────────────────────────────────
-  canvas.drawBox(panelW * 2, startY, panelW, panelH, "RUNTIME");
-  canvas.write(cx(2, 2), startY + 2, `Events   ${runtime?.totalEventCount ?? 0}`);
-  if (runtime && runtime.events.length > 0) {
-    const last = runtime.events[0]!;
-    canvas.write(cx(2, 2), startY + 3, `  ${last.summary.slice(0, panelW - 6)}`);
-    canvas.write(cx(2, 2), startY + 4, `  ${new Date(last.timestamp).toISOString().slice(11, 19)}`);
-  } else {
-    canvas.write(cx(2, 2), startY + 3, "\x1b[90m  no events\x1b[0m");
-  }
-  canvas.write(cx(2, 2), startY + 6, `workflow  ${runtime?.workflow?.name ? truncateWS(runtime.workflow.name, 20) : "—"}`);
-  if (runtime?.workflow) {
-    const frac = runtime.workflow.totalSteps > 0 ? runtime.workflow.currentStep / runtime.workflow.totalSteps : 0;
-    canvas.drawBar(cx(2, 2), startY + 7, panelW - 4, frac);
-    canvas.write(cx(2, 2), startY + 8, `  ${runtime.workflow.currentStep} / ${runtime.workflow.totalSteps}`);
-  }
+  // Layout per row (relative to startY):
+  //   0:  title bar — "RUNTIME" (green, left) + "events: N" (green if >0, gray =0, right)
+  //   1:  top rule
+  //   2:  Last event:  <kind>           <relative-time-ago>
+  //   3:  Active step: Step N / —       <relative-time>
+  //   4:  Workflow:    <workflow-name>
+  //   5:  Started:     <HH:MM:SS ago>
+  //   6:  mid rule
+  //   7:  Steps completed: <current> / <total>
+  //   8:  progress bar (labeled bar — Steps fraction = currentStep / totalSteps)
+  //   9:  bottom rule
+  //   10: footer hint "Run 'runtime' for live stream"
+  //   11: blank
+  renderRuntimePanel(canvas, snap, panelW, startY);
 
   // ── SOPS & POLICY panel (index 3) ───────────────────────────────
   canvas.drawBox(panelW * 3, startY, panelW, panelH, "SOPS & POLICY");
@@ -336,4 +335,125 @@ function renderApprovalsPanel(
     const overflowText = `+${overflow} more`;
     canvas.write(x + contentW - overflowText.length, startY + 11, `\x1b[90m${overflowText}\x1b[0m`);
   }
+}
+
+function paintMetaLine(
+  canvas: TerminalCanvas,
+  x: number,
+  y: number,
+  contentW: number,
+  label: string,
+  value: string,
+  rightSuffix: string = "",
+): void {
+  const labelField = label.padEnd(14);
+  const valueStart = x + labelField.length;
+  const valueBudget = contentW - labelField.length - (rightSuffix ? rightSuffix.length + 1 : 0);
+  const valueText = truncateWS(value, Math.max(0, valueBudget));
+  canvas.write(x, y, `${labelField}${valueText}`);
+  if (rightSuffix) {
+    canvas.write(x + contentW - rightSuffix.length, y, rightSuffix);
+  }
+}
+
+/** Format a millisecond timestamp as a short bare-duration: "18s", "2m", "1h 5m". */
+function formatShortDuration(ms: number, now: number): string {
+  const sec = Math.max(0, Math.floor((now - ms) / 1000));
+  if (sec < 60) return `${sec}s`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m`;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  return `${h}h ${m}m`;
+}
+
+/** Format an integer with thousands separators, e.g. 21,530. */
+function formatThousands(n: number): string {
+  return n.toLocaleString("en-US");
+}
+
+/**
+ * Render the redesigned RUNTIME panel at row `startY`. Mirrors the DAEMON
+ * panel's chrome pattern (title bar + counter, top rule, metadata block,
+ * mid rule, metric block, bottom rule, footer hint) without using
+ * `TerminalCanvas.drawBox`.
+ */
+function renderRuntimePanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  panelW: number,
+  startY: number,
+): void {
+  const x = panelW * 2 + 2;
+  const contentW = panelW - 4;
+  const runtime = snap.runtime;
+  const workflow = runtime?.workflow ?? null;
+
+  // Row 0 — title bar.
+  canvas.write(x, startY, "\x1b[32mRUNTIME\x1b[0m");
+  const totalEvents = runtime?.totalEventCount ?? 0;
+  if (totalEvents > 0) {
+    const counter = `events: ${formatThousands(totalEvents)}`;
+    canvas.write(x + contentW - counter.length, startY, `\x1b[32m${counter}\x1b[0m`);
+  } else {
+    const counter = "events: 0";
+    canvas.write(x + contentW - counter.length, startY, `\x1b[90m${counter}\x1b[0m`);
+  }
+
+  // Row 1 — top rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 1, "\x1b[90m─\x1b[0m");
+
+  // Rows 2..5 — metadata block.
+  const now = Date.now();
+  const lastEvent = runtime && runtime.events.length > 0 ? runtime.events[0]! : null;
+  const lastKind = lastEvent?.kind ?? "—";
+  const lastAgo = lastEvent ? `${formatRelative(lastEvent.timestamp, now)}` : "";
+  paintMetaLine(canvas, x, startY + 2, contentW, "Last event:", lastKind, lastAgo);
+
+  // Active step: schema lacks per-step name + start. Use "Step N" placeholder
+  // and approximate duration from lastEventAt (close enough to "18s ago"-style).
+  const stepLabel = workflow ? `Step ${workflow.currentStep}` : "—";
+  const stepDurSrc = runtime?.lastEventAt ?? workflow?.startedAt ?? null;
+  const stepDur = stepDurSrc !== null ? formatShortDuration(stepDurSrc, now) : "";
+  paintMetaLine(canvas, x, startY + 3, contentW, "Active step:", stepLabel, stepDur);
+
+  paintMetaLine(
+    canvas,
+    x,
+    startY + 4,
+    contentW,
+    "Workflow:",
+    workflow ? truncateWS(workflow.name, contentW - 16) : "—",
+  );
+
+  paintMetaLine(
+    canvas,
+    x,
+    startY + 5,
+    contentW,
+    "Started:",
+    workflow ? `${fmtUptime((now - workflow.startedAt) / 1000)} ago` : "—",
+  );
+
+  // Row 6 — mid rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 6, "\x1b[90m─\x1b[0m");
+
+  // Row 7 — progress label.
+  if (workflow) {
+    canvas.write(
+      x,
+      startY + 7,
+      `Steps completed: ${workflow.currentStep} / ${workflow.totalSteps}`,
+    );
+    // Row 8 — progress bar.
+    const frac = workflow.totalSteps > 0 ? workflow.currentStep / workflow.totalSteps : 0;
+    drawLabeledBar(canvas, x, startY + 8, contentW, "%", frac);
+  } else {
+    canvas.write(x, startY + 7, "\x1b[90m○ no active workflow\x1b[0m");
+  }
+
+  // Row 9 — bottom rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 9, "\x1b[90m─\x1b[0m");
+
+  // Row 10 — footer hint (shortened to fit inside contentW at narrow canvases).
+  canvas.write(x, startY + 10, "\x1b[32mLive 'runtime' stream\x1b[0m");
 }
