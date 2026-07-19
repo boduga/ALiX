@@ -128,16 +128,17 @@ function drawLabeledBar(
 
   const barWidth = Math.max(0, totalWidth - 12);
   if (barWidth === 0) return;
-  // Bracket borders: ╭ at bar start, ╮ at bar end. Inner area carries
-  // the proportion of filled vs empty cells.
+  // Light quartile-block edges (▏ / ▕) frame the bar like the target
+  // design — thin vertical strokes at start/end, distinguishable from the
+  // full-block fill (█) and light-shade empty cells (░) inside.
   const innerWidth = Math.max(0, barWidth - 2);
   const filledInner = Math.round(clamp01(fraction) * innerWidth);
-  canvas.write(x + 12, y, "\x1b[90m╭\x1b[0m");
+  canvas.write(x + 12, y, "\x1b[90m▏\x1b[0m");
   for (let i = 0; i < innerWidth; i++) {
     if (i < filledInner) canvas.write(x + 13 + i, y, "\x1b[32m█\x1b[0m");
     else canvas.write(x + 13 + i, y, "\x1b[90m░\x1b[0m");
   }
-  canvas.write(x + 13 + innerWidth, y, "\x1b[90m╮\x1b[0m");
+  canvas.write(x + 13 + innerWidth, y, "\x1b[90m▕\x1b[0m");
 }
 
 /** Render percentage in a 6-char right-aligned field, e.g. `"  0.0%"`, `"100.0%"`, or `"(?)%"` when unavailable. */
