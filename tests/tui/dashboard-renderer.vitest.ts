@@ -81,16 +81,14 @@ describe('renderDashboard — DAEMON panel', () => {
       expect(frame).toContain('● running');
     });
 
-    it('draws two horizontal rules separating metadata and metrics', () => {
+    it('draws a horizontal rule between metadata and metrics', () => {
       const c = new TerminalCanvas(120, 30);
       renderDashboard(onlineSnap(), c, 0);
       const frame = c.renderFrame();
-      // Strip ANSI; rules must appear on what would be row 1 and row 6 of the
-      // rendered panel (relative to startY=0 here).
       const lines = stripAnsi(frame).split('\n').map((l) => l.slice(2, panelW(120)));
-      // Row 1: top rule (▓-filled by chars between col 2 and panelW-3)
-      expect(/^─+$/.test(lines[1] || '')).toBe(true);
-      // Row 6: mid rule
+      // Mid rule between metadata block (rows 2-5) and metrics block (rows 7-9).
+      // Note: there is no separate top rule inside the box — the title sits at
+      // row 1 directly under the box top edge and content follows.
       expect(/^─+$/.test(lines[6] || '')).toBe(true);
     });
   });

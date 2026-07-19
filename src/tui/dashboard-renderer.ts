@@ -168,21 +168,16 @@ function renderDaemonPanel(
 ): void {
   const daemon = snap.daemon;
 
-  // Bounding box around the panel — drawn first so subsequent content
-  // writes overlay it (title at row 0 overwrites part of the top edge,
-  // just like drawBox's built-in title).
+  // Bounding box around the panel — top edge stays clean (no title overlay).
   canvas.drawBox(0, startY, panelW, PANEL_H);
 
-  // Row 0 — title bar (always painted so the panel header is present in all states).
-  canvas.write(2, startY, "\x1b[32mDAEMON\x1b[0m");
+  // Row 1 — title bar (inside the box, below the top edge).
+  canvas.write(2, startY + 1, "\x1b[32mDAEMON\x1b[0m");
   if (daemon) {
-    canvas.write(panelW - 12, startY, "\x1b[32m● running\x1b[0m");
+    canvas.write(panelW - 12, startY + 1, "\x1b[32m● running\x1b[0m");
   } else {
-    canvas.write(panelW - 12, startY, "\x1b[90m○ stopped\x1b[0m");
+    canvas.write(panelW - 12, startY + 1, "\x1b[90m○ stopped\x1b[0m");
   }
-
-  // Row 1 — top rule (in-box separator between title and content).
-  for (let i = 0; i < panelW - 2; i++) canvas.write(2 + i, startY + 1, "\x1b[90m─\x1b[0m");
 
   if (!daemon) {
     // Offline body: a single dim "not running" line, no metadata, no metrics.
@@ -312,17 +307,14 @@ function renderApprovalsPanel(
   const x = panelW + 2;
   const contentW = panelW - 4;
 
-  // Bounding box around the panel.
+  // Bounding box around the panel — top edge stays clean.
   canvas.drawBox(panelW, startY, panelW, PANEL_H);
 
-  // Row 0 — title bar.
-  canvas.write(x, startY, "\x1b[32mAPPROVALS\x1b[0m");
+  // Row 1 — title bar (inside the box).
+  canvas.write(x, startY + 1, "\x1b[32mAPPROVALS\x1b[0m");
   const counterText = `${totalPending} pending`;
   const counterColor = totalPending > 0 ? "\x1b[33m" : "\x1b[90m";
-  canvas.write(x + contentW - counterText.length, startY, `${counterColor}${counterText}\x1b[0m`);
-
-  // Row 1 — top rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 1, "\x1b[90m─\x1b[0m");
+  canvas.write(x + contentW - counterText.length, startY + 1, `${counterColor}${counterText}\x1b[0m`);
 
   if (items.length === 0) {
     canvas.write(x, startY + 2, "\x1b[90m○ no pending approvals\x1b[0m");
@@ -396,22 +388,19 @@ function renderRuntimePanel(
   const runtime = snap.runtime;
   const workflow = runtime?.workflow ?? null;
 
-  // Bounding box around the panel.
+  // Bounding box around the panel — top edge stays clean.
   canvas.drawBox(panelW * 2, startY, panelW, PANEL_H);
 
-  // Row 0 — title bar.
-  canvas.write(x, startY, "\x1b[32mRUNTIME\x1b[0m");
+  // Row 1 — title bar (inside the box).
+  canvas.write(x, startY + 1, "\x1b[32mRUNTIME\x1b[0m");
   const totalEvents = runtime?.totalEventCount ?? 0;
   if (totalEvents > 0) {
     const counter = `events: ${formatThousands(totalEvents)}`;
-    canvas.write(x + contentW - counter.length, startY, `\x1b[32m${counter}\x1b[0m`);
+    canvas.write(x + contentW - counter.length, startY + 1, `\x1b[32m${counter}\x1b[0m`);
   } else {
     const counter = "events: 0";
-    canvas.write(x + contentW - counter.length, startY, `\x1b[90m${counter}\x1b[0m`);
+    canvas.write(x + contentW - counter.length, startY + 1, `\x1b[90m${counter}\x1b[0m`);
   }
-
-  // Row 1 — top rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 1, "\x1b[90m─\x1b[0m");
 
   // Rows 2..5 — metadata block.
   const now = Date.now();
@@ -483,19 +472,16 @@ function renderSopsAndPolicyPanel(
   const sops = snap.sops;
   const policy = snap.policy;
 
-  // Bounding box around the panel.
+  // Bounding box around the panel — top edge stays clean.
   canvas.drawBox(panelW * 3, startY, panelW, PANEL_H);
 
-  // Row 0 — title bar.
-  canvas.write(x, startY, "\x1b[32mSOPS & POLICY\x1b[0m");
+  // Row 1 — title bar (inside the box).
+  canvas.write(x, startY + 1, "\x1b[32mSOPS & POLICY\x1b[0m");
   const sopCount = sops?.totalLoaded ?? 0;
   const ruleCount = policy?.rules.length ?? 0;
   const counterText = `SOPs: ${sopCount} | Rules: ${ruleCount}`;
   const counterColor = sopCount > 0 && ruleCount > 0 ? "\x1b[32m" : "\x1b[90m";
-  canvas.write(x + contentW - counterText.length, startY, `${counterColor}${counterText}\x1b[0m`);
-
-  // Row 1 — top rule.
-  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 1, "\x1b[90m─\x1b[0m");
+  canvas.write(x + contentW - counterText.length, startY + 1, `${counterColor}${counterText}\x1b[0m`);
 
   // Row 2 — Loaded SOPs header.
   canvas.write(x, startY + 2, `Loaded SOPs: ${sopCount}`);
