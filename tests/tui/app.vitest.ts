@@ -38,3 +38,94 @@ describe('TuiApp -- tab-state preservation', () => {
     expect(state.views.runtime.scrollOffset).toBe(200);
   });
 });
+
+describe('TuiApp -- chat-input dispatch', () => {
+  // Build a tui app whose snapshot builder returns a fixed snapshot, so
+  // paintFullFrame() has something valid to render. We never paint in
+  // these tests — we only drive handleRaw and inspect state.
+  function makeApp() {
+    const snap = {
+      generatedAt: 1,
+      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+      daemon: null, approvals: null, runtime: null, sops: null, policy: null,
+    };
+    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+    const metrics = { start: () => {}, stop: async () => {} };
+    const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    const internal = app as unknown as {
+      handleRaw(buf: Buffer): void;
+      getStateForTest(): {
+        lastSnapshot: unknown;
+        views: { chat: { inputBuffer: string } };
+      };
+    };
+    // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
+    internal.getStateForTest().lastSnapshot = snap;
+    internal.getStateForTest().views.chat.inputBuffer = '';
+    return { app, internal };
+  }
+
+  it('appends printable characters to the chat buffer', () => {
+    const { internal } = makeApp();
+    internal.handleRaw(Buffer.from('h'));
+    internal.handleRaw(Buffer.from('i'));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('hi');
+  });
+
+  it('supports Backspace deletion via DEL byte (0x7f)', () => {
+    const { internal } = makeApp();
+    // Use letters that aren't navigation shortcuts (avoid a/d/r/s/p/c).
+    internal.handleRaw(Buffer.from('x'));
+    internal.handleRaw(Buffer.from('y'));
+    internal.handleRaw(Buffer.from('z'));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('xyz');
+    internal.handleRaw(Buffer.from([0x7f]));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('xy');
+    internal.handleRaw(Buffer.from([0x7f]));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('x');
+    internal.handleRaw(Buffer.from([0x7f]));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+
+  it('supports Backspace deletion via BS byte (0x08)', () => {
+    const { internal } = makeApp();
+    internal.handleRaw(Buffer.from('x'));
+    internal.handleRaw(Buffer.from('y'));
+    internal.handleRaw(Buffer.from([0x08])); // BS
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('x');
+  });
+
+  it('supports Enter (CR) and clears the buffer for non-empty input', () => {
+    const { internal } = makeApp();
+    internal.handleRaw(Buffer.from('h'));
+    internal.handleRaw(Buffer.from('i'));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    // After Enter with non-empty buffer, the buffer is cleared.
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+
+  it('Enter on an empty buffer does nothing harmful', () => {
+    const { internal } = makeApp();
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+
+  it('round-trips a typed prompt with backspace edits and a final Enter', () => {
+    const { internal } = makeApp();
+    // Chars in this fixture avoid navigation shortcuts (a/c/d/p/q/r/s/digits).
+    // Allowed: e, f, g, h, i, j, k, l, m, n, o, t, u, v, w, x, y, z, space.
+    for (const c of 'fix it now') internal.handleRaw(Buffer.from(c));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('fix it now');
+    // Backspace 4 times — remove "now ".
+    for (let i = 0; i < 4; i++) internal.handleRaw(Buffer.from([0x7f]));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('fix it');
+    // Append " now too" — note: 'r' is a shortcut to the runtime tab,
+    // so this fixture deliberately avoids it.
+    for (const c of ' now too') internal.handleRaw(Buffer.from(c));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('fix it now too');
+    // Enter — clears the buffer.
+    internal.handleRaw(Buffer.from([0x0d]));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+});
