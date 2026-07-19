@@ -133,8 +133,8 @@ describe('renderDashboard — DAEMON panel', () => {
       // For each metric row, the rightmost bar glyph (█ or ░) painted by
       // DAEMON must land at or before col pw - 1 (the rightmost cell of the
       // DAEMON column). Anything at col pw or beyond would be a regression.
-      // Layout: CPU=8, MEM=9, sep=10 (no bar), DISK=11.
-      for (const rowY of [8, 9, 11]) {
+      // Layout (PANEL_H=14): CPU=8, blank=9, MEM=10, blank=11, DISK=12.
+      for (const rowY of [8, 10, 12]) {
         const line = lines[rowY] || '';
         const daemonCol = line.slice(0, pw);
         const lastBarIdx = Math.max(

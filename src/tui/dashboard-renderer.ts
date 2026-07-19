@@ -10,7 +10,7 @@ import type { DashboardSnapshot } from "./snapshot.js";
 import type { TerminalCanvas } from "./canvas.js";
 
 /** All dashboard panels share this fixed height (in canvas rows). */
-const PANEL_H = 13;
+const PANEL_H = 14;
 
 /**
  * Render the 4-panel dashboard onto the provided canvas at the given
@@ -202,15 +202,15 @@ function renderDaemonPanel(
   // overwriting the right edge.
   for (let i = 0; i < panelW - 3; i++) canvas.write(2 + i, startY + 7, "\x1b[90m─\x1b[0m");
 
-  // Rows 8..11 — metrics block. Row 10 is intentionally left blank as
-  // visual breathing room between MEM (row 9) and DISK (row 11).
+  // Rows 8..12 — metrics block. Rows 9 and 11 are intentionally blank
+  // for breathing room between CPU↔MEM (row 9) and MEM↔DISK (row 11).
   const cpuFrac = daemon.cpuPercent / 100;
   const memFrac = daemon.memoryTotalBytes > 0 ? daemon.memoryRssBytes / daemon.memoryTotalBytes : 0;
   const diskFrac = daemon.diskTotalBytes > 0 ? daemon.diskUsedBytes / daemon.diskTotalBytes : -1;
 
   drawLabeledBar(canvas, 2, startY + 8, contentW, "CPU", cpuFrac);
-  drawLabeledBar(canvas, 2, startY + 9, contentW, "MEM", memFrac);
-  drawLabeledBar(canvas, 2, startY + 11, contentW, "DISK", diskFrac);
+  drawLabeledBar(canvas, 2, startY + 10, contentW, "MEM", memFrac);
+  drawLabeledBar(canvas, 2, startY + 12, contentW, "DISK", diskFrac);
 }
 
 function truncateWS(s: string, n: number): string {
@@ -325,18 +325,18 @@ function renderApprovalsPanel(
     const now = Date.now();
     let row = 3;
     for (const item of items) {
-      if (row + 1 > 10) break; // leave row 11 for footer, row 12 for box bottom edge
+      if (row + 1 > 11) break; // leave row 12 for footer, row 13 for box bottom edge
       paintApprovalItemRow(canvas, x, startY + row, contentW, item);
       paintApprovalSubRow(canvas, x, startY + row + 1, contentW, item, now);
       row += 2;
     }
   }
 
-  // Row 11 — footer hint (inside the box, just above the bottom edge at row 12).
-  canvas.write(x, startY + 11, "\x1b[32mRun 'approvals' to review\x1b[0m");
+  // Row 12 — footer hint (inside the box, just above the bottom edge at row 13).
+  canvas.write(x, startY + 12, "\x1b[32mRun 'approvals' to review\x1b[0m");
   if (overflow > 0) {
     const overflowText = `+${overflow} more`;
-    canvas.write(x + contentW - overflowText.length, startY + 11, `\x1b[90m${overflowText}\x1b[0m`);
+    canvas.write(x + contentW - overflowText.length, startY + 12, `\x1b[90m${overflowText}\x1b[0m`);
   }
 }
 
@@ -456,8 +456,8 @@ function renderRuntimePanel(
     canvas.write(x, startY + 8, "\x1b[90m○ no active workflow\x1b[0m");
   }
 
-  // Row 11 — footer hint (just above box bottom edge at row 12).
-  canvas.write(x, startY + 11, "\x1b[32mLive 'runtime' stream\x1b[0m");
+  // Row 12 — footer hint (just above box bottom edge at row 13).
+  canvas.write(x, startY + 12, "\x1b[32mLive 'runtime' stream\x1b[0m");
 }
 
 /**
@@ -528,6 +528,6 @@ function renderSopsAndPolicyPanel(
   const vColor = vCount > 0 ? "\x1b[31m" : "";
   canvas.write(x, startY + 10, `Violations: ${vColor}${vCount}\x1b[0m`);
 
-  // Row 11 — footer hint (just above box bottom edge at row 12).
-  canvas.write(x, startY + 11, "\x1b[32mOpen sops or policy\x1b[0m");
+  // Row 12 — footer hint (just above box bottom edge at row 13).
+  canvas.write(x, startY + 12, "\x1b[32mOpen sops or policy\x1b[0m");
 }
