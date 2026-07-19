@@ -202,14 +202,20 @@ function renderDaemonPanel(
   // overwriting the right edge.
   for (let i = 0; i < panelW - 3; i++) canvas.write(2 + i, startY + 7, "\x1b[90m─\x1b[0m");
 
-  // Rows 8..10 — metrics block.
+  // Rows 8..11 — metrics block (CPU, MEM, separator, DISK).
   const cpuFrac = daemon.cpuPercent / 100;
   const memFrac = daemon.memoryTotalBytes > 0 ? daemon.memoryRssBytes / daemon.memoryTotalBytes : 0;
   const diskFrac = daemon.diskTotalBytes > 0 ? daemon.diskUsedBytes / daemon.diskTotalBytes : -1;
 
   drawLabeledBar(canvas, 2, startY + 8, contentW, "CPU", cpuFrac);
   drawLabeledBar(canvas, 2, startY + 9, contentW, "MEM", memFrac);
-  drawLabeledBar(canvas, 2, startY + 10, contentW, "DISK", diskFrac);
+  // Row 10 — half-height separator row (visually lighter than the bars
+  // and the mid rule). Spans ~half the content width to look distinctly
+  // thinner. Centered horizontally.
+  const sepHalfWidth = Math.max(2, Math.floor((panelW - 4) / 2));
+  const sepText = "─".repeat(sepHalfWidth);
+  canvas.write(2 + Math.floor((panelW - 4) / 4), startY + 10, `\x1b[90m${sepText}\x1b[0m`);
+  drawLabeledBar(canvas, 2, startY + 11, contentW, "DISK", diskFrac);
 }
 
 function truncateWS(s: string, n: number): string {
