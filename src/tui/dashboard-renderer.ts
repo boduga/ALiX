@@ -39,16 +39,13 @@ export function renderDashboard(
   renderDaemonPanel(canvas, snap, panelW, startY);
 
   // ── APPROVALS panel (index 1) ───────────────────────────────────
-  canvas.drawBox(panelW, startY, panelW, panelH, "APPROVALS");
-  canvas.write(cx(1, 2), startY + 2, `Pending  ${approvals?.totalPending ?? 0}`);
-  if (approvals && approvals.pending.length > 0) {
-    for (let i = 0; i < Math.min(3, approvals.pending.length); i++) {
-      canvas.write(cx(1, 2), startY + 3 + i, `  ○ ${approvals.pending[i]!.toolName}`);
-    }
-  } else {
-    canvas.write(cx(1, 2), startY + 3, "\x1b[90m  none\x1b[0m");
-  }
-  canvas.write(cx(1, 2), startY + 7, `Resolved ${approvals?.totalResolved ?? 0}`);
+  // Layout per row (relative to startY):
+  //   0:  title bar — "APPROVALS" (green, left) + "N pending" (yellow if >0, gray =0, right)
+  //   1:  top rule
+  //   2..9: item list (2 rows each: dot row + "  Requested:" sub-line); up to 4 items
+  //   10: bottom rule (only when at least one item was rendered)
+  //   11: footer hint "Run 'approvals' to review"
+  renderApprovalsPanel(canvas, snap, panelW, startY);
 
   // ── RUNTIME panel (index 2) ─────────────────────────────────────
   canvas.drawBox(panelW * 2, startY, panelW, panelH, "RUNTIME");
@@ -215,4 +212,128 @@ function renderDaemonPanel(
 function truncateWS(s: string, n: number): string {
   if (s.length <= n) return s;
   return s.slice(0, n - 1) + "…";
+}
+
+/** Format a millisecond timestamp as `18s ago` / `2m ago` / `7h ago`. */
+function formatRelative(requestedAt: number, now: number): string {
+  const sec = Math.max(0, Math.floor((now - requestedAt) / 1000));
+  if (sec < 60) return `${sec}s ago`;
+  if (sec < 3600) return `${Math.floor(sec / 60)}m ago`;
+  return `${Math.floor(sec / 3600)}h ago`;
+}
+
+interface DisplayApprovalItem {
+  readonly toolName: string;
+  readonly targetPath: string;
+  readonly requestedAt: number;
+  readonly kind: "pending" | "resolved";
+}
+
+/** Pick up to `max` approval items, pending first then recently-resolved. */
+function collectDisplayItems(
+  approvals: DashboardSnapshot["approvals"],
+  max: number,
+): { items: DisplayApprovalItem[]; overflow: number } {
+  if (!approvals) return { items: [], overflow: 0 };
+  const items: DisplayApprovalItem[] = [];
+  for (const a of approvals.pending) {
+    if (items.length >= max) break;
+    items.push({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "pending" });
+  }
+  for (const a of approvals.recentlyResolved) {
+    if (items.length >= max) break;
+    items.push({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "resolved" });
+  }
+  const total = approvals.pending.length + approvals.recentlyResolved.length;
+  return { items, overflow: total - items.length };
+}
+
+function paintApprovalItemRow(
+  canvas: TerminalCanvas,
+  x: number,
+  y: number,
+  contentW: number,
+  item: DisplayApprovalItem,
+): void {
+  const dot = item.kind === "pending" ? "●" : "○";
+  const dotColor = item.kind === "pending" ? "\x1b[33m" : "";
+  const tag = "\x1b[32m✓ approved\x1b[0m";
+  const tagLen = "✓ approved".length;
+
+  canvas.write(x, y, `${dotColor}${dot}\x1b[0m ${item.toolName}`);
+
+  if (item.kind === "resolved") {
+    canvas.write(x + contentW - tagLen, y, tag);
+    return;
+  }
+
+  // Pending: right-align the target path within remaining cols.
+  const prefix = `● ${item.toolName} `;
+  const pathBudget = Math.max(0, contentW - prefix.length);
+  const path = truncateWS(item.targetPath, pathBudget);
+  canvas.write(x + contentW - path.length, y, path);
+}
+
+function paintApprovalSubRow(
+  canvas: TerminalCanvas,
+  x: number,
+  y: number,
+  contentW: number,
+  item: DisplayApprovalItem,
+  now: number,
+): void {
+  const text = `  Requested: ${formatRelative(item.requestedAt, now)}`;
+  canvas.write(x, y, text.slice(0, contentW));
+}
+
+/**
+ * Render the redesigned APPROVALS panel at row `startY`. Replaces the prior
+ * boxed summary (counts + bullet list) with a thin-rule item list that mirrors
+ * the target design: 2-row per item (dot+tool/path) + indented `Requested:`
+ * sub-line. Pending items appear before recently-resolved items. When the
+ * list is empty, only the empty-state note + footer are shown.
+ */
+function renderApprovalsPanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  panelW: number,
+  startY: number,
+): void {
+  const approvals = snap.approvals;
+  const totalPending = approvals?.totalPending ?? 0;
+  const { items, overflow } = collectDisplayItems(approvals, 4);
+
+  const x = panelW + 2;
+  const contentW = panelW - 4;
+
+  // Row 0 — title bar.
+  canvas.write(x, startY, "\x1b[32mAPPROVALS\x1b[0m");
+  const counterText = `${totalPending} pending`;
+  const counterColor = totalPending > 0 ? "\x1b[33m" : "\x1b[90m";
+  canvas.write(x + contentW - counterText.length, startY, `${counterColor}${counterText}\x1b[0m`);
+
+  // Row 1 — top rule.
+  for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 1, "\x1b[90m─\x1b[0m");
+
+  if (items.length === 0) {
+    canvas.write(x, startY + 2, "\x1b[90m○ no pending approvals\x1b[0m");
+  } else {
+    const now = Date.now();
+    let row = 2;
+    for (const item of items) {
+      if (row + 1 > 9) break; // leave rows 10..11 for rule+footer
+      paintApprovalItemRow(canvas, x, startY + row, contentW, item);
+      paintApprovalSubRow(canvas, x, startY + row + 1, contentW, item, now);
+      row += 2;
+    }
+    // Bottom rule (only when there were items).
+    for (let i = 0; i < panelW - 2; i++) canvas.write(x + i, startY + 10, "\x1b[90m─\x1b[0m");
+  }
+
+  // Row 11 — footer hint; add right-aligned "+N more" overflow indicator.
+  canvas.write(x, startY + 11, "\x1b[32mRun 'approvals' to review\x1b[0m");
+  if (overflow > 0) {
+    const overflowText = `+${overflow} more`;
+    canvas.write(x + contentW - overflowText.length, startY + 11, `\x1b[90m${overflowText}\x1b[0m`);
+  }
 }

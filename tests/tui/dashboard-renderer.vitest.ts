@@ -171,3 +171,147 @@ describe('renderDashboard — DAEMON panel', () => {
     });
   });
 });
+
+describe('renderDashboard — APPROVALS panel', () => {
+  const panelW = (cols: number) => Math.floor(cols / 4);
+
+  function approvalsSnap(opts: {
+    pending?: number;
+    resolved?: number;
+    pendingTools?: readonly string[];
+    resolvedTools?: readonly string[];
+  }): any {
+    const mk = (tool: string): any => ({
+      id: tool,
+      toolName: tool,
+      targetPath: `targets/${tool}.txt`,
+      args: {},
+      requestedAt: Date.now() - 18_000,
+      requestedBy: 'test',
+    });
+    return {
+      generatedAt: 1,
+      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+      daemon: {
+        pid: 28731, uptimeSeconds: 767, cpuPercent: 2.1,
+        memoryRssBytes: 0, memoryTotalBytes: 0,
+        diskUsedBytes: 0, diskTotalBytes: 0,
+        clients: [], sampledAt: 1,
+      },
+      approvals: {
+        pending: (opts.pendingTools ?? []).map(mk),
+        recentlyResolved: (opts.resolvedTools ?? []).map(mk),
+        totalPending: opts.pending ?? 0,
+        totalResolved: opts.resolved ?? 0,
+      },
+      runtime: null,
+      sops: null,
+      policy: null,
+    };
+  }
+
+  it('shows "APPROVALS" title and "N pending" counter (yellow when >0)', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      approvalsSnap({ pending: 1, pendingTools: ['write_file'] }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('APPROVALS');
+    expect(frame).toContain('1 pending');
+  });
+
+  it('lists tool names in the dot-rows', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      approvalsSnap({
+        pending: 2,
+        pendingTools: ['write_file', 'edit_file'],
+        resolved: 1,
+        resolvedTools: ['shell_command'],
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('write_file');
+    expect(frame).toContain('edit_file');
+    expect(frame).toContain('shell_command');
+  });
+
+  it('marks resolved items with "✓ approved"', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      approvalsSnap({
+        pending: 1,
+        pendingTools: ['write_file'],
+        resolved: 1,
+        resolvedTools: ['edit_file'],
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('✓ approved');
+  });
+
+  it('renders the "Run \'approvals\' to review" footer hint', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(approvalsSnap({}), c, 0);
+    const frame = c.renderFrame();
+    expect(frame).toContain("Run 'approvals' to review");
+  });
+
+  it('shows empty-state note when there are no approvals', () => {
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(approvalsSnap({}), c, 0);
+    const frame = c.renderFrame();
+    expect(frame).toContain('no pending approvals');
+    expect(frame).toContain('0 pending');
+  });
+
+  it('shows +N more overflow indicator when items truncated', () => {
+    const c = new TerminalCanvas(120, 30);
+    // 4 pending + 3 resolved = 7 items; cap is 4 → overflow of 3.
+    renderDashboard(
+      approvalsSnap({
+        pending: 4,
+        pendingTools: ['a', 'b', 'c', 'd'],
+        resolved: 3,
+        resolvedTools: ['e', 'f', 'g'],
+      }),
+      c, 0,
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('+3 more');
+  });
+
+  it('does not leak APPROVALS-owned content into the RUNTIME column at canvas.width=80', () => {
+    const c = new TerminalCanvas(80, 30);
+    renderDashboard(
+      approvalsSnap({
+        pending: 2,
+        pendingTools: ['write_file', 'edit_file'],
+        resolved: 2,
+        resolvedTools: ['shell_command', 'read_file'],
+      }),
+      c, 0,
+    );
+    const frame = stripAnsi(c.renderFrame());
+    const lines = frame.split('\n');
+    const pw = panelW(80); // 20
+    // APPROVALS occupies cols pw..2*pw-1. RUNTIME starts at 2*pw. RUNTIME
+    // still uses drawBox (its redesign is a future slice), so its left-edge
+    // '│' at cols 2*pw is expected. The leakage we want to catch is
+    // APPROVALS-owned strings — tool names, "✓ approved", "Requested" —
+    // appearing inside the RUNTIME column.
+    const runtimeSlice = lines
+      .slice(0, 12)
+      .map((l) => l.slice(2 * pw + 1, 3 * pw))
+      .join('\n');
+    expect(runtimeSlice).not.toContain('write_file');
+    expect(runtimeSlice).not.toContain('edit_file');
+    expect(runtimeSlice).not.toContain('shell_command');
+    expect(runtimeSlice).not.toContain('read_file');
+    expect(runtimeSlice).not.toContain('✓ approved');
+    expect(runtimeSlice).not.toContain('Requested');
+  });
+});
