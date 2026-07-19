@@ -211,8 +211,18 @@ export class TuiApp {
       canvas: c,
     };
 
-    // Header
-    c.write(2, 0, `\x1b[1malix tui\x1b[0m  v${session?.version ?? '—'}`);
+    // Header — top divider, content row, bottom divider.
+    // Row 0: top rule
+    for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
+    // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
+    c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
+    const version = session?.version ?? '—';
+    const sessionMode = session?.mode ?? 'auto';
+    const rightText = `\x1b[90mAgent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}\x1b[0m`;
+    const rightLen = `Agent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}`.length;
+    c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
+    // Row 2: bottom rule
+    for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
     // Body (active view writes into the canvas)
     this.views[this.state.activeTab]!.render(renderCtx);
     // Tabs
@@ -237,7 +247,7 @@ export class TuiApp {
     // creating an invisible-typing experience.
     if (this.state.activeTab === 'chat') {
       const bufLen = this.state.views.chat.inputBuffer.length;
-      process.stdout.write(`\x1b[1;${7 + bufLen + 1}H`);
+      process.stdout.write(`\x1b[5;${7 + bufLen + 1}H`);
     }
   }
 

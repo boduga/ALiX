@@ -19,15 +19,15 @@ export class ChatView implements TuiView {
     const c = ctx.canvas!;
     c.clear();
 
-    // Prompt line with the current input buffer.
+    // Prompt line with the current input buffer (placed below the 3-row header).
     const buf = ctx.perTab.inputBuffer;
-    c.write(0, 0, '\x1b[33m alix>\x1b[0m ');
-    c.write(7, 0, buf);
+    c.write(0, 4, '\x1b[33m alix>\x1b[0m ');
+    c.write(7, 4, buf);
     // Draw the cursor at the end of the typed text.
-    c.write(7 + buf.length, 0, '\x1b[7m \x1b[0m');
+    c.write(7 + buf.length, 4, '\x1b[7m \x1b[0m');
 
-    // 4-panel dashboard starting at y = 3.
-    renderDashboard(ctx.snap, c, 3);
+    // 4-panel dashboard starting at y = 7 (below header + prompt gap).
+    renderDashboard(ctx.snap, c, 7);
 
     // Busy / phase footer.
     if (ctx.snap.session && ctx.snap.session.phase !== 'Idle') {
