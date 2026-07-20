@@ -15,7 +15,7 @@ describe('wrapText', () => {
   });
 
   it('hard-truncates a single word longer than width', () => {
-    expect(wrapText('supercalifragilistic', 8)).toEqual(['supercali']);
+    expect(wrapText('supercalifragilistic', 8)).toEqual(['supercal']);
   });
 
   it('returns a single empty string for empty input', () => {
