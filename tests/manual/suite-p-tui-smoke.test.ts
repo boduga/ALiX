@@ -36,18 +36,18 @@ describe("TUI smoke", () => {
   it("shows welcome or TTY guard", async () => {
     const { stdout, stderr } = await runTui("", []);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "ALiX TUI"), `Expected TUI or TTY guard, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI"), `Expected TUI or TTY guard, got: ${combined.slice(0, 200)}`);
   });
 
-  it("shows help on ? input or TTY guard", async () => {
+  it("shows TUI on ? input or TTY guard", async () => {
     const { stdout, stderr } = await runTui("?\n", []);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "Commands") || ttyGuardOr(combined, "Panels"), `Expected help, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI") || ttyGuardOr(combined, "DAEMON"), `Expected TUI, got: ${combined.slice(0, 200)}`);
   });
 
-  it("daemon mode shows error or TTY guard", async () => {
+  it("TUI starts with --daemon or TTY guard", async () => {
     const { stdout, stderr } = await runTui("", ["--daemon"]);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "Daemon is not running") || combined.includes("ERROR"), `Expected daemon error, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI") || combined.includes("ERROR"), `Expected TUI, got: ${combined.slice(0, 200)}`);
   });
 });

@@ -27,6 +27,8 @@ import type { ExecutionContext } from "../observability/execution-context.js";
 import type { MutationSessionState } from "../run.js";
 import { initAgent } from "./agent.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
+import { createProvider } from "../providers/registry.js";
+import type { ModelAdapter } from "../providers/types.js";
 import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -40,6 +42,7 @@ import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory } from "../run/helpers.js";
+import { SessionPhase } from "../tui/state.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 
@@ -128,6 +131,36 @@ export interface AgentSessionConfig {
   /** Optional session events subscription (per spec §13). */
   events?: AgentSessionEvents;
   /**
+   * Optional pre-built model adapter for the lightweight chat path
+   * (`processChat`). When omitted, `processChat` falls back to either
+   * `chatModel`/`chatApiKey` env-style config or a clear placeholder
+   * summary — never throws.
+   */
+  chatProvider?: ModelAdapter;
+  /** Provider id + optional model name, used to lazily build a chat
+   *  provider when `chatProvider` is not supplied. */
+  chatModel?: { provider: string; model?: string };
+  /** API key for the lazy chat provider. */
+  chatApiKey?: string;
+  /**
+   * Optional system prompt override for the chat path. Defaults to a
+   * short, tool-free instruction set when omitted.
+   */
+  chatSystemPrompt?: string;
+  /**
+   * Optional search hook used by the chat path to inject real-time
+   * context ahead of the model call. Receives the user's raw message,
+   * returns a string of formatted search results. On failure, the chat
+   * path proceeds without search context (the response still lands).
+   */
+  chatSearchTool?: (query: string) => Promise<string>;
+  /**
+   * Label used to wrap the search context in the user message so the
+   * model can tell what's pre-fetched vs the user's own words. Defaults
+   * to `[Web search results]`.
+   */
+  chatSearchLabel?: string;
+  /**
    * Optional SessionStore for durable persistence (per spec §4). When set,
    * `save()` and `resume()` route through the store; when omitted, the
    * legacy in-memory stubs are used (no behavioral change for existing
@@ -139,10 +172,31 @@ export interface AgentSessionConfig {
 export interface AgentSession {
   /** Process one user message through the agent loop. */
   processTurn(message: string): Promise<AgentTurnResult>;
+  /**
+   * Process one user message through the lightweight chat path.
+   *
+   * `processChat` is the no-tool-loop conversational entrypoint used by the
+   * TUI's chat tab. Returns the same `AgentTurnResult` shape as
+   * `processTurn` so callers can treat both paths uniformly, but the
+   * underlying runtime is required to skip planning, tool execution,
+   * and verification — chat is for talk, agent is for work.
+   *
+   * The agent tab still uses `processTurn`. Operators opt into the
+   * execution class by choosing the tab — there is no hidden
+   * escalation from chat to agent.
+   */
+  processChat(message: string): Promise<AgentTurnResult>;
   /** The underlying session ID. */
   getSessionId(): string;
   /** Snapshot of current session state. */
   getState(): AgentSessionState;
+  /**
+   * Current lifecycle phase. AgentSession owns the value; observers read only.
+   * Optional in the interface because session lifecycles that pre-date the
+   * phase contract (e.g. lightweight test stubs) can opt out. The factory
+   * implementation always provides it.
+   */
+  getPhase?(): SessionPhase;
   /** Save session state to memory (stub — external via SessionStore). */
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
@@ -274,6 +328,11 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   const createdAt = new Date().toISOString();
   let updatedAt = new Date().toISOString();
   let _sessionCompleted = false;
+  // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
+  // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
+  // Initial value is Idle so freshly created sessions surface as Idle in the UI
+  // before any turn has run.
+  let phase: SessionPhase = SessionPhase.Idle;
 
   // ---- Internal helpers ----
 
@@ -292,6 +351,11 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       sessionId: config.sessionId,
       sessionMode: config.sessionMode,
     });
+
+    // Lifecycle phase: first turn started → Understanding. This is the earliest
+    // initialization point where ctx.log exists, so both getPhase() observers
+    // and event-log subscribers see Understanding before plan/tool work begins.
+    advancePhase(SessionPhase.Understanding);
 
     session = { sessionId: ctx.sessionId, actor: "system" as const };
 
@@ -418,6 +482,14 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       // Also skip when planMode is explicitly false.
       if (config.planMode !== false) {
         const { runPlanPhase } = await import("../run/plan-phase.js");
+
+        // Lifecycle phase: about to call runPlanPhase → Planning. This hook
+        // fires immediately before the call so observers see the phase move
+        // from Understanding to Planning as the plan phase enters its work block.
+        // When planMode is disabled, Planning is skipped entirely so the TUI
+        // moves directly from Understanding to Executing.
+        advancePhase(SessionPhase.Planning);
+
         const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath);
         if (planResult.action === "rejected") {
           transitionWorkflowStatus(wfRun, "failed");
@@ -545,11 +617,47 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     return calls;
   }
 
+  /**
+   * Advance the lifecycle phase. No-op if already in the target phase.
+   * Best-effort emits an `agent.session.phase_changed` event so observers
+   * (TUI, audit) can react without subscribing to the closure.
+   */
+  function advancePhase(next: SessionPhase): void {
+    if (phase === next) return;
+    phase = next;
+    // ctx may not be wired yet during very early setup; append is safe to skip
+    // in that window because phase is also exposed via getPhase().
+    const log = ctx?.log;
+    if (!log) return;
+    void log
+      .append({
+        sessionId: ctx.sessionId,
+        actor: "system",
+        type: "agent.session.phase_changed",
+        payload: { phase: next },
+      })
+      .catch(() => {
+        // Observability must never break the turn loop.
+      });
+  }
+
+  /**
+   * Observe the current lifecycle phase. TUI-only contract: the value is
+   * owned by AgentSession; consumers must not mutate.
+   */
+  function getPhase(): SessionPhase {
+    return phase;
+  }
+
   // ---- Exported interface methods ----
 
   async function processTurn(message: string): Promise<AgentTurnResult> {
     if (!initialized) {
       await initialize();
+    } else {
+      // Lifecycle phase: subsequent turn started → Understanding. First-turn
+      // initialization performs the same transition once ctx.log is available.
+      advancePhase(SessionPhase.Understanding);
     }
 
     // If the session was already completed (resumed completed session), return early
@@ -617,6 +725,12 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     }
 
     const startTime = Date.now();
+
+    // Lifecycle phase: about to call runTaskLoop → Executing. Tool-call
+    // events (tool.*) are emitted inside runTaskLoop itself; this hook fires
+    // immediately before the call so observers see the phase move from
+    // Planning to Executing as the task loop enters its execution path.
+    advancePhase(SessionPhase.Executing);
 
     // Build TaskLoopDeps and run the agent loop
     let result: RunResult;
@@ -686,6 +800,13 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       throw err;
     }
 
+    // Verifying phase begins as the task loop's verifier pass completes; the TUI
+    // shows "Verifying" between this transition and the eventual "Summarizing"
+    // once summary lines are emitted. During the actual verifier pass, the TUI
+    // still shows "Executing": the verifier lives inside runTaskLoop, so this is
+    // the post-verify-pre-result proxy boundary within the two-file scope.
+    advancePhase(SessionPhase.Verifying);
+
     // Update graph status based on result reason
     const FAILURE_REASONS = new Set(["max_iterations", "max_repairs", "rejected_scope_expansion"]);
     const isFailed = FAILURE_REASONS.has(result.reason ?? "");
@@ -751,6 +872,12 @@ You are in read-only mode. You can read files, search the codebase, and delegate
 
     updatedAt = new Date().toISOString();
 
+    // Lifecycle phase: summary produced → Summarizing. The summary emitted
+    // here is the user-visible synthesis of the turn; the phase flips before
+    // the turn-completed audit event so observers see Summarizing line up
+    // with the response delivery path.
+    advancePhase(SessionPhase.Summarizing);
+
     // Emit lifecycle event: turn completed
     await ctx.log.append({
       sessionId: ctx.sessionId, actor: "system",
@@ -762,6 +889,21 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     emitSessionEvents(config.events, turnToolCalls, messages, toolHistory);
 
     turnCount++;
+
+    // Lifecycle phase: turn delivered → Idle transition deferred.
+    // Per the task brief, the Idle transition requires a 60s no-further-turns
+    // idle timer. That timer is app-level state (it spans multiple
+    // processTurn calls) and is therefore deferred to the TUI/REPL polling
+    // path that already owns session liveness — see follow-up task. Newly
+    // created sessions stay in Idle until processTurn is called (the brief's
+    // initial-phase guarantee).
+    //
+    // NOTE: We do NOT advance to Idle here on turn completion. Monotonic
+    // forward contract holds: a fresh turn starts in Idle (initial), advances
+    // through Understanding→Planning→Executing→Verifying→Summarizing, and
+    // remains in Summarizing until the 60s idle window closes.
+    // advancePhase(SessionPhase.Idle); // deferred
+
     return {
       summary: result.summary,
       sessionId: ctx.sessionId,
@@ -903,10 +1045,122 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     });
   }
 
+  /**
+   * Chat-only path — no tool loop, no planning, no verification. Lazily
+   * initializes a lightweight provider (no workflow/MCP), maintains
+   * conversation history in closure, and returns the assistant's reply
+   * as `summary`. When no provider is configured (no `chatProvider`,
+   * `chatModel`, or fallback), surfaces a clear placeholder so the
+   * TUI scrollback never stays empty on submit.
+   */
+  let chatReady = false;
+  let chatProviderInstance: ModelAdapter | null = null;
+  let chatMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+  const CHAT_DEFAULT_SYSTEM_PROMPT =
+    'You are ALiX in a lightweight chat session. Be brief, direct, and conversational. ' +
+    'Do not invoke tools, do not run commands, do not edit files. Respond as if you were ' +
+    'talking to the operator — short sentences, no markdown headings.';
+  const chatSystemPrompt = config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
+  const CHAT_MAX_OUTPUT_TOKENS = 512;
+  const CHAT_SEARCH_TIMEOUT_MS = 2000;
+  const searchLabel = config.chatSearchLabel ?? '[Web search results]';
+
+  /** Run a search against the configured chatSearchTool, with a 4s budget. */
+  async function runSearch(query: string): Promise<string> {
+    if (!config.chatSearchTool) return '';
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<string>((resolve) => {
+      timer = setTimeout(() => resolve(''), CHAT_SEARCH_TIMEOUT_MS);
+    });
+    try {
+      const result = await Promise.race([config.chatSearchTool(query), timeout]);
+      return result ?? '';
+    } catch {
+      return '';
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
+
+  async function ensureChatProvider(): Promise<ModelAdapter | null> {
+    if (chatReady) return chatProviderInstance;
+    chatReady = true;
+    if (config.chatProvider) {
+      chatProviderInstance = config.chatProvider;
+      return chatProviderInstance;
+    }
+    if (!config.chatModel) return null;
+    try {
+      chatProviderInstance = await createProvider(config.chatModel, config.chatApiKey);
+      return chatProviderInstance;
+    } catch {
+      chatProviderInstance = null;
+      return null;
+    }
+  }
+
+  async function processChat(message: string): Promise<AgentTurnResult> {
+    const sessionId = session?.sessionId ?? 'chat';
+    const provider = await ensureChatProvider();
+    if (!provider) {
+      return {
+        summary: `[chat:no-provider] ${message}`,
+        sessionId,
+        toolCalls: [],
+        reason: 'chat',
+      };
+    }
+
+    chatMessages.push({ role: 'user', content: message });
+    try {
+      // Run search BEFORE the model call so the assistant sees fresh
+      // context. If search fails or times out, we proceed without it —
+      // the chat path never throws because of a search hiccup.
+      let effectiveUserContent: string = message;
+      if (config.chatSearchTool) {
+        const searchContext = await runSearch(message);
+        if (searchContext) {
+          effectiveUserContent = `${message}\n\n${searchLabel}\n${searchContext}`;
+          chatMessages[chatMessages.length - 1] = { role: 'user', content: effectiveUserContent };
+        }
+      }
+
+      const response = await provider.complete({
+        systemPrompt: chatSystemPrompt,
+        // Defensive copy so the provider's view of the conversation
+        // doesn't change after we push the assistant reply below.
+        messages: chatMessages.slice(),
+        maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+      });
+      const text = response.text?.trim() ?? '';
+      chatMessages.push({ role: 'assistant', content: text });
+      return {
+        summary: text || `[chat] ${message}`,
+        sessionId,
+        toolCalls: [],
+        reason: 'chat',
+        ...(response.usage ? { usage: response.usage as any } : {}),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Drop the user message we optimistically appended so the next turn
+      // doesn't see a phantom exchange.
+      chatMessages.pop();
+      return {
+        summary: `[chat error] ${message}`,
+        sessionId,
+        toolCalls: [],
+        reason: 'chat-error',
+      };
+    }
+  }
+
   return {
     processTurn,
+    processChat,
     getSessionId,
     getState,
+    getPhase,
     save,
     resume,
   };

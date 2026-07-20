@@ -708,7 +708,12 @@ filesChanged: [...sessionState.changed],
 config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
   await evaluatePattern(log, session, sessionDir, taskType);
-  return { sessionId, summary: "Agent reached maximum iterations", streamed: config.model.streaming };
+  return {
+    sessionId,
+    summary: "Agent reached maximum iterations",
+    streamed: config.model.streaming,
+    reason: "max_iterations",
+  };
   } finally {
 // Cleanup EnhancedVerifier
 if (enhancedVerifier) {
