@@ -236,4 +236,74 @@ describe("processChat (lightweight chat path)", () => {
     const req = (complete.mock.calls as unknown[][])[0]?.[0] as { systemPrompt: string } | undefined;
     expect(req!.systemPrompt).toBe('You are a pirate. Reply briefly.');
   });
+
+  it('runs chatSearchTool and injects results into the user message', async () => {
+    const chatSearchTool = vi.fn(async () => 'headline: ALiX ships new TUI');
+    const complete = vi.fn(async () => ({ text: 'fresh-reply', toolCalls: [] }));
+    const session = createAgentSession({
+      cwd: '/tmp/chat-test',
+      task: '',
+      sessionId: 'chat-test',
+      chatProvider: makeMockProvider(complete),
+      chatSearchTool,
+    });
+    const result = await session.processChat("what's new");
+    expect(chatSearchTool).toHaveBeenCalledWith("what's new");
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as { messages: Array<{ role: string; content: string }> } | undefined;
+    expect(req).toBeDefined();
+    expect(req!.messages[0].role).toBe('user');
+    // The user message should now include the search label + result.
+    expect(req!.messages[0].content).toContain("what's new");
+    expect(req!.messages[0].content).toContain('[Web search results]');
+    expect(req!.messages[0].content).toContain('headline: ALiX ships new TUI');
+    expect(result.summary).toBe('fresh-reply');
+  });
+
+  it('falls back to plain user message when chatSearchTool returns empty', async () => {
+    const chatSearchTool = vi.fn(async () => '');
+    const complete = vi.fn(async () => ({ text: 'r', toolCalls: [] }));
+    const session = createAgentSession({
+      cwd: '/tmp/chat-test',
+      task: '',
+      sessionId: 'chat-test',
+      chatProvider: makeMockProvider(complete),
+      chatSearchTool,
+    });
+    await session.processChat('hi');
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as { messages: Array<{ role: string; content: string }> } | undefined;
+    expect(req!.messages[0].content).toBe('hi');
+  });
+
+  it('falls back to plain user message when chatSearchTool throws', async () => {
+    const chatSearchTool = vi.fn(async () => { throw new Error('rate limited'); });
+    const complete = vi.fn(async () => ({ text: 'r', toolCalls: [] }));
+    const session = createAgentSession({
+      cwd: '/tmp/chat-test',
+      task: '',
+      sessionId: 'chat-test',
+      chatProvider: makeMockProvider(complete),
+      chatSearchTool,
+    });
+    const result = await session.processChat('hi');
+    expect(result.summary).toBe('r');
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as { messages: Array<{ role: string; content: string }> } | undefined;
+    expect(req!.messages[0].content).toBe('hi');
+  });
+
+  it('honours chatSearchLabel override', async () => {
+    const chatSearchTool = vi.fn(async () => 'fresh data');
+    const complete = vi.fn(async () => ({ text: 'r', toolCalls: [] }));
+    const session = createAgentSession({
+      cwd: '/tmp/chat-test',
+      task: '',
+      sessionId: 'chat-test',
+      chatProvider: makeMockProvider(complete),
+      chatSearchTool,
+      chatSearchLabel: '[FRESH CONTEXT]',
+    });
+    await session.processChat('q');
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as { messages: Array<{ role: string; content: string }> } | undefined;
+    expect(req!.messages[0].content).toContain('[FRESH CONTEXT]');
+    expect(req!.messages[0].content).toContain('fresh data');
+  });
 });

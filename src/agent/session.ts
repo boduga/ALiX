@@ -148,6 +148,19 @@ export interface AgentSessionConfig {
    */
   chatSystemPrompt?: string;
   /**
+   * Optional search hook used by the chat path to inject real-time
+   * context ahead of the model call. Receives the user's raw message,
+   * returns a string of formatted search results. On failure, the chat
+   * path proceeds without search context (the response still lands).
+   */
+  chatSearchTool?: (query: string) => Promise<string>;
+  /**
+   * Label used to wrap the search context in the user message so the
+   * model can tell what's pre-fetched vs the user's own words. Defaults
+   * to `[Web search results]`.
+   */
+  chatSearchLabel?: string;
+  /**
    * Optional SessionStore for durable persistence (per spec §4). When set,
    * `save()` and `resume()` route through the store; when omitted, the
    * legacy in-memory stubs are used (no behavioral change for existing
@@ -1049,6 +1062,25 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     'talking to the operator — short sentences, no markdown headings.';
   const chatSystemPrompt = config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
   const CHAT_MAX_OUTPUT_TOKENS = 512;
+  const CHAT_SEARCH_TIMEOUT_MS = 4000;
+  const searchLabel = config.chatSearchLabel ?? '[Web search results]';
+
+  /** Run a search against the configured chatSearchTool, with a 4s budget. */
+  async function runSearch(query: string): Promise<string> {
+    if (!config.chatSearchTool) return '';
+    let timer: NodeJS.Timeout | undefined;
+    const timeout = new Promise<string>((resolve) => {
+      timer = setTimeout(() => resolve(''), CHAT_SEARCH_TIMEOUT_MS);
+    });
+    try {
+      const result = await Promise.race([config.chatSearchTool(query), timeout]);
+      return result ?? '';
+    } catch {
+      return '';
+    } finally {
+      if (timer) clearTimeout(timer);
+    }
+  }
 
   async function ensureChatProvider(): Promise<ModelAdapter | null> {
     if (chatReady) return chatProviderInstance;
@@ -1081,6 +1113,18 @@ You are in read-only mode. You can read files, search the codebase, and delegate
 
     chatMessages.push({ role: 'user', content: message });
     try {
+      // Run search BEFORE the model call so the assistant sees fresh
+      // context. If search fails or times out, we proceed without it —
+      // the chat path never throws because of a search hiccup.
+      let effectiveUserContent: string = message;
+      if (config.chatSearchTool) {
+        const searchContext = await runSearch(message);
+        if (searchContext) {
+          effectiveUserContent = `${message}\n\n${searchLabel}\n${searchContext}`;
+          chatMessages[chatMessages.length - 1] = { role: 'user', content: effectiveUserContent };
+        }
+      }
+
       const response = await provider.complete({
         systemPrompt: chatSystemPrompt,
         // Defensive copy so the provider's view of the conversation
