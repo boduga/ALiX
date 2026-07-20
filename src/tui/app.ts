@@ -172,10 +172,19 @@ export class TuiApp {
    * AgentSession is configured (e.g., in unit tests).
    */
   private async submitChatInput(text: string): Promise<void> {
-    await this.dispatchToSession(text, 'chat', this.state.views.chat, [
-      this.opts.agentSession?.processChat?.bind(this.opts.agentSession),
-      this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
-    ], '[chat]');
+    await this.dispatchToSession(
+      text,
+      'chat',
+      this.state.views.chat,
+      [
+        this.opts.agentSession?.processChat?.bind(this.opts.agentSession),
+        this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
+      ],
+      '[chat]',
+      // Chat has a longer budget because the runtime's chatSearchTool
+      // (when configured) can take ~2s and the model call follows.
+      15_000,
+    );
   }
 
   /**
@@ -184,9 +193,16 @@ export class TuiApp {
    * to a placeholder when no AgentSession is configured.
    */
   private async submitAgentInput(text: string): Promise<void> {
-    await this.dispatchToSession(text, 'agent', this.state.views.agent, [
-      this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
-    ], '[agent]');
+    await this.dispatchToSession(
+      text,
+      'agent',
+      this.state.views.agent,
+      [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
+      '[agent]',
+      // Agent tab runs the workflow loop; tighter budget because casual
+      // inputs should hit the iter cap fast, not hang for 15s.
+      5_000,
+    );
   }
 
   /**
@@ -203,13 +219,14 @@ export class TuiApp {
     perTab: { agentResponses: string[] },
     candidates: Array<((text: string) => Promise<{ summary: string }>) | undefined>,
     fallbackPrefix: string,
+    timeoutMs = 5_000,
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
     let summary: string = `${fallbackPrefix} ${text}`;
     for (const fn of candidates) {
       if (!fn) continue;
       try {
-        const result = await this.raceAgentCall(text, fn);
+        const result = await this.raceAgentCall(text, fn, timeoutMs);
         summary = result.summary;
         break;
       } catch (err) {
@@ -225,14 +242,14 @@ export class TuiApp {
   }
 
   /**
-   * Race an agent call against a 5s timeout. Returns the call's result on
+   * Race an agent call against `timeoutMs`. Returns the call's result on
    * success, throws on either rejection or timeout.
    */
   private raceAgentCall(
     text: string,
     fn: (text: string) => Promise<{ summary: string }>,
+    timeoutMs: number,
   ): Promise<{ summary: string }> {
-    const timeoutMs = 5000;
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );

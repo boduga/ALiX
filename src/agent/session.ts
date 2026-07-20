@@ -1062,7 +1062,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     'talking to the operator — short sentences, no markdown headings.';
   const chatSystemPrompt = config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
   const CHAT_MAX_OUTPUT_TOKENS = 512;
-  const CHAT_SEARCH_TIMEOUT_MS = 4000;
+  const CHAT_SEARCH_TIMEOUT_MS = 2000;
   const searchLabel = config.chatSearchLabel ?? '[Web search results]';
 
   /** Run a search against the configured chatSearchTool, with a 4s budget. */
