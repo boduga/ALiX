@@ -56,15 +56,26 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const approvalStore = new ApprovalStore(cwd, { eventLog });
   await approvalStore.load();
+  // Lazy session-ID closure: agentSession is assigned later but the
+  // ApprovalManager deps are only called after startup, so by then
+  // agentSession will be available. Filtering by sessionId keeps each
+  // TUI session's approvals isolated from other sessions' stale state.
+  const currentSessionId = () => {
+    const id = agentSession?.getSessionId?.();
+    return typeof id === 'string' && id.length > 0 ? id : '';
+  };
   const approvals = new ApprovalManager({
     listPendingApprovals: async () => {
-      return approvalStore.listPending().map(r => ({
-        id: r.id,
-        capabilities: r.capabilities,
-        reason: r.reason,
-        toolId: r.toolId,
-        createdAt: r.createdAt,
-      }));
+      const sid = currentSessionId();
+      return approvalStore.listPending()
+        .filter(r => !r.sessionId || r.sessionId === sid)
+        .map(r => ({
+          id: r.id,
+          capabilities: r.capabilities,
+          reason: r.reason,
+          toolId: r.toolId,
+          createdAt: r.createdAt,
+        }));
     },
     resolveApproval: async (id, status) => {
       const result = await approvalStore.resolve(id, status);
