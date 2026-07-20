@@ -25,7 +25,7 @@ export class PolicyView implements TuiView {
     rows.push('');
     rows.push('Keys: ↑/↓ navigate  / search');
     if (ctx.canvas) {
-      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      writeRowsToCanvas(ctx.canvas, rows, 0, 4);
       return { rows: [] };
     }
     return { rows };

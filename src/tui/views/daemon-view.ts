@@ -43,7 +43,7 @@ export class DaemonView implements TuiView {
     void dimensions;
 
     if (ctx.canvas) {
-      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      writeRowsToCanvas(ctx.canvas, rows, 0, 4);
       return { rows: [] };
     }
 

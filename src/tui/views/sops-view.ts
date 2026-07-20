@@ -14,7 +14,7 @@ export class SopsView implements TuiView {
       rows.push('○ no SOPs loaded');
       rows.push(`  total: 0`);
       if (ctx.canvas) {
-        writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+        writeRowsToCanvas(ctx.canvas, rows, 0, 4);
         return { rows: [] };
       }
       return { rows };
@@ -32,7 +32,7 @@ export class SopsView implements TuiView {
     rows.push('');
     rows.push('Keys: ↑/↓ navigate  / search  Tab detail');
     if (ctx.canvas) {
-      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
+      writeRowsToCanvas(ctx.canvas, rows, 0, 4);
       return { rows: [] };
     }
     return { rows };
