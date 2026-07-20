@@ -42,12 +42,12 @@ describe("TUI smoke", () => {
   it("shows TUI on ? input or TTY guard", async () => {
     const { stdout, stderr } = await runTui("?\n", []);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "DAEMON"), `Expected TUI, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI") || ttyGuardOr(combined, "DAEMON"), `Expected TUI, got: ${combined.slice(0, 200)}`);
   });
 
   it("TUI starts with --daemon or TTY guard", async () => {
     const { stdout, stderr } = await runTui("", ["--daemon"]);
     const combined = stdout + stderr;
-    assert.ok(ttyGuardOr(combined, "alix tui") || combined.includes("ERROR"), `Expected TUI, got: ${combined.slice(0, 200)}`);
+    assert.ok(ttyGuardOr(combined, "alix tui") || ttyGuardOr(combined, "ALiX TUI") || combined.includes("ERROR"), `Expected TUI, got: ${combined.slice(0, 200)}`);
   });
 });
