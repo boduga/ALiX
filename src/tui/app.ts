@@ -193,19 +193,16 @@ export class TuiApp {
    * to a placeholder when no AgentSession is configured.
    */
   private async submitAgentInput(text: string): Promise<void> {
-    // The agent tab tries the lightweight chat path FIRST so casual
-    // queries ("2 + 2", "what's the date") get answered without going
-    // through the workflow loop. If processChat is unavailable or
-    // returns a "I don't know / can't help" signal, the next candidate
-    // (processTurn) takes over for real workflows.
+    // Agent tab goes straight to processTurn — the operator chose the
+    // agent tab for agentic workflow, not casual chat. processChat
+    // is reserved for the chat tab where lightweight conversation is
+    // the expected behaviour. No hidden escalation from chat to
+    // agent: the tab IS the execution class choice.
     await this.dispatchToSession(
       text,
       'agent',
       this.state.views.agent,
-      [
-        this.opts.agentSession?.processChat?.bind(this.opts.agentSession),
-        this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
-      ],
+      [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
       '[agent]',
       60_000,
     );
