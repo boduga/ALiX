@@ -199,9 +199,11 @@ export class TuiApp {
       this.state.views.agent,
       [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
       '[agent]',
-      // Agent tab runs the workflow loop; tighter budget because casual
-      // inputs should hit the iter cap fast, not hang for 15s.
-      5_000,
+      // Agent tab runs the full workflow loop (initialize + plan + tools +
+      // verify). Real workflows routinely take 10-30s; the previous 5s
+      // outer timeout fired before casual queries like "2 + 2" completed.
+      // 60s gives the runtime enough room while still catching hangs.
+      60_000,
     );
   }
 
@@ -217,7 +219,7 @@ export class TuiApp {
     text: string,
     kind: 'chat' | 'agent',
     perTab: { agentResponses: string[] },
-    candidates: Array<((text: string) => Promise<{ summary: string }>) | undefined>,
+    candidates: Array<((text: string) => Promise<{ summary: string; reason?: string }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
   ): Promise<void> {
@@ -228,6 +230,14 @@ export class TuiApp {
       try {
         const result = await this.raceAgentCall(text, fn, timeoutMs);
         summary = result.summary;
+        // Friendly rewrites for known runtime termination reasons so the
+        // operator doesn't see the raw internal "Agent reached maximum
+        // iteration" string or similar.
+        if (result.reason === 'max-iterations') {
+          summary = `(${kind} hit the runtime iteration cap. Try a more specific task, or switch to the chat tab for casual queries.)`;
+        } else if (result.reason === 'rate-limit' || result.reason === 'rate_limit') {
+          summary = `(${kind} was rate-limited by the provider. Wait a moment and retry.)`;
+        }
         break;
       } catch (err) {
         // Stderr is independent of the TUI render — even if paintFullFrame
@@ -247,9 +257,9 @@ export class TuiApp {
    */
   private raceAgentCall(
     text: string,
-    fn: (text: string) => Promise<{ summary: string }>,
+    fn: (text: string) => Promise<{ summary: string; reason?: string }>,
     timeoutMs: number,
-  ): Promise<{ summary: string }> {
+  ): Promise<{ summary: string; reason?: string }> {
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );
