@@ -10,6 +10,7 @@ import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
 import { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 import { createAgentSession } from "../../agent/session.js";
+import { webSearchTool } from "../../tools/web-search.js";
 export type { PolicyConfig } from "../../tui/helpers/policy-commands.js";
 export { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
 
@@ -87,6 +88,19 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     };
   } else {
     const configuredModel = (config as { model?: { provider?: string; name?: string } } | undefined)?.model;
+    const braveSearch = webSearchTool();
+    const chatSearchTool = async (query: string): Promise<string> => {
+      // Brave Search is opt-in via BRAVE_API_KEY. When unset, return ''
+      // so the chat path gracefully degrades (still gets the model's
+      // training-data answer, no search context).
+      if (!process.env.BRAVE_API_KEY) return '';
+      const result = await braveSearch.execute({ query, count: 5 });
+      if (!result.ok || !result.data) return '';
+      return result.data.results
+        .map((r, i) => `${i + 1}. ${r.title}\n   ${r.snippet}\n   ${r.url}`)
+        .join('\n');
+    };
+
     agentSession = createAgentSession({
       cwd,
       task: '',                                  // filled on first processTurn
@@ -96,6 +110,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
       ...(configuredModel?.provider
         ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
         : {}),
+      chatSearchTool,
     });
   }
 
