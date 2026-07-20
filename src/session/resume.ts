@@ -3,7 +3,7 @@
  * and returns it in a form the agent loop can use.
  */
 import { join, resolve } from "node:path";
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import type { NormalizedMessage } from "../providers/types.js";
 import { loadMessages, loadScope, loadState } from "./persist.js";
@@ -46,9 +46,9 @@ export async function listSessions(cwd: string, limit = 20): Promise<SessionInfo
   const entries = await readdir(sessionsPath, { withFileTypes: true });
   const dirs = entries.filter(e => e.isDirectory());
 
-  // Only consider UUID-looking directories (hex strings with hyphens)
-  const uuidLike = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-  const filteredDirs = dirs.filter(d => uuidLike.test(d.name));
+  // Accept UUID-style directories (hex with hyphens) and TUI sessions (tui-<timestamp>)
+  const validSessionDir = /^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|tui-\d+)$/i;
+  const filteredDirs = dirs.filter(d => validSessionDir.test(d.name));
 
   const sessions: SessionInfo[] = [];
 
@@ -61,8 +61,11 @@ export async function listSessions(cwd: string, limit = 20): Promise<SessionInfo
     }
   }
 
+  // NaN-safe sort: sessions with valid dates come first (newest),
+  // sessions with missing/invalid dates sort to the end.
+  const safeTime = (d: string) => { const t = new Date(d).getTime(); return Number.isFinite(t) ? t : 0; };
   return sessions
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .sort((a, b) => safeTime(b.createdAt) - safeTime(a.createdAt))
     .slice(0, limit);
 }
 
@@ -89,7 +92,14 @@ export async function sessionInfo(cwd: string, sessionId: string): Promise<Sessi
   let createdAt = "";
   let updatedAt = "";
 
-  if (existsSync(eventsPath)) {
+  // Fall back to directory mtime when no events file exists (e.g. empty TUI sessions)
+  if (!existsSync(eventsPath)) {
+    try {
+      const dirStat = await stat(sessionDir);
+      createdAt = dirStat.mtime.toISOString();
+      updatedAt = dirStat.mtime.toISOString();
+    } catch { /* stat failed — keep defaults */ }
+  } else {
     const raw = await readFile(eventsPath, "utf-8");
     const lines = raw.split("\n").filter(Boolean);
     for (const line of lines) {
