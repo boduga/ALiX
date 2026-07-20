@@ -22,6 +22,19 @@ export function renderDashboard(
   startY: number,
 ): void {
   const panelW = Math.floor(canvas.width / 4);
+  if (panelW < 20) {
+    // Canvas too narrow for 4-panel layout — render compact summary.
+    const daemonStatus = snap.daemon
+      ? "\x1b[32m●\x1b[0m"
+      : "\x1b[90m○\x1b[0m";
+    const appsCount = snap.approvals?.totalPending ?? 0;
+    const events = snap.runtime?.totalEventCount ?? 0;
+    const policyMode = snap.policy?.enforcementMode ?? "—";
+    const summary =
+      `D:${daemonStatus} A:${appsCount} E:${events} P:${policyMode}`;
+    canvas.write(0, startY + 1, summary);
+    return;
+  }
   const runtime = snap.runtime;
   const approvals = snap.approvals;
   const policy = snap.policy;
