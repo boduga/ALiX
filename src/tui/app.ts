@@ -451,7 +451,7 @@ function parseKey(buf: Buffer): string | null {
   if (s.length === 2 && s[0] === '\x1b' && s[1] >= '0' && s[1] <= '9') {
     return `Ctrl+${s[1]}`;
   }
-  if (s === '\x1b' && buf.length >= 3 && buf[1] === 0x5b /* [ */) {
+  if (buf[0] === 0x1b && buf.length >= 3 && buf[1] === 0x5b /* [ */) {
     if (buf[2] === 0x41) return 'ArrowUp';
     if (buf[2] === 0x42) return 'ArrowDown';
     if (buf[2] === 0x43) return 'ArrowRight';
