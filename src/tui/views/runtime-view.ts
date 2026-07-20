@@ -18,17 +18,13 @@ export class RuntimeView implements TuiView {
     }
 
     rows.push(`  events: ${r.totalEventCount}  last: ${r.lastEventAt ? new Date(r.lastEventAt).toISOString() : '—'}`);
-    rows.push('');
 
     if (r.workflow) {
       const w = r.workflow;
       const pct = w.totalSteps > 0 ? Math.round((w.currentStep / w.totalSteps) * 24) : 0;
       rows.push(`  workflow: ${w.name}`);
       rows.push(`  progress: [${'█'.repeat(pct)}${'░'.repeat(24 - pct)}] ${w.currentStep}/${w.totalSteps}`);
-      rows.push('');
     }
-
-    rows.push('─'.repeat(dimensions.columns));
 
     // Auto-follow the tail: if the user hasn't manually scrolled (or
     // is at the bottom), keep the offset pinned to the last window of
@@ -38,7 +34,10 @@ export class RuntimeView implements TuiView {
     // "bottom" is offset 0.
     const pinned = ctx.perTab.pinnedBottom ?? true;
     const eventCount = r.events.length;
-    const winSize = 15;
+    // Reserve the top 2-3 lines for the workflow section when present.
+    const reserved = r.workflow ? 4 : 1;
+    // Subtract 1 from the bottom for the hint line.
+    const winSize = Math.max(3, dimensions.rows - reserved - 1);
     const maxStart = Math.max(0, eventCount - winSize);
     let start = ctx.perTab.scrollOffset;
     if (pinned) {
@@ -48,12 +47,10 @@ export class RuntimeView implements TuiView {
       // User had the cursor below the new bottom — clamp.
       start = maxStart;
     }
-    const visible = r.events.slice(start, start + 15);
+    const visible = r.events.slice(start, start + winSize);
     for (const e of visible) {
       rows.push(`  [${new Date(e.timestamp).toISOString().slice(11, 19)}] ${e.kind.padEnd(20, ' ')} ${e.summary}`);
     }
-    rows.push('─'.repeat(dimensions.columns));
-    rows.push('Keys: ↑/↓/PgUp/PgDn scroll  / search');
 
     if (ctx.canvas) {
       writeRowsToCanvas(ctx.canvas, rows, 0, 0);
