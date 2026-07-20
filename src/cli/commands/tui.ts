@@ -20,18 +20,16 @@ export interface TuiOptions {
 }
 
 /**
- * By default the TUI uses a stub `agentSession` that responds with a
- * fixed echo — the real `createAgentSession().processTurn()` does not
- * yet handle non-actionable inputs (e.g. a "Hi" greeting) gracefully
- * and reports 'Agent reached maximum iteration' back to the chat.
+ * By default the TUI runs the real `createAgentSession` runtime so
+ * chat-tab submits go through the lightweight `processChat` path
+ * (real LLM text-in/text-out, no tool loop) when a model is configured.
  *
- * Set `ALIX_TUI_REAL_AGENT=1` to opt into the real AgentSession for
- * actionable queries. The wire-up stays in place so a future runtime
- * that handles casual chat can be enabled with that one env var.
+ * Set `ALIX_TUI_STUB_AGENT=1` to fall back to the legacy echo stub —
+ * useful for offline smoke tests and CI environments where the model
+ * runtime can't initialize.
  */
 function shouldUseStubAgent(): boolean {
-  if (process.env.ALIX_TUI_REAL_AGENT === '1') return false;
-  return true;
+  return process.env.ALIX_TUI_STUB_AGENT === '1';
 }
 
 export async function runTui(opts: TuiOptions = {}): Promise<void> {
@@ -60,14 +58,15 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
 
-  // Either a real AgentSession runtime (opt-in via env), or the stub
-  // echo. The real session is created here (a sync closure factory)
-  // and initializes lazily on first processTurn. If init throws later,
-  // the TuiApp's submitChatInput catches it and surfaces the error in
-  // the chat scrollback.
+  // Either the real `createAgentSession` runtime (default) or the
+  // legacy echo stub (opt-in via ALIX_TUI_STUB_AGENT=1). The real
+  // session wires both processChat (lightweight, no tools) and
+  // processTurn (full workflow loop). If loadConfig didn't find a
+  // model, chatModel stays undefined and processChat falls back to a
+  // clear `[chat:no-provider]` placeholder.
   let agentSession: any;
   if (shouldUseStubAgent()) {
-    const stub = {
+    agentSession = {
       getMode: () => opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
       getPhase: () => SessionPhase.Idle,
       getVersion: () => 'unknown',
@@ -86,14 +85,17 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         reason: 'stub-chat',
       }),
     };
-    agentSession = stub;
   } else {
+    const configuredModel = (config as { model?: { provider?: string; name?: string } } | undefined)?.model;
     agentSession = createAgentSession({
       cwd,
       task: '',                                  // filled on first processTurn
       sessionId,
       sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
       ...(opts.daemonMode === false ? {} : {}),  // daemon toggle reserved for follow-up
+      ...(configuredModel?.provider
+        ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
+        : {}),
     });
   }
 
