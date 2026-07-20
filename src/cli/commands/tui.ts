@@ -131,18 +131,26 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         .join('\n');
     };
 
-    agentSession = createAgentSession({
-      cwd,
-      task: '',                                  // filled on first processTurn
-      sessionId,
-      sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
-      approvalStore,
-      ...(opts.daemonMode === false ? {} : {}),  // daemon toggle reserved for follow-up
-      ...(configuredModel?.provider
-        ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
-        : {}),
-      chatSearchTool,
-    });
+    if (opts.daemonMode) {
+      const { DaemonAgentSession } = await import("../../tui/daemon-client.js");
+      agentSession = new DaemonAgentSession(
+        cwd,
+        null,
+        opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
+      );
+    } else {
+      agentSession = createAgentSession({
+        cwd,
+        task: '',                                  // filled on first processTurn
+        sessionId,
+        sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
+        approvalStore,
+        ...(configuredModel?.provider
+          ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
+          : {}),
+        chatSearchTool,
+      });
+    }
   }
 
   const builder = new SnapshotBuilder(
