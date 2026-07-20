@@ -708,7 +708,9 @@ if (command === "sop" && args[0] === "run") {
   if (topic) buildInput.topic = topic;
 
   const result = sop.buildGraph(buildInput);
-  const { graph, reportId } = result as any;
+  // SOPs may return reportId or reportDir — normalise to reportId.
+  const graph = (result as any).graph;
+  const reportId = (result as any).reportId ?? (result as any).reportDir ?? `report_${Date.now()}`;
 
   // Persist graph
   const { persistGraph } = await import("./kernel/graph-planner.js");
