@@ -233,7 +233,7 @@ export class TuiApp {
         // Friendly rewrites for known runtime termination reasons so the
         // operator doesn't see the raw internal "Agent reached maximum
         // iteration" string or similar.
-        if (result.reason === 'max-iterations') {
+        if (result.reason === 'max_iterations') {
           summary = `(${kind} hit the runtime iteration cap. Try a more specific task, or switch to the chat tab for casual queries.)`;
         } else if (result.reason === 'rate-limit' || result.reason === 'rate_limit') {
           summary = `(${kind} was rate-limited by the provider. Wait a moment and retry.)`;
