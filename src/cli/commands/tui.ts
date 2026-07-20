@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { EventLog } from "../../events/event-log.js";
 import { loadConfig } from "../../config/loader.js";
 import { ApprovalManager } from "../../tui/approval-manager.js";
+import { ApprovalStore } from "../../approvals/approval-store.js";
 import { TuiApp } from "../../tui/app.js";
 import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
@@ -53,9 +54,23 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const eventLog = new EventLog(sessionDir);
   await eventLog.init();
 
+  const approvalStore = new ApprovalStore(cwd, { eventLog });
+  await approvalStore.load();
   const approvals = new ApprovalManager({
-    listPendingApprovals: async () => [],
-    resolveApproval: async (id, status) => ({ success: false, message: `No approval store` }),
+    listPendingApprovals: async () => {
+      return approvalStore.listPending().map(r => ({
+        id: r.id,
+        capabilities: r.capabilities,
+        reason: r.reason,
+        toolId: r.toolId,
+        createdAt: r.createdAt,
+      }));
+    },
+    resolveApproval: async (id, status) => {
+      const result = await approvalStore.resolve(id, status);
+      if (result) return { success: true, message: `Approval ${id} ${status}` };
+      return { success: false, message: `Approval ${id} not found or already resolved` };
+    },
   });
 
   const policy = new PolicyEngine(config as any);
