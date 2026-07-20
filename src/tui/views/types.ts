@@ -34,7 +34,8 @@ export type ViewAction =
   | { type: 'handled' }
   | { type: 'moveCursor'; cursor: number }
   | { type: 'scheduleRefresh' }
-  | { type: 'switchTab'; tab: TabId };
+  | { type: 'switchTab'; tab: TabId }
+  | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' };
 
 export interface TuiView {
   readonly id: TabId;

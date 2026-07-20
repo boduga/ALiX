@@ -1,6 +1,6 @@
 import { writeRowsToCanvas } from '../canvas.js';
 import type { RuntimeSnapshot } from '../snapshot.js';
-import type { TuiView, ViewRenderContext, ViewInputContext } from './types.js';
+import type { TuiView, ViewRenderContext, ViewInputContext, ViewAction } from './types.js';
 
 export class RuntimeView implements TuiView {
   readonly id = 'runtime' as const;
@@ -45,11 +45,16 @@ export class RuntimeView implements TuiView {
     return { rows };
   }
 
-  handleKey(key: string, _ctx: ViewInputContext): { type: 'moveCursor'; cursor: number } | { type: 'handled' } {
+  handleKey(key: string, _ctx: ViewInputContext): ViewAction {
     switch (key) {
       case 'ArrowDown': return { type: 'moveCursor', cursor: (_ctx.perTab.cursor ?? 0) + 1 };
       case 'ArrowUp': return { type: 'moveCursor', cursor: Math.max(0, (_ctx.perTab.cursor ?? 0) - 1) };
-      case '/': return { type: 'handled' };  // TuiApp opens search UI
+      case 'PageDown': return { type: 'moveCursor', cursor: (_ctx.perTab.cursor ?? 0) + 10 };
+      case 'PageUp': return { type: 'moveCursor', cursor: Math.max(0, (_ctx.perTab.cursor ?? 0) - 10) };
+      case 'Home': return { type: 'moveCursor', cursor: 0 };
+      case 'End': return { type: 'moveCursor', cursor: 1000 };
+      case 'Escape': return { type: 'switchTab', tab: 'chat' };
+      case '/': return { type: 'scheduleRefresh' };
       default: return { type: 'handled' };
     }
   }

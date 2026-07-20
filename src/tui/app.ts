@@ -16,6 +16,12 @@ export interface TuiAppOptions {
   daemonMetrics: DaemonMetricsCollector;
   /** Agent runtime. Optional — when omitted, submit stays at echo-only. */
   agentSession?: AgentSession;
+  /**
+   * Optional approval manager — when provided, the APPROVALS tab's
+   * `a`/`d` keys resolve approvals through the manager rather than
+   * triggering a bare refresh.
+   */
+  approvalManager?: import('./approval-manager.js').ApprovalManager;
   views?: Readonly<Record<TabId, TuiView>>;
 }
 
@@ -330,7 +336,63 @@ export class TuiApp {
       case 'scheduleRefresh':
         void this.refresh();
         break;
+      case 'resolveApproval':
+        void this.resolveApprovalFromView(action.approvalId, action.status);
+        break;
     }
+  }
+
+  /**
+   * Resolve an approval (approve or deny) by delegating to the wired
+   * ApprovalManager — which routes through ApprovalStore + EventLog. The
+   * resulting message is appended to the current view's agent
+   * responses and the snapshot is refreshed so the panel count updates.
+   */
+  private async resolveApprovalFromView(
+    approvalId: string,
+    status: 'approved' | 'denied',
+  ): Promise<void> {
+    if (!approvalId) return;
+    const mgr = this.opts.approvalManager;
+    if (!mgr) {
+      // No manager wired — surface a friendly message and refresh.
+      this.appendAgentMessage(
+        this.state.activeTab,
+        `[approval] no ApprovalManager wired for ${status} ${approvalId}`,
+      );
+      await this.refresh();
+      return;
+    }
+    try {
+      const result = await mgr.tryHandleCommand(
+        status === 'approved' ? `/approve ${approvalId}` : `/deny ${approvalId}`,
+      );
+      const summary = result.handled ? result.message : `${status} ${approvalId} (no handler)`;
+      this.appendAgentMessage(
+        this.state.activeTab,
+        `[approval:${status}] ${summary}`,
+      );
+    } catch (err) {
+      this.appendAgentMessage(
+        this.state.activeTab,
+        `[approval:${status}] error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      await this.refresh();
+    }
+  }
+
+  /**
+   * Append a one-liner to the active view's `agentResponses` so the
+   * resolution message shows in the scrollback.
+   */
+  private appendAgentMessage(
+    tab: TabId,
+    text: string,
+  ): void {
+    const state = this.state.views[tab];
+    if (!state) return;
+    state.agentResponses.push(text);
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */
@@ -353,7 +415,11 @@ export class TuiApp {
     for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
     // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
     c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
-    const version = session?.version ?? '—';
+    // Prefer the live session version from the agent runtime; fall
+    // back to the snapshot's static version, then to a placeholder.
+    const liveVersion: string | undefined =
+      (this.opts.agentSession as { getVersion?: () => string } | undefined)?.getVersion?.();
+    const version = liveVersion || session?.version || '0.0.0';
     const sessionMode = session?.mode ?? 'auto';
     const rightText = `\x1b[90mAgent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}\x1b[0m`;
     const rightLen = `Agent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}`.length;

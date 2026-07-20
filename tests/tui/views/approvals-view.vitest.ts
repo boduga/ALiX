@@ -50,14 +50,14 @@ describe('ApprovalsView', () => {
           } })).toEqual({ type: 'moveCursor', cursor: 4 });
   });
 
-  it('handleKey returns scheduleRefresh on approve (a) and deny (d)', () => {
+  it('handleKey returns resolveApproval on approve (a) and deny (d)', () => {
     const view = new ApprovalsView();
     const ctxIn: any = { snap: { approvals: { pending: [{ id: 'a1' }] } }, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
             submittedPrompts: [],
             agentResponses: []
           } };
-    expect(view.handleKey?.('a', ctxIn)).toEqual({ type: 'scheduleRefresh' });
-    expect(view.handleKey?.('d', ctxIn)).toEqual({ type: 'scheduleRefresh' });
+    expect(view.handleKey?.('a', ctxIn)).toEqual({ type: 'resolveApproval', approvalId: 'a1', status: 'approved' });
+    expect(view.handleKey?.('d', ctxIn)).toEqual({ type: 'resolveApproval', approvalId: 'a1', status: 'denied' });
   });
 });

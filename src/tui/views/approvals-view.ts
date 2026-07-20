@@ -45,20 +45,25 @@ export class ApprovalsView implements TuiView {
     return { rows };
   }
 
-  handleKey(key: string, ctx: ViewInputContext): { type: 'moveCursor'; cursor: number } | { type: 'scheduleRefresh' } | { type: 'handled' } {
+  handleKey(key: string, ctx: ViewInputContext): { type: 'moveCursor'; cursor: number } | { type: 'scheduleRefresh' } | { type: 'handled' } | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' } {
     switch (key) {
       case 'ArrowDown':
         return { type: 'moveCursor', cursor: ctx.perTab.cursor + 1 };
       case 'ArrowUp':
         return { type: 'moveCursor', cursor: Math.max(0, ctx.perTab.cursor - 1) };
       case 'a':
+        return { type: 'resolveApproval', approvalId: this.selectedRecordId(ctx), status: 'approved' };
       case 'd':
-        // Caller (TuiApp via ApprovalManager) will mark resolved and refresh.
-        ctx.perTab.cursor = ctx.perTab.cursor;  // no mutation; just type-narrowing
-        return { type: 'scheduleRefresh' };
+        return { type: 'resolveApproval', approvalId: this.selectedRecordId(ctx), status: 'denied' };
       default:
         return { type: 'handled' };
     }
+  }
+
+  private selectedRecordId(ctx: ViewInputContext): string {
+    const snap = ctx.snap.approvals;
+    if (!snap || snap.pending.length === 0) return '';
+    return snap.pending[ctx.perTab.cursor]?.id ?? '';
   }
 }
 
