@@ -383,7 +383,13 @@ export class TuiApp {
       `RULES: ${ruleCount}`,
       `EVENTS: ${eventsCount}`,
     ];
-    const statusLine = `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`;
+    // Phase radios are workflow-lifecycle signals — they only make sense on
+    // the agent tab. On chat, skip the phase segment and start with the
+    // pipeline field chain so the operator doesn't see stale workflow
+    // phase from a previous processTurn run.
+    const statusLine = this.state.activeTab === 'chat'
+      ? `${sep} ${fields.join(` ${sep} `)}`
+      : `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`;
     c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
 
     // Write the complete frame — cursor home + canvas render.
