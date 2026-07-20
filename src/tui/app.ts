@@ -193,16 +193,20 @@ export class TuiApp {
    * to a placeholder when no AgentSession is configured.
    */
   private async submitAgentInput(text: string): Promise<void> {
+    // The agent tab tries the lightweight chat path FIRST so casual
+    // queries ("2 + 2", "what's the date") get answered without going
+    // through the workflow loop. If processChat is unavailable or
+    // returns a "I don't know / can't help" signal, the next candidate
+    // (processTurn) takes over for real workflows.
     await this.dispatchToSession(
       text,
       'agent',
       this.state.views.agent,
-      [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
+      [
+        this.opts.agentSession?.processChat?.bind(this.opts.agentSession),
+        this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
+      ],
       '[agent]',
-      // Agent tab runs the full workflow loop (initialize + plan + tools +
-      // verify). Real workflows routinely take 10-30s; the previous 5s
-      // outer timeout fired before casual queries like "2 + 2" completed.
-      // 60s gives the runtime enough room while still catching hangs.
       60_000,
     );
   }
@@ -229,6 +233,20 @@ export class TuiApp {
       if (!fn) continue;
       try {
         const result = await this.raceAgentCall(text, fn, timeoutMs);
+        // Detect the chat path's "no provider configured" placeholder and
+        // continue to the next candidate so the agent tab falls through
+        // to its workflow path. Other sentinel responses (empty
+        // strings, "[chat error] ...") similarly indicate the chat path
+        // couldn't help, so the workflow gets a chance.
+        const noHelp = (s: string): boolean => {
+          const t = s.trim();
+          if (!t) return true;
+          if (t.startsWith('[chat:no-provider]')) return true;
+          if (t.startsWith('[chat error]')) return true;
+          if (t.startsWith('[chat] ')) return false; // real echo
+          return false;
+        };
+        if (noHelp(result.summary)) continue;
         summary = result.summary;
         // Friendly rewrites for known runtime termination reasons so the
         // operator doesn't see the raw internal "Agent reached maximum

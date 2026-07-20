@@ -198,10 +198,43 @@ describe('TuiApp -- chat-input dispatch', () => {
     internal.handleRaw(Buffer.from([0x0d])); // Enter
     await Promise.resolve();
     await Promise.resolve();
-    expect(processTurn).toHaveBeenCalledWith('hi');
-    expect(processChat).not.toHaveBeenCalled();
+    // Agent tab routes chat-first so casual queries don't enter the
+    // workflow loop. processTurn stays a fallback when processChat is
+    // unavailable or returns an unhelpful answer.
+    expect(processChat).toHaveBeenCalledWith('hi');
+    expect(processTurn).not.toHaveBeenCalled();
     expect(internal.getStateForTest().views.agent.submittedPrompts).toEqual(['hi']);
-    expect(internal.getStateForTest().views.agent.agentResponses).toEqual(['[agent] hi']);
+    expect(internal.getStateForTest().views.agent.agentResponses).toEqual(['[chat] hi']);
+  });
+
+  it('agent tab falls back to processTurn when processChat returns a no-provider placeholder', async () => {
+    // processChat returns the [chat:no-provider] placeholder (i.e. the
+    // provider is unconfigured). dispatchToSession tries the next
+    // candidate, which is processTurn.
+    const processChat = vi.fn(async () => ({
+      summary: '[chat:no-provider] hi',
+      sessionId: 'test-session',
+      toolCalls: [],
+      reason: 'chat',
+    }));
+    const processTurn = vi.fn(async () => ({
+      summary: 'workflow-ran-hi',
+      sessionId: 'test-session',
+      toolCalls: [],
+      reason: 'agent',
+    }));
+    const { internal } = makeApp({ agentSession: { processChat, processTurn } });
+    const state = internal.getStateForTest() as unknown as { activeTab: string };
+    state.activeTab = 'agent';
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d]));
+    // Two Promise.resolve() microtasks aren't enough for the fallback
+    // chain (processChat -> noHelp continue -> processTurn). Allow the
+    // event loop to settle.
+    await new Promise((r) => setTimeout(r, 20));
+    expect(processChat).toHaveBeenCalledWith('hi');
+    expect(processTurn).toHaveBeenCalledWith('hi');
+    expect(internal.getStateForTest().views.agent.agentResponses).toEqual(['workflow-ran-hi']);
   });
 
   it('chat tab Enter calls processChat (not processTurn)', async () => {
