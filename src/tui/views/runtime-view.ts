@@ -36,8 +36,8 @@ export class RuntimeView implements TuiView {
     const eventCount = r.events.length;
     // Reserve the top 2-3 lines for the workflow section when present.
     const reserved = r.workflow ? 4 : 1;
-    // Subtract 1 from the bottom for the hint line.
-    const winSize = Math.max(3, dimensions.rows - reserved - 1);
+    // Reserve: 1 row header + 1 top padding + 1 bottom padding.
+    const winSize = Math.max(3, dimensions.rows - reserved - 2);
     const maxStart = Math.max(0, eventCount - winSize);
     let start = ctx.perTab.scrollOffset;
     if (pinned) {
