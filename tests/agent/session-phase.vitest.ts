@@ -1,5 +1,6 @@
 import { beforeEach, describe, it, expect, vi } from "vitest";
 import { createAgentSession } from "../../src/agent/session.js";
+import type { ModelAdapter } from "../../src/providers/types.js";
 import { SessionPhase } from "../../src/tui/state.js";
 
 const mocks = vi.hoisted(() => ({
@@ -132,5 +133,107 @@ describe("SessionPhase (contract)", () => {
         payload: { phase: SessionPhase.Planning },
       }),
     );
+  });
+});
+
+describe("processChat (lightweight chat path)", () => {
+  /** Build a ModelAdapter stub with vi.fn for the complete() call. */
+  function makeMockProvider(complete: ReturnType<typeof vi.fn>) {
+    return {
+      id: 'mock',
+      capabilities: {} as never,
+      editFormatPreference: 'unified_diff' as const,
+      longContextStrategy: 'trimmed_context' as const,
+      // Cast to satisfy the ModelAdapter shape; the test reaches inside
+      // via `complete.mock.calls[N]?.[0]` and inspects fields as any.
+      complete: complete as unknown as ModelAdapter['complete'],
+    };
+  }
+
+  function makeSession(chatProvider?: ReturnType<typeof makeMockProvider>) {
+    return createAgentSession({
+      cwd: '/tmp/chat-test',
+      task: '',
+      sessionId: 'chat-test',
+      ...(chatProvider ? { chatProvider } : {}),
+    });
+  }
+
+  it('falls back to a placeholder when no chatProvider or chatModel is configured', async () => {
+    const session = makeSession();
+    const result = await session.processChat('hi');
+    expect(result.summary).toContain('[chat:no-provider]');
+    expect(result.summary).toContain('hi');
+    expect(result.toolCalls).toEqual([]);
+    expect(result.reason).toBe('chat');
+  });
+
+  it('calls provider.complete with the configured system prompt + user message', async () => {
+    const complete = vi.fn(async () => ({ text: 'Hello back!', toolCalls: [] }));
+    const session = makeSession(makeMockProvider(complete));
+    const result = await session.processChat('hello');
+    expect(complete).toHaveBeenCalledOnce();
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as { systemPrompt: string; messages: Array<{ role: string; content: string }>; maxOutputTokens: number } | undefined;
+    expect(req).toBeDefined();
+    expect(req!.systemPrompt).toMatch(/ALiX/);
+    expect(req!.messages).toHaveLength(1);
+    expect(req!.messages[0]).toEqual({ role: 'user', content: 'hello' });
+    expect(req!.maxOutputTokens).toBeGreaterThan(0);
+    expect(result.summary).toBe('Hello back!');
+    expect(result.toolCalls).toEqual([]);
+    expect(result.reason).toBe('chat');
+  });
+
+  it('grows conversation history across multiple turns', async () => {
+    let turn = 0;
+    const complete = vi.fn(async () => {
+      turn += 1;
+      return { text: `reply-${turn}`, toolCalls: [] };
+    });
+    const session = makeSession(makeMockProvider(complete));
+    await session.processChat('hi');
+    await session.processChat('how are you?');
+    await session.processChat('goodbye');
+    expect(complete).toHaveBeenCalledTimes(3);
+    const lastReq = (complete.mock.calls as unknown[][])[2]?.[0] as { messages: Array<{ role: string; content: string }> } | undefined;
+    expect(lastReq).toBeDefined();
+    // Each turn appends both a user + assistant; the third call sees
+    // 5 entries (user, assistant, user, assistant, user).
+    expect(lastReq!.messages.map((m) => `${m.role}:${m.content}`)).toEqual([
+      'user:hi',
+      'assistant:reply-1',
+      'user:how are you?',
+      'assistant:reply-2',
+      'user:goodbye',
+    ]);
+  });
+
+  it('drops the optimistic user message when the provider throws', async () => {
+    const complete = vi.fn(async () => { throw new Error('rate limited'); });
+    const session = makeSession(makeMockProvider(complete));
+    await session.processChat('hi');
+    await session.processChat('how are you?');
+    const lastReq = (complete.mock.calls as unknown[][])[1]?.[0] as { messages: Array<{ role: string; content: string }> } | undefined;
+    // After the first call failed and we popped the optimistic user msg,
+    // the second call should see exactly one user message — not two.
+    expect(lastReq!.messages).toHaveLength(1);
+    expect(lastReq!.messages[0]).toEqual({ role: 'user', content: 'how are you?' });
+    const errorResult = await session.processChat('third');
+    expect(errorResult.summary).toContain('[chat error]');
+    expect(errorResult.summary).toContain('rate limited');
+  });
+
+  it('allows overriding the chat system prompt via config', async () => {
+    const complete = vi.fn(async () => ({ text: 'custom-ok', toolCalls: [] }));
+    const session = createAgentSession({
+      cwd: '/tmp/chat-test',
+      task: '',
+      sessionId: 'chat-test',
+      chatProvider: makeMockProvider(complete),
+      chatSystemPrompt: 'You are a pirate. Reply briefly.',
+    });
+    await session.processChat('hello');
+    const req = (complete.mock.calls as unknown[][])[0]?.[0] as { systemPrompt: string } | undefined;
+    expect(req!.systemPrompt).toBe('You are a pirate. Reply briefly.');
   });
 });

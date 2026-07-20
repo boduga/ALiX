@@ -27,6 +27,8 @@ import type { ExecutionContext } from "../observability/execution-context.js";
 import type { MutationSessionState } from "../run.js";
 import { initAgent } from "./agent.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
+import { createProvider } from "../providers/registry.js";
+import type { ModelAdapter } from "../providers/types.js";
 import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -128,6 +130,23 @@ export interface AgentSessionConfig {
   onStream?: StreamHandler;
   /** Optional session events subscription (per spec §13). */
   events?: AgentSessionEvents;
+  /**
+   * Optional pre-built model adapter for the lightweight chat path
+   * (`processChat`). When omitted, `processChat` falls back to either
+   * `chatModel`/`chatApiKey` env-style config or a clear placeholder
+   * summary — never throws.
+   */
+  chatProvider?: ModelAdapter;
+  /** Provider id + optional model name, used to lazily build a chat
+   *  provider when `chatProvider` is not supplied. */
+  chatModel?: { provider: string; model?: string };
+  /** API key for the lazy chat provider. */
+  chatApiKey?: string;
+  /**
+   * Optional system prompt override for the chat path. Defaults to a
+   * short, tool-free instruction set when omitted.
+   */
+  chatSystemPrompt?: string;
   /**
    * Optional SessionStore for durable persistence (per spec §4). When set,
    * `save()` and `resume()` route through the store; when omitted, the
@@ -1014,19 +1033,82 @@ You are in read-only mode. You can read files, search the codebase, and delegate
   }
 
   /**
-   * Chat-only path — no tool loop, no planning, no verification.
-   * Returns an echo-style summary via the same `AgentTurnResult` shape
-   * callers expect. Real runtimes should swap this for a no-tools
-   * provider call once the runtime separates chat from agent loops.
+   * Chat-only path — no tool loop, no planning, no verification. Lazily
+   * initializes a lightweight provider (no workflow/MCP), maintains
+   * conversation history in closure, and returns the assistant's reply
+   * as `summary`. When no provider is configured (no `chatProvider`,
+   * `chatModel`, or fallback), surfaces a clear placeholder so the
+   * TUI scrollback never stays empty on submit.
    */
+  let chatReady = false;
+  let chatProviderInstance: ModelAdapter | null = null;
+  let chatMessages: { role: 'user' | 'assistant'; content: string }[] = [];
+  const CHAT_DEFAULT_SYSTEM_PROMPT =
+    'You are ALiX in a lightweight chat session. Be brief, direct, and conversational. ' +
+    'Do not invoke tools, do not run commands, do not edit files. Respond as if you were ' +
+    'talking to the operator — short sentences, no markdown headings.';
+  const chatSystemPrompt = config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
+  const CHAT_MAX_OUTPUT_TOKENS = 512;
+
+  async function ensureChatProvider(): Promise<ModelAdapter | null> {
+    if (chatReady) return chatProviderInstance;
+    chatReady = true;
+    if (config.chatProvider) {
+      chatProviderInstance = config.chatProvider;
+      return chatProviderInstance;
+    }
+    if (!config.chatModel) return null;
+    try {
+      chatProviderInstance = await createProvider(config.chatModel, config.chatApiKey);
+      return chatProviderInstance;
+    } catch {
+      chatProviderInstance = null;
+      return null;
+    }
+  }
+
   async function processChat(message: string): Promise<AgentTurnResult> {
-    await initialize();
-    return {
-      summary: `[chat] ${message}`,
-      sessionId: ctx!.sessionId,
-      toolCalls: [],
-      reason: 'chat',
-    };
+    const sessionId = session?.sessionId ?? 'chat';
+    const provider = await ensureChatProvider();
+    if (!provider) {
+      return {
+        summary: `[chat:no-provider] ${message}`,
+        sessionId,
+        toolCalls: [],
+        reason: 'chat',
+      };
+    }
+
+    chatMessages.push({ role: 'user', content: message });
+    try {
+      const response = await provider.complete({
+        systemPrompt: chatSystemPrompt,
+        // Defensive copy so the provider's view of the conversation
+        // doesn't change after we push the assistant reply below.
+        messages: chatMessages.slice(),
+        maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+      });
+      const text = response.text?.trim() ?? '';
+      chatMessages.push({ role: 'assistant', content: text });
+      return {
+        summary: text || `[chat] ${message}`,
+        sessionId,
+        toolCalls: [],
+        reason: 'chat',
+        ...(response.usage ? { usage: response.usage as any } : {}),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      // Drop the user message we optimistically appended so the next turn
+      // doesn't see a phantom exchange.
+      chatMessages.pop();
+      return {
+        summary: `[chat error] ${message}`,
+        sessionId,
+        toolCalls: [],
+        reason: 'chat-error',
+      };
+    }
   }
 
   return {
