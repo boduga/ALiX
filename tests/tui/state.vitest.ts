@@ -26,7 +26,8 @@ describe('PerTabState serializability', () => {
       searchQuery: 'hello world',
       expandedSections: ['a', 'b'],
       lastEventArrivedAt: 1_700_000_000,
-      inputBuffer: '', submittedPrompts: [], agentResponses: [],
+      inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [],
     };
     const rt = JSON.parse(JSON.stringify(original)) as PerTabState;
     expect(rt).toEqual(original);
@@ -39,7 +40,8 @@ describe('PerTabState serializability', () => {
       scrollOffset: 0,
       searchQuery: '',
       expandedSections: [],
-    inputBuffer: '', submittedPrompts: [], agentResponses: [],
+    inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [],
       lastEventArrivedAt: 0,
     };
     expect(() => JSON.stringify(sample)).not.toThrow();
@@ -52,13 +54,20 @@ describe('TuiAppState defaults', () => {
       lastSnapshot: undefined,
       activeTab: 'chat' as TabId,
       views: {
-        chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
-        agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
-        daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
-        approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
-        runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
-        sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
-        policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '', submittedPrompts: [], agentResponses: [] },
+        chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+        agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+        daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+        approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+        runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+        sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+        policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
       },
       refreshGeneration: 0,
       refreshStatus: 'idle',

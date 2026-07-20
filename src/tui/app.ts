@@ -328,6 +328,9 @@ export class TuiApp {
       case 'handled': break;
       case 'moveCursor':
         this.state.views[this.state.activeTab].cursor = action.cursor;
+        if (action.pinnedBottom !== undefined) {
+          this.state.views[this.state.activeTab].pinnedBottom = action.pinnedBottom;
+        }
         this.paintFullFrame();
         break;
       case 'switchTab':

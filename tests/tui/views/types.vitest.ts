@@ -12,6 +12,7 @@ describe('TuiView contract — render purity', () => {
       dimensions: { columns: 80, rows: 24 },
       perTab: { cursor: 0, scrollOffset: 7, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
+            pinnedBottom: true,
             submittedPrompts: [],
             agentResponses: []
           },
@@ -32,6 +33,7 @@ describe('TuiView contract — render purity', () => {
       dimensions: { columns: 80, rows: 24 },
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
+            pinnedBottom: true,
             submittedPrompts: [],
             agentResponses: []
           },

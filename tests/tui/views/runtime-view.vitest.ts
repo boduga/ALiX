@@ -7,6 +7,7 @@ describe('RuntimeView', () => {
     dimensions: { columns: 100, rows: 30 },
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
+                pinnedBottom: true,
             submittedPrompts: [],
             agentResponses: []
           },
@@ -50,14 +51,15 @@ describe('RuntimeView', () => {
     const view = new RuntimeView();
     const ctx = (snap: any, perTabOverrides: any = {}) => ({ snap, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
+                pinnedBottom: true,
             submittedPrompts: [],
             agentResponses: [],
             ...perTabOverrides,
           } });
-    expect(view.handleKey?.('ArrowDown', ctx({ runtime: { events: [{ id: '1' }, { id: '2' }] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1 });
-    expect(view.handleKey?.('PageDown', ctx({ runtime: { events: Array.from({ length: 25 }, (_, i) => ({ id: String(i) })) } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 10 });
-    expect(view.handleKey?.('Home', ctx({ runtime: { events: [] } as any }, { cursor: 5 }))).toEqual({ type: 'moveCursor', cursor: 0 });
-    expect(view.handleKey?.('End', ctx({ runtime: { events: [] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1000 });
+    expect(view.handleKey?.('ArrowDown', ctx({ runtime: { events: [{ id: '1' }, { id: '2' }] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1, pinnedBottom: false });
+    expect(view.handleKey?.('PageDown', ctx({ runtime: { events: Array.from({ length: 25 }, (_, i) => ({ id: String(i) })) } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 10, pinnedBottom: false });
+    expect(view.handleKey?.('Home', ctx({ runtime: { events: [] } as any }, { cursor: 5 }))).toEqual({ type: 'moveCursor', cursor: 0, pinnedBottom: false });
+    expect(view.handleKey?.('End', ctx({ runtime: { events: [] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1000, pinnedBottom: false });
     expect(view.handleKey?.('Escape', ctx({} as any))).toEqual({ type: 'switchTab', tab: 'chat' });
     expect(view.handleKey?.('/', ctx({} as any))).toEqual({ type: 'scheduleRefresh' });
   });

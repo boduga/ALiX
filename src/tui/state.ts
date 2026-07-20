@@ -26,6 +26,12 @@ export interface PerTabState {
   searchQuery: string;
   expandedSections: string[];
   lastEventArrivedAt: number;
+  /**
+   * Whether the live-event view is auto-following the tail. Set to
+   * false when the user scrolls up; reset to true by onActivate when
+   * the tab is re-entered. Only the runtime panel reads this.
+   */
+  pinnedBottom: boolean;
   /** Partial message typed into the input prompt before submit. */
   inputBuffer: string;
   /** Submitted prompts, oldest first; rendered in the chat scrollback. */
@@ -52,6 +58,7 @@ export function createInitialPerTabState(): PerTabState {
   return {
     cursor: 0,
     scrollOffset: 0,
+    pinnedBottom: true,
     searchQuery: '',
     expandedSections: [],
     lastEventArrivedAt: 0,

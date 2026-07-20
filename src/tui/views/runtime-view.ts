@@ -29,7 +29,25 @@ export class RuntimeView implements TuiView {
     }
 
     rows.push('─'.repeat(dimensions.columns));
-    const start = ctx.perTab.scrollOffset;
+
+    // Auto-follow the tail: if the user hasn't manually scrolled (or
+    // is at the bottom), keep the offset pinned to the last window of
+    // events. The `pinnedBottom` flag is set to false when the user
+    // scrolls up, and reset to true via onActivate when the tab is
+    // re-entered. Events are ordered newest-first by the collector, so
+    // "bottom" is offset 0.
+    const pinned = ctx.perTab.pinnedBottom ?? true;
+    const eventCount = r.events.length;
+    const winSize = 15;
+    const maxStart = Math.max(0, eventCount - winSize);
+    let start = ctx.perTab.scrollOffset;
+    if (pinned) {
+      // Follow the tail: anchor the bottom row at the last event.
+      start = maxStart;
+    } else if (start > maxStart) {
+      // User had the cursor below the new bottom — clamp.
+      start = maxStart;
+    }
     const visible = r.events.slice(start, start + 15);
     for (const e of visible) {
       rows.push(`  [${new Date(e.timestamp).toISOString().slice(11, 19)}] ${e.kind.padEnd(20, ' ')} ${e.summary}`);
@@ -46,13 +64,16 @@ export class RuntimeView implements TuiView {
   }
 
   handleKey(key: string, _ctx: ViewInputContext): ViewAction {
+    // Cursor moves within the runtime tab release the auto-follow-the-tail
+    // pin so the user can read history without losing their position.
+    const onCursor = (cursor: number): ViewAction => ({ type: 'moveCursor', cursor, pinnedBottom: false });
     switch (key) {
-      case 'ArrowDown': return { type: 'moveCursor', cursor: (_ctx.perTab.cursor ?? 0) + 1 };
-      case 'ArrowUp': return { type: 'moveCursor', cursor: Math.max(0, (_ctx.perTab.cursor ?? 0) - 1) };
-      case 'PageDown': return { type: 'moveCursor', cursor: (_ctx.perTab.cursor ?? 0) + 10 };
-      case 'PageUp': return { type: 'moveCursor', cursor: Math.max(0, (_ctx.perTab.cursor ?? 0) - 10) };
-      case 'Home': return { type: 'moveCursor', cursor: 0 };
-      case 'End': return { type: 'moveCursor', cursor: 1000 };
+      case 'ArrowDown': return onCursor((_ctx.perTab.cursor ?? 0) + 1);
+      case 'ArrowUp': return onCursor(Math.max(0, (_ctx.perTab.cursor ?? 0) - 1));
+      case 'PageDown': return onCursor((_ctx.perTab.cursor ?? 0) + 10);
+      case 'PageUp': return onCursor(Math.max(0, (_ctx.perTab.cursor ?? 0) - 10));
+      case 'Home': return onCursor(0);
+      case 'End': return onCursor(1000);
       case 'Escape': return { type: 'switchTab', tab: 'chat' };
       case '/': return { type: 'scheduleRefresh' };
       default: return { type: 'handled' };
