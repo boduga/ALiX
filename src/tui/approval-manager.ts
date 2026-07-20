@@ -5,6 +5,8 @@
  * Follows the same pattern as WorkspaceManager.
  */
 
+import type { ApprovalSnapshot, ApprovalRecordSnapshot } from './snapshot.js';
+
 export type ApprovalManagerResult =
   | { handled: false }
   | { handled: true; message: string; action?: "approved" | "denied"; approvalId?: string };
@@ -70,6 +72,27 @@ export class ApprovalManager {
       message: result.message,
       action: status,
       approvalId: id,
+    };
+  }
+
+  /**
+   * Build an ApprovalSnapshot from current state.
+   * recentlyResolved is always empty — resolution tracking is deferred.
+   */
+  async snapshot(): Promise<ApprovalSnapshot> {
+    const pending = await this.deps.listPendingApprovals();
+    return {
+      pending: pending.map(r => ({
+        id: r.id,
+        toolName: r.capabilities?.[0] ?? 'unknown',
+        targetPath: '',
+        args: {},
+        requestedAt: Date.parse(r.createdAt) || Date.now(),
+        requestedBy: 'system',
+      })),
+      recentlyResolved: [],
+      totalPending: pending.length,
+      totalResolved: 0,
     };
   }
 }

@@ -10,6 +10,7 @@ import type { RiskLevel } from "./capability-registry.js";
 import { SecretScanner } from "../security/secret-scanner.js";
 import type { SecretFinding } from "../security/secret-scanner.js";
 import { BLOCKED_COMMANDS, parseWhitelistEnv } from "./shell-whitelist.js";
+import type { PolicySnapshot, PolicyRuleSnapshot } from "../tui/snapshot.js";
 
 function logShellEdgeCase(command: string): void {
   // Log to stderr for filtering - helps identify commands that should become explicit tools
@@ -248,6 +249,33 @@ export class PolicyEngine {
       return `tool-policy-${request.capability}`;
     }
     return "default-policy";
+  }
+
+  /**
+   * Build a PolicySnapshot from current engine state.
+   * No violation tracking yet — violations are deferred.
+   */
+  async snapshot(): Promise<PolicySnapshot> {
+    const rules: PolicyRuleSnapshot[] = Object.entries(
+      this.config.permissions?.tools ?? {},
+    ).map(([key]) => ({
+      id: key,
+      name: key,
+      severity: 'medium' as const,
+      lastResult: 'pass' as const,
+      lastEvaluatedAt: Date.now(),
+    }));
+
+    const rawMode: SessionMode = this.config.permissions?.sessionMode ?? 'auto';
+    const enforcementMode: 'strict' | 'auto' | 'bypass' =
+      rawMode === 'ask' ? 'strict' : rawMode;
+
+    return {
+      rules,
+      violations: [],
+      enforcementMode,
+      recentViolationCount: 0,
+    };
   }
 }
 

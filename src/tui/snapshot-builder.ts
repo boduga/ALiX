@@ -1,11 +1,13 @@
 import type { AgentSession } from '../agent/session.js';
-import type { ApprovalManager } from './approval-manager.js';
-import type { EventLog } from '../events/event-log.js';
 import type { PolicyEngine } from '../policy/policy-engine.js';
+import type { EventLog } from '../events/event-log.js';
 import type {
   DashboardSnapshot,
   SessionMetadata,
   DaemonMetricsSnapshot,
+  ApprovalSnapshot,
+  RuntimeSnapshot,
+  SopSnapshot,
 } from './snapshot.js';
 import { SessionPhase } from './state.js';
 
@@ -18,6 +20,31 @@ export interface DaemonMetricsCollector {
   start(): void;
   stop(): Promise<void>;
   snapshot(): Promise<DaemonMetricsSnapshot>;
+}
+
+/**
+ * Subsystem contract for the approval snapshot. Defined here so SnapshotBuilder
+ * stays self-contained before the dedicated collector module lands.
+ */
+export interface ApprovalCollector {
+  snapshot(): Promise<ApprovalSnapshot | null>;
+}
+
+/**
+ * Subsystem contract for the runtime-event snapshot. Defined here so
+ * SnapshotBuilder stays self-contained before the dedicated collector module
+ * lands.
+ */
+export interface RuntimeCollector {
+  snapshot(): Promise<any>;
+}
+
+/**
+ * Subsystem contract for the SOP-snapshot. Defined here so SnapshotBuilder
+ * stays self-contained before the dedicated collector module lands.
+ */
+export interface SopCollector {
+  snapshot(): Promise<any>;
 }
 
 export type SubsystemSnapshotFn = () => Promise<unknown> | unknown;
@@ -46,10 +73,10 @@ export class SnapshotBuilder {
 
   constructor(
     private readonly session: AgentSession,
-    private readonly approvals: ApprovalManager,
+    private readonly approvals: ApprovalCollector,
     private readonly policy: PolicyEngine,
-    private readonly sops: unknown,
-    private readonly eventLog: EventLog,
+    private readonly sops: SopCollector,
+    private readonly runtime: EventLog | RuntimeCollector,
     private readonly daemonMetrics: DaemonMetricsCollector,
   ) {}
 
@@ -96,13 +123,13 @@ export class SnapshotBuilder {
     if (this.currentGeneration !== generation) return null;
     const daemon = await this.trySnapshot('daemon', () => this.daemonMetrics.snapshot());
     if (this.currentGeneration !== generation) return null;
-    const approvals = await this.trySnapshot('approvals', async () => (this.approvals as any).snapshot());
+    const approvals = await this.trySnapshot('approvals', () => this.approvals.snapshot());
     if (this.currentGeneration !== generation) return null;
-    const runtime = await this.trySnapshot('runtime', async () => (this.eventLog as any).snapshot());
+    const runtime = await this.trySnapshot('runtime', () => (this.runtime as RuntimeCollector).snapshot());
     if (this.currentGeneration !== generation) return null;
-    const sops = await this.trySnapshot('sops', async () => (this.sops as any).snapshot());
+    const sops = await this.trySnapshot('sops', () => this.sops.snapshot());
     if (this.currentGeneration !== generation) return null;
-    const policy = await this.trySnapshot('policy', async () => (this.policy as any).snapshot());
+    const policy = await this.trySnapshot('policy', () => this.policy.snapshot());
     if (this.currentGeneration !== generation) return null;
 
     const snap = Object.freeze({

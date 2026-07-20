@@ -6,6 +6,8 @@ import { ApprovalManager } from "../../tui/approval-manager.js";
 import { TuiApp } from "../../tui/app.js";
 import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
+import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
+import { SopCollectorImpl } from "../../tui/sop-collector.js";
 import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
 import { handlePolicyCommand } from "../../tui/helpers/policy-commands.js";
@@ -58,6 +60,8 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
+  const runtimeCollector = new RuntimeCollectorImpl(eventLog);
+  const sopCollector = new SopCollectorImpl();
 
   // Either the real `createAgentSession` runtime (default) or the
   // legacy echo stub (opt-in via ALIX_TUI_STUB_AGENT=1). The real
@@ -115,10 +119,13 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   }
 
   const builder = new SnapshotBuilder(
-    agentSession, approvals, policy, null as unknown, eventLog, daemonMetrics,
+    agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
   );
 
   const app = new TuiApp({ builder, daemonMetrics, agentSession });
+
+  runtimeCollector.start();
+  sopCollector.start();
 
   try {
     await app.start();
@@ -126,5 +133,8 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   } catch (err) {
     await app.stop();
     throw err;
+  } finally {
+    runtimeCollector.stop();
+    sopCollector.stop();
   }
 }
