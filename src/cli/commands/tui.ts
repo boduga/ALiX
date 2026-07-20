@@ -125,6 +125,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
       task: '',                                  // filled on first processTurn
       sessionId,
       sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
+      approvalStore,
       ...(opts.daemonMode === false ? {} : {}),  // daemon toggle reserved for follow-up
       ...(configuredModel?.provider
         ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }

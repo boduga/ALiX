@@ -131,6 +131,12 @@ export interface AgentSessionConfig {
   /** Optional session events subscription (per spec §13). */
   events?: AgentSessionEvents;
   /**
+   * Optional approval store for tool-call approval workflows.
+   * When omitted, the runtime denies tool execution with
+   * 'Approval required but no approval store configured'.
+   */
+  approvalStore?: import("../approvals/approval-store.js").ApprovalStore;
+  /**
    * Optional pre-built model adapter for the lightweight chat path
    * (`processChat`). When omitted, `processChat` falls back to either
    * `chatModel`/`chatApiKey` env-style config or a clear placeholder
@@ -350,6 +356,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
       task: config.task,
       sessionId: config.sessionId,
       sessionMode: config.sessionMode,
+      approvalStore: config.approvalStore,
     });
 
     // Lifecycle phase: first turn started → Understanding. This is the earliest

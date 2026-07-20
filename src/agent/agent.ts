@@ -13,6 +13,7 @@ import { buildEditFormatPolicy } from "../patch/edit-format-policy.js";
 import { CheckpointManager } from "../patch/checkpoint.js";
 import { buildSessionDigest } from "../utils/session-digest.js";
 import { MemoryStore } from "../utils/memory/store.js";
+import type { ApprovalStore } from "../approvals/approval-store.js";
 import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
 import { createToolRepairHooks } from "../../packages/tool-repair/src/adapters/alix-hook.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
@@ -50,6 +51,7 @@ export type InitAgentOpts = {
     eventLog: EventLog;
   };
   sessionMode?: "auto" | "ask" | "bypass";
+  approvalStore?: ApprovalStore;
 };
 
 export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<AgentContext> {
@@ -178,7 +180,7 @@ export async function initAgent(cwd: string, opts: InitAgentOpts): Promise<Agent
     hookRunner.register(hook.name, hook.fn);
   }
 
-  const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager);
+  const toolExecutor = new ToolExecutor(config, log, cwd, mcpManager ?? undefined, editFormatPolicy, delegateHandler ? { delegate: delegateHandler } : undefined, checkpointManager, opts.approvalStore);
 
   // Scope tracking: derive initial scope from task string
   const initialScope = extractInitialScope(opts.task);
