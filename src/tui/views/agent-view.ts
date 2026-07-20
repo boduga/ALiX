@@ -1,6 +1,7 @@
 import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
+import { wrapText } from './wrap-text.js';
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -47,8 +48,9 @@ export class AgentView implements TuiView {
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
     // Scrollback area — alternate between user tasks (→) and agent
-    // responses (←). Same interleaving as ChatView so the operator
-    // gets a consistent conversation-model feel across both tabs.
+    // responses (←). Same interleaving as ChatView but with the status
+    // row at row 5 reserved, so the scrollback starts at row 6.
+    // Long messages word-wrap so they don't truncate at the right border.
     const submitted = ctx.perTab.submittedPrompts;
     const responses = ctx.perTab.agentResponses;
     const turns: { kind: 'user' | 'agent'; text: string }[] = [];
@@ -57,20 +59,29 @@ export class AgentView implements TuiView {
       if (i < submitted.length) turns.push({ kind: 'user', text: submitted[i]! });
       if (i < responses.length) turns.push({ kind: 'agent', text: responses[i]! });
     }
-    const scrollbackTop = 6; // 5 reserved for status line
+    const scrollbackTop = 6;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
-    const recent = turns.slice(-scrollbackRows);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
-    for (let i = 0; i < recent.length; i++) {
+
+    interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
+    const allLines: ScrollbackLine[] = [];
+    for (const t of turns) {
+      const wrapped = wrapText(t.text, textWidth);
+      for (let i = 0; i < wrapped.length; i++) {
+        allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+      }
+    }
+    const visible = allLines.slice(-scrollbackRows);
+    for (let i = 0; i < visible.length; i++) {
       const rowY = scrollbackTop + i;
-      const t = recent[i]!;
-      if (t.kind === 'user') {
-        c.write(0, rowY, '\x1b[90m→ \x1b[0m');
-        c.write(2, rowY, t.text.slice(0, textWidth));
+      const l = visible[i]!;
+      if (l.isFirst) {
+        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m' : '\x1b[36m← \x1b[0m';
+        c.write(0, rowY, marker);
+        c.write(2, rowY, l.text);
       } else {
-        c.write(0, rowY, '\x1b[36m← \x1b[0m');
-        c.write(2, rowY, t.text.slice(0, textWidth));
+        c.write(2, rowY, l.text);
       }
     }
 

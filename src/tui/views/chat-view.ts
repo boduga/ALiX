@@ -1,6 +1,7 @@
 import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
+import { wrapText } from './wrap-text.js';
 
 /**
  * ChatView — default landing tab. Renders the input prompt placeholder
@@ -34,8 +35,10 @@ export class ChatView implements TuiView {
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
     // Scrollback area — alternate between user prompts (→) and
-    // agent responses (←). The most recent turns are shown first
-    // when they overflow the available rows.
+    // agent responses (←). Long messages word-wrap into multiple rows so
+    // they don't truncate at the panel border; the marker only appears
+    // on the first line of each turn and continuation lines indent to
+    // align under the text.
     const submitted = ctx.perTab.submittedPrompts;
     const responses = ctx.perTab.agentResponses;
     const turns: { kind: 'user' | 'agent'; text: string }[] = [];
@@ -47,17 +50,29 @@ export class ChatView implements TuiView {
     const scrollbackTop = 5;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
-    const recent = turns.slice(-scrollbackRows);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
-    for (let i = 0; i < recent.length; i++) {
+
+    // Flatten turns → wrapped lines so very long messages occupy multiple
+    // rows instead of truncating at the right border.
+    interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
+    const allLines: ScrollbackLine[] = [];
+    for (const t of turns) {
+      const wrapped = wrapText(t.text, textWidth);
+      for (let i = 0; i < wrapped.length; i++) {
+        allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+      }
+    }
+    const visible = allLines.slice(-scrollbackRows);
+    for (let i = 0; i < visible.length; i++) {
       const rowY = scrollbackTop + i;
-      const t = recent[i]!;
-      if (t.kind === 'user') {
-        c.write(0, rowY, '\x1b[90m→ \x1b[0m');
-        c.write(2, rowY, t.text.slice(0, textWidth));
+      const l = visible[i]!;
+      if (l.isFirst) {
+        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m' : '\x1b[36m← \x1b[0m';
+        c.write(0, rowY, marker);
+        c.write(2, rowY, l.text);
       } else {
-        c.write(0, rowY, '\x1b[36m← \x1b[0m');
-        c.write(2, rowY, t.text.slice(0, textWidth));
+        // Continuation — indent under the text column (no marker).
+        c.write(2, rowY, l.text);
       }
     }
 
