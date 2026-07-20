@@ -210,7 +210,7 @@ export class TuiApp {
       this.state.views.agent,
       [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
       '[agent]',
-      60_000,
+      120_000,
     );
   }
 
