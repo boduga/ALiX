@@ -303,7 +303,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   let depth: "quick" | "deep" = "quick";
   let shellTask = false;
   let readOnlyTask = false;
-  let cappedIterations = 10;
+  let cappedIterations = 25;
 
   // Setup values
   let systemPrompt = "";
@@ -454,7 +454,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
     const effectiveTask = currentTask || "Interactive coding session";
     taskType = classifyTask(effectiveTask);
     depth = detectResearchDepth(effectiveTask);
-    const maxIter = ctx.config.model.maxIterations ?? 10;
+    const maxIter = ctx.config.model.maxIterations ?? 25;
     shellTask = isShellTask(effectiveTask);
     readOnlyTask = isReadOnlyTask(effectiveTask) || shellTask;
     cappedIterations = shellTask
