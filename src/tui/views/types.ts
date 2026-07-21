@@ -33,6 +33,7 @@ export interface ViewRenderResult {
 export type ViewAction =
   | { type: 'handled' }
   | { type: 'moveCursor'; cursor: number; pinnedBottom?: boolean }
+  | { type: 'scroll'; offset: number }
   | { type: 'scheduleRefresh' }
   | { type: 'switchTab'; tab: TabId }
   | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' };

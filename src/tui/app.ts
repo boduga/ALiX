@@ -225,7 +225,7 @@ export class TuiApp {
   private async dispatchToSession(
     text: string,
     kind: 'chat' | 'agent',
-    perTab: { agentResponses: string[] },
+    perTab: { agentResponses: string[]; scrollOffset: number },
     candidates: Array<((text: string) => Promise<{ summary: string; reason?: string }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
@@ -269,6 +269,7 @@ export class TuiApp {
       }
     }
     perTab.agentResponses.push(summary);
+    perTab.scrollOffset = 0; // auto-scroll to bottom on new response
     this.paintFullFrame();
   }
 
@@ -331,6 +332,10 @@ export class TuiApp {
         if (action.pinnedBottom !== undefined) {
           this.state.views[this.state.activeTab].pinnedBottom = action.pinnedBottom;
         }
+        this.paintFullFrame();
+        break;
+      case 'scroll':
+        this.state.views[this.state.activeTab].scrollOffset = Math.max(0, action.offset);
         this.paintFullFrame();
         break;
       case 'switchTab':

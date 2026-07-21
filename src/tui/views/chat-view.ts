@@ -1,6 +1,6 @@
 import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
-import type { ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
+import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
 
 /**
@@ -62,7 +62,12 @@ export class ChatView implements TuiView {
         allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
       }
     }
-    const visible = allLines.slice(-scrollbackRows);
+    // Use scrollOffset so the user can scroll back through past responses
+    // with arrow keys. offset=0 shows the most recent lines (bottom).
+    const offset = ctx.perTab.scrollOffset;
+    const endIndex = Math.max(0, allLines.length - offset);
+    const startIndex = Math.max(0, endIndex - scrollbackRows);
+    const visible = allLines.slice(startIndex, endIndex);
     for (let i = 0; i < visible.length; i++) {
       const rowY = scrollbackTop + i;
       const l = visible[i]!;
@@ -82,10 +87,21 @@ export class ChatView implements TuiView {
     return { rows: [] };
   }
 
-  handleKey(key: string, _ctx: ViewInputContext): { type: 'handled' } {
-    // Real input handling arrives in a later iteration. For now swallow keys.
-    void key;
-    return { type: 'handled' };
+  handleKey(key: string, ctx: ViewInputContext): ViewAction {
+    // Arrow keys scroll the scrollback; 3 lines per step gives a smooth
+    // feel without being too slow for longer responses. Other keys are
+    // swallowed (the chat tab's input buffer is handled by TuiApp).
+    const SCROLL_STEP = 3;
+    switch (key) {
+      case 'ArrowUp':
+        return { type: 'scroll', offset: ctx.perTab.scrollOffset + SCROLL_STEP };
+      case 'ArrowDown': {
+        const offset = Math.max(0, ctx.perTab.scrollOffset - SCROLL_STEP);
+        return { type: 'scroll', offset };
+      }
+      default:
+        return { type: 'handled' };
+    }
   }
 
   onActivate(_perTab: PerTabState): void {
