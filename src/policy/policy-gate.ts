@@ -282,6 +282,7 @@ export class PolicyGate {
       capability,
       request.sessionMode,
       `Requires approval for capability: ${capability}`,
+      request.sessionId,
       request.coordinationRunId ? {
         coordinationRunId: request.coordinationRunId,
         workerId: request.workerId,
@@ -347,6 +348,7 @@ export class PolicyGate {
       request.capability,
       request.sessionMode,
       `Requires approval for capability: ${request.capability}`,
+      request.sessionId,
       request.coordinationRunId ? {
         coordinationRunId: request.coordinationRunId,
         workerId: request.workerId,
@@ -384,6 +386,7 @@ export class PolicyGate {
     capability: string,
     sessionMode: string,
     reason: string,
+    sessionId?: string,
     coordinationContext?: {
       coordinationRunId?: string;
       workerId?: string;
@@ -429,7 +432,7 @@ export class PolicyGate {
       }
 
       // Create new pending with binding key
-      const approval = await store.request({ reason, capability });
+      const approval = await store.request({ reason, capability, sessionId });
       // Update the approval with binding key via store's internal state
       approval.bindingKey = bindingKey;
       approval.policyRevision = policyRevision;
@@ -446,7 +449,7 @@ export class PolicyGate {
     // Prior-approval reuse only applies in "auto" (auto-approve) mode.
     if (sessionMode !== "auto") {
       // Create new pending approval
-      const approval = await store.request({ reason, capability });
+      const approval = await store.request({ reason, capability, sessionId });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
     }
 
@@ -466,7 +469,7 @@ export class PolicyGate {
     }
 
     // Create new pending approval
-    const approval = await store.request({ reason, capability });
+    const approval = await store.request({ reason, capability, sessionId });
     return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
   }
 }

@@ -660,6 +660,9 @@ You are in read-only mode. You can read files, search the codebase, and delegate
 
   async function processTurn(message: string): Promise<AgentTurnResult> {
     if (!initialized) {
+      // Seed currentTask from the first message so the planning phase has
+      // a task to work with (TUI creates sessions with an empty task).
+      if (!currentTask) currentTask = message;
       await initialize();
     } else {
       // Lifecycle phase: subsequent turn started → Understanding. First-turn
