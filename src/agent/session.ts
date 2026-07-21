@@ -149,6 +149,12 @@ export interface AgentSessionConfig {
   /** API key for the lazy chat provider. */
   chatApiKey?: string;
   /**
+   * When true, tool outputs are streamed to stdout during execution.
+   * Defaults to true for CLI mode; set to false in TUI mode to prevent
+   * raw tool output from flashing over the dashboard.
+   */
+  verbose?: boolean;
+  /**
    * Optional system prompt override for the chat path. Defaults to a
    * short, tool-free instruction set when omitted.
    */
@@ -785,6 +791,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         onStream: buildSessionStreamHandler(config.onStream, config.events),
         hookRunner: ctx.hookRunner,
         context: taskContext,
+        verbose: config.verbose,
       });
     } catch (err) {
       transitionNodeStatus(taskNode, "failed");

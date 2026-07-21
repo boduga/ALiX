@@ -144,6 +144,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         task: '',                                  // filled on first processTurn
         sessionId,
         sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
+        verbose: false,                            // suppress tool stdout from agent loop
         approvalStore,
         ...(configuredModel?.provider
           ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }

@@ -134,6 +134,8 @@ post_task?: { command: string; reason: string }[];
   onStream?: (chunk: { type: "text" | "tool_call"; text?: string; toolCall?: ToolCall }) => void;
   hookRunner?: import("../extensions/hook-runner.js").HookRunner;
   context?: ExecutionContext;
+  /** When true (default), tool outputs are streamed to stdout. */
+  verbose?: boolean;
 }
 
 /**
@@ -450,7 +452,7 @@ if (toolCalls.length === 0) {
     selectedTools,
     mcpToolIndex,
     config,
-    verbose: true, // Stream tool outputs to stdout
+    verbose: deps.verbose ?? true, // Stream tool outputs to stdout
   };
 
   // Handle each tool call (model names like alix_file_read → executor names like file.read)
