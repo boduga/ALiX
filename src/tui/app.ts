@@ -489,13 +489,21 @@ export class TuiApp {
     // Write the complete frame — cursor home + canvas render.
     process.stdout.write('\x1b[H' + c.renderFrame());
 
-    // Place the terminal cursor at the chat input position.
-    // Without this the cursor sits at the bottom of the screen but the typed
-    // text appears at the top (where ChatView renders the input buffer),
-    // creating an invisible-typing experience.
+    // Place the terminal cursor at the active tab's input prompt position.
+    // Without this the cursor sits at the bottom of the screen (blinking on
+    // top of the status line) while typed text accumulates in the buffer,
+    // creating both an invisible-typing experience and a visual "flash" on
+    // every keypress as the full frame redraw overwrites the cursor area.
     if (this.state.activeTab === 'chat') {
       const bufLen = this.state.views.chat.inputBuffer.length;
       process.stdout.write(`\x1b[5;${7 + bufLen + 1}H`);
+    } else if (this.state.activeTab === 'agent') {
+      const bufLen = this.state.views.agent.inputBuffer.length;
+      process.stdout.write(`\x1b[5;${13 + bufLen + 1}H`);
+    } else {
+      // Non-input tabs: move cursor to a safe column (row 4, col 1) so it
+      // doesn't blink on top of the status line.
+      process.stdout.write(`\x1b[5;1H`);
     }
   }
 
