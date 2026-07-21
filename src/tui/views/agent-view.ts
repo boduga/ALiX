@@ -1,3 +1,4 @@
+import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
@@ -12,8 +13,6 @@ import { wrapText } from './wrap-text.js';
  *   - prompt marker: `alix-agent>` instead of `alix>`
  *   - status row above the scrollback that surfaces runtime workflow
  *     and event counts at a glance
- *   - compact 1-line dashboard instead of the full 14-panel layout,
- *     so the scrollback has room for plan content on small terminals
  *
  * Pure: render(ctx) never mutates ctx.
  */
@@ -42,10 +41,9 @@ export class AgentView implements TuiView {
       c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}\x1b[0m`);
     }
 
-    // Compact 1-line dashboard saves ~13 rows for scrollback vs the full
-    // 14-panel layout.  The operator switches to the dedicated tabs
-    // (APPROVALS, RUNTIME, SOPS, POLICY) for detailed views.
-    const PANEL_H = 1;
+    // Pin the 4-panel dashboard to the bottom of the canvas, flush above
+    // the 3-row footer painted by app.ts.
+    const PANEL_H = 14;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
@@ -87,14 +85,7 @@ export class AgentView implements TuiView {
       }
     }
 
-    // Compact 1-line dashboard at the bottom
-    const daemonStatus = ctx.snap.daemon
-      ? '\x1b[32m●\x1b[0m'
-      : '\x1b[90m○\x1b[0m';
-    const appsCount = ctx.snap.approvals?.totalPending ?? 0;
-    const events = ctx.snap.runtime?.totalEventCount ?? 0;
-    const policyMode = ctx.snap.policy?.enforcementMode ?? '—';
-    c.write(0, startY, `\x1b[90mD:${daemonStatus}  A:${appsCount}  E:${events}  P:${policyMode}\x1b[0m`);
+    renderDashboard(ctx.snap, c, startY);
 
     return { rows: [] };
   }
