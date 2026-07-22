@@ -1,4 +1,3 @@
-import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
@@ -64,12 +63,44 @@ export class AgentView implements TuiView {
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
-    interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
+    interface ScrollbackLine { kind: 'user' | 'agent' | 'plan' | 'approval'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
+
+    // Plan content — rendered above the turn scrollback as a distinguished
+    // section so the operator sees what the agent planned to do.
+    if (ctx.perTab.planContent) {
+      const planLines = wrapText(ctx.perTab.planContent, textWidth);
+      for (let i = 0; i < planLines.length; i++) {
+        allLines.push({ kind: 'plan', text: planLines[i]!, isFirst: i === 0 });
+      }
+      // ─ separator between plan and scrollback turns
+      allLines.push({ kind: 'plan', text: '', isFirst: false });
+    }
+
     for (const t of turns) {
       const wrapped = wrapText(t.text, textWidth);
       for (let i = 0; i < wrapped.length; i++) {
         allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+      }
+    }
+
+    // Live approval requests — render as inline cards so the operator can
+    // resolve them with `a` / `d` without leaving the agent tab. The
+    // first line is a header showing how many are pending; each entry
+    // shows tool + target with a hint to press `a` or `d`.
+    if (ctx.perTab.pendingApprovals.length > 0) {
+      const aps = ctx.perTab.pendingApprovals;
+      const header = `⏸ ${aps.length} approval request${aps.length === 1 ? '' : 's'} pending — press 'a' to approve, 'd' to deny`;
+      const headerWrapped = wrapText(header, textWidth);
+      for (let i = 0; i < headerWrapped.length; i++) {
+        allLines.push({ kind: 'approval', text: headerWrapped[i]!, isFirst: i === 0 });
+      }
+      for (const a of aps) {
+        const card = `  ▸ ${a.toolName}  ${a.target || '(no target)'}  ·  ${a.id.slice(-5)}`;
+        const wrapped = wrapText(card, textWidth);
+        for (let i = 0; i < wrapped.length; i++) {
+          allLines.push({ kind: 'approval', text: wrapped[i]!, isFirst: i === 0 });
+        }
       }
     }
     // Use scrollOffset so the user can scroll back through past responses
@@ -81,7 +112,22 @@ export class AgentView implements TuiView {
     for (let i = 0; i < visible.length; i++) {
       const rowY = scrollbackTop + i;
       const l = visible[i]!;
-      if (l.isFirst) {
+      if (l.kind === 'plan') {
+        if (l.isFirst) {
+          c.write(0, rowY, '\x1b[2m◆ \x1b[0m');
+          c.write(2, rowY, `\x1b[2m${l.text}\x1b[0m`);
+        } else if (l.text) {
+          c.write(2, rowY, `\x1b[2m${l.text}\x1b[0m`);
+        }
+        // empty separator line → skip (blank)
+      } else if (l.kind === 'approval') {
+        if (l.isFirst) {
+          c.write(0, rowY, '\x1b[33m⏸ \x1b[0m');
+          c.write(2, rowY, `\x1b[33m${l.text}\x1b[0m`);
+        } else {
+          c.write(2, rowY, `\x1b[33m${l.text}\x1b[0m`);
+        }
+      } else if (l.isFirst) {
         const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m' : '\x1b[36m← \x1b[0m';
         c.write(0, rowY, marker);
         c.write(2, rowY, l.text);
@@ -90,7 +136,8 @@ export class AgentView implements TuiView {
       }
     }
 
-    renderDashboard(ctx.snap, c, startY);
+    // Dashboard is rendered by app.ts into a separate sidebar canvas
+    // (70/30 split). Returning rows: [] keeps the legacy return contract.
 
     return { rows: [] };
   }

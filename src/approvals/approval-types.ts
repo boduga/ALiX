@@ -30,6 +30,9 @@ export interface ApprovalRecord {
   graphId?: string;
   nodeId?: string;
   sessionId?: string;
+  /** Stable request id (typically the toolCallId) — used to detect re-executions
+   * of the same tool call and prevent duplicate approvals. */
+  requestId?: string;
 
   capabilities: string[];
   toolId?: string;

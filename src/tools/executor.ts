@@ -122,6 +122,17 @@ export class ToolExecutor {
     this.toolAwareRouter.clearIntent();
   }
 
+  /**
+   * Look up an approval record by id. Exposed so the agent loop can wait
+   * for an approval to be resolved and then re-execute the original tool
+   * call — without this, the loop sees "Approval required" as a generic
+   * "Access denied" and the model just retries, generating one new
+   * approval per iteration.
+   */
+  getApproval(id: string): { status?: string } | undefined {
+    return this.approvalStore?.get?.(id);
+  }
+
   private sessionId(): string {
     // Extract sessionId from EventLog sessionDir: .alix/sessions/<sessionId>
     const parts = this.log.sessionDir.split("sessions/");

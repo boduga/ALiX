@@ -11,20 +11,39 @@ export type PlanPhaseResult =
   | { action: "approved"; planContent: string }
   | { action: "rejected" };
 
+export type PlanApprovalMode = "interactive" | "deferred";
+
 /**
- * Run the plan phase: generate plan → save → print → prompt → return result.
- * If the task is read-only (research, shell commands), skips plan generation entirely
- * and returns immediately — no model call, no tokens wasted.
- * If not a TTY (pipe), also skips plan generation.
+ * Run the plan phase: generate plan → save → (optionally) print and prompt.
+ *
+ * `approvalMode` separates two concerns that `runPlanPhase` previously conflated:
+ *   1. **Plan generation** — an LLM operation.
+ *   2. **Interactive approval** — a terminal-UI operation.
+ *
+ * | approvalMode | process.stdout.isTTY | Behaviour |
+ * |---|---|---|
+ * | `"interactive"` (default) | `true` | Generate, print, prompt → approved/rejected |
+ * | `"interactive"` | `false` | Skip entirely (backward-compat for CI/piped) |
+ * | `"deferred"` | any | Generate, return as approved (caller handles display/prompt) |
+ *
+ * Read-only / shell tasks always skip plan generation regardless of `approvalMode`.
  */
 export async function runPlanPhase(
   ctx: AgentContext,
   bundle: ContextBundle,
   task: string,
   planFilePath?: string,
+  opts?: { approvalMode?: PlanApprovalMode },
 ): Promise<PlanPhaseResult> {
-  // Skip plan generation for read-only tasks and non-TTY sessions
-  if (isReadOnlyTask(task) || isShellTask(task) || !process.stdout.isTTY) {
+  const approvalMode = opts?.approvalMode ?? "interactive";
+
+  // Skip plan generation for read-only / shell tasks — no model call wasted.
+  if (isReadOnlyTask(task) || isShellTask(task)) {
+    return { action: "approved", planContent: "" };
+  }
+
+  // Interactive mode without a TTY: skip plan entirely (CI, piped, scripting).
+  if (approvalMode === "interactive" && !process.stdout.isTTY) {
     return { action: "approved", planContent: "" };
   }
 
@@ -40,11 +59,14 @@ export async function runPlanPhase(
   const planPath = join(planDir, `${ctx.sessionId}.md`);
   await writeFile(planPath, planContent);
 
-  // 3. Print plan to stdout
-  console.log("\n" + planContent);
+  // 3. Interactive: print plan and prompt for approval
+  if (approvalMode === "interactive") {
+    console.log("\n" + planContent);
+    return await promptForPlanApproval(planPath, planContent);
+  }
 
-  // 4. Prompt for approval
-  return await promptForPlanApproval(planPath, planContent);
+  // 4. Deferred: return plan without prompting (caller handles display/approval)
+  return { action: "approved", planContent };
 }
 
 /**

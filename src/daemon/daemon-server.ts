@@ -352,7 +352,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
 
     let streamedText = false;
     const result = await runTask(requestCwd, task, {
-      planMode: false,
+      planApprovalMode: "deferred",
       streaming: true,
       sessionMode: "bypass",
       skipContext: true,

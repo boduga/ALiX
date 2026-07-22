@@ -25,6 +25,14 @@ export type RunOpts = {
   sessionMode?: "auto" | "ask" | "bypass";
   sharedSession?: SharedSession;
   planMode?: boolean;
+  /**
+   * Controls whether plan generation prompts interactively or defers
+   * to the caller for display/approval.
+   * - "interactive" (default): print plan to stdout and prompt terminal.
+   * - "deferred": generate plan and return it as approved without printing
+   *   or prompting — the caller (TUI, Web UI, API) handles display.
+   */
+  planApprovalMode?: "interactive" | "deferred";
   resumeSessionId?: string;
   planFilePath?: string;
   readOnly?: boolean;

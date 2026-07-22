@@ -146,6 +146,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         sessionMode: opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
         verbose: false,                            // suppress tool stdout from agent loop
         approvalStore,
+        planApprovalMode: "deferred",              // TUI handles plan display/approval
         ...(configuredModel?.provider
           ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
           : {}),
@@ -158,7 +159,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
   );
 
-  const app = new TuiApp({ builder, daemonMetrics, agentSession });
+  const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals });
 
   runtimeCollector.start();
   sopCollector.start();

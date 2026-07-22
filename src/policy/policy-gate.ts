@@ -277,11 +277,20 @@ export class PolicyGate {
     }
 
     // 7. Ask — approval lifecycle
+    // Embed the target (file path or command) in the reason so the operator
+    // can see WHAT they're approving in the TUI approval panel — otherwise
+    // every shell.run shows "shell.run" with no command context.
+    let askReason = `Requires approval for capability: ${capability}`;
+    if (capability === "shell.run" && typeof args.command === "string") {
+      askReason = `Requires approval to run command: ${args.command}`;
+    } else if (capability === "file.write" && typeof args.path === "string") {
+      askReason = `Requires approval to write file: ${args.path}`;
+    }
     const askDecision = await this.handleAskDecision(
       request.requestId,
       capability,
       request.sessionMode,
-      `Requires approval for capability: ${capability}`,
+      askReason,
       request.sessionId,
       request.coordinationRunId ? {
         coordinationRunId: request.coordinationRunId,
@@ -448,8 +457,26 @@ export class PolicyGate {
     // In "ask" mode, always create a fresh approval — don't reuse prior approvals.
     // Prior-approval reuse only applies in "auto" (auto-approve) mode.
     if (sessionMode !== "auto") {
+      // De-dup: if the same tool call has already been resolved (approved
+      // OR denied), honour that resolution. The agent loop re-executes the
+      // tool after waitForApproval returns "approved", which would otherwise
+      // create a SECOND approval for the same call — and the LLM never sees
+      // the resolved result, just another "Approval required" denial.
+      const prior = requestId ? store.findByRequestId?.(requestId) : undefined;
+      if (prior) {
+        if (prior.status === "approved") {
+          return { requestId, capability, decision: "allow", reason: `Already approved: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-approved", policyRevision };
+        }
+        if (prior.status === "denied") {
+          return { requestId, capability, decision: "deny", reason: `Already denied: ${prior.id}`, approvalId: prior.id, matchedRuleId: "prior-approval-denied", policyRevision };
+        }
+        // pending → reuse the existing pending approval
+        if (prior.status === "pending") {
+          return { requestId, capability, decision: "ask", reason: `Pending approval: ${prior.id}`, approvalId: prior.id, matchedRuleId: "pending-approval", policyRevision };
+        }
+      }
       // Create new pending approval
-      const approval = await store.request({ reason, capability, sessionId });
+      const approval = await store.request({ reason, capability, sessionId, requestId });
       return { requestId, capability, decision: "ask", reason: `Pending approval: ${approval.id}`, approvalId: approval.id, matchedRuleId: "created-approval", policyRevision };
     }
 

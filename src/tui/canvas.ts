@@ -146,6 +146,26 @@ export class TerminalCanvas {
     this.write(x + 1 + barWidth, y, `${reset}] ${String(Math.round(pct * 100))}%`);
   }
 
+  /**
+   * Copy another canvas's cells into this canvas at (offsetX, offsetY).
+   * Cells outside the destination bounds are clipped. Empty cells in the
+   * source are skipped so they don't overwrite existing content.
+   */
+  blit(other: TerminalCanvas, offsetX: number, offsetY: number): void {
+    for (let y = 0; y < other.height; y++) {
+      const dstY = y + offsetY;
+      if (dstY < 0 || dstY >= this.height) continue;
+      for (let x = 0; x < other.width; x++) {
+        const dstX = x + offsetX;
+        if (dstX < 0 || dstX >= this.width) continue;
+        const src = other.buffer[y]?.[x];
+        if (!src) continue;
+        if (src.char === " " && src.ansiPrefix === "") continue;
+        this.buffer[dstY]![dstX] = src;
+      }
+    }
+  }
+
   /* ─── Frame serialisation ──────────────────────────────────────── */
 
   /**

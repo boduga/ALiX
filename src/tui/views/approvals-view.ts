@@ -1,79 +1,65 @@
-import { writeRowsToCanvas } from '../canvas.js';
-import type { ApprovalSnapshot } from '../snapshot.js';
 import type { TuiView, ViewRenderContext, ViewInputContext } from './types.js';
+import type { ResolvedApproval } from '../state.js';
 
-const COL_PCT = 35;
-
+/**
+ * Approvals tab — historical log of resolved approval requests.
+ *
+ * Live (pending) approvals are shown inline in the AGENT tab scrollback so
+ * the operator can resolve them with `a`/`d` without switching tabs. This
+ * view is now read-only and shows a chronological log with status icons.
+ */
 export class ApprovalsView implements TuiView {
   readonly id = 'approvals' as const;
 
   render(ctx: ViewRenderContext): { rows: string[] } {
-    const { snap, dimensions } = ctx;
-    const a: ApprovalSnapshot | null = snap.approvals;
+    const { snap, dimensions, perTab } = ctx;
+    const pendingCount = snap.approvals?.totalPending ?? 0;
     const rows: string[] = [];
 
-    rows.push(`APPROVALS  pending: ${a?.totalPending ?? 0}  resolved: ${a?.totalResolved ?? 0}`);
+    rows.push(`APPROVAL LOG  pending: ${pendingCount}  resolved: ${perTab.resolvedApprovals.length}`);
     rows.push('');
-
-    if (!a || a.pending.length === 0) {
-      rows.push('○ no pending approvals');
-      return { rows };
-    }
-
-    const listWidth = Math.floor((dimensions.columns * COL_PCT) / 100);
-    const detailWidth = dimensions.columns - listWidth - 3;
-
     rows.push('─'.repeat(dimensions.columns));
-    rows.push(pad('TOOL', listWidth) + ' │ TARGET');
+    rows.push(pad('STATUS', 8) + pad('TOOL', 14) + 'TARGET  /  TIMESTAMP');
     rows.push('─'.repeat(dimensions.columns));
 
-    const start = ctx.perTab.scrollOffset;
-    const visible = a.pending.slice(start, start + 12);
-    for (let i = 0; i < visible.length; i++) {
-      const r = visible[i]!;
-      const cursorLine = ctx.perTab.cursor === start + i ? '▸ ' : '  ';
-      rows.push(cursorLine + pad(`${r.toolName} (${r.id})`, listWidth - 2) + ' │ ' + truncate(r.targetPath, detailWidth - 1));
-    }
-    rows.push('─'.repeat(dimensions.columns));
-    rows.push('Keys: ↑/↓ navigate  a approve  d deny  q back');
+    const visible = perTab.resolvedApprovals.slice(perTab.scrollOffset, perTab.scrollOffset + dimensions.rows - 6);
 
-    if (ctx.canvas) {
-      writeRowsToCanvas(ctx.canvas, rows, 0, 0);
-      return { rows: [] };
+    if (visible.length === 0) {
+      rows.push('');
+      rows.push('  ○ no resolved approvals yet — pending requests appear inline in the agent tab.');
+      rows.push(`  ○ use 'a' / 'd' in the agent tab to approve or deny them.`);
+    } else {
+      for (const a of visible) {
+        rows.push(this.formatResolved(a));
+      }
     }
+
+    rows.push('─'.repeat(dimensions.columns));
+    rows.push('Keys: ↑/↓ scroll');
 
     return { rows };
   }
 
-  handleKey(key: string, ctx: ViewInputContext): { type: 'moveCursor'; cursor: number } | { type: 'scheduleRefresh' } | { type: 'handled' } | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' } {
+  private formatResolved(a: ResolvedApproval): string {
+    const icon = a.status === 'approved' ? '\x1b[32m✓\x1b[0m' : a.status === 'denied' ? '\x1b[31m✗\x1b[0m' : '\x1b[33m◌\x1b[0m';
+    const ts = new Date(a.resolvedAt).toLocaleTimeString();
+    const target = a.target ? a.target : '(no target)';
+    return `${icon}  ${pad(a.status, 7)}${pad(a.toolName, 14)}${target}  · ${ts}`;
+  }
+
+  handleKey(key: string, ctx: ViewInputContext): { type: 'moveCursor'; cursor: number } | { type: 'handled' } {
     switch (key) {
       case 'ArrowDown':
-        return { type: 'moveCursor', cursor: ctx.perTab.cursor + 1 };
+        return { type: 'moveCursor', cursor: Math.min(ctx.perTab.cursor + 1, Math.max(0, ctx.perTab.resolvedApprovals.length - 1)) };
       case 'ArrowUp':
         return { type: 'moveCursor', cursor: Math.max(0, ctx.perTab.cursor - 1) };
-      case 'a':
-        return { type: 'resolveApproval', approvalId: this.selectedRecordId(ctx), status: 'approved' };
-      case 'd':
-        return { type: 'resolveApproval', approvalId: this.selectedRecordId(ctx), status: 'denied' };
       default:
         return { type: 'handled' };
     }
-  }
-
-  private selectedRecordId(ctx: ViewInputContext): string {
-    const snap = ctx.snap.approvals;
-    if (!snap || snap.pending.length === 0) return '';
-    return snap.pending[ctx.perTab.cursor]?.id ?? '';
   }
 }
 
 function pad(s: string, n: number): string {
   if (s.length >= n) return s.slice(0, n);
   return s + ' '.repeat(n - s.length);
-}
-
-function truncate(s: string, n: number): string {
-  if (s.length <= n) return s;
-  if (n < 4) return s.slice(0, n);
-  return s.slice(0, n - 1) + '…';
 }

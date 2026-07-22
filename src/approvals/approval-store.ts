@@ -35,6 +35,8 @@ export type ApprovalRequestInput = {
   riskLevel?: "low" | "medium" | "high" | "critical";
   groupId?: string;
   expiresAt?: string;
+  /** Stable request id (typically the toolCallId) used for retry de-dup. */
+  requestId?: string;
 };
 
 export class ApprovalStore {
@@ -158,6 +160,7 @@ export class ApprovalStore {
         toolId: input.toolId,
         riskLevel: input.riskLevel,
         groupId: input.groupId,
+        requestId: input.requestId,
       };
       approvals.push(record);
 
@@ -231,6 +234,7 @@ export class ApprovalStore {
         toolId: input.toolId,
         riskLevel: input.riskLevel,
         groupId: input.groupId,
+        requestId: input.requestId,
       };
       approvals.push(record);
 
@@ -279,6 +283,7 @@ export class ApprovalStore {
         toolId: input.toolId,
         riskLevel: input.riskLevel,
         groupId: input.groupId,
+        requestId: input.requestId,
       };
       approvals.push(record);
 
@@ -311,6 +316,13 @@ export class ApprovalStore {
     capability?: string;
     toolId?: string;
     riskLevel?: "low" | "medium" | "high" | "critical";
+    /**
+     * Stable request id (typically the toolCallId) that lets the policy
+     * gate recognise a re-execution of the SAME tool call. When the gate
+     * sees a previously-resolved approval with this requestId, it can
+     * honour that resolution instead of creating a duplicate approval.
+     */
+    requestId?: string;
   }): Promise<ApprovalRecord> {
     const { computeBindingKey } = await import("./approval-binding.js");
     const requestFingerprint = `legacy:${opts.capability ?? "unknown"}:${opts.graphId ?? ""}:${opts.nodeId ?? ""}:${opts.sessionId ?? ""}`;
@@ -334,6 +346,7 @@ export class ApprovalStore {
       sessionId: opts.sessionId,
       toolId: opts.toolId,
       riskLevel: opts.riskLevel,
+      requestId: opts.requestId,
     });
   }
 
@@ -394,6 +407,23 @@ export class ApprovalStore {
   /** Get a single approval by ID. */
   get(id: string): ApprovalRecord | undefined {
     return this.approvals.find(a => a.id === id);
+  }
+
+  /**
+   * Find the most recent approval for a given requestId (typically the
+   * toolCallId). Returns the latest record regardless of status — callers
+   * inspect `.status` to decide how to proceed. This is the de-dup hook:
+   * when the agent loop re-executes the same tool call after approval,
+   * the policy gate uses this to recognise the prior resolution instead
+   * of creating a duplicate approval record.
+   */
+  findByRequestId(requestId: string): ApprovalRecord | undefined {
+    let latest: ApprovalRecord | undefined;
+    for (const a of this.approvals) {
+      if (a.requestId !== requestId) continue;
+      if (!latest || a.createdAt > latest.createdAt) latest = a;
+    }
+    return latest;
   }
 
   /** Find an approval record by exact binding key. */

@@ -232,7 +232,34 @@ export async function handleToolCall(
 }> {
   const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
 
-  const execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+  // First attempt
+  let execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+
+  // If the executor reports "Approval required (id)", wait for the operator
+  // to resolve that approval and then re-execute the same tool call.
+  // Without this, the LLM sees "Access denied" as a generic failure and
+  // retries in the next iteration, generating a fresh approval id every time
+  // (the "23 pending shell.run" pile-up bug).
+  if (execResult.kind === "denied") {
+    const approvalMatch = (execResult as { reason: string }).reason.match(/^Approval required \(([^)]+)\):/);
+    if (approvalMatch) {
+      const approvalId = approvalMatch[1]!;
+      const outcome = await waitForApproval(approvalId, deps);
+      if (outcome === "approved") {
+        execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+      } else {
+        // Denied or expired — keep the original denied result so the
+        // generic Access denied path runs, but the LLM only sees ONE
+        // denial (no infinite retry loop).
+        await deps.log.append({
+          sessionId: deps.session.sessionId,
+          actor: "system",
+          type: "approval.resolved",
+          payload: { approvalId, outcome },
+        });
+      }
+    }
+  }
 
   // Track MCP tool provenance
   if (execResult.kind === "success" && execName.startsWith("mcp.")) {
@@ -318,4 +345,38 @@ export async function handleVerificationResults(
   }
 
   return { repairNeeded: false };
+}
+
+/**
+ * Poll the approval store until the given approval id is resolved.
+ * Returns:
+ *   - "approved"  — the operator approved the request; retry the tool call
+ *   - "denied"    — the operator denied; surface as Access denied
+ *   - "expired"   — the approval timed out without resolution
+ *
+ * Polling interval: 500ms. Hard timeout: 5 minutes. These bounds keep the
+ * loop responsive in the TUI (operator sees pending status update every 0.5s)
+ * while also preventing a stuck approval from blocking forever.
+ */
+async function waitForApproval(
+  approvalId: string,
+  deps: EventHandlerDeps,
+): Promise<"approved" | "denied" | "expired"> {
+  const POLL_MS = 500;
+  const TIMEOUT_MS = 5 * 60_000;
+  const deadline = Date.now() + TIMEOUT_MS;
+
+  while (Date.now() < deadline) {
+    const record = deps.executor.getApproval?.(approvalId);
+    if (!record) {
+      // Approval record was removed (e.g. cleared on shutdown) — treat as denied
+      return "denied";
+    }
+    const status = record.status;
+    if (status === "approved") return "approved";
+    if (status === "denied" || status === "rejected") return "denied";
+    if (status === "expired") return "expired";
+    await new Promise((resolve) => setTimeout(resolve, POLL_MS));
+  }
+  return "expired";
 }
