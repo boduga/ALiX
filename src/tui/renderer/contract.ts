@@ -4,7 +4,7 @@ import type { TerminalControl } from '../terminal-control.js';
 
 export class NoopRenderer implements OperatorRenderer {
   capabilities(): RendererCapabilities {
-    return { name: 'noop', version: '1.0.0', supportsMouse: false, supportsColor: false, supportsUnicode: false, supportsTrueColor: false };
+    return { name: 'noop', version: '1.0.0', handlesInput: false, supportsMouse: false, supportsColor: false, supportsUnicode: false, supportsTrueColor: false };
   }
   async initialize(_terminal: TerminalControl): Promise<void> {}
   render(_viewState: OperatorViewState): void {}

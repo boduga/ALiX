@@ -1,6 +1,7 @@
 export interface RendererCapabilities {
   readonly name: string;
   readonly version: string;
+  readonly handlesInput: boolean;
   readonly supportsMouse: boolean;
   readonly supportsColor: boolean;
   readonly supportsUnicode: boolean;

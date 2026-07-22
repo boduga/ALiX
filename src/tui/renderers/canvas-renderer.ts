@@ -28,6 +28,7 @@ export class CanvasRenderer implements OperatorRenderer {
     return {
       name: 'CanvasRenderer',
       version: '1.0.0',
+      handlesInput: false,
       supportsMouse: false,
       supportsColor: true,
       supportsUnicode: true,

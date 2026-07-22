@@ -1,4 +1,6 @@
 export interface TerminalControl {
+  readonly input: NodeJS.ReadableStream;
+  readonly output: NodeJS.WritableStream;
   enterRawMode(): void;
   exitRawMode(): void;
   showCursor(visible: boolean): void;
@@ -17,6 +19,8 @@ const cleanupFns: Array<() => void> = [];
 
 export function createTerminalControl(): TerminalControl {
   return {
+    input: process.stdin,
+    output: process.stdout,
     enterRawMode() {
       if (process.stdin.isTTY) process.stdin.setRawMode(true);
     },

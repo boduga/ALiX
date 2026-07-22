@@ -11,6 +11,8 @@ type TestTerminalControl = TerminalControl & {
 
 function mockTC(): TestTerminalControl {
   return {
+    input: process.stdin,
+    output: process.stdout,
     enterAltBuffer: vi.fn(),
     exitAltBuffer: vi.fn(),
     enterRawMode: vi.fn(),

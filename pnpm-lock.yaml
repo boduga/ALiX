@@ -20,6 +20,9 @@ importers:
       effect:
         specifier: 3.21.4
         version: 3.21.4
+      neo-blessed:
+        specifier: 0.2.0
+        version: 0.2.0
       tiktoken:
         specifier: 1.0.22
         version: 1.0.22
@@ -954,6 +957,11 @@ packages:
 
   napi-build-utils@2.0.0:
     resolution: {integrity: sha512-GEbrYkbfF7MoNaoh2iGG84Mnf/WZfB0GdGEsM8wz7Expx/LlWf5U8t9nvJKXSp3qr5IsEbK04cBGhol/KwOsWA==}
+
+  neo-blessed@0.2.0:
+    resolution: {integrity: sha512-C2kC4K+G2QnNQFXUIxTQvqmrdSIzGTX1ZRKeDW6ChmvPRw8rTkTEJzbEQHiHy06d36PCl/yMOCjquCRV8SpSQw==}
+    engines: {node: '>= 8.0.0'}
+    hasBin: true
 
   node-abi@3.94.0:
     resolution: {integrity: sha512-W5ZNO5KRPB5TkYmGVD9F6YqhsglXJzE6etpbmT+f6EQElhiX/UTG551cnsRGvLG3fyZEg9HwaDmNmj5nwJ4z9g==}
@@ -1987,6 +1995,8 @@ snapshots:
   nanoid@3.3.16: {}
 
   napi-build-utils@2.0.0: {}
+
+  neo-blessed@0.2.0: {}
 
   node-abi@3.94.0:
     dependencies:
