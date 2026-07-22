@@ -1,7 +1,26 @@
-import { beforeEach, describe, it, expect, vi } from "vitest";
+import { beforeEach, afterEach, describe, it, expect, vi } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { createAgentSession } from "../../src/agent/session.js";
 import type { ModelAdapter } from "../../src/providers/types.js";
 import { SessionPhase } from "../../src/tui/state.js";
+
+// Each test gets its own empty cwd — buildRepoMap() recursively walks
+// every regular file under cwd (ContextCompiler.warm()), so pointing at
+// a populated /tmp (where vitest + debug logs accumulate) hangs forever.
+// An empty mkdtemp gives the test a real cwd with zero files to walk.
+let phaseTestCwd: string;
+let phaseTestCwdCleanup: (() => void) | null = null;
+
+beforeEach(() => {
+  phaseTestCwd = mkdtempSync(join(tmpdir(), "phase-test-"));
+  phaseTestCwdCleanup = () => rmSync(phaseTestCwd, { recursive: true, force: true });
+});
+
+afterEach(() => {
+  phaseTestCwdCleanup?.();
+});
 
 const mocks = vi.hoisted(() => ({
   append: vi.fn(() => Promise.resolve()),
@@ -107,14 +126,14 @@ describe("SessionPhase (contract)", () => {
   });
 
   it("getPhase() returns Idle initially", () => {
-    const session = createAgentSession({ cwd: "/tmp", task: "" });
+    const session = createAgentSession({ cwd: phaseTestCwd, task: "" });
 
     expect(session.getPhase?.()).toBe(SessionPhase.Idle);
   });
 
-  it("phase_changed event payload shape", async () => {
+  it("phase_changed event payload shape", { timeout: 30_000 }, async () => {
     const session = createAgentSession({
-      cwd: "/tmp",
+      cwd: phaseTestCwd,
       task: "",
       planMode: false,
     });

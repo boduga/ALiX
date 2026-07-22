@@ -67,6 +67,13 @@ export interface AssembleProposalExplanationOptions {
   windowDays: number;
   executionEvidence: readonly ExecutionEvidence[];
   executionLineageRefs: readonly ExecutionLineageRef[];
+  /**
+   * Optional \"now\" anchor for deterministic window joins. Defaults to
+   * wall-clock; threads through to the LearningStore and OutcomeStore
+   * window reads so fixed-fixture test data doesn't drift past the
+   * 30-day cutoff as time passes.
+   */
+  generatedAt?: string;
 }
 
 // ---------------------------------------------------------------------------

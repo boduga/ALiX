@@ -120,6 +120,13 @@ export interface AgentSessionConfig {
   streaming?: boolean;
   /** Skip plan phase (default: plan phase runs unless read-only). */
   planMode?: boolean;
+  /**
+   * Plan approval mode for the plan-display surface (TUI handles
+   * approval inline; CLI is interactive-by-default but can defer).
+   * "deferred" lets the caller render the plan after the fact instead
+   * of blocking on a TTY prompt inside `runPlanPhase`.
+   */
+  planApprovalMode?: "interactive" | "deferred";
   /** Load plan from file instead of generating. */
   planFilePath?: string;
   /** Resume from a prior session. */
