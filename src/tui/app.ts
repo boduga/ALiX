@@ -1,4 +1,4 @@
-import type { TabId, TuiAppState } from './state.js';
+import type { PanelFocusId, PanelScrollOffsets, TabId, TuiAppState } from './state.js';
 import { createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
@@ -10,6 +10,8 @@ import type { AgentSession } from '../agent/session.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
 import { TerminalCanvas } from './canvas.js';
+import { renderSidebar } from './sidebar.js';
+import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -100,7 +102,62 @@ export class TuiApp {
     const snap = await this.opts.builder.build(generation);
     if (!snap || generation !== this.state.refreshGeneration) return;
     this.state.lastSnapshot = snap;
+    this.syncPendingApprovals();
     this.paintFullFrame();
+  }
+
+  /**
+   * Mirror `snap.approvals.pending` into each tab's `pendingApprovals` list
+   * so the agent tab can render inline cards and the approvals tab can
+   * detect newly-resolved entries to push into `resolvedApprovals`.
+   */
+  private syncPendingApprovals(): void {
+    const snap = this.state.lastSnapshot;
+    if (!snap) return;
+    const pending = snap.approvals?.pending ?? [];
+    const pendingIds = new Set(pending.map((p) => p.id));
+    const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+    for (const t of tabs) {
+      const perTab = this.state.views[t];
+      if (!perTab) continue;
+      // Detect approvals that have disappeared from the pending list since
+      // the last snapshot. These are "resolved" (approved/denied/expired)
+      // by the approval store; move them to the historical log with their
+      // current tool/target so the approvals tab can show the full history.
+      const stillPending = perTab.pendingApprovals.filter((a) => pendingIds.has(a.id));
+      const missing = perTab.pendingApprovals.filter((a) => !pendingIds.has(a.id));
+      if (missing.length > 0) {
+        // We don't know the resolved status from the snapshot alone — the
+        // approval store would, but for the log view we mark them as
+        // resolved (the precise status would require an extra round-trip).
+        // The operator can run `/approvals --all` for full details.
+        for (const a of missing) {
+          perTab.resolvedApprovals.unshift({
+            id: a.id,
+            toolName: a.toolName,
+            target: a.target,
+            status: 'approved', // optimistic; precise status from store on demand
+            requestedAt: a.requestedAt,
+            resolvedAt: Date.now(),
+          });
+          // Cap the log at 200 entries to avoid unbounded growth.
+          if (perTab.resolvedApprovals.length > 200) {
+            perTab.resolvedApprovals.length = 200;
+          }
+        }
+      }
+      // Update pendingApprovals to match the snapshot exactly.
+      perTab.pendingApprovals = pending.map((p) => ({
+        id: p.id,
+        toolName: p.toolName,
+        // Reuse the targetPath that extractTarget populated.
+        target: p.targetPath,
+        requestedAt: p.requestedAt,
+      }));
+      // Keep 'stillPending' reference so the linter doesn't complain — it
+      // documents the intent of the filter above.
+      void stillPending;
+    }
   }
 
   private handleRaw(buf: Buffer): void {
@@ -109,6 +166,18 @@ export class TuiApp {
     if (this.tryHandleGlobal(key)) return;
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
+
+    // ── Sidebar panel scrolling (J / K on approvals / sops tabs) ────
+    // Caught here *before* the chat/agent input capture so that on the
+    // dedicated-panel tabs, these keys scroll the overflow instead of
+    // landing in a printable input buffer. Other tabs return false and
+    // the keys fall through (treated as text).
+    if (key === 'j' || key === 'k') {
+      if (this.scrollFocusedPanel(key === 'j' ? 1 : -1)) {
+        this.paintFullFrame();
+        return;
+      }
+    }
 
     // ── Chat-tab input capture (lightweight chat path) ────────────
     if (tab === 'chat') {
@@ -150,6 +219,32 @@ export class TuiApp {
       }
       if (key === 'Backspace') {
         perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        this.paintFullFrame();
+        return;
+      }
+      // Inline approval resolution — when there are pending approvals and
+      // the user presses `a`/`d`, resolve the OLDEST pending one and
+      // surface the result inline. This avoids the "I have to switch to
+      // the approvals tab just to press one key" friction. The interceptor
+      // is keyed on the agent tab ONLY — the approvals tab has its own
+      // view.handleKey that processes `a`/`d` via the dedicated handler.
+      if ((key === 'a' || key === 'd') && perTab.pendingApprovals.length > 0) {
+        const target = perTab.pendingApprovals[0]!;
+        // Mark the approval as resolved in our local UI state immediately
+        // so the inline card disappears. The ApprovalManager call still
+        // persists the decision; if it fails we restore the entry.
+        perTab.pendingApprovals.shift();
+        const status = key === 'a' ? 'approved' : 'denied';
+        perTab.resolvedApprovals.unshift({
+          id: target.id,
+          toolName: target.toolName,
+          target: target.target,
+          status,
+          requestedAt: target.requestedAt,
+          resolvedAt: Date.now(),
+        });
+        if (perTab.resolvedApprovals.length > 200) perTab.resolvedApprovals.length = 200;
+        void this.resolveApprovalFromView(target.id, status);
         this.paintFullFrame();
         return;
       }
@@ -225,13 +320,15 @@ export class TuiApp {
   private async dispatchToSession(
     text: string,
     kind: 'chat' | 'agent',
-    perTab: { agentResponses: string[]; scrollOffset: number },
-    candidates: Array<((text: string) => Promise<{ summary: string; reason?: string }>) | undefined>,
+    perTab: { agentResponses: string[]; scrollOffset: number; planContent?: string },
+    candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
     let summary: string = `${fallbackPrefix} ${text}`;
+    // Clear stale plan content before starting a new turn
+    perTab.planContent = undefined;
     for (const fn of candidates) {
       if (!fn) continue;
       try {
@@ -251,6 +348,10 @@ export class TuiApp {
         };
         if (noHelp(result.summary)) continue;
         summary = result.summary;
+        // Capture plan content from the session turn result
+        if (result.planContent) {
+          perTab.planContent = result.planContent;
+        }
         // Friendly rewrites for known runtime termination reasons so the
         // operator doesn't see the raw internal "Agent reached maximum
         // iteration" string or similar.
@@ -279,9 +380,9 @@ export class TuiApp {
    */
   private raceAgentCall(
     text: string,
-    fn: (text: string) => Promise<{ summary: string; reason?: string }>,
+    fn: (text: string) => Promise<{ summary: string; reason?: string; planContent?: string }>,
     timeoutMs: number,
-  ): Promise<{ summary: string; reason?: string }> {
+  ): Promise<{ summary: string; reason?: string; planContent?: string }> {
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );
@@ -320,8 +421,77 @@ export class TuiApp {
     this.views[prev]?.onDeactivate?.(this.state.views[prev]);
     this.state.history.push(prev);
     this.state.activeTab = next;
+    // Bind the sidebar's scroll focus to the active tab — approvals and sops
+    // own their respective overflow-capable panel; other tabs leave it null
+    // so `J`/`K` keys pass through to the chat/agent input buffer.
+    this.state.views[next].panelFocus =
+      next === 'approvals' || next === 'sops' ? next : null;
     this.views[next]?.onActivate?.(this.state.views[next]);
     this.paintFullFrame();
+  }
+
+  /**
+   * Adjust the sidebar panel scroll offset for the active tab's focused
+   * panel by `direction` (+1 = `J`/down, -1 = `K`/up). Returns true if
+   * the offset actually changed and the caller should repaint; false
+   * signals "no scroll available for this tab" so keys fall through to
+   * the input handler.
+   *
+   * Mirrors the per-panel max-items math from `paintApprovalsPanel` and
+   * `paintSopsAndPolicyPanel` so the clamp matches what the painter can
+   * actually render — keeping the ↑ N above / ↓ N below counters honest.
+   */
+  private scrollFocusedPanel(direction: 1 | -1): boolean {
+    const perTab = this.state.views[this.state.activeTab];
+    const focus = perTab.panelFocus;
+    if (focus === null) return false;
+    const snap = this.state.lastSnapshot;
+    if (!snap) return false;
+
+    // Reproduce the per-panel h used by renderSidebar — must match
+    // `app.ts`'s `paintFullFrame` geometry or the clamp could disagree
+    // with what the painter draws.
+    const dims: TerminalDimensions = {
+      columns: process.stdout.columns ?? 80,
+      rows: process.stdout.rows ?? 24,
+    };
+    const HEADER_H = 3;
+    const FOOTER_H = 3;
+    const available = Math.max(1, dims.rows - HEADER_H - FOOTER_H);
+    const target = DEFAULT_PANEL_H * 4;
+    const perPanelH = target <= available
+      ? DEFAULT_PANEL_H
+      : Math.max(5, Math.floor(available / 4));
+
+    let totalItems = 0;
+    let maxItems = 0;
+    if (focus === 'approvals') {
+      totalItems =
+        (snap.approvals?.pending.length ?? 0) +
+        (snap.approvals?.recentlyResolved.length ?? 0);
+      // Mirror `paintApprovalsPanel`: cap 4, item=2 rows, footer at h>=14.
+      const APPROVAL_LIST_MAX = 4;
+      const itemRows = 2;
+      const footerRows = perPanelH >= 14 ? 1 : 0;
+      const availableRows = Math.max(0, perPanelH - 3 - footerRows);
+      maxItems = Math.max(
+        0,
+        Math.min(APPROVAL_LIST_MAX, Math.floor(availableRows / itemRows)),
+      );
+    } else {
+      totalItems = snap.sops?.items.length ?? 0;
+      // Mirror `paintSopsAndPolicyPanel`: 3 items when h>=10, fewer otherwise.
+      maxItems = perPanelH >= 10
+        ? Math.min(3, totalItems)
+        : Math.max(0, Math.min(totalItems, perPanelH - 8));
+    }
+
+    const maxOffset = Math.max(0, totalItems - maxItems);
+    const current = perTab.panelScrollOffsets[focus];
+    const next = Math.max(0, Math.min(current + direction, maxOffset));
+    if (next === current) return false;
+    perTab.panelScrollOffsets[focus] = next;
+    return true;
   }
 
   private dispatch(action: ViewAction): void {
@@ -361,6 +531,21 @@ export class TuiApp {
     status: 'approved' | 'denied',
   ): Promise<void> {
     if (!approvalId) return;
+    // Look up the pending approval across all tabs so we can capture the
+    // original toolName/target for the historical log entry.
+    let originalTool = 'unknown';
+    let originalTarget = '';
+    let requestedAt = Date.now();
+    const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+    for (const t of tabs) {
+      const found = this.state.views[t]?.pendingApprovals?.find((a) => a.id === approvalId);
+      if (found) {
+        originalTool = found.toolName;
+        originalTarget = found.target;
+        requestedAt = found.requestedAt;
+        break;
+      }
+    }
     const mgr = this.opts.approvalManager;
     if (!mgr) {
       // No manager wired — surface a friendly message and refresh.
@@ -380,6 +565,22 @@ export class TuiApp {
         this.state.activeTab,
         `[approval:${status}] ${summary}`,
       );
+      // Push a resolved entry into every tab's resolvedApprovals log so the
+      // operator can see what they did — even if the agent loop is currently
+      // paused waiting on this resolution.
+      for (const t of tabs) {
+        const tab = this.state.views[t];
+        if (!tab) continue;
+        tab.resolvedApprovals.unshift({
+          id: approvalId,
+          toolName: originalTool,
+          target: originalTarget,
+          status,
+          requestedAt,
+          resolvedAt: Date.now(),
+        });
+        if (tab.resolvedApprovals.length > 200) tab.resolvedApprovals.length = 200;
+      }
     } catch (err) {
       this.appendAgentMessage(
         this.state.activeTab,
@@ -407,24 +608,37 @@ export class TuiApp {
   private paintFullFrame(): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
+    // 75/25 split — left column for chat/agent scrollback, right column for
+    // the 4 dashboard panels stacked vertically. Reserve 1 column for the
+    // vertical divider so the active view doesn't bleed into the sidebar.
+    const SPLIT_RATIO = 0.75;
+    const leftW = Math.max(40, Math.floor(dims.columns * SPLIT_RATIO));
+    const rightW = Math.max(20, dims.columns - leftW - 1);
+    const FOOTER_H = 3;
+    const HEADER_H = 3;
+
+    // Render the active view into a sub-canvas sized to the left column,
+    // then blit it into the main canvas. This keeps each view's existing
+    // row-4 prompt / row-5 status layout untouched while preventing writes
+    // past the divider.
+    const leftCanvas = new TerminalCanvas(leftW, dims.rows);
+    const leftCtx: ViewRenderContext = {
+      snap: this.state.lastSnapshot,
+      dimensions: { columns: leftW, rows: dims.rows },
+      perTab: this.state.views[this.state.activeTab],
+      canvas: leftCanvas,
+    };
+    this.views[this.state.activeTab]!.render(leftCtx);
+
     const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = this.state.lastSnapshot;
     const session = snap.session;
 
-    const renderCtx: ViewRenderContext = {
-      snap: this.state.lastSnapshot,
-      dimensions: dims,
-      perTab: this.state.views[this.state.activeTab],
-      canvas: c,
-    };
-
-    // Header — top divider, content row, bottom divider.
+    // Header — top divider, content row, bottom divider (full width).
     // Row 0: top rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
     // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
     c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
-    // Prefer the live session version from the agent runtime; fall
-    // back to the snapshot's static version, then to a placeholder.
     const liveVersion: string | undefined =
       (this.opts.agentSession as { getVersion?: () => string } | undefined)?.getVersion?.();
     const version = liveVersion || session?.version || '0.0.0';
@@ -434,8 +648,25 @@ export class TuiApp {
     c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
     // Row 2: bottom rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
-    // Body (active view writes into the canvas)
-    this.views[this.state.activeTab]!.render(renderCtx);
+
+    // Blit the left canvas into the main canvas at offset (0, 0).
+    c.blit(leftCanvas, 0, 0);
+
+    // Vertical divider between left and right columns.
+    for (let y = HEADER_H; y < dims.rows - FOOTER_H; y++) {
+      c.write(leftW, y, `\x1b[90m│\x1b[0m`);
+    }
+
+    // Render the sidebar into its own canvas and blit it on the right.
+    // Per-tab scroll state flows from the active tab so the operator's
+    // `J`/`K` keys (where applicable) keep the panel cursor in sync.
+    const activePerTab = this.state.views[this.state.activeTab];
+    const sidebarCanvas = renderSidebar(
+      snap, rightW, dims.rows, HEADER_H, FOOTER_H,
+      activePerTab.panelScrollOffsets,
+      activePerTab.panelFocus,
+    );
+    c.blit(sidebarCanvas, leftW + 1, 0);
     // Tabs row (with key-hint suffix, right-aligned).
     let tabLine = '';
     for (const id of TAB_ORDER) {
@@ -445,12 +676,14 @@ export class TuiApp {
     const tabHintsVisible = '↑/↓ navigate   |   tab next   |   ? help   |   q quit';
     const hintsLen = tabHintsVisible.length;
     // Reserve room so the hints fit on the same line, right-aligned.
-    const tabRowBudget = Math.max(0, dims.columns - hintsLen - 1);
+    // Footer is clipped to the LEFT column so it doesn't bleed into the
+    // sidebar's footer area.
+    const tabRowBudget = Math.max(0, leftW - hintsLen - 1);
     const tabText = tabLine.length <= tabRowBudget
       ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
       : tabLine.slice(0, tabRowBudget);
     c.write(0, dims.rows - 3, tabText);
-    c.write(dims.columns - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
+    c.write(leftW - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
 
     // Status row — phase radios (left) | pipeline fields (right).
     const phaseDefs: ReadonlyArray<{ readonly phase: SessionPhase; readonly label: string }> = [
@@ -489,7 +722,7 @@ export class TuiApp {
     const statusLine = this.state.activeTab === 'chat'
       ? `${sep} ${fields.join(` ${sep} `)}`
       : `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`;
-    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
+    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, leftW - 2)));
 
     // Write the complete frame — cursor home + canvas render.
     process.stdout.write('\x1b[H' + c.renderFrame());

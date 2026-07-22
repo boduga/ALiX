@@ -8,6 +8,7 @@ describe('SopsView', () => {
             inputBuffer: '',
                 pinnedBottom: true,
             submittedPrompts: [],
+            pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
             agentResponses: []
           },
   ) => ({
@@ -44,6 +45,7 @@ describe('SopsView', () => {
             inputBuffer: '',
                 pinnedBottom: true,
             submittedPrompts: [],
+            pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
             agentResponses: []
           },
     };
@@ -60,6 +62,7 @@ describe('SopsView', () => {
             inputBuffer: '',
                 pinnedBottom: true,
             submittedPrompts: [],
+            pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
             agentResponses: []
           },
     };

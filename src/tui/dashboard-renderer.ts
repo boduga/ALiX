@@ -4,13 +4,20 @@
  * Divides the row starting at `startY` into four equal-width columns
  * (DAEMON | APPROVALS | RUNTIME | SOPS & POLICY) using the TerminalCanvas
  * coordinate-based box drawing.
+ *
+ * The four panel painters below are exported so other layouts (e.g. the
+ * right-sidebar 75/25 split) can reuse the EXACT SAME visual style. Each
+ * painter accepts `(canvas, snap, x, y, w, h)` and renders its content into
+ * the rectangle. When `h` is less than `DEFAULT_PANEL_H`, the painter
+ * gracefully drops content from the bottom (e.g. skips the DISK bar when
+ * the panel can't fit all three resource bars).
  */
 
 import type { DashboardSnapshot } from "./snapshot.js";
 import type { TerminalCanvas } from "./canvas.js";
 
-/** All dashboard panels share this fixed height (in canvas rows). */
-const PANEL_H = 14;
+/** Default panel height in rows — matches the historical bottom-of-chat dashboard. */
+export const DEFAULT_PANEL_H = 14;
 
 /**
  * Render the 4-panel dashboard onto the provided canvas at the given
@@ -20,7 +27,9 @@ export function renderDashboard(
   snap: DashboardSnapshot,
   canvas: TerminalCanvas,
   startY: number,
+  options: { h?: number } = {},
 ): void {
+  const h = options.h ?? DEFAULT_PANEL_H;
   const panelW = Math.floor(canvas.width / 4);
   if (panelW < 20) {
     // Canvas too narrow for 4-panel layout — render compact summary.
@@ -35,63 +44,388 @@ export function renderDashboard(
     canvas.write(0, startY + 1, summary);
     return;
   }
-  const runtime = snap.runtime;
+  paintDaemonPanel(canvas, snap, 0, startY, panelW, h);
+  paintApprovalsPanel(canvas, snap, panelW, startY, panelW, h);
+  paintRuntimePanel(canvas, snap, panelW * 2, startY, panelW, h);
+  paintSopsAndPolicyPanel(canvas, snap, panelW * 3, startY, panelW, h);
+}
+
+/* ─── Panel painters (exported for the sidebar layout) ───────────── */
+
+/**
+ * Render the DAEMON panel at `(x, y)` with `w × h` dimensions.
+ *
+ * Layout when `h >= 14` (default):
+ *   0:    top border (box top edge)
+ *   1:    title bar — "DAEMON" + status indicator
+ *   2:    breathing room
+ *   3..6: PID / Uptime / Version / Workspace
+ *   7:    mid rule
+ *   8:    CPU bar
+ *   9:    blank
+ *   10:   MEM bar
+ *   11:   blank
+ *   12:   DISK bar
+ *   13:   bottom border (box bottom edge)
+ *
+ * When `h < 14`, content rows are dropped from the bottom up:
+ *   - h < 13: skip DISK bar
+ *   - h < 12: also skip MEM bar (CPU stays at y+8)
+ *   - h < 9:  skip the metadata block AND the bar block
+ *   - h < 5:  only the title remains visible
+ */
+export function paintDaemonPanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  x: number,
+  y: number,
+  w: number,
+  h: number = DEFAULT_PANEL_H,
+): void {
+  // Bounding box around the panel — top edge stays clean (no title overlay).
+  canvas.drawBox(x, y, w, h);
+
+  // Row 1 — title bar (inside the box, below the top edge).
+  canvas.write(x + 2, y + 1, "\x1b[32mDAEMON\x1b[0m");
+  if (snap.daemon) {
+    canvas.write(x + w - 12, y + 1, "\x1b[32m● running\x1b[0m");
+  } else {
+    canvas.write(x + w - 12, y + 1, "\x1b[90m○ stopped\x1b[0m");
+  }
+
+  if (!snap.daemon) {
+    if (h >= 5) canvas.write(x + 2, y + 3, "\x1b[90m○ not running\x1b[0m");
+    return;
+  }
+
+  // Rows 3..6 — metadata block. Only render rows that actually fit.
+  const contentW = w - 4;
+  const metaRows: string[] = [
+    `PID:        ${snap.daemon.pid ?? "—"}`,
+    `Uptime:   ${fmtUptime(snap.daemon.uptimeSeconds)}`,
+    `Version:  ${snap.session?.version ?? "—"}`,
+    `Workspace:  —`,
+  ];
+  let metaEnd = 2; // no metadata rendered yet
+  if (h >= 9) {
+    for (let i = 0; i < metaRows.length && i + 3 < h - 1; i++) {
+      canvas.write(x + 2, y + 3 + i, metaRows[i]!.slice(0, contentW));
+      metaEnd = i + 3;
+    }
+  }
+
+  // Row metaEnd+1 — mid rule (between metadata and metrics).
+  if (h >= 10) {
+    const ruleY = y + metaEnd + 1;
+    for (let i = 0; i < w - 3; i++) canvas.write(x + 2 + i, ruleY, "\x1b[90m─\x1b[0m");
+
+    // Bars below the rule, fit what we can.
+    const cpuFrac = snap.daemon.cpuPercent / 100;
+    const memFrac = snap.daemon.memoryTotalBytes > 0 ? snap.daemon.memoryRssBytes / snap.daemon.memoryTotalBytes : 0;
+    const diskFrac = snap.daemon.diskTotalBytes > 0 ? snap.daemon.diskUsedBytes / snap.daemon.diskTotalBytes : -1;
+    drawLabeledBar(canvas, x + 2, ruleY + 1, contentW, "CPU", cpuFrac);
+    // Each bar occupies 2 rows (label + breathing space). Bars must fit
+    // before the box bottom edge at y + h - 1.
+    let nextBarY = ruleY + 3;
+    if (nextBarY < y + h - 1) {
+      drawLabeledBar(canvas, x + 2, nextBarY, contentW, "MEM", memFrac);
+      nextBarY += 2;
+      if (nextBarY < y + h - 1) {
+        drawLabeledBar(canvas, x + 2, nextBarY, contentW, "DISK", diskFrac);
+      }
+    }
+  }
+}
+
+/**
+ * Render the APPROVALS panel at `(x, y)` with `w × h` dimensions.
+ *
+ * Layout when `h >= 14`:
+ *   0:    top border
+ *   1:    title — "APPROVALS" + "N pending" counter
+ *   2:    breathing room
+ *   3..10: approval items (2 rows each, up to 4)
+ *   11:   breathing room
+ *   12:   footer hint (+ optional "+N more" overflow)
+ *   13:   bottom border
+ *
+ * When `h < 14`, the footer is dropped first; when `h < 11`, fewer
+ * items are shown; when `h < 5`, only the title remains.
+ */
+export function paintApprovalsPanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  x: number,
+  y: number,
+  w: number,
+  h: number = DEFAULT_PANEL_H,
+  options: { scrollOffset?: number; focused?: boolean } = {},
+): void {
+  const focused = options.focused === true;
   const approvals = snap.approvals;
-  const policy = snap.policy;
+  const totalPending = approvals?.totalPending ?? 0;
+  // Hard cap of 4 visible items matches the production design — adding more
+  // dilutes the panel. Tighter layouts drop the cap further (each item
+  // needs 2 rows + breathing room before the footer / box bottom edge).
+  const APPROVAL_LIST_MAX = 4;
+  const itemRows = 2;
+  const footerRows = h >= 14 ? 1 : 0;
+  const availableRows = Math.max(0, h - 3 /* title+rule+gap */ - footerRows);
+  const maxItems = Math.max(0, Math.min(APPROVAL_LIST_MAX, Math.floor(availableRows / itemRows)));
+  // Ordered collection — pending (newest first), then recently-resolved — so
+  // the operator sees the items most likely to need attention at the top.
+  // Slicing from `scrollOffset` gives the panel its scroll behaviour; the
+  // caller is responsible for clamping the offset against `totalItems`.
+  const { items, totalItems, above } = collectDisplayItems(approvals, options.scrollOffset ?? 0, maxItems);
+
+  const contentW = w - 4;
+
+  // Bounding box around the panel — top edge stays clean.
+  canvas.drawBox(x, y, w, h);
+
+  // Row 1 — title bar (inside the box). Brighter cyan when focused so the
+  // operator sees at a glance which panel owns the `J`/`K` keys.
+  const titleColor = focused ? "\x1b[1;36m" : "\x1b[32m";
+  canvas.write(x + 2, y + 1, `${titleColor}APPROVALS\x1b[0m`);
+  const counterText = `${totalPending} pending`;
+  const counterColor = totalPending > 0 ? "\x1b[33m" : "\x1b[90m";
+  canvas.write(x + 2 + contentW - counterText.length, y + 1, `${counterColor}${counterText}\x1b[0m`);
+
+  // "↑ N above" / "↓ N below" chrome — only renders when the panel actually
+  // has content off-screen in that direction. Tells the operator that
+  // scrolling has content to land on.
+  const overflowStartRow = 2;
+  if (above > 0 || totalItems - (options.scrollOffset ?? 0) - items.length > 0) {
+    const aboveText = above > 0 ? `↑ ${above} above` : "";
+    const belowText = totalItems - items.length - above > 0 ? `↓ ${totalItems - items.length - above} below` : "";
+    const overflow = `${aboveText}${aboveText && belowText ? "  " : ""}${belowText}`.trim();
+    if (overflow && h >= 5) canvas.write(x + 2, y + overflowStartRow, `\x1b[90m${overflow}\x1b[0m`.slice(0, contentW + 10));
+  }
+
+  if (items.length === 0) {
+    if (h >= 5 && above === 0) canvas.write(x + 2, y + 3, "\x1b[90m○ no pending approvals\x1b[0m");
+  } else {
+    const now = Date.now();
+    let row = overflowStartRow + 1;
+    for (const item of items) {
+      if (row + itemRows - 1 > h - 2 - footerRows) break;
+      paintApprovalItemRow(canvas, x + 2, y + row, contentW, item);
+      paintApprovalSubRow(canvas, x + 2, y + row + 1, contentW, item, now);
+      row += itemRows;
+    }
+  }
+
+  // Footer row inside the box, just above the bottom edge — only when h >= 14.
+  if (footerRows > 0) {
+    canvas.write(x + 2, y + h - 2, "\x1b[32mRun 'approvals' to review\x1b[0m");
+  }
+  // Last-letter-of-footer overflow indicator — replaced by ↓ N below.
+  // (Old "+N more" suffix at footer position used to confuse with the
+  // ↑ N above / ↓ N below chrome inside the title area.)
+  void footerRows;
+}
+
+/**
+ * Render the RUNTIME panel at `(x, y)` with `w × h` dimensions.
+ *
+ * Layout when `h >= 14`:
+ *   0:    top border
+ *   1:    title — "RUNTIME" + "events: N" counter
+ *   2:    breathing room
+ *   3..6: Last event / Active step / Workflow / Started
+ *   7:    mid rule
+ *   8:    Steps completed label (or empty-state note)
+ *   9:    progress bar
+ *   10..11: breathing room
+ *   12:   footer hint
+ *   13:   bottom border
+ */
+export function paintRuntimePanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  x: number,
+  y: number,
+  w: number,
+  h: number = DEFAULT_PANEL_H,
+): void {
+  const contentW = w - 4;
+  const runtime = snap.runtime;
+  const workflow = runtime?.workflow ?? null;
+
+  // Bounding box around the panel — top edge stays clean.
+  canvas.drawBox(x, y, w, h);
+
+  // Row 1 — title bar (inside the box).
+  canvas.write(x + 2, y + 1, "\x1b[32mRUNTIME\x1b[0m");
+  const totalEvents = runtime?.totalEventCount ?? 0;
+  if (totalEvents > 0) {
+    const counter = `events: ${formatThousands(totalEvents)}`;
+    canvas.write(x + 2 + contentW - counter.length, y + 1, `\x1b[32m${counter}\x1b[0m`);
+  } else {
+    const counter = "events: 0";
+    canvas.write(x + 2 + contentW - counter.length, y + 1, `\x1b[90m${counter}\x1b[0m`);
+  }
+
+  const now = Date.now();
+  const lastEvent = runtime && runtime.events.length > 0 ? runtime.events[0]! : null;
+  const lastKind = lastEvent?.kind ?? "—";
+  const lastAgo = lastEvent ? `${formatRelative(lastEvent.timestamp, now)}` : "";
+
+  // Metadata block (rows 3..6) — only when h >= 9.
+  if (h >= 9) {
+    paintMetaLine(canvas, x + 2, y + 3, contentW, "Last event:", lastKind, lastAgo);
+    const stepLabel = workflow ? `Step ${workflow.currentStep}` : "—";
+    const stepDurSrc = runtime?.lastEventAt ?? workflow?.startedAt ?? null;
+    const stepDur = stepDurSrc !== null ? formatShortDuration(stepDurSrc, now) : "";
+    paintMetaLine(canvas, x + 2, y + 4, contentW, "Active step:", stepLabel, stepDur);
+    paintMetaLine(canvas, x + 2, y + 5, contentW, "Workflow:", workflow ? truncateWS(workflow.name, contentW - 16) : "—");
+    paintMetaLine(canvas, x + 2, y + 6, contentW, "Started:", workflow ? `${fmtUptime((now - workflow.startedAt) / 1000)} ago` : "—");
+  }
+
+  // Mid rule (between metadata and metrics).
+  if (h >= 10) {
+    for (let i = 0; i < w - 3; i++) canvas.write(x + 2 + i, y + 7, "\x1b[90m─\x1b[0m");
+  }
+
+  // Steps label + progress bar. Compress to a single line when tight.
+  if (h >= 12) {
+    if (workflow) {
+      canvas.write(x + 2, y + 8, `Steps completed: ${workflow.currentStep} / ${workflow.totalSteps}`);
+      const frac = workflow.totalSteps > 0 ? workflow.currentStep / workflow.totalSteps : 0;
+      drawLabeledBar(canvas, x + 2, y + 9, contentW, "%", frac);
+    } else {
+      canvas.write(x + 2, y + 8, "\x1b[90m○ no active workflow\x1b[0m");
+    }
+  } else if (h >= 11) {
+    if (workflow) {
+      canvas.write(
+        x + 2,
+        y + 8,
+        `Steps completed: ${workflow.currentStep} / ${workflow.totalSteps}`,
+      );
+    } else {
+      canvas.write(x + 2, y + 8, "\x1b[90m○ no active workflow\x1b[0m");
+    }
+  } else if (h >= 6 && !workflow) {
+    canvas.write(x + 2, y + 3, "\x1b[90m○ no active workflow\x1b[0m");
+  }
+
+  // Footer hint (row h-2) — only when h >= 14.
+  if (h >= 14) {
+    canvas.write(x + 2, y + h - 2, "\x1b[32mLive 'runtime' stream\x1b[0m");
+  }
+}
+
+/**
+ * Render the SOPS & POLICY panel at `(x, y)` with `w × h` dimensions.
+ *
+ * Layout when `h >= 14`:
+ *   0:    top border
+ *   1:    title — "SOPS & POLICY" + "SOPs: N | Rules: M" counter
+ *   2:    breathing room
+ *   3:    "Loaded SOPs: N" header
+ *   4..6: SOP items (up to 3)
+ *   7:    overflow indicator (when more than 3 SOPs)
+ *   8:    mid rule
+ *   9:    Policy mode
+ *   10:   Violations count
+ *   11:   breathing room
+ *   12:   footer hint
+ *   13:   bottom border
+ */
+export function paintSopsAndPolicyPanel(
+  canvas: TerminalCanvas,
+  snap: DashboardSnapshot,
+  x: number,
+  y: number,
+  w: number,
+  h: number = DEFAULT_PANEL_H,
+  options: { scrollOffset?: number; focused?: boolean } = {},
+): void {
+  const focused = options.focused === true;
+  const contentW = w - 4;
   const sops = snap.sops;
-  const daemon = snap.daemon;
+  const policy = snap.policy;
+  const allSops = sops?.items ?? [];
 
-  const cx = (panelIndex: number, col = 2) => col + panelW * panelIndex;
+  // Bounding box around the panel — top edge stays clean.
+  canvas.drawBox(x, y, w, h);
 
-  // ── DAEMON panel (index 0) ──────────────────────────────────────
-  // Layout per row (relative to startY):
-  //   0: title bar  — "DAEMON" (left, green) + "● running" (right, green)
-  //   1: top rule   — dim "─" × panelW - 2
-  //   2..5: 4-row metadata block — PID / Uptime / Version / Workspace
-  //   6: mid rule   — dim "─" × panelW - 2
-  //   7..9: 3-row metrics block — CPU / MEM / DISK with labeled bar
-  //   10..11: unused
-  renderDaemonPanel(canvas, snap, panelW, startY);
+  // Row 1 — title bar (inside the box). Brighter cyan when focused.
+  const titleColor = focused ? "\x1b[1;36m" : "\x1b[32m";
+  canvas.write(x + 2, y + 1, `${titleColor}SOPS & POLICY\x1b[0m`);
+  const sopCount = sops?.totalLoaded ?? 0;
+  const ruleCount = policy?.rules.length ?? 0;
+  const counterText = `SOPs: ${sopCount} | Rules: ${ruleCount}`;
+  const counterColor = sopCount > 0 && ruleCount > 0 ? "\x1b[32m" : "\x1b[90m";
+  canvas.write(x + 2 + contentW - counterText.length, y + 1, `${counterColor}${counterText}\x1b[0m`);
 
-  // ── APPROVALS panel (index 1) ───────────────────────────────────
-  // Layout per row (relative to startY):
-  //   0:  title bar — "APPROVALS" (green, left) + "N pending" (yellow if >0, gray =0, right)
-  //   1:  top rule
-  //   2..9: item list (2 rows each: dot row + "  Requested:" sub-line); up to 4 items
-  //   10: bottom rule (only when at least one item was rendered)
-  //   11: footer hint "Run 'approvals' to review"
-  renderApprovalsPanel(canvas, snap, panelW, startY);
+  // SOP list rows budget: 1 header row + N item rows + 1 optional overflow + 1 mid rule.
+  if (h >= 5) {
+    canvas.write(x + 2, y + 3, `Loaded SOPs: ${sopCount}`);
 
-  // ── RUNTIME panel (index 2) ─────────────────────────────────────
-  // Layout per row (relative to startY):
-  //   0:  title bar — "RUNTIME" (green, left) + "events: N" (green if >0, gray =0, right)
-  //   1:  top rule
-  //   2:  Last event:  <kind>           <relative-time-ago>
-  //   3:  Active step: Step N / —       <relative-time>
-  //   4:  Workflow:    <workflow-name>
-  //   5:  Started:     <HH:MM:SS ago>
-  //   6:  mid rule
-  //   7:  Steps completed: <current> / <total>
-  //   8:  progress bar (labeled bar — Steps fraction = currentStep / totalSteps)
-  //   9:  bottom rule
-  //   10: footer hint "Run 'runtime' for live stream"
-  //   11: blank
-  renderRuntimePanel(canvas, snap, panelW, startY);
+    if (allSops.length > 0) {
+      // Cap dynamically to whatever fits between the header (y+3) and the
+      // mid rule at y+8 (only when the rule renders). Otherwise stop before
+      // the box bottom edge.
+      const max = h >= 10 ? Math.min(3, allSops.length) : Math.max(0, Math.min(allSops.length, h - 8));
+      // ↑ N above / ↓ N below chrome — tells the operator there is more in
+      // the list to scroll into. Same semantics as the approvals panel.
+      const scrollOffset = options.scrollOffset ?? 0;
+      const clampedOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, allSops.length - max)));
+      const above = clampedOffset;
+      const below = allSops.length - max - clampedOffset;
+      if (above > 0 && h >= 5) {
+        canvas.write(x + 2, y + 4, `\x1b[90m↑ ${above} above\x1b[0m`);
+      }
+      const itemsStartY = above > 0 ? y + 5 : y + 4;
+      let listRow = itemsStartY;
+      const itemsEndY = y + (h >= 10 ? 7 : h - 1 - 1);
+      for (let i = 0; i < max; i++) {
+        const sourceIdx = clampedOffset + i;
+        if (sourceIdx >= allSops.length) break;
+        const item = allSops[sourceIdx]!;
+        const versionBudget = Math.max(0, contentW - (2 + item.name.length + 1));
+        const versionText = truncateWS(item.version, versionBudget);
+        if (listRow > itemsEndY) break;
+        canvas.write(x + 2, listRow, `● ${item.name}`);
+        canvas.write(x + 2 + contentW - versionText.length, listRow, versionText);
+        listRow++;
+      }
+      if (below > 0 && h >= 9) {
+        const indicatorY = h >= 10 ? y + 7 : y + h - 3;
+        canvas.write(x + 2, indicatorY, `\x1b[90m↓ ${below} below\x1b[0m`);
+      }
+    } else if (h >= 6) {
+      canvas.write(x + 2, y + 4, "\x1b[90m○ no SOPs loaded\x1b[0m");
+    }
+  }
 
-  // ── SOPS & POLICY panel (index 3) ───────────────────────────────
-  // Layout per row (relative to startY):
-  //   0:  title bar — "SOPS & POLICY" (green, left) + "SOPs: N | Rules: M"
-  //       (green when both >0, gray otherwise; right-aligned)
-  //   1:  top rule
-  //   2:  "Loaded SOPs: N" header
-  //   3..5: up to 3 SOP items ("● <name> …… <version>")
-  //   6:  "… and K more" overflow indicator (only when items.length > 3)
-  //   7:  mid rule (between SOP list and Policy block)
-  //   8:  "Policy:     <mode>" (mode in green when 'strict')
-  //   9:  "Violations: <count>" (count in red when >0)
-  //   10: bottom rule
-  //   11: footer hint (shortened to fit narrow canvases)
-  renderSopsAndPolicyPanel(canvas, snap, panelW, startY);
+  // Mid rule between SOP list and Policy block.
+  if (h >= 10) {
+    for (let i = 0; i < w - 3; i++) canvas.write(x + 2 + i, y + 8, "\x1b[90m─\x1b[0m");
+  }
+
+  // Policy + violations rows.
+  if (h >= 11) {
+    const modeText = policy?.enforcementMode ?? "—";
+    const modeColor = modeText === "strict" ? "\x1b[32m" : "";
+    canvas.write(x + 2, y + 9, `Policy:     ${modeColor}${modeText}\x1b[0m`);
+
+    const vCount = policy?.recentViolationCount ?? 0;
+    const vColor = vCount > 0 ? "\x1b[31m" : "";
+    canvas.write(x + 2, y + 10, `Violations: ${vColor}${vCount}\x1b[0m`);
+  } else if (h >= 7) {
+    const modeText = policy?.enforcementMode ?? "—";
+    canvas.write(x + 2, y + 5, `Policy: ${modeText}`.slice(0, contentW));
+    const vCount = policy?.recentViolationCount ?? 0;
+    canvas.write(x + 2, y + 6, `Violations: ${vCount}`.slice(0, contentW));
+  }
+
+  // Footer hint.
+  if (h >= 14) {
+    canvas.write(x + 2, y + h - 2, "\x1b[32mOpen sops or policy\x1b[0m");
+  }
 }
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
@@ -166,69 +500,6 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
-/**
- * Render the redesigned DAEMON panel at row `startY`. Replaces the prior
- * boxed style (`drawBox` corners + vertical sides) with thin horizontal
- * rules and a Title-Case metadata + metrics block, matching the design
- * target.
- *
- * Offline case (`snap.daemon === null`) shows only the offline notice —
- * no title or rules, matching the target's empty-state intent.
- */
-function renderDaemonPanel(
-  canvas: TerminalCanvas,
-  snap: DashboardSnapshot,
-  panelW: number,
-  startY: number,
-): void {
-  const daemon = snap.daemon;
-
-  // Bounding box around the panel — top edge stays clean (no title overlay).
-  canvas.drawBox(0, startY, panelW, PANEL_H);
-
-  // Row 1 — title bar (inside the box, below the top edge).
-  canvas.write(2, startY + 1, "\x1b[32mDAEMON\x1b[0m");
-  if (daemon) {
-    canvas.write(panelW - 12, startY + 1, "\x1b[32m● running\x1b[0m");
-  } else {
-    canvas.write(panelW - 12, startY + 1, "\x1b[90m○ stopped\x1b[0m");
-  }
-
-  if (!daemon) {
-    // Offline body: a single dim "not running" line, no metadata, no metrics.
-    canvas.write(2, startY + 3, "\x1b[90m○ not running\x1b[0m");
-    return;
-  }
-
-  // Rows 3..6 — metadata block (row 2 left blank as breathing room after the title).
-  const metaLabel = (k: string): string => `${k.padEnd(12)}`;
-  const contentW = panelW - 4;
-  const meta = (rowOffset: number, line: string): void => {
-    canvas.write(2, startY + rowOffset, line.slice(0, contentW));
-  };
-
-  meta(3, `${metaLabel("PID:")}${daemon.pid ?? "—"}`);
-  meta(4, `${metaLabel("Uptime:")}${fmtUptime(daemon.uptimeSeconds)}`);
-  meta(5, `${metaLabel("Version:")}${snap.session?.version ?? "—"}`);
-  meta(6, `${metaLabel("Workspace:")}—`);
-
-  // Row 7 — mid rule (between metadata and metrics).
-  // Width: `panelW - 3` cols centered with 1-col padding on each side, so the
-  // rule stays strictly inside the box's vertical `│` borders instead of
-  // overwriting the right edge.
-  for (let i = 0; i < panelW - 3; i++) canvas.write(2 + i, startY + 7, "\x1b[90m─\x1b[0m");
-
-  // Rows 8..12 — metrics block. Rows 9 and 11 are intentionally blank
-  // for breathing room between CPU↔MEM (row 9) and MEM↔DISK (row 11).
-  const cpuFrac = daemon.cpuPercent / 100;
-  const memFrac = daemon.memoryTotalBytes > 0 ? daemon.memoryRssBytes / daemon.memoryTotalBytes : 0;
-  const diskFrac = daemon.diskTotalBytes > 0 ? daemon.diskUsedBytes / daemon.diskTotalBytes : -1;
-
-  drawLabeledBar(canvas, 2, startY + 8, contentW, "CPU", cpuFrac);
-  drawLabeledBar(canvas, 2, startY + 10, contentW, "MEM", memFrac);
-  drawLabeledBar(canvas, 2, startY + 12, contentW, "DISK", diskFrac);
-}
-
 function truncateWS(s: string, n: number): string {
   if (s.length <= n) return s;
   return s.slice(0, n - 1) + "…";
@@ -249,23 +520,29 @@ interface DisplayApprovalItem {
   readonly kind: "pending" | "resolved";
 }
 
-/** Pick up to `max` approval items, pending first then recently-resolved. */
+/** Pick at most `max` approval items starting at index `scrollOffset`, ordered pending-newest-first then recently-resolved-newest-first. Returns the visible slice plus totalItems (for clamping at the caller) and the count of items-above-the-window (for the ↑ N above chrome). */
 function collectDisplayItems(
   approvals: DashboardSnapshot["approvals"],
+  scrollOffset: number,
   max: number,
-): { items: DisplayApprovalItem[]; overflow: number } {
-  if (!approvals) return { items: [], overflow: 0 };
-  const items: DisplayApprovalItem[] = [];
-  for (const a of approvals.pending) {
-    if (items.length >= max) break;
-    items.push({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "pending" });
-  }
-  for (const a of approvals.recentlyResolved) {
-    if (items.length >= max) break;
-    items.push({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "resolved" });
-  }
-  const total = approvals.pending.length + approvals.recentlyResolved.length;
-  return { items, overflow: total - items.length };
+): { items: DisplayApprovalItem[]; totalItems: number; above: number } {
+  if (!approvals) return { items: [], totalItems: 0, above: 0 };
+  // Build the ordered queue and then slice. Sorting once keeps the scroll
+  // math simple — index N of the ordered list is what the user sees.
+  const pendingSorted = approvals.pending
+    .slice()
+    .sort((a, b) => b.requestedAt - a.requestedAt);
+  const resolvedSorted = approvals.recentlyResolved
+    .slice()
+    .sort((a, b) => b.requestedAt - a.requestedAt);
+  const all: DisplayApprovalItem[] = [
+    ...pendingSorted.map((a) => ({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "pending" as const })),
+    ...resolvedSorted.map((a) => ({ toolName: a.toolName, targetPath: a.targetPath, requestedAt: a.requestedAt, kind: "resolved" as const })),
+  ];
+  const totalItems = all.length;
+  const clampedOffset = Math.max(0, Math.min(scrollOffset, Math.max(0, totalItems - max)));
+  const items = all.slice(clampedOffset, clampedOffset + max);
+  return { items, totalItems, above: clampedOffset };
 }
 
 function paintApprovalItemRow(
@@ -306,56 +583,6 @@ function paintApprovalSubRow(
   canvas.write(x, y, text.slice(0, contentW));
 }
 
-/**
- * Render the redesigned APPROVALS panel at row `startY`. Replaces the prior
- * boxed summary (counts + bullet list) with a thin-rule item list that mirrors
- * the target design: 2-row per item (dot+tool/path) + indented `Requested:`
- * sub-line. Pending items appear before recently-resolved items. When the
- * list is empty, only the empty-state note + footer are shown.
- */
-function renderApprovalsPanel(
-  canvas: TerminalCanvas,
-  snap: DashboardSnapshot,
-  panelW: number,
-  startY: number,
-): void {
-  const approvals = snap.approvals;
-  const totalPending = approvals?.totalPending ?? 0;
-  const { items, overflow } = collectDisplayItems(approvals, 4);
-
-  const x = panelW + 2;
-  const contentW = panelW - 4;
-
-  // Bounding box around the panel — top edge stays clean.
-  canvas.drawBox(panelW, startY, panelW, PANEL_H);
-
-  // Row 1 — title bar (inside the box).
-  canvas.write(x, startY + 1, "\x1b[32mAPPROVALS\x1b[0m");
-  const counterText = `${totalPending} pending`;
-  const counterColor = totalPending > 0 ? "\x1b[33m" : "\x1b[90m";
-  canvas.write(x + contentW - counterText.length, startY + 1, `${counterColor}${counterText}\x1b[0m`);
-
-  if (items.length === 0) {
-    canvas.write(x, startY + 3, "\x1b[90m○ no pending approvals\x1b[0m");
-  } else {
-    const now = Date.now();
-    let row = 3;
-    for (const item of items) {
-      if (row + 1 > 11) break; // leave row 12 for footer, row 13 for box bottom edge
-      paintApprovalItemRow(canvas, x, startY + row, contentW, item);
-      paintApprovalSubRow(canvas, x, startY + row + 1, contentW, item, now);
-      row += 2;
-    }
-  }
-
-  // Row 12 — footer hint (inside the box, just above the bottom edge at row 13).
-  canvas.write(x, startY + 12, "\x1b[32mRun 'approvals' to review\x1b[0m");
-  if (overflow > 0) {
-    const overflowText = `+${overflow} more`;
-    canvas.write(x + contentW - overflowText.length, startY + 12, `\x1b[90m${overflowText}\x1b[0m`);
-  }
-}
-
 function paintMetaLine(
   canvas: TerminalCanvas,
   x: number,
@@ -388,162 +615,4 @@ function formatShortDuration(ms: number, now: number): string {
 /** Format an integer with thousands separators, e.g. 21,530. */
 function formatThousands(n: number): string {
   return n.toLocaleString("en-US");
-}
-
-/**
- * Render the redesigned RUNTIME panel at row `startY`. Mirrors the DAEMON
- * panel's chrome pattern (title bar + counter, top rule, metadata block,
- * mid rule, metric block, bottom rule, footer hint) without using
- * `TerminalCanvas.drawBox`.
- */
-function renderRuntimePanel(
-  canvas: TerminalCanvas,
-  snap: DashboardSnapshot,
-  panelW: number,
-  startY: number,
-): void {
-  const x = panelW * 2 + 2;
-  const contentW = panelW - 4;
-  const runtime = snap.runtime;
-  const workflow = runtime?.workflow ?? null;
-
-  // Bounding box around the panel — top edge stays clean.
-  canvas.drawBox(panelW * 2, startY, panelW, PANEL_H);
-
-  // Row 1 — title bar (inside the box).
-  canvas.write(x, startY + 1, "\x1b[32mRUNTIME\x1b[0m");
-  const totalEvents = runtime?.totalEventCount ?? 0;
-  if (totalEvents > 0) {
-    const counter = `events: ${formatThousands(totalEvents)}`;
-    canvas.write(x + contentW - counter.length, startY + 1, `\x1b[32m${counter}\x1b[0m`);
-  } else {
-    const counter = "events: 0";
-    canvas.write(x + contentW - counter.length, startY + 1, `\x1b[90m${counter}\x1b[0m`);
-  }
-
-  // Rows 2..5 — metadata block.
-  const now = Date.now();
-  const lastEvent = runtime && runtime.events.length > 0 ? runtime.events[0]! : null;
-  const lastKind = lastEvent?.kind ?? "—";
-  const lastAgo = lastEvent ? `${formatRelative(lastEvent.timestamp, now)}` : "";
-  paintMetaLine(canvas, x, startY + 3, contentW, "Last event:", lastKind, lastAgo);
-
-  // Active step: schema lacks per-step name + start. Use "Step N" placeholder
-  // and approximate duration from lastEventAt (close enough to "18s ago"-style).
-  const stepLabel = workflow ? `Step ${workflow.currentStep}` : "—";
-  const stepDurSrc = runtime?.lastEventAt ?? workflow?.startedAt ?? null;
-  const stepDur = stepDurSrc !== null ? formatShortDuration(stepDurSrc, now) : "";
-  paintMetaLine(canvas, x, startY + 4, contentW, "Active step:", stepLabel, stepDur);
-
-  paintMetaLine(
-    canvas,
-    x,
-    startY + 5,
-    contentW,
-    "Workflow:",
-    workflow ? truncateWS(workflow.name, contentW - 16) : "—",
-  );
-
-  paintMetaLine(
-    canvas,
-    x,
-    startY + 6,
-    contentW,
-    "Started:",
-    workflow ? `${fmtUptime((now - workflow.startedAt) / 1000)} ago` : "—",
-  );
-
-  // Row 7 — mid rule (between metadata and metrics).
-  // Width: panelW - 3 cols (1-col padding on each side) so the rule stays
-  // inside the box's `│` borders instead of overwriting the right edge.
-  for (let i = 0; i < panelW - 3; i++) canvas.write(x + i, startY + 7, "\x1b[90m─\x1b[0m");
-
-  // Row 8 — progress label / empty-state note.
-  if (workflow) {
-    canvas.write(
-      x,
-      startY + 8,
-      `Steps completed: ${workflow.currentStep} / ${workflow.totalSteps}`,
-    );
-    // Row 9 — progress bar.
-    const frac = workflow.totalSteps > 0 ? workflow.currentStep / workflow.totalSteps : 0;
-    drawLabeledBar(canvas, x, startY + 9, contentW, "%", frac);
-  } else {
-    canvas.write(x, startY + 8, "\x1b[90m○ no active workflow\x1b[0m");
-  }
-
-  // Row 12 — footer hint (just above box bottom edge at row 13).
-  canvas.write(x, startY + 12, "\x1b[32mLive 'runtime' stream\x1b[0m");
-}
-
-/**
- * Render the redesigned SOPS & POLICY panel at row `startY`. Mirrors the
- * same chrome pattern used by the other three dashboard panels:
- * drawBox-bordered rectangle + internal sections + footer hint inside
- * the box bottom row.
- */
-function renderSopsAndPolicyPanel(
-  canvas: TerminalCanvas,
-  snap: DashboardSnapshot,
-  panelW: number,
-  startY: number,
-): void {
-  const x = panelW * 3 + 2;
-  const contentW = panelW - 4;
-  const sops = snap.sops;
-  const policy = snap.policy;
-
-  // Bounding box around the panel — top edge stays clean.
-  canvas.drawBox(panelW * 3, startY, panelW, PANEL_H);
-
-  // Row 1 — title bar (inside the box).
-  canvas.write(x, startY + 1, "\x1b[32mSOPS & POLICY\x1b[0m");
-  const sopCount = sops?.totalLoaded ?? 0;
-  const ruleCount = policy?.rules.length ?? 0;
-  const counterText = `SOPs: ${sopCount} | Rules: ${ruleCount}`;
-  const counterColor = sopCount > 0 && ruleCount > 0 ? "\x1b[32m" : "\x1b[90m";
-  canvas.write(x + contentW - counterText.length, startY + 1, `${counterColor}${counterText}\x1b[0m`);
-
-  // Row 3 — Loaded SOPs header.
-  canvas.write(x, startY + 3, `Loaded SOPs: ${sopCount}`);
-
-  // Rows 4..6 — SOP items (up to 3).
-  if (sops && sops.items.length > 0) {
-    const max = Math.min(3, sops.items.length);
-    for (let i = 0; i < max; i++) {
-      const item = sops.items[i]!;
-      const prefix = `● ${item.name} `;
-      const versionBudget = Math.max(0, contentW - prefix.length);
-      const versionText = truncateWS(item.version, versionBudget);
-      canvas.write(x, startY + 4 + i, `● ${item.name}`);
-      canvas.write(x + contentW - versionText.length, startY + 4 + i, versionText);
-    }
-
-    // Row 7 — overflow indicator (only when more items than the cap).
-    const overflow = sops.items.length - max;
-    if (overflow > 0) {
-      canvas.write(x, startY + 7, `\x1b[90m… and ${overflow} more\x1b[0m`);
-    }
-  } else {
-    // Empty-state at row 4 when no SOPs.
-    canvas.write(x, startY + 4, "\x1b[90m○ no SOPs loaded\x1b[0m");
-  }
-
-  // Row 8 — mid rule (between SOP list and Policy block).
-  // Width: panelW - 3 cols (1-col padding on each side) so the rule stays
-  // inside the box's `│` borders instead of overwriting the right edge.
-  for (let i = 0; i < panelW - 3; i++) canvas.write(x + i, startY + 8, "\x1b[90m─\x1b[0m");
-
-  // Row 9 — Policy mode.
-  const modeText = policy?.enforcementMode ?? "—";
-  const modeColor = modeText === "strict" ? "\x1b[32m" : "";
-  canvas.write(x, startY + 9, `Policy:     ${modeColor}${modeText}\x1b[0m`);
-
-  // Row 10 — Violations count.
-  const vCount = policy?.recentViolationCount ?? 0;
-  const vColor = vCount > 0 ? "\x1b[31m" : "";
-  canvas.write(x, startY + 10, `Violations: ${vColor}${vCount}\x1b[0m`);
-
-  // Row 12 — footer hint (just above box bottom edge at row 13).
-  canvas.write(x, startY + 12, "\x1b[32mOpen sops or policy\x1b[0m");
 }

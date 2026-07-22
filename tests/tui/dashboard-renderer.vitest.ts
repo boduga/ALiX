@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { renderDashboard } from '../../src/tui/dashboard-renderer.js';
+import {
+  paintApprovalsPanel,
+  paintSopsAndPolicyPanel,
+  renderDashboard,
+} from '../../src/tui/dashboard-renderer.js';
 import { TerminalCanvas } from '../../src/tui/canvas.js';
 
 /** Strip ANSI escape sequences from a rendered line so visible width can be measured. */
@@ -268,9 +272,9 @@ describe('renderDashboard — APPROVALS panel', () => {
     expect(frame).toContain('0 pending');
   });
 
-  it('shows +N more overflow indicator when items truncated', () => {
+  it('shows ↓ N below overflow indicator when items truncated', () => {
     const c = new TerminalCanvas(120, 30);
-    // 4 pending + 3 resolved = 7 items; cap is 4 → overflow of 3.
+    // 4 pending + 3 resolved = 7 items; cap is 4 → 3 hidden below.
     renderDashboard(
       approvalsSnap({
         pending: 4,
@@ -281,7 +285,7 @@ describe('renderDashboard — APPROVALS panel', () => {
       c, 0,
     );
     const frame = c.renderFrame();
-    expect(frame).toContain('+3 more');
+    expect(frame).toContain('↓ 3 below');
   });
 
   it('does not leak APPROVALS-owned content into the RUNTIME column at canvas.width=80', () => {
@@ -511,7 +515,7 @@ describe('renderDashboard — SOPS & POLICY panel', () => {
     expect(frame).toContain('v1.2.0');
   });
 
-  it('shows "… and N more" overflow indicator when items exceed cap', () => {
+  it('shows ↓ N below overflow indicator when items exceed cap', () => {
     const c = new TerminalCanvas(120, 30);
     const items = Array.from({ length: 8 }, (_, i) => ({
       id: `s${i}`,
@@ -526,8 +530,8 @@ describe('renderDashboard — SOPS & POLICY panel', () => {
       c, 0,
     );
     const frame = c.renderFrame();
-    // cap is 3, total 8 → "and 5 more"
-    expect(frame).toContain('… and 5 more');
+    // cap is 3, total 8 → 5 hidden below
+    expect(frame).toContain('↓ 5 below');
   });
 
   it('renders Policy mode and Violations count', () => {
@@ -603,5 +607,160 @@ describe('footer (tab order + key hints + status row)', () => {
     // without an accompanying test update.
     const expected = ['chat', 'daemon', 'approvals', 'sops', 'policy', 'runtime'];
     expect(expected).toEqual(expected); // placeholder; real pin would read app.ts
+  });
+});
+
+describe('paintApprovalsPanel — scroll / focus options', () => {
+  // Local snap factory — keeps the test self-contained without coupling
+  // to the closure-scoped approvalsSnap in the per-panel describe block.
+  function manyApprovals(
+    pendingTools: readonly string[],
+    resolvedTools: readonly string[],
+  ): any {
+    const mk = (tool: string) => ({
+      id: tool,
+      toolName: tool,
+      targetPath: `targets/${tool}.txt`,
+      args: {},
+      requestedAt: Date.now() - 18_000,
+      requestedBy: 'test',
+    });
+    return {
+      generatedAt: 1,
+      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+      daemon: {
+        pid: 28731, uptimeSeconds: 767, cpuPercent: 2.1,
+        memoryRssBytes: 0, memoryTotalBytes: 0,
+        diskUsedBytes: 0, diskTotalBytes: 0,
+        clients: [], sampledAt: 1,
+      },
+      approvals: {
+        pending: pendingTools.map(mk),
+        recentlyResolved: resolvedTools.map(mk),
+        totalPending: pendingTools.length,
+        totalResolved: resolvedTools.length,
+      },
+      runtime: null,
+      sops: null,
+      policy: null,
+    };
+  }
+  function singleApproval(tool: string): any {
+    return manyApprovals([tool], []);
+  }
+
+  it('shows ↑ N above chrome when scrollOffset skips past the head', () => {
+    const c = new TerminalCanvas(120, 30);
+    // 7 items, max 4 → scrollOffset=2 surfaces the 3rd..6th entries and
+    // reports 2 hidden above the visible window.
+    paintApprovalsPanel(
+      c,
+      manyApprovals(['a', 'b', 'c', 'd', 'e'], ['f', 'g']),
+      0, 0, 30, 14, { scrollOffset: 2 },
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('↑ 2 above');
+  });
+
+  it('shows ↓ N below chrome when more content remains past the visible window', () => {
+    const c = new TerminalCanvas(120, 30);
+    paintApprovalsPanel(
+      c,
+      manyApprovals(['a', 'b', 'c', 'd', 'e'], ['f', 'g']),
+      0, 0, 30, 14, { scrollOffset: 0 },
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('↓ 3 below');
+  });
+
+  it('clamps scrollOffset beyond totalItems so the panel still renders', () => {
+    const c = new TerminalCanvas(120, 30);
+    // Asking to scroll past the end (100) with only 3 items + max 4 must
+    // not crash and must not display negative chrome.
+    paintApprovalsPanel(
+      c,
+      manyApprovals(['x', 'y'], ['z']),
+      0, 0, 30, 14, { scrollOffset: 100 },
+    );
+    const frame = c.renderFrame();
+    expect(frame).not.toContain('↑ 100 above');
+    expect(frame).not.toContain('↓ -');
+  });
+
+  it('marks the panel title in bright cyan when focused=true', () => {
+    const c = new TerminalCanvas(120, 30);
+    paintApprovalsPanel(
+      c,
+      singleApproval('write_file'),
+      0, 0, 30, 14, { focused: true },
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('\x1b[1;36mAPPROVALS');
+  });
+
+  it('keeps the panel title in green when focused=false (default)', () => {
+    const c = new TerminalCanvas(120, 30);
+    paintApprovalsPanel(c, singleApproval('write_file'), 0, 0, 30, 14);
+    const frame = c.renderFrame();
+    expect(frame).toContain('\x1b[32mAPPROVALS');
+    expect(frame).not.toContain('\x1b[1;36mAPPROVALS');
+  });
+});
+
+describe('paintSopsAndPolicyPanel — scroll / focus options', () => {
+  // Local snapshot factory — see matching note on `manyApprovals` above.
+  function sopsOnly(items: readonly { id: string; name: string; version: string }[]): any {
+    return {
+      generatedAt: 1,
+      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+      daemon: {
+        pid: 28731, uptimeSeconds: 767, cpuPercent: 2.1,
+        memoryRssBytes: 0, memoryTotalBytes: 0,
+        diskUsedBytes: 0, diskTotalBytes: 0,
+        clients: [], sampledAt: 1,
+      },
+      approvals: null,
+      runtime: null,
+      sops: { items, totalLoaded: items.length },
+      policy: null,
+    };
+  }
+
+  it('shows ↓ N below chrome when many SOPs are loaded past the visible cap', () => {
+    const c = new TerminalCanvas(120, 30);
+    const items = Array.from({ length: 8 }, (_, i) => ({
+      id: `s${i}`, name: `sop-${i}`, version: `v1.0.${i}`,
+    }));
+    paintSopsAndPolicyPanel(
+      c, sopsOnly(items), 0, 0, 30, 14, { scrollOffset: 0 },
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('↓ 5 below');
+  });
+
+  it('shows ↑ N above chrome when scrolled past the head', () => {
+    const c = new TerminalCanvas(120, 30);
+    const items = Array.from({ length: 8 }, (_, i) => ({
+      id: `s${i}`, name: `sop-${i}`, version: `v1.0.${i}`,
+    }));
+    paintSopsAndPolicyPanel(
+      c, sopsOnly(items), 0, 0, 30, 14, { scrollOffset: 2 },
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('↑ 2 above');
+  });
+
+  it('marks the panel title in bright cyan when focused=true', () => {
+    // Wider canvas than the other focused-title test — the SOPS panel
+    // title is 13 chars and the counter is 18; in the standard 30-col
+    // column they overlap and the full title substring never lands on
+    // the screen. Bumping w to 50 sidesteps that and lets us assert the
+    // bright-cyan prefix is present.
+    const c = new TerminalCanvas(200, 30);
+    paintSopsAndPolicyPanel(
+      c, sopsOnly([]), 0, 0, 50, 14, { focused: true },
+    );
+    const frame = c.renderFrame();
+    expect(frame).toContain('\x1b[1;36mSOPS & POLICY');
   });
 });

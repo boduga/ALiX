@@ -17,6 +17,32 @@ export enum SessionPhase {
 export type TabId = 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
 
 /**
+ * Approval request surfaced inline in the agent scrollback. Synced from
+ * the dashboard snapshot on each refresh; resolved entries are pushed into
+ * `resolvedApprovals` for the historical log.
+ */
+export interface PendingApproval {
+  id: string;
+  toolName: string;
+  target: string;
+  requestedAt: number;
+}
+
+/**
+ * A resolved approval — moved here from pending after the operator
+ * presses `a`/`d` (or the timeout fires). Rendered in the approvals tab
+ * as a chronological log.
+ */
+export interface ResolvedApproval {
+  id: string;
+  toolName: string;
+  target: string;
+  status: 'approved' | 'denied' | 'expired';
+  requestedAt: number;
+  resolvedAt: number;
+}
+
+/**
  * Serializable UI state preserved per tab across switches. No Set, Map,
  * or function values — must round-trip through JSON.stringify.
  */
@@ -38,6 +64,42 @@ export interface PerTabState {
   submittedPrompts: string[];
   /** Agent responses received from AgentSession.processTurn, oldest first. */
   agentResponses: string[];
+  /** Plan content from the most recent planning phase, if any. */
+  planContent?: string;
+  /**
+   * Live approval requests, oldest first. Mirrored from snapshot.approvals.pending
+   * each refresh; resolved entries are removed here and pushed to resolvedApprovals.
+   */
+  pendingApprovals: PendingApproval[];
+  /**
+   * Historical log of resolved approvals (approved/denied/expired). The approvals
+   * tab reads from this; the agent scrollback shows a small "approved/denied"
+   * marker where the request used to be.
+   */
+  resolvedApprovals: ResolvedApproval[];
+  /**
+   * Per-sidebar-panel scroll offset. Only the entries for panels that can
+   * overflow their fixed-height box (approvals, sops) are meaningful; the
+   * others stay at 0. Surfaced via `J`/`K` keys when the active tab is
+   * approvals or sops. Clamped to `[0, total - maxDisplayed]` on each
+   * paint so the offset can't point past the available content.
+   */
+  panelScrollOffsets: PanelScrollOffsets;
+  /**
+   * Which scrollable panel currently owns the `J`/`K` keys. Tied to the
+   * active tab — the approvals tab focuses APPROVALS, the sops tab focuses
+   * SOPS & POLICY. Null on every other tab so keys pass through silently.
+   */
+  panelFocus: PanelFocusId | null;
+}
+
+/** Panels that accept `J`/`K` scroll keys. Other panels (DAEMON, RUNTIME) have fixed content and can't overflow. */
+export type PanelFocusId = 'approvals' | 'sops';
+
+/** Scroll position keyed per scrollable panel. */
+export interface PanelScrollOffsets {
+  approvals: number;
+  sops: number;
 }
 
 // Imported from snapshot.ts for use below; re-exported so callers can
@@ -65,6 +127,10 @@ export function createInitialPerTabState(): PerTabState {
     inputBuffer: '',
     submittedPrompts: [],
     agentResponses: [],
+    pendingApprovals: [],
+    resolvedApprovals: [],
+    panelScrollOffsets: { approvals: 0, sops: 0 },
+    panelFocus: null,
   };
 }
 

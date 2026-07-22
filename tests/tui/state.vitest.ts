@@ -27,7 +27,7 @@ describe('PerTabState serializability', () => {
       expandedSections: ['a', 'b'],
       lastEventArrivedAt: 1_700_000_000,
       inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [],
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
     };
     const rt = JSON.parse(JSON.stringify(original)) as PerTabState;
     expect(rt).toEqual(original);
@@ -41,7 +41,7 @@ describe('PerTabState serializability', () => {
       searchQuery: '',
       expandedSections: [],
     inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [],
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
       lastEventArrivedAt: 0,
     };
     expect(() => JSON.stringify(sample)).not.toThrow();
@@ -55,19 +55,19 @@ describe('TuiAppState defaults', () => {
       activeTab: 'chat' as TabId,
       views: {
         chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, submittedPrompts: [], agentResponses: [] },
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
       },
       refreshGeneration: 0,
       refreshStatus: 'idle',
