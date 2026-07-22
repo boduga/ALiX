@@ -38,8 +38,8 @@ export class BlessedRenderer implements OperatorRenderer {
   }
 
   async initialize(terminal: TerminalControl): Promise<void> {
-    if (this.screen) {
-      await this.shutdown();
+    if (this.initialized) {
+      throw new Error('BlessedRenderer is already initialized');
     }
     this.terminal = terminal;
     this.screen = blessed.screen({
