@@ -9,8 +9,8 @@ export interface RendererCapabilities {
 
 export interface OperatorRenderer {
   capabilities(): RendererCapabilities;
-  initialize(terminal: import('../../terminal-control.js').TerminalControl): Promise<void>;
-  render(viewState: import('../../presentation/types.js').OperatorViewState): void;
+  initialize(terminal: import('../terminal-control.js').TerminalControl): Promise<void>;
+  render(viewState: import('../presentation/types.js').OperatorViewState): void;
   resize(columns: number, rows: number): void;
   shutdown(): Promise<void>;
 }
