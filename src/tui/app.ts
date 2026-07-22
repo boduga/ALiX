@@ -27,7 +27,8 @@ export interface TuiAppOptions {
   approvalManager?: import('./approval-manager.js').ApprovalManager;
   views?: Readonly<Record<TabId, TuiView>>;
   /**
-   * Optional renderer implementation. Defaults to `new CanvasRenderer()`.
+   * Optional renderer implementation. Defaults to `new BlessedRenderer()`.
+   * Set `ALIX_TUI_RENDERER=canvas` to fall back to `CanvasRenderer`.
    * Pass a `NoopRenderer` (or any other `OperatorRenderer`) in tests or
    * alternate environments to bypass real terminal writes.
    */
@@ -71,8 +72,8 @@ export class TuiApp {
       policy: getView('policy')!,
     };
     this.terminal = createTerminalControl();
-    const useBlessed = process.env.ALIX_TUI_RENDERER === 'blessed';
-    this.renderer = opts.renderer ?? (useBlessed ? new BlessedRenderer() : new CanvasRenderer());
+    const useCanvas = process.env.ALIX_TUI_RENDERER === 'canvas';
+    this.renderer = opts.renderer ?? (useCanvas ? new CanvasRenderer() : new BlessedRenderer());
   }
 
   private get views(): Readonly<Record<TabId, TuiView>> {
@@ -112,6 +113,34 @@ export class TuiApp {
       this.state.lastSnapshot = snap;
     }
     this.paintFullFrame();
+
+    this.renderer.onEvent = (event) => {
+      switch (event.type) {
+        case 'exit':
+          void this.stop().then(() => process.exit(0));
+          break;
+        case 'cycleTab':
+          this.cycleTab(event.forward);
+          break;
+        case 'homeTab':
+          this.switchTab('chat');
+          break;
+        case 'switchTab':
+          this.switchTab(event.tab);
+          break;
+        case 'focusInput':
+          // BlessedRenderer input already focused — app sets buffer state
+          break;
+        case 'blurInput':
+          this.terminal.showCursor(true);
+          break;
+        case 'submitInput':
+          this.handleRenderSubmit(event.value);
+          break;
+        default:
+          assertNever(event);
+      }
+    };
 
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
   }
@@ -473,6 +502,36 @@ export class TuiApp {
   }
 
   /**
+   * Cycle forward or backward through the tab order.
+   * Called from renderer events (e.g., Tab / Shift+Tab via BlessedRenderer).
+   */
+  private cycleTab(forward: boolean): void {
+    const idx = TAB_ORDER.indexOf(this.state.activeTab);
+    const nextIdx = (idx + (forward ? 1 : TAB_ORDER.length - 1)) % TAB_ORDER.length;
+    this.switchTab(TAB_ORDER[nextIdx]!);
+  }
+
+  /**
+   * Handle a submitted input value from the renderer's own input widget
+   * (e.g., BlessedRenderer's text input box). Delegates to the active tab's
+   * submit handler — chat tab goes through submitChatInput, all other
+   * input-capable tabs (agent, daemon, etc.) go through submitAgentInput.
+   */
+  private handleRenderSubmit(value: string): void {
+    const tab = this.state.activeTab;
+    const perTab = this.state.views[tab];
+    if (!perTab) return;
+    if (value.trim().length === 0) return;
+    perTab.submittedPrompts.push(value);
+    if (tab === 'chat') {
+      void this.submitChatInput(value);
+    } else {
+      void this.submitAgentInput(value);
+    }
+    this.paintFullFrame();
+  }
+
+  /**
    * Adjust the sidebar panel scroll offset for the active tab's focused
    * panel by `direction` (+1 = `J`/down, -1 = `K`/up). Returns true if
    * the offset actually changed and the caller should repaint; false
@@ -715,6 +774,10 @@ function parseKey(buf: Buffer): string | null {
   }
   if (s.length === 1) return s;
   return null;
+}
+
+function assertNever(value: never, message?: string): never {
+  throw new Error(message ?? `Unexpected value: ${JSON.stringify(value)}`);
 }
 
 // `PreRenderCapable` is imported (per the strangler scaffold in the

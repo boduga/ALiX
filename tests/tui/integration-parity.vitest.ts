@@ -21,8 +21,10 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
+import { NoopRenderer } from '../../src/tui/renderer/contract.js';
 
 describe('TuiApp — parity with legacy chat input', () => {
+  const renderer = new NoopRenderer();
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
   let metrics: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
   let app: TuiApp | undefined;
@@ -56,7 +58,7 @@ describe('TuiApp — parity with legacy chat input', () => {
   // ---------------------------------------------------------------------------
 
   it('lifecycle parity: start() produces snapshot state like legacy Tui.init()', async () => {
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
 
     // Legacy: Tui.init() → TuiStore populated
@@ -73,7 +75,7 @@ describe('TuiApp — parity with legacy chat input', () => {
   });
 
   it('lifecycle parity: stop() releases subsystems like legacy Tui.destroy()', async () => {
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
     await app.stop();
 
@@ -87,7 +89,7 @@ describe('TuiApp — parity with legacy chat input', () => {
   });
 
   it('builds a fresh snapshot on each refresh cycle', async () => {
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
 
     // Initial build
@@ -115,7 +117,7 @@ describe('TuiApp — parity with legacy chat input', () => {
       return process.stdin;
     });
 
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
     expect(stdinHandler).toBeDefined();
 
@@ -178,7 +180,7 @@ describe('TuiApp — parity with legacy chat input', () => {
   // ---------------------------------------------------------------------------
 
   it('preserves per-tab state across navigation like legacy TUI preserves panel state', async () => {
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
 
     const state = app.getStateForTest();
