@@ -10,6 +10,7 @@ import { createTerminalControl, type TerminalControl } from './terminal-control.
 import type { OperatorRenderer } from './renderer/types.js';
 import { CanvasRenderer } from './renderers/canvas-renderer.js';
 import type { PreRenderCapable } from './renderers/canvas-renderer.js';
+import { BlessedRenderer } from './renderers/blessed-renderer.js';
 import { ViewModelBuilder } from './presentation/builder.js';
 import { renderLegacyView } from './legacy/legacy-view-bridge.js';
 
@@ -70,7 +71,8 @@ export class TuiApp {
       policy: getView('policy')!,
     };
     this.terminal = createTerminalControl();
-    this.renderer = opts.renderer ?? new CanvasRenderer();
+    const useBlessed = process.env.ALIX_TUI_RENDERER === 'blessed';
+    this.renderer = opts.renderer ?? (useBlessed ? new BlessedRenderer() : new CanvasRenderer());
   }
 
   private get views(): Readonly<Record<TabId, TuiView>> {
@@ -79,8 +81,10 @@ export class TuiApp {
 
   async start(): Promise<void> {
     this.terminal.enterAltBuffer();
-    this.terminal.enterRawMode();
     this.terminal.showCursor(true);
+
+    // Emergency cleanup ALWAYS before renderer init
+    this.terminal.installEmergencyCleanup(() => this.cleanupSync());
 
     // Route resize through the renderer so its internal geometry stays
     // in sync with the terminal before the next paint.
@@ -92,6 +96,14 @@ export class TuiApp {
 
     await this.renderer.initialize(this.terminal);
 
+    // Only enter raw mode if the renderer does NOT handle input
+    // (e.g. blessed owns its own input loop)
+    const caps = this.renderer.capabilities();
+    if (!caps.handlesInput) {
+      this.terminal.enterRawMode();
+      process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
+    }
+
     this.opts.daemonMetrics.start();
 
     const initialGen = ++this.state.refreshGeneration;
@@ -101,8 +113,6 @@ export class TuiApp {
     }
     this.paintFullFrame();
 
-    this.terminal.installEmergencyCleanup(() => this.cleanupSync());
-    process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
   }
 
