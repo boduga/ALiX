@@ -4,6 +4,10 @@ export interface TerminalControl {
   showCursor(visible: boolean): void;
   enterAltBuffer(): void;
   exitAltBuffer(): void;
+  /** Write data to stdout. Single owner of terminal output. */
+  write(data: string): void;
+  /** Position cursor at (row, column) — 1-indexed. */
+  setCursor(row: number, column: number): void;
   onResize(cb: () => void): () => void;
   installEmergencyCleanup(cleanup: () => void): () => void;
 }
@@ -34,6 +38,12 @@ export function createTerminalControl(): TerminalControl {
       if (process.env.ALIX_TUI_ALT_BUFFER !== '0') {
         process.stdout.write('\x1b[?1049l');
       }
+    },
+    write(data: string) {
+      process.stdout.write(data);
+    },
+    setCursor(row: number, column: number) {
+      process.stdout.write(`\x1b[${row};${column}H`);
     },
     onResize(cb: () => void) {
       resizeCb = cb;

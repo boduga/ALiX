@@ -18,8 +18,8 @@ function mockTC(): TestTerminalControl {
     showCursor: vi.fn(),
     onResize: vi.fn(),
     installEmergencyCleanup: vi.fn(),
-    write: vi.fn(),
-    setCursor: vi.fn(),
+    write: vi.fn<(data: string) => void>(),
+    setCursor: vi.fn<(row: number, column: number) => void>(),
   };
 }
 
