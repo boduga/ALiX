@@ -75,10 +75,15 @@ export class ApprovalRecommendationStore {
 
   /**
    * Read all recommendations whose generatedAt is within the last
-   * `windowDays` days.
+   * `windowDays` days. `now` defaults to the wall clock; pass it for
+   * determinism against fixed test fixtures.
    */
-  async queryByWindow(windowDays: number): Promise<ApprovalRecommendation[]> {
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  async queryByWindow(windowDays: number, now?: string): Promise<ApprovalRecommendation[]> {
+    const refMs = now ? Date.parse(now) : Date.now();
+    if (!Number.isFinite(refMs)) {
+      throw new Error(`queryByWindow: now=${JSON.stringify(now)} is not parseable`);
+    }
+    const cutoff = refMs - windowDays * 86_400_000;
     const all = await this.list();
     return all.filter((r) => new Date(r.generatedAt).getTime() >= cutoff);
   }

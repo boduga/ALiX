@@ -126,11 +126,16 @@ export class LearningStore {
     signalTypes?: string[];
     windowDays?: number;
     limit?: number;
+    /** Override the wall-clock "now" used by the window filter. Tests with
+     * fixed historical fixtures otherwise silently miss every record as the
+     * real clock drifts past the test's "now". Defaults to `Date.now()`. */
+    now?: string;
   }): Promise<LearningSignal[]> {
     const raw = await this.readFile(SIGNALS_FILE);
     if (!raw) return [];
+    const refMs = opts?.now ? Date.parse(opts.now) : Date.now();
     const cutoff = opts?.windowDays
-      ? Date.now() - opts.windowDays * 86_400_000
+      ? refMs - opts.windowDays * 86_400_000
       : 0;
     const typeSet = opts?.signalTypes
       ? new Set(opts.signalTypes)
@@ -159,11 +164,15 @@ export class LearningStore {
   async queryProfiles(opts?: {
     targets?: string[];
     windowDays?: number;
+    /** Override the wall-clock "now" used by the window filter. See
+     * `querySignals` for the determinism rationale. */
+    now?: string;
   }): Promise<CalibrationProfile[]> {
     const raw = await this.readFile(PROFILES_FILE);
     if (!raw) return [];
+    const refMs = opts?.now ? Date.parse(opts.now) : Date.now();
     const cutoff = opts?.windowDays
-      ? Date.now() - opts.windowDays * 86_400_000
+      ? refMs - opts.windowDays * 86_400_000
       : 0;
     const targetSet = opts?.targets
       ? new Set(opts.targets)

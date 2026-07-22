@@ -108,11 +108,22 @@ export class OutcomeStore {
 
   /**
    * Return all records whose `generatedAt` falls within the last N days.
+   *
+   * `now` is optional and defaults to the wall clock — pass it explicitly
+   * when you need determinism (adapters thread their run-shared
+   * `generatedAt` through). Acceptable inputs are any `Date.parse`-able
+   * string (typically an ISO-8601 timestamp). Mistype-prone on purpose:
+   * tests with fixed historical timestamps would silently miss every
+   * record as the wall clock drifts past the test's "now".
    */
-  async queryByWindow(windowDays: number): Promise<OutcomeRecord[]> {
-    const cutoff = new Date();
-    cutoff.setDate(cutoff.getDate() - windowDays);
-    const cutoffStr = cutoff.toISOString();
+  async queryByWindow(windowDays: number, now?: string): Promise<OutcomeRecord[]> {
+    const refStr = now ?? new Date().toISOString();
+    const refMs = Date.parse(refStr);
+    if (!Number.isFinite(refMs)) {
+      throw new Error(`queryByWindow: now=${JSON.stringify(now)} is not parseable`);
+    }
+    const cutoffMs = refMs - windowDays * 86_400_000;
+    const cutoffStr = new Date(cutoffMs).toISOString();
 
     const all = await this.list();
     return all.filter((r) => r.generatedAt >= cutoffStr);

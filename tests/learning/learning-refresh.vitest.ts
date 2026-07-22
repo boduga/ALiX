@@ -247,6 +247,7 @@ describe("runLearningRefresh orchestrator", () => {
     const result = await runLearningRefresh({
       cwd: tempRoot,
       adapter: "recommendation",
+      generatedAt: "2026-06-22T00:00:00.000Z",
       learningStore,
       adapters: buildDefaultAdapters(),
     });
@@ -331,6 +332,7 @@ describe("runLearningRefresh orchestrator", () => {
     const result = await runLearningRefresh({
       cwd: tempRoot,
       adapter: "all",
+      generatedAt: "2026-06-22T00:00:00.000Z",
       learningStore,
       adapters: buildDefaultAdapters(),
     });

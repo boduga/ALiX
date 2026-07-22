@@ -42,7 +42,7 @@ export class RecommendationCalibrationAdapter implements CalibrationAdapter {
     const windowDays = opts?.windowDays ?? 30;
     const generatedAt = opts?.generatedAt ?? new Date().toISOString();
 
-    const outcomes = await this.outcomeStore.queryByWindow(windowDays);
+    const outcomes = await this.outcomeStore.queryByWindow(windowDays, generatedAt);
 
     // Bucket by confidence. Outcomes with confidence === undefined are excluded
     // (they predate P7.5p.1 or had no recommendation) — bucketing undefined is meaningless.

@@ -74,11 +74,17 @@ export class RiskScoreStore {
   }
 
   /**
-   * Read all risk scores whose generatedAt is within the last
-   * `windowDays` days.
+   * Read all risk scores whose generatedAt is within the last `windowDays`
+   * days. `now` defaults to the wall clock; pass it explicitly for
+   * determinism against fixed test fixtures (see outcome-store's
+   * `queryByWindow` for the same note about silent temporal drift).
    */
-  async queryByWindow(windowDays: number): Promise<RiskScore[]> {
-    const cutoff = Date.now() - windowDays * 24 * 60 * 60 * 1000;
+  async queryByWindow(windowDays: number, now?: string): Promise<RiskScore[]> {
+    const refMs = now ? Date.parse(now) : Date.now();
+    if (!Number.isFinite(refMs)) {
+      throw new Error(`queryByWindow: now=${JSON.stringify(now)} is not parseable`);
+    }
+    const cutoff = refMs - windowDays * 86_400_000;
     const all = await this.list();
     return all.filter((r) => new Date(r.generatedAt).getTime() >= cutoff);
   }

@@ -118,7 +118,10 @@ export async function assembleProposalExplanation(
   opts: AssembleProposalExplanationOptions,
 ): Promise<ProposalExplanation> {
   const { proposalId, cwd, windowDays, executionEvidence, executionLineageRefs } = opts;
-  const generatedAt = new Date().toISOString();
+  // Caller may pin `now` for deterministic joins against fixed-fixture
+  // test data. Defaults to wall clock, which is fine for production use
+  // but causes silent drift past 30-day cutoff on historical fixtures.
+  const generatedAt = opts.generatedAt ?? new Date().toISOString();
 
   // Track integrity flags across all layers.
   let fallbackJoinsUsed = false;
@@ -304,7 +307,10 @@ export async function assembleProposalExplanation(
   // Priority 3: proposal-scoped fallback. RiskScore IDs follow `risk-<proposalId>`
   // (confirmed at src/adaptation/risk-score-builder.ts).
   if (risk.status === "not_available") {
-    const allRisks = await riskStore.queryByWindow(windowDays).catch(() => []);
+    // Thread `generatedAt` through so the windowed read sees the same
+    // `now` the rest of the assembler is using. Without this the join
+    // silently drops historical fixtures past the wall-clock cutoff.
+    const allRisks = await riskStore.queryByWindow(windowDays, generatedAt).catch(() => []);
     const matching = allRisks.find((r) => r.id === `risk-${proposalId}`);
     if (matching) {
       risk = buildRiskLayer(matching, "proposal_fallback");
@@ -392,8 +398,12 @@ export async function assembleProposalExplanation(
   // ---- Layer 6: Learning Signals (chain → heuristic) -------------------
   // String heuristics are LOCKED to Learning + Calibration layers only.
   const learningStore = new LearningStore(join(cwd, LEARNING_DIR));
-  const allSignals = await learningStore.querySignals({ windowDays }).catch(() => []);
-  const allProfiles = await learningStore.queryProfiles({ windowDays }).catch(() => []);
+  // Thread `generatedAt` through to deterministic window reads — the
+  // assembler is supposed to be a pure, replayable function, and the
+  // LearningStore's window filter would otherwise drift past the
+  // fixture dates as wall-clock time passes.
+  const allSignals = await learningStore.querySignals({ windowDays, now: generatedAt }).catch(() => []);
+  const allProfiles = await learningStore.queryProfiles({ windowDays, now: generatedAt }).catch(() => []);
 
   // Collect proposal-scoped artifact ids for chain-root resolution.
   const proposalArtifactIds = new Set<string>();

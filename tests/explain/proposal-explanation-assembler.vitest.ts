@@ -495,6 +495,7 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      generatedAt: "2026-07-15T00:00:00.000Z",
       executionEvidence: [],
       executionLineageRefs: [],
     });
@@ -543,6 +544,7 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      generatedAt: "2026-07-15T00:00:00.000Z",
       executionEvidence: [],
       executionLineageRefs: [],
     });
@@ -627,6 +629,7 @@ describe("assembleProposalExplanation", () => {
       proposalId: "prop-1",
       cwd: tempRoot,
       windowDays: 30,
+      generatedAt: "2026-07-15T00:00:00.000Z",
       executionEvidence: [],
       executionLineageRefs: [],
     });

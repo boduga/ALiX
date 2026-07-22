@@ -62,12 +62,13 @@ export class RiskCalibrationAdapter implements CalibrationAdapter {
     const generatedAt =
       opts?.generatedAt ?? new Date().toISOString();
 
-    const riskScores = await this.riskStore.queryByWindow(windowDays);
-    // Window filter on outcomes too — same window as risk scores so the join
-    // pairs in-window RiskScores with in-window OutcomeRecords only. Without
-    // this, stale outcomes from any time would join against fresh risk
-    // signals (false positives in calibration). Mirrors governance adapter.
-    const allOutcomes = await this.outcomeStore.queryByWindow(windowDays);
+    // Thread the run-shared `generatedAt` through both window queries so
+    // tests with fixed historical timestamps don't drift past the
+    // wall-clock 30-day window. Without this, the join silently pairs
+    // in-window RiskScores with out-of-window OutcomeRecords (or vice
+    // versa) and calibration results fluctuate with the wall clock.
+    const riskScores = await this.riskStore.queryByWindow(windowDays, generatedAt);
+    const allOutcomes = await this.outcomeStore.queryByWindow(windowDays, generatedAt);
 
     // Group outcomes by subjectId (the proposalId link) for O(1) lookup.
     const outcomesByProposal = new Map<string, OutcomeRecord[]>();

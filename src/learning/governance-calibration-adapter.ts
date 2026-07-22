@@ -64,8 +64,12 @@ export class GovernanceCalibrationAdapter implements CalibrationAdapter {
     const windowDays = opts?.windowDays ?? DEFAULT_WINDOW_DAYS;
     const generatedAt = opts?.generatedAt ?? new Date().toISOString();
 
-    const reviews = await this.reviewStore.queryByWindow(windowDays);
-    const outcomes = await this.outcomeStore.queryByWindow(windowDays);
+    // Thread the run-shared `generatedAt` through both window queries so
+    // tests with fixed historical timestamps don't drift past the
+    // wall-clock 30-day cutoff. The cross-store join is consistent only
+    // when both sides see the same `now`.
+    const reviews = await this.reviewStore.queryByWindow(windowDays, generatedAt);
+    const outcomes = await this.outcomeStore.queryByWindow(windowDays, generatedAt);
 
     // Join + concernsRaised derivation — single source of truth lives in
     // governance-lens-observation-builder.ts (fix #5). The adapter stays

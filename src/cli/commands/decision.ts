@@ -1157,8 +1157,12 @@ async function runOutcomeLensCalibration(args: string[]): Promise<void> {
   const reviewStore = new GovernanceReviewStore();
   const outcomeStore = new OutcomeStore(join(cwd, OUTCOMES_DIR));
 
-  const reviews = await reviewStore.queryByWindow(windowDays);
-  const outcomes = await outcomeStore.queryByWindow(windowDays);
+  // Thread `generatedAt` through so the window reads agree with the same
+  // "now" the rest of this report uses. Without this, fixed-fixture test
+  // data silently falls past the wall-clock 30-day cutoff as the real
+  // clock advances.
+  const reviews = await reviewStore.queryByWindow(windowDays, generatedAt);
+  const outcomes = await outcomeStore.queryByWindow(windowDays, generatedAt);
 
   // Single source of truth for join + concernsRaised derivation (fix #5).
   // Shared with `GovernanceCalibrationAdapter` so the CLI's report and the
