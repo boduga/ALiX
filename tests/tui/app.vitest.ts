@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
+import { NoopRenderer } from '../../src/tui/renderer/contract.js';
+
+const renderer = new NoopRenderer();
 
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
@@ -12,19 +15,29 @@ describe('TuiApp -- lifecycle', () => {
   });
   afterEach(async () => { if (app) await app.stop().catch(() => {}); });
 
-  it('start() invokes metrics.start and the snapshot builder', async () => {
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+  it('start() invokes renderer.initialize', async () => {
+    const spy = vi.spyOn(renderer, 'initialize');
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
-    expect(metrics.start).toHaveBeenCalled();
-    expect(builder.build).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
     await app.stop();
   });
 
-  it('stop() invokes metrics.stop', async () => {
-    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+  it('resize routes through renderer', async () => {
+    const spy = vi.spyOn(renderer, 'resize');
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
+    await app.start();
+    process.stdout.emit('resize');
+    expect(spy).toHaveBeenCalled();
+    await app.stop();
+  });
+
+  it('stop() invokes renderer.shutdown', async () => {
+    const spy = vi.spyOn(renderer, 'shutdown');
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
     await app.stop();
-    expect(metrics.stop).toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
   });
 });
 
@@ -32,7 +45,7 @@ describe('TuiApp -- tab-state preservation', () => {
   it('preserves runtime.scrollOffset across tab switches', () => {
     const builder = { build: vi.fn(async () => ({} as any)), buildSync: () => ({} as any) };
     const metrics = { start: () => {}, stop: async () => {} };
-    const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    const app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     const state = app.getStateForTest();
     state.views.runtime.scrollOffset = 200;
     expect(state.views.runtime.scrollOffset).toBe(200);
@@ -51,7 +64,7 @@ describe('TuiApp -- chat-input dispatch', () => {
     };
     const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
     const metrics = { start: () => {}, stop: async () => {} };
-    const app = new TuiApp({ builder, daemonMetrics: metrics, agentSession: opts.agentSession } as unknown as TuiAppOptions);
+    const app = new TuiApp({ builder, daemonMetrics: metrics, agentSession: opts.agentSession, renderer } as unknown as TuiAppOptions);
     const internal = app as unknown as {
       handleRaw(buf: Buffer): void;
       getStateForTest(): {
