@@ -1,17 +1,17 @@
 import type { PanelFocusId, PanelScrollOffsets, TabId, TuiAppState } from './state.js';
 import { createInitialTuiAppState, SessionPhase } from './state.js';
-import type { DashboardSnapshot } from './snapshot.js';
-import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
+import type { ViewAction, ViewInputContext, TuiView } from './views/types.js';
 import { getView } from './views/index.js';
-import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
 import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import type { AgentSession } from '../agent/session.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
-import { TerminalCanvas } from './canvas.js';
-import { renderSidebar } from './sidebar.js';
-import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
+import type { OperatorRenderer } from './renderer/types.js';
+import { CanvasRenderer } from './renderers/canvas-renderer.js';
+import type { PreRenderCapable } from './renderers/canvas-renderer.js';
+import { ViewModelBuilder } from './presentation/builder.js';
+import { renderLegacyView } from './legacy/legacy-view-bridge.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -25,18 +25,39 @@ export interface TuiAppOptions {
    */
   approvalManager?: import('./approval-manager.js').ApprovalManager;
   views?: Readonly<Record<TabId, TuiView>>;
+  /**
+   * Optional renderer implementation. Defaults to `new CanvasRenderer()`.
+   * Pass a `NoopRenderer` (or any other `OperatorRenderer`) in tests or
+   * alternate environments to bypass real terminal writes.
+   */
+  renderer?: OperatorRenderer;
 }
 
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
 
+/**
+ * Mirror of the legacy `DEFAULT_PANEL_H` constant from
+ * `dashboard-renderer.ts`. We intentionally do NOT import that module
+ * (the strangler goal of this task), so we hardcode the value here.
+ * Kept in sync with `CanvasLayoutEngine.DEFAULT_PANEL_H` (= 14) so the
+ * scroll-clamp math in `scrollFocusedPanel` matches the per-panel height
+ * the renderer actually paints.
+ */
+const LEGACY_DEFAULT_PANEL_H = 14;
+
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
-  private readonly renderer: TuiRenderer;
+  private readonly renderer: OperatorRenderer;
+  private readonly viewModelBuilder = new ViewModelBuilder();
   private readonly terminal: TerminalControl;
   private readonly navigation = new Navigation();
   private snapshotTimer?: NodeJS.Timeout;
   private detached = false;
   private readonly defaultViews: Readonly<Record<TabId, TuiView>>;
+  private _aliveResolve!: () => void;
+  private readonly _alivePromise = new Promise<void>((resolve) => {
+    this._aliveResolve = resolve;
+  });
 
   constructor(private readonly opts: TuiAppOptions) {
     this.defaultViews = {
@@ -49,7 +70,7 @@ export class TuiApp {
       policy: getView('policy')!,
     };
     this.terminal = createTerminalControl();
-    this.renderer = new TuiRenderer();
+    this.renderer = opts.renderer ?? new CanvasRenderer();
   }
 
   private get views(): Readonly<Record<TabId, TuiView>> {
@@ -60,7 +81,16 @@ export class TuiApp {
     this.terminal.enterAltBuffer();
     this.terminal.enterRawMode();
     this.terminal.showCursor(true);
-    this.terminal.onResize(() => this.paintFullFrame());
+
+    // Route resize through the renderer so its internal geometry stays
+    // in sync with the terminal before the next paint.
+    this.terminal.onResize(() => {
+      const dims = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
+      this.renderer.resize(dims.columns, dims.rows);
+      this.paintFullFrame();
+    });
+
+    await this.renderer.initialize(this.terminal);
 
     this.opts.daemonMetrics.start();
 
@@ -82,7 +112,7 @@ export class TuiApp {
    * — the render loop is not needed for unit assertions.
    */
   async run(): Promise<void> {
-    await this.renderer.runEventLoop();
+    return this._alivePromise;
   }
 
   async stop(): Promise<void> {
@@ -90,7 +120,9 @@ export class TuiApp {
     this.detached = true;
     if (this.snapshotTimer) clearInterval(this.snapshotTimer);
     await this.opts.daemonMetrics.stop();
-    await this.renderer.cleanup();
+    await this.renderer.shutdown();
+    // Release the run() promise so any awaiting caller unblocks.
+    this._aliveResolve();
     await this.cleanupSync();
   }
 
@@ -403,7 +435,7 @@ export class TuiApp {
         }
       }
     }
-    if (key === '' || key === 'q' || key === 'Q') {
+    if (key === '\x03' || key === 'q' || key === 'Q') {
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the
@@ -437,9 +469,11 @@ export class TuiApp {
    * signals "no scroll available for this tab" so keys fall through to
    * the input handler.
    *
-   * Mirrors the per-panel max-items math from `paintApprovalsPanel` and
-   * `paintSopsAndPolicyPanel` so the clamp matches what the painter can
-   * actually render — keeping the ↑ N above / ↓ N below counters honest.
+   * Mirrors the per-panel max-items math the renderer uses so the clamp
+   * matches what the painter can actually render — keeping the ↑ N above /
+   * ↓ N below counters honest. The default panel height is hardcoded
+   * (`LEGACY_DEFAULT_PANEL_H`) to avoid pulling `DEFAULT_PANEL_H` back
+   * into this file; it must stay equal to `CanvasLayoutEngine`'s value.
    */
   private scrollFocusedPanel(direction: 1 | -1): boolean {
     const perTab = this.state.views[this.state.activeTab];
@@ -448,19 +482,19 @@ export class TuiApp {
     const snap = this.state.lastSnapshot;
     if (!snap) return false;
 
-    // Reproduce the per-panel h used by renderSidebar — must match
-    // `app.ts`'s `paintFullFrame` geometry or the clamp could disagree
-    // with what the painter draws.
-    const dims: TerminalDimensions = {
+    // Reproduce the per-panel h used by the renderer — must match
+    // the renderer's geometry or the clamp could disagree with what
+    // the painter draws.
+    const dims = {
       columns: process.stdout.columns ?? 80,
       rows: process.stdout.rows ?? 24,
     };
     const HEADER_H = 3;
     const FOOTER_H = 3;
     const available = Math.max(1, dims.rows - HEADER_H - FOOTER_H);
-    const target = DEFAULT_PANEL_H * 4;
+    const target = LEGACY_DEFAULT_PANEL_H * 4;
     const perPanelH = target <= available
-      ? DEFAULT_PANEL_H
+      ? LEGACY_DEFAULT_PANEL_H
       : Math.max(5, Math.floor(available / 4));
 
     let totalItems = 0;
@@ -469,7 +503,7 @@ export class TuiApp {
       totalItems =
         (snap.approvals?.pending.length ?? 0) +
         (snap.approvals?.recentlyResolved.length ?? 0);
-      // Mirror `paintApprovalsPanel`: cap 4, item=2 rows, footer at h>=14.
+      // Mirror the approvals panel renderer: cap 4, item=2 rows, footer at h>=14.
       const APPROVAL_LIST_MAX = 4;
       const itemRows = 2;
       const footerRows = perPanelH >= 14 ? 1 : 0;
@@ -480,7 +514,7 @@ export class TuiApp {
       );
     } else {
       totalItems = snap.sops?.items.length ?? 0;
-      // Mirror `paintSopsAndPolicyPanel`: 3 items when h>=10, fewer otherwise.
+      // Mirror the sops/policy panel renderer: 3 items when h>=10, fewer otherwise.
       maxItems = perPanelH >= 10
         ? Math.min(3, totalItems)
         : Math.max(0, Math.min(totalItems, perPanelH - 8));
@@ -604,145 +638,41 @@ export class TuiApp {
     state.agentResponses.push(text);
   }
 
-  /** Build a complete frame containing all regions and write it to stdout. */
+  /**
+   * Build a complete frame containing all regions and write it to stdout
+   * via the configured `OperatorRenderer`. The renderer is responsible
+   * for translating the OperatorViewState + the optional legacy surface
+   * into terminal output (or a no-op when a non-Canonical renderer is
+   * wired in tests).
+   */
   private paintFullFrame(): void {
     if (!this.state.lastSnapshot) return;
-    const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
-    // 75/25 split — left column for chat/agent scrollback, right column for
-    // the 4 dashboard panels stacked vertically. Reserve 1 column for the
-    // vertical divider so the active view doesn't bleed into the sidebar.
-    const SPLIT_RATIO = 0.75;
-    const leftW = Math.max(40, Math.floor(dims.columns * SPLIT_RATIO));
-    const rightW = Math.max(20, dims.columns - leftW - 1);
-    const FOOTER_H = 3;
-    const HEADER_H = 3;
-
-    // Render the active view into a sub-canvas sized to the left column,
-    // then blit it into the main canvas. This keeps each view's existing
-    // row-4 prompt / row-5 status layout untouched while preventing writes
-    // past the divider.
-    const leftCanvas = new TerminalCanvas(leftW, dims.rows);
-    const leftCtx: ViewRenderContext = {
-      snap: this.state.lastSnapshot,
-      dimensions: { columns: leftW, rows: dims.rows },
-      perTab: this.state.views[this.state.activeTab],
-      canvas: leftCanvas,
-    };
-    this.views[this.state.activeTab]!.render(leftCtx);
-
-    const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = this.state.lastSnapshot;
-    const session = snap.session;
+    const activeTab = this.state.activeTab;
+    const perTab = this.state.views[activeTab];
 
-    // Header — top divider, content row, bottom divider (full width).
-    // Row 0: top rule
-    for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
-    // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
-    c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
-    const liveVersion: string | undefined =
-      (this.opts.agentSession as { getVersion?: () => string } | undefined)?.getVersion?.();
-    const version = liveVersion || session?.version || '0.0.0';
-    const sessionMode = session?.mode ?? 'auto';
-    const rightText = `\x1b[90mAgent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}\x1b[0m`;
-    const rightLen = `Agent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}`.length;
-    c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
-    // Row 2: bottom rule
-    for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
+    const vm = this.viewModelBuilder.build(snap, perTab, activeTab);
 
-    // Blit the left canvas into the main canvas at offset (0, 0).
-    c.blit(leftCanvas, 0, 0);
-
-    // Vertical divider between left and right columns.
-    for (let y = HEADER_H; y < dims.rows - FOOTER_H; y++) {
-      c.write(leftW, y, `\x1b[90m│\x1b[0m`);
+    // Set legacy view surface via capability interface (no cast).
+    // The `'in'` operator narrows the renderer's type to include the
+    // optional `setPreRenderSurface` hook, so we don't need a hard cast
+    // to `PreRenderCapable` to call it.
+    if ('setPreRenderSurface' in this.renderer) {
+      const dims = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
+      const leftW = Math.max(40, Math.floor(dims.columns * 0.75));
+      const legacySurface = renderLegacyView({
+        snap,
+        perTab,
+        views: this.views,
+        activeTab,
+        surfaceWidth: leftW,
+        surfaceHeight: dims.rows,
+      });
+      (this.renderer as { setPreRenderSurface(s: import('./renderer/surface.js').RenderSurface | null): void })
+        .setPreRenderSurface(legacySurface);
     }
 
-    // Render the sidebar into its own canvas and blit it on the right.
-    // Per-tab scroll state flows from the active tab so the operator's
-    // `J`/`K` keys (where applicable) keep the panel cursor in sync.
-    const activePerTab = this.state.views[this.state.activeTab];
-    const sidebarCanvas = renderSidebar(
-      snap, rightW, dims.rows, HEADER_H, FOOTER_H,
-      activePerTab.panelScrollOffsets,
-      activePerTab.panelFocus,
-    );
-    c.blit(sidebarCanvas, leftW + 1, 0);
-    // Tabs row (with key-hint suffix, right-aligned).
-    let tabLine = '';
-    for (const id of TAB_ORDER) {
-      const active = id === this.state.activeTab;
-      tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
-    }
-    const tabHintsVisible = '↑/↓ navigate   |   tab next   |   ? help   |   q quit';
-    const hintsLen = tabHintsVisible.length;
-    // Reserve room so the hints fit on the same line, right-aligned.
-    // Footer is clipped to the LEFT column so it doesn't bleed into the
-    // sidebar's footer area.
-    const tabRowBudget = Math.max(0, leftW - hintsLen - 1);
-    const tabText = tabLine.length <= tabRowBudget
-      ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
-      : tabLine.slice(0, tabRowBudget);
-    c.write(0, dims.rows - 3, tabText);
-    c.write(leftW - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
-
-    // Status row — phase radios (left) | pipeline fields (right).
-    const phaseDefs: ReadonlyArray<{ readonly phase: SessionPhase; readonly label: string }> = [
-      { phase: SessionPhase.Understanding, label: 'UNDERSTANDING' },
-      { phase: SessionPhase.Planning, label: 'PLANNING' },
-      { phase: SessionPhase.Executing, label: 'EXECUTING' },
-      { phase: SessionPhase.Verifying, label: 'VERIFYING' },
-      { phase: SessionPhase.Summarizing, label: 'SUMMARIZING' },
-    ];
-    const activePhase = session?.phase ?? SessionPhase.Idle;
-    let phaseLine = '';
-    for (const p of phaseDefs) {
-      const active = activePhase === p.phase;
-      if (active) phaseLine += `\x1b[32m● ${p.label}\x1b[0m   `;
-      else phaseLine += `\x1b[90m○ ${p.label}\x1b[0m   `;
-    }
-    const sep = `\x1b[90m|\x1b[0m`;
-    const daemonLabel = snap.daemon !== null
-      ? `\x1b[32m● running\x1b[0m`
-      : `\x1b[90m○ stopped\x1b[0m`;
-    const sopCount = snap.sops?.totalLoaded ?? 0;
-    const ruleCount = snap.policy?.rules.length ?? 0;
-    const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
-    const fields = [
-      'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
-      'FILES: 0',         // schema gap: no fileCount field yet
-      `DAEMON: ${daemonLabel}`,
-      `SOPS: ${sopCount}`,
-      `RULES: ${ruleCount}`,
-      `EVENTS: ${eventsCount}`,
-    ];
-    // Phase radios are workflow-lifecycle signals — they only make sense on
-    // the agent tab. On chat, skip the phase segment and start with the
-    // pipeline field chain so the operator doesn't see stale workflow
-    // phase from a previous processTurn run.
-    const statusLine = this.state.activeTab === 'chat'
-      ? `${sep} ${fields.join(` ${sep} `)}`
-      : `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`;
-    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, leftW - 2)));
-
-    // Write the complete frame — cursor home + canvas render.
-    process.stdout.write('\x1b[H' + c.renderFrame());
-
-    // Place the terminal cursor at the active tab's input prompt position.
-    // Without this the cursor sits at the bottom of the screen (blinking on
-    // top of the status line) while typed text accumulates in the buffer,
-    // creating both an invisible-typing experience and a visual "flash" on
-    // every keypress as the full frame redraw overwrites the cursor area.
-    if (this.state.activeTab === 'chat') {
-      const bufLen = this.state.views.chat.inputBuffer.length;
-      process.stdout.write(`\x1b[5;${7 + bufLen + 1}H`);
-    } else if (this.state.activeTab === 'agent') {
-      const bufLen = this.state.views.agent.inputBuffer.length;
-      process.stdout.write(`\x1b[5;${13 + bufLen + 1}H`);
-    } else {
-      // Non-input tabs: move cursor to a safe column (row 4, col 1) so it
-      // doesn't blink on top of the status line.
-      process.stdout.write(`\x1b[5;1H`);
-    }
+    this.renderer.render(vm);
   }
 
   private async cleanupSync(): Promise<void> {
@@ -776,3 +706,9 @@ function parseKey(buf: Buffer): string | null {
   if (s.length === 1) return s;
   return null;
 }
+
+// `PreRenderCapable` is imported (per the strangler scaffold in the
+// PR-A plan) but the call site uses structural narrowing via the `in`
+// operator rather than a hard cast, so it appears unused. The type
+// symbol is retained explicitly so future refactors can grep for it
+// when wiring PR-C adapters.
