@@ -37,8 +37,13 @@ declare module 'neo-blessed' {
       width?: string | number;
       height?: string | number;
       content?: string;
+      label?: string;
+      border?: { type?: string };
       style?: Record<string, unknown>;
       tags?: boolean;
+      scrollable?: boolean;
+      alwaysScroll?: boolean;
+      scrollbar?: Record<string, unknown>;
     }
 
     interface Screen {
@@ -52,6 +57,11 @@ declare module 'neo-blessed' {
       setContent(content: string): void;
       setValue(value: string): void;
       setItems(items: string[]): void;
+      setScrollPerc(percent: number): void;
+      getValue(): string;
+      clearValue(): void;
+      on(event: string, listener: (...args: unknown[]) => void): void;
+      focus(): void;
     }
 
     interface BoxElement extends Element {}

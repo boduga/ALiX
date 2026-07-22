@@ -1,14 +1,23 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { OperatorViewState } from '../../src/tui/presentation/types.js';
 import type { TerminalControl } from '../../src/tui/terminal-control.js';
-import type { BlessedRenderer as BlessedRendererType } from '../../src/tui/renderers/blessed-renderer.js';
 
 // Mock blessed for deterministic CI (no TTY required).
 // Mock tracks screen event registration so we can verify cleanup.
 // vi.hoisted ensures shared state is visible to both the mock factory and test assertions.
 const { screenDestroySpy, mkEl } = vi.hoisted(() => {
   const screenDestroySpy = vi.fn();
-  const mkEl = () => ({ setContent: vi.fn(), setItems: vi.fn(), setValue: vi.fn(), detach: vi.fn() });
+  const mkEl = () => ({
+    setContent: vi.fn(),
+    setItems: vi.fn(),
+    setValue: vi.fn(),
+    detach: vi.fn(),
+    setScrollPerc: vi.fn(),
+    getValue: vi.fn(),
+    clearValue: vi.fn(),
+    on: vi.fn(),
+    focus: vi.fn(),
+  });
   return { screenDestroySpy, mkEl };
 });
 
@@ -28,12 +37,13 @@ vi.mock('neo-blessed', () => {
     screen: createMockScreen,
     box: mkEl,
     list: () => ({ ...mkEl(), setItems: vi.fn(), items: [], select: vi.fn() }),
-    textarea: () => ({ ...mkEl(), setValue: vi.fn(), value: '' }),
+    textarea: () => ({ ...mkEl(), setValue: vi.fn(), value: '', on: vi.fn() }),
     default: { screen: createMockScreen, box: mkEl, list: mkEl, textarea: mkEl },
   };
 });
 
 const { BlessedRenderer } = await import('../../src/tui/renderers/blessed-renderer.js');
+type BlessedRendererType = InstanceType<typeof BlessedRenderer>;
 
 function mockTC(): TerminalControl {
   return {
@@ -74,8 +84,12 @@ describe('BlessedRenderer', () => {
 
   beforeEach(() => { r = new BlessedRenderer(); tc = mockTC(); vi.clearAllMocks(); });
 
-  it('capabilities: handlesInput=true', () => {
-    expect(r.capabilities().handlesInput).toBe(true);
+  it('capabilities: handlesInput=true, supportsMouse=false', () => {
+    const caps = r.capabilities();
+    expect(caps.handlesInput).toBe(true);
+    expect(caps.supportsMouse).toBe(false);
+    expect(caps.name).toBe('BlessedRenderer');
+    expect(caps.version).toBe('1.0.0');
   });
 
   it('initialize creates screen', async () => {
@@ -96,10 +110,15 @@ describe('BlessedRenderer', () => {
 
     const after = r.getWidgetReferences();
     expect(after.header).toBe(before.header);
-    expect(after.status).toBe(before.status);
+    expect(after.mainBox).toBe(before.mainBox);
+    expect(after.sidebarWidgets).toBe(before.sidebarWidgets);
+    expect(after.sidebarWidgets.daemon).toBe(before.sidebarWidgets.daemon);
+    expect(after.sidebarWidgets.approvals).toBe(before.sidebarWidgets.approvals);
+    expect(after.sidebarWidgets.runtime).toBe(before.sidebarWidgets.runtime);
+    expect(after.sidebarWidgets.sops_policy).toBe(before.sidebarWidgets.sops_policy);
     expect(after.tabBar).toBe(before.tabBar);
-    expect(after.approvals).toBe(before.approvals);
     expect(after.input).toBe(before.input);
+    expect(after.status).toBe(before.status);
   });
 
   it('initialize/shutdown cycle invokes screen.destroy each time (teardown path)', async () => {
@@ -110,7 +129,6 @@ describe('BlessedRenderer', () => {
     }
     // screen.destroy() is blessed's native teardown path.
     // This test verifies it is called on every shutdown cycle.
-    // Actual listener retention requires runtime heap profiling.
     expect(screenDestroySpy).toHaveBeenCalledTimes(cycles);
   });
 
@@ -140,9 +158,10 @@ describe('BlessedRenderer', () => {
   it('getWidgetReferences returns all widgets', () => {
     const refs = r.getWidgetReferences();
     expect(refs).toHaveProperty('header');
-    expect(refs).toHaveProperty('status');
+    expect(refs).toHaveProperty('mainBox');
+    expect(refs).toHaveProperty('sidebarWidgets');
     expect(refs).toHaveProperty('tabBar');
-    expect(refs).toHaveProperty('approvals');
     expect(refs).toHaveProperty('input');
+    expect(refs).toHaveProperty('status');
   });
 });
