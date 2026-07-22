@@ -48,12 +48,15 @@ function mockVS(): OperatorViewState {
     sessionMetadata: null,
     daemonStatus: null,
     viewContent: {
+      mainLines: [],
+      scrollPercent: 100,
       sidebarPanels: {
         daemon: { kind: 'daemon', title: 'DAEMON', visible: true, loading: false, items: [], scrollOffset: 0, focused: false, totalItems: 0 },
         approvals: { kind: 'approvals', title: 'APPROVALS', visible: true, loading: false, items: [], scrollOffset: 0, focused: false, totalItems: 0 },
         runtime: { kind: 'runtime', title: 'RUNTIME', visible: true, loading: false, items: [], scrollOffset: 0, focused: false, totalItems: 0 },
         sops_policy: { kind: 'sops_policy', title: 'SOPS & POLICY', visible: true, loading: false, items: [], scrollOffset: 0, focused: false, totalItems: 0 },
       },
+      showInput: true,
     },
   };
 }

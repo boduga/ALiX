@@ -1,9 +1,12 @@
 import type { DashboardSnapshot } from '../snapshot.js';
-import type { PerTabState, TabId } from '../state.js';
+import type { PerTabState, TabId, SidebarPanelId } from '../state.js';
 import type {
-  OperatorViewState, PanelViewModel, PanelItem, InputViewModel, StatusBarViewModel, TabInfo,
-  SidebarPanelView, ViewContent,
+  OperatorViewState, PanelViewModel, PanelItem, InputViewModel, StatusBarViewModel,
+  SidebarPanelView,
 } from './types.js';
+import { fmtBytes } from './formatters/bytes.js';
+import { fmtBar } from './formatters/bars.js';
+import { fmtUptime } from './formatters/uptime.js';
 
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
 const PHASE_DEFS: ReadonlyArray<{ readonly phase: string; readonly label: string }> = [
@@ -21,12 +24,6 @@ export class ViewModelBuilder {
     const runtimePanel = this.runtimePanel(snapshot);
     const sopsPanel = this.sopsPolicyPanel(snapshot, state);
 
-    const toSidebarView = (p: PanelViewModel): SidebarPanelView => ({
-      kind: p.kind, title: p.title, visible: p.visible, loading: false,
-      items: p.items, scrollOffset: p.scrollOffset,
-      focused: p.focused, totalItems: p.totalItems,
-    });
-
     return {
       tabs: TAB_ORDER.map((id) => ({ id, label: id.charAt(0).toUpperCase() + id.slice(1), active: id === activeTab })),
       activeTab,
@@ -36,14 +33,154 @@ export class ViewModelBuilder {
       sessionMetadata: snapshot.session ? { version: snapshot.session.version, mode: snapshot.session.mode, phase: snapshot.session.phase } : null,
       daemonStatus: snapshot.daemon ? { running: true, cpuPercent: snapshot.daemon.cpuPercent, memoryRssBytes: snapshot.daemon.memoryRssBytes, memoryTotalBytes: snapshot.daemon.memoryTotalBytes, diskUsedBytes: snapshot.daemon.diskUsedBytes, diskTotalBytes: snapshot.daemon.diskTotalBytes, pid: snapshot.daemon.pid, uptimeSeconds: snapshot.daemon.uptimeSeconds } : null,
       viewContent: {
-        sidebarPanels: {
-          daemon: toSidebarView(daemonPanel),
-          approvals: toSidebarView(approvalsPanel),
-          runtime: toSidebarView(runtimePanel),
-          sops_policy: toSidebarView(sopsPanel),
-        },
+        mainLines: this.buildMainLines(snapshot, state, activeTab),
+        scrollPercent: activeTab === 'chat' || activeTab === 'runtime' ? 100 : state.scrollOffset,
+        sidebarPanels: this.buildSidebarPanels(snapshot, state),
+        showInput: this.shouldShowInput(activeTab),
       },
     };
+  }
+
+  private buildMainLines(snap: DashboardSnapshot, state: PerTabState, tab: TabId): string[] {
+    switch (tab) {
+      case 'chat': return this.buildChatLines(state);
+      case 'agent': return this.buildAgentLines(snap, state);
+      case 'daemon': return this.buildDaemonLines(snap);
+      case 'approvals': return this.buildApprovalsLines(snap, state);
+      case 'runtime': return this.buildRuntimeLines(snap, state);
+      case 'sops': return this.buildSopsLines(snap);
+      case 'policy': return this.buildPolicyLines(snap);
+    }
+  }
+
+  private buildChatLines(state: PerTabState): string[] {
+    const lines: string[] = [];
+    const max = Math.max(state.submittedPrompts.length, state.agentResponses.length);
+    for (let i = 0; i < max; i++) {
+      if (i < state.submittedPrompts.length) {
+        lines.push(`> ${state.submittedPrompts[i]}`);
+      }
+      if (i < state.agentResponses.length) {
+        lines.push(state.agentResponses[i]);
+      }
+    }
+    if (lines.length === 0) lines.push('No messages yet.');
+    return lines;
+  }
+
+  private buildAgentLines(snap: DashboardSnapshot, state: PerTabState): string[] {
+    const lines: string[] = [];
+    if (snap.session) {
+      lines.push(`Phase: ${snap.session.phase}  Mode: ${snap.session.mode}  Turns: ${snap.session.turns}`);
+    }
+    if (state.planContent) {
+      lines.push('', '── Plan ──', state.planContent);
+    }
+    if (state.agentResponses.length > 0) {
+      lines.push('', '── Responses ──', ...state.agentResponses);
+    }
+    if (lines.length === 0) lines.push('No agent activity yet.');
+    return lines;
+  }
+
+  private buildDaemonLines(snap: DashboardSnapshot): string[] {
+    const d = snap.daemon;
+    if (!d) return ['Daemon not running.'];
+    return [
+      `PID: ${d.pid ?? '—'}`,
+      `Uptime: ${fmtUptime(d.uptimeSeconds)}`,
+      `CPU: ${d.cpuPercent.toFixed(1)}%  ${fmtBar(d.cpuPercent / 100)}`,
+      `MEM: ${fmtBytes(d.memoryRssBytes)} / ${fmtBytes(d.memoryTotalBytes)}  ${fmtBar(d.memoryRssBytes / (d.memoryTotalBytes || 1))}`,
+      `DISK: ${fmtBytes(d.diskUsedBytes)} / ${fmtBytes(d.diskTotalBytes)}  ${fmtBar(d.diskUsedBytes / (d.diskTotalBytes || 1))}`,
+      `Clients: ${d.clients.length}`,
+    ];
+  }
+
+  private buildApprovalsLines(snap: DashboardSnapshot, state: PerTabState): string[] {
+    const lines: string[] = [];
+    const pending = snap.approvals?.pending ?? [];
+    const resolved = snap.approvals?.recentlyResolved ?? [];
+    const now = Date.now();
+    if (pending.length > 0) {
+      lines.push(`Pending (${pending.length}):`);
+      for (const a of pending) {
+        lines.push(`  ${a.toolName}  ${a.targetPath}  ${fmtRelative(a.requestedAt, now)}`);
+      }
+    }
+    if (resolved.length > 0) {
+      if (pending.length > 0) lines.push('');
+      lines.push(`Resolved (${resolved.length}):`);
+      for (const a of resolved) {
+        lines.push(`  ${a.toolName}  ${a.targetPath}  ${fmtRelative(a.requestedAt, now)}`);
+      }
+    }
+    if (lines.length === 0) lines.push('No approvals.');
+    return lines;
+  }
+
+  private buildRuntimeLines(snap: DashboardSnapshot, state: PerTabState): string[] {
+    const lines: string[] = [];
+    const wf = snap.runtime?.workflow;
+    const events = snap.runtime?.totalEventCount ?? 0;
+    if (wf) {
+      lines.push(`Workflow: ${wf.name}`);
+      lines.push(`Step: ${wf.currentStep} / ${wf.totalSteps}  ${fmtBar(wf.currentStep / wf.totalSteps)}`);
+      lines.push(`Events: ${events}`);
+    } else if (events > 0) {
+      lines.push(`No active workflow. ${events} events recorded.`);
+    } else {
+      lines.push('No runtime activity.');
+    }
+    return lines;
+  }
+
+  private buildSopsLines(snap: DashboardSnapshot): string[] {
+    const sops = snap.sops;
+    if (!sops || sops.items.length === 0) return ['No SOPs loaded.'];
+    return [
+      `Loaded: ${sops.totalLoaded} SOPs`,
+      ...sops.items.map((s) => `  ${s.name}  v${s.version}`),
+    ];
+  }
+
+  private buildPolicyLines(snap: DashboardSnapshot): string[] {
+    const p = snap.policy;
+    if (!p) return ['No policy loaded.'];
+    const lines: string[] = [
+      `Mode: ${p.enforcementMode}`,
+      `Rules: ${p.rules.length}  Violations: ${p.recentViolationCount}`,
+    ];
+    if (p.rules.length > 0) {
+      lines.push('', '── Rules ──');
+      for (const r of p.rules) {
+        lines.push(`  ${r.name}  (${r.severity}, last: ${r.lastResult})`);
+      }
+    }
+    if (p.violations.length > 0) {
+      lines.push('', '── Violations ──');
+      for (const v of p.violations) {
+        lines.push(`  ${v.severity}: ${v.message}`);
+      }
+    }
+    return lines;
+  }
+
+  private buildSidebarPanels(snap: DashboardSnapshot, state: PerTabState): Readonly<Record<SidebarPanelId, SidebarPanelView>> {
+    const toSidebarView = (p: PanelViewModel): SidebarPanelView => ({
+      kind: p.kind, title: p.title, visible: p.visible, loading: false,
+      items: p.items, scrollOffset: p.scrollOffset,
+      focused: p.focused, totalItems: p.totalItems,
+    });
+    return {
+      daemon: toSidebarView(this.daemonPanel(snap)),
+      approvals: toSidebarView(this.approvalsPanel(snap, state)),
+      runtime: toSidebarView(this.runtimePanel(snap)),
+      sops_policy: toSidebarView(this.sopsPolicyPanel(snap, state)),
+    };
+  }
+
+  private shouldShowInput(tab: TabId): boolean {
+    return tab === 'chat' || tab === 'agent';
   }
 
   private daemonPanel(snap: DashboardSnapshot): PanelViewModel {
@@ -103,10 +240,5 @@ export class ViewModelBuilder {
   }
 }
 
-function fmtUptime(s: number): string {
-  const t = Math.max(0, Math.floor(s));
-  return `${String(Math.floor(t / 3600)).padStart(2, '0')}:${String(Math.floor((t % 3600) / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
-}
 function fmtPct(f: number): string { return f < 0 || !Number.isFinite(f) ? '(?)%' : `${Math.max(0, Math.min(100, f * 100)).toFixed(1)}%`; }
-function fmtBytes(b: number): string { if (b < 1024) return `${b}B`; if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)}KB`; return `${(b / (1024 * 1024)).toFixed(1)}MB`; }
 function fmtRelative(ts: number, now: number): string { const s = Math.max(0, Math.floor((now - ts) / 1000)); if (s < 60) return `${s}s ago`; if (s < 3600) return `${Math.floor(s / 60)}m ago`; return `${Math.floor(s / 3600)}h ago`; }

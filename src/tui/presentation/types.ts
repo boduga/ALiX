@@ -47,7 +47,10 @@ export interface SidebarPanelView {
 }
 
 export interface ViewContent {
+  readonly mainLines: readonly string[];
+  readonly scrollPercent: number;
   readonly sidebarPanels: Readonly<Record<SidebarPanelId, SidebarPanelView>>;
+  readonly showInput: boolean;
 }
 
 export interface ResourceBar {
