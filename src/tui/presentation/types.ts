@@ -1,3 +1,5 @@
+import type { SidebarPanelId } from '../state.js';
+
 export interface TabInfo {
   readonly id: string;
   readonly label: string;
@@ -33,6 +35,21 @@ export interface InputViewModel {
   readonly mode: 'neutral' | 'chat' | 'agent';
 }
 
+export interface SidebarPanelView {
+  readonly kind: SidebarPanelId;
+  readonly title: string;
+  readonly visible: boolean;
+  readonly loading: boolean;
+  readonly items: readonly PanelItem[];
+  readonly scrollOffset: number;
+  readonly focused: boolean;
+  readonly totalItems: number;
+}
+
+export interface ViewContent {
+  readonly sidebarPanels: Readonly<Record<SidebarPanelId, SidebarPanelView>>;
+}
+
 export interface ResourceBar {
   readonly label: string;
   readonly fraction: number;
@@ -66,4 +83,6 @@ export interface OperatorViewState {
     readonly pid: number | null;
     readonly uptimeSeconds: number;
   } | null;
+
+  readonly viewContent: ViewContent;
 }

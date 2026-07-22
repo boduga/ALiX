@@ -1,3 +1,14 @@
+import type { TabId } from '../state.js';
+
+export type RendererEvent =
+  | { type: 'exit' }
+  | { type: 'focusInput' }
+  | { type: 'blurInput' }
+  | { type: 'switchTab'; tab: TabId }
+  | { type: 'cycleTab'; forward: boolean }
+  | { type: 'homeTab' }
+  | { type: 'submitInput'; value: string };
+
 export interface RendererCapabilities {
   readonly name: string;
   readonly version: string;
@@ -14,4 +25,7 @@ export interface OperatorRenderer {
   render(viewState: import('../presentation/types.js').OperatorViewState): void;
   resize(columns: number, rows: number): void;
   shutdown(): Promise<void>;
+
+  /** Renderer -> application lifecycle communication. */
+  onEvent?: (event: RendererEvent) => void;
 }

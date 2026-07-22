@@ -2,6 +2,7 @@ import type { DashboardSnapshot } from '../snapshot.js';
 import type { PerTabState, TabId } from '../state.js';
 import type {
   OperatorViewState, PanelViewModel, PanelItem, InputViewModel, StatusBarViewModel, TabInfo,
+  SidebarPanelView, ViewContent,
 } from './types.js';
 
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
@@ -15,14 +16,33 @@ const PHASE_DEFS: ReadonlyArray<{ readonly phase: string; readonly label: string
 
 export class ViewModelBuilder {
   build(snapshot: DashboardSnapshot, state: PerTabState, activeTab: TabId): OperatorViewState {
+    const daemonPanel = this.daemonPanel(snapshot);
+    const approvalsPanel = this.approvalsPanel(snapshot, state);
+    const runtimePanel = this.runtimePanel(snapshot);
+    const sopsPanel = this.sopsPolicyPanel(snapshot, state);
+
+    const toSidebarView = (p: PanelViewModel): SidebarPanelView => ({
+      kind: p.kind, title: p.title, visible: p.visible, loading: false,
+      items: p.items, scrollOffset: p.scrollOffset,
+      focused: p.focused, totalItems: p.totalItems,
+    });
+
     return {
       tabs: TAB_ORDER.map((id) => ({ id, label: id.charAt(0).toUpperCase() + id.slice(1), active: id === activeTab })),
       activeTab,
-      panels: [this.daemonPanel(snapshot), this.approvalsPanel(snapshot, state), this.runtimePanel(snapshot), this.sopsPolicyPanel(snapshot, state)],
+      panels: [daemonPanel, approvalsPanel, runtimePanel, sopsPanel],
       input: this.buildInput(activeTab, state),
       statusBar: this.buildStatusBar(snapshot, activeTab),
       sessionMetadata: snapshot.session ? { version: snapshot.session.version, mode: snapshot.session.mode, phase: snapshot.session.phase } : null,
       daemonStatus: snapshot.daemon ? { running: true, cpuPercent: snapshot.daemon.cpuPercent, memoryRssBytes: snapshot.daemon.memoryRssBytes, memoryTotalBytes: snapshot.daemon.memoryTotalBytes, diskUsedBytes: snapshot.daemon.diskUsedBytes, diskTotalBytes: snapshot.daemon.diskTotalBytes, pid: snapshot.daemon.pid, uptimeSeconds: snapshot.daemon.uptimeSeconds } : null,
+      viewContent: {
+        sidebarPanels: {
+          daemon: toSidebarView(daemonPanel),
+          approvals: toSidebarView(approvalsPanel),
+          runtime: toSidebarView(runtimePanel),
+          sops_policy: toSidebarView(sopsPanel),
+        },
+      },
     };
   }
 

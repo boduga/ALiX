@@ -16,6 +16,22 @@ export enum SessionPhase {
 
 export type TabId = 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
 
+export type SidebarPanelId = 'daemon' | 'approvals' | 'runtime' | 'sops_policy';
+
+export const TAB_IDS = [
+  'chat',
+  'agent',
+  'daemon',
+  'approvals',
+  'runtime',
+  'sops',
+  'policy',
+] as const satisfies readonly TabId[];
+
+export const SIDEBAR_PANEL_IDS = [
+  'daemon', 'approvals', 'runtime', 'sops_policy',
+] as const satisfies readonly SidebarPanelId[];
+
 /**
  * Approval request surfaced inline in the agent scrollback. Synced from
  * the dashboard snapshot on each refresh; resolved entries are pushed into
