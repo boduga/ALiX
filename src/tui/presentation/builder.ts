@@ -37,7 +37,7 @@ export class ViewModelBuilder {
         scrollPercent: activeTab === 'chat' || activeTab === 'runtime' ? 100 : state.scrollOffset,
         sidebarPanels: this.buildSidebarPanels(snapshot, state),
         showInput: this.shouldShowInput(activeTab),
-        pendingApprovalHint: null,
+        pendingApprovalHint: this.buildPendingApprovalHint(state),
       },
     };
   }
@@ -182,6 +182,12 @@ export class ViewModelBuilder {
 
   private shouldShowInput(tab: TabId): boolean {
     return tab === 'chat' || tab === 'agent';
+  }
+
+  private buildPendingApprovalHint(state: PerTabState): string | null {
+    const n = state.pendingApprovals.length;
+    if (n === 0) return null;
+    return `[${n} pending approvals — press 'a' to approve, 'd' to deny]`;
   }
 
   private daemonPanel(snap: DashboardSnapshot): PanelViewModel {

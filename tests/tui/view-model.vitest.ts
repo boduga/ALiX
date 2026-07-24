@@ -24,4 +24,29 @@ describe('ViewModelBuilder', () => {
   it('chat input', () => { expect(b.build(mockSnap(), mockState({ inputBuffer: 'hi' }), 'chat').input.buffer).toBe('hi'); });
   it('agent prompt differs', () => { expect(b.build(mockSnap(), mockState(), 'agent').input.prompt).toBe('alix-agent> '); });
   it('daemon stopped state', () => { expect(b.build(mockSnap({ daemon: null }), mockState(), 'chat').panels.find((p) => p.id === 'daemon')!.items[0]!.title).toContain('not running'); });
+  it('pendingApprovalHint is null when active tab has no pending approvals', () => {
+    const vm = b.build(mockSnap(), mockState({ pendingApprovals: [] }), 'chat');
+    expect(vm.viewContent.pendingApprovalHint).toBeNull();
+  });
+  it('pendingApprovalHint formats count for active tab', () => {
+    const approvals = [
+      { id: 'a1', toolName: 't', target: 'x', requestedAt: 1 },
+      { id: 'a2', toolName: 't', target: 'y', requestedAt: 2 },
+    ];
+    const vm = b.build(mockSnap(), mockState({ pendingApprovals: approvals }), 'chat');
+    expect(vm.viewContent.pendingApprovalHint).toBe("[2 pending approvals — press 'a' to approve, 'd' to deny]");
+  });
+  it('pendingApprovalHint reflects active tab only', () => {
+    const approvals = [
+      { id: 'a1', toolName: 't', target: 'x', requestedAt: 1 },
+      { id: 'a2', toolName: 't', target: 'y', requestedAt: 2 },
+      { id: 'a3', toolName: 't', target: 'z', requestedAt: 3 },
+    ];
+    const approvalsTabState = mockState({ pendingApprovals: approvals });
+    const chatState = mockState({ pendingApprovals: [] });
+    const vmApprovals = b.build(mockSnap(), approvalsTabState, 'approvals');
+    expect(vmApprovals.viewContent.pendingApprovalHint).toBe("[3 pending approvals — press 'a' to approve, 'd' to deny]");
+    const vmChat = b.build(mockSnap(), chatState, 'chat');
+    expect(vmChat.viewContent.pendingApprovalHint).toBeNull();
+  });
 });
