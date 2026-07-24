@@ -32,7 +32,6 @@ export function setupKeyboardHandler(
 
   // ── Input focus control ──
   screen.key(['escape'], () => emit({ type: 'homeTab' }));
-  screen.key(['i'], () => emit({ type: 'focusInput' }));
 
   // ── Direct tab switching (1-7) ──
   for (const [key, tab] of Object.entries(TAB_KEYS)) {
@@ -40,14 +39,23 @@ export function setupKeyboardHandler(
   }
 
   // ── Input mirroring and submission ──
-  textarea.on('keypress', () => {
-    emit({ type: 'inputChanged', value: textarea.getValue() });
+  textarea.on('keypress', (_ch, key) => {
+    const keyName = (key as { name?: string } | undefined)?.name;
+    if (keyName === 'enter' || keyName === 'return') return;
+    setImmediate(() => {
+      emit({ type: 'inputChanged', value: textarea.getValue() });
+    });
   });
   textarea.on('submit', () => {
     const value = textarea.getValue();
     emit({ type: 'submitInput', value });
     textarea.clearValue();
     emit({ type: 'inputChanged', value: textarea.getValue() });
+  });
+  textarea.key(['enter'], () => {
+    const value = textarea.getValue();
+    if (value.endsWith('\n')) textarea.setValue(value.slice(0, -1));
+    (textarea as Widgets.TextareaElement & { emit(event: string): boolean }).emit('submit');
   });
 
   // Approval shortcuts only take over printable input while the hint is shown.

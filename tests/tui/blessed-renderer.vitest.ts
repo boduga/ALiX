@@ -8,19 +8,34 @@ import type { RendererEvent } from '../../src/tui/renderer/types.js';
 // vi.hoisted ensures shared state is visible to both the mock factory and test assertions.
 const { screenDestroySpy, mkEl } = vi.hoisted(() => {
   const screenDestroySpy = vi.fn();
-  const mkEl = () => ({
-    setContent: vi.fn(),
-    setItems: vi.fn(),
-    setValue: vi.fn(),
-    detach: vi.fn(),
-    setScrollPerc: vi.fn(),
-    getValue: vi.fn(),
-    clearValue: vi.fn(),
-    on: vi.fn(),
-    focus: vi.fn(),
-    append: vi.fn(),
-    key: vi.fn(),
-  });
+  const mkEl = (options: { hidden?: boolean } = {}) => {
+    let value = '';
+    const element = {
+      setContent: vi.fn(),
+      setItems: vi.fn(),
+      setValue: vi.fn((nextValue: string) => { value = nextValue; }),
+      detach: vi.fn(),
+      setScrollPerc: vi.fn(),
+      getValue: vi.fn(() => value),
+      clearValue: vi.fn(() => { value = ''; }),
+      on: vi.fn(),
+      emit: vi.fn(),
+      focus: vi.fn(),
+      append: vi.fn(),
+      key: vi.fn(),
+      submit: vi.fn(),
+      hidden: options.hidden ?? false,
+    };
+    element.emit.mockImplementation((event: string, ...args: unknown[]) => {
+      const eventCall = element.on.mock.calls.find((callArgs: unknown[]) => callArgs[0] === event);
+      eventCall?.[1](...args);
+      return eventCall !== undefined;
+    });
+    element.submit.mockImplementation(() => {
+      element.emit('submit');
+    });
+    return element;
+  };
   return { screenDestroySpy, mkEl };
 });
 
@@ -40,7 +55,7 @@ vi.mock('neo-blessed', () => {
     screen: createMockScreen,
     box: mkEl,
     list: () => ({ ...mkEl(), setItems: vi.fn(), items: [], select: vi.fn() }),
-    textarea: () => ({ ...mkEl(), setValue: vi.fn(), value: '', on: vi.fn() }),
+    textarea: mkEl,
     default: { screen: createMockScreen, box: mkEl, list: mkEl, textarea: mkEl },
   };
 });
@@ -254,6 +269,101 @@ describe('BlessedRenderer', () => {
       exitHandler();
       exitHandler();
       expect(events).toEqual([{ type: 'exit' }, { type: 'exit' }]);
+    });
+
+    it('does not register an i screen shortcut', async () => {
+      await r.initialize(tc);
+      const screen = r.getWidgetReferences().screen!;
+      const keyMock = (screen as any).key as ReturnType<typeof vi.fn>;
+
+      expect(keyMock.mock.calls.some((args: any[]) => args[0]?.includes('i'))).toBe(false);
+    });
+
+    it('emits submitInput from the textarea submit listener and clears the buffer', async () => {
+      await r.initialize(tc);
+      const textarea = r.getWidgetReferences().promptTextarea as any;
+      const events: RendererEvent[] = [];
+      r.onEvent = (event) => events.push(event);
+      textarea.setValue('expected');
+
+      const submitCall = textarea.on.mock.calls.find((args: any[]) => args[0] === 'submit');
+      expect(submitCall).toBeDefined();
+      submitCall![1]();
+
+      expect(events).toEqual([
+        { type: 'submitInput', value: 'expected' },
+        { type: 'inputChanged', value: '' },
+      ]);
+      expect(textarea.getValue()).toBe('');
+    });
+
+    it('submits without retaining neo-blessed\'s Enter newline and clears the textarea', async () => {
+      await r.initialize(tc);
+      const textarea = r.getWidgetReferences().promptTextarea as any;
+      const events: RendererEvent[] = [];
+      r.onEvent = (event) => events.push(event);
+      textarea.setValue('from-enter');
+
+      const keypressCall = textarea.on.mock.calls.find((args: any[]) => args[0] === 'keypress');
+      const enterCall = textarea.key.mock.calls.find(
+        (args: any[]) => args[0]?.length === 1 && args[0][0] === 'enter',
+      );
+      expect(keypressCall).toBeDefined();
+      expect(enterCall).toBeDefined();
+
+      keypressCall![1]('\r', { name: 'return' });
+      textarea.setValue('from-enter\n');
+      enterCall![1]();
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(textarea.emit).toHaveBeenCalledWith('submit');
+      expect(events).toEqual([
+        { type: 'submitInput', value: 'from-enter' },
+        { type: 'inputChanged', value: '' },
+      ]);
+      expect(textarea.getValue()).toBe('');
+    });
+
+    it('emits inputChanged with the value after neo-blessed edits the buffer', async () => {
+      await r.initialize(tc);
+      const textarea = r.getWidgetReferences().promptTextarea as any;
+      const events: RendererEvent[] = [];
+      r.onEvent = (event) => events.push(event);
+
+      const keypressCall = textarea.on.mock.calls.find((args: any[]) => args[0] === 'keypress');
+      expect(keypressCall).toBeDefined();
+      keypressCall![1]('a', { name: 'a' });
+      textarea.setValue('a');
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(events).toEqual([{ type: 'inputChanged', value: 'a' }]);
+    });
+
+    it('resolves approval with a or d only while the approval hint is visible', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const textarea = refs.promptTextarea as any;
+      const approvalHint = refs.approvalHint as any;
+      const events: RendererEvent[] = [];
+      r.onEvent = (event) => events.push(event);
+
+      const approvalCall = textarea.key.mock.calls.find((args: any[]) => args[0]?.[0] === 'a');
+      const denialCall = textarea.key.mock.calls.find((args: any[]) => args[0]?.[0] === 'd');
+      expect(approvalCall).toBeDefined();
+      expect(denialCall).toBeDefined();
+
+      approvalHint.hidden = true;
+      approvalCall![1]();
+      denialCall![1]();
+      expect(events).toEqual([]);
+
+      approvalHint.hidden = false;
+      approvalCall![1]();
+      denialCall![1]();
+      expect(events).toEqual([
+        { type: 'resolveApproval', status: 'approved' },
+        { type: 'resolveApproval', status: 'denied' },
+      ]);
     });
   });
 
