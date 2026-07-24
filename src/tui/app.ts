@@ -5,7 +5,6 @@ import { getView } from './views/index.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
 import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import type { AgentSession } from '../agent/session.js';
-import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
 import type { OperatorRenderer } from './renderer/types.js';
 import { CanvasRenderer } from './renderers/canvas-renderer.js';
@@ -52,7 +51,9 @@ export class TuiApp {
   private readonly renderer: OperatorRenderer;
   private readonly viewModelBuilder = new ViewModelBuilder();
   private readonly terminal: TerminalControl;
-  private readonly navigation = new Navigation();
+  // Per-tab input buffers / scrollback live in this.state.views. The
+  // renderer (blessed) owns the prompt widget itself and mirrors edits
+  // back via the 'inputChanged' RendererEvent.
   private snapshotTimer?: NodeJS.Timeout;
   private detached = false;
   private readonly defaultViews: Readonly<Record<TabId, TuiView>>;
@@ -98,11 +99,12 @@ export class TuiApp {
     await this.renderer.initialize(this.terminal);
 
     // Only enter raw mode if the renderer does NOT handle input
-    // (e.g. blessed owns its own input loop)
+    // (e.g. blessed owns its own input loop). Raw stdin is no longer
+    // bound here — the renderer owns all key/mouse capture when
+    // `handlesInput` is false as well.
     const caps = this.renderer.capabilities();
     if (!caps.handlesInput) {
       this.terminal.enterRawMode();
-      process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
     }
 
     this.opts.daemonMetrics.start();
@@ -138,10 +140,14 @@ export class TuiApp {
           this.handleRenderSubmit(event.value);
           break;
         case 'inputChanged':
-          // BlessedRenderer owns the buffer; app mirrors it on focus/submit
+          // Mirror the renderer's textarea state into the app-side buffer
+          // so views (history, scrollback) can read it.
+          this.state.views[this.state.activeTab].inputBuffer = event.value;
           break;
         case 'resolveApproval':
-          // Renderer-only approval resolve — wiring lands in a later task
+          // Renderer shortcuts 'a' / 'd' don't know which approval to
+          // resolve — pick the oldest pending on the active tab.
+          this.resolveApprovalFromView(event.status);
           break;
         default:
           assertNever(event);
@@ -235,113 +241,6 @@ export class TuiApp {
       // documents the intent of the filter above.
       void stillPending;
     }
-  }
-
-  private handleRaw(buf: Buffer): void {
-    const key = parseKey(buf);
-    if (!key) return;
-    if (this.tryHandleGlobal(key)) return;
-    if (!this.state.lastSnapshot) return;
-    const tab = this.state.activeTab;
-
-    // ── Sidebar panel scrolling (J / K on approvals / sops tabs) ────
-    // Caught here *before* the chat/agent input capture so that on the
-    // dedicated-panel tabs, these keys scroll the overflow instead of
-    // landing in a printable input buffer. Other tabs return false and
-    // the keys fall through (treated as text).
-    if (key === 'j' || key === 'k') {
-      if (this.scrollFocusedPanel(key === 'j' ? 1 : -1)) {
-        this.paintFullFrame();
-        return;
-      }
-    }
-
-    // ── Chat-tab input capture (lightweight chat path) ────────────
-    if (tab === 'chat') {
-      const perTab = this.state.views.chat;
-      if (key === 'Enter') {
-        if (perTab.inputBuffer.trim().length > 0) {
-          perTab.submittedPrompts.push(perTab.inputBuffer);
-          void this.submitChatInput(perTab.inputBuffer);
-          perTab.inputBuffer = '';
-        }
-        this.paintFullFrame();
-        return;
-      }
-      if (key === 'Backspace') {
-        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
-        this.paintFullFrame();
-        return;
-      }
-      // Printable characters only (ASCII 32+).
-      if (key.length === 1 && key.charCodeAt(0) >= 32) {
-        perTab.inputBuffer += key;
-        this.paintFullFrame();
-        return;
-      }
-      // Fall through to view.handleKey for any unhandled control keys.
-    }
-
-    // ── Agent-tab input capture (full processTurn path) ────────────
-    if (tab === 'agent') {
-      const perTab = this.state.views.agent;
-      if (key === 'Enter') {
-        if (perTab.inputBuffer.trim().length > 0) {
-          perTab.submittedPrompts.push(perTab.inputBuffer);
-          void this.submitAgentInput(perTab.inputBuffer);
-          perTab.inputBuffer = '';
-        }
-        this.paintFullFrame();
-        return;
-      }
-      if (key === 'Backspace') {
-        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
-        this.paintFullFrame();
-        return;
-      }
-      // Inline approval resolution — when there are pending approvals and
-      // the user presses `a`/`d`, resolve the OLDEST pending one and
-      // surface the result inline. This avoids the "I have to switch to
-      // the approvals tab just to press one key" friction. The interceptor
-      // is keyed on the agent tab ONLY — the approvals tab has its own
-      // view.handleKey that processes `a`/`d` via the dedicated handler.
-      if ((key === 'a' || key === 'd') && perTab.pendingApprovals.length > 0) {
-        const target = perTab.pendingApprovals[0]!;
-        // Mark the approval as resolved in our local UI state immediately
-        // so the inline card disappears. The ApprovalManager call still
-        // persists the decision; if it fails we restore the entry.
-        perTab.pendingApprovals.shift();
-        const status = key === 'a' ? 'approved' : 'denied';
-        perTab.resolvedApprovals.unshift({
-          id: target.id,
-          toolName: target.toolName,
-          target: target.target,
-          status,
-          requestedAt: target.requestedAt,
-          resolvedAt: Date.now(),
-        });
-        if (perTab.resolvedApprovals.length > 200) perTab.resolvedApprovals.length = 200;
-        void this.resolveApprovalFromView(target.id, status);
-        this.paintFullFrame();
-        return;
-      }
-      // Printable characters only (ASCII 32+).
-      if (key.length === 1 && key.charCodeAt(0) >= 32) {
-        perTab.inputBuffer += key;
-        this.paintFullFrame();
-        return;
-      }
-      // Fall through to view.handleKey for any unhandled control keys.
-    }
-
-    const view = this.views[tab]!;
-    const viewCtx: ViewInputContext = {
-      snap: this.state.lastSnapshot,
-      dimensions: { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
-      perTab: this.state.views[tab],
-    };
-    const action = view.handleKey?.(key, viewCtx);
-    if (action) this.dispatch(action);
   }
 
   /**
@@ -464,32 +363,6 @@ export class TuiApp {
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );
     return Promise.race([fn(text), timeout]);
-  }
-
-  private tryHandleGlobal(key: string): boolean {
-    const nav = this.navigation.interpret(key);
-    if (nav) {
-      switch (nav.type) {
-        case 'home': this.switchTab('chat'); return true;
-        case 'jump': this.switchTab(nav.tab); return true;
-        case 'cycle': {
-          const idx = TAB_ORDER.indexOf(this.state.activeTab);
-          const nextIdx = (idx + (nav.forward ? 1 : TAB_ORDER.length - 1)) % TAB_ORDER.length;
-          this.switchTab(TAB_ORDER[nextIdx]!);
-          return true;
-        }
-      }
-    }
-    if (key === '\x03' || key === 'q' || key === 'Q') {
-      // Terminate immediately. The 'exit' event handler (installed by
-      // installEmergencyCleanup in start()) runs cleanupSync synchronously
-      // to restore the terminal — no async stop() needed, and avoiding the
-      // race between stop() and run() resolving the same _alivePromise.
-      process.exit(0);
-      return true;
-    }
-    if (key === 'Ctrl+l' || key === '\f') { this.paintFullFrame(); return true; }
-    return false;
   }
 
   private switchTab(next: TabId): void {
@@ -624,7 +497,7 @@ export class TuiApp {
         void this.refresh();
         break;
       case 'resolveApproval':
-        void this.resolveApprovalFromView(action.approvalId, action.status);
+        void this.resolveApprovalFromView(action.status);
         break;
     }
   }
@@ -634,25 +507,60 @@ export class TuiApp {
    * ApprovalManager — which routes through ApprovalStore + EventLog. The
    * resulting message is appended to the current view's agent
    * responses and the snapshot is refreshed so the panel count updates.
+   *
+   * Callers (the BlessedRenderer textarea shortcuts and the approvals
+   * view dispatcher) don't carry a specific approvalId: shortcut keys
+   * always act on the oldest pending approval. We walk the active tab
+   * first and then every other tab until we find one, capturing the
+   * original toolName/target for the inline history card.
    */
   private async resolveApprovalFromView(
-    approvalId: string,
     status: 'approved' | 'denied',
   ): Promise<void> {
-    if (!approvalId) return;
-    // Look up the pending approval across all tabs so we can capture the
-    // original toolName/target for the historical log entry.
-    let originalTool = 'unknown';
-    let originalTarget = '';
-    let requestedAt = Date.now();
+    // Find the oldest pending approval across all tabs. Active tab first
+    // so the inline hint the user is staring at matches what gets
+    // resolved; fall back to other tabs in case the hint is showing on
+    // the approvals tab but the user pressed the shortcut elsewhere.
     const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+    const tabOrder: TabId[] = [
+      this.state.activeTab,
+      ...tabs.filter((t) => t !== this.state.activeTab),
+    ];
+    let target: { id: string; toolName: string; target: string; requestedAt: number } | undefined;
+    for (const t of tabOrder) {
+      const found = this.state.views[t]?.pendingApprovals?.[0];
+      if (found) { target = found; break; }
+    }
+    if (!target) return;
+    const approvalId = target.id;
+    const originalTool = target.toolName;
+    const originalTarget = target.target;
+    const requestedAt = target.requestedAt;
+
+    // Reflect the resolution in our local UI state so the inline card
+    // disappears immediately. The ApprovalManager call below still
+    // persists the decision; if it fails the snapshot refresh restores
+    // the entry on the next refresh cycle. We mirror the resolved
+    // history entry into every tab's resolvedApprovals log so the
+    // operator can see what they did on any tab.
     for (const t of tabs) {
-      const found = this.state.views[t]?.pendingApprovals?.find((a) => a.id === approvalId);
-      if (found) {
-        originalTool = found.toolName;
-        originalTarget = found.target;
-        requestedAt = found.requestedAt;
-        break;
+      const list = this.state.views[t]?.pendingApprovals;
+      if (!list) continue;
+      const idx = list.findIndex((a) => a.id === approvalId);
+      if (idx >= 0) {
+        list.splice(idx, 1);
+      }
+      const resolvedList = this.state.views[t]?.resolvedApprovals;
+      if (resolvedList) {
+        resolvedList.unshift({
+          id: approvalId,
+          toolName: originalTool,
+          target: originalTarget,
+          status,
+          requestedAt,
+          resolvedAt: Date.now(),
+        });
+        if (resolvedList.length > 200) resolvedList.length = 200;
       }
     }
     const mgr = this.opts.approvalManager;
@@ -674,22 +582,6 @@ export class TuiApp {
         this.state.activeTab,
         `[approval:${status}] ${summary}`,
       );
-      // Push a resolved entry into every tab's resolvedApprovals log so the
-      // operator can see what they did — even if the agent loop is currently
-      // paused waiting on this resolution.
-      for (const t of tabs) {
-        const tab = this.state.views[t];
-        if (!tab) continue;
-        tab.resolvedApprovals.unshift({
-          id: approvalId,
-          toolName: originalTool,
-          target: originalTarget,
-          status,
-          requestedAt,
-          resolvedAt: Date.now(),
-        });
-        if (tab.resolvedApprovals.length > 200) tab.resolvedApprovals.length = 200;
-      }
     } catch (err) {
       this.appendAgentMessage(
         this.state.activeTab,
@@ -699,6 +591,7 @@ export class TuiApp {
       await this.refresh();
     }
   }
+
 
   /**
    * Append a one-liner to the active view's `agentResponses` so the
@@ -755,31 +648,6 @@ export class TuiApp {
     this.terminal.exitRawMode();
     this.terminal.exitAltBuffer();
   }
-}
-
-function parseKey(buf: Buffer): string | null {
-  if (buf.length === 0) return null;
-  const s = buf.toString('utf8');
-  if (s === '\r' || s === '\n') return 'Enter';
-  if (s === '\t') return 'Tab';
-  if (s === '\x0c') return 'Ctrl+l';
-  if (s === '\x7f' || s === '\b') return 'Backspace';
-  // Ctrl+digit: terminals reliably encode these as ESC + digit (the
-  // standard "Alt+digit" sequence doubles as "Ctrl+digit" for tab
-  // jumping — see xterm, iTerm2, ghostty, kitty). Parse the escape
-  // prefix and surface as 'Ctrl+N' so the navigation layer can match.
-  if (s.length === 2 && s[0] === '\x1b' && s[1] >= '0' && s[1] <= '9') {
-    return `Ctrl+${s[1]}`;
-  }
-  if (buf[0] === 0x1b && buf.length >= 3 && buf[1] === 0x5b /* [ */) {
-    if (buf[2] === 0x41) return 'ArrowUp';
-    if (buf[2] === 0x42) return 'ArrowDown';
-    if (buf[2] === 0x43) return 'ArrowRight';
-    if (buf[2] === 0x44) return 'ArrowLeft';
-    if (buf[2] === 0x5a) return 'Shift+Tab';
-  }
-  if (s.length === 1) return s;
-  return null;
 }
 
 function assertNever(value: never, message?: string): never {

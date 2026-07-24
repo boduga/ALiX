@@ -106,20 +106,18 @@ describe('TuiApp — parity with legacy chat input', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // Input dispatch parity (readline → raw mode)
+  // Renderer-event dispatch parity (Tab / digit / letter shortcuts)
   // ---------------------------------------------------------------------------
 
-  it('navigates tabs via raw keyboard input (Tab / digit / letter shortcuts)', async () => {
-    // Capture the stdin 'data' handler instead of attaching it for real
-    let stdinHandler: ((buf: Buffer) => void) | undefined;
-    vi.spyOn(process.stdin, 'on').mockImplementation((event: string | symbol, handler: any) => {
-      if (event === 'data') stdinHandler = handler;
-      return process.stdin;
-    });
-
+  it('navigates tabs via renderer events (cycleTab / switchTab / homeTab)', async () => {
     app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
     await app.start();
-    expect(stdinHandler).toBeDefined();
+
+    const r = (app as unknown as {
+      renderer: { onEvent?: (e: import('../../src/tui/renderer/types.js').RendererEvent) => void };
+    }).renderer;
+    expect(r.onEvent).toBeDefined();
+    const dispatch = (e: import('../../src/tui/renderer/types.js').RendererEvent) => r.onEvent!(e);
 
     // TAB_ORDER: chat(0), agent(1), daemon(2), approvals(3),
     //            runtime(4), sops(5), policy(6)
@@ -127,52 +125,33 @@ describe('TuiApp — parity with legacy chat input', () => {
     expect(getTab()).toBe('chat');
 
     // Tab → cycle forward one slot
-    stdinHandler!(Buffer.from('\t', 'utf8'));
+    dispatch({ type: 'cycleTab', forward: true });
     expect(getTab()).toBe('agent');
 
     // Tab again → daemon
-    stdinHandler!(Buffer.from('\t', 'utf8'));
+    dispatch({ type: 'cycleTab', forward: true });
     expect(getTab()).toBe('daemon');
 
     // Tab again → approvals
-    stdinHandler!(Buffer.from('\t', 'utf8'));
+    dispatch({ type: 'cycleTab', forward: true });
     expect(getTab()).toBe('approvals');
 
-    // Ctrl+digit shortcuts (terminals encode these as ESC + digit).
-    // stdinHandler receives bytes; we send the 2-byte sequence that
-    // parseKey recognises as Ctrl+1 through Ctrl+7.
-    const sendCtrlDigit = (digit: string) => {
-      const buf = Buffer.alloc(2);
-      buf[0] = 0x1b; // ESC
-      buf[1] = digit.charCodeAt(0);
-      stdinHandler!(buf);
-    };
-    sendCtrlDigit('1'); expect(getTab()).toBe('chat');
-    sendCtrlDigit('2'); expect(getTab()).toBe('agent');
-    sendCtrlDigit('3'); expect(getTab()).toBe('daemon');
-    sendCtrlDigit('4'); expect(getTab()).toBe('approvals');
-    sendCtrlDigit('5'); expect(getTab()).toBe('runtime');
-    sendCtrlDigit('6'); expect(getTab()).toBe('sops');
-    sendCtrlDigit('7'); expect(getTab()).toBe('policy');
+    // Digit shortcuts — direct switch.
+    dispatch({ type: 'switchTab', tab: 'chat' }); expect(getTab()).toBe('chat');
+    dispatch({ type: 'switchTab', tab: 'agent' }); expect(getTab()).toBe('agent');
+    dispatch({ type: 'switchTab', tab: 'daemon' }); expect(getTab()).toBe('daemon');
+    dispatch({ type: 'switchTab', tab: 'approvals' }); expect(getTab()).toBe('approvals');
+    dispatch({ type: 'switchTab', tab: 'runtime' }); expect(getTab()).toBe('runtime');
+    dispatch({ type: 'switchTab', tab: 'sops' }); expect(getTab()).toBe('sops');
+    dispatch({ type: 'switchTab', tab: 'policy' }); expect(getTab()).toBe('policy');
 
-    // Out-of-range Ctrl+8 / Ctrl+9 / Ctrl+0 are no-ops (bounds-checked).
-    sendCtrlDigit('8'); expect(getTab()).toBe('policy');
-    sendCtrlDigit('9'); expect(getTab()).toBe('policy');
-    sendCtrlDigit('0'); expect(getTab()).toBe('policy');
+    // Backwards cycling wraps.
+    dispatch({ type: 'cycleTab', forward: false });
+    expect(getTab()).toBe('sops');
 
-    // Single-letter shortcuts removed in favor of Ctrl+digit. A raw
-    // letter reaches the active view (or the prompt in chat/agent)
-    // rather than triggering a tab jump.
-    stdinHandler!(Buffer.from('c', 'utf8'));
-    expect(getTab()).toBe('policy');
-    stdinHandler!(Buffer.from('e', 'utf8'));
-    expect(getTab()).toBe('policy');
-    stdinHandler!(Buffer.from('p', 'utf8'));
-    expect(getTab()).toBe('policy');
-
-    // Ctrl-l triggers repaint but does NOT change tab (global handler)
-    stdinHandler!(Buffer.from([0x0c]));
-    expect(getTab()).toBe('policy');
+    // Esc / homeTab returns to chat.
+    dispatch({ type: 'homeTab' });
+    expect(getTab()).toBe('chat');
   });
 
   // ---------------------------------------------------------------------------
