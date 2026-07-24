@@ -235,21 +235,20 @@ describe('BlessedRenderer', () => {
       expect(events[6]).toEqual({ type: 'switchTab', tab: 'policy' });
     });
 
-    it('emits exit on C-c, q, Q', async () => {
+    it('emits exit on C-c only', async () => {
       await r.initialize(tc);
       const screen = r.getWidgetReferences().screen!;
       const events: RendererEvent[] = [];
       r.onEvent = (e) => events.push(e);
 
-      // C-c handler: screen.key(['C-c', 'q', 'Q'], handler) — 3 keys, 1 handler
       const keyMock = (screen as any).key as ReturnType<typeof vi.fn>;
       const exitCall = keyMock.mock.calls.find(
         (args: any[]) => args[0]?.includes('C-c'),
       );
       expect(exitCall).toBeDefined();
-      const exitHandler = exitCall![1];
+      expect(exitCall![0]).toEqual(['C-c']);
 
-      // Trigger twice
+      const exitHandler = exitCall![1];
       exitHandler();
       exitHandler();
       expect(events).toEqual([{ type: 'exit' }, { type: 'exit' }]);

@@ -24,7 +24,7 @@ export function setupKeyboardHandler(
   emit: (event: RendererEvent) => void,
 ): void {
   // ── Exit ──
-  screen.key(['C-c', 'q', 'Q'], () => emit({ type: 'exit' }));
+  screen.key(['C-c'], () => emit({ type: 'exit' }));
 
   // ── Tab cycling ──
   screen.key(['Tab'], () => emit({ type: 'cycleTab', forward: true }));
