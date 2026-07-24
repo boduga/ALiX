@@ -76,6 +76,7 @@ function mockVS(tab?: string): OperatorViewState {
         sops_policy: { kind: 'sops_policy', title: 'SOPS & POLICY', visible: true, loading: false, items: [], scrollOffset: 0, focused: false, totalItems: 0 },
       },
       showInput: true,
+      pendingApprovalHint: null,
     },
   };
 }

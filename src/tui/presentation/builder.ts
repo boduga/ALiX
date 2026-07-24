@@ -37,6 +37,7 @@ export class ViewModelBuilder {
         scrollPercent: activeTab === 'chat' || activeTab === 'runtime' ? 100 : state.scrollOffset,
         sidebarPanels: this.buildSidebarPanels(snapshot, state),
         showInput: this.shouldShowInput(activeTab),
+        pendingApprovalHint: null,
       },
     };
   }

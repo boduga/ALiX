@@ -2,12 +2,17 @@ import type { TabId } from '../state.js';
 
 export type RendererEvent =
   | { type: 'exit' }
-  | { type: 'focusInput' }
-  | { type: 'blurInput' }
   | { type: 'switchTab'; tab: TabId }
   | { type: 'cycleTab'; forward: boolean }
   | { type: 'homeTab' }
-  | { type: 'submitInput'; value: string };
+  | { type: 'focusInput' }
+  | { type: 'blurInput' }
+  | { type: 'inputChanged'; value: string }
+  | { type: 'submitInput'; value: string }
+  | {
+      type: 'resolveApproval';
+      status: 'approved' | 'denied';
+    };
 
 export interface RendererCapabilities {
   readonly name: string;

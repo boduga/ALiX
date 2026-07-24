@@ -51,6 +51,7 @@ export interface ViewContent {
   readonly scrollPercent: number;
   readonly sidebarPanels: Readonly<Record<SidebarPanelId, SidebarPanelView>>;
   readonly showInput: boolean;
+  readonly pendingApprovalHint: string | null;
 }
 
 export interface ResourceBar {

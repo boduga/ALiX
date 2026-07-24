@@ -137,6 +137,12 @@ export class TuiApp {
         case 'submitInput':
           this.handleRenderSubmit(event.value);
           break;
+        case 'inputChanged':
+          // BlessedRenderer owns the buffer; app mirrors it on focus/submit
+          break;
+        case 'resolveApproval':
+          // Renderer-only approval resolve — wiring lands in a later task
+          break;
         default:
           assertNever(event);
       }
