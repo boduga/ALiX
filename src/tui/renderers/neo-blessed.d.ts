@@ -68,6 +68,7 @@ declare module 'neo-blessed' {
       getValue(): string;
       clearValue(): void;
       on(event: string, listener: (...args: unknown[]) => void): void;
+      key(keys: string | string[], listener: (ch: unknown, key: { full: string }) => void): void;
       focus(): void;
       append(child: Element): void;
     }

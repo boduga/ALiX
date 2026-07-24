@@ -184,7 +184,7 @@ export class BlessedRenderer implements OperatorRenderer {
     this.screen.append(this.status);
 
     // ── Keyboard handler ──
-    setupKeyboardHandler(this.screen, this.input, (event) => {
+    setupKeyboardHandler(this.screen, this.promptTextarea, this.approvalHint, (event) => {
       this.onEvent?.(event);
     });
 
