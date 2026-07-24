@@ -274,6 +274,26 @@ describe('BlessedRenderer', () => {
       expect(events).toEqual([{ type: 'exit' }, { type: 'exit' }]);
     });
 
+    it('does not exit when q is typed into the focused textarea', async () => {
+      await r.initialize(tc);
+      const screen = r.getWidgetReferences().screen!;
+      const textarea = r.getWidgetReferences().promptTextarea as any;
+      const events: RendererEvent[] = [];
+      r.onEvent = (event) => events.push(event);
+
+      const keyMock = (screen as any).key as ReturnType<typeof vi.fn>;
+      expect(keyMock.mock.calls.some((args: any[]) => args[0]?.includes('q'))).toBe(false);
+
+      const keypressCall = textarea.on.mock.calls.find((args: any[]) => args[0] === 'keypress');
+      expect(keypressCall).toBeDefined();
+      textarea.setValue('q');
+      keypressCall![1]('q', { name: 'q' });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(events).toEqual([{ type: 'inputChanged', value: 'q' }]);
+      expect(events).not.toContainEqual({ type: 'exit' });
+    });
+
     it('does not register an i screen shortcut', async () => {
       await r.initialize(tc);
       const screen = r.getWidgetReferences().screen!;

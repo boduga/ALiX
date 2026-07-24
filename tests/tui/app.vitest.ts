@@ -33,6 +33,20 @@ describe('TuiApp -- lifecycle', () => {
     await app.stop();
   });
 
+  it('does not register a raw stdin typing listener', async () => {
+    const stdinOn = vi.spyOn(process.stdin, 'on');
+    app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
+
+    try {
+      await app.start();
+      expect(stdinOn.mock.calls.some(([event]) => event === 'data')).toBe(false);
+    } finally {
+      stdinOn.mockRestore();
+    }
+
+    await app.stop();
+  });
+
   it('stop() invokes renderer.shutdown', async () => {
     const spy = vi.spyOn(renderer, 'shutdown');
     app = new TuiApp({ builder, daemonMetrics: metrics, renderer } as unknown as TuiAppOptions);
@@ -361,4 +375,24 @@ describe('TuiApp -- renderer event dispatch', () => {
 
     await app.stop();
   });
+
+  it('exit event stops the app and exits with status 0', async () => {
+    app = makeApp();
+    await app.start();
+
+    const stopSpy = vi.spyOn(app, 'stop');
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+
+    try {
+      emitEvent(app, { type: 'exit' });
+      await new Promise<void>((resolve) => setImmediate(resolve));
+
+      expect(stopSpy).toHaveBeenCalledTimes(1);
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    } finally {
+      exitSpy.mockRestore();
+      await app.stop();
+    }
+  });
+
 });
