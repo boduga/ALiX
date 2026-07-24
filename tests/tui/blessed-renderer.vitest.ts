@@ -222,7 +222,7 @@ describe('BlessedRenderer', () => {
       expect(events).toEqual([{ type: 'cycleTab', forward: false }]);
     });
 
-    it('emits blurInput on Escape', async () => {
+    it('emits homeTab on Escape', async () => {
       await r.initialize(tc);
       const screen = r.getWidgetReferences().screen!;
       const events: RendererEvent[] = [];

@@ -52,10 +52,13 @@ export function setupKeyboardHandler(
     textarea.clearValue();
     emit({ type: 'inputChanged', value: textarea.getValue() });
   });
+  // neo-blessed 0.2.0 textarea.submit() emits 'cancel' instead of 'submit'.
+  // Synthesize the 'submit' event manually so the listener registered below fires
+  // with the post-edit value, then clear the widget.
   textarea.key(['enter'], () => {
     const value = textarea.getValue();
     if (value.endsWith('\n')) textarea.setValue(value.slice(0, -1));
-    (textarea as Widgets.TextareaElement & { emit(event: string): boolean }).emit('submit');
+    textarea.emit('submit');
   });
 
   // Approval shortcuts only take over printable input while the hint is shown.
