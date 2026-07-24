@@ -6,10 +6,11 @@ import type { AgentContext } from "../agent/agent.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import { prompt } from "../cli/commands/prompt.js";
 import { isReadOnlyTask, isShellTask } from "../task-classifier.js";
+import type { PlanApprovalGate } from "./plan-approval-gate.js";
 
 export type PlanPhaseResult =
   | { action: "approved"; planContent: string }
-  | { action: "rejected" };
+  | { action: "rejected"; planContent: string };
 
 export type PlanApprovalMode = "interactive" | "deferred";
 
@@ -33,7 +34,7 @@ export async function runPlanPhase(
   bundle: ContextBundle,
   task: string,
   planFilePath?: string,
-  opts?: { approvalMode?: PlanApprovalMode },
+  opts?: { approvalMode?: PlanApprovalMode; gate?: PlanApprovalGate },
 ): Promise<PlanPhaseResult> {
   const approvalMode = opts?.approvalMode ?? "interactive";
 
@@ -43,7 +44,11 @@ export async function runPlanPhase(
   }
 
   // Interactive mode without a TTY: skip plan entirely (CI, piped, scripting).
-  if (approvalMode === "interactive" && !process.stdout.isTTY) {
+  // The gate-driven path (opts.gate) bypasses this guard — the gate is the
+  // TUI's approval surface, not a TTY prompt, so it remains usable when
+  // stdout.isTTY is false (e.g. when the TUI itself is launched under a
+  // subshell that doesn't expose a TTY).
+  if (approvalMode === "interactive" && !opts?.gate && !process.stdout.isTTY) {
     return { action: "approved", planContent: "" };
   }
 
@@ -59,14 +64,113 @@ export async function runPlanPhase(
   const planPath = join(planDir, `${ctx.sessionId}.md`);
   await writeFile(planPath, planContent);
 
-  // 3. Interactive: print plan and prompt for approval
+  // 3. Interactive: ask the operator to approve the plan.
+  //    Two surfaces: the TUI gate (when provided) or the legacy TTY prompt.
   if (approvalMode === "interactive") {
+    if (opts?.gate) {
+      // Gate-driven path: the TUI's plan-approval card owns the operator's
+      // yes/no/edit/detail keypresses. `runPlanPhase` is called inside the
+      // agent loop, so blocking here is intentional — the loop awaits the
+      // gate's Promise before continuing.
+      return await resolvePlanDecisionViaGate(opts.gate, planPath, planContent, ctx.sessionId);
+    }
     console.log("\n" + planContent);
     return await promptForPlanApproval(planPath, planContent);
   }
 
   // 4. Deferred: return plan without prompting (caller handles display/approval)
   return { action: "approved", planContent };
+}
+
+/**
+ * Drive the approval flow through a `PlanApprovalGate`. The gate returns
+ * one of four decisions per round; `edit` and `detail` are not terminal
+ * — we re-call the gate after handling the side effect (open editor /
+ * print details) until the operator approves or rejects.
+ *
+ * Why a loop and not a single decision: the gate's contract is a single
+ * keypress per round. The model of "edit then re-confirm" is two rounds.
+ */
+async function resolvePlanDecisionViaGate(
+  gate: PlanApprovalGate,
+  planPath: string,
+  initialContent: string,
+  sessionId: string,
+): Promise<PlanPhaseResult> {
+  let planContent = initialContent;
+  // Bounded loop — defensive guard against a misbehaving gate that keeps
+  // returning `edit`/`detail`. 10 rounds is far more than a real operator
+  // would ever need; the gate is in control so honour anything beyond.
+  for (let round = 0; round < 10; round++) {
+    const decision = await gate.requestDecision({
+      planId: sessionId,
+      planSummary: summarisePlan(planContent),
+      planContent,
+      planPath,
+    });
+    if (decision === "approve") {
+      return { action: "approved", planContent };
+    }
+    if (decision === "reject") {
+      return { action: "rejected", planContent };
+    }
+    if (decision === "edit") {
+      // Open the editor in-place. The persisted file is the source of
+      // truth — after editing, we re-read it so the gate's next round
+      // sees the new content.
+      const edited = await openPlanInEditor(planPath);
+      if (edited === null) {
+        // Editor failed to launch — surface a hint and re-prompt so the
+        // operator can try `d` (detail) or `n` (reject) instead.
+        console.error("Could not open editor (set $VISUAL or $EDITOR).");
+        continue;
+      }
+      if (edited.trim().length === 0) {
+        console.log("Empty plan — cancelling.");
+        return { action: "rejected", planContent };
+      }
+      planContent = edited;
+      continue;
+    }
+    // "detail" — print the plan to stdout (TTY sidecar) so the operator
+    // can read it, then re-prompt. The gate's TUI renders the same plan
+    // inside the card; this path is for the CLI fallback where the gate
+    // is intentionally not displaying the body.
+    console.log("\n" + planContent);
+    continue;
+  }
+  // Defensive default: after 10 rounds, treat as "no decision made" and
+  // approve (matches the spirit of deferred mode — unblock the loop).
+  return { action: "approved", planContent };
+}
+
+/**
+ * Open `$VISUAL`/`$EDITOR` on the plan file. Returns the new file content
+ * (re-read from disk) on success, or null if the editor couldn't launch.
+ *
+ * Mirrors the edit branch of `promptForPlanApproval` so both surfaces
+ * (CLI prompt and TUI gate) handle `edit` identically.
+ */
+async function openPlanInEditor(planPath: string): Promise<string | null> {
+  const editor = process.env.VISUAL ?? process.env.EDITOR ?? "vim";
+  const result = spawnSync(editor, [planPath], { stdio: "inherit" });
+  if (result.error) return null;
+  if (!existsSync(planPath)) return null;
+  return await readFile(planPath, "utf8");
+}
+
+/**
+ * First non-empty line of the plan, used as the card header.
+ * Falls back to a generic label when the plan has no leading prose.
+ */
+function summarisePlan(planContent: string): string {
+  for (const raw of planContent.split("\n")) {
+    const line = raw.trim();
+    if (!line) continue;
+    // Strip leading markdown heading markers so the summary reads cleanly.
+    return line.replace(/^#+\s*/, "").slice(0, 200);
+  }
+  return "Plan";
 }
 
 /**
@@ -169,7 +273,7 @@ async function promptForPlanApproval(
 
     if (key === "n" || key === "no") {
       console.log("\nPlan rejected. Task cancelled.");
-      return { action: "rejected" };
+      return { action: "rejected", planContent };
     }
 
     if (key === "e" || key === "edit") {
@@ -183,7 +287,7 @@ async function promptForPlanApproval(
         const edited = await readFile(planPath, "utf8");
         if (edited.trim().length === 0) {
           console.log("Empty plan — cancelling.");
-          return { action: "rejected" };
+          return { action: "rejected", planContent };
         }
         console.log("\n--- Edited Plan ---\n");
         console.log(edited.trim());

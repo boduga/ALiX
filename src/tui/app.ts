@@ -12,6 +12,8 @@ import { createTerminalControl, type TerminalControl } from './terminal-control.
 import { TerminalCanvas } from './canvas.js';
 import { renderSidebar } from './sidebar.js';
 import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
+import { TuiPlanApprovalGate } from './plan-approval-gate.js';
+import type { PlanDecision } from '../run/plan-approval-gate.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -37,6 +39,14 @@ export class TuiApp {
   private snapshotTimer?: NodeJS.Timeout;
   private detached = false;
   private readonly defaultViews: Readonly<Record<TabId, TuiView>>;
+  /**
+   * Plan approval gate — owned by the TUI. The agent session calls
+   * `gate.requestDecision()` from inside `runPlanPhase` and awaits the
+   * Promise. The TUI's keyboard handler () resolves it when the operator
+   * presses Y/n/e/d. The card rendered in `paintFullFrame` is driven
+   * purely off `gate.getPending()` — no parallel state.
+   */
+  private readonly planApprovalGate = new TuiPlanApprovalGate();
 
   constructor(private readonly opts: TuiAppOptions) {
     this.defaultViews = {
@@ -52,6 +62,11 @@ export class TuiApp {
     this.renderer = new TuiRenderer();
   }
 
+  /** Test seam: expose the gate for direct assertions in unit tests. */
+  getPlanApprovalGateForTest(): TuiPlanApprovalGate {
+    return this.planApprovalGate;
+  }
+
   private get views(): Readonly<Record<TabId, TuiView>> {
     return this.opts.views ?? this.defaultViews;
   }
@@ -63,6 +78,12 @@ export class TuiApp {
     this.terminal.onResize(() => this.paintFullFrame());
 
     this.opts.daemonMetrics.start();
+
+    // Inject the plan-approval gate into the agent session so `runPlanPhase`
+    // can route the operator's decision through the TUI card. The setter
+    // is optional on the interface; missing in tests is fine (they use the
+    // legacy TTY prompt path).
+    this.opts.agentSession?.setPlanApprovalGate?.(this.planApprovalGate);
 
     const initialGen = ++this.state.refreshGeneration;
     const snap = await this.opts.builder.build(initialGen);
@@ -166,6 +187,25 @@ export class TuiApp {
     if (this.tryHandleGlobal(key)) return;
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
+
+    // ── Plan approval gate — Y/n/e/d ─────────────────────────────
+    // When a plan is awaiting operator approval, the four plan keys
+    // resolve the gate regardless of the active tab. This is the only
+    // path that bypasses input capture — while a plan is pending the
+    // operator cannot type 'y'/'n'/'e'/'d' into the input buffer.
+    // Considered: limiting the gate to the agent tab. Rejected: the
+    // card is visible from any tab (it's drawn into the canvas below
+    // the active view), so the operator should be able to approve
+    // without first switching tabs.
+    const pendingPlan = this.planApprovalGate.getPending();
+    if (pendingPlan) {
+      const planDecision = mapKeyToPlanDecision(key);
+      if (planDecision) {
+        this.planApprovalGate.resolve(pendingPlan.planId, planDecision);
+        this.paintFullFrame();
+        return;
+      }
+    }
 
     // ── Sidebar panel scrolling (J / K on approvals / sops tabs) ────
     // Caught here *before* the chat/agent input capture so that on the
@@ -605,6 +645,64 @@ export class TuiApp {
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */
+  /**
+   * Render the in-TUI plan approval card. No-op when no plan is pending.
+   *
+   * Layout (above the footer, inside the left canvas):
+   *
+   *   ╭─ PLAN APPROVAL REQUIRED ──────────────╮
+   *   │ <plan summary, truncated to width-2>  │
+   *   │ Y approve · n reject · e edit · d …  │
+   *   ╰───────────────────────────────────────╯
+   *
+   * Four rows tall. The card overlays the active view's scrollback — the
+   * agent view's scrollback ends at rows-18, well above the card's
+   * rows-7..rows-4 range, so there's no overlap.
+   */
+  private paintPlanApprovalCard(
+    canvas: TerminalCanvas,
+    width: number,
+    height: number,
+    headerH: number,
+    footerH: number,
+  ): void {
+    const pending = this.planApprovalGate.getPending();
+    if (!pending) return;
+
+    const CARD_H = 4;
+    const cardY = height - footerH - CARD_H;
+    // Leave one row of breathing room below the header band.
+    if (cardY <= headerH + 1) return;
+
+    const innerW = Math.max(0, width - 2);
+    const summary = pending.planSummary.length > innerW - 2
+      ? pending.planSummary.slice(0, innerW - 5) + '…'
+      : pending.planSummary;
+    const hint = 'Y approve · n reject · e edit · d detail';
+
+    // Border + title row.
+    const title = ' PLAN APPROVAL REQUIRED ';
+    const titlePad = Math.max(0, innerW - title.length);
+    const titleRow = '╭' + title + '─'.repeat(titlePad) + '╮';
+    canvas.write(0, cardY, `\x1b[33m${titleRow}\x1b[0m`);
+
+    // Summary row.
+    canvas.write(0, cardY + 1, '\x1b[33m│\x1b[0m');
+    canvas.write(1, cardY + 1, summary);
+    canvas.write(1 + summary.length, cardY + 1, ' '.repeat(Math.max(0, innerW - 1 - summary.length)));
+    canvas.write(width - 1, cardY + 1, '\x1b[33m│\x1b[0m');
+
+    // Hint row.
+    const hintRow = hint.length > innerW ? hint.slice(0, innerW) : hint;
+    canvas.write(0, cardY + 2, '\x1b[33m│\x1b[0m');
+    canvas.write(1, cardY + 2, hintRow);
+    canvas.write(1 + hintRow.length, cardY + 2, ' '.repeat(Math.max(0, innerW - 1 - hintRow.length)));
+    canvas.write(width - 1, cardY + 2, '\x1b[33m│\x1b[0m');
+
+    // Bottom border.
+    canvas.write(0, cardY + 3, '\x1b[33m' + '╰' + '─'.repeat(innerW) + '╯' + '\x1b[0m');
+  }
+
   private paintFullFrame(): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
@@ -629,6 +727,13 @@ export class TuiApp {
       canvas: leftCanvas,
     };
     this.views[this.state.activeTab]!.render(leftCtx);
+
+    // Plan approval card — drawn into the same left canvas as the active
+    // view. Visible from any tab; the gate's keyboard handler makes the
+    // keys available globally. Renders last so it overlays the view's
+    // scrollback area (the view's scrollback ends at rows-18 on the agent
+    // tab; the card sits at rows-7..rows-4, safely below).
+    this.paintPlanApprovalCard(leftCanvas, leftW, dims.rows, HEADER_H, FOOTER_H);
 
     const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = this.state.lastSnapshot;
@@ -775,4 +880,32 @@ function parseKey(buf: Buffer): string | null {
   }
   if (s.length === 1) return s;
   return null;
+}
+
+/**
+ * Map a single-character keypress to a plan decision when the gate is
+ * pending. Returns null for any other key — the caller falls through to
+ * the normal input-capture path.
+ *
+ * Case-insensitive: terminals in raw mode can emit uppercase or lowercase
+ * depending on Shift/Caps state. Treating both the same is intentional —
+ * the prompt in the card lists "Y/n/e/d" so the operator expects either.
+ */
+function mapKeyToPlanDecision(key: string): PlanDecision | null {
+  switch (key) {
+    case 'y':
+    case 'Y':
+      return 'approve';
+    case 'n':
+    case 'N':
+      return 'reject';
+    case 'e':
+    case 'E':
+      return 'edit';
+    case 'd':
+    case 'D':
+      return 'detail';
+    default:
+      return null;
+  }
 }

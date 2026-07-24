@@ -218,6 +218,7 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
       } else if (opts?.planMode !== false) {
         const planResult = await runPlanPhase(ctx, contextBundle, task, opts?.planFilePath, {
           approvalMode: opts?.planApprovalMode ?? "interactive",
+          gate: opts?.planApprovalGate,
         });
         if (planResult.action === "rejected") {
           const failedRun = transitionWorkflowStatus(wfRun, "failed");
