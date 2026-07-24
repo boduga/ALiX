@@ -36,16 +36,6 @@ export interface TuiAppOptions {
 
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
 
-/**
- * Mirror of the legacy `DEFAULT_PANEL_H` constant from
- * `dashboard-renderer.ts`. We intentionally do NOT import that module
- * (the strangler goal of this task), so we hardcode the value here.
- * Kept in sync with `CanvasLayoutEngine.DEFAULT_PANEL_H` (= 14) so the
- * scroll-clamp math in `scrollFocusedPanel` matches the per-panel height
- * the renderer actually paints.
- */
-const LEGACY_DEFAULT_PANEL_H = 14;
-
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
   private readonly renderer: OperatorRenderer;
@@ -410,72 +400,6 @@ export class TuiApp {
     this.paintFullFrame();
   }
 
-  /**
-   * Adjust the sidebar panel scroll offset for the active tab's focused
-   * panel by `direction` (+1 = `J`/down, -1 = `K`/up). Returns true if
-   * the offset actually changed and the caller should repaint; false
-   * signals "no scroll available for this tab" so keys fall through to
-   * the input handler.
-   *
-   * Mirrors the per-panel max-items math the renderer uses so the clamp
-   * matches what the painter can actually render — keeping the ↑ N above /
-   * ↓ N below counters honest. The default panel height is hardcoded
-   * (`LEGACY_DEFAULT_PANEL_H`) to avoid pulling `DEFAULT_PANEL_H` back
-   * into this file; it must stay equal to `CanvasLayoutEngine`'s value.
-   */
-  private scrollFocusedPanel(direction: 1 | -1): boolean {
-    const perTab = this.state.views[this.state.activeTab];
-    const focus = perTab.panelFocus;
-    if (focus === null) return false;
-    const snap = this.state.lastSnapshot;
-    if (!snap) return false;
-
-    // Reproduce the per-panel h used by the renderer — must match
-    // the renderer's geometry or the clamp could disagree with what
-    // the painter draws.
-    const dims = {
-      columns: process.stdout.columns ?? 80,
-      rows: process.stdout.rows ?? 24,
-    };
-    const HEADER_H = 3;
-    const FOOTER_H = 3;
-    const available = Math.max(1, dims.rows - HEADER_H - FOOTER_H);
-    const target = LEGACY_DEFAULT_PANEL_H * 4;
-    const perPanelH = target <= available
-      ? LEGACY_DEFAULT_PANEL_H
-      : Math.max(5, Math.floor(available / 4));
-
-    let totalItems = 0;
-    let maxItems = 0;
-    if (focus === 'approvals') {
-      totalItems =
-        (snap.approvals?.pending.length ?? 0) +
-        (snap.approvals?.recentlyResolved.length ?? 0);
-      // Mirror the approvals panel renderer: cap 4, item=2 rows, footer at h>=14.
-      const APPROVAL_LIST_MAX = 4;
-      const itemRows = 2;
-      const footerRows = perPanelH >= 14 ? 1 : 0;
-      const availableRows = Math.max(0, perPanelH - 3 - footerRows);
-      maxItems = Math.max(
-        0,
-        Math.min(APPROVAL_LIST_MAX, Math.floor(availableRows / itemRows)),
-      );
-    } else {
-      totalItems = snap.sops?.items.length ?? 0;
-      // Mirror the sops/policy panel renderer: 3 items when h>=10, fewer otherwise.
-      maxItems = perPanelH >= 10
-        ? Math.min(3, totalItems)
-        : Math.max(0, Math.min(totalItems, perPanelH - 8));
-    }
-
-    const maxOffset = Math.max(0, totalItems - maxItems);
-    const current = perTab.panelScrollOffsets[focus];
-    const next = Math.max(0, Math.min(current + direction, maxOffset));
-    if (next === current) return false;
-    perTab.panelScrollOffsets[focus] = next;
-    return true;
-  }
-
   private dispatch(action: ViewAction): void {
     switch (action.type) {
       case 'handled': break;
@@ -495,9 +419,6 @@ export class TuiApp {
         break;
       case 'scheduleRefresh':
         void this.refresh();
-        break;
-      case 'resolveApproval':
-        void this.resolveApprovalFromView(action.status);
         break;
     }
   }
