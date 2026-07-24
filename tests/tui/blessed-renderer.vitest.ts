@@ -437,6 +437,30 @@ describe('BlessedRenderer', () => {
       expect(leftPane.focus).toHaveBeenCalledTimes(1);
     });
 
+    it('re-focuses textarea on first render after shutdown/reinitialize', async () => {
+      // First lifecycle: initialize, render chat, expect focus on textarea.
+      await r.initialize(tc);
+      let refs = r.getWidgetReferences();
+      let promptTextarea = refs.promptTextarea as any;
+
+      r.render(mockVS('chat'));
+      expect(promptTextarea.focus).toHaveBeenCalledTimes(1);
+
+      // Shut down the first screen, then re-initialize with a brand new widget tree.
+      await r.shutdown();
+      await r.initialize(tc);
+
+      // Grab the NEW widget references — the old promptTextarea is detached.
+      refs = r.getWidgetReferences();
+      promptTextarea = refs.promptTextarea as any;
+
+      // First render after re-init: focus MUST be called again. Without the
+      // lastActiveTab reset this would be skipped (stale 'chat' === 'chat'),
+      // leaving the new textarea without focus.
+      r.render(mockVS('chat'));
+      expect(promptTextarea.focus).toHaveBeenCalledTimes(1);
+    });
+
     it('defensively syncs textarea only when value differs', async () => {
       await r.initialize(tc);
       const refs = r.getWidgetReferences();

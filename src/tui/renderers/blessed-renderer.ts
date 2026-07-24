@@ -47,6 +47,9 @@ export class BlessedRenderer implements OperatorRenderer {
       throw new Error('BlessedRenderer is already initialized');
     }
     this.terminal = terminal;
+    // Reset focus-transition tracker so a re-initialized widget tree re-focuses
+    // its textarea on the first render (defense in depth alongside shutdown()).
+    this.lastActiveTab = null;
     this.screen = blessed.screen({
       input: terminal.input,
       output: terminal.output,
@@ -259,6 +262,9 @@ export class BlessedRenderer implements OperatorRenderer {
       this.screen = null;
     }
     this.initialized = false;
+    // Clear focus-transition tracker so the next initialize() starts from a
+    // clean slate and the first render re-focuses the new widget tree.
+    this.lastActiveTab = null;
   }
 
   /** @internal — all widget refs for persistence testing. */
