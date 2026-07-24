@@ -115,14 +115,16 @@ describe('BlessedRenderer', () => {
 
     const after = r.getWidgetReferences();
     expect(after.header).toBe(before.header);
-    expect(after.mainBox).toBe(before.mainBox);
-    expect(after.sidebarWidgets).toBe(before.sidebarWidgets);
-    expect(after.sidebarWidgets.daemon).toBe(before.sidebarWidgets.daemon);
-    expect(after.sidebarWidgets.approvals).toBe(before.sidebarWidgets.approvals);
-    expect(after.sidebarWidgets.runtime).toBe(before.sidebarWidgets.runtime);
-    expect(after.sidebarWidgets.sops_policy).toBe(before.sidebarWidgets.sops_policy);
+    expect(after.leftPane).toBe(before.leftPane);
+    expect(after.rightPane).toBe(before.rightPane);
+    expect(after.rightPane.daemon).toBe(before.rightPane.daemon);
+    expect(after.rightPane.approvals).toBe(before.rightPane.approvals);
+    expect(after.rightPane.runtime).toBe(before.rightPane.runtime);
+    expect(after.rightPane.sops_policy).toBe(before.rightPane.sops_policy);
+    expect(after.promptBar).toBe(before.promptBar);
+    expect(after.promptTextarea).toBe(before.promptTextarea);
+    expect(after.approvalHint).toBe(before.approvalHint);
     expect(after.tabBar).toBe(before.tabBar);
-    expect(after.input).toBe(before.input);
     expect(after.status).toBe(before.status);
   });
 
@@ -272,10 +274,12 @@ describe('BlessedRenderer', () => {
   it('getWidgetReferences returns all widgets', () => {
     const refs = r.getWidgetReferences();
     expect(refs).toHaveProperty('header');
-    expect(refs).toHaveProperty('mainBox');
-    expect(refs).toHaveProperty('sidebarWidgets');
+    expect(refs).toHaveProperty('leftPane');
+    expect(refs).toHaveProperty('rightPane');
     expect(refs).toHaveProperty('tabBar');
-    expect(refs).toHaveProperty('input');
     expect(refs).toHaveProperty('status');
+    expect(refs).toHaveProperty('promptBar');
+    expect(refs).toHaveProperty('promptTextarea');
+    expect(refs).toHaveProperty('approvalHint');
   });
 });

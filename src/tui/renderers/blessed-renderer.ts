@@ -16,10 +16,9 @@ export class BlessedRenderer implements OperatorRenderer {
   // Widget tree — created once in initialize(), updated in render()
   // Widget-persistence invariant is tested for ALL widgets in tests.
   private header?: blessed.Widgets.BoxElement;
-  private mainBox?: blessed.Widgets.BoxElement;
-  private sidebarWidgets!: Record<SidebarPanelId, blessed.Widgets.BoxElement>;
+  private leftPane?: blessed.Widgets.BoxElement;
+  private rightPane!: Record<SidebarPanelId, blessed.Widgets.BoxElement>;
   private tabBar?: blessed.Widgets.BoxElement;
-  private input?: blessed.Widgets.TextareaElement;
   private status?: blessed.Widgets.BoxElement;
   private promptBar?: blessed.Widgets.BoxElement;
   private promptTextarea?: blessed.Widgets.TextareaElement;
@@ -73,7 +72,7 @@ export class BlessedRenderer implements OperatorRenderer {
     this.screen.append(this.header);
 
     // ── Main content viewport (single scrollable area, not per-tab) ──
-    this.mainBox = blessed.box({
+    this.leftPane = blessed.box({
       top: 1,
       left: 0,
       width: '75%',
@@ -83,7 +82,7 @@ export class BlessedRenderer implements OperatorRenderer {
       scrollbar: { style: { fg: 'blue' } },
       style: { fg: 'white' },
     });
-    this.screen.append(this.mainBox);
+    this.screen.append(this.leftPane);
 
     // ── Approval hint (child of leftPane = mainBox) ──
     // Anchored to bottom of the left pane via bottom: 0. Visibility is task 4.
@@ -96,7 +95,7 @@ export class BlessedRenderer implements OperatorRenderer {
       style: { fg: 'yellow', bold: true },
       tags: true,
     });
-    this.mainBox.append(this.approvalHint);
+    this.leftPane.append(this.approvalHint);
 
     // ── Sidebar panels (4 panels, stacked vertically) ──
     const panelIds: SidebarPanelId[] = ['daemon', 'approvals', 'runtime', 'sops_policy'];
@@ -122,7 +121,7 @@ export class BlessedRenderer implements OperatorRenderer {
       this.screen.append(box);
       widgets[id] = box;
     }
-    this.sidebarWidgets = widgets as Record<SidebarPanelId, blessed.Widgets.BoxElement>;
+    this.rightPane = widgets as Record<SidebarPanelId, blessed.Widgets.BoxElement>;
 
     // ── Tab bar ──
     this.tabBar = blessed.box({
@@ -134,17 +133,6 @@ export class BlessedRenderer implements OperatorRenderer {
       tags: true,
     });
     this.screen.append(this.tabBar);
-
-    // ── Input ──
-    this.input = blessed.textarea({
-      top: '100%-2',
-      left: 0,
-      width: '100%',
-      height: 1,
-      inputOnFocus: true,
-      style: { fg: 'white', bg: 'blue' },
-    });
-    this.screen.append(this.input);
 
     // ── Prompt bar (container above tabBar) ──
     // 1-row tall container whose child is the textarea. The child fills the parent.
@@ -193,7 +181,7 @@ export class BlessedRenderer implements OperatorRenderer {
 
   render(viewState: OperatorViewState): void {
     if (!this.initialized || !this.screen) return;
-    if (!this.header || !this.mainBox || !this.tabBar || !this.input || !this.status) return;
+    if (!this.header || !this.leftPane || !this.tabBar || !this.promptTextarea || !this.status) return;
 
     // ── Header ──
     this.header.setContent(
@@ -201,10 +189,10 @@ export class BlessedRenderer implements OperatorRenderer {
     );
 
     // ── Main content ──
-    renderMain(this.mainBox, viewState);
+    renderMain(this.leftPane, viewState);
 
     // ── Sidebar panels ──
-    renderSidebar(this.sidebarWidgets, viewState);
+    renderSidebar(this.rightPane, viewState);
 
     // ── Tab bar ──
     this.tabBar.setContent(
@@ -212,7 +200,7 @@ export class BlessedRenderer implements OperatorRenderer {
     );
 
     // ── Input ──
-    this.input.setValue(viewState.input.buffer);
+    this.promptTextarea.setValue(viewState.input.buffer);
 
     // ── Status bar ──
     renderStatusBar(this.status, viewState);
@@ -237,10 +225,9 @@ export class BlessedRenderer implements OperatorRenderer {
   getWidgetReferences(): {
     screen: blessed.Widgets.Screen | null;
     header: blessed.Widgets.BoxElement | undefined;
-    mainBox: blessed.Widgets.BoxElement | undefined;
-    sidebarWidgets: Record<SidebarPanelId, blessed.Widgets.BoxElement>;
+    leftPane: blessed.Widgets.BoxElement | undefined;
+    rightPane: Record<SidebarPanelId, blessed.Widgets.BoxElement>;
     tabBar: blessed.Widgets.BoxElement | undefined;
-    input: blessed.Widgets.TextareaElement | undefined;
     status: blessed.Widgets.BoxElement | undefined;
     promptBar: blessed.Widgets.BoxElement | undefined;
     promptTextarea: blessed.Widgets.TextareaElement | undefined;
@@ -249,10 +236,9 @@ export class BlessedRenderer implements OperatorRenderer {
     return {
       screen: this.screen,
       header: this.header,
-      mainBox: this.mainBox,
-      sidebarWidgets: this.sidebarWidgets,
+      leftPane: this.leftPane,
+      rightPane: this.rightPane,
       tabBar: this.tabBar,
-      input: this.input,
       status: this.status,
       promptBar: this.promptBar,
       promptTextarea: this.promptTextarea,
