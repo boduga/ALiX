@@ -55,11 +55,12 @@ vi.mock('neo-blessed', () => {
   }
 
   return {
-    screen: createMockScreen,
-    box: mkEl,
-    list: () => ({ ...mkEl(), setItems: vi.fn(), items: [], select: vi.fn() }),
-    textarea: mkEl,
-    default: { screen: createMockScreen, box: mkEl, list: mkEl, textarea: mkEl },
+    default: {
+      screen: createMockScreen,
+      box: mkEl,
+      list: () => ({ ...mkEl(), setItems: vi.fn(), items: [], select: vi.fn() }),
+      textarea: mkEl,
+    },
   };
 });
 

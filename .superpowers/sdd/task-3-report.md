@@ -54,3 +54,10 @@ The implementation is scoped to keyboard registration and does not alter render-
 - `tests/tui/blessed-renderer.vitest.ts`: renamed the stale Escape test to `emits homeTab on Escape`.
 - Test result: 24/24 passing.
 - Typecheck: clean.
+
+## Runtime Import Fix
+- **Import change:** before `import * as blessed from 'neo-blessed';`; after `import blessed from 'neo-blessed';`.
+- **Test mock change:** before the factory exposed `screen`, `box`, `list`, and `textarea` as named exports (plus a hybrid `default`); after it exposes the existing factories only under `default: { screen, box, list, textarea }`.
+- **Test result:** `pnpm vitest run tests/tui/blessed-renderer.vitest.ts` passed 33/33; `pnpm vitest run tests/tui/` passed 200/200; `pnpm tsc --noEmit` passed cleanly.
+- **Build result:** `pnpm build` passed, and `dist/src/tui/renderers/blessed-renderer.js` emits `import blessed from 'neo-blessed';`.
+- **Runtime smoke test:** `node bin/alix.js tui` rendered the production TUI through real `neo-blessed` without `TypeError: blessed.screen is not a function`; SIGINT restored the shell cleanly.

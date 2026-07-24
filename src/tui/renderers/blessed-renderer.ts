@@ -2,7 +2,7 @@ import type { OperatorRenderer, RendererCapabilities, RendererEvent } from '../r
 import type { OperatorViewState } from '../presentation/types.js';
 import type { TerminalControl } from '../terminal-control.js';
 import type { SidebarPanelId } from '../state.js';
-import * as blessed from 'neo-blessed';
+import blessed from 'neo-blessed';
 import { setupKeyboardHandler } from './blessed/keyboard-handler.js';
 import { renderMain } from './blessed/main-painter.js';
 import { renderSidebar } from './blessed/sidebar-painter.js';
