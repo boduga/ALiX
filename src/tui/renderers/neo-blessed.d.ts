@@ -25,15 +25,21 @@ declare module 'neo-blessed' {
     interface TextareaOptions {
       top?: string | number;
       left?: string | number;
+      bottom?: string | number;
+      right?: string | number;
       width?: string | number;
       height?: string | number;
       inputOnFocus?: boolean;
+      mouse?: boolean;
+      keys?: boolean;
       style?: Record<string, unknown>;
     }
 
     interface BoxOptions {
       top?: string | number;
       left?: string | number;
+      bottom?: string | number;
+      right?: string | number;
       width?: string | number;
       height?: string | number;
       content?: string;
@@ -44,6 +50,7 @@ declare module 'neo-blessed' {
       scrollable?: boolean;
       alwaysScroll?: boolean;
       scrollbar?: Record<string, unknown>;
+      hidden?: boolean;
     }
 
     interface Screen {
@@ -62,6 +69,7 @@ declare module 'neo-blessed' {
       clearValue(): void;
       on(event: string, listener: (...args: unknown[]) => void): void;
       focus(): void;
+      append(child: Element): void;
     }
 
     interface BoxElement extends Element {}

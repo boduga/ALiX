@@ -18,6 +18,7 @@ const { screenDestroySpy, mkEl } = vi.hoisted(() => {
     clearValue: vi.fn(),
     on: vi.fn(),
     focus: vi.fn(),
+    append: vi.fn(),
   });
   return { screenDestroySpy, mkEl };
 });

@@ -21,6 +21,9 @@ export class BlessedRenderer implements OperatorRenderer {
   private tabBar?: blessed.Widgets.BoxElement;
   private input?: blessed.Widgets.TextareaElement;
   private status?: blessed.Widgets.BoxElement;
+  private promptBar?: blessed.Widgets.BoxElement;
+  private promptTextarea?: blessed.Widgets.TextareaElement;
+  private approvalHint?: blessed.Widgets.BoxElement;
 
   /** @internal — event callback wired by TuiApp */
   onEvent?: (event: RendererEvent) => void;
@@ -82,6 +85,19 @@ export class BlessedRenderer implements OperatorRenderer {
     });
     this.screen.append(this.mainBox);
 
+    // ── Approval hint (child of leftPane = mainBox) ──
+    // Anchored to bottom of the left pane via bottom: 0. Visibility is task 4.
+    this.approvalHint = blessed.box({
+      bottom: 0,
+      left: 0,
+      width: '100%',
+      height: 1,
+      hidden: true,
+      style: { fg: 'yellow', bold: true },
+      tags: true,
+    });
+    this.mainBox.append(this.approvalHint);
+
     // ── Sidebar panels (4 panels, stacked vertically) ──
     const panelIds: SidebarPanelId[] = ['daemon', 'approvals', 'runtime', 'sops_policy'];
     const sidebarLeft = '75%+1';
@@ -129,6 +145,32 @@ export class BlessedRenderer implements OperatorRenderer {
       style: { fg: 'white', bg: 'blue' },
     });
     this.screen.append(this.input);
+
+    // ── Prompt bar (container above tabBar) ──
+    // 1-row tall container whose child is the textarea. The child fills the parent.
+    this.promptBar = blessed.box({
+      top: '100%-4',
+      left: 0,
+      width: '100%',
+      height: 1,
+      style: { fg: 'white' },
+      tags: true,
+    });
+    this.screen.append(this.promptBar);
+
+    // ── Prompt textarea (child of promptBar) ──
+    // inputOnFocus so printable keys (including 'q') feed the textarea instead
+    // of the screen-level quit handler. mouse disabled to avoid hand-off races.
+    this.promptTextarea = blessed.textarea({
+      top: 0,
+      left: 0,
+      width: '100%',
+      height: 1,
+      inputOnFocus: true,
+      mouse: false,
+      style: { fg: 'white', bg: 'blue' },
+    });
+    this.promptBar.append(this.promptTextarea);
 
     // ── Status bar ──
     this.status = blessed.box({
@@ -200,6 +242,9 @@ export class BlessedRenderer implements OperatorRenderer {
     tabBar: blessed.Widgets.BoxElement | undefined;
     input: blessed.Widgets.TextareaElement | undefined;
     status: blessed.Widgets.BoxElement | undefined;
+    promptBar: blessed.Widgets.BoxElement | undefined;
+    promptTextarea: blessed.Widgets.TextareaElement | undefined;
+    approvalHint: blessed.Widgets.BoxElement | undefined;
   } {
     return {
       screen: this.screen,
@@ -209,6 +254,9 @@ export class BlessedRenderer implements OperatorRenderer {
       tabBar: this.tabBar,
       input: this.input,
       status: this.status,
+      promptBar: this.promptBar,
+      promptTextarea: this.promptTextarea,
+      approvalHint: this.approvalHint,
     };
   }
 }
