@@ -24,6 +24,9 @@ export class BlessedRenderer implements OperatorRenderer {
   private promptTextarea?: blessed.Widgets.TextareaElement;
   private approvalHint?: blessed.Widgets.BoxElement;
 
+  /** Last active tab seen during render — used for focus transition detection. */
+  private lastActiveTab: string | null = null;
+
   /** @internal — event callback wired by TuiApp */
   onEvent?: (event: RendererEvent) => void;
 
@@ -181,7 +184,7 @@ export class BlessedRenderer implements OperatorRenderer {
 
   render(viewState: OperatorViewState): void {
     if (!this.initialized || !this.screen) return;
-    if (!this.header || !this.leftPane || !this.tabBar || !this.promptTextarea || !this.status) return;
+    if (!this.header || !this.leftPane || !this.tabBar || !this.promptTextarea || !this.promptBar || !this.approvalHint || !this.status) return;
 
     // ── Header ──
     this.header.setContent(
@@ -200,7 +203,44 @@ export class BlessedRenderer implements OperatorRenderer {
     );
 
     // ── Input ──
-    this.promptTextarea.setValue(viewState.input.buffer);
+    // Defensive sync: only call setValue when the buffer actually differs
+    // from the textarea's current value. This avoids fighting the textarea's
+    // internal cursor state during snapshot refreshes.
+    if (this.promptTextarea.getValue() !== viewState.input.buffer) {
+      this.promptTextarea.setValue(viewState.input.buffer);
+    }
+
+    // ── Prompt visibility ──
+    // Show prompt only for chat/agent tabs; hide for all others.
+    const promptActive = viewState.activeTab === 'chat' || viewState.activeTab === 'agent';
+    if (promptActive) {
+      this.promptBar.show();
+    } else {
+      this.promptBar.hide();
+    }
+
+    // ── Focus management ──
+    // Only change focus on tab-change transitions, not every render. This
+    // prevents focus thrash during snapshot refreshes.
+    if (this.lastActiveTab !== viewState.activeTab) {
+      this.lastActiveTab = viewState.activeTab;
+      if (promptActive) {
+        this.promptTextarea.focus();
+      } else {
+        this.promptTextarea.blur();
+        this.leftPane.focus();
+      }
+    }
+
+    // ── Approval hint ──
+    // Driven by viewState.viewContent.pendingApprovalHint (string | null).
+    const approvalHintText = viewState.viewContent.pendingApprovalHint;
+    if (approvalHintText !== null) {
+      this.approvalHint.setContent(approvalHintText);
+      this.approvalHint.show();
+    } else {
+      this.approvalHint.hide();
+    }
 
     // ── Status bar ──
     renderStatusBar(this.status, viewState);

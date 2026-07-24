@@ -71,6 +71,9 @@ declare module 'neo-blessed' {
       emit(event: string, ...args: unknown[]): boolean;
       key(keys: string | string[], listener: (ch: unknown, key: { full: string }) => void): void;
       focus(): void;
+      blur(): void;
+      show(): void;
+      hide(): void;
       append(child: Element): void;
     }
 

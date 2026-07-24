@@ -21,6 +21,9 @@ const { screenDestroySpy, mkEl } = vi.hoisted(() => {
       on: vi.fn(),
       emit: vi.fn(),
       focus: vi.fn(),
+      blur: vi.fn(),
+      show: vi.fn(),
+      hide: vi.fn(),
       append: vi.fn(),
       key: vi.fn(),
       submit: vi.fn(),
@@ -369,6 +372,125 @@ describe('BlessedRenderer', () => {
 
   it('render no-ops before initialize', () => {
     expect(() => r.render(mockVS())).not.toThrow();
+  });
+
+  describe('renderer synchronization', () => {
+    it('shows prompt and focuses textarea when activeTab is chat', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const promptBar = refs.promptBar as any;
+      const promptTextarea = refs.promptTextarea as any;
+
+      r.render(mockVS('chat'));
+      expect(promptBar.show).toHaveBeenCalled();
+      expect(promptTextarea.focus).toHaveBeenCalled();
+    });
+
+    it('shows prompt and focuses textarea when activeTab is agent', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const promptBar = refs.promptBar as any;
+      const promptTextarea = refs.promptTextarea as any;
+
+      r.render(mockVS('agent'));
+      expect(promptBar.show).toHaveBeenCalled();
+      expect(promptTextarea.focus).toHaveBeenCalled();
+    });
+
+    it('hides prompt and blurs textarea when activeTab is not chat/agent', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const promptBar = refs.promptBar as any;
+      const promptTextarea = refs.promptTextarea as any;
+      const leftPane = refs.leftPane as any;
+
+      r.render(mockVS('runtime'));
+      expect(promptBar.hide).toHaveBeenCalled();
+      expect(promptTextarea.blur).toHaveBeenCalled();
+      expect(leftPane.focus).toHaveBeenCalled();
+    });
+
+    it('transitions focus only on tab change, not every render', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const promptTextarea = refs.promptTextarea as any;
+      const leftPane = refs.leftPane as any;
+
+      // First render: chat -> focus on textarea (transition)
+      r.render(mockVS('chat'));
+      expect(promptTextarea.focus).toHaveBeenCalledTimes(1);
+      expect(leftPane.focus).not.toHaveBeenCalled();
+
+      // Second render: same tab -> no re-focus (optimization)
+      r.render(mockVS('chat'));
+      expect(promptTextarea.focus).toHaveBeenCalledTimes(1);
+
+      // Third render: tab change to runtime -> blur + leftPane.focus
+      r.render(mockVS('runtime'));
+      expect(promptTextarea.focus).toHaveBeenCalledTimes(1);
+      expect(promptTextarea.blur).toHaveBeenCalledTimes(1);
+      expect(leftPane.focus).toHaveBeenCalledTimes(1);
+
+      // Fourth render: same tab runtime -> no re-focus
+      r.render(mockVS('runtime'));
+      expect(promptTextarea.blur).toHaveBeenCalledTimes(1);
+      expect(leftPane.focus).toHaveBeenCalledTimes(1);
+    });
+
+    it('defensively syncs textarea only when value differs', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const promptTextarea = refs.promptTextarea as any;
+
+      // First render: empty buffer, setValue called once (mocks the initial state)
+      // Note: initial value is '', viewState input buffer is '' -> should NOT call setValue
+      r.render(mockVS('chat'));
+      const initialCalls = (promptTextarea.setValue as any).mock.calls.length;
+      expect(initialCalls).toBe(0);
+
+      // Render with buffer different from textarea value -> setValue called
+      const vs = mockVS('chat');
+      (vs.input as { buffer: string }).buffer = 'hello';
+      r.render(vs);
+      expect(promptTextarea.setValue).toHaveBeenCalledWith('hello');
+      // Note: mock sets internal value when setValue is called
+      // Now textarea value === 'hello' === viewState.input.buffer
+
+      // Render again with same value -> setValue NOT called
+      const setValueCallsBefore = (promptTextarea.setValue as any).mock.calls.length;
+      r.render(vs);
+      expect((promptTextarea.setValue as any).mock.calls.length).toBe(setValueCallsBefore);
+    });
+
+    it('shows approval hint and sets content when pendingApprovalHint is non-null', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const approvalHint = refs.approvalHint as any;
+
+      const vs = mockVS('chat');
+      (vs.viewContent as { pendingApprovalHint: string | null }).pendingApprovalHint = 'Approve: deploy prod? (a/d)';
+      r.render(vs);
+
+      expect(approvalHint.setContent).toHaveBeenCalledWith('Approve: deploy prod? (a/d)');
+      expect(approvalHint.show).toHaveBeenCalled();
+    });
+
+    it('hides approval hint when pendingApprovalHint is null', async () => {
+      await r.initialize(tc);
+      const refs = r.getWidgetReferences();
+      const approvalHint = refs.approvalHint as any;
+
+      // First render with hint visible
+      const vs = mockVS('chat');
+      (vs.viewContent as { pendingApprovalHint: string | null }).pendingApprovalHint = 'first hint';
+      r.render(vs);
+      expect(approvalHint.show).toHaveBeenCalled();
+
+      // Now render with null
+      (vs.viewContent as { pendingApprovalHint: string | null }).pendingApprovalHint = null;
+      r.render(vs);
+      expect(approvalHint.hide).toHaveBeenCalled();
+    });
   });
 
   it('resize is a no-op', () => {
