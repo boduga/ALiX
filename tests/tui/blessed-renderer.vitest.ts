@@ -19,6 +19,7 @@ const { screenDestroySpy, mkEl } = vi.hoisted(() => {
     on: vi.fn(),
     focus: vi.fn(),
     append: vi.fn(),
+    key: vi.fn(),
   });
   return { screenDestroySpy, mkEl };
 });
@@ -211,7 +212,7 @@ describe('BlessedRenderer', () => {
       r.onEvent = (e) => events.push(e);
 
       getKeyHandler(screen, 'escape')();
-      expect(events).toEqual([{ type: 'blurInput' }]);
+      expect(events).toEqual([{ type: 'homeTab' }]);
     });
 
     it('emits switchTab on numeric keys 1-7', async () => {
