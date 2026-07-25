@@ -20,8 +20,10 @@ From the spec, copied verbatim — every task implicitly honors these:
 - Composes with `wrapText` rather than replacing it
 - Zero changes to `AgentTurnResult`, `PerTabState`, session files, or daemon protocol
 - No `throw` statements in parser happy path
-- Code fences: only three backticks (matching length required); tilde fences unsupported → text
+- Code fences: exactly three backticks only (no longer-than-three fences in Phase 1); tilde fences unsupported → text; any other fence length → text
 - Unclosed fence → emit partial content as `text` block
+- Parser normalizes CRLF to LF on read (documented; original separators are not preserved in malformed-fence fallback reconstruction)
+- Parser is a line-oriented scanner with explicit text/code/list modes (not a formal state enum — nested loops keyed off the current mode)
 - Code block `fenced` field is always `true` in Phase 1 (forward compat for inline code)
 - List `marker` preserves source: `-`, `*`, `+`, `ordered` (numbered uses literal "ordered")
 
@@ -31,7 +33,7 @@ From the spec, copied verbatim — every task implicitly honors these:
 |------|--------|----------------|
 | `src/agent/response-blocks.ts` | Create | `ResponseBlock` types + `parseResponseBlocks` pure function |
 | `src/tui/views/agent-view.ts` | Modify | Replace flat wrap loop with `parseResponseBlocks` + block dispatch |
-| `tests/response-blocks-parser.vitest.ts` | Create | Unit tests for the parser (~16 cases) |
+| `tests/response-blocks-parser.vitest.ts` | Create | Unit tests for the parser (~25 cases) |
 | `tests/agent-view-formatting.vitest.ts` | Modify | Extend with block-rendering tests |
 
 The parser lives in `src/agent/` (not `src/tui/`) because future phases will reuse it for the API, daemon protocol, and web UI. Keeping it transport-agnostic prevents coupling.
@@ -157,10 +159,19 @@ Expected: FAIL with "Cannot find module" or "parseResponseBlocks is not a functi
 /**
  * Parse a Markdown response into a sequence of typed blocks.
  *
- * Pure, deterministic, single-pass line-oriented state machine. Three states:
- *   TEXT  — accumulating prose into a text block
- *   CODE  — accumulating lines inside a fenced code block
- *   LIST  — accumulating list items into a list block
+ * Pure, deterministic, single-pass line-oriented scanner with three modes:
+ *   text  — accumulating prose into a text block
+ *   code  — accumulating lines inside a fenced code block
+ *   list  — accumulating list items into a list block
+ *
+ * Implementation note: this is a scanner driven by explicit mode checks
+ * per line, not a formal state enum. The mode is implicit in the current
+ * branch of the main loop. The three modes are clearly distinct in the
+ * code but are not represented as a `State` type.
+ *
+ * Line endings: the parser splits on /\r?\n/ and rejoins with "\n".
+ * CRLF is normalized to LF on read. The original separator sequence is
+ * not preserved across parsing.
  *
  * Invariants:
  *   - empty input → []
@@ -272,18 +283,69 @@ describe("parseResponseBlocks — fenced code blocks", () => {
     ]);
   });
 
-  it("treats four-backtick fence mismatched with closing three as text", () => {
+  it("treats four-backtick fences as plain text (only three supported)", () => {
+    const md = "````\nx\n````";
+    expect(parseResponseBlocks(md)).toEqual([
+      { type: "text", text: "````\nx\n````" },
+    ]);
+  });
+
+  it("treats mismatched fence lengths as plain text", () => {
     const md = "````\nx\n```";
     expect(parseResponseBlocks(md)).toEqual([
       { type: "text", text: "````\nx\n```" },
     ]);
   });
 
-  it("supports four-backtick fences when both sides match", () => {
-    const md = "````\nx\n````";
+  it("treats two-backtick fence as plain text (only three supported)", () => {
+    const md = "``\nx\n``";
     expect(parseResponseBlocks(md)).toEqual([
-      { type: "code", code: "x", fenced: true },
+      { type: "text", text: "``\nx\n``" },
     ]);
+  });
+});
+
+describe("parseResponseBlocks — mixed content", () => {
+  it("emits text, code, text, list in source order", () => {
+    const md = [
+      "Here is code:",
+      "",
+      "```ts",
+      "const x = 1;",
+      "```",
+      "",
+      "Next steps:",
+      "",
+      "- test",
+      "- deploy",
+    ].join("\n");
+    const blocks = parseResponseBlocks(md);
+    expect(blocks).toHaveLength(4);
+    expect(blocks[0]).toMatchObject({ type: "text" });
+    expect(blocks[1]).toMatchObject({ type: "code", language: "ts" });
+    expect(blocks[2]).toMatchObject({ type: "text" });
+    expect(blocks[3]).toMatchObject({ type: "list", marker: "-" });
+  });
+
+  it("never throws for arbitrary malformed input", () => {
+    const inputs = [
+      "",
+      "~~~",
+      "```",
+      "\0",
+      "🔥🔥🔥",
+      "\n\n\n",
+      "```unclosed",
+      "- ",
+      "* ",
+      "1. ",
+      "\t\t\t",
+      "``````",
+      "```\n```\n```",
+    ];
+    for (const input of inputs) {
+      expect(() => parseResponseBlocks(input)).not.toThrow();
+    }
   });
 });
 ```
@@ -293,30 +355,38 @@ describe("parseResponseBlocks — fenced code blocks", () => {
 Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
 Expected: All new code-block tests fail; existing 5 still pass.
 
-- [ ] **Step 3: Add CODE state to the parser**
+- [ ] **Step 3: Add CODE mode to the parser**
 
 ```ts
-// src/agent/response-blocks.ts — replace the parseResponseBlocks body
+// src/agent/response-blocks.ts — append below the existing type definitions
 
 /**
- * Match an opening fence line: 3+ backticks (no tildes), followed by
- * an optional language tag. Returns the fence length and language, or null.
+ * Match an opening fence line: EXACTLY three backticks at the start of
+ * a line, optionally followed by a language tag (any non-whitespace,
+ * non-backtick characters).
  *
- * Tilde fences (`~~~`) are explicitly NOT recognized — they fall through
- * to text. Inline code (single backtick) is also not recognized.
+ * Phase 1 does NOT support:
+ *   - fences longer than three backticks (` ```` ` is plain text)
+ *   - tilde fences (`~~~`) — plain text
+ *   - inline code (single backticks) — plain text
+ *   - indented fences — plain text
  */
-function matchFenceOpen(line: string): { fenceLen: number; language?: string } | null {
-  const m = /^(`{3,})([^\s`]*)\s*$/.exec(line);
+function matchFenceOpen(line: string): { language?: string } | null {
+  const m = /^```([^\s`]*)\s*$/.exec(line);
   if (!m) return null;
-  return { fenceLen: m[1]!.length, language: m[2] || undefined };
+  return { language: m[1] || undefined };
 }
 
 /**
- * Match a closing fence: a line consisting only of N+ backticks where N
- * matches the opening fence length. Tildes or other chars disqualify.
+ * Match a closing fence: exactly three backticks at the start of a line
+ * with optional trailing whitespace. Implemented as a direct string
+ * comparison to avoid dynamic regex construction.
  */
-function matchFenceClose(line: string, fenceLen: number): boolean {
-  return new RegExp(`^\`{${fenceLen},}\\s*$`).test(line);
+const CLOSING_FENCE = "```";
+function matchFenceClose(line: string): boolean {
+  // Compare against "```" with optional trailing whitespace.
+  // line.trimEnd() avoids dynamic regex creation.
+  return line.trimEnd() === CLOSING_FENCE;
 }
 
 export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
@@ -384,7 +454,7 @@ export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: All 13 tests pass (5 text + 8 code).
+Expected: All 14 tests pass (5 text + 9 code).
 
 - [ ] **Step 5: Commit**
 
@@ -529,7 +599,7 @@ export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
       i++;
       let closed = false;
       while (i < lines.length) {
-        if (matchFenceClose(lines[i]!, fenceOpen.fenceLen)) {
+        if (matchFenceClose(lines[i]!)) {
           closed = true;
           i++;
           break;
@@ -585,7 +655,7 @@ export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: All 22 tests pass (5 text + 8 code + 9 list).
+Expected: All 23 tests pass (5 text + 9 code + 9 list).
 
 - [ ] **Step 5: Commit**
 
@@ -633,13 +703,27 @@ describe('AgentView — code block rendering', () => {
     expect(() => renderOnCanvas(40, 40, perTab)).not.toThrow();
   });
 
-  it('renders code block language header', () => {
+  it('renders code block language header as [lang] label', () => {
     const perTab = makePerTab({
       agentResponses: ['```typescript\nconst x = 1;\n```'],
     });
     const c = renderOnCanvas(80, 40, perTab);
     const all = allText(c, 10);
-    expect(all).toContain('typescript');
+    // TUI renders structure, not Markdown: language becomes a [lang] label.
+    expect(all).toContain('[typescript]');
+    expect(all).not.toContain('```typescript');
+  });
+
+  it('omits language header when code block has no language', () => {
+    const perTab = makePerTab({
+      agentResponses: ['```\nx = 1\n```'],
+    });
+    const c = renderOnCanvas(80, 40, perTab);
+    const all = allText(c, 10);
+    expect(all).toContain('x = 1');
+    // No `[<empty>]` artifact and no source fence markers.
+    expect(all).not.toContain('[ ]');
+    expect(all).not.toContain('```');
   });
 });
 ```
@@ -647,7 +731,7 @@ describe('AgentView — code block rendering', () => {
 - [ ] **Step 2: Run tests to verify they fail**
 
 Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: 3 new tests fail.
+Expected: 4 new tests fail.
 
 - [ ] **Step 3: Add renderBlocks helper and integrate into agent-view**
 
@@ -685,14 +769,16 @@ function renderAgentResponse(
         out.push({ kind, text: wrapped[i]!, isFirst: i === 0 });
       }
     } else if (block.type === 'code') {
-      const codeLines = block.code.split('\n');
-      const langTag = block.language ? `\`\`\`${block.language}` : '```';
-      // First line is the language tag (matches the source fence marker).
-      out.push({ kind, text: '  ' + langTag, isFirst: true });
-      for (const codeLine of codeLines) {
+      // The TUI is not Markdown — it renders the code block's structure,
+      // not its source fences. Language (when present) becomes an optional
+      // header line; the body is rendered verbatim with 2-space indent.
+      // No reflow, no wrap. Future syntax highlighting slots in here.
+      if (block.language) {
+        out.push({ kind, text: '  [' + block.language + ']', isFirst: true });
+      }
+      for (const codeLine of block.code.split('\n')) {
         out.push({ kind, text: '  ' + codeLine, isFirst: false });
       }
-      out.push({ kind, text: '  ```', isFirst: false });
     }
     // list blocks handled in Task 6.
   }
@@ -724,7 +810,7 @@ for (const t of turns) {
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: All tests pass (46 existing + 3 new = 49).
+Expected: All tests pass (46 existing + 4 new = 50).
 
 - [ ] **Step 5: Run full test suite to confirm no regressions**
 
@@ -860,7 +946,7 @@ function renderAgentResponse(
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: All 53 tests pass (46 + 3 + 4).
+Expected: All 54 tests pass (46 + 4 + 4).
 
 - [ ] **Step 5: Run full test suite to confirm no regressions**
 
@@ -889,7 +975,7 @@ Expected: tsc compiles cleanly with no errors.
 - [ ] **Step 2: Run full test suite**
 
 Run: `pnpm test:vitest 2>&1 | tail -10`
-Expected: All tests pass — total should now include 22 parser tests + 7 agent-view rendering tests added by this plan.
+Expected: All tests pass — total should now include 25 parser tests + 8 agent-view rendering tests added by this plan.
 
 - [ ] **Step 3: Smoke test the agent tab in the live TUI**
 
