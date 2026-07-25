@@ -29,6 +29,7 @@ import { initAgent } from "./agent.js";
 import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
+import { taskRouter } from "../runtime/task-router.js";
 import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -211,6 +212,13 @@ export interface AgentSessionConfig {
    * callers).
    */
   store?: import("./session-store.js").SessionStore;
+  /**
+   * Optional callback for routing diagnostics. Fired when the action
+   * classifier routes a prompt through the direct-path (arithmetic,
+   * generation) or the tool/agent workflow. Receives the RouteDiagnostic
+   * object describing the classification decision.
+   */
+  onRouteDiagnostic?: (diagnostic: import("../runtime/task-router.js").RouteDiagnostic) => void;
 }
 
 export interface AgentSession {
@@ -710,6 +718,63 @@ You are in read-only mode. You can read files, search the codebase, and delegate
   // ---- Exported interface methods ----
 
   async function processTurn(message: string): Promise<AgentTurnResult> {
+    // ── Direct-path preflight ────────────────────────────────────────────
+    // Classify the message BEFORE any initialization. Arithmetic and
+    // standalone_generation bypass the full agent lifecycle entirely:
+    // no provider, no tools, no workflow. Every other route kind falls
+    // through to the existing initialize() → runTaskLoop() path.
+    const route = taskRouter(message);
+    if (route.kind === "direct") {
+      // Fire the diagnostic callback if one is wired (Task 4).
+      // Callback failures are swallowed — diagnostics are observability,
+      // never a control surface.
+      if (route.diagnostic && config.onRouteDiagnostic) {
+        try { config.onRouteDiagnostic(route.diagnostic); }
+        catch { /* swallow */ }
+      }
+
+      // Arithmetic — deterministic answer, no provider call.
+      if (route.answer !== undefined) {
+        return {
+          summary: route.answer,
+          sessionId: config.sessionId ?? "",
+          toolCalls: [],
+          streamed: false,
+          reason: "direct",
+        };
+      }
+
+      // Standalone generation — exactly one provider call, no tool loop.
+      // Resolve the provider: check chatProvider first, then chatModel,
+      // falling back to the existing [chat:no-provider] placeholder when
+      // no provider is available (never falls through to the agent loop).
+      const genProvider = config.chatProvider
+        ?? (config.chatModel
+          ? await createProvider(config.chatModel, config.chatApiKey).catch(() => null)
+          : null);
+      if (!genProvider) {
+        return {
+          summary: `[chat:no-provider] ${message}`,
+          sessionId: config.sessionId ?? "",
+          toolCalls: [],
+          streamed: false,
+          reason: "direct",
+        };
+      }
+      const genResponse = await genProvider.complete({
+        systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
+        messages: [{ role: "user", content: route.prompt }],
+        maxOutputTokens: 512,
+      });
+      return {
+        summary: genResponse.text || "(no response)",
+        sessionId: config.sessionId ?? "",
+        toolCalls: [],
+        streamed: false,
+        reason: "direct",
+      };
+    }
+
     if (!initialized) {
       // Seed currentTask from the first message so the planning phase has
       // a task to work with (TUI creates sessions with an empty task).
