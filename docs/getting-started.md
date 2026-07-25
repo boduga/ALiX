@@ -89,7 +89,6 @@ To list available servers: `alix mcp list-known`
 ## Common workflows
 
 - `alix run "..."` — Run a task autonomously
-- `alix chat` — Interactive chat mode
 - `alix inspector` — Open the web UI
 - `alix mcp list` — List configured MCP servers
 - `alix config show` — Show current configuration
