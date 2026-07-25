@@ -392,25 +392,20 @@ export async function taskRouter(
     };
   }
 
-  // 5. Natural-language file operations — but only commit to the tool
-  //    route when the deterministic classifier agrees the prompt is a
-  //    literal file operation. When the classification is ambiguous/low-
-  //    confidence AND a classifier provider is configured, skip the tool
-  //    route and let the model fallback reclassify at step 6.
-  //    This prevents "add a test for X to Y" from executing a garbage
-  //    shell command.
+  // 5. Natural-language file operations — route to tool unconditionally
+  //    when the pattern matches. The regex patterns (write X to Y, show Y,
+  //    delete Y, etc.) are precise enough that false positives are rare, and
+  //    the `isConceptualFileQuestion` / `looksLikeFileTarget` guards reject
+  //    fuzzy/non-file prompts. Deferring these to the model fallback would
+  //    silently drop legitimate file operations when the classifier returns
+  //    ambiguous (e.g. "write hello to test.txt" has no workspace anchor).
   const naturalFileCommand = matchNaturalFileOperation(task);
   if (naturalFileCommand) {
-    const shouldDeferToModel =
-      opts?.classifierProvider &&
-      (classification.intent === "ambiguous" || classification.confidence < CONFIDENCE_THRESHOLD);
-    if (!shouldDeferToModel) {
-      return {
-        kind: "tool",
-        tool: "shell.run",
-        args: { command: naturalFileCommand },
-      };
-    }
+    return {
+      kind: "tool",
+      tool: "shell.run",
+      args: { command: naturalFileCommand },
+    };
   }
 
   // 6. High-confidence deterministic results — no model call needed.

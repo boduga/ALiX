@@ -260,7 +260,7 @@ async function resolvePlanDecisionViaGate(
       if (edited.trim().length === 0) {
         console.log("Empty plan — cancelling.");
         await clearPlanTaskSidecar(planDir, sessionId, sidecarFs);
-        return { action: "rejected", planContent };
+        return { action: "rejected", planContent, planTasks: [] };
       }
       planContent = edited;
       // Re-parse and refresh sidecar so the next round reflects the edit.
@@ -275,9 +275,11 @@ async function resolvePlanDecisionViaGate(
     console.log("\n" + planContent);
     continue;
   }
-  // Defensive default: after 10 rounds, treat as "no decision made" and
-  // approve (matches the spirit of deferred mode — unblock the loop).
-  return { action: "approved", planContent, planTasks: currentTasks };
+  // Defensive default: after 10 rounds of edit loops without explicit
+  // approval, reject instead of silently approving. The operator must
+  // explicitly approve the plan; 10 rounds of `edit` without `approve`
+  // indicates uncertainty that should block execution.
+  return { action: "rejected", planContent, planTasks: currentTasks };
 }
 
 /**

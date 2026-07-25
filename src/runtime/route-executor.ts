@@ -108,6 +108,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     const response = await provider.complete({
       systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
       messages: [{ role: "user", content: route.prompt }],
+      maxOutputTokens: 512,
     });
     return response.text || "(no response)";
   }
@@ -154,6 +155,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     const response = await provider.complete({
       systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
       messages: [{ role: "user", content: route.prompt }],
+      maxOutputTokens: 512,
     });
     return response.text || "(no response)";
   }
@@ -170,6 +172,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     const response = await provider.complete({
       systemPrompt: "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. Answer concisely.",
       messages: [{ role: "user", content: route.prompt }],
+      maxOutputTokens: 512,
     });
 
     if (response.toolCalls.length > 0) {
@@ -204,6 +207,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
           { role: "assistant", content: response.text || "" },
           { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
         ],
+        maxOutputTokens: 512,
       });
       return finalResponse.text || "(no response)";
     }

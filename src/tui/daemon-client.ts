@@ -241,7 +241,23 @@ export class DaemonAgentSession implements AgentSession {
 
       client.on("close", () => {
         this.id = sessionId;
-        resolve({ summary, sessionId, toolCalls: [], reason: summary.startsWith("[daemon]") ? 'daemon-error' : undefined });
+        (async () => {
+          // Try to load plan tasks from the daemon's sidecar file.
+          // The daemon writes .tasks.json through the same plan-phase code
+          // as the local session, so the sidecar is at the same path.
+          let planContent: string | undefined;
+          let planTasks: readonly import("../planning/plan-task.js").PlanTask[] | undefined;
+          try {
+            const sidecarPath = join(this.cwd, ".alix", "plans", `${sessionId}.tasks.json`);
+            if (existsSync(sidecarPath)) {
+              const { readFileSync } = await import("node:fs");
+              const sidecar = JSON.parse(readFileSync(sidecarPath, "utf8"));
+              if (sidecar.planContent) planContent = sidecar.planContent;
+              if (sidecar.planTasks) planTasks = sidecar.planTasks;
+            }
+          } catch { /* sidecar may not exist — no plan was produced */ }
+          resolve({ summary, sessionId, planContent, planTasks, toolCalls: [], reason: summary.startsWith("[daemon]") ? 'daemon-error' : undefined });
+        })();
       });
 
       // 120s timeout

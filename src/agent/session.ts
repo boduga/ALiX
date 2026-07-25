@@ -358,6 +358,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   function restoreReconstructedPlanTasks(reconstructed: { planTasks?: readonly PlanTask[] }): void {
     if (reconstructed.planTasks) {
       (ctx as any)._planTasks = reconstructed.planTasks;
+      approvedPlanTasks = reconstructed.planTasks;
     }
   }
   let session: { sessionId: string; actor: "system" };
@@ -786,14 +787,18 @@ You are in read-only mode. You can read files, search the codebase, and delegate
           reason: "direct",
         };
       }
+      let _providerError: string | undefined;
       const genResponse = await genProvider.complete({
         systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
         messages: [{ role: "user", content: route.prompt }],
         maxOutputTokens: 512,
-      }).catch(() => null);
+      }).catch((err: unknown) => {
+        _providerError = err instanceof Error ? err.message : String(err);
+        return null;
+      });
       if (!genResponse) {
         return {
-          summary: `[chat:no-provider] ${message}`,
+          summary: `[chat:provider-error] ${_providerError ?? message}`,
           sessionId: config.sessionId ?? "",
           toolCalls: [],
           streamed: false,

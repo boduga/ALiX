@@ -154,20 +154,7 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
       return;
     }
 
-    // Fast path: emit `request.received`, execute, emit `direct.completed`.
-    safeWrite(client, { type: "request.received", requestId });
-
-    try {
-      const text = await executeDirectRoute(classification, requestCwd);
-      safeWrite(client, { type: "direct.completed", requestId, text });
-    } catch (err: unknown) {
-      const message = err instanceof Error ? (err.stack ?? err.message) : String(err);
-      safeWrite(client, {
-        type: "direct.completed",
-        requestId,
-        text: `[error] direct execution failed: ${message}`,
-      });
-    }
+    await dispatchDirectRoute(client, classification, requestId, requestCwd);
     return;
   }
 
@@ -195,19 +182,7 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
       // `direct` command so existing client handling keeps working.
       const requestId =
         `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      safeWrite(client, { type: "request.received", requestId });
-      try {
-        const text = await executeDirectRoute(route, requestCwd);
-        safeWrite(client, { type: "direct.completed", requestId, text });
-      } catch (err: unknown) {
-        const message =
-          err instanceof Error ? (err.stack ?? err.message) : String(err);
-        safeWrite(client, {
-          type: "direct.completed",
-          requestId,
-          text: `[error] direct execution failed: ${message}`,
-        });
-      }
+      await dispatchDirectRoute(client, route, requestId, requestCwd);
       return;
     }
 
@@ -284,6 +259,35 @@ function extractFallbackOutput(events: any[]): string | null {
 }
 
 // ─── Daemon-side route executors ────────────────────────────────────
+
+/**
+ * Shared dispatch helper for the direct execution skeleton. Both the
+ * `direct` command handler and the `run` command's inline direct fast-path
+ * share this identical emit–execute–emit sequence.
+ *
+ * Emits `request.received`, calls `executeDirectRoute`, then emits
+ * `direct.completed` with the result or an error message.
+ */
+async function dispatchDirectRoute(
+  client: Socket,
+  route: TaskRoute & { kind: "direct" },
+  requestId: string,
+  cwd: string,
+): Promise<void> {
+  safeWrite(client, { type: "request.received", requestId });
+  try {
+    const text = await executeDirectRoute(route, cwd);
+    safeWrite(client, { type: "direct.completed", requestId, text });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
+    safeWrite(client, {
+      type: "direct.completed",
+      requestId,
+      text: `[error] direct execution failed: ${message}`,
+    });
+  }
+}
 
 /**
  * Execute a `direct` route in the daemon process. (Task 3)

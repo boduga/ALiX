@@ -310,6 +310,10 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
   /\bin\s+the\s+repo\b/i,
   /\bin\s+the\s+codebase\b/i,
   /\bin\s+the\s+repository\b/i,
+  // Codebase-search idioms: "find usages of X", "find references to Y"
+  // Moved here from RETRIEVAL_SIGNALS so these route to workspace_action
+  // (agent / codebase search) instead of external_retrieval (web search).
+  /\bfind\s+(?:all\s+)?(?:usages?|references?|occurrences?)\b/i,
 ];
 
 /**
@@ -318,7 +322,6 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
  */
 const RETRIEVAL_SIGNALS: readonly RegExp[] = [
   /\bsearch\b/i,
-  /\bfind\s+(?:all\s+)?(?:usages?|references?|occurrences?)\b/i,
   /\blook\s+up\b/i,
   /\bweb\b/i,
   /\bonline\b/i,
