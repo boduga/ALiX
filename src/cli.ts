@@ -2430,6 +2430,9 @@ if (command === "submit") {
         else if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
         else if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
         else if (msg.type === "queue.position") console.log(`Queue position: ${msg.position}`);
+        else if (msg.type === "tool.started") console.log(`  → ${msg.toolName || "tool"} started`);
+        else if (msg.type === "tool.completed") console.log(`  ✓ ${msg.toolName || "tool"} completed${msg.durationMs ? ` (${msg.durationMs}ms)` : ""}`);
+        else if (msg.type === "tool.failed") console.log(`  ✗ ${msg.toolName || "tool"} failed${msg.error ? `: ${msg.error.slice(0, 60)}` : ""}`);
         else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.destroy(); }
         else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); client.destroy(); }
         else if (msg.type === "session.ended") { client.destroy(); }
