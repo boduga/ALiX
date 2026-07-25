@@ -145,6 +145,13 @@ export interface AgentSessionConfig {
    * of blocking on a TTY prompt inside `runPlanPhase`.
    */
   planApprovalMode?: "interactive" | "deferred";
+  /**
+   * Optional gate that owns the plan-approval decision in the TUI.
+   * When provided alongside `planApprovalMode: "interactive"`, the
+   * in-TUI plan-approval card drives the operator's yes/no/edit/detail
+   * decision. Mirrors the same opt on `RunOpts` for the CLI path.
+   */
+  planApprovalGate?: import("../run/plan-approval-gate.js").PlanApprovalGate;
   /** Load plan from file instead of generating. */
   planFilePath?: string;
   /** Resume from a prior session. */
@@ -238,6 +245,13 @@ export interface AgentSession {
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
   resume(sessionId: string): Promise<void>;
+  /**
+   * Inject the plan-approval gate used by `runPlanPhase` when
+   * `planApprovalMode === "interactive"`. Optional in the interface
+   * for backwards compatibility — older implementations (e.g. test
+   * stubs) can omit it and fall back to the legacy TTY prompt path.
+   */
+  setPlanApprovalGate?(gate: import("../run/plan-approval-gate.js").PlanApprovalGate | null): void;
 }
 
 // =============================================================================
@@ -530,7 +544,10 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         // moves directly from Understanding to Executing.
         advancePhase(SessionPhase.Planning);
 
-        const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath);
+        const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath, {
+          approvalMode: config.planApprovalMode ?? "interactive",
+          gate: config.planApprovalGate,
+        });
         if (planResult.action === "rejected") {
           transitionWorkflowStatus(wfRun, "failed");
           await ctx.log.append({
@@ -1214,5 +1231,8 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     getPhase,
     save,
     resume,
+    setPlanApprovalGate: (gate) => {
+      config.planApprovalGate = gate ?? undefined;
+    },
   };
 }

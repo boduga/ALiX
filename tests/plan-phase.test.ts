@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { existsSync } from "node:fs";
-import type { PlanApprovalDecision, PlanApprovalGate } from "../src/run/plan-approval-gate.js";
+import type { PlanDecision, PlanApprovalGate } from "../src/run/plan-approval-gate.js";
 
 describe("plan-phase", () => {
 
@@ -367,8 +367,10 @@ describe("plan-phase", () => {
       const gate: PlanApprovalGate = {
         requestDecision: async (req) => {
           captured.push(req);
-          return "approve" as PlanApprovalDecision;
+          return "approve" as PlanDecision;
         },
+        resolve: () => {},
+        getPending: () => null,
       };
       const result = await runPlanPhase(
         mockCtx,
@@ -422,8 +424,10 @@ describe("plan-phase", () => {
       const gate: PlanApprovalGate = {
         requestDecision: async () => {
           gateCalls.push(1);
-          return "reject" as PlanApprovalDecision;
+          return "reject" as PlanDecision;
         },
+        resolve: () => {},
+        getPending: () => null,
       };
       const result = await runPlanPhase(
         mockCtx,
@@ -465,9 +469,11 @@ describe("plan-phase", () => {
         log: { append: async () => {} },
       };
       const mockBundle: any = { primaryFiles: [], tests: [], supportingFiles: [] };
-      const decisions: PlanApprovalDecision[] = ["detail", "approve"];
+      const decisions: PlanDecision[] = ["detail", "approve"];
       const gate: PlanApprovalGate = {
         requestDecision: async () => decisions.shift() ?? "approve",
+        resolve: () => {},
+        getPending: () => null,
       };
       const result = await runPlanPhase(
         mockCtx,
@@ -517,7 +523,7 @@ describe("plan-phase", () => {
       // Capture the request planContent so the edit can mutate the file
       // before the next round sees the new content.
       let firstRoundContent: string | null = null;
-      const decisions: PlanApprovalDecision[] = ["edit", "approve"];
+      const decisions: PlanDecision[] = ["edit", "approve"];
       const gate: PlanApprovalGate = {
         requestDecision: async (req) => {
           if (firstRoundContent === null) {
@@ -537,6 +543,8 @@ describe("plan-phase", () => {
           }
           return decisions.shift() ?? "approve";
         },
+        resolve: () => {},
+        getPending: () => null,
       };
       const result = await runPlanPhase(
         mockCtx,
@@ -592,7 +600,9 @@ describe("plan-phase", () => {
       };
       const mockBundle: any = { primaryFiles: [], tests: [], supportingFiles: [] };
       const gate: PlanApprovalGate = {
-        requestDecision: async () => "approve" as PlanApprovalDecision,
+        requestDecision: async () => "approve" as PlanDecision,
+        resolve: () => {},
+        getPending: () => null,
       };
       const result = await runPlanPhase(
         mockCtx,
@@ -667,7 +677,9 @@ describe("plan-phase", () => {
         unlink: async () => {},
       };
       const gate: PlanApprovalGate = {
-        requestDecision: async () => "approve" as PlanApprovalDecision,
+        requestDecision: async () => "approve" as PlanDecision,
+        resolve: () => {},
+        getPending: () => null,
       };
       const result = await runPlanPhase(
         mockCtx,
