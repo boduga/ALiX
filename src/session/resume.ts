@@ -210,7 +210,6 @@ export function isValidTasksSidecar(value: unknown): value is PlanTaskList {
  */
 async function loadTasksSidecar(planDir: string, sessionId: string): Promise<PlanTaskList | null> {
   const sidecarPath = join(planDir, `${sessionId}.tasks.json`);
-  if (!existsSync(sidecarPath)) return null;
   let raw: string;
   try {
     raw = await readFile(sidecarPath, "utf-8");

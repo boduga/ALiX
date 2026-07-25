@@ -69,8 +69,12 @@ function parseSections(content: string): Section[] {
   const sections: Section[] = [];
   const lines = content.split(/\r?\n/);
   let current: Section | null = null;
+  let inCodeBlock = false;
   for (const line of lines) {
-    const headingMatch = /^##\s+(.+?)\s*$/u.exec(line);
+    if (line.trim().startsWith("```")) {
+      inCodeBlock = !inCodeBlock;
+    }
+    const headingMatch = !inCodeBlock ? /^##\s+(.+?)\s*$/u.exec(line) : null;
     if (headingMatch) {
       if (current) sections.push(current);
       current = { heading: headingMatch[1]!.trim(), body: "" };
@@ -125,9 +129,11 @@ function parseBulletTasks(
     let j = i + 1;
     while (j < lines.length) {
       const sub = lines[j]!;
-      if (sub.trim() === "") break;
-      const subIndent = /^(\s*)/.exec(sub)![1]!.length;
-      if (subIndent <= indent) break;
+      const trimmed = sub.trim();
+      if (trimmed !== "") {
+        const subIndent = /^(\s*)/.exec(sub)![1]!.length;
+        if (subIndent <= indent) break;
+      }
       detailLines.push(sub);
       j++;
     }

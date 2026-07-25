@@ -694,14 +694,14 @@ export class TuiApp {
     // Summary row.
     canvas.write(0, cardY + 1, '\x1b[33m│\x1b[0m');
     canvas.write(1, cardY + 1, summary);
-    canvas.write(1 + summary.length, cardY + 1, ' '.repeat(Math.max(0, innerW - 1 - summary.length)));
+    canvas.write(1 + summary.length, cardY + 1, ' '.repeat(Math.max(0, innerW - summary.length)));
     canvas.write(width - 1, cardY + 1, '\x1b[33m│\x1b[0m');
 
     // Hint row.
     const hintRow = hint.length > innerW ? hint.slice(0, innerW) : hint;
     canvas.write(0, cardY + 2, '\x1b[33m│\x1b[0m');
     canvas.write(1, cardY + 2, hintRow);
-    canvas.write(1 + hintRow.length, cardY + 2, ' '.repeat(Math.max(0, innerW - 1 - hintRow.length)));
+    canvas.write(1 + hintRow.length, cardY + 2, ' '.repeat(Math.max(0, innerW - hintRow.length)));
     canvas.write(width - 1, cardY + 2, '\x1b[33m│\x1b[0m');
 
     // Bottom border.

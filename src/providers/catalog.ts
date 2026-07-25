@@ -171,7 +171,7 @@ const DEFAULT_MODELS: Record<string, string> = {
   minimax: "minimax-text-01",
   zhipuai: "glm-4-flash",
   grokai: "grok-2-latest",
-  deepseek: "deepseek-chat",
+  deepseek: "deepseek-v4-flash",
 };
 
 /**

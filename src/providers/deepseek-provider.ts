@@ -28,7 +28,7 @@ export class DeepSeekProvider extends BaseProvider {
   constructor(config: DeepSeekConfig = {}) {
     super({
       apiKey: config.apiKey ?? process.env.DEEPSEEK_API_KEY ?? "",
-      model: config.model ?? "deepseek-chat",
+      model: config.model ?? "deepseek-v4-flash",
       baseUrl: "https://api.deepseek.com",
       timeoutMs: 120_000,
     });

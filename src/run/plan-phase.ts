@@ -418,27 +418,25 @@ interface PromptForPlanApprovalCtx {
 async function promptForPlanApproval(
   planPath: string,
   planContent: string,
-  sidecarCtx?: PromptForPlanApprovalCtx,
+  sidecarCtx: PromptForPlanApprovalCtx,
 ): Promise<PlanPhaseResult> {
   while (true) {
     const answer = await prompt("Approve plan? [Y/n/e/d] ");
     const key = answer.toLowerCase().trim();
 
     if (key === "" || key === "y" || key === "yes") {
-      return { action: "approved", planContent, planTasks: sidecarCtx?.initialTasks };
+      return { action: "approved", planContent, planTasks: sidecarCtx.initialTasks };
     }
 
     if (key === "n" || key === "no") {
       console.log("\nPlan rejected. Task cancelled.");
-      if (sidecarCtx) {
-        // Remove sidecar so we don't leave stale tasks on disk.
-        await clearPlanTaskSidecar(
-          sidecarCtx.planDir,
-          sidecarCtx.sessionId,
-          sidecarCtx.sidecarFs,
-        );
-      }
-      return { action: "rejected", planContent, planTasks: sidecarCtx?.initialTasks };
+      // Remove sidecar so we don't leave stale tasks on disk.
+      await clearPlanTaskSidecar(
+        sidecarCtx.planDir,
+        sidecarCtx.sessionId,
+        sidecarCtx.sidecarFs,
+      );
+      return { action: "rejected", planContent, planTasks: sidecarCtx.initialTasks };
     }
 
     if (key === "e" || key === "edit") {
@@ -449,28 +447,23 @@ async function promptForPlanApproval(
       }
       if (edited.trim().length === 0) {
         console.log("Empty plan — cancelling.");
-        if (sidecarCtx) {
-          await clearPlanTaskSidecar(
-            sidecarCtx.planDir,
-            sidecarCtx.sessionId,
-            sidecarCtx.sidecarFs,
-          );
-        }
-        return { action: "rejected", planContent: edited, planTasks: sidecarCtx?.initialTasks };
+        await clearPlanTaskSidecar(
+          sidecarCtx.planDir,
+          sidecarCtx.sessionId,
+          sidecarCtx.sidecarFs,
+        );
+        return { action: "rejected", planContent: edited, planTasks: sidecarCtx.initialTasks };
       }
       console.log("\n--- Edited Plan ---\n");
       console.log(edited.trim());
-      if (sidecarCtx) {
-        const editedTasks = parsePlanTasks(edited, sidecarCtx.sessionId);
-        await persistPlanTaskSidecar(
-          sidecarCtx.planDir,
-          sidecarCtx.sessionId,
-          editedTasks,
-          sidecarCtx.sidecarFs,
-        );
-        return { action: "approved", planContent: edited.trim(), planTasks: editedTasks };
-      }
-      return { action: "approved", planContent: edited.trim() };
+      const editedTasks = parsePlanTasks(edited, sidecarCtx.sessionId);
+      await persistPlanTaskSidecar(
+        sidecarCtx.planDir,
+        sidecarCtx.sessionId,
+        editedTasks,
+        sidecarCtx.sidecarFs,
+      );
+      return { action: "approved", planContent: edited.trim(), planTasks: editedTasks };
     }
 
     if (key === "d" || key === "detail") {
