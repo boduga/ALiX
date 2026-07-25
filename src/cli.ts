@@ -2383,7 +2383,14 @@ if (command === "daemon") {
   process.exit(0);
 }
 
+// Track whether a command was successfully dispatched. Some handlers
+// (e.g. `alix submit`) keep the event loop alive and handle their own
+// exit; without this flag the file's fallthrough would print a
+// misleading "Unknown command" error after a successful submit.
+let commandHandled = false;
+
 if (command === "submit") {
+  commandHandled = true;
   const task = args.join(" ").replace(/^["']|["']$/g, "");
   if (!task) { console.error("Usage: alix submit \"<task>\""); process.exit(1); }
   const cwd = process.cwd();
@@ -2396,8 +2403,13 @@ if (command === "submit") {
   if (!socketPath) { console.error("No socket path found."); process.exit(1); }
 
   const { connect } = await import("node:net");
+  const payload = JSON.stringify({ command: "run", task, cwd }) + "\n";
   const client = connect(socketPath, () => {
-    client.write(JSON.stringify({ command: "run", task, cwd }) + "\n");
+    client.write(payload);
+    // Half-close the write side so the daemon sees EOF after our
+    // single-message request. The daemon doesn't need a long-lived
+    // socket for fire-and-forget submission.
+    client.end();
   });
 
   client.on("data", (data: Buffer) => {
@@ -2405,15 +2417,14 @@ if (command === "submit") {
       if (!line.trim()) continue;
       try {
         const msg = JSON.parse(line);
-        if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
+        if (msg.type === "task.created") console.log(`Task created: ${msg.taskId}`);
+        else if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
         else if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
         else if (msg.type === "queue.position") console.log(`Queue position: ${msg.position}`);
-        else if (msg.type === "tool.started") console.log(`  → ${msg.toolName || "tool"} started`);
-        else if (msg.type === "tool.completed") console.log(`  ✓ ${msg.toolName || "tool"} completed${msg.durationMs ? ` (${msg.durationMs}ms)` : ""}`);
-        else if (msg.type === "tool.failed") console.log(`  ✗ ${msg.toolName || "tool"} failed${msg.error ? ": " + msg.error.slice(0, 60) : ""}`);
         else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.end(); }
         else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); client.end(); }
         else if (msg.type === "session.ended") { client.end(); }
+        else client.end();
       } catch {
         console.log(line);
       }
@@ -2421,11 +2432,28 @@ if (command === "submit") {
   });
 
   client.on("error", (err: Error) => {
-    console.error(`Connection error: ${err.message}`);
-    process.exit(1);
+    // Suppress noisy errors that may fire after the close handler exits.
+    if (process.exitCode === undefined) {
+      console.error(`Connection error: ${err.message}`);
+      process.exit(1);
+    }
   });
 
-  client.on("close", () => process.exit(0));
+  client.on("close", () => {
+    if (process.exitCode === undefined) process.exit(0);
+  });
+
+  // Safety net: if the daemon never responds (e.g. socket stays open
+  // because the daemon is wedged), exit after 30 seconds. The setTimeout
+  // is NOT .unref()'d — it intentionally keeps the event loop alive so
+  // the script doesn't fall through to the bottom-of-file "Unknown
+  // command" branch.
+  setTimeout(() => {
+    if (process.exitCode === undefined) {
+      console.error("Daemon did not respond within 30 seconds; giving up.");
+      process.exit(1);
+    }
+  }, 30_000);
 }
 
 if (command === "audit") {
@@ -3089,5 +3117,11 @@ if (command === "issue" && args[0] === "run") {
   process.exit(0);
 }
 
-console.error(`Unknown command: ${command}`);
-process.exit(1);
+if (!commandHandled) {
+  console.error(`Unknown command: ${command}`);
+  process.exit(1);
+}
+// If we get here with commandHandled = true, the matched handler is
+// keeping the event loop alive and will call process.exit itself.
+// Don't process.exit(1) here — that would kill the loop before the
+// handler's listeners can run.
