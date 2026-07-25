@@ -76,6 +76,62 @@ function matchFenceClose(line: string): boolean {
 }
 
 /**
+ * Match a Markdown list item.
+ *
+ * Recognizes:
+ *   - `- foo`        → marker "-"
+ *   - `* foo`        → marker "*"
+ *   - `+ foo`        → marker "+"
+ *   - `1. foo`       → marker "ordered" (digit literal is not preserved)
+ *   - `-`, `*`, `+`, `1.` (bare markers) are also matched with empty
+ *     content. The scanner drops them via the items-length guard
+ *     (so a stray `-` line on its own never produces a block).
+ *
+ * Content after the marker is optional; when present it must be
+ * preceded by whitespace (`\s+`). A line like `-x` (no whitespace)
+ * is NOT a list item.
+ *
+ * Returns `{ marker, text }` on a match, or `null` otherwise.
+ */
+function matchListItem(
+  line: string
+): { marker: ListMarker; text: string } | null {
+  const dash = /^-(?:\s+(.*))?$/.exec(line);
+  if (dash) {
+    return {
+      marker: "-",
+      text: dash[1] ?? "",
+    };
+  }
+
+  const star = /^\*(?:\s+(.*))?$/.exec(line);
+  if (star) {
+    return {
+      marker: "*",
+      text: star[1] ?? "",
+    };
+  }
+
+  const plus = /^\+(?:\s+(.*))?$/.exec(line);
+  if (plus) {
+    return {
+      marker: "+",
+      text: plus[1] ?? "",
+    };
+  }
+
+  const ordered = /^\d+\.(?:\s+(.*))?$/.exec(line);
+  if (ordered) {
+    return {
+      marker: "ordered",
+      text: ordered[1] ?? "",
+    };
+  }
+
+  return null;
+}
+
+/**
  * Parse an agent response into a flat list of `ResponseBlock`s.
  *
  * Markdown remains the canonical persisted artifact; this function
@@ -107,6 +163,17 @@ export function parseResponseBlocks(
   let textBuffer: string[] = [];
 
   const flushText = (): void => {
+    if (textBuffer.length === 0) {
+      return;
+    }
+    // Trim trailing blank lines so a blank line at a list/code
+    // boundary is treated as a separator, not glued onto prose.
+    while (
+      textBuffer.length > 0 &&
+      textBuffer[textBuffer.length - 1]!.trim() === ""
+    ) {
+      textBuffer.pop();
+    }
     if (textBuffer.length === 0) {
       return;
     }
@@ -167,6 +234,64 @@ export function parseResponseBlocks(
         });
       }
       i = lines.length;
+      continue;
+    }
+
+    // LIST MODE — must run before text-mode so a `- ` line is
+    // recognized as a list item rather than absorbed into prose.
+    // (Code-mode already ran above, so a code line beginning with
+    // `- ` was handled there and is no longer in scope.)
+    const item = matchListItem(line);
+    if (item !== null) {
+      flushText();
+
+      const marker = item.marker;
+      const items: string[] = [];
+
+      if (item.text.trim()) {
+        items.push(item.text);
+      }
+
+      let k = i + 1;
+      while (k < lines.length) {
+        const next = matchListItem(lines[k]!);
+        if (next === null || next.marker !== marker) {
+          break;
+        }
+
+        if (next.text.trim()) {
+          items.push(next.text);
+        }
+
+        k++;
+      }
+
+      if (items.length) {
+        blocks.push({
+          type: "list",
+          marker,
+          items,
+        });
+      }
+
+      i = k;
+      continue;
+    }
+
+    // Text-mode fallback — accumulate until blank line or EOF.
+    //
+    // Two rules make list/text transitions clean:
+    //   1. When text mode is FRESH (textBuffer empty AND we just
+    //      exited a code or list block, or are at document start),
+    //      blank lines are pure separators and never enter the buffer.
+    //   2. flushText trims trailing blank lines before emitting, so
+    //      a blank line that ends a text run (followed by a list or
+    //      code block) is not glued onto the prose.
+    //
+    // Within a continuous text run, blank lines stay as content
+    // (preserves the existing Task 2 "preserves blank lines" invariant).
+    if (textBuffer.length === 0 && line.trim() === "") {
+      i++;
       continue;
     }
 
