@@ -52,7 +52,7 @@ describe('TuiAppState defaults', () => {
   it('starts on the chat tab with empty views', () => {
     const s: TuiAppState = {
       lastSnapshot: undefined,
-      activeTab: 'chat' as TabId,
+      activeTab: 'agent' as TabId,
       views: {
         chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
                 pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
@@ -73,7 +73,7 @@ describe('TuiAppState defaults', () => {
       refreshStatus: 'idle',
       history: [],
     };
-    expect(s.activeTab).toBe('chat');
+    expect(s.activeTab).toBe('agent');
     for (const id of ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'] as TabId[]) {
       expect(s.views[id]).toBeDefined();
     }

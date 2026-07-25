@@ -65,6 +65,10 @@ describe('TuiApp -- chat-input dispatch', () => {
     };
     // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
     internal.getStateForTest().lastSnapshot = snap;
+    // Chat tests drive the chat tab's input capture. The default landing
+    // tab is now 'agent' (post-ResponseBlock work) — these tests still
+    // exercise the chat path so we set it explicitly here.
+    internal.getStateForTest().activeTab = 'chat';
     internal.getStateForTest().views.chat.inputBuffer = '';
     internal.getStateForTest().views.chat.submittedPrompts = [];
     internal.getStateForTest().views.chat.agentResponses = [];

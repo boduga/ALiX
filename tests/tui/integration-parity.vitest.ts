@@ -69,7 +69,7 @@ describe('TuiApp — parity with legacy chat input', () => {
     expect(state.lastSnapshot!.session).not.toBeNull();
     expect(state.lastSnapshot!.session!.turns).toBe(0);
     expect(state.lastSnapshot!.session!.mode).toBe('auto');
-    expect(state.activeTab).toBe('chat');
+    expect(state.activeTab).toBe('agent');
   });
 
   it('lifecycle parity: stop() releases subsystems like legacy Tui.destroy()', async () => {
@@ -122,13 +122,10 @@ describe('TuiApp — parity with legacy chat input', () => {
     // TAB_ORDER: chat(0), agent(1), daemon(2), approvals(3),
     //            runtime(4), sops(5), policy(6)
     const getTab = () => app!.getStateForTest().activeTab;
-    expect(getTab()).toBe('chat');
-
-    // Tab → cycle forward one slot
-    stdinHandler!(Buffer.from('\t', 'utf8'));
+    // Default landing tab is now 'agent' (post-ResponseBlock work).
     expect(getTab()).toBe('agent');
 
-    // Tab again → daemon
+    // Tab → cycle forward one slot
     stdinHandler!(Buffer.from('\t', 'utf8'));
     expect(getTab()).toBe('daemon');
 

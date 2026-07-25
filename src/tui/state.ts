@@ -145,7 +145,7 @@ export function createInitialPerTabState(): PerTabState {
 export function createInitialTuiAppState(): TuiAppState {
   return {
     lastSnapshot: undefined,
-    activeTab: 'chat',
+    activeTab: 'agent',
     views: {
       chat: createInitialPerTabState(),
       agent: createInitialPerTabState(),
