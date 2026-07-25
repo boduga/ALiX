@@ -45,6 +45,7 @@ import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory } from "../run/helpers.js";
 import { SessionPhase } from "../tui/state.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
+import type { PlanTask } from "../planning/plan-task.js";
 
 // =============================================================================
 // Types (verbatim from P1 brief)
@@ -66,6 +67,23 @@ export interface AgentTurnResult {
   readonly toolCalls: readonly ToolCall[];
   readonly streamed?: boolean;
   readonly reason?: string;
+  /**
+   * Plan markdown content from the most recent plan phase (Task 6). Populated
+   * when the run included a plan phase; omitted when the session was resumed
+   * with no plan content or the plan was rejected.
+   *
+   * Backwards compatible — existing callers that ignore this field continue
+   * to work. New consumers (TUI plan rendering) can use it to surface the
+   * approved plan without re-reading the file from disk.
+   */
+  readonly planContent?: string;
+  /**
+   * Structured plan tasks paired with `planContent` (Task 6). When omitted,
+   * callers should fall back to `parsePlanTasks(planContent, sessionId)` —
+   * but in practice the agent loop populates this whenever planContent is
+   * present.
+   */
+  readonly planTasks?: readonly PlanTask[];
 }
 
 /**
@@ -127,13 +145,6 @@ export interface AgentSessionConfig {
    * of blocking on a TTY prompt inside `runPlanPhase`.
    */
   planApprovalMode?: "interactive" | "deferred";
-  /**
-   * Optional gate that owns the plan-approval decision in the TUI.
-   * When provided alongside `planApprovalMode: "interactive"`, the
-   * in-TUI plan-approval card drives the operator's yes/no/edit/detail
-   * decision. Mirrors the same opt on `RunOpts` for the CLI path.
-   */
-  planApprovalGate?: import("../run/plan-approval-gate.js").PlanApprovalGate;
   /** Load plan from file instead of generating. */
   planFilePath?: string;
   /** Resume from a prior session. */
@@ -227,13 +238,6 @@ export interface AgentSession {
   save(): Promise<void>;
   /** Resume from a prior session (stub — reconstruct from saved state). */
   resume(sessionId: string): Promise<void>;
-  /**
-   * Inject the plan-approval gate used by `runPlanPhase` when
-   * `planApprovalMode === "interactive"`. Optional in the interface
-   * for backwards compatibility — older implementations (e.g. test
-   * stubs) can omit it and fall back to the legacy TTY prompt path.
-   */
-  setPlanApprovalGate?(gate: import("../run/plan-approval-gate.js").PlanApprovalGate | null): void;
 }
 
 // =============================================================================
@@ -342,6 +346,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   let systemPrompt = "";
   let contextBundle: ContextBundle | undefined;
   let approvedPlanContent: string | undefined;
+  let approvedPlanTasks: readonly PlanTask[] | undefined;
   let memoryContext: string | undefined;
   let memoryStats: string | undefined;
 
@@ -444,6 +449,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
         (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
         (ctx as any)._planContent = reconstructed.planContent;
+        if (reconstructed.planTasks) (ctx as any)._planTasks = reconstructed.planTasks;
       }
 
       await ctx.log.append({
@@ -524,10 +530,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         // moves directly from Understanding to Executing.
         advancePhase(SessionPhase.Planning);
 
-        const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath, {
-          approvalMode: config.planApprovalMode ?? "interactive",
-          gate: config.planApprovalGate,
-        });
+        const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath);
         if (planResult.action === "rejected") {
           transitionWorkflowStatus(wfRun, "failed");
           await ctx.log.append({
@@ -538,6 +541,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
           throw new Error("Plan rejected by user");
         }
         approvedPlanContent = planResult.planContent;
+        approvedPlanTasks = planResult.planTasks;
       }
     }
 
@@ -951,6 +955,8 @@ You are in read-only mode. You can read files, search the codebase, and delegate
       toolCalls: turnToolCalls,
       streamed: result.streamed,
       reason: result.reason,
+      ...(approvedPlanContent !== undefined ? { planContent: approvedPlanContent } : {}),
+      ...(approvedPlanTasks ? { planTasks: approvedPlanTasks } : {}),
     };
   }
 
@@ -1026,6 +1032,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         if (reconstructed.scopeSnapshot) (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
         if (reconstructed.stateSnapshot) (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
         if (reconstructed.planContent) (ctx as any)._planContent = reconstructed.planContent;
+        if (reconstructed.planTasks) (ctx as any)._planTasks = reconstructed.planTasks;
         _sessionCompleted = reconstructed.completed;
       } else {
         // Replace internal state with the snapshot.
@@ -1078,6 +1085,9 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     }
     if (reconstructed.planContent) {
       (ctx as any)._planContent = reconstructed.planContent;
+    }
+    if (reconstructed.planTasks) {
+      (ctx as any)._planTasks = reconstructed.planTasks;
     }
 
     await ctx.log.append({
@@ -1204,8 +1214,5 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     getPhase,
     save,
     resume,
-    setPlanApprovalGate: (gate) => {
-      config.planApprovalGate = gate ?? undefined;
-    },
   };
 }

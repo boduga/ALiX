@@ -8,14 +8,66 @@
  */
 
 import { isShellTask, classifyTask } from "../task-classifier.js";
+import {
+  classifyAction,
+  evaluateArithmetic,
+  type ActionIntent,
+  type ActionClassification,
+} from "./action-classifier.js";
 
-export type TaskRouteKind = "tool" | "chat" | "grounded_chat" | "agent";
+/** Route kinds the runtime can dispatch. */
+export type TaskRouteKind = "direct" | "tool" | "chat" | "grounded_chat" | "agent";
 
+/**
+ * Diagnostic attached to routes that pass through the action classifier.
+ * Explains the classifier's intent and the route the runtime took.
+ */
+export interface RouteDiagnostic {
+  classification: ActionIntent;
+  route: "direct" | "tool" | "grounded_chat" | "agent" | "chat";
+  reason: string;
+  confidence?: number;
+}
+
+/**
+ * A classified task ready for execution.
+ *
+ * - `direct`     — no lifecycle, tools, or artifacts; either an arithmetic
+ *                  answer (carried in `answer`) or a single model call.
+ * - `tool`       — explicit shell/file tool invocation; legacy path.
+ * - `chat`       — compatibility direct chat (no tools, no retrieval).
+ * - `grounded_chat` — retrieval executor with a read-only tool allowlist.
+ * - `agent`      — full AgentSession / workflow lifecycle.
+ */
 export type TaskRoute =
-  | { kind: "tool"; tool: string; args: Record<string, unknown> }
-  | { kind: "chat"; prompt: string }
-  | { kind: "grounded_chat"; prompt: string; allowedTools: string[] }
-  | { kind: "agent"; task: string };
+  | {
+      kind: "direct";
+      prompt: string;
+      answer?: string;
+      diagnostic: RouteDiagnostic;
+    }
+  | {
+      kind: "tool";
+      tool: string;
+      args: Record<string, unknown>;
+      diagnostic?: RouteDiagnostic;
+    }
+  | {
+      kind: "chat";
+      prompt: string;
+      diagnostic?: RouteDiagnostic;
+    }
+  | {
+      kind: "grounded_chat";
+      prompt: string;
+      allowedTools: string[];
+      diagnostic: RouteDiagnostic;
+    }
+  | {
+      kind: "agent";
+      task: string;
+      diagnostic: RouteDiagnostic;
+    };
 
 /**
  * Detection signals for grounded_chat — tasks that need current or
@@ -247,18 +299,84 @@ function matchNaturalShellPhrase(task: string): string | null {
 }
 
 /**
+ * Format a numeric arithmetic result. Matches action-classifier's
+ * serializer so the route's `answer` is the same string a separate
+ * classification would surface.
+ */
+function formatNumber(n: number): string {
+  if (Number.isInteger(n)) return n.toString();
+  return Number(n.toFixed(12)).toString();
+}
+
+/**
+ * Build a `RouteDiagnostic` from the action classifier's output. The
+ * `route` field is supplied by the caller because the same intent can
+ * map to different routes in different contexts (e.g. `workspace_action`
+ * always maps to `agent`).
+ */
+function toDiagnostic(
+  c: ActionClassification,
+  route: RouteDiagnostic["route"],
+): RouteDiagnostic {
+  return {
+    classification: c.intent,
+    route,
+    reason: c.reason,
+    confidence: c.confidence,
+  };
+}
+
+/**
  * Classify a task and return the appropriate execution route.
  *
  * Classification priority:
- * 1. Shell commands (bare commands like "ls", "cat", "pwd") → tool via shell.run
- * 2. Natural-language shell phrases ("list files", "where am i") → tool via shell.run
- * 2b. Natural-language file operations ("write X to Y") → tool via shell.run
- * 3. Grounded questions (current events, web search, versions) → grounded_chat
- * 4. Research/docs tasks → chat (direct model, no tools)
- * 5. Everything else (feature, bugfix, refactor, unknown) → full agent loop
+ *
+ *  1. Action classifier — workspace_action (always dominates) → agent.
+ *  2. Pure arithmetic — direct answer (no model call, no tools).
+ *  3. Shell commands (bare commands like "ls", "cat", "pwd") → tool
+ *  4. Natural-language shell phrases ("list files", "where am i") → tool
+ *  5. Natural-language file operations ("write X to Y") → tool
+ *  6. Action classifier:
+ *       - external_retrieval → grounded_chat
+ *       - standalone_generation → direct (one model call)
+ *       - ambiguous → fall through to legacy chat/agent decision
+ *  7. Legacy fallback: research → chat, else → agent.
+ *
+ * Direct routes are added in Task 2 and carry a `RouteDiagnostic` so the
+ * runtime can surface how a prompt was classified. The `direct` route
+ * runs no lifecycle, attaches no tools, and produces no artifacts.
  */
 export function taskRouter(task: string): TaskRoute {
-  // 1. Shell tasks — route to shell.run tool
+  // 1. Action classifier — workspace_action dominates everything,
+  //    including shell commands and retrieval. A prompt like
+  //    "Find SQL usage in my repo" must not be hijacked by the
+  //    `^find` shell-command pattern.
+  const classification = classifyAction(task);
+  if (classification.intent === "workspace_action") {
+    return {
+      kind: "agent",
+      task,
+      diagnostic: toDiagnostic(classification, "agent"),
+    };
+  }
+
+  // 2. Pure arithmetic — direct answer with the parsed value. Dominates
+  //    every remaining signal so "1 + 1" never gets misrouted.
+  const arith = evaluateArithmetic(task);
+  if (arith !== null) {
+    return {
+      kind: "direct",
+      prompt: task,
+      answer: formatNumber(arith),
+      diagnostic: {
+        classification: "arithmetic",
+        route: "direct",
+        reason: "prompt is a pure arithmetic expression",
+      },
+    };
+  }
+
+  // 3. Shell tasks — route to shell.run tool
   if (isShellTask(task)) {
     return {
       kind: "tool",
@@ -267,7 +385,7 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 2. Natural-language shell phrases — route to shell.run tool
+  // 4. Natural-language shell phrases — route to shell.run tool
   const naturalShellCommand = matchNaturalShellPhrase(task);
   if (naturalShellCommand) {
     return {
@@ -277,7 +395,7 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 2b. Natural-language file operations — route to shell.run tool
+  // 5. Natural-language file operations — route to shell.run tool
   const naturalFileCommand = matchNaturalFileOperation(task);
   if (naturalFileCommand) {
     return {
@@ -287,16 +405,42 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 3. Grounded questions — route to model + read-only tools
-  if (isGroundedChatTask(task)) {
+  // 6. Continue with the classification result.
+  if (classification.intent === "external_retrieval") {
     return {
       kind: "grounded_chat",
       prompt: task,
       allowedTools: ["web.search", "web_fetch"],
+      diagnostic: toDiagnostic(classification, "grounded_chat"),
     };
   }
 
-  // 4. Research/doc tasks — route to direct chat
+  if (classification.intent === "standalone_generation") {
+    return {
+      kind: "direct",
+      prompt: task,
+      diagnostic: toDiagnostic(classification, "direct"),
+    };
+  }
+
+  // 7. ambiguous — fall back to the legacy research/docs → chat split,
+  //    with one refinement: a workspace-write intent ("write X to Y",
+  //    "create X in Y", "delete X from Y", …) always belongs in the
+  //    agent lane even when the legacy `classifyTask` would tag the
+  //    prompt as DOCS. Without this carve-out, "Write SQL into file"
+  //    would be misrouted to `chat` because `classifyTask` matches
+  //    the verb "write" as DOCS.
+  const trimmedTask = task.trim();
+  const hasWorkspaceWriteIntent =
+    /^(?:write|put|save|create|make|append|delete|remove|rm)\b[^.\n]*\b(?:to|into|in|as|from|on)\b/i.test(trimmedTask);
+  if (hasWorkspaceWriteIntent) {
+    return {
+      kind: "agent",
+      task,
+      diagnostic: toDiagnostic(classification, "agent"),
+    };
+  }
+
   const taskType = classifyTask(task);
   if (taskType === "research" || taskType === "docs") {
     return {
@@ -305,9 +449,9 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 5. Everything else — full agent loop
   return {
     kind: "agent",
     task,
+    diagnostic: toDiagnostic(classification, "agent"),
   };
 }

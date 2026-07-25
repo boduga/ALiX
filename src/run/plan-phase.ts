@@ -1,4 +1,20 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+/**
+ * src/run/plan-phase.ts — Plan phase: generate → save → approve.
+ *
+ * History:
+ *   - Round 0: parser creates `PlanTask` records (`src/planning/plan-task.ts`)
+ *     and sidecar persistence at `.alix/plans/<sessionId>.tasks.json`.
+ *   - Round 1: parser constrained to `## Changes` + `## Verification`; sidecar
+ *     failures non-fatal; prompt gate restored to HEAD semantics.
+ *   - Round 2 (this file): rebased onto the controller's authoritative HEAD
+ *     that includes `PlanApprovalGate` support. The gate is the TUI's
+ *     approval surface; the legacy TTY prompt is the CLI fallback. Both
+ *     paths now persist the structured sidecar (additive, non-fatal).
+ *
+ * @module
+ */
+
+import { mkdir, readFile, writeFile, unlink } from "node:fs/promises";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
@@ -6,13 +22,77 @@ import type { AgentContext } from "../agent/agent.js";
 import type { ContextBundle } from "../repomap/context-compiler.js";
 import { prompt } from "../cli/commands/prompt.js";
 import { isReadOnlyTask, isShellTask } from "../task-classifier.js";
+import {
+  parsePlanTasks,
+  buildPlanTaskList,
+  type PlanTask,
+} from "../planning/plan-task.js";
 import type { PlanApprovalGate } from "./plan-approval-gate.js";
 
 export type PlanPhaseResult =
-  | { action: "approved"; planContent: string }
-  | { action: "rejected"; planContent: string };
+  | { action: "approved"; planContent: string; planTasks?: readonly PlanTask[] }
+  | { action: "rejected"; planContent: string; planTasks?: readonly PlanTask[] };
 
 export type PlanApprovalMode = "interactive" | "deferred";
+
+/**
+ * Minimal filesystem operations the sidecar persistence needs.
+ * Exported so tests can inject a failing writer/unlinker.
+ */
+export interface SidecarFs {
+  write: (path: string, data: string) => Promise<void>;
+  unlink: (path: string) => Promise<void>;
+}
+
+const defaultSidecarFs: SidecarFs = {
+  write: writeFile,
+  unlink,
+};
+
+/**
+ * Persist the structured `.tasks.json` sidecar next to the `.md` plan file.
+ *
+ * Best-effort: failures are non-fatal. A warning is logged and the
+ * function returns `{ wrote: false, warning }` so callers can inspect
+ * the outcome without try/catch.
+ *
+ * If `planTasks` is empty, any existing sidecar is removed so the
+ * caller never leaves stale task records on disk.
+ *
+ * @param planDir - directory containing the `.md` plan (e.g. `.alix/plans`).
+ * @param sessionId - session id; combined with `planDir` to produce the sidecar path.
+ * @param planTasks - parsed tasks. Empty array triggers sidecar deletion.
+ * @param fs - filesystem writer/unlinker; defaults to `node:fs/promises`.
+ *             Override for testing.
+ */
+export async function persistPlanTaskSidecar(
+  planDir: string,
+  sessionId: string,
+  planTasks: readonly PlanTask[],
+  fs: SidecarFs = defaultSidecarFs,
+): Promise<{ wrote: boolean; warning: string | null }> {
+  const sidecarPath = join(planDir, `${sessionId}.tasks.json`);
+  try {
+    if (planTasks.length === 0) {
+      // No tasks → remove any stale sidecar.
+      try {
+        await fs.unlink(sidecarPath);
+      } catch (err) {
+        const code = (err as { code?: string }).code;
+        if (code !== "ENOENT") throw err;
+      }
+      return { wrote: false, warning: null };
+    }
+    const list = buildPlanTaskList(sessionId, planTasks);
+    await fs.write(sidecarPath, JSON.stringify(list, null, 2));
+    return { wrote: true, warning: null };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    const warning = `[plan-phase] warning: failed to persist plan task sidecar (${sidecarPath}): ${msg}`;
+    console.warn(warning);
+    return { wrote: false, warning };
+  }
+}
 
 /**
  * Run the plan phase: generate plan → save → (optionally) print and prompt.
@@ -21,22 +101,32 @@ export type PlanApprovalMode = "interactive" | "deferred";
  *   1. **Plan generation** — an LLM operation.
  *   2. **Interactive approval** — a terminal-UI operation.
  *
- * | approvalMode | process.stdout.isTTY | Behaviour |
- * |---|---|---|
- * | `"interactive"` (default) | `true` | Generate, print, prompt → approved/rejected |
- * | `"interactive"` | `false` | Skip entirely (backward-compat for CI/piped) |
- * | `"deferred"` | any | Generate, return as approved (caller handles display/prompt) |
+ * | approvalMode | process.stdout.isTTY | gate | Behaviour |
+ * |---|---|---|---|
+ * | `"interactive"` (default) | `true` | absent | Generate, print, prompt → approved/rejected |
+ * | `"interactive"` | `false` | absent | Skip entirely (backward-compat for CI/piped) |
+ * | `"interactive"` | any | provided | Generate, gate handles approve/reject/edit/detail |
+ * | `"deferred"` | any | any | Generate, return as approved (caller handles display/prompt) |
  *
  * Read-only / shell tasks always skip plan generation regardless of `approvalMode`.
+ *
+ * `sidecarFs` allows the caller to inject a custom filesystem writer/unlinker
+ * for the `.tasks.json` sidecar. Used by tests to simulate I/O failure.
+ * Sidecar failures are non-fatal and logged via `console.warn`.
  */
 export async function runPlanPhase(
   ctx: AgentContext,
   bundle: ContextBundle,
   task: string,
   planFilePath?: string,
-  opts?: { approvalMode?: PlanApprovalMode; gate?: PlanApprovalGate },
+  opts?: {
+    approvalMode?: PlanApprovalMode;
+    gate?: PlanApprovalGate;
+    sidecarFs?: SidecarFs;
+  },
 ): Promise<PlanPhaseResult> {
   const approvalMode = opts?.approvalMode ?? "interactive";
+  const sidecarFs = opts?.sidecarFs ?? defaultSidecarFs;
 
   // Skip plan generation for read-only / shell tasks — no model call wasted.
   if (isReadOnlyTask(task) || isShellTask(task)) {
@@ -64,6 +154,11 @@ export async function runPlanPhase(
   const planPath = join(planDir, `${ctx.sessionId}.md`);
   await writeFile(planPath, planContent);
 
+  // 2b. Parse plan content into structured tasks and persist sidecar.
+  // Best-effort — sidecar failures are non-fatal (non-fatal warning above).
+  const parsedTasks = parsePlanTasks(planContent, ctx.sessionId);
+  await persistPlanTaskSidecar(planDir, ctx.sessionId, parsedTasks, sidecarFs);
+
   // 3. Interactive: ask the operator to approve the plan.
   //    Two surfaces: the TUI gate (when provided) or the legacy TTY prompt.
   if (approvalMode === "interactive") {
@@ -72,14 +167,26 @@ export async function runPlanPhase(
       // yes/no/edit/detail keypresses. `runPlanPhase` is called inside the
       // agent loop, so blocking here is intentional — the loop awaits the
       // gate's Promise before continuing.
-      return await resolvePlanDecisionViaGate(opts.gate, planPath, planContent, ctx.sessionId);
+      return await resolvePlanDecisionViaGate(
+        opts.gate,
+        planPath,
+        planContent,
+        ctx.sessionId,
+        planDir,
+        sidecarFs,
+      );
     }
     console.log("\n" + planContent);
-    return await promptForPlanApproval(planPath, planContent);
+    return await promptForPlanApproval(planPath, planContent, {
+      planDir,
+      sessionId: ctx.sessionId,
+      initialTasks: parsedTasks,
+      sidecarFs,
+    });
   }
 
   // 4. Deferred: return plan without prompting (caller handles display/approval)
-  return { action: "approved", planContent };
+  return { action: "approved", planContent, planTasks: parsedTasks };
 }
 
 /**
@@ -90,14 +197,22 @@ export async function runPlanPhase(
  *
  * Why a loop and not a single decision: the gate's contract is a single
  * keypress per round. The model of "edit then re-confirm" is two rounds.
+ *
+ * Sidecar persistence: after every `edit` round, the `.tasks.json` file
+ * is re-parsed and rewritten. After `approve`, the sidecar matches the
+ * approved plan; after `reject` or empty-edit, the sidecar is deleted
+ * so no stale tasks remain on disk.
  */
 async function resolvePlanDecisionViaGate(
   gate: PlanApprovalGate,
   planPath: string,
   initialContent: string,
   sessionId: string,
+  planDir: string,
+  sidecarFs: SidecarFs,
 ): Promise<PlanPhaseResult> {
   let planContent = initialContent;
+  let currentTasks = parsePlanTasks(planContent, sessionId);
   // Bounded loop — defensive guard against a misbehaving gate that keeps
   // returning `edit`/`detail`. 10 rounds is far more than a real operator
   // would ever need; the gate is in control so honour anything beyond.
@@ -109,10 +224,11 @@ async function resolvePlanDecisionViaGate(
       planPath,
     });
     if (decision === "approve") {
-      return { action: "approved", planContent };
+      return { action: "approved", planContent, planTasks: currentTasks };
     }
     if (decision === "reject") {
-      return { action: "rejected", planContent };
+      await persistPlanTaskSidecar(planDir, sessionId, [], sidecarFs);
+      return { action: "rejected", planContent, planTasks: currentTasks };
     }
     if (decision === "edit") {
       // Open the editor in-place. The persisted file is the source of
@@ -127,9 +243,13 @@ async function resolvePlanDecisionViaGate(
       }
       if (edited.trim().length === 0) {
         console.log("Empty plan — cancelling.");
+        await persistPlanTaskSidecar(planDir, sessionId, [], sidecarFs);
         return { action: "rejected", planContent };
       }
       planContent = edited;
+      // Re-parse and refresh sidecar so the next round reflects the edit.
+      currentTasks = parsePlanTasks(planContent, sessionId);
+      await persistPlanTaskSidecar(planDir, sessionId, currentTasks, sidecarFs);
       continue;
     }
     // "detail" — print the plan to stdout (TTY sidecar) so the operator
@@ -141,7 +261,7 @@ async function resolvePlanDecisionViaGate(
   }
   // Defensive default: after 10 rounds, treat as "no decision made" and
   // approve (matches the spirit of deferred mode — unblock the loop).
-  return { action: "approved", planContent };
+  return { action: "approved", planContent, planTasks: currentTasks };
 }
 
 /**
@@ -254,26 +374,54 @@ function buildPlanSystemPrompt(task: string, bundle: ContextBundle): string {
 }
 
 /**
+ * Optional context passed to `promptForPlanApproval` so the legacy TTY
+ * prompt can refresh the `.tasks.json` sidecar after edit / reject.
+ */
+interface PromptForPlanApprovalCtx {
+  planDir: string;
+  sessionId: string;
+  initialTasks: readonly PlanTask[];
+  sidecarFs: SidecarFs;
+}
+
+/**
  * Prompt user for plan approval.
  * Returns 'approved' on Y, 'rejected' on n.
  * On 'e', opens $EDITOR for modifications then auto-approves.
  * On 'd', shows expanded info then re-prompts.
+ *
+ * When `sidecarCtx` is provided, the function also refreshes the
+ * `.tasks.json` sidecar:
+ *   - On `Y` (approve): current sidecar matches the approved plan.
+ *   - On `n` (reject): delete the sidecar (no stale tasks).
+ *   - On empty edit (auto-reject): delete the sidecar.
+ *   - On `e` then non-empty save (auto-approve): re-parse and rewrite.
  */
 async function promptForPlanApproval(
   planPath: string,
   planContent: string,
+  sidecarCtx?: PromptForPlanApprovalCtx,
 ): Promise<PlanPhaseResult> {
   while (true) {
     const answer = await prompt("Approve plan? [Y/n/e/d] ");
     const key = answer.toLowerCase().trim();
 
     if (key === "" || key === "y" || key === "yes") {
-      return { action: "approved", planContent };
+      return { action: "approved", planContent, planTasks: sidecarCtx?.initialTasks };
     }
 
     if (key === "n" || key === "no") {
       console.log("\nPlan rejected. Task cancelled.");
-      return { action: "rejected", planContent };
+      if (sidecarCtx) {
+        // Remove sidecar so we don't leave stale tasks on disk.
+        await persistPlanTaskSidecar(
+          sidecarCtx.planDir,
+          sidecarCtx.sessionId,
+          [],
+          sidecarCtx.sidecarFs,
+        );
+      }
+      return { action: "rejected", planContent, planTasks: sidecarCtx?.initialTasks };
     }
 
     if (key === "e" || key === "edit") {
@@ -287,10 +435,30 @@ async function promptForPlanApproval(
         const edited = await readFile(planPath, "utf8");
         if (edited.trim().length === 0) {
           console.log("Empty plan — cancelling.");
-          return { action: "rejected", planContent };
+          if (sidecarCtx) {
+            // Empty edit → no tasks → delete any stale sidecar.
+            await persistPlanTaskSidecar(
+              sidecarCtx.planDir,
+              sidecarCtx.sessionId,
+              [],
+              sidecarCtx.sidecarFs,
+            );
+          }
+          return { action: "rejected", planContent: edited, planTasks: sidecarCtx?.initialTasks };
         }
         console.log("\n--- Edited Plan ---\n");
         console.log(edited.trim());
+        if (sidecarCtx) {
+          // Re-parse after edit and refresh sidecar. Non-fatal on failure.
+          const editedTasks = parsePlanTasks(edited, sidecarCtx.sessionId);
+          await persistPlanTaskSidecar(
+            sidecarCtx.planDir,
+            sidecarCtx.sessionId,
+            editedTasks,
+            sidecarCtx.sidecarFs,
+          );
+          return { action: "approved", planContent: edited.trim(), planTasks: editedTasks };
+        }
         return { action: "approved", planContent: edited.trim() };
       }
     }

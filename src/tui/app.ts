@@ -14,6 +14,7 @@ import { renderSidebar } from './sidebar.js';
 import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PlanDecision } from '../run/plan-approval-gate.js';
+import type { PlanTask } from '../planning/plan-task.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -360,15 +361,16 @@ export class TuiApp {
   private async dispatchToSession(
     text: string,
     kind: 'chat' | 'agent',
-    perTab: { agentResponses: string[]; scrollOffset: number; planContent?: string },
-    candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string }>) | undefined>,
+    perTab: { agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] },
+    candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
     let summary: string = `${fallbackPrefix} ${text}`;
-    // Clear stale plan content before starting a new turn
+    // Clear stale plan content and plan tasks before starting a new turn
     perTab.planContent = undefined;
+    perTab.planTasks = undefined;
     for (const fn of candidates) {
       if (!fn) continue;
       try {
@@ -388,9 +390,12 @@ export class TuiApp {
         };
         if (noHelp(result.summary)) continue;
         summary = result.summary;
-        // Capture plan content from the session turn result
+        // Capture plan content and structured tasks from the session turn result
         if (result.planContent) {
           perTab.planContent = result.planContent;
+        }
+        if (result.planTasks && result.planTasks.length > 0) {
+          perTab.planTasks = result.planTasks;
         }
         // Friendly rewrites for known runtime termination reasons so the
         // operator doesn't see the raw internal "Agent reached maximum
@@ -420,9 +425,9 @@ export class TuiApp {
    */
   private raceAgentCall(
     text: string,
-    fn: (text: string) => Promise<{ summary: string; reason?: string; planContent?: string }>,
+    fn: (text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>,
     timeoutMs: number,
-  ): Promise<{ summary: string; reason?: string; planContent?: string }> {
+  ): Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }> {
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );

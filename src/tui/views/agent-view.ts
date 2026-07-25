@@ -66,6 +66,32 @@ export class AgentView implements TuiView {
     interface ScrollbackLine { kind: 'user' | 'agent' | 'plan' | 'approval'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
 
+    // Plan task checklist — rendered before the full plan markdown so the
+    // operator sees a structured summary at a glance. Each task line uses
+    // the same `plan` kind (dim styling) as the plan content below.
+    // Markers: [ ] pending, [~] in_progress, [x] completed, [-] skipped.
+    // Capped at 20 tasks to avoid overwhelming the scrollback.
+    if (ctx.perTab.planTasks && ctx.perTab.planTasks.length > 0) {
+      const statusSymbol: Record<string, string> = {
+        pending: '[ ]',
+        in_progress: '[~]',
+        completed: '[x]',
+        skipped: '[-]',
+      };
+      const tasks = ctx.perTab.planTasks.slice(0, 20);
+      allLines.push({ kind: 'plan', text: 'PLAN TASKS', isFirst: false });
+      for (const task of tasks) {
+        const marker = statusSymbol[task.status] ?? '[ ]';
+        const line = `${marker} ${task.index}. ${task.title}`;
+        const wrapped = wrapText(line, textWidth);
+        for (let i = 0; i < wrapped.length; i++) {
+          allLines.push({ kind: 'plan', text: wrapped[i]!, isFirst: false });
+        }
+      }
+      // Blank line separator before the full plan markdown
+      allLines.push({ kind: 'plan', text: '', isFirst: false });
+    }
+
     // Plan content — rendered above the turn scrollback as a distinguished
     // section so the operator sees what the agent planned to do.
     if (ctx.perTab.planContent) {
