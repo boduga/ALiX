@@ -39,11 +39,11 @@ function renderAgentResponse(
   for (const block of blocks) {
     if (block.type === 'text') {
       const lines = wrapText(block.text, textWidth);
-      lines.forEach((line, index) => {
+      lines.forEach((line) => {
         output.push({
           kind,
           text: line,
-          isFirst: index === 0,
+          isFirst: output.length === 0,
         });
       });
     } else if (block.type === 'code') {
@@ -51,7 +51,7 @@ function renderAgentResponse(
         output.push({
           kind,
           text: `  [${block.language}]`,
-          isFirst: true,
+          isFirst: output.length === 0,
         });
       }
       for (const line of block.code.split('\n')) {
@@ -72,7 +72,9 @@ function renderAgentResponse(
           output.push({
             kind,
             text: lineIndex === 0 ? prefix + line : indent + line,
-            isFirst: lineIndex === 0,
+            // Only the very first line of the entire response gets
+            // isFirst: true so the turn marker is drawn exactly once.
+            isFirst: output.length === 0,
           });
         });
       });

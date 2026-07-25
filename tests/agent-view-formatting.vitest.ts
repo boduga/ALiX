@@ -722,6 +722,27 @@ describe('AgentView — list rendering', () => {
     });
     expect(() => renderOnCanvas(40, TALL, perTab)).not.toThrow();
   });
+
+  it('renders exactly one turn marker per response, regardless of block count', () => {
+    // Regression test: a response with text + code + list should show
+    // exactly one ← marker (at the very first line of the response),
+    // not one per block. Earlier versions set isFirst: true for the
+    // first line of every block, which produced duplicate markers.
+    const perTab = makePerTab({
+      agentResponses: [
+        'Here is some prose.\n\n```python\nx = 1\n```\n\n- item 1\n- item 2',
+      ],
+    });
+    const c = renderOnCanvas(80, 40, perTab);
+    let markerCount = 0;
+    // Scan all rows for the cyan ← marker (agent response)
+    for (let y = 0; y < 40; y++) {
+      const char = cellAt(c, 0, y).char;
+      const style = cellAt(c, 0, y).style;
+      if (char === '←' && style.includes('36m')) markerCount++;
+    }
+    expect(markerCount).toBe(1);
+  });
 });
 
 /* ─────────────────────────────────────────────────────────────── */
