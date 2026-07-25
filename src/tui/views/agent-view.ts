@@ -24,8 +24,8 @@ interface RenderedLine {
  * (Text-mode currently delegates to `wrapText` so existing wrap
  * behaviour is unchanged.)
  *
- * Private to this file — not exported. Task 6 will add list-mode
- * rendering here.
+ * list-mode normalizes unordered markers and renumbers ordered items while
+ * wrapping each item independently with continuation-line indentation.
  */
 function renderAgentResponse(
   text: string,
@@ -61,6 +61,21 @@ function renderAgentResponse(
           isFirst: false,
         });
       }
+    } else if (block.type === 'list') {
+      block.items.forEach((item, index) => {
+        const prefix = block.marker === 'ordered' ? `${index + 1}. ` : '• ';
+        const indent = ' '.repeat(prefix.length);
+        const innerWidth = Math.max(1, textWidth - prefix.length);
+        const wrapped = wrapText(item, innerWidth);
+
+        wrapped.forEach((line, lineIndex) => {
+          output.push({
+            kind,
+            text: lineIndex === 0 ? prefix + line : indent + line,
+            isFirst: lineIndex === 0,
+          });
+        });
+      });
     }
   }
 

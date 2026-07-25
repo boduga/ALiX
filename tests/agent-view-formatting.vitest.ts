@@ -687,6 +687,43 @@ describe('AgentView — edge cases', () => {
   });
 });
 
+describe('AgentView — list rendering', () => {
+  it('renders unordered lists with bullets', () => {
+    const perTab = makePerTab({
+      agentResponses: ['- first\n- second'],
+    });
+    const all = allText(renderOnCanvas(W, TALL, perTab), 12);
+    expect(all).toContain('• first');
+    expect(all).toContain('• second');
+  });
+
+  it('renders ordered lists sequentially', () => {
+    const perTab = makePerTab({
+      agentResponses: ['5. five\n9. nine\n20. twenty'],
+    });
+    const all = allText(renderOnCanvas(W, TALL, perTab), 12);
+    expect(all).toContain('1. five');
+    expect(all).toContain('2. nine');
+    expect(all).toContain('3. twenty');
+  });
+
+  it('preserves text-list-text order', () => {
+    const perTab = makePerTab({
+      agentResponses: ['before\n\n- item\n\nafter'],
+    });
+    const all = allText(renderOnCanvas(W, TALL, perTab), 12);
+    expect(all.indexOf('before')).toBeLessThan(all.indexOf('• item'));
+    expect(all.indexOf('• item')).toBeLessThan(all.indexOf('after'));
+  });
+
+  it('wraps long list items', () => {
+    const perTab = makePerTab({
+      agentResponses: ['- ' + 'a '.repeat(80)],
+    });
+    expect(() => renderOnCanvas(40, TALL, perTab)).not.toThrow();
+  });
+});
+
 /* ─────────────────────────────────────────────────────────────── */
 /*  CODE BLOCKS                                                       */
 /* ─────────────────────────────────────────────────────────────── */
