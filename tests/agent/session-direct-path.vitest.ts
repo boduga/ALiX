@@ -48,10 +48,29 @@ const mocks = vi.hoisted(() => ({
   readAll: vi.fn(() => Promise.resolve([])),
   initAgent: vi.fn(),
   runTaskLoop: vi.fn(),
+  groundedChatComplete: vi.fn(async (_req: any) => ({
+    text: "Ethereum is trading at $1,891.",
+    toolCalls: [],
+  })),
+  toolExecutorExecute: vi.fn(async () => ({ kind: "success", output: "mock result" })),
 }));
 
 vi.mock("../../src/agent/agent.js", () => ({ initAgent: mocks.initAgent }));
 vi.mock("../../src/run/task-loop.js", () => ({ runTaskLoop: mocks.runTaskLoop }));
+vi.mock("../../src/providers/registry.js", () => ({
+  createProvider: vi.fn(async () => ({
+    id: "mock",
+    capabilities: {},
+    editFormatPreference: "unified_diff",
+    longContextStrategy: "trimmed_context",
+    complete: mocks.groundedChatComplete,
+  })),
+}));
+vi.mock("../../src/tools/executor.js", () => ({
+  ToolExecutor: class {
+    execute = mocks.toolExecutorExecute;
+  },
+}));
 vi.mock("../../src/utils/memory/recall.js", () => ({
   buildMemoryContext: vi.fn(() => Promise.resolve(undefined)),
   buildMemoryStats: vi.fn(() => Promise.resolve(undefined)),
@@ -301,7 +320,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(recorded[0].route).toBe("direct");
   });
 
-  it("onRouteDiagnostic does NOT fire for non-direct routes (workspace/external/ambiguous)", async () => {
+  it("onRouteDiagnostic fires for grounded_chat routes and does NOT fire for workspace/ambiguous", async () => {
     const recorded: RouteDiagnostic[] = [];
     const session = createAgentSession({
       cwd: directTestCwd,
@@ -316,10 +335,11 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(recorded).toHaveLength(0);
 
     await session.processTurn("What is the latest news today?");
-    expect(recorded).toHaveLength(0);
+    // grounded_chat fires the diagnostic via the route executor
+    expect(recorded).toHaveLength(1);
 
     await session.processTurn("hello there");
-    expect(recorded).toHaveLength(0);
+    expect(recorded).toHaveLength(1);
   });
 
   // ---- non-direct routes preserved ---------------------------------------
@@ -341,7 +361,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     expect(result.reason).not.toBe("direct");
   });
 
-  it("external_retrieval prompt continues with the existing lifecycle", async () => {
+  it("external_retrieval prompt is handled by the grounded_chat route executor", async () => {
     const session = createAgentSession({
       cwd: directTestCwd,
       task: "",
@@ -350,9 +370,12 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
     });
     const result = await session.processTurn("What is the latest news today?");
 
+    // Init is called (grounded_chat needs ctx), but runTaskLoop is NOT
+    // called — the route executor handles it instead.
     expect(mocks.initAgent).toHaveBeenCalledTimes(1);
-    expect(mocks.runTaskLoop).toHaveBeenCalledTimes(1);
-    expect(result.summary).toBe("agent-loop complete");
+    expect(mocks.runTaskLoop).not.toHaveBeenCalled();
+    expect(result.reason).toBe("grounded_chat");
+    expect(result.summary).toBe("Ethereum is trading at $1,891.");
   });
 
   it("ambiguous prompt continues with the existing lifecycle", async () => {

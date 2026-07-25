@@ -30,6 +30,8 @@ import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
+import { LocalRuntimeExecutor, executeRoute, type RuntimeContext } from "../runtime/route-executor.js";
+import type { TaskRoute } from "../runtime/task-router.js";
 import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
@@ -724,11 +726,11 @@ You are in read-only mode. You can read files, search the codebase, and delegate
   // ---- Exported interface methods ----
 
   async function processTurn(message: string): Promise<AgentTurnResult> {
-    // ── Direct-path preflight ────────────────────────────────────────────
-    // Classify the message BEFORE any initialization. Arithmetic and
-    // standalone_generation bypass the full agent lifecycle entirely:
-    // no provider, no tools, no workflow. Every other route kind falls
-    // through to the existing initialize() → runTaskLoop() path.
+    // ── Preflight classification ─────────────────────────────────────────
+    // Classify the message BEFORE any initialization. Direct routes bypass
+    // the full agent lifecycle entirely. Grounded_chat routes are handled
+    // by the route executor's two-step tool→synthesis pattern. All other
+    // route kinds fall through to initialize() → runTaskLoop().
     // Resolve classifier provider for the hybrid fallback.
     // When configured via classifierModel, use that explicitly; otherwise
     // fall back to chatModel (cheaper path) when available. When neither
@@ -789,6 +791,49 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         toolCalls: [],
         streamed: false,
         reason: "direct",
+      };
+    }
+
+    // ── Grounded chat — init then route executor ─────────────────────────
+    // External retrieval prompts need the two-step tool→synthesis pattern
+    // (search the web, then have the model synthesize an answer). The route
+    // executor handles this; the full agent loop would return raw tool output.
+    // We initialize first to get ctx (needed for the RuntimeContext), then
+    // delegate to the executor and return immediately — no agent loop.
+    if (route.kind === "grounded_chat") {
+      if (!initialized) {
+        if (!currentTask) currentTask = message;
+        await initialize();
+      } else {
+        advancePhase(SessionPhase.Understanding);
+      }
+      if (_sessionCompleted) {
+        return {
+          summary: `Session ${ctx.sessionId} is already completed.`,
+          sessionId: ctx.sessionId,
+          toolCalls: [],
+          streamed: false,
+          reason: "completed",
+        };
+      }
+      updatedAt = new Date().toISOString();
+
+      const executor = new LocalRuntimeExecutor();
+      const runtimeCtx: RuntimeContext = {
+        cwd: config.cwd,
+        sessionId: ctx.sessionId,
+        sessionDir: ctx.sessionDir,
+        eventLog: ctx.log,
+        config: ctx.config,
+        onRouteDiagnostic: config.onRouteDiagnostic,
+      };
+      const summary = await executeRoute(route, runtimeCtx, executor);
+      return {
+        summary,
+        sessionId: ctx.sessionId,
+        toolCalls: [],
+        streamed: false,
+        reason: "grounded_chat",
       };
     }
 
