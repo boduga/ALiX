@@ -490,7 +490,7 @@ export async function modelClassifyAction(
         "arithmetic\nworkspace_action\nstandalone_generation\nexternal_retrieval\nambiguous\n\n" +
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
-      maxOutputTokens: 16,
+      maxOutputTokens: 128,
     });
     const label = (response.text ?? "").trim().toLowerCase();
     const VALID: ActionIntent[] = [
