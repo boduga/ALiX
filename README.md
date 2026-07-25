@@ -130,7 +130,6 @@ alix serve
 | Command | Description |
 |---------|-------------|
 | `alix run "<task>"` | Default flow: plan → approve → execute. Supports `--no-plan`, `--mode=bypass`, `--resume <id>` |
-| `alix chat` | Interactive chat with web search tools |
 | `alix tui` | Multi-task terminal UI |
 | `alix serve` | Start the inspector web UI at `127.0.0.1:4137` (loopback) |
 | `alix daemon start|stop|status` | Persistent background daemon lifecycle |

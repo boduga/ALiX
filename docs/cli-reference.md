@@ -11,7 +11,6 @@
 | `alix run "<task>" --no-plan` | Execute directly without planning phase |
 | `alix run "<task>" --mode=bypass` | Run in bypass mode (no approval prompts) |
 | `alix run --resume <id>` | Resume an interrupted session |
-| `alix chat` | Interactive chat with web search tools |
 | `alix submit "<task>"` | Submit task to daemon (streaming output) |
 
 ## Graph execution

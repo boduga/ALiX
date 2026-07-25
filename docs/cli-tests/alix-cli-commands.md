@@ -30,7 +30,6 @@ tested in a temporary workspace with isolated `HOME` and `.alix` directories.
 | Command | Purpose | Example | Test notes |
 | --- | --- | --- | --- |
 | `alix init` | Initialize ALiX files in the current project. | `alix init` | Covered by `tests/cli/init.test.ts`; test idempotency in a temp workspace. |
-| `alix chat [--session <id>\|--new]` | Start or resume interactive chat. | `alix chat --new` | `tests/cli/chat-modes.test.ts`; full interaction is Manual/TTY/provider. |
 | `alix run "<task>" [options]` | Execute a task, normally through plan approval. | `alix run "summarize this repo" --no-stream` | Parser coverage in `tests/cli/run-args.test.ts`; provider execution is Manual/external. Cover `--no-plan`, `--mode`, `--resume`, `--plan-file`, `--intent`, and `--propose`. |
 | `alix submit "<task>"` | Submit a task to the background daemon and stream its result. | `alix submit "run tests"` | CLI integration with a temporary daemon; cover unavailable daemon and interrupted stream. |
 | `alix plan "<task>"`, `alix plan --list` | Create a reviewable plan or list saved plans. | `alix plan "upgrade dependencies"` | CLI integration; isolate plan storage and stub provider for creation. |
