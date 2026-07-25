@@ -70,8 +70,10 @@ Config example (same structure as every other tier):
 }
 ```
 
-When omitted, the tier is absent from `modelTiers` and the classifier
-stays purely deterministic (zero regression for users who don't set it).
+When omitted, the classifier resolves from the `"default"` tier (which
+is always configured). This means the model fallback works out of the
+box for every user — no extra config required. Users who want zero
+model calls for classification can explicitly set the tier to `null`.
 
 ## Change 2 — Confidence Threshold
 
@@ -183,10 +185,15 @@ config.modelTiers?.classifier
 - `taskRouter` signature changes from sync to async — ALL existing
   callers must be updated to `await` (or the non-opts path must wrap
   in `Promise.resolve`). This is the biggest migration surface.
-- When no `classifier` tier is configured: zero behavioral change.
-  Zero provider calls. Zero new dependencies.
-- When the tier is configured but the provider is down: deterministic
-  fallback, no crash.
+- When the `classifier` tier is explicitly null: zero behavioral change.
+  Zero provider calls for the fallback path. Deterministic-only.
+- When the tier is omitted (resolves from `"default"`): the main model
+  handles a tiny additional load (~50 tok in, ~5 tok out, only for
+  ambiguous prompts). This is the default behavior — no config change
+  needed.
+- When the tier is configured to a cheap model (recommended): dedicated
+  model for classification, main model untouched.
+- When the classifier provider is down: deterministic fallback, no crash.
 
 ## Test Plan
 
