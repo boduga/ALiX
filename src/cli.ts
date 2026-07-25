@@ -43,6 +43,7 @@ if (!command || command === "--help" || command === "-h") {
 Usage:
   Core:
     alix run "<task>" [--no-plan] [--no-stream] [--mode=auto|ask|bypass] [--resume <id>]
+    alix tui                       Interactive TUI dashboard (TTY)
     alix submit "<task>"
     alix session list|show <id>
     alix plan "<task>"
