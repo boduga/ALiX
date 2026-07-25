@@ -1003,7 +1003,9 @@ if (command === "run") {
       if (!result.streamed) {
         console.log(result.summary);
       }
-      console.log(`Session: ${result.sessionId}`);
+      if (result.sessionId) {
+        console.log(`Session: ${result.sessionId}`);
+      }
     }
 
     // --intent / --propose: capture execution as an ExecutionIntent artifact

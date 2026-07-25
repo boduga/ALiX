@@ -5,6 +5,16 @@
  * writes session events, and reports status.
  *
  * Run as: node dist/src/daemon/daemon-server.js --socket <path> --cwd <dir>
+ *
+ * Protocol summary (see `./daemon-types.ts` for the authoritative types):
+ *
+ *   { command: "run", task, cwd, route? }   — full lifecycle (session, tasks,
+ *                                              events, .alix/sessions, registry)
+ *   { command: "direct", task, requestId }  — ephemeral direct path (Task 3):
+ *                                              classifies first, no session,
+ *                                              no registry, no .alix/sessions
+ *   { command: "ping" }                     — liveness check
+ *   { command: "cancel", taskId }           — abort a running task
  */
 
 import { createServer, type Socket } from "node:net";
@@ -103,13 +113,84 @@ function createDaemonEventLog(sessionId: string, client: Socket, projectCwd: str
 
 /** Handle a single command from a connected client. */
 async function handleCommand(cmd: Record<string, unknown>, client: Socket): Promise<void> {
+  // ── Direct (ephemeral) protocol — Task 3 ─────────────────────────────
+  // This branch is INTENTIONALLY BEFORE the `run` command. It must
+  // classify the task before any TaskRegistry / session / event-log
+  // setup so the direct path stays free of side effects.
+  if (cmd.command === "direct") {
+    const task = String(cmd.task ?? "");
+    const requestId = String(cmd.requestId ?? "");
+    const requestCwd = String(cmd.cwd ?? defaultCwd);
+
+    if (!task) {
+      safeWrite(client, { type: "error", message: "direct command requires a task" });
+      return;
+    }
+    if (!requestId) {
+      safeWrite(client, { type: "error", message: "direct command requires a requestId" });
+      return;
+    }
+
+    // Classify BEFORE any state mutations. The router is loaded lazily
+    // so the direct path does not pull the agent-loop / tool-executor
+    // module graph into memory until a non-direct route is requested.
+    const { taskRouter } = await import("../runtime/task-router.js");
+    const classification = await taskRouter(task);
+
+    if (classification.kind !== "direct") {
+      // Ephemeral protocol must stay ephemeral. We never reach into
+      // the task queue / registry for a `direct` command. Instead we
+      // tell the client the requestId was *not* direct-eligible and
+      // let the client re-submit via the regular `run` command if it
+      // wants the slow path.
+      safeWrite(client, {
+        type: "direct.completed",
+        requestId,
+        text:
+          `[error] task is not eligible for the direct path ` +
+          `(route: ${classification.kind}). ` +
+          `Re-submit via the \`run\` command for a full lifecycle.`,
+      });
+      return;
+    }
+
+    await dispatchDirectRoute(client, classification, requestId, requestCwd);
+    return;
+  }
+
   if (cmd.command === "run") {
     const task = String(cmd.task || "");
     const requestCwd = String(cmd.cwd || defaultCwd);  // use request cwd or startup default
+
+    // ── Direct fast path (Task 3, review fix) ─────────────────────────
+    // Classify BEFORE any TaskRegistry / session / event setup so that
+    // direct-eligible requests (arithmetic + standalone generation)
+    // never create a registry entry, never open a session, never write
+    // an event, and never create `.alix/sessions` or `.alix/plans`.
+    //
+    // If the client supplied a route, trust it. Otherwise, classify via
+    // the shared router. Either way the classification happens BEFORE
+    // `registry.create(...)`.
+    let route = cmd.route as TaskRoute | undefined;
+    if (!route) {
+      const { taskRouter } = await import("../runtime/task-router.js");
+      route = await taskRouter(task);
+    }
+
+    if (route.kind === "direct") {
+      // Ephemeral requestId — same protocol surface as the explicit
+      // `direct` command so existing client handling keeps working.
+      const requestId =
+        `req_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      await dispatchDirectRoute(client, route, requestId, requestCwd);
+      return;
+    }
+
+    // Non-direct route — fall through to the existing lifecycle path.
     const record = registry.create(task, requestCwd);
     // Auto-register workspace activity (fire-and-forget)
     recordWorkspaceActivity(requestCwd).catch(() => {});
-    taskQueue.push({ task, taskId: record.id, cwd: requestCwd, route: cmd.route as TaskRoute | undefined, client });
+    taskQueue.push({ task, taskId: record.id, cwd: requestCwd, route, client });
     client.write(JSON.stringify({ type: "task.created", taskId: record.id, task: String(cmd.task || ""), position: taskQueue.length } satisfies DaemonResponse) + "\n");
     if (taskQueue.length === 1) {
       processQueue();
@@ -178,6 +259,76 @@ function extractFallbackOutput(events: any[]): string | null {
 }
 
 // ─── Daemon-side route executors ────────────────────────────────────
+
+/**
+ * Shared dispatch helper for the direct execution skeleton. Both the
+ * `direct` command handler and the `run` command's inline direct fast-path
+ * share this identical emit–execute–emit sequence.
+ *
+ * Emits `request.received`, calls `executeDirectRoute`, then emits
+ * `direct.completed` with the result or an error message.
+ */
+async function dispatchDirectRoute(
+  client: Socket,
+  route: TaskRoute & { kind: "direct" },
+  requestId: string,
+  cwd: string,
+): Promise<void> {
+  safeWrite(client, { type: "request.received", requestId });
+  try {
+    const text = await executeDirectRoute(route, cwd);
+    safeWrite(client, { type: "direct.completed", requestId, text });
+  } catch (err: unknown) {
+    const message =
+      err instanceof Error ? (err.stack ?? err.message) : String(err);
+    safeWrite(client, {
+      type: "direct.completed",
+      requestId,
+      text: `[error] direct execution failed: ${message}`,
+    });
+  }
+}
+
+/**
+ * Execute a `direct` route in the daemon process. (Task 3)
+ *
+ * Mirrors the local executor's contract:
+ *   - arithmetic: returns the pre-computed `answer` string verbatim
+ *   - standalone generation: one provider call, no tool loop
+ *
+ * Like the local executor, this function intentionally does **not**
+ * import `ToolExecutor` or `runTask`. The direct path must stay free
+ * of side-effecting executors — the whole point of the fast path is
+ * that it produces no session events, no task registry entry, no
+ * `.alix/sessions`, no `.alix/plans`.
+ *
+ * The local executor relies on the caller's `RuntimeContext.config`;
+ * the daemon has no `RuntimeContext`, so we load config from disk via
+ * `loadConfig(cwd)`. Errors here are surfaced to the caller via the
+ * `direct.completed` payload — never via session events.
+ */
+async function executeDirectRoute(
+  route: TaskRoute & { kind: "direct" },
+  cwd: string,
+): Promise<string> {
+  if (route.answer !== undefined) {
+    return route.answer;
+  }
+
+  const { loadConfig } = await import("../config/loader.js");
+  const config = await loadConfig(cwd);
+  const { createProvider } = await import("../providers/registry.js");
+
+  const provider = await createProvider({
+    provider: config.model.provider,
+    model: config.model.name,
+  });
+  const response = await provider.complete({
+    systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
+    messages: [{ role: "user", content: route.prompt }],
+  });
+  return response.text || "(no response)";
+}
 
 /** Execute a tool route in the daemon process via ToolExecutor. */
 async function executeToolRoute(
@@ -319,11 +470,11 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
   // Resolve route: use pre-classified route, or classify from scratch
   if (!route) {
     const { taskRouter } = await import("../runtime/task-router.js");
-    route = taskRouter(task);
+    route = await taskRouter(task);
   }
 
   try {
-    // Route execution — tool/chat/grounded_chat complete here, agent falls through
+    // Route execution — tool/chat/grounded_chat/direct complete here, agent falls through
     switch (route.kind) {
       case "tool":
         await executeToolRoute(route, taskId, sessionId, requestCwd, client, eventLog);
@@ -334,6 +485,16 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
       case "grounded_chat":
         await executeGroundedChatRoute(route, sessionId, requestCwd, client, eventLog);
         break;
+      case "direct": {
+        // A client may pre-classify a direct route and submit it via
+        // `run` instead of `direct`. Execute the direct path and stream
+        // the result as `assistant.text`. The lifecycle (session,
+        // registry, task.completed) still applies because the client
+        // opted into the slow path.
+        const text = await executeDirectRoute(route, requestCwd);
+        safeWrite(client, { type: "assistant.text" as const, sessionId, text });
+        break;
+      }
       case "agent":
         break; // fall through to runTask() below
     }

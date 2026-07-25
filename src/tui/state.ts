@@ -67,6 +67,13 @@ export interface PerTabState {
   /** Plan content from the most recent planning phase, if any. */
   planContent?: string;
   /**
+   * Structured plan tasks from the most recent planning phase.
+   * Rendered as a checklist before the plan markdown in the agent view.
+   * Populated from AgentTurnResult.planTasks when available; callers
+   * may fall back to parsePlanTasks(planContent, sessionId).
+   */
+  planTasks?: readonly PlanTask[];
+  /**
    * Live approval requests, oldest first. Mirrored from snapshot.approvals.pending
    * each refresh; resolved entries are removed here and pushed to resolvedApprovals.
    */
@@ -105,6 +112,7 @@ export interface PanelScrollOffsets {
 // Imported from snapshot.ts for use below; re-exported so callers can
 // continue importing either from state.ts or directly from snapshot.ts.
 import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';
+import type { PlanTask } from '../planning/plan-task.js';
 export type { DashboardSnapshot, SessionMetadata };
 
 export interface TuiAppState {

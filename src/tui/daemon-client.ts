@@ -14,7 +14,21 @@ export interface DaemonClientOptions {
   onDone: () => void;
 }
 
-/** Connect to the global daemon socket, submit a task, and stream events back. */
+/**
+ * Connect to the global daemon socket, submit a task, and stream events back.
+ *
+ * The client's response-handling model is "close-on-terminal-frame": the
+ * socket is closed when the daemon emits a terminal frame for whatever
+ * route was taken. The two terminal frames are:
+ *
+ *   - `session.ended`   — the regular lifecycle path finished
+ *   - `direct.completed` — the direct fast path (Task 3) finished
+ *
+ * When the server classifies a `run` command as `direct` (arithmetic or
+ * standalone generation), only `request.received` and `direct.completed`
+ * are emitted; the client must resolve the promise on `direct.completed`
+ * rather than waiting for a `session.ended` that will never come.
+ */
 export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<void> {
   const { homedir } = await import("node:os");
   const { join } = await import("node:path");
@@ -33,7 +47,11 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
       client.write(JSON.stringify({ command: "run", task: opts.task, cwd: opts.cwd, route: opts.route }) + "\n");
     });
 
-    let sawSessionEnded = false;
+    // Terminal-frame tracking. The server emits exactly one of:
+    //   - session.ended        (regular path)
+    //   - direct.completed     (fast path; no session, no events)
+    let sawTerminalFrame = false;
+    let terminalKind: "session" | "direct" | null = null;
     let buffer = "";
     client.on("data", (data: Buffer) => {
       buffer += data.toString("utf8");
@@ -46,7 +64,12 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
           const msg = JSON.parse(line) as DaemonResponse;
           opts.onEvent({ ...msg, raw: line });
           if (msg.type === "session.ended") {
-            sawSessionEnded = true;
+            sawTerminalFrame = true;
+            terminalKind = "session";
+            client.end();
+          } else if (msg.type === "direct.completed") {
+            sawTerminalFrame = true;
+            terminalKind = "direct";
             client.end();
           }
         } catch {
@@ -61,7 +84,10 @@ export async function submitTaskViaDaemon(opts: DaemonClientOptions): Promise<vo
     });
 
     client.on("close", () => {
-      if (!sawSessionEnded) opts.onError("Daemon connection closed before session ended.");
+      if (!sawTerminalFrame) {
+        opts.onError("Daemon connection closed before a terminal frame (session.ended or direct.completed).");
+      }
+      void terminalKind;
       opts.onDone();
       resolve();
     });
@@ -93,6 +119,15 @@ export function formatDaemonEvent(event: DaemonResponse & { raw?: string }): str
       return (event as any).text || null;
     case "error":
       return `Error: ${event.message}`;
+    // ── Direct (ephemeral) protocol — Task 3 ───────────────────────────
+    case "request.received":
+      // Low-noise acknowledgement; the client still receives it via
+      // onEvent but it doesn't need a TUI line.
+      return null;
+    case "direct.completed":
+      // The direct path's terminal frame IS the answer. Surface it as
+      // plain text so the TUI renders it the same way as assistant.text.
+      return (event as any).text ?? "";
     default:
       return null; // skip unhandled
   }
@@ -186,7 +221,14 @@ export class DaemonAgentSession implements AgentSession {
             if (msg.type === "assistant.text" && msg.text) {
               summary = msg.text;
             }
-            if (msg.type === "session.ended") {
+            // ── Direct fast path (Task 3) ─────────────────────────────────
+            // The direct path skips session.started / session.ended; its
+            // terminal frame is direct.completed. Treat it the same as
+            // session.ended for the purpose of resolving this promise.
+            if (msg.type === "direct.completed") {
+              summary = msg.text ?? summary;
+              client.end();
+            } else if (msg.type === "session.ended") {
               client.end();
             }
           } catch { /* skip malformed lines */ }
@@ -199,7 +241,23 @@ export class DaemonAgentSession implements AgentSession {
 
       client.on("close", () => {
         this.id = sessionId;
-        resolve({ summary, sessionId, toolCalls: [], reason: summary.startsWith("[daemon]") ? 'daemon-error' : undefined });
+        (async () => {
+          // Try to load plan tasks from the daemon's sidecar file.
+          // The daemon writes .tasks.json through the same plan-phase code
+          // as the local session, so the sidecar is at the same path.
+          let planContent: string | undefined;
+          let planTasks: readonly import("../planning/plan-task.js").PlanTask[] | undefined;
+          try {
+            const sidecarPath = join(this.cwd, ".alix", "plans", `${sessionId}.tasks.json`);
+            if (existsSync(sidecarPath)) {
+              const { readFileSync } = await import("node:fs");
+              const sidecar = JSON.parse(readFileSync(sidecarPath, "utf8"));
+              if (sidecar.planContent) planContent = sidecar.planContent;
+              if (sidecar.planTasks) planTasks = sidecar.planTasks;
+            }
+          } catch { /* sidecar may not exist — no plan was produced */ }
+          resolve({ summary, sessionId, planContent, planTasks, toolCalls: [], reason: summary.startsWith("[daemon]") ? 'daemon-error' : undefined });
+        })();
       });
 
       // 120s timeout

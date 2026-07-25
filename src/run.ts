@@ -33,6 +33,13 @@ export type RunOpts = {
    *   or prompting — the caller (TUI, Web UI, API) handles display.
    */
   planApprovalMode?: "interactive" | "deferred";
+  /**
+   * Optional gate that owns the plan-approval decision. When provided
+   * alongside `planApprovalMode: "interactive"`, `runPlanPhase` routes
+   * the operator's approve/reject/edit/detail decision through this gate
+   * instead of the legacy TTY prompt. The TUI owns the gate.
+   */
+  planApprovalGate?: import("./run/plan-approval-gate.js").PlanApprovalGate;
   resumeSessionId?: string;
   planFilePath?: string;
   readOnly?: boolean;
