@@ -60,6 +60,8 @@ export interface ActionClassification {
   arithmeticAnswer?: string;
 }
 
+import type { ModelAdapter } from "../providers/types.js";
+
 // ─────────────────────────────────────────────────────────────────────
 // Arithmetic parser
 // ─────────────────────────────────────────────────────────────────────
@@ -425,4 +427,82 @@ export function classifyAction(input: string): ActionClassification {
 function formatNumber(n: number): string {
   if (Number.isInteger(n)) return n.toString();
   return Number(n.toFixed(12)).toString();
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// Hybrid confidence scoring
+// ─────────────────────────────────────────────────────────────────────
+
+/**
+ * CONFIDENCE_THRESHOLD — minimum confidence score below which the
+ * deterministic classifier may defer to the model-based fallback.
+ * Hardcoded at 0.7; tune based on real-world false-positive rates.
+ */
+export const CONFIDENCE_THRESHOLD = 0.7;
+
+/**
+ * Deterministic confidence for each intent. Based on pattern precision.
+ */
+function confidenceForIntent(intent: ActionIntent): number {
+  switch (intent) {
+    case "arithmetic": return 1.0;
+    case "workspace_action": return 0.95;
+    case "standalone_generation": return 0.85;
+    case "external_retrieval": return 0.75;
+    case "ambiguous": return 0.5;
+  }
+}
+
+/**
+ * Like `classifyAction` but returns a confidence score alongside the
+ * classification. Pure function — no I/O, no provider access.
+ *
+ * The confidence score lets callers decide whether to rely on the
+ * deterministic result or fall back to a model-based classification.
+ */
+export function classifyActionWithConfidence(
+  input: string,
+): ActionClassification & { confidence: number } {
+  const result = classifyAction(input);
+  return {
+    ...result,
+    confidence: confidenceForIntent(result.intent),
+  };
+}
+
+/**
+ * Model-based classification fallback for prompts the deterministic
+ * classifier is unsure about (ambiguous or low-confidence).
+ *
+ * Makes one small provider call (~50 in / ~5 out tokens) with a
+ * terse system prompt. On provider error (timeout, connection refused)
+ * returns `ambiguous` — the model call must never block routing.
+ */
+export async function modelClassifyAction(
+  input: string,
+  provider: ModelAdapter,
+): Promise<ActionClassification> {
+  try {
+    const response = await provider.complete({
+      systemPrompt:
+        "You are a prompt router. Given a user request, classify it as exactly " +
+        "one of these labels:\n\n" +
+        "arithmetic\nworkspace_action\nstandalone_generation\nexternal_retrieval\nambiguous\n\n" +
+        "Reply with ONLY the label. No explanation. No punctuation.",
+      messages: [{ role: "user", content: input }],
+      maxOutputTokens: 16,
+    });
+    const label = (response.text ?? "").trim().toLowerCase();
+    const VALID: ActionIntent[] = [
+      "arithmetic", "workspace_action", "standalone_generation",
+      "external_retrieval", "ambiguous",
+    ];
+    const intent = VALID.find((v) => label === v);
+    if (intent) {
+      return { intent, reason: `model classified: ${label}` };
+    }
+    return { intent: "ambiguous", reason: `model returned unrecognized label: ${label}` };
+  } catch {
+    return { intent: "ambiguous", reason: "model classifier unavailable" };
+  }
 }

@@ -9,11 +9,14 @@
 
 import { isShellTask, classifyTask } from "../task-classifier.js";
 import {
-  classifyAction,
+  classifyActionWithConfidence,
+  modelClassifyAction,
+  CONFIDENCE_THRESHOLD,
   evaluateArithmetic,
   type ActionIntent,
   type ActionClassification,
 } from "./action-classifier.js";
+import type { ModelAdapter } from "../providers/types.js";
 
 /** Route kinds the runtime can dispatch. */
 export type TaskRouteKind = "direct" | "tool" | "chat" | "grounded_chat" | "agent";
@@ -329,6 +332,11 @@ function toDiagnostic(
 /**
  * Classify a task and return the appropriate execution route.
  *
+ * When `opts.classifierProvider` is provided, prompts that the deterministic
+ * classifier scores below `CONFIDENCE_THRESHOLD` (0.7) are passed to a
+ * model-based fallback for reclassification. When no provider is configured,
+ * the router stays purely deterministic.
+ *
  * Classification priority:
  *
  *  1. Action classifier — workspace_action (always dominates) → agent.
@@ -336,32 +344,31 @@ function toDiagnostic(
  *  3. Shell commands (bare commands like "ls", "cat", "pwd") → tool
  *  4. Natural-language shell phrases ("list files", "where am i") → tool
  *  5. Natural-language file operations ("write X to Y") → tool
- *  6. Action classifier:
+ *  6. Action classifier (with optional model fallback):
  *       - external_retrieval → grounded_chat
  *       - standalone_generation → direct (one model call)
- *       - ambiguous → fall through to legacy chat/agent decision
+ *       - ambiguous → (may reclassify via model) then legacy fallback
  *  7. Legacy fallback: research → chat, else → agent.
  *
- * Direct routes are added in Task 2 and carry a `RouteDiagnostic` so the
- * runtime can surface how a prompt was classified. The `direct` route
- * runs no lifecycle, attaches no tools, and produces no artifacts.
+ * Steps 1-5 are always deterministic — the model fallback only activates
+ * on ambiguous/low-confidence results from step 6.
  */
-export function taskRouter(task: string): TaskRoute {
-  // 1. Action classifier — workspace_action dominates everything,
-  //    including shell commands and retrieval. A prompt like
-  //    "Find SQL usage in my repo" must not be hijacked by the
-  //    `^find` shell-command pattern.
-  const classification = classifyAction(task);
+export async function taskRouter(
+  task: string,
+  opts?: { classifierProvider?: ModelAdapter },
+): Promise<TaskRoute> {
+  // 1. Deterministic classification with confidence score.
+  const classification = classifyActionWithConfidence(task);
+
   if (classification.intent === "workspace_action") {
     return {
       kind: "agent",
       task,
-      diagnostic: toDiagnostic(classification, "agent"),
+      diagnostic: toDiagnostic({ ...classification, intent: "workspace_action" }, "agent"),
     };
   }
 
-  // 2. Pure arithmetic — direct answer with the parsed value. Dominates
-  //    every remaining signal so "1 + 1" never gets misrouted.
+  // 2. Pure arithmetic — direct answer. Dominates every other signal.
   const arith = evaluateArithmetic(task);
   if (arith !== null) {
     return {
@@ -385,7 +392,7 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 4. Natural-language shell phrases — route to shell.run tool
+  // 4. Natural-language shell phrases
   const naturalShellCommand = matchNaturalShellPhrase(task);
   if (naturalShellCommand) {
     return {
@@ -395,7 +402,7 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 5. Natural-language file operations — route to shell.run tool
+  // 5. Natural-language file operations
   const naturalFileCommand = matchNaturalFileOperation(task);
   if (naturalFileCommand) {
     return {
@@ -405,31 +412,69 @@ export function taskRouter(task: string): TaskRoute {
     };
   }
 
-  // 6. Continue with the classification result.
-  if (classification.intent === "external_retrieval") {
-    return {
-      kind: "grounded_chat",
-      prompt: task,
-      allowedTools: ["web.search", "web_fetch"],
-      diagnostic: toDiagnostic(classification, "grounded_chat"),
-    };
+  // 6. High-confidence deterministic results — no model call needed.
+  if (classification.confidence >= CONFIDENCE_THRESHOLD) {
+    if (classification.intent === "external_retrieval") {
+      return {
+        kind: "grounded_chat",
+        prompt: task,
+        allowedTools: ["web.search", "web_fetch"],
+        diagnostic: toDiagnostic(classification, "grounded_chat"),
+      };
+    }
+    if (classification.intent === "standalone_generation") {
+      return {
+        kind: "direct",
+        prompt: task,
+        diagnostic: toDiagnostic(classification, "direct"),
+      };
+    }
   }
 
-  if (classification.intent === "standalone_generation") {
-    return {
-      kind: "direct",
-      prompt: task,
-      diagnostic: toDiagnostic(classification, "direct"),
-    };
+  // 7. Low-confidence / ambiguous — try model-based fallback when configured.
+  if (
+    opts?.classifierProvider &&
+    (classification.intent === "ambiguous" || classification.confidence < CONFIDENCE_THRESHOLD)
+  ) {
+    const modelResult = await modelClassifyAction(task, opts.classifierProvider);
+    // Use the model's classification instead of the deterministic result.
+    if (modelResult.intent !== "ambiguous") {
+      // Route based on the model's classification.
+      if (modelResult.intent === "workspace_action") {
+        return {
+          kind: "agent",
+          task,
+          diagnostic: toDiagnostic(modelResult, "agent"),
+        };
+      }
+      if (modelResult.intent === "external_retrieval") {
+        return {
+          kind: "grounded_chat",
+          prompt: task,
+          allowedTools: ["web.search", "web_fetch"],
+          diagnostic: toDiagnostic(modelResult, "grounded_chat"),
+        };
+      }
+      if (modelResult.intent === "standalone_generation") {
+        return {
+          kind: "direct",
+          prompt: task,
+          diagnostic: toDiagnostic(modelResult, "direct"),
+        };
+      }
+      // model returned arithmetic — unlikely but handle it as direct.
+      if (modelResult.intent === "arithmetic") {
+        return {
+          kind: "direct",
+          prompt: task,
+          diagnostic: toDiagnostic(modelResult, "direct"),
+        };
+      }
+      // Fall through to legacy path for remaining ambiguities.
+    }
   }
 
-  // 7. ambiguous — fall back to the legacy research/docs → chat split,
-  //    with one refinement: a workspace-write intent ("write X to Y",
-  //    "create X in Y", "delete X from Y", …) always belongs in the
-  //    agent lane even when the legacy `classifyTask` would tag the
-  //    prompt as DOCS. Without this carve-out, "Write SQL into file"
-  //    would be misrouted to `chat` because `classifyTask` matches
-  //    the verb "write" as DOCS.
+  // 8. ambiguous — legacy fallback with workspace-write carve-out.
   const trimmedTask = task.trim();
   const hasWorkspaceWriteIntent =
     /^(?:write|put|save|create|make|append|delete|remove|rm)\b[^.\n]*\b(?:to|into|in|as|from|on)\b/i.test(trimmedTask);

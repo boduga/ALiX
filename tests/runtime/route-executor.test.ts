@@ -79,7 +79,7 @@ describe("executeRoute dispatch", () => {
   });
 
   it("dispatches direct route to executeDirect", async () => {
-    const route: TaskRoute = taskRouter("2 + 2");
+    const route: TaskRoute = await taskRouter("2 + 2");
     assert.equal(route.kind, "direct");
     const result = await executeRoute(route, mockCtx, mockExecutor);
     assert.equal(result, "direct:2 + 2:4");
@@ -102,7 +102,7 @@ describe("executeRoute — onRouteDiagnostic forwarding", () => {
       executeAgent: async () => "ok",
     };
 
-    const route = taskRouter("2 + 2");
+    const route = await taskRouter("2 + 2");
     await executeRoute(route, ctx, mockExecutor);
     assert.equal(observed.length, 1);
     assert.equal(observed[0].classification, "arithmetic");
@@ -120,7 +120,7 @@ describe("executeRoute — onRouteDiagnostic forwarding", () => {
       executeAgent: async () => "ok",
     };
 
-    const route = taskRouter("Search latest docs");
+    const route = await taskRouter("Search latest docs");
     assert.equal(route.kind, "grounded_chat");
     await executeRoute(route, ctx, mockExecutor);
     assert.equal(observed.length, 1);
@@ -139,7 +139,7 @@ describe("executeRoute — onRouteDiagnostic forwarding", () => {
       executeAgent: async () => "ok",
     };
 
-    const route = taskRouter("Find SQL usage in my repo");
+    const route = await taskRouter("Find SQL usage in my repo");
     assert.equal(route.kind, "agent");
     await executeRoute(route, ctx, mockExecutor);
     assert.equal(observed.length, 1);
@@ -179,7 +179,7 @@ describe("executeRoute — onRouteDiagnostic forwarding", () => {
       executeAgent: async () => "ok",
     };
 
-    const route = taskRouter("2 + 2");
+    const route = await taskRouter("2 + 2");
     const result = await executeRoute(route, ctx, mockExecutor);
     assert.equal(result, "still-ok");
   });
@@ -194,7 +194,7 @@ describe("executeRoute — onRouteDiagnostic forwarding", () => {
       executeGroundedChat: async () => "ok",
       executeAgent: async () => "ok",
     };
-    const route = taskRouter("2 + 2");
+    const route = await taskRouter("2 + 2");
     const result = await executeRoute(route, ctx, mockExecutor);
     assert.equal(result, "ok");
   });

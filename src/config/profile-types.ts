@@ -11,7 +11,8 @@ export type ModelTier =
   | "researcher"
   | "coder"
   | "critic"
-  | "embeddings";
+  | "embeddings"
+  | "classifier";
 
 export type ProfileMode = "local-first" | "cloud-first" | "cloud-only";
 
@@ -61,7 +62,7 @@ export type ProfileData = {
 };
 
 const VALID_MODES = new Set(["local-first", "cloud-first", "cloud-only"]);
-const VALID_TIERS = new Set(["default", "planner", "researcher", "coder", "critic", "embeddings"]);
+const VALID_TIERS = new Set(["default", "planner", "researcher", "coder", "critic", "embeddings", "classifier"]);
 
 /** Runtime validation: ensure a loaded profile matches ProfileData shape. */
 export function validateProfile(raw: unknown): raw is ProfileData {

@@ -37,6 +37,7 @@ type PartialConfig = Partial<AlixConfig> & {
     thinking?: Partial<ModelTierConfig>;
     coding?: Partial<ModelTierConfig>;
     fast?: Partial<ModelTierConfig>;
+    classifier?: Partial<ModelTierConfig>;
   };
 };
 

@@ -135,7 +135,7 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
     // so the direct path does not pull the agent-loop / tool-executor
     // module graph into memory until a non-direct route is requested.
     const { taskRouter } = await import("../runtime/task-router.js");
-    const classification = taskRouter(task);
+    const classification = await taskRouter(task);
 
     if (classification.kind !== "direct") {
       // Ephemeral protocol must stay ephemeral. We never reach into
@@ -187,7 +187,7 @@ async function handleCommand(cmd: Record<string, unknown>, client: Socket): Prom
     let route = cmd.route as TaskRoute | undefined;
     if (!route) {
       const { taskRouter } = await import("../runtime/task-router.js");
-      route = taskRouter(task);
+      route = await taskRouter(task);
     }
 
     if (route.kind === "direct") {
@@ -466,7 +466,7 @@ async function handleRun(task: string, taskId: string, client: Socket, requestCw
   // Resolve route: use pre-classified route, or classify from scratch
   if (!route) {
     const { taskRouter } = await import("../runtime/task-router.js");
-    route = taskRouter(task);
+    route = await taskRouter(task);
   }
 
   try {

@@ -182,6 +182,12 @@ export interface AgentSessionConfig {
   /** API key for the lazy chat provider. */
   chatApiKey?: string;
   /**
+   * Optional model override for the hybrid classifier fallback.
+   * Shape mirrors `chatModel` — `{ provider, model? }`. When omitted,
+   * the classifier falls back to `chatModel`, then to pure deterministic.
+   */
+  classifierModel?: { provider: string; model?: string };
+  /**
    * When true, tool outputs are streamed to stdout during execution.
    * Defaults to true for CLI mode; set to false in TUI mode to prevent
    * raw tool output from flashing over the dashboard.
@@ -723,7 +729,18 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     // standalone_generation bypass the full agent lifecycle entirely:
     // no provider, no tools, no workflow. Every other route kind falls
     // through to the existing initialize() → runTaskLoop() path.
-    const route = taskRouter(message);
+    // Resolve classifier provider for the hybrid fallback.
+    // When configured via classifierModel, use that explicitly; otherwise
+    // fall back to chatModel (cheaper path) when available. When neither
+    // is set, the router stays purely deterministic — no provider cost.
+    const classifierCfg = config.classifierModel ?? config.chatModel;
+    const classifierProvider = classifierCfg
+      ? await createProvider(classifierCfg, config.chatApiKey).catch(() => null)
+      : null;
+
+    const route = await taskRouter(message, {
+      classifierProvider: classifierProvider ?? undefined,
+    });
     if (route.kind === "direct") {
       // Fire the diagnostic callback if one is wired (Task 4).
       // Callback failures are swallowed — diagnostics are observability,
