@@ -95,6 +95,22 @@ export async function persistPlanTaskSidecar(
 }
 
 /**
+ * Convenience wrapper: clear the `.tasks.json` sidecar by persisting an empty
+ * task list. Used on plan reject / empty edit to remove stale task records.
+ *
+ * @param planDir - directory containing the `.md` plan (e.g. `.alix/plans`).
+ * @param sessionId - session id.
+ * @param sidecarFs - filesystem writer/unlinker; defaults to `node:fs/promises`.
+ */
+async function clearPlanTaskSidecar(
+  planDir: string,
+  sessionId: string,
+  sidecarFs?: SidecarFs,
+): Promise<void> {
+  await persistPlanTaskSidecar(planDir, sessionId, [], sidecarFs);
+}
+
+/**
  * Run the plan phase: generate plan → save → (optionally) print and prompt.
  *
  * `approvalMode` separates two concerns that `runPlanPhase` previously conflated:
@@ -227,7 +243,7 @@ async function resolvePlanDecisionViaGate(
       return { action: "approved", planContent, planTasks: currentTasks };
     }
     if (decision === "reject") {
-      await persistPlanTaskSidecar(planDir, sessionId, [], sidecarFs);
+      await clearPlanTaskSidecar(planDir, sessionId, sidecarFs);
       return { action: "rejected", planContent, planTasks: currentTasks };
     }
     if (decision === "edit") {
@@ -243,7 +259,7 @@ async function resolvePlanDecisionViaGate(
       }
       if (edited.trim().length === 0) {
         console.log("Empty plan — cancelling.");
-        await persistPlanTaskSidecar(planDir, sessionId, [], sidecarFs);
+        await clearPlanTaskSidecar(planDir, sessionId, sidecarFs);
         return { action: "rejected", planContent };
       }
       planContent = edited;
@@ -414,10 +430,9 @@ async function promptForPlanApproval(
       console.log("\nPlan rejected. Task cancelled.");
       if (sidecarCtx) {
         // Remove sidecar so we don't leave stale tasks on disk.
-        await persistPlanTaskSidecar(
+        await clearPlanTaskSidecar(
           sidecarCtx.planDir,
           sidecarCtx.sessionId,
-          [],
           sidecarCtx.sidecarFs,
         );
       }
@@ -425,42 +440,35 @@ async function promptForPlanApproval(
     }
 
     if (key === "e" || key === "edit") {
-      const editor = process.env.VISUAL ?? process.env.EDITOR ?? "vim";
-      const result = spawnSync(editor, [planPath], { stdio: "inherit" });
-      if (result.error) {
-        console.error(`Failed to open editor "${editor}": ${result.error.message}`);
+      const edited = await openPlanInEditor(planPath);
+      if (edited === null) {
+        console.error("Could not open editor (set $VISUAL or $EDITOR).");
         continue;
       }
-      if (existsSync(planPath)) {
-        const edited = await readFile(planPath, "utf8");
-        if (edited.trim().length === 0) {
-          console.log("Empty plan — cancelling.");
-          if (sidecarCtx) {
-            // Empty edit → no tasks → delete any stale sidecar.
-            await persistPlanTaskSidecar(
-              sidecarCtx.planDir,
-              sidecarCtx.sessionId,
-              [],
-              sidecarCtx.sidecarFs,
-            );
-          }
-          return { action: "rejected", planContent: edited, planTasks: sidecarCtx?.initialTasks };
-        }
-        console.log("\n--- Edited Plan ---\n");
-        console.log(edited.trim());
+      if (edited.trim().length === 0) {
+        console.log("Empty plan — cancelling.");
         if (sidecarCtx) {
-          // Re-parse after edit and refresh sidecar. Non-fatal on failure.
-          const editedTasks = parsePlanTasks(edited, sidecarCtx.sessionId);
-          await persistPlanTaskSidecar(
+          await clearPlanTaskSidecar(
             sidecarCtx.planDir,
             sidecarCtx.sessionId,
-            editedTasks,
             sidecarCtx.sidecarFs,
           );
-          return { action: "approved", planContent: edited.trim(), planTasks: editedTasks };
         }
-        return { action: "approved", planContent: edited.trim() };
+        return { action: "rejected", planContent: edited, planTasks: sidecarCtx?.initialTasks };
       }
+      console.log("\n--- Edited Plan ---\n");
+      console.log(edited.trim());
+      if (sidecarCtx) {
+        const editedTasks = parsePlanTasks(edited, sidecarCtx.sessionId);
+        await persistPlanTaskSidecar(
+          sidecarCtx.planDir,
+          sidecarCtx.sessionId,
+          editedTasks,
+          sidecarCtx.sidecarFs,
+        );
+        return { action: "approved", planContent: edited.trim(), planTasks: editedTasks };
+      }
+      return { action: "approved", planContent: edited.trim() };
     }
 
     if (key === "d" || key === "detail") {

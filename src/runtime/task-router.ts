@@ -12,7 +12,6 @@ import {
   classifyActionWithConfidence,
   modelClassifyAction,
   CONFIDENCE_THRESHOLD,
-  evaluateArithmetic,
   type ActionIntent,
   type ActionClassification,
 } from "./action-classifier.js";
@@ -302,16 +301,6 @@ function matchNaturalShellPhrase(task: string): string | null {
 }
 
 /**
- * Format a numeric arithmetic result. Matches action-classifier's
- * serializer so the route's `answer` is the same string a separate
- * classification would surface.
- */
-function formatNumber(n: number): string {
-  if (Number.isInteger(n)) return n.toString();
-  return Number(n.toFixed(12)).toString();
-}
-
-/**
  * Build a `RouteDiagnostic` from the action classifier's output. The
  * `route` field is supplied by the caller because the same intent can
  * map to different routes in different contexts (e.g. `workspace_action`
@@ -369,12 +358,13 @@ export async function taskRouter(
   }
 
   // 2. Pure arithmetic — direct answer. Dominates every other signal.
-  const arith = evaluateArithmetic(task);
-  if (arith !== null) {
+  //    The deterministic classifier already evaluated the expression, so
+  //    read the pre-computed answer from the classification result.
+  if (classification.intent === "arithmetic" && classification.arithmeticAnswer !== undefined) {
     return {
       kind: "direct",
       prompt: task,
-      answer: formatNumber(arith),
+      answer: classification.arithmeticAnswer,
       diagnostic: {
         classification: "arithmetic",
         route: "direct",

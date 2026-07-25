@@ -330,10 +330,11 @@ const RETRIEVAL_SIGNALS: readonly RegExp[] = [
   /\bnews\b/i,
   /\bvulnerabilit(?:y|ies)\b/i,
   /\bcve\b/i,
-  /\bversion\s+of\b/i,
+  /\bversion\b/i,
   /\bschedule\b/i,
-  /\bprice\s+of\b/i,
-  /\brelease\s+notes?\b/i,
+  /\bprice\b/i,
+  /\brelease\b/i,
+  /\bcompare current\b/i,
 ];
 
 /**
@@ -424,7 +425,7 @@ export function classifyAction(input: string): ActionClassification {
  * Integers serialize without a decimal point; non-integers are rounded
  * to 12 fractional digits and re-numbered to drop trailing zeros.
  */
-function formatNumber(n: number): string {
+export function formatNumber(n: number): string {
   if (Number.isInteger(n)) return n.toString();
   return Number(n.toFixed(12)).toString();
 }

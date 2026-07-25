@@ -354,6 +354,12 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
   // ---- Mutable internal state (captured by closure) ----
   let initialized = false;
   let ctx: AgentContext;
+
+  function restoreReconstructedPlanTasks(reconstructed: { planTasks?: readonly PlanTask[] }): void {
+    if (reconstructed.planTasks) {
+      (ctx as any)._planTasks = reconstructed.planTasks;
+    }
+  }
   let session: { sessionId: string; actor: "system" };
   let wfRun: WorkflowRun;
   let taskGraph: TaskGraph;
@@ -479,7 +485,7 @@ export function createAgentSession(config: AgentSessionConfig): AgentSession {
         (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
         (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
         (ctx as any)._planContent = reconstructed.planContent;
-        if (reconstructed.planTasks) (ctx as any)._planTasks = reconstructed.planTasks;
+        restoreReconstructedPlanTasks(reconstructed);
       }
 
       await ctx.log.append({
@@ -784,7 +790,16 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
         messages: [{ role: "user", content: route.prompt }],
         maxOutputTokens: 512,
-      });
+      }).catch(() => null);
+      if (!genResponse) {
+        return {
+          summary: `[chat:no-provider] ${message}`,
+          sessionId: config.sessionId ?? "",
+          toolCalls: [],
+          streamed: false,
+          reason: "direct",
+        };
+      }
       return {
         summary: genResponse.text || "(no response)",
         sessionId: config.sessionId ?? "",
@@ -1176,7 +1191,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
         if (reconstructed.scopeSnapshot) (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
         if (reconstructed.stateSnapshot) (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
         if (reconstructed.planContent) (ctx as any)._planContent = reconstructed.planContent;
-        if (reconstructed.planTasks) (ctx as any)._planTasks = reconstructed.planTasks;
+        restoreReconstructedPlanTasks(reconstructed);
         _sessionCompleted = reconstructed.completed;
       } else {
         // Replace internal state with the snapshot.
@@ -1230,9 +1245,7 @@ You are in read-only mode. You can read files, search the codebase, and delegate
     if (reconstructed.planContent) {
       (ctx as any)._planContent = reconstructed.planContent;
     }
-    if (reconstructed.planTasks) {
-      (ctx as any)._planTasks = reconstructed.planTasks;
-    }
+    restoreReconstructedPlanTasks(reconstructed);
 
     await ctx.log.append({
       ...session, actor: "system", type: "session.resumed",
