@@ -2430,10 +2430,13 @@ if (command === "submit") {
         else if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
         else if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
         else if (msg.type === "queue.position") console.log(`Queue position: ${msg.position}`);
-        else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.end(); }
-        else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); client.end(); }
-        else if (msg.type === "session.ended") { client.end(); }
-        else client.end();
+        else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.destroy(); }
+        else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); client.destroy(); }
+        else if (msg.type === "session.ended") { client.destroy(); }
+        // Unhandled message types are ignored — wait for a terminal frame
+        // before closing. client.end() was called in the connect callback
+        // to half-close the write side; the read side stays open until
+        // the daemon closes its end or we hit the safety-net timeout.
       } catch {
         console.log(line);
       }
