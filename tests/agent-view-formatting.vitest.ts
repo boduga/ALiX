@@ -686,3 +686,56 @@ describe('AgentView — edge cases', () => {
     expect(rowText(c, 6)).toContain('x.ts');
   });
 });
+
+/* ─────────────────────────────────────────────────────────────── */
+/*  CODE BLOCKS                                                       */
+/* ─────────────────────────────────────────────────────────────── */
+
+describe('AgentView — code blocks', () => {
+  it('renders multiline code', () => {
+    const perTab = makePerTab({
+      agentResponses: [
+        '```python\nx=1\ny=2\n```',
+      ],
+    });
+    const c = renderOnCanvas(W, TALL, perTab);
+    const all = allText(c, 12);
+    expect(all).toContain('x=1');
+    expect(all).toContain('y=2');
+  });
+
+  it('does not show markdown fences', () => {
+    const perTab = makePerTab({
+      agentResponses: [
+        '```ts\nconst x=1;\n```',
+      ],
+    });
+    const c = renderOnCanvas(W, TALL, perTab);
+    const all = allText(c, 10);
+    expect(all).not.toContain('```');
+  });
+
+  it('renders language labels', () => {
+    const perTab = makePerTab({
+      agentResponses: [
+        '```typescript\nx\n```',
+      ],
+    });
+    const c = renderOnCanvas(W, TALL, perTab);
+    const all = allText(c, 10);
+    expect(all).toContain('[typescript]');
+  });
+
+  it('indents code body with two spaces', () => {
+    const perTab = makePerTab({
+      agentResponses: [
+        '```ts\nconst x=1;\n```',
+      ],
+    });
+    const c = renderOnCanvas(W, TALL, perTab);
+    const all = allText(c, 10);
+    // Each rendered code line starts with two spaces followed by code text,
+    // not the raw code on column 0.
+    expect(all).toContain('  const x=1;');
+  });
+});

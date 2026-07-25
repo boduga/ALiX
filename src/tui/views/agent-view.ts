@@ -1,6 +1,71 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
+import { parseResponseBlocks } from '../../agent/response-blocks.js';
+
+/**
+ * Internal scrollback line shape produced by `renderAgentResponse`.
+ * Matches the `ScrollbackLine` shape assembled inside `AgentView.render`,
+ * so the renderer can append the helper's output directly to `allLines`.
+ */
+interface RenderedLine {
+  kind: 'user' | 'agent' | 'plan' | 'approval';
+  text: string;
+  isFirst: boolean;
+}
+
+/**
+ * Render an agent (or user) response through the `ResponseBlock` parser
+ * so that fenced code blocks render verbatim with a 2-space indent and
+ * an optional `[lang]` header, instead of being word-wrapped as prose.
+ *
+ * Dispatch order preserves the parse-order invariant from the parser:
+ * code-mode runs before list-mode, and text-mode is the fallback.
+ * (Text-mode currently delegates to `wrapText` so existing wrap
+ * behaviour is unchanged.)
+ *
+ * Private to this file — not exported. Task 6 will add list-mode
+ * rendering here.
+ */
+function renderAgentResponse(
+  text: string,
+  kind: 'user' | 'agent',
+  textWidth: number
+): RenderedLine[] {
+  const output: RenderedLine[] = [];
+
+  const blocks = parseResponseBlocks(text);
+
+  for (const block of blocks) {
+    if (block.type === 'text') {
+      const lines = wrapText(block.text, textWidth);
+      lines.forEach((line, index) => {
+        output.push({
+          kind,
+          text: line,
+          isFirst: index === 0,
+        });
+      });
+    } else if (block.type === 'code') {
+      if (block.language) {
+        output.push({
+          kind,
+          text: `  [${block.language}]`,
+          isFirst: true,
+        });
+      }
+      for (const line of block.code.split('\n')) {
+        output.push({
+          kind,
+          text: `  ${line}`,
+          isFirst: false,
+        });
+      }
+    }
+  }
+
+  return output;
+}
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -104,9 +169,9 @@ export class AgentView implements TuiView {
     }
 
     for (const t of turns) {
-      const wrapped = wrapText(t.text, textWidth);
-      for (let i = 0; i < wrapped.length; i++) {
-        allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+      const rendered = renderAgentResponse(t.text, t.kind, textWidth);
+      for (const line of rendered) {
+        allLines.push(line);
       }
     }
 
