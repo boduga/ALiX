@@ -76,7 +76,7 @@ Verifier -> Diff Review -> Session Memory
 ```bash
 alix init
 alix run "fix failing tests"
-alix chat
+alix chat (removed; replaced by `alix tui` and `alix run`)
 alix plan
 alix apply
 alix review
