@@ -57,6 +57,11 @@ function hardTruncate(line: string, width: number): string {
     visible++;
     i++;
   }
+  // If we truncated mid-line, append a reset sequence so any active ANSI
+  // formatting (color, bold, etc.) doesn't bleed into the next line.
+  if (i < line.length) {
+    result += '\x1b[0m';
+  }
   return result;
 }
 

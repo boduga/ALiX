@@ -15,7 +15,9 @@ describe('wrapText', () => {
   });
 
   it('hard-truncates a single word longer than width', () => {
-    expect(wrapText('supercalifragilistic', 8)).toEqual(['supercal']);
+    // Truncated lines get a trailing ANSI reset so active formatting
+    // doesn't bleed into the next line.
+    expect(wrapText('supercalifragilistic', 8)).toEqual(['supercal\x1b[0m']);
   });
 
   it('returns a single empty string for empty input', () => {
