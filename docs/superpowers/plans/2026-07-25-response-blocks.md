@@ -1,1040 +1,2037 @@
-# Response Blocks — Phase 1 Implementation Plan
+I’ll provide the updated full implementation plan. It is too large to fit cleanly in one response without truncation, so I’ll split it into sections while preserving the original structure and checklist format.
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Add a pure Markdown-to-`ResponseBlock[]` parser and update the agent tab's renderer to consume structured blocks instead of treating every response as a single wrapped string.
-
-**Architecture:** A new pure function `parseResponseBlocks(md)` in `src/agent/response-blocks.ts` line-oriented state machine (TEXT/CODE/LIST) splits Markdown into typed blocks. The agent view's renderer is updated to dispatch per-block-type rendering: text blocks delegate to existing `wrapText`; code blocks render verbatim with 2-space indent; list blocks wrap each item with normalized bullets. Markdown remains the canonical source — no changes to `AgentTurnResult`, persistence, or state.
-
-**Tech Stack:** TypeScript, vitest, existing `TerminalCanvas` and `wrapText` utilities.
-
-**Spec:** [`docs/superpowers/specs/2026-07-25-response-blocks-design.md`](../specs/2026-07-25-response-blocks-design.md)
-
-## Global Constraints
-
-From the spec, copied verbatim — every task implicitly honors these:
-
-- `ResponseBlock` discriminated union has exactly three kinds: `{ type: "text"; text: string }`, `{ type: "code"; language?: string; code: string; fenced: true }`, `{ type: "list"; marker: "-" | "*" | "+" | "ordered"; items: string[] }`
-- Parser invariants: deterministic, pure, linear O(n), single pass, preserves source order, never throws for malformed input, never emits empty blocks, never mutates input
-- Implementation strategy: line-oriented state machine (TEXT/CODE/LIST), not regex-driven
-- Composes with `wrapText` rather than replacing it
-- Zero changes to `AgentTurnResult`, `PerTabState`, session files, or daemon protocol
-- No `throw` statements in parser happy path
-- Code fences: exactly three backticks only (no longer-than-three fences in Phase 1); tilde fences unsupported → text; any other fence length → text
-- Unclosed fence → emit partial content as `text` block
-- Parser normalizes CRLF to LF on read (documented; original separators are not preserved in malformed-fence fallback reconstruction)
-- Parser is a line-oriented scanner with explicit text/code/list modes (not a formal state enum — nested loops keyed off the current mode)
-- Code block `fenced` field is always `true` in Phase 1 (forward compat for inline code)
-- List `marker` preserves source: `-`, `*`, `+`, `ordered` (numbered uses literal "ordered")
-
-## File Structure
-
-| File | Action | Responsibility |
-|------|--------|----------------|
-| `src/agent/response-blocks.ts` | Create | `ResponseBlock` types + `parseResponseBlocks` pure function |
-| `src/tui/views/agent-view.ts` | Modify | Replace flat wrap loop with `parseResponseBlocks` + block dispatch |
-| `tests/response-blocks-parser.vitest.ts` | Create | Unit tests for the parser (~25 cases) |
-| `tests/agent-view-formatting.vitest.ts` | Modify | Extend with block-rendering tests |
-
-The parser lives in `src/agent/` (not `src/tui/`) because future phases will reuse it for the API, daemon protocol, and web UI. Keeping it transport-agnostic prevents coupling.
+## Part 1/3 — Overview, Architecture, Constraints, Tasks 1–3
 
 ---
 
-## Task 1: Define ResponseBlock types
+# Response Blocks — Phase 1 Implementation Plan (Updated)
 
-**Files:**
-- Create: `src/agent/response-blocks.ts`
-- Test: (none — types are compile-time only)
+> **For agentic workers:** REQUIRED SUB-SKILL: Use `superpowers:subagent-driven-development` (recommended) or `superpowers:executing-plans` to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Interfaces:**
-- Produces: `ResponseBlock` discriminated union (consumed by Tasks 2-4)
+**Status:** Approved implementation plan (updated)
 
-- [ ] **Step 1: Create the file with type definitions only**
+**Goal:** Add a pure Markdown-to-`ResponseBlock[]` parser and update the agent tab renderer to consume structured response blocks instead of treating every response as a single wrapped string.
+
+**Architecture:** A new pure function `parseResponseBlocks(md)` in `src/agent/response-blocks.ts` converts Markdown responses into typed presentation blocks using a line-oriented scanner. The parser preserves Markdown as the canonical source and introduces no persistence or protocol changes.
+
+The agent view renderer consumes `ResponseBlock[]` and dispatches rendering by block type:
+
+* `text` blocks delegate to existing `wrapText`
+* `code` blocks render without Markdown fences, preserve line structure, and use a 2-space indent
+* `list` blocks normalize markers and wrap individual items
+
+The parser is transport-agnostic and lives in `src/agent/` because future phases will reuse the same representation for API, daemon, and web rendering.
+
+**Tech Stack:** TypeScript, Vitest, existing `TerminalCanvas`, existing `wrapText`.
+
+**Spec:**
+`docs/superpowers/specs/2026-07-25-response-blocks-design.md`
+
+---
+
+# Global Constraints
+
+Every task must preserve these invariants.
+
+## ResponseBlock contract
+
+`ResponseBlock` is exactly:
+
+```ts
+export type ResponseBlock =
+  | { type: "text"; text: string }
+  | { type: "code"; language?: string; code: string; fenced: true }
+  | { type: "list"; marker: "-" | "*" | "+" | "ordered"; items: string[] };
+```
+
+`ListMarker` is:
+
+```ts
+export type ListMarker = "-" | "*" | "+" | "ordered";
+```
+
+---
+
+## Parser invariants
+
+`parseResponseBlocks(md)` must:
+
+* be deterministic
+* be pure
+* execute in linear O(n)
+* scan input once
+* preserve source order
+* never mutate input
+* never throw for malformed Markdown
+* never emit empty blocks
+
+Additional guarantees:
+
+* empty input returns `[]`
+* whitespace-only input returns `[]`
+* CRLF is normalized to LF
+* malformed fences become text blocks
+* unsupported Markdown remains text
+* parser never modifies stored Markdown
+
+---
+
+## Markdown support scope
+
+### Supported
+
+#### Text
+
+Normal prose:
+
+```md
+hello world
+```
+
+#### Code
+
+Only exactly three backtick fences:
+
+````md
+```typescript
+const x = 1;
+````
+
+````
+
+Supported:
+
+- optional language identifier
+- multiline content
+- empty code blocks
+
+Example:
+
+```md
+````
+
+```
+```
+
+Produces:
+
+```ts
+{
+  type: "code",
+  code: "",
+  fenced: true
+}
+```
+
+---
+
+### Unsupported
+
+These remain text:
+
+```md
+~~~python
+```
+
+`````md
+````python
+`````
+
+```md
+`inline`
+```
+
+```md
+``
+```
+
+---
+
+## Fence rules
+
+Opening fence:
+
+* exactly three backticks
+* must begin at column zero
+* may have optional language tag
+* language cannot contain whitespace or backticks
+
+Valid:
+
+````md
+```ts
+````
+
+Invalid:
+
+`````md
+ ````ts
+`````
+
+`````md
+````ts
+`````
+
+Closing fence:
+
+Valid:
+
+```md
+```
+
+````
+
+```md
+````
+
+````
+
+Invalid:
+
+```md
+````
+
+````
+
+---
+
+## List rules
+
+Supported:
+
+```md
+- item
+* item
++ item
+1. item
+````
+
+Normalization:
+
+* unordered markers preserve source marker internally
+* renderer displays unordered lists as `•`
+* ordered lists become sequential `1.`, `2.`, `3.`
+
+Adjacent lists with different markers become separate list blocks.
+
+Example:
+
+Input:
+
+```md
+- a
+* b
+```
+
+Output:
+
+```ts
+[
+ {
+   type:"list",
+   marker:"-",
+   items:["a"]
+ },
+ {
+   type:"list",
+   marker:"*",
+   items:["b"]
+ }
+]
+```
+
+---
+
+# File Structure
+
+| File                                     | Action | Responsibility               |
+| ---------------------------------------- | ------ | ---------------------------- |
+| `src/agent/response-blocks.ts`           | Create | ResponseBlock types + parser |
+| `src/tui/views/agent-view.ts`            | Modify | Structured block rendering   |
+| `tests/response-blocks-parser.vitest.ts` | Create | Parser tests                 |
+| `tests/agent-view-formatting.vitest.ts`  | Modify | Renderer tests               |
+
+---
+
+# Task 1 — Define ResponseBlock Types
+
+## Files
+
+Create:
+
+```
+src/agent/response-blocks.ts
+```
+
+---
+
+## Step 1: Create type definitions
 
 ```ts
 // src/agent/response-blocks.ts
 
 /**
- * Structured representation of an agent response, derived from Markdown.
- *
- * Markdown remains the canonical persisted artifact (see AgentTurnResult.summary
- * and perTab.agentResponses). This type is a presentation model — renderers
- * (TUI, web, CLI) consume it to avoid re-parsing Markdown for layout decisions.
- *
- * Phase 1 supports three block kinds:
- *   - text:  paragraphs of prose, possibly with blank lines
- *   - code:  fenced code blocks (three backticks; language optional)
- *   - list:  contiguous bullet or numbered lists
- *
- * Invariants (see parseResponseBlocks docs):
- *   - blocks never reordered or merged across non-adjacent content
- *   - never emits empty blocks
- *   - source order preserved
+ * Source marker preserved from Markdown list syntax.
  */
-export type ResponseBlock =
-  | { type: "text"; text: string }
-  | { type: "code"; language?: string; code: string; fenced: true }
-  | { type: "list"; marker: "-" | "*" | "+" | "ordered"; items: string[] };
+export type ListMarker =
+  | "-"
+  | "*"
+  | "+"
+  | "ordered";
+
 
 /**
- * Marker source for a list block. The renderer normalizes this to its
- * preferred display style. `"ordered"` covers all numbered lists regardless
- * of the actual digits in the source.
+ * Structured representation of an agent response.
+ *
+ * Markdown remains the canonical persisted artifact.
+ * ResponseBlock is only a presentation model.
+ *
+ * Phase 1 supports:
+ * - text paragraphs
+ * - fenced code blocks
+ * - bullet and ordered lists
  */
-export type ListMarker = "-" | "*" | "+" | "ordered";
+export type ResponseBlock =
+  | {
+      type: "text";
+      text: string;
+    }
+  | {
+      type: "code";
+      language?: string;
+      code: string;
+      fenced: true;
+    }
+  | {
+      type: "list";
+      marker: ListMarker;
+      items: string[];
+    };
 ```
 
-- [ ] **Step 2: Verify build succeeds**
+---
 
-Run: `pnpm build`
-Expected: Build passes with no errors. The new types compile cleanly.
+## Step 2: Verify build
 
-- [ ] **Step 3: Commit**
+Run:
+
+```bash
+pnpm build
+```
+
+Expected:
+
+```
+PASS
+```
+
+---
+
+## Step 3: Commit
 
 ```bash
 git add src/agent/response-blocks.ts
+
 git commit -m "feat(agent): add ResponseBlock type for structured agent responses"
 ```
 
 ---
 
-## Task 2: Parser — empty input + plain text
+# Task 2 — Parser: Empty Input and Plain Text
 
-**Files:**
-- Modify: `src/agent/response-blocks.ts`
-- Create: `tests/response-blocks-parser.vitest.ts`
+## Files
 
-**Interfaces:**
-- Consumes: `ResponseBlock` from Task 1
-- Produces: `parseResponseBlocks(md: string): readonly ResponseBlock[]`
+Modify:
 
-- [ ] **Step 1: Write failing tests for empty input and plain text**
-
-```ts
-// tests/response-blocks-parser.vitest.ts
-import { describe, it, expect } from "vitest";
-import { parseResponseBlocks } from "../src/agent/response-blocks.js";
-
-describe("parseResponseBlocks — empty and plain text", () => {
-  it("returns [] for empty input", () => {
-    expect(parseResponseBlocks("")).toEqual([]);
-  });
-
-  it("returns [] for whitespace-only input", () => {
-    expect(parseResponseBlocks("   \n\n  \t  \n")).toEqual([]);
-  });
-
-  it("wraps plain prose in a single text block", () => {
-    expect(parseResponseBlocks("Hello world")).toEqual([
-      { type: "text", text: "Hello world" },
-    ]);
-  });
-
-  it("preserves newlines inside text blocks", () => {
-    const md = "line one\nline two\nline three";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "line one\nline two\nline three" },
-    ]);
-  });
-
-  it("preserves blank lines inside text blocks", () => {
-    const md = "first paragraph\n\nsecond paragraph";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "first paragraph\n\nsecond paragraph" },
-    ]);
-  });
-});
+```
+src/agent/response-blocks.ts
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+Create:
 
-Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: FAIL with "Cannot find module" or "parseResponseBlocks is not a function".
-
-- [ ] **Step 3: Implement parser skeleton with text-only path**
-
-```ts
-// src/agent/response-blocks.ts — append below the existing type definitions
-
-/**
- * Parse a Markdown response into a sequence of typed blocks.
- *
- * Pure, deterministic, single-pass line-oriented scanner with three modes:
- *   text  — accumulating prose into a text block
- *   code  — accumulating lines inside a fenced code block
- *   list  — accumulating list items into a list block
- *
- * Implementation note: this is a scanner driven by explicit mode checks
- * per line, not a formal state enum. The mode is implicit in the current
- * branch of the main loop. The three modes are clearly distinct in the
- * code but are not represented as a `State` type.
- *
- * Line endings: the parser splits on /\r?\n/ and rejoins with "\n".
- * CRLF is normalized to LF on read. The original separator sequence is
- * not preserved across parsing.
- *
- * Invariants:
- *   - empty input → []
- *   - blocks preserve source order
- *   - never emits empty blocks (zero-length text or list with zero items)
- *   - never throws for malformed input (unclosed fence, tilde fence, etc.)
- *   - never mutates the input string
- *
- * See design spec for the full invariant list.
- */
-export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
-  if (!md) return [];
-  if (!md.trim()) return [];
-
-  const blocks: ResponseBlock[] = [];
-  const lines = md.split(/\r?\n/);
-  let i = 0;
-
-  let textBuf: string[] = [];
-  const flushText = () => {
-    if (textBuf.length === 0) return;
-    const text = textBuf.join("\n");
-    textBuf = [];
-    if (text.trim() === "") return; // skip empty
-    blocks.push({ type: "text", text });
-  };
-
-  while (i < lines.length) {
-    const line = lines[i]!;
-    // CODE state and LIST state are handled in later tasks.
-    textBuf.push(line);
-    i++;
-  }
-
-  flushText();
-  return blocks;
-}
 ```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: All 5 tests pass.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/agent/response-blocks.ts tests/response-blocks-parser.vitest.ts
-git commit -m "feat(agent): parseResponseBlocks handles plain text + empty input"
+tests/response-blocks-parser.vitest.ts
 ```
 
 ---
 
-## Task 3: Parser — fenced code blocks
-
-**Files:**
-- Modify: `src/agent/response-blocks.ts`
-- Modify: `tests/response-blocks-parser.vitest.ts`
-
-**Interfaces:**
-- Consumes: `ResponseBlock` from Task 1
-- Produces: extended `parseResponseBlocks` that recognizes fenced code blocks
-
-- [ ] **Step 1: Write failing tests for code blocks**
-
-Add to `tests/response-blocks-parser.vitest.ts`:
+## Step 1: Add tests
 
 ```ts
-describe("parseResponseBlocks — fenced code blocks", () => {
-  it("emits a code block for a fenced snippet with language", () => {
-    const md = "```python\ndef f():\n    return 1\n```";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "code", language: "python", code: "def f():\n    return 1", fenced: true },
+describe("parseResponseBlocks — text", () => {
+
+  it("returns [] for empty input", () => {
+    expect(parseResponseBlocks(""))
+      .toEqual([]);
+  });
+
+
+  it("returns [] for whitespace only", () => {
+    expect(parseResponseBlocks(" \n\t "))
+      .toEqual([]);
+  });
+
+
+  it("wraps prose as text", () => {
+    expect(parseResponseBlocks("hello"))
+      .toEqual([
+        {
+          type:"text",
+          text:"hello"
+        }
+      ]);
+  });
+
+
+  it("preserves internal newlines", () => {
+    expect(parseResponseBlocks(
+      "one\ntwo\nthree"
+    ))
+    .toEqual([
+      {
+        type:"text",
+        text:"one\ntwo\nthree"
+      }
     ]);
   });
 
-  it("emits a code block with no language when the fence has none", () => {
-    const md = "```\nx = 1\n```";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "code", code: "x = 1", fenced: true },
+
+  it("preserves blank lines", () => {
+    expect(parseResponseBlocks(
+      "first\n\nsecond"
+    ))
+    .toEqual([
+      {
+        type:"text",
+        text:"first\n\nsecond"
+      }
     ]);
   });
 
-  it("emits multiple code blocks in order", () => {
-    const md = "```js\nx\n```\n\n```py\ny\n```";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "code", language: "js", code: "x", fenced: true },
-      { type: "code", language: "py", code: "y", fenced: true },
+
+  it("normalizes CRLF", () => {
+    expect(parseResponseBlocks(
+      "one\r\ntwo"
+    ))
+    .toEqual([
+      {
+        type:"text",
+        text:"one\ntwo"
+      }
     ]);
   });
 
-  it("returns text block (no exception) when fence is unclosed", () => {
-    const md = "```py\nx = 1";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "```py\nx = 1" },
-    ]);
-  });
-
-  it("treats tilde fences as plain text", () => {
-    const md = "~~~py\nx = 1\n~~~";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "~~~py\nx = 1\n~~~" },
-    ]);
-  });
-
-  it("treats a single backtick as plain text", () => {
-    expect(parseResponseBlocks("`code`")).toEqual([
-      { type: "text", text: "`code`" },
-    ]);
-  });
-
-  it("treats four-backtick fences as plain text (only three supported)", () => {
-    const md = "````\nx\n````";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "````\nx\n````" },
-    ]);
-  });
-
-  it("treats mismatched fence lengths as plain text", () => {
-    const md = "````\nx\n```";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "````\nx\n```" },
-    ]);
-  });
-
-  it("treats two-backtick fence as plain text (only three supported)", () => {
-    const md = "``\nx\n``";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "``\nx\n``" },
-    ]);
-  });
-});
-
-describe("parseResponseBlocks — mixed content", () => {
-  it("emits text, code, text, list in source order", () => {
-    const md = [
-      "Here is code:",
-      "",
-      "```ts",
-      "const x = 1;",
-      "```",
-      "",
-      "Next steps:",
-      "",
-      "- test",
-      "- deploy",
-    ].join("\n");
-    const blocks = parseResponseBlocks(md);
-    expect(blocks).toHaveLength(4);
-    expect(blocks[0]).toMatchObject({ type: "text" });
-    expect(blocks[1]).toMatchObject({ type: "code", language: "ts" });
-    expect(blocks[2]).toMatchObject({ type: "text" });
-    expect(blocks[3]).toMatchObject({ type: "list", marker: "-" });
-  });
-
-  it("never throws for arbitrary malformed input", () => {
-    const inputs = [
-      "",
-      "~~~",
-      "```",
-      "\0",
-      "🔥🔥🔥",
-      "\n\n\n",
-      "```unclosed",
-      "- ",
-      "* ",
-      "1. ",
-      "\t\t\t",
-      "``````",
-      "```\n```\n```",
-    ];
-    for (const input of inputs) {
-      expect(() => parseResponseBlocks(input)).not.toThrow();
-    }
-  });
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+---
 
-Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: All new code-block tests fail; existing 5 still pass.
+## Step 2: Verify failure
 
-- [ ] **Step 3: Add CODE mode to the parser**
+Run:
+
+```bash
+npx vitest run tests/response-blocks-parser.vitest.ts
+```
+
+Expected:
+
+FAIL
+
+---
+
+## Step 3: Implement parser skeleton
 
 ```ts
-// src/agent/response-blocks.ts — append below the existing type definitions
+export function parseResponseBlocks(
+  md: string
+): readonly ResponseBlock[] {
 
-/**
- * Match an opening fence line: EXACTLY three backticks at the start of
- * a line, optionally followed by a language tag (any non-whitespace,
- * non-backtick characters).
- *
- * Phase 1 does NOT support:
- *   - fences longer than three backticks (` ```` ` is plain text)
- *   - tilde fences (`~~~`) — plain text
- *   - inline code (single backticks) — plain text
- *   - indented fences — plain text
- */
-function matchFenceOpen(line: string): { language?: string } | null {
-  const m = /^```([^\s`]*)\s*$/.exec(line);
-  if (!m) return null;
-  return { language: m[1] || undefined };
-}
-
-/**
- * Match a closing fence: exactly three backticks at the start of a line
- * with optional trailing whitespace. Implemented as a direct string
- * comparison to avoid dynamic regex construction.
- */
-const CLOSING_FENCE = "```";
-function matchFenceClose(line: string): boolean {
-  // Compare against "```" with optional trailing whitespace.
-  // line.trimEnd() avoids dynamic regex creation.
-  return line.trimEnd() === CLOSING_FENCE;
-}
-
-export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
-  if (!md) return [];
-  if (!md.trim()) return [];
-
-  const blocks: ResponseBlock[] = [];
-  const lines = md.split(/\r?\n/);
-  let i = 0;
-
-  let textBuf: string[] = [];
-  const flushText = () => {
-    if (textBuf.length === 0) return;
-    const text = textBuf.join("\n");
-    textBuf = [];
-    if (text.trim() === "") return;
-    blocks.push({ type: "text", text });
-  };
-
-  while (i < lines.length) {
-    const line = lines[i]!;
-    const fenceOpen = matchFenceOpen(line);
-
-    if (fenceOpen) {
-      flushText();
-      // Collect lines until matching close.
-      const codeLines: string[] = [];
-      i++;
-      let closed = false;
-      while (i < lines.length) {
-        if (matchFenceClose(lines[i]!, fenceOpen.fenceLen)) {
-          closed = true;
-          i++;
-          break;
-        }
-        codeLines.push(lines[i]!);
-        i++;
-      }
-      // Unclosed fence: emit the partial content (including the opening
-      // fence line) as a text block. No exception, no throw.
-      if (!closed) {
-        const reconstructed = [line, ...codeLines].join("\n");
-        blocks.push({ type: "text", text: reconstructed });
-        continue;
-      }
-      const code = codeLines.join("\n");
-      blocks.push({
-        type: "code",
-        language: fenceOpen.language,
-        code,
-        fenced: true,
-      });
-      continue;
-    }
-
-    textBuf.push(line);
-    i++;
+  if (!md || !md.trim()) {
+    return [];
   }
 
-  flushText();
+
+  const blocks: ResponseBlock[] = [];
+
+  const lines = md.split(/\r?\n/);
+
+
+  const text = lines.join("\n");
+
+
+  if (text.trim()) {
+    blocks.push({
+      type:"text",
+      text
+    });
+  }
+
+
   return blocks;
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+---
 
-Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: All 14 tests pass (5 text + 9 code).
-
-- [ ] **Step 5: Commit**
+## Step 4: Run tests
 
 ```bash
-git add src/agent/response-blocks.ts tests/response-blocks-parser.vitest.ts
+npx vitest run tests/response-blocks-parser.vitest.ts
+```
+
+Expected:
+
+PASS
+
+---
+
+## Step 5: Commit
+
+```bash
+git add .
+
+git commit -m "feat(agent): parseResponseBlocks handles plain text"
+```
+
+---
+
+# Task 3 — Parser: Fenced Code Blocks
+
+## Files
+
+Modify:
+
+```
+src/agent/response-blocks.ts
+tests/response-blocks-parser.vitest.ts
+```
+
+---
+
+## Step 1: Add code fence tests
+
+Include:
+
+* language fence
+* no-language fence
+* multiple code blocks
+* unclosed fence fallback
+* tilde fence text
+* single backtick text
+* two-backtick text
+* four-backtick text
+* mismatched fence text
+
+---
+
+## Step 2: Implement exact fence matching
+
+Add:
+
+````ts
+function matchFenceOpen(
+  line:string
+): {language?:string} | null {
+
+  const match =
+    /^```(?!`)([^\s`]*)\s*$/.exec(line);
+
+
+  if (!match) {
+    return null;
+  }
+
+
+  return {
+    language:
+      match[1] || undefined
+  };
+}
+
+
+
+function matchFenceClose(
+  line:string
+): boolean {
+
+  return line.trimEnd() === "```";
+}
+````
+
+---
+
+## Step 3: Implement code scanning
+
+Rules:
+
+* flush text before code
+* collect until exact closing fence
+* if closing fence missing:
+
+  * emit original fence + content as text
+  * never throw
+
+Example:
+
+Input:
+
+````md
+```ts
+hello
+````
+
+Output:
+
+````ts
+[
+ {
+   type:"text",
+   text:"```ts\nhello"
+ }
+]
+````
+
+---
+
+## Step 4: Verify
+
+```bash
+npx vitest run tests/response-blocks-parser.vitest.ts
+```
+
+Expected:
+
+PASS
+
+---
+
+## Step 5: Commit
+
+```bash
+git add .
+
 git commit -m "feat(agent): parseResponseBlocks recognizes fenced code blocks"
 ```
 
 ---
 
-## Task 4: Parser — lists
+**Part 2/3 continues with Task 4 (lists), Task 5 (TUI code rendering), and Task 6 (list rendering).**
+# Part 2/3 — Lists, Agent View Rendering, Tests
 
-**Files:**
-- Modify: `src/agent/response-blocks.ts`
-- Modify: `tests/response-blocks-parser.vitest.ts`
+---
 
-**Interfaces:**
-- Consumes: `ResponseBlock` from Task 1, `ListMarker` from Task 1
-- Produces: extended `parseResponseBlocks` that recognizes bullet/numbered lists
+# Task 4 — Parser: Lists
 
-- [ ] **Step 1: Write failing tests for lists**
+## Files
 
-Add to `tests/response-blocks-parser.vitest.ts`:
+Modify:
 
-```ts
-describe("parseResponseBlocks — lists", () => {
-  it("emits a dash list", () => {
-    expect(parseResponseBlocks("- a\n- b\n- c")).toEqual([
-      { type: "list", marker: "-", items: ["a", "b", "c"] },
-    ]);
-  });
-
-  it("emits a star list", () => {
-    expect(parseResponseBlocks("* a\n* b")).toEqual([
-      { type: "list", marker: "*", items: ["a", "b"] },
-    ]);
-  });
-
-  it("emits a plus list", () => {
-    expect(parseResponseBlocks("+ a\n+ b")).toEqual([
-      { type: "list", marker: "+", items: ["a", "b"] },
-    ]);
-  });
-
-  it("emits an ordered list", () => {
-    expect(parseResponseBlocks("1. a\n2. b\n3. c")).toEqual([
-      { type: "list", marker: "ordered", items: ["a", "b", "c"] },
-    ]);
-  });
-
-  it("treats sparse numbers as ordered", () => {
-    expect(parseResponseBlocks("1. a\n5. b\n20. c")).toEqual([
-      { type: "list", marker: "ordered", items: ["a", "b", "c"] },
-    ]);
-  });
-
-  it("ends list on first non-list line", () => {
-    const md = "- a\n- b\n\ncontinuation";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "list", marker: "-", items: ["a", "b"] },
-      { type: "text", text: "continuation" },
-    ]);
-  });
-
-  it("emits text before and after a list", () => {
-    const md = "intro\n\n- a\n- b\n\noutro";
-    expect(parseResponseBlocks(md)).toEqual([
-      { type: "text", text: "intro" },
-      { type: "list", marker: "-", items: ["a", "b"] },
-      { type: "text", text: "outro" },
-    ]);
-  });
-
-  it("drops empty list items", () => {
-    expect(parseResponseBlocks("-\n- a\n- ")).toEqual([
-      { type: "list", marker: "-", items: ["a"] },
-    ]);
-  });
-
-  it("treats non-list lines as text", () => {
-    expect(parseResponseBlocks("not a list\njust text")).toEqual([
-      { type: "text", text: "not a list\njust text" },
-    ]);
-  });
-});
+```text
+src/agent/response-blocks.ts
+tests/response-blocks-parser.vitest.ts
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+---
 
-Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: 9 list tests fail; existing 13 still pass.
+## Goal
 
-- [ ] **Step 3: Add LIST state to the parser**
+Extend `parseResponseBlocks()` to recognize contiguous Markdown list blocks.
+
+Supported syntax:
+
+```md
+- first
+- second
+- third
+```
+
+```md
+* alpha
+* beta
+```
+
+```md
++ one
++ two
+```
+
+```md
+1. one
+2. two
+3. three
+```
+
+---
+
+## Step 1: Add list parser tests
+
+Add:
+
+`````ts
+describe("parseResponseBlocks — lists", () => {
+
+  it("parses dash lists", () => {
+    expect(
+      parseResponseBlocks("- a\n- b\n- c")
+    ).toEqual([
+      {
+        type:"list",
+        marker:"-",
+        items:[
+          "a",
+          "b",
+          "c"
+        ]
+      }
+    ]);
+  });
+
+
+  it("parses star lists", () => {
+    expect(
+      parseResponseBlocks("* a\n* b")
+    ).toEqual([
+      {
+        type:"list",
+        marker:"*",
+        items:[
+          "a",
+          "b"
+        ]
+      }
+    ]);
+  });
+
+
+  it("parses plus lists", () => {
+    expect(
+      parseResponseBlocks("+ a\n+ b")
+    ).toEqual([
+      {
+        type:"list",
+        marker:"+",
+        items:[
+          "a",
+          "b"
+        ]
+      }
+    ]);
+  });
+
+
+  it("normalizes ordered lists", () => {
+    expect(
+      parseResponseBlocks(
+        "1. one\n5. five\n20. twenty"
+      )
+    ).toEqual([
+      {
+        type:"list",
+        marker:"ordered",
+        items:[
+          "one",
+          "five",
+          "twenty"
+        ]
+      }
+    ]);
+  });
+
+
+  it("ends list on non-list content", () => {
+    expect(
+      parseResponseBlocks(
+        "- a\n- b\n\nnext"
+      )
+    ).toEqual([
+      {
+        type:"list",
+        marker:"-",
+        items:[
+          "a",
+          "b"
+        ]
+      },
+      {
+        type:"text",
+        text:"next"
+      }
+    ]);
+  });
+
+
+  it("preserves source order", () => {
+    expect(
+      parseResponseBlocks(
+        "intro\n\n- item\n\noutro"
+      )
+    ).toEqual([
+      {
+        type:"text",
+        text:"intro"
+      },
+      {
+        type:"list",
+        marker:"-",
+        items:[
+          "item"
+        ]
+      },
+      {
+        type:"text",
+        text:"outro"
+      }
+    ]);
+  });
+
+
+  it("drops empty list items", () => {
+    expect(
+      parseResponseBlocks(
+        "-\n- good\n- "
+      )
+    ).toEqual([
+      {
+        type:"list",
+        marker:"-",
+        items:[
+          "good"
+        ]
+      }
+    ]);
+  });
+
+
+  it("keeps different adjacent markers separate", () => {
+    expect(
+      parseResponseBlocks(
+        "- a\n* b"
+      )
+    ).toEqual([
+      {
+        type:"list",
+        marker:"-",
+        items:[
+          "a"
+        ]
+      },
+      {
+        type:"list",
+        marker:"*",
+        items:[
+          "b"
+        ]
+      }
+    ]);
+  });
+
+
+  it("does not throw on malformed input", () => {
+    const inputs = [
+      "",
+      "~~~",
+      "```",
+      "````",
+      "-",
+      "*",
+      "+",
+      "1.",
+      "\0"
+    ];
+
+
+    for (const input of inputs) {
+      expect(() =>
+        parseResponseBlocks(input)
+      ).not.toThrow();
+    }
+  });
+
+});
+`````
+
+---
+
+## Step 2: Verify failure
+
+Run:
+
+```bash
+npx vitest run tests/response-blocks-parser.vitest.ts
+```
+
+Expected:
+
+FAIL
+
+---
+
+## Step 3: Add list matcher
+
+Add:
 
 ```ts
-// src/agent/response-blocks.ts — replace the parseResponseBlocks body
+function matchListItem(
+  line:string
+): {
+  marker:ListMarker;
+  text:string;
+} | null {
 
-/**
- * Match a list item line. Returns the marker kind and the item text.
- * Supports `-`, `*`, `+`, and numbered (`N.`) markers. The numbered
- * marker always normalizes to "ordered" — actual digit values are
- * discarded (the renderer will renumber 1..N in display).
- */
-function matchListItem(line: string): { marker: ListMarker; text: string } | null {
-  const dash = /^-\s+(.*)$/.exec(line);
-  if (dash) return { marker: "-", text: dash[1]! };
-  const star = /^\*\s+(.*)$/.exec(line);
-  if (star) return { marker: "*", text: star[1]! };
-  const plus = /^\+\s+(.*)$/.exec(line);
-  if (plus) return { marker: "+", text: plus[1]! };
-  const num = /^\d+\.\s+(.*)$/.exec(line);
-  if (num) return { marker: "ordered", text: num[1]! };
+
+  const dash =
+    /^-\s+(.*)$/.exec(line);
+
+  if (dash) {
+    return {
+      marker:"-",
+      text:dash[1]!
+    };
+  }
+
+
+  const star =
+    /^\*\s+(.*)$/.exec(line);
+
+  if (star) {
+    return {
+      marker:"*",
+      text:star[1]!
+    };
+  }
+
+
+  const plus =
+    /^\+\s+(.*)$/.exec(line);
+
+  if (plus) {
+    return {
+      marker:"+",
+      text:plus[1]!
+    };
+  }
+
+
+  const ordered =
+    /^\d+\.\s+(.*)$/.exec(line);
+
+
+  if (ordered) {
+    return {
+      marker:"ordered",
+      text:ordered[1]!
+    };
+  }
+
+
   return null;
 }
+```
 
-export function parseResponseBlocks(md: string): readonly ResponseBlock[] {
-  if (!md) return [];
-  if (!md.trim()) return [];
+---
 
-  const blocks: ResponseBlock[] = [];
-  const lines = md.split(/\r?\n/);
-  let i = 0;
+## Step 4: Extend scanner
 
-  let textBuf: string[] = [];
-  const flushText = () => {
-    if (textBuf.length === 0) return;
-    const text = textBuf.join("\n");
-    textBuf = [];
-    if (text.trim() === "") return;
-    blocks.push({ type: "text", text });
-  };
+Processing order:
+
+1. fenced code
+2. list
+3. text
+
+This prevents:
+
+````md
+```text
+- not a list
+````
+
+````
+
+from becoming a list item.
+
+---
+
+List scanning:
+
+```ts
+const item = matchListItem(line);
+
+if (item) {
+
+  flushText();
+
+
+  const marker = item.marker;
+  const items:string[] = [];
+
+
+  if (item.text.trim()) {
+    items.push(item.text);
+  }
+
+
+  i++;
+
 
   while (i < lines.length) {
-    const line = lines[i]!;
 
-    // Fenced code: takes priority over list detection so a code line
-    // beginning with `- ` doesn't get mis-parsed.
-    const fenceOpen = matchFenceOpen(line);
-    if (fenceOpen) {
-      flushText();
-      const codeLines: string[] = [];
-      i++;
-      let closed = false;
-      while (i < lines.length) {
-        if (matchFenceClose(lines[i]!)) {
-          closed = true;
-          i++;
-          break;
-        }
-        codeLines.push(lines[i]!);
-        i++;
-      }
-      if (!closed) {
-        const reconstructed = [line, ...codeLines].join("\n");
-        blocks.push({ type: "text", text: reconstructed });
-        continue;
-      }
-      blocks.push({
-        type: "code",
-        language: fenceOpen.language,
-        code: codeLines.join("\n"),
-        fenced: true,
-      });
-      continue;
+    const next =
+      matchListItem(lines[i]!);
+
+
+    if (!next || next.marker !== marker) {
+      break;
     }
 
-    // List item.
-    const listItem = matchListItem(line);
-    if (listItem) {
-      flushText();
-      const items: string[] = [];
-      const marker: ListMarker = listItem.marker;
-      if (listItem.text.trim() !== "") items.push(listItem.text);
-      i++;
-      while (i < lines.length) {
-        const next = lines[i]!;
-        if (matchFenceOpen(next)) break; // code block takes priority
-        const nextItem = matchListItem(next);
-        if (!nextItem || nextItem.marker !== marker) break;
-        if (nextItem.text.trim() !== "") items.push(nextItem.text);
-        i++;
-      }
-      if (items.length > 0) {
-        blocks.push({ type: "list", marker, items });
-      }
-      continue;
+
+    if (next.text.trim()) {
+      items.push(next.text);
     }
 
-    textBuf.push(line);
+
     i++;
   }
 
-  flushText();
-  return blocks;
+
+  if (items.length) {
+    blocks.push({
+      type:"list",
+      marker,
+      items
+    });
+  }
+
+
+  continue;
 }
-```
+````
 
-- [ ] **Step 4: Run tests to verify they pass**
+---
 
-Run: `npx vitest run tests/response-blocks-parser.vitest.ts`
-Expected: All 23 tests pass (5 text + 9 code + 9 list).
-
-- [ ] **Step 5: Commit**
+## Step 5: Run tests
 
 ```bash
-git add src/agent/response-blocks.ts tests/response-blocks-parser.vitest.ts
-git commit -m "feat(agent): parseResponseBlocks recognizes bullet and numbered lists"
+npx vitest run tests/response-blocks-parser.vitest.ts
+```
+
+Expected:
+
+```text
+PASS
 ```
 
 ---
 
-## Task 5: Agent view — block dispatch (text + code)
+## Step 6: Commit
 
-**Files:**
-- Modify: `src/tui/views/agent-view.ts`
-- Modify: `tests/agent-view-formatting.vitest.ts`
+```bash
+git add .
 
-**Interfaces:**
-- Consumes: `parseResponseBlocks` from Tasks 2-4
-- Produces: agent view renders text via `wrapText`, code blocks verbatim with 2-space indent
-
-- [ ] **Step 1: Write failing tests for code-block rendering in the TUI**
-
-Add to `tests/agent-view-formatting.vitest.ts`:
-
-```ts
-describe('AgentView — code block rendering', () => {
-  it('renders a code block with 2-space indent and per-line preservation', () => {
-    const perTab = makePerTab({
-      agentResponses: ['```python\ndef fib(n):\n    return n\n```'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 12);
-    expect(all).toContain('def fib(n):');
-    expect(all).toContain('return n');
-    // Each code line is indented at column 2.
-    expect(rowText(c, 7)).toMatch(/^\s{2}/);
-  });
-
-  it('does not wrap long code lines (preserves verbatim)', () => {
-    const longCode = 'x = "' + 'a'.repeat(100) + '"';
-    const perTab = makePerTab({
-      agentResponses: ['```py\n' + longCode + '\n```'],
-    });
-    // Narrow canvas — code still rendered, just possibly hard-truncated.
-    expect(() => renderOnCanvas(40, 40, perTab)).not.toThrow();
-  });
-
-  it('renders code block language header as [lang] label', () => {
-    const perTab = makePerTab({
-      agentResponses: ['```typescript\nconst x = 1;\n```'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 10);
-    // TUI renders structure, not Markdown: language becomes a [lang] label.
-    expect(all).toContain('[typescript]');
-    expect(all).not.toContain('```typescript');
-  });
-
-  it('omits language header when code block has no language', () => {
-    const perTab = makePerTab({
-      agentResponses: ['```\nx = 1\n```'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 10);
-    expect(all).toContain('x = 1');
-    // No `[<empty>]` artifact and no source fence markers.
-    expect(all).not.toContain('[ ]');
-    expect(all).not.toContain('```');
-  });
-});
+git commit -m "feat(agent): parseResponseBlocks recognizes markdown lists"
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+---
 
-Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: 4 new tests fail.
+# Task 5 — Agent View: Structured Text and Code Rendering
 
-- [ ] **Step 3: Add renderBlocks helper and integrate into agent-view**
+## Files
 
-In `src/tui/views/agent-view.ts`:
+Modify:
 
-1. Add import at top: `import { parseResponseBlocks } from '../../agent/response-blocks.js';`
-2. Add a private helper before the `AgentView` class:
+```text
+src/tui/views/agent-view.ts
+tests/agent-view-formatting.vitest.ts
+```
+
+---
+
+## Goal
+
+Replace:
+
+```ts
+Markdown string
+        |
+        v
+wrapText()
+```
+
+with:
+
+```text
+Markdown string
+        |
+        v
+parseResponseBlocks()
+        |
+        v
+block renderer
+```
+
+---
+
+## Rendering contract
+
+### Text blocks
+
+Existing behavior:
+
+```ts
+wrapText()
+```
+
+must remain unchanged.
+
+---
+
+### Code blocks
+
+Rules:
+
+* no Markdown fences
+* no wrapping
+* preserve line order
+* prefix every line with two spaces
+* optional language header:
+
+Example:
+
+Input:
+
+````md
+```python
+print("hello")
+````
+
+````
+
+Rendered:
+
+```text
+  [python]
+  print("hello")
+````
+
+---
+
+## Step 1: Add renderer tests
+
+Add:
+
+````ts
+describe(
+  "AgentView — code blocks",
+  () => {
+
+
+it(
+"renders multiline code",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "```python\nx=1\ny=2\n```"
+     ]
+   });
+
+
+ const canvas =
+   renderOnCanvas(
+     80,
+     40,
+     perTab
+   );
+
+
+ const all =
+   allText(canvas,12);
+
+
+ expect(all)
+   .toContain("x=1");
+
+
+ expect(all)
+   .toContain("y=2");
+
+});
+
+
+it(
+"does not show markdown fences",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "```ts\nconst x=1;\n```"
+     ]
+   });
+
+
+ const all =
+   allText(
+     renderOnCanvas(
+       80,
+       40,
+       perTab
+     ),
+     10
+   );
+
+
+ expect(all)
+   .not
+   .toContain("```");
+
+});
+
+
+it(
+"renders language labels",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "```typescript\nx\n```"
+     ]
+   });
+
+
+ expect(
+   allText(
+     renderOnCanvas(
+       80,
+       40,
+       perTab
+     ),
+     10
+   )
+ )
+ .toContain("[typescript]");
+
+});
+
+
+});
+````
+
+---
+
+## Step 2: Verify failure
+
+Run:
+
+```bash
+npx vitest run tests/agent-view-formatting.vitest.ts
+```
+
+Expected:
+
+FAIL
+
+---
+
+## Step 3: Import parser
+
+Add:
+
+```ts
+import {
+  parseResponseBlocks
+} from "../../agent/response-blocks.js";
+```
+
+---
+
+## Step 4: Add internal renderer helper
+
+Add:
 
 ```ts
 interface RenderedLine {
-  kind: 'user' | 'agent' | 'plan' | 'approval';
-  text: string;
-  isFirst: boolean;
+
+  kind:
+    | "user"
+    | "agent"
+    | "plan"
+    | "approval";
+
+  text:string;
+
+  isFirst:boolean;
 }
-
-/**
- * Render a single response string into agent-scrollback lines by first
- * parsing it into ResponseBlocks, then dispatching each block to a
- * type-specific renderer. Text blocks delegate to wrapText (existing).
- * Code blocks render verbatim with 2-space indent. List blocks are
- * handled in Task 6.
- */
-function renderAgentResponse(
-  text: string,
-  kind: 'user' | 'agent',
-  textWidth: number,
-): RenderedLine[] {
-  const out: RenderedLine[] = [];
-  const blocks = parseResponseBlocks(text);
-
-  for (const block of blocks) {
-    if (block.type === 'text') {
-      const wrapped = wrapText(block.text, textWidth);
-      for (let i = 0; i < wrapped.length; i++) {
-        out.push({ kind, text: wrapped[i]!, isFirst: i === 0 });
-      }
-    } else if (block.type === 'code') {
-      // The TUI is not Markdown — it renders the code block's structure,
-      // not its source fences. Language (when present) becomes an optional
-      // header line; the body is rendered verbatim with 2-space indent.
-      // No reflow, no wrap. Future syntax highlighting slots in here.
-      if (block.language) {
-        out.push({ kind, text: '  [' + block.language + ']', isFirst: true });
-      }
-      for (const codeLine of block.code.split('\n')) {
-        out.push({ kind, text: '  ' + codeLine, isFirst: false });
-      }
-    }
-    // list blocks handled in Task 6.
-  }
-
-  return out;
-}
-```
-
-3. Replace the existing turn-wrapping loop in `render()` (currently at lines ~106-111):
-
-```ts
-// BEFORE:
-for (const t of turns) {
-  const wrapped = wrapText(t.text, textWidth);
-  for (let i = 0; i < wrapped.length; i++) {
-    allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
-  }
-}
-
-// AFTER:
-for (const t of turns) {
-  const rendered = renderAgentResponse(t.text, t.kind, textWidth);
-  for (const line of rendered) {
-    allLines.push(line);
-  }
-}
-```
-
-- [ ] **Step 4: Run tests to verify they pass**
-
-Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: All tests pass (46 existing + 4 new = 50).
-
-- [ ] **Step 5: Run full test suite to confirm no regressions**
-
-Run: `pnpm test:vitest 2>&1 | tail -10`
-Expected: 3220+ tests pass (no new failures).
-
-- [ ] **Step 6: Commit**
-
-```bash
-git add src/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts
-git commit -m "feat(tui): agent view renders code blocks via ResponseBlock dispatch"
 ```
 
 ---
 
-## Task 6: Agent view — list rendering
-
-**Files:**
-- Modify: `src/tui/views/agent-view.ts`
-- Modify: `tests/agent-view-formatting.vitest.ts`
-
-**Interfaces:**
-- Consumes: `parseResponseBlocks` from Tasks 2-4
-- Produces: agent view renders list blocks with normalized bullets and per-item wrapping
-
-- [ ] **Step 1: Write failing tests for list rendering in the TUI**
-
-Add to `tests/agent-view-formatting.vitest.ts`:
+Add:
 
 ```ts
-describe('AgentView — list rendering', () => {
-  it('renders dash list with bullet markers', () => {
-    const perTab = makePerTab({
-      agentResponses: ['- first\n- second\n- third'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 12);
-    expect(all).toContain('• first');
-    expect(all).toContain('• second');
-    expect(all).toContain('• third');
-  });
+function renderAgentResponse(
+  text:string,
+  kind:"user"|"agent",
+  textWidth:number
+):RenderedLine[] {
 
-  it('renders ordered list with sequential numbers', () => {
-    const perTab = makePerTab({
-      agentResponses: ['1. one\n2. two\n3. three'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 12);
-    expect(all).toContain('1. one');
-    expect(all).toContain('2. two');
-    expect(all).toContain('3. three');
-  });
 
-  it('renders star list using bullet marker', () => {
-    const perTab = makePerTab({
-      agentResponses: ['* alpha\n* beta'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 10);
-    expect(all).toContain('• alpha');
-    expect(all).toContain('• beta');
-  });
+ const output:RenderedLine[] = [];
 
-  it('preserves list items in source order', () => {
-    const perTab = makePerTab({
-      agentResponses: ['intro\n\n- a\n- b\n\noutro'],
-    });
-    const c = renderOnCanvas(80, 40, perTab);
-    const all = allText(c, 12);
-    const introIdx = all.indexOf('intro');
-    const aIdx = all.indexOf('• a');
-    const outroIdx = all.indexOf('outro');
-    expect(introIdx).toBeGreaterThanOrEqual(0);
-    expect(aIdx).toBeGreaterThan(introIdx);
-    expect(outroIdx).toBeGreaterThan(aIdx);
-  });
+
+ const blocks =
+   parseResponseBlocks(text);
+
+
+
+ for (const block of blocks) {
+
+
+   if (block.type === "text") {
+
+     const lines =
+       wrapText(
+         block.text,
+         textWidth
+       );
+
+
+     lines.forEach(
+       (line,index)=> {
+
+         output.push({
+           kind,
+           text:line,
+           isFirst:index===0
+         });
+
+       }
+     );
+
+   }
+
+
+
+   else if (block.type === "code") {
+
+
+     if (block.language) {
+
+       output.push({
+         kind,
+         text:`  [${block.language}]`,
+         isFirst:true
+       });
+
+     }
+
+
+     for (
+       const line of block.code.split("\n")
+     ) {
+
+       output.push({
+         kind,
+         text:`  ${line}`,
+         isFirst:false
+       });
+
+     }
+
+   }
+
+ }
+
+
+ return output;
+}
+```
+
+---
+
+## Step 5: Replace old wrapping loop
+
+Before:
+
+```ts
+const wrapped =
+  wrapText(
+    t.text,
+    textWidth
+  );
+```
+
+After:
+
+```ts
+const rendered =
+  renderAgentResponse(
+    t.text,
+    t.kind,
+    textWidth
+  );
+
+
+for (const line of rendered) {
+  allLines.push(line);
+}
+```
+
+---
+
+## Step 6: Run tests
+
+```bash
+npx vitest run tests/agent-view-formatting.vitest.ts
+```
+
+Expected:
+
+PASS
+
+---
+
+## Step 7: Commit
+
+```bash
+git add .
+
+git commit -m "feat(tui): render agent responses through ResponseBlocks"
+```
+
+---
+
+**Part 3/3 continues with list rendering, full verification, acceptance criteria, and final checklist.**
+# Part 3/3 — List Rendering, Verification, Acceptance Criteria
+
+---
+
+# Task 6 — Agent View: List Rendering
+
+## Files
+
+Modify:
+
+```text
+src/tui/views/agent-view.ts
+tests/agent-view-formatting.vitest.ts
+```
+
+---
+
+## Goal
+
+Extend the agent renderer to support:
+
+```ts
+ResponseBlock {
+  type:"list"
+}
+```
+
+without changing Markdown storage.
+
+Rendering rules:
+
+### Unordered lists
+
+All unordered markers:
+
+```md
+- item
+* item
++ item
+```
+
+render as:
+
+```text
+• item
+```
+
+---
+
+### Ordered lists
+
+Input:
+
+```md
+10. alpha
+20. beta
+30. gamma
+```
+
+renders:
+
+```text
+1. alpha
+2. beta
+3. gamma
+```
+
+The source numbering is intentionally ignored.
+
+---
+
+### Wrapping
+
+List items must wrap independently.
+
+Example:
+
+Input:
+
+```md
+- This is a very long item that needs wrapping
+```
+
+Output:
+
+```text
+• This is a very long item that
+  needs wrapping
+```
+
+Continuation lines align after the bullet prefix.
+
+---
+
+## Step 1: Add tests
+
+Add:
+
+```ts
+describe(
+  "AgentView — list rendering",
+  () => {
+
+
+it(
+"renders unordered lists with bullets",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "- first\n- second"
+     ]
+   });
+
+
+ const all =
+   allText(
+     renderOnCanvas(
+       80,
+       40,
+       perTab
+     ),
+     12
+   );
+
+
+ expect(all)
+   .toContain("• first");
+
+
+ expect(all)
+   .toContain("• second");
+
+});
+
+
+
+it(
+"renders ordered lists sequentially",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "5. five\n9. nine\n20. twenty"
+     ]
+   });
+
+
+ const all =
+   allText(
+     renderOnCanvas(
+       80,
+       40,
+       perTab
+     ),
+     12
+   );
+
+
+ expect(all)
+   .toContain("1. five");
+
+
+ expect(all)
+   .toContain("2. nine");
+
+
+ expect(all)
+   .toContain("3. twenty");
+
+});
+
+
+
+it(
+"preserves text-list-text order",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "before\n\n- item\n\nafter"
+     ]
+   });
+
+
+ const all =
+   allText(
+     renderOnCanvas(
+       80,
+       40,
+       perTab
+     ),
+     12
+   );
+
+
+ expect(
+   all.indexOf("before")
+ )
+ .toBeLessThan(
+   all.indexOf("• item")
+ );
+
+
+ expect(
+   all.indexOf("• item")
+ )
+ .toBeLessThan(
+   all.indexOf("after")
+ );
+
+});
+
+
+
+it(
+"wraps long list items",
+() => {
+
+ const perTab =
+   makePerTab({
+     agentResponses:[
+       "- " +
+       "a ".repeat(80)
+     ]
+   });
+
+
+ expect(
+   () =>
+   renderOnCanvas(
+     40,
+     40,
+     perTab
+   )
+ )
+ .not
+ .toThrow();
+
+});
+
+
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+---
 
-Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: 4 new tests fail.
+## Step 2: Verify failure
 
-- [ ] **Step 3: Extend renderAgentResponse to handle list blocks**
+Run:
 
-Replace the helper in `src/tui/views/agent-view.ts`:
+```bash
+npx vitest run tests/agent-view-formatting.vitest.ts
+```
+
+Expected:
+
+FAIL
+
+---
+
+## Step 3: Extend `renderAgentResponse`
+
+Add list handling:
 
 ```ts
-function renderAgentResponse(
-  text: string,
-  kind: 'user' | 'agent',
-  textWidth: number,
-): RenderedLine[] {
-  const out: RenderedLine[] = [];
-  const blocks = parseResponseBlocks(text);
+else if (block.type === "list") {
 
-  for (const block of blocks) {
-    if (block.type === 'text') {
-      const wrapped = wrapText(block.text, textWidth);
-      for (let i = 0; i < wrapped.length; i++) {
-        out.push({ kind, text: wrapped[i]!, isFirst: i === 0 });
-      }
-    } else if (block.type === 'code') {
-      const codeLines = block.code.split('\n');
-      const langTag = block.language ? `\`\`\`${block.language}` : '```';
-      out.push({ kind, text: '  ' + langTag, isFirst: true });
-      for (const codeLine of codeLines) {
-        out.push({ kind, text: '  ' + codeLine, isFirst: false });
-      }
-      out.push({ kind, text: '  ```', isFirst: false });
-    } else if (block.type === 'list') {
-      // Normalize marker style: any unordered → "• "; ordered → "N. "
-      block.items.forEach((item, idx) => {
-        const prefix = block.marker === 'ordered' ? `${idx + 1}. ` : '• ';
-        const indent = ' '.repeat(prefix.length);
-        // Wrap each item with prefix on the first line and indent on
-        // continuation lines.
-        const innerWidth = Math.max(1, textWidth - prefix.length);
-        const wrapped = wrapText(item, innerWidth);
-        for (let i = 0; i < wrapped.length; i++) {
-          const line = (i === 0 ? prefix : indent) + wrapped[i]!;
-          out.push({ kind, text: line, isFirst: i === 0 });
+
+  block.items.forEach(
+    (item,index)=> {
+
+
+      const prefix =
+        block.marker === "ordered"
+          ? `${index + 1}. `
+          : "• ";
+
+
+      const continuation =
+        " ".repeat(
+          prefix.length
+        );
+
+
+      const width =
+        Math.max(
+          1,
+          textWidth - prefix.length
+        );
+
+
+      const wrapped =
+        wrapText(
+          item,
+          width
+        );
+
+
+      wrapped.forEach(
+        (line,lineIndex)=> {
+
+          output.push({
+            kind,
+            text:
+              lineIndex === 0
+                ? prefix + line
+                : continuation + line,
+
+            isFirst:
+              lineIndex === 0
+          });
+
         }
-      });
-    }
-  }
+      );
 
-  return out;
+    }
+  );
+
 }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+---
 
-Run: `npx vitest run tests/agent-view-formatting.vitest.ts`
-Expected: All 54 tests pass (46 + 4 + 4).
+## Step 4: Run tests
 
-- [ ] **Step 5: Run full test suite to confirm no regressions**
+Run:
 
-Run: `pnpm test:vitest 2>&1 | tail -10`
-Expected: 3220+ tests pass.
+```bash
+npx vitest run tests/agent-view-formatting.vitest.ts
+```
 
-- [ ] **Step 6: Commit**
+Expected:
+
+```text
+PASS
+```
+
+---
+
+## Step 5: Run full suite
+
+Run:
+
+```bash
+pnpm test:vitest
+```
+
+Expected:
+
+```text
+All tests pass
+```
+
+---
+
+## Step 6: Commit
 
 ```bash
 git add src/tui/views/agent-view.ts tests/agent-view-formatting.vitest.ts
-git commit -m "feat(tui): agent view renders list blocks with normalized markers"
+
+git commit -m "feat(tui): render response lists with normalized formatting"
 ```
 
 ---
 
-## Task 7: Verification + acceptance
+# Task 7 — Verification and Acceptance
 
-**Files:**
-- Modify: (none — verification only)
+## Files
 
-- [ ] **Step 1: Build clean**
+No required modifications.
 
-Run: `pnpm build`
-Expected: tsc compiles cleanly with no errors.
+---
 
-- [ ] **Step 2: Run full test suite**
+# Step 1 — Build verification
 
-Run: `pnpm test:vitest 2>&1 | tail -10`
-Expected: All tests pass — total should now include 25 parser tests + 8 agent-view rendering tests added by this plan.
+Run:
 
-- [ ] **Step 3: Smoke test the agent tab in the live TUI**
-
-Run: `npx alix tui` (or `node bin/alix.js tui`)
-Then in the agent tab, submit a query that elicits a code block:
+```bash
+pnpm build
 ```
+
+Expected:
+
+```text
+TypeScript compilation succeeds
+```
+
+---
+
+# Step 2 — Parser verification
+
+Run:
+
+```bash
+npx vitest run tests/response-blocks-parser.vitest.ts
+```
+
+Expected coverage:
+
+* empty input
+* whitespace input
+* plain text
+* newline preservation
+* CRLF normalization
+* fenced code
+* language tags
+* empty code blocks
+* multiple code blocks
+* malformed fences
+* tilde fences
+* invalid fence lengths
+* bullet lists
+* ordered lists
+* mixed content
+* malformed input tolerance
+
+---
+
+# Step 3 — Renderer verification
+
+Run:
+
+```bash
+npx vitest run tests/agent-view-formatting.vitest.ts
+```
+
+Expected coverage:
+
+* text rendering unchanged
+* code block rendering
+* language labels
+* no Markdown fences visible
+* code line preservation
+* unordered lists
+* ordered lists
+* wrapping behavior
+* source ordering
+
+---
+
+# Step 4 — Full regression suite
+
+Run:
+
+```bash
+pnpm test:vitest
+```
+
+Expected:
+
+```text
+Existing tests continue passing.
+New parser and renderer tests pass.
+```
+
+No expected changes:
+
+* `AgentTurnResult`
+* `PerTabState`
+* session persistence
+* daemon protocol
+* API contracts
+
+---
+
+# Step 5 — Live TUI smoke test
+
+Run:
+
+```bash
+npx alix tui
+```
+
+or:
+
+```bash
+node bin/alix.js tui
+```
+
+---
+
+Submit:
+
+```text
 write a python function to check if a string is a palindrome
 ```
 
-Verify visually:
-- The code block renders on multiple lines (not collapsed)
-- Code lines are indented at column 2
-- Surrounding prose renders normally with `wrapText`
+---
 
-Then exit the TUI.
+Verify:
 
-- [ ] **Step 4: Verify the screenshot bug is fixed**
+## Before fix
 
-Before this plan, the screenshot showed a multi-line code block collapsed to one line. After this plan, the same response should render across multiple rows. Confirm by submitting the same query from the smoke test and observing.
+A response such as:
 
-- [ ] **Step 5: Final commit (if any cleanup needed)**
+````md
+Here is the function:
 
-If the smoke test revealed minor visual issues (alignment, indent depth), fix them in a small commit. Otherwise skip.
+```python
+def palindrome(s):
+    return s == s[::-1]
+````
+
+````
+
+was displayed as a collapsed wrapped line.
+
+---
+
+## After fix
+
+The TUI should display:
+
+```text
+Here is the function:
+
+  [python]
+  def palindrome(s):
+      return s == s[::-1]
+````
+
+Verification:
+
+* code occupies multiple rows
+* indentation is preserved
+* prose still wraps normally
+* Markdown fences are hidden
+* stored Markdown remains unchanged
+
+---
+
+# Step 6 — Visual cleanup if needed
+
+Only if smoke testing finds issues:
 
 ```bash
-# Only run if Step 5 needed fixes:
 git add -A
-git commit -m "fix(tui): visual polish for agent response block rendering"
+
+git commit -m "fix(tui): polish response block rendering"
 ```
 
 ---
 
-## Self-Review Notes
+# Final Acceptance Checklist
 
-**Spec coverage:**
+## Parser
 
-| Spec section | Task |
-|---|---|
-| Type definitions | Task 1 |
-| Parser invariants | Tasks 2-4 (enforced by tests) |
-| Line-oriented state machine | Tasks 2-4 (implemented, tests cover) |
-| Code block parsing rules | Task 3 |
-| List parsing rules (marker preservation) | Task 4 |
-| Empty text block invariant | Task 2 + Task 4 tests |
-| Source-order invariant | Task 4 tests (`intro → list → outro`) |
-| Malformed-input tolerance (no throws) | Tasks 3-4 (test cases for unclosed fence, tilde fence, etc.) |
-| TUI text-block render | Task 5 |
-| TUI code-block render | Task 5 |
-| TUI list-block render | Task 6 |
-| Composition with wrapText | Tasks 5-6 (text blocks call wrapText) |
-| Zero blast radius | Tasks 5-6 only modify agent-view.ts and test files |
+* [ ] `ResponseBlock` union contains exactly three block types
+* [ ] Parser is pure
+* [ ] Parser is deterministic
+* [ ] Parser is O(n)
+* [ ] Parser preserves ordering
+* [ ] Parser never throws
+* [ ] Parser never emits empty blocks
+* [ ] Parser normalizes CRLF
+* [ ] Parser does not mutate Markdown
 
-**Placeholder scan:** No TBD/TODO markers. Every step has concrete code.
+---
 
-**Type consistency:** `ResponseBlock` defined in Task 1, used in Tasks 2-6 with identical signatures. `ListMarker` defined Task 1, used in Tasks 4 and 6. `parseResponseBlocks` signature consistent across all tasks.
+## Markdown handling
 
-**Potential gotchas for the implementer:**
+* [ ] Plain text works
+* [ ] Three-backtick fences work
+* [ ] Longer fences remain text
+* [ ] Tilde fences remain text
+* [ ] Single backticks remain text
+* [ ] Unclosed fences become text
+* [ ] Lists preserve source marker
+* [ ] Adjacent different-marker lists remain separate
 
-- Task 3's `matchFenceOpen` uses `^(`{3,})([^\s`]*)` — the `[^\s`]*` ensures language has no whitespace OR backticks, which prevents weird mid-line fences.
-- Task 4's list loop checks `matchFenceOpen(next)` first inside the list-collection loop — this prevents a code block from being absorbed into a preceding list. (Covered by the existing code-block tests in Task 3 since list wasn't present yet, but the loop guard ensures correctness when both states are active.)
-- Task 5's `renderAgentResponse` helper is **internal to agent-view.ts** (not exported) per spec principle: only `parseResponseBlocks` is the public API; renderer helpers stay private.
-- Task 6's `innerWidth = Math.max(1, textWidth - prefix.length)` guards against zero/negative widths when prefix is wider than canvas.
+---
+
+## TUI rendering
+
+* [ ] Text blocks use existing `wrapText`
+* [ ] Code blocks do not use wrapping
+* [ ] Code blocks preserve line structure
+* [ ] Code blocks use two-space indentation
+* [ ] Language labels render as `[language]`
+* [ ] Markdown fences are never shown
+* [ ] Lists normalize bullets
+* [ ] Ordered lists renumber sequentially
+* [ ] List continuation lines align correctly
+
+---
+
+## Architecture
+
+* [ ] Markdown remains canonical storage format
+* [ ] No changes to `AgentTurnResult`
+* [ ] No changes to persistence
+* [ ] No changes to daemon protocol
+* [ ] Parser remains reusable outside TUI
+* [ ] Renderer-specific logic remains in `agent-view.ts`
+
+---
+
+# Final Commit Sequence
+
+Expected commits:
+
+```bash
+feat(agent): add ResponseBlock type for structured agent responses
+
+feat(agent): parseResponseBlocks handles plain text
+
+feat(agent): parseResponseBlocks recognizes fenced code blocks
+
+feat(agent): parseResponseBlocks recognizes markdown lists
+
+feat(tui): render agent responses through ResponseBlocks
+
+feat(tui): render response lists with normalized formatting
+```
+
+---
+
+## Implementation Ready Status
+
+✅ Architecture validated
+✅ Parser boundaries defined
+✅ Renderer isolation preserved
+✅ Backward compatibility maintained
+✅ Future web/API renderer reuse enabled
+
+This version is ready for agent-driven implementation. 🚀
+
