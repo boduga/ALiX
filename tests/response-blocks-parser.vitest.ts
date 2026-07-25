@@ -1,9 +1,9 @@
 /**
- * response-blocks-parser.vitest.ts — Task 2 + Task 3
+ * response-blocks-parser.vitest.ts — Task 2 + Task 3 + Task 4
  *
  * Tests `parseResponseBlocks` for the empty-input / plain-text
- * (mode: "text") surface, and the fenced-code-block surface
- * (mode: "code").
+ * (mode: "text") surface, the fenced-code-block surface
+ * (mode: "code"), and the list surface (mode: "list").
  *
  * Invariants verified here:
  *   - empty input and whitespace-only input return []
@@ -13,6 +13,10 @@
  *   - exactly three-backtick fences open and close code blocks
  *   - longer-than-three, tilde, and mismatched fences remain text
  *   - unclosed fences fall back to a single text block (no throw)
+ *   - dash / star / plus / ordered lists become a single list block
+ *   - adjacent lists with different markers stay as separate blocks
+ *   - list mode runs after code mode (no false positive on `- ` in code)
+ *   - empty list items are dropped
  *   - the return type is `readonly ResponseBlock[]`
  */
 
@@ -156,5 +160,122 @@ describe("parseResponseBlocks — code fences", () => {
         text: "```ts\nhello\n~~~",
       },
     ]);
+  });
+});
+
+describe("parseResponseBlocks — lists", () => {
+  it("parses dash lists", () => {
+    expect(parseResponseBlocks("- a\n- b\n- c")).toEqual([
+      {
+        type: "list",
+        marker: "-",
+        items: ["a", "b", "c"],
+      },
+    ]);
+  });
+
+  it("parses star lists", () => {
+    expect(parseResponseBlocks("* a\n* b")).toEqual([
+      {
+        type: "list",
+        marker: "*",
+        items: ["a", "b"],
+      },
+    ]);
+  });
+
+  it("parses plus lists", () => {
+    expect(parseResponseBlocks("+ a\n+ b")).toEqual([
+      {
+        type: "list",
+        marker: "+",
+        items: ["a", "b"],
+      },
+    ]);
+  });
+
+  it("normalizes ordered lists", () => {
+    expect(parseResponseBlocks("1. one\n5. five\n20. twenty")).toEqual([
+      {
+        type: "list",
+        marker: "ordered",
+        items: ["one", "five", "twenty"],
+      },
+    ]);
+  });
+
+  it("ends list on non-list content", () => {
+    expect(parseResponseBlocks("- a\n- b\n\nnext")).toEqual([
+      {
+        type: "list",
+        marker: "-",
+        items: ["a", "b"],
+      },
+      {
+        type: "text",
+        text: "next",
+      },
+    ]);
+  });
+
+  it("preserves source order", () => {
+    expect(parseResponseBlocks("intro\n\n- item\n\noutro")).toEqual([
+      {
+        type: "text",
+        text: "intro",
+      },
+      {
+        type: "list",
+        marker: "-",
+        items: ["item"],
+      },
+      {
+        type: "text",
+        text: "outro",
+      },
+    ]);
+  });
+
+  it("drops empty list items", () => {
+    expect(parseResponseBlocks("-\n- good\n- ")).toEqual([
+      {
+        type: "list",
+        marker: "-",
+        items: ["good"],
+      },
+    ]);
+  });
+
+  it("keeps different adjacent markers separate", () => {
+    expect(parseResponseBlocks("- a\n* b")).toEqual([
+      {
+        type: "list",
+        marker: "-",
+        items: ["a"],
+      },
+      {
+        type: "list",
+        marker: "*",
+        items: ["b"],
+      },
+    ]);
+  });
+
+  it("does not throw on malformed input", () => {
+    const inputs = [
+      "",
+      "~~~",
+      "```",
+      "````",
+      "-",
+      "*",
+      "+",
+      "1.",
+      "\0",
+    ];
+
+    for (const input of inputs) {
+      expect(() => parseResponseBlocks(input)).not.toThrow();
+    }
   });
 });
