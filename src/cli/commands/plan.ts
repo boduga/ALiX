@@ -108,6 +108,16 @@ Output ONLY valid YAML. No markdown code blocks.`;
   console.log(`Apply with: alix apply ${planId}`);
 }
 
+export async function handler(args: string[]): Promise<number> {
+  if (args[0] === "--list" || args[0] === "-l") {
+    await runPlan({ task: "", list: true });
+  } else {
+    const task = args.join(" ").replace(/^["']|["']$/g, "");
+    await runPlan({ task });
+  }
+  return 0;
+}
+
 export async function listPlans(): Promise<void> {
   const planDir = join(process.cwd(), ".alix", "plans");
 

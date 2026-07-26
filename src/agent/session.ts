@@ -14,7 +14,11 @@
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import type { ToolCall, NormalizedMessage, ToolDef } from "../providers/types.js";
+import type {
+  ToolCall,
+  NormalizedMessage,
+  ToolDef,
+} from "../providers/types.js";
 import type { RunResult } from "../run.js";
 import type { StreamHandler } from "./stream.js";
 import type { AgentContext } from "./agent.js";
@@ -30,14 +34,37 @@ import { runTaskLoop, type TaskLoopDeps } from "../run/task-loop.js";
 import { createProvider } from "../providers/registry.js";
 import type { ModelAdapter } from "../providers/types.js";
 import { taskRouter } from "../runtime/task-router.js";
-import { LocalRuntimeExecutor, executeRoute, type RuntimeContext } from "../runtime/route-executor.js";
+import {
+  LocalRuntimeExecutor,
+  executeRoute,
+  type RuntimeContext,
+} from "../runtime/route-executor.js";
 import type { TaskRoute } from "../runtime/task-router.js";
-import { createWorkflowRun, transitionWorkflowStatus } from "../kernel/workflow-run.js";
-import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
-import { classifyTask, detectResearchDepth, isReadOnlyTask, isShellTask } from "../task-classifier.js";
-import { buildToolsForProvider, buildContextBundleEventPayload, renderContextBundleForPrompt } from "./messages.js";
+import {
+  createWorkflowRun,
+  transitionWorkflowStatus,
+} from "../kernel/workflow-run.js";
+import {
+  createSingleNodeGraph,
+  transitionNodeStatus,
+  transitionGraphStatus,
+} from "../kernel/task-graph.js";
+import {
+  classifyTask,
+  detectResearchDepth,
+  isReadOnlyTask,
+  isShellTask,
+} from "../task-classifier.js";
+import {
+  buildToolsForProvider,
+  buildContextBundleEventPayload,
+  renderContextBundleForPrompt,
+} from "./messages.js";
 import { ContextCompiler } from "../repomap/context-compiler.js";
-import { buildMemoryContext, buildMemoryStats } from "../utils/memory/recall.js";
+import {
+  buildMemoryContext,
+  buildMemoryStats,
+} from "../utils/memory/recall.js";
 import { getEncoding } from "../config/context-limits.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
@@ -60,12 +87,12 @@ import type { PlanTask } from "../planning/plan-task.js";
  * (TypeScript numeric enums emit reverse-mappings, doubling the count).
  */
 export enum SessionPhase {
-  Understanding = 'Understanding',
-  Planning = 'Planning',
-  Executing = 'Executing',
-  Verifying = 'Verifying',
-  Summarizing = 'Summarizing',
-  Idle = 'Idle',
+  Understanding = "Understanding",
+  Planning = "Planning",
+  Executing = "Executing",
+  Verifying = "Verifying",
+  Summarizing = "Summarizing",
+  Idle = "Idle",
 }
 
 // =============================================================================
@@ -244,7 +271,35 @@ export interface AgentSessionConfig {
    * generation) or the tool/agent workflow. Receives the RouteDiagnostic
    * object describing the classification decision.
    */
-  onRouteDiagnostic?: (diagnostic: import("../runtime/task-router.js").RouteDiagnostic) => void;
+  onRouteDiagnostic?: (
+    diagnostic: import("../runtime/task-router.js").RouteDiagnostic,
+  ) => void;
+}
+
+// =============================================================================
+// Builder strategy types
+// =============================================================================
+
+export interface PlanConfig {
+  approvalMode: "interactive" | "deferred";
+  gate?: import("../run/plan-approval-gate.js").PlanApprovalGate;
+}
+
+export interface ChatConfig {
+  chatSearchTool?: (query: string) => Promise<string>;
+}
+
+export interface PersistenceConfig {
+  approvalStore?: import("../approvals/approval-store.js").ApprovalStore;
+}
+
+export interface EventConfig {
+  onStream?: (token: string) => void;
+  onToolCall?: (call: import("../providers/types.js").ToolCall) => void;
+}
+
+export interface ToolConfig {
+  tools?: import("../providers/types.js").ToolDef[];
 }
 
 export interface AgentSession {
@@ -285,7 +340,9 @@ export interface AgentSession {
    * for backwards compatibility — older implementations (e.g. test
    * stubs) can omit it and fall back to the legacy TTY prompt path.
    */
-  setPlanApprovalGate?(gate: import("../run/plan-approval-gate.js").PlanApprovalGate | null): void;
+  setPlanApprovalGate?(
+    gate: import("../run/plan-approval-gate.js").PlanApprovalGate | null,
+  ): void;
 }
 
 // =============================================================================
@@ -351,7 +408,9 @@ export function emitSessionEvents(
 }
 
 // Internal helper — exported so tests can call it directly.
-export function extractToolResultsFromMessages(msgs: readonly Message[]): ToolResult[] {
+export function extractToolResultsFromMessages(
+  msgs: readonly Message[],
+): ToolResult[] {
   const results: ToolResult[] = [];
   const re = /<tool_result\s+id="([^"]*)">([\s\S]*?)<\/tool_result>/g;
   for (const msg of msgs) {
@@ -361,1041 +420,1487 @@ export function extractToolResultsFromMessages(msgs: readonly Message[]): ToolRe
     while ((match = re.exec(msg.content)) !== null) {
       const id = match[1];
       const body = match[2].trim();
-      const isError = /^Error[:\s]/i.test(body) || body.toLowerCase().includes("access denied");
+      const isError =
+        /^Error[:\s]/i.test(body) ||
+        body.toLowerCase().includes("access denied");
       results.push({ toolCallId: id, content: body, isError });
     }
   }
   return results;
 }
 
-export function createAgentSession(config: AgentSessionConfig): AgentSession {
-  // ---- Mutable internal state (captured by closure) ----
-  let initialized = false;
-  let ctx: AgentContext;
+export class AgentSessionBuilder {
+  private config: Partial<AgentSessionConfig>;
 
-  function restoreReconstructedPlanTasks(reconstructed: { planTasks?: readonly PlanTask[] }): void {
-    if (reconstructed.planTasks) {
-      (ctx as any)._planTasks = reconstructed.planTasks;
-      approvedPlanTasks = reconstructed.planTasks;
-    }
+  constructor(config?: AgentSessionConfig) {
+    this.config = config ?? {};
   }
-  let session: { sessionId: string; actor: "system" };
-  let wfRun: WorkflowRun;
-  let taskGraph: TaskGraph;
-  let taskNode: TaskNode;
-  let wfMeta: Record<string, string>;
-  let graphMeta: Record<string, string>;
-  let metrics: MinimalMetrics;
 
-  // Resolved runtime values (computed during init)
-  let currentTask = config.task;
-  let MAX_CONTEXT_TOKENS = 0;
-  let encoding: "cl100k_base" | "o200k_base" | "char4" = "cl100k_base";
-  let taskType: TaskType = "unknown";
-  let depth: "quick" | "deep" = "quick";
-  let shellTask = false;
-  let readOnlyTask = false;
-  let cappedIterations = 25;
+  build(): AgentSession {
+    const config = this.config as AgentSessionConfig;
 
-  // Setup values
-  let systemPrompt = "";
-  let contextBundle: ContextBundle | undefined;
-  let approvedPlanContent: string | undefined;
-  let approvedPlanTasks: readonly PlanTask[] | undefined;
-  let memoryContext: string | undefined;
-  let memoryStats: string | undefined;
+    // ---- Mutable internal state (captured by closure) ----
+    let initialized = false;
+    let ctx: AgentContext;
 
-  // Tools
-  let providerTools: ToolDef[] = [];
-  let mcpToolIndex: DeferredToolEntry[] = [];
-  let selectedTools: DeferredToolEntry[] = [];
-  let mcpDiscovery: ToolDiscovery | null = null;
+    function restoreReconstructedPlanTasks(reconstructed: {
+      planTasks?: readonly PlanTask[];
+    }): void {
+      if (reconstructed.planTasks) {
+        (ctx as any)._planTasks = reconstructed.planTasks;
+        approvedPlanTasks = reconstructed.planTasks;
+      }
+    }
+    let session: { sessionId: string; actor: "system" };
+    let wfRun: WorkflowRun;
+    let taskGraph: TaskGraph;
+    let taskNode: TaskNode;
+    let wfMeta: Record<string, string>;
+    let graphMeta: Record<string, string>;
+    let metrics: MinimalMetrics;
 
-  // Hooks
-  let hooks: { pre_task: Array<{ command: string; reason: string }>; post_task: Array<{ command: string; reason: string }> } = { pre_task: [], post_task: [] };
+    // Resolved runtime values (computed during init)
+    let currentTask = config.task;
+    let MAX_CONTEXT_TOKENS = 0;
+    let encoding: "cl100k_base" | "o200k_base" | "char4" = "cl100k_base";
+    let taskType: TaskType = "unknown";
+    let depth: "quick" | "deep" = "quick";
+    let shellTask = false;
+    let readOnlyTask = false;
+    let cappedIterations = 25;
 
-  // Session state (accumulated across turns)
-  let messages: Message[] = [];
-  let toolHistory: ToolExecution[] = [];
-  let turnCount = 0;
-  const createdAt = new Date().toISOString();
-  let updatedAt = new Date().toISOString();
-  let _sessionCompleted = false;
-  // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
-  // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
-  // Initial value is Idle so freshly created sessions surface as Idle in the UI
-  // before any turn has run.
-  let phase: SessionPhase = SessionPhase.Idle;
+    // Setup values
+    let systemPrompt = "";
+    let contextBundle: ContextBundle | undefined;
+    let approvedPlanContent: string | undefined;
+    let approvedPlanTasks: readonly PlanTask[] | undefined;
+    let memoryContext: string | undefined;
+    let memoryStats: string | undefined;
 
-  // ---- Internal helpers ----
+    // Tools
+    let providerTools: ToolDef[] = [];
+    let mcpToolIndex: DeferredToolEntry[] = [];
+    let selectedTools: DeferredToolEntry[] = [];
+    let mcpDiscovery: ToolDiscovery | null = null;
 
-  /**
-   * Initialize the session on the first processTurn call.
-   * Replicates the setup in agent-loop.ts runTask().
-   */
-  async function initialize(): Promise<void> {
-    metrics = new MinimalMetrics();
-    metrics.increment("workflow_runs_total", { goal: config.task.slice(0, 50) });
+    // Hooks
+    let hooks: {
+      pre_task: Array<{ command: string; reason: string }>;
+      post_task: Array<{ command: string; reason: string }>;
+    } = { pre_task: [], post_task: [] };
 
-    // P0: Agent init (initAgent creates provider, log, executor, MCP, scope, etc.)
-    ctx = await initAgent(config.cwd, {
-      cwd: config.cwd,
-      task: config.task,
-      sessionId: config.sessionId,
-      sessionMode: config.sessionMode,
-      approvalStore: config.approvalStore,
-    });
+    // Session state (accumulated across turns)
+    let messages: Message[] = [];
+    let toolHistory: ToolExecution[] = [];
+    let turnCount = 0;
+    const createdAt = new Date().toISOString();
+    let updatedAt = new Date().toISOString();
+    let _sessionCompleted = false;
+    // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
+    // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
+    // Initial value is Idle so freshly created sessions surface as Idle in the UI
+    // before any turn has run.
+    let phase: SessionPhase = SessionPhase.Idle;
 
-    // Lifecycle phase: first turn started → Understanding. This is the earliest
-    // initialization point where ctx.log exists, so both getPhase() observers
-    // and event-log subscribers see Understanding before plan/tool work begins.
-    advancePhase(SessionPhase.Understanding);
+    // ---- Internal helpers ----
 
-    session = { sessionId: ctx.sessionId, actor: "system" as const };
+    /**
+     * Initialize the session on the first processTurn call.
+     * Replicates the setup in agent-loop.ts runTask().
+     */
+    async function initialize(): Promise<void> {
+      // P0: Session init
+      const p0 = await setupSession(config.cwd, config.task, {
+        sessionId: config.sessionId,
+        sessionMode: config.sessionMode,
+        approvalStore: config.approvalStore,
+      });
+      ctx = p0.ctx;
+      metrics = p0.metrics;
+      advancePhase(SessionPhase.Understanding);
+      session = { sessionId: ctx.sessionId, actor: "system" as const };
 
-    // P1: WorkflowRun + TaskGraph
-    wfRun = createWorkflowRun(ctx.sessionId, currentTask);
-    wfMeta = { sessionId: ctx.sessionId, workflowId: wfRun.id };
-    await ctx.log.append({
-      ...session, type: "workflow.created", actor: "system",
-      payload: { workflowId: wfRun.id, goal: currentTask, mode: wfRun.mode },
-      meta: wfMeta,
-    });
+      // P1: Workflow
+      const p1 = await setupWorkflow(ctx, session.sessionId, currentTask);
+      wfRun = p1.wfRun;
+      taskGraph = p1.taskGraph;
+      taskNode = p1.taskNode;
+      wfMeta = p1.wfMeta;
+      graphMeta = p1.graphMeta;
 
-    const graphResult = createSingleNodeGraph(wfRun.id, currentTask);
-    taskGraph = graphResult.graph;
-    taskNode = graphResult.node;
-    graphMeta = { ...wfMeta, graphId: taskGraph.id, nodeId: taskNode.id };
-    await ctx.log.append({
-      ...session, type: "graph.created", actor: "system",
-      payload: { graphId: taskGraph.id, workflowId: wfRun.id, nodeCount: 1 },
-      meta: graphMeta,
-    });
-    await ctx.log.append({
-      ...session, type: "task.ready", actor: "system",
-      payload: { nodeId: taskNode.id, graphId: taskGraph.id, goal: currentTask },
-      meta: graphMeta,
-    });
-
-    // Resume path -- reconstruct state from prior session
-    if (config.resumeSessionId) {
-      const { reconstructSession } = await import("../session/resume.js");
-      const reconstructed = await reconstructSession(config.cwd, config.resumeSessionId);
-
-      if (reconstructed.completed) {
-        transitionWorkflowStatus(wfRun, "completed");
-        await ctx.log.append({
-          ...session, type: "workflow.completed", actor: "system",
-          payload: { workflowId: wfRun.id, summary: `Session ${config.resumeSessionId} is already completed. Use a different session or start a new task.` },
-          meta: wfMeta,
-        });
-
-        // Mark session as completed so processTurn returns early
-        _sessionCompleted = true;
-      } else {
-        // Override task with original from persisted session
-        const originalTask = reconstructed.messages.find(m => m.role === "user");
-        if (originalTask && typeof originalTask.content === "string") {
-          currentTask = originalTask.content;
+      // P2: Resume
+      if (config.resumeSessionId) {
+        const p2 = await setupResume(ctx, config.cwd, config.resumeSessionId);
+        if (p2.completed) {
+          transitionWorkflowStatus(wfRun, "completed");
+          await ctx.log.append({
+            ...session,
+            type: "workflow.completed",
+            actor: "system",
+            payload: {
+              workflowId: wfRun.id,
+              summary: `Session ${config.resumeSessionId} is already completed. Use a different session or start a new task.`,
+            },
+            meta: wfMeta,
+          });
+          _sessionCompleted = true;
+        } else {
+          if (p2.currentTask !== undefined) currentTask = p2.currentTask;
+          if (p2.resumedMessages)
+            (ctx as any)._resumedMessages = p2.resumedMessages;
+          if (p2.scopeSnapshot) (ctx as any)._scopeSnapshot = p2.scopeSnapshot;
+          if (p2.stateSnapshot) (ctx as any)._stateSnapshot = p2.stateSnapshot;
+          if (p2.planContent) (ctx as any)._planContent = p2.planContent;
+          if (p2.planTasks) {
+            (ctx as any)._planTasks = p2.planTasks;
+            approvedPlanTasks = p2.planTasks as readonly PlanTask[];
+          }
         }
-
-        // Store reconstructed state on context for downstream use
-        (ctx as any)._resumedMessages = reconstructed.messages;
-        (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
-        (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
-        (ctx as any)._planContent = reconstructed.planContent;
-        restoreReconstructedPlanTasks(reconstructed);
+        await ctx.log.append({
+          ...session,
+          actor: "system",
+          type: "session.resumed",
+          payload: {
+            priorSessionId: config.resumeSessionId,
+            task: currentTask,
+          },
+        });
       }
 
-      await ctx.log.append({
-        ...session, actor: "system", type: "session.resumed",
-        payload: { priorSessionId: config.resumeSessionId, task: currentTask },
-      });
-    }
+      // P3: Memory
+      const p3 = await setupMemory(ctx.memoryStore);
+      memoryContext = p3.memoryContext;
+      memoryStats = p3.memoryStats;
 
-    // P2: Memory context
-    memoryContext = await buildMemoryContext(ctx.memoryStore);
-    memoryStats = await buildMemoryStats(ctx.memoryStore);
+      // P4: Skills
+      const matchedSkills = await setupSkills(
+        currentTask,
+        ctx.config.skills?.factory,
+      );
 
-    // P3: Skills catalog (best-effort; failures are non-fatal)
-    let matchedSkills: any[] = [];
-    try {
-      const skillsHome = join(homedir(), ".alix", "skills");
-      const { loadSkillManifests } = await import("../skills/loader.js");
-      const { buildSkillCatalog } = await import("../skills/catalog.js");
-      const skillManifests = await loadSkillManifests(skillsHome);
-      const skillCatalog = buildSkillCatalog(skillManifests);
-      const { maxStore, maxCandidates } = ctx.config.skills?.factory ?? DEFAULT_FACTORY_CONFIG;
-      evictIfNeeded(skillsHome, { maxStore, maxCandidates: maxCandidates ?? 200 });
-      matchedSkills = await skillCatalog.getMatchedContent(currentTask);
-    } catch {
-      // Skills catalog is optional
-    }
+      // P5: Context limits + task classification
+      const p5 = await setupContextLimits(
+        ctx.config.model,
+        ctx.config.apiKeys,
+        currentTask,
+        config.readOnly,
+      );
+      MAX_CONTEXT_TOKENS = p5.MAX_CONTEXT_TOKENS;
+      encoding = p5.encoding;
+      taskType = p5.taskType;
+      depth = p5.depth;
+      shellTask = p5.shellTask;
+      readOnlyTask = p5.readOnlyTask;
+      cappedIterations = p5.cappedIterations;
 
-    // P4: Context token limits
-    const userOverride = ctx.config.model.maxContextTokens;
-    if (userOverride !== undefined) {
-      MAX_CONTEXT_TOKENS = userOverride;
-      encoding = getEncoding(ctx.config.model.provider);
-    } else {
-      const { resolveContextLimit, getEncoding: getEnc } = await import("../config/context-limits.js");
-      const resolved = await resolveContextLimit(ctx.config.model.provider, ctx.config.model.name, ctx.config.apiKeys);
-      MAX_CONTEXT_TOKENS = resolved.maxTokens;
-      encoding = resolved.encoding;
-    }
+      // P6: Context compilation + Plan
+      if (!shellTask && !readOnlyTask && currentTask) {
+        const p6 = await setupContextAndPlan(
+          ctx,
+          config.cwd,
+          MAX_CONTEXT_TOKENS,
+          currentTask,
+          taskType,
+          ctx.sessionId,
+          {
+            planMode: config.planMode,
+            planFilePath: config.planFilePath,
+            planApprovalMode: config.planApprovalMode,
+            planApprovalGate: config.planApprovalGate,
+          },
+        );
+        contextBundle = p6.contextBundle;
 
-    // P5: Task classification — use a placeholder when no initial task
-    // (chat mode with no initial task; first processTurn message becomes the task)
-    const effectiveTask = currentTask || "Interactive coding session";
-    taskType = classifyTask(effectiveTask);
-    depth = detectResearchDepth(effectiveTask);
-    const maxIter = ctx.config.model.maxIterations ?? 25;
-    shellTask = isShellTask(effectiveTask);
-    readOnlyTask = isReadOnlyTask(effectiveTask) || shellTask;
-    cappedIterations = shellTask
-      ? Math.min(maxIter, 2)
-      : config.readOnly
-        ? Math.min(maxIter, 4)
-        : maxIter;
+        if (p6.approvedPlanContent) {
+          advancePhase(SessionPhase.Planning);
+        }
 
-    // P6: Context compilation (skip for shell / read-only tasks, and when no initial task)
-    if (!shellTask && !readOnlyTask && currentTask) {
-      const contextCompiler = new ContextCompiler({
-        root: config.cwd,
-        maxTokens: MAX_CONTEXT_TOKENS,
-        eventLog: ctx.log,
-        sessionId: ctx.sessionId,
-      });
-      await contextCompiler.warm();
-      contextBundle = await contextCompiler.compileContext(currentTask, taskType, []);
-      await ctx.log.append({
-        ...session, type: "context.bundle_compiled", actor: "system",
-        payload: buildContextBundleEventPayload(contextBundle),
-      });
-
-      // P7: Plan phase (skipped for read-only / shell / non-TTY)
-      // Also skip when planMode is explicitly false.
-      if (config.planMode !== false) {
-        const { runPlanPhase } = await import("../run/plan-phase.js");
-
-        // Lifecycle phase: about to call runPlanPhase → Planning. This hook
-        // fires immediately before the call so observers see the phase move
-        // from Understanding to Planning as the plan phase enters its work block.
-        // When planMode is disabled, Planning is skipped entirely so the TUI
-        // moves directly from Understanding to Executing.
-        advancePhase(SessionPhase.Planning);
-
-        const planResult = await runPlanPhase(ctx, contextBundle, currentTask, config.planFilePath, {
-          approvalMode: config.planApprovalMode ?? "interactive",
-          gate: config.planApprovalGate,
-        });
-        if (planResult.action === "rejected") {
+        if (p6.planRejected) {
           transitionWorkflowStatus(wfRun, "failed");
           await ctx.log.append({
-            ...session, type: "workflow.failed", actor: "system",
-            payload: { workflowId: wfRun.id, summary: "Plan rejected. Task cancelled." },
+            ...session,
+            type: "workflow.failed",
+            actor: "system",
+            payload: {
+              workflowId: wfRun.id,
+              summary: "Plan rejected. Task cancelled.",
+            },
             meta: wfMeta,
           });
           throw new Error("Plan rejected by user");
         }
-        approvedPlanContent = planResult.planContent;
-        approvedPlanTasks = planResult.planTasks;
-      }
-    }
 
-    // P8: Tool setup
-    const baseTools = buildToolsForProvider(ctx.provider);
-    const toolFilter = config.readOnly
-      ? new Set([...READ_ONLY_TOOL_NAMES].filter(n => n !== "alix_shell_run"))
-      : shellTask
-        ? READ_ONLY_TOOL_NAMES
-        : null;
-    providerTools = toolFilter
-      ? baseTools.filter(t => toolFilter.has(t.name))
-      : baseTools;
-
-    const mcpDeferral = ctx.mcpManager?.getDeferral();
-    mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
-    const toolSelector = new ToolSelector(mcpToolIndex, { maxTools: 20, tokenBudget: 3000 });
-    selectedTools = toolSelector.select(currentTask);
-    mcpDiscovery = ctx.mcpManager ? new ToolDiscovery(mcpToolIndex) : null;
-    for (const entry of selectedTools) {
-      TOOL_NAME_MAP[entry.name] = entry.execName;
-    }
-    await ctx.log.append({
-      ...session, actor: "system", type: "mcp.tools_selected",
-      payload: { total: mcpToolIndex.length, selected: selectedTools.length, taskPreview: currentTask.slice(0, 100) },
-    });
-
-    // P9: System prompt assembly (matches agent-loop.ts lines 274-317)
-    const SYSTEM_PROMPT_BASE =
-      "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved. For read-only queries (like pwd, ls, cat, grep), call done immediately after getting the result — there is nothing to verify.";
-    const lines: string[] = [
-      SYSTEM_PROMPT_BASE,
-      `## Workspace\nYou are working in: \`${config.cwd}\`. All file paths are relative to this directory.`,
-    ];
-
-    if (shellTask) {
-      lines.push(`## Read-Only Mode
-The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
-    }
-
-    if (config.readOnly) {
-      lines.push(`## Read-Only Mode
-You are in read-only mode. You can read files, search the codebase, and delegate to subagents, but you CANNOT run shell commands or modify any files. Answer questions and investigate the codebase. Suggest changes verbally rather than making them.`);
-    }
-
-    if (matchedSkills.length > 0) {
-      const skillSection = matchedSkills
-        .map((s: any) => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
-        .join("\n\n");
-      lines.push(`## Available Skills\n${skillSection}`);
-    }
-
-    if (contextBundle && (contextBundle.primaryFiles.length > 0 || contextBundle.tests.length > 0 || contextBundle.supportingFiles.length > 0)) {
-      lines.push(renderContextBundleForPrompt(contextBundle));
-    }
-
-    if (approvedPlanContent) {
-      lines.push(`## Approved Plan\n${approvedPlanContent}`);
-    }
-
-    if (memoryStats) {
-      lines.push(`## Memory Stats\n${memoryStats}`);
-    }
-
-    if (memoryContext) {
-      lines.push(`## Memory\n${memoryContext}`);
-    }
-
-    systemPrompt = lines.join("\n\n");
-
-    // P10: Discover hooks
-    const { discoverHooks } = await import("../hooks/discover.js");
-    const discoveredHooks = await discoverHooks(config.cwd);
-    hooks = {
-      pre_task: (discoveredHooks.pre_task ?? []).map((h: any) => ({ command: h.command, reason: h.reason })),
-      post_task: (discoveredHooks.post_task ?? []).map((h: any) => ({ command: h.command, reason: h.reason })),
-    };
-
-    initialized = true;
-  }
-
-  /**
-   * Create a fresh MutationSessionState for each turn.
-   */
-  function createFreshSessionState(): MutationSessionState {
-    return {
-      created: new Set<string>(),
-      changed: new Set<string>(),
-      deleted: new Set<string>(),
-      fatalErrors: [] as string[],
-      pendingScopeExpansion: false,
-    };
-  }
-
-  /**
-   * Best-effort extraction of tool calls from messages added during a turn.
-   *
-   * NormalizedMessage does not preserve ToolCall metadata directly, so we
-   * extract tool call IDs from `<tool_result>` tags in assistant tool-result
-   * messages. Full name/args resolution requires integration with the event
-   * log's agent.reasoning events, which is deferred.
-   */
-  function extractToolCallsFromMessages(msgs: Message[]): ToolCall[] {
-    const calls: ToolCall[] = [];
-    const resultRe = /<tool_result\s+id="([^"]*)"/g;
-    for (const msg of msgs) {
-      if (typeof msg.content === "string") {
-        let match: RegExpExecArray | null;
-        while ((match = resultRe.exec(msg.content)) !== null) {
-          calls.push({ id: match[1], name: "unknown", args: {} });
+        if (p6.approvedPlanContent) {
+          approvedPlanContent = p6.approvedPlanContent;
+          approvedPlanTasks = p6.approvedPlanTasks;
         }
       }
-    }
-    return calls;
-  }
 
-  /**
-   * Advance the lifecycle phase. No-op if already in the target phase.
-   * Best-effort emits an `agent.session.phase_changed` event so observers
-   * (TUI, audit) can react without subscribing to the closure.
-   */
-  function advancePhase(next: SessionPhase): void {
-    if (phase === next) return;
-    phase = next;
-    // ctx may not be wired yet during very early setup; append is safe to skip
-    // in that window because phase is also exposed via getPhase().
-    const log = ctx?.log;
-    if (!log) return;
-    void log
-      .append({
-        sessionId: ctx.sessionId,
+      // P7: Tools
+      const p7 = await setupTools(ctx, currentTask, config.readOnly, shellTask);
+      providerTools = p7.providerTools;
+      mcpToolIndex = p7.mcpToolIndex;
+      selectedTools = p7.selectedTools;
+      mcpDiscovery = p7.mcpDiscovery;
+      await ctx.log.append({
+        ...session,
         actor: "system",
-        type: "agent.session.phase_changed",
-        payload: { phase: next },
-      })
-      .catch(() => {
-        // Observability must never break the turn loop.
+        type: "mcp.tools_selected",
+        payload: {
+          total: mcpToolIndex.length,
+          selected: selectedTools.length,
+          taskPreview: currentTask.slice(0, 100),
+        },
       });
-  }
 
-  /**
-   * Observe the current lifecycle phase. TUI-only contract: the value is
-   * owned by AgentSession; consumers must not mutate.
-   */
-  function getPhase(): SessionPhase {
-    return phase;
-  }
-
-  // ---- Exported interface methods ----
-
-  async function processTurn(message: string): Promise<AgentTurnResult> {
-    // ── Preflight classification ─────────────────────────────────────────
-    // Classify the message BEFORE any initialization. Direct routes bypass
-    // the full agent lifecycle entirely. Grounded_chat routes are handled
-    // by the route executor's two-step tool→synthesis pattern. All other
-    // route kinds fall through to initialize() → runTaskLoop().
-    // Resolve classifier provider for the hybrid fallback.
-    // When configured via classifierModel, use that explicitly; otherwise
-    // fall back to chatModel (cheaper path) when available. When neither
-    // is set, the router stays purely deterministic — no provider cost.
-    const classifierCfg = config.classifierModel ?? config.chatModel;
-    const classifierProvider = classifierCfg
-      ? await createProvider(classifierCfg, config.chatApiKey).catch(() => null)
-      : null;
-
-    const route = await taskRouter(message, {
-      classifierProvider: classifierProvider ?? undefined,
-    });
-    if (route.kind === "direct") {
-      // Fire the diagnostic callback if one is wired (Task 4).
-      // Callback failures are swallowed — diagnostics are observability,
-      // never a control surface.
-      if (route.diagnostic && config.onRouteDiagnostic) {
-        try { config.onRouteDiagnostic(route.diagnostic); }
-        catch { /* swallow */ }
-      }
-
-      // Arithmetic — deterministic answer, no provider call.
-      if (route.answer !== undefined) {
-        return {
-          summary: route.answer,
-          sessionId: config.sessionId ?? "",
-          toolCalls: [],
-          streamed: false,
-          reason: "direct",
-        };
-      }
-
-      // Standalone generation — exactly one provider call, no tool loop.
-      // Resolve the provider: check chatProvider first, then chatModel,
-      // falling back to the existing [chat:no-provider] placeholder when
-      // no provider is available (never falls through to the agent loop).
-      const genProvider = config.chatProvider
-        ?? (config.chatModel
-          ? await createProvider(config.chatModel, config.chatApiKey).catch(() => null)
-          : null);
-      if (!genProvider) {
-        return {
-          summary: `[chat:no-provider] ${message}`,
-          sessionId: config.sessionId ?? "",
-          toolCalls: [],
-          streamed: false,
-          reason: "direct",
-        };
-      }
-      let _providerError: string | undefined;
-      const genResponse = await genProvider.complete({
-        systemPrompt: "You are ALiX, a helpful AI assistant. Answer concisely.",
-        messages: [{ role: "user", content: route.prompt }],
-        maxOutputTokens: 512,
-      }).catch((err: unknown) => {
-        _providerError = err instanceof Error ? err.message : String(err);
-        return null;
+      // P8: System prompt
+      systemPrompt = await setupSystemPrompt(config.cwd, {
+        readOnly: config.readOnly,
+        shellTask,
+        matchedSkills,
+        contextBundle,
+        approvedPlanContent,
+        memoryContext,
+        memoryStats,
       });
-      if (!genResponse) {
-        return {
-          summary: `[chat:provider-error] ${_providerError ?? message}`,
-          sessionId: config.sessionId ?? "",
-          toolCalls: [],
-          streamed: false,
-          reason: "direct",
-        };
-      }
+
+      // P9: Hooks
+      hooks = await setupHooks(config.cwd);
+
+      initialized = true;
+    }
+
+    /**
+     * Create a fresh MutationSessionState for each turn.
+     */
+    function createFreshSessionState(): MutationSessionState {
       return {
-        summary: genResponse.text || "(no response)",
-        sessionId: config.sessionId ?? "",
-        toolCalls: [],
-        streamed: false,
-        reason: "direct",
+        created: new Set<string>(),
+        changed: new Set<string>(),
+        deleted: new Set<string>(),
+        fatalErrors: [] as string[],
+        pendingScopeExpansion: false,
       };
     }
 
-    // ── Grounded chat — init then route executor ─────────────────────────
-    // External retrieval prompts need the two-step tool→synthesis pattern
-    // (search the web, then have the model synthesize an answer). The route
-    // executor handles this; the full agent loop would return raw tool output.
-    // We initialize first to get ctx (needed for the RuntimeContext), then
-    // delegate to the executor and return immediately — no agent loop.
-    if (route.kind === "grounded_chat") {
+    /**
+     * Best-effort extraction of tool calls from messages added during a turn.
+     *
+     * NormalizedMessage does not preserve ToolCall metadata directly, so we
+     * extract tool call IDs from `<tool_result>` tags in assistant tool-result
+     * messages. Full name/args resolution requires integration with the event
+     * log's agent.reasoning events, which is deferred.
+     */
+    function extractToolCallsFromMessages(msgs: Message[]): ToolCall[] {
+      const calls: ToolCall[] = [];
+      const resultRe = /<tool_result\s+id="([^"]*)"/g;
+      for (const msg of msgs) {
+        if (typeof msg.content === "string") {
+          let match: RegExpExecArray | null;
+          while ((match = resultRe.exec(msg.content)) !== null) {
+            calls.push({ id: match[1], name: "unknown", args: {} });
+          }
+        }
+      }
+      return calls;
+    }
+
+    /**
+     * Advance the lifecycle phase. No-op if already in the target phase.
+     * Best-effort emits an `agent.session.phase_changed` event so observers
+     * (TUI, audit) can react without subscribing to the closure.
+     */
+    function advancePhase(next: SessionPhase): void {
+      if (phase === next) return;
+      phase = next;
+      // ctx may not be wired yet during very early setup; append is safe to skip
+      // in that window because phase is also exposed via getPhase().
+      const log = ctx?.log;
+      if (!log) return;
+      void log
+        .append({
+          sessionId: ctx.sessionId,
+          actor: "system",
+          type: "agent.session.phase_changed",
+          payload: { phase: next },
+        })
+        .catch(() => {
+          // Observability must never break the turn loop.
+        });
+    }
+
+    /**
+     * Observe the current lifecycle phase. TUI-only contract: the value is
+     * owned by AgentSession; consumers must not mutate.
+     */
+    function getPhase(): SessionPhase {
+      return phase;
+    }
+
+    // ---- Exported interface methods ----
+
+    async function processTurn(message: string): Promise<AgentTurnResult> {
+      // ── Preflight classification ─────────────────────────────────────────
+      // Classify the message BEFORE any initialization. Direct routes bypass
+      // the full agent lifecycle entirely. Grounded_chat routes are handled
+      // by the route executor's two-step tool→synthesis pattern. All other
+      // route kinds fall through to initialize() → runTaskLoop().
+      // Resolve classifier provider for the hybrid fallback.
+      // When configured via classifierModel, use that explicitly; otherwise
+      // fall back to chatModel (cheaper path) when available. When neither
+      // is set, the router stays purely deterministic — no provider cost.
+      const classifierCfg = config.classifierModel ?? config.chatModel;
+      const classifierProvider = classifierCfg
+        ? await createProvider(classifierCfg, config.chatApiKey).catch(
+            () => null,
+          )
+        : null;
+
+      const route = await taskRouter(message, {
+        classifierProvider: classifierProvider ?? undefined,
+      });
+      if (route.kind === "direct") {
+        // Fire the diagnostic callback if one is wired (Task 4).
+        // Callback failures are swallowed — diagnostics are observability,
+        // never a control surface.
+        if (route.diagnostic && config.onRouteDiagnostic) {
+          try {
+            config.onRouteDiagnostic(route.diagnostic);
+          } catch {
+            /* swallow */
+          }
+        }
+
+        // Arithmetic — deterministic answer, no provider call.
+        if (route.answer !== undefined) {
+          return {
+            summary: route.answer,
+            sessionId: config.sessionId ?? "",
+            toolCalls: [],
+            streamed: false,
+            reason: "direct",
+          };
+        }
+
+        // Standalone generation — exactly one provider call, no tool loop.
+        // Resolve the provider: check chatProvider first, then chatModel,
+        // falling back to the existing [chat:no-provider] placeholder when
+        // no provider is available (never falls through to the agent loop).
+        const genProvider =
+          config.chatProvider ??
+          (config.chatModel
+            ? await createProvider(config.chatModel, config.chatApiKey).catch(
+                () => null,
+              )
+            : null);
+        if (!genProvider) {
+          return {
+            summary: `[chat:no-provider] ${message}`,
+            sessionId: config.sessionId ?? "",
+            toolCalls: [],
+            streamed: false,
+            reason: "direct",
+          };
+        }
+        let _providerError: string | undefined;
+        const genResponse = await genProvider
+          .complete({
+            systemPrompt:
+              "You are ALiX, a helpful AI assistant. Answer concisely.",
+            messages: [{ role: "user", content: route.prompt }],
+            maxOutputTokens: 512,
+          })
+          .catch((err: unknown) => {
+            _providerError = err instanceof Error ? err.message : String(err);
+            return null;
+          });
+        if (!genResponse) {
+          return {
+            summary: `[chat:provider-error] ${_providerError ?? message}`,
+            sessionId: config.sessionId ?? "",
+            toolCalls: [],
+            streamed: false,
+            reason: "direct",
+          };
+        }
+        return {
+          summary: genResponse.text || "(no response)",
+          sessionId: config.sessionId ?? "",
+          toolCalls: [],
+          streamed: false,
+          reason: "direct",
+        };
+      }
+
+      // ── Grounded chat — init then route executor ─────────────────────────
+      // External retrieval prompts need the two-step tool→synthesis pattern
+      // (search the web, then have the model synthesize an answer). The route
+      // executor handles this; the full agent loop would return raw tool output.
+      // We initialize first to get ctx (needed for the RuntimeContext), then
+      // delegate to the executor and return immediately — no agent loop.
+      if (route.kind === "grounded_chat") {
+        if (!initialized) {
+          if (!currentTask) currentTask = message;
+          await initialize();
+        } else {
+          advancePhase(SessionPhase.Understanding);
+        }
+        if (_sessionCompleted) {
+          return {
+            summary: `Session ${ctx.sessionId} is already completed.`,
+            sessionId: ctx.sessionId,
+            toolCalls: [],
+            streamed: false,
+            reason: "completed",
+          };
+        }
+        updatedAt = new Date().toISOString();
+
+        const executor = new LocalRuntimeExecutor();
+        const runtimeCtx: RuntimeContext = {
+          cwd: config.cwd,
+          sessionId: ctx.sessionId,
+          sessionDir: ctx.sessionDir,
+          eventLog: ctx.log,
+          config: ctx.config,
+          onRouteDiagnostic: config.onRouteDiagnostic,
+        };
+        const summary = await executeRoute(route, runtimeCtx, executor);
+        return {
+          summary,
+          sessionId: ctx.sessionId,
+          toolCalls: [],
+          streamed: false,
+          reason: "grounded_chat",
+        };
+      }
+
       if (!initialized) {
+        // Seed currentTask from the first message so the planning phase has
+        // a task to work with (TUI creates sessions with an empty task).
         if (!currentTask) currentTask = message;
         await initialize();
       } else {
+        // Lifecycle phase: subsequent turn started → Understanding. First-turn
+        // initialization performs the same transition once ctx.log is available.
         advancePhase(SessionPhase.Understanding);
       }
+
+      // If the session was already completed (resumed completed session), return early
       if (_sessionCompleted) {
         return {
-          summary: `Session ${ctx.sessionId} is already completed.`,
+          summary: `Session ${ctx.sessionId} is already completed. Use a different session or start a new task.`,
           sessionId: ctx.sessionId,
           toolCalls: [],
           streamed: false,
           reason: "completed",
         };
       }
+
       updatedAt = new Date().toISOString();
 
-      const executor = new LocalRuntimeExecutor();
-      const runtimeCtx: RuntimeContext = {
-        cwd: config.cwd,
-        sessionId: ctx.sessionId,
-        sessionDir: ctx.sessionDir,
-        eventLog: ctx.log,
-        config: ctx.config,
-        onRouteDiagnostic: config.onRouteDiagnostic,
-      };
-      const summary = await executeRoute(route, runtimeCtx, executor);
-      return {
-        summary,
-        sessionId: ctx.sessionId,
-        toolCalls: [],
-        streamed: false,
-        reason: "grounded_chat",
-      };
-    }
-
-    if (!initialized) {
-      // Seed currentTask from the first message so the planning phase has
-      // a task to work with (TUI creates sessions with an empty task).
-      if (!currentTask) currentTask = message;
-      await initialize();
-    } else {
-      // Lifecycle phase: subsequent turn started → Understanding. First-turn
-      // initialization performs the same transition once ctx.log is available.
-      advancePhase(SessionPhase.Understanding);
-    }
-
-    // If the session was already completed (resumed completed session), return early
-    if (_sessionCompleted) {
-      return {
-        summary: `Session ${ctx.sessionId} is already completed. Use a different session or start a new task.`,
-        sessionId: ctx.sessionId,
-        toolCalls: [],
-        streamed: false,
-        reason: "completed",
-      };
-    }
-
-    updatedAt = new Date().toISOString();
-
-    // Emit lifecycle event: turn started
-    await ctx.log.append({
-      sessionId: ctx.sessionId, actor: "system",
-      type: "agent.session.turn.started",
-      payload: { turn: turnCount, message },
-    });
-
-    // Push user message to accumulated messages
-    messages.push({ role: "user", content: message });
-
-    // Create fresh per-turn state (each turn gets its own iteration budget)
-    const sessionState = createFreshSessionState();
-    const limiter = new RunLimiter({
-      maxIterations: cappedIterations,
-      maxRepairs: 3,
-      maxFileChanges: 0,
-      maxShellCommands: 0,
-      maxRuntimeMs: 0,
-    });
-    const stateMachine = new TaskStateMachine(limiter);
-
-    // Build execution context for diagnostic correlation
-    const runId = `run-${randomUUID().slice(0, 8)}`;
-    const taskContext: ExecutionContext = {
-      runId,
-      sessionId: ctx.sessionId,
-      workflowId: wfRun.id,
-      providerId: ctx.config.model.provider,
-      model: ctx.config.model.name,
-      parentRunId: config.parentRunId,
-    };
-
-    // Snapshot pre-turn message count to identify this turn's additions
-    const preTurnMsgCount = messages.length;
-
-    // Update graph status (first turn transitions from ready / created)
-    transitionNodeStatus(taskNode, "running");
-    if (turnCount === 1) {
-      transitionGraphStatus(taskGraph, "running");
+      // Emit lifecycle event: turn started
       await ctx.log.append({
-        ...session, type: "task.started", actor: "system",
-        payload: { nodeId: taskNode.id, graphId: taskGraph.id },
-        meta: graphMeta,
+        sessionId: ctx.sessionId,
+        actor: "system",
+        type: "agent.session.turn.started",
+        payload: { turn: turnCount, message },
       });
-      await ctx.log.append({
-        ...session, type: "graph.status_changed", actor: "system",
-        payload: { graphId: taskGraph.id, status: "running" },
-        meta: graphMeta,
-      });
-    }
 
-    const startTime = Date.now();
+      // Push user message to accumulated messages
+      messages.push({ role: "user", content: message });
 
-    // Lifecycle phase: about to call runTaskLoop → Executing. Tool-call
-    // events (tool.*) are emitted inside runTaskLoop itself; this hook fires
-    // immediately before the call so observers see the phase move from
-    // Planning to Executing as the task loop enters its execution path.
-    advancePhase(SessionPhase.Executing);
-
-    // Build TaskLoopDeps and run the agent loop
-    let result: RunResult;
-    try {
-      result = await runTaskLoop({
-        config: {
-          model: {
-            provider: ctx.config.model.provider,
-            name: ctx.config.model.name,
-            streaming: ctx.config.model.streaming ?? false,
-          },
-          permissions: {
-            sessionMode: ctx.config.permissions.sessionMode,
-          },
-          skills: ctx.config.skills,
-        },
-        provider: ctx.provider,
-        providerTools,
-        mcpToolIndex,
-        messages,
-        sessionState,
-        stateMachine,
-        scope: ctx.scope,
-        session,
-        log: ctx.log,
-        executor: ctx.toolExecutor,
-        mcpDiscovery,
-        selectedTools,
-        hooks,
+      // Create fresh per-turn state (each turn gets its own iteration budget)
+      const sessionState = createFreshSessionState();
+      const limiter = new RunLimiter({
         maxIterations: cappedIterations,
-        MAX_CONTEXT_TOKENS,
-        encoding,
-        task: currentTask,
-        taskType,
-        depth,
-        readOnly: config.readOnly ?? readOnlyTask,
-        shellTask: shellTask || (turnCount === 0 && currentTask === "" ? isShellTask(message) : false),
-        memoryStore: ctx.memoryStore,
+        maxRepairs: 3,
+        maxFileChanges: 0,
+        maxShellCommands: 0,
+        maxRuntimeMs: 0,
+      });
+      const stateMachine = new TaskStateMachine(limiter);
+
+      // Build execution context for diagnostic correlation
+      const runId = `run-${randomUUID().slice(0, 8)}`;
+      const taskContext: ExecutionContext = {
+        runId,
         sessionId: ctx.sessionId,
-        sessionDir: ctx.sessionDir,
-        systemPrompt,
-        onStream: buildSessionStreamHandler(config.onStream, config.events),
-        hookRunner: ctx.hookRunner,
-        context: taskContext,
-        verbose: config.verbose,
-      });
-    } catch (err) {
-      transitionNodeStatus(taskNode, "failed");
-      await ctx.log.append({
-        ...session, type: "task.failed", actor: "system",
-        payload: { nodeId: taskNode.id, graphId: taskGraph.id, error: String(err) },
-        meta: graphMeta,
-      });
-      transitionWorkflowStatus(wfRun, "failed");
-      await ctx.log.append({
-        ...session, type: "workflow.failed", actor: "system",
-        payload: { workflowId: wfRun.id, summary: String(err) },
-        meta: wfMeta,
-      });
+        workflowId: wfRun.id,
+        providerId: ctx.config.model.provider,
+        model: ctx.config.model.name,
+        parentRunId: config.parentRunId,
+      };
 
-      // Emit lifecycle event: turn completed (error)
-      await ctx.log.append({
-        sessionId: ctx.sessionId, actor: "system",
-        type: "agent.session.turn.completed",
-        payload: { turn: turnCount, error: String(err) },
-      });
-      turnCount++;
-      throw err;
-    }
+      // Snapshot pre-turn message count to identify this turn's additions
+      const preTurnMsgCount = messages.length;
 
-    // Verifying phase begins as the task loop's verifier pass completes; the TUI
-    // shows "Verifying" between this transition and the eventual "Summarizing"
-    // once summary lines are emitted. During the actual verifier pass, the TUI
-    // still shows "Executing": the verifier lives inside runTaskLoop, so this is
-    // the post-verify-pre-result proxy boundary within the two-file scope.
-    advancePhase(SessionPhase.Verifying);
+      // Update graph status (first turn transitions from ready / created)
+      transitionNodeStatus(taskNode, "running");
+      if (turnCount === 1) {
+        transitionGraphStatus(taskGraph, "running");
+        await ctx.log.append({
+          ...session,
+          type: "task.started",
+          actor: "system",
+          payload: { nodeId: taskNode.id, graphId: taskGraph.id },
+          meta: graphMeta,
+        });
+        await ctx.log.append({
+          ...session,
+          type: "graph.status_changed",
+          actor: "system",
+          payload: { graphId: taskGraph.id, status: "running" },
+          meta: graphMeta,
+        });
+      }
 
-    // Update graph status based on result reason
-    const FAILURE_REASONS = new Set(["max_iterations", "max_repairs", "rejected_scope_expansion"]);
-    const isFailed = FAILURE_REASONS.has(result.reason ?? "");
+      const startTime = Date.now();
 
-    if (isFailed) {
-      transitionNodeStatus(taskNode, "failed");
-      transitionGraphStatus(taskGraph, "failed");
-      await ctx.log.append({
-        ...session, type: "task.failed", actor: "system",
-        payload: { nodeId: taskNode.id, graphId: taskGraph.id, reason: result.reason, summary: result.summary },
-        meta: graphMeta,
-      });
-      await ctx.log.append({
-        ...session, type: "graph.failed", actor: "system",
-        payload: { graphId: taskGraph.id, workflowId: wfRun.id, reason: result.reason, summary: result.summary },
-        meta: graphMeta,
-      });
-      await ctx.log.append({
-        ...session, type: "workflow.failed", actor: "system",
-        payload: { workflowId: wfRun.id, reason: result.reason, summary: result.summary },
-        meta: wfMeta,
-      });
-    } else {
-      transitionNodeStatus(taskNode, "done");
-      transitionGraphStatus(taskGraph, "completed");
-      await ctx.log.append({
-        ...session, type: "task.done", actor: "system",
-        payload: { nodeId: taskNode.id, graphId: taskGraph.id, summary: result.summary },
-        meta: graphMeta,
-      });
-      await ctx.log.append({
-        ...session, type: "graph.completed", actor: "system",
-        payload: { graphId: taskGraph.id, workflowId: wfRun.id, summary: result.summary },
-        meta: graphMeta,
-      });
-      transitionWorkflowStatus(wfRun, "completed");
-      await ctx.log.append({
-        ...session, type: "workflow.completed", actor: "system",
-        payload: { workflowId: wfRun.id, summary: result.summary },
-        meta: wfMeta,
-      });
-    }
+      // Lifecycle phase: about to call runTaskLoop → Executing. Tool-call
+      // events (tool.*) are emitted inside runTaskLoop itself; this hook fires
+      // immediately before the call so observers see the phase move from
+      // Planning to Executing as the task loop enters its execution path.
+      advancePhase(SessionPhase.Executing);
 
-    // Flush minimal metrics
-    metrics.duration("workflow_duration_ms", Date.now() - startTime);
-    const metricEvents = metrics.flush();
-    for (const m of metricEvents) {
-      await ctx.log.append({ ...session, actor: "system", type: "m09.metric", payload: m });
-    }
-
-    // Extract tool calls from this turn's new messages
-    const newMessages = messages.slice(preTurnMsgCount);
-    const turnToolCalls = extractToolCallsFromMessages(newMessages);
-
-    // Update tool history
-    for (const tc of turnToolCalls) {
-      toolHistory.push({
-        toolName: tc.name,
-        args: tc.args,
-        timestamp: new Date().toISOString(),
-      });
-    }
-
-    updatedAt = new Date().toISOString();
-
-    // Lifecycle phase: summary produced → Summarizing. The summary emitted
-    // here is the user-visible synthesis of the turn; the phase flips before
-    // the turn-completed audit event so observers see Summarizing line up
-    // with the response delivery path.
-    advancePhase(SessionPhase.Summarizing);
-
-    // Emit lifecycle event: turn completed
-    await ctx.log.append({
-      sessionId: ctx.sessionId, actor: "system",
-      type: "agent.session.turn.completed",
-      payload: { turn: turnCount, summary: result.summary },
-    });
-
-    // Fire session events (spec §13): one per tool call + tool result in this turn.
-    emitSessionEvents(config.events, turnToolCalls, messages, toolHistory);
-
-    turnCount++;
-
-    // Lifecycle phase: turn delivered → Idle transition deferred.
-    // Per the task brief, the Idle transition requires a 60s no-further-turns
-    // idle timer. That timer is app-level state (it spans multiple
-    // processTurn calls) and is therefore deferred to the TUI/REPL polling
-    // path that already owns session liveness — see follow-up task. Newly
-    // created sessions stay in Idle until processTurn is called (the brief's
-    // initial-phase guarantee).
-    //
-    // NOTE: We do NOT advance to Idle here on turn completion. Monotonic
-    // forward contract holds: a fresh turn starts in Idle (initial), advances
-    // through Understanding→Planning→Executing→Verifying→Summarizing, and
-    // remains in Summarizing until the 60s idle window closes.
-    // advancePhase(SessionPhase.Idle); // deferred
-
-    return {
-      summary: result.summary,
-      sessionId: ctx.sessionId,
-      toolCalls: turnToolCalls,
-      streamed: result.streamed,
-      reason: result.reason,
-      ...(approvedPlanContent !== undefined ? { planContent: approvedPlanContent } : {}),
-      ...(approvedPlanTasks ? { planTasks: approvedPlanTasks } : {}),
-    };
-  }
-
-  function getSessionId(): string {
-    if (!ctx) return config.sessionId ?? "";
-    return ctx.sessionId;
-  }
-
-  function getState(): AgentSessionState {
-    return {
-      sessionId: getSessionId(),
-      messages: Object.freeze([...messages]),
-      toolHistory: Object.freeze([...toolHistory]),
-      turnCount,
-      createdAt,
-      updatedAt,
-    };
-  }
-
-  async function save(): Promise<void> {
-    if (!ctx) return;
-    // Always run the legacy memory-decision extraction (best-effort).
-    try {
-      const sessionEvents = await ctx.log.readAll();
-      await saveDecisionsToMemory(sessionEvents, ctx.memoryStore);
-    } catch {
-      // Best-effort — never let persistence fail a save().
-    }
-
-    // If a SessionStore is wired, persist a full snapshot so /resume works.
-    if (config.store) {
+      // Build TaskLoopDeps and run the agent loop
+      let result: RunResult;
       try {
-        const state = getState();
-        const snapshot = {
-          sessionId: ctx.sessionId,
+        result = await runTaskLoop({
+          config: {
+            model: {
+              provider: ctx.config.model.provider,
+              name: ctx.config.model.name,
+              streaming: ctx.config.model.streaming ?? false,
+            },
+            permissions: {
+              sessionMode: ctx.config.permissions.sessionMode,
+            },
+            skills: ctx.config.skills,
+          },
+          provider: ctx.provider,
+          providerTools,
+          mcpToolIndex,
+          messages,
+          sessionState,
+          stateMachine,
+          scope: ctx.scope,
+          session,
+          log: ctx.log,
+          executor: ctx.toolExecutor,
+          mcpDiscovery,
+          selectedTools,
+          hooks,
+          maxIterations: cappedIterations,
+          MAX_CONTEXT_TOKENS,
+          encoding,
           task: currentTask,
-          sessionMode: ctx.config.permissions.sessionMode ?? "auto",
-          messages: state.messages,
-          toolHistory: state.toolHistory,
-          turnCount: state.turnCount,
-          createdAt: state.createdAt,
-          updatedAt: state.updatedAt,
-          scopeSnapshot: (ctx as any)._scopeSnapshot,
-          stateSnapshot: (ctx as any)._stateSnapshot,
-          completed: _sessionCompleted,
-        };
-        await config.store.save(snapshot);
+          taskType,
+          depth,
+          readOnly: config.readOnly ?? readOnlyTask,
+          shellTask:
+            shellTask ||
+            (turnCount === 0 && currentTask === ""
+              ? isShellTask(message)
+              : false),
+          memoryStore: ctx.memoryStore,
+          sessionId: ctx.sessionId,
+          sessionDir: ctx.sessionDir,
+          systemPrompt,
+          onStream: buildSessionStreamHandler(config.onStream, config.events),
+          hookRunner: ctx.hookRunner,
+          context: taskContext,
+          verbose: config.verbose,
+        });
       } catch (err) {
-        // Log but don't throw — memory write above is the legacy contract.
-        console.error("SessionStore.save failed:", err);
+        transitionNodeStatus(taskNode, "failed");
+        await ctx.log.append({
+          ...session,
+          type: "task.failed",
+          actor: "system",
+          payload: {
+            nodeId: taskNode.id,
+            graphId: taskGraph.id,
+            error: String(err),
+          },
+          meta: graphMeta,
+        });
+        transitionWorkflowStatus(wfRun, "failed");
+        await ctx.log.append({
+          ...session,
+          type: "workflow.failed",
+          actor: "system",
+          payload: { workflowId: wfRun.id, summary: String(err) },
+          meta: wfMeta,
+        });
+
+        // Emit lifecycle event: turn completed (error)
+        await ctx.log.append({
+          sessionId: ctx.sessionId,
+          actor: "system",
+          type: "agent.session.turn.completed",
+          payload: { turn: turnCount, error: String(err) },
+        });
+        turnCount++;
+        throw err;
+      }
+
+      // Verifying phase begins as the task loop's verifier pass completes; the TUI
+      // shows "Verifying" between this transition and the eventual "Summarizing"
+      // once summary lines are emitted. During the actual verifier pass, the TUI
+      // still shows "Executing": the verifier lives inside runTaskLoop, so this is
+      // the post-verify-pre-result proxy boundary within the two-file scope.
+      advancePhase(SessionPhase.Verifying);
+
+      // Update graph status based on result reason
+      const FAILURE_REASONS = new Set([
+        "max_iterations",
+        "max_repairs",
+        "rejected_scope_expansion",
+      ]);
+      const isFailed = FAILURE_REASONS.has(result.reason ?? "");
+
+      if (isFailed) {
+        transitionNodeStatus(taskNode, "failed");
+        transitionGraphStatus(taskGraph, "failed");
+        await ctx.log.append({
+          ...session,
+          type: "task.failed",
+          actor: "system",
+          payload: {
+            nodeId: taskNode.id,
+            graphId: taskGraph.id,
+            reason: result.reason,
+            summary: result.summary,
+          },
+          meta: graphMeta,
+        });
+        await ctx.log.append({
+          ...session,
+          type: "graph.failed",
+          actor: "system",
+          payload: {
+            graphId: taskGraph.id,
+            workflowId: wfRun.id,
+            reason: result.reason,
+            summary: result.summary,
+          },
+          meta: graphMeta,
+        });
+        await ctx.log.append({
+          ...session,
+          type: "workflow.failed",
+          actor: "system",
+          payload: {
+            workflowId: wfRun.id,
+            reason: result.reason,
+            summary: result.summary,
+          },
+          meta: wfMeta,
+        });
+      } else {
+        transitionNodeStatus(taskNode, "done");
+        transitionGraphStatus(taskGraph, "completed");
+        await ctx.log.append({
+          ...session,
+          type: "task.done",
+          actor: "system",
+          payload: {
+            nodeId: taskNode.id,
+            graphId: taskGraph.id,
+            summary: result.summary,
+          },
+          meta: graphMeta,
+        });
+        await ctx.log.append({
+          ...session,
+          type: "graph.completed",
+          actor: "system",
+          payload: {
+            graphId: taskGraph.id,
+            workflowId: wfRun.id,
+            summary: result.summary,
+          },
+          meta: graphMeta,
+        });
+        transitionWorkflowStatus(wfRun, "completed");
+        await ctx.log.append({
+          ...session,
+          type: "workflow.completed",
+          actor: "system",
+          payload: { workflowId: wfRun.id, summary: result.summary },
+          meta: wfMeta,
+        });
+      }
+
+      // Flush minimal metrics
+      metrics.duration("workflow_duration_ms", Date.now() - startTime);
+      const metricEvents = metrics.flush();
+      for (const m of metricEvents) {
+        await ctx.log.append({
+          ...session,
+          actor: "system",
+          type: "m09.metric",
+          payload: m,
+        });
+      }
+
+      // Extract tool calls from this turn's new messages
+      const newMessages = messages.slice(preTurnMsgCount);
+      const turnToolCalls = extractToolCallsFromMessages(newMessages);
+
+      // Update tool history
+      for (const tc of turnToolCalls) {
+        toolHistory.push({
+          toolName: tc.name,
+          args: tc.args,
+          timestamp: new Date().toISOString(),
+        });
+      }
+
+      updatedAt = new Date().toISOString();
+
+      // Lifecycle phase: summary produced → Summarizing. The summary emitted
+      // here is the user-visible synthesis of the turn; the phase flips before
+      // the turn-completed audit event so observers see Summarizing line up
+      // with the response delivery path.
+      advancePhase(SessionPhase.Summarizing);
+
+      // Emit lifecycle event: turn completed
+      await ctx.log.append({
+        sessionId: ctx.sessionId,
+        actor: "system",
+        type: "agent.session.turn.completed",
+        payload: { turn: turnCount, summary: result.summary },
+      });
+
+      // Fire session events (spec §13): one per tool call + tool result in this turn.
+      emitSessionEvents(config.events, turnToolCalls, messages, toolHistory);
+
+      turnCount++;
+
+      // Lifecycle phase: turn delivered → Idle transition deferred.
+      // Per the task brief, the Idle transition requires a 60s no-further-turns
+      // idle timer. That timer is app-level state (it spans multiple
+      // processTurn calls) and is therefore deferred to the TUI/REPL polling
+      // path that already owns session liveness — see follow-up task. Newly
+      // created sessions stay in Idle until processTurn is called (the brief's
+      // initial-phase guarantee).
+      //
+      // NOTE: We do NOT advance to Idle here on turn completion. Monotonic
+      // forward contract holds: a fresh turn starts in Idle (initial), advances
+      // through Understanding→Planning→Executing→Verifying→Summarizing, and
+      // remains in Summarizing until the 60s idle window closes.
+      // advancePhase(SessionPhase.Idle); // deferred
+
+      return {
+        summary: result.summary,
+        sessionId: ctx.sessionId,
+        toolCalls: turnToolCalls,
+        streamed: result.streamed,
+        reason: result.reason,
+        ...(approvedPlanContent !== undefined
+          ? { planContent: approvedPlanContent }
+          : {}),
+        ...(approvedPlanTasks ? { planTasks: approvedPlanTasks } : {}),
+      };
+    }
+
+    function getSessionId(): string {
+      if (!ctx) return config.sessionId ?? "";
+      return ctx.sessionId;
+    }
+
+    function getState(): AgentSessionState {
+      return {
+        sessionId: getSessionId(),
+        messages: Object.freeze([...messages]),
+        toolHistory: Object.freeze([...toolHistory]),
+        turnCount,
+        createdAt,
+        updatedAt,
+      };
+    }
+
+    async function save(): Promise<void> {
+      if (!ctx) return;
+      // Always run the legacy memory-decision extraction (best-effort).
+      try {
+        const sessionEvents = await ctx.log.readAll();
+        await saveDecisionsToMemory(sessionEvents, ctx.memoryStore);
+      } catch {
+        // Best-effort — never let persistence fail a save().
+      }
+
+      // If a SessionStore is wired, persist a full snapshot so /resume works.
+      if (config.store) {
+        try {
+          const state = getState();
+          const snapshot = {
+            sessionId: ctx.sessionId,
+            task: currentTask,
+            sessionMode: ctx.config.permissions.sessionMode ?? "auto",
+            messages: state.messages,
+            toolHistory: state.toolHistory,
+            turnCount: state.turnCount,
+            createdAt: state.createdAt,
+            updatedAt: state.updatedAt,
+            scopeSnapshot: (ctx as any)._scopeSnapshot,
+            stateSnapshot: (ctx as any)._stateSnapshot,
+            completed: _sessionCompleted,
+          };
+          await config.store.save(snapshot);
+        } catch (err) {
+          // Log but don't throw — memory write above is the legacy contract.
+          console.error("SessionStore.save failed:", err);
+        }
       }
     }
-  }
 
-  async function resume(sessionId: string): Promise<void> {
-    if (!ctx) return;
+    async function resume(sessionId: string): Promise<void> {
+      if (!ctx) return;
 
-    // Prefer SessionStore if wired — that's the authoritative source.
-    if (config.store) {
-      const snapshot = await config.store.load(sessionId);
-      if (!snapshot) {
-        // Fall through to legacy reconstruction; if that also fails, the
-        // caller's `processTurn` will surface a fresh-session state.
-        const { reconstructSession } = await import("../session/resume.js");
-        const reconstructed = await reconstructSession(config.cwd, sessionId);
-        if (reconstructed.messages.length > 0) {
-          messages = [...reconstructed.messages];
-          const originalTask = reconstructed.messages.find(m => m.role === "user");
-          if (originalTask && typeof originalTask.content === "string") {
-            currentTask = originalTask.content;
+      // Prefer SessionStore if wired — that's the authoritative source.
+      if (config.store) {
+        const snapshot = await config.store.load(sessionId);
+        if (!snapshot) {
+          // Fall through to legacy reconstruction; if that also fails, the
+          // caller's `processTurn` will surface a fresh-session state.
+          const { reconstructSession } = await import("../session/resume.js");
+          const reconstructed = await reconstructSession(config.cwd, sessionId);
+          if (reconstructed.messages.length > 0) {
+            messages = [...reconstructed.messages];
+            const originalTask = reconstructed.messages.find(
+              (m) => m.role === "user",
+            );
+            if (originalTask && typeof originalTask.content === "string") {
+              currentTask = originalTask.content;
+            }
           }
+          if (reconstructed.scopeSnapshot)
+            (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
+          if (reconstructed.stateSnapshot)
+            (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
+          if (reconstructed.planContent)
+            (ctx as any)._planContent = reconstructed.planContent;
+          restoreReconstructedPlanTasks(reconstructed);
+          _sessionCompleted = reconstructed.completed;
+        } else {
+          // Replace internal state with the snapshot.
+          messages = [...snapshot.messages];
+          toolHistory = [...snapshot.toolHistory];
+          currentTask = snapshot.task;
+          // createdAt is immutable (captured at session construction); we
+          // adopt the snapshot's value logically but cannot reassign. The
+          // runtime contract is "createdAt is the earliest save timestamp",
+          // which snapshot.createdAt already encodes. We only update the
+          // mutable `updatedAt` so subsequent saves reflect the resume point.
+          updatedAt = snapshot.updatedAt;
+          _sessionCompleted = snapshot.completed === true;
+          if (snapshot.scopeSnapshot !== undefined) {
+            (ctx as any)._scopeSnapshot = snapshot.scopeSnapshot;
+          }
+          if (snapshot.stateSnapshot !== undefined) {
+            (ctx as any)._stateSnapshot = snapshot.stateSnapshot;
+          }
+          // Bring downstream loop into alignment with the restored state.
+          (ctx as any)._resumedMessages = [...snapshot.messages];
+          // tool history isn't surfaced via ctx in the loop today; we keep
+          // it on the AgentSession runtime only. processTurn will continue
+          // from there.
         }
-        if (reconstructed.scopeSnapshot) (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
-        if (reconstructed.stateSnapshot) (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
-        if (reconstructed.planContent) (ctx as any)._planContent = reconstructed.planContent;
-        restoreReconstructedPlanTasks(reconstructed);
-        _sessionCompleted = reconstructed.completed;
-      } else {
-        // Replace internal state with the snapshot.
-        messages = [...snapshot.messages];
-        toolHistory = [...snapshot.toolHistory];
-        currentTask = snapshot.task;
-        // createdAt is immutable (captured at session construction); we
-        // adopt the snapshot's value logically but cannot reassign. The
-        // runtime contract is "createdAt is the earliest save timestamp",
-        // which snapshot.createdAt already encodes. We only update the
-        // mutable `updatedAt` so subsequent saves reflect the resume point.
-        updatedAt = snapshot.updatedAt;
-        _sessionCompleted = snapshot.completed === true;
-        if (snapshot.scopeSnapshot !== undefined) {
-          (ctx as any)._scopeSnapshot = snapshot.scopeSnapshot;
-        }
-        if (snapshot.stateSnapshot !== undefined) {
-          (ctx as any)._stateSnapshot = snapshot.stateSnapshot;
-        }
-        // Bring downstream loop into alignment with the restored state.
-        (ctx as any)._resumedMessages = [...snapshot.messages];
-        // tool history isn't surfaced via ctx in the loop today; we keep
-        // it on the AgentSession runtime only. processTurn will continue
-        // from there.
+        await ctx.log.append({
+          ...session,
+          actor: "system",
+          type: "session.resumed",
+          payload: { priorSessionId: sessionId, task: currentTask },
+        });
+        return;
       }
+
+      // Legacy path: reconstruct from the persisted session directory.
+      const { reconstructSession } = await import("../session/resume.js");
+      const reconstructed = await reconstructSession(config.cwd, sessionId);
+      if (reconstructed.completed) return;
+
+      if (reconstructed.messages.length > 0) {
+        messages = [...reconstructed.messages];
+        const originalTask = reconstructed.messages.find(
+          (m) => m.role === "user",
+        );
+        if (originalTask && typeof originalTask.content === "string") {
+          currentTask = originalTask.content;
+        }
+      }
+      if (reconstructed.scopeSnapshot) {
+        (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
+      }
+      if (reconstructed.stateSnapshot) {
+        (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
+      }
+      if (reconstructed.planContent) {
+        (ctx as any)._planContent = reconstructed.planContent;
+      }
+      restoreReconstructedPlanTasks(reconstructed);
+
       await ctx.log.append({
-        ...session, actor: "system", type: "session.resumed",
+        ...session,
+        actor: "system",
+        type: "session.resumed",
         payload: { priorSessionId: sessionId, task: currentTask },
       });
-      return;
     }
 
-    // Legacy path: reconstruct from the persisted session directory.
-    const { reconstructSession } = await import("../session/resume.js");
-    const reconstructed = await reconstructSession(config.cwd, sessionId);
-    if (reconstructed.completed) return;
+    /**
+     * Chat-only path — no tool loop, no planning, no verification. Lazily
+     * initializes a lightweight provider (no workflow/MCP), maintains
+     * conversation history in closure, and returns the assistant's reply
+     * as `summary`. When no provider is configured (no `chatProvider`,
+     * `chatModel`, or fallback), surfaces a clear placeholder so the
+     * TUI scrollback never stays empty on submit.
+     */
+    let chatReady = false;
+    let chatProviderInstance: ModelAdapter | null = null;
+    let chatMessages: { role: "user" | "assistant"; content: string }[] = [];
+    const CHAT_DEFAULT_SYSTEM_PROMPT =
+      "You are ALiX in a lightweight chat session. Be brief, direct, and conversational. " +
+      "Do not invoke tools, do not run commands, do not edit files. Respond as if you were " +
+      "talking to the operator — short sentences, no markdown headings.";
+    const chatSystemPrompt =
+      config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
+    const CHAT_MAX_OUTPUT_TOKENS = 512;
+    const CHAT_SEARCH_TIMEOUT_MS = 2000;
+    const searchLabel = config.chatSearchLabel ?? "[Web search results]";
 
-    if (reconstructed.messages.length > 0) {
-      messages = [...reconstructed.messages];
-      const originalTask = reconstructed.messages.find(m => m.role === "user");
-      if (originalTask && typeof originalTask.content === "string") {
-        currentTask = originalTask.content;
-      }
-    }
-    if (reconstructed.scopeSnapshot) {
-      (ctx as any)._scopeSnapshot = reconstructed.scopeSnapshot;
-    }
-    if (reconstructed.stateSnapshot) {
-      (ctx as any)._stateSnapshot = reconstructed.stateSnapshot;
-    }
-    if (reconstructed.planContent) {
-      (ctx as any)._planContent = reconstructed.planContent;
-    }
-    restoreReconstructedPlanTasks(reconstructed);
-
-    await ctx.log.append({
-      ...session, actor: "system", type: "session.resumed",
-      payload: { priorSessionId: sessionId, task: currentTask },
-    });
-  }
-
-  /**
-   * Chat-only path — no tool loop, no planning, no verification. Lazily
-   * initializes a lightweight provider (no workflow/MCP), maintains
-   * conversation history in closure, and returns the assistant's reply
-   * as `summary`. When no provider is configured (no `chatProvider`,
-   * `chatModel`, or fallback), surfaces a clear placeholder so the
-   * TUI scrollback never stays empty on submit.
-   */
-  let chatReady = false;
-  let chatProviderInstance: ModelAdapter | null = null;
-  let chatMessages: { role: 'user' | 'assistant'; content: string }[] = [];
-  const CHAT_DEFAULT_SYSTEM_PROMPT =
-    'You are ALiX in a lightweight chat session. Be brief, direct, and conversational. ' +
-    'Do not invoke tools, do not run commands, do not edit files. Respond as if you were ' +
-    'talking to the operator — short sentences, no markdown headings.';
-  const chatSystemPrompt = config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
-  const CHAT_MAX_OUTPUT_TOKENS = 512;
-  const CHAT_SEARCH_TIMEOUT_MS = 2000;
-  const searchLabel = config.chatSearchLabel ?? '[Web search results]';
-
-  /** Run a search against the configured chatSearchTool, with a 4s budget. */
-  async function runSearch(query: string): Promise<string> {
-    if (!config.chatSearchTool) return '';
-    let timer: NodeJS.Timeout | undefined;
-    const timeout = new Promise<string>((resolve) => {
-      timer = setTimeout(() => resolve(''), CHAT_SEARCH_TIMEOUT_MS);
-    });
-    try {
-      const result = await Promise.race([config.chatSearchTool(query), timeout]);
-      return result ?? '';
-    } catch {
-      return '';
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-  }
-
-  async function ensureChatProvider(): Promise<ModelAdapter | null> {
-    if (chatReady) return chatProviderInstance;
-    chatReady = true;
-    if (config.chatProvider) {
-      chatProviderInstance = config.chatProvider;
-      return chatProviderInstance;
-    }
-    if (!config.chatModel) return null;
-    try {
-      chatProviderInstance = await createProvider(config.chatModel, config.chatApiKey);
-      return chatProviderInstance;
-    } catch {
-      chatProviderInstance = null;
-      return null;
-    }
-  }
-
-  async function processChat(message: string): Promise<AgentTurnResult> {
-    const sessionId = session?.sessionId ?? 'chat';
-    const provider = await ensureChatProvider();
-    if (!provider) {
-      return {
-        summary: `[chat:no-provider] ${message}`,
-        sessionId,
-        toolCalls: [],
-        reason: 'chat',
-      };
-    }
-
-    chatMessages.push({ role: 'user', content: message });
-    try {
-      // Run search BEFORE the model call so the assistant sees fresh
-      // context. If search fails or times out, we proceed without it —
-      // the chat path never throws because of a search hiccup.
-      let effectiveUserContent: string = message;
-      if (config.chatSearchTool) {
-        const searchContext = await runSearch(message);
-        if (searchContext) {
-          effectiveUserContent = `${message}\n\n${searchLabel}\n${searchContext}`;
-          chatMessages[chatMessages.length - 1] = { role: 'user', content: effectiveUserContent };
-        }
-      }
-
-      const response = await provider.complete({
-        systemPrompt: chatSystemPrompt,
-        // Defensive copy so the provider's view of the conversation
-        // doesn't change after we push the assistant reply below.
-        messages: chatMessages.slice(),
-        maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+    /** Run a search against the configured chatSearchTool, with a 4s budget. */
+    async function runSearch(query: string): Promise<string> {
+      if (!config.chatSearchTool) return "";
+      let timer: NodeJS.Timeout | undefined;
+      const timeout = new Promise<string>((resolve) => {
+        timer = setTimeout(() => resolve(""), CHAT_SEARCH_TIMEOUT_MS);
       });
-      const text = response.text?.trim() ?? '';
-      chatMessages.push({ role: 'assistant', content: text });
-      return {
-        summary: text || `[chat] ${message}`,
-        sessionId,
-        toolCalls: [],
-        reason: 'chat',
-        ...(response.usage ? { usage: response.usage as any } : {}),
-      };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      // Drop the user message we optimistically appended so the next turn
-      // doesn't see a phantom exchange.
-      chatMessages.pop();
-      return {
-        summary: `[chat error] ${message}`,
-        sessionId,
-        toolCalls: [],
-        reason: 'chat-error',
-      };
+      try {
+        const result = await Promise.race([
+          config.chatSearchTool(query),
+          timeout,
+        ]);
+        return result ?? "";
+      } catch {
+        return "";
+      } finally {
+        if (timer) clearTimeout(timer);
+      }
     }
+
+    async function ensureChatProvider(): Promise<ModelAdapter | null> {
+      if (chatReady) return chatProviderInstance;
+      chatReady = true;
+      if (config.chatProvider) {
+        chatProviderInstance = config.chatProvider;
+        return chatProviderInstance;
+      }
+      if (!config.chatModel) return null;
+      try {
+        chatProviderInstance = await createProvider(
+          config.chatModel,
+          config.chatApiKey,
+        );
+        return chatProviderInstance;
+      } catch {
+        chatProviderInstance = null;
+        return null;
+      }
+    }
+
+    async function processChat(message: string): Promise<AgentTurnResult> {
+      const sessionId = session?.sessionId ?? "chat";
+      const provider = await ensureChatProvider();
+      if (!provider) {
+        return {
+          summary: `[chat:no-provider] ${message}`,
+          sessionId,
+          toolCalls: [],
+          reason: "chat",
+        };
+      }
+
+      chatMessages.push({ role: "user", content: message });
+      try {
+        // Run search BEFORE the model call so the assistant sees fresh
+        // context. If search fails or times out, we proceed without it —
+        // the chat path never throws because of a search hiccup.
+        let effectiveUserContent: string = message;
+        if (config.chatSearchTool) {
+          const searchContext = await runSearch(message);
+          if (searchContext) {
+            effectiveUserContent = `${message}\n\n${searchLabel}\n${searchContext}`;
+            chatMessages[chatMessages.length - 1] = {
+              role: "user",
+              content: effectiveUserContent,
+            };
+          }
+        }
+
+        const response = await provider.complete({
+          systemPrompt: chatSystemPrompt,
+          // Defensive copy so the provider's view of the conversation
+          // doesn't change after we push the assistant reply below.
+          messages: chatMessages.slice(),
+          maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
+        });
+        const text = response.text?.trim() ?? "";
+        chatMessages.push({ role: "assistant", content: text });
+        return {
+          summary: text || `[chat] ${message}`,
+          sessionId,
+          toolCalls: [],
+          reason: "chat",
+          ...(response.usage ? { usage: response.usage as any } : {}),
+        };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        // Drop the user message we optimistically appended so the next turn
+        // doesn't see a phantom exchange.
+        chatMessages.pop();
+        return {
+          summary: `[chat error] ${message}`,
+          sessionId,
+          toolCalls: [],
+          reason: "chat-error",
+        };
+      }
+    }
+
+    return {
+      processTurn,
+      processChat,
+      getSessionId,
+      getState,
+      getPhase,
+      save,
+      resume,
+      setPlanApprovalGate: (gate) => {
+        config.planApprovalGate = gate ?? undefined;
+      },
+    };
+  } // closes build()
+} // closes AgentSessionBuilder
+
+// =============================================================================
+// Extracted phase functions — each takes only what it needs and returns what
+// it produces. No closure dependencies (module-level, stateless).
+// =============================================================================
+
+/**
+ * P0: Initialize agent (ctx, metrics).
+ */
+async function setupSession(
+  cwd: string,
+  task: string,
+  opts?: {
+    sessionId?: string;
+    sessionMode?: "auto" | "ask" | "bypass";
+    approvalStore?: import("../approvals/approval-store.js").ApprovalStore;
+  },
+): Promise<{ ctx: AgentContext; metrics: MinimalMetrics }> {
+  const metrics = new MinimalMetrics();
+  metrics.increment("workflow_runs_total", { goal: task.slice(0, 50) });
+  const ctx = await initAgent(cwd, {
+    cwd,
+    task,
+    sessionId: opts?.sessionId,
+    sessionMode: opts?.sessionMode,
+    approvalStore: opts?.approvalStore,
+  });
+  return { ctx, metrics };
+}
+
+/**
+ * P1: WorkflowRun + TaskGraph setup.
+ */
+async function setupWorkflow(
+  ctx: AgentContext,
+  sessionId: string,
+  task: string,
+): Promise<{
+  wfRun: WorkflowRun;
+  taskGraph: TaskGraph;
+  taskNode: TaskNode;
+  wfMeta: Record<string, string>;
+  graphMeta: Record<string, string>;
+}> {
+  const session = { sessionId, actor: "system" as const };
+  const wfRun = createWorkflowRun(sessionId, task);
+  const wfMeta = { sessionId, workflowId: wfRun.id };
+  await ctx.log.append({
+    ...session,
+    type: "workflow.created",
+    actor: "system",
+    payload: { workflowId: wfRun.id, goal: task, mode: wfRun.mode },
+    meta: wfMeta,
+  });
+  const graphResult = createSingleNodeGraph(wfRun.id, task);
+  const taskGraph = graphResult.graph;
+  const taskNode = graphResult.node;
+  const graphMeta = { ...wfMeta, graphId: taskGraph.id, nodeId: taskNode.id };
+  await ctx.log.append({
+    ...session,
+    type: "graph.created",
+    actor: "system",
+    payload: { graphId: taskGraph.id, workflowId: wfRun.id, nodeCount: 1 },
+    meta: graphMeta,
+  });
+  await ctx.log.append({
+    ...session,
+    type: "task.ready",
+    actor: "system",
+    payload: { nodeId: taskNode.id, graphId: taskGraph.id, goal: task },
+    meta: graphMeta,
+  });
+  return { wfRun, taskGraph, taskNode, wfMeta, graphMeta };
+}
+
+/**
+ * P2: Resume from prior session.
+ */
+async function setupResume(
+  ctx: AgentContext,
+  cwd: string,
+  resumeSessionId: string,
+): Promise<{
+  completed: boolean;
+  currentTask?: string;
+  resumedMessages?: readonly NormalizedMessage[];
+  scopeSnapshot?: any;
+  stateSnapshot?: any;
+  planContent?: string;
+  planTasks?: readonly PlanTask[];
+}> {
+  const { reconstructSession } = await import("../session/resume.js");
+  const reconstructed = await reconstructSession(cwd, resumeSessionId);
+
+  if (reconstructed.completed) {
+    return { completed: true };
+  }
+
+  const originalTask = reconstructed.messages.find((m) => m.role === "user");
+  const newTask =
+    originalTask && typeof originalTask.content === "string"
+      ? originalTask.content
+      : undefined;
+
+  return {
+    completed: false,
+    currentTask: newTask,
+    resumedMessages: reconstructed.messages,
+    scopeSnapshot: reconstructed.scopeSnapshot,
+    stateSnapshot: reconstructed.stateSnapshot,
+    planContent: reconstructed.planContent ?? undefined,
+    planTasks: reconstructed.planTasks,
+  };
+}
+
+/**
+ * P3: Build memory context/stats.
+ */
+async function setupMemory(
+  memoryStore: any,
+): Promise<{
+  memoryContext: string | undefined;
+  memoryStats: string | undefined;
+}> {
+  const [memoryContext, memoryStats] = await Promise.all([
+    buildMemoryContext(memoryStore),
+    buildMemoryStats(memoryStore),
+  ]);
+  return { memoryContext, memoryStats };
+}
+
+/**
+ * P4: Skills catalog (best-effort; failures are non-fatal).
+ */
+async function setupSkills(
+  task: string,
+  factoryConfig?: { maxStore: number; maxCandidates: number },
+): Promise<any[]> {
+  try {
+    const skillsHome = join(homedir(), ".alix", "skills");
+    const { loadSkillManifests } = await import("../skills/loader.js");
+    const { buildSkillCatalog } = await import("../skills/catalog.js");
+    const skillManifests = await loadSkillManifests(skillsHome);
+    const skillCatalog = buildSkillCatalog(skillManifests);
+    const { maxStore, maxCandidates } = factoryConfig ?? DEFAULT_FACTORY_CONFIG;
+    evictIfNeeded(skillsHome, {
+      maxStore,
+      maxCandidates: maxCandidates ?? 200,
+    });
+    return await skillCatalog.getMatchedContent(task);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * P5: Context token limits + task classification.
+ */
+async function setupContextLimits(
+  modelConfig: {
+    provider: string;
+    name: string;
+    maxContextTokens?: number;
+    maxIterations?: number;
+  },
+  apiKeys?: any,
+  task?: string,
+  readOnly?: boolean,
+): Promise<{
+  MAX_CONTEXT_TOKENS: number;
+  encoding: "cl100k_base" | "o200k_base" | "char4";
+  taskType: TaskType;
+  depth: "quick" | "deep";
+  shellTask: boolean;
+  readOnlyTask: boolean;
+  cappedIterations: number;
+}> {
+  const userOverride = modelConfig.maxContextTokens;
+  let MAX_CONTEXT_TOKENS: number;
+  let encoding: "cl100k_base" | "o200k_base" | "char4";
+  if (userOverride !== undefined) {
+    MAX_CONTEXT_TOKENS = userOverride;
+    encoding = getEncoding(modelConfig.provider);
+  } else {
+    const { resolveContextLimit } = await import("../config/context-limits.js");
+    const resolved = await resolveContextLimit(
+      modelConfig.provider,
+      modelConfig.name,
+      apiKeys,
+    );
+    MAX_CONTEXT_TOKENS = resolved.maxTokens;
+    encoding = resolved.encoding;
+  }
+
+  const effectiveTask = task || "Interactive coding session";
+  const taskType = classifyTask(effectiveTask);
+  const depth = detectResearchDepth(effectiveTask);
+  const maxIter = modelConfig.maxIterations ?? 25;
+  const shellTask = isShellTask(effectiveTask);
+  const readOnlyTask = isReadOnlyTask(effectiveTask) || shellTask;
+  const cappedIterations = shellTask
+    ? Math.min(maxIter, 2)
+    : readOnly
+      ? Math.min(maxIter, 4)
+      : maxIter;
+
+  return {
+    MAX_CONTEXT_TOKENS,
+    encoding,
+    taskType,
+    depth,
+    shellTask,
+    readOnlyTask,
+    cappedIterations,
+  };
+}
+
+/**
+ * P6: Context compilation + Plan phase.
+ */
+async function setupContextAndPlan(
+  ctx: AgentContext,
+  cwd: string,
+  maxTokens: number,
+  task: string,
+  taskType: TaskType,
+  sessionId: string,
+  opts?: {
+    planMode?: boolean;
+    planFilePath?: string;
+    planApprovalMode?: "interactive" | "deferred";
+    planApprovalGate?: any;
+  },
+): Promise<{
+  contextBundle?: ContextBundle;
+  planRejected?: boolean;
+  approvedPlanContent?: string;
+  approvedPlanTasks?: readonly PlanTask[];
+}> {
+  const contextCompiler = new ContextCompiler({
+    root: cwd,
+    maxTokens,
+    eventLog: ctx.log,
+    sessionId,
+  });
+  await contextCompiler.warm();
+  const contextBundle = await contextCompiler.compileContext(
+    task,
+    taskType,
+    [],
+  );
+  await ctx.log.append({
+    sessionId,
+    actor: "system",
+    type: "context.bundle_compiled",
+    payload: buildContextBundleEventPayload(contextBundle),
+  });
+
+  if (opts?.planMode === false) {
+    return { contextBundle };
+  }
+
+  const { runPlanPhase } = await import("../run/plan-phase.js");
+  const planResult = await runPlanPhase(
+    ctx,
+    contextBundle,
+    task,
+    opts?.planFilePath,
+    {
+      approvalMode: opts?.planApprovalMode ?? "interactive",
+      gate: opts?.planApprovalGate,
+    },
+  );
+
+  if (planResult.action === "rejected") {
+    return { contextBundle, planRejected: true };
   }
 
   return {
-    processTurn,
-    processChat,
-    getSessionId,
-    getState,
-    getPhase,
-    save,
-    resume,
-    setPlanApprovalGate: (gate) => {
-      config.planApprovalGate = gate ?? undefined;
-    },
+    contextBundle,
+    planRejected: false,
+    approvedPlanContent: planResult.planContent,
+    approvedPlanTasks: planResult.planTasks,
   };
+}
+
+/**
+ * P7: Tool setup.
+ */
+async function setupTools(
+  ctx: AgentContext,
+  task: string,
+  readOnly?: boolean,
+  shellTask?: boolean,
+): Promise<{
+  providerTools: ToolDef[];
+  mcpToolIndex: DeferredToolEntry[];
+  selectedTools: DeferredToolEntry[];
+  mcpDiscovery: ToolDiscovery | null;
+}> {
+  const baseTools = buildToolsForProvider(ctx.provider);
+  const toolFilter = readOnly
+    ? new Set([...READ_ONLY_TOOL_NAMES].filter((n) => n !== "alix_shell_run"))
+    : shellTask
+      ? READ_ONLY_TOOL_NAMES
+      : null;
+  const providerTools = toolFilter
+    ? baseTools.filter((t) => toolFilter.has(t.name))
+    : baseTools;
+
+  const mcpDeferral = ctx.mcpManager?.getDeferral();
+  const mcpToolIndex = mcpDeferral?.buildIndex() ?? [];
+  const toolSelector = new ToolSelector(mcpToolIndex, {
+    maxTools: 20,
+    tokenBudget: 3000,
+  });
+  const selectedTools = toolSelector.select(task);
+  const mcpDiscovery = ctx.mcpManager ? new ToolDiscovery(mcpToolIndex) : null;
+  for (const entry of selectedTools) {
+    TOOL_NAME_MAP[entry.name] = entry.execName;
+  }
+
+  return { providerTools, mcpToolIndex, selectedTools, mcpDiscovery };
+}
+
+/**
+ * P8: System prompt assembly.
+ */
+async function setupSystemPrompt(
+  cwd: string,
+  opts: {
+    readOnly?: boolean;
+    shellTask: boolean;
+    matchedSkills: any[];
+    contextBundle?: ContextBundle;
+    approvedPlanContent?: string;
+    memoryContext?: string;
+    memoryStats?: string;
+  },
+): Promise<string> {
+  const SYSTEM_PROMPT_BASE =
+    "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved. For read-only queries (like pwd, ls, cat, grep), call done immediately after getting the result — there is nothing to verify.";
+  const lines: string[] = [
+    SYSTEM_PROMPT_BASE,
+    `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
+  ];
+
+  if (opts.shellTask) {
+    lines.push(`## Read-Only Mode
+The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+  }
+
+  if (opts.readOnly) {
+    lines.push(`## Read-Only Mode
+You are in read-only mode. You can read files, search the codebase, and delegate to subagents, but you CANNOT run shell commands or modify any files. Answer questions and investigate the codebase. Suggest changes verbally rather than making them.`);
+  }
+
+  if (opts.matchedSkills.length > 0) {
+    const skillSection = opts.matchedSkills
+      .map(
+        (s: any) =>
+          `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`,
+      )
+      .join("\n\n");
+    lines.push(`## Available Skills\n${skillSection}`);
+  }
+
+  if (
+    opts.contextBundle &&
+    (opts.contextBundle.primaryFiles.length > 0 ||
+      opts.contextBundle.tests.length > 0 ||
+      opts.contextBundle.supportingFiles.length > 0)
+  ) {
+    lines.push(renderContextBundleForPrompt(opts.contextBundle));
+  }
+
+  if (opts.approvedPlanContent) {
+    lines.push(`## Approved Plan\n${opts.approvedPlanContent}`);
+  }
+
+  if (opts.memoryStats) {
+    lines.push(`## Memory Stats\n${opts.memoryStats}`);
+  }
+
+  if (opts.memoryContext) {
+    lines.push(`## Memory\n${opts.memoryContext}`);
+  }
+
+  return lines.join("\n\n");
+}
+
+/**
+ * P9: Discover hooks.
+ */
+async function setupHooks(cwd: string): Promise<{
+  pre_task: Array<{ command: string; reason: string }>;
+  post_task: Array<{ command: string; reason: string }>;
+}> {
+  const { discoverHooks } = await import("../hooks/discover.js");
+  const discoveredHooks = await discoverHooks(cwd);
+  return {
+    pre_task: (discoveredHooks.pre_task ?? []).map((h: any) => ({
+      command: h.command,
+      reason: h.reason,
+    })),
+    post_task: (discoveredHooks.post_task ?? []).map((h: any) => ({
+      command: h.command,
+      reason: h.reason,
+    })),
+  };
+}
+
+// =============================================================================
+// Simplified factory — delegates to fluent builder for backward compatibility
+// =============================================================================
+
+export function createAgentSession(config: AgentSessionConfig): AgentSession {
+  return new AgentSessionBuilder(config).build();
 }

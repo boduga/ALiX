@@ -37,6 +37,65 @@ async function selectProvider(): Promise<string> {
 
 const [, , command, ...args] = process.argv;
 
+// ── COMMAND_ROUTER — lazy-loading handler map ──────────────────────
+type CliHandler = (args: string[]) => Promise<number>;
+
+const COMMAND_ROUTER: Record<string, () => Promise<{ handler: CliHandler }>> = {};
+
+// Already-extracted commands
+COMMAND_ROUTER["runs"] = async () => {
+  const { handleRunsCommand } = await import("./cli/commands/runs.js");
+  return { handler: async (a) => { await handleRunsCommand(a); return 0; } };
+};
+COMMAND_ROUTER["init"] = async () => {
+  const { runInit } = await import("./cli/commands/init.js");
+  return { handler: async (a) => { await runInit(process.cwd(), a); return 0; } };
+};
+COMMAND_ROUTER["tui"] = async () => {
+  const { runTui } = await import("./cli/commands/tui.js");
+  return { handler: async (a) => {
+    const modeIdx = a.indexOf("--mode");
+    const sessionMode = modeIdx >= 0 ? a[modeIdx + 1] as "auto" | "ask" | "bypass" : undefined;
+    const daemonMode = a.includes("--daemon");
+    await runTui({ sessionMode, daemonMode });
+    return 0;
+  }};
+};
+COMMAND_ROUTER["demo"] = async () => {
+  const { runDemo } = await import("./cli/commands/demo.js");
+  return { handler: async (a) => {
+    if (a[0] !== "local") { console.error("Usage: alix demo local"); return 1; }
+    await runDemo();
+    return 0;
+  }};
+};
+
+// Extracted commands
+COMMAND_ROUTER["run"] = async () => {
+  const { handler } = await import("./cli/commands/run.js");
+  return { handler };
+};
+COMMAND_ROUTER["session"] = async () => {
+  const { handler } = await import("./cli/commands/session.js");
+  return { handler };
+};
+COMMAND_ROUTER["plan"] = async () => {
+  const { handler } = await import("./cli/commands/plan.js");
+  return { handler };
+};
+COMMAND_ROUTER["review"] = async () => {
+  const { handler } = await import("./cli/commands/review.js");
+  return { handler };
+};
+COMMAND_ROUTER["apply"] = async () => {
+  const { handler } = await import("./cli/commands/apply.js");
+  return { handler };
+};
+COMMAND_ROUTER["submit"] = async () => {
+  const { handler } = await import("./cli/commands/submit.js");
+  return { handler };
+};
+
 if (!command || command === "--help" || command === "-h") {
   console.log(`ALiX ${ALIX_VERSION}
 
@@ -119,19 +178,6 @@ Usage:
 
 if (command === "--version" || command === "-v") {
   console.log(ALIX_VERSION);
-  process.exit(0);
-}
-
-// ── Runs command (P12.4) ────────────────────────────────────────
-if (command === "runs") {
-  const { handleRunsCommand } = await import("./cli/commands/runs.js");
-  await handleRunsCommand(args);
-  process.exit(0);
-}
-
-if (command === "init") {
-  const { runInit } = await import("./cli/commands/init.js");
-  await runInit(process.cwd(), args);
   process.exit(0);
 }
 
@@ -955,177 +1001,6 @@ if (command === "config" && args[0] === "show") {
   process.exit(0);
 }
 
-if (command === "run") {
-  const { parseRunArgs } = await import("./cli/run-args.js");
-  const { task, noStream, noPlan, sessionMode, resumeSessionId, planFilePath, intent: intentFlag, propose: proposeFlag, readOnly, chat } = parseRunArgs(args);
-
-  if (!task && !resumeSessionId && !chat) {
-    console.error("Usage: alix run \"<task>\" [--no-stream] [--no-plan] [--mode=auto|ask|bypass] [--resume <session-id>] [--plan-file <path>] [--intent] [--propose]");
-    process.exit(1);
-  }
-
-  // Skill route detection (best-effort): check if input matches an installed skill
-  let matchedSkillId: string | undefined;
-  if (task) {
-    try {
-      const skillsHome = join(homedir(), ".alix", "skills");
-      const { loadSkillManifests } = await import("./skills/loader.js");
-      const { buildSkillCatalog } = await import("./skills/catalog.js");
-      const manifests = await loadSkillManifests(skillsHome);
-      const catalog = buildSkillCatalog(manifests);
-      const matched = catalog.match(task);
-      if (matched.length > 0) {
-        matchedSkillId = matched[0].manifest.name;
-      }
-    } catch {
-      // Skill detection is best-effort; fall through to runTask
-    }
-  }
-
-  try {
-    const { createReplRenderer, createReplEvents } = await import("./cli/renderers/repl.js");
-    const { JsonlSessionStore } = await import("./agent/session-store-jsonl.js");
-    let result: AgentTurnResult | undefined;
-    let session: ReturnType<typeof createAgentSession>;
-    if (chat) {
-      // Wire a streaming events subscription into both the session and the
-      // renderer (spec §13) so the REPL renders tokens/tool calls as they
-      // arrive instead of waiting for the final summary.
-      const events = createReplEvents();
-      const sessionsRoot = join(process.cwd(), ".alix", "sessions");
-      const store = new JsonlSessionStore(sessionsRoot);
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath, events, store });
-      const renderer = createReplRenderer(session, { events, store });
-      await renderer.start();
-    } else {
-      session = createAgentSession({ cwd: process.cwd(), task, sessionMode, readOnly, streaming: noStream ? false : undefined, planMode: noPlan ? false : undefined, resumeSessionId, planFilePath });
-      result = await session.processTurn(task);
-      if (!result.streamed) {
-        console.log(result.summary);
-      }
-      if (result.sessionId) {
-        console.log(`Session: ${result.sessionId}`);
-      }
-    }
-
-    // --intent / --propose: capture execution as an ExecutionIntent artifact
-    // --propose is a superset of --intent: it also maps the intent to a proposal
-    if (result && (intentFlag || proposeFlag)) {
-      const { IntentStore } = await import("./adaptation/intent-store.js");
-      const intentDir = join(homedir(), ".alix", "execution", "intents");
-      const store = new IntentStore(intentDir);
-
-      const outputSummary = result.summary.slice(0, 200);
-      const source = matchedSkillId ? "skill_run" as const : "cli_run" as const;
-
-      const intent: Record<string, unknown> = {
-        source,
-        input: task,
-        outputSummary,
-        status: "captured" as const,
-        confidence: 1,
-        rationale: matchedSkillId
-          ? `Skill run: ${matchedSkillId} via alix run`
-          : "Task executed via alix run",
-        sourceArtifacts: [
-          { type: "context" as const, id: `session:${result.sessionId}` },
-        ],
-        subject: matchedSkillId ? `Skill run: ${matchedSkillId}` : `Task: ${task.slice(0, 80)}`,
-        outcome: "captured",
-        reasons: matchedSkillId
-          ? [`Skill "${matchedSkillId}" executed via alix run`]
-          : [`Task executed via alix run`],
-      };
-
-      if (matchedSkillId) {
-        intent.skillId = matchedSkillId;
-      }
-
-      // --propose: attach proposedAction + proposedTarget for proposal mapping
-      if (proposeFlag) {
-        if (matchedSkillId) {
-          intent.proposedAction = "adjust_skill_definition";
-          intent.proposedTarget = { kind: "skill", id: matchedSkillId };
-        }
-        // For generic tasks without a skill match, proposedAction/target are
-        // intentionally left unset — the mapper will report the error and we
-        // suggest --intent as the alternative.
-      }
-
-      await store.append(intent as any);
-
-      // Terminal output — intent captured
-      console.log(`\nIntent captured: ${(intent as any).id || "(id pending)"}`);
-      console.log(`  Source:  ${source}${matchedSkillId ? ` (${matchedSkillId})` : ""}`);
-      console.log(`  Status:  captured`);
-      console.log(`  Summary: ${outputSummary.slice(0, 80)}${outputSummary.length > 80 ? "..." : ""}`);
-
-      // --propose: map intent to proposal
-      if (proposeFlag) {
-        if (!intent.proposedAction || !intent.proposedTarget) {
-          console.error(`\n  Cannot create proposal: this task has no proposedAction or proposedTarget.`);
-          console.error(`  Use --intent instead of --propose for generic task capture.`);
-          console.error(`  For skill-matched runs, --propose works automatically.`);
-        } else {
-          const { ProposalStore } = await import("./adaptation/proposal-store.js");
-          const { IntentProposalMapper } = await import("./adaptation/intent-proposal-mapper.js");
-
-          const proposalsDir = join(process.cwd(), ".alix", "adaptation", "proposals");
-          const proposalStore = new ProposalStore(proposalsDir);
-          const mapper = new IntentProposalMapper(proposalStore);
-
-          const mappingResult = await mapper.mapToProposal(intent as any, store);
-
-          if (!mappingResult.success) {
-            console.error(`\n  Proposal mapping failed: ${mappingResult.errors.join("; ")}`);
-          } else {
-            console.log(`\n  Proposal created: ${mappingResult.proposal!.id}`);
-            console.log(`  Action: ${intent.proposedAction}`);
-            console.log(`  Target: ${JSON.stringify(intent.proposedTarget)}`);
-            console.log();
-            console.log(`  Use \`alix decision approve ${mappingResult.proposal!.id}\` and \`alix decision apply ${mappingResult.proposal!.id}\` to execute.`);
-          }
-        }
-      }
-    }
-
-    if (result?.reason === "rejected_scope_expansion") {
-      process.exit(EXIT_CODES.REJECTED_SCOPE_EXPANSION);
-    }
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (err instanceof ApiError) {
-      if (msg.includes("credit balance") || msg.includes("upgrade")) {
-        console.error(`\n⚠️  API: Insufficient credits.\n    ${err.detail}\n\nFix: Add credits or switch providers:\n     alix config set-default-model openai gpt-4o`);
-      } else if (msg.includes("invalid_request_error") || err.status === 401) {
-        console.error(`\n⚠️  API: Authentication failed.\n    ${err.detail}\n\nFix: Check your API key.`);
-      } else {
-        console.error(`\n⚠️  API error (${err.status}):\n    ${err.detail}`);
-      }
-    } else {
-      console.error(`\n⚠️  ${msg}`);
-    }
-    process.exit(1);
-  }
-  process.exit(0);
-}
-
-if (command === "tui") {
-  const { runTui } = await import("./cli/commands/tui.js");
-  const modeIdx = args.indexOf("--mode");
-  const sessionMode = modeIdx >= 0 ? args[modeIdx + 1] as "auto" | "ask" | "bypass" : undefined;
-  const daemonMode = args.includes("--daemon");
-  await runTui({ sessionMode, daemonMode });
-  process.exit(0);
-}
-
-// --- alix demo -- M0.9 demo path ---
-if (command === "demo" && args[0] === "local") {
-  const { runDemo } = await import("./cli/commands/demo.js");
-  await runDemo();
-  process.exit(0);
-}
-
 if (command === "serve") {
   const config = await loadConfig(process.cwd());
   if (!config.ui?.enabled) {
@@ -1877,80 +1752,6 @@ if (command === "memory") {
 }
 
 // --- alix session --- session management commands ---
-if (command === "session") {
-  const { listSessions, sessionInfo } = await import("./session/resume.js");
-
-  if (args[0] === "list") {
-    const sessions = await listSessions(process.cwd());
-    if (sessions.length === 0) {
-      console.log("No sessions found.");
-    } else {
-      console.log(`${"ID".padEnd(38)} ${"Task".padEnd(50)} ${"Status".padEnd(14)} ${"Iters".padEnd(6)} Date`);
-      console.log("-".repeat(120));
-      for (const s of sessions) {
-        const date = s.createdAt ? new Date(s.createdAt).toLocaleDateString() : "";
-        console.log(`${s.sessionId.padEnd(38)} ${s.task.slice(0, 48).padEnd(50)} ${s.status.padEnd(14)} ${String(s.iterations).padEnd(6)} ${date}`);
-      }
-    }
-    process.exit(0);
-  }
-
-  if (args[0] === "show" && args[1]) {
-    const info = await sessionInfo(process.cwd(), args[1]);
-    if (!info) {
-      console.error(`Session not found: ${args[1]}`);
-      process.exit(1);
-    }
-    console.log(`Session:    ${info.sessionId}`);
-    console.log(`Task:       ${info.task}`);
-    console.log(`Status:     ${info.status}`);
-    console.log(`Iterations: ${info.iterations}`);
-    console.log(`Repairs:    ${info.repairs}`);
-    console.log(`File changes: ${info.fileChanges}`);
-    console.log(`Shell cmds: ${info.shellCommands}`);
-    console.log(`Created:    ${info.createdAt ? new Date(info.createdAt).toLocaleString() : "unknown"}`);
-    console.log(`Updated:    ${info.updatedAt ? new Date(info.updatedAt).toLocaleString() : "unknown"}`);
-    process.exit(0);
-  }
-
-  if (args[0] === "show" && !args[1]) {
-    console.error("Usage: alix session show <session-id>");
-    process.exit(1);
-  }
-
-  console.log("Usage: alix session [list|show <id>]");
-  console.log("  list             - List all sessions (newest first)");
-  console.log("  show <id>        - Show session details");
-  process.exit(0);
-}
-
-if (command === "plan") {
-  const { runPlan } = await import("./cli/commands/plan.js");
-  if (args[0] === "--list" || args[0] === "-l") {
-    await runPlan({ task: "", list: true });
-  } else {
-    const task = args.join(" ").replace(/^["']|["']$/g, "");
-    await runPlan({ task });
-  }
-  process.exit(0);
-}
-
-if (command === "review") {
-  const { runReview } = await import("./cli/commands/review.js");
-  const planId = args[0];
-  if (!planId) { console.error("Usage: alix review <plan-id>"); process.exit(1); }
-  await runReview({ planId });
-  process.exit(0);
-}
-
-if (command === "apply") {
-  const { runApply } = await import("./cli/commands/apply.js");
-  const planId = args[0];
-  if (!planId) { console.error("Usage: alix apply <plan-id>"); process.exit(1); }
-  await runApply({ planId });
-  process.exit(0);
-}
-
 if (command === "skills") {
 	  const { runInstall } = await import("./cli/commands/skills/install.js");
 	  await runInstall({
@@ -2388,91 +2189,6 @@ if (command === "daemon") {
 // (e.g. `alix submit`) keep the event loop alive and handle their own
 // exit; without this flag the file's fallthrough would print a
 // misleading "Unknown command" error after a successful submit.
-let commandHandled = false;
-
-if (command === "submit") {
-  commandHandled = true;
-  const task = args.join(" ").replace(/^["']|["']$/g, "");
-  if (!task) { console.error("Usage: alix submit \"<task>\""); process.exit(1); }
-  const cwd = process.cwd();
-  const { DaemonManager } = await import("./daemon/daemon-manager.js");
-  const mgr = new DaemonManager(cwd);
-  const running = await mgr.isRunning();
-  if (!running) { console.error("Daemon is not running. Start it with: alix daemon start"); process.exit(1); }
-
-  const socketPath = mgr.socketPath();
-  if (!socketPath) { console.error("No socket path found."); process.exit(1); }
-
-  const { connect } = await import("node:net");
-  const payload = JSON.stringify({ command: "run", task, cwd }) + "\n";
-  const client = connect(socketPath, () => {
-    // Send the request and let the daemon keep the socket open until
-    // it has finished processing. We do NOT call client.end() here —
-    // a half-close signals EOF to the daemon's read side, which can
-    // cause the daemon to tear down the socket before it finishes
-    // processing our request and writing the response. The socket is
-    // closed by client.destroy() in the terminal-event branches of
-    // the data handler, or by the safety-net idle timeout below.
-    client.write(payload);
-  });
-
-  // Idle timeout: reset on every data event so it only fires when the
-  // daemon goes silent (e.g. socket stuck open, daemon wedged). A
-  // legitimate long-running task keeps emitting frames and never trips
-  // the timer. The previous implementation measured total runtime,
-  // which incorrectly aborted tasks that took longer than 30s.
-  const IDLE_TIMEOUT_MS = 30_000;
-  let idleTimer: NodeJS.Timeout | null = null;
-  const armIdleTimer = () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    idleTimer = setTimeout(() => {
-      if (process.exitCode === undefined) {
-        console.error(`Daemon did not respond within ${IDLE_TIMEOUT_MS / 1000}s; giving up.`);
-        process.exit(1);
-      }
-    }, IDLE_TIMEOUT_MS);
-  };
-  armIdleTimer();
-
-  client.on("data", (data: Buffer) => {
-    armIdleTimer();
-    for (const line of data.toString().trim().split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        const msg = JSON.parse(line);
-        if (msg.type === "task.created") console.log(`Task created: ${msg.taskId}`);
-        else if (msg.type === "session.started") console.log(`Session: ${msg.sessionId}`);
-        else if (msg.type === "task.accepted") console.log(`Task accepted: ${msg.task}`);
-        else if (msg.type === "queue.position") console.log(`Queue position: ${msg.position}`);
-        else if (msg.type === "tool.started") console.log(`  → ${msg.toolName || "tool"} started`);
-        else if (msg.type === "tool.completed") console.log(`  ✓ ${msg.toolName || "tool"} completed${msg.durationMs ? ` (${msg.durationMs}ms)` : ""}`);
-        else if (msg.type === "tool.failed") console.log(`  ✗ ${msg.toolName || "tool"} failed${msg.error ? `: ${msg.error.slice(0, 60)}` : ""}`);
-        else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.destroy(); }
-        else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); process.exitCode = 1; client.destroy(); }
-        else if (msg.type === "session.ended") { client.destroy(); }
-        // Unhandled message types are ignored — wait for a terminal frame
-        // before closing. The socket stays open until the daemon closes
-        // its end or the idle timer fires.
-      } catch {
-        console.log(line);
-      }
-    }
-  });
-
-  client.on("error", (err: Error) => {
-    // Suppress noisy errors that may fire after the close handler exits.
-    if (process.exitCode === undefined) {
-      console.error(`Connection error: ${err.message}`);
-      process.exit(1);
-    }
-  });
-
-  client.on("close", () => {
-    if (idleTimer) clearTimeout(idleTimer);
-    if (process.exitCode === undefined) process.exit(0);
-  });
-}
-
 if (command === "audit") {
   const cwd = process.cwd();
 
@@ -3134,11 +2850,14 @@ if (command === "issue" && args[0] === "run") {
   process.exit(0);
 }
 
-if (!commandHandled) {
-  console.error(`Unknown command: ${command}`);
-  process.exit(1);
+// ── COMMAND_ROUTER dispatcher ───────────────────────────────────
+const loader = COMMAND_ROUTER[command];
+if (loader) {
+  const mod = await loader();
+  const code = await mod.handler(args);
+  process.exit(code);
 }
-// If we get here with commandHandled = true, the matched handler is
-// keeping the event loop alive and will call process.exit itself.
-// Don't process.exit(1) here — that would kill the loop before the
-// handler's listeners can run.
+
+console.error(`Unknown command: ${command}`);
+process.exit(1);
+

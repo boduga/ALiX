@@ -47,13 +47,19 @@ async function findPlanFile(dir: string, planId: string): Promise<string | null>
   return match ? join(dir, match) : null;
 }
 
-export async function runReview(opts: ReviewOptions): Promise<void> {
+export async function handler(args: string[]): Promise<number> {
+  const planId = args[0];
+  if (!planId) { console.error("Usage: alix review <plan-id>"); return 1; }
+  return await runReview({ planId });
+}
+
+export async function runReview(opts: ReviewOptions): Promise<number> {
   const plansDir = join(process.cwd(), ".alix", "plans");
   const planPath = await findPlanFile(plansDir, opts.planId);
 
   if (!planPath) {
     console.error(`Plan not found: ${opts.planId}`);
-    process.exit(1);
+    return 1;
   }
 
   const content = await readFile(planPath, "utf8");
@@ -105,4 +111,6 @@ export async function runReview(opts: ReviewOptions): Promise<void> {
     await writeFile(planPath, yaml.stringify(plan));
     console.log("\nPlan rejected.");
   }
+
+  return 0;
 }

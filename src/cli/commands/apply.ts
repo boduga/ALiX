@@ -33,13 +33,19 @@ async function findPlanFile(dir: string, planId: string): Promise<string | null>
   return match ? join(dir, match) : null;
 }
 
-export async function runApply(opts: ApplyOptions): Promise<void> {
+export async function handler(args: string[]): Promise<number> {
+  const planId = args[0];
+  if (!planId) { console.error("Usage: alix apply <plan-id>"); return 1; }
+  return await runApply({ planId });
+}
+
+export async function runApply(opts: ApplyOptions): Promise<number> {
   const plansDir = join(process.cwd(), ".alix", "plans");
   const planPath = await findPlanFile(plansDir, opts.planId);
 
   if (!planPath) {
     console.error(`Plan not found: ${opts.planId}`);
-    process.exit(1);
+    return 1;
   }
 
   const content = await readFile(planPath, "utf8");
@@ -47,7 +53,7 @@ export async function runApply(opts: ApplyOptions): Promise<void> {
 
   if (plan.plan.status === "applied") {
     console.error("Plan already applied.");
-    process.exit(1);
+    return 1;
   }
 
   console.log(`Applying plan ${opts.planId}...`);
@@ -59,7 +65,7 @@ export async function runApply(opts: ApplyOptions): Promise<void> {
 
   if (confirm.toLowerCase() !== "y") {
     console.log("Cancelled.");
-    process.exit(0);
+    return 0;
   }
 
   for (const change of plan.plan.changes) {
@@ -105,4 +111,5 @@ export async function runApply(opts: ApplyOptions): Promise<void> {
   await writeFile(planPath, yaml.stringify(plan));
 
   console.log("\nPlan applied successfully.");
+  return 0;
 }
