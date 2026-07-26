@@ -15,6 +15,8 @@ import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PlanDecision } from '../run/plan-approval-gate.js';
 import type { PlanTask } from '../planning/plan-task.js';
+import type { IInput, IOutput } from './io.js';
+import { StdioInput, StdioOutput } from './io.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -28,6 +30,10 @@ export interface TuiAppOptions {
    */
   approvalManager?: import('./approval-manager.js').ApprovalManager;
   views?: Readonly<Record<TabId, TuiView>>;
+  /** Input source. Defaults to StdioInput (process.stdin). */
+  input?: IInput;
+  /** Output sink. Defaults to StdioOutput (process.stdout). */
+  output?: IOutput;
 }
 
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
@@ -50,8 +56,13 @@ export class TuiApp {
   private readonly planApprovalGate = new TuiPlanApprovalGate();
   private pasteState: 'idle' | 'reading' = 'idle';
   private pasteChunks: Buffer[] = [];
+  private readonly input: IInput;
+  private readonly output: IOutput;
+  private inputCleanup?: () => void;
 
   constructor(private readonly opts: TuiAppOptions) {
+    this.input = opts.input ?? new StdioInput(process.stdin);
+    this.output = opts.output ?? new StdioOutput();
     this.defaultViews = {
       chat: getView('chat')!,
       agent: getView('agent')!,
@@ -94,7 +105,7 @@ export class TuiApp {
     this.paintFullFrame();
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
-    process.stdin.on('data', (buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
+    this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
     this.snapshotTimer = setInterval(() => void this.refresh(), 1_000);
   }
 
@@ -579,7 +590,7 @@ export class TuiApp {
           ? text.slice(0, MAX_CLIPBOARD) + '\n[truncated at 64 KB]'
           : text;
         const b64 = Buffer.from(truncated, 'utf8').toString('base64');
-        process.stdout.write(`\x1b]52;;${b64}\x1b\\`);
+        this.output.write(`\x1b]52;;${b64}\x1b\\`);
         this.paintFullFrame();
         break;
       }
@@ -924,7 +935,7 @@ export class TuiApp {
     c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, leftW - 2)));
 
     // Write the complete frame — cursor home + canvas render.
-    process.stdout.write('\x1b[H' + c.renderFrame());
+    this.output.write('\x1b[H' + c.renderFrame());
 
     // Place the terminal cursor at the active tab's input prompt position.
     // Without this the cursor sits at the bottom of the screen (blinking on
@@ -933,19 +944,20 @@ export class TuiApp {
     // every keypress as the full frame redraw overwrites the cursor area.
     if (this.state.activeTab === 'chat') {
       const bufLen = this.state.views.chat.inputBuffer.length;
-      process.stdout.write(`\x1b[5;${7 + bufLen + 1}H`);
+      this.output.write(`\x1b[5;${7 + bufLen + 1}H`);
     } else if (this.state.activeTab === 'agent') {
       const bufLen = this.state.views.agent.inputBuffer.length;
-      process.stdout.write(`\x1b[5;${13 + bufLen + 1}H`);
+      this.output.write(`\x1b[5;${13 + bufLen + 1}H`);
     } else {
       // Non-input tabs: move cursor to a safe column (row 4, col 1) so it
       // doesn't blink on top of the status line.
-      process.stdout.write(`\x1b[5;1H`);
+      this.output.write(`\x1b[5;1H`);
     }
   }
 
   private async cleanupSync(): Promise<void> {
     this.terminal.disableTerminalModes();
+    this.inputCleanup?.();
   }
 }
 
