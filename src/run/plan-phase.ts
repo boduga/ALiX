@@ -28,6 +28,8 @@ import {
   type PlanTask,
 } from "../planning/plan-task.js";
 import type { PlanApprovalGate } from "./plan-approval-gate.js";
+import { runApprovalLoop } from "./plan-approval.js";
+import type { PlanApprovalIO } from "./plan-approval.js";
 
 export type PlanPhaseResult =
   | { action: "approved"; planContent: string; planTasks?: readonly PlanTask[] }
@@ -102,7 +104,7 @@ export async function persistPlanTaskSidecar(
  * @param sessionId - session id.
  * @param sidecarFs - filesystem writer/unlinker; defaults to `node:fs/promises`.
  */
-async function clearPlanTaskSidecar(
+export async function clearPlanTaskSidecar(
   planDir: string,
   sessionId: string,
   sidecarFs?: SidecarFs,
@@ -222,64 +224,25 @@ export async function runPlanPhase(
 async function resolvePlanDecisionViaGate(
   gate: PlanApprovalGate,
   planPath: string,
-  initialContent: string,
+  planContent: string,
   sessionId: string,
   planDir: string,
   sidecarFs: SidecarFs,
 ): Promise<PlanPhaseResult> {
-  let planContent = initialContent;
-  let currentTasks = parsePlanTasks(planContent, sessionId);
-  // Bounded loop — defensive guard against a misbehaving gate that keeps
-  // returning `edit`/`detail`. 10 rounds is far more than a real operator
-  // would ever need; the gate is in control so honour anything beyond.
-  for (let round = 0; round < 10; round++) {
-    const decision = await gate.requestDecision({
-      planId: sessionId,
-      planSummary: summarisePlan(planContent),
-      planContent,
-      planPath,
-    });
-    if (decision === "approve") {
-      return { action: "approved", planContent, planTasks: currentTasks };
-    }
-    if (decision === "reject") {
-      await clearPlanTaskSidecar(planDir, sessionId, sidecarFs);
-      return { action: "rejected", planContent, planTasks: currentTasks };
-    }
-    if (decision === "edit") {
-      // Open the editor in-place. The persisted file is the source of
-      // truth — after editing, we re-read it so the gate's next round
-      // sees the new content.
-      const edited = await openPlanInEditor(planPath);
-      if (edited === null) {
-        // Editor failed to launch — surface a hint and re-prompt so the
-        // operator can try `d` (detail) or `n` (reject) instead.
-        console.error("Could not open editor (set $VISUAL or $EDITOR).");
-        continue;
-      }
-      if (edited.trim().length === 0) {
-        console.log("Empty plan — cancelling.");
-        await clearPlanTaskSidecar(planDir, sessionId, sidecarFs);
-        return { action: "rejected", planContent, planTasks: [] };
-      }
-      planContent = edited;
-      // Re-parse and refresh sidecar so the next round reflects the edit.
-      currentTasks = parsePlanTasks(planContent, sessionId);
-      await persistPlanTaskSidecar(planDir, sessionId, currentTasks, sidecarFs);
-      continue;
-    }
-    // "detail" — print the plan to stdout (TTY sidecar) so the operator
-    // can read it, then re-prompt. The gate's TUI renders the same plan
-    // inside the card; this path is for the CLI fallback where the gate
-    // is intentionally not displaying the body.
-    console.log("\n" + planContent);
-    continue;
-  }
-  // Defensive default: after 10 rounds of edit loops without explicit
-  // approval, reject instead of silently approving. The operator must
-  // explicitly approve the plan; 10 rounds of `edit` without `approve`
-  // indicates uncertainty that should block execution.
-  return { action: "rejected", planContent, planTasks: currentTasks };
+  const tuiIO: PlanApprovalIO = {
+    async requestDecision(display) {
+      return await gate.requestDecision({
+        planId: sessionId,
+        planSummary: display.planSummary,
+        planContent: display.planContent,
+        planPath: display.planPath,
+      });
+    },
+    showPlanDetail(_content: string, _planPath: string) {
+      /* TUI gate renders plan in card */
+    },
+  };
+  return runApprovalLoop(tuiIO, planPath, planContent, sessionId, planDir, sidecarFs);
 }
 
 /**
@@ -289,7 +252,7 @@ async function resolvePlanDecisionViaGate(
  * Mirrors the edit branch of `promptForPlanApproval` so both surfaces
  * (CLI prompt and TUI gate) handle `edit` identically.
  */
-async function openPlanInEditor(planPath: string): Promise<string | null> {
+export async function openPlanInEditor(planPath: string): Promise<string | null> {
   const editor = process.env.VISUAL ?? process.env.EDITOR ?? "vim";
   const result = spawnSync(editor, [planPath], { stdio: "inherit" });
   if (result.error) return null;
@@ -301,7 +264,7 @@ async function openPlanInEditor(planPath: string): Promise<string | null> {
  * First non-empty line of the plan, used as the card header.
  * Falls back to a generic label when the plan has no leading prose.
  */
-function summarisePlan(planContent: string): string {
+export function summarisePlan(planContent: string): string {
   for (const raw of planContent.split("\n")) {
     const line = raw.trim();
     if (!line) continue;
@@ -418,75 +381,30 @@ interface PromptForPlanApprovalCtx {
 async function promptForPlanApproval(
   planPath: string,
   planContent: string,
-  sidecarCtx?: PromptForPlanApprovalCtx,
+  sidecarCtx: PromptForPlanApprovalCtx,
 ): Promise<PlanPhaseResult> {
-  while (true) {
-    const answer = await prompt("Approve plan? [Y/n/e/d] ");
-    const key = answer.toLowerCase().trim();
-
-    if (key === "" || key === "y" || key === "yes") {
-      return { action: "approved", planContent, planTasks: sidecarCtx?.initialTasks };
-    }
-
-    if (key === "n" || key === "no") {
-      console.log("\nPlan rejected. Task cancelled.");
-      if (sidecarCtx) {
-        // Remove sidecar so we don't leave stale tasks on disk.
-        await clearPlanTaskSidecar(
-          sidecarCtx.planDir,
-          sidecarCtx.sessionId,
-          sidecarCtx.sidecarFs,
-        );
+  const ttyIO: PlanApprovalIO = {
+    async requestDecision(): Promise<"approve" | "reject" | "edit" | "detail"> {
+      while (true) {
+        const answer = await prompt("Approve plan? [Y/n/e/d] ");
+        const key = answer.toLowerCase().trim();
+        if (key === "" || key === "y" || key === "yes") return "approve";
+        if (key === "n" || key === "no") return "reject";
+        if (key === "e" || key === "edit") return "edit";
+        if (key === "d" || key === "detail") return "detail";
+        console.log("Press Y to approve, n to reject, e to edit, d for details.");
       }
-      return { action: "rejected", planContent, planTasks: sidecarCtx?.initialTasks };
-    }
-
-    if (key === "e" || key === "edit") {
-      const edited = await openPlanInEditor(planPath);
-      if (edited === null) {
-        console.error("Could not open editor (set $VISUAL or $EDITOR).");
-        continue;
-      }
-      if (edited.trim().length === 0) {
-        console.log("Empty plan — cancelling.");
-        if (sidecarCtx) {
-          await clearPlanTaskSidecar(
-            sidecarCtx.planDir,
-            sidecarCtx.sessionId,
-            sidecarCtx.sidecarFs,
-          );
-        }
-        return { action: "rejected", planContent: edited, planTasks: sidecarCtx?.initialTasks };
-      }
-      console.log("\n--- Edited Plan ---\n");
-      console.log(edited.trim());
-      if (sidecarCtx) {
-        const editedTasks = parsePlanTasks(edited, sidecarCtx.sessionId);
-        await persistPlanTaskSidecar(
-          sidecarCtx.planDir,
-          sidecarCtx.sessionId,
-          editedTasks,
-          sidecarCtx.sidecarFs,
-        );
-        return { action: "approved", planContent: edited.trim(), planTasks: editedTasks };
-      }
-      return { action: "approved", planContent: edited.trim() };
-    }
-
-    if (key === "d" || key === "detail") {
-      console.log("\n--- Expanded Details ---\n");
-      // Count changes by looking for **Action:** lines (format from buildPlanSystemPrompt)
-      const createCount = (planContent.match(/-\s+\*\*Action:\*\*\s*create/gi) ?? []).length;
-      const modifyCount = (planContent.match(/-\s+\*\*Action:\*\*\s*modify/gi) ?? []).length;
-      const deleteCount = (planContent.match(/-\s+\*\*Action:\*\*\s*delete/gi) ?? []).length;
+    },
+    showPlanDetail(content: string, planPath: string) {
+      const createCount = (content.match(/-\s+\*\*Action:\*\*\s*create/gi) ?? []).length;
+      const modifyCount = (content.match(/-\s+\*\*Action:\*\*\s*modify/gi) ?? []).length;
+      const deleteCount = (content.match(/-\s+\*\*Action:\*\*\s*delete/gi) ?? []).length;
       console.log(`Files to create: ${createCount}`);
       console.log(`Files to modify: ${modifyCount}`);
       console.log(`Files to delete: ${deleteCount}`);
       console.log(`\nFull plan saved to: ${planPath}`);
-      console.log("\n" + planContent);
-      continue;
-    }
-
-    console.log("Press Y to approve, n to reject, e to edit, d for details.");
-  }
+      console.log("\n" + content);
+    },
+  };
+  return runApprovalLoop(ttyIO, planPath, planContent, sidecarCtx.sessionId, sidecarCtx.planDir, sidecarCtx.sidecarFs);
 }
