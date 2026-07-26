@@ -25,6 +25,11 @@ describe('TerminalControl — mode management', () => {
     expect(calls.length).toBe(4);
   });
 
+  it('disableTerminalModes runs even when enableTerminalModes was not called', () => {
+    const tc = createTerminalControl();
+    expect(() => tc.disableTerminalModes()).not.toThrow();
+  });
+
   it('disableTerminalModes disables bracketed paste, shows cursor, exits raw and alt buffer', () => {
     const tc = createTerminalControl();
     tc.disableTerminalModes();
