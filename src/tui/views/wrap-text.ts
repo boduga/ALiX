@@ -44,12 +44,25 @@ function hardTruncate(line: string, width: number): string {
   let visible = 0;
   let result = '';
   let i = 0;
+  // Track whether the line had active ANSI formatting (color, bold, etc.)
+  // at the truncation point. Only append a reset if so — unconditionally
+  // appending \x1b[0m on every truncation cancels caller styling that's
+  // still active outside this line.
+  let hasActiveAnsi = false;
   while (i < line.length && visible < width) {
     if (line[i] === '\x1b') {
       const seqMatch = line.slice(i).match(/^\x1b\[[0-9;]*[a-zA-Z]/);
       if (seqMatch) {
-        result += seqMatch[0];
-        i += seqMatch[0].length;
+        const seq = seqMatch[0];
+        result += seq;
+        i += seq.length;
+        // \x1b[0m and \x1b[39m close all attributes; we don't need a
+        // closing reset after that.
+        if (seq === '\x1b[0m' || seq === '\x1b[39m') {
+          hasActiveAnsi = false;
+        } else {
+          hasActiveAnsi = true;
+        }
         continue;
       }
     }
@@ -57,9 +70,10 @@ function hardTruncate(line: string, width: number): string {
     visible++;
     i++;
   }
-  // If we truncated mid-line, append a reset sequence so any active ANSI
-  // formatting (color, bold, etc.) doesn't bleed into the next line.
-  if (i < line.length) {
+  // Only emit a reset if we truncated past visible content AND the
+  // line had active formatting. Plain text and already-reset lines
+  // get no reset.
+  if (i < line.length && hasActiveAnsi) {
     result += '\x1b[0m';
   }
   return result;
@@ -68,8 +82,13 @@ function hardTruncate(line: string, width: number): string {
 export function wrapText(text: string, width: number): string[] {
   if (width <= 0) return [''];
   if (!text) return [''];
+  // Normalize CRLF and bare CR to LF. Without this, a CRLF line ending
+  // leaves a trailing "\r" inside the segment, which the whitespace
+  // splitter then drops — and CRLF blank lines (just "\r\n") become a
+  // truthy "\r" that wraps to [], silently dropping the row.
+  const normalized = text.replace(/\r\n?/g, '\n');
   const out: string[] = [];
-  for (const para of text.split('\n')) {
+  for (const para of normalized.split('\n')) {
     out.push(...wrapOneLine(para, width));
   }
   return out;
