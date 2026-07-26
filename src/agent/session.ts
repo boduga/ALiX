@@ -436,6 +436,39 @@ export class AgentSessionBuilder {
     this.config = config ?? {};
   }
 
+  /** Set plan-phase configuration: approval mode and optional gate. */
+  withPlan(cfg: { approvalMode?: "interactive" | "deferred"; gate?: import("../run/plan-approval-gate.js").PlanApprovalGate }): this {
+    if (cfg.approvalMode !== undefined) this.config.planApprovalMode = cfg.approvalMode;
+    (this.config as any).gate = cfg.gate;
+    return this;
+  }
+
+  /** Set chat configuration: search tool for workspace queries. */
+  withChat(cfg: { chatSearchTool?: (q: string) => Promise<string> }): this {
+    (this.config as any).chatSearchTool = cfg.chatSearchTool;
+    return this;
+  }
+
+  /** Set persistence configuration: approval store and event log. */
+  withPersistence(cfg: { approvalStore?: import("../approvals/approval-store.js").ApprovalStore; eventLog?: import("../tui/runtime-collector.js").RuntimeCollector }): this {
+    (this.config as any).approvalStore = cfg.approvalStore;
+    (this.config as any).eventLog = cfg.eventLog;
+    return this;
+  }
+
+  /** Set event subscription configuration: streaming and diagnostic callbacks. */
+  withEvents(cfg: AgentSessionEvents): this {
+    (this.config as any).onStream = cfg.onToken ? (token: string) => cfg.onToken(token) : undefined;
+    (this.config as any).onToolCall = cfg.onToolCall ? (call: import("../providers/types.js").ToolCall) => cfg.onToolCall(call) : undefined;
+    return this;
+  }
+
+  /** Set tool configuration: custom tool descriptors. */
+  withTools(cfg: { tools?: import("../providers/types.js").ToolDef[] }): this {
+    if (cfg.tools) (this.config as any).tools = cfg.tools;
+    return this;
+  }
+
   build(): AgentSession {
     const config = this.config as AgentSessionConfig;
 

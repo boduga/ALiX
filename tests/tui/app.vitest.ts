@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
+import { KeyDispatcher } from '../../src/tui/key-dispatcher.js';
 
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
@@ -409,5 +410,38 @@ describe('TuiApp — OSC 52 copy', () => {
     expect(text).toContain('→ q1');
     expect(text).toContain('← a1');
     expect(text).toContain('← a2');
+  });
+});
+
+describe('TuiApp -- pluggable key dispatcher', () => {
+  function makeDispatcherApp() {
+    const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
+    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+    const metrics = { start: () => {}, stop: async () => {} };
+    const dispatcher = new KeyDispatcher();
+    const app = new TuiApp({ builder, daemonMetrics: metrics, keyDispatcher: dispatcher } as unknown as TuiAppOptions);
+    const internal = app as unknown as {
+      handleRaw(buf: Buffer): void;
+      getStateForTest(): { lastSnapshot: unknown };
+    };
+    internal.getStateForTest().lastSnapshot = snap;
+    return { app, internal, dispatcher };
+  }
+
+  it('dispatches to a registered keybinding and the handler can consume the key', () => {
+    const { internal, dispatcher } = makeDispatcherApp();
+    let consumed = false;
+    dispatcher.on('Enter', () => { consumed = true; return true; });
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    expect(consumed).toBe(true);
+  });
+
+  it('non-consumed key falls through to default dispatch', () => {
+    const { internal, dispatcher } = makeDispatcherApp();
+    let saw = false;
+    dispatcher.on('x', () => { saw = true; return false; });
+    // 'x' should not crash even though it wasn't consumed
+    expect(() => internal.handleRaw(Buffer.from('x'))).not.toThrow();
+    expect(saw).toBe(true);
   });
 });

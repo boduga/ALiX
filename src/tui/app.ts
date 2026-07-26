@@ -17,6 +17,7 @@ import type { PlanDecision } from '../run/plan-approval-gate.js';
 import type { PlanTask } from '../planning/plan-task.js';
 import type { IInput, IOutput } from './io.js';
 import { StdioInput, StdioOutput } from './io.js';
+import { KeyDispatcher } from './key-dispatcher.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -34,6 +35,11 @@ export interface TuiAppOptions {
   input?: IInput;
   /** Output sink. Defaults to StdioOutput (process.stdout). */
   output?: IOutput;
+  /** Optional key dispatcher for pluggable keybindings. When provided,
+   *  parseKey() results are routed through the dispatcher before the
+   *  built-in key handling. The dispatcher can consume a key (returning
+   *  true) or let it fall through to the default path. */
+  keyDispatcher?: import('./key-dispatcher.js').KeyDispatcher;
 }
 
 const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
@@ -58,11 +64,13 @@ export class TuiApp {
   private pasteChunks: Buffer[] = [];
   private readonly input: IInput;
   private readonly output: IOutput;
+  private readonly keyDispatcher: import('./key-dispatcher.js').KeyDispatcher;
   private inputCleanup?: () => void;
 
   constructor(private readonly opts: TuiAppOptions) {
     this.input = opts.input ?? new StdioInput(process.stdin);
     this.output = opts.output ?? new StdioOutput();
+    this.keyDispatcher = opts.keyDispatcher ?? new KeyDispatcher();
     this.defaultViews = {
       chat: getView('chat')!,
       agent: getView('agent')!,
@@ -200,6 +208,9 @@ export class TuiApp {
     const key = parseKey(buf);
     if (!key) return;
     if (this.tryHandleGlobal(key)) return;
+    // 2b. Pluggable key dispatcher — registered keybindings get first
+    //     chance to consume the key before the built-in dispatch.
+    if (this.keyDispatcher.dispatch(key)) return;
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
 
