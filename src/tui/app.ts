@@ -688,7 +688,16 @@ export class TuiApp {
       return true;
     }
     if (this.pasteState !== 'reading') return false;
-    if (s === '\x1b[201~') {
+    // Detect the paste-end marker using byte-level indexOf so multi-byte
+    // UTF-8 content immediately before the terminator doesn't cause a
+    // string-index/byte-offset mismatch (the spec mandates byte-level
+    // detection for this reason).
+    const endBuf = Buffer.from('\x1b[201~');
+    const endIdx = buf.indexOf(endBuf);
+    if (endIdx >= 0) {
+      if (endIdx > 0) {
+        this.pasteChunks.push(buf.subarray(0, endIdx));
+      }
       this.flushPaste();
       return true;
     }
@@ -701,7 +710,8 @@ export class TuiApp {
    * Normalises Windows CRLF line endings to Unix LF.
    */
   private flushPaste(): void {
-    const text = Buffer.concat(this.pasteChunks).toString('utf8').replace(/\r\n/g, '\n');
+    const decoder = new TextDecoder('utf8');
+    const text = decoder.decode(Buffer.concat(this.pasteChunks)).replace(/\r\n?/g, '\n');
     this.pasteState = 'idle';
     this.pasteChunks = [];
     if (!text) return;
