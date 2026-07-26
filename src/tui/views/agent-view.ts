@@ -1,6 +1,131 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
+import { parseResponseBlocks } from '../../agent/response-blocks.js';
+
+/**
+ * Internal scrollback line shape produced by `renderAgentResponse`.
+ * Matches the `ScrollbackLine` shape assembled inside `AgentView.render`,
+ * so the renderer can append the helper's output directly to `allLines`.
+ */
+interface RenderedLine {
+  kind: 'user' | 'agent' | 'plan' | 'approval';
+  text: string;
+  isFirst: boolean;
+}
+
+/**
+ * Render an agent (or user) response through the `ResponseBlock` parser
+ * so that fenced code blocks render verbatim with a 2-space indent and
+ * an optional `[lang]` header, instead of being word-wrapped as prose.
+ *
+ * Dispatch order preserves the parse-order invariant from the parser:
+ * code-mode runs before list-mode, and text-mode is the fallback.
+ * (Text-mode currently delegates to `wrapText` so existing wrap
+ * behaviour is unchanged.)
+ *
+ * list-mode normalizes unordered markers and renumbers ordered items while
+ * wrapping each item independently with continuation-line indentation.
+ */
+/**
+ * Hard-truncate a single line to fit `width` visible columns.
+ * Local helper for code-block rendering — code lines are
+ * truncated (not word-wrapped) per the design spec. ANSI escape
+ * sequences are preserved without counting toward width.
+ */
+function truncateVisible(line: string, width: number): string {
+  let visible = 0;
+  let result = '';
+  let i = 0;
+  while (i < line.length && visible < width) {
+    if (line[i] === '\x1b') {
+      const seqMatch = line.slice(i).match(/^\x1b\[[0-9;]*[a-zA-Z]/);
+      if (seqMatch) {
+        result += seqMatch[0];
+        i += seqMatch[0].length;
+        continue;
+      }
+    }
+    result += line[i]!;
+    visible++;
+    i++;
+  }
+  return result;
+}
+
+function renderAgentResponse(
+  text: string,
+  kind: 'user' | 'agent',
+  textWidth: number
+): RenderedLine[] {
+  const output: RenderedLine[] = [];
+
+  const blocks = parseResponseBlocks(text);
+
+  for (const block of blocks) {
+    if (block.type === 'text') {
+      const lines = wrapText(block.text, textWidth);
+      lines.forEach((line) => {
+        output.push({
+          kind,
+          text: line,
+          isFirst: output.length === 0,
+        });
+      });
+    } else if (block.type === 'code') {
+      // Compute the inner width for code-block lines: the 2-space
+      // canvas-content prefix is followed by visible code. Subtract it
+      // from textWidth to compute the truncation point.
+      const codeInnerWidth = Math.max(1, textWidth - 2);
+      if (block.language) {
+        output.push({
+          kind,
+          text: `  [${block.language}]`,
+          isFirst: output.length === 0,
+        });
+      }
+      // Per spec: code block body is hard-truncated to fit canvas
+      // width (left edge stays, right edge clips). No word-splitting.
+      // The isFirst flag must be set on the very first line of the
+      // entire response — including the case where the code block has
+      // no language header (so the language-header line isn't there
+      // to receive isFirst: true).
+      const codeLines = block.code.split('\n');
+      const firstLine = codeLines[0] ?? '';
+      output.push({
+        kind,
+        text: '  ' + truncateVisible(firstLine, codeInnerWidth),
+        isFirst: output.length === 0,
+      });
+      for (let k = 1; k < codeLines.length; k++) {
+        output.push({
+          kind,
+          text: '  ' + truncateVisible(codeLines[k]!, codeInnerWidth),
+          isFirst: false,
+        });
+      }
+    } else if (block.type === 'list') {
+      block.items.forEach((item, index) => {
+        const prefix = block.marker === 'ordered' ? `${index + 1}. ` : '• ';
+        const indent = ' '.repeat(prefix.length);
+        const innerWidth = Math.max(1, textWidth - prefix.length);
+        const wrapped = wrapText(item, innerWidth);
+
+        wrapped.forEach((line, lineIndex) => {
+          output.push({
+            kind,
+            text: lineIndex === 0 ? prefix + line : indent + line,
+            // Only the very first line of the entire response gets
+            // isFirst: true so the turn marker is drawn exactly once.
+            isFirst: output.length === 0,
+          });
+        });
+      });
+    }
+  }
+
+  return output;
+}
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -104,9 +229,9 @@ export class AgentView implements TuiView {
     }
 
     for (const t of turns) {
-      const wrapped = wrapText(t.text, textWidth);
-      for (let i = 0; i < wrapped.length; i++) {
-        allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+      const rendered = renderAgentResponse(t.text, t.kind, textWidth);
+      for (const line of rendered) {
+        allLines.push(line);
       }
     }
 
