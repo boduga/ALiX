@@ -144,11 +144,12 @@ describe("parseResponseBlocks — code fences", () => {
     ]);
   });
 
-  it("treats four-backtick line as plain text", () => {
+  it("parses matched four-backtick fence as code block", () => {
     expect(parseResponseBlocks("````\nhello\n````")).toEqual([
       {
-        type: "text",
-        text: "````\nhello\n````",
+        type: "code",
+        code: "hello",
+        fenced: true,
       },
     ]);
   });

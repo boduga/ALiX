@@ -39,40 +39,52 @@ export type ResponseBlock =
 /**
  * Match an opening code fence.
  *
- * Rules (per Task 3 brief):
- * - exactly three backticks at start of line
- * - the character immediately after must NOT be a backtick
- *   (this excludes 4+ backticks and longer fences)
+ * Rules (per the design spec):
+ * - 3 or more backticks at the start of a line
+ * - 4+ backticks are supported ONLY if the matching closing fence
+ *   uses the same length (per spec: "Four-or-more-backtick fences
+ *   — supported as fence delimiters only if the opening and closing
+ *   match in length. Mismatched lengths → treated as text.")
  * - optional info string made of non-whitespace, non-backtick chars
  * - any trailing whitespace is allowed
  * - must be the entire line (anchored end)
  *
- * Returns `{ language?: string }` on a match, or `null` otherwise.
+ * Returns `{ fenceLen, language? }` on a match, or `null` otherwise.
+ * The caller (parseResponseBlocks) tracks the opening length and
+ * uses it to match the closing fence.
  */
 function matchFenceOpen(
   line: string
-): { language?: string } | null {
-  const match = /^```(?!`)([^\s`]*)\s*$/.exec(line);
+): { fenceLen: number; language?: string } | null {
+  // Match 3+ backticks, capture length, and require exactly N backticks
+  // (not more) so the line ends with optional info string and not
+  // additional backticks. Anchored to start and end of line.
+  const match = /^(`{3,})([^\s`]*)\s*$/.exec(line);
   if (!match) {
     return null;
   }
+  const fenceLen = match[1]!.length;
   return {
-    language: match[1] || undefined,
+    fenceLen,
+    language: match[2] || undefined,
   };
 }
 
 /**
- * Match a closing code fence.
- *
- * Rule (per Task 3 brief):
- * - the line is exactly three backticks, optionally followed by
- *   trailing whitespace (`trimEnd() === "```"`)
- *
- * Uses string equality — no dynamic regex construction — so the
- * close cannot accidentally accept a longer fence.
+ * Match a closing code fence of exactly `fenceLen` backticks
+ * (optionally followed by trailing whitespace). Uses string
+ * equality — no dynamic regex construction — so the close
+ * cannot accidentally accept a different-length fence.
  */
-function matchFenceClose(line: string): boolean {
-  return line.trimEnd() === "```";
+function matchFenceClose(line: string, fenceLen: number): boolean {
+  // Line must be exactly fenceLen backticks, optionally with
+  // trailing whitespace.
+  const stripped = line.trimEnd();
+  if (stripped.length !== fenceLen) return false;
+  for (let i = 0; i < fenceLen; i++) {
+    if (stripped[i] !== "`") return false;
+  }
+  return true;
 }
 
 /**
@@ -201,7 +213,7 @@ export function parseResponseBlocks(
       let closed = false;
 
       while (j < lines.length) {
-        if (matchFenceClose(lines[j]!)) {
+        if (matchFenceClose(lines[j]!, fence.fenceLen)) {
           closed = true;
           break;
         }
@@ -290,8 +302,27 @@ export function parseResponseBlocks(
     //
     // Within a continuous text run, blank lines stay as content
     // (preserves the existing Task 2 "preserves blank lines" invariant).
-    if (textBuffer.length === 0 && line.trim() === "") {
-      i++;
+    // A run of blank lines collapses to a SINGLE blank line per the
+    // design spec: "A run of blank lines collapses to a single blank
+    // line in the surrounding text block." So:
+    //   - if textBuffer is empty (fresh-mode boundary), consume the
+    //     run silently (the empty string would just be a leading
+    //     separator that flushText would trim).
+    //   - if textBuffer has content, push one empty line for the run
+    //     so it appears as a single blank inside the text block.
+    if (line.trim() === "") {
+      let blankRun = 0;
+      while (i + blankRun < lines.length && lines[i + blankRun]!.trim() === "") {
+        blankRun++;
+      }
+      if (textBuffer.length > 0) {
+        // Collapse multi-blank to one, but only if we haven't already
+        // pushed an empty line for this run.
+        if (textBuffer[textBuffer.length - 1] !== "") {
+          textBuffer.push("");
+        }
+      }
+      i += blankRun;
       continue;
     }
 

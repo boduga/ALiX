@@ -27,6 +27,32 @@ interface RenderedLine {
  * list-mode normalizes unordered markers and renumbers ordered items while
  * wrapping each item independently with continuation-line indentation.
  */
+/**
+ * Hard-truncate a single line to fit `width` visible columns.
+ * Local helper for code-block rendering — code lines are
+ * truncated (not word-wrapped) per the design spec. ANSI escape
+ * sequences are preserved without counting toward width.
+ */
+function truncateVisible(line: string, width: number): string {
+  let visible = 0;
+  let result = '';
+  let i = 0;
+  while (i < line.length && visible < width) {
+    if (line[i] === '\x1b') {
+      const seqMatch = line.slice(i).match(/^\x1b\[[0-9;]*[a-zA-Z]/);
+      if (seqMatch) {
+        result += seqMatch[0];
+        i += seqMatch[0].length;
+        continue;
+      }
+    }
+    result += line[i]!;
+    visible++;
+    i++;
+  }
+  return result;
+}
+
 function renderAgentResponse(
   text: string,
   kind: 'user' | 'agent',
@@ -47,6 +73,10 @@ function renderAgentResponse(
         });
       });
     } else if (block.type === 'code') {
+      // Compute the inner width for code-block lines: the 2-space
+      // canvas-content prefix is followed by visible code. Subtract it
+      // from textWidth to compute the truncation point.
+      const codeInnerWidth = Math.max(1, textWidth - 2);
       if (block.language) {
         output.push({
           kind,
@@ -54,10 +84,23 @@ function renderAgentResponse(
           isFirst: output.length === 0,
         });
       }
-      for (const line of block.code.split('\n')) {
+      // Per spec: code block body is hard-truncated to fit canvas
+      // width (left edge stays, right edge clips). No word-splitting.
+      // The isFirst flag must be set on the very first line of the
+      // entire response — including the case where the code block has
+      // no language header (so the language-header line isn't there
+      // to receive isFirst: true).
+      const codeLines = block.code.split('\n');
+      const firstLine = codeLines[0] ?? '';
+      output.push({
+        kind,
+        text: '  ' + truncateVisible(firstLine, codeInnerWidth),
+        isFirst: output.length === 0,
+      });
+      for (let k = 1; k < codeLines.length; k++) {
         output.push({
           kind,
-          text: `  ${line}`,
+          text: '  ' + truncateVisible(codeLines[k]!, codeInnerWidth),
           isFirst: false,
         });
       }
