@@ -1,18 +1,12 @@
 /**
  * Lifecycle phase owned by AgentSession. TUI may observe but never mutate.
  *
- * String-valued enum (not numeric) so `Object.values(SessionPhase).length === 6`
- * (TypeScript's numeric-emits reverse-mapping would otherwise double the count)
- * and so `JSON.stringify(session.phase)` produces a human-readable value.
+ * The enum is now defined in src/agent/session.ts (its semantic home) and
+ * re-exported here to fix the triangular dependency where the agent layer
+ * imported from the UI layer. This re-export keeps existing imports from
+ * tui/state.ts working without changes.
  */
-export enum SessionPhase {
-  Understanding = 'Understanding',
-  Planning = 'Planning',
-  Executing = 'Executing',
-  Verifying = 'Verifying',
-  Summarizing = 'Summarizing',
-  Idle = 'Idle',
-}
+export { SessionPhase } from '../agent/session.js';
 
 export type TabId = 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
 

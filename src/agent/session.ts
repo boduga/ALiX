@@ -45,10 +45,28 @@ import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory } from "../run/helpers.js";
-import { SessionPhase } from "../tui/state.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import type { PlanTask } from "../planning/plan-task.js";
+
+/**
+ * Lifecycle phases for an agent session. The active phase is observed
+ * by the TUI (and any other consumer) but only mutated by the session
+ * itself. Originally defined in tui/state.ts — moved here to fix the
+ * triangular dependency where agent code imported from the UI layer.
+ * tui/state.ts now re-exports this from here.
+ *
+ * String-valued enum so Object.values(SessionPhase).length === 6
+ * (TypeScript numeric enums emit reverse-mappings, doubling the count).
+ */
+export enum SessionPhase {
+  Understanding = 'Understanding',
+  Planning = 'Planning',
+  Executing = 'Executing',
+  Verifying = 'Verifying',
+  Summarizing = 'Summarizing',
+  Idle = 'Idle',
+}
 
 // =============================================================================
 // Types (verbatim from P1 brief)
