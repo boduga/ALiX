@@ -63,7 +63,7 @@ export async function handleCreateIntent(
     outputSummary: description,
     status: "captured" as const,
     confidence: 1,
-    rationale: "Created via alix chat /intent",
+    rationale: "Created via chat /intent",
     sourceArtifacts: [{ type: "context" as const, id: `session:${sessionId}` }],
     subject: `Chat intent: ${description.slice(0, 80)}`,
     outcome: "captured" as const,

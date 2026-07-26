@@ -58,7 +58,7 @@ describe("Suite A: Basic CLI (alix run)", () => {
     assertOutputContains(r, "--no-plan");
     assertOutputContains(r, "--no-stream");
     assertOutputContains(r, "--mode");
-    assertOutputContains(r, "alix chat");
+    assertOutputContains(r, "alix tui");
   });
 
   // ── A.10: --version flag ───────────────────────────────────────

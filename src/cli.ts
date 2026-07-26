@@ -42,8 +42,8 @@ if (!command || command === "--help" || command === "-h") {
 
 Usage:
   Core:
-    alix chat [--session <id>|--new]
     alix run "<task>" [--no-plan] [--no-stream] [--mode=auto|ask|bypass] [--resume <id>]
+    alix tui                       Interactive TUI dashboard (TTY)
     alix submit "<task>"
     alix session list|show <id>
     alix plan "<task>"
@@ -1921,14 +1921,6 @@ if (command === "session") {
   console.log("Usage: alix session [list|show <id>]");
   console.log("  list             - List all sessions (newest first)");
   console.log("  show <id>        - Show session details");
-  process.exit(0);
-}
-
-if (command === "chat") {
-  const { parseChatArgs, runChat } = await import("./cli/commands/chat.js");
-  const parsed = parseChatArgs(args);
-  if (!parsed.ok) { console.error(parsed.error); process.exit(1); }
-  await runChat(parsed.options);
   process.exit(0);
 }
 
