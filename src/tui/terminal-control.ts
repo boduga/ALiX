@@ -4,6 +4,8 @@ export interface TerminalControl {
   showCursor(visible: boolean): void;
   enterAltBuffer(): void;
   exitAltBuffer(): void;
+  enableTerminalModes(): void;
+  disableTerminalModes(): void;
   onResize(cb: () => void): () => void;
   installEmergencyCleanup(cleanup: () => void): () => void;
 }
@@ -34,6 +36,21 @@ export function createTerminalControl(): TerminalControl {
       if (process.env.ALIX_TUI_ALT_BUFFER !== '0') {
         process.stdout.write('\x1b[?1049l');
       }
+    },
+    enableTerminalModes(): void {
+      // Sequence: alt buffer → show cursor → raw mode → bracketed paste → stop blink
+      this.enterAltBuffer();
+      this.showCursor(true);
+      this.enterRawMode();
+      process.stdout.write('\x1b[?2004h'); // bracketed paste mode
+      process.stdout.write('\x1b[?12l');   // stop cursor blink
+    },
+    disableTerminalModes(): void {
+      // Reverse order: disable bracketed paste → cursor → exit raw mode → exit alt buffer
+      process.stdout.write('\x1b[?2004l'); // disable bracketed paste
+      this.showCursor(true);
+      this.exitRawMode();
+      this.exitAltBuffer();
     },
     onResize(cb: () => void) {
       resizeCb = cb;

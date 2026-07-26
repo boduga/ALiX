@@ -121,20 +121,19 @@ Add after the existing `exitAltBuffer()` method in the returned object:
 
 ```ts
 enableTerminalModes(): void {
-  // Sequence: alt buffer → hide cursor → bracketed paste → stop blink
+  // Sequence: alt buffer → show cursor → raw mode → bracketed paste → stop blink
+  // Composes the existing primitives per the design spec.
   this.enterAltBuffer();
-  this.showCursor(false);
-  if (process.stdin.isTTY) process.stdin.setRawMode(true);
+  this.showCursor(true);
+  this.enterRawMode();
   process.stdout.write('\x1b[?2004h'); // bracketed paste mode
   process.stdout.write('\x1b[?12l');    // stop cursor blink
 },
 disableTerminalModes(): void {
-  // Reverse order: disable bracketed paste → show cursor → exit alt buffer
+  // Reverse order: disable bracketed paste → show cursor → exit raw mode → exit alt buffer
   process.stdout.write('\x1b[?2004l'); // disable bracketed paste
   this.showCursor(true);
   this.exitRawMode();
-  // Override the ALIX_TUI_ALT_BUFFER=0 opt-out: exitAltBuffer is called
-  // directly so it respects the env var internally.
   this.exitAltBuffer();
 },
 ```

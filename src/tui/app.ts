@@ -73,9 +73,7 @@ export class TuiApp {
   }
 
   async start(): Promise<void> {
-    this.terminal.enterAltBuffer();
-    this.terminal.enterRawMode();
-    this.terminal.showCursor(true);
+    this.terminal.enableTerminalModes();
     this.terminal.onResize(() => this.paintFullFrame());
 
     this.opts.daemonMetrics.start();
@@ -856,9 +854,7 @@ export class TuiApp {
   }
 
   private async cleanupSync(): Promise<void> {
-    this.terminal.showCursor(true);
-    this.terminal.exitRawMode();
-    this.terminal.exitAltBuffer();
+    this.terminal.disableTerminalModes();
   }
 }
 
