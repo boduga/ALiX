@@ -2414,14 +2414,36 @@ if (command === "submit") {
   const { connect } = await import("node:net");
   const payload = JSON.stringify({ command: "run", task, cwd }) + "\n";
   const client = connect(socketPath, () => {
+    // Send the request and let the daemon keep the socket open until
+    // it has finished processing. We do NOT call client.end() here —
+    // a half-close signals EOF to the daemon's read side, which can
+    // cause the daemon to tear down the socket before it finishes
+    // processing our request and writing the response. The socket is
+    // closed by client.destroy() in the terminal-event branches of
+    // the data handler, or by the safety-net idle timeout below.
     client.write(payload);
-    // Half-close the write side so the daemon sees EOF after our
-    // single-message request. The daemon doesn't need a long-lived
-    // socket for fire-and-forget submission.
-    client.end();
   });
 
+  // Idle timeout: reset on every data event so it only fires when the
+  // daemon goes silent (e.g. socket stuck open, daemon wedged). A
+  // legitimate long-running task keeps emitting frames and never trips
+  // the timer. The previous implementation measured total runtime,
+  // which incorrectly aborted tasks that took longer than 30s.
+  const IDLE_TIMEOUT_MS = 30_000;
+  let idleTimer: NodeJS.Timeout | null = null;
+  const armIdleTimer = () => {
+    if (idleTimer) clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => {
+      if (process.exitCode === undefined) {
+        console.error(`Daemon did not respond within ${IDLE_TIMEOUT_MS / 1000}s; giving up.`);
+        process.exit(1);
+      }
+    }, IDLE_TIMEOUT_MS);
+  };
+  armIdleTimer();
+
   client.on("data", (data: Buffer) => {
+    armIdleTimer();
     for (const line of data.toString().trim().split("\n")) {
       if (!line.trim()) continue;
       try {
@@ -2434,12 +2456,11 @@ if (command === "submit") {
         else if (msg.type === "tool.completed") console.log(`  ✓ ${msg.toolName || "tool"} completed${msg.durationMs ? ` (${msg.durationMs}ms)` : ""}`);
         else if (msg.type === "tool.failed") console.log(`  ✗ ${msg.toolName || "tool"} failed${msg.error ? `: ${msg.error.slice(0, 60)}` : ""}`);
         else if (msg.type === "task.completed") { console.log(`\nTask completed: ${msg.status}`); client.destroy(); }
-        else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); client.destroy(); }
+        else if (msg.type === "task.failed") { console.error(`\nTask failed: ${msg.error}`); process.exitCode = 1; client.destroy(); }
         else if (msg.type === "session.ended") { client.destroy(); }
         // Unhandled message types are ignored — wait for a terminal frame
-        // before closing. client.end() was called in the connect callback
-        // to half-close the write side; the read side stays open until
-        // the daemon closes its end or we hit the safety-net timeout.
+        // before closing. The socket stays open until the daemon closes
+        // its end or the idle timer fires.
       } catch {
         console.log(line);
       }
@@ -2455,20 +2476,9 @@ if (command === "submit") {
   });
 
   client.on("close", () => {
+    if (idleTimer) clearTimeout(idleTimer);
     if (process.exitCode === undefined) process.exit(0);
   });
-
-  // Safety net: if the daemon never responds (e.g. socket stays open
-  // because the daemon is wedged), exit after 30 seconds. The setTimeout
-  // is NOT .unref()'d — it intentionally keeps the event loop alive so
-  // the script doesn't fall through to the bottom-of-file "Unknown
-  // command" branch.
-  setTimeout(() => {
-    if (process.exitCode === undefined) {
-      console.error("Daemon did not respond within 30 seconds; giving up.");
-      process.exit(1);
-    }
-  }, 30_000);
 }
 
 if (command === "audit") {
