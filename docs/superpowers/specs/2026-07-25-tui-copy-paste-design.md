@@ -82,7 +82,7 @@ interface TerminalControl {
 2. `\x1b[?25h` — show cursor
 3. `\x1b[?1049l` — exit alt buffer
 
-**Cleanup guarantee:** `disableTerminalModes()` is called in a `finally` block so it runs even if startup throws mid-sequence. The user's terminal is never left in bracketed paste mode.
+**Cleanup invariant:** terminal modes must be restored on exit regardless of how the TUI stops — normal exit, crash, or startup failure mid-sequence. The user's terminal is never left in bracketed paste mode, with hidden cursor, or in the alt buffer. The implementer chooses the mechanism (`finally`, `process.on('exit')`, emergency signal handler, etc.).
 
 Existing methods (`enterRawMode`, `exitRawMode`, `showCursor`, etc.) stay. `enableTerminalModes()`/`disableTerminalModes()` are higher-level compositions that call the existing primitives.
 
@@ -108,7 +108,7 @@ private handleRaw(buf: Buffer): void {
 
 ```ts
 // State tracked on TuiApp:
-private pasteState: 'idle' | 'reading' | 'pending-esc' = 'idle';
+private pasteState: 'idle' | 'reading' = 'idle';
 private pasteChunks: Buffer[] = [];
 
 /**
@@ -135,14 +135,17 @@ private handlePaste(buf: Buffer): boolean {
   }
 
   if (this.pasteState === 'reading') {
-    // Scan forward for paste-end sequence.
-    const endSeq = '\x1b[201~';
-    const s = buf.toString('utf8');
-    const endIdx = s.indexOf(endSeq);
+    // Scan forward for paste-end sequence using byte offsets, not
+    // string indices. Converting to string first and using string
+    // indexOf would produce character offsets that do not match byte
+    // offsets when multi-byte UTF-8 content precedes the terminator,
+    // causing buf.subarray() to slice mid-character.
+    const endBuf = Buffer.from('\x1b[201~');
+    const endIdx = buf.indexOf(endBuf);
     if (endIdx >= 0) {
       // End sequence found in this chunk.
       if (endIdx > 0) {
-        this.pasteChunks.push(buf.subarray(0, s.indexOf(endSeq)));
+        this.pasteChunks.push(buf.subarray(0, endIdx));
       }
       this.flushPaste();
       return true;
@@ -203,14 +206,13 @@ private flushPaste(): void {
 Introduce a `TuiAction` type so keybindings are decoupled from logic:
 
 ```ts
-type TuiAction =
-  | { type: 'handled' }
-  | { type: 'moveCursor'; cursor: number }
-  | { type: 'scroll'; offset: number }
-  | { type: 'switchTab'; tab: TabId }
-  | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' }
-  | { type: 'scheduleRefresh' }
-  | { type: 'copyScrollback' };   // NEW
+// Extend the existing ViewAction union (defined in src/tui/views/types.ts)
+// with one new variant for clipboard copy.
+// Existing variants: handled, moveCursor, scroll, switchTab,
+// resolveApproval, scheduleRefresh
+// NEW:
+//   | { type: 'copyScrollback' }
+
 ```
 
 The `Alt+C` keybinding maps to `'copyScrollback'` — not to an inline operation.
@@ -337,31 +339,6 @@ base64 → \x1b]52;;<b64>\x1b\\ → stdout
 Terminal copies to system clipboard
 ```
 
-## Cleanup Guarantee
-
-`disableTerminalModes()` is called from a `finally` block in `cleanupSync()`:
-
-```ts
-async cleanupSync(): Promise<void> {
-  try {
-    this.terminal.showCursor(true);
-    this.terminal.exitRawMode();
-  } finally {
-    this.terminal.disableTerminalModes();
-    // disableTerminalModes writes:
-    //   \x1b[?2004l  — disable bracketed paste   (even if startup threw)
-    //   \x1b[?25h     — show cursor
-    //   \x1b[?1049l   — exit alt buffer
-  }
-}
-```
-
-This ensures:
-- Bracketed paste is always disabled on exit
-- The cursor is always visible
-- The alt buffer is always restored
-- The user's terminal is clean even after crashes
-
 ## Key Changes
 
 | File | Change |
@@ -390,6 +367,7 @@ This ensures:
 | Non-paste bytes ignored during paste | `hello` during 'reading' | appended to `pasteChunks` |
 | Paste on chat tab vs agent tab | (same behavior) | both tabs work |
 | UTF-8 multi-byte characters | `😀` (4 bytes across 2 chunks) | decoded correctly via `TextDecoder` |
+| UTF-8 + end-marker in one chunk | `"café😀\x1b[201~"` as Buffer | end marker found at byte offset 10 (not string offset 6); `buf.subarray(0, 10)` preserves multi-byte char |
 | Split paste-sequence across chunks | `\x1b[20` + `0~` content `\x1b[201~` | First chunk falls through to `parseKey()` (stray ESC = null). Phrase 2 doesn't match `\x1b[200~` — falls through. **Edge case; acceptable.** A follow-up phase can add multi-byte scan. |
 | Large paste (50 KB) | 50 KB of content | No corruption, all bytes preserved |
 | Large paste (100 KB, >64KB) | 100 KB of content | Copied to input buffer in full (paste has no OSC 52 limit — only copy has). |
