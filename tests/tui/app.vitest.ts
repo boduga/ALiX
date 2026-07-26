@@ -295,3 +295,119 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
   });
 });
+
+describe('TuiApp — bracketed paste', () => {
+  function makePasteApp() {
+    const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
+    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+    const metrics = { start: () => {}, stop: async () => {} };
+    const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    const internal = app as unknown as {
+      handleRaw(buf: Buffer): void;
+      getStateForTest(): {
+        lastSnapshot: unknown;
+        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+      };
+    };
+    internal.getStateForTest().lastSnapshot = snap;
+    return { app, internal };
+  }
+
+  it('paste start sets state to reading', () => {
+    const { internal } = makePasteApp();
+    const spy = vi.spyOn(internal as any, 'handlePaste');
+    internal.handleRaw(Buffer.from('\x1b[200~'));
+    expect(spy).toHaveReturnedWith(true);
+    spy.mockRestore();
+  });
+
+  it('paste inserts content into the chat input buffer', () => {
+    const { internal } = makePasteApp();
+    internal.handleRaw(Buffer.from('\x1b[200~'));
+    internal.handleRaw(Buffer.from('hello world'));
+    internal.handleRaw(Buffer.from('\x1b[201~'));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('hello world');
+  });
+
+  it('paste inserts content into the agent input buffer', () => {
+    const { internal } = makePasteApp();
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    (internal.getStateForTest() as any).activeTab = 'agent';
+    internal.handleRaw(Buffer.from('\x1b[200~'));
+    internal.handleRaw(Buffer.from('agent paste'));
+    internal.handleRaw(Buffer.from('\x1b[201~'));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('agent paste');
+  });
+
+  it('paste normalizes CRLF to LF', () => {
+    const { internal } = makePasteApp();
+    internal.handleRaw(Buffer.from('\x1b[200~'));
+    internal.handleRaw(Buffer.from('a\r\nb\r\nc'));
+    internal.handleRaw(Buffer.from('\x1b[201~'));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('a\nb\nc');
+  });
+
+  it('empty paste does nothing', () => {
+    const { internal } = makePasteApp();
+    internal.handleRaw(Buffer.from('\x1b[200~'));
+    internal.handleRaw(Buffer.from('\x1b[201~'));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+  });
+
+  it('paste accumulates multi-byte UTF-8 safely', () => {
+    const { internal } = makePasteApp();
+    internal.handleRaw(Buffer.from('\x1b[200~'));
+    internal.handleRaw(Buffer.from([0xf0, 0x9f]));
+    internal.handleRaw(Buffer.from([0x98, 0x80])); // completes 😀
+    internal.handleRaw(Buffer.from('\x1b[201~'));
+    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('😀');
+  });
+});
+
+describe('TuiApp — OSC 52 copy', () => {
+  function makeCopyApp() {
+    const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
+    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+    const metrics = { start: () => {}, stop: async () => {} };
+    const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    const internal = app as unknown as {
+      handleRaw(buf: Buffer): void;
+      getStateForTest(): {
+        lastSnapshot: unknown;
+        views: { chat: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] } };
+      };
+    };
+    internal.getStateForTest().lastSnapshot = snap;
+    return { app, internal };
+  }
+
+  it('Alt+C with content copies OSC 52 sequence to stdout', () => {
+    const { internal } = makeCopyApp();
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    internal.getStateForTest().views.chat.agentResponses = ['test response'];
+    internal.handleRaw(Buffer.from('\x1bc'));
+    expect(writeSpy).toHaveBeenCalled();
+    const output = (writeSpy.mock.calls[0] as [string])[0];
+    expect(output).toMatch(/^\x1b\]52;;/);
+    expect(output).toMatch(/\x1b\\$/); // ST terminator
+    writeSpy.mockRestore();
+  });
+
+  it('Alt+C with empty scrollback does nothing', () => {
+    const { internal } = makeCopyApp();
+    const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    internal.handleRaw(Buffer.from('\x1bc'));
+    expect(writeSpy.mock.calls.some((c: unknown[]) => (c[0] as string).startsWith('\x1b]52;;'))).toBe(false);
+    writeSpy.mockRestore();
+  });
+
+  it('copies interleaved prompts and responses', () => {
+    const { internal } = makeCopyApp();
+    internal.getStateForTest().views.chat.submittedPrompts = ['q1', 'q2'];
+    internal.getStateForTest().views.chat.agentResponses = ['a1', 'a2'];
+    const text = (internal as any).collectVisibleTranscript('chat');
+    expect(text).toContain('→ q1');
+    expect(text).toContain('← a1');
+    expect(text).toContain('← a2');
+  });
+});

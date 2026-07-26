@@ -48,6 +48,8 @@ export class TuiApp {
    * purely off `gate.getPending()` — no parallel state.
    */
   private readonly planApprovalGate = new TuiPlanApprovalGate();
+  private pasteState: 'idle' | 'reading' = 'idle';
+  private pasteChunks: Buffer[] = [];
 
   constructor(private readonly opts: TuiAppOptions) {
     this.defaultViews = {
@@ -181,6 +183,9 @@ export class TuiApp {
   }
 
   private handleRaw(buf: Buffer): void {
+    // 1. Bracketed paste detector — runs on raw bytes, before key parsing.
+    if (this.handlePaste(buf)) return;
+
     const key = parseKey(buf);
     if (!key) return;
     if (this.tryHandleGlobal(key)) return;
@@ -294,6 +299,12 @@ export class TuiApp {
         return;
       }
       // Fall through to view.handleKey for any unhandled control keys.
+    }
+
+    // ── Alt+C clipboard copy ────────────────────────────────────
+    if (key === 'Alt+c') {
+      this.dispatch({ type: 'copyScrollback' });
+      return;
     }
 
     const view = this.views[tab]!;
@@ -560,6 +571,18 @@ export class TuiApp {
       case 'resolveApproval':
         void this.resolveApprovalFromView(action.approvalId, action.status);
         break;
+      case 'copyScrollback': {
+        const text = this.collectVisibleTranscript(this.state.activeTab);
+        if (!text) { this.paintFullFrame(); break; }
+        const MAX_CLIPBOARD = 64 * 1024;
+        const truncated = text.length > MAX_CLIPBOARD
+          ? text.slice(0, MAX_CLIPBOARD) + '\n[truncated at 64 KB]'
+          : text;
+        const b64 = Buffer.from(truncated, 'utf8').toString('base64');
+        process.stdout.write(`\x1b]52;;${b64}\x1b\\`);
+        this.paintFullFrame();
+        break;
+      }
     }
   }
 
@@ -645,6 +668,64 @@ export class TuiApp {
     const state = this.state.views[tab];
     if (!state) return;
     state.agentResponses.push(text);
+  }
+
+  /**
+   * Handle a chunk of bracketed paste data. Returns true if the chunk was
+   * consumed by the paste state machine (caller should not further process
+   * the buffer), false if it's a normal keypress.
+   *
+   * Bracketed paste mode envelopes pasted text between:
+   *   \x1b[200~  (paste start)
+   *   \x1b[201~  (paste end)
+   * This lets the application distinguish typed input from pasted text.
+   */
+  private handlePaste(buf: Buffer): boolean {
+    const s = buf.toString('utf8');
+    if (s === '\x1b[200~') {
+      this.pasteState = 'reading';
+      this.pasteChunks = [];
+      return true;
+    }
+    if (this.pasteState !== 'reading') return false;
+    if (s === '\x1b[201~') {
+      this.flushPaste();
+      return true;
+    }
+    this.pasteChunks.push(buf);
+    return true;
+  }
+
+  /**
+   * Flush accumulated paste chunks into the active tab's input buffer.
+   * Normalises Windows CRLF line endings to Unix LF.
+   */
+  private flushPaste(): void {
+    const text = Buffer.concat(this.pasteChunks).toString('utf8').replace(/\r\n/g, '\n');
+    this.pasteState = 'idle';
+    this.pasteChunks = [];
+    if (!text) return;
+    const perTab = this.state.views[this.state.activeTab];
+    perTab.inputBuffer += text;
+    this.paintFullFrame();
+  }
+
+  /**
+   * Collect the visible transcript for a tab — interleaved submitted
+   * prompts and agent responses — formatted for clipboard copy.
+   *
+   * Prompts are prefixed with a right-pointing arrow (→) and responses
+   * with a left-pointing arrow (←), mirroring the scrollback layout.
+   */
+  private collectVisibleTranscript(tab: TabId): string {
+    const v = this.state.views[tab];
+    const lines: string[] = [];
+    const maxLen = Math.max(v.submittedPrompts.length, v.agentResponses.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < v.submittedPrompts.length) lines.push(`→ ${v.submittedPrompts[i]}`);
+      if (i < v.agentResponses.length) lines.push(`← ${v.agentResponses[i]}`);
+    }
+    return lines.join('\n');
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */
@@ -871,6 +952,17 @@ function parseKey(buf: Buffer): string | null {
   // prefix and surface as 'Ctrl+N' so the navigation layer can match.
   if (s.length === 2 && s[0] === '\x1b' && s[1] >= '0' && s[1] <= '9') {
     return `Ctrl+${s[1]}`;
+  }
+  // Alt+letter: terminals send ESC + letter. This handles Ctrl+letter
+  // combinations too — most terminals encode them identically. The paste
+  // bracketing sequences (\x1b[200~ / \x1b[201~) are longer so they
+  // don't match length-2.
+  if (s.length === 2 && s[0] === '\x1b' && s[1] >= 'a' && s[1] <= 'z') {
+    return `Alt+${s[1]}`;
+  }
+  // Alt+uppercase: same ESC prefix but with an uppercase letter.
+  if (s.length === 2 && s[0] === '\x1b' && s[1] >= 'A' && s[1] <= 'Z') {
+    return `Alt+${s[1].toLowerCase()}`;
   }
   if (buf[0] === 0x1b && buf.length >= 3 && buf[1] === 0x5b /* [ */) {
     if (buf[2] === 0x41) return 'ArrowUp';

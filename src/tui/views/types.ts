@@ -36,7 +36,8 @@ export type ViewAction =
   | { type: 'scroll'; offset: number }
   | { type: 'scheduleRefresh' }
   | { type: 'switchTab'; tab: TabId }
-  | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' };
+  | { type: 'resolveApproval'; approvalId: string; status: 'approved' | 'denied' }
+  | { type: 'copyScrollback' };
 
 export interface TuiView {
   readonly id: TabId;
