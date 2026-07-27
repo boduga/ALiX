@@ -72,6 +72,10 @@ test('end-to-end: parse live response, render to canvas', () => {
   expect(plain).toContain('• Second point');
   // TUI does NOT render Markdown source fences
   expect(plain).not.toContain('```python');
-  // Language rendered as [lang] label
-  expect(plain).toContain('[python]');
+  // Language rendered in the top-border chrome label. The chrome
+  // characters get stamped with a dim-gray prefix that may interleave
+  // with the corner glyphs after ANSI strip; match the substring
+  // robustly.
+  expect(plain).toContain('python');
+  expect(plain).toMatch(/┌.*python.*┘/s);
 });

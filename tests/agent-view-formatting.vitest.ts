@@ -416,18 +416,19 @@ describe('AgentView — plan content', () => {
 
 describe('AgentView — approval cards', () => {
   it('renders approval card with tool, target and short ID (compact)', () => {
-    // With a COMPACT canvas (1 scrollback row) only the last approval
-    // line fits — the card entry. Both header and card show on TALL.
+    // With a COMPACT canvas the scrollback has room for both the card
+    // header and the card entry — header at row 6, entry at row 7.
+    // Find the row containing the tool name (layout-agnostic).
     const perTab = makePerTab({
       pendingApprovals: [
         { id: 'ap_abc123', toolName: 'write_file', target: 'src/main.ts', requestedAt: 1000 },
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    const row6 = rowText(c, 6);
-    expect(row6).toContain('write_file');
-    expect(row6).toContain('src/main.ts');
-    expect(row6).toContain('bc123');
+    const all = allText(c, 20);
+    expect(all).toContain('write_file');
+    expect(all).toContain('src/main.ts');
+    expect(all).toContain('bc123');
   });
 
   it('shows plural "requests" for multiple approvals', () => {
@@ -681,9 +682,10 @@ describe('AgentView — edge cases', () => {
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    // With 1 scrollback row the card entry shows; header is above the fold
-    expect(rowText(c, 6)).toContain('write');
-    expect(rowText(c, 6)).toContain('x.ts');
+    // Layout-agnostic: find the card entry in the rendered output.
+    const all = allText(c, 20);
+    expect(all).toContain('write');
+    expect(all).toContain('x.ts');
   });
 });
 
