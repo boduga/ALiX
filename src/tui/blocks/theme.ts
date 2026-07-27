@@ -6,7 +6,7 @@
 // Distinct enough that a glance separates prose, code, and emphasis.
 import type { HeadingLevel } from './types.js';
 import type { Theme } from './types.js';
-import { RESET, BOLD_OPEN, BOLD_CLOSE, DIM_OPEN, DIM_CLOSE, ITALIC_OPEN, ITALIC_CLOSE, INVERSE_OPEN, INVERSE_CLOSE, UNDERLINE_OPEN, UNDERLINE_CLOSE, STRIKE_OPEN, STRIKE_CLOSE, CYAN, GREEN, YELLOW, MAGENTA, BLUE, GRAY } from '../ansi-constants.js';
+import { RESET, BOLD_OPEN, BOLD_CLOSE, DIM_OPEN, DIM_CLOSE, ITALIC_OPEN, ITALIC_CLOSE, INVERSE_OPEN, INVERSE_CLOSE, UNDERLINE_OPEN, UNDERLINE_CLOSE, STRIKE_OPEN, STRIKE_CLOSE, CYAN, GREEN, YELLOW, MAGENTA, BLUE, GRAY, RED } from '../ansi-constants.js';
 
 /** Wrap `text` in `prefix` (open) and `suffix` (close). */
 function wrap(prefix: string, suffix: string, text: string): string {
@@ -19,6 +19,14 @@ const HEADING_RULES: Record<HeadingLevel, string> = {
   1: '═'.repeat(40),
   2: '─'.repeat(40),
   3: '┄'.repeat(40),
+};
+
+const CALLOT_COLORS: Record<string, string> = {
+  NOTE: BLUE,
+  TIP: GREEN,
+  WARNING: YELLOW,
+  CAUTION: RED,
+  IMPORTANT: RED,
 };
 
 /** Default dark theme. Single instance — the interface exists for future variants. */
@@ -57,6 +65,11 @@ export const defaultTheme: Theme = {
   codeOperator: (text) => text, // no styling — operators blend with code
   codePunctuation: (text) => text,
   codePlain: (text) => text,
+
+  calloutLabel(keyword) {
+    const color = CALLOT_COLORS[keyword] ?? DIM_OPEN;
+    return `${BOLD_OPEN}${color}${keyword}${RESET}`;
+  },
 
   quoteBar: GRAY,
   quote: (text) => wrap(`${DIM_OPEN}`, DIM_CLOSE, text),

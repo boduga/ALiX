@@ -74,6 +74,7 @@ export interface Theme {
   codeOperator(text: string): string;
   codePunctuation(text: string): string;
   codePlain(text: string): string;
+  calloutLabel(keyword: string): string;
   quoteBar: string;
   quote(text: string): string;
   rule: string;

@@ -133,4 +133,55 @@ describe('renderBlocks', () => {
     expect(rows[0]!.text).toContain('\x1b]8;;https://x.com\x1b\\');
     expect(rows[0]!.text).toContain('\x1b]8;;\x1b\\');
   });
+
+  describe('callouts', () => {
+    it('renders > [!NOTE]\\ncontent with a blue label line', () => {
+      const blocks = parseBlocks('> [!NOTE]\n> important info');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      // Label row: should contain NOTE in blue
+      expect(rows[0]!.text).toContain('\x1b[1m');  // bold
+      expect(rows[0]!.text).toContain('\x1b[34m'); // blue
+      expect(rows[0]!.text).toContain('NOTE');
+      // Content row: should have the quote bar prefix
+      expect(rows[1]!.text).toContain('│');
+      expect(rows[1]!.text).toContain('important info');
+    });
+
+    it('renders > [!WARNING]\\ncontent with a yellow label', () => {
+      const blocks = parseBlocks('> [!WARNING]\n> watch out');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('\x1b[33m'); // yellow
+      expect(rows[0]!.text).toContain('WARNING');
+      expect(rows[1]!.text).toContain('watch out');
+    });
+
+    it('renders > [!TIP]\\ncontent with a green label', () => {
+      const blocks = parseBlocks('> [!TIP]\n> try this');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('\x1b[32m'); // green
+      expect(rows[0]!.text).toContain('TIP');
+    });
+
+    it('handles marker on same line: > [!CAUTION] content', () => {
+      const blocks = parseBlocks('> [!CAUTION] careful now');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('CAUTION');
+      expect(rows[1]!.text).toContain('careful now');
+    });
+
+    it('renders regular quotes unchanged when no marker', () => {
+      const blocks = parseBlocks('> just a quote');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).not.toContain('[TIP]');
+      expect(rows[0]!.text).toContain('│');
+      expect(rows[0]!.text).toContain('just a quote');
+    });
+
+    it('treats empty [NOTE] as regular text', () => {
+      const blocks = parseBlocks('> [NOTE]');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('[NOTE]');
+      expect(rows[0]!.text).toContain('│');
+    });
+  });
 });

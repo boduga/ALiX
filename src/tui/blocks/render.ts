@@ -111,9 +111,31 @@ function renderQuote(
 ): StyledRow[] {
   const spans = block.spans ?? parseInline(block.text);
   const styledSpans = spans.map((s) => styleInlineSpan(s, theme)).join('');
-  // Wrap, then prefix each line with the quote bar.
+
+  // Check for callout marker at the start of raw text
+  const calloutMatch = block.text.match(/^\[!(NOTE|TIP|WARNING|CAUTION|IMPORTANT)\](?:\s*\n)?(.*)$/s);
+  if (calloutMatch && calloutMatch[2] && calloutMatch[2].trim()) {
+    const keyword = calloutMatch[1]!;
+    const body = calloutMatch[2]!.trimStart();
+    const bodySpans = parseInline(body);
+    const bodyStyled = bodySpans.map((s) => styleInlineSpan(s, theme)).join('');
+
+    const labelRow = theme.calloutLabel(keyword);
+    const bodyLines = wrapText(bodyStyled, Math.max(1, width - 2));
+    const bar = theme.quoteBar + '│ ' + RESET;
+
+    const rows: StyledRow[] = [
+      { text: theme.quoteBar + '┃ ' + RESET + labelRow, isFirst },
+    ];
+    bodyLines.forEach((line) => {
+      rows.push({ text: bar + line, isFirst: false });
+    });
+    return rows;
+  }
+
+  // Standard quote (no callout marker) — unchanged
   const lines = wrapText(styledSpans, Math.max(1, width - 2));
-  const bar = theme.quoteBar + '│ ' + RESET; // bar + reset so styled text doesn't bleed
+  const bar = theme.quoteBar + '│ ' + RESET;
   return lines.map((text, i) => ({
     text: bar + text,
     isFirst: isFirst && i === 0,
