@@ -165,9 +165,9 @@ export class AgentView implements TuiView {
       c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}\x1b[0m`);
     }
 
-    // Pin the 4-panel dashboard to the bottom of the canvas, flush above
-    // the 3-row footer painted by app.ts.
-    const PANEL_H = 14;
+    // The 14-row dashboard reservation is gone (panels now live in
+    // the dashboard tab). Scrollback uses the full vertical space.
+    const PANEL_H = 0;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 

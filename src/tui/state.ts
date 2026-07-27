@@ -8,7 +8,7 @@
  */
 export { SessionPhase } from '../agent/session.js';
 
-export type TabId = 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
+export type TabId = 'dashboard' | 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
 
 /**
  * Approval request surfaced inline in the agent scrollback. Synced from
@@ -139,7 +139,7 @@ export function createInitialPerTabState(): PerTabState {
 export function createInitialTuiAppState(): TuiAppState {
   return {
     lastSnapshot: undefined,
-    activeTab: 'chat',
+    activeTab: 'dashboard',
     views: {
       chat: createInitialPerTabState(),
       agent: createInitialPerTabState(),

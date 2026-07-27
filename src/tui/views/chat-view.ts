@@ -1,4 +1,3 @@
-import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
@@ -26,11 +25,11 @@ export class ChatView implements TuiView {
     // Draw the cursor at the end of the typed text.
     c.write(7 + buf.length, 4, '\x1b[7m \x1b[0m');
 
-    // Pin the 4-panel dashboard to the bottom of the canvas, flush above
-    // the 3-row footer painted by app.ts (tab row at N-3, gap row at N-2,
-    // status row at N-1). Floor at 0 so very small canvases still render
-    // a meaningful frame instead of overlapping the prompt.
-    const PANEL_H = 14;
+    // The 4-panel dashboard strip at the bottom of the chat tab is gone;
+    // the panels now live in the new `dashboard` tab. Scrollback uses
+    // the full vertical viewport (down to the tab bar at N-3). Floor
+    // at 0 so very small canvases still render a meaningful frame.
+    const PANEL_H = 0;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
@@ -81,7 +80,9 @@ export class ChatView implements TuiView {
       }
     }
 
-    renderDashboard(ctx.snap, c, startY);
+    // The 4 dashboard panels (DAEMON/APPROVALS/RUNTIME/SOPs) used to
+    // render here at the bottom of the chat tab. They now live in the
+    // new `dashboard` tab as the default landing surface.
 
     // Return empty rows — the caller writes the full frame from the canvas.
     return { rows: [] };
