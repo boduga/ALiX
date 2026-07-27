@@ -215,6 +215,16 @@ describe('renderBlocks', () => {
     });
   });
 
+  it('wraps multi-line cell content when column width is exceeded', () => {
+    // With a narrow second column header, the column width is small
+    // enough that long cell content must wrap onto multiple lines.
+    const md = '| alongheaderthatforcescolumnwidth | B |\n|---|---|\n| 1 | word1 word2 word3 word4 word5 |\n| 2 | word6 word7 word8 word9 word10 |';
+    const rows = renderBlocks(parseBlocks(md), defaultTheme, 60);
+    // Column B is header "B" (1 char) + 2 padding = 3, then content wraps → multiple data rows
+    expect(rows.length).toBeGreaterThan(5);
+    expect(rows[rows.length - 1]!.text).toContain('┴');
+  });
+
   describe('task lists', () => {
     it('renders checked task with green checkmark', () => {
       const blocks = parseBlocks('- [x] done');

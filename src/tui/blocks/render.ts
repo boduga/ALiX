@@ -313,20 +313,21 @@ function renderTable(
     return B + left + dashes.join(B + mid + B) + B + right + R;
   };
 
-  // Pad cell content per alignment
-  const padCell = (content: string, col: number): string => {
+  // Wrap and pad cell content per alignment — returns array of padded lines.
+  const wrapCell = (content: string, col: number): string[] => {
     const w = colWidths[col]! - 2;
     const alignDir = align?.[col] ?? 'left';
-    const text = content.length > w ? content.slice(0, w - 1) + '…' : content;
-    const padTotal = w - text.length;
-    switch (alignDir) {
-      case 'right': return ' ' + ' '.repeat(padTotal) + text + ' ';
-      case 'center': {
-        const l = Math.floor(padTotal / 2);
-        return ' ' + ' '.repeat(l) + text + ' '.repeat(padTotal - l) + ' ';
-      }
-      default: return ' ' + text + ' '.repeat(padTotal) + ' ';
-    }
+    const lines = wrapText(content || ' ', w);
+    return lines.map((line) => {
+      const padTotal = w - line.length;
+      const padded = alignDir === 'right' ? ' '.repeat(padTotal) + line
+        : alignDir === 'center' ? (() => {
+            const l = Math.floor(padTotal / 2);
+            return ' '.repeat(l) + line + ' '.repeat(padTotal - l);
+          })()
+        : line + ' '.repeat(padTotal);
+      return ' ' + padded + ' ';
+    });
   };
 
   const out: StyledRow[] = [];
@@ -335,16 +336,24 @@ function renderTable(
   out.push({ text: borderLine('┌', '┬', '┐'), isFirst });
 
   // Header row
-  const headerCells = headers.map((h, i) => theme.bold(padCell(h, i)));
-  out.push({ text: B + '│' + headerCells.join(B + '│' + B) + B + '│' + R, isFirst: false });
+  const headerRows = headers.map((h, i) => wrapCell(h, i));
+  const headerHeight = Math.max(...headerRows.map((l) => l.length));
+  for (let ri = 0; ri < headerHeight; ri++) {
+    const cells = headers.map((_, i) => theme.bold(headerRows[i]![ri] ?? ' '.repeat(colWidths[i]!)));
+    out.push({ text: B + '│' + cells.join(B + '│' + B) + B + '│' + R, isFirst: ri === 0 });
+  }
 
   // Header/content separator
   out.push({ text: borderLine('├', '┼', '┤'), isFirst: false });
 
-  // Data rows
+  // Data rows — each logical row expands to max line count across cells.
   for (const row of rows) {
-    const cells = headers.map((_, i) => padCell(row[i] ?? '', i));
-    out.push({ text: B + '│' + cells.join(B + '│' + B) + B + '│' + R, isFirst: false });
+    const cellLines = headers.map((_, i) => wrapCell(row[i] ?? '', i));
+    const rowHeight = Math.max(...cellLines.map((l) => l.length));
+    for (let ri = 0; ri < rowHeight; ri++) {
+      const cells = headers.map((_, i) => cellLines[i]![ri] ?? ' '.repeat(colWidths[i]!));
+      out.push({ text: B + '│' + cells.join(B + '│' + B) + B + '│' + R, isFirst: false });
+    }
   }
 
   // Bottom border
