@@ -38,6 +38,31 @@ import {
   type EventHandlerDeps,
 } from "./event-handlers.js";
 
+/**
+ * Complete a session: log the terminal event, persist decisions,
+ * evaluate patterns, and return the RunResult. Shared by all
+ * completion points in runTaskLoop to eliminate duplicated
+ * completion chains.
+ */
+async function completeSession(
+  session: { sessionId: string; actor: "system" },
+  log: EventLog,
+  memoryStore: MemoryStore,
+  sessionDir: string,
+  taskType: string,
+  sessionId: string,
+  summary: string,
+  streamed: boolean,
+  eventType: string = "session.ended",
+  reason?: string,
+): Promise<RunResult> {
+  await log.append({ ...session, actor: "system", type: eventType, payload: { reason, summary } });
+  const sessionEvents = await log.readAll();
+  await saveDecisionsToMemory(sessionEvents, memoryStore);
+  await evaluatePattern(log, session, sessionDir, taskType);
+  return { sessionId, summary, streamed, ...(reason ? { reason: reason as RunResult["reason"] } : {}) };
+}
+
 function extractErrors(output: string): string[] {
   const errors: string[] = [];
   const patterns = [
@@ -401,9 +426,6 @@ if (toolCalls.length === 0) {
 
     repairCount++;
     if (repairCount > maxRepairs) {
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_repairs", summary: `Repair limit reached after ${maxRepairs} attempts` } });
-      const sessionEvents = await log.readAll();
-      await saveDecisionsToMemory(sessionEvents, memoryStore);
       const { skillFactory } = await import("../skills/dispatcher.js");
       void skillFactory.process({
         sessionId,
@@ -413,8 +435,7 @@ if (toolCalls.length === 0) {
         filesChanged: [...sessionState.changed],
         config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
       });
-      await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: `Repair limit reached: ${failureText}`, streamed: config.model.streaming };
+      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, `Repair limit reached: ${failureText}`, config.model.streaming, "session.ended", "max_repairs");
     }
 
     // Use Fabric-style refine strategy
@@ -548,11 +569,7 @@ if (toolCalls.length === 0) {
     }
 
     if (toolResult.completed) {
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: text } });
-      const sessionEvents = await log.readAll();
-      await saveDecisionsToMemory(sessionEvents, memoryStore);
-      await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: text, streamed: config.model.streaming, reason: "completed" as const };
+      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, text, config.model.streaming, "session.ended", "completed");
     }
 
     if (toolResult.message) {
@@ -564,11 +581,7 @@ if (toolCalls.length === 0) {
       // Extract clean output from tool result message (strip XML tags)
       const raw = typeof toolResult.message?.content === "string" ? toolResult.message.content : "";
       const output = raw.replace(/<[^>]+>/g, "").trim();
-      await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "completed", summary: output || text } });
-      const sessionEvents = await log.readAll();
-      await saveDecisionsToMemory(sessionEvents, memoryStore);
-      await evaluatePattern(log, session, sessionDir, taskType);
-      return { sessionId, summary: output || text, streamed: config.model.streaming };
+      return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, output || text, config.model.streaming, "session.ended", "completed");
     }
 
     // Track search calls for research tasks (any tool call counts as research activity)
@@ -697,9 +710,6 @@ payload: { kind: "completion", iteration: maxIterations,
   outcome: "accepted",
 },
   });
-  await log.append({ ...session, actor: "system", type: "session.ended", payload: { reason: "max_iterations", summary: "Agent reached maximum iterations" } });
-  const sessionEvents = await log.readAll();
-  await saveDecisionsToMemory(sessionEvents, memoryStore);
   const { skillFactory } = await import("../skills/dispatcher.js");
   void skillFactory.process({
 sessionId,
@@ -709,13 +719,7 @@ filesCreated: [...sessionState.created],
 filesChanged: [...sessionState.changed],
 config: config.skills?.factory ?? DEFAULT_FACTORY_CONFIG,
   });
-  await evaluatePattern(log, session, sessionDir, taskType);
-  return {
-    sessionId,
-    summary: "Agent reached maximum iterations",
-    streamed: config.model.streaming,
-    reason: "max_iterations",
-  };
+  return await completeSession(session, log, memoryStore, sessionDir, taskType, sessionId, "Agent reached maximum iterations", config.model.streaming, "session.ended", "max_iterations");
   } finally {
 // Cleanup EnhancedVerifier
 if (enhancedVerifier) {
