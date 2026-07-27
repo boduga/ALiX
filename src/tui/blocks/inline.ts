@@ -37,7 +37,7 @@ export function parseInline(text: string): InlineSpan[] {
     // Backslash escape: \*, \\, \`
     if (c === '\\' && peek(1) !== undefined) {
       const next = text[i + 1]!;
-      if (next === '*' || next === '`' || next === '\\' || next === '[' || next === ']' || next === '(' || next === ')' || next === '~') {
+      if (next === '*' || next === '`' || next === '\\' || next === '[' || next === ']' || next === '(' || next === ')' || next === '~' || next === '<' || next === '>') {
         buf += next;
         i += 2;
         continue;
@@ -102,6 +102,36 @@ export function parseInline(text: string): InlineSpan[] {
       }
     }
 
+    // <url> autolink
+    if (c === '<') {
+      const urlEnd = tryParseAngleAutolink(text, i);
+      if (urlEnd > i) {
+        flushText();
+        const url = text.slice(i + 1, urlEnd - 1); // strip < >
+        out.push({ kind: 'link', text: url, href: url });
+        i = urlEnd;
+        continue;
+      }
+    }
+
+    // Bare URL autolink: http:// or https://
+    if ((c === 'h' || c === 'H') && (text.slice(i, i + 8).toLowerCase() === 'https://' || text.slice(i, i + 7).toLowerCase() === 'http://')) {
+      const urlEnd = tryParseBareUrl(text, i);
+      if (urlEnd > i) {
+        flushText();
+        let url = text.slice(i, urlEnd);
+        // Strip trailing punctuation
+        const stripped = url.replace(/[.!?,:;'")\]]+$/, '');
+        if (stripped.length > 0) {
+          const trailing = url.slice(stripped.length);
+          out.push({ kind: 'link', text: stripped, href: stripped });
+          if (trailing) buf += trailing;
+          i = urlEnd;
+          continue;
+        }
+      }
+    }
+
     buf += c;
     i++;
   }
@@ -151,4 +181,34 @@ function tryParseLink(text: string, start: number): LinkMatch | { end: number } 
   const href = text.slice(closeBracket + 2, closeParen);
   if (/\s/.test(href)) return { end: 0 };
   return { text: text.slice(start + 1, closeBracket), href, end: closeParen + 1 };
+}
+
+const URL_PROTOCOLS = ['http://', 'https://', 'ftp://', 'mailto:'];
+
+/**
+ * Try to parse an angle-bracket autolink starting at `start`.
+ * Returns the index AFTER the closing `>`, or 0 if no match.
+ */
+function tryParseAngleAutolink(text: string, start: number): number {
+  // Find closing >
+  const close = text.indexOf('>', start + 1);
+  if (close <= start + 1) return 0;
+  const inner = text.slice(start + 1, close);
+  // Must be a known protocol
+  if (URL_PROTOCOLS.some((p) => inner.startsWith(p))) {
+    return close + 1;
+  }
+  return 0;
+}
+
+const BARE_URL_RE = /^https?:\/\/[^\s<>{}|\\^`[\]]+/;
+
+/**
+ * Try to parse a bare URL starting at `start`.
+ * Returns the index after the last URL character, or 0 if no match.
+ */
+function tryParseBareUrl(text: string, start: number): number {
+  const m = BARE_URL_RE.exec(text.slice(start));
+  if (!m) return 0;
+  return start + m[0].length;
 }

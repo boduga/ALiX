@@ -73,6 +73,46 @@ describe('parseInline', () => {
   });
 });
 
+describe('autolinks', () => {
+  it('parses <https://example.com> as a link', () => {
+    expect(parseInline('visit <https://example.com> today')).toEqual([
+      { kind: 'text', text: 'visit ' },
+      { kind: 'link', text: 'https://example.com', href: 'https://example.com' },
+      { kind: 'text', text: ' today' },
+    ]);
+  });
+
+  it('parses bare https:// URL as autolink', () => {
+    const result = parseInline('see https://x.com/page for info');
+    expect(result).toEqual([
+      { kind: 'text', text: 'see ' },
+      { kind: 'link', text: 'https://x.com/page', href: 'https://x.com/page' },
+      { kind: 'text', text: ' for info' },
+    ]);
+  });
+
+  it('strips trailing punctuation from bare URLs', () => {
+    expect(parseInline('check https://ex.com.')).toEqual([
+      { kind: 'text', text: 'check ' },
+      { kind: 'link', text: 'https://ex.com', href: 'https://ex.com' },
+      { kind: 'text', text: '.' },
+    ]);
+  });
+
+  it('does not parse <notalink> as a link', () => {
+    expect(parseInline('see <notalink> here')).toEqual([
+      { kind: 'text', text: 'see <notalink> here' },
+    ]);
+  });
+
+  it('parses <mailto:user@host.com> as a link', () => {
+    expect(parseInline('email <mailto:user@host.com>')).toEqual([
+      { kind: 'text', text: 'email ' },
+      { kind: 'link', text: 'mailto:user@host.com', href: 'mailto:user@host.com' },
+    ]);
+  });
+});
+
 describe('strikethrough', () => {
   it('parses ~~strikethrough~~', () => {
     expect(parseInline('hello ~~world~~')).toEqual([

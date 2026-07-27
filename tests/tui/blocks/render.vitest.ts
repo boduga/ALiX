@@ -125,4 +125,12 @@ describe('renderBlocks', () => {
     expect(rows[0]!.text).toMatch(/[┌╭]/);
     expect(rows[0]!.text).not.toContain('python');
   });
+
+  it('renders links with OSC-8 hyperlink escapes', () => {
+    const blocks = parseBlocks('[click](https://x.com)');
+    const rows = renderBlocks(blocks, defaultTheme, 60);
+    // Should contain the OSC-8 sequence: ESC ] 8 ; ; https://x.com ESC \
+    expect(rows[0]!.text).toContain('\x1b]8;;https://x.com\x1b\\');
+    expect(rows[0]!.text).toContain('\x1b]8;;\x1b\\');
+  });
 });

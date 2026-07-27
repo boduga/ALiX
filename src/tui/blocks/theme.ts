@@ -64,7 +64,8 @@ export const defaultTheme: Theme = {
 
   // Phase 1 stub: render as bold + underline. OSC-8 / actual click
   // happens in PR 6.
-  link(text, _href) {
-    return wrap(`${UNDERLINE_OPEN}${BLUE}`, UNDERLINE_CLOSE, text);
+  link(text, href) {
+    const B = '\x1b'; // shorthand for two-byte sequences
+    return `${B}]8;;${href}${B}\\${UNDERLINE_OPEN}${BLUE}${text}${UNDERLINE_CLOSE}${B}]8;;${B}\\`;
   },
 };
