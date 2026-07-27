@@ -5,18 +5,23 @@
 
 import type { Token, Tokenizer } from './types.js';
 import { plainTokenizer } from './langs/plain.js';
+import { pythonTokenizer } from './langs/python.js';
+import { jsonTokenizer } from './langs/json.js';
+import { bashTokenizer } from './langs/bash.js';
 
 /**
  * Registry of language tokenizers. Each entry maps a canonical
  * language id (and any aliases) to a Tokenizer.
  */
 const TOKENIZERS: Record<string, Tokenizer> = {
-  // Populated by Tasks 7-10:
-  //   python / py        -> pythonTokenizer
-  //   typescript / tsx   -> typescriptTokenizer
-  //   javascript / jsx   -> typescriptTokenizer
-  //   json               -> jsonTokenizer
-  //   bash / sh / shell  -> bashTokenizer
+  python: pythonTokenizer,
+  py: pythonTokenizer,
+  // Tasks 8-10 add: typescript, ts, tsx, javascript, js, jsx, json,
+  // bash, sh, shell.
+  json: jsonTokenizer,
+  bash: bashTokenizer,
+  sh: bashTokenizer,
+  shell: bashTokenizer,
 };
 
 /**
