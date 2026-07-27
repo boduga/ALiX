@@ -33,6 +33,7 @@ const GREEN = `${ESC}32m`;
 const YELLOW = `${ESC}33m`;
 const MAGENTA = `${ESC}35m`;
 const BLUE = `${ESC}34m`;
+const GRAY = `${ESC}90m`;
 const RED = `${ESC}31m`;
 const DIM = `${ESC}2m`;
 const DIM_CLOSE = `${ESC}22m`;
@@ -66,7 +67,7 @@ export const defaultTheme: Theme = {
   inlineCode: (text) => wrap(INVERSE_OPEN, INVERSE_CLOSE, text),
 
   // Raw prefixes — these get stamped onto cells, not wrapped around text.
-  codeBorder: `${DIM}90`,
+  codeBorder: GRAY,
   codeLangLabel(text) {
     return wrap(`${BOLD_OPEN}${CYAN}`, RESET, text);
   },
@@ -81,9 +82,9 @@ export const defaultTheme: Theme = {
   codePunctuation: (text) => text,
   codePlain: (text) => text,
 
-  quoteBar: `${DIM}90`,
+  quoteBar: GRAY,
   quote: (text) => wrap(`${DIM}`, DIM_CLOSE, text),
-  rule: `${DIM}90`,
+  rule: GRAY,
 
   // Phase 1 stub: render as bold + underline. OSC-8 / actual click
   // happens in PR 6.
