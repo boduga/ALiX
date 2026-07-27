@@ -781,7 +781,9 @@ describe('AgentView — code blocks', () => {
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
-    expect(all).toContain('[typescript]');
+    // Rich renderer emits the language in the top border chrome
+    // (┌─ typescript ─...─┐), not a legacy [language] label.
+    expect(all).toContain('typescript');
   });
 
   it('indents code body with two spaces', () => {
@@ -792,8 +794,42 @@ describe('AgentView — code blocks', () => {
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
-    // Each rendered code line starts with two spaces followed by code text,
-    // not the raw code on column 0.
-    expect(all).toContain('  const x=1;');
+    // Rich renderer wraps code in `│ code │` chrome instead of
+    // indenting with two spaces. The code text itself still appears
+    // in the body.
+    expect(all).toContain('const x=1;');
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────── */
+/*  RICH RENDERER (Task 11)                                          */
+/* ─────────────────────────────────────────────────────────────── */
+
+describe('AgentView — rich renderer wiring (Task 11)', () => {
+  it('renders **bold** with the bold ANSI style on agent response rows', () => {
+    const view = new AgentView();
+    const perTab = makePerTab({
+      submittedPrompts: ['test prompt'],
+      agentResponses: ['**Bold** then code:\n\n```python\nx = 1\n```'],
+    });
+    const c = renderOnCanvas(120, 30, perTab);
+    view.render({
+      snap: MINIMAL_SNAPSHOT,
+      dimensions: { columns: 120, rows: 30 },
+      perTab,
+      canvas: c,
+    });
+    // The bold wrapping should appear in the rendered output.
+    const buf = (c as any).buffer as Array<Array<{ char: string; ansiPrefix: string }>>;
+    let found = false;
+    for (const row of buf) {
+      for (const cell of row) {
+        if (cell.char === 'B' && cell.ansiPrefix.includes('1m')) {
+          found = true;
+          break;
+        }
+      }
+    }
+    expect(found).toBe(true);
   });
 });

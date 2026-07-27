@@ -1,7 +1,9 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
-import { parseResponseBlocks } from '../../agent/response-blocks.js';
+import { parseBlocks } from '../blocks/parser.js';
+import { renderBlocks } from '../blocks/render.js';
+import { defaultTheme } from '../blocks/theme.js';
 
 /**
  * Internal scrollback line shape produced by `renderAgentResponse`.
@@ -58,73 +60,9 @@ function renderAgentResponse(
   kind: 'user' | 'agent',
   textWidth: number
 ): RenderedLine[] {
-  const output: RenderedLine[] = [];
-
-  const blocks = parseResponseBlocks(text);
-
-  for (const block of blocks) {
-    if (block.type === 'text') {
-      const lines = wrapText(block.text, textWidth);
-      lines.forEach((line) => {
-        output.push({
-          kind,
-          text: line,
-          isFirst: output.length === 0,
-        });
-      });
-    } else if (block.type === 'code') {
-      // Compute the inner width for code-block lines: the 2-space
-      // canvas-content prefix is followed by visible code. Subtract it
-      // from textWidth to compute the truncation point.
-      const codeInnerWidth = Math.max(1, textWidth - 2);
-      if (block.language) {
-        output.push({
-          kind,
-          text: `  [${block.language}]`,
-          isFirst: output.length === 0,
-        });
-      }
-      // Per spec: code block body is hard-truncated to fit canvas
-      // width (left edge stays, right edge clips). No word-splitting.
-      // The isFirst flag must be set on the very first line of the
-      // entire response — including the case where the code block has
-      // no language header (so the language-header line isn't there
-      // to receive isFirst: true).
-      const codeLines = block.code.split('\n');
-      const firstLine = codeLines[0] ?? '';
-      output.push({
-        kind,
-        text: '  ' + truncateVisible(firstLine, codeInnerWidth),
-        isFirst: output.length === 0,
-      });
-      for (let k = 1; k < codeLines.length; k++) {
-        output.push({
-          kind,
-          text: '  ' + truncateVisible(codeLines[k]!, codeInnerWidth),
-          isFirst: false,
-        });
-      }
-    } else if (block.type === 'list') {
-      block.items.forEach((item, index) => {
-        const prefix = block.marker === 'ordered' ? `${index + 1}. ` : '• ';
-        const indent = ' '.repeat(prefix.length);
-        const innerWidth = Math.max(1, textWidth - prefix.length);
-        const wrapped = wrapText(item, innerWidth);
-
-        wrapped.forEach((line, lineIndex) => {
-          output.push({
-            kind,
-            text: lineIndex === 0 ? prefix + line : indent + line,
-            // Only the very first line of the entire response gets
-            // isFirst: true so the turn marker is drawn exactly once.
-            isFirst: output.length === 0,
-          });
-        });
-      });
-    }
-  }
-
-  return output;
+  const blocks = parseBlocks(text);
+  const styledRows = renderBlocks(blocks, defaultTheme, textWidth);
+  return styledRows.map((r) => ({ kind, text: r.text, isFirst: r.isFirst }));
 }
 
 /**
