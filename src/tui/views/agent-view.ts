@@ -2,6 +2,7 @@ import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
+import { callout } from '../ui-helpers.js';
 import { RESET } from '../ansi-constants.js';
 
 /**
@@ -139,10 +140,10 @@ export class AgentView implements TuiView {
     // shows tool + target with a hint to press `a` or `d`.
     if (ctx.perTab.pendingApprovals.length > 0) {
       const aps = ctx.perTab.pendingApprovals;
-      const header = `⏸ ${aps.length} approval request${aps.length === 1 ? '' : 's'} pending — press 'a' to approve, 'd' to deny`;
-      const headerWrapped = wrapText(header, textWidth);
-      for (let i = 0; i < headerWrapped.length; i++) {
-        allLines.push({ kind: 'approval', text: headerWrapped[i]!, isFirst: i === 0 });
+      const body = `${aps.length} approval request${aps.length === 1 ? '' : 's'} pending — press 'a' to approve, 'd' to deny`;
+      const calloutRows = callout('WARNING', body, textWidth);
+      for (let i = 0; i < calloutRows.length; i++) {
+        allLines.push({ kind: 'approval', text: calloutRows[i]!.text, isFirst: i === 0 });
       }
       for (const a of aps) {
         const card = `  ▸ ${a.toolName}  ${a.target || '(no target)'}  ·  ${a.id.slice(-5)}`;
