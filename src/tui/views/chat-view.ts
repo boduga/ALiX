@@ -1,7 +1,7 @@
-import { renderDashboard } from '../dashboard-renderer.js';
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
+import { renderResponse } from '../blocks/render.js';
 
 /**
  * ChatView — default landing tab. Renders the input prompt placeholder
@@ -26,11 +26,11 @@ export class ChatView implements TuiView {
     // Draw the cursor at the end of the typed text.
     c.write(7 + buf.length, 4, '\x1b[7m \x1b[0m');
 
-    // Pin the 4-panel dashboard to the bottom of the canvas, flush above
-    // the 3-row footer painted by app.ts (tab row at N-3, gap row at N-2,
-    // status row at N-1). Floor at 0 so very small canvases still render
-    // a meaningful frame instead of overlapping the prompt.
-    const PANEL_H = 14;
+    // The 4-panel dashboard strip at the bottom of the chat tab is gone;
+    // the panels now live in the new `dashboard` tab. Scrollback uses
+    // the full vertical viewport (down to the tab bar at N-3). Floor
+    // at 0 so very small canvases still render a meaningful frame.
+    const PANEL_H = 0;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
@@ -41,27 +41,41 @@ export class ChatView implements TuiView {
     // align under the text.
     const submitted = ctx.perTab.submittedPrompts;
     const responses = ctx.perTab.agentResponses;
-    const turns: { kind: 'user' | 'agent'; text: string }[] = [];
-    const maxLen = Math.max(submitted.length, responses.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < submitted.length) turns.push({ kind: 'user', text: submitted[i]! });
-      if (i < responses.length) turns.push({ kind: 'agent', text: responses[i]! });
-    }
     const scrollbackTop = 5;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
     // Flatten turns → wrapped lines so very long messages occupy multiple
-    // rows instead of truncating at the right border.
+    // rows instead of truncating at the right border. User prompts stay
+    // plain; agent responses go through the rich renderer so fenced
+    // code, lists, bold/italic, headings, and quotes get their own
+    // visual treatment.
     interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
-    for (const t of turns) {
-      const wrapped = wrapText(t.text, textWidth);
-      for (let i = 0; i < wrapped.length; i++) {
-        allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+    const maxLen = Math.max(submitted.length, responses.length);
+    for (let i = 0; i < maxLen; i++) {
+      // Blank-line separator between turns so each query breathes away
+      // from the previous response. Skip the very first turn so we
+      // don't push a leading empty line.
+      if (i > 0) {
+        allLines.push({ kind: 'user', text: '', isFirst: false });
+      }
+      if (i < submitted.length) {
+        // User prompts render as plain text — no markdown parsing needed.
+        const wrapped = wrapText(submitted[i]!, textWidth);
+        wrapped.forEach((line, j) => {
+          allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
+        });
+      }
+      if (i < responses.length) {
+        // Agent responses go through the rich renderer.
+        renderResponse(responses[i]!, textWidth).forEach((row, j) => {
+          allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
+        });
       }
     }
+    // (Turns were inlined into the loop above; nothing to do here.)
     // Use scrollOffset so the user can scroll back through past responses
     // with arrow keys. offset=0 shows the most recent lines (bottom).
     const offset = ctx.perTab.scrollOffset;
@@ -81,7 +95,9 @@ export class ChatView implements TuiView {
       }
     }
 
-    renderDashboard(ctx.snap, c, startY);
+    // The 4 dashboard panels (DAEMON/APPROVALS/RUNTIME/SOPs) used to
+    // render here at the bottom of the chat tab. They now live in the
+    // new `dashboard` tab as the default landing surface.
 
     // Return empty rows — the caller writes the full frame from the canvas.
     return { rows: [] };

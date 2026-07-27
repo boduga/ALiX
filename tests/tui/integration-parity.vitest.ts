@@ -69,7 +69,7 @@ describe('TuiApp — parity with legacy chat input', () => {
     expect(state.lastSnapshot!.session).not.toBeNull();
     expect(state.lastSnapshot!.session!.turns).toBe(0);
     expect(state.lastSnapshot!.session!.mode).toBe('auto');
-    expect(state.activeTab).toBe('chat');
+    expect(state.activeTab).toBe('dashboard');
   });
 
   it('lifecycle parity: stop() releases subsystems like legacy Tui.destroy()', async () => {
@@ -119,12 +119,16 @@ describe('TuiApp — parity with legacy chat input', () => {
     await app.start();
     expect(stdinHandler).toBeDefined();
 
-    // TAB_ORDER: chat(0), agent(1), daemon(2), approvals(3),
-    //            runtime(4), sops(5), policy(6)
+    // TAB_ORDER: dashboard(0), chat(1), agent(2), daemon(3),
+    //            approvals(4), runtime(5), sops(6), policy(7)
     const getTab = () => app!.getStateForTest().activeTab;
-    expect(getTab()).toBe('chat');
+    expect(getTab()).toBe('dashboard');
 
     // Tab → cycle forward one slot
+    stdinHandler!(Buffer.from('\t', 'utf8'));
+    expect(getTab()).toBe('chat');
+
+    // Tab again → agent
     stdinHandler!(Buffer.from('\t', 'utf8'));
     expect(getTab()).toBe('agent');
 
@@ -132,19 +136,16 @@ describe('TuiApp — parity with legacy chat input', () => {
     stdinHandler!(Buffer.from('\t', 'utf8'));
     expect(getTab()).toBe('daemon');
 
-    // Tab again → approvals
-    stdinHandler!(Buffer.from('\t', 'utf8'));
-    expect(getTab()).toBe('approvals');
-
     // Ctrl+digit shortcuts (terminals encode these as ESC + digit).
     // stdinHandler receives bytes; we send the 2-byte sequence that
-    // parseKey recognises as Ctrl+1 through Ctrl+7.
+    // parseKey recognises as Ctrl+1 through Ctrl+8.
     const sendCtrlDigit = (digit: string) => {
       const buf = Buffer.alloc(2);
       buf[0] = 0x1b; // ESC
       buf[1] = digit.charCodeAt(0);
       stdinHandler!(buf);
     };
+    // Ctrl+digit is 1-based (Ctrl+1 = TAB_ORDER[1]).
     sendCtrlDigit('1'); expect(getTab()).toBe('chat');
     sendCtrlDigit('2'); expect(getTab()).toBe('agent');
     sendCtrlDigit('3'); expect(getTab()).toBe('daemon');
@@ -152,9 +153,10 @@ describe('TuiApp — parity with legacy chat input', () => {
     sendCtrlDigit('5'); expect(getTab()).toBe('runtime');
     sendCtrlDigit('6'); expect(getTab()).toBe('sops');
     sendCtrlDigit('7'); expect(getTab()).toBe('policy');
-
-    // Out-of-range Ctrl+8 / Ctrl+9 / Ctrl+0 are no-ops (bounds-checked).
+    // Ctrl+8 is out of bounds (only 8 tabs, max index 7) → stays at last.
     sendCtrlDigit('8'); expect(getTab()).toBe('policy');
+
+    // Out-of-range Ctrl+9 / Ctrl+0 are no-ops (bounds-checked).
     sendCtrlDigit('9'); expect(getTab()).toBe('policy');
     sendCtrlDigit('0'); expect(getTab()).toBe('policy');
 

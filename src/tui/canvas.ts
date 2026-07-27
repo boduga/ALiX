@@ -11,7 +11,8 @@
  * `renderFrame()` collapses adjacent same-style cells to minimise output.
  */
 
-import { createCell, type CanvasCell, ANSI_REGEX } from "./canvas-cell.js";
+import { createCell, type CanvasCell } from "./canvas-cell.js";
+import { RESET, ANSI_REGEX } from "./ansi-constants.js";
 
 export function writeRowsToCanvas(
   c: TerminalCanvas,
@@ -69,7 +70,7 @@ export class TerminalCanvas {
         const match = remaining.match(ANSI_REGEX);
         if (match) {
           const seq = match[0];
-          if (seq === "\x1b[0m" || seq === "\x1b[39m") {
+          if (seq === RESET || seq === "\x1b[39m") {
             activeAnsi = "";
           } else {
             activeAnsi += seq;
@@ -102,7 +103,7 @@ export class TerminalCanvas {
     colorCode = "\x1b[90m",
   ): void {
     if (w < 2 || h < 2) return;
-    const reset = "\x1b[0m";
+    const reset = RESET;
 
     // Top / bottom edges.
     for (let i = 1; i < w - 1; i++) {
@@ -124,7 +125,7 @@ export class TerminalCanvas {
 
     // Title — injected over the top border at x+2.
     if (title) {
-      this.write(x + 2, y, `\x1b[32m ${title} \x1b[0m`);
+      this.write(x + 2, y, `\x1b[32m ${title} ${RESET}`);
     }
   }
 
@@ -137,7 +138,7 @@ export class TerminalCanvas {
   drawBar(x: number, y: number, barWidth: number, fraction: number, color = "\x1b[36m"): void {
     const pct = Math.max(0, Math.min(1, fraction));
     const filled = Math.round(pct * barWidth);
-    const reset = "\x1b[0m";
+    const reset = RESET;
 
     this.write(x, y, `[${color}`);
     for (let i = 0; i < barWidth; i++) {
@@ -185,7 +186,7 @@ export class TerminalCanvas {
 
         if (cell.ansiPrefix !== currentStyle) {
           if (cell.ansiPrefix === "") {
-            row += "\x1b[0m";
+            row += RESET;
           } else {
             row += cell.ansiPrefix;
           }
@@ -195,7 +196,7 @@ export class TerminalCanvas {
         row += cell.char;
       }
 
-      if (currentStyle !== "") row += "\x1b[0m";
+      if (currentStyle !== "") row += RESET;
       output += row + "\n";
     }
 

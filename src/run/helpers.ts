@@ -4,7 +4,8 @@ import type { MemoryStore } from "../utils/memory/store.js";
 import { extractDecisions, promptDecisionConfirmation } from "../utils/memory/decision-extractor.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
 import { buildEditFormatPolicy, type EditFormatPolicy } from "../patch/edit-format-policy.js";
-import { extractPatchPaths } from "../patch/patch-paths.js";
+import { shouldAutoDisableStreaming } from "../agent/stream.js";
+import { extractMutationPaths, validMutationPaths } from "../agent/mutations.js";
 
 // =============================================================================
 // INTERNAL HELPERS (not exported — used by helpers.ts exports only)
@@ -240,25 +241,6 @@ export const READ_ONLY_TOOL_NAMES = new Set([
   "web_fetch",
 ]);
 
-/**
- * Extract mutation paths from tool arguments.
- * Returns array of file paths affected by the tool call.
- */
-export function extractMutationPaths(execName: string, args: Record<string, unknown>): string[] {
-  if (execName === "patch.apply") {
-    return extractPatchPaths(args.format as string | undefined, args.patchText);
-  }
-  const path = args.path;
-  return typeof path === "string" && path.length > 0 ? [path] : [];
-}
-
-/**
- * Extract valid mutation paths from tool arguments.
- */
-export function validMutationPaths(execName: string, args: Record<string, unknown>): string[] {
-  return extractMutationPaths(execName, args)
-    .filter((path): path is string => typeof path === "string" && path.length > 0);
-}
 
 // =============================================================================
 // EXPORTED HELPERS
@@ -372,12 +354,3 @@ export function buildToolsForProvider(provider: Pick<ModelAdapter, "editFormatPr
   });
 }
 
-/**
- * Determine whether streaming should be automatically disabled.
- * Returns true in non-TTY environments or when CI is detected.
- */
-export function shouldAutoDisableStreaming(): boolean {
-  if (!process.stdout.isTTY) return true;
-  if (process.env.CI) return true;
-  return false;
-}

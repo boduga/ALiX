@@ -173,8 +173,9 @@ describe('AgentView — user prompts', () => {
       submittedPrompts: ['first prompt', 'second prompt'],
     });
     const c = renderOnCanvas(W, TALL, perTab);
-    const rows = [6, 7].map((y) => rowText(c, y));
-    const all = rows.join('\n');
+    // Layout: row 6 = first prompt, row 7 = blank separator,
+    // row 8 = second prompt.
+    const all = [6, 7, 8].map((y) => rowText(c, y)).join('\n');
     expect(all).toContain('first prompt');
     expect(all).toContain('second prompt');
   });
@@ -217,16 +218,26 @@ describe('AgentView — user+agent turns', () => {
       agentResponses: ['a1', 'a2'],
     });
     const c = renderOnCanvas(W, TALL, perTab);
-    const rows = [6, 7, 8, 9].map((y) => rowText(c, y));
-    // Order: user q1, agent a1, user q2, agent a2
+    // Layout (blank line separator before every turn after the first):
+    //   row 6  = q1
+    //   row 7  = blank
+    //   row 8  = a1
+    //   row 9  = blank
+    //   row 10 = q2
+    //   row 11 = blank
+    //   row 12 = a2
+    const rows = [6, 7, 8, 9, 10, 11, 12].map((y) => rowText(c, y));
     expect(rows[0]).toContain('q1');
     expect(cellAt(c, 0, 6).char).toBe('→');
-    expect(rows[1]).toContain('a1');
-    expect(cellAt(c, 0, 7).char).toBe('←');
-    expect(rows[2]).toContain('q2');
-    expect(cellAt(c, 0, 8).char).toBe('→');
-    expect(rows[3]).toContain('a2');
-    expect(cellAt(c, 0, 9).char).toBe('←');
+    expect(rows[1]).toBe('');
+    expect(rows[2]).toContain('a1');
+    expect(cellAt(c, 0, 8).char).toBe('←');
+    expect(rows[3]).toBe('');
+    expect(rows[4]).toContain('q2');
+    expect(cellAt(c, 0, 10).char).toBe('→');
+    expect(rows[5]).toBe('');
+    expect(rows[6]).toContain('a2');
+    expect(cellAt(c, 0, 12).char).toBe('←');
   });
 
   it('handles unequal numbers of prompts and responses', () => {
@@ -416,18 +427,19 @@ describe('AgentView — plan content', () => {
 
 describe('AgentView — approval cards', () => {
   it('renders approval card with tool, target and short ID (compact)', () => {
-    // With a COMPACT canvas (1 scrollback row) only the last approval
-    // line fits — the card entry. Both header and card show on TALL.
+    // With a COMPACT canvas the scrollback has room for both the card
+    // header and the card entry — header at row 6, entry at row 7.
+    // Find the row containing the tool name (layout-agnostic).
     const perTab = makePerTab({
       pendingApprovals: [
         { id: 'ap_abc123', toolName: 'write_file', target: 'src/main.ts', requestedAt: 1000 },
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    const row6 = rowText(c, 6);
-    expect(row6).toContain('write_file');
-    expect(row6).toContain('src/main.ts');
-    expect(row6).toContain('bc123');
+    const all = allText(c, 20);
+    expect(all).toContain('write_file');
+    expect(all).toContain('src/main.ts');
+    expect(all).toContain('bc123');
   });
 
   it('shows plural "requests" for multiple approvals', () => {
@@ -681,9 +693,10 @@ describe('AgentView — edge cases', () => {
       ],
     });
     const c = renderOnCanvas(W, COMPACT, perTab);
-    // With 1 scrollback row the card entry shows; header is above the fold
-    expect(rowText(c, 6)).toContain('write');
-    expect(rowText(c, 6)).toContain('x.ts');
+    // Layout-agnostic: find the card entry in the rendered output.
+    const all = allText(c, 20);
+    expect(all).toContain('write');
+    expect(all).toContain('x.ts');
   });
 });
 
@@ -781,7 +794,9 @@ describe('AgentView — code blocks', () => {
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
-    expect(all).toContain('[typescript]');
+    // Rich renderer emits the language in the top border chrome
+    // (┌─ typescript ─...─┐), not a legacy [language] label.
+    expect(all).toContain('typescript');
   });
 
   it('indents code body with two spaces', () => {
@@ -792,8 +807,42 @@ describe('AgentView — code blocks', () => {
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
-    // Each rendered code line starts with two spaces followed by code text,
-    // not the raw code on column 0.
-    expect(all).toContain('  const x=1;');
+    // Rich renderer wraps code in `│ code │` chrome instead of
+    // indenting with two spaces. The code text itself still appears
+    // in the body.
+    expect(all).toContain('const x=1;');
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────── */
+/*  RICH RENDERER (Task 11)                                          */
+/* ─────────────────────────────────────────────────────────────── */
+
+describe('AgentView — rich renderer wiring (Task 11)', () => {
+  it('renders **bold** with the bold ANSI style on agent response rows', () => {
+    const view = new AgentView();
+    const perTab = makePerTab({
+      submittedPrompts: ['test prompt'],
+      agentResponses: ['**Bold** then code:\n\n```python\nx = 1\n```'],
+    });
+    const c = renderOnCanvas(120, 30, perTab);
+    view.render({
+      snap: MINIMAL_SNAPSHOT,
+      dimensions: { columns: 120, rows: 30 },
+      perTab,
+      canvas: c,
+    });
+    // The bold wrapping should appear in the rendered output.
+    const buf = (c as any).buffer as Array<Array<{ char: string; ansiPrefix: string }>>;
+    let found = false;
+    for (const row of buf) {
+      for (const cell of row) {
+        if (cell.char === 'B' && cell.ansiPrefix.includes('1m')) {
+          found = true;
+          break;
+        }
+      }
+    }
+    expect(found).toBe(true);
   });
 });

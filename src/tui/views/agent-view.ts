@@ -1,18 +1,8 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
-import { parseResponseBlocks } from '../../agent/response-blocks.js';
-
-/**
- * Internal scrollback line shape produced by `renderAgentResponse`.
- * Matches the `ScrollbackLine` shape assembled inside `AgentView.render`,
- * so the renderer can append the helper's output directly to `allLines`.
- */
-interface RenderedLine {
-  kind: 'user' | 'agent' | 'plan' | 'approval';
-  text: string;
-  isFirst: boolean;
-}
+import { renderResponse } from '../blocks/render.js';
+import { RESET } from '../ansi-constants.js';
 
 /**
  * Render an agent (or user) response through the `ResponseBlock` parser
@@ -27,105 +17,6 @@ interface RenderedLine {
  * list-mode normalizes unordered markers and renumbers ordered items while
  * wrapping each item independently with continuation-line indentation.
  */
-/**
- * Hard-truncate a single line to fit `width` visible columns.
- * Local helper for code-block rendering — code lines are
- * truncated (not word-wrapped) per the design spec. ANSI escape
- * sequences are preserved without counting toward width.
- */
-function truncateVisible(line: string, width: number): string {
-  let visible = 0;
-  let result = '';
-  let i = 0;
-  while (i < line.length && visible < width) {
-    if (line[i] === '\x1b') {
-      const seqMatch = line.slice(i).match(/^\x1b\[[0-9;]*[a-zA-Z]/);
-      if (seqMatch) {
-        result += seqMatch[0];
-        i += seqMatch[0].length;
-        continue;
-      }
-    }
-    result += line[i]!;
-    visible++;
-    i++;
-  }
-  return result;
-}
-
-function renderAgentResponse(
-  text: string,
-  kind: 'user' | 'agent',
-  textWidth: number
-): RenderedLine[] {
-  const output: RenderedLine[] = [];
-
-  const blocks = parseResponseBlocks(text);
-
-  for (const block of blocks) {
-    if (block.type === 'text') {
-      const lines = wrapText(block.text, textWidth);
-      lines.forEach((line) => {
-        output.push({
-          kind,
-          text: line,
-          isFirst: output.length === 0,
-        });
-      });
-    } else if (block.type === 'code') {
-      // Compute the inner width for code-block lines: the 2-space
-      // canvas-content prefix is followed by visible code. Subtract it
-      // from textWidth to compute the truncation point.
-      const codeInnerWidth = Math.max(1, textWidth - 2);
-      if (block.language) {
-        output.push({
-          kind,
-          text: `  [${block.language}]`,
-          isFirst: output.length === 0,
-        });
-      }
-      // Per spec: code block body is hard-truncated to fit canvas
-      // width (left edge stays, right edge clips). No word-splitting.
-      // The isFirst flag must be set on the very first line of the
-      // entire response — including the case where the code block has
-      // no language header (so the language-header line isn't there
-      // to receive isFirst: true).
-      const codeLines = block.code.split('\n');
-      const firstLine = codeLines[0] ?? '';
-      output.push({
-        kind,
-        text: '  ' + truncateVisible(firstLine, codeInnerWidth),
-        isFirst: output.length === 0,
-      });
-      for (let k = 1; k < codeLines.length; k++) {
-        output.push({
-          kind,
-          text: '  ' + truncateVisible(codeLines[k]!, codeInnerWidth),
-          isFirst: false,
-        });
-      }
-    } else if (block.type === 'list') {
-      block.items.forEach((item, index) => {
-        const prefix = block.marker === 'ordered' ? `${index + 1}. ` : '• ';
-        const indent = ' '.repeat(prefix.length);
-        const innerWidth = Math.max(1, textWidth - prefix.length);
-        const wrapped = wrapText(item, innerWidth);
-
-        wrapped.forEach((line, lineIndex) => {
-          output.push({
-            kind,
-            text: lineIndex === 0 ? prefix + line : indent + line,
-            // Only the very first line of the entire response gets
-            // isFirst: true so the turn marker is drawn exactly once.
-            isFirst: output.length === 0,
-          });
-        });
-      });
-    }
-  }
-
-  return output;
-}
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -149,10 +40,10 @@ export class AgentView implements TuiView {
     // Agent prompt row at row 4 (below the 3-row header), shifted right
     // a bit so the longer label fits without colliding with the cursor.
     const buf = ctx.perTab.inputBuffer;
-    c.write(0, 4, '\x1b[33m alix-agent>\x1b[0m ');
+    c.write(0, 4, `\x1b[33m alix-agent>${RESET} `);
     const PROMPT_COL = 13;
     c.write(PROMPT_COL, 4, buf);
-    c.write(PROMPT_COL + buf.length, 4, '\x1b[7m \x1b[0m');
+    c.write(PROMPT_COL + buf.length, 4, `\x1b[7m ${RESET}`);
 
     // Runtime status line — pinned just above the scrollback at row 5.
     // Gives the operator immediate context: event count + current step.
@@ -162,12 +53,12 @@ export class AgentView implements TuiView {
       const stepBit = wf
         ? ` | step ${wf.currentStep}/${wf.totalSteps}`
         : '';
-      c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}\x1b[0m`);
+      c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}${RESET}`);
     }
 
-    // Pin the 4-panel dashboard to the bottom of the canvas, flush above
-    // the 3-row footer painted by app.ts.
-    const PANEL_H = 14;
+    // The 14-row dashboard reservation is gone (panels now live in
+    // the dashboard tab). Scrollback uses the full vertical space.
+    const PANEL_H = 0;
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
@@ -228,8 +119,15 @@ export class AgentView implements TuiView {
       allLines.push({ kind: 'plan', text: '', isFirst: false });
     }
 
-    for (const t of turns) {
-      const rendered = renderAgentResponse(t.text, t.kind, textWidth);
+    for (let ti = 0; ti < turns.length; ti++) {
+      const t = turns[ti]!;
+      // Blank-line separator between turns so each query breathes
+      // away from the previous response. Skip the very first turn.
+      if (ti > 0) {
+        allLines.push({ kind: t.kind, text: '', isFirst: false });
+      }
+      const rendered = renderResponse(t.text, textWidth)
+        .map(r => ({ kind: t.kind, text: r.text, isFirst: r.isFirst }));
       for (const line of rendered) {
         allLines.push(line);
       }
@@ -265,21 +163,21 @@ export class AgentView implements TuiView {
       const l = visible[i]!;
       if (l.kind === 'plan') {
         if (l.isFirst) {
-          c.write(0, rowY, '\x1b[2m◆ \x1b[0m');
-          c.write(2, rowY, `\x1b[2m${l.text}\x1b[0m`);
+          c.write(0, rowY, `\x1b[2m◆ ${RESET}`);
+          c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
         } else if (l.text) {
-          c.write(2, rowY, `\x1b[2m${l.text}\x1b[0m`);
+          c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
         }
         // empty separator line → skip (blank)
       } else if (l.kind === 'approval') {
         if (l.isFirst) {
-          c.write(0, rowY, '\x1b[33m⏸ \x1b[0m');
-          c.write(2, rowY, `\x1b[33m${l.text}\x1b[0m`);
+          c.write(0, rowY, `\x1b[33m⏸ ${RESET}`);
+          c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
         } else {
-          c.write(2, rowY, `\x1b[33m${l.text}\x1b[0m`);
+          c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
         }
       } else if (l.isFirst) {
-        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m' : '\x1b[36m← \x1b[0m';
+        const marker = l.kind === 'user' ? `\x1b[90m→ ${RESET}` : `\x1b[36m← ${RESET}`;
         c.write(0, rowY, marker);
         c.write(2, rowY, l.text);
       } else {

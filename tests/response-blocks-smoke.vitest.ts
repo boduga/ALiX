@@ -4,7 +4,7 @@
  * renders the live response shape correctly.
  */
 import { test, expect } from 'vitest';
-import { parseResponseBlocks } from '../src/agent/response-blocks.js';
+import { parseBlocks as parseResponseBlocks } from '../src/agent/response-blocks.js';
 import { TerminalCanvas } from '../src/tui/canvas.js';
 import { AgentView } from '../src/tui/views/agent-view.js';
 import type { ViewRenderContext } from '../src/tui/views/types.js';
@@ -72,6 +72,10 @@ test('end-to-end: parse live response, render to canvas', () => {
   expect(plain).toContain('• Second point');
   // TUI does NOT render Markdown source fences
   expect(plain).not.toContain('```python');
-  // Language rendered as [lang] label
-  expect(plain).toContain('[python]');
+  // Language rendered in the top-border chrome label. The chrome
+  // characters get stamped with a dim-gray prefix that may interleave
+  // with the corner glyphs after ANSI strip; match the substring
+  // robustly.
+  expect(plain).toContain('python');
+  expect(plain).toMatch(/┌.*python.*┘/s);
 });
