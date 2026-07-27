@@ -64,4 +64,24 @@ describe('ChatView', () => {
     const b = view.render(cx);
     expect(a.rows).toEqual(b.rows);
   });
+
+  it('renders fenced code blocks with bordered chrome in chat responses', () => {
+    const view = new ChatView();
+    const c = ctx({
+      dims: { columns: 120, rows: 30 },
+      perTab: {
+        cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
+        inputBuffer: '',
+        pinnedBottom: true,
+        submittedPrompts: ['show me a function'],
+        pendingApprovals: [], resolvedApprovals: [],
+        agentResponses: ['```python\ndef f(): pass\n```']
+      },
+    });
+    view.render(c);
+    const frame = c.canvas!.renderFrame();
+    expect(frame).toMatch(/[┌╭]/);
+    expect(frame).toMatch(/[└╰┘]/);
+    expect(frame).toContain('python');
+  });
 });

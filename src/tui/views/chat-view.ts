@@ -1,6 +1,9 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
+import { parseBlocks } from '../blocks/parser.js';
+import { renderBlocks } from '../blocks/render.js';
+import { defaultTheme } from '../blocks/theme.js';
 
 /**
  * ChatView — default landing tab. Renders the input prompt placeholder
@@ -40,27 +43,37 @@ export class ChatView implements TuiView {
     // align under the text.
     const submitted = ctx.perTab.submittedPrompts;
     const responses = ctx.perTab.agentResponses;
-    const turns: { kind: 'user' | 'agent'; text: string }[] = [];
-    const maxLen = Math.max(submitted.length, responses.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < submitted.length) turns.push({ kind: 'user', text: submitted[i]! });
-      if (i < responses.length) turns.push({ kind: 'agent', text: responses[i]! });
-    }
     const scrollbackTop = 5;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
     // Flatten turns → wrapped lines so very long messages occupy multiple
-    // rows instead of truncating at the right border.
+    // rows instead of truncating at the right border. User prompts stay
+    // plain; agent responses go through the rich renderer so fenced
+    // code, lists, bold/italic, headings, and quotes get their own
+    // visual treatment.
     interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
-    for (const t of turns) {
-      const wrapped = wrapText(t.text, textWidth);
-      for (let i = 0; i < wrapped.length; i++) {
-        allLines.push({ kind: t.kind, text: wrapped[i]!, isFirst: i === 0 });
+    const maxLen = Math.max(submitted.length, responses.length);
+    for (let i = 0; i < maxLen; i++) {
+      if (i < submitted.length) {
+        // User prompts render as plain text — no markdown parsing needed.
+        const wrapped = wrapText(submitted[i]!, textWidth);
+        wrapped.forEach((line, j) => {
+          allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
+        });
+      }
+      if (i < responses.length) {
+        // Agent responses go through the rich renderer.
+        const blocks = parseBlocks(responses[i]!);
+        const styledRows = renderBlocks(blocks, defaultTheme, textWidth);
+        styledRows.forEach((row, j) => {
+          allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
+        });
       }
     }
+    // (Turns were inlined into the loop above; nothing to do here.)
     // Use scrollOffset so the user can scroll back through past responses
     // with arrow keys. offset=0 shows the most recent lines (bottom).
     const offset = ctx.perTab.scrollOffset;
