@@ -8,9 +8,12 @@
 // up the full bordered-chrome rendering with tokenization.
 
 import type { ResponseBlock, InlineSpan, StyledRow, Theme, Token } from './types.js';
+import { parseBlocks } from './parser.js';
+import { defaultTheme } from './theme.js';
 import { parseInline } from './inline.js';
 import { tokenize } from './tokenize.js';
 import { wrapText } from '../views/wrap-text.js';
+import { RESET } from '../ansi-constants.js';
 
 /**
  * Render all blocks into ANSI-styled rows. Width is the visible
@@ -52,6 +55,14 @@ export function renderBlocks(
   }
 
   return out;
+}
+
+/**
+ * Convenience: parse + render a string in one call. Equivalent to
+ * `renderBlocks(parseBlocks(text), defaultTheme, width)`.
+ */
+export function renderResponse(text: string, width: number): StyledRow[] {
+  return renderBlocks(parseBlocks(text), defaultTheme, width);
 }
 
 // --- Block renderers ---
@@ -102,7 +113,7 @@ function renderQuote(
   const styledSpans = spans.map((s) => styleInlineSpan(s, theme)).join('');
   // Wrap, then prefix each line with the quote bar.
   const lines = wrapText(styledSpans, Math.max(1, width - 2));
-  const bar = theme.quoteBar + '│ ' + '\x1b[0m'; // bar + reset so styled text doesn't bleed
+  const bar = theme.quoteBar + '│ ' + RESET; // bar + reset so styled text doesn't bleed
   return lines.map((text, i) => ({
     text: bar + text,
     isFirst: isFirst && i === 0,
@@ -112,7 +123,7 @@ function renderQuote(
 function renderRule(theme: Theme, width: number, isFirst: boolean): StyledRow[] {
   const ch = '─';
   const raw = ch.repeat(Math.max(1, width));
-  return [{ text: theme.rule + raw + '\x1b[0m', isFirst }];
+  return [{ text: theme.rule + raw + RESET, isFirst }];
 }
 
 function renderList(
@@ -194,7 +205,7 @@ function renderCode(
   const borderedLines = codeLines.map((line) => {
     const wrapped = wrapText(line || ' ', innerWidth);
     // Re-emit each wrapped line with borders.
-    return wrapped.map((l) => `${theme.codeBorder}│${'\x1b[0m'} ${l} ${theme.codeBorder}│${'\x1b[0m'}`);
+    return wrapped.map((l) => `${theme.codeBorder}│${RESET} ${l} ${theme.codeBorder}│${RESET}`);
   });
 
   const rows: StyledRow[] = [];
@@ -202,7 +213,7 @@ function renderCode(
   const topLabel = lang ? ` ${lang} ` : '';
   const topFill = Math.max(0, width - 2 - topLabel.length - 2);
   rows.push({
-    text: `${theme.codeBorder}┌─${'\x1b[0m'}${theme.codeLangLabel(topLabel)}${theme.codeBorder}${'─'.repeat(topFill)}─┐${'\x1b[0m'}`,
+    text: `${theme.codeBorder}┌─${RESET}${theme.codeLangLabel(topLabel)}${theme.codeBorder}${'─'.repeat(topFill)}─┐${RESET}`,
     isFirst,
   });
 
@@ -214,7 +225,7 @@ function renderCode(
 
   // Bottom border.
   rows.push({
-    text: `${theme.codeBorder}${'─'.repeat(width - 2)}┘${'\x1b[0m'}`,
+    text: `${theme.codeBorder}${'─'.repeat(width - 2)}┘${RESET}`,
     isFirst: false,
   });
   return rows;

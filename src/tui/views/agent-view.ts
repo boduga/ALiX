@@ -1,20 +1,8 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
-import { parseBlocks } from '../blocks/parser.js';
-import { renderBlocks } from '../blocks/render.js';
-import { defaultTheme } from '../blocks/theme.js';
-
-/**
- * Internal scrollback line shape produced by `renderAgentResponse`.
- * Matches the `ScrollbackLine` shape assembled inside `AgentView.render`,
- * so the renderer can append the helper's output directly to `allLines`.
- */
-interface RenderedLine {
-  kind: 'user' | 'agent' | 'plan' | 'approval';
-  text: string;
-  isFirst: boolean;
-}
+import { renderResponse } from '../blocks/render.js';
+import { RESET } from '../ansi-constants.js';
 
 /**
  * Render an agent (or user) response through the `ResponseBlock` parser
@@ -29,41 +17,6 @@ interface RenderedLine {
  * list-mode normalizes unordered markers and renumbers ordered items while
  * wrapping each item independently with continuation-line indentation.
  */
-/**
- * Hard-truncate a single line to fit `width` visible columns.
- * Local helper for code-block rendering — code lines are
- * truncated (not word-wrapped) per the design spec. ANSI escape
- * sequences are preserved without counting toward width.
- */
-function truncateVisible(line: string, width: number): string {
-  let visible = 0;
-  let result = '';
-  let i = 0;
-  while (i < line.length && visible < width) {
-    if (line[i] === '\x1b') {
-      const seqMatch = line.slice(i).match(/^\x1b\[[0-9;]*[a-zA-Z]/);
-      if (seqMatch) {
-        result += seqMatch[0];
-        i += seqMatch[0].length;
-        continue;
-      }
-    }
-    result += line[i]!;
-    visible++;
-    i++;
-  }
-  return result;
-}
-
-function renderAgentResponse(
-  text: string,
-  kind: 'user' | 'agent',
-  textWidth: number
-): RenderedLine[] {
-  const blocks = parseBlocks(text);
-  const styledRows = renderBlocks(blocks, defaultTheme, textWidth);
-  return styledRows.map((r) => ({ kind, text: r.text, isFirst: r.isFirst }));
-}
 
 /**
  * AgentView — full-workflow task surface. Submit calls
@@ -87,10 +40,10 @@ export class AgentView implements TuiView {
     // Agent prompt row at row 4 (below the 3-row header), shifted right
     // a bit so the longer label fits without colliding with the cursor.
     const buf = ctx.perTab.inputBuffer;
-    c.write(0, 4, '\x1b[33m alix-agent>\x1b[0m ');
+    c.write(0, 4, `\x1b[33m alix-agent>${RESET} `);
     const PROMPT_COL = 13;
     c.write(PROMPT_COL, 4, buf);
-    c.write(PROMPT_COL + buf.length, 4, '\x1b[7m \x1b[0m');
+    c.write(PROMPT_COL + buf.length, 4, `\x1b[7m ${RESET}`);
 
     // Runtime status line — pinned just above the scrollback at row 5.
     // Gives the operator immediate context: event count + current step.
@@ -100,7 +53,7 @@ export class AgentView implements TuiView {
       const stepBit = wf
         ? ` | step ${wf.currentStep}/${wf.totalSteps}`
         : '';
-      c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}\x1b[0m`);
+      c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}${RESET}`);
     }
 
     // The 14-row dashboard reservation is gone (panels now live in
@@ -167,7 +120,8 @@ export class AgentView implements TuiView {
     }
 
     for (const t of turns) {
-      const rendered = renderAgentResponse(t.text, t.kind, textWidth);
+      const rendered = renderResponse(t.text, textWidth)
+        .map(r => ({ kind: t.kind, text: r.text, isFirst: r.isFirst }));
       for (const line of rendered) {
         allLines.push(line);
       }
@@ -203,21 +157,21 @@ export class AgentView implements TuiView {
       const l = visible[i]!;
       if (l.kind === 'plan') {
         if (l.isFirst) {
-          c.write(0, rowY, '\x1b[2m◆ \x1b[0m');
-          c.write(2, rowY, `\x1b[2m${l.text}\x1b[0m`);
+          c.write(0, rowY, `\x1b[2m◆ ${RESET}`);
+          c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
         } else if (l.text) {
-          c.write(2, rowY, `\x1b[2m${l.text}\x1b[0m`);
+          c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
         }
         // empty separator line → skip (blank)
       } else if (l.kind === 'approval') {
         if (l.isFirst) {
-          c.write(0, rowY, '\x1b[33m⏸ \x1b[0m');
-          c.write(2, rowY, `\x1b[33m${l.text}\x1b[0m`);
+          c.write(0, rowY, `\x1b[33m⏸ ${RESET}`);
+          c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
         } else {
-          c.write(2, rowY, `\x1b[33m${l.text}\x1b[0m`);
+          c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
         }
       } else if (l.isFirst) {
-        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m' : '\x1b[36m← \x1b[0m';
+        const marker = l.kind === 'user' ? `\x1b[90m→ ${RESET}` : `\x1b[36m← ${RESET}`;
         c.write(0, rowY, marker);
         c.write(2, rowY, l.text);
       } else {
