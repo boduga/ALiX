@@ -15,6 +15,7 @@
 
 import type { DashboardSnapshot } from "./snapshot.js";
 import type { TerminalCanvas } from "./canvas.js";
+import { truncate } from "./dashboard-helpers.js";
 
 /** Default panel height in rows — matches the historical bottom-of-chat dashboard. */
 export const DEFAULT_PANEL_H = 14;
@@ -278,7 +279,7 @@ export function paintRuntimePanel(
     const stepDurSrc = runtime?.lastEventAt ?? workflow?.startedAt ?? null;
     const stepDur = stepDurSrc !== null ? formatShortDuration(stepDurSrc, now) : "";
     paintMetaLine(canvas, x + 2, y + 4, contentW, "Active step:", stepLabel, stepDur);
-    paintMetaLine(canvas, x + 2, y + 5, contentW, "Workflow:", workflow ? truncateWS(workflow.name, contentW - 16) : "—");
+    paintMetaLine(canvas, x + 2, y + 5, contentW, "Workflow:", workflow ? truncate(workflow.name, contentW - 16) : "—");
     paintMetaLine(canvas, x + 2, y + 6, contentW, "Started:", workflow ? `${fmtUptime((now - workflow.startedAt) / 1000)} ago` : "—");
   }
 
@@ -386,7 +387,7 @@ export function paintSopsAndPolicyPanel(
         if (sourceIdx >= allSops.length) break;
         const item = allSops[sourceIdx]!;
         const versionBudget = Math.max(0, contentW - (2 + item.name.length + 1));
-        const versionText = truncateWS(item.version, versionBudget);
+        const versionText = truncate(item.version, versionBudget);
         if (listRow > itemsEndY) break;
         canvas.write(x + 2, listRow, `● ${item.name}`);
         canvas.write(x + 2 + contentW - versionText.length, listRow, versionText);
@@ -500,11 +501,6 @@ function clamp01(n: number): number {
   return Math.max(0, Math.min(1, n));
 }
 
-function truncateWS(s: string, n: number): string {
-  if (s.length <= n) return s;
-  return s.slice(0, n - 1) + "…";
-}
-
 /** Format a millisecond timestamp as `18s ago` / `2m ago` / `7h ago`. */
 function formatRelative(requestedAt: number, now: number): string {
   const sec = Math.max(0, Math.floor((now - requestedAt) / 1000));
@@ -567,7 +563,7 @@ function paintApprovalItemRow(
   // Pending: right-align the target path within remaining cols.
   const prefix = `● ${item.toolName} `;
   const pathBudget = Math.max(0, contentW - prefix.length);
-  const path = truncateWS(item.targetPath, pathBudget);
+  const path = truncate(item.targetPath, pathBudget);
   canvas.write(x + contentW - path.length, y, path);
 }
 
@@ -595,7 +591,7 @@ function paintMetaLine(
   const labelField = label.padEnd(14);
   const valueStart = x + labelField.length;
   const valueBudget = contentW - labelField.length - (rightSuffix ? rightSuffix.length + 1 : 0);
-  const valueText = truncateWS(value, Math.max(0, valueBudget));
+  const valueText = truncate(value, Math.max(0, valueBudget));
   canvas.write(x, y, `${labelField}${valueText}`);
   if (rightSuffix) {
     canvas.write(x + contentW - rightSuffix.length, y, rightSuffix);

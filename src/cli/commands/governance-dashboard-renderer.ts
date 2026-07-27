@@ -16,6 +16,7 @@ import type {
   RevertReadinessPanel,
   DriftIntegrityGapsPanel,
 } from "../../governance/governance-dashboard.js";
+import { truncate } from "../../tui/dashboard-helpers.js";
 
 export interface RenderOptions {
   /** When true, print JSON instead of formatted text. */
@@ -126,7 +127,3 @@ function pad(s: string, n: number): string {
   return s + " ".repeat(n - s.length);
 }
 
-function truncate(s: string, n: number): string {
-  if (s.length <= n) return s;
-  return s.slice(0, n - 1) + "…";
-}
