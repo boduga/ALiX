@@ -6,6 +6,7 @@
 import type { Token, Tokenizer } from './types.js';
 import { plainTokenizer } from './langs/plain.js';
 import { pythonTokenizer } from './langs/python.js';
+import { typescriptTokenizer } from './langs/typescript.js';
 import { jsonTokenizer } from './langs/json.js';
 import { bashTokenizer } from './langs/bash.js';
 
@@ -16,8 +17,12 @@ import { bashTokenizer } from './langs/bash.js';
 const TOKENIZERS: Record<string, Tokenizer> = {
   python: pythonTokenizer,
   py: pythonTokenizer,
-  // Tasks 8-10 add: typescript, ts, tsx, javascript, js, jsx, json,
-  // bash, sh, shell.
+  typescript: typescriptTokenizer,
+  ts: typescriptTokenizer,
+  tsx: typescriptTokenizer,
+  javascript: typescriptTokenizer,
+  js: typescriptTokenizer,
+  jsx: typescriptTokenizer,
   json: jsonTokenizer,
   bash: bashTokenizer,
   sh: bashTokenizer,
