@@ -1,5 +1,4 @@
 import { extractPatchPaths } from "../patch/patch-paths.js";
-import { validMutationPaths } from "../run/helpers.js";
 
 export type MutationSessionState = {
   created: Set<string>;
@@ -15,6 +14,14 @@ export function extractMutationPaths(execName: string, args: Record<string, unkn
   }
   const path = args.path;
   return typeof path === "string" && path.length > 0 ? [path] : [];
+}
+
+/**
+ * Extract valid mutation paths from tool arguments.
+ */
+export function validMutationPaths(execName: string, args: Record<string, unknown>): string[] {
+  return extractMutationPaths(execName, args)
+    .filter((path): path is string => typeof path === "string" && path.length > 0);
 }
 
 export function recordMutationInSessionState(

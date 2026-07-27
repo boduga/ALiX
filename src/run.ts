@@ -1,7 +1,7 @@
 // Back-compat shim - prefer importing from src/agent/ directly
 export { shouldAutoDisableStreaming, type StreamHandler } from "./agent/stream.js";
 export { buildErrorMessage, buildToolsForProvider, buildContextBundleEventPayload, buildModelUsageEventPayload, renderContextBundleForPrompt } from "./agent/messages.js";
-export { extractMutationPaths, recordMutationInSessionState, type MutationSessionState } from "./agent/mutations.js";
+export { extractMutationPaths, validMutationPaths, recordMutationInSessionState, type MutationSessionState } from "./agent/mutations.js";
 
 import type { EventLog } from "./events/event-log.js";
 import type { NormalizedMessage } from "./providers/types.js";
