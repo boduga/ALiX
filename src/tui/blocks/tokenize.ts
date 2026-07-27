@@ -10,6 +10,10 @@ import { typescriptTokenizer } from './langs/typescript.js';
 import { jsonTokenizer } from './langs/json.js';
 import { bashTokenizer } from './langs/bash.js';
 import { htmlTokenizer } from './langs/html.js';
+import { goTokenizer } from './langs/go.js';
+import { rustTokenizer } from './langs/rust.js';
+import { cppTokenizer } from './langs/cpp.js';
+import { rubyTokenizer } from './langs/ruby.js';
 
 /**
  * Registry of language tokenizers. Each entry maps a canonical
@@ -30,6 +34,15 @@ const TOKENIZERS: Record<string, Tokenizer> = {
   shell: bashTokenizer,
   html: htmlTokenizer,
   htm: htmlTokenizer,
+  go: goTokenizer,
+  golang: goTokenizer,
+  rust: rustTokenizer,
+  rs: rustTokenizer,
+  cpp: cppTokenizer,
+  cplusplus: cppTokenizer,
+  'c++': cppTokenizer,
+  ruby: rubyTokenizer,
+  rb: rubyTokenizer,
 };
 
 /**
