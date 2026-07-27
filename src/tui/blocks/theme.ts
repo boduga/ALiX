@@ -75,6 +75,8 @@ export const defaultTheme: Theme = {
   quoteBar: GRAY,
   quote: (text) => wrap(`${DIM_OPEN}`, DIM_CLOSE, text),
   rule: GRAY,
+  taskChecked: `${GREEN}✓${RESET}`,
+  taskUnchecked: `${GRAY}[ ]${RESET}`,
 
   // Phase 1 stub: render as bold + underline. OSC-8 / actual click
   // happens in PR 6.

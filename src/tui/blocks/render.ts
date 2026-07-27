@@ -159,9 +159,18 @@ function renderList(
 ): StyledRow[] {
   const rows: StyledRow[] = [];
   block.items.forEach((item, idx) => {
-    const prefix = block.marker === 'ordered' ? `${idx + 1}. ` : '• ';
-    const indent = ' '.repeat(prefix.length);
-    const innerWidth = Math.max(1, width - prefix.length);
+    const checked = block.checked?.[idx];
+    let prefix: string;
+    let prefixVisibleLen: number;
+    if (checked !== undefined) {
+      prefix = checked ? theme.taskChecked + ' ' : theme.taskUnchecked + ' ';
+      prefixVisibleLen = 3; // visible width of checkbox marker
+    } else {
+      prefix = block.marker === 'ordered' ? `${idx + 1}. ` : '• ';
+      prefixVisibleLen = prefix.length;
+    }
+    const indent = ' '.repeat(prefixVisibleLen);
+    const innerWidth = Math.max(1, width - prefixVisibleLen);
     const wrapped = wrapText(item, innerWidth);
     wrapped.forEach((line, i) => {
       rows.push({

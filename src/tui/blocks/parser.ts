@@ -133,21 +133,45 @@ export function parseBlocks(md: string): readonly ResponseBlock[] {
       flushText();
       const marker = item.marker;
       const items: string[] = [];
-      if (item.text !== '') items.push(item.text);
+      const checkedItems: (boolean | undefined)[] = [];
+      let hasTaskItem = false;
+
+      // Process first item
+      let itemText = item.text;
+      const firstTaskMatch = itemText.match(/^\[( |x|X)\]\s*/);
+      if (firstTaskMatch) {
+        checkedItems.push(firstTaskMatch[1] === 'x' || firstTaskMatch[1] === 'X');
+        hasTaskItem = true;
+        itemText = itemText.slice(firstTaskMatch[0].length);
+      } else {
+        checkedItems.push(undefined);
+      }
+      if (itemText !== '') items.push(itemText);
+
       let j = i + 1;
       while (j < lines.length) {
         const candidate = matchListItem(lines[j]!);
         if (candidate === null || candidate.marker !== marker) break;
-        if (candidate.text === '') break; // empty item — stop
-        items.push(candidate.text);
+        let candidateText = candidate.text;
+        const candidateTaskMatch = candidateText.match(/^\[( |x|X)\]\s*/);
+        if (candidateTaskMatch) {
+          checkedItems.push(candidateTaskMatch[1] === 'x' || candidateTaskMatch[1] === 'X');
+          hasTaskItem = true;
+          candidateText = candidateText.slice(candidateTaskMatch[0].length);
+        } else {
+          checkedItems.push(undefined);
+        }
+        if (candidateText === '') break; // empty item — stop
+        items.push(candidateText);
         j++;
       }
+
       if (items.length > 0) {
-        blocks.push({
-          type: 'list',
-          marker: marker === 'ordered' ? 'ordered' : 'unordered',
-          items,
-        });
+        const listBlock: ResponseBlock = { type: 'list', marker, items };
+        if (hasTaskItem) {
+          (listBlock as any).checked = checkedItems;
+        }
+        blocks.push(listBlock);
       }
       i = j;
       continue;

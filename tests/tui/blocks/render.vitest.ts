@@ -214,4 +214,33 @@ describe('renderBlocks', () => {
       }
     });
   });
+
+  describe('task lists', () => {
+    it('renders checked task with green checkmark', () => {
+      const blocks = parseBlocks('- [x] done');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('\x1b[32m'); // green
+      expect(rows[0]!.text).toContain('✓');
+      expect(rows[0]!.text).toContain('done');
+    });
+
+    it('renders unchecked task with gray box', () => {
+      const blocks = parseBlocks('- [ ] todo');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('\x1b[90m'); // gray
+      expect(rows[0]!.text).toContain('[ ]');
+      expect(rows[0]!.text).toContain('todo');
+    });
+
+    it('renders mixed list with checkbox and plain items', () => {
+      const blocks = parseBlocks('- [x] a\n- b\n- [ ] c');
+      const rows = renderBlocks(blocks, defaultTheme, 60);
+      expect(rows[0]!.text).toContain('✓');
+      expect(rows[0]!.text).toContain('a');
+      expect(rows[1]!.text).toContain('•');
+      expect(rows[1]!.text).toContain('b');
+      expect(rows[2]!.text).toContain('[ ]');
+      expect(rows[2]!.text).toContain('c');
+    });
+  });
 });
