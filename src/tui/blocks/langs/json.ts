@@ -6,6 +6,15 @@
 //   - everything else: plain (structural punctuation, whitespace)
 
 import type { Token, Tokenizer } from '../types.js';
+import {
+  consumeWhitespace,
+  consumeString,
+  consumeNumber,
+  consumeIdentifier,
+} from './shared.js';
+
+const JSON_KEYWORDS = new Set(['true', 'false', 'null']);
+const NUMBER_PATTERN = /[0-9.eE+\-]/;
 
 export const jsonTokenizer: Tokenizer = {
   language: 'json',
@@ -19,45 +28,26 @@ export const jsonTokenizer: Tokenizer = {
       const c = code[i]!;
 
       if (/[ \t\r\n]/.test(c)) {
-        let j = i;
-        while (j < code.length && /[ \t\r\n]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'plain', text: code.slice(i, j) });
-        i = j;
+        i = consumeWhitespace(code, i, tokens);
         continue;
       }
 
       // Strings (double-quoted only).
       if (c === '"') {
-        let j = i + 1;
-        while (j < code.length && code[j] !== '"') {
-          if (code[j] === '\\') j++;
-          j++;
-        }
-        if (j < code.length) j++;
-        tokens.push({ kind: 'string', text: code.slice(i, j) });
-        i = j;
+        i = consumeString(code, i, tokens);
         continue;
       }
 
       // Numbers.
       if (c === '-' || /[0-9]/.test(c)) {
-        let j = i + (c === '-' ? 1 : 0);
-        while (j < code.length && /[0-9.eE+\-]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'number', text: code.slice(i, j) });
-        i = j;
+        i = consumeNumber(code, i, tokens, NUMBER_PATTERN);
         continue;
       }
 
       // true / false / null (alphabetic only — JSON has no other keywords).
       if (/[a-z]/.test(c)) {
-        let j = i + 1;
-        while (j < code.length && /[a-z]/.test(code[j]!)) j++;
-        const word = code.slice(i, j);
-        if (word === 'true' || word === 'false' || word === 'null') {
-          tokens.push({ kind: 'keyword', text: word });
-          i = j;
-          continue;
-        }
+        i = consumeIdentifier(code, i, JSON_KEYWORDS, tokens);
+        continue;
       }
 
       // Fallthrough — structural punctuation.

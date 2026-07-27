@@ -1,11 +1,11 @@
 // src/tui/blocks/langs/typescript.ts
 // Tokenizer for TypeScript and JavaScript (shared syntax). Recognizes:
 // - keywords: function, return, const, let, var, if, else, while,
-// class, import, export, from, default, switch, case, break, continue,
-// new, this, super, extends, implements, async, await, yield, typeof,
-// instanceof, in, of, void, delete, throw, try, catch, finally, do
+//   class, import, export, from, default, switch, case, break, continue,
+//   new, this, super, extends, implements, async, await, yield, typeof,
+//   instanceof, in, of, void, delete, throw, try, catch, finally, do
 // - TS-only: type, interface, enum, public, private, protected, static,
-// readonly, abstract, as, is, keyof, infer, never, unknown, any
+//   readonly, abstract, as, is, keyof, infer, never, unknown, any
 // - strings, template literals, regex literals
 // - comments: //, /* */
 // - numbers: int, float, hex
@@ -14,6 +14,13 @@
 // Not full grammar. Tokenization is for coloring only.
 
 import type { Token, Tokenizer } from '../types.js';
+import {
+  consumeWhitespace,
+  consumeString,
+  consumeNumber,
+  consumeIdentifier,
+  lastNonPlainToken,
+} from './shared.js';
 
 const KEYWORDS = new Set([
   'function', 'return', 'const', 'let', 'var',
@@ -34,6 +41,10 @@ const TS_KEYWORDS = new Set([
   'never', 'unknown', 'any',
 ]);
 
+const ALL_KEYWORDS = new Set([...KEYWORDS, ...TS_KEYWORDS]);
+const functionKeywords = new Set(['function', 'class']);
+const NUMBER_PATTERN = /[0-9._a-fA-FxXoObB]/;
+
 export const typescriptTokenizer: Tokenizer = {
   language: 'typescript',
 
@@ -41,17 +52,15 @@ export const typescriptTokenizer: Tokenizer = {
     if (code === '') return [];
     const tokens: Token[] = [];
     let i = 0;
-    let pendingIsFunction = false;
+    const pendingIsFunction = { value: false };
 
     while (i < code.length) {
       const c = code[i]!;
 
       // Whitespace.
-      if (/[ \t\r\n]/.test(c)) {
-        let j = i;
-        while (j < code.length && /[ \t\r\n]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'plain', text: code.slice(i, j) });
-        i = j;
+      const wsI = consumeWhitespace(code, i, tokens);
+      if (wsI !== i) {
+        i = wsI;
         // Note: pendingIsFunction is NOT reset here — `function foo`
         // with a single space must still recognize `foo` as a function name.
         continue;
@@ -74,16 +83,9 @@ export const typescriptTokenizer: Tokenizer = {
         continue;
       }
 
-      // Strings.
+      // Strings (double/single quoted).
       if (c === '"' || c === "'") {
-        let j = i + 1;
-        while (j < code.length && code[j] !== c && code[j] !== '\n') {
-          if (code[j] === '\\') j++;
-          j++;
-        }
-        if (j < code.length && code[j] === c) j++;
-        tokens.push({ kind: 'string', text: code.slice(i, j) });
-        i = j;
+        i = consumeString(code, i, tokens);
         continue;
       }
 
@@ -105,34 +107,29 @@ export const typescriptTokenizer: Tokenizer = {
 
       // Numbers.
       if (/[0-9]/.test(c)) {
-        let j = i + 1;
-        while (j < code.length && /[0-9._a-fA-FxXoObB]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'number', text: code.slice(i, j) });
-        i = j;
+        i = consumeNumber(code, i, tokens, NUMBER_PATTERN);
         continue;
       }
 
       // Identifiers / keywords.
       if (/[A-Za-z_$]/.test(c)) {
-        let j = i + 1;
-        while (j < code.length && /[A-Za-z0-9_$]/.test(code[j]!)) j++;
-        const word = code.slice(i, j);
+        i = consumeIdentifier(code, i, ALL_KEYWORDS, tokens, {
+          functionKeywords,
+          pendingIsFunction,
+        });
+
         // Detect `const x = ...`, `let x = ...`, `var x = ...` —
         // the identifier following the keyword (with optional whitespace)
         // is treated as a function name.
-        const prev = lastNonPlainToken(tokens);
-        const isAfterDecl = prev !== undefined
-          && (prev.text === 'const' || prev.text === 'let' || prev.text === 'var');
-        if (KEYWORDS.has(word) || TS_KEYWORDS.has(word)) {
-          tokens.push({ kind: 'keyword', text: word });
-          if (word === 'function' || word === 'class') pendingIsFunction = true;
-        } else if (pendingIsFunction || isAfterDecl) {
-          tokens.push({ kind: 'function', text: word });
-          pendingIsFunction = false;
-        } else {
-          tokens.push({ kind: 'identifier', text: word });
+        const emitted = tokens[tokens.length - 1];
+        if (emitted?.kind === 'identifier') {
+          const prev = lastNonPlainToken(tokens.slice(0, -1));
+          const isAfterDecl = prev !== undefined
+            && (prev.text === 'const' || prev.text === 'let' || prev.text === 'var');
+          if (isAfterDecl) {
+            tokens[tokens.length - 1] = { kind: 'function', text: emitted.text };
+          }
         }
-        i = j;
         continue;
       }
 
@@ -179,14 +176,6 @@ export const typescriptTokenizer: Tokenizer = {
     return tokens;
   },
 };
-
-/** Returns last token whose kind is not 'plain'. */
-function lastNonPlainToken(tokens: Token[]): Token | undefined {
-  for (let i = tokens.length - 1; i >= 0; i--) {
-    if (tokens[i]!.kind !== 'plain') return tokens[i];
-  }
-  return undefined;
-}
 
 /**
  * `/` is division when preceded by a value-position token

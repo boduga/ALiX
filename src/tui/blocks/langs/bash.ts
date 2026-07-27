@@ -7,6 +7,12 @@
 //     esac, in, function, select, until, time
 
 import type { Token, Tokenizer } from '../types.js';
+import {
+  consumeWhitespace,
+  consumeHashComment,
+  consumeString,
+  consumeIdentifier,
+} from './shared.js';
 
 const KEYWORDS = new Set([
   'if', 'then', 'fi', 'else', 'elif',
@@ -26,33 +32,19 @@ export const bashTokenizer: Tokenizer = {
     while (i < code.length) {
       const c = code[i]!;
 
-      if (/[ \t\r\n]/.test(c)) {
-        let j = i;
-        while (j < code.length && /[ \t\r\n]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'plain', text: code.slice(i, j) });
-        i = j;
-        continue;
-      }
+      // Whitespace.
+      const wsI = consumeWhitespace(code, i, tokens);
+      if (wsI !== i) { i = wsI; continue; }
 
       // Comments.
       if (c === '#') {
-        let j = i + 1;
-        while (j < code.length && code[j] !== '\n') j++;
-        tokens.push({ kind: 'comment', text: code.slice(i, j) });
-        i = j;
+        i = consumeHashComment(code, i, tokens);
         continue;
       }
 
       // Strings.
       if (c === '"' || c === "'") {
-        let j = i + 1;
-        while (j < code.length && code[j] !== c) {
-          if (code[j] === '\\') j++;
-          j++;
-        }
-        if (j < code.length) j++;
-        tokens.push({ kind: 'string', text: code.slice(i, j) });
-        i = j;
+        i = consumeString(code, i, tokens);
         continue;
       }
 
@@ -72,15 +64,7 @@ export const bashTokenizer: Tokenizer = {
 
       // Identifiers / keywords.
       if (/[A-Za-z_]/.test(c)) {
-        let j = i + 1;
-        while (j < code.length && /[A-Za-z0-9_]/.test(code[j]!)) j++;
-        const word = code.slice(i, j);
-        if (KEYWORDS.has(word)) {
-          tokens.push({ kind: 'keyword', text: word });
-        } else {
-          tokens.push({ kind: 'identifier', text: word });
-        }
-        i = j;
+        i = consumeIdentifier(code, i, KEYWORDS, tokens);
         continue;
       }
 

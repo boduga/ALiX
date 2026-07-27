@@ -13,6 +13,13 @@
 // never knows Python; it just gets a stream of (kind, text) pairs.
 
 import type { Token, Tokenizer } from '../types.js';
+import {
+  consumeWhitespace,
+  consumeHashComment,
+  consumeString,
+  consumeNumber,
+  consumeIdentifier,
+} from './shared.js';
 
 const KEYWORDS = new Set([
   'def', 'return', 'if', 'elif', 'else', 'for', 'while', 'class',
@@ -23,6 +30,10 @@ const KEYWORDS = new Set([
   'None', 'True', 'False', 'self',
 ]);
 
+const functionKeywords = new Set(['def', 'class']);
+
+const NUMBER_PATTERN = /[0-9._a-fA-Fx]/;
+
 export const pythonTokenizer: Tokenizer = {
   language: 'python',
 
@@ -30,86 +41,55 @@ export const pythonTokenizer: Tokenizer = {
     if (code === '') return [];
     const tokens: Token[] = [];
     let i = 0;
-    let pendingIsFunction = false; // true when next identifier should be `function`
+    const pendingIsFunction = { value: false };
 
     while (i < code.length) {
-      const c = code[i]!;
-
-      // Whitespace and newlines — preserve verbatim as plain.
+      // Whitespace — preserve verbatim as plain.
       // pendingIsFunction is NOT reset here: `def foo` (a single space) must
       // still recognize `foo` as the function name; we only consume the flag
       // when an identifier is actually emitted.
-      if (c === ' ' || c === '\t' || c === '\n' || c === '\r') {
-        let j = i;
-        while (j < code.length && /[ \t\r\n]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'plain', text: code.slice(i, j) });
-        i = j;
-        continue;
-      }
+      const wsI = consumeWhitespace(code, i, tokens);
+      if (wsI !== i) { i = wsI; continue; }
+
+      const c = code[i]!;
 
       // Comments — `#` to end of line.
       if (c === '#') {
-        let j = i + 1;
-        while (j < code.length && code[j] !== '\n') j++;
-        tokens.push({ kind: 'comment', text: code.slice(i, j) });
-        i = j;
+        i = consumeHashComment(code, i, tokens);
         continue;
       }
 
       // Strings (single, double, triple, f-prefix).
       if (c === '"' || c === "'") {
-        let j = i;
         // f-prefix?
-        if (j > 0 && code[j - 1] === 'f' && tokens[tokens.length - 1]?.text.endsWith('f')) {
+        if (i > 0 && code[i - 1] === 'f' && tokens[tokens.length - 1]?.text.endsWith('f')) {
           // Include the leading 'f' in the string token for visual fidelity.
           // Roll back: pop the previous 'f' plain token and prepend it.
-          const prev = tokens.pop();
-          if (prev) i--;
-        }
-        const triple = code.slice(j, j + 3) === c.repeat(3);
-        if (triple) {
-          j += 3;
-          while (j < code.length && code.slice(j, j + 3) !== c.repeat(3)) j++;
-          if (j < code.length) j += 3;
-          tokens.push({ kind: 'string', text: code.slice(i, j) });
-          i = j;
+          tokens.pop();
+          const end = consumeString(code, i, tokens, { triple: true });
+          const last = tokens[tokens.length - 1];
+          if (last?.kind === 'string') {
+            tokens[tokens.length - 1] = { kind: 'string', text: 'f' + last.text };
+          }
+          i = end;
           continue;
         }
-        j++;
-        while (j < code.length && code[j] !== c && code[j] !== '\n') {
-          if (code[j] === '\\') j++;
-          j++;
-        }
-        if (j < code.length && code[j] === c) j++;
-        tokens.push({ kind: 'string', text: code.slice(i, j) });
-        i = j;
+        i = consumeString(code, i, tokens, { triple: true });
         continue;
       }
 
       // Numbers.
       if (/[0-9]/.test(c)) {
-        let j = i + 1;
-        while (j < code.length && /[0-9._a-fA-Fx]/.test(code[j]!)) j++;
-        tokens.push({ kind: 'number', text: code.slice(i, j) });
-        i = j;
+        i = consumeNumber(code, i, tokens, NUMBER_PATTERN);
         continue;
       }
 
       // Identifiers / keywords.
       if (/[A-Za-z_]/.test(c)) {
-        let j = i + 1;
-        while (j < code.length && /[A-Za-z0-9_]/.test(code[j]!)) j++;
-        const word = code.slice(i, j);
-        if (KEYWORDS.has(word)) {
-          tokens.push({ kind: 'keyword', text: word });
-          if (word === 'def' || word === 'class') pendingIsFunction = true;
-        } else if (pendingIsFunction) {
-          tokens.push({ kind: 'function', text: word });
-          pendingIsFunction = false;
-        } else {
-          tokens.push({ kind: 'identifier', text: word });
-        }
-        i = j;
+        i = consumeIdentifier(code, i, KEYWORDS, tokens, {
+          functionKeywords,
+          pendingIsFunction,
+        });
         continue;
       }
 

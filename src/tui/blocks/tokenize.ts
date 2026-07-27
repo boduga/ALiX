@@ -40,10 +40,3 @@ export function tokenize(code: string, language?: string): Token[] {
   return (tokenizer ?? plainTokenizer).tokenize(code);
 }
 
-/**
- * Internal — Tasks 7-10 register tokenizers without
- * exposing the registry.
- */
-export function registerTokenizer(language: string, tokenizer: Tokenizer): void {
-  TOKENIZERS[language.toLowerCase()] = tokenizer;
-}
