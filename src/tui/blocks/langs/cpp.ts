@@ -8,7 +8,7 @@
 //     return, short, signed, sizeof, static, struct, switch, template,
 //     this, throw, true, try, typedef, typeid, typename, union, unsigned,
 //     using, virtual, void, volatile, while
-//   - strings: double-quoted (with escapes), raw R"(...)"
+//   - strings: double-quoted (with escapes)
 //   - chars: 'a'
 //   - comments: //, /* */
 //   - numbers: int, float, hex, binary
@@ -22,7 +22,6 @@ import {
   consumeString,
   consumeNumber,
   consumeIdentifier,
-  lastNonPlainToken,
 } from './shared.js';
 
 const KEYWORDS = new Set([
@@ -107,16 +106,9 @@ export const cppTokenizer: Tokenizer = {
       }
 
       // Preprocessor directives (#include, #define, etc.)
-      if (c === '#' && i === 0) {
-        // Check if previous content was a newline
-        // Look backwards for a newline to see if we're at line start
-        let lineStart = i;
-        for (let k = i - 1; k >= 0; k--) {
-          if (code[k] === '\n') { lineStart = k + 1; break; }
-          if (!/[ \t]/.test(code[k]!)) break;
-        }
+      if (c === '#') {
+        // Check if preceded by whitespace/newline (start of line)
         let j = i + 1;
-        // Only treat as preprocessor directive if preceded by whitespace/newline
         const isPreprocessor = (() => {
           for (let k = i - 1; k >= 0; k--) {
             if (code[k] === '\n') return true;
