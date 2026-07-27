@@ -61,10 +61,10 @@ export const rubyTokenizer: Tokenizer = {
         continue;
       }
 
-      // %q(...), %Q(...), %(...) style strings.
-      if (c === '%' && i + 1 < code.length && /[qQrIwWsx]/.test(code[i + 1]!)) {
-        const typeChar = code[i + 1]!;
-        let j = i + 2;
+      // %q(...), %Q(...), %(...) style strings — with optional type char.
+      if (c === '%' && i + 1 < code.length) {
+        const typeIdx = /[qQrIwWsx]/.test(code[i + 1]!) ? 2 : 1;
+        let j = i + typeIdx;
         if (j < code.length) {
           const delimiter = code[j]!;
           const matchingDelim = /[({[]/.test(delimiter)
@@ -82,24 +82,41 @@ export const rubyTokenizer: Tokenizer = {
         }
       }
 
-      // Heredoc start: `<<~`, `<<-`, or `<<` followed by identifier/quoted.
+      // Heredoc `<<~TEXT`, `<<-TEXT`, `<<TEXT`, with optional quotes — capture body.
       if (c === '<' && code[i + 1] === '<') {
         let j = i + 2;
-        // Skip optional ~ or -
         if (code[j] === '~' || code[j] === '-') j++;
-        // Skip whitespace
         while (j < code.length && code[j] === ' ') j++;
-        // Read heredoc delimiter (quoted or bare identifier)
+        // Parse delimiter (may be quoted)
+        let delimiter: string;
         if (j < code.length && (code[j] === '"' || code[j] === '\'' || code[j] === '`')) {
-          const delim = code[j]!;
-          j++;
-          while (j < code.length && code[j] !== delim) j++;
-          if (j < code.length) j++;
+          const q = code[j]!;
+          const start = ++j;
+          while (j < code.length && code[j] !== q) j++;
+          delimiter = code.slice(start, j);
+          if (j < code.length) j++; // skip closing quote
         } else {
+          const start = j;
           while (j < code.length && /[A-Za-z0-9_]/.test(code[j]!)) j++;
+          delimiter = code.slice(start, j);
         }
+        // Emit opening line
         tokens.push({ kind: 'string', text: code.slice(i, j) });
         i = j;
+        // Scan forward for closing delimiter on its own line
+        while (i < code.length) {
+          const nl = code.indexOf('\n', i);
+          if (nl === -1) break;
+          const lineStart = nl + 1;
+          const lineEnd = code.indexOf('\n', lineStart);
+          const line = lineEnd === -1 ? code.slice(lineStart) : code.slice(lineStart, lineEnd);
+          if (line.trim() === delimiter) {
+            tokens.push({ kind: 'string', text: code.slice(i, lineEnd === -1 ? code.length : lineEnd) });
+            i = lineEnd === -1 ? code.length : lineEnd;
+            break;
+          }
+          i = lineStart;
+        }
         continue;
       }
 
