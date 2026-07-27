@@ -7,8 +7,9 @@
 // Code blocks are handled minimally here (placeholder). Task 6 wires
 // up the full bordered-chrome rendering with tokenization.
 
-import type { ResponseBlock, InlineSpan, StyledRow, Theme } from './types.js';
+import type { ResponseBlock, InlineSpan, StyledRow, Theme, Token } from './types.js';
 import { parseInline } from './inline.js';
+import { tokenize } from './tokenize.js';
 import { wrapText } from '../views/wrap-text.js';
 
 /**
@@ -45,9 +46,7 @@ export function renderBlocks(
         out.push(...renderList(block, theme, width, isFirst));
         break;
       case 'code':
-        // Code rendering with chrome lands in Task 6. Placeholder for
-        // now: a single line "[code]" so callers don't crash.
-        out.push({ text: theme.codePlain('[code]'), isFirst });
+        out.push(...renderCode(block, theme, width, isFirst));
         break;
     }
   }
@@ -152,5 +151,85 @@ function styleInlineSpan(span: InlineSpan, theme: Theme): string {
       return theme.inlineCode(span.text);
     case 'link':
       return theme.link(span.text, span.href);
+  }
+}
+
+// --- Code block rendering ---
+
+function renderCode(
+  block: Extract<ResponseBlock, { type: 'code' }>,
+  theme: Theme,
+  width: number,
+  isFirst: boolean,
+): StyledRow[] {
+  // Layout:
+  // ┌─ <lang> ─<filler>─┐
+  // │ <code line> │
+  // └─<filler>─┘
+  const innerWidth = Math.max(1, width - 4); // 2 borders + 2 padding
+  const lang = block.language ?? '';
+
+  // Tokenize (plain fallback for unknown languages; richer in Tasks 7-10).
+  const tokens = tokenize(block.code, block.language);
+
+  // Render code lines: each line's tokens are styled and concatenated.
+  // Wrap each line to innerWidth (existing wrapText is ANSI-aware).
+  // Tokenize emits `{kind:'plain', text:'\n\n'}` tokens to preserve
+  // blank lines, so we need to split on those.
+  const codeLines: string[] = [];
+  let currentLine = '';
+  for (const tok of tokens) {
+    if (tok.kind === 'plain' && /^\n+$/.test(tok.text)) {
+      // Blank-line marker — push current line, push empty lines.
+      codeLines.push(currentLine);
+      currentLine = '';
+      for (let i = 1; i < tok.text.length; i++) codeLines.push('');
+    } else {
+      currentLine += styleToken(tok, theme);
+    }
+  }
+  codeLines.push(currentLine);
+
+  // Wrap each line and add side borders.
+  const borderedLines = codeLines.map((line) => {
+    const wrapped = wrapText(line || ' ', innerWidth);
+    // Re-emit each wrapped line with borders.
+    return wrapped.map((l) => `${theme.codeBorder}│${'\x1b[0m'} ${l} ${theme.codeBorder}│${'\x1b[0m'}`);
+  });
+
+  const rows: StyledRow[] = [];
+  // Top border with optional language label.
+  const topLabel = lang ? ` ${lang} ` : '';
+  const topFill = Math.max(0, width - 2 - topLabel.length - 2);
+  rows.push({
+    text: `${theme.codeBorder}┌─${'\x1b[0m'}${theme.codeLangLabel(topLabel)}${theme.codeBorder}${'─'.repeat(topFill)}─┐${'\x1b[0m'}`,
+    isFirst,
+  });
+
+  for (const wrappedLines of borderedLines) {
+    for (const line of wrappedLines) {
+      rows.push({ text: line, isFirst: false });
+    }
+  }
+
+  // Bottom border.
+  rows.push({
+    text: `${theme.codeBorder}${'─'.repeat(width - 2)}┘${'\x1b[0m'}`,
+    isFirst: false,
+  });
+  return rows;
+}
+
+function styleToken(token: Token, theme: Theme): string {
+  switch (token.kind) {
+    case 'keyword': return theme.codeKeyword(token.text);
+    case 'string': return theme.codeString(token.text);
+    case 'comment': return theme.codeComment(token.text);
+    case 'number': return theme.codeNumber(token.text);
+    case 'function': return theme.codeFunction(token.text);
+    case 'identifier': return theme.codePlain(token.text);
+    case 'operator': return theme.codeOperator(token.text);
+    case 'punctuation': return theme.codePunctuation(token.text);
+    case 'plain': return theme.codePlain(token.text);
   }
 }

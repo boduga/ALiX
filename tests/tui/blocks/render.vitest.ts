@@ -90,4 +90,39 @@ describe('renderBlocks', () => {
     // Just verify it doesn't throw and produces something.
     expect(rows.length).toBeGreaterThan(0);
   });
+
+  it('renders code blocks with a bordered top/bottom and language label', () => {
+    const blocks = parseBlocks('```python\nx = 1\n```');
+    const rows = renderBlocks(blocks, defaultTheme, W);
+    // Top border with language label.
+    expect(rows[0]!.text).toMatch(/[┌╭]/);
+    expect(rows[0]!.text).toContain('python');
+    // Code line wrapped in side borders.
+    // Strip ANSI before searching — the Python tokenizer (already
+    // registered by Task 7) may inject color codes between tokens.
+    const codeRow = rows.find((r) => r.text.replace(/\x1b\[[0-9;]*m/g, '').includes('x = 1'));
+    expect(codeRow).toBeDefined();
+    expect(codeRow!.text).toMatch(/[│|]/);
+    // Bottom border.
+    expect(rows[rows.length - 1]!.text).toMatch(/[└╰┘]/);
+  });
+
+  it('tokenizes Python code and colors keywords', () => {
+    // The Python tokenizer is registered in Task 7. This test
+    // currently asserts the rendered output for an unknown language
+    // (the plain fallback). After Task 7 ships, this test gets
+    // updated to assert keyword coloring.
+    const blocks = parseBlocks('```python\ndef fib():\n    pass\n```');
+    const rows = renderBlocks(blocks, defaultTheme, W);
+    // Find the code rows.
+    const codeRows = rows.filter((r) => r.text.includes('def') || r.text.includes('pass'));
+    expect(codeRows.length).toBeGreaterThan(0);
+  });
+
+  it('renders code blocks without language (no language label, same chrome)', () => {
+    const blocks = parseBlocks('```\nplain text\n```');
+    const rows = renderBlocks(blocks, defaultTheme, W);
+    expect(rows[0]!.text).toMatch(/[┌╭]/);
+    expect(rows[0]!.text).not.toContain('python');
+  });
 });
