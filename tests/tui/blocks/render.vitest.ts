@@ -203,11 +203,15 @@ describe('renderBlocks', () => {
 
     it('uses tableBorder theme border styling', () => {
       const md = '| A | B |\n|---|---|\n| 1 | 2 |';
-      defaultTheme.tableBorder = '\x1b[31m';
-      const rows = renderBlocks(parseBlocks(md), defaultTheme, 60);
-      expect(rows[0]!.text).toContain('\x1b[31m');
-      expect(rows[0]!.text).toContain('┌');
-      defaultTheme.tableBorder = GRAY;
+      const origBorder = defaultTheme.tableBorder;
+      try {
+        defaultTheme.tableBorder = '\x1b[31m';
+        const rows = renderBlocks(parseBlocks(md), defaultTheme, 60);
+        expect(rows[0]!.text).toContain('\x1b[31m');
+        expect(rows[0]!.text).toContain('┌');
+      } finally {
+        defaultTheme.tableBorder = origBorder;
+      }
     });
   });
 });
