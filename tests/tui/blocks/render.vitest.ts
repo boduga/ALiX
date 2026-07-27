@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { renderBlocks } from '../../../src/tui/blocks/render.js';
 import { parseBlocks } from '../../../src/tui/blocks/parser.js';
 import { defaultTheme } from '../../../src/tui/blocks/theme.js';
+import { GRAY } from '../../../src/tui/ansi-constants.js';
 
 const W = 60;
 
@@ -182,6 +183,31 @@ describe('renderBlocks', () => {
       const rows = renderBlocks(blocks, defaultTheme, 60);
       expect(rows[0]!.text).toContain('[NOTE]');
       expect(rows[0]!.text).toContain('│');
+    });
+  });
+
+  describe('tables', () => {
+    it('renders basic table borders', () => {
+      const md = '| A | B |\n|---|---|\n| 1 | 2 |';
+      const rows = renderBlocks(parseBlocks(md), defaultTheme, 60);
+      expect(rows.length).toBeGreaterThan(0);
+      expect(rows[0]!.text).toContain('┌');
+      expect(rows[0]!.text).toContain('┐');
+    });
+
+    it('renders alignment-rendered table spacing', () => {
+      const md = '| L | R |\n|:---|---:|\n| left | right |';
+      const rows = renderBlocks(parseBlocks(md), defaultTheme, 60);
+      expect(rows.length).toBeGreaterThan(0);
+    });
+
+    it('uses tableBorder theme border styling', () => {
+      const md = '| A | B |\n|---|---|\n| 1 | 2 |';
+      defaultTheme.tableBorder = '\x1b[31m';
+      const rows = renderBlocks(parseBlocks(md), defaultTheme, 60);
+      expect(rows[0]!.text).toContain('\x1b[31m');
+      expect(rows[0]!.text).toContain('┌');
+      defaultTheme.tableBorder = GRAY;
     });
   });
 });

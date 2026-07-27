@@ -71,6 +71,7 @@ export const defaultTheme: Theme = {
     return `${BOLD_OPEN}${color}${keyword}${RESET}`;
   },
 
+  tableBorder: GRAY,
   quoteBar: GRAY,
   quote: (text) => wrap(`${DIM_OPEN}`, DIM_CLOSE, text),
   rule: GRAY,

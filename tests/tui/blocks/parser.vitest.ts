@@ -102,3 +102,63 @@ describe('parseBlocks', () => {
     ]);
   });
 });
+
+describe('tables', () => {
+  it('parses pipe table headers rows', () => {
+    const md = '| Name | Lang |\n|------|------|\n| Alice | TS |\n| Bob | Rust |';
+    const result = parseBlocks(md);
+    expect(result).toHaveLength(1);
+    const table = result[0]!;
+    expect(table).toHaveProperty('type', 'table');
+    if (table.type === 'table') {
+      expect(table.headers).toEqual(['Name', 'Lang']);
+      expect(table.rows).toEqual([['Alice', 'TS'], ['Bob', 'Rust']]);
+    }
+  });
+
+  it('parses alignment specifiers from delimiter row', () => {
+    const md = '| L | C | R |\n|:---|:--:|---:|\n| a | b | c |';
+    const result = parseBlocks(md);
+    if (result[0]!.type === 'table') {
+      expect(result[0]!.align).toEqual(['left', 'center', 'right']);
+    }
+  });
+
+  it('handles empty cells with leading/trailing pipes', () => {
+    const md = '| a || c |\n|---|---|---|\n| 1 | 2 | 3 |';
+    const result = parseBlocks(md);
+    if (result[0]!.type === 'table') {
+      expect(result[0]!.headers).toEqual(['a', '', 'c']);
+    }
+  });
+
+  it('handles varying column counts between header rows', () => {
+    const md = '| a | b | c |\n|---|---|---|\n| 1 | 2 |\n| 3 | 4 | 5 | 6 |';
+    const result = parseBlocks(md);
+    if (result[0]!.type === 'table') {
+      expect(result[0]!.headers).toHaveLength(3);
+      expect(result[0]!.rows[0]).toHaveLength(3);
+      expect(result[0]!.rows[1]).toHaveLength(3);
+    }
+  });
+
+  it('handles escaped pipes \\| inside cells', () => {
+    const md = '| a \\| b | c |\n|---|---|---|\n| d | e |';
+    const result = parseBlocks(md);
+    if (result[0]!.type === 'table') {
+      expect(result[0]!.headers[0]).toBe('a | b');
+    }
+  });
+
+  it('handles leading/trailing pipe optional', () => {
+    const md = 'a | b\n---|---\n1 | 2';
+    const result = parseBlocks(md);
+    expect(result[0]!.type).toBe('table');
+  });
+
+  it('returns text block when only delimiter row exists (no data)', () => {
+    const md = '| h1 | h2 |\n|---|---|';
+    const result = parseBlocks(md);
+    expect(result[0]!.type).toBe('text');
+  });
+});

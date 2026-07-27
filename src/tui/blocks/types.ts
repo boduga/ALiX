@@ -49,7 +49,8 @@ export type ResponseBlock =
   | { type: 'list'; marker: 'unordered' | 'ordered'; items: readonly string[] }
   | { type: 'heading'; level: HeadingLevel; text: string; spans?: readonly InlineSpan[] }
   | { type: 'quote'; text: string; spans?: readonly InlineSpan[] }
-  | { type: 'rule' };
+  | { type: 'rule' }
+  | { type: 'table'; headers: readonly string[]; rows: readonly (readonly string[])[]; align?: readonly ('left' | 'center' | 'right')[] };
 
 /**
  * Theme interface — every visual decision goes through one of these.
@@ -75,6 +76,7 @@ export interface Theme {
   codePunctuation(text: string): string;
   codePlain(text: string): string;
   calloutLabel(keyword: string): string;
+  tableBorder: string;
   quoteBar: string;
   quote(text: string): string;
   rule: string;

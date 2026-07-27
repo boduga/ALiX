@@ -51,6 +51,9 @@ export function renderBlocks(
       case 'code':
         out.push(...renderCode(block, theme, width, isFirst));
         break;
+      case 'table':
+        out.push(...renderTable(block, theme, width, isFirst));
+        break;
     }
   }
 
@@ -267,4 +270,76 @@ function styleToken(token: Token, theme: Theme): string {
     case 'punctuation': return theme.codePunctuation(token.text);
     case 'plain': return theme.codePlain(token.text);
   }
+}
+
+// ── Table rendering ──
+
+function renderTable(
+  block: Extract<ResponseBlock, { type: 'table' }>,
+  theme: Theme,
+  width: number,
+  isFirst: boolean,
+): StyledRow[] {
+  const { headers, rows, align } = block;
+  const colCount = headers.length;
+  if (colCount === 0) return [];
+
+  // Compute column widths (max of header/row content + 2 padding)
+  const colWidths = headers.map((h, i) => {
+    let maxW = h.length;
+    for (const row of rows) {
+      if (row[i] !== undefined) {
+        maxW = Math.max(maxW, row[i]!.length);
+      }
+    }
+    return Math.max(3, maxW + 2);
+  });
+
+  const B = theme.tableBorder;
+  const R = RESET;
+
+  // Border line helper: builds ┌───┬───┐ / ├───┼───┤ / └───┴───┘
+  const borderLine = (left: string, mid: string, right: string): string => {
+    const dashes = colWidths.map((w) => '─'.repeat(w));
+    return B + left + dashes.join(B + mid + B) + B + right + R;
+  };
+
+  // Pad cell content per alignment
+  const padCell = (content: string, col: number): string => {
+    const w = colWidths[col]! - 2;
+    const alignDir = align?.[col] ?? 'left';
+    const text = content.length > w ? content.slice(0, w - 1) + '…' : content;
+    const padTotal = w - text.length;
+    switch (alignDir) {
+      case 'right': return ' ' + ' '.repeat(padTotal) + text + ' ';
+      case 'center': {
+        const l = Math.floor(padTotal / 2);
+        return ' ' + ' '.repeat(l) + text + ' '.repeat(padTotal - l) + ' ';
+      }
+      default: return ' ' + text + ' '.repeat(padTotal) + ' ';
+    }
+  };
+
+  const out: StyledRow[] = [];
+
+  // Top border
+  out.push({ text: borderLine('┌', '┬', '┐'), isFirst });
+
+  // Header row
+  const headerCells = headers.map((h, i) => theme.bold(padCell(h, i)));
+  out.push({ text: B + '│' + headerCells.join(B + '│' + B) + B + '│' + R, isFirst: false });
+
+  // Header/content separator
+  out.push({ text: borderLine('├', '┼', '┤'), isFirst: false });
+
+  // Data rows
+  for (const row of rows) {
+    const cells = headers.map((_, i) => padCell(row[i] ?? '', i));
+    out.push({ text: B + '│' + cells.join(B + '│' + B) + B + '│' + R, isFirst: false });
+  }
+
+  // Bottom border
+  out.push({ text: borderLine('└', '┴', '┘'), isFirst: false });
+
+  return out;
 }

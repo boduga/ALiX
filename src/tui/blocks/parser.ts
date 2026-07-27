@@ -153,6 +153,15 @@ export function parseBlocks(md: string): readonly ResponseBlock[] {
       continue;
     }
 
+    // --- TABLE ---
+    const tableBlock = tryParseTable(lines, i);
+    if (tableBlock !== null) {
+      flushText();
+      blocks.push(tableBlock);
+      i = tableBlock._lineCount;
+      continue;
+    }
+
     // --- TEXT FALLBACK ---
     if (line.trim() === '') {
       if (textBuffer.length === 0) {
@@ -211,4 +220,127 @@ function matchRule(line: string): boolean {
   if (trimmed.length < 3) return false;
   if (!/^([-*_])\1{2,}$/.test(trimmed)) return false;
   return true;
+}
+
+// ── Table parsing ──
+
+type TableParseResult = ResponseBlock & {
+  type: 'table';
+  headers: string[];
+  rows: string[][];
+  align?: ('left' | 'center' | 'right')[];
+  _lineCount: number;
+};
+
+/**
+ * Attempt to parse a pipe table starting at line index `start`.
+ * Returns null if no table detected.
+ *
+ * GFM pipe table syntax:
+ *   | Header 1 | Header 2 |
+ *   |----------|----------|   ← delimiter row
+ *   | Cell 1   | Cell 2   |
+ *   | Cell 3   | Cell 4   |
+ */
+function tryParseTable(
+  lines: readonly string[],
+  start: number,
+): TableParseResult | null {
+  const headerLine = lines[start]!;
+  if (!headerLine.includes('|')) return null;
+  if (start + 1 >= lines.length) return null;
+  const delimLine = lines[start + 1]!;
+  const align = parseDelimiterRow(delimLine);
+  if (align === null) return null;
+
+  // Parse header cells
+  const headers = splitPipeCells(headerLine);
+
+  // Collect rows
+  const rows: string[][] = [];
+  const maxCols = headers.length;
+  let j = start + 2;
+  while (j < lines.length) {
+    const rowLine = lines[j]!;
+    if (!rowLine.includes('|') || rowLine.trim() === '') break;
+    if (rowLine.trimStart().startsWith('#')) break;
+    if (matchRule(rowLine)) break;
+
+    const cells = splitPipeCells(rowLine);
+    while (cells.length < maxCols) cells.push('');
+    rows.push(cells.slice(0, maxCols));
+    j++;
+  }
+
+  // Table must have at least one data row
+  if (rows.length === 0) return null;
+
+  const result: TableParseResult = {
+    type: 'table',
+    headers,
+    rows,
+    _lineCount: j,
+  };
+  if (align.some((a) => a !== null)) {
+    result.align = align.map((a) => a ?? 'left') as ('left' | 'center' | 'right')[];
+  }
+  return result;
+}
+
+/**
+ * Parse GFM delimiter row like `|---|---|` or `|:---|:--:|---:|`.
+ * Returns null if line is not a valid delimiter row.
+ * Returns array of alignments (null = default/left).
+ */
+function parseDelimiterRow(line: string): ('left' | 'center' | 'right' | null)[] | null {
+  const cells = splitPipeCells(line.trim());
+  if (cells.length === 0) return null;
+
+  const alignments: ('left' | 'center' | 'right' | null)[] = [];
+  for (const cell of cells) {
+    const trimmed = cell.trim();
+    if (!/^:?-{3,}:?$/.test(trimmed)) return null;
+
+    if (trimmed.startsWith(':') && trimmed.endsWith(':')) {
+      alignments.push('center');
+    } else if (trimmed.endsWith(':')) {
+      alignments.push('right');
+    } else {
+      alignments.push(null); // default: left
+    }
+  }
+  return alignments;
+}
+
+/**
+ * Split a pipe-delimited line into cells.
+ * Handles escaped pipes (\|) and optional leading/trailing pipes.
+ */
+function splitPipeCells(line: string): string[] {
+  let s = line.trim();
+  // Strip leading/trailing pipes
+  if (s.startsWith('|')) s = s.slice(1);
+  if (s.endsWith('|')) s = s.slice(0, -1);
+
+  const cells: string[] = [];
+  let current = '';
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i]!;
+    if (c === '\\' && s[i + 1] === '|') {
+      current += '|';
+      i += 2;
+      continue;
+    }
+    if (c === '|') {
+      cells.push(current.trim());
+      current = '';
+      i++;
+      continue;
+    }
+    current += c;
+    i++;
+  }
+  cells.push(current.trim());
+  return cells;
 }
