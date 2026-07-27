@@ -334,3 +334,8 @@ export function parseResponseBlocks(
 
   return blocks;
 }
+
+// Re-export the v2 parser so callers that want heading/quote/rule support
+// can import from a familiar path. The old `parseResponseBlocks` is
+// unchanged — its tests still pass and existing call sites keep working.
+export { parseBlocks } from '../tui/blocks/parser.js';
