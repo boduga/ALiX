@@ -37,7 +37,7 @@ export function parseInline(text: string): InlineSpan[] {
     // Backslash escape: \*, \\, \`
     if (c === '\\' && peek(1) !== undefined) {
       const next = text[i + 1]!;
-      if (next === '*' || next === '`' || next === '\\' || next === '[' || next === ']' || next === '(' || next === ')') {
+      if (next === '*' || next === '`' || next === '\\' || next === '[' || next === ']' || next === '(' || next === ')' || next === '~') {
         buf += next;
         i += 2;
         continue;
@@ -50,6 +50,17 @@ export function parseInline(text: string): InlineSpan[] {
       if (closeAt > i + 2) {
         flushText();
         out.push({ kind: 'bold', text: text.slice(i + 2, closeAt) });
+        i = closeAt + 2;
+        continue;
+      }
+    }
+
+    // ~~strikethrough~~
+    if (c === '~' && peek(1) === '~') {
+      const closeAt = text.indexOf('~~', i + 2);
+      if (closeAt > i + 2) {
+        flushText();
+        out.push({ kind: 'strikethrough', text: text.slice(i + 2, closeAt) });
         i = closeAt + 2;
         continue;
       }

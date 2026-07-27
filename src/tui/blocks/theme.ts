@@ -6,7 +6,7 @@
 // Distinct enough that a glance separates prose, code, and emphasis.
 import type { HeadingLevel } from './types.js';
 import type { Theme } from './types.js';
-import { RESET, BOLD_OPEN, BOLD_CLOSE, DIM_OPEN, DIM_CLOSE, ITALIC_OPEN, ITALIC_CLOSE, INVERSE_OPEN, INVERSE_CLOSE, UNDERLINE_OPEN, UNDERLINE_CLOSE, CYAN, GREEN, YELLOW, MAGENTA, BLUE, GRAY } from '../ansi-constants.js';
+import { RESET, BOLD_OPEN, BOLD_CLOSE, DIM_OPEN, DIM_CLOSE, ITALIC_OPEN, ITALIC_CLOSE, INVERSE_OPEN, INVERSE_CLOSE, UNDERLINE_OPEN, UNDERLINE_CLOSE, STRIKE_OPEN, STRIKE_CLOSE, CYAN, GREEN, YELLOW, MAGENTA, BLUE, GRAY } from '../ansi-constants.js';
 
 /** Wrap `text` in `prefix` (open) and `suffix` (close). */
 function wrap(prefix: string, suffix: string, text: string): string {
@@ -39,6 +39,7 @@ export const defaultTheme: Theme = {
 
   bold: (text) => wrap(BOLD_OPEN, BOLD_CLOSE, text),
   italic: (text) => wrap(ITALIC_OPEN, ITALIC_CLOSE, text),
+  strikethrough: (text) => wrap(STRIKE_OPEN, STRIKE_CLOSE, text),
   inlineCode: (text) => wrap(INVERSE_OPEN, INVERSE_CLOSE, text),
 
   // Raw prefixes — these get stamped onto cells, not wrapped around text.

@@ -21,6 +21,8 @@ export const INVERSE_OPEN = `${ESC}7m`;
 export const INVERSE_CLOSE = `${ESC}27m`;
 export const UNDERLINE_OPEN = `${ESC}4m`;
 export const UNDERLINE_CLOSE = `${ESC}24m`;
+export const STRIKE_OPEN = `${ESC}9m`;
+export const STRIKE_CLOSE = `${ESC}29m`;  // SGR 29 = cancel strikethrough
 
 // ── Foreground colors ──
 export const GRAY = `${ESC}90m`;

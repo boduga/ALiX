@@ -72,3 +72,28 @@ describe('parseInline', () => {
     ]);
   });
 });
+
+describe('strikethrough', () => {
+  it('parses ~~strikethrough~~', () => {
+    expect(parseInline('hello ~~world~~')).toEqual([
+      { kind: 'text', text: 'hello ' },
+      { kind: 'strikethrough', text: 'world' },
+    ]);
+  });
+
+  it('handles unclosed ~~ as literal text', () => {
+    expect(parseInline('hello ~~world')).toEqual([
+      { kind: 'text', text: 'hello ~~world' },
+    ]);
+  });
+
+  it('works with adjacent formatting ~~strike~~ **and** *italic*', () => {
+    expect(parseInline('~~strike~~ **bold** *italic*')).toEqual([
+      { kind: 'strikethrough', text: 'strike' },
+      { kind: 'text', text: ' ' },
+      { kind: 'bold', text: 'bold' },
+      { kind: 'text', text: ' ' },
+      { kind: 'italic', text: 'italic' },
+    ]);
+  });
+});

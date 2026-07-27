@@ -16,7 +16,8 @@ export type InlineSpan =
   | { kind: 'bold'; text: string }
   | { kind: 'italic'; text: string }
   | { kind: 'code'; text: string }
-  | { kind: 'link'; text: string; href: string };
+  | { kind: 'link'; text: string; href: string }
+  | { kind: 'strikethrough'; text: string };
 
 /**
  * Code token kinds. The renderer never knows what Python is — it only
@@ -62,6 +63,7 @@ export interface Theme {
   bold(text: string): string;
   italic(text: string): string;
   inlineCode(text: string): string;
+  strikethrough(text: string): string;
   codeBorder: string;
   codeLangLabel(text: string): string;
   codeKeyword(text: string): string;

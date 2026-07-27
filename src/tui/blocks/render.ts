@@ -162,6 +162,8 @@ function styleInlineSpan(span: InlineSpan, theme: Theme): string {
       return theme.inlineCode(span.text);
     case 'link':
       return theme.link(span.text, span.href);
+    case 'strikethrough':
+      return theme.strikethrough(span.text);
   }
 }
 
