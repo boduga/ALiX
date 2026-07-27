@@ -1,9 +1,7 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
-import { parseBlocks } from '../blocks/parser.js';
-import { renderBlocks } from '../blocks/render.js';
-import { defaultTheme } from '../blocks/theme.js';
+import { renderResponse } from '../blocks/render.js';
 
 /**
  * ChatView — default landing tab. Renders the input prompt placeholder
@@ -66,9 +64,7 @@ export class ChatView implements TuiView {
       }
       if (i < responses.length) {
         // Agent responses go through the rich renderer.
-        const blocks = parseBlocks(responses[i]!);
-        const styledRows = renderBlocks(blocks, defaultTheme, textWidth);
-        styledRows.forEach((row, j) => {
+        renderResponse(responses[i]!, textWidth).forEach((row, j) => {
           allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
         });
       }
