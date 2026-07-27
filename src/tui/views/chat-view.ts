@@ -55,6 +55,12 @@ export class ChatView implements TuiView {
     const allLines: ScrollbackLine[] = [];
     const maxLen = Math.max(submitted.length, responses.length);
     for (let i = 0; i < maxLen; i++) {
+      // Blank-line separator between turns so each query breathes away
+      // from the previous response. Skip the very first turn so we
+      // don't push a leading empty line.
+      if (i > 0) {
+        allLines.push({ kind: 'user', text: '', isFirst: false });
+      }
       if (i < submitted.length) {
         // User prompts render as plain text — no markdown parsing needed.
         const wrapped = wrapText(submitted[i]!, textWidth);

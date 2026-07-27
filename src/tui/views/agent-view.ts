@@ -119,7 +119,13 @@ export class AgentView implements TuiView {
       allLines.push({ kind: 'plan', text: '', isFirst: false });
     }
 
-    for (const t of turns) {
+    for (let ti = 0; ti < turns.length; ti++) {
+      const t = turns[ti]!;
+      // Blank-line separator between turns so each query breathes
+      // away from the previous response. Skip the very first turn.
+      if (ti > 0) {
+        allLines.push({ kind: t.kind, text: '', isFirst: false });
+      }
       const rendered = renderResponse(t.text, textWidth)
         .map(r => ({ kind: t.kind, text: r.text, isFirst: r.isFirst }));
       for (const line of rendered) {

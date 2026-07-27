@@ -173,8 +173,9 @@ describe('AgentView — user prompts', () => {
       submittedPrompts: ['first prompt', 'second prompt'],
     });
     const c = renderOnCanvas(W, TALL, perTab);
-    const rows = [6, 7].map((y) => rowText(c, y));
-    const all = rows.join('\n');
+    // Layout: row 6 = first prompt, row 7 = blank separator,
+    // row 8 = second prompt.
+    const all = [6, 7, 8].map((y) => rowText(c, y)).join('\n');
     expect(all).toContain('first prompt');
     expect(all).toContain('second prompt');
   });
@@ -217,16 +218,26 @@ describe('AgentView — user+agent turns', () => {
       agentResponses: ['a1', 'a2'],
     });
     const c = renderOnCanvas(W, TALL, perTab);
-    const rows = [6, 7, 8, 9].map((y) => rowText(c, y));
-    // Order: user q1, agent a1, user q2, agent a2
+    // Layout (blank line separator before every turn after the first):
+    //   row 6  = q1
+    //   row 7  = blank
+    //   row 8  = a1
+    //   row 9  = blank
+    //   row 10 = q2
+    //   row 11 = blank
+    //   row 12 = a2
+    const rows = [6, 7, 8, 9, 10, 11, 12].map((y) => rowText(c, y));
     expect(rows[0]).toContain('q1');
     expect(cellAt(c, 0, 6).char).toBe('→');
-    expect(rows[1]).toContain('a1');
-    expect(cellAt(c, 0, 7).char).toBe('←');
-    expect(rows[2]).toContain('q2');
-    expect(cellAt(c, 0, 8).char).toBe('→');
-    expect(rows[3]).toContain('a2');
-    expect(cellAt(c, 0, 9).char).toBe('←');
+    expect(rows[1]).toBe('');
+    expect(rows[2]).toContain('a1');
+    expect(cellAt(c, 0, 8).char).toBe('←');
+    expect(rows[3]).toBe('');
+    expect(rows[4]).toContain('q2');
+    expect(cellAt(c, 0, 10).char).toBe('→');
+    expect(rows[5]).toBe('');
+    expect(rows[6]).toContain('a2');
+    expect(cellAt(c, 0, 12).char).toBe('←');
   });
 
   it('handles unequal numbers of prompts and responses', () => {
