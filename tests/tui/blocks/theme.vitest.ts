@@ -50,4 +50,36 @@ describe('theme registry', () => {
       else delete process.env.COLORFGBG;
     }
   });
+
+  it('themes are fully populated and return styled output', () => {
+    for (const [name, theme] of Object.entries({ defaultTheme, lightTheme })) {
+      // Every non-property method returns ANSI-styled output
+      expect(theme.bold('x')).toContain('\x1b[');
+      expect(theme.italic('x')).toContain('\x1b[');
+      expect(theme.inlineCode('x')).toContain('\x1b[');
+      expect(theme.strikethrough('x')).toContain('\x1b[');
+      expect(theme.heading(1, 'x')).toContain('\x1b[');
+      expect(theme.headingRule(1)).toContain('\x1b[');
+      expect(theme.codeKeyword('x')).toContain('\x1b[');
+      expect(theme.codeString('x')).toContain('\x1b[');
+      expect(theme.codeComment('x')).toContain('\x1b[');
+      expect(theme.codeNumber('x')).toContain('\x1b[');
+      expect(theme.codeFunction('x')).toContain('\x1b[');
+      expect(theme.link('x', 'https://ex.com')).toContain('\x1b[');
+      expect(theme.codeLangLabel('x')).toContain('\x1b[');
+      expect(theme.calloutLabel('NOTE')).toContain('\x1b[');
+
+      // Raw prefix properties exist
+      expect(typeof theme.codeBorder).toBe('string');
+      expect(typeof theme.codeOperator).toBe('function');
+      expect(typeof theme.codePunctuation).toBe('function');
+      expect(typeof theme.codePlain).toBe('function');
+      expect(typeof theme.quoteBar).toBe('string');
+      expect(typeof theme.quote).toBe('function');
+      expect(typeof theme.rule).toBe('string');
+      expect(typeof theme.taskChecked).toBe('string');
+      expect(typeof theme.taskUnchecked).toBe('string');
+      expect(typeof theme.tableBorder).toBe('string');
+    }
+  });
 });

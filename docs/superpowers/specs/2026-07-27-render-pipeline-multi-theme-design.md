@@ -36,24 +36,24 @@ Key differences from `defaultTheme`:
 | Property | dark (default) | light |
 |----------|---------------|-------|
 | `codeBorder` | GRAY | BLACK |
-| `codeLangLabel` | bold+cyan | bold+blue |
-| `codeKeyword` | bold+magenta | bold+magenta (darkened) |
-| `codeString` | green | green (darkened) |
-| `codeComment` | dim | dim+black |
-| `codeFunction` | blue | blue (darkened) |
+| `codeLangLabel` | bold+cyan | bold+cyan |
+| `codeKeyword` | bold+magenta | bold (no color — stands out on light) |
+| `codeString` | green | green |
+| `codeComment` | dim | dim+gray |
+| `codeFunction` | blue | blue |
 | `quoteBar` | GRAY | BLACK |
-| `quote` | dim | dim+black |
+| `quote` | dim | dim |
 | `rule` | GRAY | BLACK |
-| `link` | underline+blue | underline+blue (darkened) |
-| `heading(1)` | bold+cyan | bold+blue |
-| `heading(2)` | bold+green | bold+green (darkened) |
-| `heading(3)` | bold+yellow | bold+yellow (darkened) |
+| `link` | underline+blue | underline+blue |
+| `heading(1)` | bold+cyan | bold+cyan |
+| `heading(2)` | bold+green | bold+green |
+| `heading(3)` | bold+yellow | bold+yellow |
 | `taskChecked` | green✓ | green✓ |
-| `taskUnchecked` | gray[ ] | black[ ] |
+| `taskUnchecked` | gray[ ] | gray[ ] |
 | `tableBorder` | GRAY | BLACK |
 | `calloutLabel(NOTE)` | bold+blue | bold+blue |
 
-Light theme uses ANSI color codes 0–7 (standard) instead of 90–97 (bright) where possible, so they show on white backgrounds without being invisible.
+Light theme uses ANSI color codes 0–7 (standard) instead of 90–97 (bright) where possible, so they show on white backgrounds without being invisible. Accent colors (CYAN, YELLOW, BLUE, MAGENTA) remain the same across both themes — only border/gutter colors shift to BLACK for visibility on light backgrounds.
 
 ## CLI Wiring (`src/cli.ts`)
 
