@@ -138,38 +138,40 @@ export function parseBlocks(md: string): readonly ResponseBlock[] {
 
       // Process first item
       let itemText = item.text;
+      let firstChecked: boolean | undefined;
       const firstTaskMatch = itemText.match(/^\[( |x|X)\]\s*/);
       if (firstTaskMatch) {
-        checkedItems.push(firstTaskMatch[1] === 'x' || firstTaskMatch[1] === 'X');
+        firstChecked = firstTaskMatch[1] === 'x' || firstTaskMatch[1] === 'X';
         hasTaskItem = true;
         itemText = itemText.slice(firstTaskMatch[0].length);
-      } else {
-        checkedItems.push(undefined);
       }
-      if (itemText !== '') items.push(itemText);
+      if (itemText !== '') {
+        checkedItems.push(firstChecked);
+        items.push(itemText);
+      }
 
       let j = i + 1;
       while (j < lines.length) {
         const candidate = matchListItem(lines[j]!);
         if (candidate === null || candidate.marker !== marker) break;
         let candidateText = candidate.text;
+        let candidateChecked: boolean | undefined;
         const candidateTaskMatch = candidateText.match(/^\[( |x|X)\]\s*/);
         if (candidateTaskMatch) {
-          checkedItems.push(candidateTaskMatch[1] === 'x' || candidateTaskMatch[1] === 'X');
+          candidateChecked = candidateTaskMatch[1] === 'x' || candidateTaskMatch[1] === 'X';
           hasTaskItem = true;
           candidateText = candidateText.slice(candidateTaskMatch[0].length);
-        } else {
-          checkedItems.push(undefined);
         }
         if (candidateText === '') break; // empty item — stop
+        checkedItems.push(candidateChecked);
         items.push(candidateText);
         j++;
       }
 
       if (items.length > 0) {
-        const listBlock: ResponseBlock = { type: 'list', marker, items };
+        const listBlock: ResponseBlock & { checked?: readonly (boolean | undefined)[] } = { type: 'list', marker, items };
         if (hasTaskItem) {
-          (listBlock as any).checked = checkedItems;
+          listBlock.checked = checkedItems;
         }
         blocks.push(listBlock);
       }

@@ -46,7 +46,7 @@ export interface Token {
 export type ResponseBlock =
   | { type: 'text'; text: string; spans?: readonly InlineSpan[] }
   | { type: 'code'; language?: string; code: string; spans?: undefined }
-  | { type: 'list'; marker: 'unordered' | 'ordered'; items: readonly string[]; checked?: readonly boolean[] }
+  | { type: 'list'; marker: 'unordered' | 'ordered'; items: readonly string[]; checked?: readonly (boolean | undefined)[] }
   | { type: 'heading'; level: HeadingLevel; text: string; spans?: readonly InlineSpan[] }
   | { type: 'quote'; text: string; spans?: readonly InlineSpan[] }
   | { type: 'rule' }
