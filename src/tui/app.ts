@@ -10,7 +10,6 @@ import type { AgentSession } from '../agent/session.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
 import { TerminalCanvas } from './canvas.js';
-import { renderSidebar } from './sidebar.js';
 import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PlanDecision } from '../run/plan-approval-gate.js';
@@ -42,7 +41,7 @@ export interface TuiAppOptions {
   keyDispatcher?: import('./key-dispatcher.js').KeyDispatcher;
 }
 
-const TAB_ORDER: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -72,6 +71,7 @@ export class TuiApp {
     this.output = opts.output ?? new StdioOutput();
     this.keyDispatcher = opts.keyDispatcher ?? new KeyDispatcher();
     this.defaultViews = {
+      dashboard: getView('dashboard')!,
       chat: getView('chat')!,
       agent: getView('agent')!,
       daemon: getView('daemon')!,
@@ -822,34 +822,29 @@ export class TuiApp {
   private paintFullFrame(): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
-    // 75/25 split — left column for chat/agent scrollback, right column for
-    // the 4 dashboard panels stacked vertically. Reserve 1 column for the
-    // vertical divider so the active view doesn't bleed into the sidebar.
-    const SPLIT_RATIO = 0.75;
-    const leftW = Math.max(40, Math.floor(dims.columns * SPLIT_RATIO));
-    const rightW = Math.max(20, dims.columns - leftW - 1);
     const FOOTER_H = 3;
     const HEADER_H = 3;
 
-    // Render the active view into a sub-canvas sized to the left column,
-    // then blit it into the main canvas. This keeps each view's existing
-    // row-4 prompt / row-5 status layout untouched while preventing writes
-    // past the divider.
-    const leftCanvas = new TerminalCanvas(leftW, dims.rows);
-    const leftCtx: ViewRenderContext = {
+    // Render the active view into a canvas sized to the full terminal.
+    // The dashboard tab consumes the entire body region (rows 3..rows-4)
+    // with its 2x2 or stacked panel layout. Chat and agent get the full
+    // width/height for their scrollback — the previous 75/25 split and
+    // vertical divider are gone.
+    const viewCanvas = new TerminalCanvas(dims.columns, dims.rows);
+    const viewCtx: ViewRenderContext = {
       snap: this.state.lastSnapshot,
-      dimensions: { columns: leftW, rows: dims.rows },
+      dimensions: { columns: dims.columns, rows: dims.rows },
       perTab: this.state.views[this.state.activeTab],
-      canvas: leftCanvas,
+      canvas: viewCanvas,
     };
-    this.views[this.state.activeTab]!.render(leftCtx);
+    this.views[this.state.activeTab]!.render(viewCtx);
 
-    // Plan approval card — drawn into the same left canvas as the active
-    // view. Visible from any tab; the gate's keyboard handler makes the
-    // keys available globally. Renders last so it overlays the view's
-    // scrollback area (the view's scrollback ends at rows-18 on the agent
-    // tab; the card sits at rows-7..rows-4, safely below).
-    this.paintPlanApprovalCard(leftCanvas, leftW, dims.rows, HEADER_H, FOOTER_H);
+    // Plan approval card — drawn into the same canvas as the active view.
+    // Visible from any tab; the gate's keyboard handler makes the keys
+    // available globally. Renders last so it overlays the view's
+    // scrollback area (sits at rows-7..rows-4, which is inside the
+    // expanded scrollback now — the card wins because it paints last).
+    this.paintPlanApprovalCard(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
 
     const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = this.state.lastSnapshot;
@@ -870,25 +865,11 @@ export class TuiApp {
     // Row 2: bottom rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
 
-    // Blit the left canvas into the main canvas at offset (0, 0).
-    c.blit(leftCanvas, 0, 0);
+    // Blit the view canvas into the main canvas at offset (0, 0).
+    c.blit(viewCanvas, 0, 0);
 
-    // Vertical divider between left and right columns.
-    for (let y = HEADER_H; y < dims.rows - FOOTER_H; y++) {
-      c.write(leftW, y, `\x1b[90m│\x1b[0m`);
-    }
-
-    // Render the sidebar into its own canvas and blit it on the right.
-    // Per-tab scroll state flows from the active tab so the operator's
-    // `J`/`K` keys (where applicable) keep the panel cursor in sync.
-    const activePerTab = this.state.views[this.state.activeTab];
-    const sidebarCanvas = renderSidebar(
-      snap, rightW, dims.rows, HEADER_H, FOOTER_H,
-      activePerTab.panelScrollOffsets,
-      activePerTab.panelFocus,
-    );
-    c.blit(sidebarCanvas, leftW + 1, 0);
-    // Tabs row (with key-hint suffix, right-aligned).
+    // Tabs row (with key-hint suffix, right-aligned). Now uses the
+    // full width — no sidebar column to clip against.
     let tabLine = '';
     for (const id of TAB_ORDER) {
       const active = id === this.state.activeTab;
@@ -896,17 +877,18 @@ export class TuiApp {
     }
     const tabHintsVisible = '↑/↓ navigate   |   tab next   |   ? help   |   q quit';
     const hintsLen = tabHintsVisible.length;
-    // Reserve room so the hints fit on the same line, right-aligned.
-    // Footer is clipped to the LEFT column so it doesn't bleed into the
-    // sidebar's footer area.
-    const tabRowBudget = Math.max(0, leftW - hintsLen - 1);
+    const tabRowBudget = Math.max(0, dims.columns - hintsLen - 1);
     const tabText = tabLine.length <= tabRowBudget
       ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
       : tabLine.slice(0, tabRowBudget);
     c.write(0, dims.rows - 3, tabText);
-    c.write(leftW - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
+    c.write(dims.columns - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
 
     // Status row — phase radios (left) | pipeline fields (right).
+    // Phase radios are workflow-lifecycle signals — they only make sense
+    // on the agent tab. On chat and dashboard, skip the phase segment
+    // so the operator doesn't see stale workflow phase from a previous
+    // processTurn run.
     const phaseDefs: ReadonlyArray<{ readonly phase: SessionPhase; readonly label: string }> = [
       { phase: SessionPhase.Understanding, label: 'UNDERSTANDING' },
       { phase: SessionPhase.Planning, label: 'PLANNING' },
@@ -936,23 +918,20 @@ export class TuiApp {
       `RULES: ${ruleCount}`,
       `EVENTS: ${eventsCount}`,
     ];
-    // Phase radios are workflow-lifecycle signals — they only make sense on
-    // the agent tab. On chat, skip the phase segment and start with the
-    // pipeline field chain so the operator doesn't see stale workflow
-    // phase from a previous processTurn run.
-    const statusLine = this.state.activeTab === 'chat'
-      ? `${sep} ${fields.join(` ${sep} `)}`
-      : `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`;
-    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, leftW - 2)));
+    const statusLine = this.state.activeTab === 'agent'
+      ? `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`
+      : `${sep} ${fields.join(` ${sep} `)}`;
+    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
 
     // Write the complete frame — cursor home + canvas render.
     this.output.write('\x1b[H' + c.renderFrame());
 
     // Place the terminal cursor at the active tab's input prompt position.
-    // Without this the cursor sits at the bottom of the screen (blinking on
-    // top of the status line) while typed text accumulates in the buffer,
-    // creating both an invisible-typing experience and a visual "flash" on
-    // every keypress as the full frame redraw overwrites the cursor area.
+    // Without this the cursor sits at the bottom of the screen (blinking
+    // on top of the status line) while typed text accumulates in the
+    // buffer, creating both an invisible-typing experience and a visual
+    // "flash" on every keypress as the full frame redraw overwrites the
+    // cursor area.
     if (this.state.activeTab === 'chat') {
       const bufLen = this.state.views.chat.inputBuffer.length;
       this.output.write(`\x1b[5;${7 + bufLen + 1}H`);
@@ -960,7 +939,8 @@ export class TuiApp {
       const bufLen = this.state.views.agent.inputBuffer.length;
       this.output.write(`\x1b[5;${13 + bufLen + 1}H`);
     } else {
-      // Non-input tabs: move cursor to a safe column (row 4, col 1) so it
+      // Non-input tabs (dashboard, daemon, approvals, runtime, sops,
+      // policy): move cursor to a safe column (row 4, col 1) so it
       // doesn't blink on top of the status line.
       this.output.write(`\x1b[5;1H`);
     }

@@ -54,6 +54,8 @@ describe('TuiAppState defaults', () => {
       lastSnapshot: undefined,
       activeTab: 'chat' as TabId,
       views: {
+        dashboard: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
+                pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
                 pinnedBottom: true, submittedPrompts: [], agentResponses: [], pendingApprovals: [], resolvedApprovals: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
@@ -74,7 +76,7 @@ describe('TuiAppState defaults', () => {
       history: [],
     };
     expect(s.activeTab).toBe('chat');
-    for (const id of ['chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'] as TabId[]) {
+    for (const id of ['dashboard', 'chat', 'daemon', 'approvals', 'runtime', 'sops', 'policy'] as TabId[]) {
       expect(s.views[id]).toBeDefined();
     }
   });

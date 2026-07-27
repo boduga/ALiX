@@ -37,24 +37,10 @@ describe('ChatView', () => {
     expect(frame).toContain('alix>');
   });
 
-  it('renders 4 dashboard panels on the canvas', () => {
-    const view = new ChatView();
-    const c = ctx({ dims: { columns: 120, rows: 30 } });
-    view.render(c);
-    const frame = c.canvas!.renderFrame();
-    expect(frame).toMatch(/DAEMON/);
-    expect(frame).toMatch(/APPROVALS/);
-    expect(frame).toMatch(/RUNTIME/);
-    expect(frame).toMatch(/SOPS/);
-  });
-
-  it('renders the offline notice when daemon snapshot is null', () => {
-    const view = new ChatView();
-    const c = ctx({ snap: { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null } });
-    view.render(c);
-    const frame = c.canvas!.renderFrame();
-    expect(frame).toContain('not running');
-  });
+  // === removed: dashboard panels moved to DashboardView ===
+  // The DAEMON/APPROVALS/RUNTIME/SOPs panels used to render at the
+  // bottom of the chat tab. They now live in the dashboard tab. See
+  // tests/tui/views/dashboard-view.vitest.ts for equivalent coverage.
 
   it('does not mutate perTab state on render', () => {
     const view = new ChatView();

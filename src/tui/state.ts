@@ -141,6 +141,7 @@ export function createInitialTuiAppState(): TuiAppState {
     lastSnapshot: undefined,
     activeTab: 'dashboard',
     views: {
+      dashboard: createInitialPerTabState(),
       chat: createInitialPerTabState(),
       agent: createInitialPerTabState(),
       daemon: createInitialPerTabState(),

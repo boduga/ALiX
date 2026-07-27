@@ -66,6 +66,9 @@ describe('TuiApp -- chat-input dispatch', () => {
     };
     // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
     internal.getStateForTest().lastSnapshot = snap;
+    // Switch to chat tab — the default is now 'dashboard', but these
+    // tests specifically exercise the chat input path.
+    internal.getStateForTest().activeTab = 'chat';
     internal.getStateForTest().views.chat.inputBuffer = '';
     internal.getStateForTest().views.chat.submittedPrompts = [];
     internal.getStateForTest().views.chat.agentResponses = [];
@@ -311,6 +314,9 @@ describe('TuiApp — bracketed paste', () => {
       };
     };
     internal.getStateForTest().lastSnapshot = snap;
+    // Switch to chat tab — the default is now 'dashboard', but these
+    // tests exercise the chat input path.
+    (internal.getStateForTest() as any).activeTab = 'chat';
     return { app, internal };
   }
 
@@ -379,6 +385,9 @@ describe('TuiApp — OSC 52 copy', () => {
       };
     };
     internal.getStateForTest().lastSnapshot = snap;
+    // Switch to chat tab — the default is now 'dashboard', but these
+    // tests exercise the chat input path.
+    (internal.getStateForTest() as any).activeTab = 'chat';
     return { app, internal };
   }
 
