@@ -24,6 +24,7 @@ import { randomUUID } from "node:crypto";
 import { createSingleNodeGraph, transitionNodeStatus, transitionGraphStatus } from "../kernel/task-graph.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import type { ExecutionContext } from "../observability/execution-context.js";
+import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
 
 export async function runTask(cwd: string, task: string, opts?: RunOpts, onStream?: StreamHandler): Promise<RunResult> {
   const metrics = new MinimalMetrics();
@@ -275,7 +276,6 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
   }
 
   // Build system prompt
-  const SYSTEM_PROMPT_BASE = "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved. For read-only queries (like pwd, ls, cat, grep), call done immediately after getting the result — there is nothing to verify.";
   const lines: string[] = [
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
@@ -283,14 +283,12 @@ export async function runTask(cwd: string, task: string, opts?: RunOpts, onStrea
 
   // For shell tasks (bare commands like ls, cat), inject a mode instruction
   if (shellTask) {
-    lines.push(`## Read-Only Mode
-The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+    lines.push(SHELL_TASK_PROMPT);
   }
 
   // For --read-only flag, inject a stricter mode instruction
   if (opts?.readOnly) {
-    lines.push(`## Read-Only Mode
-You are in read-only mode. You can read files, search the codebase, and delegate to subagents, but you CANNOT run shell commands or modify any files. Answer questions and investigate the codebase. Suggest changes verbally rather than making them.`);
+    lines.push(READ_ONLY_MODE_PROMPT);
   }
 
   if (matchedSkills && matchedSkills.length > 0) {
@@ -417,7 +415,6 @@ ${approvedPlanContent}`);
     throw err;
   }
 
-  const FAILURE_REASONS = new Set(["max_iterations", "max_repairs", "rejected_scope_expansion"]);
   const isFailed = FAILURE_REASONS.has(result.reason ?? "");
   if (isFailed) {
     transitionNodeStatus(taskNode, "failed");

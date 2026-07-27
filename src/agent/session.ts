@@ -75,6 +75,7 @@ import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory } from "../run/helpers.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import type { PlanTask } from "../planning/plan-task.js";
+import { SYSTEM_PROMPT_BASE, FAILURE_REASONS, SHELL_TASK_PROMPT, READ_ONLY_MODE_PROMPT } from "./system-prompt.js";
 
 /**
  * Lifecycle phases for an agent session. The active phase is observed
@@ -1086,11 +1087,6 @@ export class AgentSessionBuilder {
       advancePhase(SessionPhase.Verifying);
 
       // Update graph status based on result reason
-      const FAILURE_REASONS = new Set([
-        "max_iterations",
-        "max_repairs",
-        "rejected_scope_expansion",
-      ]);
       const isFailed = FAILURE_REASONS.has(result.reason ?? "");
 
       if (isFailed) {
@@ -1858,21 +1854,17 @@ async function setupSystemPrompt(
     memoryStats?: string;
   },
 ): Promise<string> {
-  const SYSTEM_PROMPT_BASE =
-    "You are ALiX, an AI coding agent. You have access to tools. IMPORTANT: When you call a tool, wait for the result in the next response before taking further action. If a tool returns an error, fix the issue. If the tool succeeds, confirm completion. Do NOT repeat the same tool call twice without checking the result first. When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved. For read-only queries (like pwd, ls, cat, grep), call done immediately after getting the result — there is nothing to verify.";
   const lines: string[] = [
     SYSTEM_PROMPT_BASE,
     `## Workspace\nYou are working in: \`${cwd}\`. All file paths are relative to this directory.`,
   ];
 
   if (opts.shellTask) {
-    lines.push(`## Read-Only Mode
-The user gave you a direct shell command. Use the \`shell_run\` tool to execute it, read the output, and call \`done\`. Do NOT read files or search the codebase unless the output clearly requires it. This task does not involve writing code or modifying files.`);
+    lines.push(SHELL_TASK_PROMPT);
   }
 
   if (opts.readOnly) {
-    lines.push(`## Read-Only Mode
-You are in read-only mode. You can read files, search the codebase, and delegate to subagents, but you CANNOT run shell commands or modify any files. Answer questions and investigate the codebase. Suggest changes verbally rather than making them.`);
+    lines.push(READ_ONLY_MODE_PROMPT);
   }
 
   if (opts.matchedSkills.length > 0) {
