@@ -148,7 +148,7 @@ themes.light = lightTheme;
 /**
  * Resolve a theme by name or auto-detect from environment.
  * 1. If a known name is given, return that theme.
- * 2. If COLORFGBG is set and its last segment < 8 (dark bg), prefer light.
+ * 2. If COLORFGBG is set and its last segment >= 8 (light bg), prefer light.
  * 3. Fallback to defaultTheme (dark).
  */
 export function getTheme(name?: string): Theme {
@@ -156,7 +156,7 @@ export function getTheme(name?: string): Theme {
   const bg = process.env.COLORFGBG;
   if (bg) {
     const last = bg.split(';').pop();
-    if (last && parseInt(last, 10) < 8 && themes.light) return themes.light;
+    if (last && parseInt(last, 10) >= 8 && themes.light) return themes.light;
   }
   return defaultTheme;
 }

@@ -28,4 +28,26 @@ describe('theme registry', () => {
   it('lightTheme is not defaultTheme', () => {
     expect(lightTheme).not.toBe(defaultTheme);
   });
+
+  it('getTheme() with COLORFGBG=15;15 returns lightTheme (light bg)', () => {
+    const saved = process.env.COLORFGBG;
+    process.env.COLORFGBG = '15;15';
+    try {
+      expect(getTheme()).toBe(lightTheme);
+    } finally {
+      if (saved !== undefined) process.env.COLORFGBG = saved;
+      else delete process.env.COLORFGBG;
+    }
+  });
+
+  it('getTheme() with COLORFGBG=0;0 returns defaultTheme (dark bg)', () => {
+    const saved = process.env.COLORFGBG;
+    process.env.COLORFGBG = '0;0';
+    try {
+      expect(getTheme()).toBe(defaultTheme);
+    } finally {
+      if (saved !== undefined) process.env.COLORFGBG = saved;
+      else delete process.env.COLORFGBG;
+    }
+  });
 });
