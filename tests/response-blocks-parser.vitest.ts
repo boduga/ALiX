@@ -21,7 +21,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { parseResponseBlocks } from "../src/agent/response-blocks.js";
+import { parseBlocks as parseResponseBlocks } from "../src/agent/response-blocks.js";
 
 describe("parseResponseBlocks — text", () => {
   it("returns [] on empty input", () => {
@@ -76,7 +76,6 @@ describe("parseResponseBlocks — code fences", () => {
         type: "code",
         language: "ts",
         code: "const x = 1;",
-        fenced: true,
       },
     ]);
   });
@@ -86,7 +85,6 @@ describe("parseResponseBlocks — code fences", () => {
       {
         type: "code",
         code: "plain",
-        fenced: true,
       },
     ]);
   });
@@ -97,13 +95,11 @@ describe("parseResponseBlocks — code fences", () => {
         type: "code",
         language: "ts",
         code: "x",
-        fenced: true,
       },
       {
         type: "code",
         language: "py",
         code: "y",
-        fenced: true,
       },
     ]);
   });
@@ -149,7 +145,6 @@ describe("parseResponseBlocks — code fences", () => {
       {
         type: "code",
         code: "hello",
-        fenced: true,
       },
     ]);
   });
@@ -169,7 +164,7 @@ describe("parseResponseBlocks — lists", () => {
     expect(parseResponseBlocks("- a\n- b\n- c")).toEqual([
       {
         type: "list",
-        marker: "-",
+        marker: "unordered",
         items: ["a", "b", "c"],
       },
     ]);
@@ -179,7 +174,7 @@ describe("parseResponseBlocks — lists", () => {
     expect(parseResponseBlocks("* a\n* b")).toEqual([
       {
         type: "list",
-        marker: "*",
+        marker: "unordered",
         items: ["a", "b"],
       },
     ]);
@@ -189,7 +184,7 @@ describe("parseResponseBlocks — lists", () => {
     expect(parseResponseBlocks("+ a\n+ b")).toEqual([
       {
         type: "list",
-        marker: "+",
+        marker: "unordered",
         items: ["a", "b"],
       },
     ]);
@@ -209,7 +204,7 @@ describe("parseResponseBlocks — lists", () => {
     expect(parseResponseBlocks("- a\n- b\n\nnext")).toEqual([
       {
         type: "list",
-        marker: "-",
+        marker: "unordered",
         items: ["a", "b"],
       },
       {
@@ -227,7 +222,7 @@ describe("parseResponseBlocks — lists", () => {
       },
       {
         type: "list",
-        marker: "-",
+        marker: "unordered",
         items: ["item"],
       },
       {
@@ -241,23 +236,18 @@ describe("parseResponseBlocks — lists", () => {
     expect(parseResponseBlocks("-\n- good\n- ")).toEqual([
       {
         type: "list",
-        marker: "-",
+        marker: "unordered",
         items: ["good"],
       },
     ]);
   });
 
-  it("keeps different adjacent markers separate", () => {
+  it("normalises different bullet markers into same list", () => {
     expect(parseResponseBlocks("- a\n* b")).toEqual([
       {
         type: "list",
-        marker: "-",
-        items: ["a"],
-      },
-      {
-        type: "list",
-        marker: "*",
-        items: ["b"],
+        marker: "unordered",
+        items: ["a", "b"],
       },
     ]);
   });

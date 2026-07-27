@@ -4,7 +4,7 @@
  * renders the live response shape correctly.
  */
 import { test, expect } from 'vitest';
-import { parseResponseBlocks } from '../src/agent/response-blocks.js';
+import { parseBlocks as parseResponseBlocks } from '../src/agent/response-blocks.js';
 import { TerminalCanvas } from '../src/tui/canvas.js';
 import { AgentView } from '../src/tui/views/agent-view.js';
 import type { ViewRenderContext } from '../src/tui/views/types.js';

@@ -133,7 +133,8 @@ export function parseBlocks(md: string): readonly ResponseBlock[] {
       flushText();
       const marker = item.marker;
       const items: string[] = [];
-      let j = i;
+      if (item.text !== '') items.push(item.text);
+      let j = i + 1;
       while (j < lines.length) {
         const candidate = matchListItem(lines[j]!);
         if (candidate === null || candidate.marker !== marker) break;
