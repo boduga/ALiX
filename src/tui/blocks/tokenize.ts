@@ -9,6 +9,7 @@ import { pythonTokenizer } from './langs/python.js';
 import { typescriptTokenizer } from './langs/typescript.js';
 import { jsonTokenizer } from './langs/json.js';
 import { bashTokenizer } from './langs/bash.js';
+import { htmlTokenizer } from './langs/html.js';
 
 /**
  * Registry of language tokenizers. Each entry maps a canonical
@@ -27,6 +28,8 @@ const TOKENIZERS: Record<string, Tokenizer> = {
   bash: bashTokenizer,
   sh: bashTokenizer,
   shell: bashTokenizer,
+  html: htmlTokenizer,
+  htm: htmlTokenizer,
 };
 
 /**
