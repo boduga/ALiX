@@ -119,7 +119,7 @@ export function parseInline(text: string): InlineSpan[] {
       const urlEnd = tryParseBareUrl(text, i);
       if (urlEnd > i) {
         flushText();
-        let url = text.slice(i, urlEnd);
+        const url = text.slice(i, urlEnd);
         // Strip trailing punctuation
         const stripped = url.replace(/[.!?,:;'")\]]+$/, '');
         if (stripped.length > 0) {
