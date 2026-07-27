@@ -46,7 +46,7 @@ export interface Token {
 export type ResponseBlock =
   | { type: 'text'; text: string; spans?: readonly InlineSpan[] }
   | { type: 'code'; language?: string; code: string; spans?: undefined }
-  | { type: 'list'; marker: 'unordered' | 'ordered'; items: readonly string[] }
+  | { type: 'list'; marker: 'unordered' | 'ordered'; items: readonly string[]; checked?: readonly (boolean | undefined)[] }
   | { type: 'heading'; level: HeadingLevel; text: string; spans?: readonly InlineSpan[] }
   | { type: 'quote'; text: string; spans?: readonly InlineSpan[] }
   | { type: 'rule' }
@@ -79,6 +79,8 @@ export interface Theme {
   tableBorder: string;
   quoteBar: string;
   quote(text: string): string;
+  taskChecked: string;
+  taskUnchecked: string;
   rule: string;
   link(text: string, href: string): string;
 }

@@ -133,21 +133,47 @@ export function parseBlocks(md: string): readonly ResponseBlock[] {
       flushText();
       const marker = item.marker;
       const items: string[] = [];
-      if (item.text !== '') items.push(item.text);
+      const checkedItems: (boolean | undefined)[] = [];
+      let hasTaskItem = false;
+
+      // Process first item
+      let itemText = item.text;
+      let firstChecked: boolean | undefined;
+      const firstTaskMatch = itemText.match(/^\[( |x|X)\]\s*/);
+      if (firstTaskMatch) {
+        firstChecked = firstTaskMatch[1] === 'x' || firstTaskMatch[1] === 'X';
+        hasTaskItem = true;
+        itemText = itemText.slice(firstTaskMatch[0].length);
+      }
+      if (itemText !== '') {
+        checkedItems.push(firstChecked);
+        items.push(itemText);
+      }
+
       let j = i + 1;
       while (j < lines.length) {
         const candidate = matchListItem(lines[j]!);
         if (candidate === null || candidate.marker !== marker) break;
-        if (candidate.text === '') break; // empty item — stop
-        items.push(candidate.text);
+        let candidateText = candidate.text;
+        let candidateChecked: boolean | undefined;
+        const candidateTaskMatch = candidateText.match(/^\[( |x|X)\]\s*/);
+        if (candidateTaskMatch) {
+          candidateChecked = candidateTaskMatch[1] === 'x' || candidateTaskMatch[1] === 'X';
+          hasTaskItem = true;
+          candidateText = candidateText.slice(candidateTaskMatch[0].length);
+        }
+        if (candidateText === '') break; // empty item — stop
+        checkedItems.push(candidateChecked);
+        items.push(candidateText);
         j++;
       }
+
       if (items.length > 0) {
-        blocks.push({
-          type: 'list',
-          marker: marker === 'ordered' ? 'ordered' : 'unordered',
-          items,
-        });
+        const listBlock: ResponseBlock & { checked?: readonly (boolean | undefined)[] } = { type: 'list', marker, items };
+        if (hasTaskItem) {
+          listBlock.checked = checkedItems;
+        }
+        blocks.push(listBlock);
       }
       i = j;
       continue;

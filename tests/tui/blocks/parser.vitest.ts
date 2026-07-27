@@ -162,3 +162,28 @@ describe('tables', () => {
     expect(result[0]!.type).toBe('text');
   });
 });
+
+describe('task lists', () => {
+  it('parses - [x] as a checked task item', () => {
+    expect(parseBlocks('- [x] done')).toEqual([
+      { type: 'list', marker: 'unordered', items: ['done'], checked: [true] },
+    ]);
+  });
+
+  it('parses - [ ] as an unchecked task item', () => {
+    expect(parseBlocks('- [ ] todo')).toEqual([
+      { type: 'list', marker: 'unordered', items: ['todo'], checked: [false] },
+    ]);
+  });
+
+  it('parses - [X] (uppercase) as checked', () => {
+    expect(parseBlocks('- [X] done')).toEqual([
+      { type: 'list', marker: 'unordered', items: ['done'], checked: [true] },
+    ]);
+  });
+
+  it('parses a plain list item without task marker (no checked property)', () => {
+    const result = parseBlocks('- plain');
+    expect(result[0]).not.toHaveProperty('checked');
+  });
+});
