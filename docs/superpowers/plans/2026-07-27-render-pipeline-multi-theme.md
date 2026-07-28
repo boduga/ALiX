@@ -42,7 +42,7 @@ export function getTheme(name?: string): Theme {
   const bg = process.env.COLORFGBG;
   if (bg) {
     const last = bg.split(';').pop();
-    if (last && parseInt(last, 10) < 8 && themes.light) return themes.light;
+    if (last && parseInt(last, 10) >= 8 && themes.light) return themes.light;
   }
   return defaultTheme;
 }

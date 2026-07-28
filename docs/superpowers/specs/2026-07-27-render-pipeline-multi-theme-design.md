@@ -21,7 +21,7 @@ export function getTheme(name?: string): Theme {
   const bg = process.env.COLORFGBG;
   if (bg) {
     const last = bg.split(';').pop();
-    if (last && parseInt(last, 10) < 8) return themes.light ?? defaultTheme;
+    if (last && parseInt(last, 10) >= 8) return themes.light ?? defaultTheme;
   }
   return defaultTheme;
 }
@@ -49,7 +49,7 @@ Key differences from `defaultTheme`:
 | `heading(2)` | bold+green | bold+green |
 | `heading(3)` | bold+yellow | bold+yellow |
 | `taskChecked` | green✓ | green✓ |
-| `taskUnchecked` | gray[ ] | gray[ ] |
+| `taskUnchecked` | gray[ ] | black[ ] |
 | `tableBorder` | GRAY | BLACK |
 | `calloutLabel(NOTE)` | bold+blue | bold+blue |
 

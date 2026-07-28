@@ -132,7 +132,7 @@ export const lightTheme: Theme = {
   quote: (text) => wrap(`${DIM_OPEN}`, DIM_CLOSE, text),
   rule: `\x1b[30m`,
   taskChecked: `${GREEN}✓${RESET}`,
-  taskUnchecked: `${GRAY}[ ]${RESET}`,
+  taskUnchecked: `\x1b[30m[ ]${RESET}`,
 
   link(text, href) {
     const B = '\x1b';
