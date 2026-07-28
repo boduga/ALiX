@@ -64,8 +64,8 @@ export function renderBlocks(
  * Convenience: parse + render a string in one call. Equivalent to
  * `renderBlocks(parseBlocks(text), defaultTheme, width)`.
  */
-export function renderResponse(text: string, width: number): StyledRow[] {
-  return renderBlocks(parseBlocks(text), defaultTheme, width);
+export function renderResponse(text: string, width: number, theme: Theme = defaultTheme): StyledRow[] {
+  return renderBlocks(parseBlocks(text), theme, width);
 }
 
 // --- Block renderers ---

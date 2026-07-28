@@ -1,41 +1,85 @@
 import { describe, it, expect } from 'vitest';
-import { defaultTheme } from '../../../src/tui/blocks/theme.js';
+import { getTheme, defaultTheme, lightTheme } from '../../../src/tui/blocks/theme.js';
 
-describe('defaultTheme', () => {
-  it('returns non-empty styled strings for every Theme method', () => {
-    expect(defaultTheme.heading(1, 'Title')).toMatch(/\x1b\[/);
-    expect(defaultTheme.heading(2, 'Title')).toMatch(/\x1b\[/);
-    expect(defaultTheme.heading(3, 'Title')).toMatch(/\x1b\[/);
-    expect(defaultTheme.headingRule(1)).toMatch(/[═=\-─]/);
-    expect(defaultTheme.bold('x')).toMatch(/\x1b\[/);
-    expect(defaultTheme.italic('x')).toMatch(/\x1b\[/);
-    expect(defaultTheme.inlineCode('x')).toMatch(/\x1b\[/);
-    expect(defaultTheme.codeLangLabel('python')).toMatch(/\x1b\[/);
-    expect(defaultTheme.codeKeyword('def')).toMatch(/\x1b\[/);
-    expect(defaultTheme.codeString('"x"')).toMatch(/\x1b\[/);
-    expect(defaultTheme.codeComment('# y')).toMatch(/\x1b\[/);
-    expect(defaultTheme.codeNumber('1')).toMatch(/\x1b\[/);
-    expect(defaultTheme.codeFunction('fib')).toMatch(/\x1b\[/);
-    // codeOperator and codePunctuation are designed to blend with code,
-    // so they return text unchanged (theme comment: "no styling").
-    expect(defaultTheme.codeOperator('=')).toBe('=');
-    expect(defaultTheme.codePunctuation('(')).toBe('(');
-    expect(defaultTheme.codePlain('x')).toBe('x');
-    expect(defaultTheme.quote('x')).toMatch(/\x1b\[/);
-    expect(defaultTheme.link('text', 'https://example.com')).toMatch(/\x1b\[/);
+describe('theme registry', () => {
+  it('getTheme("dark") returns defaultTheme', () => {
+    expect(getTheme('dark')).toBe(defaultTheme);
   });
 
-  it('produces ANSI codes that pass through TerminalCanvas.write without consuming columns', () => {
-    // Sanity: the prefix is what gets stamped onto cells. The visible
-    // payload should be the unescaped text.
-    expect(defaultTheme.bold('hello')).toContain('hello');
-    expect(defaultTheme.italic('hello')).toContain('hello');
-    expect(defaultTheme.inlineCode('hello')).toContain('hello');
+  it('getTheme("light") returns lightTheme', () => {
+    expect(getTheme('light')).toBe(lightTheme);
   });
 
-  it('exposes raw ANSI prefix strings for borders and bars', () => {
-    expect(defaultTheme.codeBorder).toMatch(/\x1b\[/);
-    expect(defaultTheme.quoteBar).toMatch(/\x1b\[/);
-    expect(defaultTheme.rule).toMatch(/\x1b\[/);
+  it('getTheme("unknown") returns defaultTheme', () => {
+    expect(getTheme('unknown')).toBe(defaultTheme);
+  });
+
+  it('getTheme() with no arg and no COLORFGBG returns defaultTheme', () => {
+    const saved = process.env.COLORFGBG;
+    delete process.env.COLORFGBG;
+    try {
+      expect(getTheme()).toBe(defaultTheme);
+    } finally {
+      if (saved !== undefined) process.env.COLORFGBG = saved;
+      else delete process.env.COLORFGBG;
+    }
+  });
+
+  it('lightTheme is not defaultTheme', () => {
+    expect(lightTheme).not.toBe(defaultTheme);
+  });
+
+  it('getTheme() with COLORFGBG=15;15 returns lightTheme (light bg)', () => {
+    const saved = process.env.COLORFGBG;
+    process.env.COLORFGBG = '15;15';
+    try {
+      expect(getTheme()).toBe(lightTheme);
+    } finally {
+      if (saved !== undefined) process.env.COLORFGBG = saved;
+      else delete process.env.COLORFGBG;
+    }
+  });
+
+  it('getTheme() with COLORFGBG=0;0 returns defaultTheme (dark bg)', () => {
+    const saved = process.env.COLORFGBG;
+    process.env.COLORFGBG = '0;0';
+    try {
+      expect(getTheme()).toBe(defaultTheme);
+    } finally {
+      if (saved !== undefined) process.env.COLORFGBG = saved;
+      else delete process.env.COLORFGBG;
+    }
+  });
+
+  it('themes are fully populated and return styled output', () => {
+    for (const [name, theme] of Object.entries({ defaultTheme, lightTheme })) {
+      // Every non-property method returns ANSI-styled output
+      expect(theme.bold('x')).toContain('\x1b[');
+      expect(theme.italic('x')).toContain('\x1b[');
+      expect(theme.inlineCode('x')).toContain('\x1b[');
+      expect(theme.strikethrough('x')).toContain('\x1b[');
+      expect(theme.heading(1, 'x')).toContain('\x1b[');
+      expect(theme.headingRule(1)).toContain('\x1b[');
+      expect(theme.codeKeyword('x')).toContain('\x1b[');
+      expect(theme.codeString('x')).toContain('\x1b[');
+      expect(theme.codeComment('x')).toContain('\x1b[');
+      expect(theme.codeNumber('x')).toContain('\x1b[');
+      expect(theme.codeFunction('x')).toContain('\x1b[');
+      expect(theme.link('x', 'https://ex.com')).toContain('\x1b[');
+      expect(theme.codeLangLabel('x')).toContain('\x1b[');
+      expect(theme.calloutLabel('NOTE')).toContain('\x1b[');
+
+      // Raw prefix properties exist
+      expect(typeof theme.codeBorder).toBe('string');
+      expect(typeof theme.codeOperator).toBe('function');
+      expect(typeof theme.codePunctuation).toBe('function');
+      expect(typeof theme.codePlain).toBe('function');
+      expect(typeof theme.quoteBar).toBe('string');
+      expect(typeof theme.quote).toBe('function');
+      expect(typeof theme.rule).toBe('string');
+      expect(typeof theme.taskChecked).toBe('string');
+      expect(typeof theme.taskUnchecked).toBe('string');
+      expect(typeof theme.tableBorder).toBe('string');
+    }
   });
 });

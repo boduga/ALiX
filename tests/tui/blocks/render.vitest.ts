@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderBlocks } from '../../../src/tui/blocks/render.js';
 import { parseBlocks } from '../../../src/tui/blocks/parser.js';
-import { defaultTheme } from '../../../src/tui/blocks/theme.js';
+import { defaultTheme, lightTheme } from '../../../src/tui/blocks/theme.js';
 import { GRAY } from '../../../src/tui/ansi-constants.js';
 
 const W = 60;
@@ -252,5 +252,10 @@ describe('renderBlocks', () => {
       expect(rows[2]!.text).toContain('[ ]');
       expect(rows[2]!.text).toContain('c');
     });
+  });
+
+  it('renders with lightTheme without error', () => {
+    const blocks = parseBlocks('hello **world**\n\n> quote\n\n```\ncode\n```\n\n| A | B |\n|---|---|\n| 1 | 2 |');
+    expect(() => renderBlocks(blocks, lightTheme, 60)).not.toThrow();
   });
 });
