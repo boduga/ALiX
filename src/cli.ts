@@ -57,7 +57,9 @@ COMMAND_ROUTER["tui"] = async () => {
     const modeIdx = a.indexOf("--mode");
     const sessionMode = modeIdx >= 0 ? a[modeIdx + 1] as "auto" | "ask" | "bypass" : undefined;
     const daemonMode = a.includes("--daemon");
-    await runTui({ sessionMode, daemonMode });
+    const themeIdx = a.indexOf("--theme");
+    const themeName = themeIdx >= 0 ? a[themeIdx + 1] : undefined;
+    await runTui({ sessionMode, daemonMode, themeName });
     return 0;
   }};
 };

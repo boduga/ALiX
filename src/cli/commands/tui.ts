@@ -21,6 +21,7 @@ export interface TuiOptions {
   sessionName?: string;
   sessionMode?: "auto" | "ask" | "bypass";
   daemonMode?: boolean;
+  themeName?: string;
 }
 
 /**
@@ -159,7 +160,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
   );
 
-  const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals });
+  const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals, themeName: opts.themeName });
 
   runtimeCollector.start();
   sopCollector.start();

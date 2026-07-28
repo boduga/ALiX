@@ -3,6 +3,7 @@ import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult,
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
 import { callout } from '../ui-helpers.js';
+import { getTheme } from '../blocks/theme.js';
 import { RESET } from '../ansi-constants.js';
 
 /**
@@ -127,7 +128,7 @@ export class AgentView implements TuiView {
       if (ti > 0) {
         allLines.push({ kind: t.kind, text: '', isFirst: false });
       }
-      const rendered = renderResponse(t.text, textWidth)
+      const rendered = renderResponse(t.text, textWidth, ctx.themeName ? getTheme(ctx.themeName) : undefined)
         .map(r => ({ kind: t.kind, text: r.text, isFirst: r.isFirst }));
       for (const line of rendered) {
         allLines.push(line);

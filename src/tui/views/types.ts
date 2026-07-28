@@ -17,6 +17,8 @@ export interface ViewRenderContext {
    * for rendering the final frame to stdout.
    */
   readonly canvas?: import('../canvas.js').TerminalCanvas;
+  /** Theme name for render pipeline. Defaults to 'dark'. */
+  readonly themeName?: string;
 }
 
 export interface ViewInputContext {

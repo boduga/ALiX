@@ -2,6 +2,7 @@ import type { PanelFocusId, PanelScrollOffsets, TabId, TuiAppState } from './sta
 import { createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
+import { getTheme } from './blocks/theme.js';
 import { getView } from './views/index.js';
 import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
@@ -39,6 +40,8 @@ export interface TuiAppOptions {
    *  built-in key handling. The dispatcher can consume a key (returning
    *  true) or let it fall through to the default path. */
   keyDispatcher?: import('./key-dispatcher.js').KeyDispatcher;
+  /** Theme name passed to renderResponse. Defaults to 'dark'. */
+  themeName?: string;
 }
 
 const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
@@ -836,6 +839,7 @@ export class TuiApp {
       dimensions: { columns: dims.columns, rows: dims.rows },
       perTab: this.state.views[this.state.activeTab],
       canvas: viewCanvas,
+      themeName: this.opts.themeName,
     };
     this.views[this.state.activeTab]!.render(viewCtx);
 
