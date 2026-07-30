@@ -329,10 +329,12 @@ if (text && text.length > 0) {
 
 // Emit decision for tool selection
 if (toolCalls.length > 0) {
+  const firstSummary = toolCalls[0]?.summary;
   await log.append({
     ...session, actor: "agent", type: "agent.decision",
     payload: { kind: "tool_selection", iteration: i,
       description: `Called ${toolCalls.map(t => t.name).join(", ")}`,
+      summary: firstSummary,
       outcome: "executed",
     },
   });
