@@ -38,6 +38,8 @@ import {
   type EventHandlerDeps,
 } from "./event-handlers.js";
 import { ProgressLedger } from "./progress-ledger.js";
+import { IntentClassifier, type AgentIntent } from "./intent-classifier.js";
+import { RESEARCH_SUPPLEMENT, MUTATION_SUPPLEMENT, VALIDATION_SUPPLEMENT } from "../agent/system-prompt.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -164,6 +166,7 @@ post_task?: { command: string; reason: string }[];
   verbose?: boolean;
   /** Called each iteration after the progress ledger is rendered. */
   onLedgerUpdate?: (text: string) => void;
+  currentIntent?: AgentIntent;
 }
 
 /**
@@ -236,6 +239,11 @@ const CHECKPOINT_TOOL_CALL_THRESHOLD = 5;
 const CHECKPOINT_WALL_CLOCK_MS = 30_000;
 const progressLedger = new ProgressLedger();
 
+// ── Intent classification state ─────────────────────────
+const intentClassifier = new IntentClassifier();
+let currentIntent: AgentIntent = deps.currentIntent ?? "research";
+let intentStreak = 0;
+
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
 
@@ -298,9 +306,15 @@ if (ledgerText) {
 // Expose rendered ledger text to the AgentSession for TUI consumption
 if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
 
+// Build intent-specific system prompt supplement
+const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
+  : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
+  : VALIDATION_SUPPLEMENT;
+const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}`;
+
 if (config.model.streaming && provider.stream) {
   const result = await streamToResponse(provider, {
-    systemPrompt,
+    systemPrompt: effectiveSystemPrompt,
     messages,
     tools: [...providerTools, ...mcpToolIndex],
     context: deps.context,
@@ -310,7 +324,7 @@ if (config.model.streaming && provider.stream) {
   usage = result.usage;
 } else {
   const resp = await provider.complete({
-    systemPrompt,
+    systemPrompt: effectiveSystemPrompt,
     messages,
     tools: [...providerTools, ...mcpToolIndex],
     context: deps.context,
@@ -622,6 +636,12 @@ if (toolCalls.length === 0) {
       searchCalls++;
     }
   }
+
+  // ── Intent classification ──────────────────────────────
+  const observedIntent = intentClassifier.classify(toolCalls);
+  const updateResult = intentClassifier.update(currentIntent, observedIntent, intentStreak);
+  currentIntent = updateResult.next;
+  intentStreak = updateResult.streak;
 
   // ── Progress checkpoint ──────────────────────────────────
   const wallClockElapsed = Date.now() - lastCheckpointWallClock;
