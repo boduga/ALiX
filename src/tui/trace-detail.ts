@@ -26,6 +26,10 @@ export function renderTraceSummary(event: TraceEvent): string[] {
   if (event.sessionId) lines.push(`  Session:     ${event.sessionId}`);
   if (event.sessionFilePath) lines.push(`  File:        ${event.sessionFilePath}`);
   if (event.detail) lines.push(`  Detail:      ${event.detail}`);
+  const rawPayload = (event as any).rawEvent?.payload;
+  if (rawPayload && typeof rawPayload.summary === 'string') {
+    lines.push(`  Summary:     ${rawPayload.summary}`);
+  }
   return lines;
 }
 

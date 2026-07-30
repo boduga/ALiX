@@ -225,6 +225,13 @@ export class TuiApp {
         if (perTab) perTab.progressLedger = snap.progressLedger;
       }
     }
+    // Sync pending tool calls from snapshot to every tab's perTab state
+    if (snap.pendingToolCalls) {
+      for (const t of this.SYNC_TABS) {
+        const perTab = this.state.views[t];
+        if (perTab) perTab.pendingToolCalls = snap.pendingToolCalls as Array<{ name: string; summary?: string }>;
+      }
+    }
   }
 
   private handleRaw(buf: Buffer): void {

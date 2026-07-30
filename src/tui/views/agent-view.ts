@@ -91,7 +91,7 @@ export class AgentView implements TuiView {
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
-    interface ScrollbackLine { kind: 'user' | 'agent' | 'plan' | 'approval'; text: string; isFirst: boolean }
+    interface ScrollbackLine { kind: 'user' | 'agent' | 'plan' | 'approval' | 'toolCall'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
 
     // Plan task checklist — rendered before the full plan markdown so the
@@ -164,11 +164,29 @@ export class AgentView implements TuiView {
         }
       }
     }
+    // Pending tool calls — rendered as two-line dim entries so the operator
+    // can see what tools are queued. Line 1: → tool name (dim), Line 2:
+    // 2-space indent + summary (dim, only if summary present).
+    if (ctx.perTab.pendingToolCalls && ctx.perTab.pendingToolCalls.length > 0) {
+      allLines.push({ kind: 'toolCall', text: 'PENDING TOOL CALLS', isFirst: false });
+      for (const tc of ctx.perTab.pendingToolCalls) {
+        allLines.push({ kind: 'toolCall', text: `→ ${tc.name}`, isFirst: true });
+        if (tc.summary) {
+          allLines.push({ kind: 'toolCall', text: `  ${tc.summary}`, isFirst: false });
+        }
+      }
+      allLines.push({ kind: 'toolCall', text: '', isFirst: false });
+    }
     // Progress ledger — dim-style status block showing recent tool
     // execution results (checkmarks for completed, crosses for failed).
+    // Press `e` to toggle between expanded (all lines) and collapsed
+    // (last 3 lines) view. The default is collapsed so the scrollback
+    // doesn't fill up with ledger noise during rapid tool execution.
     if (ctx.perTab.progressLedger) {
       const ledgerLines = ctx.perTab.progressLedger.split("\n");
-      for (const line of ledgerLines) {
+      const cap = ctx.perTab.ledgerExpanded ? ledgerLines.length : Math.min(3, ledgerLines.length);
+      const sliced = ledgerLines.slice(-cap);
+      for (const line of sliced) {
         allLines.push({ kind: 'plan', text: line, isFirst: false });
       }
     }
@@ -195,6 +213,14 @@ export class AgentView implements TuiView {
           c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
         } else {
           c.write(2, rowY, `\x1b[33m${l.text}${RESET}`);
+        }
+      } else if (l.kind === 'toolCall') {
+        // Tool call entries: header line uses bold dim, entries use dim
+        if (l.isFirst) {
+          c.write(0, rowY, `\x1b[2m→ ${RESET}`);
+          c.write(2, rowY, `\x1b[2m${l.text.slice(2)}${RESET}`);
+        } else {
+          c.write(2, rowY, `\x1b[2m${l.text}${RESET}`);
         }
       } else if (l.isFirst) {
         const marker = l.kind === 'user' ? `\x1b[90m→ ${RESET}` : `\x1b[36m← ${RESET}`;
@@ -223,6 +249,12 @@ export class AgentView implements TuiView {
         const offset = Math.max(0, ctx.perTab.scrollOffset - SCROLL_STEP);
         return { type: 'scroll', offset };
       }
+      case 'e':
+      case 'E':
+        // Toggle ledger expand/collapse — when expanded all ledger lines
+        // are shown; when collapsed only the last 3 lines are visible.
+        ctx.perTab.ledgerExpanded = !ctx.perTab.ledgerExpanded;
+        return { type: 'handled' };
       default:
         return { type: 'handled' };
     }

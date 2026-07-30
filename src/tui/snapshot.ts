@@ -19,6 +19,11 @@ export interface DashboardSnapshot {
    * Populated by SnapshotBuilder from agent session state.
    */
   readonly progressLedger?: string;
+  /**
+   * Pending tool calls for inline scrollback rendering in the agent view.
+   * Synced from session state on each refresh.
+   */
+  readonly pendingToolCalls?: ReadonlyArray<{ readonly name: string; readonly summary?: string }>;
 }
 
 /**
@@ -38,6 +43,11 @@ export interface SessionMetadata {
    * renders no badge).
    */
   readonly currentIntent?: 'research' | 'mutation' | 'validation';
+  /**
+   * Pending tool calls surfaced by the agent loop for inline scrollback
+   * rendering. Each entry renders as a two-line dim card in the agent view.
+   */
+  readonly pendingToolCalls?: ReadonlyArray<{ readonly name: string; readonly summary?: string }>;
 }
 
 /**

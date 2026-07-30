@@ -275,7 +275,10 @@ const maxRepairs = 3;
 let lastSavedMessages = 0;
 
 // Get the McpManager from executor (executor holds a reference)
-const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
+interface HasMcpManager {
+  manager?: import("../mcp/manager.js").McpManager;
+}
+const mcpManager = (executor as HasMcpManager).manager ?? null;
 
 // ── Progress checkpoint state ──────────────────────────
 let toolCallsSinceCheckpoint = 0;
@@ -836,6 +839,14 @@ if (toolCalls.length === 0) {
   intentStreak = updateResult.streak;
   if (currentIntent !== prevIntent) {
     progressLedger.startSection(currentIntent);
+  }
+  // If the intent just changed (pre-sticky), force a progress checkpoint
+  // so the model can report on the new direction. This prevents the loop
+  // from silently switching intent categories without the operator seeing
+  // an update.
+  const intentJustChanged = currentIntent !== observedIntent;
+  if (intentJustChanged) {
+    toolCallsSinceCheckpoint = CHECKPOINT_TOOL_CALL_THRESHOLD;
   }
   if (deps.onCurrentIntentUpdate) deps.onCurrentIntentUpdate(currentIntent);
 

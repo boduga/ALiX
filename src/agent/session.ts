@@ -17,6 +17,7 @@ import * as nodePath from "node:path";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import type { AgentIntent } from "../run/intent-classifier.js";
+import type { EventLog } from "../events/event-log.js";
 
 // ---------------------------------------------------------------------------
 // Cached package-version lookup. Walked once at module-load time so all
@@ -134,6 +135,26 @@ export enum SessionPhase {
 // =============================================================================
 // Types (verbatim from P1 brief)
 // =============================================================================
+
+/**
+ * Typed interface for the internal context fields accessed via `(ctx as any)`
+ * in this module. Replaces ad-hoc `as any` casts with a well-defined contract
+ * so callers can use `(ctx as unknown as InternalCtxFields).field` instead.
+ */
+interface InternalCtxFields {
+  sessionId: string;
+  config: {
+    permissions: { sessionMode: "auto" | "ask" | "bypass" };
+    model: { provider: string; name: string; streaming: boolean };
+  };
+  log: EventLog;
+  provider: ModelAdapter;
+  _planTasks?: readonly PlanTask[];
+  _resumedMessages?: readonly NormalizedMessage[];
+  _scopeSnapshot?: any;
+  _stateSnapshot?: any;
+  _planContent?: string;
+}
 
 export type Message = NormalizedMessage;
 

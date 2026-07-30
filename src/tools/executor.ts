@@ -445,20 +445,23 @@ export function classifyError(result: ErrorResult): ErrorResult {
   return { ...result, retryable: true };
 }
 
+const CAPABILITY_MAP: Record<string, string> = {
+  "file.read": "file.read",
+  "file.create": "file.write",
+  "file.delete": "file.write",
+  "file.exists": "file.read",
+  "dir.search": "file.search",
+  "shell.run": "shell.run",
+  "patch.apply": "patch.apply",
+  "done": "task.complete",
+  "delegate": "delegate",
+  "web_search": "web.search",
+  "web_fetch": "web.fetch",
+};
+
 function inferCapability(toolName: string): string {
   if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  if (toolName === "file.read") return "file.read";
-  if (toolName === "file.create") return "file.write";
-  if (toolName === "file.delete") return "file.write";
-  if (toolName === "file.exists") return "file.read";
-  if (toolName === "dir.search") return "file.search";
-  if (toolName === "shell.run") return "shell.run";
-  if (toolName === "patch.apply") return "patch.apply";
-  if (toolName === "done") return "task.complete";
-  if (toolName === "delegate") return "delegate";
-  if (toolName === "web_search") return "web.search";
-  if (toolName === "web_fetch") return "web.fetch";
-  return "tool.invoke";
+  return CAPABILITY_MAP[toolName] ?? "tool.invoke";
 }
 
 function truncateOutput(output: unknown, maxLen = 200): string {
