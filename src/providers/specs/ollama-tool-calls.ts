@@ -51,6 +51,20 @@ export interface ParseToolCallOptions {
 // ---------------------------------------------------------------------------
 
 /**
+ * Extract an optional `summary` string from a parsed-args object and
+ * remove it from the object so downstream code never sees it as a tool
+ * parameter. Returns undefined when absent or the value is not a string.
+ */
+function extractSummary(args: Record<string, unknown>): string | undefined {
+  const s = args.summary;
+  if (typeof s === "string") {
+    delete args.summary;
+    return s;
+  }
+  return undefined;
+}
+
+/**
  * Normalize a tool-call argument value into a Record<string, unknown>.
  * - If already an object (non-null, non-array): strip prototype-pollution keys
  * - If a JSON string: parse and validate
@@ -125,6 +139,7 @@ function parseNativeToolCalls(
       id: `ollama_call_${i}_${stableHash(trimmedName + JSON.stringify(args))}`,
       name: trimmedName,
       args,
+      summary: extractSummary(args),
     });
   }
   return result;
@@ -163,7 +178,7 @@ function parseOpenAICompatibleToolCalls(
     const args = normalizeArgs(fn.arguments, maxBytes);
     if (args === null) continue;
 
-    result.push({ id, name: name.trim(), args });
+    result.push({ id, name: name.trim(), args, summary: extractSummary(args) });
   }
   return result;
 }
@@ -206,6 +221,7 @@ function parseTextFallbackToolCalls(
       id: `ollama_call_text_${i}_${stableHash(name + JSON.stringify(args))}`,
       name: name.trim(),
       args,
+      summary: extractSummary(args),
     });
   }
   // Only return calls if the envelope is valid and non-empty
