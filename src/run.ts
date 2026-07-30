@@ -15,7 +15,7 @@ export type RunResult = {
   sessionId: string;
   summary: string;
   streamed?: boolean;
-  reason?: "completed" | "max_repairs" | "max_iterations" | "rejected_scope_expansion";
+  reason?: "completed" | "completed_unverified" | "max_repairs" | "max_iterations" | "rejected_scope_expansion";
   /** Unique run identifier for diagnostic correlation. */
   runId?: string;
 };
