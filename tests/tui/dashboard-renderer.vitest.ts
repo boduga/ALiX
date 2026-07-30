@@ -25,6 +25,7 @@ function onlineSnap(): any {
       diskTotalBytes: 500 * 1024 * 1024 * 1024,
       clients: [],
       sampledAt: 1,
+      source: "daemon",
     },
     approvals: null,
     runtime: null,

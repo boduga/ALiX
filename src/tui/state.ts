@@ -79,6 +79,11 @@ export interface PerTabState {
    */
   resolvedApprovals: ResolvedApproval[];
   /**
+   * Progress ledger text rendered by the agent loop. Displayed in the agent
+   * view scrollback after the approval section.
+   */
+  progressLedger?: string;
+  /**
    * Per-sidebar-panel scroll offset. Only the entries for panels that can
    * overflow their fixed-height box (approvals, sops) are meaningful; the
    * others stay at 0. Surfaced via `J`/`K` keys when the active tab is

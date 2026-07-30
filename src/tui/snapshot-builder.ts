@@ -111,6 +111,7 @@ export class SnapshotBuilder {
         runtime: null,
         sops: null,
         policy: null,
+        progressLedger: undefined,
       });
       this.lastSnapshotGeneration = generation;
     }
@@ -132,6 +133,18 @@ export class SnapshotBuilder {
     const policy = await this.trySnapshot('policy', () => this.policy.snapshot());
     if (this.currentGeneration !== generation) return null;
 
+    // Read progress ledger from session state. Defensively typed so a
+    // session that lacks the field (older version) produces undefined.
+    let progressLedger: string | undefined;
+    try {
+      const state = this.session.getState();
+      if (state && typeof (state as any).progressLedger === 'string') {
+        progressLedger = (state as any).progressLedger;
+      }
+    } catch {
+      // Session may not support getState() — leave undefined.
+    }
+
     const snap = Object.freeze({
       generatedAt,
       session,
@@ -140,6 +153,7 @@ export class SnapshotBuilder {
       runtime,
       sops,
       policy,
+      progressLedger,
     });
 
     this.lastSnapshot = snap;

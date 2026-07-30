@@ -154,6 +154,14 @@ export class AgentView implements TuiView {
         }
       }
     }
+    // Progress ledger — dim-style status block showing recent tool
+    // execution results (checkmarks for completed, crosses for failed).
+    if (ctx.perTab.progressLedger) {
+      const ledgerLines = ctx.perTab.progressLedger.split("\n");
+      for (const line of ledgerLines) {
+        allLines.push({ kind: 'plan', text: line, isFirst: false });
+      }
+    }
     // Use scrollOffset so the user can scroll back through past responses
     // with arrow keys. offset=0 shows the most recent lines (bottom).
     const offset = ctx.perTab.scrollOffset;

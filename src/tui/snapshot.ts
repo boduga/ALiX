@@ -14,6 +14,11 @@ export interface DashboardSnapshot {
   readonly runtime: RuntimeSnapshot | null;
   readonly sops: SopSnapshot | null;
   readonly policy: PolicySnapshot | null;
+  /**
+   * Most recent progress ledger text rendered by the agent loop.
+   * Populated by SnapshotBuilder from agent session state.
+   */
+  readonly progressLedger?: string;
 }
 
 /**

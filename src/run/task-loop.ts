@@ -162,6 +162,8 @@ post_task?: { command: string; reason: string }[];
   context?: ExecutionContext;
   /** When true (default), tool outputs are streamed to stdout. */
   verbose?: boolean;
+  /** Called each iteration after the progress ledger is rendered. */
+  onLedgerUpdate?: (text: string) => void;
 }
 
 /**
@@ -293,6 +295,8 @@ if (ledgerText) {
 	content: `[Progress Ledger]\n${ledgerText}`,
   });
 }
+// Expose rendered ledger text to the AgentSession for TUI consumption
+if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
 
 if (config.model.streaming && provider.stream) {
   const result = await streamToResponse(provider, {

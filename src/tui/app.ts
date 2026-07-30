@@ -202,6 +202,13 @@ export class TuiApp {
       // documents the intent of the filter above.
       void stillPending;
     }
+    // Sync progress ledger from snapshot to every tab's perTab state
+    if (snap.progressLedger) {
+      for (const t of tabs) {
+        const perTab = this.state.views[t];
+        if (perTab) perTab.progressLedger = snap.progressLedger;
+      }
+    }
   }
 
   private handleRaw(buf: Buffer): void {
