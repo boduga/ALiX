@@ -11,6 +11,15 @@ export class ApiError extends Error {
   }
 }
 
+export function extractSummary(args: Record<string, unknown>): string | undefined {
+  const s = args.summary;
+  if (typeof s === "string") {
+    delete args.summary;
+    return s;
+  }
+  return undefined;
+}
+
 export abstract class BaseProvider implements ModelAdapter {
   protected _apiKey: string;
   protected _model: string;
@@ -58,8 +67,7 @@ export abstract class BaseProvider implements ModelAdapter {
     if (message?.tool_calls?.length) {
       return message.tool_calls.map((tc) => {
         const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
-        const summary = typeof args.summary === "string" ? args.summary : undefined;
-        if (summary !== undefined) delete args.summary;
+        const summary = extractSummary(args);
         return { id: this.safeToolId(tc.id), name: tc.function.name ?? "", args, summary };
       });
     }
@@ -75,8 +83,7 @@ export abstract class BaseProvider implements ModelAdapter {
       if (block && typeof block === "object" && "type" in block && block.type === "function" && "function" in block && block.function && typeof block.function === "object") {
         const fn = block.function as { name?: string; arguments?: string };
         const parsed = fn.arguments ? JSON.parse(fn.arguments) : {};
-        const summary = typeof parsed.summary === "string" ? parsed.summary : undefined;
-        if (summary !== undefined) delete parsed.summary;
+        const summary = extractSummary(parsed);
         toolCalls.push({ id: this.safeToolId(null), name: fn.name ?? "", args: parsed, summary });
       }
     }
@@ -126,8 +133,7 @@ export abstract class BaseProvider implements ModelAdapter {
                 if (t.name) {
                   try {
                     const parsedArgs = JSON.parse(t.args) as Record<string, unknown>;
-                    const summary = typeof parsedArgs.summary === "string" ? parsedArgs.summary : undefined;
-                    if (summary !== undefined) delete parsedArgs.summary;
+                    const summary = extractSummary(parsedArgs);
                     yield { type: "tool_call" as const, toolCall: { id: t.id, name: t.name, args: parsedArgs, summary } };
                   } catch { /* incomplete JSON, keep accumulating */ }
                 }

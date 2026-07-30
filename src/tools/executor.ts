@@ -10,7 +10,7 @@ import type { McpManager } from "../mcp/manager.js";
 import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
-import type { ToolResult } from "./types.js";
+import type { ToolResult, ToolCallRequest } from "./types.js";
 import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import { buildDefaultToolIndex } from "./tool-registry.js";
@@ -54,22 +54,6 @@ export function hashArgs(args: Record<string, unknown>): string {
   );
   return createHash("sha256").update(stable).digest("hex");
 }
-
-export type ToolCallRequest = {
-  toolCallId: string;
-  name: string;
-  args: Record<string, unknown>;
-  summary?: string;
-  agentId?: string;
-  sessionId?: string;
-  replayId?: string;
-  /**
-   * When set to "continuation-resume", the tool executor will bypass
-   * PolicyGate. Only set by ContinuationManager after approval is
-   * already verified — never set from user input.
-   */
-  source?: string;
-};
 
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 

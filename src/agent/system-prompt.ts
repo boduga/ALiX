@@ -13,6 +13,8 @@ export const SYSTEM_PROMPT_BASE =
   "When the task is complete, call the done tool — do NOT keep calling tools after the goal is achieved. " +
   "For read-only queries (like pwd, ls, cat, grep), call done immediately after getting the result — there is nothing to verify.\n\n" +
 
+  "When calling a tool, include a 2–5 word summary explaining why you are calling it. For example: \"Locating config file\" or \"Running typecheck\". This summary helps the operator follow your progress at a glance.\n\n" +
+
   "### Parallel Execution\n" +
   "DEFAULT TO PARALLEL. Unless you genuinely need the output of tool A to proceed with tool B, " +
   "execute all independent tools simultaneously. Parallel execution is 3-5x faster and significantly " +

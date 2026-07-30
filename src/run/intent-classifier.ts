@@ -24,8 +24,8 @@ export class IntentClassifier {
    * Classify a batch of tool calls from one iteration.
    * Returns the dominant intent, defaulting to research.
    */
-  classify(toolCalls: Array<{ name: string; args: Record<string, unknown> }>): AgentIntent {
-    if (toolCalls.length === 0) return "research";
+  classify(toolCalls: Array<{ name: string; args: Record<string, unknown> }>, currentIntent?: AgentIntent): AgentIntent {
+    if (toolCalls.length === 0) return currentIntent ?? "research";
 
     let researchScore = 0;
     let mutationScore = 0;

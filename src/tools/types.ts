@@ -7,6 +7,13 @@ export type ToolCallRequest = {
   summary?: string;
   agentId?: string;
   sessionId?: string;
+  replayId?: string;
+  /**
+   * When set to "continuation-resume", the tool executor will bypass
+   * PolicyGate. Only set by ContinuationManager after approval is
+   * already verified — never set from user input.
+   */
+  source?: string;
 };
 
 export interface FindingReport {

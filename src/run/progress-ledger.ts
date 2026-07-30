@@ -2,7 +2,7 @@
 // Runtime-owned progress tracker. Derived FROM tool execution —
 // the model never writes to the ledger directly.
 
-export type LedgerStatus = "completed" | "failed" | "pending";
+export type LedgerStatus = "completed" | "failed" | "pending" | "current";
 
 export interface LedgerEntry {
   status: LedgerStatus;
@@ -59,7 +59,8 @@ export class ProgressLedger {
       }
       const symbol = entry.status === "completed" ? "✓"
         : entry.status === "failed" ? "✗"
-        : "○";
+        : entry.status === "current" ? "◎"
+        : "☐";
       lines.push(`  ${symbol} ${entry.summary}`);
     }
     return lines.join("\n");

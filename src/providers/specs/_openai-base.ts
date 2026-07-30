@@ -1,6 +1,7 @@
 // src/providers/specs/_openai-base.ts
 import type { ProviderSpec } from "../spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "../types.js";
+import { extractSummary } from "../base.js";
 
 /**
  * OpenAI chat-completions wire format.
@@ -56,8 +57,7 @@ export const openaiBaseSpec: ProviderSpec = {
     const text = choice?.message?.content ?? "";
     const toolCalls = (choice?.message?.tool_calls ?? []).map((tc: any) => {
       const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
-      const summary = typeof args.summary === "string" ? args.summary : undefined;
-      if (summary !== undefined) delete args.summary;
+      const summary = extractSummary(args);
       return { id: tc.id, name: tc.function.name, args, summary };
     });
     return {
@@ -82,8 +82,7 @@ export const openaiBaseSpec: ProviderSpec = {
       if (delta?.tool_calls) {
         const tc = delta.tool_calls[0];
         const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
-        const summary = typeof args.summary === "string" ? args.summary : undefined;
-        if (summary !== undefined) delete args.summary;
+        const summary = extractSummary(args);
         return {
           type: "tool_call",
           toolCall: { id: tc.id, name: tc.function.name, args, summary },

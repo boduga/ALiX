@@ -81,15 +81,10 @@ const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label: strin
   { keywords: /\bset\s?up\b.*\bmonitor|\bmonitor(ing)?\b/i, toolPrefix: "monitor", label: "setting up monitoring" },
 ];
 
-/** Tool-name override map for claim-detection re-prompts. */
-const CLAIM_TOOL_NAMES: Record<string, string> = {
-  "scheduling a cron job": "alix_cron_schedule",
-  "sending a notification": "alix_notification_send",
-  "sending a file to the user": "alix_user_send_file",
-  "editing/registering files": "alix_file_edit",
-  "verifying compilation": "alix_shell_run",
-  "setting up monitoring": "alix_monitor",
-};
+/** Tool-name override map derived from CLAIM_TOOL_MAP for claim-detection re-prompts. */
+const CLAIM_TOOL_NAMES: Record<string, string> = Object.fromEntries(
+  CLAIM_TOOL_MAP.map(item => [item.label, `alix_${item.toolPrefix.replace('.', '_')}`])
+);
 
 const NO_TOOL_MIN_TEXT = 10;
 const NARRATING_THRESHOLD = 80;
@@ -834,7 +829,7 @@ if (toolCalls.length === 0) {
   }
 
   // ── Intent classification ──────────────────────────────
-  const observedIntent = intentClassifier.classify(toolCalls);
+  const observedIntent = intentClassifier.classify(toolCalls, currentIntent);
   const updateResult = intentClassifier.update(currentIntent, observedIntent, intentStreak);
   const prevIntent = currentIntent;
   currentIntent = updateResult.next;

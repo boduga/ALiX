@@ -1,4 +1,4 @@
-import { ApiError } from "./base.js";
+import { ApiError, extractSummary } from "./base.js";
 import { openaiSpec } from "./specs/openai-spec.js";
 import { anthropicSpec } from "./specs/anthropic-spec.js";
 import { googleSpec } from "./specs/google-spec.js";
@@ -130,8 +130,7 @@ function parseOpenAiToolDeltaLine(
     try {
       const args = JSON.parse(partial.argsText) as unknown;
       if (!isRecord(args)) continue;
-      const summary = typeof args.summary === "string" ? args.summary : undefined;
-      if (summary !== undefined) delete args.summary;
+      const summary = extractSummary(args);
       const toolCall: ToolCall = { id: partial.id, name: partial.name, args, summary };
       chunks.push({ type: "tool_call", toolCall });
       partialTools.delete(index);
