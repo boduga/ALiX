@@ -10,6 +10,7 @@ import type {
   SopSnapshot,
 } from './snapshot.js';
 import { SessionPhase } from './state.js';
+import type { AgentIntent } from '../run/intent-classifier.js';
 
 /**
  * Subsystem contract for daemon metrics collection. Defined here (rather than
@@ -191,7 +192,7 @@ export class SnapshotBuilder {
         version: (this.session as AgentSession).getVersion?.() ?? 'unknown',
         startedAt: Date.parse(state.createdAt) || Date.now(),
         turns: state.turnCount,
-        currentIntent: state.currentIntent as 'research' | 'mutation' | 'validation' | undefined,
+        currentIntent: state.currentIntent as AgentIntent | undefined,
       });
     } catch {
       return null;

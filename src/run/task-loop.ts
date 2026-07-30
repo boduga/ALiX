@@ -210,7 +210,7 @@ post_task?: { command: string; reason: string }[];
   /** Called each iteration after the progress ledger is rendered. */
   onLedgerUpdate?: (text: string) => void;
   /** Called when agent intent classification changes. */
-  onCurrentIntentUpdate?: (intent: string) => void;
+  onCurrentIntentUpdate?: (intent: AgentIntent) => void;
   currentIntent?: AgentIntent;
 }
 

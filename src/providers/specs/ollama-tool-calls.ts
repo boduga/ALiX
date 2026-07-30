@@ -10,6 +10,7 @@
  */
 
 import type { ToolCall } from "../types.js";
+import { extractSummary } from "../base.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -49,20 +50,6 @@ export interface ParseToolCallOptions {
 // ---------------------------------------------------------------------------
 // Argument normalization
 // ---------------------------------------------------------------------------
-
-/**
- * Extract an optional `summary` string from a parsed-args object and
- * remove it from the object so downstream code never sees it as a tool
- * parameter. Returns undefined when absent or the value is not a string.
- */
-function extractSummary(args: Record<string, unknown>): string | undefined {
-  const s = args.summary;
-  if (typeof s === "string") {
-    delete args.summary;
-    return s;
-  }
-  return undefined;
-}
 
 /**
  * Normalize a tool-call argument value into a Record<string, unknown>.

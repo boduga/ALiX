@@ -291,11 +291,20 @@ export class ToolExecutor {
 
     // Build canonical rawOutput and an explicit preview (so the model always sees something)
     if (result.kind === "success") {
+      function rawResultValue(r: typeof result): string | undefined {
+        // ToolResult is a discriminated union on kind:
+        // - success branch has matches[] (dir.search) or value (other tools)
+        // - error branch has neither
+        if (r.kind === "success") {
+          if ("matches" in r && Array.isArray(r.matches)) return r.matches as unknown as string;
+          if ("value" in r && typeof r.value === "string") return r.value;
+        }
+        return undefined;
+      }
       const rawOutput =
         result.output ??
         result.content ??
-        (result as any).matches ??
-        (result as any).value ??
+        rawResultValue(result) ??
         "";
 
       // Normalize preview: explicit for empty/empty-array results so the model isn't left guessing.
