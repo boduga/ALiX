@@ -37,6 +37,7 @@ import {
   buildScopeRejectionSummary,
   type EventHandlerDeps,
 } from "./event-handlers.js";
+import { ProgressLedger } from "./progress-ledger.js";
 
 /**
  * Complete a session: log the terminal event, persist decisions,
@@ -226,6 +227,13 @@ let lastSavedMessages = 0;
 // Get the McpManager from executor (executor holds a reference)
 const mcpManager = executor as unknown as import("../mcp/manager.js").McpManager;
 
+// ── Progress checkpoint state ──────────────────────────
+let toolCallsSinceCheckpoint = 0;
+let lastCheckpointWallClock = Date.now();
+const CHECKPOINT_TOOL_CALL_THRESHOLD = 5;
+const CHECKPOINT_WALL_CLOCK_MS = 30_000;
+const progressLedger = new ProgressLedger();
+
 for (let i = 0; i < maxIterations; i++) {
 stateMachine.tick(0);
 
@@ -276,6 +284,15 @@ for (const hook of hooks.pre_task ?? []) {
 let text = "";
 let toolCalls: ToolCall[] = [];
 let usage: TokenUsage | undefined;
+
+// Inject progress ledger context for the model
+const ledgerText = progressLedger.render(10);
+if (ledgerText) {
+  messages.push({
+	role: "user",
+	content: `[Progress Ledger]\n${ledgerText}`,
+  });
+}
 
 if (config.model.streaming && provider.stream) {
   const result = await streamToResponse(provider, {
@@ -531,6 +548,16 @@ if (toolCalls.length === 0) {
     // Handle tool execution
     const toolResult = await handleToolCall(toolCall, eventHandlerDeps, failedTools, fatalToolErrors);
 
+    // Record in progress ledger
+    progressLedger.recordToolCall(
+      toolCall.name,
+      (toolCall as any).summary,
+      !toolResult.error,
+    );
+    if (!toolResult.error) {
+      toolCallsSinceCheckpoint++;
+    }
+
     // Run registered hooks after tool execution
     if (deps.hookRunner) {
       const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
@@ -590,6 +617,24 @@ if (toolCalls.length === 0) {
     if (taskType === "research") {
       searchCalls++;
     }
+  }
+
+  // ── Progress checkpoint ──────────────────────────────────
+  const wallClockElapsed = Date.now() - lastCheckpointWallClock;
+  const modelText = text.trim();
+  const modelAlreadyNarrating = modelText.length >= 80;
+
+  if (
+	!modelAlreadyNarrating &&
+	(toolCallsSinceCheckpoint >= CHECKPOINT_TOOL_CALL_THRESHOLD || wallClockElapsed >= CHECKPOINT_WALL_CLOCK_MS)
+  ) {
+	messages.push({
+	  role: "user",
+	  content: `[Checkpoint] Progress update: ${toolCallsSinceCheckpoint} tool calls completed this segment. Continue with the task status.`,
+	});
+	toolCallsSinceCheckpoint = 0;
+	lastCheckpointWallClock = Date.now();
+	continue;
   }
 
   // Track all file mutations in sessionState
