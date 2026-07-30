@@ -58,6 +58,16 @@ export class AgentView implements TuiView {
       c.write(0, 5, `\x1b[90mevents: ${r.totalEventCount}${stepBit}${RESET}`);
     }
 
+    // Mode badge — indicates the agent's current classified intent.
+    // Research is the default and renders no badge. Mutation shows a
+    // yellow [E], validation shows a green [V].
+    const intent = ctx.perTab.currentIntent;
+    if (intent && intent !== 'research') {
+      const color = intent === 'mutation' ? '\x1b[33m' : '\x1b[32m';
+      const label = intent === 'mutation' ? 'E' : 'V';
+      c.write(2, 5, `${color}[${label}]${RESET}`);
+    }
+
     // The 14-row dashboard reservation is gone (panels now live in
     // the dashboard tab). Scrollback uses the full vertical space.
     const PANEL_H = 0;

@@ -204,6 +204,8 @@ export interface AgentSessionState {
   readonly updatedAt: string;
   /** Most recent rendered progress ledger text, if any. */
   readonly progressLedger?: string;
+  /** Most recent agent intent classification (research/mutation/validation). */
+  readonly currentIntent?: string;
 }
 
 export interface AgentSessionConfig {
@@ -575,6 +577,7 @@ export class AgentSessionBuilder {
     let _sessionCompleted = false;
     /** Latest rendered progress ledger text, updated by runTaskLoop each iteration. */
     let _latestLedgerText: string | undefined;
+    let _latestIntent: string | undefined;
     // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
     // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
     // Initial value is Idle so freshly created sessions surface as Idle in the UI
@@ -1091,6 +1094,7 @@ export class AgentSessionBuilder {
           context: taskContext,
           verbose: config.verbose,
           onLedgerUpdate: (text: string) => { _latestLedgerText = text; },
+          onCurrentIntentUpdate: (intent: string) => { _latestIntent = intent; },
         });
       } catch (err) {
         transitionNodeStatus(taskNode, "failed");
@@ -1310,6 +1314,7 @@ export class AgentSessionBuilder {
         createdAt,
         updatedAt,
         progressLedger: _latestLedgerText,
+        currentIntent: _latestIntent,
       };
     }
 

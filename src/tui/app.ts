@@ -61,6 +61,8 @@ export class TuiApp {
    * presses Y/n/e/d. The card rendered in `paintFullFrame` is driven
    * purely off `gate.getPending()` — no parallel state.
    */
+  /** Tabs that receive snapshot-synced fields (approvals, ledger, intent). */
+  private readonly SYNC_TABS: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
   private readonly planApprovalGate = new TuiPlanApprovalGate();
   private pasteState: 'idle' | 'reading' = 'idle';
   private pasteChunks: Buffer[] = [];
@@ -147,7 +149,22 @@ export class TuiApp {
     if (!snap || generation !== this.state.refreshGeneration) return;
     this.state.lastSnapshot = snap;
     this.syncPendingApprovals();
+    this.syncCurrentIntent();
     this.paintFullFrame();
+  }
+
+  /**
+   * Sync currentIntent from snapshot session metadata to every tab's
+   * perTab state so the badge renders correctly regardless of the
+   * active tab when intent changes.
+   */
+  private syncCurrentIntent(): void {
+    const snap = this.state.lastSnapshot;
+    if (!snap?.session?.currentIntent) return;
+    for (const t of this.SYNC_TABS) {
+      const perTab = this.state.views[t];
+      if (perTab) perTab.currentIntent = snap.session.currentIntent;
+    }
   }
 
   /**
@@ -160,8 +177,7 @@ export class TuiApp {
     if (!snap) return;
     const pending = snap.approvals?.pending ?? [];
     const pendingIds = new Set(pending.map((p) => p.id));
-    const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
-    for (const t of tabs) {
+    for (const t of this.SYNC_TABS) {
       const perTab = this.state.views[t];
       if (!perTab) continue;
       // Detect approvals that have disappeared from the pending list since
@@ -204,7 +220,7 @@ export class TuiApp {
     }
     // Sync progress ledger from snapshot to every tab's perTab state
     if (snap.progressLedger) {
-      for (const t of tabs) {
+      for (const t of this.SYNC_TABS) {
         const perTab = this.state.views[t];
         if (perTab) perTab.progressLedger = snap.progressLedger;
       }
@@ -687,8 +703,7 @@ export class TuiApp {
     let originalTool = 'unknown';
     let originalTarget = '';
     let requestedAt = Date.now();
-    const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
-    for (const t of tabs) {
+    for (const t of this.SYNC_TABS) {
       const found = this.state.views[t]?.pendingApprovals?.find((a) => a.id === approvalId);
       if (found) {
         originalTool = found.toolName;
@@ -719,7 +734,7 @@ export class TuiApp {
       // Push a resolved entry into every tab's resolvedApprovals log so the
       // operator can see what they did — even if the agent loop is currently
       // paused waiting on this resolution.
-      for (const t of tabs) {
+      for (const t of this.SYNC_TABS) {
         const tab = this.state.views[t];
         if (!tab) continue;
         tab.resolvedApprovals.unshift({

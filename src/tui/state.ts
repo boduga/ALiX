@@ -84,6 +84,12 @@ export interface PerTabState {
    */
   progressLedger?: string;
   /**
+   * Classified agent intent for the current iteration. Set from snapshot
+   * session metadata on each refresh. Undefined when the session does not
+   * expose intent (defaults to research, which renders no badge).
+   */
+  currentIntent?: 'research' | 'mutation' | 'validation';
+  /**
    * Per-sidebar-panel scroll offset. Only the entries for panels that can
    * overflow their fixed-height box (approvals, sops) are meaningful; the
    * others stay at 0. Surfaced via `J`/`K` keys when the active tab is

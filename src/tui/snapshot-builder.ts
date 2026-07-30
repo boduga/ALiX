@@ -190,6 +190,7 @@ export class SnapshotBuilder {
         version: (this.session as any).getVersion?.() ?? 'unknown',
         startedAt: (this.session as any).getStartedAt?.() ?? Date.now(),
         turns: (this.session as any).getTurns?.() ?? 0,
+        currentIntent: ((this.session as any).getState?.()?.currentIntent ?? undefined) as 'research' | 'mutation' | 'validation' | undefined,
       });
     } catch {
       return null;

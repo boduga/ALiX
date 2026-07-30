@@ -31,6 +31,13 @@ export interface SessionMetadata {
   readonly version: string;
   readonly startedAt: number;
   readonly turns: number;
+  /**
+   * Classified agent intent for the current iteration. Populated by
+   * SnapshotBuilder from session state when available; undefined when
+   * the session does not expose intent (defaults to research, which
+   * renders no badge).
+   */
+  readonly currentIntent?: 'research' | 'mutation' | 'validation';
 }
 
 /**

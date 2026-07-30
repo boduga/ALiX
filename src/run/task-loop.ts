@@ -166,6 +166,8 @@ post_task?: { command: string; reason: string }[];
   verbose?: boolean;
   /** Called each iteration after the progress ledger is rendered. */
   onLedgerUpdate?: (text: string) => void;
+  /** Called when agent intent classification changes. */
+  onCurrentIntentUpdate?: (intent: string) => void;
   currentIntent?: AgentIntent;
 }
 
@@ -642,6 +644,7 @@ if (toolCalls.length === 0) {
   const updateResult = intentClassifier.update(currentIntent, observedIntent, intentStreak);
   currentIntent = updateResult.next;
   intentStreak = updateResult.streak;
+  if (deps.onCurrentIntentUpdate) deps.onCurrentIntentUpdate(currentIntent);
 
   // ── Progress checkpoint ──────────────────────────────────
   const wallClockElapsed = Date.now() - lastCheckpointWallClock;
