@@ -33,6 +33,33 @@ export const SYSTEM_PROMPT_BASE =
   "save mid-task when you discover something worth remembering. " +
   "Erring on the side of saving too early is better than losing context.";
 
+export const RESEARCH_SUPPLEMENT =
+`## Research Phase
+
+Your current focus is understanding the codebase and gathering context.
+- Search with different wordings — first-pass results often miss key details
+- Trace symbols back to their definitions before making assumptions
+- Do NOT make code changes until you have a complete picture
+- When you have enough context, the system will transition you to Execution`;
+
+export const MUTATION_SUPPLEMENT =
+`## Execution Phase
+
+You have an understanding of the codebase and are now making changes.
+- Follow existing code conventions (naming, patterns, libraries)
+- Make minimal, focused edits — one logical change per file
+- Do not add comments unless the code is complex or the user asks
+- After each change, verify it compiles or passes basic checks`;
+
+export const VALIDATION_SUPPLEMENT =
+`## Verification Phase
+
+Your changes are written and you are now verifying correctness.
+- Run tests, typecheck, or lint relevant to the change
+- Do NOT modify tests to make them pass — fix the implementation
+- If verification fails, return to Execution to fix the issue
+- Provide a summary of what was tested and the results`;
+
 export const FAILURE_REASONS = new Set<string>([
   "max_iterations",
   "max_repairs",
