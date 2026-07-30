@@ -130,7 +130,9 @@ function parseOpenAiToolDeltaLine(
     try {
       const args = JSON.parse(partial.argsText) as unknown;
       if (!isRecord(args)) continue;
-      const toolCall: ToolCall = { id: partial.id, name: partial.name, args };
+      const summary = typeof args.summary === "string" ? args.summary : undefined;
+      if (summary !== undefined) delete args.summary;
+      const toolCall: ToolCall = { id: partial.id, name: partial.name, args, summary };
       chunks.push({ type: "tool_call", toolCall });
       partialTools.delete(index);
     } catch {

@@ -54,11 +54,12 @@ export const openaiBaseSpec: ProviderSpec = {
     const r = res as any;
     const choice = r.choices?.[0];
     const text = choice?.message?.content ?? "";
-    const toolCalls = (choice?.message?.tool_calls ?? []).map((tc: any) => ({
-      id: tc.id,
-      name: tc.function.name,
-      args: JSON.parse(tc.function.arguments || "{}"),
-    }));
+    const toolCalls = (choice?.message?.tool_calls ?? []).map((tc: any) => {
+      const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
+      const summary = typeof args.summary === "string" ? args.summary : undefined;
+      if (summary !== undefined) delete args.summary;
+      return { id: tc.id, name: tc.function.name, args, summary };
+    });
     return {
       text,
       toolCalls,
@@ -80,9 +81,12 @@ export const openaiBaseSpec: ProviderSpec = {
       if (delta?.content) return { type: "text_delta", text: delta.content };
       if (delta?.tool_calls) {
         const tc = delta.tool_calls[0];
+        const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
+        const summary = typeof args.summary === "string" ? args.summary : undefined;
+        if (summary !== undefined) delete args.summary;
         return {
           type: "tool_call",
-          toolCall: { id: tc.id, name: tc.function.name, args: JSON.parse(tc.function.arguments || "{}") },
+          toolCall: { id: tc.id, name: tc.function.name, args, summary },
         };
       }
       if (obj.usage) {

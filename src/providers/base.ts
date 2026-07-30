@@ -56,11 +56,12 @@ export abstract class BaseProvider implements ModelAdapter {
     const message = choice.message;
     // Path 1: message.tool_calls (OpenAI-compatible)
     if (message?.tool_calls?.length) {
-      return message.tool_calls.map((tc) => ({
-        id: this.safeToolId(tc.id),
-        name: tc.function.name ?? "",
-        args: tc.function.arguments ? JSON.parse(tc.function.arguments) : {},
-      }));
+      return message.tool_calls.map((tc) => {
+        const args = tc.function.arguments ? JSON.parse(tc.function.arguments) : {};
+        const summary = typeof args.summary === "string" ? args.summary : undefined;
+        if (summary !== undefined) delete args.summary;
+        return { id: this.safeToolId(tc.id), name: tc.function.name ?? "", args, summary };
+      });
     }
     // Path 2: message.content as array (OpenAI function-calling in content)
     return this.parseOpenAIToolCalls(message?.content);
@@ -73,7 +74,10 @@ export abstract class BaseProvider implements ModelAdapter {
     for (const block of content) {
       if (block && typeof block === "object" && "type" in block && block.type === "function" && "function" in block && block.function && typeof block.function === "object") {
         const fn = block.function as { name?: string; arguments?: string };
-        toolCalls.push({ id: this.safeToolId(null), name: fn.name ?? "", args: fn.arguments ? JSON.parse(fn.arguments) : {} });
+        const parsed = fn.arguments ? JSON.parse(fn.arguments) : {};
+        const summary = typeof parsed.summary === "string" ? parsed.summary : undefined;
+        if (summary !== undefined) delete parsed.summary;
+        toolCalls.push({ id: this.safeToolId(null), name: fn.name ?? "", args: parsed, summary });
       }
     }
     return toolCalls;
@@ -121,7 +125,10 @@ export abstract class BaseProvider implements ModelAdapter {
                 const t = partialTools[idx];
                 if (t.name) {
                   try {
-                    yield { type: "tool_call" as const, toolCall: { id: t.id, name: t.name, args: JSON.parse(t.args) } };
+                    const parsedArgs = JSON.parse(t.args) as Record<string, unknown>;
+                    const summary = typeof parsedArgs.summary === "string" ? parsedArgs.summary : undefined;
+                    if (summary !== undefined) delete parsedArgs.summary;
+                    yield { type: "tool_call" as const, toolCall: { id: t.id, name: t.name, args: parsedArgs, summary } };
                   } catch { /* incomplete JSON, keep accumulating */ }
                 }
                 delete partialTools[idx];
