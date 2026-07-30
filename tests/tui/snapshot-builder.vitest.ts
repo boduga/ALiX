@@ -13,6 +13,14 @@ function mkFakes() {
     getTurns: () => 3,
     getMode: () => 'auto' as const,
     getVersion: () => '1.0.0-test',
+    getState: () => ({
+      sessionId: 'test',
+      messages: [],
+      toolHistory: [],
+      turnCount: 3,
+      createdAt: '1970-01-01T00:16:40.000Z',
+      updatedAt: '1970-01-01T00:16:40.000Z',
+    }),
   } as unknown as AgentSession;
 
   const approvals = {

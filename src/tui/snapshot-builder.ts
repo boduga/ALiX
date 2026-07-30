@@ -138,8 +138,8 @@ export class SnapshotBuilder {
     let progressLedger: string | undefined;
     try {
       const state = this.session.getState();
-      if (state && typeof (state as any).progressLedger === 'string') {
-        progressLedger = (state as any).progressLedger;
+      if (state && typeof state.progressLedger === 'string') {
+        progressLedger = state.progressLedger;
       }
     } catch {
       // Session may not support getState() — leave undefined.
@@ -184,13 +184,14 @@ export class SnapshotBuilder {
 
   private async snapshotSession(): Promise<SessionMetadata | null> {
     try {
+      const state = this.session.getState();
       return Object.freeze({
-        mode: ((this.session as any).getMode?.() ?? 'auto') as 'auto' | 'ask' | 'bypass',
-        phase: (this.session as any).getPhase?.() ?? SessionPhase.Idle,
-        version: (this.session as any).getVersion?.() ?? 'unknown',
-        startedAt: (this.session as any).getStartedAt?.() ?? Date.now(),
-        turns: (this.session as any).getTurns?.() ?? 0,
-        currentIntent: ((this.session as any).getState?.()?.currentIntent ?? undefined) as 'research' | 'mutation' | 'validation' | undefined,
+        mode: (this.session as AgentSession).getMode?.() ?? 'auto',
+        phase: (this.session as AgentSession).getPhase?.() ?? SessionPhase.Idle,
+        version: (this.session as AgentSession).getVersion?.() ?? 'unknown',
+        startedAt: Date.parse(state.createdAt) || Date.now(),
+        turns: state.turnCount,
+        currentIntent: state.currentIntent as 'research' | 'mutation' | 'validation' | undefined,
       });
     } catch {
       return null;

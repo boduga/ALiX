@@ -81,6 +81,20 @@ const CLAIM_TOOL_MAP: Array<{ keywords: RegExp; toolPrefix: string; label: strin
   { keywords: /\bset\s?up\b.*\bmonitor|\bmonitor(ing)?\b/i, toolPrefix: "monitor", label: "setting up monitoring" },
 ];
 
+/** Tool-name override map for claim-detection re-prompts. */
+const CLAIM_TOOL_NAMES: Record<string, string> = {
+  "scheduling a cron job": "alix_cron_schedule",
+  "sending a notification": "alix_notification_send",
+  "sending a file to the user": "alix_user_send_file",
+  "editing/registering files": "alix_file_edit",
+  "verifying compilation": "alix_shell_run",
+  "setting up monitoring": "alix_monitor",
+};
+
+const NO_TOOL_MIN_TEXT = 10;
+const NARRATING_THRESHOLD = 80;
+const SHORT_SYNTHESIS_THRESHOLD = 200;
+
 /**
  * Compares a model's free-text completion summary against the tools it
  * actually invoked this session. Returns a human-readable list of claims
@@ -469,7 +483,7 @@ if (toolCalls.length === 0) {
   // common case where the model produces a verbal plan in its first
   // turn instead of immediately invoking tools, or where the tool call
   // JSON was truncated/invalid.
-  if (!modelSaysDone && i < maxIterations - 1 && text.length > 10) {
+  if (!modelSaysDone && i < maxIterations - 1 && text.length > NO_TOOL_MIN_TEXT) {
     messages.push({
       role: "user",
       content:
@@ -553,16 +567,8 @@ if (toolCalls.length === 0) {
 
         // Build a targeted re-prompt: list the missing tool calls with their
         // exact alix_ names so the model has no ambiguity about what to invoke.
-        const claimToolNames: Record<string, string> = {
-          "scheduling a cron job": "alix_cron_schedule",
-          "sending a notification": "alix_notification_send",
-          "sending a file to the user": "alix_user_send_file",
-          "editing/registering files": "alix_file_edit",
-          "verifying compilation": "alix_shell_run",
-          "setting up monitoring": "alix_monitor",
-        };
         const missingToolLines = unsubstantiated
-          .map((c) => `  - ${claimToolNames[c] ?? c}`)
+          .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
           .join("\n");
 
         let content: string;
@@ -753,7 +759,7 @@ if (toolCalls.length === 0) {
     // Record in progress ledger
     progressLedger.recordToolCall(
       toolCall.name,
-      (toolCall as any).summary,
+      toolCall.summary,
       !toolResult.error,
     );
     if (!toolResult.error) {
@@ -799,6 +805,8 @@ if (toolCalls.length === 0) {
       }
     }
 
+    usedTools.add(toolCall.name);
+
     // Defer completed and auto-complete checks — all tool calls in the
     // batch must execute before we decide to end the session. The first
     // tool's result can't short-circuit the second tool's dispatch.
@@ -823,22 +831,23 @@ if (toolCalls.length === 0) {
     if (taskType === "research") {
       searchCalls++;
     }
-
-    // Track tool name for the "what haven't you tried?" re-prompt
-    usedTools.add(toolCall.name);
   }
 
   // ── Intent classification ──────────────────────────────
   const observedIntent = intentClassifier.classify(toolCalls);
   const updateResult = intentClassifier.update(currentIntent, observedIntent, intentStreak);
+  const prevIntent = currentIntent;
   currentIntent = updateResult.next;
   intentStreak = updateResult.streak;
+  if (currentIntent !== prevIntent) {
+    progressLedger.startSection(currentIntent);
+  }
   if (deps.onCurrentIntentUpdate) deps.onCurrentIntentUpdate(currentIntent);
 
   // ── Progress checkpoint ──────────────────────────────────
   const wallClockElapsed = Date.now() - lastCheckpointWallClock;
   const modelText = text.trim();
-  const modelAlreadyNarrating = modelText.length >= 80;
+  const modelAlreadyNarrating = modelText.length >= NARRATING_THRESHOLD;
 
   if (
 	!modelAlreadyNarrating &&
@@ -846,7 +855,7 @@ if (toolCalls.length === 0) {
   ) {
 	messages.push({
 	  role: "user",
-	  content: `[Checkpoint] Progress update: ${toolCallsSinceCheckpoint} tool calls completed this segment. Continue with the task status.`,
+	  content: "[Progress checkpoint — brief status update requested]\nWhat progress have you made since the last checkpoint?\nWhat are you working on next? (1-3 sentences)",
 	});
 	toolCallsSinceCheckpoint = 0;
 	lastCheckpointWallClock = Date.now();
@@ -872,7 +881,7 @@ if (toolCalls.length === 0) {
     // Model explicitly requested completion via a "done" tool or similar.
     // If tools were called but the model's text is short, re-prompt once
     // for a synthesis before closing the session.
-    if (trackCompletedWithToolCalls && text.length < 200 && i < maxIterations - 1) {
+    if (trackCompletedWithToolCalls && text.length < SHORT_SYNTHESIS_THRESHOLD && i < maxIterations - 1) {
       messages.push({
         role: "user",
         content:
@@ -891,16 +900,8 @@ if (toolCalls.length === 0) {
         ...session, actor: "system", type: "completion.claim_rejected",
         payload: { unsubstantiatedClaims: unsubstantiated, attempt: unconfirmedDoneAttempts, source: "trackCompleted" },
       });
-      const claimToolNames: Record<string, string> = {
-        "scheduling a cron job": "alix_cron_schedule",
-        "sending a notification": "alix_notification_send",
-        "sending a file to the user": "alix_user_send_file",
-        "editing/registering files": "alix_file_edit",
-        "verifying compilation": "alix_shell_run",
-        "setting up monitoring": "alix_monitor",
-      };
       const missingToolLines = unsubstantiated
-        .map((c) => `  - ${claimToolNames[c] ?? c}`)
+        .map((c) => `  - ${CLAIM_TOOL_NAMES[c] ?? c}`)
         .join("\n");
       const content = unconfirmedDoneAttempts >= 2
         ? `You called the \`done\` tool but your summary still claims work that was never executed:\n${missingToolLines}\n\n` +
@@ -928,7 +929,7 @@ if (toolCalls.length === 0) {
   const hasToolMessages = messages.some((m: any) =>
     m.role === "user" && typeof m.content === "string" && m.content.startsWith("<tool_result"),
   );
-  if (hasToolMessages && text.length < 200 && i < maxIterations - 1) {
+  if (hasToolMessages && text.length < SHORT_SYNTHESIS_THRESHOLD && i < maxIterations - 1) {
     // Check if the model has been repeating the same tools and suggest
     // alternatives when appropriate.
     const usedList = [...usedTools];

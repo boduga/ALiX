@@ -22,12 +22,14 @@ import { homedir } from "node:os";
 // callers (AgentSession.getVersion, DaemonAgentSession.getVersion, etc.)
 // share a single synchronous read.
 // ---------------------------------------------------------------------------
+const VERSION_WALK_MAX_DEPTH = 6;
+const VERSION_FALLBACK = "0.0.0";
 let cachedVersion: string | null = null;
 export function readVersionCached(): string {
   if (cachedVersion !== null) return cachedVersion;
   try {
     let dir = process.cwd();
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < VERSION_WALK_MAX_DEPTH; i++) {
       const candidate = nodePath.join(dir, "package.json");
       if (nodeFs.existsSync(candidate)) {
         const pkg = JSON.parse(nodeFs.readFileSync(candidate, "utf8")) as { name?: string; version?: string };
@@ -43,7 +45,7 @@ export function readVersionCached(): string {
   } catch {
     /* fall through */
   }
-  cachedVersion = "0.0.0";
+  cachedVersion = VERSION_FALLBACK;
   return cachedVersion;
 }
 import type {
