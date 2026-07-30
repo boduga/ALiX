@@ -59,6 +59,7 @@ export type ToolCallRequest = {
   toolCallId: string;
   name: string;
   args: Record<string, unknown>;
+  summary?: string;
   agentId?: string;
   sessionId?: string;
   replayId?: string;

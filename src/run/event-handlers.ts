@@ -233,7 +233,7 @@ export async function handleToolCall(
   const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
 
   // First attempt
-  let execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+  let execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args, summary: toolCall.summary });
 
   // If the executor reports "Approval required (id)", wait for the operator
   // to resolve that approval and then re-execute the same tool call.
@@ -246,7 +246,7 @@ export async function handleToolCall(
       const approvalId = approvalMatch[1]!;
       const outcome = await waitForApproval(approvalId, deps);
       if (outcome === "approved") {
-        execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args });
+        execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args, summary: toolCall.summary });
       } else {
         // Denied or expired — keep the original denied result so the
         // generic Access denied path runs, but the LLM only sees ONE
