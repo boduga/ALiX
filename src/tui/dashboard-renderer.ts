@@ -88,8 +88,10 @@ export function paintDaemonPanel(
 
   // Row 1 — title bar (inside the box, below the top edge).
   canvas.write(x + 2, y + 1, "\x1b[32mDAEMON\x1b[0m");
-  if (snap.daemon) {
+  if (snap.daemon && snap.daemon.source === "daemon") {
     canvas.write(x + w - 12, y + 1, "\x1b[32m● running\x1b[0m");
+  } else if (snap.daemon && snap.daemon.source === "self") {
+    canvas.write(x + w - 14, y + 1, "\x1b[33m● this process\x1b[0m");
   } else {
     canvas.write(x + w - 12, y + 1, "\x1b[90m○ stopped\x1b[0m");
   }

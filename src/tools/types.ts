@@ -8,8 +8,25 @@ export type ToolCallRequest = {
   sessionId?: string;
 };
 
+export interface FindingReport {
+  severity: "low" | "medium" | "high" | "critical";
+  category: string;
+  file: string;
+  line: number;
+  summary: string;
+  failure_scenario: string;
+}
+
+export interface MonitorEvent {
+  type: string;
+  path?: string;
+  data?: string;
+  source?: string;
+  timestamp: string | number;
+}
+
 export type ToolResult =
-  | { kind: "success"; content?: string; output?: string; value?: string; matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number; createdPath?: string; deletedPath?: string; exists?: boolean; completed?: boolean }
+  | { kind: "success"; content?: string; output?: string; value?: string; matches?: FileMatch[]; changedFiles?: string[]; exitCode?: number; createdPath?: string; deletedPath?: string; exists?: boolean; completed?: boolean; reports?: FindingReport[]; events?: MonitorEvent[] }
   | { kind: "error"; message: string; retryable?: boolean; hint?: string };
 // retryable: true = safe to retry. false/undefined = fatal (don't spin).
 // hint: short instruction for the model on how to recover.

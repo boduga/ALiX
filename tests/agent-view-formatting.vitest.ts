@@ -450,7 +450,10 @@ describe('AgentView — approval cards', () => {
       ],
     });
     const c = renderOnCanvas(W, TALL, perTab);
-    expect(rowText(c, 6)).toContain('2 approval requests pending');
+    // The approval header is wrapped in a callout box: row 6 = WARNING label,
+    // row 7 = body text.
+    expect(rowText(c, 6)).toContain('WARNING');
+    expect(rowText(c, 7)).toContain('2 approval requests pending');
   });
 
   it('renders approval cards with tool, target, and short ID', () => {

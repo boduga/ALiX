@@ -12,8 +12,40 @@
  */
 
 import { randomUUID } from "node:crypto";
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
 import { join } from "node:path";
 import { homedir } from "node:os";
+
+// ---------------------------------------------------------------------------
+// Cached package-version lookup. Walked once at module-load time so all
+// callers (AgentSession.getVersion, DaemonAgentSession.getVersion, etc.)
+// share a single synchronous read.
+// ---------------------------------------------------------------------------
+let cachedVersion: string | null = null;
+export function readVersionCached(): string {
+  if (cachedVersion !== null) return cachedVersion;
+  try {
+    let dir = process.cwd();
+    for (let i = 0; i < 6; i++) {
+      const candidate = nodePath.join(dir, "package.json");
+      if (nodeFs.existsSync(candidate)) {
+        const pkg = JSON.parse(nodeFs.readFileSync(candidate, "utf8")) as { name?: string; version?: string };
+        if (pkg.version) {
+          cachedVersion = pkg.version;
+          return cachedVersion;
+        }
+      }
+      const parent = nodePath.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
+    }
+  } catch {
+    /* fall through */
+  }
+  cachedVersion = "0.0.0";
+  return cachedVersion;
+}
 import type {
   ToolCall,
   NormalizedMessage,
@@ -322,6 +354,15 @@ export interface AgentSession {
   processChat(message: string): Promise<AgentTurnResult>;
   /** The underlying session ID. */
   getSessionId(): string;
+  /** Current permissions mode (auto/ask/bypass). Optional — older
+   *  implementations that pre-date the mode field can omit it. */
+  getMode?(): "auto" | "ask" | "bypass";
+  /** Set the current permission mode at runtime. Optional — sessions
+   *  that pre-date this capability can omit it. The TUI's Shift+Tab
+   *  uses this to cycle auto → ask → bypass → auto. */
+  setMode?(mode: "auto" | "ask" | "bypass"): void;
+  /** Current package version. Optional — same compatibility note. */
+  getVersion?(): string;
   /** Snapshot of current session state. */
   getState(): AgentSessionState;
   /**
@@ -1240,6 +1281,21 @@ export class AgentSessionBuilder {
       return ctx.sessionId;
     }
 
+    function getMode(): "auto" | "ask" | "bypass" {
+      return ctx?.config.permissions.sessionMode ?? config.sessionMode ?? "auto";
+    }
+
+    function setMode(mode: "auto" | "ask" | "bypass"): void {
+      // Mutate both the in-flight config (if a ctx has been built) and
+      // the seed config so subsequent initAgent calls pick up the new mode.
+      if (config) config.sessionMode = mode;
+      if (ctx) ctx.config.permissions.sessionMode = mode;
+    }
+
+    function getVersion(): string {
+      return readVersionCached();
+    }
+
     function getState(): AgentSessionState {
       return {
         sessionId: getSessionId(),
@@ -1504,6 +1560,9 @@ export class AgentSessionBuilder {
       processTurn,
       processChat,
       getSessionId,
+      getMode,
+      setMode,
+      getVersion,
       getState,
       getPhase,
       save,

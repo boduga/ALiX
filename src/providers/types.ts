@@ -114,6 +114,7 @@ export type ToolCall = {
   id: string;
   name: string;
   args: Record<string, unknown>;
+  summary?: string;
 };
 
 export type NormalizedResponse = {

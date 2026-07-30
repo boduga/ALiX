@@ -40,6 +40,7 @@ function mkFakes() {
       diskTotalBytes: 100_000_000_000,
       clients: [],
       sampledAt: Date.now(),
+      source: "daemon",
     }),
   };
   return { session, approvals, policy, sops, eventLog, daemon };

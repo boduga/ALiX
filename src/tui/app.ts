@@ -261,7 +261,11 @@ export class TuiApp {
         return;
       }
       if (key === 'Backspace') {
-        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        if (perTab.inputBuffer.length > 0) {
+          perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        } else {
+          this.navigateBack();
+        }
         this.paintFullFrame();
         return;
       }
@@ -277,6 +281,17 @@ export class TuiApp {
     // ── Agent-tab input capture (full processTurn path) ────────────
     if (tab === 'agent') {
       const perTab = this.state.views.agent;
+      // Shift+Tab on the agent tab cycles the permission mode
+      // (auto → ask → bypass → auto). Other tabs use Shift+Tab for
+      // tab cycling via tryHandleGlobal — overriding it only here
+      // keeps the navigation gesture intact everywhere else.
+      if (key === 'Shift+Tab') {
+        this.cyclePermissionMode();
+        // Force an immediate snapshot so the header reflects the new
+        // mode on the next paint instead of waiting up to 1s.
+        void this.refresh();
+        return;
+      }
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
           perTab.submittedPrompts.push(perTab.inputBuffer);
@@ -287,7 +302,11 @@ export class TuiApp {
         return;
       }
       if (key === 'Backspace') {
-        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        if (perTab.inputBuffer.length > 0) {
+          perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        } else {
+          this.navigateBack();
+        }
         this.paintFullFrame();
         return;
       }
@@ -469,6 +488,13 @@ export class TuiApp {
   }
 
   private tryHandleGlobal(key: string): boolean {
+    // On the agent tab, Shift+Tab is hijacked to cycle the permission
+    // mode (auto → ask → bypass → auto). Returning false here lets the
+    // agent-tab input handler below claim it. Other tabs still get the
+    // standard reverse-tab cycling.
+    if (key === 'Shift+Tab' && this.state.activeTab === 'agent') {
+      return false;
+    }
     const nav = this.navigation.interpret(key);
     if (nav) {
       switch (nav.type) {
@@ -492,6 +518,33 @@ export class TuiApp {
     }
     if (key === 'Ctrl+l' || key === '\f') { this.paintFullFrame(); return true; }
     return false;
+  }
+
+  /**
+   * Pop the navigation stack and return to the previous tab.
+   * No-op when history is empty (stays on the current tab).
+   */
+  private navigateBack(): void {
+    const prev = this.state.history.pop();
+    if (prev) {
+      this.views[this.state.activeTab]?.onDeactivate?.(this.state.views[this.state.activeTab]);
+      this.state.activeTab = prev;
+      this.views[prev]?.onActivate?.(this.state.views[prev]);
+      this.paintFullFrame();
+    }
+  }
+
+  /**
+   * Cycle the agent session's permission mode: auto → ask → bypass → auto.
+   * Triggered by Shift+Tab on the agent tab. Persists by mutating the
+   * session config; the next snapshot reflects the change in the header.
+   */
+  private cyclePermissionMode(): void {
+    const order: Array<"auto" | "ask" | "bypass"> = ["auto", "ask", "bypass"];
+    const current = this.opts.agentSession?.getMode?.() ?? "auto";
+    const idx = order.indexOf(current);
+    const next = order[(idx + 1) % order.length] ?? "auto";
+    this.opts.agentSession?.setMode?.(next);
   }
 
   private switchTab(next: TabId): void {
@@ -707,9 +760,16 @@ export class TuiApp {
    */
   private handlePaste(buf: Buffer): boolean {
     const s = buf.toString('utf8');
-    if (s === '\x1b[200~') {
+    // Some terminals send the bracketed-paste start marker (\x1b[200~)
+    // concatenated with the first chunk of pasted data in a single buffer.
+    // Use startsWith so we catch the marker even when it's not an exact match.
+    if (s.startsWith('\x1b[200~')) {
       this.pasteState = 'reading';
       this.pasteChunks = [];
+      // If there's trailing data after the marker, push it as the first chunk.
+      if (s.length > 6) {
+        this.pasteChunks.push(buf.subarray(6));
+      }
       return true;
     }
     if (this.pasteState !== 'reading') return false;
@@ -860,11 +920,24 @@ export class TuiApp {
     // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
     c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
     const liveVersion: string | undefined =
-      (this.opts.agentSession as { getVersion?: () => string } | undefined)?.getVersion?.();
-    const version = liveVersion || session?.version || '0.0.0';
-    const sessionMode = session?.mode ?? 'auto';
-    const rightText = `\x1b[90mAgent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}\x1b[0m`;
-    const rightLen = `Agent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}`.length;
+      this.opts.agentSession?.getVersion?.();
+    const version = liveVersion || session?.version || 'unknown';
+    const liveSessionId: string | undefined =
+      this.opts.agentSession?.getSessionId?.();
+    const sessionDisplay = liveSessionId || '(no session)';
+    const liveMode: 'auto' | 'ask' | 'bypass' | undefined =
+      this.opts.agentSession?.getMode?.();
+    const sessionMode = liveMode ?? session?.mode ?? 'auto';
+    // Mode color: bypass = red (no safety), ask = green (cautious),
+    // auto = orange (Claude-side heuristics). The colors signal the
+    // operator's risk posture at a glance — bypass means "trust me",
+    // ask means "stop and ask", auto means "let the model decide".
+    const modeColor =
+      sessionMode === 'bypass' ? '\x1b[31m' :
+      sessionMode === 'ask' ? '\x1b[32m' :
+      '\x1b[33m';
+    const rightText = `\x1b[90mALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${modeColor}${sessionMode}\x1b[0m`;
+    const rightLen = `ALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${sessionMode}`.length;
     c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
     // Row 2: bottom rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
@@ -908,9 +981,11 @@ export class TuiApp {
       else phaseLine += `\x1b[90m○ ${p.label}\x1b[0m   `;
     }
     const sep = `\x1b[90m|\x1b[0m`;
-    const daemonLabel = snap.daemon !== null
-      ? `\x1b[32m● running\x1b[0m`
-      : `\x1b[90m○ stopped\x1b[0m`;
+    const daemonLabel = snap.daemon === null
+      ? `\x1b[90m○ stopped\x1b[0m`
+      : snap.daemon.source === "daemon"
+        ? `\x1b[32m● running\x1b[0m`
+        : `\x1b[33m● this process\x1b[0m`;
     const sopCount = snap.sops?.totalLoaded ?? 0;
     const ruleCount = snap.policy?.rules.length ?? 0;
     const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');

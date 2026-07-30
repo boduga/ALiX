@@ -27,7 +27,21 @@ export const openaiBaseSpec: ProviderSpec = {
     if (req.tools && req.tools.length > 0) {
       body.tools = req.tools.map((t) => ({
         type: "function",
-        function: { name: t.name, description: t.description, parameters: t.input_schema },
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: {
+            type: "object",
+            properties: {
+              ...(t.input_schema?.properties ?? {}),
+              summary: {
+                type: "string",
+                description: "2-5 word explanation of why this tool is being called. Helps the operator follow progress at a glance. Example: 'Locating config file' or 'Running typecheck'",
+              },
+            },
+            ...(t.input_schema && 'required' in t.input_schema ? { required: t.input_schema.required } : {}),
+          },
+        },
       }));
     }
     if (req.temperature !== undefined) body.temperature = req.temperature;
