@@ -20,6 +20,7 @@ import { StdioInput, StdioOutput } from './io.js';
 import { KeyDispatcher } from './key-dispatcher.js';
 import { PaletteModal } from './capabilities/palette.js';
 import { getCapabilityService } from './capabilities/capability-service.js';
+import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -92,12 +93,20 @@ export class TuiApp {
       runtime: getView('runtime')!,
       sops: getView('sops')!,
       policy: getView('policy')!,
-      // Placeholder until the Capabilities tab lands (Phase 2 Task 5); renders
-      // an empty frame so Record<TabId, TuiView> stays exhaustive.
-      capabilities: { id: 'capabilities', render: () => ({ rows: [] }) },
+      capabilities: getView('capabilities')!,
     };
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();
+
+    // Bind the capability service's presenter to this TUI's chat state so
+    // every invocation surfaces in the operator timeline. TuiApp owns the
+    // chat state; the service's module accessor is also set at bootstrap —
+    // the option is redundant but keeps TuiApp usable standalone.
+    if (this.opts.capabilityService) {
+      const svc = this.opts.capabilityService;
+      const presenter = new ChatInvocationPresenter(() => this.state.views.chat);
+      svc.setPresenter(presenter);
+    }
   }
 
   /** Test seam: expose the gate for direct assertions in unit tests. */
