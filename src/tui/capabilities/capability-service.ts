@@ -60,8 +60,11 @@ export class CapabilityService {
       ...opts,
     };
     this.platform = new CapabilityPlatform();
-    registerInitialCapabilities(this.platform.registry, this.platform.native);
+    // Subscribe BEFORE registering initial capabilities so the bridge
+    // (EventBus does not replay past events to late subscribers) captures
+    // every CapabilityRegistered emission.
     this.wireEventBridge();
+    registerInitialCapabilities(this.platform.registry, this.platform.native);
     this.initPromise = this.initialize();
   }
 
