@@ -16,7 +16,22 @@ function hasUvx(): boolean {
   }
 }
 
-test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_000, skip: !hasUvx() }, async () => {
+// uvx present is not enough — the fetched mcp-server-fetch package must
+// actually launch. Its cached `mcp` SDK dependency can be broken (e.g.
+// McpError moved upstream), which surfaces as an ImportError at startup.
+// Probe launchability so the test skips in such environments instead of
+// failing for an environmental reason, while still asserting real
+// discovery behavior where the package runs.
+function canRunMcpFetch(): boolean {
+  try {
+    execSync("uvx mcp-server-fetch", { stdio: "ignore", timeout: 15000, input: "" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+test("discoverServer returns correct info for mcp-server-fetch", { timeout: 120_000, skip: !hasUvx() || !canRunMcpFetch() }, async () => {
   const config = await loadConfig(__dirname, { requireModel: false });
   if (!config.model) {
     config.model = { provider: "cli", name: "test-model" };

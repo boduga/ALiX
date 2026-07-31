@@ -26,7 +26,7 @@ import { randomUUID } from "node:crypto";
 import { startServer } from "../../src/server/server.js";
 import { AuthStore, createTokenRecord } from "../../src/security/inspector/auth-store.js";
 import { generateToken } from "../../src/security/inspector/token-format.js";
-import { getUserStatePaths } from "../../src/security/platform/user-state-paths.js";
+import { getUserStatePaths, setStateDirOverride, clearStateDirOverride } from "../../src/security/platform/user-state-paths.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -124,6 +124,12 @@ describe("Auth routes (Sb3)", () => {
     dir = tempDir();
     mkdirSync(dir, { recursive: true });
 
+    // Isolate auth state from the real user store — it may be at the token
+    // cap (MAX_TOKEN_COUNT) or hold real tokens, which would silently make
+    // add() fail and the test's token unreachable (401). Override keeps the
+    // test hermetic and prevents polluting the real store.
+    setStateDirOverride(dir);
+
     // Set up auth state
     const userPaths = getUserStatePaths();
     mkdirSync(userPaths.authStateDir, { recursive: true, mode: 0o700 });
@@ -154,6 +160,7 @@ describe("Auth routes (Sb3)", () => {
 
   after(async () => {
     await closeFn();
+    clearStateDirOverride();
     try { rmSync(dir, { recursive: true, force: true }); } catch { /* cleanup */ }
   });
 
