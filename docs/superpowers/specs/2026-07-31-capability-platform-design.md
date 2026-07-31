@@ -1,6 +1,6 @@
 # ALiX Capability Platform — Design Specification
 
-**Status:** Draft
+**Status:** Implemented (Phase 1)
 **Date:** 2026-07-31
 **Origin:** Wayfinder #308 — "Everything from the TUI"
 **Purpose:** Define the reusable execution substrate behind all ALiX interfaces.
