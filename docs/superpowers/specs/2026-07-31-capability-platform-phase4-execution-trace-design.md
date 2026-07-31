@@ -29,31 +29,41 @@ client-side filtering. No new tab, no navigation churn.
 | D5 | **Running entries are never evicted.** The window keeps every open (`running`) lifecycle entry; only terminal (`completed`/`failed`/`cancelled`) units participate in the bounded keep-last-N eviction. An in-progress tool must not vanish mid-run. |
 | D6 | **RuntimeView renders DTOs only.** The view never calls `EventLog` APIs and never interprets raw events — it renders `ExecutionTraceEntry[]` produced by the builder and window, assembled by the collector into the snapshot. Dependency chain: `EventLog → RuntimeCollector → RuntimeSnapshot → RuntimeView`. |
 | D7 | **Filtering is view-local presentation state.** The collector always produces the complete bounded trace; the view decides All / Tool / Capability / Policy / Runtime. Filter state lives in `PerTabState`. |
-| D8 | **Builder output is immutable and detached.** `ExecutionTraceBuilder` never mutates `AlixEvent`s and never returns references into `EventLog` payloads — entries contain copied DTO fields only. `RuntimeSnapshot.trace` is `readonly`. |
+| D8 | **Builder output is immutable and detached.** `ExecutionTraceBuilder` never mutates `AlixEvent`s and never returns references into `EventLog` payloads — entries contain copied DTO fields only. `RuntimeSnapshot.trace` is `readonly`. **RuntimeView never mutates `ExecutionTraceEntry` instances** — filtering and rendering operate on readonly DTOs. This mirrors Phase-3's `appendTimelineEvent` identity rule in the opposite direction: timeline events intentionally support lifecycle mutation; trace entries intentionally do not. |
 | D9 | **Incremental-ready builder interface.** The builder is specified as `build(events)` today (implemented over `readAll()`), but its interface must admit a future incremental `update(newEvents)` without changing the collector or view. |
+| D10 | **Builder consumes EventLog facts only.** `ExecutionTraceBuilder` never reads `timelineEvents[]` or capability presenters — it is a pure function of the `EventLog` stream. Capability lifecycle entries are derived from the `capability.*` bridge events (or their `CapabilityEvent` equivalents) already in the log. |
 
 ## Architecture
 
 ### Execution trace entry — the lifecycle unit
+
+Named unions so the builder/view/tests never repeat the literals:
+
+```ts
+export type ExecutionTraceKind = 'tool' | 'policy' | 'capability' | 'runtime';
+export type ExecutionTraceStatus = 'running' | 'completed' | 'failed' | 'cancelled';
+```
+
+The entry is an explicitly-readonly DTO — the contract enforces the invariant:
 
 ```ts
 /** Runtime-local deterministic trace entry id (e.g. `tr-${seq}`). NOT durable
  *  across sessions; if replay/persistence arrives, `sessionId + sequence`
  *  becomes the durable identity. */
 export interface ExecutionTraceEntry {
-  id: string;
-  kind: 'tool' | 'policy' | 'capability' | 'runtime';
-  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  readonly id: string;
+  readonly kind: ExecutionTraceKind;
+  readonly status: ExecutionTraceStatus;
   /** One-line title — "tool.search", "Policy: Allow", "core.session.list". */
-  title: string;
-  detail?: string;
-  startedAt: number;
-  completedAt?: number;
-  durationMs?: number;
+  readonly title: string;
+  readonly detail?: string;
+  readonly startedAt: number;
+  readonly completedAt?: number;
+  readonly durationMs?: number;
   /** Provenance back to the raw EventLog, without leaking raw events into the UI. */
-  sourceEvents: {
-    firstSequence: number;
-    lastSequence?: number;
+  readonly sourceEvents: {
+    readonly firstSequence: number;
+    readonly lastSequence?: number;
   };
 }
 ```
@@ -79,7 +89,13 @@ RuntimeCollectorImpl  (polls, orchestrates)
 
 **Stage responsibilities:**
 - **`ExecutionTraceBuilder`** — pure. Answers "what lifecycle entries exist?" Groups over the complete known history (starts with `EventLog.readAll()`; interface designed so an incremental `update(newEvents)` slots in later without touching the collector/view). Owns the lifecycle map.
-- **`ExecutionTraceWindow`** — retention only. Answers "which entries are retained?" Keeps every open (`running`) entry; keeps the last N (e.g. 50) terminal units. **Ordering rule:** terminal entries render oldest→newest, then open (`running`) entries appended after them — a long-running tool cannot visually dominate the tab forever. Conceptually separate from building; initially co-located in the same file.
+- **`ExecutionTraceWindow`** — retention only. Answers "which entries are retained?" Keeps every open (`running`) entry; keeps the last N (e.g. 50) terminal units. **Ordering rule:** terminal entries render oldest→newest, then open (`running`) entries appended after them — a long-running tool cannot visually dominate the tab forever. Conceptually separate from building; initially co-located in the same file. **Formal interface** — no builder logic, no EventLog knowledge, no timestamp interpretation, only retention:
+
+```ts
+export interface ExecutionTraceWindow {
+  apply(entries: readonly ExecutionTraceEntry[]): readonly ExecutionTraceEntry[];
+}
+```
 - **`RuntimeCollectorImpl`** — orchestrates. Polls `readAll()` → builder → window → assembles `RuntimeSnapshot`. Keeps the existing summary header (phase/intent/workflow) and the existing poll-failure keeps-previous-snapshot behavior.
 - **`RuntimeView`** — renders summary header + lifecycle-aware trace rows. Applies the client-side filter over `trace`. Never calls `EventLog`.
 
@@ -87,7 +103,7 @@ RuntimeCollectorImpl  (polls, orchestrates)
 
 - **Tool:** `tool.started` + `tool.stdout*` + `tool.completed`/`tool.failed` → one entry (`▶ tool.search … ✔ completed (183 ms)` with stdout detail).
 - **Policy:** `policy.check.started` + `policy.allowed`/`denied` → one verdict entry (`✔ Policy: Allow`). `patch.*` checkpoint/rollback events group under policy too.
-- **Capability:** `capability.*` lifecycle → one entry (invocation, status, output).
+- **Capability:** `capability.*` lifecycle (the `toAlixEvent` bridge already in the log: `capability.started` / `completed` / `failed` / `cancelled`, or their `CapabilityEvent` equivalents) → one entry (invocation, status, output). The builder derives these from the **EventLog facts only** — it never reads `timelineEvents[]` or capability presenter state (D10).
 - **Runtime:** `runtime.transition` / phase changes / workflow created/completed → one entry.
 
 ### Snapshot migration
@@ -133,7 +149,7 @@ capability.InvocationStarted/…              ─┘         │
 
 ## Testing Strategy
 
-- **Builder (pure unit tests):** tool lifecycle collapse (`started`+`stdout`+`completed` → one entry with duration + sourceEvents range), policy verdict collapse, capability lifecycle, runtime transition entry, terminal-vs-open classification, immutability (output is a detached DTO — mutating the entry does not touch the source events).
+- **Builder (pure unit tests):** tool lifecycle collapse (`started`+`stdout`+`completed` → one entry with duration + sourceEvents range), policy verdict collapse, capability lifecycle (derived from `capability.*` EventLog facts only), runtime transition entry, terminal-vs-open classification, immutability (output is a detached DTO — mutating the entry does not touch the source events; entries are `readonly`).
 - **Window:** running entries always retained; terminal keepLast(50); ordering — terminal entries oldest→newest, running entries appended after them.
 - **Snapshot:** `trace` is `readonly`; deprecated `events` present during migration then deleted; consumers updated.
 - **View:** filter renders the correct subsets (tool/capability/policy/runtime/all); summary header intact; scroll (`J`/`K`) preserved.
