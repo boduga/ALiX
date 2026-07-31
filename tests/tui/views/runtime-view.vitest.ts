@@ -8,9 +8,7 @@ describe('RuntimeView', () => {
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            submittedPrompts: [],
-            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-            agentResponses: []
+            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
   });
 
@@ -53,9 +51,7 @@ describe('RuntimeView', () => {
     const ctx = (snap: any, perTabOverrides: any = {}) => ({ snap, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            submittedPrompts: [],
-            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-            agentResponses: [],
+            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
             ...perTabOverrides,
           } });
     expect(view.handleKey?.('ArrowDown', ctx({ runtime: { events: [{ id: '1' }, { id: '2' }] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1, pinnedBottom: false });

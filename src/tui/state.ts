@@ -38,16 +38,38 @@ export interface ResolvedApproval {
   resolvedAt: number;
 }
 
-/** A capability invocation surfaced in the chat timeline. */
-export interface CapabilityInvocationEntry {
+/** Who produced a timeline event. Add `'system'` when the first system event exists (YAGNI). */
+export type TimelineSource = 'operator' | 'agent' | 'capability';
+
+export interface TimelineEventBase {
+  /** Runtime-local deterministic id: `tl-${sequence}`. Unique within one TUI
+   *  runtime instance; NOT globally unique across sessions. If persistence
+   *  arrives, introduce `timelineId = sessionId + sequence` without changing
+   *  this model. */
+  id: string;
+  /** Date.now() at append. */
+  timestamp: number;
+  /** Monotonic per-runtime counter — the ordering tiebreak. */
+  sequence: number;
+  /** Who produced the event — orthogonal to `kind`. Stamped by
+   *  appendTimelineEvent; writers never set it. */
+  source: TimelineSource;
+}
+
+/** Fields shared by the capability TimelineEvent variant and its writer input. */
+export interface CapabilityEventFields {
   invocationId: string;
   capabilityId: string;
-  args: Record<string, unknown>;
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   output?: unknown;
   error?: string;
-  at: number;
 }
+
+/** A conversation-turn / capability event in the operator timeline. */
+export type TimelineEvent =
+  | (TimelineEventBase & { kind: 'user'; text: string })
+  | (TimelineEventBase & { kind: 'agent'; text: string })
+  | (TimelineEventBase & { kind: 'capability' } & CapabilityEventFields);
 
 /**
  * Serializable UI state preserved per tab across switches. No Set, Map,
@@ -67,10 +89,6 @@ export interface PerTabState {
   pinnedBottom: boolean;
   /** Partial message typed into the input prompt before submit. */
   inputBuffer: string;
-  /** Submitted prompts, oldest first; rendered in the chat scrollback. */
-  submittedPrompts: string[];
-  /** Agent responses received from AgentSession.processTurn, oldest first. */
-  agentResponses: string[];
   /** Plan content from the most recent planning phase, if any. */
   planContent?: string;
   /**
@@ -128,8 +146,10 @@ export interface PerTabState {
    * SOPS & POLICY. Null on every other tab so keys pass through silently.
    */
   panelFocus: PanelFocusId | null;
-  /** Capability invocations surfaced in the chat timeline, oldest first. */
-  capabilityInvocations: CapabilityInvocationEntry[];
+  /** Unified operator timeline — user prompts, agent responses, capability
+   *  invocations, ordered by (timestamp, sequence). Single source of truth
+   *  for conversation; the chat/agent/copy views are projections of this. */
+  timelineEvents: TimelineEvent[];
   /** Selected capability in the Capabilities tab (per-tab view state). */
   capabilitiesSelectedId?: string;
 }
@@ -167,14 +187,69 @@ export function createInitialPerTabState(): PerTabState {
     expandedSections: [],
     lastEventArrivedAt: 0,
     inputBuffer: '',
-    submittedPrompts: [],
-    agentResponses: [],
     pendingApprovals: [],
     resolvedApprovals: [],
-    capabilityInvocations: [],
+    timelineEvents: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
   };
+}
+
+/** Writer-facing timeline input: a TimelineEvent minus the stamped base fields. */
+export type TimelineEventInput =
+  | { kind: 'user'; text: string }
+  | { kind: 'agent'; text: string }
+  | { kind: 'capability' } & CapabilityEventFields;
+
+let timelineSequence = 0;
+export function nextTimelineSequence(): number { return ++timelineSequence; }
+
+/**
+ * The ONLY writer path into the timeline. Stamps id/timestamp/sequence/source,
+ * pushes, and returns the actual stored object (never a clone) so the caller
+ * can hold it for in-place mutation (the capability presenter does this).
+ */
+export function appendTimelineEvent(state: Pick<PerTabState, 'timelineEvents'>, event: TimelineEventInput): TimelineEvent {
+  const sequence = nextTimelineSequence();
+  const source: TimelineSource = event.kind === 'user' ? 'operator'
+    : event.kind === 'agent' ? 'agent' : 'capability';
+  const created = {
+    ...event,
+    id: `tl-${sequence}`,
+    timestamp: Date.now(),
+    sequence,
+    source,
+  } as TimelineEvent;
+  state.timelineEvents.push(created);
+  return created;
+}
+
+/** Ordered view of the timeline: by timestamp, then sequence (deterministic same-ms). Does not mutate input. */
+export function getOrderedTimeline(events: readonly TimelineEvent[]): TimelineEvent[] {
+  return [...events].sort((a, b) => a.timestamp - b.timestamp || a.sequence - b.sequence);
+}
+
+/** Status suffix for a capability event — "core.session.list [completed ✓]". Shared by ChatView + copy. */
+export function capabilityStatusText(event: Extract<TimelineEvent, { kind: 'capability' }>): string {
+  let text = event.capabilityId;
+  if (event.status === 'running') text += ' [running]';
+  else if (event.status === 'completed') {
+    text += ' [completed ✓]';
+    // Review fix: append output ONLY when present — avoids "[completed ✓] """
+    // for empty output and "undefined" for absent output.
+    if (event.output !== undefined && event.output !== '') text += ` ${JSON.stringify(event.output)}`;
+  } else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
+  else text += ' [cancelled]';
+  return text.trim();
+}
+
+/** One-line rendering of a timeline event — shared by copy-scrollback so copy matches the chat view. */
+export function formatTimelineEvent(event: TimelineEvent): string {
+  switch (event.kind) {
+    case 'user': return `→ ${event.text}`;
+    case 'agent': return `← ${event.text}`;
+    case 'capability': return `⚡ ${capabilityStatusText(event)}`;
+  }
 }
 
 export function createInitialTuiAppState(): TuiAppState {

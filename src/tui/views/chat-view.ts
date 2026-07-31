@@ -1,4 +1,5 @@
 import type { PerTabState, TabId } from '../state.js';
+import { capabilityStatusText, getOrderedTimeline } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
@@ -40,54 +41,55 @@ export class ChatView implements TuiView {
     // they don't truncate at the panel border; the marker only appears
     // on the first line of each turn and continuation lines indent to
     // align under the text.
-    const submitted = ctx.perTab.submittedPrompts;
-    const responses = ctx.perTab.agentResponses;
     const scrollbackTop = 5;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
-    // Flatten turns → wrapped lines so very long messages occupy multiple
+    // Flatten timeline → wrapped lines so very long messages occupy multiple
     // rows instead of truncating at the right border. User prompts stay
     // plain; agent responses go through the rich renderer so fenced
     // code, lists, bold/italic, headings, and quotes get their own
     // visual treatment.
     interface ScrollbackLine { kind: 'user' | 'agent' | 'capability'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
-    const maxLen = Math.max(submitted.length, responses.length);
-    for (let i = 0; i < maxLen; i++) {
-      // Blank-line separator between turns so each query breathes away
-      // from the previous response. Skip the very first turn so we
-      // don't push a leading empty line.
-      if (i > 0) {
-        allLines.push({ kind: 'user', text: '', isFirst: false });
-      }
-      if (i < submitted.length) {
-        // User prompts render as plain text — no markdown parsing needed.
-        const wrapped = wrapText(submitted[i]!, textWidth);
-        wrapped.forEach((line, j) => {
-          allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
-        });
-      }
-      if (i < responses.length) {
-        // Agent responses go through the rich renderer.
-        renderResponse(responses[i]!, textWidth, ctx.themeName ? getTheme(ctx.themeName) : undefined).forEach((row, j) => {
-          allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
-        });
-      }
-    }
-    // (Turns were inlined into the loop above; nothing to do here.)
 
-    // Capability invocations surface in the operator timeline after the
-    // conversation turns — "⚡ core.session.list [completed ✓]".
-    const invocations = ctx.perTab.capabilityInvocations;
-    for (const inv of invocations) {
-      let text = inv.capabilityId;
-      if (inv.status === 'running') text += ' [running]';
-      else if (inv.status === 'completed') text += ` [completed ✓] ${inv.output === undefined ? '' : JSON.stringify(inv.output)}`;
-      else if (inv.status === 'failed') text += ` [failed ✗] ${inv.error ?? ''}`;
-      else text += ' [cancelled]';
-      allLines.push({ kind: 'capability', text: text.trim(), isFirst: true });
+    // Unified operator timeline — user prompts, agent responses, and
+    // capability invocations interleaved by (timestamp, sequence). This is
+    // the Phase-3 payoff: a capability invoked mid-conversation renders in
+    // its chronological position, not appended after all turns.
+    const events = getOrderedTimeline(ctx.perTab.timelineEvents);
+    // Blank-line separator between turns so each query breathes away from
+    // the previous response. A blank precedes a user event (except the very
+    // first user turn) AND an agent event when the immediately-preceding
+    // event was also an agent event (e.g. a resolution one-liner after a
+    // full response). Capability events stay inline — no blank around them.
+    let prevKind: typeof events[number]['kind'] | undefined;
+    for (const event of events) {
+      const needsSeparator = prevKind !== undefined && (
+        event.kind === 'user' || (event.kind === 'agent' && prevKind === 'agent')
+      );
+      if (needsSeparator) allLines.push({ kind: 'user', text: '', isFirst: false });
+      prevKind = event.kind;
+      switch (event.kind) {
+        case 'user': {
+          const wrapped = wrapText(event.text, textWidth);
+          wrapped.forEach((line, j) => {
+            allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
+          });
+          break;
+        }
+        case 'agent': {
+          renderResponse(event.text, textWidth, ctx.themeName ? getTheme(ctx.themeName) : undefined).forEach((row, j) => {
+            allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
+          });
+          break;
+        }
+        case 'capability': {
+          allLines.push({ kind: 'capability', text: capabilityStatusText(event), isFirst: true });
+          break;
+        }
+      }
     }
 
     // Use scrollOffset so the user can scroll back through past responses

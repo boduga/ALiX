@@ -1,5 +1,5 @@
-import type { PanelFocusId, PanelScrollOffsets, TabId, TuiAppState } from './state.js';
-import { createInitialTuiAppState, SessionPhase } from './state.js';
+import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
+import { appendTimelineEvent, createInitialTuiAppState, formatTimelineEvent, getOrderedTimeline, SessionPhase } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { getTheme } from './blocks/theme.js';
@@ -51,6 +51,14 @@ export interface TuiAppOptions {
 }
 
 const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
+
+/**
+ * Narrow writable view of a tab's per-tab state that the shared submit path
+ * is allowed to mutate. dispatchToSession only appends to the operator
+ * timeline and resets plan/scroll fields — it never needs the full
+ * PerTabState, so this type keeps the function honest about its surface.
+ */
+type TimelineWritableState = Pick<PerTabState, 'timelineEvents' | 'planContent' | 'planTasks' | 'scrollOffset'>;
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -313,7 +321,7 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          perTab.submittedPrompts.push(perTab.inputBuffer);
+          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer });
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -354,7 +362,7 @@ export class TuiApp {
       }
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          perTab.submittedPrompts.push(perTab.inputBuffer);
+          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer });
           void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -474,7 +482,7 @@ export class TuiApp {
   private async dispatchToSession(
     text: string,
     kind: 'chat' | 'agent',
-    perTab: { agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] },
+    perTab: TimelineWritableState,
     candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
@@ -527,7 +535,10 @@ export class TuiApp {
         // Try the next candidate rather than giving up.
       }
     }
-    perTab.agentResponses.push(summary);
+    // perTab's narrow type only constrains what dispatchToSession may itself
+    // write; it always includes the timelineEvents write surface that
+    // appendTimelineEvent requires.
+    appendTimelineEvent(perTab, { kind: 'agent', text: summary });
     perTab.scrollOffset = 0; // auto-scroll to bottom on new response
     this.paintFullFrame();
   }
@@ -811,7 +822,7 @@ export class TuiApp {
   }
 
   /**
-   * Append a one-liner to the active view's `agentResponses` so the
+   * Append a one-liner to the active view's operator timeline so the
    * resolution message shows in the scrollback.
    */
   private appendAgentMessage(
@@ -820,7 +831,7 @@ export class TuiApp {
   ): void {
     const state = this.state.views[tab];
     if (!state) return;
-    state.agentResponses.push(text);
+    appendTimelineEvent(state, { kind: 'agent', text });
   }
 
   /**
@@ -897,21 +908,17 @@ export class TuiApp {
   }
 
   /**
-   * Collect the visible transcript for a tab — interleaved submitted
-   * prompts and agent responses — formatted for clipboard copy.
+   * Collect the visible transcript for a tab — the unified operator timeline
+   * (interleaved prompts, responses, and capability invocations) — formatted
+   * for clipboard copy.
    *
-   * Prompts are prefixed with a right-pointing arrow (→) and responses
-   * with a left-pointing arrow (←), mirroring the scrollback layout.
+   * Uses the same `getOrderedTimeline`/`formatTimelineEvent` projection as
+   * ChatView and AgentView, so a copied transcript always matches what the
+   * chat tab shows — including capability entries (⚡ …).
    */
   private collectVisibleTranscript(tab: TabId): string {
     const v = this.state.views[tab];
-    const lines: string[] = [];
-    const maxLen = Math.max(v.submittedPrompts.length, v.agentResponses.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < v.submittedPrompts.length) lines.push(`→ ${v.submittedPrompts[i]}`);
-      if (i < v.agentResponses.length) lines.push(`← ${v.agentResponses[i]}`);
-    }
-    return lines.join('\n');
+    return getOrderedTimeline(v.timelineEvents).map(formatTimelineEvent).join('\n');
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */

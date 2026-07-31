@@ -1,4 +1,4 @@
-import type { PerTabState, TabId } from '../state.js';
+import type { PerTabState, TabId, TimelineEvent } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
@@ -78,14 +78,13 @@ export class AgentView implements TuiView {
     // responses (←). Same interleaving as ChatView but with the status
     // row at row 5 reserved, so the scrollback starts at row 6.
     // Long messages word-wrap so they don't truncate at the right border.
-    const submitted = ctx.perTab.submittedPrompts;
-    const responses = ctx.perTab.agentResponses;
-    const turns: { kind: 'user' | 'agent'; text: string }[] = [];
-    const maxLen = Math.max(submitted.length, responses.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < submitted.length) turns.push({ kind: 'user', text: submitted[i]! });
-      if (i < responses.length) turns.push({ kind: 'agent', text: responses[i]! });
-    }
+    // Conversation turns from the unified operator timeline. The agent
+    // view is a PROJECTION of the same timeline — filtered to user/agent
+    // only. Capability entries never appear here (the agent tab is the
+    // execution workspace; the chat tab is the operator narrative).
+    const turns: { kind: 'user' | 'agent'; text: string }[] = ctx.perTab.timelineEvents
+      .filter((e): e is Extract<TimelineEvent, { kind: 'user' | 'agent' }> => e.kind === 'user' || e.kind === 'agent')
+      .map((e) => ({ kind: e.kind, text: e.text }));
     const scrollbackTop = 6;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
