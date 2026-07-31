@@ -422,14 +422,14 @@ describe('renderDashboard — RUNTIME panel', () => {
     expect(frame).toContain('events: 21,530');
   });
 
-  it('formats Started as HH:MM:SS ago when workflow present', () => {
+  it('formats Started as coarse relative time when workflow present', () => {
     const c = new TerminalCanvas(120, 30);
     renderDashboard(
       runtimeSnap({ workflow: { name: 'plan', currentStep: 7, totalSteps: 12, startedAtSecondsAgo: 3 * 60 + 42 } }),
       c, 0,
     );
     const frame = c.renderFrame();
-    expect(frame).toContain('00:03:42 ago');
+    expect(frame).toContain('3m ago');
     expect(frame).toContain('Started:');
   });
 

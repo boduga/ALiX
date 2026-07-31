@@ -279,12 +279,11 @@ export function paintRuntimePanel(
   // Metadata block (rows 3..6) — only when h >= 9.
   if (h >= 9) {
     paintMetaLine(canvas, x + 2, y + 3, contentW, "Last event:", lastKind, lastAgo);
-    const stepLabel = workflow ? `Step ${workflow.currentStep}` : "—";
-    const stepDurSrc = runtime?.lastEventAt ?? workflow?.startedAt ?? null;
-    const stepDur = stepDurSrc !== null ? formatShortDuration(stepDurSrc, now) : "";
-    paintMetaLine(canvas, x + 2, y + 4, contentW, "Active step:", stepLabel, stepDur);
-    paintMetaLine(canvas, x + 2, y + 5, contentW, "Workflow:", workflow ? truncate(workflow.name, contentW - 16) : "—");
-    paintMetaLine(canvas, x + 2, y + 6, contentW, "Started:", workflow ? `${fmtUptime((now - workflow.startedAt) / 1000)} ago` : "—");
+    const activeStep = workflow ? `${workflow.currentStep}/${workflow.totalSteps}` : "—";
+    paintMetaLine(canvas, x + 2, y + 4, contentW, "Active step:", activeStep);
+    paintMetaLine(canvas, x + 2, y + 5, contentW, "Workflow:", workflow ? workflow.name : "—");
+    const started = workflow?.startedAt ? fmtRelativeTime(workflow.startedAt) : "—";
+    paintMetaLine(canvas, x + 2, y + 6, contentW, "Started:", started);
   }
 
   // Mid rule (between metadata and metrics).
@@ -446,6 +445,17 @@ function fmtUptime(s: number): string {
 
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : `${n}`;
+}
+
+/** Render elapsed time as coarse human-friendly string ("just now" / "5m ago" / "2h 13m ago" / "3d ago"). */
+function fmtRelativeTime(startedAt: number): string {
+  const elapsedMs = Date.now() - startedAt;
+  const minutes = Math.floor(elapsedMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ${minutes % 60}m ago`;
+  return `${Math.floor(hours / 24)}d ago`;
 }
 
 /**
