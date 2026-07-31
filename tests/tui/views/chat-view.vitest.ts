@@ -73,9 +73,13 @@ describe('ChatView', () => {
         cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
         inputBuffer: '',
         pinnedBottom: true,
-        submittedPrompts: ['show me a function'],
+        submittedPrompts: [],
         pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [],
-        agentResponses: ['```python\ndef f(): pass\n```']
+        agentResponses: [],
+        timelineEvents: [
+          { id: 'tl-1', timestamp: 1, sequence: 1, source: 'operator', kind: 'user', text: 'show me a function' },
+          { id: 'tl-2', timestamp: 2, sequence: 2, source: 'agent', kind: 'agent', text: '```python\ndef f(): pass\n```' },
+        ],
       },
     });
     view.render(c);
