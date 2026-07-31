@@ -25,19 +25,33 @@ Both share one in-process `CapabilityPlatform` instance and one **Invocation Pre
 | D4 | **Invocation Presenter** is the presentation boundary: the palette/capabilities tab are *launchers*, the chat view is the operator's execution history, the EventLog is the audit trail. The platform never knows about any UI. |
 | D5 | **Palette behavior is capability-only this phase**, but its **architecture supports multiple providers day one** (`CapabilityProvider` enabled, `ActionProvider` stubbed empty). UI actions are **not** capabilities — they use a separate `PaletteAction { id, title, run() }` interface. |
 | D6 | **Capabilities is a dedicated 9th TUI tab** (tabs represent content, not interaction). Palette = modal overlay. |
-| D7 | **Module boundary**: `src/tui/capabilities/` owns the platform + presenter + palette + tab. |
+| D7 | **Module boundary**: `src/tui/capabilities/` owns the service + presenter + palette + tab. |
+| D8 | **`CapabilityService.invoke()` presents automatically** — the service owns the `InvocationPresenter` and wires it internally, so every invocation is presented (EventLog + chat + streaming) without each caller remembering to call the presenter. Presentation policy is centralized. |
 
 ## Architecture
 
 ```
 src/tui/capabilities/
-├── platform-host.ts         owns CapabilityPlatform (lazy singleton), wires the full
-│                            working set + EventLog bridge; exposes query/find/getStatus/invoke.
+├── capability-service.ts    CapabilityService — the TUI façade over the platform. Owns the
+│                            CapabilityPlatform (lazy singleton) + the InvocationPresenter,
+│                            wires the full working set + EventLog bridge; exposes
+│                            query/find/getStatus/invoke. invoke() internally calls
+│                            presenter.present(invocation) so every invocation is presented.
 ├── invocation-presenter.ts  InvocationPresenter interface + ChatInvocationPresenter
 │                            (default: appends a structured entry to the chat timeline).
 ├── palette.ts               Command Palette modal: PaletteProvider + CapabilityProvider
 │                            (enabled) + ActionProvider (stub); PaletteAction interface.
 └── capabilities-view.ts     The Capabilities tab: searchable list + detail pane.
+```
+
+`CapabilityService.invoke()` is the single invocation path — no caller ever touches the runtime or the presenter directly:
+
+```ts
+async invoke(id: string, args: Record<string, unknown>): Promise<Invocation> {
+  const invocation = this.runtime.invoke(id, args, this.makeContext());
+  this.presenter.present(invocation);   // centralized presentation policy
+  return invocation;
+}
 ```
 
 **TuiApp wiring:**
@@ -57,18 +71,20 @@ src/tui/capabilities/
 
 ```
 Palette / Capabilities tab
-        │  platform-host.invoke(id, args, { actor, cwd, workspace, sessionId })
+        │  capabilityService.invoke(id, args)   ← the ONLY invocation path
         ▼
-CapabilityRuntime.invoke → Invocation
-        │
-        ├──(a) Audit:  platform.events (EventBus) ──toAlixEvent──▶ EventLog.append
-        │              (started / completed / failed / cancelled, actor "system")
-        │
-        └──(b) Present: Invocation.events() stream + wait()/result
-                        ──▶ InvocationPresenter.present(invocation)
-                             └─ ChatInvocationPresenter: appends a structured
-                                timeline entry — "⚡ core.session.list [running]" →
-                                "completed ✓ {output}" / "failed ✗ {error}" / "cancelled"
+CapabilityService.invoke
+        ├── CapabilityRuntime.invoke → Invocation
+        ├── presenter.present(invocation)       ← centralized: every invocation is presented
+        └── return invocation
+              │
+              ├──(a) Audit:  platform.events (EventBus) ──toAlixEvent──▶ EventLog.append
+              │              (started / completed / failed / cancelled, actor "system")
+              │
+              └──(b) Present: InvocationPresenter.present(invocation)
+                              └─ ChatInvocationPresenter: appends a structured
+                                 timeline entry — "⚡ core.session.list [running]" →
+                                 "completed ✓ {output}" / "failed ✗ {error}" / "cancelled"
 ```
 
 - **Invocation inputs:** `actor` = current session actor (default `operator`), `cwd`/`workspace` = the TUI working dir, `sessionId` = current session id (empty when none) — so `core.session.*` work against real sessions.
@@ -98,15 +114,15 @@ CapabilityRuntime.invoke → Invocation
 - **Validation / permission / executor failures** → `Invocation` `failed` with `error` string → presenter renders it in the timeline entry.
 - **Cancel:** no cancel affordance this phase; a cancelled invocation renders as `cancelled`.
 - **EventLog bridge non-fatal:** `toAlixEvent`/append wrapped in try/catch — observability never breaks an invocation (same pattern as the server's `fileAudit`).
-- **Platform init degradation:** if wiring the real session API or tool executor throws, `platform-host` logs and continues — the catalog still lists everything, affected capabilities report `unavailable` via `getStatus`.
+- **Platform init degradation:** if wiring the real session API or tool executor throws, `CapabilityService` logs and continues — the catalog still lists everything, affected capabilities report `unavailable` via `getStatus`.
 - **Launcher args are `{}` this phase:** required-arg capabilities surface their own clean "argument required" error — no silent partial invocations.
 
 ## Testing Strategy
 
 - **Unit (vitest)** per component:
-  - `platform-host` — full wiring; `query/find/getStatus`; event bridge appends to a mock EventLog (started→completed, `capability.*` type).
+  - `capability-service` — full wiring; `query/find/getStatus`; event bridge appends to a mock EventLog (started→completed, `capability.*` type); **`invoke()` calls `presenter.present` automatically** (recorder mock asserts it); unknown id → typed error.
   - `invocation-presenter` — recorder mock asserts `present` receives the invocation; `ChatInvocationPresenter` appends running→completed/failed entries against a mock chat `appendEntry` hook.
-  - `palette` providers — `CapabilityProvider.search`: fuzzy match, empty query → full catalog, no match → `[]`; `ActionProvider` → `[]`; entry `invoke()` → `host.invoke` + `presenter.present`.
+  - `palette` providers — `CapabilityProvider.search`: fuzzy match, empty query → full catalog, no match → `[]`; `ActionProvider` → `[]`; entry `invoke()` → `service.invoke`.
   - `capabilities-view` — list/detail render from a seeded registry; selection; Enter; Tab; empty state.
   - Error paths — unknown id → status; failed invocation → presenter error entry.
 - **Integration (vitest):** palette + capabilities view against a real `CapabilityPlatform` with `registerInitialCapabilities` + fake session handler + fake tool executor — end-to-end `query → invoke → presenter → chat entry`, no real TTY.
@@ -128,3 +144,7 @@ CapabilityRuntime.invoke → Invocation
 - ❌ `ActionProvider` entries (UI actions in the palette — architecture exists, empty).
 - ❌ Web/MCP consumers.
 - ❌ Any change to the platform's public API or behavior.
+
+## Future Direction (Phase 3, not this phase)
+
+The `InvocationPresenter` boundary is designed to host more targets later — Web UI, REST, MCP, notifications. When multiple targets coexist, the presenter can become a multicast interface (EventBus-style) so one invocation fans out to every presentation target. `CapabilityService` is the seam where that happens; this phase ships a single `ChatInvocationPresenter`.
