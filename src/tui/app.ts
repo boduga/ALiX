@@ -795,24 +795,40 @@ export class TuiApp {
    */
   private handlePaste(buf: Buffer): boolean {
     const s = buf.toString('utf8');
-    // Some terminals send the bracketed-paste start marker (\x1b[200~)
-    // concatenated with the first chunk of pasted data in a single buffer.
-    // Use startsWith so we catch the marker even when it's not an exact match.
-    if (s.startsWith('\x1b[200~')) {
+    const endBuf = Buffer.from('\x1b[201~');
+    const startMarker = '\x1b[200~';
+
+    // Detect paste START marker. Some terminals send the start marker
+    // concatenated with data (and sometimes even the end marker) in a
+    // single buffer — startsWith handles the first case.
+    if (s.startsWith(startMarker)) {
       this.pasteState = 'reading';
       this.pasteChunks = [];
-      // If there's trailing data after the marker, push it as the first chunk.
-      if (s.length > 6) {
-        this.pasteChunks.push(buf.subarray(6));
+      // If there's trailing data after the marker, push it as the first
+      // chunk, then immediately scan that chunk for the end marker.
+      // Terminals that send start+data+end in one buffer must be handled
+      // here — without this scan, the end marker sits undetected in the
+      // first chunk and every subsequent keystroke gets eaten as "paste."
+      if (s.length > startMarker.length) {
+        const rest = buf.subarray(startMarker.length);
+        const endIdx = rest.indexOf(endBuf);
+        if (endIdx >= 0) {
+          if (endIdx > 0) {
+            this.pasteChunks.push(rest.subarray(0, endIdx));
+          }
+          this.flushPaste();
+        } else {
+          this.pasteChunks.push(rest);
+        }
       }
       return true;
     }
+
     if (this.pasteState !== 'reading') return false;
     // Detect the paste-end marker using byte-level indexOf so multi-byte
     // UTF-8 content immediately before the terminator doesn't cause a
     // string-index/byte-offset mismatch (the spec mandates byte-level
     // detection for this reason).
-    const endBuf = Buffer.from('\x1b[201~');
     const endIdx = buf.indexOf(endBuf);
     if (endIdx >= 0) {
       if (endIdx > 0) {
