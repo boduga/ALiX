@@ -52,7 +52,7 @@ export class ChatView implements TuiView {
     // plain; agent responses go through the rich renderer so fenced
     // code, lists, bold/italic, headings, and quotes get their own
     // visual treatment.
-    interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
+    interface ScrollbackLine { kind: 'user' | 'agent' | 'capability'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
     const maxLen = Math.max(submitted.length, responses.length);
     for (let i = 0; i < maxLen; i++) {
@@ -77,6 +77,19 @@ export class ChatView implements TuiView {
       }
     }
     // (Turns were inlined into the loop above; nothing to do here.)
+
+    // Capability invocations surface in the operator timeline after the
+    // conversation turns — "⚡ core.session.list [completed ✓]".
+    const invocations = ctx.perTab.capabilityInvocations;
+    for (const inv of invocations) {
+      let text = inv.capabilityId;
+      if (inv.status === 'running') text += ' [running]';
+      else if (inv.status === 'completed') text += ` [completed ✓] ${inv.output === undefined ? '' : JSON.stringify(inv.output)}`;
+      else if (inv.status === 'failed') text += ` [failed ✗] ${inv.error ?? ''}`;
+      else text += ' [cancelled]';
+      allLines.push({ kind: 'capability', text: text.trim(), isFirst: true });
+    }
+
     // Use scrollOffset so the user can scroll back through past responses
     // with arrow keys. offset=0 shows the most recent lines (bottom).
     const offset = ctx.perTab.scrollOffset;
@@ -87,7 +100,9 @@ export class ChatView implements TuiView {
       const rowY = scrollbackTop + i;
       const l = visible[i]!;
       if (l.isFirst) {
-        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m' : '\x1b[36m← \x1b[0m';
+        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m'
+          : l.kind === 'agent' ? '\x1b[36m← \x1b[0m'
+          : '\x1b[35m⚡ \x1b[0m';
         c.write(0, rowY, marker);
         c.write(2, rowY, l.text);
       } else {

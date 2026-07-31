@@ -84,6 +84,9 @@ export class TuiApp {
       runtime: getView('runtime')!,
       sops: getView('sops')!,
       policy: getView('policy')!,
+      // Placeholder until the Capabilities tab lands (Phase 2 Task 5); renders
+      // an empty frame so Record<TabId, TuiView> stays exhaustive.
+      capabilities: { id: 'capabilities', render: () => ({ rows: [] }) },
     };
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();

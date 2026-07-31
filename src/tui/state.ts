@@ -8,7 +8,9 @@
  */
 export { SessionPhase } from '../agent/session.js';
 
-export type TabId = 'dashboard' | 'chat' | 'agent' | 'daemon' | 'approvals' | 'runtime' | 'sops' | 'policy';
+export type TabId =
+  | 'dashboard' | 'chat' | 'agent' | 'daemon' | 'approvals'
+  | 'runtime' | 'sops' | 'policy' | 'capabilities';
 
 /**
  * Approval request surfaced inline in the agent scrollback. Synced from
@@ -34,6 +36,17 @@ export interface ResolvedApproval {
   status: 'approved' | 'denied' | 'expired';
   requestedAt: number;
   resolvedAt: number;
+}
+
+/** A capability invocation surfaced in the chat timeline. */
+export interface CapabilityInvocationEntry {
+  invocationId: string;
+  capabilityId: string;
+  args: Record<string, unknown>;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  output?: unknown;
+  error?: string;
+  at: number;
 }
 
 /**
@@ -115,6 +128,10 @@ export interface PerTabState {
    * SOPS & POLICY. Null on every other tab so keys pass through silently.
    */
   panelFocus: PanelFocusId | null;
+  /** Capability invocations surfaced in the chat timeline, oldest first. */
+  capabilityInvocations: CapabilityInvocationEntry[];
+  /** Selected capability in the Capabilities tab (per-tab view state). */
+  capabilitiesSelectedId?: string;
 }
 
 /** Panels that accept `J`/`K` scroll keys. Other panels (DAEMON, RUNTIME) have fixed content and can't overflow. */
@@ -154,6 +171,7 @@ export function createInitialPerTabState(): PerTabState {
     agentResponses: [],
     pendingApprovals: [],
     resolvedApprovals: [],
+    capabilityInvocations: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
   };
@@ -172,6 +190,7 @@ export function createInitialTuiAppState(): TuiAppState {
       runtime: createInitialPerTabState(),
       sops: createInitialPerTabState(),
       policy: createInitialPerTabState(),
+      capabilities: createInitialPerTabState(),
     },
     refreshGeneration: 0,
     refreshStatus: 'idle',
