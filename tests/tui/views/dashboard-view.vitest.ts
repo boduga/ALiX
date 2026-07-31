@@ -25,8 +25,6 @@ function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): Vi
       lastEventArrivedAt: 0,
       inputBuffer: '',
       pinnedBottom: true,
-      submittedPrompts: [],
-      agentResponses: [],
       pendingApprovals: [],
       resolvedApprovals: [],
       timelineEvents: [],

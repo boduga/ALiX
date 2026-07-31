@@ -3,7 +3,7 @@ import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
 import { KeyDispatcher } from '../../src/tui/key-dispatcher.js';
 import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../src/tui/capabilities/capability-service.js';
 import type { InvocationPresenter } from '../../src/tui/capabilities/invocation-presenter.js';
-import { appendTimelineEvent } from '../../src/tui/state.js';
+import { appendTimelineEvent, type PerTabState } from '../../src/tui/state.js';
 
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
@@ -387,20 +387,21 @@ describe('TuiApp — OSC 52 copy', () => {
       handleRaw(buf: Buffer): void;
       getStateForTest(): {
         lastSnapshot: unknown;
-        views: { chat: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] } };
+        activeTab?: string;
+        views: { chat: PerTabState };
       };
     };
     internal.getStateForTest().lastSnapshot = snap;
     // Switch to chat tab — the default is now 'dashboard', but these
     // tests exercise the chat input path.
-    (internal.getStateForTest() as any).activeTab = 'chat';
+    internal.getStateForTest().activeTab = 'chat';
     return { app, internal };
   }
 
   it('Alt+C with content copies OSC 52 sequence to stdout', () => {
     const { internal } = makeCopyApp();
     const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    appendTimelineEvent((internal.getStateForTest() as any).views.chat, { kind: 'agent', text: 'test response' });
+    appendTimelineEvent(internal.getStateForTest().views.chat, { kind: 'agent', text: 'test response' });
     internal.handleRaw(Buffer.from('\x1bc'));
     expect(writeSpy).toHaveBeenCalled();
     const output = (writeSpy.mock.calls[0] as [string])[0];
@@ -419,7 +420,7 @@ describe('TuiApp — OSC 52 copy', () => {
 
   it('copies operator timeline (prompts, responses, capabilities)', () => {
     const { internal } = makeCopyApp();
-    const chat = (internal.getStateForTest() as any).views.chat;
+    const chat = internal.getStateForTest().views.chat;
     appendTimelineEvent(chat, { kind: 'user', text: 'q1' });
     appendTimelineEvent(chat, { kind: 'user', text: 'q2' });
     appendTimelineEvent(chat, { kind: 'agent', text: 'a1' });

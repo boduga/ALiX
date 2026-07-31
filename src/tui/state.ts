@@ -38,17 +38,6 @@ export interface ResolvedApproval {
   resolvedAt: number;
 }
 
-/** A capability invocation surfaced in the chat timeline. */
-export interface CapabilityInvocationEntry {
-  invocationId: string;
-  capabilityId: string;
-  args: Record<string, unknown>;
-  status: 'running' | 'completed' | 'failed' | 'cancelled';
-  output?: unknown;
-  error?: string;
-  at: number;
-}
-
 /** Who produced a timeline event. Add `'system'` when the first system event exists (YAGNI). */
 export type TimelineSource = 'operator' | 'agent' | 'capability';
 
@@ -94,10 +83,6 @@ export interface PerTabState {
   pinnedBottom: boolean;
   /** Partial message typed into the input prompt before submit. */
   inputBuffer: string;
-  /** Submitted prompts, oldest first; rendered in the chat scrollback. */
-  submittedPrompts: string[];
-  /** Agent responses received from AgentSession.processTurn, oldest first. */
-  agentResponses: string[];
   /** Plan content from the most recent planning phase, if any. */
   planContent?: string;
   /**
@@ -155,8 +140,6 @@ export interface PerTabState {
    * SOPS & POLICY. Null on every other tab so keys pass through silently.
    */
   panelFocus: PanelFocusId | null;
-  /** Capability invocations surfaced in the chat timeline, oldest first. */
-  capabilityInvocations: CapabilityInvocationEntry[];
   /** Unified operator timeline — user prompts, agent responses, capability
    *  invocations, ordered by (timestamp, sequence). Single source of truth
    *  for conversation; the chat/agent/copy views are projections of this. */
@@ -198,11 +181,8 @@ export function createInitialPerTabState(): PerTabState {
     expandedSections: [],
     lastEventArrivedAt: 0,
     inputBuffer: '',
-    submittedPrompts: [],
-    agentResponses: [],
     pendingApprovals: [],
     resolvedApprovals: [],
-    capabilityInvocations: [],
     timelineEvents: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,

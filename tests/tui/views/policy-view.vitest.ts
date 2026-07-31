@@ -8,9 +8,7 @@ describe('PolicyView', () => {
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            submittedPrompts: [],
-            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-            agentResponses: []
+            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
   });
 
@@ -58,9 +56,7 @@ describe('PolicyView', () => {
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            submittedPrompts: [],
-            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-            agentResponses: []
+            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
     };
     expect(view.handleKey?.('ArrowDown', baseCtx)).toEqual({ type: 'moveCursor', cursor: 1 });

@@ -49,12 +49,8 @@ test('end-to-end: parse live response, render to canvas', () => {
   const perTab: PerTabState = {
     cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
     pinnedBottom: true, inputBuffer: '', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-    // AgentView reads the unified operator timeline (Task 4). The legacy
-    // submittedPrompts/agentResponses arrays are dropped as seeds and stay
-    // as empty required fields until Task 6 removes them entirely.
-    submittedPrompts: [],
-    agentResponses: [],
-    pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [],
+    // AgentView reads the unified operator timeline (Task 4).
+    pendingApprovals: [], resolvedApprovals: [],
     timelineEvents: [
       { id: 'tl-1', timestamp: 1, sequence: 1, source: 'operator', kind: 'user', text: 'write a python function to check if a string is a palindrome' },
       { id: 'tl-2', timestamp: 2, sequence: 2, source: 'agent', kind: 'agent', text: SAMPLE },

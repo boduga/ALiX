@@ -57,13 +57,10 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
     lastEventArrivedAt: 0,
     pinnedBottom: true,
     inputBuffer: '',
-    submittedPrompts: [],
-    agentResponses: [],
     planContent: undefined,
     planTasks: undefined,
     pendingApprovals: [],
     resolvedApprovals: [],
-    capabilityInvocations: [],
     timelineEvents: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
@@ -74,8 +71,7 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
 /**
  * Seed a conversation as timeline events from ordered user prompts and
  * agent responses, interleaved exactly as the pre-timeline fixture did
- * (user_i before agent_i). AgentView reads `timelineEvents` only — the
- * legacy `submittedPrompts`/`agentResponses` arrays are no longer seeded.
+ * (user_i before agent_i). AgentView reads `timelineEvents` only.
  */
 function seedTurns(user: string[], agent: string[]): TimelineEvent[] {
   const events: TimelineEvent[] = [];
