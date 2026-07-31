@@ -260,16 +260,20 @@ export class TuiApp {
 
     const key = parseKey(buf);
     if (!key) return;
-    if (this.tryHandleGlobal(key)) return;
-    // 2b. Pluggable key dispatcher — registered keybindings get first
-    //     chance to consume the key before the built-in dispatch.
-    if (this.keyDispatcher.dispatch(key)) return;
-    // Command palette is open — route all remaining keys to the modal
-    // (Escape/Enter/arrows/backspace/text) instead of the tab input.
+    // Command palette is a modal — while open, route EVERY key (Escape,
+    // q, Tab, arrows, text) to the modal BEFORE the global handler gets a
+    // chance to act. Without this ordering Escape could never dismiss the
+    // palette (navigation.interpret('Escape') → home → tryHandleGlobal
+    // switches to chat and returns true) and 'q' on a non-input tab would
+    // hit the global quit path and terminate the process mid-search.
     if (this.paletteOpen) {
       this.handlePaletteKey(key);
       return;
     }
+    if (this.tryHandleGlobal(key)) return;
+    // 2b. Pluggable key dispatcher — registered keybindings get first
+    //     chance to consume the key before the built-in dispatch.
+    if (this.keyDispatcher.dispatch(key)) return;
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
 
@@ -982,6 +986,10 @@ export class TuiApp {
    */
   private handlePaletteKey(key: string): void {
     if (key === 'Escape') { this.paletteOpen = false; return; }
+    // Ctrl+P toggles the palette closed while it is open — the modal owns
+    // every key, so the global open-trigger never runs again until the
+    // palette is dismissed.
+    if (key === 'Ctrl+p') { this.paletteOpen = false; return; }
     if (key === 'Enter') {
       if (!this.palette.empty) {
         const entry = this.palette.selected();

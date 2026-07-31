@@ -42,15 +42,20 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     for await (const evt of invocation.events()) {
       this.applyEvent(entry, evt);
     }
-    // Fallback: if the stream closed without a terminal event, use the
-    // settled result.
+    // The runtime pushes the terminal event into the queue and closes it,
+    // so the loop above already set the status. But InvocationCompleted
+    // carries NO output — output lives only on the wait() result. Always
+    // resolve the settled result and merge output/error into the entry;
+    // wait() resolves immediately once settled, so this is safe on both
+    // the event-driven path and the stream-closed-without-terminal-event
+    // path.
+    const result = await invocation.wait();
     if (entry.status === 'running') {
-      const result = await invocation.wait();
       entry.status = result.status === 'completed' ? 'completed'
         : result.status === 'cancelled' ? 'cancelled' : 'failed';
-      if (entry.status === 'completed') entry.output = result.output;
-      if (entry.status === 'failed') entry.error = result.error;
     }
+    if (result.status === 'completed') entry.output = result.output;
+    if (result.status === 'failed') entry.error = result.error;
   }
 
   private applyEvent(entry: CapabilityInvocationEntry, evt: CapabilityEvent): void {
