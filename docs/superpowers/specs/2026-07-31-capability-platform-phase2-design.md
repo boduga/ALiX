@@ -1,6 +1,6 @@
 # ALiX Capability Platform — Phase 2 Design (TUI Consumers)
 
-**Status:** Approved Design
+**Status:** Implemented (Phase 2)
 **Date:** 2026-07-31
 **Depends on:** Phase 1 (`docs/superpowers/specs/2026-07-31-capability-platform-design.md`) — merged 2026-07-31
 
