@@ -538,7 +538,13 @@ export class TuiApp {
         }
       }
     }
-    if (key === '' || key === 'q' || key === 'Q') {
+    // Ctrl+C always quits. 'q'/'Q' quits only on non-input tabs
+    // (dashboard, daemon, approvals, etc.) — on chat/agent tabs it's
+    // a regular character for the input buffer and is handled by the
+    // tab-specific handler below after tryHandleGlobal returns false.
+    const inputTabs: TabId[] = ['chat', 'agent'];
+    const isInputTab = inputTabs.includes(this.state.activeTab);
+    if (key === '' || (!isInputTab && (key === 'q' || key === 'Q'))) {
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the
