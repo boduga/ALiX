@@ -100,6 +100,7 @@ export class CapabilityRuntime {
       const hooks = this.hooks.get(capabilityId);
 
       const fail = (error: string): void => {
+        if (st.settled) return; // already settled (e.g. cancelled): do not emit a contradictory InvocationFailed
         const r = finish("failed", { error });
         queue.push({ type: "InvocationFailed", invocationId, error, at: Date.now() });
         this.bus.emit({ type: "InvocationFailed", invocationId, error, at: Date.now() });

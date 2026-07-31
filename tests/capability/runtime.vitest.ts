@@ -106,6 +106,30 @@ describe('CapabilityRuntime', () => {
     expect(result.status).toBe('cancelled');
   });
 
+  it('does not emit InvocationFailed after a mid-flight cancel settles', async () => {
+    const { reg, runtime, native, bus } = setup();
+    registerEcho(reg);
+    let started = false;
+    let released: () => void = () => {};
+    native.registerHandler('core.echo', async () => {
+      started = true;
+      await new Promise<void>((r) => { released = r; });
+      throw new Error('boom after cancel');
+    });
+    const events: string[] = [];
+    bus.subscribe((e) => events.push(e.type));
+    const inv = runtime.invoke('core.echo', {}, { actor: 'operator', cwd: '/', workspace: '/' });
+    while (!started) await new Promise((r) => setTimeout(r, 1));
+    inv.cancel();
+    released();
+    const result = await inv.wait();
+    expect(result.status).toBe('cancelled');
+    await new Promise((r) => setTimeout(r, 5)); // let the rejected executor's catch/fail run
+    const lastFailed = events.lastIndexOf('InvocationFailed');
+    const lastCancelled = events.lastIndexOf('InvocationCancelled');
+    expect(lastFailed).toBeLessThan(lastCancelled);
+  });
+
   it('runs hooks in order: validate, canInvoke, beforeInvoke, executor, afterInvoke', async () => {
     const { reg, runtime, native, hooks } = setup();
     registerEcho(reg);
