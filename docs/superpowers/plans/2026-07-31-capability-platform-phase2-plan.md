@@ -4,7 +4,7 @@
 
 **Goal:** Deliver the Command Palette (Ctrl+P launcher) and the Capabilities tab as the first consumers of the Phase-1 Capability Platform, with an in-process `CapabilityService` that owns the platform, wires the full working set, and routes every invocation through an `InvocationPresenter` into the chat timeline.
 
-**Architecture:** A `src/tui/capabilities/` module is the single boundary. `CapabilityService` owns a lazy `CapabilityPlatform` singleton (wired with `registerInitialCapabilities` + `registerSessionCapabilities` + the tool adapter), bridges `platform.events` → `toAlixEvent` → `EventLog`, and `invoke()` internally calls `presenter.present(invocation)` so presentation is centralized. The palette (modal overlay) and Capabilities tab (9th view) are launchers only. The platform (`src/capability/*`) is **not modified**.
+**Architecture:** A `src/tui/capabilities/` module is the single boundary. `CapabilityService` owns the process-local `CapabilityPlatform` instance (wired with `registerInitialCapabilities` + `registerSessionCapabilities` + a bootstrap-owned `ToolExecutor` passed in as a dependency), bridges `platform.events` → `toAlixEvent` → `EventLog`, and `invoke()` internally calls `presenter.present({ invocation, capabilityId, args })` so presentation is centralized. The palette (modal overlay) and Capabilities tab (9th view) are launchers only. The platform (`src/capability/*`) is **not modified**.
 
 **Tech Stack:** TypeScript (NodeNext ESM, strict), vitest, the existing TUI canvas/view/key-dispatch system.
 
@@ -14,6 +14,8 @@
 - NodeNext ESM (`import ... from "./x.js"`), strict TS, vitest.
 - Palette behavior is capability-only this phase; UI actions use a separate `PaletteAction` interface (never `Capability`).
 - `CapabilityService.invoke()` presents automatically via the owned `InvocationPresenter` — callers never call `presenter.present` themselves.
+- **Invocation ownership invariant:** only `CapabilityService.invoke()` may create user-facing capability execution — views and palette entries never call `CapabilityRuntime` directly.
+- **Infrastructure is bootstrap-owned:** the CLI bootstrap constructs the `ToolExecutor` (and session wiring) and passes it to the service via `CapabilityServiceOptions.toolExecutor`; the service wires it into the platform but does **not** construct infrastructure.
 - Capabilities flow only `Registry → Runtime → Invocation`; the platform never imports from `src/tui/`.
 - Every task ends green: `npx tsc -p tsconfig.json --noEmit` passes and the task's tests pass.
 
@@ -116,6 +118,8 @@ In `PerTabState` add the field:
 ```typescript
   /** Capability invocations surfaced in the chat timeline, oldest first. */
   capabilityInvocations: CapabilityInvocationEntry[];
+  /** Selected capability in the Capabilities tab (per-tab view state). */
+  capabilitiesSelectedId?: string;
 ```
 
 Find `createInitialPerTabState` (or wherever the per-tab initial object literal is built — it initializes `pendingApprovals: []` etc.) and add:
@@ -152,6 +156,8 @@ In `src/tui/views/chat-view.ts`:
           : l.kind === 'agent' ? '\x1b[36m← \x1b[0m'
           : '\x1b[35m⚡ \x1b[0m';
 ```
+
+**Phase-2 limitation (document, do not fix here):** capability entries are appended *after* all conversational turns — a capability invoked mid-conversation appears at the bottom of the scrollback, not interleaved by time. A unified `TimelineEvent` union (chat + capability + tool entries in one ordered stream) is a Phase-3 concern; this phase appends after turns.
 
 - [ ] **Step 5: Run test to verify it passes**
 
@@ -262,7 +268,11 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     state.capabilityInvocations.push(entry);
 
     // Terminal events update the entry live from the invocation's own
-    // event stream (Phase-1 fix delivers terminal events there).
+    // event stream (Phase-1 fix delivers terminal events there). No race
+    // with the runtime starting: `Invocation.events()` is backed by the
+    // AsyncEventQueue, which buffers emitted events until consumed — a
+    // subscriber attaching after the runtime began still receives the
+    // full lifecycle.
     for await (const evt of invocation.events()) {
       this.applyEvent(entry, evt);
     }
@@ -389,8 +399,14 @@ import { toAlixEvent } from '../../capability/event-bus.js';
 import type { Capability, CapabilityStatus, Invocation } from '../../capability/types.js';
 import type { CapabilityQuery } from '../../capability/registry.js';
 import type { EventLog } from '../../events/event-log.js';
-import type { AlixConfig } from '../../config/schema.js';
+import type { ToolCallRequest } from '../../tools/types.js';
+import type { ExecuteResult } from '../../tools/executor.js';
 import type { InvocationPresenter } from './invocation-presenter.js';
+
+/** The existing ToolExecutor's executable seam (bootstrap-owned). */
+export interface ToolExecutorLike {
+  execute(req: ToolCallRequest): Promise<ExecuteResult>;
+}
 
 export interface CapabilityServiceOptions {
   /** EventLog to bridge capability events into (observability, non-fatal). */
@@ -401,8 +417,8 @@ export interface CapabilityServiceOptions {
   actor?: string;
   /** Working directory for invocations. */
   cwd?: string;
-  /** ALiX config used to construct the real ToolExecutor for tool.* capabilities. */
-  config?: AlixConfig;
+  /** Bootstrap-owned ToolExecutor for tool.* capabilities. */
+  toolExecutor?: ToolExecutorLike;
 }
 
 /**
@@ -428,7 +444,7 @@ export class CapabilityService {
       sessionId: () => '',
       actor: 'operator',
       cwd: process.cwd(),
-      config: undefined,
+      toolExecutor: undefined,
       ...opts,
     };
     this.platform = new CapabilityPlatform();
@@ -445,16 +461,11 @@ export class CapabilityService {
     } catch (err) {
       console.error('[capabilities] session integration unavailable:', err);
     }
-    // Tool executor (tool.* → real ToolExecutor). Tool capabilities show
-    // as unavailable rather than crashing when config/executor is missing.
-    if (this.opts.config) {
-      try {
-        const { ToolExecutor } = await import('../../tools/executor.js');
-        const executor = new ToolExecutor(this.opts.config, this.opts.eventLog, this.opts.cwd);
-        this.platform.registerExecutor('tool', createToolExecutorAdapter(executor));
-      } catch (err) {
-        console.error('[capabilities] tool executor unavailable:', err);
-      }
+    // Tool executor (tool.* → bootstrap-owned ToolExecutor). Tool
+    // capabilities show as unavailable rather than crashing when the
+    // executor is missing.
+    if (this.opts.toolExecutor) {
+      this.platform.registerExecutor('tool', createToolExecutorAdapter(this.opts.toolExecutor));
     }
   }
 
@@ -554,11 +565,13 @@ describe('CapabilityProvider', () => {
     expect(entries.every(e => e.title.length > 0)).toBe(true);
   });
 
-  it('fuzzy-filters by title and id', () => {
+  it('subsequence-fuzzy-filters by title and id', () => {
     const svc = makeService();
     setCapabilityService(svc);
     const provider = new CapabilityProvider();
     expect(provider.search('session').some(e => e.subtitle?.includes('core.session'))).toBe(true);
+    // Subsequence match: 'cslist' → core.session.list.
+    expect(provider.search('cslist').some(e => e.subtitle === 'core.session.list')).toBe(true);
     expect(provider.search('zzznomatch')).toEqual([]);
   });
 
@@ -620,10 +633,20 @@ export interface PaletteProvider {
   search(query: string): PaletteEntry[];
 }
 
-/** Matches capability title/id by case-insensitive substring. */
+/** Subsequence fuzzy match — 'cslist' matches 'core.session.list'. No deps. */
+function subsequenceMatches(q: string, s: string): boolean {
+  const needle = q.toLowerCase();
+  const hay = s.toLowerCase();
+  let i = 0;
+  for (let j = 0; j < hay.length && i < needle.length; j++) {
+    if (hay[j] === needle[i]) i++;
+  }
+  return i === needle.length;
+}
+
 function matches(cap: Capability, query: string): boolean {
-  const q = query.toLowerCase();
-  return cap.title.toLowerCase().includes(q) || cap.id.toLowerCase().includes(q);
+  if (!query) return true;
+  return subsequenceMatches(query, cap.title) || subsequenceMatches(query, cap.id);
 }
 
 /** Phase-2 enabled provider: capabilities flow Registry → Runtime → Invocation. */
@@ -858,18 +881,27 @@ import type { Capability } from '../../capability/types.js';
 
 export class CapabilitiesView implements TuiView {
   readonly id: TabId = 'capabilities';
-  private selectedId: string | undefined;
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
     const service = getCapabilityService();
     const query = (ctx.perTab.searchQuery ?? '').toLowerCase();
     const all = service.query();
+    // Search is subsequence fuzzy, mirroring the palette.
+    const subsequence = (q: string, s: string): boolean => {
+      let i = 0;
+      const hay = s.toLowerCase();
+      for (let j = 0; j < hay.length && i < q.length; j++) if (hay[j] === q[i]) i++;
+      return i === q.length;
+    };
     const caps = query
-      ? all.filter((cap) => cap.title.toLowerCase().includes(query) || cap.id.toLowerCase().includes(query))
+      ? all.filter((cap) => subsequence(query, cap.title) || subsequence(query, cap.id))
       : all;
 
-    if (this.selectedId === undefined && caps.length > 0) this.selectedId = caps[0]!.id;
+    if (ctx.perTab.capabilitiesSelectedId === undefined && caps.length > 0) {
+      ctx.perTab.capabilitiesSelectedId = caps[0]!.id;
+    }
+    const selectedId = ctx.perTab.capabilitiesSelectedId;
 
     // Left: list.
     c.write(0, 4, `\x1b[1mCapabilities\x1b[0m  \x1b[90m${caps.length} of ${all.length}\x1b[0m`);
@@ -881,13 +913,13 @@ export class CapabilitiesView implements TuiView {
       const status = service.getStatus(cap.id);
       const dot = status?.availability === 'available' || !status ? '\x1b[32m●\x1b[0m'
         : status?.availability === 'degraded' ? '\x1b[33m●\x1b[0m' : '\x1b[31m●\x1b[0m';
-      const sel = cap.id === this.selectedId;
+      const sel = cap.id === selectedId;
       const line = `${sel ? '\x1b[36m' : ''}${dot} ${cap.title}  \x1b[90m${cap.id}\x1b[0m${sel ? '\x1b[0m' : ''}`;
       c.write(0, listTop + i, line.slice(0, listW));
     }
 
     // Right: detail of the selected capability.
-    const detail = caps.find((cap) => cap.id === this.selectedId) ?? caps[0];
+    const detail = caps.find((cap) => cap.id === selectedId) ?? caps[0];
     if (detail) this.renderDetail(c, detail, listW + 1, 4, ctx.dimensions.columns - listW - 2, ctx.dimensions.rows - 7);
 
     return { rows: [] };
@@ -912,20 +944,22 @@ export class CapabilitiesView implements TuiView {
   }
 
   handleKey(key: string, ctx: ViewInputContext): ViewAction {
+    // handleKey is permitted to mutate ctx.perTab (ViewInputContext is
+    // "mutable from within handleKey only") — render stays pure.
     const service = getCapabilityService();
     const caps = service.query();
-    const idx = caps.findIndex((cap) => cap.id === this.selectedId);
+    const idx = caps.findIndex((cap) => cap.id === ctx.perTab.capabilitiesSelectedId);
     switch (key) {
       case 'ArrowDown':
       case 'j': {
         const next = caps[(idx + 1) % caps.length];
-        if (next) this.selectedId = next.id;
+        if (next) ctx.perTab.capabilitiesSelectedId = next.id;
         return { type: 'handled' };
       }
       case 'ArrowUp':
       case 'k': {
         const next = caps[(idx - 1 + caps.length) % caps.length];
-        if (next) this.selectedId = next.id;
+        if (next) ctx.perTab.capabilitiesSelectedId = next.id;
         return { type: 'handled' };
       }
       case 'Enter': {
@@ -1027,20 +1061,23 @@ In `src/cli/commands/tui.ts`, inside the `runTui`/bootstrap function, after `con
 
 ```typescript
   // Capability Platform consumer wiring — in-process service owns the
-  // platform; TuiApp binds the chat-timeline presenter (it owns the state).
+  // platform; the bootstrap owns infrastructure construction (ToolExecutor
+  // here); TuiApp binds the chat-timeline presenter (it owns the state).
   const { CapabilityService, setCapabilityService } = await import('../../tui/capabilities/capability-service.js');
+  const { ToolExecutor } = await import('../../tools/executor.js');
+  const toolExecutor = new ToolExecutor(config, eventLog, process.cwd());
   const capabilityService = new CapabilityService(undefined, {
     eventLog,
     sessionId: currentSessionId,
     actor: 'operator',
     cwd: process.cwd(),
-    config,
+    toolExecutor,
   });
   setCapabilityService(capabilityService);
   await capabilityService.ready();
 ```
 
-Note: `currentSessionId` already exists in `tui.ts`; pass the `config` value loaded at the top of `tui.ts`. Pass `capabilityService` into the `TuiAppOptions` as `capabilityService` (the option was added in Task 4).
+Note: `currentSessionId` and `config` already exist in `tui.ts`. Pass `capabilityService` into the `TuiAppOptions` as `capabilityService` (the option was added in Task 4).
 
 Then bind the chat presenter in `src/tui/app.ts` (TuiApp owns the state; `this.state` is a field initializer so it is available in the constructor body):
 

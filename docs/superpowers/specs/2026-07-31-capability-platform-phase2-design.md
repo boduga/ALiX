@@ -27,18 +27,22 @@ Both share one in-process `CapabilityPlatform` instance and one **Invocation Pre
 | D6 | **Capabilities is a dedicated 9th TUI tab** (tabs represent content, not interaction). Palette = modal overlay. |
 | D7 | **Module boundary**: `src/tui/capabilities/` owns the service + presenter + palette + tab. |
 | D8 | **`CapabilityService.invoke()` presents automatically** — the service owns the `InvocationPresenter` and wires it internally, so every invocation is presented (EventLog + chat + streaming) without each caller remembering to call the presenter. Presentation policy is centralized. |
+| D9 | **Invocation ownership invariant**: only `CapabilityService.invoke()` may create user-facing capability execution — views and palette entries never call `CapabilityRuntime` directly. |
+| D10 | **Infrastructure is bootstrap-owned**: the CLI bootstrap constructs the `ToolExecutor`/session dependencies and passes them to the service (via `CapabilityServiceOptions.toolExecutor`); the service wires them into the platform but does not construct infrastructure. |
 
 ## Architecture
 
 ```
 src/tui/capabilities/
 ├── capability-service.ts    CapabilityService — the TUI façade over the platform. Owns the
-│                            CapabilityPlatform (lazy singleton) + the InvocationPresenter,
-│                            wires the full working set + EventLog bridge; exposes
+│                            process-local CapabilityPlatform instance + the
+│                            InvocationPresenter, wires the full working set (bootstrap-owned
+│                            ToolExecutor passed in) + EventLog bridge; exposes
 │                            query/find/getStatus/invoke. invoke() internally calls
-│                            presenter.present(invocation) so every invocation is presented.
-├── invocation-presenter.ts  InvocationPresenter interface + ChatInvocationPresenter
-│                            (default: appends a structured entry to the chat timeline).
+│                            presenter.present(input) so every invocation is presented.
+├── invocation-presenter.ts  InvocationPresenter interface (present(input: InvocationInput))
+│                            + ChatInvocationPresenter (appends a structured entry to the chat
+│                            timeline).
 ├── palette.ts               Command Palette modal: PaletteProvider + CapabilityProvider
 │                            (enabled) + ActionProvider (stub); PaletteAction interface.
 └── capabilities-view.ts     The Capabilities tab: searchable list + detail pane.
@@ -75,20 +79,20 @@ Palette / Capabilities tab
         ▼
 CapabilityService.invoke
         ├── CapabilityRuntime.invoke → Invocation
-        ├── presenter.present(invocation)       ← centralized: every invocation is presented
+        ├── presenter.present({ invocation, capabilityId, args })   ← centralized
         └── return invocation
               │
               ├──(a) Audit:  platform.events (EventBus) ──toAlixEvent──▶ EventLog.append
               │              (started / completed / failed / cancelled, actor "system")
               │
-              └──(b) Present: InvocationPresenter.present(invocation)
+              └──(b) Present: InvocationPresenter.present(input)
                               └─ ChatInvocationPresenter: appends a structured
                                  timeline entry — "⚡ core.session.list [running]" →
                                  "completed ✓ {output}" / "failed ✗ {error}" / "cancelled"
 ```
 
 - **Invocation inputs:** `actor` = current session actor (default `operator`), `cwd`/`workspace` = the TUI working dir, `sessionId` = current session id (empty when none) — so `core.session.*` work against real sessions.
-- **Async lifecycle:** the presenter subscribes to the invocation's own `events()` stream (Phase-1 fix means terminal events flow there), so the chat entry transitions running → completed/failed/cancelled live.
+- **Async lifecycle:** the presenter subscribes to the invocation's own `events()` stream (Phase-1 fix means terminal events flow there), so the chat entry transitions running → completed/failed/cancelled live. `Invocation.events()` is backed by the `AsyncEventQueue`, which **buffers emitted events until consumed — so a late subscriber still receives the full lifecycle** (no race between `invoke()` returning and the presenter attaching).
 - **Errors surface as data:** unknown capability / missing executor throw at `invoke()` (launcher catches → status line); validation/permission/executor failures become `Invocation.status === "failed"` with `error` → presented.
 
 ## UI Details
@@ -96,7 +100,7 @@ CapabilityService.invoke
 **Command Palette (modal overlay)**
 
 - Opens with **Ctrl+P**, or **/** when the chat input is empty.
-- Input line + filtered results below; fuzzy substring match over capability `title` + `id` (via `registry.query`).
+- Input line + filtered results below; **subsequence fuzzy match** over capability `title` + `id` (via `registry.query`) — `cslist` finds `core.session.list`.
 - ArrowUp/Down (or j/k) move selection; **Enter** invokes → presenter → dismiss; **Esc** dismisses; typing refilters; empty query shows the full catalog.
 - Row: `title` + `id` (subtitle) + risk glyph + availability dot (green/yellow/red from `getStatus`).
 - `ActionProvider` registered but empty — only capabilities appear this phase.
