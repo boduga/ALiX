@@ -24,7 +24,14 @@ tags: [refactoring, quality, architecture]
 
 ## Impact Analysis
 
-Before refactoring a function or module:
+Before refactoring a function or module, use GitNexus to map blast radius first:
+
+```bash
+# Blast radius of a symbol — callers, affected processes, risk level
+npx gitnexus impact <symbol> upstream
+```
+
+Then fall back to textual searches for anything GitNexus can't see:
 
 ```bash
 # Find all callers (grep for usage patterns)
