@@ -64,6 +64,7 @@ export type CapabilityEvent =
   | { type: "CapabilityRegistered"; capabilityId: string; at: number }
   | { type: "CapabilityRemoved"; capabilityId: string; at: number }
   | { type: "InvocationStarted"; invocationId: string; capabilityId: string; at: number }
+  // Reserved for future streaming/progress — not emitted in Phase 1.
   | { type: "InvocationProgress"; invocationId: string; progress: number; at: number }
   | { type: "InvocationOutput"; invocationId: string; chunk: string; at: number }
   | { type: "InvocationCompleted"; invocationId: string; at: number }
@@ -99,12 +100,21 @@ export interface ExecutorRunResult {
 export class AsyncEventQueue<T> implements AsyncIterable<T> {
   private buffer: T[] = [];
   private waiters: Array<() => void> = [];
+  private handlers = new Set<(item: T) => void>();
   private closed = false;
 
   push(item: T): void {
     if (this.closed) return;
     this.buffer.push(item);
+    for (const h of this.handlers) h(item);
     this.waiters.shift()?.();
+  }
+
+  /** Register a live subscriber — invoked for each item pushed after
+   *  subscription (buffered items are not replayed, matching EventBus). */
+  subscribe(handler: (item: T) => void): () => void {
+    this.handlers.add(handler);
+    return () => this.handlers.delete(handler);
   }
 
   close(): void {

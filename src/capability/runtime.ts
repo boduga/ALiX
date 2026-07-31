@@ -85,7 +85,7 @@ export class CapabilityRuntime {
         emitTerminal({ type: "InvocationCancelled", invocationId, at: Date.now() });
         finish("cancelled");
       },
-      subscribe: (h) => this.bus.subscribe(h),
+      subscribe: (h) => queue.subscribe(h),
       wait: () => new Promise<InvocationResult>((resolve) => {
         if (st.result) resolve(st.result);
         else st.resolve = resolve;

@@ -66,6 +66,19 @@ describe('CapabilityRuntime', () => {
     expect(endIdx).toBeGreaterThan(startIdx);
   });
 
+  it('inv.subscribe is scoped to its own invocation, not the global bus', async () => {
+    const { reg, runtime, native } = setup();
+    registerEcho(reg);
+    native.registerHandler('core.echo', async () => ({ output: 'ok' }));
+    const seen: string[] = [];
+    const inv1 = runtime.invoke('core.echo', {}, { actor: 'operator', cwd: '/', workspace: '/' });
+    inv1.subscribe((e) => seen.push(e.type));
+    await inv1.wait();
+    // A second invocation's events must not leak into inv1's subscriber.
+    await runtime.invoke('core.echo', {}, { actor: 'operator', cwd: '/', workspace: '/' }).wait();
+    expect(seen).toEqual(['InvocationStarted', 'InvocationCompleted']);
+  });
+
   it('emits InvocationFailed when the executor errors', async () => {
     const { reg, runtime, native } = setup();
     registerEcho(reg);
