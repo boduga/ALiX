@@ -1042,7 +1042,7 @@ export class TuiApp {
     const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
     const fields = [
       'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
-      'FILES: 0',         // schema gap: no fileCount field yet
+      `FILES: ${snap.session?.filesTouched ?? 0}`,
       `DAEMON: ${daemonLabel}`,
       `SOPS: ${sopCount}`,
       `RULES: ${ruleCount}`,

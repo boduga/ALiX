@@ -16,6 +16,7 @@ import * as nodeFs from "node:fs";
 import * as nodePath from "node:path";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
 import type { AgentIntent } from "../run/intent-classifier.js";
 import type { EventLog } from "../events/event-log.js";
 
@@ -29,26 +30,45 @@ const VERSION_FALLBACK = "0.0.0";
 let cachedVersion: string | null = null;
 export function readVersionCached(): string {
   if (cachedVersion !== null) return cachedVersion;
+  // Try walking from CWD first
+  const fromCwd = walkForPackageJson(process.cwd());
+  if (fromCwd) {
+    cachedVersion = fromCwd;
+    return cachedVersion;
+  }
+  // Fall back to walking from this module's location (handles daemon
+  // running from /tmp where the project isn't on disk)
   try {
-    let dir = process.cwd();
-    for (let i = 0; i < VERSION_WALK_MAX_DEPTH; i++) {
-      const candidate = nodePath.join(dir, "package.json");
-      if (nodeFs.existsSync(candidate)) {
-        const pkg = JSON.parse(nodeFs.readFileSync(candidate, "utf8")) as { name?: string; version?: string };
-        if (pkg.version) {
-          cachedVersion = pkg.version;
-          return cachedVersion;
-        }
-      }
-      const parent = nodePath.dirname(dir);
-      if (parent === dir) break;
-      dir = parent;
+    const moduleDir = nodePath.dirname(fileURLToPath(import.meta.url));
+    const fromModule = walkForPackageJson(moduleDir);
+    if (fromModule) {
+      cachedVersion = fromModule;
+      return cachedVersion;
     }
   } catch {
-    /* fall through */
+    /* import.meta.url unavailable */
   }
   cachedVersion = VERSION_FALLBACK;
   return cachedVersion;
+}
+
+function walkForPackageJson(startDir: string): string | null {
+  let dir = startDir;
+  for (let i = 0; i < VERSION_WALK_MAX_DEPTH; i++) {
+    const candidate = nodePath.join(dir, "package.json");
+    if (nodeFs.existsSync(candidate)) {
+      try {
+        const pkg = JSON.parse(nodeFs.readFileSync(candidate, "utf8")) as { name?: string; version?: string };
+        if (pkg.version) return pkg.version;
+      } catch {
+        /* malformed */
+      }
+    }
+    const parent = nodePath.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
 }
 import type {
   ToolCall,
@@ -230,6 +250,8 @@ export interface AgentSessionState {
   readonly progressLedger?: string;
   /** Most recent agent intent classification (research/mutation/validation). */
   readonly currentIntent?: AgentIntent;
+  /** Cumulative count of files touched (created/changed/deleted) across all turns. */
+  readonly filesTouched?: number;
 }
 
 export interface AgentSessionConfig {
@@ -602,6 +624,7 @@ export class AgentSessionBuilder {
     /** Latest rendered progress ledger text, updated by runTaskLoop each iteration. */
     let _latestLedgerText: string | undefined;
     let _latestIntent: AgentIntent | undefined;
+    let _filesTouchedCount = 0;
     // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
     // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
     // Initial value is Idle so freshly created sessions surface as Idle in the UI
@@ -1153,6 +1176,12 @@ export class AgentSessionBuilder {
         throw err;
       }
 
+      // Cumulative file count for the TUI header. sessionState is local to
+      // processTurn (a fresh MutationSessionState is allocated per turn), so we
+      // sum its three file sets and add to the closure counter.
+      _filesTouchedCount +=
+        sessionState.changed.size + sessionState.created.size + sessionState.deleted.size;
+
       // Verifying phase begins as the task loop's verifier pass completes; the TUI
       // shows "Verifying" between this transition and the eventual "Summarizing"
       // once summary lines are emitted. During the actual verifier pass, the TUI
@@ -1339,6 +1368,7 @@ export class AgentSessionBuilder {
         updatedAt,
         progressLedger: _latestLedgerText,
         currentIntent: _latestIntent,
+        filesTouched: _filesTouchedCount,
       };
     }
 

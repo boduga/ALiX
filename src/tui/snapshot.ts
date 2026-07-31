@@ -48,6 +48,12 @@ export interface SessionMetadata {
    * rendering. Each entry renders as a two-line dim card in the agent view.
    */
   readonly pendingToolCalls?: ReadonlyArray<{ readonly name: string; readonly summary?: string }>;
+  /**
+   * Cumulative count of files touched (created/changed/deleted) across all
+   * turns in this session. Surfaced by the TUI header to replace the prior
+   * hardcoded "FILES: 0" placeholder.
+   */
+  readonly filesTouched?: number;
 }
 
 /**

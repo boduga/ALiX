@@ -193,6 +193,7 @@ export class SnapshotBuilder {
         startedAt: Date.parse(state.createdAt) || Date.now(),
         turns: state.turnCount,
         currentIntent: state.currentIntent as AgentIntent | undefined,
+        filesTouched: state.filesTouched ?? 0,
       });
     } catch {
       return null;
