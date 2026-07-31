@@ -43,9 +43,10 @@ describe('CapabilityRegistry', () => {
     const r = new CapabilityRegistry();
     r.register(makeCap({ id: 'core.session.list', tags: ['session'], category: 'session', risk: 'low' }));
     r.register(makeCap({ id: 'tool.file.read', kind: 'tool', title: 'Read file', description: 'Read file contents', tags: ['file'], category: 'file', risk: 'medium' }));
-    r.register(makeCap({ id: 'tool.file.write', kind: 'tool', title: 'Write file', description: 'Write file contents', tags: ['file'], category: 'file', risk: 'high' }));
+    r.register(makeCap({ id: 'tool.file.write', kind: 'tool', title: 'Write file', description: 'Write file contents', tags: ['file'], category: 'file', risk: 'high', requiredPermissions: ['admin'] }));
     expect(r.query({ tags: ['file'] }).map(c => c.id)).toEqual(['tool.file.read', 'tool.file.write']);
     expect(r.query({ category: 'file', risk: 'high' }).map(c => c.id)).toEqual(['tool.file.write']);
+    expect(r.query({ permissions: 'admin' }).map(c => c.id)).toEqual(['tool.file.write']);
     expect(r.query({ kinds: ['tool'] }).length).toBe(2);
     expect(r.query({ text: 'session' }).map(c => c.id)).toEqual(['core.session.list']);
   });
