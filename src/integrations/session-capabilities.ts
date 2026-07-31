@@ -13,7 +13,8 @@ export async function registerSessionCapabilities(reg: CapabilityRegistry, nativ
   });
 
   native.registerHandler("core.session.show", async (args, ctx) => {
-    const sessionId = args.sessionId as string;
+    const sessionId = args.sessionId as string | undefined;
+    if (!sessionId) return { error: "sessionId argument required" };
     const info = await sessionInfo(ctx.cwd, sessionId);
     if (!info) return { error: `Session not found: ${sessionId}` };
     return { output: info };

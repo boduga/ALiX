@@ -15,6 +15,16 @@ describe('CapabilityPlatform bootstrap', () => {
     expect(result.output).toBeDefined();
   });
 
+  it('fails core.session.show cleanly when sessionId is missing', async () => {
+    const platform = new CapabilityPlatform();
+    registerInitialCapabilities(platform.registry, platform.native);
+    await registerSessionCapabilities(platform.registry, platform.native);
+    const inv = platform.invoke('core.session.show', {}, { actor: 'operator', cwd: process.cwd(), workspace: process.cwd() });
+    const result = await inv.wait();
+    expect(result.status).toBe('failed');
+    expect(result.error).toBe('sessionId argument required');
+  });
+
   it('exposes query for discovery', () => {
     const platform = new CapabilityPlatform();
     registerInitialCapabilities(platform.registry, platform.native);
