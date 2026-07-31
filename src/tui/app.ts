@@ -536,10 +536,9 @@ export class TuiApp {
       }
     }
     // perTab's narrow type only constrains what dispatchToSession may itself
-    // write; at runtime it is always a real PerTabState (callers pass
-    // views.chat / views.agent), which appendTimelineEvent's signature
-    // requires. Reassert the full state at this single helper boundary.
-    appendTimelineEvent(perTab as PerTabState, { kind: 'agent', text: summary });
+    // write; it always includes the timelineEvents write surface that
+    // appendTimelineEvent requires.
+    appendTimelineEvent(perTab, { kind: 'agent', text: summary });
     perTab.scrollOffset = 0; // auto-scroll to bottom on new response
     this.paintFullFrame();
   }

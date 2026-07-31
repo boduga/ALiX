@@ -1,15 +1,15 @@
 # ALiX Capability Platform — Phase 3 (Unified Operator Timeline)
 
-chat tab now renders single `timelineEvents[]` stream — user prompts,
-agent responses, capability invocations interleaved by time. A capability
+The chat tab now renders a single `timelineEvents[]` stream — user prompts,
+agent responses, and capability invocations interleaved by time. A capability
 invoked mid-conversation appears in its chronological position (⚡ marker)
-instead all turns.
+instead of after all turns.
 
-One source truth: ChatView (full timeline), AgentView (user/agent only),
-copy-scrollback all project `timelineEvents`, so can never diverge.
-Every write goes through `appendTimelineEvent()` in src/tui/state.ts,
-stamps id/timestamp/sequence/source; ordering by timestamp
-monotonic sequence tiebreak same-millisecond events.
+One source of truth: ChatView (full timeline), AgentView (user/agent only),
+and copy-scrollback all project `timelineEvents`, so they can never diverge.
+Every write goes through `appendTimelineEvent()` in src/tui/state.ts, which
+stamps id/timestamp/sequence/source; ordering is by timestamp with a
+monotonic sequence tiebreak for same-millisecond events.
 
-Tool calls remain on agent tab as execution telemetry — not
-timeline events. platform itself (src/capability/) unchanged.
+Tool calls remain on the agent tab as execution telemetry — they are not
+timeline events. The platform itself (src/capability/) is unchanged.

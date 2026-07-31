@@ -55,6 +55,15 @@ describe('getOrderedTimeline', () => {
     getOrderedTimeline(state.timelineEvents);
     expect(state.timelineEvents.map(e => e.kind)).toEqual(before);
   });
+
+  it('preserves append order on identical timestamps (sequence tiebreak)', () => {
+    const state = createInitialPerTabState();
+    const user = appendTimelineEvent(state, { kind: 'user', text: 'hello' });
+    const agent = appendTimelineEvent(state, { kind: 'agent', text: 'done' });
+    user.timestamp = 100;
+    agent.timestamp = 100;
+    expect(getOrderedTimeline(state.timelineEvents).map(e => e.kind)).toEqual(['user', 'agent']);
+  });
 });
 
 describe('capabilityStatusText + formatTimelineEvent', () => {
@@ -68,6 +77,13 @@ describe('capabilityStatusText + formatTimelineEvent', () => {
     expect(capabilityStatusText(cap)).toBe('core.session.list [failed ✗] boom');
     cap.status = 'cancelled';
     expect(capabilityStatusText(cap)).toBe('core.session.list [cancelled]');
+  });
+
+  it('completed with empty-string output omits the trailing output suffix', () => {
+    const state = createInitialPerTabState();
+    const cap = appendTimelineEvent(state, { kind: 'capability', invocationId: 'i', capabilityId: 'core.session.list', status: 'running' }) as Extract<TimelineEvent, { kind: 'capability' }>;
+    cap.status = 'completed'; cap.output = '';
+    expect(capabilityStatusText(cap)).toBe('core.session.list [completed ✓]');
   });
 
   it('formatTimelineEvent produces one-liners', () => {

@@ -205,7 +205,7 @@ export function nextTimelineSequence(): number { return ++timelineSequence; }
  * pushes, and returns the actual stored object (never a clone) so the caller
  * can hold it for in-place mutation (the capability presenter does this).
  */
-export function appendTimelineEvent(state: PerTabState, event: TimelineEventInput): TimelineEvent {
+export function appendTimelineEvent(state: Pick<PerTabState, 'timelineEvents'>, event: TimelineEventInput): TimelineEvent {
   const sequence = nextTimelineSequence();
   const source: TimelineSource = event.kind === 'user' ? 'operator'
     : event.kind === 'agent' ? 'agent' : 'capability';
