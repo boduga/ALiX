@@ -125,8 +125,8 @@ Expected: FAIL — `TimelineEvent` / `appendTimelineEvent` / `timelineEvents` do
 Add near `CapabilityInvocationEntry` (which is deleted in Task 6 — keep it for now):
 
 ```typescript
-/** Who produced a timeline event. `system` reserved for future ALiX-native events (governance, policy, daemon). */
-export type TimelineSource = 'operator' | 'agent' | 'capability' | 'system';
+/** Who produced a timeline event. Add `'system'` when the first system event exists (YAGNI). */
+export type TimelineSource = 'operator' | 'agent' | 'capability';
 
 export interface TimelineEventBase {
   /** Runtime-local deterministic id: `tl-${sequence}`. Unique within one TUI
@@ -208,8 +208,10 @@ export function getOrderedTimeline(events: readonly TimelineEvent[]): TimelineEv
 export function capabilityStatusText(event: Extract<TimelineEvent, { kind: 'capability' }>): string {
   let text = event.capabilityId;
   if (event.status === 'running') text += ' [running]';
-  else if (event.status === 'completed') text += ` [completed ✓] ${event.output === undefined ? '' : JSON.stringify(event.output)}`;
-  else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
+  else if (event.status === 'completed') {
+    text += ' [completed ✓]';
+    if (event.output !== undefined) text += ` ${JSON.stringify(event.output)}`;
+  } else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
   else text += ' [cancelled]';
   return text.trim();
 }
@@ -332,19 +334,22 @@ import { appendTimelineEvent, createInitialTuiAppState, SessionPhase } from './s
 
 3. Agent-tab submit (same replacement at the agent submit site).
 
-4. `dispatchToSession` — change the `perTab` parameter type to `PerTabState` (it currently narrows to `{ agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] }`), and replace the response push:
+4. `dispatchToSession` — widen the `perTab` parameter to a narrow writable view (it currently narrows to `{ agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] }`). Define the narrow type in `src/tui/app.ts` (or import a `TimelineWritableState` from `state.ts` if you prefer it co-located) so the function stays honest about what it writes — it only needs the timeline, not the whole `PerTabState`:
 
+```typescript
+type TimelineWritableState = Pick<PerTabState, 'timelineEvents'>;
+```
 ```typescript
   private async dispatchToSession(
     text: string,
     kind: 'chat' | 'agent',
-    perTab: PerTabState,
+    perTab: TimelineWritableState,
     candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
   ): Promise<void> {
 ```
-and inside:
+The function also assigns `perTab.planContent`/`perTab.planTasks`/`perTab.scrollOffset` — verify those fields exist on the actual `PerTabState` passed in (they do), and either keep them on the writable type or use a wider type that includes them (e.g. `Pick<PerTabState, 'timelineEvents' | 'planContent' | 'planTasks' | 'scrollOffset'>`). Callers pass `this.state.views.chat` / `this.state.views.agent`, which satisfy either. Inside, replace the response push:
 ```typescript
     appendTimelineEvent(perTab, { kind: 'agent', text: summary });
 ```
@@ -565,12 +570,11 @@ describe('capability invocation chat entries', () => {
     const view = new ChatView();
     view.render(ctx as never);
     const frame = canvas.renderFrame();
-    const firstIdx = frame.indexOf('first');
-    const capIdx = frame.indexOf('core.session.list');
-    const secondIdx = frame.indexOf('second');
-    expect(firstIdx).toBeGreaterThanOrEqual(0);
-    expect(capIdx).toBeGreaterThan(firstIdx);
-    expect(secondIdx).toBeGreaterThan(capIdx);
+    // Row order in the scrollback: user prompt, then the capability (which
+    // ran mid-conversation), then the agent response.
+    expect(frame).toContain('first');
+    expect(frame.indexOf('first')).toBeLessThan(frame.indexOf('core.session.list'));
+    expect(frame.indexOf('core.session.list')).toBeLessThan(frame.indexOf('second'));
   });
 });
 ```
@@ -828,9 +832,10 @@ Expected: only `src/tui/state.ts` (the definitions still to be deleted).
 2. Remove `submittedPrompts`, `agentResponses`, `capabilityInvocations` from `PerTabState`.
 3. Remove them from `createInitialPerTabState`.
 
-- [ ] **Step 3: Update remaining test fixtures**
+- [ ] **Step 3: Let the compiler find the remaining fixtures**
 
-Remove the now-unknown `submittedPrompts`/`agentResponses`/`capabilityInvocations` fields from every inline `PerTabState` literal in the fixture files listed above (they became excess-property tsc errors once removed from the interface). The `timelineEvents` field (added in Task 1) is the replacement. Run `npx tsc -p tsconfig.json --noEmit` and fix any file the compiler flags.
+Run: `npx tsc -p tsconfig.json --noEmit`
+Expected: tsc flags every `PerTabState` literal that still carries the removed fields (excess-property errors). Remove those fields from each flagged file — `tests/tui/state.vitest.ts` and `tests/tui/views/{approvals,daemon,dashboard,policy,runtime,sops,types}.vitest.ts`. The `timelineEvents` field (added in Task 1) is the replacement. Iterate until tsc is clean.
 
 - [ ] **Step 4: Verify zero references + build + commit**
 

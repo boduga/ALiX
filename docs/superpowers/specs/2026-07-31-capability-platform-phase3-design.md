@@ -46,7 +46,7 @@ eliminates the parallel state entirely.
 ### Timeline event model (`src/tui/state.ts`)
 
 ```ts
-export type TimelineSource = 'operator' | 'agent' | 'capability' | 'system';
+export type TimelineSource = 'operator' | 'agent' | 'capability'; // `'system'` added when the first system event exists
 
 export interface TimelineEventBase {
   /** Runtime-local deterministic id: `tl-${sequence}`. Unique within one TUI
@@ -238,9 +238,9 @@ copy-scrollback→ formatTimelineEvent(chat.timelineEvents)   → ⚡ included
   runtime-only; no disk schema change.
 - **Interrupts / retries / background capability events.** The event contract
   accommodates them; the runtime behavior is not built in Phase 3.
-- **`source` values beyond the three active kinds.** `'system'` exists in the
-  union for future ALiX-native events (governance decisions, policy
-  evaluations, daemon observations) but is unused this phase.
+- **`source` values beyond the three active kinds.** `'system'` is deferred
+  (YAGNI) — added to `TimelineSource` when the first system event exists
+  (governance decisions, policy evaluations, daemon observations).
 
 ## Future Direction
 
