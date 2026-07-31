@@ -18,6 +18,8 @@ import type { PlanTask } from '../planning/plan-task.js';
 import type { IInput, IOutput } from './io.js';
 import { StdioInput, StdioOutput } from './io.js';
 import { KeyDispatcher } from './key-dispatcher.js';
+import { PaletteModal } from './capabilities/palette.js';
+import { getCapabilityService } from './capabilities/capability-service.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -42,6 +44,9 @@ export interface TuiAppOptions {
   keyDispatcher?: import('./key-dispatcher.js').KeyDispatcher;
   /** Theme name passed to renderResponse. Defaults to 'dark'. */
   themeName?: string;
+  /** Optional capability service — the palette only activates when a
+   *  service is available (either here or via the module accessor). */
+  capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
 }
 
 const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
@@ -70,6 +75,9 @@ export class TuiApp {
   private readonly output: IOutput;
   private readonly keyDispatcher: import('./key-dispatcher.js').KeyDispatcher;
   private inputCleanup?: () => void;
+  private readonly palette = new PaletteModal();
+  private paletteOpen = false;
+  private paletteQuery = '';
 
   constructor(private readonly opts: TuiAppOptions) {
     this.input = opts.input ?? new StdioInput(process.stdin);
@@ -247,6 +255,12 @@ export class TuiApp {
     // 2b. Pluggable key dispatcher — registered keybindings get first
     //     chance to consume the key before the built-in dispatch.
     if (this.keyDispatcher.dispatch(key)) return;
+    // Command palette is open — route all remaining keys to the modal
+    // (Escape/Enter/arrows/backspace/text) instead of the tab input.
+    if (this.paletteOpen) {
+      this.handlePaletteKey(key);
+      return;
+    }
     if (!this.state.lastSnapshot) return;
     const tab = this.state.activeTab;
 
@@ -540,6 +554,16 @@ export class TuiApp {
           return true;
         }
       }
+    }
+    // Command palette (Ctrl+P, or '/' on an empty chat input).
+    if (key === 'Ctrl+p' || (key === '/' && this.state.activeTab === 'chat' && this.state.views.chat.inputBuffer.length === 0)) {
+      if (this.opts.capabilityService || this.hasCapabilityService()) {
+        this.paletteOpen = true;
+        this.paletteQuery = '';
+        this.palette.refresh('');
+        return true;
+      }
+      return false;
     }
     // Ctrl+C always quits. 'q'/'Q' quits only on non-input tabs
     // (dashboard, daemon, approvals, etc.) — on chat/agent tabs it's
@@ -936,6 +960,59 @@ export class TuiApp {
     canvas.write(0, cardY + 3, '\x1b[33m' + '╰' + '─'.repeat(innerW) + '╯' + '\x1b[0m');
   }
 
+  /** True when a CapabilityService is available via the module accessor. */
+  private hasCapabilityService(): boolean {
+    try { getCapabilityService(); return true; } catch { return false; }
+  }
+
+  /**
+   * Route a key while the command palette is open. Escape closes; Enter
+   * invokes the selected entry; arrows move the cursor; backspace and
+   * printable characters edit the query. Every mutation refreshes the
+   * entry list against the current query.
+   */
+  private handlePaletteKey(key: string): void {
+    if (key === 'Escape') { this.paletteOpen = false; return; }
+    if (key === 'Enter') {
+      if (!this.palette.empty) {
+        const entry = this.palette.selected();
+        this.paletteOpen = false;
+        entry.invoke();
+      }
+      return;
+    }
+    if (key === 'ArrowUp') { this.palette.move(-1); return; }
+    if (key === 'ArrowDown') { this.palette.move(1); return; }
+    if (key === 'Backspace') { this.paletteQuery = this.paletteQuery.slice(0, -1); }
+    else if (key && key.length === 1) { this.paletteQuery += key; }
+    this.palette.refresh(this.paletteQuery);
+  }
+
+  /**
+   * Render the command palette as an overlay in the active view's canvas.
+   * No-op when the palette is closed. Centered vertically, 12 rows tall,
+   * with a query input line, the filtered entry list (windowed to fit),
+   * and a highlight on the selected entry.
+   */
+  private paintPalette(canvas: TerminalCanvas, width: number, height: number, headerH: number, footerH: number): void {
+    if (!this.paletteOpen) return;
+    const PALETTE_H = 12;
+    const y = Math.max(headerH + 1, Math.floor(height / 2) - Math.floor(PALETTE_H / 2));
+    const innerW = Math.max(0, width - 4);
+    canvas.drawBox(1, y, innerW, PALETTE_H, ' Command Palette (Ctrl+P) ', '\x1b[90m');
+    canvas.write(3, y + 1, `\x1b[7m ${this.paletteQuery} \x1b[0m`);
+    const list = this.palette.list;
+    const rows = Math.max(0, PALETTE_H - 3);
+    const start = Math.max(0, Math.min(this.palette.selectedIndex(), list.length - rows));
+    for (let i = 0; i < Math.min(list.length, rows); i++) {
+      const entry = list[start + i]!;
+      const sel = start + i === this.palette.selectedIndex();
+      const line = `${sel ? '› ' : '  '}${entry.title}${entry.subtitle ? `  \x1b[90m${entry.subtitle}\x1b[0m` : ''}`;
+      canvas.write(3, y + 2 + i, (sel ? '\x1b[36m' : '') + line.slice(0, innerW - 4) + (sel ? '\x1b[0m' : ''));
+    }
+    if (list.length === 0) canvas.write(3, y + 2, '\x1b[90mNo capabilities found\x1b[0m');
+  }
+
   private paintFullFrame(): void {
     if (!this.state.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
@@ -963,6 +1040,7 @@ export class TuiApp {
     // scrollback area (sits at rows-7..rows-4, which is inside the
     // expanded scrollback now — the card wins because it paints last).
     this.paintPlanApprovalCard(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
+    this.paintPalette(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
 
     const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = this.state.lastSnapshot;
@@ -1091,6 +1169,7 @@ function parseKey(buf: Buffer): string | null {
   if (s === '\r' || s === '\n') return 'Enter';
   if (s === '\t') return 'Tab';
   if (s === '\x0c') return 'Ctrl+l';
+  if (s === '\x10') return 'Ctrl+p';   // Ctrl+P — command palette
   if (s === '\x7f' || s === '\b') return 'Backspace';
   // Ctrl+digit: terminals reliably encode these as ESC + digit (the
   // standard "Alt+digit" sequence doubles as "Ctrl+digit" for tab
