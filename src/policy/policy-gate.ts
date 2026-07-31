@@ -256,7 +256,7 @@ export class PolicyGate {
     }
 
     // 5. Tool permission from config
-    const toolDecision = this.config.permissions.tools[capability];
+    const toolDecision = this.config.permissions.tools?.[capability];
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
       if (effective === "allow") {
@@ -332,7 +332,7 @@ export class PolicyGate {
   async evaluateCapability(request: CapabilityPolicyRequest): Promise<PolicyGateDecision> {
     const policyRevision = computePolicyRevision(this.config);
 
-    const toolDecision = this.config.permissions.tools[request.capability];
+    const toolDecision = this.config.permissions.tools?.[request.capability];
 
     if (toolDecision) {
       const effective = applySessionMode(toolDecision, request.sessionMode);
