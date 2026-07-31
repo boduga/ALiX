@@ -103,11 +103,13 @@ export function paintDaemonPanel(
 
   // Rows 3..6 — metadata block. Only render rows that actually fit.
   const contentW = w - 4;
+  const ws = snap.cwd ?? "";
+  const wsDisplay = ws.length > 30 ? "…" + ws.slice(-29) : ws;
   const metaRows: string[] = [
     `PID:        ${snap.daemon.pid ?? "—"}`,
     `Uptime:   ${fmtUptime(snap.daemon.uptimeSeconds)}`,
     `Version:  ${snap.session?.version ?? "—"}`,
-    `Workspace:  —`,
+    `Workspace:  ${wsDisplay || "—"}`,
   ];
   let metaEnd = 2; // no metadata rendered yet
   if (h >= 9) {

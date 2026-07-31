@@ -45,6 +45,7 @@ const MINIMAL_SNAPSHOT: DashboardSnapshot = {
   approvals: null,
   sops: null,
   policy: { rules: [], violations: [], enforcementMode: 'auto', recentViolationCount: 0 },
+  cwd: '/workspace/test',
 };
 
 function makePerTab(overrides?: Partial<PerTabState>): PerTabState {

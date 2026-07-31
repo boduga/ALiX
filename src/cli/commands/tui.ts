@@ -158,6 +158,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const builder = new SnapshotBuilder(
     agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
+    cwd,
   );
 
   const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals, themeName: opts.themeName });

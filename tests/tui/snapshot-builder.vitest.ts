@@ -66,6 +66,23 @@ describe('SnapshotBuilder.build — happy path', () => {
     expect(snap!.approvals?.totalPending).toBe(1);
   });
 
+  it('threads the constructor cwd into both initial and produced snapshots', async () => {
+    const f = mkFakes();
+    const cwd = '/home/operator/projects/alix';
+    const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, f.daemon, cwd);
+    const initial = await b.build(1);
+    expect(initial?.cwd).toBe(cwd);
+    const next = await b.build(2);
+    expect(next?.cwd).toBe(cwd);
+  });
+
+  it('defaults cwd to empty string when not supplied (back-compat for older callers)', async () => {
+    const f = mkFakes();
+    const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, f.daemon);
+    const snap = await b.build(1);
+    expect(snap?.cwd).toBe('');
+  });
+
   it('freezes the snapshot result', async () => {
     const f = mkFakes();
     const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, f.daemon);

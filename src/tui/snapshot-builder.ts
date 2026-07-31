@@ -79,6 +79,7 @@ export class SnapshotBuilder {
     private readonly sops: SopCollector,
     private readonly runtime: EventLog | RuntimeCollector,
     private readonly daemonMetrics: DaemonMetricsCollector,
+    private readonly cwd: string = '',
   ) {}
 
   /**
@@ -113,6 +114,7 @@ export class SnapshotBuilder {
         sops: null,
         policy: null,
         progressLedger: undefined,
+        cwd: this.cwd,
       });
       this.lastSnapshotGeneration = generation;
     }
@@ -155,6 +157,7 @@ export class SnapshotBuilder {
       sops,
       policy,
       progressLedger,
+      cwd: this.cwd,
     });
 
     this.lastSnapshot = snap;

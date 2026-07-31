@@ -15,6 +15,13 @@ export interface DashboardSnapshot {
   readonly sops: SopSnapshot | null;
   readonly policy: PolicySnapshot | null;
   /**
+   * Absolute path of the working directory the TUI was launched from.
+   * Populated by SnapshotBuilder from the cwd captured by the TUI command.
+   * Surfaced in the DAEMON panel as the "Workspace" row so the operator
+   * always knows which project the current dashboard reflects.
+   */
+  readonly cwd: string;
+  /**
    * Most recent progress ledger text rendered by the agent loop.
    * Populated by SnapshotBuilder from agent session state.
    */

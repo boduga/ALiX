@@ -44,6 +44,7 @@ test('end-to-end: parse live response, render to canvas', () => {
     session: { mode: 'auto', phase: 'Idle' as SessionPhase, version: '1.0.0', startedAt: 1_000_000, turns: 0 },
     runtime: null, daemon: null, approvals: null, sops: null,
     policy: { rules: [], violations: [], enforcementMode: 'auto', recentViolationCount: 0 },
+    cwd: '/workspace/test',
   };
   const perTab: PerTabState = {
     cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
