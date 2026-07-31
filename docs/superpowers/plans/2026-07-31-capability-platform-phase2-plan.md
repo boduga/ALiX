@@ -58,14 +58,14 @@ import { TerminalCanvas } from '../../../src/tui/canvas.js';
 
 describe('capability invocation chat entries', () => {
   it('initializes capabilityInvocations empty for every tab', () => {
-    const state = createInitialTuiAppState({});
+    const state = createInitialTuiAppState();
     for (const tab of Object.keys(state.views)) {
       expect(state.views[tab].capabilityInvocations).toEqual([]);
     }
   });
 
   it('chat view renders a completed invocation entry', () => {
-    const state = createInitialTuiAppState({});
+    const state = createInitialTuiAppState();
     state.views.chat.capabilityInvocations.push({
       invocationId: 'inv_1', capabilityId: 'core.session.list', args: {},
       status: 'completed', output: '["s1"]', at: 1,
@@ -126,6 +126,12 @@ Find `createInitialPerTabState` (or wherever the per-tab initial object literal 
 
 ```typescript
     capabilityInvocations: [],
+```
+
+`createInitialTuiAppState` builds `views` as `Record<TabId, PerTabState>`. Since `TabId` now includes `'capabilities'`, add the new tab to that map (next to `policy: createInitialPerTabState(),`):
+
+```typescript
+      capabilities: createInitialPerTabState(),
 ```
 
 - [ ] **Step 4: Render the entries in the chat view**
