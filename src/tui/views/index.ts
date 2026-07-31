@@ -1,6 +1,7 @@
 import type { TuiView } from './types.js';
 import { AgentView } from './agent-view.js';
 import { ApprovalsView } from './approvals-view.js';
+import { CapabilitiesView } from '../capabilities/capabilities-view.js';
 import { ChatView } from './chat-view.js';
 import { DashboardView } from './dashboard-view.js';
 import { DaemonView } from './daemon-view.js';
@@ -16,6 +17,7 @@ const _views: Record<string, TuiView> = {
   dashboard: new DashboardView(),
   agent: new AgentView(),
   approvals: new ApprovalsView(),
+  capabilities: new CapabilitiesView(),
   chat: new ChatView(),
   daemon: new DaemonView(),
   policy: new PolicyView(),
@@ -31,5 +33,5 @@ export function getAllViews(): readonly TuiView[] {
   return Object.values(_views);
 }
 
-export { AgentView, ApprovalsView, ChatView, DashboardView, DaemonView, PolicyView, RuntimeView, SopsView };
+export { AgentView, ApprovalsView, CapabilitiesView, ChatView, DashboardView, DaemonView, PolicyView, RuntimeView, SopsView };
 export type { TuiView, ViewRenderResult, ViewRenderContext, ViewInputContext, ViewAction } from './types.js';
