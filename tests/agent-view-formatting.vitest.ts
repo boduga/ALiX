@@ -21,7 +21,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { TerminalCanvas } from '../src/tui/canvas.js';
 import { AgentView } from '../src/tui/views/agent-view.js';
 import type { ViewRenderContext } from '../src/tui/views/types.js';
-import type { DashboardSnapshot, PerTabState, SessionPhase } from '../src/tui/state.js';
+import type { DashboardSnapshot, PerTabState, SessionPhase, TimelineEvent } from '../src/tui/state.js';
 import type { PlanTask } from '../src/planning/plan-task.js';
 
 /* ─── Constants ─────────────────────────────────────────────── */
@@ -69,6 +69,29 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
     panelFocus: null,
     ...overrides,
   };
+}
+
+/**
+ * Seed a conversation as timeline events from ordered user prompts and
+ * agent responses, interleaved exactly as the pre-timeline fixture did
+ * (user_i before agent_i). AgentView reads `timelineEvents` only — the
+ * legacy `submittedPrompts`/`agentResponses` arrays are no longer seeded.
+ */
+function seedTurns(user: string[], agent: string[]): TimelineEvent[] {
+  const events: TimelineEvent[] = [];
+  let seq = 0;
+  const maxLen = Math.max(user.length, agent.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (i < user.length) {
+      seq += 1;
+      events.push({ id: `tl-${seq}`, timestamp: seq, sequence: seq, source: 'operator', kind: 'user', text: user[i]! });
+    }
+    if (i < agent.length) {
+      seq += 1;
+      events.push({ id: `tl-${seq}`, timestamp: seq, sequence: seq, source: 'agent', kind: 'agent', text: agent[i]! });
+    }
+  }
+  return events;
 }
 
 function renderOnCanvas(
@@ -151,7 +174,7 @@ describe('AgentView — empty state', () => {
 
 describe('AgentView — user prompts', () => {
   it('renders a single user prompt with dim arrow marker', () => {
-    const perTab = makePerTab({ submittedPrompts: ['what is the meaning of life?'] });
+    const perTab = makePerTab({ timelineEvents: seedTurns(['what is the meaning of life?'], []) });
     const c = renderOnCanvas(W, COMPACT, perTab);
     expect(rowText(c, 6)).toContain('what is the meaning of life?');
     const marker = cellAt(c, 0, 6);
@@ -161,7 +184,7 @@ describe('AgentView — user prompts', () => {
 
   it('wraps long user prompts onto continuation lines', () => {
     const long = 'word '.repeat(100); // 100 short tokens that WILL wrap
-    const perTab = makePerTab({ submittedPrompts: [long] });
+    const perTab = makePerTab({ timelineEvents: seedTurns([long], []) });
     const c = renderOnCanvas(40, TALL, perTab);
     const line1 = rowText(c, 6);
     expect(line1.length).toBeLessThanOrEqual(40);
@@ -173,7 +196,7 @@ describe('AgentView — user prompts', () => {
 
   it('renders multiple user prompts in order (top to bottom)', () => {
     const perTab = makePerTab({
-      submittedPrompts: ['first prompt', 'second prompt'],
+      timelineEvents: seedTurns(['first prompt', 'second prompt'], []),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     // Layout: row 6 = first prompt, row 7 = blank separator,
@@ -190,7 +213,7 @@ describe('AgentView — user prompts', () => {
 
 describe('AgentView — agent responses', () => {
   it('renders a single agent response with cyan arrow marker', () => {
-    const perTab = makePerTab({ agentResponses: ['Here is my answer.'] });
+    const perTab = makePerTab({ timelineEvents: seedTurns([], ['Here is my answer.']) });
     const c = renderOnCanvas(W, COMPACT, perTab);
     expect(rowText(c, 6)).toContain('Here is my answer.');
     const marker = cellAt(c, 0, 6);
@@ -200,7 +223,7 @@ describe('AgentView — agent responses', () => {
 
   it('wraps long agent responses onto continuation lines', () => {
     const long = 'word '.repeat(100);
-    const perTab = makePerTab({ agentResponses: [long] });
+    const perTab = makePerTab({ timelineEvents: seedTurns([], [long]) });
     const c = renderOnCanvas(30, TALL, perTab);
     const line1 = rowText(c, 6);
     expect(line1.length).toBeLessThanOrEqual(30);
@@ -217,8 +240,7 @@ describe('AgentView — agent responses', () => {
 describe('AgentView — user+agent turns', () => {
   it('alternates user prompts and agent responses interleaved', () => {
     const perTab = makePerTab({
-      submittedPrompts: ['q1', 'q2'],
-      agentResponses: ['a1', 'a2'],
+      timelineEvents: seedTurns(['q1', 'q2'], ['a1', 'a2']),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     // Layout (blank line separator before every turn after the first):
@@ -245,14 +267,31 @@ describe('AgentView — user+agent turns', () => {
 
   it('handles unequal numbers of prompts and responses', () => {
     const perTab = makePerTab({
-      submittedPrompts: ['q1', 'q2'],
-      agentResponses: ['a1'],
+      timelineEvents: seedTurns(['q1', 'q2'], ['a1']),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 12);
     expect(all).toContain('q1');
     expect(all).toContain('a1');
     expect(all).toContain('q2'); // extra prompt still rendered
+  });
+});
+
+/* ─────────────────────────────────────────────────────────────── */
+/*  CAPABILITY EVENTS (excluded from agent tab)                      */
+/* ─────────────────────────────────────────────────────────────── */
+
+describe('AgentView — capability events', () => {
+  it('does not render capability events on the agent tab', () => {
+    const perTab = makePerTab({});
+    perTab.timelineEvents = [
+      { id: 'tl-1', timestamp: 1, sequence: 1, source: 'operator', kind: 'user', text: 'task' },
+      { id: 'tl-2', timestamp: 2, sequence: 2, source: 'capability', kind: 'capability', invocationId: 'i', capabilityId: 'core.session.list', status: 'completed' },
+    ];
+    const c = renderOnCanvas(W, COMPACT, perTab);
+    const frame = c.renderFrame();
+    expect(frame).toContain('task');
+    expect(frame).not.toContain('core.session.list');
   });
 });
 
@@ -520,8 +559,7 @@ describe('AgentView — combined rendering order', () => {
     // → turns (user, agent) → approval cards
     const perTab = makePerTab({
       planContent: '# Implementation Plan\n\nDo the work.',
-      submittedPrompts: ['build it'],
-      agentResponses: ['Done!'],
+      timelineEvents: seedTurns(['build it'], ['Done!']),
       pendingApprovals: [
         { id: 'ap_001', toolName: 'write_file', target: 'x.ts', requestedAt: 1000 },
       ],
@@ -543,8 +581,7 @@ describe('AgentView — combined rendering order', () => {
     const perTab = makePerTab({
       planTasks: tasks,
       planContent: '## Plan',
-      submittedPrompts: ['go'],
-      agentResponses: ['ok'],
+      timelineEvents: seedTurns(['go'], ['ok']),
       pendingApprovals: [
         { id: 'ap_001', toolName: 'exec', target: 'test', requestedAt: 1000 },
       ],
@@ -569,8 +606,7 @@ describe('AgentView — combined rendering order', () => {
 describe('AgentView — scroll offset', () => {
   it('shows most recent lines when offset is 0', () => {
     const perTab = makePerTab({
-      submittedPrompts: ['old', 'newer', 'newest'],
-      agentResponses: ['resp1', 'resp2', 'resp3'],
+      timelineEvents: seedTurns(['old', 'newer', 'newest'], ['resp1', 'resp2', 'resp3']),
       scrollOffset: 0,
     });
     const c = renderOnCanvas(W, TALL, perTab);
@@ -581,8 +617,7 @@ describe('AgentView — scroll offset', () => {
 
   it('shows older lines when offset is > 0', () => {
     const perTab = makePerTab({
-      submittedPrompts: ['old', 'newer', 'newest'],
-      agentResponses: ['resp1', 'resp2', 'resp3'],
+      timelineEvents: seedTurns(['old', 'newer', 'newest'], ['resp1', 'resp2', 'resp3']),
       scrollOffset: 3,
     });
     const c = renderOnCanvas(W, TALL, perTab);
@@ -646,14 +681,14 @@ describe('AgentView — key handling', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — edge cases', () => {
-  it('empty submittedPrompts and agentResponses', () => {
-    const c = renderOnCanvas(W, COMPACT, makePerTab({ submittedPrompts: [], agentResponses: [] }));
+  it('empty timelineEvents', () => {
+    const c = renderOnCanvas(W, COMPACT, makePerTab({ timelineEvents: [] }));
     expect(rowText(c, 6)).toBe('');
   });
 
   it('very long single-word text does not crash', () => {
     const veryLong = 'abcdefghij' + 'klmnopqrst'.repeat(100);
-    expect(() => renderOnCanvas(40, COMPACT, makePerTab({ agentResponses: [veryLong] }))).not.toThrow();
+    expect(() => renderOnCanvas(40, COMPACT, makePerTab({ timelineEvents: seedTurns([], [veryLong]) }))).not.toThrow();
   });
 
   it('empty planContent renders no diamond marker', () => {
@@ -672,11 +707,11 @@ describe('AgentView — edge cases', () => {
   });
 
   it('very narrow canvas (20 cols) does not crash', () => {
-    expect(() => renderOnCanvas(20, COMPACT, makePerTab({ submittedPrompts: ['hello'], agentResponses: ['world'] }))).not.toThrow();
+    expect(() => renderOnCanvas(20, COMPACT, makePerTab({ timelineEvents: seedTurns(['hello'], ['world']) }))).not.toThrow();
   });
 
   it('very short canvas (10 rows) does not crash', () => {
-    expect(() => renderOnCanvas(W, 10, makePerTab({ submittedPrompts: ['hello'], agentResponses: ['world'] }))).not.toThrow();
+    expect(() => renderOnCanvas(W, 10, makePerTab({ timelineEvents: seedTurns(['hello'], ['world']) }))).not.toThrow();
   });
 
   it('plan and approvals with no user/agent turns', () => {
@@ -709,7 +744,7 @@ describe('AgentView — edge cases', () => {
 describe('AgentView — list rendering', () => {
   it('renders unordered lists with bullets', () => {
     const perTab = makePerTab({
-      agentResponses: ['- first\n- second'],
+      timelineEvents: seedTurns([], ['- first\n- second']),
     });
     const all = allText(renderOnCanvas(W, TALL, perTab), 12);
     expect(all).toContain('• first');
@@ -718,7 +753,7 @@ describe('AgentView — list rendering', () => {
 
   it('renders ordered lists sequentially', () => {
     const perTab = makePerTab({
-      agentResponses: ['5. five\n9. nine\n20. twenty'],
+      timelineEvents: seedTurns([], ['5. five\n9. nine\n20. twenty']),
     });
     const all = allText(renderOnCanvas(W, TALL, perTab), 12);
     expect(all).toContain('1. five');
@@ -728,7 +763,7 @@ describe('AgentView — list rendering', () => {
 
   it('preserves text-list-text order', () => {
     const perTab = makePerTab({
-      agentResponses: ['before\n\n- item\n\nafter'],
+      timelineEvents: seedTurns([], ['before\n\n- item\n\nafter']),
     });
     const all = allText(renderOnCanvas(W, TALL, perTab), 12);
     expect(all.indexOf('before')).toBeLessThan(all.indexOf('• item'));
@@ -737,7 +772,7 @@ describe('AgentView — list rendering', () => {
 
   it('wraps long list items', () => {
     const perTab = makePerTab({
-      agentResponses: ['- ' + 'a '.repeat(80)],
+      timelineEvents: seedTurns([], ['- ' + 'a '.repeat(80)]),
     });
     expect(() => renderOnCanvas(40, TALL, perTab)).not.toThrow();
   });
@@ -748,9 +783,9 @@ describe('AgentView — list rendering', () => {
     // not one per block. Earlier versions set isFirst: true for the
     // first line of every block, which produced duplicate markers.
     const perTab = makePerTab({
-      agentResponses: [
+      timelineEvents: seedTurns([], [
         'Here is some prose.\n\n```python\nx = 1\n```\n\n- item 1\n- item 2',
-      ],
+      ]),
     });
     const c = renderOnCanvas(80, 40, perTab);
     let markerCount = 0;
@@ -771,9 +806,9 @@ describe('AgentView — list rendering', () => {
 describe('AgentView — code blocks', () => {
   it('renders multiline code', () => {
     const perTab = makePerTab({
-      agentResponses: [
+      timelineEvents: seedTurns([], [
         '```python\nx=1\ny=2\n```',
-      ],
+      ]),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 12);
@@ -783,9 +818,9 @@ describe('AgentView — code blocks', () => {
 
   it('does not show markdown fences', () => {
     const perTab = makePerTab({
-      agentResponses: [
+      timelineEvents: seedTurns([], [
         '```ts\nconst x=1;\n```',
-      ],
+      ]),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
@@ -794,9 +829,9 @@ describe('AgentView — code blocks', () => {
 
   it('renders language labels', () => {
     const perTab = makePerTab({
-      agentResponses: [
+      timelineEvents: seedTurns([], [
         '```typescript\nx\n```',
-      ],
+      ]),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
@@ -807,9 +842,9 @@ describe('AgentView — code blocks', () => {
 
   it('indents code body with two spaces', () => {
     const perTab = makePerTab({
-      agentResponses: [
+      timelineEvents: seedTurns([], [
         '```ts\nconst x=1;\n```',
-      ],
+      ]),
     });
     const c = renderOnCanvas(W, TALL, perTab);
     const all = allText(c, 10);
@@ -828,8 +863,7 @@ describe('AgentView — rich renderer wiring (Task 11)', () => {
   it('renders **bold** with the bold ANSI style on agent response rows', () => {
     const view = new AgentView();
     const perTab = makePerTab({
-      submittedPrompts: ['test prompt'],
-      agentResponses: ['**Bold** then code:\n\n```python\nx = 1\n```'],
+      timelineEvents: seedTurns(['test prompt'], ['**Bold** then code:\n\n```python\nx = 1\n```']),
     });
     const c = renderOnCanvas(120, 30, perTab);
     view.render({
