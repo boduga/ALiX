@@ -1,6 +1,6 @@
 # ALiX Capability Platform — Phase 3 Design (Unified Operator Timeline)
 
-**Status:** Approved Design
+**Status:** Approved Design — Ready for Implementation
 **Date:** 2026-07-31
 **Depends on:** Phase 2 (`docs/superpowers/specs/2026-07-31-capability-platform-phase2-design.md`) — merged 2026-07-31 (`0fe4ed71`)
 
@@ -37,7 +37,7 @@ eliminates the parallel state entirely.
 | D2 | **Timeline scope = chat + capabilities only.** Tool calls, plans, approvals, runtime status remain on the agent tab as execution observability, NOT timeline events. Operator narrative (chat) and execution telemetry (agent) stay separate. |
 | D3 | **Ordering by `timestamp`, tiebreak `sequence`.** `sequence` is a monotonic per-runtime counter so same-millisecond events render deterministically. |
 | D4 | **Event contract is frozen as a compatibility boundary.** `kind` (what happened) and `source` (who produced it) are orthogonal axes. `source` is stamped internally by the append helper — writers never specify it. |
-| D5 | **Writers route through a single `appendTimelineEvent(state, event)` helper.** No direct `state.timelineEvents.push(...)` anywhere. The helper owns id/timestamp/sequence/source generation and returns the created event (the capability presenter holds it for later mutation). |
+| D5 | **Writers route through a single `appendTimelineEvent(state, event)` helper.** Direct `state.timelineEvents.push(...)` is banned outside `state.ts` (grep-enforced: `rg "timelineEvents\.push" src/tui` → `src/tui/state.ts` only). The helper owns id/timestamp/sequence/source generation and returns the **actual stored object** (never a clone) for the capability presenter to mutate in place. |
 | D6 | **Incremental replace.** Add `timelineEvents[]` alongside the legacy arrays → migrate writers → migrate views → migrate copy → delete legacy arrays only after zero production references remain. The TUI suite stays green at every intermediate commit. |
 | D7 | **Capability events are the only mutable events.** Pushed as `running`, updated in place by the presenter. `timestamp` stays at invocation time so the event holds its interleaved position while status text updates. |
 
@@ -49,7 +49,11 @@ eliminates the parallel state entirely.
 export type TimelineSource = 'operator' | 'agent' | 'capability' | 'system';
 
 export interface TimelineEventBase {
-  id: string;          // deterministic: `tl-${sequence}` — unique per runtime
+  /** Runtime-local deterministic id: `tl-${sequence}`. Unique within one TUI
+   *  runtime instance; NOT globally unique across sessions (two runtimes both
+   *  produce `tl-1`). If persistence arrives, introduce `timelineId =
+   *  sessionId + sequence` without changing the event model. */
+  id: string;
   timestamp: number;   // Date.now() at append
   sequence: number;    // monotonic per-runtime counter — ordering tiebreak
   source: TimelineSource;
@@ -82,7 +86,19 @@ export function appendTimelineEvent(state: PerTabState, event: Omit<TimelineEven
 2. Stamps `id = 'tl-' + sequence`.
 3. Stamps `timestamp = Date.now()`.
 4. Stamps `source` from `kind` (`user` → `'operator'`, `agent` → `'agent'`, `capability` → `'capability'`).
-5. Pushes onto `state.timelineEvents` and returns the created event.
+5. Pushes onto `state.timelineEvents` and returns the **actual created object** — never a clone (`return event`, never `return {...event}`). The capability presenter holds this exact reference and mutates it in place; a clone would detach the presenter's writes from the stored event.
+
+**Invariant — direct pushes banned outside `state.ts`:** no `state.timelineEvents.push(...)` anywhere except inside `appendTimelineEvent`. Enforced by grep in the tasks:
+```bash
+rg "timelineEvents\.push" src/tui
+```
+Expected: `src/tui/state.ts` only.
+
+**Identity test (mandatory):** the state tests assert the helper returns the stored object:
+```ts
+const event = appendTimelineEvent(state, { kind: 'user', text: 'hi' });
+expect(state.timelineEvents[0]).toBe(event);
+```
 
 Ordering helper:
 
@@ -122,9 +138,10 @@ const events = ctx.perTab.timelineEvents
   .filter(e => e.kind === 'user' || e.kind === 'agent');
 ```
 
-Capability entries never appear on the agent tab. Agent-specific state
-(plans, approvals, tool executions, runtime) stays in its existing separate
-fields.
+The agent view is a **projection of the same timeline, not another source** —
+never introduce a second `agentTimelineEvents[]` array. Capability entries never
+appear on the agent tab. Agent-specific state (plans, approvals, tool
+executions, runtime) stays in its existing separate fields.
 
 **Copy-scrollback** — `collectVisibleTranscript` uses a shared
 `formatTimelineEvent(event)` utility so ChatView/AgentView/copy never
@@ -175,7 +192,15 @@ copy-scrollback→ formatTimelineEvent(chat.timelineEvents)   → ⚡ included
 
 - **State:** `appendTimelineEvent` stamps id/timestamp/sequence/source
   correctly; sequence monotonic; `getOrderedTimeline` sorts by timestamp then
-  sequence; `PerTabState` still round-trips JSON.
+  sequence; `PerTabState` still round-trips JSON; **identity test** —
+  `expect(state.timelineEvents[0]).toBe(event)` (the helper returns the actual
+  stored object, never a clone).
+- **Ordering regression (the Phase-3 goal):** append `user`, then `capability`,
+  then `agent`; then a separate scenario with intentionally manipulated
+  timestamps whose **stored order differs from display order** (e.g. stored
+  `[user, agent, capability]` but display `[user, capability, agent]` after
+  `getOrderedTimeline()`). Asserts the actual interleaving, not just that the
+  sort is stable.
 - **Presenters:** capability event pushed as `running`, updated to
   `completed`/`failed`/`cancelled` with output/error merged (existing tests
   relocated to `timelineEvents`).
