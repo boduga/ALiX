@@ -68,6 +68,13 @@ export class CapabilityRuntime {
       return r;
     };
 
+    const emitTerminal = (evt: CapabilityEvent): void => {
+      // Must run BEFORE finish() closes the queue, so a consumer iterating
+      // inv.events() still drains the terminal event.
+      queue.push(evt);
+      this.bus.emit(evt);
+    };
+
     const inv: Invocation = {
       id: invocationId,
       get status() { return st.status; },   // live getter, not a frozen value
@@ -75,11 +82,7 @@ export class CapabilityRuntime {
       cancel: () => {
         if (st.status !== "running" && st.status !== "queued") return;
         st.abort.abort();
-        // Push onto the queue and emit on the bus BEFORE finish() closes the
-        // queue, so a consumer iterating inv.events() still drains the
-        // InvocationCancelled event.
-        queue.push({ type: "InvocationCancelled", invocationId, at: Date.now() });
-        this.bus.emit({ type: "InvocationCancelled", invocationId, at: Date.now() });
+        emitTerminal({ type: "InvocationCancelled", invocationId, at: Date.now() });
         finish("cancelled");
       },
       subscribe: (h) => this.bus.subscribe(h),
@@ -103,9 +106,8 @@ export class CapabilityRuntime {
 
       const fail = (error: string): void => {
         if (st.settled) return; // already settled (e.g. cancelled): do not emit a contradictory InvocationFailed
-        const r = finish("failed", { error });
-        queue.push({ type: "InvocationFailed", invocationId, error, at: Date.now() });
-        this.bus.emit({ type: "InvocationFailed", invocationId, error, at: Date.now() });
+        emitTerminal({ type: "InvocationFailed", invocationId, error, at: Date.now() });
+        finish("failed", { error });
       };
 
       try {
@@ -133,9 +135,8 @@ export class CapabilityRuntime {
         }
         if (abort.signal.aborted) { inv.cancel(); return; }
         if (runResult.error) return fail(runResult.error);
+        emitTerminal({ type: "InvocationCompleted", invocationId, at: Date.now() });
         const r = finish("completed", { output: runResult.output });
-        queue.push({ type: "InvocationCompleted", invocationId, at: Date.now() });
-        this.bus.emit({ type: "InvocationCompleted", invocationId, at: Date.now() });
         await hooks?.afterInvoke?.(r, ctx);
       } catch (e) {
         fail(e instanceof Error ? e.message : String(e));
