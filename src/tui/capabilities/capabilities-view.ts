@@ -8,6 +8,21 @@ import type { Capability } from '../../capability/types.js';
 
 /** Search state is carried in PerTabState.searchQuery (already present). */
 
+/** Search is subsequence fuzzy, mirroring the palette. */
+function subsequence(q: string, s: string): boolean {
+  let i = 0;
+  const hay = s.toLowerCase();
+  for (let j = 0; j < hay.length && i < q.length; j++) if (hay[j] === q[i]) i++;
+  return i === q.length;
+}
+
+/** Filter the full catalog by the current query (subsequence fuzzy on title/id). */
+function filtered(caps: Capability[], query: string): Capability[] {
+  const q = query.toLowerCase();
+  if (!q) return caps;
+  return caps.filter((cap) => subsequence(q, cap.title) || subsequence(q, cap.id));
+}
+
 export class CapabilitiesView implements TuiView {
   readonly id: TabId = 'capabilities';
 
@@ -16,16 +31,7 @@ export class CapabilitiesView implements TuiView {
     const service = getCapabilityService();
     const query = (ctx.perTab.searchQuery ?? '').toLowerCase();
     const all = service.query();
-    // Search is subsequence fuzzy, mirroring the palette.
-    const subsequence = (q: string, s: string): boolean => {
-      let i = 0;
-      const hay = s.toLowerCase();
-      for (let j = 0; j < hay.length && i < q.length; j++) if (hay[j] === q[i]) i++;
-      return i === q.length;
-    };
-    const caps = query
-      ? all.filter((cap) => subsequence(query, cap.title) || subsequence(query, cap.id))
-      : all;
+    const caps = filtered(all, query);
 
     // Lazy-init the selection on first paint so the detail pane shows
     // immediately. ctx.perTab is typed Readonly in render; the single
@@ -80,7 +86,7 @@ export class CapabilitiesView implements TuiView {
     // handleKey is permitted to mutate ctx.perTab (ViewInputContext is
     // "mutable from within handleKey only") — render stays pure.
     const service = getCapabilityService();
-    const caps = service.query();
+    const caps = filtered(service.query(), ctx.perTab.searchQuery ?? '');
     const idx = caps.findIndex((cap) => cap.id === ctx.perTab.capabilitiesSelectedId);
     switch (key) {
       case 'ArrowDown':
