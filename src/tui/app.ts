@@ -49,7 +49,7 @@ export interface TuiAppOptions {
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
 }
 
-const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
+const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
