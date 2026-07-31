@@ -12,8 +12,64 @@
  */
 
 import { randomUUID } from "node:crypto";
+import * as nodeFs from "node:fs";
+import * as nodePath from "node:path";
 import { join } from "node:path";
 import { homedir } from "node:os";
+import { fileURLToPath } from "node:url";
+import type { AgentIntent } from "../run/intent-classifier.js";
+import type { EventLog } from "../events/event-log.js";
+
+// ---------------------------------------------------------------------------
+// Cached package-version lookup. Walked once at module-load time so all
+// callers (AgentSession.getVersion, DaemonAgentSession.getVersion, etc.)
+// share a single synchronous read.
+// ---------------------------------------------------------------------------
+const VERSION_WALK_MAX_DEPTH = 6;
+const VERSION_FALLBACK = "0.0.0";
+let cachedVersion: string | null = null;
+export function readVersionCached(): string {
+  if (cachedVersion !== null) return cachedVersion;
+  // Try walking from CWD first
+  const fromCwd = walkForPackageJson(process.cwd());
+  if (fromCwd) {
+    cachedVersion = fromCwd;
+    return cachedVersion;
+  }
+  // Fall back to walking from this module's location (handles daemon
+  // running from /tmp where the project isn't on disk)
+  try {
+    const moduleDir = nodePath.dirname(fileURLToPath(import.meta.url));
+    const fromModule = walkForPackageJson(moduleDir);
+    if (fromModule) {
+      cachedVersion = fromModule;
+      return cachedVersion;
+    }
+  } catch {
+    /* import.meta.url unavailable */
+  }
+  cachedVersion = VERSION_FALLBACK;
+  return cachedVersion;
+}
+
+function walkForPackageJson(startDir: string): string | null {
+  let dir = startDir;
+  for (let i = 0; i < VERSION_WALK_MAX_DEPTH; i++) {
+    const candidate = nodePath.join(dir, "package.json");
+    if (nodeFs.existsSync(candidate)) {
+      try {
+        const pkg = JSON.parse(nodeFs.readFileSync(candidate, "utf8")) as { name?: string; version?: string };
+        if (pkg.version) return pkg.version;
+      } catch {
+        /* malformed */
+      }
+    }
+    const parent = nodePath.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+  return null;
+}
 import type {
   ToolCall,
   NormalizedMessage,
@@ -100,6 +156,26 @@ export enum SessionPhase {
 // Types (verbatim from P1 brief)
 // =============================================================================
 
+/**
+ * Typed interface for the internal context fields accessed via `(ctx as any)`
+ * in this module. Replaces ad-hoc `as any` casts with a well-defined contract
+ * so callers can use `(ctx as unknown as InternalCtxFields).field` instead.
+ */
+interface InternalCtxFields {
+  sessionId: string;
+  config: {
+    permissions: { sessionMode: "auto" | "ask" | "bypass" };
+    model: { provider: string; name: string; streaming: boolean };
+  };
+  log: EventLog;
+  provider: ModelAdapter;
+  _planTasks?: readonly PlanTask[];
+  _resumedMessages?: readonly NormalizedMessage[];
+  _scopeSnapshot?: any;
+  _stateSnapshot?: any;
+  _planContent?: string;
+}
+
 export type Message = NormalizedMessage;
 
 export interface ToolExecution {
@@ -170,6 +246,12 @@ export interface AgentSessionState {
   readonly turnCount: number;
   readonly createdAt: string;
   readonly updatedAt: string;
+  /** Most recent rendered progress ledger text, if any. */
+  readonly progressLedger?: string;
+  /** Most recent agent intent classification (research/mutation/validation). */
+  readonly currentIntent?: AgentIntent;
+  /** Cumulative count of files touched (created/changed/deleted) across all turns. */
+  readonly filesTouched?: number;
 }
 
 export interface AgentSessionConfig {
@@ -322,6 +404,15 @@ export interface AgentSession {
   processChat(message: string): Promise<AgentTurnResult>;
   /** The underlying session ID. */
   getSessionId(): string;
+  /** Current permissions mode (auto/ask/bypass). Optional — older
+   *  implementations that pre-date the mode field can omit it. */
+  getMode?(): "auto" | "ask" | "bypass";
+  /** Set the current permission mode at runtime. Optional — sessions
+   *  that pre-date this capability can omit it. The TUI's Shift+Tab
+   *  uses this to cycle auto → ask → bypass → auto. */
+  setMode?(mode: "auto" | "ask" | "bypass"): void;
+  /** Current package version. Optional — same compatibility note. */
+  getVersion?(): string;
   /** Snapshot of current session state. */
   getState(): AgentSessionState;
   /**
@@ -530,6 +621,10 @@ export class AgentSessionBuilder {
     const createdAt = new Date().toISOString();
     let updatedAt = new Date().toISOString();
     let _sessionCompleted = false;
+    /** Latest rendered progress ledger text, updated by runTaskLoop each iteration. */
+    let _latestLedgerText: string | undefined;
+    let _latestIntent: AgentIntent | undefined;
+    let _filesTouchedCount = 0;
     // Lifecycle phase owned by AgentSession. Observers (TUI) may read via
     // getPhase() but must never mutate — see SessionPhase doc in tui/state.ts.
     // Initial value is Idle so freshly created sessions surface as Idle in the UI
@@ -1045,6 +1140,8 @@ export class AgentSessionBuilder {
           hookRunner: ctx.hookRunner,
           context: taskContext,
           verbose: config.verbose,
+          onLedgerUpdate: (text: string) => { _latestLedgerText = text; },
+          onCurrentIntentUpdate: (intent: AgentIntent) => { _latestIntent = intent; },
         });
       } catch (err) {
         transitionNodeStatus(taskNode, "failed");
@@ -1078,6 +1175,12 @@ export class AgentSessionBuilder {
         turnCount++;
         throw err;
       }
+
+      // Cumulative file count for the TUI header. sessionState is local to
+      // processTurn (a fresh MutationSessionState is allocated per turn), so we
+      // sum its three file sets and add to the closure counter.
+      _filesTouchedCount +=
+        sessionState.changed.size + sessionState.created.size + sessionState.deleted.size;
 
       // Verifying phase begins as the task loop's verifier pass completes; the TUI
       // shows "Verifying" between this transition and the eventual "Summarizing"
@@ -1240,6 +1343,21 @@ export class AgentSessionBuilder {
       return ctx.sessionId;
     }
 
+    function getMode(): "auto" | "ask" | "bypass" {
+      return ctx?.config.permissions.sessionMode ?? config.sessionMode ?? "auto";
+    }
+
+    function setMode(mode: "auto" | "ask" | "bypass"): void {
+      // Mutate both the in-flight config (if a ctx has been built) and
+      // the seed config so subsequent initAgent calls pick up the new mode.
+      if (config) config.sessionMode = mode;
+      if (ctx) ctx.config.permissions.sessionMode = mode;
+    }
+
+    function getVersion(): string {
+      return readVersionCached();
+    }
+
     function getState(): AgentSessionState {
       return {
         sessionId: getSessionId(),
@@ -1248,6 +1366,9 @@ export class AgentSessionBuilder {
         turnCount,
         createdAt,
         updatedAt,
+        progressLedger: _latestLedgerText,
+        currentIntent: _latestIntent,
+        filesTouched: _filesTouchedCount,
       };
     }
 
@@ -1504,6 +1625,9 @@ export class AgentSessionBuilder {
       processTurn,
       processChat,
       getSessionId,
+      getMode,
+      setMode,
+      getVersion,
       getState,
       getPhase,
       save,

@@ -9,11 +9,14 @@ describe('DaemonMetricsCollector — initial state', () => {
     await new Promise((r) => setTimeout(r, 10));
     c.stop();
     const snap = await c.snapshot();
-    expect(snap.pid).toBeNull();
-    expect(snap.cpuPercent).toBe(0);
-    expect(snap.memoryRssBytes).toBe(0);
+    // Self-fallback: when no PID is available, the collector uses this
+    // process's own metrics so the DAEMON panel still shows real data.
+    expect(snap.pid).toBe(process.pid);
+    expect(snap.cpuPercent).toBeGreaterThanOrEqual(0);
+    expect(snap.memoryRssBytes).toBeGreaterThanOrEqual(0);
     expect(snap.diskUsedBytes).toBeGreaterThanOrEqual(0);
     expect(snap.diskTotalBytes).toBeGreaterThan(0);
+    expect(snap.source).toBe("self");
     expect(snap.clients).toEqual([]);
   });
 });
@@ -34,8 +37,11 @@ describe('DaemonMetricsCollector — dead daemon', () => {
     alive = false;
     await new Promise((r) => setTimeout(r, 1100));  // wait for one tick (1s cadence)
     snap = await c.snapshot();
-    expect(snap.pid).toBeNull();
-    expect(snap.cpuPercent).toBe(0);
+    // Self-fallback: when daemon dies, collector falls back to this
+    // process's own metrics so the panel still shows real data.
+    expect(snap.pid).toBe(process.pid);
+    expect(snap.cpuPercent).toBeGreaterThanOrEqual(0);
+    expect(snap.source).toBe("self");
     c.stop();
   });
 
@@ -63,12 +69,14 @@ describe('DaemonMetricsCollector — dead daemon', () => {
     metricsAvailable = false;
     await new Promise((r) => setTimeout(r, 1100)); // wait for one tick
     snap = await c.snapshot();
-    // Invariant: dead-metrics path must produce the same shape as dead-pid path.
-    expect(snap.pid).toBeNull();
+    // Degraded daemon: pid still known but metrics unavailable — falls
+    // back to reading /proc/<pid>/ directly.
+    expect(snap.pid).toBe(4242);
     expect(snap.cpuPercent).toBe(0);
     expect(snap.memoryRssBytes).toBe(0);
-    expect(snap.memoryTotalBytes).toBe(0);
+    expect(snap.memoryTotalBytes).toBeGreaterThan(0);  // read from /proc/meminfo
     expect(snap.uptimeSeconds).toBe(0);
+    expect(snap.source).toBe("daemon");
     expect(snap.clients).toEqual([]);
     c.stop();
   });

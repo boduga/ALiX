@@ -1,6 +1,7 @@
 // src/providers/specs/_openai-base.ts
 import type { ProviderSpec } from "../spec-types.js";
 import type { NormalizedRequest, NormalizedResponse, StreamChunk } from "../types.js";
+import { extractSummary } from "../base.js";
 
 /**
  * OpenAI chat-completions wire format.
@@ -27,7 +28,21 @@ export const openaiBaseSpec: ProviderSpec = {
     if (req.tools && req.tools.length > 0) {
       body.tools = req.tools.map((t) => ({
         type: "function",
-        function: { name: t.name, description: t.description, parameters: t.input_schema },
+        function: {
+          name: t.name,
+          description: t.description,
+          parameters: {
+            type: "object",
+            properties: {
+              ...(t.input_schema?.properties ?? {}),
+              summary: {
+                type: "string",
+                description: "2-5 word explanation of why this tool is being called. Helps the operator follow progress at a glance. Example: 'Locating config file' or 'Running typecheck'",
+              },
+            },
+            ...(t.input_schema && 'required' in t.input_schema ? { required: t.input_schema.required } : {}),
+          },
+        },
       }));
     }
     if (req.temperature !== undefined) body.temperature = req.temperature;
@@ -40,11 +55,11 @@ export const openaiBaseSpec: ProviderSpec = {
     const r = res as any;
     const choice = r.choices?.[0];
     const text = choice?.message?.content ?? "";
-    const toolCalls = (choice?.message?.tool_calls ?? []).map((tc: any) => ({
-      id: tc.id,
-      name: tc.function.name,
-      args: JSON.parse(tc.function.arguments || "{}"),
-    }));
+    const toolCalls = (choice?.message?.tool_calls ?? []).map((tc: any) => {
+      const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
+      const summary = extractSummary(args);
+      return { id: tc.id, name: tc.function.name, args, summary };
+    });
     return {
       text,
       toolCalls,
@@ -66,9 +81,11 @@ export const openaiBaseSpec: ProviderSpec = {
       if (delta?.content) return { type: "text_delta", text: delta.content };
       if (delta?.tool_calls) {
         const tc = delta.tool_calls[0];
+        const args = JSON.parse(tc.function.arguments || "{}") as Record<string, unknown>;
+        const summary = extractSummary(args);
         return {
           type: "tool_call",
-          toolCall: { id: tc.id, name: tc.function.name, args: JSON.parse(tc.function.arguments || "{}") },
+          toolCall: { id: tc.id, name: tc.function.name, args, summary },
         };
       }
       if (obj.usage) {

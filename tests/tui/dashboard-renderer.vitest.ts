@@ -11,6 +11,13 @@ function stripAnsi(s: string): string {
   return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
+/** Extract just the Workspace row text from the rendered frame, regardless of panel width. */
+function readWorkspaceRow(frame: string): string {
+  const lines = frame.split('\n');
+  const row = lines.find((l) => l.includes('Workspace:'));
+  return row ?? '';
+}
+
 function onlineSnap(): any {
   return {
     generatedAt: 1,
@@ -25,11 +32,13 @@ function onlineSnap(): any {
       diskTotalBytes: 500 * 1024 * 1024 * 1024,
       clients: [],
       sampledAt: 1,
+      source: "daemon",
     },
     approvals: null,
     runtime: null,
     sops: null,
     policy: null,
+    cwd: '/Users/dev/projects/alix',
   };
 }
 
@@ -95,6 +104,44 @@ describe('renderDashboard — DAEMON panel', () => {
       // window can end with the box's right `│` edge — accept either a
       // pure-dash row or dashes-terminated-by-`│`.
       expect(/^─+│?$/.test(lines[7] || '')).toBe(true);
+    });
+
+    it('renders the cwd from the snapshot into the Workspace row', () => {
+      const snap = onlineSnap();
+      (snap as any).cwd = '/home/user/projects/alix';
+      const c = new TerminalCanvas(120, 30);
+      renderDashboard(snap, c, 0);
+      const row = readWorkspaceRow(stripAnsi(c.renderFrame()));
+      expect(row).toContain('Workspace:');
+      // The visible head of the path (truncated by panel width) confirms
+      // the cwd flowed through from the snapshot.
+      expect(row).toContain('/home/user/pro');
+    });
+
+    it('truncates the workspace path with ellipsis prefix when longer than 30 chars', () => {
+      const longPath = '/very/deeply/nested/directory/structure/that/exceeds/thirty/chars/workspace';
+      const snap = onlineSnap();
+      (snap as any).cwd = longPath;
+      const c = new TerminalCanvas(120, 30);
+      renderDashboard(snap, c, 0);
+      const row = readWorkspaceRow(stripAnsi(c.renderFrame()));
+      // When the cwd exceeds 30 chars, the renderer must elide the head
+      // with an ellipsis rather than displaying the full path.
+      expect(row).toContain('…');
+      expect(row).toContain('Workspace:');
+      // The head of the original path must NOT appear — truncation happened.
+      expect(row).not.toContain('/very/deeply/nested');
+      // A visible tail portion of the path is preserved.
+      expect(row).toContain('thirty');
+    });
+
+    it('falls back to em-dash when cwd is empty', () => {
+      const snap = onlineSnap();
+      (snap as any).cwd = '';
+      const c = new TerminalCanvas(120, 30);
+      renderDashboard(snap, c, 0);
+      const row = readWorkspaceRow(stripAnsi(c.renderFrame()));
+      expect(row).toMatch(/Workspace:\s+—/);
     });
   });
 
@@ -375,14 +422,14 @@ describe('renderDashboard — RUNTIME panel', () => {
     expect(frame).toContain('events: 21,530');
   });
 
-  it('formats Started as HH:MM:SS ago when workflow present', () => {
+  it('formats Started as coarse relative time when workflow present', () => {
     const c = new TerminalCanvas(120, 30);
     renderDashboard(
       runtimeSnap({ workflow: { name: 'plan', currentStep: 7, totalSteps: 12, startedAtSecondsAgo: 3 * 60 + 42 } }),
       c, 0,
     );
     const frame = c.renderFrame();
-    expect(frame).toContain('00:03:42 ago');
+    expect(frame).toContain('3m ago');
     expect(frame).toContain('Started:');
   });
 

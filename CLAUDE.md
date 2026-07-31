@@ -29,43 +29,7 @@ This project is indexed by GitNexus as **ALiX** (42418 symbols, 76128 relationsh
 | `gitnexus://repo/ALiX/processes` | All execution flows |
 | `gitnexus://repo/ALiX/process/{name}` | Step-by-step execution trace |
 
-## CLI
-
-| Task | Read this skill file |
-|------|---------------------|
-| Understand architecture / "How does X work?" | `.claude/skills/gitnexus/gitnexus-exploring/SKILL.md` |
-| Blast radius / "What breaks if I change X?" | `.claude/skills/gitnexus/gitnexus-impact-analysis/SKILL.md` |
-| Trace bugs / "Why is X failing?" | `.claude/skills/gitnexus/gitnexus-debugging/SKILL.md` |
-| Rename / extract / split / refactor | `.claude/skills/gitnexus/gitnexus-refactoring/SKILL.md` |
-| Tools, resources, schema reference | `.claude/skills/gitnexus/gitnexus-guide/SKILL.md` |
-| Index, status, clean, wiki CLI commands | `.claude/skills/gitnexus/gitnexus-cli/SKILL.md` |
-
 <!-- gitnexus:end -->
-
-## Agent skills
-
-### Issue tracker
-
-GitHub Issues — use `gh` CLI for all operations. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Uses canonical labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context layout. Read `CONTEXT.md` at repo root (if it exists) and `docs/adr/` for architectural decisions. See `docs/agents/domain.md`.
-
-## Post-MVP Roadmap — ✅ All Complete
-
-Every item from the post-MVP backlog is implemented. See `docs/post-mvp-backlog.md` for the historical record.
-
-All 12 feature areas are operational:
-- **P0.1** Context Compiler ✅ | **P0.2** Edit Format Policy ✅
-- **P1.1** Frontend Observability ✅ | **P1.2** Verification Planner ✅
-- **P2.1** Extension Registry ✅ | **P2.2** Tool Schema Fix ✅
-- **P3.1** Multi-Agent Coordination ✅ | **P3.2** Memory System ✅
-- Coordination kernel (M0.77–M0.78) with model-assisted replanning ✅
 
 ## graphify
 

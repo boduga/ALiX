@@ -79,6 +79,29 @@ export interface PerTabState {
    */
   resolvedApprovals: ResolvedApproval[];
   /**
+   * Progress ledger text rendered by the agent loop. Displayed in the agent
+   * view scrollback after the approval section.
+   */
+  progressLedger?: string;
+  /**
+   * Pending tool calls rendered as two-line entries in the agent scrollback.
+   * Line 1: tool marker (→) + tool name — dim style.
+   * Line 2: 2-space indent + summary — dim style, only if summary present.
+   * Synced from snapshot.session.pendingToolCalls each refresh.
+   */
+  pendingToolCalls?: Array<{ name: string; summary?: string }>;
+  /**
+   * Whether the progress ledger is expanded (shows all lines) or collapsed
+   * (shows only the last 3 lines). Toggled by pressing `e` in the agent view.
+   */
+  ledgerExpanded?: boolean;
+  /**
+   * Classified agent intent for the current iteration. Set from snapshot
+   * session metadata on each refresh. Undefined when the session does not
+   * expose intent (defaults to research, which renders no badge).
+   */
+  currentIntent?: 'research' | 'mutation' | 'validation';
+  /**
    * Per-sidebar-panel scroll offset. Only the entries for panels that can
    * overflow their fixed-height box (approvals, sops) are meaningful; the
    * others stay at 0. Surfaced via `J`/`K` keys when the active tab is

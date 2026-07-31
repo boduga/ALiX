@@ -10,6 +10,7 @@
  */
 
 import type { ToolCall } from "../types.js";
+import { extractSummary } from "../base.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -125,6 +126,7 @@ function parseNativeToolCalls(
       id: `ollama_call_${i}_${stableHash(trimmedName + JSON.stringify(args))}`,
       name: trimmedName,
       args,
+      summary: extractSummary(args),
     });
   }
   return result;
@@ -163,7 +165,7 @@ function parseOpenAICompatibleToolCalls(
     const args = normalizeArgs(fn.arguments, maxBytes);
     if (args === null) continue;
 
-    result.push({ id, name: name.trim(), args });
+    result.push({ id, name: name.trim(), args, summary: extractSummary(args) });
   }
   return result;
 }
@@ -206,6 +208,7 @@ function parseTextFallbackToolCalls(
       id: `ollama_call_text_${i}_${stableHash(name + JSON.stringify(args))}`,
       name: name.trim(),
       args,
+      summary: extractSummary(args),
     });
   }
   // Only return calls if the envelope is valid and non-empty

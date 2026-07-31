@@ -10,6 +10,7 @@ import type {
   SopSnapshot,
 } from './snapshot.js';
 import { SessionPhase } from './state.js';
+import type { AgentIntent } from '../run/intent-classifier.js';
 
 /**
  * Subsystem contract for daemon metrics collection. Defined here (rather than
@@ -78,6 +79,7 @@ export class SnapshotBuilder {
     private readonly sops: SopCollector,
     private readonly runtime: EventLog | RuntimeCollector,
     private readonly daemonMetrics: DaemonMetricsCollector,
+    private readonly cwd: string = '',
   ) {}
 
   /**
@@ -111,6 +113,8 @@ export class SnapshotBuilder {
         runtime: null,
         sops: null,
         policy: null,
+        progressLedger: undefined,
+        cwd: this.cwd,
       });
       this.lastSnapshotGeneration = generation;
     }
@@ -132,6 +136,18 @@ export class SnapshotBuilder {
     const policy = await this.trySnapshot('policy', () => this.policy.snapshot());
     if (this.currentGeneration !== generation) return null;
 
+    // Read progress ledger from session state. Defensively typed so a
+    // session that lacks the field (older version) produces undefined.
+    let progressLedger: string | undefined;
+    try {
+      const state = this.session.getState();
+      if (state && typeof state.progressLedger === 'string') {
+        progressLedger = state.progressLedger;
+      }
+    } catch {
+      // Session may not support getState() — leave undefined.
+    }
+
     const snap = Object.freeze({
       generatedAt,
       session,
@@ -140,6 +156,8 @@ export class SnapshotBuilder {
       runtime,
       sops,
       policy,
+      progressLedger,
+      cwd: this.cwd,
     });
 
     this.lastSnapshot = snap;
@@ -170,12 +188,15 @@ export class SnapshotBuilder {
 
   private async snapshotSession(): Promise<SessionMetadata | null> {
     try {
+      const state = this.session.getState();
       return Object.freeze({
-        mode: ((this.session as any).getMode?.() ?? 'auto') as 'auto' | 'ask' | 'bypass',
-        phase: (this.session as any).getPhase?.() ?? SessionPhase.Idle,
-        version: (this.session as any).getVersion?.() ?? 'unknown',
-        startedAt: (this.session as any).getStartedAt?.() ?? Date.now(),
-        turns: (this.session as any).getTurns?.() ?? 0,
+        mode: (this.session as AgentSession).getMode?.() ?? 'auto',
+        phase: (this.session as AgentSession).getPhase?.() ?? SessionPhase.Idle,
+        version: (this.session as AgentSession).getVersion?.() ?? 'unknown',
+        startedAt: Date.parse(state.createdAt) || Date.now(),
+        turns: state.turnCount,
+        currentIntent: state.currentIntent as AgentIntent | undefined,
+        filesTouched: state.filesTouched ?? 0,
       });
     } catch {
       return null;

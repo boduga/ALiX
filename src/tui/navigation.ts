@@ -12,6 +12,8 @@ export class Navigation {
   interpret(rawKey: string): NavigationKey | null {
     if (rawKey === 'Tab') return { type: 'cycle', forward: true };
     if (rawKey === 'Shift+Tab') return { type: 'cycle', forward: false };
+    if (rawKey === 'ArrowRight') return { type: 'cycle', forward: true };
+    if (rawKey === 'ArrowLeft') return { type: 'cycle', forward: false };
     if (rawKey === 'Escape') return { type: 'home' };
     // Ctrl+digit (encoded by terminals as ESC + digit). Matches up to
     // 9 tab positions; bounds check below enforces the actual order

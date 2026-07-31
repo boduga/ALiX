@@ -4,6 +4,7 @@
 
 import type { DaemonResponse } from "../daemon/daemon-types.js";
 import type { TaskRoute } from "../runtime/task-router.js";
+import { readVersionCached } from "../agent/session.js";
 
 export interface DaemonClientOptions {
   cwd: string;
@@ -154,7 +155,32 @@ export class DaemonAgentSession implements AgentSession {
     private socketPath: string | null,
     private sessionMode: string,
   ) {
-    this.id = `daemon-${Date.now()}`;
+    // Plain timestamp — the session-id prefix scheme (tui-/daemon-/run-)
+    // was redundant: the *mode* is already shown separately in the header,
+    // and a unique search key matters more than the prefix. The daemon
+    // may overwrite this with a server-assigned UUID on first response.
+    this.id = `${Date.now()}`;
+  }
+
+  getMode(): "auto" | "ask" | "bypass" {
+    return (this.sessionMode as "auto" | "ask" | "bypass") ?? "auto";
+  }
+
+  setMode(mode: "auto" | "ask" | "bypass"): void {
+    // The daemon controls authorization server-side, so this is best-effort
+    // for now: store the new mode locally so subsequent requests carry it.
+    // A future daemon RPC (`session.set_mode`) would let us push the change
+    // to the daemon process. Until then, the TUI header reflects the local
+    // value while the daemon keeps its own until the next reconnect.
+    this.sessionMode = mode;
+  }
+
+  getVersion(): string {
+    // Read the daemon's process package.json via the same lookup the local
+    // session uses — when the daemon runs from the same repo install, both
+    // resolve to the same version. For multi-install setups this would
+    // diverge; in that case the daemon should expose a `version` RPC.
+    return readVersionCached();
   }
 
   getSessionId(): string { return this.id; }

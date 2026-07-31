@@ -61,6 +61,8 @@ export class TuiApp {
    * presses Y/n/e/d. The card rendered in `paintFullFrame` is driven
    * purely off `gate.getPending()` — no parallel state.
    */
+  /** Tabs that receive snapshot-synced fields (approvals, ledger, intent). */
+  private readonly SYNC_TABS: readonly TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
   private readonly planApprovalGate = new TuiPlanApprovalGate();
   private pasteState: 'idle' | 'reading' = 'idle';
   private pasteChunks: Buffer[] = [];
@@ -147,7 +149,22 @@ export class TuiApp {
     if (!snap || generation !== this.state.refreshGeneration) return;
     this.state.lastSnapshot = snap;
     this.syncPendingApprovals();
+    this.syncCurrentIntent();
     this.paintFullFrame();
+  }
+
+  /**
+   * Sync currentIntent from snapshot session metadata to every tab's
+   * perTab state so the badge renders correctly regardless of the
+   * active tab when intent changes.
+   */
+  private syncCurrentIntent(): void {
+    const snap = this.state.lastSnapshot;
+    if (!snap?.session?.currentIntent) return;
+    for (const t of this.SYNC_TABS) {
+      const perTab = this.state.views[t];
+      if (perTab) perTab.currentIntent = snap.session.currentIntent;
+    }
   }
 
   /**
@@ -160,8 +177,7 @@ export class TuiApp {
     if (!snap) return;
     const pending = snap.approvals?.pending ?? [];
     const pendingIds = new Set(pending.map((p) => p.id));
-    const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
-    for (const t of tabs) {
+    for (const t of this.SYNC_TABS) {
       const perTab = this.state.views[t];
       if (!perTab) continue;
       // Detect approvals that have disappeared from the pending list since
@@ -201,6 +217,20 @@ export class TuiApp {
       // Keep 'stillPending' reference so the linter doesn't complain — it
       // documents the intent of the filter above.
       void stillPending;
+    }
+    // Sync progress ledger from snapshot to every tab's perTab state
+    if (snap.progressLedger) {
+      for (const t of this.SYNC_TABS) {
+        const perTab = this.state.views[t];
+        if (perTab) perTab.progressLedger = snap.progressLedger;
+      }
+    }
+    // Sync pending tool calls from snapshot to every tab's perTab state
+    if (snap.pendingToolCalls) {
+      for (const t of this.SYNC_TABS) {
+        const perTab = this.state.views[t];
+        if (perTab) perTab.pendingToolCalls = snap.pendingToolCalls as Array<{ name: string; summary?: string }>;
+      }
     }
   }
 
@@ -261,7 +291,11 @@ export class TuiApp {
         return;
       }
       if (key === 'Backspace') {
-        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        if (perTab.inputBuffer.length > 0) {
+          perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        } else {
+          this.navigateBack();
+        }
         this.paintFullFrame();
         return;
       }
@@ -277,6 +311,17 @@ export class TuiApp {
     // ── Agent-tab input capture (full processTurn path) ────────────
     if (tab === 'agent') {
       const perTab = this.state.views.agent;
+      // Shift+Tab on the agent tab cycles the permission mode
+      // (auto → ask → bypass → auto). Other tabs use Shift+Tab for
+      // tab cycling via tryHandleGlobal — overriding it only here
+      // keeps the navigation gesture intact everywhere else.
+      if (key === 'Shift+Tab') {
+        this.cyclePermissionMode();
+        // Force an immediate snapshot so the header reflects the new
+        // mode on the next paint instead of waiting up to 1s.
+        void this.refresh();
+        return;
+      }
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
           perTab.submittedPrompts.push(perTab.inputBuffer);
@@ -287,7 +332,11 @@ export class TuiApp {
         return;
       }
       if (key === 'Backspace') {
-        perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        if (perTab.inputBuffer.length > 0) {
+          perTab.inputBuffer = perTab.inputBuffer.slice(0, -1);
+        } else {
+          this.navigateBack();
+        }
         this.paintFullFrame();
         return;
       }
@@ -469,6 +518,13 @@ export class TuiApp {
   }
 
   private tryHandleGlobal(key: string): boolean {
+    // On the agent tab, Shift+Tab is hijacked to cycle the permission
+    // mode (auto → ask → bypass → auto). Returning false here lets the
+    // agent-tab input handler below claim it. Other tabs still get the
+    // standard reverse-tab cycling.
+    if (key === 'Shift+Tab' && this.state.activeTab === 'agent') {
+      return false;
+    }
     const nav = this.navigation.interpret(key);
     if (nav) {
       switch (nav.type) {
@@ -482,7 +538,13 @@ export class TuiApp {
         }
       }
     }
-    if (key === '' || key === 'q' || key === 'Q') {
+    // Ctrl+C always quits. 'q'/'Q' quits only on non-input tabs
+    // (dashboard, daemon, approvals, etc.) — on chat/agent tabs it's
+    // a regular character for the input buffer and is handled by the
+    // tab-specific handler below after tryHandleGlobal returns false.
+    const inputTabs: TabId[] = ['chat', 'agent'];
+    const isInputTab = inputTabs.includes(this.state.activeTab);
+    if (key === '' || (!isInputTab && (key === 'q' || key === 'Q'))) {
       // Terminate immediately. The 'exit' event handler (installed by
       // installEmergencyCleanup in start()) runs cleanupSync synchronously
       // to restore the terminal — no async stop() needed, and avoiding the
@@ -492,6 +554,33 @@ export class TuiApp {
     }
     if (key === 'Ctrl+l' || key === '\f') { this.paintFullFrame(); return true; }
     return false;
+  }
+
+  /**
+   * Pop the navigation stack and return to the previous tab.
+   * No-op when history is empty (stays on the current tab).
+   */
+  private navigateBack(): void {
+    const prev = this.state.history.pop();
+    if (prev) {
+      this.views[this.state.activeTab]?.onDeactivate?.(this.state.views[this.state.activeTab]);
+      this.state.activeTab = prev;
+      this.views[prev]?.onActivate?.(this.state.views[prev]);
+      this.paintFullFrame();
+    }
+  }
+
+  /**
+   * Cycle the agent session's permission mode: auto → ask → bypass → auto.
+   * Triggered by Shift+Tab on the agent tab. Persists by mutating the
+   * session config; the next snapshot reflects the change in the header.
+   */
+  private cyclePermissionMode(): void {
+    const order: Array<"auto" | "ask" | "bypass"> = ["auto", "ask", "bypass"];
+    const current = this.opts.agentSession?.getMode?.() ?? "auto";
+    const idx = order.indexOf(current);
+    const next = order[(idx + 1) % order.length] ?? "auto";
+    this.opts.agentSession?.setMode?.(next);
   }
 
   private switchTab(next: TabId): void {
@@ -627,8 +716,7 @@ export class TuiApp {
     let originalTool = 'unknown';
     let originalTarget = '';
     let requestedAt = Date.now();
-    const tabs: TabId[] = ['chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy'];
-    for (const t of tabs) {
+    for (const t of this.SYNC_TABS) {
       const found = this.state.views[t]?.pendingApprovals?.find((a) => a.id === approvalId);
       if (found) {
         originalTool = found.toolName;
@@ -659,7 +747,7 @@ export class TuiApp {
       // Push a resolved entry into every tab's resolvedApprovals log so the
       // operator can see what they did — even if the agent loop is currently
       // paused waiting on this resolution.
-      for (const t of tabs) {
+      for (const t of this.SYNC_TABS) {
         const tab = this.state.views[t];
         if (!tab) continue;
         tab.resolvedApprovals.unshift({
@@ -707,17 +795,40 @@ export class TuiApp {
    */
   private handlePaste(buf: Buffer): boolean {
     const s = buf.toString('utf8');
-    if (s === '\x1b[200~') {
+    const endBuf = Buffer.from('\x1b[201~');
+    const startMarker = '\x1b[200~';
+
+    // Detect paste START marker. Some terminals send the start marker
+    // concatenated with data (and sometimes even the end marker) in a
+    // single buffer — startsWith handles the first case.
+    if (s.startsWith(startMarker)) {
       this.pasteState = 'reading';
       this.pasteChunks = [];
+      // If there's trailing data after the marker, push it as the first
+      // chunk, then immediately scan that chunk for the end marker.
+      // Terminals that send start+data+end in one buffer must be handled
+      // here — without this scan, the end marker sits undetected in the
+      // first chunk and every subsequent keystroke gets eaten as "paste."
+      if (s.length > startMarker.length) {
+        const rest = buf.subarray(startMarker.length);
+        const endIdx = rest.indexOf(endBuf);
+        if (endIdx >= 0) {
+          if (endIdx > 0) {
+            this.pasteChunks.push(rest.subarray(0, endIdx));
+          }
+          this.flushPaste();
+        } else {
+          this.pasteChunks.push(rest);
+        }
+      }
       return true;
     }
+
     if (this.pasteState !== 'reading') return false;
     // Detect the paste-end marker using byte-level indexOf so multi-byte
     // UTF-8 content immediately before the terminator doesn't cause a
     // string-index/byte-offset mismatch (the spec mandates byte-level
     // detection for this reason).
-    const endBuf = Buffer.from('\x1b[201~');
     const endIdx = buf.indexOf(endBuf);
     if (endIdx >= 0) {
       if (endIdx > 0) {
@@ -860,11 +971,24 @@ export class TuiApp {
     // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
     c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
     const liveVersion: string | undefined =
-      (this.opts.agentSession as { getVersion?: () => string } | undefined)?.getVersion?.();
-    const version = liveVersion || session?.version || '0.0.0';
-    const sessionMode = session?.mode ?? 'auto';
-    const rightText = `\x1b[90mAgent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}\x1b[0m`;
-    const rightLen = `Agent OS v${version}  │  Session: ${sessionMode}  │  Mode: ${sessionMode}`.length;
+      this.opts.agentSession?.getVersion?.();
+    const version = liveVersion || session?.version || 'unknown';
+    const liveSessionId: string | undefined =
+      this.opts.agentSession?.getSessionId?.();
+    const sessionDisplay = liveSessionId || '(no session)';
+    const liveMode: 'auto' | 'ask' | 'bypass' | undefined =
+      this.opts.agentSession?.getMode?.();
+    const sessionMode = liveMode ?? session?.mode ?? 'auto';
+    // Mode color: bypass = red (no safety), ask = green (cautious),
+    // auto = orange (Claude-side heuristics). The colors signal the
+    // operator's risk posture at a glance — bypass means "trust me",
+    // ask means "stop and ask", auto means "let the model decide".
+    const modeColor =
+      sessionMode === 'bypass' ? '\x1b[31m' :
+      sessionMode === 'ask' ? '\x1b[32m' :
+      '\x1b[33m';
+    const rightText = `\x1b[90mALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${modeColor}${sessionMode}\x1b[0m`;
+    const rightLen = `ALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${sessionMode}`.length;
     c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
     // Row 2: bottom rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
@@ -908,15 +1032,17 @@ export class TuiApp {
       else phaseLine += `\x1b[90m○ ${p.label}\x1b[0m   `;
     }
     const sep = `\x1b[90m|\x1b[0m`;
-    const daemonLabel = snap.daemon !== null
-      ? `\x1b[32m● running\x1b[0m`
-      : `\x1b[90m○ stopped\x1b[0m`;
+    const daemonLabel = snap.daemon === null
+      ? `\x1b[90m○ stopped\x1b[0m`
+      : snap.daemon.source === "daemon"
+        ? `\x1b[32m● running\x1b[0m`
+        : `\x1b[33m● this process\x1b[0m`;
     const sopCount = snap.sops?.totalLoaded ?? 0;
     const ruleCount = snap.policy?.rules.length ?? 0;
     const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
     const fields = [
       'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
-      'FILES: 0',         // schema gap: no fileCount field yet
+      `FILES: ${snap.session?.filesTouched ?? 0}`,
       `DAEMON: ${daemonLabel}`,
       `SOPS: ${sopCount}`,
       `RULES: ${ruleCount}`,

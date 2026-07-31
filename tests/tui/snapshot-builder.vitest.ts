@@ -13,6 +13,14 @@ function mkFakes() {
     getTurns: () => 3,
     getMode: () => 'auto' as const,
     getVersion: () => '1.0.0-test',
+    getState: () => ({
+      sessionId: 'test',
+      messages: [],
+      toolHistory: [],
+      turnCount: 3,
+      createdAt: '1970-01-01T00:16:40.000Z',
+      updatedAt: '1970-01-01T00:16:40.000Z',
+    }),
   } as unknown as AgentSession;
 
   const approvals = {
@@ -40,6 +48,7 @@ function mkFakes() {
       diskTotalBytes: 100_000_000_000,
       clients: [],
       sampledAt: Date.now(),
+      source: "daemon",
     }),
   };
   return { session, approvals, policy, sops, eventLog, daemon };
@@ -55,6 +64,23 @@ describe('SnapshotBuilder.build — happy path', () => {
     expect(snap!.session?.phase).toBe('Planning');
     expect(snap!.daemon?.pid).toBe(42);
     expect(snap!.approvals?.totalPending).toBe(1);
+  });
+
+  it('threads the constructor cwd into both initial and produced snapshots', async () => {
+    const f = mkFakes();
+    const cwd = '/home/operator/projects/alix';
+    const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, f.daemon, cwd);
+    const initial = await b.build(1);
+    expect(initial?.cwd).toBe(cwd);
+    const next = await b.build(2);
+    expect(next?.cwd).toBe(cwd);
+  });
+
+  it('defaults cwd to empty string when not supplied (back-compat for older callers)', async () => {
+    const f = mkFakes();
+    const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, f.daemon);
+    const snap = await b.build(1);
+    expect(snap?.cwd).toBe('');
   });
 
   it('freezes the snapshot result', async () => {

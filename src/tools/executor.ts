@@ -10,7 +10,7 @@ import type { McpManager } from "../mcp/manager.js";
 import { redactValue } from "../policy/secret-scanner.js";
 import type { EditFormatPolicy } from "../patch/edit-format-policy.js";
 import type { CheckpointManager } from "../patch/checkpoint.js";
-import type { ToolResult } from "./types.js";
+import type { ToolResult, ToolCallRequest } from "./types.js";
 import { legacyCapabilityToCanonical } from "./capability-map.js";
 import { AlixToolRepair } from "../../packages/tool-repair/src/adapters/alix.js";
 import { buildDefaultToolIndex } from "./tool-registry.js";
@@ -55,26 +55,13 @@ export function hashArgs(args: Record<string, unknown>): string {
   return createHash("sha256").update(stable).digest("hex");
 }
 
-export type ToolCallRequest = {
-  toolCallId: string;
-  name: string;
-  args: Record<string, unknown>;
-  agentId?: string;
-  sessionId?: string;
-  replayId?: string;
-  /**
-   * When set to "continuation-resume", the tool executor will bypass
-   * PolicyGate. Only set by ContinuationManager after approval is
-   * already verified — never set from user input.
-   */
-  source?: string;
-};
-
 export type ExecuteResult = ToolResult | { kind: "denied"; reason: string };
 
 export class ToolExecutor {
   private router: ToolRouter;
   private toolAwareRouter: ToolAwareRouter;
+  // Track consecutive empty-result counts per (toolName+argumentHash)
+  private consecutiveEmptyOutputs = new Map<string, number>();
   private repair: AlixToolRepair | null = null;
   private toolRegistry: any = null;
 
@@ -302,15 +289,64 @@ export class ToolExecutor {
       outputRef = await writeOutputToFile(result.output ?? result.content, this.log.sessionDir, toolCallId, this.log);
     }
 
-    // Build and emit tool.output event for success
+    // Build canonical rawOutput and an explicit preview (so the model always sees something)
     if (result.kind === "success") {
+      function rawResultValue(r: typeof result): string | undefined {
+        // ToolResult is a discriminated union on kind:
+        // - success branch has matches[] (dir.search) or value (other tools)
+        // - error branch has neither
+        if (r.kind === "success") {
+          if ("matches" in r && Array.isArray(r.matches)) return r.matches as unknown as string;
+          if ("value" in r && typeof r.value === "string") return r.value;
+        }
+        return undefined;
+      }
+      const rawOutput =
+        result.output ??
+        result.content ??
+        rawResultValue(result) ??
+        "";
+
+      // Normalize preview: explicit for empty/empty-array results so the model isn't left guessing.
+      let preview: string;
+      if ((Array.isArray(rawOutput) && rawOutput.length === 0) || rawOutput === "" || rawOutput == null) {
+        preview = "[no output]";
+      } else {
+        preview = truncateOutput(rawOutput);
+      }
+
       const outputPayload: ToolOutputPayload = {
         toolCallId,
         outputRef,
-        outputPreview: truncateOutput(result.output ?? result.content ?? ""),
+        outputPreview: preview,
         outputSize,
       };
       await this.logEvent(TOOL_EVENT_TYPES.OUTPUT, { ...outputPayload, ...replayPayloadFields });
+
+      // ── Loop detection & escalation ─────────────────────────────────
+      // If the call returned no useful output repeatedly, emit a single escalation hint
+      // so the model/operator can try a different tool (e.g., list the directory).
+      const key = `${name}:${argumentHash}`;
+      if (preview === "[no output]") {
+        const count = (this.consecutiveEmptyOutputs.get(key) ?? 0) + 1;
+        this.consecutiveEmptyOutputs.set(key, count);
+        const ESCALATION_THRESHOLD = 3;
+        if (count === ESCALATION_THRESHOLD) {
+          // Emit a high-level agent hint / escalation event (non-fatal)
+          await this.logEvent("agent.escalation", {
+            message: `Repeated empty outputs for ${name} — consider running a listing or reading candidate files.`,
+            suggestionTool: "alix_shell_run",
+            suggestionArgs: { command: "ls -1 src/tools || echo '(no files)'" },
+            toolName: name,
+            argumentHash,
+            toolCallId,
+            ...replayPayloadFields,
+          });
+        }
+      } else {
+        // Reset counter on non-empty output
+        this.consecutiveEmptyOutputs.delete(key);
+      }
     }
 
     // Build and emit tool.completed or tool.failed event
@@ -409,20 +445,23 @@ export function classifyError(result: ErrorResult): ErrorResult {
   return { ...result, retryable: true };
 }
 
+const CAPABILITY_MAP: Record<string, string> = {
+  "file.read": "file.read",
+  "file.create": "file.write",
+  "file.delete": "file.write",
+  "file.exists": "file.read",
+  "dir.search": "file.search",
+  "shell.run": "shell.run",
+  "patch.apply": "patch.apply",
+  "done": "task.complete",
+  "delegate": "delegate",
+  "web_search": "web.search",
+  "web_fetch": "web.fetch",
+};
+
 function inferCapability(toolName: string): string {
   if (toolName.startsWith("mcp.")) return "mcp.invoke";
-  if (toolName === "file.read") return "file.read";
-  if (toolName === "file.create") return "file.write";
-  if (toolName === "file.delete") return "file.write";
-  if (toolName === "file.exists") return "file.read";
-  if (toolName === "dir.search") return "file.search";
-  if (toolName === "shell.run") return "shell.run";
-  if (toolName === "patch.apply") return "patch.apply";
-  if (toolName === "done") return "task.complete";
-  if (toolName === "delegate") return "delegate";
-  if (toolName === "web_search") return "web.search";
-  if (toolName === "web_fetch") return "web.fetch";
-  return "tool.invoke";
+  return CAPABILITY_MAP[toolName] ?? "tool.invoke";
 }
 
 function truncateOutput(output: unknown, maxLen = 200): string {

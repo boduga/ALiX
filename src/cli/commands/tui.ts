@@ -39,7 +39,7 @@ function shouldUseStubAgent(): boolean {
 
 export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const cwd = process.cwd();
-  const sessionId = opts.sessionName ?? `tui-${Date.now()}`;
+  const sessionId = opts.sessionName ?? `${Date.now()}`;
   const sessionDir = join(cwd, '.alix', 'sessions', sessionId);
   await mkdir(sessionDir, { recursive: true });
 
@@ -158,6 +158,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const builder = new SnapshotBuilder(
     agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
+    cwd,
   );
 
   const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals, themeName: opts.themeName });

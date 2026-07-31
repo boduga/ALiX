@@ -14,6 +14,23 @@ export interface DashboardSnapshot {
   readonly runtime: RuntimeSnapshot | null;
   readonly sops: SopSnapshot | null;
   readonly policy: PolicySnapshot | null;
+  /**
+   * Absolute path of the working directory the TUI was launched from.
+   * Populated by SnapshotBuilder from the cwd captured by the TUI command.
+   * Surfaced in the DAEMON panel as the "Workspace" row so the operator
+   * always knows which project the current dashboard reflects.
+   */
+  readonly cwd: string;
+  /**
+   * Most recent progress ledger text rendered by the agent loop.
+   * Populated by SnapshotBuilder from agent session state.
+   */
+  readonly progressLedger?: string;
+  /**
+   * Pending tool calls for inline scrollback rendering in the agent view.
+   * Synced from session state on each refresh.
+   */
+  readonly pendingToolCalls?: ReadonlyArray<{ readonly name: string; readonly summary?: string }>;
 }
 
 /**
@@ -26,6 +43,24 @@ export interface SessionMetadata {
   readonly version: string;
   readonly startedAt: number;
   readonly turns: number;
+  /**
+   * Classified agent intent for the current iteration. Populated by
+   * SnapshotBuilder from session state when available; undefined when
+   * the session does not expose intent (defaults to research, which
+   * renders no badge).
+   */
+  readonly currentIntent?: 'research' | 'mutation' | 'validation';
+  /**
+   * Pending tool calls surfaced by the agent loop for inline scrollback
+   * rendering. Each entry renders as a two-line dim card in the agent view.
+   */
+  readonly pendingToolCalls?: ReadonlyArray<{ readonly name: string; readonly summary?: string }>;
+  /**
+   * Cumulative count of files touched (created/changed/deleted) across all
+   * turns in this session. Surfaced by the TUI header to replace the prior
+   * hardcoded "FILES: 0" placeholder.
+   */
+  readonly filesTouched?: number;
 }
 
 /**
