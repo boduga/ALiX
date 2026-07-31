@@ -1,5 +1,5 @@
 import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
-import { appendTimelineEvent, createInitialTuiAppState, SessionPhase } from './state.js';
+import { appendTimelineEvent, createInitialTuiAppState, formatTimelineEvent, getOrderedTimeline, SessionPhase } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { getTheme } from './blocks/theme.js';
@@ -909,21 +909,17 @@ export class TuiApp {
   }
 
   /**
-   * Collect the visible transcript for a tab — interleaved submitted
-   * prompts and agent responses — formatted for clipboard copy.
+   * Collect the visible transcript for a tab — the unified operator timeline
+   * (interleaved prompts, responses, and capability invocations) — formatted
+   * for clipboard copy.
    *
-   * Prompts are prefixed with a right-pointing arrow (→) and responses
-   * with a left-pointing arrow (←), mirroring the scrollback layout.
+   * Uses the same `getOrderedTimeline`/`formatTimelineEvent` projection as
+   * ChatView and AgentView, so a copied transcript always matches what the
+   * chat tab shows — including capability entries (⚡ …).
    */
   private collectVisibleTranscript(tab: TabId): string {
     const v = this.state.views[tab];
-    const lines: string[] = [];
-    const maxLen = Math.max(v.submittedPrompts.length, v.agentResponses.length);
-    for (let i = 0; i < maxLen; i++) {
-      if (i < v.submittedPrompts.length) lines.push(`→ ${v.submittedPrompts[i]}`);
-      if (i < v.agentResponses.length) lines.push(`← ${v.agentResponses[i]}`);
-    }
-    return lines.join('\n');
+    return getOrderedTimeline(v.timelineEvents).map(formatTimelineEvent).join('\n');
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */

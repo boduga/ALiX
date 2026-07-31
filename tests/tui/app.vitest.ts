@@ -3,6 +3,7 @@ import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
 import { KeyDispatcher } from '../../src/tui/key-dispatcher.js';
 import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../src/tui/capabilities/capability-service.js';
 import type { InvocationPresenter } from '../../src/tui/capabilities/invocation-presenter.js';
+import { appendTimelineEvent } from '../../src/tui/state.js';
 
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
@@ -399,7 +400,7 @@ describe('TuiApp — OSC 52 copy', () => {
   it('Alt+C with content copies OSC 52 sequence to stdout', () => {
     const { internal } = makeCopyApp();
     const writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
-    internal.getStateForTest().views.chat.agentResponses = ['test response'];
+    appendTimelineEvent((internal.getStateForTest() as any).views.chat, { kind: 'agent', text: 'test response' });
     internal.handleRaw(Buffer.from('\x1bc'));
     expect(writeSpy).toHaveBeenCalled();
     const output = (writeSpy.mock.calls[0] as [string])[0];
@@ -416,14 +417,19 @@ describe('TuiApp — OSC 52 copy', () => {
     writeSpy.mockRestore();
   });
 
-  it('copies interleaved prompts and responses', () => {
+  it('copies operator timeline (prompts, responses, capabilities)', () => {
     const { internal } = makeCopyApp();
-    internal.getStateForTest().views.chat.submittedPrompts = ['q1', 'q2'];
-    internal.getStateForTest().views.chat.agentResponses = ['a1', 'a2'];
+    const chat = (internal.getStateForTest() as any).views.chat;
+    appendTimelineEvent(chat, { kind: 'user', text: 'q1' });
+    appendTimelineEvent(chat, { kind: 'user', text: 'q2' });
+    appendTimelineEvent(chat, { kind: 'agent', text: 'a1' });
+    appendTimelineEvent(chat, { kind: 'agent', text: 'a2' });
+    appendTimelineEvent(chat, { kind: 'capability', invocationId: 'i', capabilityId: 'core.session.list', status: 'completed' });
     const text = (internal as any).collectVisibleTranscript('chat');
     expect(text).toContain('→ q1');
     expect(text).toContain('← a1');
     expect(text).toContain('← a2');
+    expect(text).toContain('⚡ core.session.list [completed ✓]');
   });
 });
 
