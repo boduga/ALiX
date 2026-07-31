@@ -3,7 +3,7 @@ import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from '../views/types.js';
 import type { TerminalCanvas } from '../canvas.js';
 import { truncate } from '../box.js';
-import { getCapabilityService } from './capability-service.js';
+import { getCapabilityService, type CapabilityService } from './capability-service.js';
 import type { Capability } from '../../capability/types.js';
 
 /** Search state is carried in PerTabState.searchQuery (already present). */
@@ -28,7 +28,14 @@ export class CapabilitiesView implements TuiView {
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-    const service = getCapabilityService();
+    // The palette gates on hasCapabilityService(); the view cannot, so a
+    // TuiApp constructed without a service would throw here on tab switch.
+    // Guard it: render a minimal offline state instead of throwing.
+    let service: CapabilityService;
+    try { service = getCapabilityService(); } catch {
+      c.write(0, 4, '\x1b[90mcapabilities unavailable — no CapabilityService\x1b[0m');
+      return { rows: [] };
+    }
     const query = (ctx.perTab.searchQuery ?? '').toLowerCase();
     const all = service.query();
     const caps = filtered(all, query);
@@ -85,7 +92,9 @@ export class CapabilitiesView implements TuiView {
   handleKey(key: string, ctx: ViewInputContext): ViewAction {
     // handleKey is permitted to mutate ctx.perTab (ViewInputContext is
     // "mutable from within handleKey only") — render stays pure.
-    const service = getCapabilityService();
+    // Same service-less guard as render: no service → no-op.
+    let service: CapabilityService;
+    try { service = getCapabilityService(); } catch { return { type: 'handled' }; }
     const caps = filtered(service.query(), ctx.perTab.searchQuery ?? '');
     const idx = caps.findIndex((cap) => cap.id === ctx.perTab.capabilitiesSelectedId);
     switch (key) {

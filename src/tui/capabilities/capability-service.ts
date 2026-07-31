@@ -113,7 +113,10 @@ export class CapabilityService {
       workspace: this.opts.cwd,
       sessionId: this.opts.sessionId(),
     });
-    void this.presenter.present({ invocation, capabilityId: id, args });
+    // Presentation is non-fatal — the invocation itself is independent, so
+    // swallow a presenter rejection rather than leaving an unhandled one.
+    void this.presenter.present({ invocation, capabilityId: id, args })
+      .catch((err) => { console.error('[capabilities] present failed:', err); });
     return invocation;
   }
 }

@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
 import { KeyDispatcher } from '../../src/tui/key-dispatcher.js';
+import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../src/tui/capabilities/capability-service.js';
+import type { InvocationPresenter } from '../../src/tui/capabilities/invocation-presenter.js';
 
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
@@ -452,5 +454,46 @@ describe('TuiApp -- pluggable key dispatcher', () => {
     // 'x' should not crash even though it wasn't consumed
     expect(() => internal.handleRaw(Buffer.from('x'))).not.toThrow();
     expect(saw).toBe(true);
+  });
+});
+
+describe('TuiApp — palette-open Ctrl+C quit', () => {
+  it("Ctrl+C ('\\x03') while the palette is open reaches handlePaletteKey and calls the quit path", () => {
+    // Opening the palette (Ctrl+P) calls PaletteModal.refresh →
+    // CapabilityProvider.search → getCapabilityService(), which throws when
+    // the module accessor is unset. A real service must be registered
+    // module-wide (same pattern as tests/tui/capabilities/palette.vitest.ts).
+    clearCapabilityService();
+    const presenter: InvocationPresenter = { present: vi.fn(async () => {}) };
+    const svc = new CapabilityService(presenter);
+    setCapabilityService(svc);
+    try {
+      const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
+      const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+      const metrics = { start: () => {}, stop: async () => {} };
+      const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+      const internal = app as unknown as {
+        handleRaw(buf: Buffer): void;
+        handlePaletteKey(key: string): void;
+        getStateForTest(): { lastSnapshot: unknown };
+      };
+      internal.getStateForTest().lastSnapshot = snap;
+      const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: string | number | null) => never);
+      const paletteSpy = vi.spyOn(internal, 'handlePaletteKey');
+      try {
+        // Open the palette (Ctrl+P = 0x10) — the modal then owns every key.
+        internal.handleRaw(Buffer.from([0x10]));
+        // Ctrl+C (ETX = 0x03) while the palette is open must quit, not fall
+        // through to the text-append branch and pollute the search query.
+        internal.handleRaw(Buffer.from([0x03]));
+        expect(paletteSpy).toHaveBeenCalledWith('\x03');
+        expect(exitSpy).toHaveBeenCalledWith(0);
+      } finally {
+        paletteSpy.mockRestore();
+        exitSpy.mockRestore();
+      }
+    } finally {
+      clearCapabilityService();
+    }
   });
 });

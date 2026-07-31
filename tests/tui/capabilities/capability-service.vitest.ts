@@ -14,7 +14,7 @@ describe('CapabilityService', () => {
   let presenter: InvocationPresenter;
   let log: FakeEventLog;
 
-  beforeEach(() => { presenter = { present: vi.fn() }; log = new FakeEventLog(); clearCapabilityService(); });
+  beforeEach(() => { presenter = { present: vi.fn(async () => {}) }; log = new FakeEventLog(); clearCapabilityService(); });
   afterEach(() => clearCapabilityService());
 
   it('wireInitialCapabilities registers core + tool definitions', async () => {

@@ -5,7 +5,7 @@ import { CapabilityService, setCapabilityService, clearCapabilityService } from 
 import type { InvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
 
 function makeService(): CapabilityService {
-  const presenter: InvocationPresenter = { present: vi.fn() };
+  const presenter: InvocationPresenter = { present: vi.fn(async () => {}) };
   return new CapabilityService(presenter);
 }
 

@@ -8,7 +8,7 @@ import type { InvocationPresenter } from '../../../src/tui/capabilities/invocati
 
 function setup() {
   clearCapabilityService();
-  const presenter: InvocationPresenter = { present: vi.fn() };
+  const presenter: InvocationPresenter = { present: vi.fn(async () => {}) };
   const svc = new CapabilityService(presenter);
   setCapabilityService(svc);
   return { svc };
