@@ -36,7 +36,7 @@ describe("Context Compiler Events", () => {
     assert.ok(payload.symbolCount >= 0);
   });
 
-  it("emits context.bundle_created on compile", { timeout: 120_000 }, async () => {
+  it("emits context.bundle_created on compile", { timeout: 120_000, skip: process.env.ALIX_SKIP_SLOW_TESTS !== undefined }, async () => {
     await compiler.warm();
     await compiler.compileContext("fix the login bug", "bugfix");
     const events = await eventLog.readAll();

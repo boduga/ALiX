@@ -342,7 +342,10 @@ function buildDecision(
 ): GovernanceDecision {
   const tracking = computeRecommendationTracking(recommendation, params.kind);
 
-  return {
+  // Decisions carry a self-verifying integrity hash so downstream
+  // authorization (execution-authorization.ts) can do tamper detection.
+  // The hash covers every field except integrityHash itself.
+  const decision: Omit<GovernanceDecision, "integrityHash"> = {
     decisionId: computeDecisionId(evidence.evidenceId, policyConfig),
     proposalId: evidence.proposalId,
     evolutionId: params.evolutionId ?? evidence.proposalId,
@@ -356,6 +359,11 @@ function buildDecision(
     targetState: decisionKindToTargetState(params.kind),
     decidedAt: new Date().toISOString(),
     decidedBy: params.decidedBy,
+  };
+
+  return {
+    ...decision,
+    integrityHash: computeDecisionIntegrityHash(decision),
   };
 }
 

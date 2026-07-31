@@ -41,12 +41,6 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
     await mkdir(skillsDir, { recursive: true });
   }
 
-  // Show available skills (bundled)
-  if (opts.available) {
-    await listAvailableSkills();
-    return;
-  }
-
   // List installed skills
   if (opts.list) {
     await listInstalledSkills(skillsDir);
@@ -56,6 +50,12 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
   // Install all core skills
   if (opts.all) {
     await installAllCoreSkills(skillsDir);
+    return;
+  }
+
+  // Install a specific skill
+  if (opts.name) {
+    await installSkill(opts.name, skillsDir);
     return;
   }
 
