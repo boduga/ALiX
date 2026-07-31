@@ -21,6 +21,7 @@ export class CapabilityPlatform {
 
   constructor() {
     this.executors.register("native", this.native);
+    this.registry.attach(this.events);
     this.resolver = new ExecutionResolver(this.registry);
     this.runtime = new CapabilityRuntime(this.registry, this.hooks, this.resolver, this.executors, this.events);
   }

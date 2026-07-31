@@ -75,10 +75,12 @@ export class CapabilityRuntime {
       cancel: () => {
         if (st.status !== "running" && st.status !== "queued") return;
         st.abort.abort();
-        const r = finish("cancelled");
+        // Push onto the queue and emit on the bus BEFORE finish() closes the
+        // queue, so a consumer iterating inv.events() still drains the
+        // InvocationCancelled event.
         queue.push({ type: "InvocationCancelled", invocationId, at: Date.now() });
         this.bus.emit({ type: "InvocationCancelled", invocationId, at: Date.now() });
-        st.resolve(r);
+        finish("cancelled");
       },
       subscribe: (h) => this.bus.subscribe(h),
       wait: () => new Promise<InvocationResult>((resolve) => {

@@ -106,6 +106,22 @@ describe('CapabilityRuntime', () => {
     expect(result.status).toBe('cancelled');
   });
 
+  it('drains an InvocationCancelled event through inv.events() after cancel', async () => {
+    const { reg, runtime, native } = setup();
+    registerEcho(reg);
+    let released: () => void = () => {};
+    native.registerHandler('core.echo', async () => {
+      await new Promise<void>((r) => { released = r; });
+      return { output: 'done' };
+    });
+    const inv = runtime.invoke('core.echo', {}, { actor: 'operator', cwd: '/', workspace: '/' });
+    inv.cancel();
+    released();
+    const collected: string[] = [];
+    for await (const e of inv.events()) collected.push(e.type);
+    expect(collected).toContain('InvocationCancelled');
+  });
+
   it('does not emit InvocationFailed after a mid-flight cancel settles', async () => {
     const { reg, runtime, native, bus } = setup();
     registerEcho(reg);

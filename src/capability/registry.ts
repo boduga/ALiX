@@ -1,12 +1,13 @@
 import { CapabilityValidationError } from "./errors.js";
-import type { Capability, CapabilityStatus } from "./types.js";
+import type { EventBus } from "./event-bus.js";
+import type { Capability, CapabilityStatus, Permission } from "./types.js";
 
 export interface CapabilityQuery {
   text?: string;
   tags?: string[];
   category?: string;
   risk?: string;
-  permissions?: string;
+  permissions?: Permission;
   kinds?: string[];
   namespaces?: string[];
 }
@@ -25,6 +26,14 @@ export class CapabilityRegistry {
   private byId = new Map<string, Capability>();
   private status = new Map<string, CapabilityStatus>();
   private watchers = new Set<(evt: { type: "registered" | "removed"; capabilityId: string }) => void>();
+  private bus?: EventBus;
+
+  /** Bridges registry lifecycle onto the canonical CapabilityEvent bus
+   *  (CapabilityRegistered/CapabilityRemoved). The registry-local watch()
+   *  surface is unchanged. */
+  attach(bus: EventBus): void {
+    this.bus = bus;
+  }
 
   register(capability: Capability): void {
     if (!CAPABILITY_ID.test(capability.id)) {
@@ -35,12 +44,14 @@ export class CapabilityRegistry {
     }
     this.byId.set(capability.id, capability);
     for (const w of this.watchers) w({ type: "registered", capabilityId: capability.id });
+    this.bus?.emit({ type: "CapabilityRegistered", capabilityId: capability.id, at: Date.now() });
   }
 
   unregister(id: string): void {
     if (!this.byId.delete(id)) return;
     this.status.delete(id);
     for (const w of this.watchers) w({ type: "removed", capabilityId: id });
+    this.bus?.emit({ type: "CapabilityRemoved", capabilityId: id, at: Date.now() });
   }
 
   find(id: string): Capability | undefined { return this.byId.get(id); }
@@ -60,7 +71,8 @@ export class CapabilityRegistry {
     if (q.tags?.length) results = results.filter(c => q.tags!.some(t => c.tags.includes(t)));
     if (q.category) results = results.filter(c => c.category === q.category);
     if (q.risk) results = results.filter(c => c.risk === q.risk);
-    if (q.permissions) results = results.filter(c => c.requiredPermissions.includes(q.permissions as Capability["requiredPermissions"][number]));
+    const perm = q.permissions;
+    if (perm) results = results.filter(c => c.requiredPermissions.includes(perm));
     if (q.kinds?.length) results = results.filter(c => q.kinds!.includes(c.kind));
     if (q.namespaces?.length) results = results.filter(c => q.namespaces!.some(ns => c.id.startsWith(`${ns}.`)));
     return results;

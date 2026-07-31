@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { CapabilityRegistry } from '../../src/capability/registry.js';
 import { HookRegistry } from '../../src/capability/hook-registry.js';
 import { CapabilityValidationError } from '../../src/capability/errors.js';
+import { EventBus } from '../../src/capability/event-bus.js';
 import type { Capability } from '../../src/capability/types.js';
 
 function makeCap(over: Partial<Capability> = {}): Capability {
@@ -74,6 +75,18 @@ describe('CapabilityRegistry', () => {
     r.watch(cb);
     r.register(makeCap());
     expect(cb).toHaveBeenCalledTimes(1);
+  });
+
+  it('bridges lifecycle events onto an attached EventBus', () => {
+    const r = new CapabilityRegistry();
+    const bus = new EventBus();
+    const types: string[] = [];
+    bus.subscribe((e) => types.push(e.type));
+    r.attach(bus);
+    r.register(makeCap());
+    expect(types).toContain('CapabilityRegistered');
+    r.unregister('core.session.list');
+    expect(types).toContain('CapabilityRemoved');
   });
 
   it('setStatus/getStatus keep runtime state separate from metadata', () => {
