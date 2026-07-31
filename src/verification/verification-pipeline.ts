@@ -72,7 +72,7 @@ export class VerificationPipeline {
           console.log(`Running: ${cmd.command}`);
         }
 
-        const result = await this.runner.run(cmd.command, { timeout: this.options.timeout });
+        const result = await this.runner.run(cmd.command, { timeout: this.options.timeout, cwd: this.options.cwd });
 
         reporter.addResult({
           name: cmd.name,
