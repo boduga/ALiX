@@ -43,6 +43,11 @@ describe('TuiApp -- tab-state preservation', () => {
 });
 
 describe('TuiApp -- chat-input dispatch', () => {
+  /** Project the timeline's text-bearing events of `kind` onto their text. */
+  function timelineTexts(view: { timelineEvents: Array<{ kind: string; text?: string }> }, kind: string): string[] {
+    return view.timelineEvents.filter((e) => e.kind === kind).map((e) => e.text ?? '');
+  }
+
   // Build a tui app whose snapshot builder returns a fixed snapshot, so
   // paintFullFrame() has something valid to render. We never paint in
   // these tests — we only drive handleRaw and inspect state.
@@ -61,8 +66,8 @@ describe('TuiApp -- chat-input dispatch', () => {
         lastSnapshot: unknown;
         activeTab?: string;
         views: {
-          chat: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] };
-          agent: { inputBuffer: string; submittedPrompts: string[]; agentResponses: string[] };
+          chat: { inputBuffer: string; timelineEvents: Array<{ kind: string; text?: string }> };
+          agent: { inputBuffer: string; timelineEvents: Array<{ kind: string; text?: string }> };
         };
       };
     };
@@ -72,8 +77,6 @@ describe('TuiApp -- chat-input dispatch', () => {
     // tests specifically exercise the chat input path.
     internal.getStateForTest().activeTab = 'chat';
     internal.getStateForTest().views.chat.inputBuffer = '';
-    internal.getStateForTest().views.chat.submittedPrompts = [];
-    internal.getStateForTest().views.chat.agentResponses = [];
     return { app, internal };
   }
 
@@ -123,30 +126,30 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
   });
 
-  it('Enter records the submitted prompt in submittedPrompts (echoed scrollback)', () => {
+  it('Enter records the submitted prompt in the timeline (echoed scrollback)', () => {
     const { internal } = makeApp();
     for (const c of 'fix it') internal.handleRaw(Buffer.from(c));
     expect(internal.getStateForTest().views.chat.inputBuffer).toBe('fix it');
     // Buffer has 0 entries before submit.
-    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual([]);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'user')).toEqual([]);
     internal.handleRaw(Buffer.from([0x0d])); // Enter
     expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
-    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['fix it']);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'user')).toEqual(['fix it']);
   });
 
-  it('each Enter appends the prompt to submittedPrompts (history grows)', () => {
+  it('each Enter appends the prompt to the timeline (history grows)', () => {
     const { internal } = makeApp();
     for (const c of 'hi') internal.handleRaw(Buffer.from(c));
     internal.handleRaw(Buffer.from([0x0d])); // first submit
-    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi']);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'user')).toEqual(['hi']);
     for (const c of 'you') internal.handleRaw(Buffer.from(c));
     internal.handleRaw(Buffer.from([0x7f])); // backspace: 'yo'
     // Submitting a 2-char buffer should record it (not 'you').
     internal.handleRaw(Buffer.from([0x0d]));
-    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi', 'yo']);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'user')).toEqual(['hi', 'yo']);
   });
 
-  it('submit calls agentSession.processChat and appends the summary to agentResponses', async () => {
+  it('submit calls agentSession.processChat and appends the summary to the timeline', async () => {
     const agentSession = {
       processTurn: vi.fn(async (text: string) => ({
         summary: `reply to: ${text}`,
@@ -167,8 +170,8 @@ describe('TuiApp -- chat-input dispatch', () => {
     await Promise.resolve();
     expect(agentSession.processChat).toHaveBeenCalledWith('fix it');
     expect(agentSession.processTurn).not.toHaveBeenCalled();
-    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['fix it']);
-    expect(internal.getStateForTest().views.chat.agentResponses).toEqual(['reply to: fix it']);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'user')).toEqual(['fix it']);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'agent')).toEqual(['reply to: fix it']);
   });
 
   it('submit without agentSession falls back to a placeholder response', async () => {
@@ -177,12 +180,12 @@ describe('TuiApp -- chat-input dispatch', () => {
     internal.handleRaw(Buffer.from([0x0d])); // Enter
     await Promise.resolve();
     await Promise.resolve();
-    expect(internal.getStateForTest().views.chat.submittedPrompts).toEqual(['hi']);
-    expect(internal.getStateForTest().views.chat.agentResponses.length).toBe(1);
-    expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('hi');
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'user')).toEqual(['hi']);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'agent').length).toBe(1);
+    expect(timelineTexts(internal.getStateForTest().views.chat, 'agent')[0]).toContain('hi');
   });
 
-  it('agent tab Enter calls processTurn (not processChat) and routes to agent Responses', async () => {
+  it('agent tab Enter calls processTurn (not processChat) and routes to the agent timeline', async () => {
     const processChat = vi.fn(async (text: string) => ({
       summary: `[chat] ${text}`,
       sessionId: 'test-session',
@@ -209,8 +212,8 @@ describe('TuiApp -- chat-input dispatch', () => {
     // unavailable or returns an unhelpful answer.
     expect(processTurn).toHaveBeenCalledWith('hi');
     expect(processChat).not.toHaveBeenCalled();
-    expect(internal.getStateForTest().views.agent.submittedPrompts).toEqual(['hi']);
-    expect(internal.getStateForTest().views.agent.agentResponses).toEqual(['[agent] hi']);
+    expect(timelineTexts(internal.getStateForTest().views.agent, 'user')).toEqual(['hi']);
+    expect(timelineTexts(internal.getStateForTest().views.agent, 'agent')).toEqual(['[agent] hi']);
   });
 
  ;
@@ -247,8 +250,8 @@ describe('TuiApp -- chat-input dispatch', () => {
       for (const c of 'hi') internal.handleRaw(Buffer.from(c));
       internal.handleRaw(Buffer.from([0x0d])); // Enter
       await new Promise((r) => setTimeout(r, 30));
-      expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('agent error');
-      expect(internal.getStateForTest().views.chat.agentResponses[0]).toContain('boom');
+      expect(timelineTexts(internal.getStateForTest().views.chat, 'agent')[0]).toContain('agent error');
+      expect(timelineTexts(internal.getStateForTest().views.chat, 'agent')[0]).toContain('boom');
       // Stderr was used so silent hangs surface in logs.
       expect(errSpy).toHaveBeenCalled();
       const errArg = errSpy.mock.calls.find((c) => String(c[0]).includes('boom'));
@@ -273,7 +276,7 @@ describe('TuiApp -- chat-input dispatch', () => {
         for (const c of 'hi') internal.handleRaw(Buffer.from(c));
         internal.handleRaw(Buffer.from([0x0d])); // Enter
         await new Promise((r) => setTimeout(r, 80));
-        const responses = internal.getStateForTest().views.chat.agentResponses;
+        const responses = timelineTexts(internal.getStateForTest().views.chat, 'agent');
         expect(responses[0]).toMatch(/timed out|agent error/);
       } finally {
         globalThis.setTimeout = origSetTimeout;

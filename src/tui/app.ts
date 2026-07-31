@@ -1,5 +1,5 @@
-import type { PanelFocusId, PanelScrollOffsets, TabId, TuiAppState } from './state.js';
-import { createInitialTuiAppState, SessionPhase } from './state.js';
+import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
+import { appendTimelineEvent, createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot } from './snapshot.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { getTheme } from './blocks/theme.js';
@@ -51,6 +51,14 @@ export interface TuiAppOptions {
 }
 
 const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
+
+/**
+ * Narrow writable view of a tab's per-tab state that the shared submit path
+ * is allowed to mutate. dispatchToSession only appends to the operator
+ * timeline and resets plan/scroll fields — it never needs the full
+ * PerTabState, so this type keeps the function honest about its surface.
+ */
+type TimelineWritableState = Pick<PerTabState, 'timelineEvents' | 'planContent' | 'planTasks' | 'scrollOffset'>;
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -313,7 +321,7 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          perTab.submittedPrompts.push(perTab.inputBuffer);
+          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer });
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -354,7 +362,7 @@ export class TuiApp {
       }
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          perTab.submittedPrompts.push(perTab.inputBuffer);
+          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer });
           void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -474,7 +482,7 @@ export class TuiApp {
   private async dispatchToSession(
     text: string,
     kind: 'chat' | 'agent',
-    perTab: { agentResponses: string[]; scrollOffset: number; planContent?: string; planTasks?: readonly PlanTask[] },
+    perTab: TimelineWritableState,
     candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
@@ -527,7 +535,11 @@ export class TuiApp {
         // Try the next candidate rather than giving up.
       }
     }
-    perTab.agentResponses.push(summary);
+    // perTab's narrow type only constrains what dispatchToSession may itself
+    // write; at runtime it is always a real PerTabState (callers pass
+    // views.chat / views.agent), which appendTimelineEvent's signature
+    // requires. Reassert the full state at this single helper boundary.
+    appendTimelineEvent(perTab as PerTabState, { kind: 'agent', text: summary });
     perTab.scrollOffset = 0; // auto-scroll to bottom on new response
     this.paintFullFrame();
   }
@@ -811,7 +823,7 @@ export class TuiApp {
   }
 
   /**
-   * Append a one-liner to the active view's `agentResponses` so the
+   * Append a one-liner to the active view's operator timeline so the
    * resolution message shows in the scrollback.
    */
   private appendAgentMessage(
@@ -820,7 +832,7 @@ export class TuiApp {
   ): void {
     const state = this.state.views[tab];
     if (!state) return;
-    state.agentResponses.push(text);
+    appendTimelineEvent(state, { kind: 'agent', text });
   }
 
   /**

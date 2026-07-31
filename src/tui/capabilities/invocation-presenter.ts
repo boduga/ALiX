@@ -1,4 +1,6 @@
-import type { PerTabState, CapabilityInvocationEntry } from '../state.js';
+import type { PerTabState } from '../state.js';
+import { appendTimelineEvent } from '../state.js';
+import type { TimelineEvent } from '../state.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 
 export interface InvocationInput {
@@ -22,53 +24,46 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     private readonly getChatState: () => PerTabState,
   ) {}
 
-  async present({ invocation, capabilityId, args }: InvocationInput): Promise<void> {
+  async present({ invocation, capabilityId }: InvocationInput): Promise<void> {
     const state = this.getChatState();
-    const entry: CapabilityInvocationEntry = {
+    // appendTimelineEvent returns the actual stored object (never a clone),
+    // so mutating `event` below updates the entry in the timeline.
+    const event = appendTimelineEvent(state, {
+      kind: 'capability',
       invocationId: invocation.id,
       capabilityId,
-      args,
       status: 'running',
-      at: Date.now(),
-    };
-    state.capabilityInvocations.push(entry);
+    }) as Extract<TimelineEvent, { kind: 'capability' }>;
 
     // Terminal events update the entry live from the invocation's own
-    // event stream (Phase-1 fix delivers terminal events there). No race
-    // with the runtime starting: `Invocation.events()` is backed by the
-    // AsyncEventQueue, which buffers emitted events until consumed — a
-    // subscriber attaching after the runtime began still receives the
-    // full lifecycle.
+    // event stream. No race with the runtime starting: Invocation.events()
+    // is backed by the AsyncEventQueue, which buffers until consumed.
     for await (const evt of invocation.events()) {
-      this.applyEvent(entry, evt);
+      this.applyEvent(event, evt);
     }
-    // The runtime pushes the terminal event into the queue and closes it,
-    // so the loop above already set the status. But InvocationCompleted
-    // carries NO output — output lives only on the wait() result. Always
-    // resolve the settled result and merge output/error into the entry;
-    // wait() resolves immediately once settled, so this is safe on both
-    // the event-driven path and the stream-closed-without-terminal-event
-    // path.
+    // InvocationCompleted carries NO output — output lives only on the
+    // wait() result. Always resolve the settled result and merge
+    // output/error; wait() resolves immediately once settled.
     const result = await invocation.wait();
-    if (entry.status === 'running') {
-      entry.status = result.status === 'completed' ? 'completed'
+    if (event.status === 'running') {
+      event.status = result.status === 'completed' ? 'completed'
         : result.status === 'cancelled' ? 'cancelled' : 'failed';
     }
-    if (result.status === 'completed') entry.output = result.output;
-    if (result.status === 'failed') entry.error = result.error;
+    if (result.status === 'completed') event.output = result.output;
+    if (result.status === 'failed') event.error = result.error;
   }
 
-  private applyEvent(entry: CapabilityInvocationEntry, evt: CapabilityEvent): void {
+  private applyEvent(event: Extract<TimelineEvent, { kind: 'capability' }>, evt: CapabilityEvent): void {
     switch (evt.type) {
       case 'InvocationCompleted':
-        entry.status = 'completed';
+        event.status = 'completed';
         break;
       case 'InvocationFailed':
-        entry.status = 'failed';
-        entry.error = evt.error;
+        event.status = 'failed';
+        event.error = evt.error;
         break;
       case 'InvocationCancelled':
-        entry.status = 'cancelled';
+        event.status = 'cancelled';
         break;
     }
   }
