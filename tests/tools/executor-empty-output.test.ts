@@ -37,7 +37,7 @@ class TestToolExecutor extends ToolExecutor {
 
 await test("executor emits tool.output for empty results and escalates after repeated empty outputs", async () => {
   const log = new MemLog();
-  const config = { permissions: { sessionMode: "ask" }, model: { provider: "test", name: "m" } } as any;
+  const config = { permissions: { sessionMode: "ask", default: "allow", tools: {} }, model: { provider: "test", name: "m" } } as any;
   const executor = new TestToolExecutor(config, log as unknown as EventLog, process.cwd());
 
   const reqBase = { toolCallId: `call_${Date.now()}`, name: "file.glob", args: { pattern: "src/tools/**/*.ts" } };

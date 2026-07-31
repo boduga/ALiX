@@ -11,8 +11,8 @@ const cliPath = join(repoRoot, "dist", "src", "cli.js");
 const sourcePath = join(repoRoot, "src", "cli.ts");
 
 const ROOT_COMMAND_ORDER = [
-  "chat",
   "run",
+  "tui",
   "submit",
   "session",
   "plan",

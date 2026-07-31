@@ -1,63 +1,88 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
+import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { VerificationPipeline } from "../../src/verification/verification-pipeline.js";
+
+// Hermetic fixture: a temp project dir with controlled npm test scripts.
+// Running the pipeline against the real repo's cwd would discover and
+// EXECUTE the project's own `npm test` (the full suite, minutes), blowing
+// any unit-test timeout. A controlled fixture keeps these tests fast,
+// deterministic, and able to exercise pass/fail/skip paths.
+function makeFixtureDir(scripts: Record<string, string>): string {
+  const dir = mkdtempSync(join(tmpdir(), "alix-verification-"));
+  writeFileSync(join(dir, "package.json"), JSON.stringify({ scripts }));
+  return dir;
+}
+
+async function withFixtureDir(
+  scripts: Record<string, string>,
+  fn: (cwd: string) => Promise<void>,
+): Promise<void> {
+  const cwd = makeFixtureDir(scripts);
+  try {
+    await fn(cwd);
+  } finally {
+    rmSync(cwd, { recursive: true, force: true });
+  }
+}
+
+const PASS = 'node -e "process.exit(0)"';
+const FAIL = 'node -e "process.exit(1)"';
 
 describe("VerificationPipeline", () => {
   it("discovers commands from the project", async () => {
-    const pipeline = new VerificationPipeline({ cwd: process.cwd() });
-    const result = await pipeline.run();
+    await withFixtureDir({ test: PASS }, async (cwd) => {
+      const pipeline = new VerificationPipeline({ cwd });
+      const result = await pipeline.run();
 
-    // Pipeline should return results with proper structure
-    assert.ok(result.discovered !== undefined, "discovered should be defined");
-    assert.ok(Array.isArray(result.discovered), "discovered should be an array");
-    assert.ok(Array.isArray(result.executed), "executed should be an array");
-    assert.ok(result.reporter !== undefined, "reporter should be defined");
+      assert.ok(result.discovered !== undefined, "discovered should be defined");
+      assert.ok(Array.isArray(result.discovered), "discovered should be an array");
+      assert.ok(result.discovered.length >= 1, "should discover at least the npm test script");
+      assert.ok(Array.isArray(result.executed), "executed should be an array");
+      assert.ok(result.reporter !== undefined, "reporter should be defined");
+    });
   });
 
   it("reports execution status", async () => {
-    const pipeline = new VerificationPipeline({ cwd: process.cwd() });
-    const result = await pipeline.run();
+    await withFixtureDir({ test: PASS }, async (cwd) => {
+      const pipeline = new VerificationPipeline({ cwd });
+      const result = await pipeline.run();
 
-    // Success should be true only if no failures; partial if some passed and some failed
-    assert.equal(typeof result.success, "boolean", "success should be boolean");
-    assert.equal(typeof result.partial, "boolean", "partial should be boolean");
+      assert.equal(typeof result.success, "boolean", "success should be boolean");
+      assert.equal(typeof result.partial, "boolean", "partial should be boolean");
 
-    // If all executed commands passed, success should be true
-    if (result.executed.every(cmd => cmd.success)) {
-      assert.ok(result.success, "success should be true when all commands pass");
-      assert.ok(!result.partial, "partial should be false when all commands pass");
-    }
+      // With an all-passing fixture this is deterministic, not conditional.
+      assert.equal(result.success, true, "success should be true when all commands pass");
+      assert.equal(result.partial, false, "partial should be false when all commands pass");
+    });
   });
 
   it("stops on first failure when stopOnFailure is true", async () => {
-    const pipeline = new VerificationPipeline({
-      cwd: process.cwd(),
-      stopOnFailure: true,
+    // The first command (test, priority CRITICAL) fails; the second
+    // (test:unit, priority HIGH) must be skipped, not executed.
+    await withFixtureDir({ test: FAIL, "test:unit": PASS }, async (cwd) => {
+      const pipeline = new VerificationPipeline({ cwd, stopOnFailure: true });
+      const result = await pipeline.run();
+
+      assert.equal(result.success, false, "a failing command should make success false");
+      assert.equal(result.partial, true, "stopOnFailure should mark the run partial");
+      assert.ok(result.executed.length >= 2, "both commands should be present in executed");
+      assert.equal(result.executed[0]!.name, "test", "the failing command runs first");
+      assert.equal(result.executed[0]!.success, false, "the failing command should be recorded as failed");
+      assert.equal(result.executed[1]!.name, "unit", "the second command is discovered");
+      assert.equal(result.executed[1]!.success, false, "the skipped command should not be marked successful");
     });
-
-    const result = await pipeline.run();
-
-    // Result should have valid structure regardless of outcome
-    assert.ok(Array.isArray(result.executed), "executed should be an array");
-    assert.ok(Array.isArray(result.discovered), "discovered should be an array");
-
-    // When stopOnFailure is true and there are failures, partial should be true
-    if (!result.success && result.discovered.length > 1) {
-      assert.ok(result.partial, "partial should be true when some commands are skipped");
-    }
   });
 
   it("respects timeout configuration", async () => {
-    const pipeline = new VerificationPipeline({
-      cwd: process.cwd(),
-      timeout: 5000,
-      verbose: false,
+    await withFixtureDir({ test: PASS }, async (cwd) => {
+      const pipeline = new VerificationPipeline({ cwd, timeout: 5000, verbose: false });
+      const result = await pipeline.run();
+
+      assert.ok(result.discovered !== undefined);
+      assert.equal(typeof result.success, "boolean");
     });
-
-    const result = await pipeline.run();
-
-    // Should complete within reasonable time and return valid results
-    assert.ok(result.discovered !== undefined);
-    assert.equal(typeof result.success, "boolean");
   });
 });
