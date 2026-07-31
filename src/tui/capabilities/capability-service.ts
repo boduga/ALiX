@@ -115,7 +115,7 @@ export class CapabilityService {
     });
     // Presentation is non-fatal — the invocation itself is independent, so
     // swallow a presenter rejection rather than leaving an unhandled one.
-    void this.presenter.present({ invocation, capabilityId: id, args })
+    void this.presenter.present({ invocation, capabilityId: id })
       .catch((err) => { console.error('[capabilities] present failed:', err); });
     return invocation;
   }

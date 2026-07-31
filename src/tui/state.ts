@@ -56,14 +56,20 @@ export interface TimelineEventBase {
   source: TimelineSource;
 }
 
+/** Fields shared by the capability TimelineEvent variant and its writer input. */
+export interface CapabilityEventFields {
+  invocationId: string;
+  capabilityId: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  output?: unknown;
+  error?: string;
+}
+
 /** A conversation-turn / capability event in the operator timeline. */
 export type TimelineEvent =
   | (TimelineEventBase & { kind: 'user'; text: string })
   | (TimelineEventBase & { kind: 'agent'; text: string })
-  | (TimelineEventBase & { kind: 'capability';
-      invocationId: string; capabilityId: string;
-      status: 'running' | 'completed' | 'failed' | 'cancelled';
-      output?: unknown; error?: string });
+  | (TimelineEventBase & { kind: 'capability' } & CapabilityEventFields);
 
 /**
  * Serializable UI state preserved per tab across switches. No Set, Map,
@@ -193,9 +199,7 @@ export function createInitialPerTabState(): PerTabState {
 export type TimelineEventInput =
   | { kind: 'user'; text: string }
   | { kind: 'agent'; text: string }
-  | { kind: 'capability'; invocationId: string; capabilityId: string;
-      status: 'running' | 'completed' | 'failed' | 'cancelled';
-      output?: unknown; error?: string };
+  | { kind: 'capability' } & CapabilityEventFields;
 
 let timelineSequence = 0;
 export function nextTimelineSequence(): number { return ++timelineSequence; }

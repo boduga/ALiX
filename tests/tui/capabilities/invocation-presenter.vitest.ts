@@ -51,7 +51,7 @@ describe('ChatInvocationPresenter', () => {
       terminal: { type: 'InvocationCompleted', invocationId: 'inv_1', at: 2 },
       waitResult: completed('inv_1', { ok: true, rows: 3 }),
     });
-    const p = presenter.present({ invocation: inv, capabilityId: 'core.session.list', args: {} });
+    const p = presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
     expect(state.timelineEvents).toHaveLength(1);
     expect(capEvent(state).status).toBe('running');
     await p;
@@ -70,10 +70,13 @@ describe('ChatInvocationPresenter', () => {
       // branch, never from the wait()-fallback status mapping.
       waitResult: completed('inv_1'),
     });
-    await presenter.present({ invocation: inv, capabilityId: 'core.session.list', args: {} });
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
     const evt = capEvent(state);
     expect(evt.status).toBe('failed');
     expect(evt.error).toBe('exec failed');
+    // The diverged wait() result (completed with no output) must not leak
+    // output onto the event-path-failed event.
+    expect(evt.output).toBeUndefined();
   });
 
   it('drives cancellation through the event path', async () => {
@@ -85,15 +88,19 @@ describe('ChatInvocationPresenter', () => {
       // from applyEvent's InvocationCancelled branch.
       waitResult: completed('inv_1'),
     });
-    await presenter.present({ invocation: inv, capabilityId: 'core.session.list', args: {} });
-    expect(capEvent(state).status).toBe('cancelled');
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
+    const evt = capEvent(state);
+    expect(evt.status).toBe('cancelled');
+    // The diverged wait() result must not leak output/error onto a cancelled event.
+    expect(evt.output).toBeUndefined();
+    expect(evt.error).toBeUndefined();
   });
 
   it('falls back to the settled result when the stream closes without a terminal event', async () => {
     const state = createInitialPerTabState();
     const presenter = new ChatInvocationPresenter(() => state);
     const inv = makeInvocation({ waitResult: completed('inv_1', { rows: 1 }) });
-    await presenter.present({ invocation: inv, capabilityId: 'core.session.list', args: {} });
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
     const evt = capEvent(state);
     expect(evt.status).toBe('completed');
     expect(evt.output).toEqual({ rows: 1 });

@@ -59,15 +59,18 @@ export class ChatView implements TuiView {
     // the Phase-3 payoff: a capability invoked mid-conversation renders in
     // its chronological position, not appended after all turns.
     const events = getOrderedTimeline(ctx.perTab.timelineEvents);
-    let firstUserSeen = false;
+    // Blank-line separator between turns so each query breathes away from
+    // the previous response. A blank precedes a user event (except the very
+    // first user turn) AND an agent event when the immediately-preceding
+    // event was also an agent event (e.g. a resolution one-liner after a
+    // full response). Capability events stay inline — no blank around them.
+    let prevKind: typeof events[number]['kind'] | undefined;
     for (const event of events) {
-      // Blank-line separator between turns so each query breathes away
-      // from the previous response. Skip the very first user turn so we
-      // don't push a leading empty line.
-      if (event.kind === 'user') {
-        if (firstUserSeen) allLines.push({ kind: 'user', text: '', isFirst: false });
-        firstUserSeen = true;
-      }
+      const needsSeparator = prevKind !== undefined && (
+        event.kind === 'user' || (event.kind === 'agent' && prevKind === 'agent')
+      );
+      if (needsSeparator) allLines.push({ kind: 'user', text: '', isFirst: false });
+      prevKind = event.kind;
       switch (event.kind) {
         case 'user': {
           const wrapped = wrapText(event.text, textWidth);

@@ -6,7 +6,6 @@ import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 export interface InvocationInput {
   invocation: Invocation;
   capabilityId: string;
-  args: Record<string, unknown>;
 }
 
 export interface InvocationPresenter {
@@ -49,8 +48,10 @@ export class ChatInvocationPresenter implements InvocationPresenter {
       event.status = result.status === 'completed' ? 'completed'
         : result.status === 'cancelled' ? 'cancelled' : 'failed';
     }
-    if (result.status === 'completed') event.output = result.output;
-    if (result.status === 'failed') event.error = result.error;
+    // Merge output/error only when consistent with the settled status, so a
+    // diverged wait() result cannot clobber event-path terminal state.
+    if (event.status === 'completed' && event.output === undefined) event.output = result.output;
+    if (event.status === 'failed' && event.error === undefined) event.error = result.error;
   }
 
   private applyEvent(event: Extract<TimelineEvent, { kind: 'capability' }>, evt: CapabilityEvent): void {
