@@ -990,6 +990,11 @@ export class TuiApp {
     // every key, so the global open-trigger never runs again until the
     // palette is dismissed.
     if (key === 'Ctrl+p') { this.paletteOpen = false; return; }
+    // Ctrl+C always quits — same mechanism as tryHandleGlobal's ETX case.
+    // The palette owns every key while open, so without this the raw ETX
+    // byte would fall through to the text-append branch and silently pollute
+    // the search query instead of terminating the TUI.
+    if (key === '\x03') { process.exit(0); return; }
     if (key === 'Enter') {
       if (!this.palette.empty) {
         const entry = this.palette.selected();
