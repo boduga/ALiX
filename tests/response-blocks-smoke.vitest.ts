@@ -51,7 +51,7 @@ test('end-to-end: parse live response, render to canvas', () => {
     pinnedBottom: true, inputBuffer: '', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
     submittedPrompts: ['write a python function to check if a string is a palindrome'],
     agentResponses: [SAMPLE],
-    pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [],
+    pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], timelineEvents: [],
   };
   const W = 80, H = 60;
   const canvas = new TerminalCanvas(W, H);

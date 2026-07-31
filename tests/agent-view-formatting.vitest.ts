@@ -64,6 +64,7 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
     pendingApprovals: [],
     resolvedApprovals: [],
     capabilityInvocations: [],
+    timelineEvents: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
     ...overrides,

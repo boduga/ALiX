@@ -21,7 +21,7 @@ function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): Vi
             inputBuffer: '',
                 pinnedBottom: true,
             submittedPrompts: [],
-            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [],
+            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], timelineEvents: [],
             agentResponses: []
           },
     canvas: new TerminalCanvas(dims.columns, dims.rows),
@@ -48,7 +48,7 @@ describe('ChatView', () => {
             inputBuffer: '',
                 pinnedBottom: true,
             submittedPrompts: [],
-            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [],
+            pendingApprovals: [], resolvedApprovals: [], capabilityInvocations: [], timelineEvents: [],
             agentResponses: []
           };
     const before = JSON.stringify(perTab);
