@@ -36,6 +36,19 @@ interface SerializedCursor {
   readonly seq: number;
 }
 
+/** Thrown by `deserializeCursor` and `readSince` for cursor-validation
+ *  failures (malformed JSON, unsupported version, invalid payload, or a
+ *  serialized position that lies beyond the current EventLog head). Callers
+ *  discriminate on `instanceof EventLogCursorError` to distinguish an
+ *  invalid-cursor fallback (replay from `beginningCursor()`) from an
+ *  operational failure (preserve current state, retry next sample). */
+export class EventLogCursorError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'EventLogCursorError';
+  }
+}
+
 export class EventLog {
   readonly path: string;
   private nextSeq = 1;
@@ -64,12 +77,19 @@ export class EventLog {
 
   /** Events with seq > cursor.seq, ascending. Returned cursor = highest seq
    *  successfully included (at-least-once: retrying from the input cursor
-   *  re-reads the same events). Throws if the cursor belongs to another log. */
+   *  re-reads the same events). Throws `EventLogCursorError` if the cursor
+   *  position lies beyond the current EventLog head (a sibling/truncated log
+   *  checkpoint against an active log) — the caller should fall back to
+   *  `beginningCursor()` rather than silently skip events. Throws a plain
+   *  `Error` if the cursor belongs to another log. */
   async readSince(cursor: EventLogCursor): Promise<{
     readonly events: readonly AlixEvent[];
     readonly cursor: EventLogCursor;
   }> {
     const internal = this.unwrap(cursor);
+    if (internal.seq > this.currentHead()) {
+      throw new EventLogCursorError('Cursor position is beyond the current EventLog head');
+    }
     const events = await this.readAll();
     const newer = events.filter(e => (e.seq ?? 0) > internal.seq);
     const lastSeq = newer.length > 0 ? (newer[newer.length - 1]!.seq ?? internal.seq) : internal.seq;
@@ -96,18 +116,46 @@ export class EventLog {
     return JSON.stringify(payload);
   }
 
-  /** Restore a cursor owned by this EventLog. Throws for malformed JSON, an
-   *  unknown version, or an invalid payload (a missing/non-integer seq). The
-   *  restored cursor is created via makeCursor, so it carries THIS instance's
-   *  owner token — a serialized cursor from another log is rejected by
-   *  unwrap/readSince as foreign. */
+  /** Restore a cursor owned by this EventLog. Has exactly four failure modes,
+   *  all of which throw `EventLogCursorError`:
+   *    1. malformed JSON (e.g. corrupted file, partial write),
+   *    2. unsupported version (a future migration landed with a different `version`),
+   *    3. invalid payload (a missing/non-integer/negative `seq`),
+   *    4. cursor position beyond the current EventLog head (a sibling or
+   *       truncated log checkpoint with `seq > current head`; without this
+   *       check the caller would silently skip events because `readSince`
+   *       filters on `seq > cursor.seq`).
+   *  Callers discriminate via `instanceof EventLogCursorError` to fall back
+   *  to `beginningCursor()` (deterministic full replay) on any of the four.
+   *  The restored cursor is created via `makeCursor`, so it carries THIS
+   *  instance's owner token — a serialized cursor from another log is
+   *  rejected by `unwrap`/`readSince` as foreign. */
   deserializeCursor(serialized: string): EventLogCursor {
-    const parsed = JSON.parse(serialized) as Partial<SerializedCursor>;
-    if (typeof parsed !== 'object' || parsed === null) throw new Error('Malformed serialized cursor');
-    if (parsed.version !== SERIALIZED_CURSOR_VERSION) throw new Error(`Unknown serialized cursor version: ${String(parsed.version)}`);
+    let parsed: Partial<SerializedCursor>;
+    try {
+      parsed = JSON.parse(serialized) as Partial<SerializedCursor>;
+    } catch {
+      // JSON.parse throws a SyntaxError for malformed input; we re-throw
+      // as the dedicated EventLogCursorError so callers can discriminate
+      // on `instanceof` and treat it as an invalid-cursor fallback rather
+      // than an operational error.
+      throw new EventLogCursorError('Malformed serialized cursor');
+    }
+    if (typeof parsed !== 'object' || parsed === null) throw new EventLogCursorError('Malformed serialized cursor');
+    if (parsed.version !== SERIALIZED_CURSOR_VERSION) throw new EventLogCursorError(`Unknown serialized cursor version: ${String(parsed.version)}`);
     const seq = parsed.seq;
-    if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0) throw new Error('Malformed serialized cursor seq');
+    if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0) throw new EventLogCursorError('Malformed serialized cursor seq');
+    if (seq > this.currentHead()) throw new EventLogCursorError('Serialized cursor position is beyond the current EventLog head');
     return this.makeCursor(seq);
+  }
+
+  /** Highest seq assigned by this EventLog so far (contiguous from 1 on
+   *  append). Returns 0 before any event has been appended. Used by
+   *  `deserializeCursor` and `readSince` to reject checkpoints whose `seq`
+   *  exceeds the active log head — those would otherwise silently skip
+   *  events because `readSince` filters on `seq > cursor.seq`. */
+  private currentHead(): number {
+    return this.nextSeq - 1;
   }
 
   private makeCursor(seq: number): EventLogCursor {

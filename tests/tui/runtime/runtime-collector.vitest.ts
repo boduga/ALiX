@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
+import { EventLogCursorError } from '../../../src/events/event-log.js';
 import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
@@ -194,6 +195,79 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const afterRetry = await collector.snapshot();
     expect(afterRetry!.trace[0]!.status).toBe('completed'); // now advanced + published
     expect(store.saved).toHaveLength(2);
+    // D5a sentinel invariant: a successful sample overwrites the in-memory
+    // checkpoint with a real `committedAt` (not the 0 sentinel that the
+    // constructor sets when no checkpoint has been durably saved yet).
+    // The retry's save must have a real timestamp on the last persisted
+    // checkpoint, NOT 0.
+    const lastSaved = store.saved[store.saved.length - 1]!;
+    expect(lastSaved.committedAt).toBeGreaterThan(0);
+  });
+
+  // Whole-branch review fix (Option A): a checkpoint whose `seq` lies past
+  // the active EventLog head must NOT silently skip events. The real
+  // EventLog.deserializeCursor throws `EventLogCursorError` for that case;
+  // we replicate the behavior on the mock and verify the collector falls
+  // back to `beginningCursor()` and the projection re-replays the events.
+  it('Beyond-head checkpoint (EventLogCursorError) → falls back to beginningCursor and re-replays', async () => {
+    const { log, append } = makeEventLog();
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
+    await append('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 });
+    // Mock's current head is seq=2 (two events). A checkpoint at seq=999 is
+    // beyond-head. Mirror the real EventLog: throw EventLogCursorError.
+    (log as unknown as { deserializeCursor: (s: string) => EventLogCursor }).deserializeCursor = (s: string) => {
+      const p = JSON.parse(s) as { version: number; seq: number };
+      if (p.version !== 1) throw new EventLogCursorError('unknown version');
+      if (p.seq > 2) throw new EventLogCursorError('Serialized cursor position is beyond the current EventLog head');
+      return { seq: p.seq, owner: Symbol('mock') } as unknown as EventLogCursor;
+    };
+    const store = makeCheckpointStore();
+    // Persist a checkpoint whose seq (999) is well past the current head (2).
+    await store.save({ version: 1, cursor: JSON.stringify({ version: 1, seq: 999 }), committedAt: 1_700_000_000_000 });
+
+    const collector = new RuntimeCollectorImpl(log, store);
+    const start = (collector as unknown as { start(): Promise<void> }).start;
+    await start.call(collector);
+    const snap = await collector.snapshot();
+    // Must have re-replayed from beginningCursor: the tool.started event is
+    // visible in the trace, and the subsequent tool.completed reconciled it
+    // to 'completed' (the first sample after reset consumes BOTH events).
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.status).toBe('completed');
+    expect(snap?.totalEventCount).toBe(2);
+    // And the on-disk checkpoint must have been overwritten with a valid
+    // (non-beyond-head) position.
+    expect(store.saved.length).toBeGreaterThanOrEqual(2);
+    const lastSaved = store.saved[store.saved.length - 1]!;
+    expect(JSON.parse(lastSaved.cursor).seq).toBeLessThanOrEqual(2);
+    collector.stop();
+  });
+
+  // Operational vs invalid-cursor discrimination: a plain Error from
+  // readSince (e.g., a transient disk read) must NOT trigger resetCheckpoint
+  // — the previous cache and checkpoint are preserved so the dashboard
+  // never blanks. The next successful sample advances both.
+  it('Operational readSince error (non-EventLogCursorError) preserves the previous cache and checkpoint', async () => {
+    const { log, append } = makeEventLog();
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
+    const collector = new RuntimeCollectorImpl(log, makeCheckpointStore());
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const before = await collector.snapshot();
+
+    // Force a plain (operational) readSince rejection — NOT an EventLogCursorError.
+    const origRead = log.readSince.bind(log);
+    (log as unknown as { readSince: unknown }).readSince = async () => { throw new Error('disk read failed'); };
+    await sample.call(collector);
+    const after = await collector.snapshot();
+    expect(after).toEqual(before);              // cache unchanged — dashboard never blanks
+    (log as unknown as { readSince: unknown }).readSince = origRead;
+
+    // Subsequent successful sample advances the cache normally.
+    await append('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 });
+    await sample.call(collector);
+    const afterRetry = await collector.snapshot();
+    expect(afterRetry!.trace[0]!.status).toBe('completed');
   });
 
   it('persists every successful sample (write cadence = every sample)', async () => {

@@ -17,7 +17,7 @@
  * `readAll()` in the poll loop.
  */
 
-import type { EventLog, EventLogCursor } from '../events/event-log.js';
+import { EventLog, EventLogCursorError, type EventLogCursor } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
 import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
 import { CHECKPOINT_CONTAINER_VERSION } from './runtime/projection-checkpoint-store.js';
@@ -79,9 +79,13 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   }
 
   /** Restore the durable checkpoint, falling back to beginningCursor when the
-   *  store has none, its load() rejects, it holds a malformed/unknown-version
-   *  serialized cursor, or deserialization throws — in every fallback case we
-   *  replay from the start. */
+   *  store has none, its load() rejects (operational — disk read failure), or
+   *  the serialized cursor is invalid (any of the four `EventLogCursorError`
+   *  modes: malformed JSON, unsupported version, invalid payload, or a `seq`
+   *  that lies beyond the current EventLog head). In every fallback case we
+   *  replay from the start. The two catches are split so the invalid-cursor
+   *  path is explicit (and the operational path keeps its null fallback
+   *  instead of a half-restored checkpoint). */
   private async initializeCheckpoint(): Promise<void> {
     let loaded: Awaited<ReturnType<ProjectionCheckpointStore['load']>> = null;
     try { loaded = await this.checkpointStore.load(); } catch { loaded = null; }
@@ -94,8 +98,19 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         cursor: this.eventLog.deserializeCursor(loaded.cursor),
         committedAt: loaded.committedAt,
       };
-    } catch {
-      this.resetCheckpoint();
+    } catch (err) {
+      if (err instanceof EventLogCursorError) {
+        // Invalid checkpoint (any of the four EventLogCursorError modes) —
+        // fall back to a full replay from beginningCursor. The persisted
+        // checkpoint file is left untouched; a subsequent successful sample
+        // will overwrite it with a valid one.
+        this.resetCheckpoint();
+      } else {
+        // Operational failure during deserialization (none expected today,
+        // but kept for future-proofing — a future cursor backend that throws
+        // a non-cursor error). Same fallback: full replay.
+        this.resetCheckpoint();
+      }
     }
   }
 
@@ -128,10 +143,40 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
    * ordering, a throw from computeWorkflow/builder.snapshot after a successful
    * save would leave the durable checkpoint ahead of the published snapshot,
    * and the next sample would skip the window's events.
+   *
+   * Invalid-cursor discrimination: a `readSince` throw of `EventLogCursorError`
+   * (the beyond-head case) means the persisted checkpoint's `seq` lies past
+   * the current log head — we MUST reset to `beginningCursor()` or the
+   * in-memory projection will keep an out-of-range cursor and skip every
+   * subsequent event. We reset and return; the next sample re-reads from the
+   * start. Operational failures (disk read, save rejection) take the existing
+   * path: preserve the current checkpoint + cache and retry next sample.
    */
   private async sample(): Promise<void> {
+    let batch;
     try {
-      const batch = await this.eventLog.readSince(this.checkpoint.cursor);
+      batch = await this.eventLog.readSince(this.checkpoint.cursor);
+    } catch (err) {
+      if (err instanceof EventLogCursorError) {
+        // Invalid cursor (beyond-head position). Drop the persisted
+        // checkpoint's seq so the next sample re-reads from beginningCursor.
+        // The builder is idempotent by event seq (re-applying already-seen
+        // seqs is a no-op), so we leave its accumulated state in place — a
+        // truncated log may leave stale trace entries, but the rebuild on
+        // the next sample will not duplicate them and will pick up any
+        // events that still exist in the log. Cache stays as-is for this
+        // sample; the next sample publishes the rebuilt snapshot.
+        this.resetCheckpoint();
+        return;
+      }
+      // Operational read failure — preserve the current checkpoint + cache;
+      // we return early so the rest of the sample (builder update, save)
+      // does not run on a half-read batch. The next sample retries the
+      // read from the same cursor.
+      return;
+    }
+
+    try {
       this.builder.update(batch.events);
 
       const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };

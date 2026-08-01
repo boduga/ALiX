@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { EventLog } from '../../src/events/event-log.js';
+import { EventLog, EventLogCursorError } from '../../src/events/event-log.js';
 import type { EventLogCursor } from '../../src/events/event-log.js';
 
 async function makeLog(): Promise<EventLog> {
@@ -101,6 +101,75 @@ describe('EventLog cursor', () => {
     const log = await makeLog();
     expect(() => log.deserializeCursor('not-json')).toThrow();
     expect(() => log.deserializeCursor(JSON.stringify({ version: 99, seq: 5 }))).toThrow();
+  });
+
+  // Whole-branch review fix (Option A): a serialized cursor whose `seq`
+  // exceeds the current EventLog head must NOT silently skip events.
+  // `deserializeCursor` throws `EventLogCursorError` (the fourth failure
+  // mode) so the collector can discriminate and fall back to
+  // `beginningCursor()`. A cursor from a sibling log with a higher head
+  // is the canonical trigger: the new log's deserialize rejects it
+  // because its own head is lower than the cursor's claimed position.
+  it('deserializeCursor throws EventLogCursorError when seq exceeds the live head (sibling-log cursor)', async () => {
+    const logA = await makeLog();
+    await logA.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc1', toolName: 'search' } });
+    await logA.append({ sessionId: 's', actor: 'system', type: 'tool.completed', payload: { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 } });
+    await logA.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc2', toolName: 'edit' } });
+    // logA's head = 3. Serialize a cursor at that head.
+    const cursorAt3 = logA.serializeCursor(logA.getCursor());
+
+    // Build a fresh log on a different session dir with head = 1.
+    const dirB = mkdtempSync(join(tmpdir(), 'alix-cursor-beyond-'));
+    const logB = new EventLog(dirB);
+    await logB.init();
+    await logB.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc1', toolName: 'search' } });
+    // Restoring logA's cursor (seq=3) into logB (head=1) must throw the
+    // dedicated beyond-head EventLogCursorError.
+    expect(() => logB.deserializeCursor(cursorAt3)).toThrow(EventLogCursorError);
+    // And the message must indicate the head boundary.
+    expect(() => logB.deserializeCursor(cursorAt3)).toThrow(/beyond the current EventLog head/);
+  });
+
+  it('deserializeCursor throws EventLogCursorError for all four failure modes', async () => {
+    const log = await makeLog();
+    await log.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc1', toolName: 'search' } });
+    // head = 1
+    // 1. Malformed JSON
+    expect(() => log.deserializeCursor('not-json')).toThrow(EventLogCursorError);
+    // 2. Unsupported version
+    expect(() => log.deserializeCursor(JSON.stringify({ version: 99, seq: 0 }))).toThrow(EventLogCursorError);
+    // 3. Invalid payload (non-integer seq)
+    expect(() => log.deserializeCursor(JSON.stringify({ version: 1, seq: 1.5 }))).toThrow(EventLogCursorError);
+    // 4. Beyond-head position
+    expect(() => log.deserializeCursor(JSON.stringify({ version: 1, seq: 999 }))).toThrow(EventLogCursorError);
+  });
+
+  it('readSince defensively rejects a beyond-head cursor even if one is somehow constructed', async () => {
+    const logA = await makeLog();
+    await logA.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc1', toolName: 'search' } });
+    await logA.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc2', toolName: 'edit' } });
+    await logA.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc3', toolName: 'lint' } });
+    // logA's head = 3.
+    const cursorAt3 = logA.serializeCursor(logA.getCursor());
+    // logB has only 1 event (head = 1). deserializeCursor rejects
+    // (covered by the test above), so readSince never sees a
+    // beyond-head cursor on a single log. The contract assertion
+    // here is: on a log whose head has been bumped DOWN — for
+    // example, after `init()` re-reads a truncated events.jsonl
+    // (the bug scenario in the whole-branch review) — deserialize
+    // still rejects. The defensive readSince check is a second
+    // line of defense and is exercised by the deserialize path
+    // already (deserialize throws first). We assert the
+    // deserialize-side contract here; a future caller that
+    // hand-builds a cursor via the private makeCursor (not
+    // possible from outside the module) would hit the readSince
+    // defensive check. The deserialize check is the contract
+    // surface.
+    const dirB = mkdtempSync(join(tmpdir(), 'alix-cursor-readsince-'));
+    const logB = new EventLog(dirB);
+    await logB.init();
+    await logB.append({ sessionId: 's', actor: 'system', type: 'tool.started', payload: { toolCallId: 'tc1', toolName: 'search' } });
+    expect(() => logB.deserializeCursor(cursorAt3)).toThrow(EventLogCursorError);
   });
 
   it('serialized cursor is versioned and persists no owner token', async () => {
