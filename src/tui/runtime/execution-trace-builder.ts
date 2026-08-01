@@ -41,13 +41,23 @@ const STATUS_BY_TYPE: Record<string, ExecutionTraceEntry['status']> = {
   'workflow.completed': 'completed',
 };
 
-interface OpenLifecycle {
+/** Internal mutable projection state. `readonly` here only prevents
+ *  reassignment of the fields, NOT mutation of the Map/Set contents — this
+ *  object is intentionally mutable. Never expose references returned from it. */
+export interface ExecutionTraceState {
+  readonly seenSequences: Set<number>;
+  readonly openByKey: Map<string, MutableLifecycle>;
+  readonly terminalById: Map<string, ExecutionTraceEntry>;
+}
+
+export interface MutableLifecycle {
   kind: ExecutionTraceKind;
   key: string;              // toolCallId / invocationId / timingId / workflowId / phase / approvalId / checkpointId
   title: string;
-  /** Detail carried from intermediate events (e.g. tool stdout on tool.output).
-   *  Read when the terminal event closes the lifecycle. */
-  detail?: string;
+  /** Streamed detail parts accumulated from intermediate events (e.g. each
+   *  tool.output stdout preview appends here). Joined with "\n" at
+   *  materialization — long-running tool traces accumulate, not overwrite. */
+  detailParts: string[];
   startedAt: number;
   firstSequence: number;
   lastSequence: number;
@@ -112,65 +122,70 @@ function resolveDetail(payload: Record<string, unknown>, carried?: string): stri
   return terminal ?? carried;
 }
 
-/**
- * Pure: group AlixEvents into lifecycle units. Groups over the complete
- * known history (the collector passes readAll()). Does NOT mutate AlixEvents
- * and does NOT return references into their payloads — fields are copied.
- * Entries are assembled oldest→newest by first event; open lifecycles get
- * status 'running' when no terminal event is present.
- */
-export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTraceEntry[] {
-  const open = new Map<string, OpenLifecycle>();
-  const done: ExecutionTraceEntry[] = [];
+export function createTraceState(): ExecutionTraceState {
+  return { seenSequences: new Set(), openByKey: new Map(), terminalById: new Map() };
+}
 
+/** Reconcile new events into the projection state. Idempotent by event seq:
+ *  an event whose seq is already seen is skipped. Terminal lifecycles are
+ *  first-write-wins — a later terminal for the same tr-${firstSequence} does
+ *  not rewrite the stored entry (its seq is still marked seen). */
+export function reconcileEvents(state: ExecutionTraceState, events: readonly AlixEvent[]): void {
   for (const e of events) {
+    const seqNum = e.seq ?? 0;
+    if (state.seenSequences.has(seqNum)) continue;
+    state.seenSequences.add(seqNum);
+
     const kind = kindOf(e.type);
     if (!kind) continue;
     const payload = (e.payload ?? {}) as Record<string, unknown>;
-    const seqNum = e.seq ?? 0;
     const key = keyOf(e.type, payload, seqNum);
     const ts = Date.parse(e.timestamp) || 0;
-
     const isTerminal = TERMINAL_TYPES.has(e.type);
 
     if (!isTerminal) {
-      // Open the lifecycle (or keep the earliest open on repeat start events).
-      let o = open.get(`${kind}:${key}`);
+      const mapKey = `${kind}:${key}`;
+      let o = state.openByKey.get(mapKey);
       if (!o) {
-        o = {
-          kind, key, title: titleOf(kind, e.type, payload),
-          startedAt: ts, firstSequence: seqNum, lastSequence: seqNum,
-        };
-        open.set(`${kind}:${key}`, o);
+        o = { kind, key, title: titleOf(kind, e.type, payload), detailParts: [], startedAt: ts, firstSequence: seqNum, lastSequence: seqNum };
+        state.openByKey.set(mapKey, o);
       } else {
         o.lastSequence = Math.max(o.lastSequence, seqNum);
       }
-      // Carry intermediate detail forward on the open lifecycle — tool stdout
-      // lives on the intermediate tool.output event, not the terminal. Keep the
-      // first non-empty preview; the open map's detail is read when the
-      // terminal closes the lifecycle.
-      if (e.type === TOOL_EVENT_TYPES.OUTPUT && o.detail === undefined) {
+      // Accumulate streamed detail (each tool.output preview appends) — a
+      // long-running tool trace builds up, it does not overwrite.
+      if (e.type === TOOL_EVENT_TYPES.OUTPUT) {
         const preview = payload.outputPreview;
-        if (typeof preview === 'string' && preview.length > 0) o.detail = preview;
+        if (typeof preview === 'string' && preview.length > 0) o.detailParts.push(preview);
       }
       continue;
     }
 
-    const o = open.get(`${kind}:${key}`);
+    const mapKey = `${kind}:${key}`;
+    const o = state.openByKey.get(mapKey);
     const status: ExecutionTraceEntry['status'] = STATUS_BY_TYPE[e.type] ?? 'completed';
+    const id = o ? traceIdFor(o.firstSequence) : traceIdFor(seqNum);
+
+    // First-write-wins: a duplicate terminal for an already-materialized
+    // lifecycle is ignored (the terminal map already holds the winning entry).
+    // NOTE: the duplicate terminal's seq was already added to seenSequences at
+    // the top of the loop — those seqs are retained for diagnostics (per D5),
+    // so a future maintainer must NOT "fix" that by removing them.
+    if (state.terminalById.has(id)) continue;
+
     if (o) {
-      done.push({
-        id: traceIdFor(o.firstSequence), kind, status, title: o.title,
-        detail: resolveDetail(payload, o.detail),
+      state.terminalById.set(id, {
+        id, kind, status, title: o.title,
+        detail: resolveDetail(payload, o.detailParts.join("\n")),
         startedAt: o.startedAt, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : Math.max(0, ts - o.startedAt),
         sourceEvents: { firstSequence: o.firstSequence, lastSequence: Math.max(o.lastSequence, seqNum) },
       });
-      open.delete(`${kind}:${key}`);
+      state.openByKey.delete(mapKey);
     } else {
       // A terminal event without a recorded open — synthesize a completed entry.
-      done.push({
-        id: traceIdFor(seqNum), kind, status, title: titleOf(kind, e.type, payload),
+      state.terminalById.set(id, {
+        id, kind, status, title: titleOf(kind, e.type, payload),
         detail: resolveDetail(payload),
         startedAt: ts, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : 0,
@@ -178,21 +193,49 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
       });
     }
   }
+}
 
-  // Any remaining open lifecycles become 'running' entries, oldest first.
-  // Running entries carry NO lastSequence — an open lifecycle boundary has no
-  // terminal event, so consumers can distinguish "last observed event" from a
-  // completed lifecycle boundary.
-  for (const o of [...open.values()].sort((a, b) => a.firstSequence - b.firstSequence)) {
-    done.push({
+/** Emit fresh immutable DTOs. Terminal entries oldest→newest by firstSequence,
+ *  then open entries as running (oldest first, NO lastSequence). Never returns
+ *  references into state maps. */
+export function materializeTrace(state: ExecutionTraceState): ExecutionTraceEntry[] {
+  const terminal = [...state.terminalById.values()]
+    .sort((a, b) => a.sourceEvents.firstSequence - b.sourceEvents.firstSequence)
+    .map(cloneEntry);
+  const running = [...state.openByKey.values()]
+    .sort((a, b) => a.firstSequence - b.firstSequence)
+    .map(o => cloneEntry({
       id: traceIdFor(o.firstSequence), kind: o.kind, status: 'running', title: o.title,
-      detail: o.detail,
+      detail: o.detailParts.length > 0 ? o.detailParts.join("\n") : undefined,
       startedAt: o.startedAt,
       sourceEvents: { firstSequence: o.firstSequence },
-    });
-  }
+    }));
+  return [...terminal, ...running];
+}
 
-  return done;
+function cloneEntry(e: ExecutionTraceEntry): ExecutionTraceEntry {
+  return {
+    id: e.id, kind: e.kind, status: e.status, title: e.title,
+    ...(e.detail !== undefined ? { detail: e.detail } : {}),
+    startedAt: e.startedAt,
+    ...(e.completedAt !== undefined ? { completedAt: e.completedAt } : {}),
+    ...(e.durationMs !== undefined ? { durationMs: e.durationMs } : {}),
+    sourceEvents: {
+      firstSequence: e.sourceEvents.firstSequence,
+      ...(e.sourceEvents.lastSequence !== undefined ? { lastSequence: e.sourceEvents.lastSequence } : {}),
+    },
+  };
+}
+
+/**
+ * Compatibility wrapper over the shared reconciliation engine. Deterministic
+ * one-shot reconstruction (bootstrap/tests). The incremental builder uses the
+ * SAME engine — no second grouping algorithm.
+ */
+export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTraceEntry[] {
+  const state = createTraceState();
+  reconcileEvents(state, events);
+  return materializeTrace(state);
 }
 
 /** Pure builder contract. `build` over the full history today; a future

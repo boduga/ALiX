@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  buildExecutionTrace, createExecutionTraceBuilder, createExecutionTraceRetention, computeExecutionTrace,
+  buildExecutionTrace, createTraceState, reconcileEvents, materializeTrace,
+  createExecutionTraceBuilder, createExecutionTraceRetention, computeExecutionTrace,
 } from '../../../src/tui/runtime/execution-trace-builder.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 
@@ -297,5 +298,39 @@ describe('computeExecutionTrace', () => {
     const out = computeExecutionTrace(events, w);
     expect(out).toHaveLength(1);
     expect(out[0]!.status).toBe('completed');
+  });
+});
+
+describe('reconciliation engine (createTraceState/reconcileEvents/materializeTrace)', () => {
+  it('materializeTrace returns freshly-constructed DTOs, never internal map references', () => {
+    const state = createTraceState();
+    reconcileEvents(state, [evt('tool.started', { toolCallId: 'tc1', toolName: 'search' })]);
+    const materialized = materializeTrace(state);
+    // Mutating the returned DTO must not corrupt internal state.
+    (materialized[0] as { title: string }).title = 'mutated';
+    const again = materializeTrace(state);
+    expect(again[0]!.title).toBe('tool.search');
+  });
+
+  it('buildExecutionTrace wrapper equals reconcile+materialize over the same input', () => {
+    const events = [
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ];
+    const state = createTraceState();
+    reconcileEvents(state, events);
+    expect(materializeTrace(state)).toEqual(buildExecutionTrace(events));
+  });
+
+  it('reconcileEvents is idempotent by event seq (replaying events does not duplicate)', () => {
+    const events = [
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ];
+    const state = createTraceState();
+    reconcileEvents(state, events);
+    const once = materializeTrace(state);
+    reconcileEvents(state, events); // replay
+    expect(materializeTrace(state)).toEqual(once);
   });
 });
