@@ -77,7 +77,7 @@ EventLog (append-only execution truth)
 RuntimeCollectorImpl  (polls, orchestrates)
     │
     ├── ExecutionTraceBuilder  (pure: events → lifecycle entries)
-    │        └── ExecutionTraceWindow  (retention policy)
+    │        └── ExecutionTraceRetention  (retention policy)
     │
     └── RuntimeSnapshot
           ├── …existing summary fields…
@@ -89,10 +89,10 @@ RuntimeCollectorImpl  (polls, orchestrates)
 
 **Stage responsibilities:**
 - **`ExecutionTraceBuilder`** — pure. Answers "what lifecycle entries exist?" Groups over the complete known history (starts with `EventLog.readAll()`; interface designed so an incremental `update(newEvents)` slots in later without touching the collector/view). Owns the lifecycle map.
-- **`ExecutionTraceWindow`** — retention only. Answers "which entries are retained?" Keeps every open (`running`) entry; keeps the last N (e.g. 50) terminal units. **Ordering rule:** terminal entries render oldest→newest, then open (`running`) entries appended after them — a long-running tool cannot visually dominate the tab forever. Conceptually separate from building; initially co-located in the same file. **Formal interface** — no builder logic, no EventLog knowledge, no timestamp interpretation, only retention:
+- **`ExecutionTraceRetention`** — retention only. Answers "which entries are retained?" Keeps every open (`running`) entry; keeps the last N (e.g. 50) terminal units. **Ordering rule:** terminal entries render oldest→newest, then open (`running`) entries appended after them — a long-running tool cannot visually dominate the tab forever. Conceptually separate from building; initially co-located in the same file. **Formal interface** — no builder logic, no EventLog knowledge, no timestamp interpretation, only retention:
 
 ```ts
-export interface ExecutionTraceWindow {
+export interface ExecutionTraceRetention {
   apply(entries: readonly ExecutionTraceEntry[]): readonly ExecutionTraceEntry[];
 }
 ```
@@ -134,7 +134,7 @@ On `PerTabState`: `runtimeTraceFilter: RuntimeTraceFilter` (default `'all'`). Th
 tool.started, tool.stdout, tool.completed   ─┐
 policy.check.started, policy.allowed        ─┼─► ExecutionTraceBuilder ─► ExecutionTraceEntry[]
 capability.InvocationStarted/…              ─┘         │
-                                                 ExecutionTraceWindow (running kept, terminal keepLast 50)
+                                                 ExecutionTraceRetention (running kept, terminal keepLast 50)
                                                          │
                                                    RuntimeSnapshot.trace (readonly)
                                                          │

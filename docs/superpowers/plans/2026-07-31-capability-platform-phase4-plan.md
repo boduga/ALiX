@@ -4,7 +4,7 @@
 
 **Goal:** Upgrade the Runtime tab from a flat `actor:type` event list into a structured, lifecycle-aware Execution Trace — a projection over the append-only `EventLog` grouped into operator-meaningful lifecycle units (tool runs, policy verdicts, capability invocations, runtime transitions), with client-side filtering.
 
-**Architecture:** A pure `ExecutionTraceBuilder` converts `AlixEvent[]` into immutable `ExecutionTraceEntry[]` lifecycle units; an `ExecutionTraceWindow` applies retention (running entries never evicted; terminal keep-last-50, terminal-oldest→newest then running appended); `RuntimeCollectorImpl` orchestrates the pipeline into `RuntimeSnapshot.trace`; `RuntimeView` renders the DTOs with a view-local filter. The operator timeline (`timelineEvents[]`) is untouched.
+**Architecture:** A pure `ExecutionTraceBuilder` converts `AlixEvent[]` into immutable `ExecutionTraceEntry[]` lifecycle units; an `ExecutionTraceRetention` applies retention (running entries never evicted; terminal keep-last-50, terminal-oldest→newest then running appended); `RuntimeCollectorImpl` orchestrates the pipeline into `RuntimeSnapshot.trace`; `RuntimeView` renders the DTOs with a view-local filter. The operator timeline (`timelineEvents[]`) is untouched.
 
 **Tech Stack:** TypeScript (NodeNext ESM, strict), vitest, the existing TUI collector/snapshot/view system.
 
@@ -41,14 +41,14 @@ Payload fields of interest (all defensive reads): tool events carry `toolCallId`
 - Test: `tests/tui/runtime/execution-trace.vitest.ts`
 
 **Interfaces:**
-- Produces: `ExecutionTraceKind`, `ExecutionTraceStatus`, `ExecutionTraceEntry`, `ExecutionTraceWindow` (all below). Tasks 2-6 consume these.
+- Produces: `ExecutionTraceKind`, `ExecutionTraceStatus`, `ExecutionTraceEntry`, `ExecutionTraceRetention` (all below). Tasks 2-6 consume these.
 
 - [ ] **Step 1: Write the failing test**
 
 ```typescript
 // tests/tui/runtime/execution-trace.vitest.ts
 import { describe, it, expect } from 'vitest';
-import type { ExecutionTraceEntry, ExecutionTraceWindow } from '../../src/tui/runtime/execution-trace.js';
+import type { ExecutionTraceEntry, ExecutionTraceRetention } from '../../src/tui/runtime/execution-trace.js';
 
 describe('ExecutionTraceEntry contract', () => {
   it('is a readonly DTO (type-level: assigning a readonly field must fail to compile)', () => {
@@ -71,11 +71,20 @@ describe('ExecutionTraceEntry contract', () => {
     expect(e.completedAt).toBeUndefined();
     expect(e.sourceEvents.lastSequence).toBeUndefined();
   });
+
+  it('running entries carry NO lastSequence (open lifecycle boundary)', () => {
+    const e: ExecutionTraceEntry = {
+      id: 'tr-3', kind: 'tool', status: 'running',
+      title: 'tool.search', startedAt: 3000,
+      sourceEvents: { firstSequence: 7 },
+    };
+    expect(e.sourceEvents.lastSequence).toBeUndefined();
+  });
 });
 
-describe('ExecutionTraceWindow interface', () => {
+describe('ExecutionTraceRetention interface', () => {
   it('declares apply(entries) → readonly entries', () => {
-    const w: ExecutionTraceWindow = { apply: (es) => es };
+    const w: ExecutionTraceRetention = { apply: (es) => es };
     const input: ExecutionTraceEntry[] = [];
     const out = w.apply(input);
     expect(out).toBe(input);
@@ -129,10 +138,11 @@ export interface ExecutionTraceEntry {
  * Retention policy over lifecycle entries. No builder logic, no EventLog
  * knowledge, no timestamp interpretation — only retention:
  *   - open (`running`) entries are NEVER evicted;
- *   - terminal entries render oldest→newest, then open entries appended after;
+ *   - terminal entries sort oldest→newest by startedAt, then open entries
+ *     appended after;
  *   - at most `maxTerminal` terminal entries are kept (default 50).
  */
-export interface ExecutionTraceWindow {
+export interface ExecutionTraceRetention {
   apply(entries: readonly ExecutionTraceEntry[]): readonly ExecutionTraceEntry[];
 }
 ```
@@ -158,8 +168,8 @@ git commit -m "feat(capabilities): execution trace contracts — kind/status/ent
 - Test: `tests/tui/runtime/execution-trace-builder.vitest.ts`
 
 **Interfaces:**
-- Consumes: `ExecutionTraceEntry`, `ExecutionTraceKind`, `ExecutionTraceStatus`, `ExecutionTraceWindow` (Task 1); `AlixEvent` from `src/events/types.js`.
-- Produces: `buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTraceEntry[]`, `createExecutionTraceWindow(maxTerminal?: number): ExecutionTraceWindow`, `computeExecutionTrace(events, window): ExecutionTraceEntry[]` (the builder+window composition the collector calls).
+- Consumes: `ExecutionTraceEntry`, `ExecutionTraceKind`, `ExecutionTraceStatus`, `ExecutionTraceRetention` (Task 1); `AlixEvent` from `src/events/types.js` (note: from `src/tui/runtime/`, that's `../../events/types.js`).
+- Produces: `buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTraceEntry[]`, `createExecutionTraceRetention(maxTerminal?: number): ExecutionTraceRetention`, `computeExecutionTrace(events, retention): ExecutionTraceEntry[]` (the builder+retention composition the collector calls).
 
 - [ ] **Step 1: Write the failing test**
 
@@ -167,7 +177,7 @@ git commit -m "feat(capabilities): execution trace contracts — kind/status/ent
 // tests/tui/runtime/execution-trace-builder.vitest.ts
 import { describe, it, expect } from 'vitest';
 import {
-  buildExecutionTrace, createExecutionTraceWindow, computeExecutionTrace,
+  buildExecutionTrace, createExecutionTraceRetention, computeExecutionTrace,
 } from '../../src/tui/runtime/execution-trace-builder.js';
 import type { AlixEvent } from '../../src/events/types.js';
 
@@ -197,18 +207,39 @@ describe('buildExecutionTrace', () => {
     expect(e.sourceEvents.lastSequence).toBe(3);
   });
 
-  it('marks a tool with no terminal event as running (open lifecycle)', () => {
+  it('marks a tool with no terminal event as running (open lifecycle) with NO lastSequence', () => {
     const entries = buildExecutionTrace([evt('tool.started', { toolCallId: 'tc1', toolName: 'search' })]);
     expect(entries).toHaveLength(1);
     expect(entries[0]!.status).toBe('running');
     expect(entries[0]!.sourceEvents.lastSequence).toBeUndefined();
+    expect(entries[0]!.sourceEvents.firstSequence).toBe(1);
   });
 
-  it('collapses policy.decision into one verdict entry', () => {
-    const entries = buildExecutionTrace([evt('policy.decision', { allowed: true, rule: 'r1' })]);
-    expect(entries).toHaveLength(1);
+  it('each policy.decision is a standalone verdict entry (no cross-decision collapse)', () => {
+    const entries = buildExecutionTrace([
+      evt('policy.decision', { allowed: true, rule: 'r1' }),
+      evt('policy.decision', { allowed: false, rule: 'r2' }),
+    ]);
+    expect(entries).toHaveLength(2);
     expect(entries[0]!.kind).toBe('policy');
     expect(entries[0]!.status).toBe('completed');
+  });
+
+  it('distinguishes capability invocations that lack stable IDs (seq fallback key)', () => {
+    const entries = buildExecutionTrace([
+      evt('capability.InvocationStarted', { capabilityId: 'core.session.list' }),
+      evt('capability.InvocationStarted', { capabilityId: 'core.session.list' }),
+    ]);
+    // Two distinct starts with no invocationId must NOT collapse into one.
+    expect(entries).toHaveLength(2);
+  });
+
+  it('ignores unknown EventLog events without throwing (forward compatibility)', () => {
+    const entries = buildExecutionTrace([
+      evt('future.new_event', { foo: 'bar' }),
+      evt('another.unknown', { x: 1 }),
+    ]);
+    expect(entries).toEqual([]);
   });
 
   it('tracks capability lifecycle open→terminal', () => {
@@ -242,13 +273,13 @@ describe('buildExecutionTrace', () => {
   });
 });
 
-describe('createExecutionTraceWindow', () => {
-  function entry(id: string, status: 'running' | 'completed', first: number): { id: string; status: string; kind: string; title: string; startedAt: number; sourceEvents: { firstSequence: number } } {
-    return { id, kind: 'tool', title: 't', startedAt: first, status, sourceEvents: { firstSequence: first } } as never;
+describe('createExecutionTraceRetention', () => {
+  function entry(id: string, status: 'running' | 'completed', startedAt: number): { id: string; status: string; kind: string; title: string; startedAt: number; sourceEvents: { firstSequence: number } } {
+    return { id, kind: 'tool', title: 't', startedAt, status, sourceEvents: { firstSequence: startedAt } } as never;
   }
 
   it('never evicts running entries and bounds terminal to maxTerminal', () => {
-    const w = createExecutionTraceWindow(2);
+    const w = createExecutionTraceRetention(2);
     const out = w.apply([
       entry('c1', 'completed', 1), entry('c2', 'completed', 2), entry('c3', 'completed', 3),
       entry('r1', 'running', 4),
@@ -256,8 +287,8 @@ describe('createExecutionTraceWindow', () => {
     expect(out.map(e => (e as { id: string }).id)).toEqual(['c2', 'c3', 'r1']);
   });
 
-  it('orders terminal oldest→newest then running appended after', () => {
-    const w = createExecutionTraceWindow(50);
+  it('sorts terminal oldest→newest by startedAt then appends running after', () => {
+    const w = createExecutionTraceRetention(50);
     const out = w.apply([
       entry('r1', 'running', 5), entry('c2', 'completed', 2), entry('c1', 'completed', 1),
     ] as never);
@@ -266,8 +297,8 @@ describe('createExecutionTraceWindow', () => {
 });
 
 describe('computeExecutionTrace', () => {
-  it('runs build then window', () => {
-    const w = createExecutionTraceWindow(50);
+  it('runs build then retention', () => {
+    const w = createExecutionTraceRetention(50);
     const events = [
       evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
       evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
@@ -288,11 +319,12 @@ Expected: FAIL — module not found.
 
 ```typescript
 // src/tui/runtime/execution-trace-builder.ts
-import type { AlixEvent } from '../events/types.js';
-import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceWindow } from './execution-trace.js';
+import type { AlixEvent } from '../../events/types.js';
+import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceRetention } from './execution-trace.js';
 
-let traceSeq = 0;
-function nextTraceId(): string { return `tr-${++traceSeq}`; }
+// Trace entry ids are derived from the source event's firstSequence — no hidden
+// module-global mutable state, deterministic and replay-safe within a runtime.
+function traceIdFor(firstSequence: number): string { return `tr-${firstSequence}`; }
 
 const TOOL_TYPES = new Set(['tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed']);
 const POLICY_TYPES = new Set(['policy.decision', 'approval.requested', 'approval.resolved', 'patch.checkpoint_created', 'patch.rollback_started', 'patch.rollback_completed', 'patch.rollback_failed']);
@@ -340,14 +372,19 @@ function kindOf(type: string): ExecutionTraceKind | null {
   return null;
 }
 
-/** Extract a stable grouping key for an event of a given kind. */
-function keyOf(type: string, payload: Record<string, unknown>): string {
-  if (type.startsWith('capability.')) return String(payload.invocationId ?? payload.capabilityId ?? '?');
-  if (type.startsWith('tool.')) return String(payload.toolCallId ?? '?');
-  if (type.startsWith('runtime.phase')) return String(payload.phase ?? '?');
+/** Extract a stable grouping key for an event of a given kind. Falls back to
+ *  `type:seq` so independent lifecycle starts with missing IDs never collapse
+ *  onto one key. */
+function keyOf(type: string, payload: Record<string, unknown>, seq: number): string {
+  if (type.startsWith('capability.')) return String(payload.invocationId ?? payload.capabilityId ?? `${type}:${seq}`);
+  if (type.startsWith('tool.')) return String(payload.toolCallId ?? `${type}:${seq}`);
+  if (type.startsWith('runtime.phase')) return String(payload.phase ?? `${type}:${seq}`);
   if (type === 'agent.session.phase_changed') return 'phase';
   if (type === 'workflow.created' || type === 'workflow.completed') return 'workflow';
-  return String(payload.proposalId ?? payload.rule ?? '?');
+  // policy.decision is a standalone terminal event — each decision is its own
+  // lifecycle unit unless an explicit correlation ID ties it to an open approval.
+  if (type === 'policy.decision') return `policy:${seq}`;
+  return String(payload.proposalId ?? payload.rule ?? `${type}:${seq}`);
 }
 
 /** Build a one-line title for a lifecycle unit from its first (open) event. */
@@ -375,8 +412,8 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
     const kind = kindOf(e.type);
     if (!kind) continue;
     const payload = (e.payload ?? {}) as Record<string, unknown>;
-    const key = keyOf(e.type, payload);
     const seqNum = e.seq ?? 0;
+    const key = keyOf(e.type, payload, seqNum);
     const ts = Date.parse(e.timestamp) || 0;
 
     const isTerminal = TERMINAL_TYPES.has(e.type);
@@ -402,7 +439,7 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
         : typeof payload.error === 'string' ? payload.error
           : typeof payload.phase === 'string' ? payload.phase : undefined;
       done.push({
-        id: nextTraceId(), kind, status, title: o.title, detail,
+        id: traceIdFor(o.firstSequence), kind, status, title: o.title, detail,
         startedAt: o.startedAt, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : Math.max(0, ts - o.startedAt),
         sourceEvents: { firstSequence: o.firstSequence, lastSequence: Math.max(o.lastSequence, seqNum) },
@@ -411,7 +448,7 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
     } else {
       // A terminal event without a recorded open — synthesize a completed entry.
       done.push({
-        id: nextTraceId(), kind, status, title: titleOf(kind, e.type, payload),
+        id: traceIdFor(seqNum), kind, status, title: titleOf(kind, e.type, payload),
         startedAt: ts, completedAt: ts, durationMs: 0,
         sourceEvents: { firstSequence: seqNum, lastSequence: seqNum },
       });
@@ -419,35 +456,41 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
   }
 
   // Any remaining open lifecycles become 'running' entries, oldest first.
+  // Running entries carry NO lastSequence — an open lifecycle boundary has no
+  // terminal event, so consumers can distinguish "last observed event" from a
+  // completed lifecycle boundary.
   for (const o of [...open.values()].sort((a, b) => a.firstSequence - b.firstSequence)) {
     done.push({
-      id: nextTraceId(), kind: o.kind, status: 'running', title: o.title,
+      id: traceIdFor(o.firstSequence), kind: o.kind, status: 'running', title: o.title,
       startedAt: o.startedAt,
-      sourceEvents: { firstSequence: o.firstSequence, lastSequence: o.lastSequence },
+      sourceEvents: { firstSequence: o.firstSequence },
     });
   }
 
   return done;
 }
 
-/** Retention policy: running never evicted; terminal oldest→newest then running appended; maxTerminal bound. */
-export function createExecutionTraceWindow(maxTerminal = 50): ExecutionTraceWindow {
+/** Retention policy: running never evicted; terminal sorted oldest→newest by
+ *  startedAt then running appended; maxTerminal bound. */
+export function createExecutionTraceRetention(maxTerminal = 50): ExecutionTraceRetention {
   return {
     apply(entries) {
       const terminal = entries.filter((e) => e.status !== 'running');
       const running = entries.filter((e) => e.status === 'running');
-      const keptTerminal = terminal.slice(-Math.max(0, maxTerminal));
+      const keptTerminal = [...terminal]
+        .sort((a, b) => a.startedAt - b.startedAt)
+        .slice(-Math.max(0, maxTerminal));
       return [...keptTerminal, ...running];
     },
   };
 }
 
-/** Compose builder + window — the collector's entry point. */
+/** Compose builder + retention — the collector's entry point. */
 export function computeExecutionTrace(
   events: readonly AlixEvent[],
-  window: ExecutionTraceWindow = createExecutionTraceWindow(),
+  retention: ExecutionTraceRetention = createExecutionTraceRetention(),
 ): ExecutionTraceEntry[] {
-  return window.apply(buildExecutionTrace(events));
+  return retention.apply(buildExecutionTrace(events));
 }
 ```
 
@@ -504,18 +547,23 @@ describe('RuntimeCollectorImpl trace integration', () => {
     expect(snap?.trace[0]!.status).toBe('completed');
   });
 
-  it('keeps the previous snapshot on readAll failure', async () => {
-    const log = makeEventLog(async () => [{ id: 'e1', seq: 1, version: 1, sessionId: 's', timestamp: new Date(1000).toISOString(), type: 'tool.started', actor: 'system', payload: { toolCallId: 'tc1', toolName: 'search' } }]);
+  it('keeps the previous snapshot on a LATER readAll failure (poll-failure invariant)', async () => {
+    let shouldFail = false;
+    const log = makeEventLog(async () => {
+      if (shouldFail) throw new Error('io');
+      return [{ id: 'e1', seq: 1, version: 1, sessionId: 's', timestamp: new Date(1000).toISOString(), type: 'tool.started', actor: 'system', payload: { toolCallId: 'tc1', toolName: 'search' } }];
+    });
     const collector = new RuntimeCollectorImpl(log);
-    await (collector as unknown as { sample(): Promise<void> }).sample();
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
     const before = await collector.snapshot();
     expect(before?.trace).toHaveLength(1);
 
-    const failing = makeEventLog(async () => { throw new Error('io'); });
-    const collector2 = new RuntimeCollectorImpl(failing);
-    await (collector2 as unknown as { sample(): Promise<void> }).sample();
-    const after = await collector2.snapshot();
-    expect(after).toBeNull();
+    // Same collector, now failing — must preserve the previous snapshot.
+    shouldFail = true;
+    await sample.call(collector);
+    const after = await collector.snapshot();
+    expect(after).toEqual(before);
   });
 });
 ```
@@ -717,7 +765,7 @@ git commit -m "feat(capabilities): RuntimeView renders execution trace with clie
 
 ---
 
-### Task 5: Remove the deprecated flat event rendering
+### Task 5: Remove the deprecated flat runtime projection (conditional)
 
 **Files:**
 - Modify: `src/tui/snapshot.ts` (delete `RuntimeEventSnapshot`, remove `events?` from `RuntimeSnapshot`)
@@ -731,12 +779,12 @@ git commit -m "feat(capabilities): RuntimeView renders execution trace with clie
 
 - [ ] **Step 1: Verify zero non-deprecated consumers**
 
-Run: `rg "RuntimeEventSnapshot|\.runtime\.events|r\.events" src/tui`
-Expected: only `src/tui/snapshot.ts` (definitions), `src/tui/runtime-collector.ts` (producer), `src/tui/views/runtime-view.ts` (already migrated in Task 4 — confirm it no longer reads `r.events`).
+Run: `rg "RuntimeEventSnapshot|runtime\.events|r\.events|\.events" src/tui tests/tui`
+Expected: only `src/tui/snapshot.ts` (definitions), `src/tui/runtime-collector.ts` (producer), and test fixtures that reference the flat `events` field.
 
 - [ ] **Step 2: Remove from `src/tui/snapshot.ts`**
 
-Delete `RuntimeEventSnapshot` and the deprecated `events?` field from `RuntimeSnapshot` (keep `trace`).
+Delete `RuntimeEventSnapshot` and the deprecated `events?` field from `RuntimeSnapshot` (keep `trace`). **Only delete the field if Step 1 confirmed zero non-deprecated consumers.** If any consumer outside the trace migration still reads `events`, keep `RuntimeEventSnapshot` + `events?` as a migration shim and file the removal as a follow-up.
 
 - [ ] **Step 3: Remove from `src/tui/runtime-collector.ts`**
 
@@ -792,7 +840,7 @@ invocations, and runtime phase transitions each render as one unit.
 
 Client-side filtering (All / Tool / Capability / Policy / Runtime) is view-local
 state on the Runtime tab. The pipeline is `EventLog → RuntimeCollector →
-ExecutionTraceBuilder (pure) → ExecutionTraceWindow → RuntimeSnapshot.trace →
+ExecutionTraceBuilder (pure) → ExecutionTraceRetention → RuntimeSnapshot.trace →
 RuntimeView`; the view never touches the EventLog directly. Running entries are
 never evicted; terminal entries are bounded to the last 50.
 
