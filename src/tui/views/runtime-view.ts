@@ -33,7 +33,7 @@ export class RuntimeView implements TuiView {
     // re-entered. Events are ordered newest-first by the collector, so
     // "bottom" is offset 0.
     const pinned = ctx.perTab.pinnedBottom ?? true;
-    const eventCount = r.events.length;
+    const eventCount = r.events?.length ?? 0;
     // Reserve the top 2-3 lines for the workflow section when present.
     const reserved = r.workflow ? 4 : 1;
     // Reserve: 1 row header + 1 top padding + 1 bottom padding.
@@ -47,7 +47,7 @@ export class RuntimeView implements TuiView {
       // User had the cursor below the new bottom — clamp.
       start = maxStart;
     }
-    const visible = r.events.slice(start, start + winSize);
+    const visible = r.events?.slice(start, start + winSize) ?? [];
     for (const e of visible) {
       rows.push(`  [${new Date(e.timestamp).toISOString().slice(11, 19)}] ${e.kind.padEnd(20, ' ')} ${e.summary}`);
     }

@@ -272,7 +272,7 @@ export function paintRuntimePanel(
   }
 
   const now = Date.now();
-  const lastEvent = runtime && runtime.events.length > 0 ? runtime.events[0]! : null;
+  const lastEvent = runtime && runtime.events && runtime.events.length > 0 ? runtime.events[0]! : null;
   const lastKind = lastEvent?.kind ?? "—";
   const lastAgo = lastEvent ? `${formatRelative(lastEvent.timestamp, now)}` : "";
 
