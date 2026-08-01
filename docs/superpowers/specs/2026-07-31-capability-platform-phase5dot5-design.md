@@ -69,8 +69,29 @@ Atomic write: write `<file>.tmp` then `rename` over the target (session-store-js
 
 ### Collector wiring (`src/tui/runtime-collector.ts`)
 
-`RuntimeCollectorImpl` gains `private readonly checkpointStore: ProjectionCheckpointStore` and an async `initializeCheckpoint()` (called by `start()` before the first sample):
+`RuntimeCollectorImpl` takes the store via **constructor injection** — it never instantiates it internally (tests inject an in-memory store; filesystem persistence stays outside collector logic; a future backend can swap in):
 
+```ts
+constructor(
+  eventLog: EventLog,
+  checkpointStore: ProjectionCheckpointStore,
+) {
+  this.eventLog = eventLog;
+  this.checkpointStore = checkpointStore;
+}
+```
+
+`tui.ts` creates both (`new EventLog(sessionDir)` + `new ProjectionCheckpointStore(sessionDir)` or a factory) and injects them. `start()` is **async and awaits recovery before sampling** — the first sample must never race a not-yet-completed `initializeCheckpoint()` (which would incorrectly start from `beginningCursor()`):
+
+```ts
+async start(): Promise<void> {
+  await this.initializeCheckpoint();
+  await this.sample();
+  this.timer = setInterval(() => void this.sample(), 1000);
+}
+```
+
+`initializeCheckpoint()`:
 ```
 load() → null / malformed / foreign → beginningCursor()
        → valid → deserializeCursor(saved.cursor) → checkpoint = restored (owned by this instance)
@@ -138,7 +159,7 @@ checkpoint advances + snapshot publishes              beginningCursor() fallback
 - **Timeline Projection unification.** Reuses the durable watermark later — not this phase (D8).
 - **Cursor/offset micro-optimizations** (a persisted offset index for faster reads). Separate future direction.
 - **Throttled writes / batching.** Every-sample writes are negligible; optimize correctness first.
-- **`seenSequences` compaction or durable projection state** beyond the cursor. The checkpoint persists the position; the projection rebuilds idempotently from there.
+- **`seenSequences` compaction or durable projection state** beyond the cursor. The checkpoint persists the position; the projection reconstructs in-memory state from the persisted watermark using the existing idempotent reconciliation semantics — from the checkpoint cursor forward, not necessarily from the beginning (the distinction matters once multiple projections share the EventLog).
 
 ## Future Direction
 
