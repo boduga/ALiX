@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  buildExecutionTrace, createExecutionTraceRetention, computeExecutionTrace,
+  buildExecutionTrace, createExecutionTraceBuilder, createExecutionTraceRetention, computeExecutionTrace,
 } from '../../../src/tui/runtime/execution-trace-builder.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 
@@ -136,6 +136,131 @@ describe('buildExecutionTrace', () => {
     const entries = buildExecutionTrace(events);
     (entries[0] as { title: string }).title = 'mutated';
     expect((events[0]!.payload as { toolName: string }).toolName).toBe('search');
+  });
+
+  it('correlates approval.requested + approval.resolved into ONE completed entry (shared approvalId)', () => {
+    const entries = buildExecutionTrace([
+      evt('approval.requested', { approvalId: 'ap1', toolCallId: 'tc1', prompt: 'Allow write?', choices: ['approve', 'deny'] }),
+      evt('approval.resolved', { approvalId: 'ap1', decision: 'approved', reason: 'user accepted' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.kind).toBe('policy');
+    expect(entries[0]!.status).toBe('completed');
+    expect(entries[0]!.title).toBe('Approval');
+    expect(entries[0]!.detail).toBe('user accepted');
+    expect(entries[0]!.sourceEvents.firstSequence).toBe(1);
+    expect(entries[0]!.sourceEvents.lastSequence).toBe(2);
+  });
+
+  it('never leaves an un-resolved approval as a permanent running row when its pair is missing', () => {
+    // approval.requested with no approval.resolved stays running (open), but the
+    // seq-fallback key means two approvals without approvalId never collapse.
+    const entries = buildExecutionTrace([
+      evt('approval.requested', { approvalId: 'ap1', toolCallId: 'tc1', prompt: 'Allow?' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('running');
+  });
+
+  it('correlates patch.rollback_started/completed into ONE entry (shared checkpointId)', () => {
+    const entries = buildExecutionTrace([
+      evt('patch.rollback_started', { toolCallId: 'tc1', checkpointId: 'cp1', files: ['a.ts'] }),
+      evt('patch.rollback_completed', { toolCallId: 'tc1', checkpointId: 'cp1', files: ['a.ts'] }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.kind).toBe('policy');
+    expect(entries[0]!.status).toBe('completed');
+    expect(entries[0]!.sourceEvents.firstSequence).toBe(1);
+    expect(entries[0]!.sourceEvents.lastSequence).toBe(2);
+  });
+
+  it('marks a failed rollback as failed', () => {
+    const entries = buildExecutionTrace([
+      evt('patch.rollback_started', { toolCallId: 'tc1', checkpointId: 'cp1', files: ['a.ts'] }),
+      evt('patch.rollback_failed', { toolCallId: 'tc1', checkpointId: 'cp1', error: 'restore failed' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('failed');
+    expect(entries[0]!.detail).toBe('restore failed');
+  });
+
+  it('patch.checkpoint_created is a standalone completed entry, never a running opener', () => {
+    const entries = buildExecutionTrace([
+      evt('patch.checkpoint_created', { toolCallId: 'tc1', checkpointId: 'cp1', files: ['a.ts'] }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.kind).toBe('policy');
+    expect(entries[0]!.status).toBe('completed');
+  });
+
+  it('carries the tool.output stdout preview to the completed entry detail', () => {
+    const entries = buildExecutionTrace([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.output', { toolCallId: 'tc1', outputPreview: 'state.ts', outputSize: 9 }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 183 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('completed');
+    expect(entries[0]!.detail).toBe('state.ts');
+  });
+
+  it('prefers the terminal error over the carried tool.output preview', () => {
+    const entries = buildExecutionTrace([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.output', { toolCallId: 'tc1', outputPreview: 'partial', outputSize: 7 }),
+      evt('tool.failed', { toolCallId: 'tc1', toolName: 'search', error: 'boom', durationMs: 5 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('failed');
+    expect(entries[0]!.detail).toBe('boom');
+  });
+
+  it('keeps a running tool.output lifecycle carrying its preview detail', () => {
+    const entries = buildExecutionTrace([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.output', { toolCallId: 'tc1', outputPreview: 'partial', outputSize: 7 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('running');
+    expect(entries[0]!.detail).toBe('partial');
+  });
+
+  it('derives policy.decision detail and title from the decision payload', () => {
+    const entries = buildExecutionTrace([
+      evt('policy.decision', { toolCallId: 'tc1', capability: 'fs.write', decision: 'allow', reason: 'explicit rule' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('completed');
+    expect(entries[0]!.title).toBe('Policy: allow');
+    expect(entries[0]!.detail).toBe('explicit rule');
+  });
+
+  it('keeps two workflows with different workflowIds as distinct lifecycle units', () => {
+    const entries = buildExecutionTrace([
+      evt('workflow.created', { workflowId: 'wf1', goal: 'task1' }),
+      evt('workflow.created', { workflowId: 'wf2', goal: 'task2' }),
+    ]);
+    expect(entries).toHaveLength(2);
+    expect(entries.map(e => e.status)).toEqual(['running', 'running']);
+  });
+
+  it('correlates workflow.created + workflow.completed on the shared workflowId', () => {
+    const entries = buildExecutionTrace([
+      evt('workflow.created', { workflowId: 'wf1', goal: 'task1' }),
+      evt('workflow.completed', { workflowId: 'wf1', summary: 'done' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('completed');
+  });
+
+  it('createExecutionTraceBuilder().build is the D9 builder surface', () => {
+    const builder = createExecutionTraceBuilder();
+    const entries = builder.build([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('completed');
   });
 });
 

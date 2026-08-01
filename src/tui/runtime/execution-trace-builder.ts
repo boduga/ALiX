@@ -1,11 +1,15 @@
 import type { AlixEvent } from '../../events/types.js';
+import { TOOL_EVENT_TYPES } from '../../events/types.js';
 import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceRetention } from './execution-trace.js';
 
 // Trace entry ids are derived from the source event's firstSequence — no hidden
 // module-global mutable state, deterministic and replay-safe within a runtime.
 function traceIdFor(firstSequence: number): string { return `tr-${firstSequence}`; }
 
-const TOOL_TYPES = new Set(['tool.requested', 'tool.started', 'tool.output', 'tool.completed', 'tool.failed']);
+const TOOL_TYPES: Set<string> = new Set([
+  TOOL_EVENT_TYPES.REQUESTED, TOOL_EVENT_TYPES.STARTED, TOOL_EVENT_TYPES.OUTPUT,
+  TOOL_EVENT_TYPES.COMPLETED, TOOL_EVENT_TYPES.FAILED,
+]);
 const POLICY_TYPES = new Set(['policy.decision', 'approval.requested', 'approval.resolved', 'patch.checkpoint_created', 'patch.rollback_started', 'patch.rollback_completed', 'patch.rollback_failed']);
 const CAPABILITY_TYPES = new Set(['capability.InvocationStarted', 'capability.InvocationProgress', 'capability.InvocationOutput', 'capability.InvocationCompleted', 'capability.InvocationFailed', 'capability.InvocationCancelled']);
 const RUNTIME_TYPES = new Set(['runtime.phase.started', 'runtime.phase.completed', 'agent.session.phase_changed', 'workflow.created', 'workflow.completed']);
@@ -13,22 +17,25 @@ const RUNTIME_TYPES = new Set(['runtime.phase.started', 'runtime.phase.completed
 // Terminal event types terminate an open lifecycle. NOTE: capability bridge
 // events are PascalCase after the dot (capability.InvocationCompleted), so
 // string-suffix matching must not assume lowercase.
-const TERMINAL_TYPES = new Set([
-  'tool.completed', 'tool.failed',
-  'policy.decision', 'approval.resolved', 'patch.rollback_completed', 'patch.rollback_failed',
+// patch.checkpoint_created is a standalone one-shot (it has no rollback pair) —
+// marking it terminal means it never opens a running entry.
+const TERMINAL_TYPES: Set<string> = new Set([
+  TOOL_EVENT_TYPES.COMPLETED, TOOL_EVENT_TYPES.FAILED,
+  'policy.decision', 'approval.resolved', 'patch.checkpoint_created', 'patch.rollback_completed', 'patch.rollback_failed',
   'capability.InvocationCompleted', 'capability.InvocationFailed', 'capability.InvocationCancelled',
   'runtime.phase.completed', 'workflow.completed',
 ]);
 
 const STATUS_BY_TYPE: Record<string, ExecutionTraceEntry['status']> = {
-  'tool.failed': 'failed',
+  [TOOL_EVENT_TYPES.FAILED]: 'failed',
   'capability.InvocationFailed': 'failed',
   'capability.InvocationCancelled': 'cancelled',
   'policy.decision': 'completed',
   'approval.resolved': 'completed',
+  'patch.checkpoint_created': 'completed',
   'patch.rollback_completed': 'completed',
   'patch.rollback_failed': 'failed',
-  'tool.completed': 'completed',
+  [TOOL_EVENT_TYPES.COMPLETED]: 'completed',
   'capability.InvocationCompleted': 'completed',
   'runtime.phase.completed': 'completed',
   'workflow.completed': 'completed',
@@ -36,8 +43,11 @@ const STATUS_BY_TYPE: Record<string, ExecutionTraceEntry['status']> = {
 
 interface OpenLifecycle {
   kind: ExecutionTraceKind;
-  key: string;              // toolCallId / invocationId / timingId / workflowId / phase
+  key: string;              // toolCallId / invocationId / timingId / workflowId / phase / approvalId / checkpointId
   title: string;
+  /** Detail carried from intermediate events (e.g. tool stdout on tool.output).
+   *  Read when the terminal event closes the lifecycle. */
+  detail?: string;
   startedAt: number;
   firstSequence: number;
   lastSequence: number;
@@ -62,10 +72,15 @@ function keyOf(type: string, payload: Record<string, unknown>, seq: number): str
   if (type.startsWith('tool.')) return String(payload.toolCallId ?? `${type}:${seq}`);
   if (type.startsWith('runtime.phase')) return String(payload.timingId ?? payload.operation ?? payload.phase ?? `${type}:${seq}`);
   if (type === 'agent.session.phase_changed') return String(payload.phase ?? payload.to ?? `${type}:${seq}`);
-  if (type === 'workflow.created' || type === 'workflow.completed') return 'workflow';
+  if (type === 'workflow.created' || type === 'workflow.completed') return String(payload.workflowId ?? 'workflow');
   // policy.decision is a standalone terminal event — each decision is its own
   // lifecycle unit unless an explicit correlation ID ties it to an open approval.
   if (type === 'policy.decision') return `policy:${seq}`;
+  // approval.requested + approval.resolved share approvalId — correlate them so
+  // a pending approval closes into one lifecycle (not a permanent running row).
+  if (type === 'approval.requested' || type === 'approval.resolved') return String(payload.approvalId ?? `${type}:${seq}`);
+  // patch rollback started/completed/failed share checkpointId (+ toolCallId).
+  if (type.startsWith('patch.')) return String(payload.checkpointId ?? payload.toolCallId ?? `${type}:${seq}`);
   return String(payload.proposalId ?? payload.rule ?? `${type}:${seq}`);
 }
 
@@ -74,9 +89,27 @@ function titleOf(kind: ExecutionTraceKind, type: string, payload: Record<string,
   switch (kind) {
     case 'tool': return `tool.${payload.toolName ?? payload.toolCallId ?? '?'}`;
     case 'capability': return String(payload.capabilityId ?? payload.invocationId ?? '?');
-    case 'policy': return type === 'policy.decision' ? 'Policy decision' : 'Approval';
+    case 'policy':
+      // Render the verdict (PolicyDecisionPayload.decision) when present.
+      if (type === 'policy.decision') {
+        return typeof payload.decision === 'string' ? `Policy: ${payload.decision}` : 'Policy decision';
+      }
+      return 'Approval';
     case 'runtime': return String(payload.operation ?? payload.phase ?? payload.workflowId ?? payload.timingId ?? 'phase');
   }
+}
+
+/** Resolve the one-line detail for a lifecycle unit. Terminal payload detail
+ *  wins (error > outputPreview > phase > reason); the carried intermediate
+ *  detail (e.g. tool stdout carried from tool.output) is the fallback when the
+ *  terminal payload carries none. */
+function resolveDetail(payload: Record<string, unknown>, carried?: string): string | undefined {
+  const terminal =
+    typeof payload.error === 'string' ? payload.error
+      : typeof payload.outputPreview === 'string' ? payload.outputPreview
+        : typeof payload.phase === 'string' ? payload.phase
+          : typeof payload.reason === 'string' ? payload.reason : undefined;
+  return terminal ?? carried;
 }
 
 /**
@@ -102,14 +135,23 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
 
     if (!isTerminal) {
       // Open the lifecycle (or keep the earliest open on repeat start events).
-      if (!open.has(`${kind}:${key}`)) {
-        open.set(`${kind}:${key}`, {
+      let o = open.get(`${kind}:${key}`);
+      if (!o) {
+        o = {
           kind, key, title: titleOf(kind, e.type, payload),
           startedAt: ts, firstSequence: seqNum, lastSequence: seqNum,
-        });
+        };
+        open.set(`${kind}:${key}`, o);
       } else {
-        const o = open.get(`${kind}:${key}`)!;
         o.lastSequence = Math.max(o.lastSequence, seqNum);
+      }
+      // Carry intermediate detail forward on the open lifecycle — tool stdout
+      // lives on the intermediate tool.output event, not the terminal. Keep the
+      // first non-empty preview; the open map's detail is read when the
+      // terminal closes the lifecycle.
+      if (e.type === TOOL_EVENT_TYPES.OUTPUT && o.detail === undefined) {
+        const preview = payload.outputPreview;
+        if (typeof preview === 'string' && preview.length > 0) o.detail = preview;
       }
       continue;
     }
@@ -117,11 +159,9 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
     const o = open.get(`${kind}:${key}`);
     const status: ExecutionTraceEntry['status'] = STATUS_BY_TYPE[e.type] ?? 'completed';
     if (o) {
-      const detail = typeof payload.outputPreview === 'string' ? payload.outputPreview
-        : typeof payload.error === 'string' ? payload.error
-          : typeof payload.phase === 'string' ? payload.phase : undefined;
       done.push({
-        id: traceIdFor(o.firstSequence), kind, status, title: o.title, detail,
+        id: traceIdFor(o.firstSequence), kind, status, title: o.title,
+        detail: resolveDetail(payload, o.detail),
         startedAt: o.startedAt, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : Math.max(0, ts - o.startedAt),
         sourceEvents: { firstSequence: o.firstSequence, lastSequence: Math.max(o.lastSequence, seqNum) },
@@ -131,6 +171,7 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
       // A terminal event without a recorded open — synthesize a completed entry.
       done.push({
         id: traceIdFor(seqNum), kind, status, title: titleOf(kind, e.type, payload),
+        detail: resolveDetail(payload),
         startedAt: ts, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : 0,
         sourceEvents: { firstSequence: seqNum, lastSequence: seqNum },
@@ -145,12 +186,26 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
   for (const o of [...open.values()].sort((a, b) => a.firstSequence - b.firstSequence)) {
     done.push({
       id: traceIdFor(o.firstSequence), kind: o.kind, status: 'running', title: o.title,
+      detail: o.detail,
       startedAt: o.startedAt,
       sourceEvents: { firstSequence: o.firstSequence },
     });
   }
 
   return done;
+}
+
+/** Pure builder contract. `build` over the full history today; a future
+ *  incremental `update(newEvents)` can be added without changing consumers. */
+export interface ExecutionTraceBuilder {
+  build(events: readonly AlixEvent[]): ExecutionTraceEntry[];
+}
+
+/** D9 surface: a named, stable entry point for future incremental updates.
+ *  `buildExecutionTrace` remains the pure exported function (tests + retention
+ *  use it); this factory is the forward-compatible builder contract. */
+export function createExecutionTraceBuilder(): ExecutionTraceBuilder {
+  return { build: buildExecutionTrace };
 }
 
 /** Retention policy: running never evicted; terminal sorted oldest→newest by
