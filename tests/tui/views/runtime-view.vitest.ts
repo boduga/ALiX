@@ -1,15 +1,60 @@
 import { describe, it, expect } from 'vitest';
 import { RuntimeView } from '../../../src/tui/views/runtime-view.js';
+import { createInitialPerTabState, type PerTabState } from '../../../src/tui/state.js';
+import { TerminalCanvas } from '../../../src/tui/canvas.js';
+import type { ExecutionTraceEntry } from '../../../src/tui/runtime/execution-trace.js';
+
+function makeTrace(): ExecutionTraceEntry[] {
+  return [
+    { id: 'tr-1', kind: 'tool', status: 'completed', title: 'tool.search', startedAt: 1, durationMs: 5, sourceEvents: { firstSequence: 1 } },
+    { id: 'tr-2', kind: 'capability', status: 'completed', title: 'core.session.list', startedAt: 2, sourceEvents: { firstSequence: 2 } },
+    { id: 'tr-3', kind: 'policy', status: 'completed', title: 'Policy decision', startedAt: 3, sourceEvents: { firstSequence: 3 } },
+  ];
+}
+
+function render(perTab: PerTabState, trace: ExecutionTraceEntry[]): string {
+  const canvas = new TerminalCanvas(80, 24);
+  const snap = {
+    generatedAt: 1,
+    session: null,
+    daemon: null,
+    approvals: null,
+    runtime: { trace, workflow: null, totalEventCount: trace.length, lastEventAt: 3 },
+    sops: null,
+    policy: null,
+    cwd: '/workspace/test',
+  };
+  new RuntimeView().render({ snap, dimensions: { columns: 80, rows: 24 }, perTab, canvas });
+  return canvas.renderFrame();
+}
 
 describe('RuntimeView', () => {
-  const ctx = (snap: any = null) => ({
-    snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
-    dimensions: { columns: 100, rows: 30 },
-    perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '',
-                pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
-          },
+  it('renders the full execution trace by default (filter all)', () => {
+    const frame = render(createInitialPerTabState(), makeTrace());
+    expect(frame).toContain('tool.search');
+    expect(frame).toContain('core.session.list');
+    expect(frame).toContain('Policy decision');
+  });
+
+  it('renders only tool entries when the filter is tool', () => {
+    const perTab: PerTabState = { ...createInitialPerTabState(), runtimeTraceFilter: 'tool' };
+    const frame = render(perTab, makeTrace());
+    expect(frame).toContain('tool.search');
+    expect(frame).not.toContain('core.session.list');
+    expect(frame).not.toContain('Policy decision');
+  });
+
+  it('renders only capability entries when the filter is capability', () => {
+    const perTab: PerTabState = { ...createInitialPerTabState(), runtimeTraceFilter: 'capability' };
+    const frame = render(perTab, makeTrace());
+    expect(frame).not.toContain('tool.search');
+    expect(frame).toContain('core.session.list');
+    expect(frame).not.toContain('Policy decision');
+  });
+
+  it('keeps the summary header (events count) intact', () => {
+    const frame = render(createInitialPerTabState(), makeTrace());
+    expect(frame).toContain('events: 3');
   });
 
   it('renders current workflow state when available', () => {
@@ -17,48 +62,33 @@ describe('RuntimeView', () => {
     const snap = {
       generatedAt: 1, session: null, daemon: null, approvals: null, sops: null, policy: null,
       runtime: {
-        events: [], workflow: { name: 'research-and-implement', currentStep: 7, totalSteps: 12, startedAt: 1 },
+        trace: [],
+        workflow: { name: 'research-and-implement', currentStep: 7, totalSteps: 12, startedAt: 1 },
         totalEventCount: 42,
         lastEventAt: 1,
       },
+      cwd: '/workspace/test',
     };
-    const out = view.render(ctx(snap));
+    const out = view.render({ snap, dimensions: { columns: 100, rows: 30 }, perTab: createInitialPerTabState() });
     expect(out.rows.some((r) => /research-and-implement/.test(r))).toBe(true);
     expect(out.rows.some((r) => /7\s*\/\s*12/.test(r))).toBe(true);
   });
 
-  it('renders event stream', () => {
-    const view = new RuntimeView();
-    const snap = {
-      generatedAt: 1, session: null, daemon: null, approvals: null, sops: null, policy: null,
-      runtime: {
-        events: [
-          { id: 'e1', kind: 'tool.call', summary: 'write_file /x', timestamp: 1 },
-          { id: 'e2', kind: 'verify.pass', summary: 'tests ok', timestamp: 2 },
-        ],
-        workflow: null,
-        totalEventCount: 100,
-        lastEventAt: 2,
-      },
-    };
-    const out = view.render(ctx(snap));
-    expect(out.rows.filter((r) => /tool\.call|verify\.pass/.test(r)).length).toBeGreaterThanOrEqual(2);
-    expect(out.rows.some((r) => /\b100\b/.test(r))).toBe(true);   // total event count
-  });
-
   it('handleKey scrolls via ArrowDown/Up; search opens on /', () => {
     const view = new RuntimeView();
-    const ctx = (snap: any, perTabOverrides: any = {}) => ({ snap, dimensions: { columns: 80, rows: 24 }, perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-            inputBuffer: '',
-                pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-            ...perTabOverrides,
-          } });
-    expect(view.handleKey?.('ArrowDown', ctx({ runtime: { events: [{ id: '1' }, { id: '2' }] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1, pinnedBottom: false });
-    expect(view.handleKey?.('PageDown', ctx({ runtime: { events: Array.from({ length: 25 }, (_, i) => ({ id: String(i) })) } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 10, pinnedBottom: false });
-    expect(view.handleKey?.('Home', ctx({ runtime: { events: [] } as any }, { cursor: 5 }))).toEqual({ type: 'moveCursor', cursor: 0, pinnedBottom: false });
-    expect(view.handleKey?.('End', ctx({ runtime: { events: [] } as any }, { cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1000, pinnedBottom: false });
-    expect(view.handleKey?.('Escape', ctx({} as any))).toEqual({ type: 'switchTab', tab: 'chat' });
-    expect(view.handleKey?.('/', ctx({} as any))).toEqual({ type: 'scheduleRefresh' });
+    const ctx = (perTabOverrides: Partial<PerTabState> = {}) => ({
+      snap: {
+        generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null,
+        cwd: '/workspace/test',
+      },
+      dimensions: { columns: 80, rows: 24 },
+      perTab: { ...createInitialPerTabState(), ...perTabOverrides },
+    });
+    expect(view.handleKey?.('ArrowDown', ctx({ cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1, pinnedBottom: false });
+    expect(view.handleKey?.('PageDown', ctx({ cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 10, pinnedBottom: false });
+    expect(view.handleKey?.('Home', ctx({ cursor: 5 }))).toEqual({ type: 'moveCursor', cursor: 0, pinnedBottom: false });
+    expect(view.handleKey?.('End', ctx({ cursor: 0 }))).toEqual({ type: 'moveCursor', cursor: 1000, pinnedBottom: false });
+    expect(view.handleKey?.('Escape', ctx())).toEqual({ type: 'switchTab', tab: 'chat' });
+    expect(view.handleKey?.('/', ctx())).toEqual({ type: 'scheduleRefresh' });
   });
 });

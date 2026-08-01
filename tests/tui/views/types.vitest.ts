@@ -13,7 +13,7 @@ describe('TuiView contract — render purity', () => {
       perTab: { cursor: 0, scrollOffset: 7, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
             pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
+            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
     };
     const a = fakeView.render(ctx);
@@ -33,7 +33,7 @@ describe('TuiView contract — render purity', () => {
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
             pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
+            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
     };
     try {

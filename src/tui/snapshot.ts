@@ -1,5 +1,6 @@
 import type { SessionPhase } from './state.js';
 import type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
+import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
@@ -91,7 +92,10 @@ export interface ApprovalRecordSnapshot {
  * Runtime events + workflow state. Ordered events: descending by timestamp.
  */
 export interface RuntimeSnapshot {
-  readonly events: readonly RuntimeEventSnapshot[];
+  /** Deprecated during migration — consumers move to `trace`. Deleted after migration. */
+  readonly events?: readonly RuntimeEventSnapshot[];
+  /** Execution-trace lifecycle units, built from the EventLog. Immutable DTOs. */
+  readonly trace: readonly ExecutionTraceEntry[];
   readonly workflow: WorkflowStateSnapshot | null;
   readonly totalEventCount: number;
   readonly lastEventAt: number | null;

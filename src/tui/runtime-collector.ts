@@ -10,6 +10,7 @@
 
 import type { EventLog } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
+import { computeExecutionTrace } from './runtime/execution-trace-builder.js';
 import type {
   RuntimeSnapshot,
   RuntimeEventSnapshot,
@@ -24,7 +25,7 @@ export interface RuntimeCollector {
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
   private cache: RuntimeSnapshot = {
-    events: [],
+    trace: [],
     workflow: null,
     totalEventCount: 0,
     lastEventAt: null,
@@ -64,8 +65,10 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         timestamp: Date.parse(e.timestamp) || Date.now(),
       }));
       mapped.sort((a, b) => b.timestamp - a.timestamp);
+      const trace = computeExecutionTrace(events);
       this.cache = {
-        events: mapped,
+        events: mapped,            // deprecated during migration
+        trace,
         workflow: computeWorkflow(events),
         totalEventCount: events.length,
         lastEventAt: mapped.length > 0 ? mapped[0].timestamp : null,

@@ -41,6 +41,9 @@ export interface ResolvedApproval {
 /** Who produced a timeline event. Add `'system'` when the first system event exists (YAGNI). */
 export type TimelineSource = 'operator' | 'agent' | 'capability';
 
+/** Client-side filter for the Runtime tab's execution trace (view-local presentation state). */
+export type RuntimeTraceFilter = 'all' | 'tool' | 'capability' | 'policy' | 'runtime';
+
 export interface TimelineEventBase {
   /** Runtime-local deterministic id: `tl-${sequence}`. Unique within one TUI
    *  runtime instance; NOT globally unique across sessions. If persistence
@@ -152,6 +155,8 @@ export interface PerTabState {
   timelineEvents: TimelineEvent[];
   /** Selected capability in the Capabilities tab (per-tab view state). */
   capabilitiesSelectedId?: string;
+  /** Active execution-trace filter on the Runtime tab. Default 'all'. */
+  runtimeTraceFilter: RuntimeTraceFilter;
 }
 
 /** Panels that accept `J`/`K` scroll keys. Other panels (DAEMON, RUNTIME) have fixed content and can't overflow. */
@@ -192,6 +197,7 @@ export function createInitialPerTabState(): PerTabState {
     timelineEvents: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
+    runtimeTraceFilter: 'all',
   };
 }
 
