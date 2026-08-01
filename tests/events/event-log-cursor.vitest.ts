@@ -103,7 +103,7 @@ describe('EventLog cursor', () => {
     expect(() => log.deserializeCursor(JSON.stringify({ version: 99, seq: 5 }))).toThrow();
   });
 
-  it('serialized cursor exposes no seq via JSON (opacity preserved)', async () => {
+  it('serialized cursor is versioned and persists no owner token', async () => {
     const log = await makeLog();
     const serialized = log.serializeCursor(log.beginningCursor());
     expect(serialized).not.toContain('owner');       // no owner token persisted

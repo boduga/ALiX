@@ -155,6 +155,23 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     collector.stop();
   });
 
+  it('a rejecting checkpointStore.load() falls back to beginningCursor and start() still resolves', async () => {
+    const { log, append } = makeEventLog();
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
+    const rejecting = {
+      saved: [] as Array<{ cursor: string; committedAt: number }>,
+      async load() { throw new Error('io'); },                 // fs read rejection
+      async save(cp: { cursor: string; committedAt: number }) { this.saved.push(cp); },
+    };
+    const collector = new RuntimeCollectorImpl(log, rejecting);
+    const start = (collector as unknown as { start(): Promise<void> }).start;
+    await expect(start.call(collector)).resolves.toBeUndefined();  // must NOT reject
+    const snap = await collector.snapshot();
+    expect(snap?.trace).toHaveLength(1);   // sampled from beginningCursor (the tool.started is visible)
+    expect(snap?.trace[0]!.status).toBe('running');
+    collector.stop();
+  });
+
   it('D5 commit marker: a save failure keeps the old checkpoint AND old cache, retries next sample', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });

@@ -20,6 +20,7 @@
 import type { EventLog, EventLogCursor } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
 import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
+import { CHECKPOINT_CONTAINER_VERSION } from './runtime/projection-checkpoint-store.js';
 import type { ProjectionCheckpointStore } from './runtime/projection-checkpoint-store.js';
 import type {
   RuntimeSnapshot,
@@ -76,10 +77,12 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   }
 
   /** Restore the durable checkpoint, falling back to beginningCursor when the
-   *  store has none, holds a malformed/unknown-version serialized cursor, or
-   *  deserialization throws — in every fallback case we replay from the start. */
+   *  store has none, its load() rejects, it holds a malformed/unknown-version
+   *  serialized cursor, or deserialization throws — in every fallback case we
+   *  replay from the start. */
   private async initializeCheckpoint(): Promise<void> {
-    const saved = await this.checkpointStore.load();
+    let saved: Awaited<ReturnType<ProjectionCheckpointStore['load']>> = null;
+    try { saved = await this.checkpointStore.load(); } catch { saved = null; }
     if (!saved) {
       this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
       return;
@@ -121,7 +124,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // the snapshot (D5). Neither the checkpoint nor the cache may advance
       // unless this save succeeded.
       await this.checkpointStore.save({
-        version: 1,
+        version: CHECKPOINT_CONTAINER_VERSION,
         cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
         committedAt: nextCheckpoint.committedAt,
       });

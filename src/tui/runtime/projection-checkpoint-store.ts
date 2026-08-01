@@ -4,10 +4,10 @@ import { dirname, join } from 'node:path';
 
 const CHECKPOINT_FILE = 'projection-checkpoint.json';
 const TMP_SUFFIX = '.tmp';
-const CONTAINER_VERSION = 1;
+export const CHECKPOINT_CONTAINER_VERSION = 1;
 
 // PersistedProjectionCheckpoint (defined above) IS the envelope written to
-// disk; CONTAINER_VERSION is its literal version field.
+// disk; CHECKPOINT_CONTAINER_VERSION is its literal version field.
 
 /** The persisted form of a projection checkpoint. `committedAt` is the instant
  *  this projection became durable (matches D5 — the checkpoint is the durable
@@ -51,9 +51,9 @@ export class FileProjectionCheckpointStore implements ProjectionCheckpointStore 
       return null; // corrupt — treat as not-found
     }
     if (typeof parsed !== 'object' || parsed === null) return null;
-    if (parsed.version !== CONTAINER_VERSION) return null; // unknown envelope
+    if (parsed.version !== CHECKPOINT_CONTAINER_VERSION) return null; // unknown envelope
     if (typeof parsed.cursor !== 'string' || typeof parsed.committedAt !== 'number') return null;
-    return { version: CONTAINER_VERSION, cursor: parsed.cursor, committedAt: parsed.committedAt };
+    return { version: CHECKPOINT_CONTAINER_VERSION, cursor: parsed.cursor, committedAt: parsed.committedAt };
   }
 
   async save(checkpoint: PersistedProjectionCheckpoint): Promise<void> {

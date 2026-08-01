@@ -96,10 +96,11 @@ export class EventLog {
     return JSON.stringify(payload);
   }
 
-  /** Restore a cursor owned by this EventLog. Throws for malformed JSON or an
-   *  unknown version. The restored cursor is created via makeCursor, so it
-   *  carries THIS instance's owner token — a serialized cursor from another
-   *  log is rejected by unwrap/readSince as foreign. */
+  /** Restore a cursor owned by this EventLog. Throws for malformed JSON, an
+   *  unknown version, or an invalid payload (a missing/non-integer seq). The
+   *  restored cursor is created via makeCursor, so it carries THIS instance's
+   *  owner token — a serialized cursor from another log is rejected by
+   *  unwrap/readSince as foreign. */
   deserializeCursor(serialized: string): EventLogCursor {
     const parsed = JSON.parse(serialized) as Partial<SerializedCursor>;
     if (typeof parsed !== 'object' || parsed === null) throw new Error('Malformed serialized cursor');
