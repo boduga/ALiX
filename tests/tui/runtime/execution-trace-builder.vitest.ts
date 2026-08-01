@@ -333,4 +333,14 @@ describe('reconciliation engine (createTraceState/reconcileEvents/materializeTra
     reconcileEvents(state, events); // replay
     expect(materializeTrace(state)).toEqual(once);
   });
+
+  it('first-write-wins: a NEW-seq duplicate terminal does not synthesize a second entry', () => {
+    const entries = buildExecutionTrace([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 999 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.durationMs).toBe(10); // first wins, not 999
+  });
 });

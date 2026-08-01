@@ -48,6 +48,12 @@ export interface ExecutionTraceState {
   readonly seenSequences: Set<number>;
   readonly openByKey: Map<string, MutableLifecycle>;
   readonly terminalById: Map<string, ExecutionTraceEntry>;
+  /** Lifecycle ids (`tr-${firstSequence}`) that have been terminalized. The
+   *  open entry is deleted on close, so a NEW-seq duplicate terminal for the
+   *  same key cannot reconstruct `tr-${firstSequence}` from the open map —
+   *  `closedByKey` correlates the duplicate back to its closed lifecycle. */
+  readonly closedFirstSequences: Set<string>;
+  readonly closedByKey: Map<string, string>;
 }
 
 export interface MutableLifecycle {
@@ -123,13 +129,18 @@ function resolveDetail(payload: Record<string, unknown>, carried?: string): stri
 }
 
 export function createTraceState(): ExecutionTraceState {
-  return { seenSequences: new Set(), openByKey: new Map(), terminalById: new Map() };
+  return {
+    seenSequences: new Set(), openByKey: new Map(), terminalById: new Map(),
+    closedFirstSequences: new Set(), closedByKey: new Map(),
+  };
 }
 
 /** Reconcile new events into the projection state. Idempotent by event seq:
  *  an event whose seq is already seen is skipped. Terminal lifecycles are
- *  first-write-wins — a later terminal for the same tr-${firstSequence} does
- *  not rewrite the stored entry (its seq is still marked seen). */
+ *  first-write-wins — a later terminal for the same lifecycle does not rewrite
+ *  the stored entry (its seq is still marked seen). A NEW-seq duplicate
+ *  terminal (same key, open entry already deleted on close) is correlated back
+ *  to its closed lifecycle via `closedByKey` and ignored. */
 export function reconcileEvents(state: ExecutionTraceState, events: readonly AlixEvent[]): void {
   for (const e of events) {
     const seqNum = e.seq ?? 0;
@@ -164,16 +175,24 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
     const mapKey = `${kind}:${key}`;
     const o = state.openByKey.get(mapKey);
     const status: ExecutionTraceEntry['status'] = STATUS_BY_TYPE[e.type] ?? 'completed';
-    const id = o ? traceIdFor(o.firstSequence) : traceIdFor(seqNum);
+    // Resolve the lifecycle id: the open lifecycle's id, or — for a NEW-seq
+    // duplicate whose open entry was deleted on an earlier close — the
+    // previously-closed lifecycle's id via key correlation. Fall back to a
+    // standalone synthesized id when the key was never opened.
+    const id = o ? traceIdFor(o.firstSequence) : (state.closedByKey.get(mapKey) ?? traceIdFor(seqNum));
 
-    // First-write-wins: a duplicate terminal for an already-materialized
-    // lifecycle is ignored (the terminal map already holds the winning entry).
+    // First-write-wins (D5): a terminal for a lifecycle already terminalized
+    // is ignored. Tracked via closedFirstSequences because the open entry is
+    // deleted on close — a NEW-seq duplicate terminal would otherwise resolve
+    // `id = tr-<newSeq>` from the fallback and synthesize a second entry.
     // NOTE: the duplicate terminal's seq was already added to seenSequences at
     // the top of the loop — those seqs are retained for diagnostics (per D5),
     // so a future maintainer must NOT "fix" that by removing them.
-    if (state.terminalById.has(id)) continue;
+    if (state.closedFirstSequences.has(id)) continue;
 
     if (o) {
+      state.closedFirstSequences.add(id);
+      state.closedByKey.set(mapKey, id);
       state.terminalById.set(id, {
         id, kind, status, title: o.title,
         detail: resolveDetail(payload, o.detailParts.join("\n")),
