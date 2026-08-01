@@ -28,6 +28,14 @@ interface InternalEventLogCursor {
  *  `.seq` or `.owner`. */
 const cursorInternals = new WeakMap<object, InternalEventLogCursor>();
 
+/** Durable cursor serialization format version. Bump on incompatible changes. */
+const SERIALIZED_CURSOR_VERSION = 1;
+
+interface SerializedCursor {
+  readonly version: number;
+  readonly seq: number;
+}
+
 export class EventLog {
   readonly path: string;
   private nextSeq = 1;
@@ -75,6 +83,30 @@ export class EventLog {
     const ib = this.tryUnwrap(b);
     if (!ia || !ib) return false;
     return ia.seq === ib.seq;
+  }
+
+  /** Serialize a cursor for durable storage. Opaque — only meaningful to this
+   *  EventLog. The representation is a POSITION CLAIM, not a transferable
+   *  cursor: no owner token is persisted, so a restored cursor carries THIS
+   *  instance's owner symbol. seq is never exposed through the public API —
+   *  it is only handled inside serialize/deserialize. */
+  serializeCursor(cursor: EventLogCursor): string {
+    const internal = this.unwrap(cursor);
+    const payload: SerializedCursor = { version: SERIALIZED_CURSOR_VERSION, seq: internal.seq };
+    return JSON.stringify(payload);
+  }
+
+  /** Restore a cursor owned by this EventLog. Throws for malformed JSON or an
+   *  unknown version. The restored cursor is created via makeCursor, so it
+   *  carries THIS instance's owner token — a serialized cursor from another
+   *  log is rejected by unwrap/readSince as foreign. */
+  deserializeCursor(serialized: string): EventLogCursor {
+    const parsed = JSON.parse(serialized) as Partial<SerializedCursor>;
+    if (typeof parsed !== 'object' || parsed === null) throw new Error('Malformed serialized cursor');
+    if (parsed.version !== SERIALIZED_CURSOR_VERSION) throw new Error(`Unknown serialized cursor version: ${String(parsed.version)}`);
+    const seq = parsed.seq;
+    if (typeof seq !== 'number' || !Number.isInteger(seq) || seq < 0) throw new Error('Malformed serialized cursor seq');
+    return this.makeCursor(seq);
   }
 
   private makeCursor(seq: number): EventLogCursor {

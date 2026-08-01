@@ -75,4 +75,38 @@ describe('EventLog cursor', () => {
     expect('owner' in cursor).toBe(false);
     expect(Object.keys(cursor)).toEqual([]);
   });
+
+  it('serializeCursor/deserializeCursor round-trips a cursor owned by the same log', async () => {
+    const log = await makeLog();
+    await log.append({ sessionId: 's', actor: 'system', type: 'a', payload: {} });
+    const c = log.beginningCursor();
+    const restored = log.deserializeCursor(log.serializeCursor(c));
+    expect(log.cursorsEqual(restored, c)).toBe(true);
+  });
+
+  it('deserializeCursor re-creates the owner per instance — a cursor restored by another log is foreign to the serializing log', async () => {
+    const logA = await makeLog();
+    const logB = await makeLog();
+    const serialized = logA.serializeCursor(logA.beginningCursor());
+    // deserializeCursor cannot detect foreignness: no owner token is persisted
+    // (D1), so the payload carries no identity across instances. It simply
+    // re-creates THIS instance's owner via makeCursor.
+    const restored = logB.deserializeCursor(serialized);
+    // logB's restored cursor is foreign to logA — rejected by unwrap/readSince.
+    expect(logA.cursorsEqual(restored, logA.beginningCursor())).toBe(false);
+    await expect(logA.readSince(restored)).rejects.toThrow();
+  });
+
+  it('deserializeCursor rejects malformed JSON and unknown versions', async () => {
+    const log = await makeLog();
+    expect(() => log.deserializeCursor('not-json')).toThrow();
+    expect(() => log.deserializeCursor(JSON.stringify({ version: 99, seq: 5 }))).toThrow();
+  });
+
+  it('serialized cursor exposes no seq via JSON (opacity preserved)', async () => {
+    const log = await makeLog();
+    const serialized = log.serializeCursor(log.beginningCursor());
+    expect(serialized).not.toContain('owner');       // no owner token persisted
+    expect(serialized).toContain('version');         // versioned envelope
+  });
 });
