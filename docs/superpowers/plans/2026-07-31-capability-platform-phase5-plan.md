@@ -106,6 +106,14 @@ describe('EventLog cursor', () => {
     expect(logB.cursorsEqual(foreign, foreign)).toBe(false);
     await expect(logB.readSince(foreign)).rejects.toThrow();
   });
+
+  it('cursor object exposes NO readable internals (D1 opacity — WeakMap-backed)', async () => {
+    const log = await makeLog();
+    const cursor = log.getCursor() as unknown as Record<string, unknown>;
+    expect('seq' in cursor).toBe(false);
+    expect('owner' in cursor).toBe(false);
+    expect(Object.keys(cursor)).toEqual([]);
+  });
 });
 ```
 
@@ -133,7 +141,14 @@ interface InternalEventLogCursor {
 }
 ```
 
-Add a private owner token field to the class and the internal helper + public methods:
+Add a module-level `WeakMap` for the internals (so the cursor object has NO readable `.seq`/`.owner` properties at runtime — true D1 opacity, not just TypeScript hiding), plus a private owner token field and the public methods:
+
+```typescript
+/** Internals are stored off-object in a WeakMap so the cursor object exposes
+ *  no readable properties at runtime (D1): even a `cursor as any` cannot read
+ *  `.seq` or `.owner`. */
+const cursorInternals = new WeakMap<object, InternalEventLogCursor>();
+```
 
 ```typescript
 export class EventLog {
@@ -180,7 +195,9 @@ export class EventLog {
   }
 
   private makeCursor(seq: number): EventLogCursor {
-    return { [eventLogCursorBrand]: true, seq, owner: this.owner } as unknown as EventLogCursor;
+    const cursor = { [eventLogCursorBrand]: true } as EventLogCursor;
+    cursorInternals.set(cursor, { seq, owner: this.owner });
+    return cursor;
   }
 
   /** Throws on a cursor this log does not own. */
@@ -192,8 +209,9 @@ export class EventLog {
 
   /** Returns null (not throw) for a foreign cursor — cursorsEqual depends on this. */
   private tryUnwrap(cursor: EventLogCursor): InternalEventLogCursor | null {
-    const internal = cursor as unknown as InternalEventLogCursor;
-    return internal.owner === this.owner ? internal : null;
+    const internal = cursorInternals.get(cursor);
+    if (!internal || internal.owner !== this.owner) return null;
+    return internal;
   }
 ```
 
@@ -291,8 +309,10 @@ export interface MutableLifecycle {
   kind: ExecutionTraceKind;
   key: string;              // toolCallId / invocationId / timingId / workflowId / phase / approvalId / checkpointId
   title: string;
-  /** Detail carried from intermediate events (e.g. tool stdout on tool.output). */
-  detail?: string;
+  /** Streamed detail parts accumulated from intermediate events (e.g. each
+   *  tool.output stdout preview appends here). Joined with "\n" at
+   *  materialization — long-running tool traces accumulate, not overwrite. */
+  detailParts: string[];
   startedAt: number;
   firstSequence: number;
   lastSequence: number;
@@ -323,14 +343,16 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
       const mapKey = `${kind}:${key}`;
       let o = state.openByKey.get(mapKey);
       if (!o) {
-        o = { kind, key, title: titleOf(kind, e.type, payload), startedAt: ts, firstSequence: seqNum, lastSequence: seqNum };
+        o = { kind, key, title: titleOf(kind, e.type, payload), detailParts: [], startedAt: ts, firstSequence: seqNum, lastSequence: seqNum };
         state.openByKey.set(mapKey, o);
       } else {
         o.lastSequence = Math.max(o.lastSequence, seqNum);
       }
-      if (e.type === TOOL_EVENT_TYPES.OUTPUT && o.detail === undefined) {
+      // Accumulate streamed detail (each tool.output preview appends) — a
+      // long-running tool trace builds up, it does not overwrite.
+      if (e.type === TOOL_EVENT_TYPES.OUTPUT) {
         const preview = payload.outputPreview;
-        if (typeof preview === 'string' && preview.length > 0) o.detail = preview;
+        if (typeof preview === 'string' && preview.length > 0) o.detailParts.push(preview);
       }
       continue;
     }
@@ -342,12 +364,15 @@ export function reconcileEvents(state: ExecutionTraceState, events: readonly Ali
 
     // First-write-wins: a duplicate terminal for an already-materialized
     // lifecycle is ignored (the terminal map already holds the winning entry).
+    // NOTE: the duplicate terminal's seq was already added to seenSequences at
+    // the top of the loop — those seqs are retained for diagnostics (per D5),
+    // so a future maintainer must NOT "fix" that by removing them.
     if (state.terminalById.has(id)) continue;
 
     if (o) {
       state.terminalById.set(id, {
         id, kind, status, title: o.title,
-        detail: resolveDetail(payload, o.detail),
+        detail: resolveDetail(payload, o.detailParts.join("\n")),
         startedAt: o.startedAt, completedAt: ts,
         durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : Math.max(0, ts - o.startedAt),
         sourceEvents: { firstSequence: o.firstSequence, lastSequence: Math.max(o.lastSequence, seqNum) },
@@ -377,7 +402,8 @@ export function materializeTrace(state: ExecutionTraceState): ExecutionTraceEntr
     .sort((a, b) => a.firstSequence - b.firstSequence)
     .map(o => cloneEntry({
       id: traceIdFor(o.firstSequence), kind: o.kind, status: 'running', title: o.title,
-      detail: o.detail, startedAt: o.startedAt,
+      detail: o.detailParts.length > 0 ? o.detailParts.join("\n") : undefined,
+      startedAt: o.startedAt,
       sourceEvents: { firstSequence: o.firstSequence },
     }));
   return [...terminal, ...running];
@@ -501,6 +527,10 @@ describe('IncrementalExecutionTraceBuilder', () => {
     builder.update([evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 999 })]);
     expect(builder.snapshot()).toEqual(once);
   });
+
+  // CONFIRMED: createExecutionTraceRetention (Phase 4) already filters terminal
+  // vs running and retains running entries un-evicted — this test exercises that
+  // invariant. If it fails, the retention impl changed; restore running-retention.
 
   it('applies retention only after lifecycle reconciliation', () => {
     const retention = createExecutionTraceRetention(1);
@@ -634,6 +664,10 @@ describe('RuntimeCollectorImpl incremental', () => {
     expect(after?.trace).toHaveLength(1); // updated in place, not duplicated
   });
 
+  // Note: `builder` is `private readonly` (TS private, not #private) so it IS
+  // reachable via the cast at runtime — the spy works. `sample.call(collector)`
+  // does NOT throw outward because sample() has its own try/catch; the assertion
+  // that afterFail.trace is empty is what proves the first sample didn't populate.
   it('builder failure does NOT advance the checkpoint — next sample re-reads the same events (D3a)', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
@@ -749,6 +783,10 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
 
       const lastEvent = batch.events[batch.events.length - 1];
       if (lastEvent) {
+        // NOTE (D7 accounting): totalEventCount = highest seq seen, which
+        // equals the event count because EventLog assigns contiguous seq from
+        // 1 on append. This assumption holds for Phase 5; a future backend that
+        // decouples seq from count must expose getEventCount() instead.
         this.totalEventCount = Math.max(this.totalEventCount, lastEvent.seq ?? 0);
       }
       this.cache = {
@@ -826,7 +864,11 @@ with a trace read — the last trace unit is the operator-meaningful summary:
   // execution summary (e.g. "tool.search ✔ completed"), not a raw event kind.
   const trace = runtime?.trace ?? [];
   const lastTrace = trace.length > 0 ? trace[trace.length - 1]! : null;
-  const lastKind = lastTrace ? `${lastTrace.title} ${lastTrace.status}` : "—";
+  const statusSymbol =
+    lastTrace?.status === "completed" ? "✔"
+      : lastTrace?.status === "failed" ? "✖"
+        : lastTrace?.status === "cancelled" ? "◌" : "▶";
+  const lastKind = lastTrace ? `${lastTrace.title} ${statusSymbol} ${lastTrace.status}` : "—";
   const lastAgo = lastTrace ? `${formatRelative(lastTrace.startedAt, now)}` : "";
 ```
 The rest of the panel (metadata block, `paintMetaLine(canvas, ..., "Last event:", lastKind, lastAgo)`) is unchanged.
@@ -861,6 +903,9 @@ git commit -m "refactor(capabilities): resolve #321 — dashboard reads trace, r
 
 Run: `npm run build` and `npx vitest run tests/capability tests/tui tests/events --config vitest.config.mts`
 Expected: clean, all pass.
+
+Then verify the D8 hard boundary — `src/capability/*` unchanged across the whole branch:
+Run: `git diff --name-only origin/main -- src/capability/` → empty.
 
 - [ ] **Step 2: Update spec status**
 
