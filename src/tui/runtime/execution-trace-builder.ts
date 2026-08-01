@@ -270,6 +270,28 @@ export function createExecutionTraceBuilder(): ExecutionTraceBuilder {
   return { build: buildExecutionTrace };
 }
 
+/** Stateful facade over the shared reconciliation engine. Holds mutable
+ *  projection state; publishes fresh immutable snapshots after retention.
+ *  Idempotent by event seq — safe against cursor at-least-once replays. */
+export class IncrementalExecutionTraceBuilder {
+  private readonly state: ExecutionTraceState = createTraceState();
+  private readonly retention: ExecutionTraceRetention;
+
+  constructor(retention: ExecutionTraceRetention = createExecutionTraceRetention()) {
+    this.retention = retention;
+  }
+
+  /** Reconcile new events into the lifecycle state. Idempotent by event seq. */
+  update(events: readonly AlixEvent[]): void {
+    reconcileEvents(this.state, events);
+  }
+
+  /** Fresh immutable snapshot after retention. Never mutates prior snapshots. */
+  snapshot(): readonly ExecutionTraceEntry[] {
+    return this.retention.apply(materializeTrace(this.state));
+  }
+}
+
 /** Retention policy: running never evicted; terminal sorted oldest→newest by
  *  startedAt then running appended; maxTerminal bound. */
 export function createExecutionTraceRetention(maxTerminal = 50): ExecutionTraceRetention {
