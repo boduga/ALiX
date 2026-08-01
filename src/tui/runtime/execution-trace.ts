@@ -6,6 +6,14 @@ export type ExecutionTraceKind = 'tool' | 'policy' | 'capability' | 'runtime';
 /** Lifecycle state of an execution trace entry. */
 export type ExecutionTraceStatus = 'running' | 'completed' | 'failed' | 'cancelled';
 
+/** Lifecycle status glyphs — shared by all ExecutionTrace consumers. */
+export const STATUS_GLYPH: Record<ExecutionTraceStatus, string> = {
+  running: '▶',
+  completed: '✔',
+  failed: '✗',
+  cancelled: '○',
+};
+
 /**
  * One lifecycle unit of execution telemetry. Immutable, detached DTO: the
  * builder copies fields out of the raw EventLog events; nothing here holds a

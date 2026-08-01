@@ -6,14 +6,18 @@
  *   - start() → sample() immediately + setInterval
  *   - stop() → clearInterval
  *   - snapshot() → returns frozen cache
+ *
+ * Consumption is INCREMENTAL: each sample reads only events after the last
+ * checkpoint cursor via `EventLog.readSince`, reconciles them into the
+ * IncrementalExecutionTraceBuilder, and advances the checkpoint only after a
+ * successful builder.update (D3a). No `readAll()` in the poll loop.
  */
 
-import type { EventLog } from '../events/event-log.js';
+import type { EventLog, EventLogCursor } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
-import { computeExecutionTrace } from './runtime/execution-trace-builder.js';
+import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
 import type {
   RuntimeSnapshot,
-  RuntimeEventSnapshot,
   WorkflowStateSnapshot,
 } from './snapshot.js';
 
@@ -21,6 +25,12 @@ export interface RuntimeCollector {
   start(): void;
   stop(): void;
   snapshot(): Promise<RuntimeSnapshot | null>;
+}
+
+/** In-memory projection checkpoint. NOT persisted (durability is Phase 5.5). */
+export interface ProjectionCheckpoint {
+  readonly cursor: EventLogCursor;
+  readonly updatedAt: number;
 }
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -32,9 +42,18 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   };
   private timer?: ReturnType<typeof setInterval>;
   private readonly eventLog: EventLog;
+  private readonly builder = new IncrementalExecutionTraceBuilder();
+  private checkpoint: ProjectionCheckpoint;
+  /** Workflow-accounting input ONLY (not a second projection). Holds events
+   *  since the most recent workflow.created; trimmed when a new workflow
+   *  begins. Unbounded during a single active workflow by design (trimming on
+   *  workflow.completed would hide the completion from computeWorkflow). */
+  private recentEvents: AlixEvent[] = [];
+  private totalEventCount = 0;
 
   constructor(eventLog: EventLog) {
     this.eventLog = eventLog;
+    this.checkpoint = { cursor: eventLog.beginningCursor(), updatedAt: Date.now() };
   }
 
   start(): void {
@@ -51,31 +70,48 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   }
 
   /**
-   * Poll the EventLog, keep the last 100 events, and cache a frozen snapshot.
-   * On error the previous cache is preserved so the dashboard never blanks.
+   * Consume the EventLog incrementally via readSince. Cursor advances ONLY
+   * after a successful builder.update (D3a) — if update throws, the checkpoint
+   * is unchanged and the next sample re-reads the same events (idempotent).
+   * On any failure the previous cache is preserved so the dashboard never blanks.
    */
   private async sample(): Promise<void> {
     try {
-      const events = await this.eventLog.readAll();
-      const recent = events.slice(-100);
-      const mapped: RuntimeEventSnapshot[] = recent.map(e => ({
-        id: e.id,
-        kind: `${e.actor}:${e.type}`,
-        summary: `${e.actor}:${e.type}`,
-        timestamp: Date.parse(e.timestamp) || Date.now(),
-      }));
-      mapped.sort((a, b) => b.timestamp - a.timestamp);
-      const trace = computeExecutionTrace(events);
+      const batch = await this.eventLog.readSince(this.checkpoint.cursor);
+      this.builder.update(batch.events);
+      // Advance the checkpoint ONLY after a successful update.
+      this.checkpoint = { cursor: batch.cursor, updatedAt: Date.now() };
+
+      // Workflow accounting: append batch events, then trim to the last
+      // workflow.created boundary (computeWorkflow only needs events since then).
+      this.recentEvents = this.trimToActiveWorkflow([...this.recentEvents, ...batch.events]);
+
+      const lastEvent = batch.events[batch.events.length - 1];
+      if (lastEvent) {
+        // NOTE (D7 accounting): totalEventCount = highest seq seen, which
+        // equals the event count because EventLog assigns contiguous seq from
+        // 1 on append. This assumption holds for Phase 5; a future backend that
+        // decouples seq from count must expose getEventCount() instead.
+        this.totalEventCount = Math.max(this.totalEventCount, lastEvent.seq ?? 0);
+      }
       this.cache = {
-        events: mapped,            // deprecated during migration
-        trace,
-        workflow: computeWorkflow(events),
-        totalEventCount: events.length,
-        lastEventAt: mapped.length > 0 ? mapped[0].timestamp : null,
+        trace: this.builder.snapshot(),
+        workflow: computeWorkflow(this.recentEvents),
+        totalEventCount: this.totalEventCount,
+        lastEventAt: lastEvent ? Date.parse(lastEvent.timestamp) || Date.now() : this.cache.lastEventAt,
       };
     } catch {
       // Keep previous cache on error — dashboard never blanks.
     }
+  }
+
+  /** Keep only the events from the most recent workflow.created onward. */
+  private trimToActiveWorkflow(events: AlixEvent[]): AlixEvent[] {
+    let lastCreated = -1;
+    for (let i = events.length - 1; i >= 0; i--) {
+      if (events[i]!.type === 'workflow.created') { lastCreated = i; break; }
+    }
+    return lastCreated === -1 ? events : events.slice(lastCreated);
   }
 }
 

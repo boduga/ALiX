@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import {
-  buildExecutionTrace, createExecutionTraceBuilder, createExecutionTraceRetention, computeExecutionTrace,
+  buildExecutionTrace, createTraceState, reconcileEvents, materializeTrace,
+  createExecutionTraceBuilder, createExecutionTraceRetention, computeExecutionTrace,
+  IncrementalExecutionTraceBuilder,
 } from '../../../src/tui/runtime/execution-trace-builder.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 
@@ -297,5 +299,126 @@ describe('computeExecutionTrace', () => {
     const out = computeExecutionTrace(events, w);
     expect(out).toHaveLength(1);
     expect(out[0]!.status).toBe('completed');
+  });
+});
+
+describe('reconciliation engine (createTraceState/reconcileEvents/materializeTrace)', () => {
+  it('materializeTrace returns freshly-constructed DTOs, never internal map references', () => {
+    const state = createTraceState();
+    reconcileEvents(state, [evt('tool.started', { toolCallId: 'tc1', toolName: 'search' })]);
+    const materialized = materializeTrace(state);
+    // Mutating the returned DTO must not corrupt internal state.
+    (materialized[0] as { title: string }).title = 'mutated';
+    const again = materializeTrace(state);
+    expect(again[0]!.title).toBe('tool.search');
+  });
+
+  it('buildExecutionTrace wrapper equals reconcile+materialize over the same input', () => {
+    const events = [
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ];
+    const state = createTraceState();
+    reconcileEvents(state, events);
+    expect(materializeTrace(state)).toEqual(buildExecutionTrace(events));
+  });
+
+  it('reconcileEvents is idempotent by event seq (replaying events does not duplicate)', () => {
+    const events = [
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ];
+    const state = createTraceState();
+    reconcileEvents(state, events);
+    const once = materializeTrace(state);
+    reconcileEvents(state, events); // replay
+    expect(materializeTrace(state)).toEqual(once);
+  });
+
+  it('first-write-wins: a NEW-seq duplicate terminal does not synthesize a second entry', () => {
+    const entries = buildExecutionTrace([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 999 }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.durationMs).toBe(10); // first wins, not 999
+  });
+});
+
+describe('IncrementalExecutionTraceBuilder', () => {
+  it('update+snapshot equals buildExecutionTrace over the same input', () => {
+    const events = [
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ];
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update(events);
+    expect(builder.snapshot()).toEqual(buildExecutionTrace(events));
+  });
+
+  it('preserves an open lifecycle across updates, then promotes it to terminal', () => {
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update([evt('tool.started', { toolCallId: 'tc1', toolName: 'search' })]);
+    expect(builder.snapshot()[0]!.status).toBe('running');
+    builder.update([evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 25 })]);
+    const after = builder.snapshot();
+    expect(after).toHaveLength(1);
+    expect(after[0]!.status).toBe('completed');
+    expect(after[0]!.durationMs).toBe(25);
+  });
+
+  it('snapshot immutability — an earlier snapshot never changes after a later update (MANDATORY D6)', () => {
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update([evt('tool.started', { toolCallId: 'tc1', toolName: 'search' })]);
+    const before = builder.snapshot();
+    expect(before[0]!.status).toBe('running');
+    builder.update([evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 25 })]);
+    const after = builder.snapshot();
+    expect(before[0]!.status).toBe('running');   // earlier snapshot frozen
+    expect(after[0]!.status).toBe('completed');  // later snapshot promoted
+  });
+
+  it('is idempotent by seq — replaying a batch leaves the projection unchanged', () => {
+    const batch = [
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ];
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update(batch);
+    const once = builder.snapshot();
+    builder.update(batch); // replay (e.g. consumer failed before advancing cursor)
+    expect(builder.snapshot()).toEqual(once);
+  });
+
+  it('terminal first-wins — a later terminal with a different payload does not rewrite history', () => {
+    const builder = new IncrementalExecutionTraceBuilder();
+    builder.update([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'search' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }),
+    ]);
+    const once = builder.snapshot();
+    // A NEW seq (not a replay) carrying a conflicting terminal for the same lifecycle.
+    builder.update([evt('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 999 })]);
+    expect(builder.snapshot()).toEqual(once);
+  });
+
+  // CONFIRMED: createExecutionTraceRetention (Phase 4) already filters terminal
+  // vs running and retains running entries un-evicted — this test exercises that
+  // invariant. If it fails, the retention impl changed; restore running-retention.
+
+  it('applies retention only after lifecycle reconciliation', () => {
+    const retention = createExecutionTraceRetention(1);
+    const builder = new IncrementalExecutionTraceBuilder(retention);
+    builder.update([
+      evt('tool.started', { toolCallId: 'tc1', toolName: 'a' }),
+      evt('tool.completed', { toolCallId: 'tc1', toolName: 'a', status: 'success', durationMs: 1 }),
+      evt('tool.started', { toolCallId: 'tc2', toolName: 'b' }),
+      evt('tool.completed', { toolCallId: 'tc2', toolName: 'b', status: 'success', durationMs: 2 }),
+      evt('tool.started', { toolCallId: 'tc3', toolName: 'c' }),
+    ]);
+    const out = builder.snapshot();
+    expect(out.filter(e => e.status === 'completed')).toHaveLength(1); // keep-last-1 terminal
+    expect(out.some(e => e.status === 'running')).toBe(true);          // running never evicted
   });
 });
