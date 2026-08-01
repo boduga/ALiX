@@ -9,28 +9,37 @@
  *
  * Consumption is INCREMENTAL: each sample reads only events after the last
  * checkpoint cursor via `EventLog.readSince`, reconciles them into the
- * IncrementalExecutionTraceBuilder, and advances the checkpoint only after a
- * successful builder.update (D3a). No `readAll()` in the poll loop.
+ * IncrementalExecutionTraceBuilder, and advances the checkpoint only after the
+ * next checkpoint has been durably saved (D5 — save-as-commit-marker). The
+ * checkpoint store is constructor-injected; `start()` awaits recovery
+ * (initializeCheckpoint) BEFORE the first sample so recovery can never race an
+ * incomplete restore (which would wrongly start from beginningCursor). No
+ * `readAll()` in the poll loop.
  */
 
-import type { EventLog, EventLogCursor } from '../events/event-log.js';
+import { EventLog, EventLogCursorError, type EventLogCursor } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
 import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
+import { CHECKPOINT_CONTAINER_VERSION } from './runtime/projection-checkpoint-store.js';
+import type { ProjectionCheckpointStore } from './runtime/projection-checkpoint-store.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
 } from './snapshot.js';
 
 export interface RuntimeCollector {
-  start(): void;
+  start(): Promise<void>;
   stop(): void;
   snapshot(): Promise<RuntimeSnapshot | null>;
 }
 
-/** In-memory projection checkpoint. NOT persisted (durability is Phase 5.5). */
+/** In-memory projection checkpoint. cursor-object based in the runtime layer
+ *  (D7); the store persists the serialized form. `committedAt` is the instant
+ *  this projection became durable (D5 — the checkpoint is the durable commit
+ *  marker); `0` until the first successful sample commits a real timestamp. */
 export interface ProjectionCheckpoint {
   readonly cursor: EventLogCursor;
-  readonly updatedAt: number;
+  readonly committedAt: number;
 }
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -42,6 +51,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   };
   private timer?: ReturnType<typeof setInterval>;
   private readonly eventLog: EventLog;
+  private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly builder = new IncrementalExecutionTraceBuilder();
   private checkpoint: ProjectionCheckpoint;
   /** Workflow-accounting input ONLY (not a second projection). Holds events
@@ -51,14 +61,63 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private recentEvents: AlixEvent[] = [];
   private totalEventCount = 0;
 
-  constructor(eventLog: EventLog) {
+  constructor(eventLog: EventLog, checkpointStore: ProjectionCheckpointStore) {
     this.eventLog = eventLog;
-    this.checkpoint = { cursor: eventLog.beginningCursor(), updatedAt: Date.now() };
+    this.checkpointStore = checkpointStore;
+    // Sentinel committedAt=0: nothing has been durably saved yet. The first
+    // successful sample() overwrites this with a real timestamp.
+    this.checkpoint = { cursor: eventLog.beginningCursor(), committedAt: 0 };
   }
 
-  start(): void {
-    void this.sample();
+  /** Await recovery BEFORE the first sample — the first sample must never race
+   *  an incomplete initializeCheckpoint (which would start from beginningCursor
+   *  and re-process already-consumed events). */
+  async start(): Promise<void> {
+    await this.initializeCheckpoint();
+    await this.sample();
     this.timer = setInterval(() => void this.sample(), 1_000);
+  }
+
+  /** Restore the durable checkpoint, falling back to beginningCursor when the
+   *  store has none, its load() rejects (operational — disk read failure), or
+   *  the serialized cursor is invalid (any of the four `EventLogCursorError`
+   *  modes: malformed JSON, unsupported version, invalid payload, or a `seq`
+   *  that lies beyond the current EventLog head). In every fallback case we
+   *  replay from the start. The two catches are split so the invalid-cursor
+   *  path is explicit (and the operational path keeps its null fallback
+   *  instead of a half-restored checkpoint). */
+  private async initializeCheckpoint(): Promise<void> {
+    let loaded: Awaited<ReturnType<ProjectionCheckpointStore['load']>> = null;
+    try { loaded = await this.checkpointStore.load(); } catch { loaded = null; }
+    if (!loaded) {
+      this.resetCheckpoint();
+      return;
+    }
+    try {
+      this.checkpoint = {
+        cursor: this.eventLog.deserializeCursor(loaded.cursor),
+        committedAt: loaded.committedAt,
+      };
+    } catch (err) {
+      if (err instanceof EventLogCursorError) {
+        // Invalid checkpoint (any of the four EventLogCursorError modes) —
+        // fall back to a full replay from beginningCursor. The persisted
+        // checkpoint file is left untouched; a subsequent successful sample
+        // will overwrite it with a valid one.
+        this.resetCheckpoint();
+      } else {
+        // Operational failure during deserialization (none expected today,
+        // but kept for future-proofing — a future cursor backend that throws
+        // a non-cursor error). Same fallback: full replay.
+        this.resetCheckpoint();
+      }
+    }
+  }
+
+  /** Reset the in-memory checkpoint to the durable starting position. Used by
+   *  every initializeCheckpoint fallback branch. */
+  private resetCheckpoint(): void {
+    this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: 0 };
   }
 
   stop(): void {
@@ -70,38 +129,99 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   }
 
   /**
-   * Consume the EventLog incrementally via readSince. Cursor advances ONLY
-   * after a successful builder.update (D3a) — if update throws, the checkpoint
-   * is unchanged and the next sample re-reads the same events (idempotent).
-   * On any failure the previous cache is preserved so the dashboard never blanks.
+   * Consume the EventLog incrementally via readSince. The in-memory checkpoint
+   * AND the published cache advance ONLY after the next checkpoint has been
+   * durably persisted (D5 — save-as-commit-marker). A save failure keeps the
+   * old checkpoint + old cache; the next sample re-reads the same events
+   * (idempotent builder by seq). On any failure the previous cache is preserved
+   * so the dashboard never blanks.
+   *
+   * D5a atomic commit: build the new cache into a LOCAL first, then advance
+   * checkpoint + cache on the same final step. A throw anywhere between the
+   * save succeeding and the cache being assigned leaves BOTH old — so the
+   * durable checkpoint and the published snapshot stay aligned. Without this
+   * ordering, a throw from computeWorkflow/builder.snapshot after a successful
+   * save would leave the durable checkpoint ahead of the published snapshot,
+   * and the next sample would skip the window's events.
+   *
+   * Invalid-cursor discrimination: a `readSince` throw of `EventLogCursorError`
+   * (the beyond-head case) means the persisted checkpoint's `seq` lies past
+   * the current log head — we MUST reset to `beginningCursor()` or the
+   * in-memory projection will keep an out-of-range cursor and skip every
+   * subsequent event. We reset and return; the next sample re-reads from the
+   * start. Operational failures (disk read, save rejection) take the existing
+   * path: preserve the current checkpoint + cache and retry next sample.
    */
   private async sample(): Promise<void> {
+    let batch;
     try {
-      const batch = await this.eventLog.readSince(this.checkpoint.cursor);
+      batch = await this.eventLog.readSince(this.checkpoint.cursor);
+    } catch (err) {
+      if (err instanceof EventLogCursorError) {
+        // Invalid cursor (beyond-head position). Drop the persisted
+        // checkpoint's seq so the next sample re-reads from beginningCursor.
+        // The builder is idempotent by event seq (re-applying already-seen
+        // seqs is a no-op), so we leave its accumulated state in place — a
+        // truncated log may leave stale trace entries, but the rebuild on
+        // the next sample will not duplicate them and will pick up any
+        // events that still exist in the log. Cache stays as-is for this
+        // sample; the next sample publishes the rebuilt snapshot.
+        this.resetCheckpoint();
+        return;
+      }
+      // Operational read failure — preserve the current checkpoint + cache;
+      // we return early so the rest of the sample (builder update, save)
+      // does not run on a half-read batch. The next sample retries the
+      // read from the same cursor.
+      return;
+    }
+
+    try {
       this.builder.update(batch.events);
-      // Advance the checkpoint ONLY after a successful update.
-      this.checkpoint = { cursor: batch.cursor, updatedAt: Date.now() };
+
+      const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
+
+      // Durable commit BEFORE advancing the in-memory checkpoint or publishing
+      // the snapshot (D5). Neither the checkpoint nor the cache may advance
+      // unless this save succeeded.
+      await this.checkpointStore.save({
+        version: CHECKPOINT_CONTAINER_VERSION,
+        cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
+        committedAt: nextCheckpoint.committedAt,
+      });
 
       // Workflow accounting: append batch events, then trim to the last
       // workflow.created boundary (computeWorkflow only needs events since then).
-      this.recentEvents = this.trimToActiveWorkflow([...this.recentEvents, ...batch.events]);
+      const nextRecentEvents = this.trimToActiveWorkflow([...this.recentEvents, ...batch.events]);
 
       const lastEvent = batch.events[batch.events.length - 1];
+      let nextTotalEventCount = this.totalEventCount;
       if (lastEvent) {
         // NOTE (D7 accounting): totalEventCount = highest seq seen, which
         // equals the event count because EventLog assigns contiguous seq from
         // 1 on append. This assumption holds for Phase 5; a future backend that
         // decouples seq from count must expose getEventCount() instead.
-        this.totalEventCount = Math.max(this.totalEventCount, lastEvent.seq ?? 0);
+        nextTotalEventCount = Math.max(nextTotalEventCount, lastEvent.seq ?? 0);
       }
-      this.cache = {
+      const nextCache: RuntimeSnapshot = {
         trace: this.builder.snapshot(),
-        workflow: computeWorkflow(this.recentEvents),
-        totalEventCount: this.totalEventCount,
+        workflow: computeWorkflow(nextRecentEvents),
+        totalEventCount: nextTotalEventCount,
         lastEventAt: lastEvent ? Date.parse(lastEvent.timestamp) || Date.now() : this.cache.lastEventAt,
       };
+
+      // ATOMIC commit: checkpoint + cache advance together on the same step
+      // (D5a — a checkpoint file never represents a projection state that has
+      // not been durably published; a published snapshot never represents a
+      // checkpoint position that has not been durably persisted). If anything
+      // above threw, this line never executes and the catch preserves BOTH old.
+      this.checkpoint = nextCheckpoint;
+      this.recentEvents = nextRecentEvents;
+      this.totalEventCount = nextTotalEventCount;
+      this.cache = nextCache;
     } catch {
-      // Keep previous cache on error — dashboard never blanks.
+      // Keep previous cache on error — dashboard never blanks; checkpoint only
+      // advances after a durable save.
     }
   }
 

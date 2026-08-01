@@ -8,6 +8,7 @@ import { TuiApp } from "../../tui/app.js";
 import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
 import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
+import { FileProjectionCheckpointStore } from "../../tui/runtime/projection-checkpoint-store.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
 import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
@@ -87,7 +88,8 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
-  const runtimeCollector = new RuntimeCollectorImpl(eventLog);
+  const checkpointStore = new FileProjectionCheckpointStore(sessionDir);
+  const runtimeCollector = new RuntimeCollectorImpl(eventLog, checkpointStore);
   const sopCollector = new SopCollectorImpl();
 
   // Either the real `createAgentSession` runtime (default) or the
@@ -182,7 +184,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals, themeName: opts.themeName, capabilityService });
 
-  runtimeCollector.start();
+  await runtimeCollector.start();
   sopCollector.start();
 
   try {
