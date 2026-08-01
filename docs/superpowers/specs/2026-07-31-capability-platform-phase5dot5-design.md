@@ -4,10 +4,10 @@
 **Date:** 2026-07-31
 **Depends on:** Phase 5 (`docs/superpowers/specs/2026-07-31-capability-platform-phase5-design.md`) — merged 2026-07-31 (`7a3cd94c`)
 
-> Persists the `ProjectionCheckpoint` (cursor + updatedAt) so the incremental EventLog
-> processing from Phase 5 survives process replacement. Delivers the strongest
-> primitive for the future Timeline Projection phase: a durable, opaque, replay-safe
-> projection watermark.
+> Persists the `ProjectionCheckpoint` (cursor + committedAt) so the incremental
+> EventLog processing from Phase 5 survives process replacement. Delivers the
+> strongest primitive for the future Timeline Projection phase: a durable, opaque,
+> replay-safe projection watermark.
 
 ## Goal
 
@@ -18,10 +18,11 @@ Persist the execution-trace projection's checkpoint to disk so a restarted colle
 | # | Decision |
 |---|---|
 | D1 | **EventLog owns cursor serialization.** `EventLog.serializeCursor(cursor)` and `deserializeCursor(serialized)` are the only way cursors cross the persistence boundary. The internal representation stays private to the log module — consumer code never depends on sequence representation. The serialized form is a **position claim**, not a transferable cursor: no owner token is persisted, so on restart `deserializeCursor` creates a cursor owned by the new instance. |
-| D2 | **Cursor format is versioned internally.** `{ version: 1, seq }`. Future migration switches on `version`. Malformed/foreign serialized cursors throw. |
-| D3 | **`ProjectionCheckpointStore` owns atomic persistence.** A dedicated store persists `{ version, cursor, updatedAt }` to `.alix/sessions/<sessionId>/projection-checkpoint.json` via atomic tmp+rename (mirrors session-store-jsonl). It does NOT interpret cursors, touch the EventLog, or run projection logic. |
-| D4 | **Checkpoint file has its own version envelope.** The container is `{ version: 1, cursor, updatedAt }` — the cursor's internal format is versioned too, but the container envelope is the store's contract and may evolve independently (future `projection`/`schema` fields). |
-| D5 | **Save-before-publish; checkpoint is a commit marker.** `readSince` → `builder.update` → `save(candidateCheckpoint)` → on success advance in-memory checkpoint + publish snapshot; on failure keep BOTH the old checkpoint and the old cache (retry next sample). A published `RuntimeSnapshot` always has a corresponding durable checkpoint position. |
+| D2 | **Cursor format is versioned internally.** `{ version: 1, seq }`. Future migration switches on `version`. `deserializeCursor` has exactly three failure modes: **malformed JSON**, **unsupported version**, **invalid payload** — all throw. |
+| D3 | **`ProjectionCheckpointStore` owns atomic persistence only.** A dedicated store persists `{ version, cursor, committedAt }` to `.alix/sessions/<sessionId>/projection-checkpoint.json` via atomic tmp+rename (mirrors session-store-jsonl). The store never receives an `EventLog` and never interprets the cursor string (D1/D7). Dependency graph is one-directional: `EventLog ↑ Collector ↓ CheckpointStore` — the collector is the bridge that serializes/deserializes around the store, never the store touching the log. |
+| D4 | **Checkpoint file has its own version envelope.** The container is `{ version: 1, cursor, committedAt }` — the cursor's internal format is versioned too, but the container envelope is the store's contract and may evolve independently (future `projection`/`schema` fields). The two versions evolve independently. |
+| D5 | **The checkpoint is the durable commit marker.** Neither the in-memory checkpoint nor the published snapshot may advance unless the checkpoint has been durably persisted. `readSince` → `builder.update` → `save(candidateCheckpoint)` → on success advance in-memory checkpoint + publish snapshot; on failure keep BOTH the old checkpoint and the old cache (retry next sample). A published `RuntimeSnapshot` always has a corresponding durable checkpoint position. |
+| D5a | **Commit-marker invariant (D5, stated once):** *A checkpoint file never represents a projection state that has not been durably published, and a published snapshot never represents a checkpoint position that has not been durably persisted.* |
 | D6 | **Write cadence = every successful sample.** The EventLog is append-only and the file is ~100 bytes; 1 write/sec via atomic tmp+rename is negligible versus LLM calls/rendering. No throttle (optimize correctness first; a throttle is a later option if I/O ever matters). Shutdown-only is rejected (daemon environments have ungraceful exits: SIGKILL, OOM, container eviction). |
 | D7 | **`ProjectionCheckpoint` stays cursor-object based in the runtime layer.** The collector never touches a `cursorString`; serialization happens only at the store boundary (`serializeCursor`/`deserializeCursor`). |
 | D8 | **Boundary.** `src/capability/*`, `timelineEvents[]`, ChatView, AgentView, and the capability presenter are untouched. Timeline Projection (the unification) is still a separate future phase. |
@@ -52,20 +53,31 @@ The serialized string may contain the sequence internally, but it is only handle
 
 ### Checkpoint store (`src/tui/runtime/projection-checkpoint-store.ts`)
 
+The store's contract is the **persisted** form — it never sees an `EventLog` or a cursor object (D3/D7):
+
 ```ts
+/** The persisted form of a projection checkpoint. `committedAt` is the instant
+ *  this projection became durable (matches D5 — the checkpoint is the durable
+ *  commit marker). */
+export interface PersistedProjectionCheckpoint {
+  readonly version: 1;
+  readonly cursor: string;      // opaque — the store never interprets it
+  readonly committedAt: number;
+}
+
 export interface ProjectionCheckpointStore {
-  load(): Promise<ProjectionCheckpoint | null>;
-  save(checkpoint: ProjectionCheckpoint): Promise<void>;
+  load(): Promise<PersistedProjectionCheckpoint | null>;
+  save(checkpoint: PersistedProjectionCheckpoint): Promise<void>;
 }
 ```
 
 Storage: `.alix/sessions/<sessionId>/projection-checkpoint.json`
 
 ```json
-{ "version": 1, "cursor": "<opaque>", "updatedAt": 1785544200000 }
+{ "version": 1, "cursor": "<opaque>", "committedAt": 1785544200000 }
 ```
 
-Atomic write: write `<file>.tmp` then `rename` over the target (session-store-jsonl pattern). `load()` returns `null` for a missing file, malformed JSON, or an unknown container `version`. The store owns the envelope (D4); it never reads the cursor string.
+Atomic write: write `<file>.tmp` then `rename` over the target (session-store-jsonl pattern). `load()` returns `null` for a missing file, malformed JSON, or an unknown container `version`. The store owns the envelope (D4); it never reads the cursor string. The collector is the bridge: `load() → deserializeCursor() → ProjectionCheckpoint`, and `ProjectionCheckpoint → serializeCursor() → save()` (D3 dependency graph: `EventLog ↑ Collector ↓ CheckpointStore`).
 
 ### Collector wiring (`src/tui/runtime-collector.ts`)
 
@@ -106,7 +118,7 @@ readSince(checkpoint.cursor)
 builder.update(batch.events)
    │
    ▼
-nextCheckpoint = { cursor: batch.cursor, updatedAt: Date.now() }
+nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() }
    │
    ▼
 await checkpointStore.save(nextCheckpoint)
@@ -151,6 +163,7 @@ checkpoint advances + snapshot publishes              beginningCursor() fallback
 - ✅ `EventLog.serializeCursor`/`deserializeCursor` exist; cursor opacity preserved (seq never exposed through the public API); versioned internal format.
 - ✅ `ProjectionCheckpointStore` persists atomically with its own version envelope; `load` falls back cleanly.
 - ✅ Collector resumes from the saved checkpoint after restart; save is a commit marker (checkpoint advances only after durable save; save-failure preserves old checkpoint + old cache).
+- ✅ **D5a commit-marker invariant:** a checkpoint file never represents a projection state that has not been durably published, and a published snapshot never represents a checkpoint position that has not been durably persisted.
 - ✅ Write cadence = every successful sample, persist-before-publish.
 - ✅ `src/capability/*`, `timelineEvents[]`, ChatView, AgentView, capability presenter untouched; vitest green; `tsc --noEmit` clean.
 
