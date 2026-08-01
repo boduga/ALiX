@@ -36,7 +36,7 @@ export interface RuntimeCollector {
 /** In-memory projection checkpoint. cursor-object based in the runtime layer
  *  (D7); the store persists the serialized form. `committedAt` is the instant
  *  this projection became durable (D5 — the checkpoint is the durable commit
- *  marker). */
+ *  marker); `0` until the first successful sample commits a real timestamp. */
 export interface ProjectionCheckpoint {
   readonly cursor: EventLogCursor;
   readonly committedAt: number;
@@ -64,7 +64,9 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   constructor(eventLog: EventLog, checkpointStore: ProjectionCheckpointStore) {
     this.eventLog = eventLog;
     this.checkpointStore = checkpointStore;
-    this.checkpoint = { cursor: eventLog.beginningCursor(), committedAt: Date.now() };
+    // Sentinel committedAt=0: nothing has been durably saved yet. The first
+    // successful sample() overwrites this with a real timestamp.
+    this.checkpoint = { cursor: eventLog.beginningCursor(), committedAt: 0 };
   }
 
   /** Await recovery BEFORE the first sample — the first sample must never race
@@ -81,20 +83,26 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
    *  serialized cursor, or deserialization throws — in every fallback case we
    *  replay from the start. */
   private async initializeCheckpoint(): Promise<void> {
-    let saved: Awaited<ReturnType<ProjectionCheckpointStore['load']>> = null;
-    try { saved = await this.checkpointStore.load(); } catch { saved = null; }
-    if (!saved) {
-      this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
+    let loaded: Awaited<ReturnType<ProjectionCheckpointStore['load']>> = null;
+    try { loaded = await this.checkpointStore.load(); } catch { loaded = null; }
+    if (!loaded) {
+      this.resetCheckpoint();
       return;
     }
     try {
       this.checkpoint = {
-        cursor: this.eventLog.deserializeCursor(saved.cursor),
-        committedAt: saved.committedAt,
+        cursor: this.eventLog.deserializeCursor(loaded.cursor),
+        committedAt: loaded.committedAt,
       };
     } catch {
-      this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
+      this.resetCheckpoint();
     }
+  }
+
+  /** Reset the in-memory checkpoint to the durable starting position. Used by
+   *  every initializeCheckpoint fallback branch. */
+  private resetCheckpoint(): void {
+    this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: 0 };
   }
 
   stop(): void {
@@ -112,6 +120,14 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
    * old checkpoint + old cache; the next sample re-reads the same events
    * (idempotent builder by seq). On any failure the previous cache is preserved
    * so the dashboard never blanks.
+   *
+   * D5a atomic commit: build the new cache into a LOCAL first, then advance
+   * checkpoint + cache on the same final step. A throw anywhere between the
+   * save succeeding and the cache being assigned leaves BOTH old — so the
+   * durable checkpoint and the published snapshot stay aligned. Without this
+   * ordering, a throw from computeWorkflow/builder.snapshot after a successful
+   * save would leave the durable checkpoint ahead of the published snapshot,
+   * and the next sample would skip the window's events.
    */
   private async sample(): Promise<void> {
     try {
@@ -129,26 +145,35 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         committedAt: nextCheckpoint.committedAt,
       });
 
-      this.checkpoint = nextCheckpoint;
-
       // Workflow accounting: append batch events, then trim to the last
       // workflow.created boundary (computeWorkflow only needs events since then).
-      this.recentEvents = this.trimToActiveWorkflow([...this.recentEvents, ...batch.events]);
+      const nextRecentEvents = this.trimToActiveWorkflow([...this.recentEvents, ...batch.events]);
 
       const lastEvent = batch.events[batch.events.length - 1];
+      let nextTotalEventCount = this.totalEventCount;
       if (lastEvent) {
         // NOTE (D7 accounting): totalEventCount = highest seq seen, which
         // equals the event count because EventLog assigns contiguous seq from
         // 1 on append. This assumption holds for Phase 5; a future backend that
         // decouples seq from count must expose getEventCount() instead.
-        this.totalEventCount = Math.max(this.totalEventCount, lastEvent.seq ?? 0);
+        nextTotalEventCount = Math.max(nextTotalEventCount, lastEvent.seq ?? 0);
       }
-      this.cache = {
+      const nextCache: RuntimeSnapshot = {
         trace: this.builder.snapshot(),
-        workflow: computeWorkflow(this.recentEvents),
-        totalEventCount: this.totalEventCount,
+        workflow: computeWorkflow(nextRecentEvents),
+        totalEventCount: nextTotalEventCount,
         lastEventAt: lastEvent ? Date.parse(lastEvent.timestamp) || Date.now() : this.cache.lastEventAt,
       };
+
+      // ATOMIC commit: checkpoint + cache advance together on the same step
+      // (D5a — a checkpoint file never represents a projection state that has
+      // not been durably published; a published snapshot never represents a
+      // checkpoint position that has not been durably persisted). If anything
+      // above threw, this line never executes and the catch preserves BOTH old.
+      this.checkpoint = nextCheckpoint;
+      this.recentEvents = nextRecentEvents;
+      this.totalEventCount = nextTotalEventCount;
+      this.cache = nextCache;
     } catch {
       // Keep previous cache on error — dashboard never blanks; checkpoint only
       // advances after a durable save.

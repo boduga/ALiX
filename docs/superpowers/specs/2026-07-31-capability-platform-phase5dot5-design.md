@@ -147,13 +147,13 @@ checkpoint advances + snapshot publishes              beginningCursor() fallback
 ## Error Handling
 
 - **Save failure** — old checkpoint + old cache preserved (D5); next sample retries.
-- **Missing/malformed/foreign checkpoint on load** — fall back to `beginningCursor()` (full replay, idempotent).
+- **Missing/malformed/foreign cursor on recovery** — fall back to `beginningCursor()` (full replay, idempotent). "Foreign" here is **NOT** detected at load time: D1 persists no owner token, so `deserializeCursor` cannot tell whether the bytes came from a sibling log instance. The restored cursor is owned by **this** EventLog and looks valid at load; the rejection happens at the next `readSince`, because the cursor's seq no longer matches this log's head. `load()` rejection, missing file, malformed JSON, unknown version, and `deserializeCursor` throws all collapse to the same `resetCheckpoint()` fallback — together they cover foreign cursors because the eventual `readSince` rejection is what forces a replay from `beginningCursor()` on the **following** sample, not the load itself.
 - **`deserializeCursor` throws** — caught in `initializeCheckpoint`, falls back to `beginningCursor()`.
 - **Atomic write failure** — `save` rejects; the `.tmp` file is left, never a half-written target.
 
 ## Testing Strategy
 
-- **EventLog cursor serialization:** round-trip (serialize→deserialize→`cursorsEqual`); serialized cursor from another log instance rejects on `deserializeCursor`; malformed JSON rejects; versioned format preserved.
+- **EventLog cursor serialization:** round-trip (serialize→deserialize→`cursorsEqual`); a serialized cursor from another log instance is restored by the active log's `deserializeCursor` and the restored cursor is foreign to the *serializing* log — the rejection happens at `readSince`, not at `deserializeCursor` (D1: no owner token persisted); malformed JSON rejects; versioned format preserved.
 - **Checkpoint store:** atomic write (tmp+rename — target only appears complete); `load` missing→null, malformed→null, unknown version→null; round-trip.
 - **Collector:** recovery from a saved checkpoint resumes (does not full-replay); fallback to `beginningCursor()` on missing/malformed/foreign; **save-failure keeps old checkpoint + old cache and retries next sample** (D5 — the discriminating test: inject a failing store, assert the checkpoint did NOT advance and the cache is unchanged, then a successful sample advances both).
 - **Gate:** `npx tsc -p tsconfig.json --noEmit` + `npx vitest run tests/tui tests/events --config vitest.config.mts` green.
