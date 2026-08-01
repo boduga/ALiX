@@ -272,9 +272,16 @@ export function paintRuntimePanel(
   }
 
   const now = Date.now();
-  const lastEvent = runtime && runtime.events && runtime.events.length > 0 ? runtime.events[0]! : null;
-  const lastKind = lastEvent?.kind ?? "—";
-  const lastAgo = lastEvent ? `${formatRelative(lastEvent.timestamp, now)}` : "";
+  // "Last event" now means the last trace unit — the operator-meaningful
+  // execution summary (e.g. "tool.search ✔ completed"), not a raw event kind.
+  const trace = runtime?.trace ?? [];
+  const lastTrace = trace.length > 0 ? trace[trace.length - 1]! : null;
+  const statusSymbol =
+    lastTrace?.status === "completed" ? "✔"
+      : lastTrace?.status === "failed" ? "✖"
+        : lastTrace?.status === "cancelled" ? "◌" : "▶";
+  const lastKind = lastTrace ? `${lastTrace.title} ${statusSymbol} ${lastTrace.status}` : "—";
+  const lastAgo = lastTrace ? `${formatRelative(lastTrace.startedAt, now)}` : "";
 
   // Metadata block (rows 3..6) — only when h >= 9.
   if (h >= 9) {

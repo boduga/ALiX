@@ -372,20 +372,21 @@ describe('renderDashboard — RUNTIME panel', () => {
 
   function runtimeSnap(opts: {
     totalEvents?: number;
-    lastKind?: string;
-    lastTimestampAgo?: number;
+    lastTrace?: { title: string; status: string; startedAtSecondsAgo: number };
     workflow?: { name: string; currentStep: number; totalSteps: number; startedAtSecondsAgo: number };
   }): any {
     const now = Date.now();
-    const events = opts.lastKind
+    const trace = opts.lastTrace
       ? [{
-          id: 'e1',
-          kind: opts.lastKind,
-          summary: opts.lastKind,
-          timestamp: now - (opts.lastTimestampAgo ?? 2) * 1000,
+          id: 'tr-1',
+          kind: 'tool' as const,
+          status: opts.lastTrace.status,
+          title: opts.lastTrace.title,
+          startedAt: now - (opts.lastTrace.startedAtSecondsAgo ?? 2) * 1000,
+          sourceEvents: { firstSequence: 1 },
         }]
       : [];
-    const totalEvents = opts.totalEvents ?? events.length;
+    const totalEvents = opts.totalEvents ?? 0;
     return {
       generatedAt: now,
       session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
@@ -397,7 +398,7 @@ describe('renderDashboard — RUNTIME panel', () => {
       },
       approvals: null,
       runtime: {
-        events,
+        trace,
         workflow: opts.workflow
           ? {
               name: opts.workflow.name,
@@ -407,7 +408,7 @@ describe('renderDashboard — RUNTIME panel', () => {
             }
           : null,
         totalEventCount: totalEvents,
-        lastEventAt: events[0]?.timestamp ?? null,
+        lastEventAt: trace[0]?.startedAt ?? null,
       },
       sops: null,
       policy: null,
@@ -447,8 +448,7 @@ describe('renderDashboard — RUNTIME panel', () => {
     const c = new TerminalCanvas(120, 30);
     renderDashboard(
       runtimeSnap({
-        lastKind: 'exec.completed',
-        lastTimestampAgo: 2,
+        lastTrace: { title: 'tool.search', status: 'completed', startedAtSecondsAgo: 2 },
         workflow: { name: 'research-and-implement', currentStep: 7, totalSteps: 12, startedAtSecondsAgo: 60 },
       }),
       c, 0,
@@ -458,6 +458,24 @@ describe('renderDashboard — RUNTIME panel', () => {
     expect(frame).toContain('Active step:');
     expect(frame).toContain('Workflow:');
     expect(frame).toContain('Started:');
+  });
+
+  it('renders the last trace unit as "Last event:" with its status symbol', () => {
+    const cases = [
+      { status: 'completed', symbol: '✔' },
+      { status: 'failed', symbol: '✖' },
+      { status: 'cancelled', symbol: '◌' },
+      { status: 'running', symbol: '▶' },
+    ];
+    for (const { status, symbol } of cases) {
+      const c = new TerminalCanvas(240, 30);
+      renderDashboard(
+        runtimeSnap({ lastTrace: { title: 'tool.search', status, startedAtSecondsAgo: 2 } }),
+        c, 0,
+      );
+      const frame = stripAnsi(c.renderFrame());
+      expect(frame).toContain(`tool.search ${symbol} ${status}`);
+    }
   });
 
   it('renders the "Live \'runtime\' stream" footer hint', () => {

@@ -89,23 +89,16 @@ export interface ApprovalRecordSnapshot {
 }
 
 /**
- * Runtime events + workflow state. Ordered events: descending by timestamp.
+ * Runtime execution telemetry. `trace` holds the operator-facing lifecycle
+ * units (interpretation); `totalEventCount`/`lastEventAt` are raw-log
+ * accounting metadata (D7).
  */
 export interface RuntimeSnapshot {
-  /** Deprecated during migration — consumers move to `trace`. Deleted after migration. */
-  readonly events?: readonly RuntimeEventSnapshot[];
   /** Execution-trace lifecycle units, built from the EventLog. Immutable DTOs. */
   readonly trace: readonly ExecutionTraceEntry[];
   readonly workflow: WorkflowStateSnapshot | null;
   readonly totalEventCount: number;
   readonly lastEventAt: number | null;
-}
-
-export interface RuntimeEventSnapshot {
-  readonly id: string;
-  readonly kind: string;
-  readonly summary: string;
-  readonly timestamp: number;
 }
 
 export interface WorkflowStateSnapshot {
