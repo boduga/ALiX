@@ -16,7 +16,7 @@ Three outcomes: (1) remove the deprecated flat `RuntimeEventSnapshot`/`RuntimeSn
 
 | # | Decision |
 |---|---|
-| D1 | **Cursor is opaque, seq-backed, log-local.** `EventLogCursor` is a branded type whose internal representation (`seq`) is private to `event-log.ts`. Consumers can only obtain, store, compare-by-helper, and pass cursors back to the same `EventLog` instance. A cursor belongs to exactly one logical EventLog — it cannot migrate between sessions/log files and is not globally meaningful. `cursorsEqual(a, b)` is only meaningful within the owning log: it returns `false` for foreign/unknown cursors, never throws. |
+| D1 | **Cursor is opaque, seq-backed, log-local, ownership-token-guarded.** `EventLogCursor` is a branded type whose internal representation (`seq` + an `owner` symbol) is private to `event-log.ts`. Consumers can only obtain, store, compare-by-helper, and pass cursors back to the same `EventLog` instance. A cursor belongs to exactly one logical EventLog — it cannot migrate between sessions/log files and is not globally meaningful. `cursorsEqual(a, b)` is only meaningful within the owning log: it returns `false` for foreign/unknown cursors, never throws. `readSince(cursor)` validates `cursor.owner === this.owner` at runtime and throws on a foreign cursor — the "log-local" invariant is an actual runtime guard, not just documentation. |
 | D2 | **At-least-once cursor semantics.** `readSince(cursor)` returns `{ events, cursor }` where the returned cursor is the **highest `seq` successfully included in the result** (not necessarily the log head observed). A consumer that fails before accepting the new cursor retries from the old one and re-reads the same range — so the incremental builder MUST be idempotent for duplicate event sequences. No new events → `events: []` + an equivalent cursor. Results are ascending by `seq`, from one consistent read snapshot. |
 | D3 | **No durable checkpoint persistence in Phase 5.** Incremental processing exists; it does not survive process replacement. Cursor files / DB checkpoints / crash-recovery storage are explicitly Phase 5.5+. The in-memory `ProjectionCheckpoint { cursor, updatedAt }` shape is introduced for the collector's own state, not persisted. `seenSequences` is **bounded by the lifetime of the in-memory projection** — durable checkpointing and sequence compaction are future work (a Phase 5.5/Timeline Projection phase can replace the `Set<number>` with a cursor watermark + recent-dedup window once durable replay semantics exist). |
 | D3a | **Cursor advances only after successful projection update.** The sample loop updates the builder BEFORE advancing the checkpoint: `batch = readSince(cursor)` → `builder.update(batch.events)` → `checkpoint = { cursor: batch.cursor, ... }`. If `builder.update()` throws, the cursor does not advance, the events replay on the next sample, and idempotency protects recovery — preserving the at-least-once contract end-to-end. |
@@ -38,7 +38,14 @@ declare const eventLogCursorBrand: unique symbol;
 export type EventLogCursor = { readonly [eventLogCursorBrand]: true };
 
 // Internal, private to event-log.ts:
-interface InternalEventLogCursor { readonly seq: number; }
+interface InternalEventLogCursor {
+  readonly seq: number;
+  /** Ownership token — rejects foreign cursors at runtime. */
+  readonly owner: symbol;
+}
+// Each EventLog instance creates its own `owner` symbol. beginningCursor() →
+// { seq: 0, owner }, getCursor() → { seq: lastSeq, owner }; readSince(cursor)
+// validates `cursor.owner === this.owner` and throws on a foreign cursor.
 ```
 
 Public API additions to `EventLog`:
@@ -75,6 +82,11 @@ interface MutableLifecycle {
   detailParts: string[];
 }
 
+/**
+ * Internal mutable projection state. `readonly` here only prevents
+ * reassignment of the fields, NOT mutation of the Map/Set contents — this
+ * object is intentionally mutable. Never expose references returned from it.
+ */
 interface ExecutionTraceState {
   readonly seenSequences: Set<number>;
   readonly openByKey: Map<string, MutableLifecycle>;
@@ -172,10 +184,12 @@ RuntimeView + dashboard-renderer (renders trace)
 
 ## Testing Strategy
 
-- **Cursor:** `beginningCursor` vs `getCursor`; `readSince(beginning)` returns all events ascending; `readSince(current)` returns `[]` + equivalent cursor; returned cursor is highest-included-seq; a second `readSince` of the same range re-reads the same events (at-least-once); fabricated cursor impossible via public API.
+- **Cursor:** `beginningCursor` vs `getCursor`; `readSince(beginning)` returns all events ascending; `readSince(current)` returns `[]` + equivalent cursor; returned cursor is highest-included-seq; a second `readSince` of the same range re-reads the same events (at-least-once); fabricated cursor impossible via public API; **foreign cursor rejected** — `readSince` with a cursor from another EventLog instance throws (owner mismatch); `cursorsEqual` with a foreign cursor returns `false` without throwing.
+- **Builder failure does not advance the checkpoint (D3a):** collector sample — `readSince` returns events, `builder.update` throws, next sample receives the SAME cursor and re-reads the same events (the at-least-once pipeline, not just the cursor API).
 - **Incremental builder:** `update`+`snapshot` equals `buildExecutionTrace(events)` over the same input; **idempotency** — replaying events 11–13 leaves the projection unchanged; open lifecycle survives across updates then promotes to terminal; **snapshot immutability (mandatory, D6)** — `before = snapshot()` stays `running` after `update(completed)` then `after = snapshot()` is `completed`; terminal dedup — a duplicate terminal with different payload does NOT rewrite `terminalById` (first wins).
 - **Collector:** startup from `beginningCursor` (no `readAll()`); poll-failure keeps snapshot; `trace` matches single-shot `buildExecutionTrace`.
-- **#321:** dashboard-renderer reads `trace`; zero `RuntimeEventSnapshot`/`RuntimeSnapshot.events` references in `src/` + `tests/`.
+- **#321:** dashboard-renderer reads `trace`. Zero references via a scoped grep that avoids false positives on unrelated `.events` arrays:
+  `rg "RuntimeEventSnapshot|RuntimeSnapshot\.events|runtime\.events|r\.events" src tests` → zero.
 - **Gate:** `npx tsc -p tsconfig.json --noEmit` + `npx vitest run tests/tui --config vitest.config.mts` green.
 
 ## Success Criteria
