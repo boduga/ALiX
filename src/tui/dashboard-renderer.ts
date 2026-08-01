@@ -274,7 +274,7 @@ export function paintRuntimePanel(
 
   const now = Date.now();
   // "Last event" now means the last trace unit — the operator-meaningful
-  // execution summary (e.g. "tool.search ✔"), not a raw event kind.
+  // execution summary (e.g. "✔ tool.search"), not a raw event kind.
   const trace = runtime?.trace ?? [];
   const lastTrace = trace.length > 0 ? trace[trace.length - 1]! : null;
   const statusSymbol = lastTrace ? STATUS_GLYPH[lastTrace.status] : '—';
