@@ -89,6 +89,48 @@ describe('buildExecutionTrace', () => {
     expect(entries[0]!.status).toBe('completed');
   });
 
+  it('correlates runtime phases via timingId (real TimingEventPayload shape)', () => {
+    const entries = buildExecutionTrace([
+      evt('runtime.phase.started', { timingId: 't1', operation: 'route.tool.search' }),
+      evt('runtime.phase.completed', { timingId: 't1', operation: 'route.tool.search', durationMs: 42, outcome: 'success' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.kind).toBe('runtime');
+    expect(entries[0]!.status).toBe('completed');
+    expect(entries[0]!.title).toBe('route.tool.search');
+    expect(entries[0]!.durationMs).toBe(42);
+  });
+
+  it('keeps an orphaned runtime.phase.completed from hardcoding durationMs to 0', () => {
+    const entries = buildExecutionTrace([
+      evt('runtime.phase.completed', { timingId: 'orphan', operation: 'route.tool.search', durationMs: 37, outcome: 'success' }),
+    ]);
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.status).toBe('completed');
+    expect(entries[0]!.durationMs).toBe(37);
+  });
+
+  it('keys agent.session.phase_changed on the phase value (each transition its own unit)', () => {
+    const entries = buildExecutionTrace([
+      evt('agent.session.phase_changed', { phase: 'planning' }),
+      evt('agent.session.phase_changed', { phase: 'executing' }),
+    ]);
+    expect(entries).toHaveLength(2);
+    expect(entries.map(e => e.kind)).toEqual(['runtime', 'runtime']);
+    expect(entries.map(e => e.status)).toEqual(['running', 'running']);
+    expect(entries.map(e => e.title)).toEqual(['planning', 'executing']);
+  });
+
+  it('does not collapse distinct runtime phase operations onto one key', () => {
+    const entries = buildExecutionTrace([
+      evt('runtime.phase.started', { timingId: 't1', operation: 'route.tool.search' }),
+      evt('runtime.phase.started', { timingId: 't2', operation: 'route.tool.execute' }),
+    ]);
+    // Two distinct phases with no terminal events → two running entries.
+    expect(entries).toHaveLength(2);
+    expect(entries.map(e => e.title)).toEqual(['route.tool.search', 'route.tool.execute']);
+  });
+
   it('outputs detached DTOs — mutating an entry does not touch the source events', () => {
     const events = [evt('tool.started', { toolCallId: 'tc1', toolName: 'search' })];
     const entries = buildExecutionTrace(events);

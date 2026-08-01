@@ -36,7 +36,7 @@ const STATUS_BY_TYPE: Record<string, ExecutionTraceEntry['status']> = {
 
 interface OpenLifecycle {
   kind: ExecutionTraceKind;
-  key: string;              // toolCallId / invocationId / phase / workflowId
+  key: string;              // toolCallId / invocationId / timingId / workflowId / phase
   title: string;
   startedAt: number;
   firstSequence: number;
@@ -60,8 +60,8 @@ function kindOf(type: string): ExecutionTraceKind | null {
 function keyOf(type: string, payload: Record<string, unknown>, seq: number): string {
   if (type.startsWith('capability.')) return String(payload.invocationId ?? `${type}:${seq}`);
   if (type.startsWith('tool.')) return String(payload.toolCallId ?? `${type}:${seq}`);
-  if (type.startsWith('runtime.phase')) return String(payload.phase ?? `${type}:${seq}`);
-  if (type === 'agent.session.phase_changed') return 'phase';
+  if (type.startsWith('runtime.phase')) return String(payload.timingId ?? payload.operation ?? payload.phase ?? `${type}:${seq}`);
+  if (type === 'agent.session.phase_changed') return String(payload.phase ?? payload.to ?? `${type}:${seq}`);
   if (type === 'workflow.created' || type === 'workflow.completed') return 'workflow';
   // policy.decision is a standalone terminal event — each decision is its own
   // lifecycle unit unless an explicit correlation ID ties it to an open approval.
@@ -75,7 +75,7 @@ function titleOf(kind: ExecutionTraceKind, type: string, payload: Record<string,
     case 'tool': return `tool.${payload.toolName ?? payload.toolCallId ?? '?'}`;
     case 'capability': return String(payload.capabilityId ?? payload.invocationId ?? '?');
     case 'policy': return type === 'policy.decision' ? 'Policy decision' : 'Approval';
-    case 'runtime': return String(payload.phase ?? payload.workflowId ?? 'phase');
+    case 'runtime': return String(payload.operation ?? payload.phase ?? payload.workflowId ?? payload.timingId ?? 'phase');
   }
 }
 
@@ -131,7 +131,8 @@ export function buildExecutionTrace(events: readonly AlixEvent[]): ExecutionTrac
       // A terminal event without a recorded open — synthesize a completed entry.
       done.push({
         id: traceIdFor(seqNum), kind, status, title: titleOf(kind, e.type, payload),
-        startedAt: ts, completedAt: ts, durationMs: 0,
+        startedAt: ts, completedAt: ts,
+        durationMs: typeof payload.durationMs === 'number' ? payload.durationMs : 0,
         sourceEvents: { firstSequence: seqNum, lastSequence: seqNum },
       });
     }
