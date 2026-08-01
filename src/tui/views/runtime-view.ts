@@ -1,15 +1,7 @@
 import { writeRowsToCanvas } from '../canvas.js';
 import type { RuntimeSnapshot } from '../snapshot.js';
-import type { ExecutionTraceEntry, ExecutionTraceStatus } from '../runtime/execution-trace.js';
+import { STATUS_GLYPH, type ExecutionTraceEntry } from '../runtime/execution-trace.js';
 import type { TuiView, ViewRenderContext, ViewInputContext, ViewAction } from './types.js';
-
-/** Lifecycle status glyphs — consistent with trace-detail / panel-renderer. */
-const STATUS_GLYPH: Record<ExecutionTraceStatus, string> = {
-  running: '▶',
-  completed: '✔',
-  failed: '✗',
-  cancelled: '○',
-};
 
 /** One-line lifecycle row: `[time] glyph title … status (ms)`. Never touches the EventLog. */
 function formatTraceRow(e: ExecutionTraceEntry): string {

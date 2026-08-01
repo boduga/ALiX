@@ -16,6 +16,7 @@
 import type { DashboardSnapshot } from "./snapshot.js";
 import type { TerminalCanvas } from "./canvas.js";
 import { truncate } from "./dashboard-helpers.js";
+import { STATUS_GLYPH } from "./runtime/execution-trace.js";
 
 /** Default panel height in rows — matches the historical bottom-of-chat dashboard. */
 export const DEFAULT_PANEL_H = 14;
@@ -276,16 +277,13 @@ export function paintRuntimePanel(
   // execution summary (e.g. "tool.search ✔"), not a raw event kind.
   const trace = runtime?.trace ?? [];
   const lastTrace = trace.length > 0 ? trace[trace.length - 1]! : null;
-  const statusSymbol =
-    lastTrace?.status === "completed" ? "✔"
-      : lastTrace?.status === "failed" ? "✖"
-        : lastTrace?.status === "cancelled" ? "◌" : "▶";
-  const lastKind = lastTrace ? `${lastTrace.title} ${statusSymbol}` : "—";
+  const statusSymbol = lastTrace ? STATUS_GLYPH[lastTrace.status] : '—';
+  const lastTraceLabel = lastTrace ? `${statusSymbol} ${lastTrace.title}` : "—";
   const lastAgo = lastTrace ? `${formatRelative(lastTrace.startedAt, now)}` : "";
 
   // Metadata block (rows 3..6) — only when h >= 9.
   if (h >= 9) {
-    paintMetaLine(canvas, x + 2, y + 3, contentW, "Last event:", lastKind, lastAgo);
+    paintMetaLine(canvas, x + 2, y + 3, contentW, "Last event:", lastTraceLabel, lastAgo);
     const activeStep = workflow ? `${workflow.currentStep}/${workflow.totalSteps}` : "—";
     paintMetaLine(canvas, x + 2, y + 4, contentW, "Active step:", activeStep);
     paintMetaLine(canvas, x + 2, y + 5, contentW, "Workflow:", workflow ? workflow.name : "—");

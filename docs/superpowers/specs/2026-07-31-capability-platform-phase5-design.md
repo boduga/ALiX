@@ -23,7 +23,7 @@ Three outcomes: (1) remove the deprecated flat `RuntimeEventSnapshot`/`RuntimeSn
 | D4 | **One reconciliation engine.** `buildExecutionTrace(events)` becomes a compatibility wrapper over `createTraceState()` + `reconcileEvents(state, events)` + `materializeTrace(state)`. The stateful `IncrementalExecutionTraceBuilder` uses the SAME `reconcileEvents`/`materializeTrace`. No second grouping algorithm. |
 | D5 | **Idempotency by event `seq`.** `ExecutionTraceState.seenSequences` dedups; replaying events 11–13 leaves the projection unchanged. Terminal dedup: completed lifecycles leave `openByKey` into `terminalById` keyed by `tr-${firstSequence}`; a duplicate terminal with a different payload does NOT silently rewrite history — **first terminal completion wins**, later duplicates are ignored after reconciliation (their seqs may be retained internally for diagnostics). |
 | D6 | **Mutable internal state, immutable published snapshots.** The builder holds a mutable `ExecutionTraceState` (open lifecycles, terminal map); `snapshot()` returns a fresh `retention.apply(materializeTrace(state))` of immutable `ExecutionTraceEntry[]` DTOs. **`materializeTrace()` must never expose internal map objects** — it always returns freshly-constructed DTOs (`[...terminalEntries].map(cloneEntry)` or equivalent), never references into `terminalById`/`openByKey`. An earlier snapshot never changes after a later `update` — enforced by a mandatory immutability test. |
-| D7 | **#321 dashboard migration:** the RUNTIME panel "Last event:" row switches from newest raw event to the last trace unit (e.g. `tool.search ✔ completed`). `totalEventCount`/`lastEventAt` stay raw-log metadata. Trace = interpretation; EventLog metadata = accounting. |
+| D7 | **#321 dashboard migration:** the RUNTIME panel "Last event:" row switches from newest raw event to the last trace unit (e.g. `✔ tool.search`). `totalEventCount`/`lastEventAt` stay raw-log metadata. Trace = interpretation; EventLog metadata = accounting. |
 | D8 | **Boundary:** `timelineEvents[]`, ChatView, AgentView, the capability presenter, and `src/capability/*` are UNTOUCHED. The Timeline Projection phase will later reuse `EventLogCursor`/`readSince`/the reconciliation engine/`ProjectionCheckpoint` without dragging the Phase-3 timeline migration into this phase. |
 
 ## Architecture
@@ -139,7 +139,7 @@ export class IncrementalExecutionTraceBuilder {
 
 ### Collector integration (`src/tui/runtime-collector.ts`)
 
-The collector owns TWO concerns: the trace (via the incremental builder) and the workflow/runtime accounting (via a bounded recent-events buffer). **`recentEvents` is NOT a second execution projection — it is workflow-accounting input owned by `RuntimeCollector`** (a future maintainer must not merge it with trace state). `computeWorkflow` scans for `workflow.created`/`workflow.completed` boundaries then counts steps since the last `workflow.created` — it needs events since that boundary, NOT the trace (non-lifecycle events like `workflow.completed` don't appear in the trace). So the collector retains a bounded `recentEvents` buffer (events appended per batch; trimmed once the active workflow completes) used only by `computeWorkflow`; `totalEventCount`/`lastEventAt` come from the raw log head (`getCursor`/latest read).
+The collector owns TWO concerns: the trace (via the incremental builder) and the workflow/runtime accounting (via a bounded recent-events buffer). **`recentEvents` is NOT a second execution projection — it is workflow-accounting input owned by `RuntimeCollector`** (a future maintainer must not merge it with trace state). `computeWorkflow` scans for `workflow.created`/`workflow.completed` boundaries then counts steps since the last `workflow.created` — it needs events since that boundary, NOT the trace (non-lifecycle events like `workflow.completed` don't appear in the trace). So the collector retains a bounded `recentEvents` buffer (events appended per batch; trimmed when a new `workflow.created` arrives; unbounded during a single active workflow by design (trimming on completion would hide the completion from `computeWorkflow`)) used only by `computeWorkflow`; `totalEventCount`/`lastEventAt` come from the raw log head (`getCursor`/latest read).
 
 ```
 let checkpoint: ProjectionCheckpoint = { cursor: eventLog.beginningCursor(), updatedAt: Date.now() };
@@ -148,7 +148,7 @@ sample():
   const batch = await eventLog.readSince(checkpoint.cursor);
   builder.update(batch.events);
   checkpoint = { cursor: batch.cursor, updatedAt: Date.now() };
-  recentEvents = trimAfterWorkflowBoundary([...recentEvents, ...batch.events]);
+  recentEvents = trimToActiveWorkflow([...recentEvents, ...batch.events]);
   this.cache = { trace: builder.snapshot(), workflow: computeWorkflow(recentEvents), totalEventCount: <from cursor>, lastEventAt: <last raw event ts>, ... };
 ```
 

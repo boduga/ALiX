@@ -460,11 +460,12 @@ describe('renderDashboard — RUNTIME panel', () => {
     expect(frame).toContain('Started:');
   });
 
-  it('renders the last trace unit as "Last event:" with its status symbol', () => {
+  it('renders the last trace unit as "Last event:" with its status symbol first', () => {
+    // Shared STATUS_GLYPH values (✗ not ✖, ○ not ◌) in symbol-first form.
     const cases = [
       { status: 'completed', symbol: '✔' },
-      { status: 'failed', symbol: '✖' },
-      { status: 'cancelled', symbol: '◌' },
+      { status: 'failed', symbol: '✗' },
+      { status: 'cancelled', symbol: '○' },
       { status: 'running', symbol: '▶' },
     ];
     for (const { status, symbol } of cases) {
@@ -474,8 +475,25 @@ describe('renderDashboard — RUNTIME panel', () => {
         c, 0,
       );
       const frame = stripAnsi(c.renderFrame());
-      expect(frame).toContain(`tool.search ${symbol}`);
+      expect(frame).toContain(`${symbol} tool.search`);
     }
+  });
+
+  it('preserves the status symbol at the default 120-col width when the title truncates', () => {
+    // Regression guard (Spec-1): the "Last event:" value budget at the default
+    // 120-col canvas is ~6 chars, so the symbol must come FIRST — the
+    // tail-cutting truncate() keeps the head. Before the fix, `tool.search ✔`
+    // truncated to `tool…` and the symbol (the point of the row) was cut off.
+    const c = new TerminalCanvas(120, 30);
+    renderDashboard(
+      runtimeSnap({
+        lastTrace: { title: 'tool.search.someLongTitle', status: 'completed', startedAtSecondsAgo: 2 },
+      }),
+      c, 0,
+    );
+    const frame = stripAnsi(c.renderFrame());
+    expect(frame).toContain('✔'); // symbol survives the truncation
+    expect(frame).not.toContain('someLongTitle'); // the title WAS truncated
   });
 
   it('renders the "Live \'runtime\' stream" footer hint', () => {
