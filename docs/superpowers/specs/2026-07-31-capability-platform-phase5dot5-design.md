@@ -1,6 +1,6 @@
 # ALiX Capability Platform — Phase 5.5 Design (Durable Projection Checkpoints)
 
-**Status:** Approved — Ready for Implementation
+**Status:** Implemented (Phase 5.5)
 **Date:** 2026-07-31
 **Depends on:** Phase 5 (`docs/superpowers/specs/2026-07-31-capability-platform-phase5-design.md`) — merged 2026-07-31 (`7a3cd94c`)
 
