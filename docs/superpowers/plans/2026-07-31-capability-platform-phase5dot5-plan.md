@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Persist the `ProjectionCheckpoint` (cursor + updatedAt) so the incremental EventLog processing from Phase 5 survives process replacement — a durable, opaque, replay-safe projection watermark.
+**Goal:** Persist the `ProjectionCheckpoint` (cursor + committedAt) so the incremental EventLog processing from Phase 5 survives process replacement — a durable, opaque, replay-safe projection watermark.
 
-**Architecture:** `EventLog` gains `serializeCursor`/`deserializeCursor` (the only way cursors cross the persistence boundary; versioned internal format; no owner token persisted). A dedicated `ProjectionCheckpointStore` persists `{ version, cursor, updatedAt }` atomically (tmp+rename) to `projection-checkpoint.json`. `RuntimeCollectorImpl` takes the store via constructor injection, recovers from it in an async `start()` before sampling, and treats the checkpoint as a **commit marker** — the cursor advances and the snapshot publishes only after a durable save succeeds (save-before-publish, D5).
+**Architecture:** `EventLog` gains `serializeCursor`/`deserializeCursor` (the only way cursors cross the persistence boundary; versioned internal format; no owner token persisted). A dedicated `ProjectionCheckpointStore` persists `{ version, cursor, committedAt }` atomically (tmp+rename) to `projection-checkpoint.json`. `RuntimeCollectorImpl` takes the store via constructor injection, recovers from it in an async `start()` before sampling, and treats the checkpoint as a **commit marker** — the cursor advances and the snapshot publishes only after a durable save succeeds (save-before-publish, D5).
 
 **Tech Stack:** TypeScript (NodeNext ESM, strict), vitest, the existing EventLog + RuntimeCollector + session-store atomic-write pattern.
 
@@ -135,8 +135,8 @@ git commit -m "feat(capabilities): EventLog cursor serialize/deserialize (versio
 - Test: `tests/tui/runtime/projection-checkpoint-store.vitest.ts` (new)
 
 **Interfaces:**
-- Consumes: `ProjectionCheckpoint` from `../runtime-collector.js` (Task 3 moves nothing — it stays in runtime-collector.ts), `EventLogCursor` from `../../../events/event-log.js`.
-- Produces: `ProjectionCheckpointStore` interface + a filesystem implementation `FileProjectionCheckpointStore`. Tasks 3-4 consume these.
+- Consumes: nothing from the collector — the store's contract is `PersistedProjectionCheckpoint` (defined in this file); it never sees the `EventLog` or a cursor object (D3/D7).
+- Produces: `PersistedProjectionCheckpoint`, `ProjectionCheckpointStore` interface + a filesystem implementation `FileProjectionCheckpointStore`. Tasks 3-4 consume these.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -149,8 +149,8 @@ import { join } from 'node:path';
 import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { EventLog } from '../../../src/events/event-log.js';
 
-function makeSerialized(log: EventLog, seq = 5): { cursor: string; updatedAt: number } {
-  return { cursor: log.serializeCursor(log.getCursor()), updatedAt: 1000 };
+function makeSerialized(log: EventLog, seq = 5): { cursor: string; committedAt: number } {
+  return { cursor: log.serializeCursor(log.getCursor()), committedAt: 1000 };
 }
 
 describe('FileProjectionCheckpointStore', () => {
@@ -174,7 +174,7 @@ describe('FileProjectionCheckpointStore', () => {
     const loaded = await store.load();
     expect(loaded).not.toBeNull();
     expect(loaded!.cursor).toBe(cp.cursor);       // opaque string preserved verbatim
-    expect(loaded!.updatedAt).toBe(cp.updatedAt);
+    expect(loaded!.committedAt).toBe(cp.committedAt);
     // The collector deserializes the opaque string back into an owned cursor:
     expect(log.cursorsEqual(log.deserializeCursor(loaded!.cursor), log.getCursor())).toBe(true);
   });
@@ -187,7 +187,7 @@ describe('FileProjectionCheckpointStore', () => {
 
   it('load returns null for an unknown container version', async () => {
     const { writeFile } = await import('node:fs/promises');
-    await writeFile(join(dir, 'projection-checkpoint.json'), JSON.stringify({ version: 99, cursor: 'x', updatedAt: 1 }), 'utf-8');
+    await writeFile(join(dir, 'projection-checkpoint.json'), JSON.stringify({ version: 99, cursor: 'x', committedAt: 1 }), 'utf-8');
     expect(await store.load()).toBeNull();
   });
 
@@ -218,11 +218,16 @@ const CHECKPOINT_FILE = 'projection-checkpoint.json';
 const TMP_SUFFIX = '.tmp';
 const CONTAINER_VERSION = 1;
 
-interface SerializedCheckpoint {
-  readonly version: number;
-  /** Opaque cursor string — the store never interprets it. */
+// PersistedProjectionCheckpoint (defined above) IS the envelope written to
+// disk; CONTAINER_VERSION is its literal version field.
+
+/** The persisted form of a projection checkpoint. `committedAt` is the instant
+ *  this projection became durable (matches D5 — the checkpoint is the durable
+ *  commit marker). The cursor string is opaque to the store. */
+export interface PersistedProjectionCheckpoint {
+  readonly version: 1;
   readonly cursor: string;
-  readonly updatedAt: number;
+  readonly committedAt: number;
 }
 
 /** Persistence boundary for projection checkpoints. Owns atomic disk writes and
@@ -230,10 +235,10 @@ interface SerializedCheckpoint {
  *  run projection logic (D3). The cursor STRING is opaque — the collector
  *  serializes/deserializes it via the EventLog around this store (D7: the
  *  runtime layer never touches a cursorString, but the store's boundary is the
- *  serialized form). */
+ *  serialized form). Dependency graph: EventLog ↑ Collector ↓ CheckpointStore. */
 export interface ProjectionCheckpointStore {
-  load(): Promise<{ readonly cursor: string; readonly updatedAt: number } | null>;
-  save(serialized: { readonly cursor: string; readonly updatedAt: number }): Promise<void>;
+  load(): Promise<PersistedProjectionCheckpoint | null>;
+  save(checkpoint: PersistedProjectionCheckpoint): Promise<void>;
 }
 
 /** Filesystem store. Writes to `<sessionDir>/projection-checkpoint.json` via
@@ -248,40 +253,35 @@ export class FileProjectionCheckpointStore implements ProjectionCheckpointStore 
     this.tmpPath = this.path + TMP_SUFFIX;
   }
 
-  async load(): Promise<{ readonly cursor: string; readonly updatedAt: number } | null> {
+  async load(): Promise<PersistedProjectionCheckpoint | null> {
     if (!existsSync(this.path)) return null;
     const raw = await readFile(this.path, 'utf-8');
-    let parsed: Partial<SerializedCheckpoint>;
+    let parsed: Partial<PersistedProjectionCheckpoint>;
     try {
-      parsed = JSON.parse(raw) as Partial<SerializedCheckpoint>;
+      parsed = JSON.parse(raw) as Partial<PersistedProjectionCheckpoint>;
     } catch {
       return null; // corrupt — treat as not-found
     }
     if (typeof parsed !== 'object' || parsed === null) return null;
     if (parsed.version !== CONTAINER_VERSION) return null; // unknown envelope
-    if (typeof parsed.cursor !== 'string' || typeof parsed.updatedAt !== 'number') return null;
-    return { cursor: parsed.cursor, updatedAt: parsed.updatedAt };
+    if (typeof parsed.cursor !== 'string' || typeof parsed.committedAt !== 'number') return null;
+    return { version: CONTAINER_VERSION, cursor: parsed.cursor, committedAt: parsed.committedAt };
   }
 
-  async save(serialized: { readonly cursor: string; readonly updatedAt: number }): Promise<void> {
+  async save(checkpoint: PersistedProjectionCheckpoint): Promise<void> {
     await mkdir(dirname(this.path), { recursive: true });
-    const payload: SerializedCheckpoint = {
-      version: CONTAINER_VERSION,
-      cursor: serialized.cursor,
-      updatedAt: serialized.updatedAt,
-    };
-    await writeFile(this.tmpPath, JSON.stringify(payload, null, 2) + '\n', 'utf-8');
+    await writeFile(this.tmpPath, JSON.stringify(checkpoint, null, 2) + '\n', 'utf-8');
     await rename(this.tmpPath, this.path);
   }
 }
 ```
 
-The collector owns `serializeCursor`/`deserializeCursor` around this store (Task 3): `save({ cursor: eventLog.serializeCursor(cp.cursor), updatedAt })` and `eventLog.deserializeCursor(saved.cursor)` on load. The store never sees the EventLog or a cursor object.
+The collector owns `serializeCursor`/`deserializeCursor` around this store (Task 3): `save({ cursor: eventLog.serializeCursor(cp.cursor), committedAt })` and `eventLog.deserializeCursor(saved.cursor)` on load. The store never sees the EventLog or a cursor object.
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/projection-checkpoint-store.vitest.ts --config vitest.config.mts`
-Expected: PASS (update the test to the corrected string-based store contract: `store.save({ cursor: log.serializeCursor(cp.cursor), updatedAt })` and `store.load()` returns `{ cursor: string, updatedAt }`).
+Expected: PASS (update the test to the corrected string-based store contract: `store.save({ cursor: log.serializeCursor(cp.cursor), committedAt })` and `store.load()` returns `{ cursor: string, committedAt }`).
 
 - [ ] **Step 5: Build + full runtime suite + commit**
 
@@ -311,9 +311,9 @@ Extend `tests/tui/runtime/runtime-collector.vitest.ts`. The existing fake EventL
 import { RuntimeCollectorImpl } from '../../src/tui/runtime-collector.js';
 import type { ProjectionCheckpointStore } from '../../src/tui/runtime/projection-checkpoint-store.js';
 
-function makeCheckpointStore(): ProjectionCheckpointStore & { saved: Array<{ cursor: string; updatedAt: number }> } {
-  let stored: { cursor: string; updatedAt: number } | null = null;
-  const saved: Array<{ cursor: string; updatedAt: number }> = [];
+function makeCheckpointStore(): ProjectionCheckpointStore & { saved: Array<{ cursor: string; committedAt: number }> } {
+  let stored: { cursor: string; committedAt: number } | null = null;
+  const saved: Array<{ cursor: string; committedAt: number }> = [];
   return {
     saved,
     async load() { return stored; },
@@ -333,7 +333,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const store = makeCheckpointStore();
     // Seed the store with a checkpoint past BOTH events.
     const saved = await log.readSince(log.beginningCursor());
-    await store.save({ cursor: log.serializeCursor(saved.cursor), updatedAt: Date.now() });
+    await store.save({ cursor: log.serializeCursor(saved.cursor), committedAt: Date.now() });
 
     const collector = new RuntimeCollectorImpl(log, store);
     const start = (collector as unknown as { start(): Promise<void> }).start;
@@ -358,7 +358,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
     const store = makeCheckpointStore();
-    await store.save({ cursor: 'not-a-real-cursor', updatedAt: Date.now() }); // deserialize will throw
+    await store.save({ cursor: 'not-a-real-cursor', committedAt: Date.now() }); // deserialize will throw
     const collector = new RuntimeCollectorImpl(log, store);
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
@@ -411,11 +411,24 @@ Expected: FAIL — constructor arity / `start` returns void / no serialize/deser
 
 - [ ] **Step 3: Rewrite `src/tui/runtime-collector.ts`**
 
-1. Import the store interface:
+1. **Rename `updatedAt` → `committedAt` on the `ProjectionCheckpoint` interface** (it currently lives at the top of `runtime-collector.ts` with `updatedAt` from Phase 5 — the review refinement reframes it as "the instant this projection became durable"):
+
+```typescript
+/** In-memory projection checkpoint. cursor-object based in the runtime layer
+ *  (D7); the store persists the serialized form. `committedAt` is the instant
+ *  this projection became durable (D5 — the checkpoint is the durable commit
+ *  marker). */
+export interface ProjectionCheckpoint {
+  readonly cursor: EventLogCursor;
+  readonly committedAt: number;
+}
+```
+
+2. Import the store interface:
 ```typescript
 import type { ProjectionCheckpointStore } from './runtime/projection-checkpoint-store.js';
 ```
-2. Change the constructor + add `initializeCheckpoint` + async `start`:
+3. Change the constructor + add `initializeCheckpoint` + async `start`:
 
 ```typescript
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -431,7 +444,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   constructor(eventLog: EventLog, checkpointStore: ProjectionCheckpointStore) {
     this.eventLog = eventLog;
     this.checkpointStore = checkpointStore;
-    this.checkpoint = { cursor: eventLog.beginningCursor(), updatedAt: Date.now() };
+    this.checkpoint = { cursor: eventLog.beginningCursor(), committedAt: Date.now() };
   }
 
   /** Await recovery BEFORE the first sample — the first sample must never race
@@ -445,16 +458,16 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private async initializeCheckpoint(): Promise<void> {
     const saved = await this.checkpointStore.load();
     if (!saved) {
-      this.checkpoint = { cursor: this.eventLog.beginningCursor(), updatedAt: Date.now() };
+      this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
       return;
     }
     try {
       this.checkpoint = {
         cursor: this.eventLog.deserializeCursor(saved.cursor),
-        updatedAt: saved.updatedAt,
+        committedAt: saved.committedAt,
       };
     } catch {
-      this.checkpoint = { cursor: this.eventLog.beginningCursor(), updatedAt: Date.now() };
+      this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
     }
   }
 ```
@@ -467,13 +480,13 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       const batch = await this.eventLog.readSince(this.checkpoint.cursor);
       this.builder.update(batch.events);
 
-      const nextCheckpoint = { cursor: batch.cursor, updatedAt: Date.now() };
+      const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
 
       // Durable commit BEFORE advancing the in-memory checkpoint or publishing
       // the snapshot (D5). A save failure keeps the old checkpoint + old cache.
       await this.checkpointStore.save({
         cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
-        updatedAt: nextCheckpoint.updatedAt,
+        committedAt: nextCheckpoint.committedAt,
       });
 
       this.checkpoint = nextCheckpoint;
