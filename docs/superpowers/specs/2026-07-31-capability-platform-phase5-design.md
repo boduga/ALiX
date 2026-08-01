@@ -1,6 +1,6 @@
 # ALiX Capability Platform — Phase 5 Design (EventLog Incremental Projection Foundation)
 
-**Status:** Approved — Ready for Implementation
+**Status:** Implemented (Phase 5)
 **Date:** 2026-07-31
 **Depends on:** Phase 4 (`docs/superpowers/specs/2026-07-31-capability-platform-phase4-execution-trace-design.md`) — merged 2026-07-31 (`b95bff32`)
 
