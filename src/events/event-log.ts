@@ -6,10 +6,33 @@ import type { AlixEvent, NewEvent } from "./types.js";
 
 type EventListener = (event: AlixEvent) => void;
 
+// Runtime symbol (NOT `declare`): the computed property key below is evaluated
+// at runtime, so the brand must be a real binding. Symbol-keyed properties are
+// invisible to `Object.keys`, `for...in`, and JSON — the D1 opacity test relies
+// on this (cursor exposes no `.seq`/`.owner`, and `Object.keys(cursor) === []`).
+const eventLogCursorBrand: unique symbol = Symbol('eventLogCursorBrand');
+
+/** Opaque, log-local position marker. Belongs to exactly one EventLog
+ *  instance; consumers obtain/store/compare/pass back — never read internals.
+ *  A cursor from another log is rejected by `readSince` (owner mismatch) and
+ *  `cursorsEqual` returns false for it. */
+export type EventLogCursor = { readonly [eventLogCursorBrand]: true };
+
+interface InternalEventLogCursor {
+  readonly seq: number;
+  readonly owner: symbol;
+}
+
+/** Internals are stored off-object in a WeakMap so the cursor object exposes
+ *  no readable properties at runtime (D1): even a `cursor as any` cannot read
+ *  `.seq` or `.owner`. */
+const cursorInternals = new WeakMap<object, InternalEventLogCursor>();
+
 export class EventLog {
   readonly path: string;
   private nextSeq = 1;
   private watchers: EventListener[] = [];
+  private readonly owner = Symbol('EventLogCursorOwner');
 
   constructor(readonly sessionDir: string) {
     this.path = join(sessionDir, "events.jsonl");
@@ -19,6 +42,59 @@ export class EventLog {
     await mkdir(dirname(this.path), { recursive: true });
     const events = await this.readAll();
     this.nextSeq = events.reduce((max, e) => Math.max(max, e.seq ?? 0), 0) + 1;
+  }
+
+  /** The position before the first event — the start for full replay. */
+  beginningCursor(): EventLogCursor {
+    return this.makeCursor(0);
+  }
+
+  /** The current head cursor (for callers that want to skip existing history). */
+  getCursor(): EventLogCursor {
+    return this.makeCursor(this.nextSeq - 1);
+  }
+
+  /** Events with seq > cursor.seq, ascending. Returned cursor = highest seq
+   *  successfully included (at-least-once: retrying from the input cursor
+   *  re-reads the same events). Throws if the cursor belongs to another log. */
+  async readSince(cursor: EventLogCursor): Promise<{
+    readonly events: readonly AlixEvent[];
+    readonly cursor: EventLogCursor;
+  }> {
+    const internal = this.unwrap(cursor);
+    const events = await this.readAll();
+    const newer = events.filter(e => (e.seq ?? 0) > internal.seq);
+    const lastSeq = newer.length > 0 ? (newer[newer.length - 1]!.seq ?? internal.seq) : internal.seq;
+    return { events: newer, cursor: this.makeCursor(lastSeq) };
+  }
+
+  /** Equality helper. Log-local: returns false (never throws) for a foreign
+   *  cursor or a cursor this log does not own. */
+  cursorsEqual(a: EventLogCursor, b: EventLogCursor): boolean {
+    const ia = this.tryUnwrap(a);
+    const ib = this.tryUnwrap(b);
+    if (!ia || !ib) return false;
+    return ia.seq === ib.seq;
+  }
+
+  private makeCursor(seq: number): EventLogCursor {
+    const cursor = { [eventLogCursorBrand]: true } as EventLogCursor;
+    cursorInternals.set(cursor, { seq, owner: this.owner });
+    return cursor;
+  }
+
+  /** Throws on a cursor this log does not own. */
+  private unwrap(cursor: EventLogCursor): InternalEventLogCursor {
+    const internal = this.tryUnwrap(cursor);
+    if (!internal) throw new Error('EventLogCursor belongs to a different EventLog instance');
+    return internal;
+  }
+
+  /** Returns null (not throw) for a foreign cursor — cursorsEqual depends on this. */
+  private tryUnwrap(cursor: EventLogCursor): InternalEventLogCursor | null {
+    const internal = cursorInternals.get(cursor);
+    if (!internal || internal.owner !== this.owner) return null;
+    return internal;
   }
 
   async append<TType extends string, TPayload>(
