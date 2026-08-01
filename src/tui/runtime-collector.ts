@@ -9,28 +9,36 @@
  *
  * Consumption is INCREMENTAL: each sample reads only events after the last
  * checkpoint cursor via `EventLog.readSince`, reconciles them into the
- * IncrementalExecutionTraceBuilder, and advances the checkpoint only after a
- * successful builder.update (D3a). No `readAll()` in the poll loop.
+ * IncrementalExecutionTraceBuilder, and advances the checkpoint only after the
+ * next checkpoint has been durably saved (D5 — save-as-commit-marker). The
+ * checkpoint store is constructor-injected; `start()` awaits recovery
+ * (initializeCheckpoint) BEFORE the first sample so recovery can never race an
+ * incomplete restore (which would wrongly start from beginningCursor). No
+ * `readAll()` in the poll loop.
  */
 
 import type { EventLog, EventLogCursor } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
 import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
+import type { ProjectionCheckpointStore } from './runtime/projection-checkpoint-store.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
 } from './snapshot.js';
 
 export interface RuntimeCollector {
-  start(): void;
+  start(): Promise<void>;
   stop(): void;
   snapshot(): Promise<RuntimeSnapshot | null>;
 }
 
-/** In-memory projection checkpoint. NOT persisted (durability is Phase 5.5). */
+/** In-memory projection checkpoint. cursor-object based in the runtime layer
+ *  (D7); the store persists the serialized form. `committedAt` is the instant
+ *  this projection became durable (D5 — the checkpoint is the durable commit
+ *  marker). */
 export interface ProjectionCheckpoint {
   readonly cursor: EventLogCursor;
-  readonly updatedAt: number;
+  readonly committedAt: number;
 }
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -42,6 +50,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   };
   private timer?: ReturnType<typeof setInterval>;
   private readonly eventLog: EventLog;
+  private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly builder = new IncrementalExecutionTraceBuilder();
   private checkpoint: ProjectionCheckpoint;
   /** Workflow-accounting input ONLY (not a second projection). Holds events
@@ -51,14 +60,38 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private recentEvents: AlixEvent[] = [];
   private totalEventCount = 0;
 
-  constructor(eventLog: EventLog) {
+  constructor(eventLog: EventLog, checkpointStore: ProjectionCheckpointStore) {
     this.eventLog = eventLog;
-    this.checkpoint = { cursor: eventLog.beginningCursor(), updatedAt: Date.now() };
+    this.checkpointStore = checkpointStore;
+    this.checkpoint = { cursor: eventLog.beginningCursor(), committedAt: Date.now() };
   }
 
-  start(): void {
-    void this.sample();
+  /** Await recovery BEFORE the first sample — the first sample must never race
+   *  an incomplete initializeCheckpoint (which would start from beginningCursor
+   *  and re-process already-consumed events). */
+  async start(): Promise<void> {
+    await this.initializeCheckpoint();
+    await this.sample();
     this.timer = setInterval(() => void this.sample(), 1_000);
+  }
+
+  /** Restore the durable checkpoint, falling back to beginningCursor when the
+   *  store has none, holds a malformed/unknown-version serialized cursor, or
+   *  deserialization throws — in every fallback case we replay from the start. */
+  private async initializeCheckpoint(): Promise<void> {
+    const saved = await this.checkpointStore.load();
+    if (!saved) {
+      this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
+      return;
+    }
+    try {
+      this.checkpoint = {
+        cursor: this.eventLog.deserializeCursor(saved.cursor),
+        committedAt: saved.committedAt,
+      };
+    } catch {
+      this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: Date.now() };
+    }
   }
 
   stop(): void {
@@ -70,17 +103,30 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   }
 
   /**
-   * Consume the EventLog incrementally via readSince. Cursor advances ONLY
-   * after a successful builder.update (D3a) — if update throws, the checkpoint
-   * is unchanged and the next sample re-reads the same events (idempotent).
-   * On any failure the previous cache is preserved so the dashboard never blanks.
+   * Consume the EventLog incrementally via readSince. The in-memory checkpoint
+   * AND the published cache advance ONLY after the next checkpoint has been
+   * durably persisted (D5 — save-as-commit-marker). A save failure keeps the
+   * old checkpoint + old cache; the next sample re-reads the same events
+   * (idempotent builder by seq). On any failure the previous cache is preserved
+   * so the dashboard never blanks.
    */
   private async sample(): Promise<void> {
     try {
       const batch = await this.eventLog.readSince(this.checkpoint.cursor);
       this.builder.update(batch.events);
-      // Advance the checkpoint ONLY after a successful update.
-      this.checkpoint = { cursor: batch.cursor, updatedAt: Date.now() };
+
+      const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
+
+      // Durable commit BEFORE advancing the in-memory checkpoint or publishing
+      // the snapshot (D5). Neither the checkpoint nor the cache may advance
+      // unless this save succeeded.
+      await this.checkpointStore.save({
+        version: 1,
+        cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
+        committedAt: nextCheckpoint.committedAt,
+      });
+
+      this.checkpoint = nextCheckpoint;
 
       // Workflow accounting: append batch events, then trim to the last
       // workflow.created boundary (computeWorkflow only needs events since then).
@@ -101,7 +147,8 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         lastEventAt: lastEvent ? Date.parse(lastEvent.timestamp) || Date.now() : this.cache.lastEventAt,
       };
     } catch {
-      // Keep previous cache on error — dashboard never blanks.
+      // Keep previous cache on error — dashboard never blanks; checkpoint only
+      // advances after a durable save.
     }
   }
 
