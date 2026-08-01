@@ -45,8 +45,9 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private readonly builder = new IncrementalExecutionTraceBuilder();
   private checkpoint: ProjectionCheckpoint;
   /** Workflow-accounting input ONLY (not a second projection). Holds events
-   *  since the last workflow.created boundary; trimmed once a workflow completes
-   *  or a new one begins. */
+   *  since the most recent workflow.created; trimmed when a new workflow
+   *  begins. Unbounded during a single active workflow by design (trimming on
+   *  workflow.completed would hide the completion from computeWorkflow). */
   private recentEvents: AlixEvent[] = [];
   private totalEventCount = 0;
 

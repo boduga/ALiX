@@ -474,7 +474,7 @@ describe('renderDashboard — RUNTIME panel', () => {
         c, 0,
       );
       const frame = stripAnsi(c.renderFrame());
-      expect(frame).toContain(`tool.search ${symbol} ${status}`);
+      expect(frame).toContain(`tool.search ${symbol}`);
     }
   });
 

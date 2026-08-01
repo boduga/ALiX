@@ -92,6 +92,7 @@ export class EventLog {
 
   /** Returns null (not throw) for a foreign cursor — cursorsEqual depends on this. */
   private tryUnwrap(cursor: EventLogCursor): InternalEventLogCursor | null {
+    if (typeof cursor !== 'object' || cursor === null) return null;
     const internal = cursorInternals.get(cursor);
     if (!internal || internal.owner !== this.owner) return null;
     return internal;
