@@ -1,6 +1,23 @@
 import { writeRowsToCanvas } from '../canvas.js';
 import type { RuntimeSnapshot } from '../snapshot.js';
+import type { ExecutionTraceEntry, ExecutionTraceStatus } from '../runtime/execution-trace.js';
 import type { TuiView, ViewRenderContext, ViewInputContext, ViewAction } from './types.js';
+
+/** Lifecycle status glyphs — consistent with trace-detail / panel-renderer. */
+const STATUS_GLYPH: Record<ExecutionTraceStatus, string> = {
+  running: '▶',
+  completed: '✔',
+  failed: '✗',
+  cancelled: '○',
+};
+
+/** One-line lifecycle row: `[time] glyph title … status (ms)`. Never touches the EventLog. */
+function formatTraceRow(e: ExecutionTraceEntry): string {
+  const time = new Date(e.startedAt).toISOString().slice(11, 19);
+  const detail = e.detail ? ` — ${e.detail}` : '';
+  const statusTail = e.durationMs !== undefined ? `${e.status} (${e.durationMs}ms)` : e.status;
+  return `  [${time}] ${STATUS_GLYPH[e.status] ?? '·'} ${e.title}${detail} … ${statusTail}`;
+}
 
 export class RuntimeView implements TuiView {
   readonly id = 'runtime' as const;
@@ -26,14 +43,20 @@ export class RuntimeView implements TuiView {
       rows.push(`  progress: [${'█'.repeat(pct)}${'░'.repeat(24 - pct)}] ${w.currentStep}/${w.totalSteps}`);
     }
 
+    // Client-side filter over the execution trace (view-local presentation
+    // state). Lifecycle units are filtered by kind; 'all' renders everything.
+    // The view renders the DTOs only — it never interprets raw EventLog events.
+    const filter = ctx.perTab.runtimeTraceFilter ?? 'all';
+    const trace = r.trace.filter((e) => filter === 'all' || e.kind === filter);
+
     // Auto-follow the tail: if the user hasn't manually scrolled (or
     // is at the bottom), keep the offset pinned to the last window of
-    // events. The `pinnedBottom` flag is set to false when the user
+    // trace rows. The `pinnedBottom` flag is set to false when the user
     // scrolls up, and reset to true via onActivate when the tab is
-    // re-entered. Events are ordered newest-first by the collector, so
-    // "bottom" is offset 0.
+    // re-entered. Trace rows are ordered newest-first by the collector,
+    // so "bottom" is offset 0.
     const pinned = ctx.perTab.pinnedBottom ?? true;
-    const eventCount = r.events?.length ?? 0;
+    const eventCount = trace.length;
     // Reserve the top 2-3 lines for the workflow section when present.
     const reserved = r.workflow ? 4 : 1;
     // Reserve: 1 row header + 1 top padding + 1 bottom padding.
@@ -41,15 +64,15 @@ export class RuntimeView implements TuiView {
     const maxStart = Math.max(0, eventCount - winSize);
     let start = ctx.perTab.scrollOffset;
     if (pinned) {
-      // Follow the tail: anchor the bottom row at the last event.
+      // Follow the tail: anchor the bottom row at the last trace row.
       start = maxStart;
     } else if (start > maxStart) {
       // User had the cursor below the new bottom — clamp.
       start = maxStart;
     }
-    const visible = r.events?.slice(start, start + winSize) ?? [];
+    const visible = trace.slice(start, start + winSize);
     for (const e of visible) {
-      rows.push(`  [${new Date(e.timestamp).toISOString().slice(11, 19)}] ${e.kind.padEnd(20, ' ')} ${e.summary}`);
+      rows.push(formatTraceRow(e));
     }
 
     if (ctx.canvas) {
