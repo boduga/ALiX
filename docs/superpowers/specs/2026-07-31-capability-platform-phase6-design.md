@@ -28,12 +28,14 @@ event stores.
 | D3 | **`sessionId` is immutable once emitted.** Routing is always based on the stamped origin; a projection may filter or display events from any session later (e.g. global timeline), but events never change ownership. |
 | D4 | **Projection builders share a contract, not an engine.** `interface ProjectionBuilder<T> { update(events: readonly AlixEvent[]): void; snapshot(): readonly T[]; }`. Each builder owns its own reconciliation semantics. `ExecutionTraceBuilder` keeps its mature lifecycle/open-closed/terminal-first-wins logic UNTOUCHED. **`TimelineBuilder` is append-only** — narratives don't reconcile; events become entries, entries are never mutated. |
 | D5 | **One cursor, one checkpoint, one save-before-publish transaction.** `RuntimeCollectorImpl` reads the EventLog ONCE per sample, dispatches the batch to every projection builder, saves the checkpoint AFTER all builders succeed, then publishes the snapshot. The new `chat` projection slots into the existing Phase-5.5 D5 save-as-commit-marker flow. |
-| D6 | **`RuntimeSnapshot` grows, the collector doesn't.** Add `timeline: readonly TimelineEntry[]` alongside the existing `trace: readonly ExecutionTraceEntry[]` + `workflow` + `totalEventCount` + `lastEventAt`. Each view reads what it needs; future projections (approval, capability) extend the snapshot without changing the collector. |
+| D6 | **`RuntimeSnapshot` grows, the collector doesn't.** Add `timeline: readonly TimelineEntry[]` alongside the existing `trace: readonly ExecutionTraceEntry[]` + `workflow` + `totalEventCount` + `lastEventAt`. Each view reads what it needs; future projections (approval, capability) extend the snapshot without changing the collector. The field is named `timeline` (NOT `chat`) — `timeline` is the broader, accurate name; "chat" would mislead since the projection also carries `agent.message`/`agent.reasoning`/`agent.decision`. |
 | D7 | **New event kinds in the log.** Add `chat.message` (user input), `chat.response` (agent reply to chat), `agent.message` (agent tab autonomous message), `agent.reasoning`, `agent.decision`, plus session lifecycle (`agent.session.turn.started`/`completed`, `agent.session.phase_changed` — already emitted). All carry the originating `sessionId`. |
 | D8 | **`TimelineEntry` DTO** is the new projection output: `{ readonly id, readonly kind: 'chat.message'\|'chat.response'\|'agent.message'\|'agent.reasoning'\|'agent.decision'\|…, readonly sessionId, readonly startedAt, readonly text?, readonly detail?, readonly sourceEvents: { readonly firstSequence: number; readonly lastSequence?: number; } }`. Mirrors `ExecutionTraceEntry`'s readonly-detached shape. |
 | D9 | **`timelineEvents[]` is a transitional compatibility cache** — emitted to in tandem with the log during Phase 6 migration, then REMOVED in Phase 6 cleanup once `ChatView`/`AgentView` consume `RuntimeSnapshot.timeline`. Document the transitional status so the duplication doesn't become permanent. |
 | D10 | **Builder-doesn't-become-a-God-object.** `RuntimeCollectorImpl` orchestrates read/dispatch/save/publish; it does NOT contain chat-message-specific or execution-specific logic. The builders own their state machines. |
-| D11 | **Boundary.** `src/capability/*`, `timelineEvents[]` (until cleanup), Phase-5 cursor/checkpoint machinery — preserved; `EventLog` API stays additive; `RuntimeCollectorImpl` grows `chat` projection (one new builder + new snapshot field), no other changes. Timeline Projection unification is THIS phase. |
+| D11 | **Projection independence.** Builders MUST NOT depend on the outputs of other builders. Every projection is derived directly from the EventLog batch. The dependency graph is always `EventLog → builder` (never `builder → builder`). This keeps replay deterministic — restoring from `beginningCursor()` rebuilds every projection independently — and allows adding or removing projections without changing existing ones. |
+| D12 | **`ProjectionBuilder<T>` contract includes `reset()`.** Beyond `update(events)` and `snapshot()`, the contract includes `reset(): void` so the collector can wipe in-memory projection state on a beyond-head fallback (Phase 5.5) and on corruption recovery. Each builder implements its own reset semantics (the trace builder clears its maps; the timeline builder clears its entries; etc.). Tiny addition that makes lifecycle management uniform across builders and enables tests / replay / hot reload / corruption recovery. |
+| D13 | **Boundary.** `src/capability/*`, `timelineEvents[]` (until cleanup), Phase-5 cursor/checkpoint machinery — preserved; `EventLog` API stays additive; `RuntimeCollectorImpl` grows `timeline` projection (one new builder + new snapshot field), no other changes. Timeline Projection unification is THIS phase. |
 
 ## Architecture
 
@@ -46,15 +48,38 @@ Every emitted event carries `sessionId`. The existing `append({ sessionId, actor
 event.sessionId = originSessionId;
 ```
 
+### `ProjectionBuilder<T>` contract (`src/tui/runtime/projection-builder.ts`)
+
+```ts
+/** Generic projection builder contract. Each builder owns its own reconciliation
+ *  semantics; the contract only defines the lifecycle hooks the collector
+ *  orchestrates. Builders MUST NOT depend on the outputs of other builders
+ *  (D11) — every projection is derived directly from the EventLog batch. */
+export interface ProjectionBuilder<T> {
+  /** Reconcile the events into the builder's in-memory projection state.
+   *  Idempotent by event identity (typically event.seq) — replay-safe. */
+  update(events: readonly AlixEvent[]): void;
+  /** Produce the current snapshot as a fresh immutable list. */
+  snapshot(): readonly T[];
+  /** Wipe the in-memory projection state. Called by the collector on
+   *  beyond-head fallback / corruption recovery / hot reload. */
+  reset(): void;
+}
+```
+
 ### `TimelineBuilder` (`src/tui/runtime/timeline-builder.ts`)
 
 Append-only. No lifecycle matching. No terminal promotion. Each event becomes one entry; entries are never mutated.
 
 ```ts
+export type TimelineKind =
+  | 'chat.message' | 'chat.response'
+  | 'agent.message' | 'agent.reasoning' | 'agent.decision';
+
 export interface TimelineEntry {
   readonly id: string;                  // `tl-${firstSequence}` — runtime-local deterministic
-  readonly kind: TimelineKind;          // 'chat.message' | 'chat.response' | 'agent.message' | …
-  readonly sessionId: string;           // stamped origin
+  readonly kind: TimelineKind;          // discriminated union
+  readonly sessionId: string;           // stamped origin (D1/D3)
   readonly startedAt: number;
   readonly text?: string;
   readonly detail?: string;
@@ -62,11 +87,12 @@ export interface TimelineEntry {
 }
 
 export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
-  private readonly entries = new Map<string, TimelineEntry>();     // by id
-  private readonly seen = new Set<number>();
+  private readonly entries = new Map<string, TimelineEntry>();     // by id; append-only
+  private readonly seen = new Set<number>();                        // dedup
   constructor(private readonly sessionId: string) { … }
-  update(events: readonly AlixEvent[]): void { … }       // append-only: events become entries
-  snapshot(): readonly TimelineEntry[] { … }            // ordered by firstSequence
+  update(events: readonly AlixEvent[]): void { … }                   // filter by sessionId, dedup, append
+  snapshot(): readonly TimelineEntry[] { … }                        // ordered by firstSequence
+  reset(): void { this.entries.clear(); this.seen.clear(); }        // wipe state on fallback
 }
 ```
 
@@ -99,7 +125,14 @@ private async sample(): Promise<void> {
     this.traceBuilder.update(sessionBatch);              // trace already implicitly session-scoped via the chat/agent event mix
     // ... build nextCache / nextCheckpoint, then commit atomically (D5/D5a unchanged) ...
   } catch (err) {
-    if (err instanceof EventLogCursorError) { this.resetCheckpoint(); return; }
+    if (err instanceof EventLogCursorError) {
+      // D12 — both builders reset so the replay from beginningCursor rebuilds
+      // independent, in-memory projection state.
+      this.timelineBuilder.reset();
+      this.traceBuilder.reset();
+      this.resetCheckpoint();
+      return;
+    }
     // else preserve (operational failure — existing behavior)
   }
 }
@@ -110,7 +143,7 @@ private async sample(): Promise<void> {
 ```ts
 export interface RuntimeSnapshot {
   readonly trace: readonly ExecutionTraceEntry[];    // existing
-  readonly timeline: readonly TimelineEntry[];        // NEW — Phase 6
+  readonly timeline: readonly TimelineEntry[];        // NEW (D6) — named `timeline`, NOT `chat`
   readonly workflow: WorkflowStateSnapshot | null;
   readonly totalEventCount: number;
   readonly lastEventAt: number | null;
@@ -121,7 +154,7 @@ export interface RuntimeSnapshot {
 ### Views consume the projection
 
 - **`RuntimeView`** keeps rendering `r.trace` (existing).
-- **`ChatView`** replaces `r.timelineEvents` with `r.timeline.filter(e => e.kind === 'chat.message' || e.kind === 'chat.response')` (filter by sessionId is implicit — `r.timeline` is already scoped).
+- **`ChatView`** replaces `r.timelineEvents` with `r.timeline.filter(e => e.kind.startsWith('chat.'))` (filter by sessionId is implicit — `r.timeline` is already scoped to this collector's session).
 - **`AgentView`** similarly projects `r.timeline.filter(e => e.kind.startsWith('agent.'))`.
 
 ### Pipeline (no duplicated I/O / durability)
@@ -157,7 +190,7 @@ EventLog (per session dir)
 sessionBatch = events.filter(e.sessionId === collector.sessionId)
    │
    ▼
-traceBuilder.update(sessionBatch)       →  in-memory projection state
+traceBuilder.update(sessionBatch)       →  in-memory projection state (lifecycle)
 timelineBuilder.update(sessionBatch)    →  in-memory append-only state
    │
    ▼
@@ -178,18 +211,21 @@ snapshot = { trace: traceBuilder.snapshot(),
 
 ## Testing Strategy
 
-- **`TimelineBuilder`** — append-only idempotency (replay → same entries, no duplicates); one event per entry; sessionId routing (chat events for sessionA never appear in sessionB's builder).
+- **`ProjectionBuilder<T>` contract** — shared `update(events)` / `snapshot()` / `reset()` lifecycle. Each builder's `reset()` is independent (trace clears maps, timeline clears entries).
+- **`TimelineBuilder`** — append-only idempotency (replay → same entries, no duplicates); one event per entry; `reset()` clears state.
+- **`IncrementalExecutionTraceBuilder`** — unchanged behavior preserved (Phase 4-5 semantics intact); `reset()` added (D12).
 - **`EventLog`** — `sessionId` plumbed through `append`/`readSince`/`NewEvent`/`AlixEvent`; foreign-session events rejected (same opacity as cursor).
-- **`RuntimeCollectorImpl`** — the new D5/D5a flow with both builders (timeline + trace) is correct; cursor advancement atomicity; beyond-head fallback resets BOTH builders via a new constructor-injected `traceBuilder.reset()` + `timelineBuilder.reset()` (or a shared reset method on `ProjectionBuilder<T>`).
+- **`RuntimeCollectorImpl`** — the new D5/D5a flow with both builders (timeline + trace) is correct; cursor advancement atomicity; **beyond-head fallback resets BOTH builders via `traceBuilder.reset()` + `timelineBuilder.reset()` and calls `resetCheckpoint()`** (D12).
 - **Views** — ChatView reads `r.timeline.filter(e => e.kind.startsWith('chat.'))`; AgentView reads `r.timeline.filter(e => e.kind.startsWith('agent.'))`; RuntimeView unchanged.
 - **Gate:** `npx tsc -p tsconfig.json --noEmit` + `npx vitest run tests/tui --config vitest.config.mts` green.
 
 ## Success Criteria
 
 - ✅ `EventLog.append` accepts/stores `sessionId`; events expose it; `readSince` filters by it.
-- ✅ `TimelineBuilder` is append-only (entries never mutated after creation); implements `ProjectionBuilder<T>`.
-- ✅ `RuntimeCollectorImpl` runs ONE `readSince` per sample, dispatches to BOTH builders, advances ONE checkpoint, publishes a snapshot with BOTH projections.
+- ✅ `TimelineBuilder` is append-only (entries never mutated after creation); implements `ProjectionBuilder<T>` with `update`/`snapshot`/`reset`.
+- ✅ `RuntimeCollectorImpl` runs ONE `readSince` per sample, dispatches to BOTH builders, advances ONE checkpoint, publishes a snapshot with BOTH projections (`trace` + `timeline`).
 - ✅ Chat tab + Agent tab have distinct `sessionId`s — neither sees the other's events.
+- ✅ Projection independence (D11): neither builder consumes the other's DTOs.
 - ✅ Future projections (approval, capability) extend the snapshot without touching the collector.
 - ✅ `src/capability/*`, `timelineEvents[]` (until Phase 6 cleanup), Phase-5 cursor/checkpoint machinery — preserved.
 - ✅ Vitest green, `tsc --noEmit` clean.
@@ -204,6 +240,7 @@ snapshot = { trace: traceBuilder.snapshot(),
 
 ## Future Direction
 
+- **Projection registry** — a `collector.register(builder)` API so new projections (approval, capability, metrics) plug in without changing the collector. Deferred — current builders are concrete fields on the constructor; a registry becomes worthwhile when the projection count exceeds ~5.
 - **Phase 6.5** — durable projection-state snapshots (timeline + trace + future) alongside the checkpoint cursor.
 - **Phase 7** — additional projections (approval, capability, metrics) + cross-projection views.
 - **Global Timeline projection** — a view that filters across multiple sessionIds (the architecture already supports it: `projection(filter: (sessionId: string) => boolean)`).
