@@ -1,5 +1,5 @@
 // src/tui/capabilities/capabilities-view.ts
-import type { PerTabState, TabId } from '../state.js';
+import type { DashboardSnapshot, PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from '../views/types.js';
 import type { TerminalCanvas } from '../canvas.js';
 import { truncate } from '../box.js';
@@ -52,7 +52,11 @@ export class CapabilitiesView implements TuiView {
     // Left: list.
     c.write(0, 4, `\x1b[1mCapabilities\x1b[0m  \x1b[90m${caps.length} of ${all.length}\x1b[0m`);
     c.write(0, 5, `\x1b[33msearch>\x1b[0m ${query}`);
-    const listTop = 6;
+    // Tab-level runtime activity from the outer collector's CapabilityProjection.
+    // activeInvocations lives on the SNAPSHOT, not per-stat.
+    const activeInvocations = ctx.snap?.runtime?.capabilities?.activeInvocations ?? 0;
+    c.write(0, 6, `\x1b[90mactive invocations: ${activeInvocations}\x1b[0m`);
+    const listTop = 7;
     const listW = Math.floor(ctx.dimensions.columns / 2) - 1;
     for (let i = 0; i < Math.min(caps.length, ctx.dimensions.rows - listTop - 3); i++) {
       const cap = caps[i]!;
@@ -66,12 +70,12 @@ export class CapabilitiesView implements TuiView {
 
     // Right: detail of the selected capability.
     const detail = caps.find((cap) => cap.id === selectedId) ?? caps[0];
-    if (detail) this.renderDetail(c, detail, listW + 1, 4, ctx.dimensions.columns - listW - 2, ctx.dimensions.rows - 7);
+    if (detail) this.renderDetail(c, detail, listW + 1, 4, ctx.dimensions.columns - listW - 2, ctx.dimensions.rows - 7, ctx.snap);
 
     return { rows: [] };
   }
 
-  private renderDetail(c: TerminalCanvas, detail: Capability, x: number, y: number, w: number, h: number): void {
+  private renderDetail(c: TerminalCanvas, detail: Capability, x: number, y: number, w: number, h: number, snap: DashboardSnapshot): void {
     c.write(x, y, `\x1b[1m${detail.title}\x1b[0m  \x1b[90m${detail.id} v${detail.version}\x1b[0m`);
     const lines: string[] = [];
     lines.push(detail.description);
@@ -83,6 +87,18 @@ export class CapabilitiesView implements TuiView {
     if (detail.argsSchema) lines.push(`args: ${JSON.stringify(detail.argsSchema)}`);
     if (detail.examples?.length) lines.push(`examples: ${detail.examples.join(' · ')}`);
     if (detail.dependencies?.length) lines.push(`depends on: ${detail.dependencies.join(', ')}`);
+    // Activity block (Increment A): per-capability runtime stats from the
+    // outer collector's CapabilityProjection. Only rendered when the selected
+    // capability has a stat — never render zeros for uninvoked capabilities.
+    const stat = snap?.runtime?.capabilities?.capabilities?.[detail.id];
+    if (stat) {
+      lines.push('');
+      lines.push(`activity: ${stat.invocationCount} invocations`);
+      lines.push(`  succeeded: ${stat.invocationSucceeded}  failed: ${stat.invocationFailed}  cancelled: ${stat.invocationCancelled}`);
+      lines.push(`  avg duration: ${stat.invocationCount ? Math.round(stat.invocationTotalDurationMs / stat.invocationCount) : '—'}ms`);
+      lines.push(`  last: ${stat.lastInvocationAt ? new Date(stat.lastInvocationAt).toISOString() : '—'}`);
+      lines.push(`  tool telemetry: ${stat.toolInvocationCount} uses, ${stat.toolFailureCount} failures, ${stat.toolDurationMs}ms`);
+    }
     for (let i = 0; i < Math.min(lines.length, h); i++) {
       const text = lines[i]!.slice(0, w);
       c.write(x, y + 1 + i, `\x1b[90m${text}\x1b[0m`);
