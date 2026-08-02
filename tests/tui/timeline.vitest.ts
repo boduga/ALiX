@@ -3,28 +3,20 @@
 // Phase 6 (D9): the EventLog is the single source of truth timeline. The
 // Phase-3 in-memory helpers (appendTimelineEvent's per-tab push,
 // getOrderedTimeline, formatTimelineEvent) were removed — ordering and
-// append-only behavior are now covered by the TimelineBuilder projection
-// tests (tests/tui/runtime/timeline-builder.vitest.ts) and the deprecated
-// wrapper's log emit is covered in state.vitest.ts. This file keeps the one
-// retained shared display helper: `capabilityStatusText` (used by the
-// presenter's settled chat-surface emit).
+// append-only behavior are covered by the TimelineBuilder projection tests
+// (tests/tui/runtime/timeline-builder.vitest.ts). Phase-7 cleanup removed the
+// deprecated `appendTimelineEvent` compatibility wrapper and the shared
+// capability-status display helper moved to the presenter
+// (src/tui/capabilities/invocation-presenter.ts). This file keeps the
+// capability-status display helper's formatting contract.
 import { describe, it, expect } from 'vitest';
-import { capabilityStatusText } from '../../src/tui/state.js';
-import type { TimelineEvent } from '../../src/tui/state.js';
+import { capabilityStatusText } from '../../src/tui/capabilities/invocation-presenter.js';
+import type { CapabilityStatus } from '../../src/tui/capabilities/invocation-presenter.js';
 
-function capEvent(status: 'running' | 'completed' | 'failed' | 'cancelled', output?: unknown, error?: string): Extract<TimelineEvent, { kind: 'capability' }> {
-  const base = {
-    id: 'tl-1',
-    timestamp: 1,
-    sequence: 1,
-    source: 'capability' as const,
-    kind: 'capability' as const,
-    invocationId: 'inv_1',
+function capEvent(status: CapabilityStatus['status'], output?: unknown, error?: string): CapabilityStatus {
+  return {
     capabilityId: 'core.session.list',
     status,
-  };
-  return {
-    ...base,
     ...(output !== undefined ? { output } : {}),
     ...(error !== undefined ? { error } : {}),
   };

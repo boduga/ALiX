@@ -38,41 +38,8 @@ export interface ResolvedApproval {
   resolvedAt: number;
 }
 
-/** Who produced a timeline event. Add `'system'` when the first system event exists (YAGNI). */
-export type TimelineSource = 'operator' | 'agent' | 'capability';
-
 /** Client-side filter for the Runtime tab's execution trace (view-local presentation state). */
 export type RuntimeTraceFilter = 'all' | 'tool' | 'capability' | 'policy' | 'runtime';
-
-export interface TimelineEventBase {
-  /** Runtime-local deterministic id: `tl-${sequence}`. Unique within one TUI
-   *  runtime instance; NOT globally unique across sessions. If persistence
-   *  arrives, introduce `timelineId = sessionId + sequence` without changing
-   *  this model. */
-  id: string;
-  /** Date.now() at append. */
-  timestamp: number;
-  /** Monotonic per-runtime counter — the ordering tiebreak. */
-  sequence: number;
-  /** Who produced the event — orthogonal to `kind`. Stamped by
-   *  appendTimelineEvent; writers never set it. */
-  source: TimelineSource;
-}
-
-/** Fields shared by the capability TimelineEvent variant and its writer input. */
-export interface CapabilityEventFields {
-  invocationId: string;
-  capabilityId: string;
-  status: 'running' | 'completed' | 'failed' | 'cancelled';
-  output?: unknown;
-  error?: string;
-}
-
-/** A conversation-turn / capability event in the operator timeline. */
-export type TimelineEvent =
-  | (TimelineEventBase & { kind: 'user'; text: string })
-  | (TimelineEventBase & { kind: 'agent'; text: string })
-  | (TimelineEventBase & { kind: 'capability' } & CapabilityEventFields);
 
 /**
  * Serializable UI state preserved per tab across switches. No Set, Map,
@@ -196,86 +163,6 @@ export function createInitialPerTabState(): PerTabState {
     panelFocus: null,
     runtimeTraceFilter: 'all',
   };
-}
-
-/**
- * @deprecated Phase-3 writer-facing timeline input. Retained ONLY because the
- * deprecated `appendTimelineEvent` compatibility wrapper's signature needs it —
- * the EventLog is now the single source of truth timeline. REMOVED in Phase 7.
- */
-export type TimelineEventInput =
-  | { kind: 'user'; text: string }
-  | { kind: 'agent'; text: string }
-  | { kind: 'capability' } & CapabilityEventFields;
-
-let timelineSequence = 0;
-export function nextTimelineSequence(): number { return ++timelineSequence; }
-
-/**
- * Emit context for the timeline's log emit (D7/D9, Phase 6). When present,
- * the deprecated `appendTimelineEvent` wrapper (and the TUI's direct emits)
- * write a typed log entry into the EventLog — the log is the single source of
- * truth timeline; the old in-memory `timelineEvents[]` cache is gone. `sessionId`
- * is the stamped origin (D1/D3) — the routing dimension the collector projects on.
- */
-export interface TimelineEmitContext {
-  readonly eventLog: EventLog;
-  readonly sessionId: string;
-}
-
-/**
- * @deprecated Phase-3 writer path into the in-memory timeline, kept as a
- * FUNCTIONAL compatibility wrapper for one phase. The EventLog is now the
- * single source of truth timeline (D9 cleanup in Phase 6): the per-tab
- * `timelineEvents[]` cache was removed, so this no longer pushes anywhere —
- * it only emits a typed log entry via the optional `emit` context (kind
- * mapping is the Phase-3 vocabulary: `user → chat.message`, `agent →
- * chat.response`; `capability` is deliberately NOT mapped — at append time
- * its status is `running` with no display text, and the capability presenter
- * emits the single authoritative chat-surface entry at settlement). It does
- * NOT throw, so non-TUI consumers (web UI, CLI, replay tools, automation
- * workers) can keep compiling against it. Returns nothing — there is no
- * in-memory timeline anymore, so a fabricated TimelineEvent would be a dead
- * entry. REMOVED in Phase 7.
- */
-export function appendTimelineEvent(
-  _state: PerTabState,                              // retained ONLY for the Phase-3 compat signature; unused
-  event: TimelineEventInput,
-  emit?: TimelineEmitContext,                       // optional — preserves Phase 3 callers
-): void {
-  console.warn('appendTimelineEvent is deprecated (Phase 6): use EventLog.append() with a typed entry. Removed in Phase 7.');
-  if (!emit) return;
-  const kindToType: Partial<Record<TimelineEvent['kind'], 'chat.message' | 'chat.response'>> = {
-    user: 'chat.message',
-    agent: 'chat.response',
-  };
-  const type = kindToType[event.kind];
-  if (!type) return; // capability NOT mapped (D7/D9) — the presenter emits the settled entry
-  const text = (event as { text?: string }).text;
-  const detail = (event as { detail?: string }).detail;
-  appendLogEntry(emit.eventLog, {
-    sessionId: emit.sessionId,
-    actor: event.kind === 'user' ? 'user' : 'agent',
-    type,
-    payload: {
-      ...(text !== undefined ? { text } : {}),
-      ...(detail !== undefined ? { detail } : {}),
-    },
-  });
-}
-
-/** Status suffix for a capability event — "core.session.list [completed ✓]". Shared by the presenter's log emit. */
-export function capabilityStatusText(event: Extract<TimelineEvent, { kind: 'capability' }>): string {
-  let text = event.capabilityId;
-  if (event.status === 'running') text += ' [running]';
-  else if (event.status === 'completed') {
-    text += ' [completed ✓]';
-    // Review fix: append output ONLY when present — avoids "[completed ✓] """
-    // for empty output and "undefined" for absent output.
-    if (event.output !== undefined && event.output !== '') text += ` ${JSON.stringify(event.output)}`;
-  } else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
-  else text += ' [cancelled]';
-  return text.trim();
 }
 
 export function createInitialTuiAppState(): TuiAppState {

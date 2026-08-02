@@ -1,6 +1,4 @@
-import type { TimelineEmitContext } from '../state.js';
-import { capabilityStatusText, nextTimelineSequence } from '../state.js';
-import type { TimelineEvent } from '../state.js';
+import type { EventLog } from '../../events/event-log.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 import { appendLogEntry } from '../log-emit.js';
 
@@ -15,6 +13,44 @@ export interface InvocationPresenter {
 }
 
 /**
+ * Emit context for a capability settlement entry (Phase 6 D7/D9). When
+ * present, the presenter writes the single authoritative `chat.response`
+ * log entry into the EventLog — the log is the single source of truth
+ * timeline. `sessionId` is the stamped origin (D1/D3) — the routing
+ * dimension the collector projects on.
+ */
+export interface CapabilityEmitContext {
+  readonly eventLog: EventLog;
+  readonly sessionId: string;
+}
+
+/**
+ * Minimal capability status the presenter tracks and displays. The Phase-3
+ * in-memory `TimelineEvent` is gone — the presenter needs only the fields that
+ * drive the settled chat-surface text.
+ */
+export interface CapabilityStatus {
+  capabilityId: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  output?: unknown;
+  error?: string;
+}
+
+/** Status suffix for a capability event — "core.session.list [completed ✓]". */
+export function capabilityStatusText(event: CapabilityStatus): string {
+  let text = event.capabilityId;
+  if (event.status === 'running') text += ' [running]';
+  else if (event.status === 'completed') {
+    text += ' [completed ✓]';
+    // Review fix: append output ONLY when present — avoids "[completed ✓] """
+    // for empty output and "undefined" for absent output.
+    if (event.output !== undefined && event.output !== '') text += ` ${JSON.stringify(event.output)}`;
+  } else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
+  else text += ' [cancelled]';
+  return text.trim();
+}
+
+/**
  * Routes capability invocations into the chat tab's log-projected timeline.
  * The chat tab is the operator's execution history — capabilities are execution
  * primitives, not a separate surface. Platform-independent.
@@ -25,22 +61,12 @@ export interface InvocationPresenter {
  * settlement (with the final status text) via the optional emit context.
  */
 export class ChatInvocationPresenter implements InvocationPresenter {
-  constructor(private readonly emitCtx?: TimelineEmitContext) {}
+  constructor(private readonly emitCtx?: CapabilityEmitContext) {}
 
   async present({ invocation, capabilityId }: InvocationInput): Promise<void> {
     // Track the capability status locally (never in per-tab state). The
     // terminal status text is what the log projection displays.
-    const sequence = nextTimelineSequence();
-    const event: Extract<TimelineEvent, { kind: 'capability' }> = {
-      id: `tl-${sequence}`,
-      timestamp: Date.now(),
-      sequence,
-      source: 'capability',
-      kind: 'capability',
-      invocationId: invocation.id,
-      capabilityId,
-      status: 'running',
-    };
+    const event: CapabilityStatus = { capabilityId, status: 'running' };
 
     // Terminal events update the event from the invocation's own
     // event stream. No race with the runtime starting: Invocation.events()
@@ -78,7 +104,7 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     }
   }
 
-  private applyEvent(event: Extract<TimelineEvent, { kind: 'capability' }>, evt: CapabilityEvent): void {
+  private applyEvent(event: CapabilityStatus, evt: CapabilityEvent): void {
     switch (evt.type) {
       case 'InvocationCompleted':
         event.status = 'completed';
