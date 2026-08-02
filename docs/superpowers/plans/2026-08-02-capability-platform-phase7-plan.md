@@ -60,9 +60,13 @@
   // module so ProjectionRuntime and ProjectionCheckpointStore both import it,
   // avoiding a layering inversion; neither depends on the other's module).
   export type ProjectionState = Record<string, unknown>;
-  /** Runtime-produced snapshots use a null prototype because projection ids
-   *  are external strings. Consumers must treat this as a dictionary, not an
-   *  object with inherited properties. */
+  /** ProjectionStateSnapshot describes the SHAPE only. Runtime-produced
+   *  snapshots (ProjectionRuntime.exportState) SHOULD use a null prototype
+   *  because projection ids are external strings — treat them as a
+   *  dictionary, not an object with inherited properties. Persisted JSON
+   *  (checkpoint files) naturally reconstructs normal-prototype objects;
+   *  do NOT "fix" JSON.parse output to a null prototype — the shape is what
+   *  matters, not the prototype. */
   export type ProjectionStateSnapshot = Record<string, ProjectionState>;
   ```
 
@@ -303,6 +307,25 @@ describe('ProjectionRuntime', () => {
     ]);
     expect(r.all().map((p) => p.id).sort()).toEqual(['timeline', 'trace']);
   });
+
+  it('supports an empty runtime (no projections) — platform abstraction works empty', () => {
+    const r = new ProjectionRuntime();
+    expect(r.all()).toEqual([]);
+    expect(() => r.updateAll([evt(1)])).not.toThrow();
+    expect(r.exportState()).toEqual(Object.create(null));
+    r.resetAll();
+  });
+
+  it('exportState throws when a builder returns non-plain-object state', () => {
+    const bad: DurableProjectionBuilder<unknown> = {
+      update() {}, snapshot: () => undefined as never, reset() {},
+      exportState: () => [1, 2, 3] as unknown as ProjectionState,   // array — not a plain object
+      importState() {},
+    };
+    const r = new ProjectionRuntime();
+    r.register('bad', bad);
+    expect(() => r.exportState()).toThrow(/plain object/);
+  });
 });
 ```
 
@@ -316,7 +339,7 @@ Expected: FAIL — module `../../../src/tui/runtime/projection-runtime.js` not f
 ```ts
 import type { AlixEvent } from '../../events/types.js';
 import type { DurableProjectionBuilder } from './durable-projection-builder.js';
-import type { ProjectionStateSnapshot } from './projection-state.js';
+import type { ProjectionState, ProjectionStateSnapshot } from './projection-state.js';
 
 export interface RegisteredProjection {
   readonly id: string;
@@ -386,7 +409,7 @@ export class ProjectionRuntime {
       for (const { builder } of this.registrations) builder.update(events);
     } catch (err) {
       try {
-        this.importState(before);
+        this.restoreState(before);
       } catch (rollbackErr) {
         throw new ProjectionRollbackError(err, rollbackErr);
       }
@@ -402,18 +425,23 @@ export class ProjectionRuntime {
     // Null-prototype: projection ids are caller-supplied external strings; a
     // hostile id like "__proto__" must not cause prototype pollution.
     const out: ProjectionStateSnapshot = Object.create(null);
-    for (const { id, builder } of this.registrations) out[id] = builder.exportState();
+    for (const { id, builder } of this.registrations) out[id] = assertProjectionState(builder.exportState());
     return out;
   }
 
   importState(state: ProjectionStateSnapshot): void {
+    this.restoreState(state);
+  }
+
+  /** Internal restore (also the rollback path). Iterates in registration
+   *  order; state for ids not registered is ignored — rolling-upgrade
+   *  safety: an older runtime reading a newer checkpoint drops unknown
+   *  projections. */
+  private restoreState(state: ProjectionStateSnapshot): void {
     for (const { id, builder } of this.registrations) {
       const s = state[id];
       if (s !== undefined) builder.importState(s);
     }
-    // State for ids not registered is ignored — rolling-upgrade safety: an
-    // older runtime reading a checkpoint written by a newer one drops
-    // unknown projections.
   }
 
   resetAll(): void {
@@ -430,12 +458,22 @@ export function createProjectionRuntime(
   for (const [id, builder] of registrations) runtime.register(id, builder);
   return runtime;
 }
+
+/** Defensive boundary: a builder's exportState must produce a plain object
+ *  (durable state is JSON-serializable only). A builder returning a primitive
+ *  or array would corrupt the checkpoint envelope. */
+function assertProjectionState(value: unknown): ProjectionState {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error('Projection state must be a plain object');
+  }
+  return value as ProjectionState;
+}
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/projection-runtime.vitest.ts`
-Expected: PASS (13 tests).
+Expected: PASS (15 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -696,6 +734,12 @@ export type ProjectionStateSnapshot = Record<string, ProjectionState>;
     expect(loadedLegacy?.state).toEqual({ timeline: { version: 1, entries: [] } });
     expect(loadedLegacy?.version).toBe(1);
 
+    // store never migrates state → projections on save (regression lock):
+    await legacyOnlyStore.save({ version: 1, cursor: '{"version":1,"seq":5}', committedAt: 5, state: { timeline: { old: true } } });
+    const loadedLegacyOnly = await legacyOnlyStore.load();
+    expect(loadedLegacyOnly?.state).toEqual({ timeline: { old: true } });
+    expect(loadedLegacyOnly?.projections).toBeUndefined();
+
     // both present → BOTH are preserved by the store; the collector prefers
     // projections (loaded.projections ?? loaded.state). Lock the migration rule:
     const dual = JSON.stringify({ version: 1, cursor: '{"version":1,"seq":4}', committedAt: 4, state: { timeline: { old: true } }, projections: { timeline: { new: true } } });
@@ -873,6 +917,19 @@ describe('ApprovalProjection', () => {
     expect(() => p.importState({ pending: [{ approvalId: 'a1', status: 'banana', requestedAt: 1 }], completed: [] } as never)).toThrow(/malformed entry/);
   });
 
+  it('importState rejects a non-finite requestedAt/completedAt (deterministic replay state)', () => {
+    const p = new ApprovalProjection();
+    expect(() => p.importState({ pending: [{ approvalId: 'a1', status: 'pending', requestedAt: 'banana' }], completed: [] } as never)).toThrow(/malformed entry/);
+    expect(() => p.importState({ pending: [], completed: [{ approvalId: 'a1', status: 'approved', requestedAt: 1, completedAt: 'banana' }] } as never)).toThrow(/malformed entry/);
+  });
+
+  it('duplicate approval.requested is idempotent (replay-safe)', () => {
+    const p = new ApprovalProjection();
+    p.update([requested(1, 'a1'), requested(2, 'a1')]);   // same id requested twice
+    expect(p.snapshot().pending).toHaveLength(1);
+    expect(p.snapshot().pending[0]!.requestedAt).toBe(1 * 1000);   // first request wins
+  });
+
   it('exportState/importState round-trips pending + completed', () => {
     const p = new ApprovalProjection();
     p.update([requested(1, 'a1'), requested(2, 'a2'), resolved(3, 'a1', 'denied')]);
@@ -1046,7 +1103,10 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
       for (const entry of list) {
         if (typeof entry !== 'object' || entry === null) throw new Error('approval projection state: malformed entry');
         const e = entry as Partial<ApprovalProjectionEntry>;
-        if (typeof e.approvalId !== 'string' || !isValidStatus(e.status)) {
+        if (typeof e.approvalId !== 'string' || !isValidStatus(e.status) || !Number.isFinite(e.requestedAt)) {
+          throw new Error('approval projection state: malformed entry');
+        }
+        if (e.completedAt !== undefined && !Number.isFinite(e.completedAt)) {
           throw new Error('approval projection state: malformed entry');
         }
       }
@@ -1061,7 +1121,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/approval-projection.vitest.ts`
-Expected: PASS (10 tests).
+Expected: PASS (13 tests).
 
 - [ ] **Step 5: Register approval on the runtime collector in `src/cli/commands/tui.ts`**
 
@@ -1084,18 +1144,46 @@ Add `import { ApprovalProjection } from '../../tui/runtime/approval-projection.j
 Run: `npx vitest run tests/tui/runtime` and `npx tsc -p tsconfig.json --noEmit`
 Expected: ALL pass, tsc clean.
 
-- [ ] **Step 7: Verify the acceptance bar — no collector/snapshot/checkpoint-flow changes in this commit**
+- [ ] **Step 7: Add the "future projection" platform extension test** `tests/tui/runtime/projection-runtime.vitest.ts`
+
+This is the ultimate Phase 7 proof: a projection with a NEW object shape registers onto the runtime with zero infrastructure changes, its state round-trips, and the collector (Task 3) is untouched. Add to the runtime test suite:
+```ts
+  it('a future object-shaped projection registers + round-trips with no infrastructure change', () => {
+    // A hypothetical future projection — proves the platform is genuinely open.
+    class FutureProjection implements DurableProjectionBuilder<{ hello: string }> {
+      private hello = 'world';
+      update() {}                       // no-op for the proof
+      snapshot() { return { hello: this.hello }; }
+      reset() { this.hello = 'world'; }
+      exportState(): ProjectionState { return { hello: this.hello }; }
+      importState(state) { const s = state as { hello?: unknown }; if (typeof s.hello === 'string') this.hello = s.hello; }
+    }
+    const r = new ProjectionRuntime();
+    r.register('future', new FutureProjection());
+    r.updateAll([]);
+    expect(r.snapshotOf<{ hello: string }>('future')).toEqual({ hello: 'world' });
+    const state = r.exportState();
+    expect(state).toEqual({ future: { hello: 'world' } });
+    const r2 = new ProjectionRuntime();
+    r2.register('future', new FutureProjection());
+    r2.importState(state);
+    expect(r2.snapshotOf<{ hello: string }>('future')).toEqual({ hello: 'world' });
+  });
+```
+
+- [ ] **Step 8: Verify the acceptance bar — no collector/snapshot/checkpoint-flow changes in this commit**
 
 Run: `git diff HEAD --stat` and confirm `src/tui/runtime-collector.ts`, `src/tui/snapshot.ts`, and `src/tui/runtime/projection-checkpoint-store.ts` are NOT in the changed set for THIS task's commit. (The collector changes happened in Task 3; Task 5 must touch only the new builder + its test + `tui.ts`.)
 
 > **ApprovalProjection is persistence/runtime validation only in Phase 7.** Rendering approval data is explicitly deferred to Phase 8 (the existing `ApprovalManager` → `snapshot.approvals` → `ApprovalsView` path stays the UI source). A future reviewer should not expect the projection to be shown anywhere.
 
-- [ ] **Step 8: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-git add src/tui/runtime/approval-projection.ts tests/tui/runtime/approval-projection.vitest.ts src/cli/commands/tui.ts
+git add src/tui/runtime/approval-projection.ts tests/tui/runtime/approval-projection.vitest.ts src/cli/commands/tui.ts tests/tui/runtime/projection-runtime.vitest.ts
 git commit -m "feat(capabilities): ApprovalProjection — first registry-native projection (Phase 7)"
 ```
+(Also commit the new `projection-runtime.vitest.ts` "future projection" extension test added in Step 7.)
 
 ---
 ---
@@ -1105,14 +1193,14 @@ git commit -m "feat(capabilities): ApprovalProjection — first registry-native 
 1. **Spec coverage** — every Phase-7 spec section has a task: generalized projection contract + `ProjectionState`/`ProjectionStateSnapshot` module extraction + layering fix (T1), ProjectionRuntime contract + transactional `updateAll` + tuple factory (T2), collector blind + batch-atomicity + grep-only-owner + `snapshot.timeline === []` (T3), registry-keyed envelope + dual-shape load + version-1 doc (T4), ApprovalProjection {pending, completed} object snapshot + identity/reconciliation + resumed Option A + deterministic timestamps + invalid-decision-throws + importState null-check-order (T5), frozen durable contract (T1), acceptance bar (T3 Step 8, T5 Step 7).
 2. **Placeholder scan** — all steps carry real code; the one "illustrative" note in T4 Step 2 tells the implementer the real fixture shape and the 3 required assertions, not a vague directive.
 3. **Type consistency** — `ProjectionBuilder<TSnapshot>` / `DurableProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` flows through all tasks; `ProjectionRuntime.snapshotOf<TSnapshot>(id): TSnapshot | undefined` is used identically in T2 tests and T3 assembly (`?? []`); `ProjectionState`/`ProjectionStateSnapshot` flow from `projection-state.ts` (T1) through T2→T3→T4; `ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot>` matches T1's contract (assignable to the `unknown` snapshot param). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T3 and T5.
-4. **Reviewer corrections all present** — `ProjectionRegistrationError` with reason (T2), typed `ProjectionRollbackError` preserving both errors (T2), `registrations` array for stable order + allocation-free `all()` (T2), null-prototype doc on `ProjectionStateSnapshot` (T1), ApprovalProjection imports `ProjectionState` from the state module (T5), non-mutable `VALID_STATUSES` + `isValidStatus` guard (T5), deterministic-order test (T2), store never migrates `state`→`projections` (T4), approval-rendering-deferred note (T5), extra `timelineBuilder` grep gate (checklist), commit grouping preserved (5 tasks).
+4. **Reviewer corrections all present** — `ProjectionRegistrationError` with reason (T2), typed `ProjectionRollbackError` preserving both errors (T2), `registrations` array for stable order + allocation-free `all()` (T2), `restoreState` internal rollback helper + `assertProjectionState` plain-object guard (T2), null-prototype doc + runtime-vs-persisted clarification on `ProjectionStateSnapshot` (T1), ApprovalProjection imports `ProjectionState` from the state module + validates `requestedAt`/`completedAt` on import + duplicate-request idempotency test (T5), non-mutable `VALID_STATUSES` + `isValidStatus` guard (T5), deterministic-order test + empty-runtime test (T2), store never migrates `state`→`projections` + no-auto-migration regression test (T4), approval-rendering-deferred note + "future projection" platform extension test (T5), `.register(` grep refinement + `timelineBuilder` grep gate (checklist), commit grouping preserved (5 tasks).
 5. **Final acceptance gates (run on the finished branch):**
    ```bash
    # Projection isolation: the collector knows no concrete projections
    grep -R "TimelineBuilder\|ExecutionTraceBuilder" src/tui/runtime-collector.ts
    #   Expected: 0 matches
-   # Registration ownership: only composition roots + runtime tests call register(
-   grep -R "register(" src/tui
+   # Registration ownership: only composition roots + runtime tests call .register(
+   grep -R "\.register(" src/tui
    #   Expected: projection-runtime.ts, cli/commands/tui.ts, tests
    # Durable boundary: only the envelope layer depends on ProjectionStateSnapshot
    grep -R "ProjectionStateSnapshot" src/tui
