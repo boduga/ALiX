@@ -119,6 +119,19 @@ describe('ProjectionRuntime', () => {
     expect(json).toEqual({ a: { entries: [1, 2] } });
   });
 
+  it('updateAll propagates a builder throw (never swallows) — batch isolation is the collector\'s job', () => {
+    const bad: DurableProjectionBuilder<number> = {
+      update() { throw new Error('boom'); },
+      snapshot: () => [], reset() {}, exportState: () => ({}), importState() {},
+    };
+    const ok = makeBuilder();
+    const r = new ProjectionRuntime();
+    r.register('ok', ok); r.register('bad', bad);
+    expect(() => r.updateAll([evt(1)])).toThrow('boom');
+    // registration order preserved: ok updated before bad threw
+    expect(ok.snapshot()).toEqual([1]);
+  });
+
   it('resetAll resets every registered builder', () => {
     const a = makeBuilder([1]); const b = makeBuilder([2]);
     const r = new ProjectionRuntime();
@@ -371,17 +384,54 @@ new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SES
 ```
 Add `import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';` to each file. **Do NOT change any assertion** — behavior must be byte-for-byte equivalent. Use a `buildCollector(...)` helper per file if the same options repeat.
 
-- [ ] **Step 5: Run the full runtime suite**
+- [ ] **Step 5: Add a batch-atomicity test — a throwing projection must NOT commit the checkpoint**
+
+In `tests/tui/runtime/runtime-collector.vitest.ts`, add a test that registers a throwing projection on the runtime passed to the collector, and asserts the checkpoint is not advanced and the previous cache is preserved:
+```ts
+import { ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
+import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
+import type { ProjectionState } from '../../../src/tui/runtime/durable-projection-builder.js';
+
+  it('a throwing projection does not commit the checkpoint (batch atomicity)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' });
+    const store = makeCheckpointStore();
+    const throwing: DurableProjectionBuilder<unknown> = {
+      update() { throw new Error('boom'); },
+      snapshot: () => [], reset() {}, exportState: (): ProjectionState => ({}), importState() {},
+    };
+    const runtime = new ProjectionRuntime();
+    runtime.register('bad', throwing);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: runtime });
+    await collector.start();                 // initializeCheckpoint + first sample
+    await collector.sample();                // throws inside updateAll → caught
+    expect(store.saved.length).toBe(0);      // no durable commit happened
+    expect((collector as unknown as { checkpoint: { committedAt: number } }).checkpoint.committedAt).toBe(0);
+    collector.stop();
+  });
+```
+> (Use the file's existing `makeEventLog`/`makeCheckpointStore` helpers and the `sample`/`checkpoint` access pattern already present in that file.)
+
+- [ ] **Step 6: Run the full runtime suite**
 
 Run: `npx vitest run tests/tui/runtime`
-Expected: ALL pass — including the D12 beyond-head test and the Phase-6.5 invalid-cursor-with-state test. Any failure = a behavior regression from the migration; fix before committing.
+Expected: ALL pass — including the D12 beyond-head test, the Phase-6.5 invalid-cursor-with-state test, and the new batch-atomicity test. Any failure = a behavior regression from the migration; fix before committing.
 
-- [ ] **Step 6: Typecheck**
+- [ ] **Step 7: Typecheck**
 
 Run: `npx tsc -p tsconfig.json --noEmit`
 Expected: clean.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Static acceptance check — ProjectionRuntime is the ONLY owner of projection ops**
+
+Run:
+```bash
+grep -nE '\.(update|reset|exportState|importState)\(' src/tui/runtime-collector.ts
+grep -nE 'snapshot\(' src/tui/runtime-collector.ts
+```
+Expected: the ONLY matches are `this.projectionRuntime.updateAll(` / `this.projectionRuntime.resetAll(` / `this.projectionRuntime.exportState(` / `this.projectionRuntime.importState(` / `this.projectionRuntime.snapshot<...>('trace'|'timeline')`. There MUST be no bare `this.timelineBuilder.`, `this.traceBuilder.`, or a per-id `if`/`switch`. (A hidden `this.traceBuilder.reset()` would pass tests but violates the platform goal — grep catches it.)
+
+- [ ] **Step 9: Commit**
 
 ```bash
 git add src/tui/runtime-collector.ts src/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts tests/tui/runtime/runtime-collector-state.vitest.ts tests/tui/runtime/projection-independence.vitest.ts
@@ -510,27 +560,30 @@ git commit -m "feat(capabilities): registry-keyed durable envelope, dual-shape l
 - Consumes: `DurableProjectionBuilder<T>`, `ProjectionState`, `AlixEvent`, `RuntimeCollectorImpl` (as a black box).
 - Produces:
   ```ts
-  export interface ApprovalEntry {
-    readonly approvalId: string;
-    readonly prompt: string;
+  export interface ApprovalProjectionEntry {
+    readonly approvalId: string;              // identity
+    readonly prompt?: string;
     readonly toolName?: string;
-    readonly status: 'pending' | 'approved' | 'denied' | 'edited' | 'expired' | 'revoked' | 'consumed' | 'resumed';
+    readonly status: 'pending' | 'approved' | 'denied' | 'edited'
+      | 'expired' | 'revoked' | 'consumed' | 'resumed'
+      | 'resolved';   // fallback: approval.resolved w/o recognized decision
     readonly requestedAt: number;
-    readonly resolvedAt?: number;
+    readonly completedAt?: number;            // set on terminal
   }
   export interface ApprovalProjectionSnapshot {
-    readonly pending: readonly ApprovalEntry[];
-    readonly completed: readonly ApprovalEntry[];
+    readonly pending: readonly ApprovalProjectionEntry[];
+    readonly completed: readonly ApprovalProjectionEntry[];
   }
   export const MAX_COMPLETED = 50;
-  export class ApprovalProjection implements DurableProjectionBuilder<ApprovalEntry> {
+  export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionEntry> {
     update(events: readonly AlixEvent[]): void;
-    snapshot(): readonly ApprovalEntry[];      // pending first, then completed (newest→oldest)
+    snapshot(): readonly ApprovalProjectionEntry[];   // pending first, then completed (newest→oldest)
     reset(): void;
-    exportState(): ProjectionState;            // { pending: ApprovalEntry[], completed: ApprovalEntry[] }
+    exportState(): ProjectionState;           // { pending, completed }
     importState(state: ProjectionState): void;
   }
   ```
+  **Identity/reconciliation (deterministic):** identity = `approvalId`. `requested` creates a new pending entry if none is pending (a completed entry with the same id does NOT block a new lifecycle). A terminal event acts only on a pending entry; unknown id → no-op. See the spec's reconciliation rules.
 
 - [ ] **Step 1: Write the failing test** `tests/tui/runtime/approval-projection.vitest.ts`
 
@@ -559,7 +612,7 @@ describe('ApprovalProjection', () => {
     const all = p.snapshot();
     expect(all).toHaveLength(1);
     expect(all[0]!.status).toBe('approved');
-    expect(all[0]!.resolvedAt).toBe(2 * 1000);
+    expect(all[0]!.completedAt).toBe(2 * 1000);
   });
 
   it('completed is bounded by MAX_COMPLETED (FIFO drop of oldest)', () => {
@@ -592,6 +645,18 @@ describe('ApprovalProjection', () => {
     expect(all.find((e) => e.approvalId === 'a1')?.status).toBe('denied');
   });
 
+  it('requested after a completed lifecycle with the same id starts a NEW lifecycle', () => {
+    const p = new ApprovalProjection();
+    p.update([requested(1, 'a1'), resolved(2, 'a1', 'approved')]);
+    p.update([requested(3, 'a1')]);              // re-request of an id already completed
+    const all = p.snapshot();
+    const pending = all.filter((e) => e.status === 'pending');
+    const completed = all.filter((e) => e.status === 'approved');
+    expect(pending).toHaveLength(1);
+    expect(pending[0]!.requestedAt).toBe(3 * 1000);   // the NEW lifecycle, not the old
+    expect(completed).toHaveLength(1);                // old completed entry retained
+  });
+
   it('reset clears pending and completed', () => {
     const p = new ApprovalProjection();
     p.update([requested(1, 'a1'), resolved(2, 'a1', 'approved')]);
@@ -613,19 +678,21 @@ import type { AlixEvent } from '../../events/types.js';
 import type { DurableProjectionBuilder, ProjectionState } from './durable-projection-builder.js';
 
 /** A single approval's projection entry. Immutable DTO. */
-export interface ApprovalEntry {
+export interface ApprovalProjectionEntry {
   readonly approvalId: string;
-  readonly prompt: string;
+  readonly prompt?: string;
   readonly toolName?: string;
-  readonly status: 'pending' | 'approved' | 'denied' | 'edited' | 'expired' | 'revoked' | 'consumed' | 'resumed';
+  readonly status: 'pending' | 'approved' | 'denied' | 'edited'
+    | 'expired' | 'revoked' | 'consumed' | 'resumed'
+    | 'resolved';   // fallback: approval.resolved w/o recognized decision
   readonly requestedAt: number;
-  readonly resolvedAt?: number;
+  readonly completedAt?: number;
 }
 
 /** The projection's explicit state view (also its durable shape). */
 export interface ApprovalProjectionSnapshot {
-  readonly pending: readonly ApprovalEntry[];
-  readonly completed: readonly ApprovalEntry[];
+  readonly pending: readonly ApprovalProjectionEntry[];
+  readonly completed: readonly ApprovalProjectionEntry[];
 }
 
 /** Deterministic cap on completed history — NOT a time window (clock/replay-safe). */
@@ -641,7 +708,7 @@ function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolNa
   const p = (e.payload ?? {}) as Record<string, unknown>;
   return {
     approvalId: typeof p.approvalId === 'string' ? p.approvalId : undefined,
-    prompt: typeof p.prompt === 'string' ? p.prompt : '',
+    prompt: typeof p.prompt === 'string' ? p.prompt : undefined,
     toolName: typeof p.toolName === 'string' ? p.toolName : undefined,
   };
 }
@@ -651,10 +718,16 @@ function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolNa
  * append-only (timeline) and lifecycle-reconciliation (trace). Tracks pending
  * approvals and a bounded completed history. Hosted on the outer (runtime)
  * collector because approval.* events carry the outer sessionId.
+ *
+ * Identity/reconciliation (deterministic): identity = approvalId. `requested`
+ * creates a NEW pending entry unless one is already pending (a completed entry
+ * with the same id does NOT block a new lifecycle). A terminal event acts only
+ * on a pending entry; unknown id → no-op (replay of a resolve without its
+ * request). See spec reconciliation rules.
  */
-export class ApprovalProjection implements DurableProjectionBuilder<ApprovalEntry> {
-  private pending = new Map<string, ApprovalEntry>();
-  private completed: ApprovalEntry[] = [];
+export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionEntry> {
+  private pending = new Map<string, ApprovalProjectionEntry>();
+  private completed: ApprovalProjectionEntry[] = [];
 
   update(events: readonly AlixEvent[]): void {
     for (const e of events) {
@@ -668,20 +741,21 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalEntr
             requestedAt: Date.parse(e.timestamp) || Date.now(),
           });
         }
+        // id already pending → idempotent replay of the same request, no-op
       } else if (e.type === 'approval.resumed') {
         const existing = this.pending.get(approvalId);
         if (existing) this.pending.set(approvalId, { ...existing, status: 'resumed' });
       } else if (TERMINAL_TYPES.has(e.type)) {
         const existing = this.pending.get(approvalId);
-        if (!existing) continue;
+        if (!existing) continue;                    // unknown id → no-op
         const p = (e.payload ?? {}) as Record<string, unknown>;
-        const status = e.type === 'approval.resolved'
-          ? (typeof p.decision === 'string' && ['approved', 'denied', 'edited'].includes(p.decision) ? p.decision as ApprovalEntry['status'] : 'resolved')
+        const status: ApprovalProjectionEntry['status'] = e.type === 'approval.resolved'
+          ? (typeof p.decision === 'string' && ['approved', 'denied', 'edited'].includes(p.decision) ? p.decision as ApprovalProjectionEntry['status'] : 'resolved')
           : e.type === 'approval.resume.failed' ? 'resumed'
           : e.type === 'approval.expired' ? 'expired'
           : e.type === 'approval.consumed' ? 'consumed'
           : 'revoked';
-        const done: ApprovalEntry = { ...existing, status, resolvedAt: Date.parse(e.timestamp) || Date.now() };
+        const done: ApprovalProjectionEntry = { ...existing, status, completedAt: Date.parse(e.timestamp) || Date.now() };
         this.pending.delete(approvalId);
         this.completed = [done, ...this.completed].slice(0, MAX_COMPLETED);
       }
@@ -689,7 +763,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalEntr
   }
 
   /** Pending first (in request order), then completed (newest→oldest). */
-  snapshot(): readonly ApprovalEntry[] {
+  snapshot(): readonly ApprovalProjectionEntry[] {
     return [...this.pending.values(), ...this.completed];
   }
 
@@ -711,14 +785,14 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalEntr
     if (!Array.isArray(s.pending) || !Array.isArray(s.completed)) throw new Error('approval projection state: malformed pending/completed');
     for (const list of [s.pending, s.completed]) {
       for (const entry of list) {
-        const e = entry as Partial<ApprovalEntry>;
+        const e = entry as Partial<ApprovalProjectionEntry>;
         if (typeof e !== 'object' || e === null || typeof e.approvalId !== 'string' || typeof e.status !== 'string') {
           throw new Error('approval projection state: malformed entry');
         }
       }
     }
-    this.pending = new Map(s.pending.map((e) => [e.approvalId, e as ApprovalEntry]));
-    this.completed = [...s.completed as ApprovalEntry[]].slice(0, MAX_COMPLETED);
+    this.pending = new Map(s.pending.map((e) => [e.approvalId, e as ApprovalProjectionEntry]));
+    this.completed = [...s.completed as ApprovalProjectionEntry[]].slice(0, MAX_COMPLETED);
   }
 }
 ```
@@ -769,6 +843,6 @@ git commit -m "feat(capabilities): ApprovalProjection — first registry-native 
 
 ## Self-Review Checklist (controller runs before execution)
 
-1. **Spec coverage** — every Phase-7 spec section has a task: ProjectionRuntime contract (T1), collector blind (T2), registry-keyed envelope + dual-shape load (T3), ApprovalProjection {pending, completed} bounded MAX_COMPLETED (T4), deterministic ordering + typed ProjectionRegistrationError (T1), frozen durable contract (T1 Step 5), acceptance bar (T2, T4 Step 7).
+1. **Spec coverage** — every Phase-7 spec section has a task: ProjectionRuntime contract (T1), collector blind (T2), registry-keyed envelope + dual-shape load (T3), ApprovalProjection {pending, completed} bounded MAX_COMPLETED + identity/reconciliation rules (T4), deterministic ordering + typed ProjectionRegistrationError (T1), frozen durable contract (T1 Step 5), **batch atomicity / failure isolation (T1 updateAll-propagates-throw test + T2 batch-atomicity collector test)**, **grep-only-owner acceptance (T2 Step 8, T4 Step 7)**, acceptance bar (T2, T4 Step 7).
 2. **Placeholder scan** — all steps carry real code; the one "illustrative" note in T3 Step 1 tells the implementer the real fixture shape and the 3 required assertions, not a vague directive.
-3. **Type consistency** — `ProjectionRuntime.snapshot<T>(id): readonly T[]` is used identically in T1 tests and T2 assembly; `ProjectionStateSnapshot` flows T1→T2→T3; `ApprovalProjection` implements `DurableProjectionBuilder<ApprovalEntry>` matching T1's `register(id, builder: DurableProjectionBuilder<unknown>)` (ApprovalProjection is assignable via the `unknown`-typed builder field). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T2 and T4.
+3. **Type consistency** — `ProjectionRuntime.snapshot<T>(id): readonly T[]` is used identically in T1 tests and T2 assembly; `ProjectionStateSnapshot` flows T1→T2→T3; `ApprovalProjection` implements `DurableProjectionBuilder<ApprovalProjectionEntry>` matching T1's `register(id, builder: DurableProjectionBuilder<unknown>)` (ApprovalProjection is assignable via the `unknown`-typed builder field). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T2 and T4.
