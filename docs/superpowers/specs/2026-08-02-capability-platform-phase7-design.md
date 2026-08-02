@@ -72,9 +72,38 @@ interface ProjectionRuntime {
 }
 ```
 
-- `register` with a duplicate id → throws (ids are the durable-state keys; ambiguity is corruption).
+- `register` with a duplicate id → throws a **typed `ProjectionRegistrationError`** (ids are the durable-state keys; ambiguity is corruption). This is a configuration-corruption condition, not a runtime failure.
+- **Dispatch order MUST be deterministic and must not affect output.** Registration order is preserved for update/export/import iteration, but projections MUST NOT depend on execution order or on other projections (D11 — builders derive only from the EventLog batch). A future contributor must not be able to create an ordering dependency.
+
+  ```
+  EventLog batch
+     ├── TimelineBuilder
+     ├── TraceBuilder
+     └── ApprovalBuilder
+  ```
+  Never:
+  ```
+  TimelineBuilder → TraceBuilder  (producer/consumer chain)
+  ```
+
 - The collector MUST never call `runtime.get("trace")` / `runtime.get("timeline")` during update/reset/export paths. **The only place projection ids appear is the snapshot-assembler boundary** (building `RuntimeSnapshot`), where the collector reads specific typed fields.
 - Each registered builder MUST be a `DurableProjectionBuilder<T>` to participate in the envelope; a non-durable builder's state is simply absent from export. (Both existing builders and ApprovalProjection are durable.)
+
+## Frozen `DurableProjectionBuilder` contract
+
+Before the registry migration, verify the durable contract is frozen:
+
+```ts
+interface DurableProjectionBuilder<T>
+  extends ProjectionBuilder<T> {
+  exportState(): unknown;
+  importState(state: unknown): void;
+}
+```
+
+Constraints:
+- `unknown` in/out — the runtime validates serializability; no builder leaks class instances into checkpoint state.
+- The checkpoint layer MUST never know builder-specific state types (`ApprovalState`, `TraceState`, `TimelineState`) — only `Record<string, unknown>` / the opaque envelope.
 
 ## Snapshot contract
 
@@ -91,7 +120,17 @@ interface RuntimeSnapshot {
 ```
 
 - The **typed fields are the public API**. `runtime-view.ts` keeps reading `r.trace` untouched.
-- `projections?` is **NOT a supported consumer API** — it exists only as an extension boundary for future experimental projections. Consumers MUST NOT read `snapshot.projections["foo"]`; the typed fields are the contract. (Document this in the type; otherwise someone will bypass the typed surface.)
+- `projections?` is **NOT a supported consumer API** — it exists only as an extension boundary for future experimental projections. Consumers MUST NOT read `snapshot.projections["foo"]`; the typed fields are the contract. The type MUST carry this documentation inline:
+
+  ```ts
+  /**
+   * Experimental extension boundary only.
+   * Runtime consumers MUST NOT depend on keys here.
+   * Typed snapshot fields are the supported API.
+   */
+  readonly projections?: Readonly<Record<string, unknown>>;
+  ```
+
 - When a projection isn't registered (e.g. the outer runtime collector doesn't register timeline), its typed field is `[]`.
 
 **ApprovalProjection does NOT add a `RuntimeSnapshot` field in Phase 7.** The TUI snapshot already carries an `approvals: ApprovalSnapshot | null` field (snapshot.ts:15) fed by the live `ApprovalManager` (approvals-view.ts consumes it). Introducing a parallel `approvals`/`approvalProjection` field now would create a second approval-truth surface and force a premature "which approval state is authoritative" decision. That reconciliation is its own phase. The projection's snapshot is produced by `ProjectionRuntime.snapshot("approval")` and consumed by tests; the UI continues to use the existing `ApprovalManager` surface.
@@ -126,8 +165,17 @@ The registry changes *who receives the events*, not *how the event stream advanc
 
 - **Host:** the runtime collector (outer sessionId) — approval events are stamped with the outer sessionId (`src/policy/approvals.ts:44`), so it projects alongside the trace. Independent of `buildTimeline`.
 - **Events consumed:** `approval.requested` / `approval.resolved` / `approval.expired` / `approval.consumed` / `approval.revoked` / `approval.resumed` (already defined in `src/events/types.ts`).
-- **Semantics:** **state machine / active-state** — a third distinct projection style alongside append-only (timeline) and lifecycle-reconciliation (trace). The snapshot is active (pending) approvals + recently-completed, not a full append log.
-- **Durable:** implements `DurableProjectionBuilder<ApprovalEntry>` — export/import active + completed state so resume does not replay.
+- **Semantics:** **state machine / active-state** — a third distinct projection style alongside append-only (timeline) and lifecycle-reconciliation (trace).
+
+  ```ts
+  interface ApprovalProjectionSnapshot {
+    pending: readonly ApprovalEntry[];     // unresolved
+    completed: readonly ApprovalEntry[];   // last N resolved events
+  }
+  ```
+
+  `completed` is bounded by a deterministic cap (`MAX_COMPLETED = 50`) — NOT a time window. A time window introduces clock/replay problems; a bounded count is deterministic and replay-safe.
+- **Durable:** implements `DurableProjectionBuilder<ApprovalEntry>` — export/import pending + completed state so resume does not replay.
 - **Consumer: registry-only in Phase 7.** No `RuntimeSnapshot` field, no `SnapshotBuilder` change, no view change. The snapshot is consumed via `ProjectionRuntime.snapshot("approval")` and the projection's own tests. The TUI's existing `ApprovalManager` → `snapshot.approvals` → `ApprovalsView` path is untouched. Projection-backed operator surfaces (replacing the live manager, cross-projection views, capability/metrics dashboards) are deferred to a later phase.
 
 ### Projection-style diversity (proof the abstraction is generic)
@@ -140,7 +188,13 @@ The registry changes *who receives the events*, not *how the event stream advanc
 
 ## Landing sequence (C-style)
 
-### Phase 7.1 — Registry migration (no behavior change)
+Implemented as **4 PRs**, each independently reviewable and green:
+
+### PR 1 — ProjectionRuntime foundation
+
+Only: interface + registry + `updateAll` + `snapshot(id)` + `resetAll` + tests. **No collector changes.** Goal: `ProjectionRuntime` exists and is trusted.
+
+### PR 2 — Collector migration (no behavior change)
 
 Before:
 ```ts
@@ -159,13 +213,13 @@ projectionRuntime.register("timeline", timelineBuilder);
 projectionRuntime.register("trace", traceBuilder);
 ```
 
-**Nothing else changes.** Same projections, same snapshots, same UI, all existing tests pass unchanged. This is the critical safety checkpoint — a regression here is caught by the untouched suite.
+**Nothing else changes.** Same projections, same snapshots, same UI, all existing tests pass unchanged. This is the critical safety checkpoint — a regression here is caught by the untouched suite. `resetAll()` replaces the collector's direct `timelineBuilder.reset()` / `traceBuilder.reset()` calls.
 
-### Phase 7.2 — Generic durable-state envelope
+### PR 3 — Generic durable-state envelope
 
 Replace the hard-coded `state: { timeline, trace }` assembly with the runtime's `exportState()`/`importState()` producing/consuming the registry-keyed `projections` envelope. No semantic change.
 
-### Phase 7.3 — ApprovalProjection
+### PR 4 — ApprovalProjection
 
 `ApprovalBuilder` → `projectionRuntime.register("approval", builder)` → consumed via `ProjectionRuntime.snapshot("approval")` + projection tests. **No RuntimeSnapshot, SnapshotBuilder, RuntimeCollector, or view changes.**
 
@@ -174,7 +228,7 @@ Replace the hard-coded `state: { timeline, trace }` assembly with the runtime's 
 ## Acceptance criteria
 
 - ✅ `RuntimeCollectorImpl` contains **zero projection-specific code** — no `this.timelineBuilder`, no `this.traceBuilder`, no `if (id === "trace")`, in update/reset/export paths. The collector is blind to projection identity.
-- ✅ Adding ApprovalProjection requires: builder implementation + registration + durable projection state + projection tests. **Zero RuntimeCollector or RuntimeSnapshot changes.**
+- ✅ Adding ApprovalProjection requires: builder implementation + registration + durable state contract + projection tests. **Must NOT modify: `RuntimeCollectorImpl`, `RuntimeSnapshot`, or the checkpoint transaction flow.** (The strengthened bar prevents "technically modified the collector while claiming the platform works.")
 - ✅ Existing Phase 6/6.5 behavior is byte-for-byte equivalent for timeline + trace (all `tests/tui/runtime` pass unchanged — 88/88 + the state tests).
 - ✅ Replay/recovery still works (D12 invalid-cursor → replay from `beginningCursor()`, persisted state never trusted on invalid cursor).
 - ✅ One projection = one checkpoint remains enforced (registry-keyed `projections` envelope within the single per-collector checkpoint).
@@ -199,6 +253,6 @@ This keeps version `1` and is backward compatible with existing 6.5 checkpoint f
 
 ## Risks / mitigations
 
-- **Registry migration regression** (7.1): mitigated by the untouched test suite + byte-for-byte equivalence acceptance criterion; 7.1 lands as its own reviewable commit.
-- **Envelope schema change** (7.2): mitigated by dual-shape load + always-write-new; legacy 6.5 checkpoints keep working.
-- **Approval snapshot semantics ambiguity** (7.3): the entry shape and active/completed window are defined in the ApprovalProjection task brief (implementation-planning detail).
+- **Registry migration regression** (PR 2): mitigated by the untouched test suite + byte-for-byte equivalence acceptance criterion; PR 2 lands as its own reviewable commit.
+- **Envelope schema change** (PR 3): mitigated by dual-shape load + always-write-new; legacy 6.5 checkpoints keep working.
+- **Approval snapshot semantics ambiguity** (PR 4): bounded by the deterministic `MAX_COMPLETED` cap (no time window); the entry shape is defined in the ApprovalProjection task brief (implementation-planning detail).
