@@ -1,5 +1,5 @@
 import type { AlixEvent, TimelinePayload } from '../../events/types.js';
-import type { ProjectionBuilder } from './projection-builder.js';
+import type { DurableProjectionBuilder } from './durable-projection-builder.js';
 
 export type TimelineKind =
   | 'chat.message' | 'chat.response'
@@ -40,15 +40,61 @@ function cloneEntry(e: TimelineEntry): TimelineEntry {
   };
 }
 
+/** Phase 6.5 durable state: the append-only entries. The `seen` dedup set is
+ *  DERIVABLE from entries (each entry records the seq it was built from in
+ *  sourceEvents.firstSequence), so it is not persisted — importState rebuilds it.
+ *  Declared as a type alias (not interface) so TimelineBuilderState is assignable
+ *  to ProjectionState = Record<string, unknown> (interfaces lack an implicit
+ *  index signature, so they fail strict assignability to Record<string, unknown>). */
+export type TimelineBuilderState = {
+  readonly version: 1;
+  readonly entries: TimelineEntry[];
+};
+
 /** Append-only timeline projection (D4). No lifecycle matching, no terminal
  *  promotion. Events become entries; entries are never mutated. Filtered by
  *  the collector's sessionId at the collector boundary; the builder also
  *  defensively filters here. */
-export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
+export class TimelineBuilder implements DurableProjectionBuilder<TimelineEntry> {
   private readonly entries = new Map<string, TimelineEntry>(); // by id; append-only
   private readonly seen = new Set<string>();                   // `${sessionId}:${seq}` — compound identity
 
   constructor(private readonly sessionId: string) {}
+
+  exportState(): TimelineBuilderState {
+    return { version: 1, entries: [...this.entries.values()] };
+  }
+
+  importState(state: Record<string, unknown>): void {
+    const s = state as Partial<TimelineBuilderState>;
+    if (s?.version !== 1 || !Array.isArray(s.entries)) {
+      throw new Error('timeline projection state: invalid or unsupported version');
+    }
+    // State is untrusted persisted data (rides the checkpoint envelope), so the
+    // shape gate is structural, not just the version. Reject non-plain entries
+    // and entries missing the fields importState/update rely on.
+    for (const e of s.entries) {
+      if (
+        e == null || typeof e !== 'object' ||
+        typeof e.id !== 'string' ||
+        typeof e.sessionId !== 'string' ||
+        typeof e.kind !== 'string' ||
+        typeof e.startedAt !== 'number' ||
+        e.sourceEvents == null || typeof e.sourceEvents !== 'object' ||
+        typeof e.sourceEvents.firstSequence !== 'number'
+      ) {
+        throw new Error('timeline projection state: malformed entry');
+      }
+    }
+    this.entries.clear();
+    this.seen.clear();
+    for (const e of s.entries) {
+      // Defensive: only this session's entries (mirrors update()'s filter).
+      if (e.sessionId !== this.sessionId) continue;
+      this.entries.set(e.id, e);
+      this.seen.add(`${e.sessionId}:${e.sourceEvents.firstSequence}`);
+    }
+  }
 
   update(events: readonly AlixEvent[]): void {
     for (const e of events) {
