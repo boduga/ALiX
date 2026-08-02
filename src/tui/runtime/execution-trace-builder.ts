@@ -356,7 +356,7 @@ function assertTraceStateElements(
 /** Stateful facade over the shared reconciliation engine. Holds mutable
  *  projection state; publishes fresh immutable snapshots after retention.
  *  Idempotent by event seq — safe against cursor at-least-once replays. */
-export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilder<ExecutionTraceEntry> {
+export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilder<readonly ExecutionTraceEntry[]> {
   private readonly state: ExecutionTraceState = createTraceState();
   private readonly retention: ExecutionTraceRetention;
 

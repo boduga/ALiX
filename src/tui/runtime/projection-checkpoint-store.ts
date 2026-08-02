@@ -1,7 +1,11 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type { ProjectionState } from './durable-projection-builder.js';
+import type { ProjectionStateSnapshot } from './projection-state.js';
+// Re-export the state types (defined in projection-state.ts) so existing
+// importers of this module — the runtime-collector and future ProjectionRuntime —
+// keep resolving them without a layering inversion into the builder module.
+export type { ProjectionState, ProjectionStateSnapshot } from './projection-state.js';
 
 const CHECKPOINT_FILE = 'projection-checkpoint.json';
 const TMP_SUFFIX = '.tmp';
@@ -9,12 +13,6 @@ export const CHECKPOINT_CONTAINER_VERSION = 1;
 
 // PersistedProjectionCheckpoint (defined above) IS the envelope written to
 // disk; CHECKPOINT_CONTAINER_VERSION is its literal version field.
-
-/** Phase 6.5 — projection state carried alongside the cursor in the same
- *  envelope. Keyed by builder key ('timeline' | 'trace' | future). Opaque to
- *  the store, exactly like the cursor string — the collector serializes and
- *  restores it via the builders' exportState/importState. */
-export type ProjectionStateSnapshot = Record<string, ProjectionState>;
 
 /** The persisted form of a projection checkpoint. `committedAt` is the instant
  *  this projection became durable (D5 — the checkpoint is the durable commit

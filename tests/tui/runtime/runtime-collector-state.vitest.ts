@@ -154,7 +154,8 @@ describe('RuntimeCollectorImpl durable projection state (Phase 6.5)', () => {
     // stale state gone.
     const lastSave = store.saved[store.saved.length - 1]!;
     expect((JSON.parse(lastSave.cursor) as { seq: number }).seq).toBe(1);
-    expect(lastSave.state!.timeline!.entries.map((e) => e.text)).toEqual(['hi']);
+    const timeline = lastSave.state!.timeline as { entries: Array<{ text?: string }> };
+    expect(timeline.entries.map((e) => e.text)).toEqual(['hi']);
     collector.stop();
   });
 });

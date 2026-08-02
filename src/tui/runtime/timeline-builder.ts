@@ -55,7 +55,7 @@ export type TimelineBuilderState = {
  *  promotion. Events become entries; entries are never mutated. Filtered by
  *  the collector's sessionId at the collector boundary; the builder also
  *  defensively filters here. */
-export class TimelineBuilder implements DurableProjectionBuilder<TimelineEntry> {
+export class TimelineBuilder implements DurableProjectionBuilder<readonly TimelineEntry[]> {
   private readonly entries = new Map<string, TimelineEntry>(); // by id; append-only
   private readonly seen = new Set<string>();                   // `${sessionId}:${seq}` — compound identity
 
