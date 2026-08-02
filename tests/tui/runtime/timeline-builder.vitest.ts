@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { TimelineBuilder, type TimelineEntry } from '../../../src/tui/runtime/timeline-builder.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 
-function evt(seq: number, type: string, sessionId = 's1', payload: object = {}): AlixEvent {
+function evt(seq: number, type: string, sessionId = 's1', payload: object = {}, id = `e${seq}`): AlixEvent {
   return {
-    id: `e${seq}`, seq, version: 1, sessionId, runId: undefined, parentEventId: undefined,
+    id, seq, version: 1, sessionId, runId: undefined, parentEventId: undefined,
     timestamp: new Date(seq * 1000).toISOString(), type, actor: 'user', payload,
   };
 }
@@ -29,13 +29,20 @@ describe('TimelineBuilder', () => {
     expect(b.snapshot()).toHaveLength(1);
   });
 
-  it('is idempotent by event seq — replay produces no duplicates', () => {
+  it('is idempotent by (sessionId, seq) — a real replay with FRESH randomUUID ids produces no duplicates', () => {
     const b = new TimelineBuilder('s1');
-    const batch = [evt(1, 'chat.message', 's1'), evt(2, 'chat.response', 's1')];
-    b.update(batch);
+    const original = [evt(1, 'chat.message', 's1', { text: 'hi' }), evt(2, 'chat.response', 's1', { text: 'hello' })];
+    b.update(original);
     const once = b.snapshot();
-    b.update(batch);                                    // replay
-    expect(b.snapshot()).toEqual(once);
+    // A real EventLog replay produces DIFFERENT ids (randomUUID) but the same
+    // seqs. Dedup must be on `${sessionId}:${seq}`, NOT on `id`.
+    const replay = [
+      evt(1, 'chat.message', 's1', { text: 'hi' }, 'NEW-ID-1'),
+      evt(2, 'chat.response', 's1', { text: 'hello' }, 'NEW-ID-2'),
+    ];
+    b.update(replay);
+    expect(b.snapshot()).toEqual(once);            // same entries, no duplicates
+    expect(b.snapshot()).toHaveLength(2);           // explicitly not 4
   });
 
   it('reset() clears all in-memory projection state', () => {
