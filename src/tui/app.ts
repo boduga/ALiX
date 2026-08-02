@@ -1,6 +1,6 @@
 import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TimelineEmitContext, TuiAppState } from './state.js';
 import { appendTimelineEvent, createInitialTuiAppState, formatTimelineEvent, getOrderedTimeline, SessionPhase } from './state.js';
-import type { DashboardSnapshot } from './snapshot.js';
+import type { DashboardSnapshot, RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
 import type { RuntimeCollector } from './runtime-collector.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
@@ -87,6 +87,17 @@ export class TuiApp {
   private readonly navigation = new Navigation();
   private snapshotTimer?: NodeJS.Timeout;
   private detached = false;
+  /**
+   * Cached sub-session runtime snapshots (Phase 6, D6/D9). Sampled from
+   * `opts.runtimeCollectors` on start() and every refresh(); injected into the
+   * view render context as `ctx.runtime.{chat,agent}` so ChatView/AgentView
+   * project the chat/agent collector timelines. Distinct from the OUTER-scoped
+   * `snap.runtime` (Runtime tab trace). The collectors' `snapshot()` returns
+   * their in-memory cache synchronously (wrapped in a Promise), so sampling
+   * here is cheap and keeps the views within one refresh tick of the log.
+   */
+  private chatRuntime: RuntimeSnapshot | null = null;
+  private agentRuntime: RuntimeSnapshot | null = null;
   private readonly defaultViews: Readonly<Record<TabId, TuiView>>;
   /**
    * Plan approval gate — owned by the TUI. The agent session calls
@@ -152,10 +163,15 @@ export class TuiApp {
   }
 
   /** Session id stamped for appends landing on `tab`: the chat sub-session on
-   *  the chat tab, the agent sub-session everywhere else (agent messages
-   *  default to the agent surface — approvals resolve on the agent tab). */
+   *  the chat tab, the agent sub-session on the agent tab, and undefined on any
+   *  other tab (Task 4 attribution reconciliation — the in-memory write and the
+   *  log emit attribute the same event to the same session). Tabs without a
+   *  sub-session (approvals, daemon, runtime, ...) have no collector to project
+   *  their log entries, so their appends stay in-memory only. */
   private sessionIdForTab(tab: TabId): string | undefined {
-    return tab === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId;
+    if (tab === 'chat') return this.opts.chatSessionId;
+    if (tab === 'agent') return this.opts.agentSessionId;
+    return undefined;
   }
 
   /** Test seam: expose the gate for direct assertions in unit tests. */
@@ -184,6 +200,7 @@ export class TuiApp {
     if (snap && initialGen === this.state.refreshGeneration) {
       this.state.lastSnapshot = snap;
     }
+    await this.sampleRuntimeCollectors();
     this.paintFullFrame();
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
@@ -219,7 +236,21 @@ export class TuiApp {
     this.state.lastSnapshot = snap;
     this.syncPendingApprovals();
     this.syncCurrentIntent();
+    await this.sampleRuntimeCollectors();
     this.paintFullFrame();
+  }
+
+  /**
+   * Sample the two sub-session runtime collectors and cache their snapshots for
+   * the next paint. Called from start() and refresh() (both already async) so
+   * the view render context carries fresh chat/agent timelines without ever
+   * awaiting inside the synchronous paintFullFrame. The collectors' snapshot()
+   * returns their in-memory cache synchronously (wrapped in a Promise), so this
+   * is cheap and keeps the views within one refresh tick of the EventLog.
+   */
+  private async sampleRuntimeCollectors(): Promise<void> {
+    this.chatRuntime = (await this.opts.runtimeCollectors?.chat.snapshot()) ?? null;
+    this.agentRuntime = (await this.opts.runtimeCollectors?.agent.snapshot()) ?? null;
   }
 
   /**
@@ -1107,6 +1138,10 @@ export class TuiApp {
       perTab: this.state.views[this.state.activeTab],
       canvas: viewCanvas,
       themeName: this.opts.themeName,
+      // Phase 6 (D6/D9): the chat/agent sub-session runtime snapshots, sampled
+      // from the runtime collectors. ChatView/AgentView read their own tab's
+      // `runtime.<tab>.timeline` projection.
+      runtime: { chat: this.chatRuntime, agent: this.agentRuntime },
     };
     this.views[this.state.activeTab]!.render(viewCtx);
 

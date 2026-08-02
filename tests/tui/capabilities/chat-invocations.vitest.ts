@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createInitialTuiAppState, appendTimelineEvent, type TabId } from '../../../src/tui/state.js';
+import { createInitialTuiAppState, type TabId } from '../../../src/tui/state.js';
 import { ChatView } from '../../../src/tui/views/chat-view.js';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
 
@@ -12,27 +12,55 @@ describe('capability invocation chat entries', () => {
   });
 
   it('chat view renders a completed invocation entry', () => {
+    // Phase 6 (D6/D9): ChatView reads the chat sub-session's projected
+    // timeline. A capability completion dual-emits as a `chat.response` entry
+    // on the chat surface, so the view renders its status text inline.
     const state = createInitialTuiAppState();
-    appendTimelineEvent(state.views.chat, {
-      kind: 'capability', invocationId: 'inv_1', capabilityId: 'core.session.list',
-      status: 'completed', output: '["s1"]',
-    });
     const canvas = new TerminalCanvas(60, 20);
-    const ctx = { snap: state.lastSnapshot, dimensions: { columns: 60, rows: 20 }, perTab: state.views.chat, canvas };
+    const ctx = {
+      snap: state.lastSnapshot,
+      dimensions: { columns: 60, rows: 20 },
+      perTab: state.views.chat,
+      canvas,
+      runtime: {
+        chat: {
+          trace: [],
+          timeline: [
+            { id: 'tl-1', kind: 'chat.response', sessionId: 'sess-chat', startedAt: 1, text: 'core.session.list [completed ✓]', sourceEvents: { firstSequence: 1 } },
+          ],
+          workflow: null, totalEventCount: 1, lastEventAt: 1, sessionId: 'sess-chat',
+        },
+        agent: null,
+      },
+    };
     const view = new ChatView();
     view.render(ctx as never);
     expect(canvas.renderFrame()).toContain('core.session.list');
   });
 
   it('interleaves a mid-conversation capability by time (Phase-3 goal)', () => {
+    // The chat projection preserves chronological order: the capability's
+    // `chat.response` entry sits between the user prompt and the agent reply.
     const state = createInitialTuiAppState();
-    const user = appendTimelineEvent(state.views.chat, { kind: 'user', text: 'first' });
-    const agent = appendTimelineEvent(state.views.chat, { kind: 'agent', text: 'second' });
-    const cap = appendTimelineEvent(state.views.chat, { kind: 'capability', invocationId: 'inv_1', capabilityId: 'core.session.list', status: 'completed', output: '["s1"]' });
-    // Capability actually ran between the user prompt and the agent response.
-    user.timestamp = 100; cap.timestamp = 150; agent.timestamp = 200;
     const canvas = new TerminalCanvas(60, 20);
-    const ctx = { snap: state.lastSnapshot, dimensions: { columns: 60, rows: 20 }, perTab: state.views.chat, canvas };
+    const ctx = {
+      snap: state.lastSnapshot,
+      dimensions: { columns: 60, rows: 20 },
+      perTab: state.views.chat,
+      canvas,
+      runtime: {
+        chat: {
+          trace: [],
+          timeline: [
+            { id: 'tl-1', kind: 'chat.message', sessionId: 'sess-chat', startedAt: 100, text: 'first', sourceEvents: { firstSequence: 1 } },
+            { id: 'tl-2', kind: 'chat.response', sessionId: 'sess-chat', startedAt: 150, text: 'core.session.list [completed ✓]', sourceEvents: { firstSequence: 2 } },
+            { id: 'tl-3', kind: 'chat.response', sessionId: 'sess-chat', startedAt: 200, text: 'second', sourceEvents: { firstSequence: 3 } },
+          ],
+          workflow: null, totalEventCount: 3, lastEventAt: 200, sessionId: 'sess-chat',
+        },
+        agent: null,
+      },
+    };
     const view = new ChatView();
     view.render(ctx as never);
     const frame = canvas.renderFrame();
