@@ -1,9 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
 import { KeyDispatcher } from '../../src/tui/key-dispatcher.js';
 import { CapabilityService, setCapabilityService, clearCapabilityService } from '../../src/tui/capabilities/capability-service.js';
 import type { InvocationPresenter } from '../../src/tui/capabilities/invocation-presenter.js';
 import { appendTimelineEvent, type PerTabState } from '../../src/tui/state.js';
+import { EventLog } from '../../src/events/event-log.js';
 
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
@@ -505,5 +509,72 @@ describe('TuiApp — palette-open Ctrl+C quit', () => {
     } finally {
       clearCapabilityService();
     }
+  });
+});
+
+describe('TuiApp — dual-emit into the EventLog (Phase 6)', () => {
+  /** Deterministic flush: the EventLog notifies watchers AFTER appendFile
+   *  resolves, so awaiting `count` notifications guarantees the entries are on
+   *  disk before readAll. */
+  async function flushedAfter(log: EventLog, count: number): Promise<void> {
+    return new Promise<void>((resolve) => {
+      let seen = 0;
+      log.watch(() => { if (++seen >= count) resolve(); });
+    });
+  }
+
+  async function makeEmitApp() {
+    const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-app-')));
+    await log.init();
+    const snap = { generatedAt: 1, session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 }, daemon: null, approvals: null, runtime: null, sops: null, policy: null };
+    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+    const metrics = { start: () => {}, stop: async () => {} };
+    const agentSession = {
+      processChat: vi.fn(async (text: string) => ({ summary: `reply to: ${text}`, sessionId: 'test-session', toolCalls: [] })),
+      processTurn: vi.fn(async (text: string) => ({ summary: `[agent] ${text}`, sessionId: 'test-session', toolCalls: [], reason: 'agent' })),
+    };
+    const app = new TuiApp({
+      builder, daemonMetrics: metrics, agentSession,
+      eventLog: log, chatSessionId: 'sess-chat', agentSessionId: 'sess-agent',
+    } as unknown as TuiAppOptions);
+    const internal = app as unknown as {
+      handleRaw(buf: Buffer): void;
+      getStateForTest(): {
+        lastSnapshot: unknown;
+        activeTab: string;
+        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+      };
+    };
+    internal.getStateForTest().lastSnapshot = snap;
+    internal.getStateForTest().activeTab = 'chat';
+    return { app, internal, log };
+  }
+
+  it('chat submit emits chat.message (user) and chat.response (agent) with the chat sub-session id', async () => {
+    const { internal, log } = await makeEmitApp();
+    const flushed = flushedAfter(log, 2);
+    for (const c of 'fix it') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await flushed;
+    const events = await log.readAll();
+    expect(events).toHaveLength(2);
+    expect(events.map((e) => e.type)).toEqual(['chat.message', 'chat.response']);
+    for (const e of events) expect(e.sessionId).toBe('sess-chat');
+    // The in-memory timeline is still populated in parallel (transitional D9).
+    const chat = internal.getStateForTest().views.chat as unknown as { timelineEvents: Array<{ kind: string; text?: string }> };
+    expect(chat.timelineEvents.filter((e) => e.kind === 'user').map((e) => e.text)).toEqual(['fix it']);
+  });
+
+  it('agent submit emits both entries with the agent sub-session id', async () => {
+    const { internal, log } = await makeEmitApp();
+    (internal.getStateForTest() as { activeTab: string }).activeTab = 'agent';
+    const flushed = flushedAfter(log, 2);
+    for (const c of 'hi') internal.handleRaw(Buffer.from(c));
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await flushed;
+    const events = await log.readAll();
+    expect(events).toHaveLength(2);
+    expect(events.map((e) => e.type)).toEqual(['chat.message', 'chat.response']);
+    for (const e of events) expect(e.sessionId).toBe('sess-agent');
   });
 });

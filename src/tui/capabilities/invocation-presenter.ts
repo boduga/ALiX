@@ -1,4 +1,4 @@
-import type { PerTabState } from '../state.js';
+import type { PerTabState, TimelineEmitContext } from '../state.js';
 import { appendTimelineEvent } from '../state.js';
 import type { TimelineEvent } from '../state.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
@@ -21,18 +21,21 @@ export interface InvocationPresenter {
 export class ChatInvocationPresenter implements InvocationPresenter {
   constructor(
     private readonly getChatState: () => PerTabState,
+    private readonly emitCtx?: TimelineEmitContext,
   ) {}
 
   async present({ invocation, capabilityId }: InvocationInput): Promise<void> {
     const state = this.getChatState();
     // appendTimelineEvent returns the actual stored object (never a clone),
-    // so mutating `event` below updates the entry in the timeline.
+    // so mutating `event` below updates the entry in the timeline. The emit
+    // context (when wired) also routes the append into the EventLog so the
+    // capability completion lands in the chat session's timeline projection.
     const event = appendTimelineEvent(state, {
       kind: 'capability',
       invocationId: invocation.id,
       capabilityId,
       status: 'running',
-    }) as Extract<TimelineEvent, { kind: 'capability' }>;
+    }, this.emitCtx) as Extract<TimelineEvent, { kind: 'capability' }>;
 
     // Terminal events update the entry live from the invocation's own
     // event stream. No race with the runtime starting: Invocation.events()

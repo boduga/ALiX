@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { ChatInvocationPresenter } from '../../../src/tui/capabilities/invocation-presenter.js';
 import type { Invocation, CapabilityEvent, InvocationResult } from '../../../src/capability/types.js';
 import { createInitialPerTabState, type TimelineEvent } from '../../../src/tui/state.js';
+import { EventLog } from '../../../src/events/event-log.js';
 
 /**
  * Mock invocation. `events()` yields any seeded terminal event up front so
@@ -104,5 +108,36 @@ describe('ChatInvocationPresenter', () => {
     const evt = capEvent(state);
     expect(evt.status).toBe('completed');
     expect(evt.output).toEqual({ rows: 1 });
+  });
+
+  it('dual-emits a chat.response log entry for the capability completion when wired with an emit context (Phase 6)', async () => {
+    const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-inv-')));
+    await log.init();
+    const state = createInitialPerTabState();
+    const presenter = new ChatInvocationPresenter(() => state, { eventLog: log, sessionId: 'sess-chat' });
+    const inv = makeInvocation({
+      terminal: { type: 'InvocationCompleted', invocationId: 'inv_1', at: 2 },
+      waitResult: completed('inv_1', { ok: true }),
+    });
+    // Deterministic flush: the log notifies watchers AFTER appendFile resolves.
+    const flushed = new Promise<void>((resolve) => { log.watch(() => resolve()); });
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
+    await flushed;
+    const events = await log.readAll();
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe('chat.response');
+    expect(events[0]!.sessionId).toBe('sess-chat');
+    expect(events[0]!.actor).toBe('agent');
+    // The capability event carries no text/detail — the payload serializes empty.
+    expect(events[0]!.payload).toEqual({});
+  });
+
+  it('keeps in-memory-only behavior when no emit context is wired', async () => {
+    const state = createInitialPerTabState();
+    const presenter = new ChatInvocationPresenter(() => state);
+    const inv = makeInvocation({ waitResult: completed('inv_1', { rows: 1 }) });
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
+    expect(state.timelineEvents).toHaveLength(1);
+    expect(capEvent(state).status).toBe('completed');
   });
 });

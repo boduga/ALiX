@@ -172,6 +172,7 @@ export interface PanelScrollOffsets {
 // continue importing either from state.ts or directly from snapshot.ts.
 import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';
 import type { PlanTask } from '../planning/plan-task.js';
+import type { EventLog } from '../events/event-log.js';
 export type { DashboardSnapshot, SessionMetadata };
 
 export interface TuiAppState {
@@ -211,11 +212,35 @@ let timelineSequence = 0;
 export function nextTimelineSequence(): number { return ++timelineSequence; }
 
 /**
+ * Emit context for the dual-emit (D7/D9, transitional). When present, the same
+ * `appendTimelineEvent` call ALSO writes a typed log entry into the EventLog so
+ * the log becomes canonical; `timelineEvents[]` keeps being populated in
+ * parallel for UX during migration. `sessionId` is the stamped origin (D1/D3)
+ * — the routing dimension the collector projects on.
+ */
+export interface TimelineEmitContext {
+  readonly eventLog: EventLog;
+  readonly sessionId: string;
+}
+
+/**
  * The ONLY writer path into the timeline. Stamps id/timestamp/sequence/source,
  * pushes, and returns the actual stored object (never a clone) so the caller
  * can hold it for in-place mutation (the capability presenter does this).
+ *
+ * The optional `emit` context routes the same append into the EventLog as a
+ * typed log entry. Kind mapping is the Phase-3 in-memory vocabulary only:
+ * `user → chat.message`, `agent → chat.response`, `capability → chat.response`
+ * (capability completion surfaces on the chat tab). The richer `TimelineKind`
+ * values (`tool.invocation`, `approval.requested`, ...) are used by
+ * `TimelineBuilder` for events that ALREADY carry those log types — this
+ * function never maps to them.
  */
-export function appendTimelineEvent(state: Pick<PerTabState, 'timelineEvents'>, event: TimelineEventInput): TimelineEvent {
+export function appendTimelineEvent(
+  state: Pick<PerTabState, 'timelineEvents'>,
+  event: TimelineEventInput,
+  emit?: TimelineEmitContext,                       // optional — preserves Phase 3 callers
+): TimelineEvent {
   const sequence = nextTimelineSequence();
   const source: TimelineSource = event.kind === 'user' ? 'operator'
     : event.kind === 'agent' ? 'agent' : 'capability';
@@ -227,6 +252,27 @@ export function appendTimelineEvent(state: Pick<PerTabState, 'timelineEvents'>, 
     source,
   } as TimelineEvent;
   state.timelineEvents.push(created);
+  if (emit) {
+    // Dual-emit (D7/D9, transitional): emit a typed log entry in parallel so
+    // the EventLog becomes canonical. `timelineEvents[]` continues to be
+    // populated in parallel for UX during migration. Fire-and-forget append —
+    // the in-memory timeline is the synchronous return path; the log write is
+    // a side channel the collector picks up on its next sample.
+    const kindToType: Partial<Record<TimelineEvent['kind'], string>> = {
+      user: 'chat.message',
+      agent: 'chat.response',
+      capability: 'chat.response',                 // capability completion on the chat tab → a chat-surface entry
+    };
+    const type = kindToType[event.kind];
+    if (type) {
+      void emit.eventLog.append({
+        sessionId: emit.sessionId,
+        actor: event.kind === 'user' ? 'user' : 'agent',
+        type,
+        payload: { text: (event as { text?: string }).text, detail: (event as { detail?: string }).detail },
+      });
+    }
+  }
   return created;
 }
 

@@ -90,16 +90,28 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
   const checkpointStore = new FileProjectionCheckpointStore(sessionDir);
-  // Task 2: options-object constructor wires BOTH projections on one
-  // checkpoint. The collector is scoped to the outer sessionId — the session
-  // the agent runtime stamps on its events. (Phase 6 Tasks 3-4 derive
-  // chat/agent sub-session ids and hand the collector to each tab; the wiring
-  // stays here at the bootstrap, not in TuiApp.)
+  // Phase 6 Task 3: chat and agent are DISTINCT sessions (D1/D3 — sessionId is
+  // the routing dimension). Derive per-tab sub-session ids from the outer
+  // sessionId and construct TWO collectors — one per sub-session — both
+  // sharing the same EventLog + checkpoint store. The checkpoint watermark is
+  // log-global (advances over the FULL batch of all sessions' events), so a
+  // shared store is safe: each collector keeps its OWN in-memory cursor and the
+  // per-session filtering happens in the projection builders (D5/D1). TuiApp
+  // stamps chat-tab emits with chatSessionId and agent-tab emits with
+  // agentSessionId, so each collector sees its own session's events.
+  const chatSessionId = `${sessionId}-chat`;
+  const agentSessionId = `${sessionId}-agent`;
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore,
-    sessionId,
-    timelineBuilder: new TimelineBuilder(sessionId),
+    sessionId: chatSessionId,
+    timelineBuilder: new TimelineBuilder(chatSessionId),
+  });
+  const agentRuntimeCollector = new RuntimeCollectorImpl({
+    eventLog,
+    checkpointStore,
+    sessionId: agentSessionId,
+    timelineBuilder: new TimelineBuilder(agentSessionId),
   });
   const sopCollector = new SopCollectorImpl();
 
@@ -170,7 +182,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   }
 
   const builder = new SnapshotBuilder(
-    agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
+    agentSession, approvals, policy, sopCollector, agentRuntimeCollector, daemonMetrics,
     cwd,
   );
 
@@ -193,9 +205,21 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   setCapabilityService(capabilityService);
   await capabilityService.ready();
 
-  const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals, themeName: opts.themeName, capabilityService });
+  const app = new TuiApp({
+    builder,
+    daemonMetrics,
+    agentSession,
+    approvalManager: approvals,
+    themeName: opts.themeName,
+    capabilityService,
+    eventLog,
+    chatSessionId,
+    agentSessionId,
+    runtimeCollectors: { chat: runtimeCollector, agent: agentRuntimeCollector },
+  });
 
   await runtimeCollector.start();
+  await agentRuntimeCollector.start();
   sopCollector.start();
 
   try {
@@ -206,6 +230,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     throw err;
   } finally {
     runtimeCollector.stop();
+    agentRuntimeCollector.stop();
     sopCollector.stop();
   }
 }
