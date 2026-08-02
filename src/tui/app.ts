@@ -1,6 +1,8 @@
-import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
-import { appendTimelineEvent, createInitialTuiAppState, formatTimelineEvent, getOrderedTimeline, SessionPhase } from './state.js';
-import type { DashboardSnapshot } from './snapshot.js';
+import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TimelineEmitContext, TuiAppState } from './state.js';
+import { createInitialTuiAppState, SessionPhase } from './state.js';
+import type { DashboardSnapshot, RuntimeSnapshot } from './snapshot.js';
+import type { EventLog } from '../events/event-log.js';
+import type { RuntimeCollector } from './runtime-collector.js';
 import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { getTheme } from './blocks/theme.js';
 import { getView } from './views/index.js';
@@ -21,6 +23,7 @@ import { KeyDispatcher } from './key-dispatcher.js';
 import { PaletteModal } from './capabilities/palette.js';
 import { getCapabilityService } from './capabilities/capability-service.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
+import { appendLogEntry } from './log-emit.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -48,6 +51,24 @@ export interface TuiAppOptions {
   /** Optional capability service — the palette only activates when a
    *  service is available (either here or via the module accessor). */
   capabilityService?: import('./capabilities/capability-service.js').CapabilityService;
+  /** EventLog backing the Phase 6 dual-emit. When present (with a per-tab
+   *  sessionId), every timeline append ALSO emits a typed log entry so the
+   *  log becomes canonical (D7/D9). Optional — absent in unit tests, where
+   *  appends stay purely in-memory. */
+  eventLog?: EventLog;
+  /** Sub-session id stamped on chat-tab emits: `${sessionId}-chat`. Derived
+   *  in tui.ts; the chat collector projects this session. */
+  chatSessionId?: string;
+  /** Sub-session id stamped on agent-tab emits: `${sessionId}-agent`.
+   *  Derived in tui.ts; the agent collector projects this session. */
+  agentSessionId?: string;
+  /** Per-tab runtime collectors (Phase 6). Both share the EventLog +
+   *  checkpoint store; each projects one sub-session's timeline. Forward-
+   *  compatible surface for Task 4 (views consume RuntimeSnapshot.timeline). */
+  runtimeCollectors?: {
+    chat: RuntimeCollector;
+    agent: RuntimeCollector;
+  };
 }
 
 const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
@@ -58,7 +79,7 @@ const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'ap
  * timeline and resets plan/scroll fields — it never needs the full
  * PerTabState, so this type keeps the function honest about its surface.
  */
-type TimelineWritableState = Pick<PerTabState, 'timelineEvents' | 'planContent' | 'planTasks' | 'scrollOffset'>;
+type TimelineWritableState = Pick<PerTabState, 'planContent' | 'planTasks' | 'scrollOffset'>;
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -67,6 +88,17 @@ export class TuiApp {
   private readonly navigation = new Navigation();
   private snapshotTimer?: NodeJS.Timeout;
   private detached = false;
+  /**
+   * Cached sub-session runtime snapshots (Phase 6, D6/D9). Sampled from
+   * `opts.runtimeCollectors` on start() and every refresh(); injected into the
+   * view render context as `ctx.runtime.{chat,agent}` so ChatView/AgentView
+   * project the chat/agent collector timelines. Distinct from the OUTER-scoped
+   * `snap.runtime` (Runtime tab trace). The collectors' `snapshot()` returns
+   * their in-memory cache synchronously (wrapped in a Promise), so sampling
+   * here is cheap and keeps the views within one refresh tick of the log.
+   */
+  private chatRuntime: RuntimeSnapshot | null = null;
+  private agentRuntime: RuntimeSnapshot | null = null;
   private readonly defaultViews: Readonly<Record<TabId, TuiView>>;
   /**
    * Plan approval gate — owned by the TUI. The agent session calls
@@ -106,15 +138,65 @@ export class TuiApp {
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();
 
-    // Bind the capability service's presenter to this TUI's chat state so
-    // every invocation surfaces in the operator timeline. TuiApp owns the
-    // chat state; the service's module accessor is also set at bootstrap —
-    // the option is redundant but keeps TuiApp usable standalone.
+    // Bind the capability service's presenter so every invocation emits its
+    // settled chat-surface entry into the chat sub-session's log projection
+    // (Phase 6 — the EventLog is the single source of truth timeline; the
+    // presenter no longer holds any per-tab state). The service's module
+    // accessor is also set at bootstrap — the option is redundant but keeps
+    // TuiApp usable standalone.
     if (this.opts.capabilityService) {
       const svc = this.opts.capabilityService;
-      const presenter = new ChatInvocationPresenter(() => this.state.views.chat);
+      const presenter = new ChatInvocationPresenter(this.emitCtx(this.opts.chatSessionId));
       svc.setPresenter(presenter);
     }
+  }
+
+  /**
+   * Build the emit context for a per-tab sessionId. Returns undefined when
+   * no EventLog is wired (unit tests) or the sessionId is missing — the emit
+   * is then a no-op (there is no in-memory timeline anymore).
+   */
+  private emitCtx(sessionId?: string): TimelineEmitContext | undefined {
+    if (!this.opts.eventLog || !sessionId) return undefined;
+    return { eventLog: this.opts.eventLog, sessionId };
+  }
+
+  /**
+   * Single-emit a chat-surface entry into the EventLog (Phase 6 D9 cleanup —
+   * the EventLog is the single source of truth timeline; the per-tab
+   * in-memory cache was removed). Maps the submit kind onto the log
+   * vocabulary by DOMAIN (the sessionId is the tab discriminator):
+   *   chat sub-session  → user → chat.message,  agent → chat.response
+   *   agent sub-session → user → agent.message, agent → agent.response
+   * The agent tab's own conversation (typed prompt + final summary) uses the
+   * `agent.*` vocabulary so the agent view's `agent.*` filter renders it.
+   * No-op when no EventLog or sub-session is wired (unit tests). Fire-and-forget
+   * append — a log-write failure must not fail the input path (rejection is
+   * caught; Node ≥15 would otherwise crash the TUI on an unhandled rejection).
+   */
+  private emitTimelineLog(kind: 'user' | 'agent', text: string, sessionId?: string): void {
+    if (!this.opts.eventLog || !sessionId) return;
+    const agentDomain = sessionId === this.opts.agentSessionId;
+    const type = agentDomain
+      ? (kind === 'user' ? 'agent.message' : 'agent.response')
+      : (kind === 'user' ? 'chat.message' : 'chat.response');
+    appendLogEntry(this.opts.eventLog, {
+      sessionId,
+      actor: kind === 'user' ? 'user' : 'agent',
+      type,
+      payload: { text },
+    });
+  }
+
+  /** Session id stamped for emits landing on `tab`: the chat sub-session on
+   *  the chat tab, the agent sub-session on the agent tab, and undefined on any
+   *  other tab. Tabs without a sub-session (approvals, daemon, runtime, ...)
+   *  have no collector to project their log entries, so their emits are
+   *  no-ops. */
+  private sessionIdForTab(tab: TabId): string | undefined {
+    if (tab === 'chat') return this.opts.chatSessionId;
+    if (tab === 'agent') return this.opts.agentSessionId;
+    return undefined;
   }
 
   /** Test seam: expose the gate for direct assertions in unit tests. */
@@ -143,6 +225,7 @@ export class TuiApp {
     if (snap && initialGen === this.state.refreshGeneration) {
       this.state.lastSnapshot = snap;
     }
+    await this.sampleRuntimeCollectors();
     this.paintFullFrame();
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
@@ -178,7 +261,21 @@ export class TuiApp {
     this.state.lastSnapshot = snap;
     this.syncPendingApprovals();
     this.syncCurrentIntent();
+    await this.sampleRuntimeCollectors();
     this.paintFullFrame();
+  }
+
+  /**
+   * Sample the two sub-session runtime collectors and cache their snapshots for
+   * the next paint. Called from start() and refresh() (both already async) so
+   * the view render context carries fresh chat/agent timelines without ever
+   * awaiting inside the synchronous paintFullFrame. The collectors' snapshot()
+   * returns their in-memory cache synchronously (wrapped in a Promise), so this
+   * is cheap and keeps the views within one refresh tick of the EventLog.
+   */
+  private async sampleRuntimeCollectors(): Promise<void> {
+    this.chatRuntime = (await this.opts.runtimeCollectors?.chat.snapshot()) ?? null;
+    this.agentRuntime = (await this.opts.runtimeCollectors?.agent.snapshot()) ?? null;
   }
 
   /**
@@ -321,7 +418,7 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer });
+          this.emitTimelineLog('user', perTab.inputBuffer, this.opts.chatSessionId);
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -362,7 +459,7 @@ export class TuiApp {
       }
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer });
+          this.emitTimelineLog('user', perTab.inputBuffer, this.opts.agentSessionId);
           void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -535,10 +632,10 @@ export class TuiApp {
         // Try the next candidate rather than giving up.
       }
     }
-    // perTab's narrow type only constrains what dispatchToSession may itself
-    // write; it always includes the timelineEvents write surface that
-    // appendTimelineEvent requires.
-    appendTimelineEvent(perTab, { kind: 'agent', text: summary });
+    // The single log emit stamps the sub-session that matches the submission
+    // kind — chat submits route to the chat collector, agent submits to the
+    // agent collector (Phase 6). The per-tab in-memory cache is gone.
+    this.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
     perTab.scrollOffset = 0; // auto-scroll to bottom on new response
     this.paintFullFrame();
   }
@@ -829,9 +926,7 @@ export class TuiApp {
     tab: TabId,
     text: string,
   ): void {
-    const state = this.state.views[tab];
-    if (!state) return;
-    appendTimelineEvent(state, { kind: 'agent', text });
+    this.emitTimelineLog('agent', text, this.sessionIdForTab(tab));
   }
 
   /**
@@ -908,17 +1003,28 @@ export class TuiApp {
   }
 
   /**
-   * Collect the visible transcript for a tab — the unified operator timeline
-   * (interleaved prompts, responses, and capability invocations) — formatted
+   * Collect the visible transcript for a tab — the log-projected timeline
+   * (interleaved prompts, responses, and capability completions) — formatted
    * for clipboard copy.
    *
-   * Uses the same `getOrderedTimeline`/`formatTimelineEvent` projection as
-   * ChatView and AgentView, so a copied transcript always matches what the
-   * chat tab shows — including capability entries (⚡ …).
+   * Reads the sub-session's `RuntimeSnapshot.timeline` (the EventLog
+   * projection, already session-scoped and ordered by firstSequence) — the
+   * same source ChatView/AgentView render. Chat entries render as `→`/`←`
+   * to match the scrollback; capability completions arrive as `chat.response`
+   * entries carrying their status text. Tabs without a sub-session collector
+   * (dashboard, daemon, ...) have no projection and copy nothing.
    */
   private collectVisibleTranscript(tab: TabId): string {
-    const v = this.state.views[tab];
-    return getOrderedTimeline(v.timelineEvents).map(formatTimelineEvent).join('\n');
+    const runtime = tab === 'chat' ? this.chatRuntime : tab === 'agent' ? this.agentRuntime : null;
+    const lines: string[] = [];
+    for (const e of runtime?.timeline ?? []) {
+      if (e.kind === 'chat.message') lines.push(`→ ${e.text ?? ''}`);
+      // Operator's typed prompt on the agent tab lands `agent.message` with
+      // actor 'user' — copy it as the operator's turn (→), mirroring the view.
+      else if (e.kind === 'agent.message' && e.actor === 'user') lines.push(`→ ${e.text ?? ''}`);
+      else if (e.kind === 'chat.response' || e.kind.startsWith('agent.')) lines.push(`← ${e.text ?? ''}`);
+    }
+    return lines.join('\n');
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */
@@ -1060,6 +1166,10 @@ export class TuiApp {
       perTab: this.state.views[this.state.activeTab],
       canvas: viewCanvas,
       themeName: this.opts.themeName,
+      // Phase 6 (D6/D9): the chat/agent sub-session runtime snapshots, sampled
+      // from the runtime collectors. ChatView/AgentView read their own tab's
+      // `runtime.<tab>.timeline` projection.
+      runtime: { chat: this.chatRuntime, agent: this.agentRuntime },
     };
     this.views[this.state.activeTab]!.render(viewCtx);
 

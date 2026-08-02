@@ -1,5 +1,4 @@
 import type { PerTabState, TabId } from '../state.js';
-import { capabilityStatusText, getOrderedTimeline } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { wrapText } from './wrap-text.js';
 import { renderResponse } from '../blocks/render.js';
@@ -51,44 +50,41 @@ export class ChatView implements TuiView {
     // plain; agent responses go through the rich renderer so fenced
     // code, lists, bold/italic, headings, and quotes get their own
     // visual treatment.
-    interface ScrollbackLine { kind: 'user' | 'agent' | 'capability'; text: string; isFirst: boolean }
+    interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
     const allLines: ScrollbackLine[] = [];
 
-    // Unified operator timeline — user prompts, agent responses, and
-    // capability invocations interleaved by (timestamp, sequence). This is
-    // the Phase-3 payoff: a capability invoked mid-conversation renders in
-    // its chronological position, not appended after all turns.
-    const events = getOrderedTimeline(ctx.perTab.timelineEvents);
+    // Unified operator timeline — the chat tab's log-projected timeline
+    // (Phase 6, D6/D9). `ctx.runtime.chat` is the chat sub-session's
+    // RuntimeSnapshot injected by TuiApp from the chat collector; the
+    // projection is already session-scoped and ordered by firstSequence
+    // (TimelineBuilder.snapshot), so this view only filters by kind.
+    // `chat.message` = user prompt (→), `chat.response` = agent reply /
+    // capability completion (←). User prompts, agent responses, and
+    // capability invocations interleave chronologically.
+    const events = (ctx.runtime?.chat?.timeline ?? [])
+      .filter((e) => e.kind === 'chat.message' || e.kind === 'chat.response');
     // Blank-line separator between turns so each query breathes away from
     // the previous response. A blank precedes a user event (except the very
     // first user turn) AND an agent event when the immediately-preceding
     // event was also an agent event (e.g. a resolution one-liner after a
-    // full response). Capability events stay inline — no blank around them.
-    let prevKind: typeof events[number]['kind'] | undefined;
+    // full response).
+    let prevKind: 'user' | 'agent' | undefined;
     for (const event of events) {
+      const kind: 'user' | 'agent' = event.kind === 'chat.message' ? 'user' : 'agent';
       const needsSeparator = prevKind !== undefined && (
-        event.kind === 'user' || (event.kind === 'agent' && prevKind === 'agent')
+        kind === 'user' || (kind === 'agent' && prevKind === 'agent')
       );
       if (needsSeparator) allLines.push({ kind: 'user', text: '', isFirst: false });
-      prevKind = event.kind;
-      switch (event.kind) {
-        case 'user': {
-          const wrapped = wrapText(event.text, textWidth);
-          wrapped.forEach((line, j) => {
-            allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
-          });
-          break;
-        }
-        case 'agent': {
-          renderResponse(event.text, textWidth, ctx.themeName ? getTheme(ctx.themeName) : undefined).forEach((row, j) => {
-            allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
-          });
-          break;
-        }
-        case 'capability': {
-          allLines.push({ kind: 'capability', text: capabilityStatusText(event), isFirst: true });
-          break;
-        }
+      prevKind = kind;
+      if (kind === 'user') {
+        const wrapped = wrapText(event.text ?? '', textWidth);
+        wrapped.forEach((line, j) => {
+          allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
+        });
+      } else {
+        renderResponse(event.text ?? '', textWidth, ctx.themeName ? getTheme(ctx.themeName) : undefined).forEach((row, j) => {
+          allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
+        });
       }
     }
 

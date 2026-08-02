@@ -49,18 +49,28 @@ test('end-to-end: parse live response, render to canvas', () => {
   const perTab: PerTabState = {
     cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
     pinnedBottom: true, inputBuffer: '', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
-    // AgentView reads the unified operator timeline (Task 4).
     pendingApprovals: [], resolvedApprovals: [],
     runtimeTraceFilter: 'all',
-    timelineEvents: [
-      { id: 'tl-1', timestamp: 1, sequence: 1, source: 'operator', kind: 'user', text: 'write a python function to check if a string is a palindrome' },
-      { id: 'tl-2', timestamp: 2, sequence: 2, source: 'agent', kind: 'agent', text: SAMPLE },
-    ],
+  };
+  // AgentView reads the agent sub-session's projected timeline (Phase 6,
+  // D6/D9) — NOT the legacy perTab.timelineEvents cache.
+  const runtime: ViewRenderContext['runtime'] = {
+    chat: null,
+    agent: {
+      trace: [],
+      timeline: [
+        { id: 'tl-1', kind: 'agent.message', sessionId: 'agent-1', startedAt: 1, text: SAMPLE, sourceEvents: { firstSequence: 1 } },
+      ],
+      workflow: null,
+      totalEventCount: 1,
+      lastEventAt: 1,
+      sessionId: 'agent-1',
+    },
   };
   const W = 80, H = 60;
   const canvas = new TerminalCanvas(W, H);
   const view = new AgentView();
-  view.render({ snap, dimensions: { columns: W, rows: H }, perTab, canvas });
+  view.render({ snap, dimensions: { columns: W, rows: H }, perTab, canvas, runtime });
 
   const frame = canvas.renderFrame();
   // Strip ANSI for readable output

@@ -9,6 +9,7 @@ import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
 import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
 import { FileProjectionCheckpointStore } from "../../tui/runtime/projection-checkpoint-store.js";
+import { TimelineBuilder } from "../../tui/runtime/timeline-builder.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
 import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
@@ -88,8 +89,53 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
 
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
-  const checkpointStore = new FileProjectionCheckpointStore(sessionDir);
-  const runtimeCollector = new RuntimeCollectorImpl(eventLog, checkpointStore);
+  // Phase 6 Task 3 + regression fix (Task 3.5): THREE independent projections
+  // over ONE EventLog — each owns its own in-memory cursor + durable
+  // checkpoint.
+  //   1. runtimeCollector — OUTER sessionId. Projects the execution trace:
+  //      capability/tool/runtime events are stamped with the OUTER sessionId
+  //      (ToolExecutor derives it from the EventLog sessionDir), so this
+  //      collector sees them all. Feeds SnapshotBuilder's `runtime` arg →
+  //      snapshot.runtime.trace (Phase 4 Runtime tab).
+  //   2. chatCollector — `${sessionId}-chat` sub-session. Projects the chat
+  //      timeline (TuiApp stamps chat-tab emits with chatSessionId).
+  //   3. agentCollector — `${sessionId}-agent` sub-session. Projects the agent
+  //      timeline (TuiApp stamps agent-tab emits with agentSessionId).
+  //
+  // Each collector gets its OWN checkpoint store (own file under
+  // `projections/<role>/`). Sharing a single store file across the three is NOT
+  // safe: the first collector's startup sample advances the log-global
+  // watermark, and a later-starting collector would recover PAST events it
+  // never consumed (missed timeline/trace on resume, or when events exist
+  // before the collectors start). Separate stores keep each recovery
+  // independent.
+  const chatSessionId = `${sessionId}-chat`;
+  const agentSessionId = `${sessionId}-agent`;
+  const runtimeCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'runtime'));
+  const chatCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'chat'));
+  const agentCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'agent'));
+  // The OUTER (runtime) collector projects the execution TRACE only — the
+  // Runtime tab reads snapshot.runtime.trace (Phase 4). No view consumes its
+  // timeline, so buildTimeline:false skips an unused timeline projection on
+  // every sample.
+  const runtimeCollector = new RuntimeCollectorImpl({
+    eventLog,
+    checkpointStore: runtimeCheckpointStore,
+    sessionId,
+    buildTimeline: false,
+  });
+  const chatCollector = new RuntimeCollectorImpl({
+    eventLog,
+    checkpointStore: chatCheckpointStore,
+    sessionId: chatSessionId,
+    timelineBuilder: new TimelineBuilder(chatSessionId),
+  });
+  const agentCollector = new RuntimeCollectorImpl({
+    eventLog,
+    checkpointStore: agentCheckpointStore,
+    sessionId: agentSessionId,
+    timelineBuilder: new TimelineBuilder(agentSessionId),
+  });
   const sopCollector = new SopCollectorImpl();
 
   // Either the real `createAgentSession` runtime (default) or the
@@ -158,6 +204,9 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     }
   }
 
+  // The OUTER-scoped runtime collector feeds SnapshotBuilder's `runtime` arg —
+  // it projects capability/tool/runtime events (all stamped with the outer
+  // sessionId), so snapshot.runtime.trace drives the Runtime tab (Phase 4).
   const builder = new SnapshotBuilder(
     agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
     cwd,
@@ -182,9 +231,22 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   setCapabilityService(capabilityService);
   await capabilityService.ready();
 
-  const app = new TuiApp({ builder, daemonMetrics, agentSession, approvalManager: approvals, themeName: opts.themeName, capabilityService });
+  const app = new TuiApp({
+    builder,
+    daemonMetrics,
+    agentSession,
+    approvalManager: approvals,
+    themeName: opts.themeName,
+    capabilityService,
+    eventLog,
+    chatSessionId,
+    agentSessionId,
+    runtimeCollectors: { chat: chatCollector, agent: agentCollector },
+  });
 
   await runtimeCollector.start();
+  await chatCollector.start();
+  await agentCollector.start();
   sopCollector.start();
 
   try {
@@ -195,6 +257,8 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     throw err;
   } finally {
     runtimeCollector.stop();
+    chatCollector.stop();
+    agentCollector.stop();
     sopCollector.stop();
   }
 }

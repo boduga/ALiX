@@ -7,7 +7,7 @@ describe('SopsView', () => {
     perTab: any = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all' as const, panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
+            pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all' as const, panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
   ) => ({
     snap: snap ?? { generatedAt: 1, session: null, daemon: null, approvals: null, runtime: null, sops: null, policy: null },
@@ -42,7 +42,7 @@ describe('SopsView', () => {
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all' as const, panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
+            pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all' as const, panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
     };
     expect(view.handleKey?.('ArrowDown', baseCtx)).toEqual({ type: 'moveCursor', cursor: 1 });
@@ -57,7 +57,7 @@ describe('SopsView', () => {
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all' as const, panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
+            pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all' as const, panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
     };
     expect(view.handleKey?.('/', baseCtx)).toEqual({ type: 'handled' });

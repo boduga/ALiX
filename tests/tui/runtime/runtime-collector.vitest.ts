@@ -4,8 +4,17 @@ import { EventLogCursorError } from '../../../src/events/event-log.js';
 import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
+import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
 
-function makeEventLog(): { log: EventLog; append: (type: string, payload?: Record<string, unknown>) => Promise<void> } {
+/** Default session stamped by makeEventLog's append when no sessionId is
+ *  passed (the pre-Task-2 tests all used this single-session world). */
+const SESSION_ID = 's';
+
+function makeTimeline(sessionId: string): TimelineBuilder {
+  return new TimelineBuilder(sessionId);
+}
+
+function makeEventLog(): { log: EventLog; append: (type: string, payload?: Record<string, unknown>, sessionId?: string) => Promise<void> } {
   let seq = 0;
   const events: AlixEvent[] = [];
   const owner = Symbol('test-owner');
@@ -17,6 +26,10 @@ function makeEventLog(): { log: EventLog; append: (type: string, payload?: Recor
     readSince: async (c: EventLogCursor) => {
       const internal = c as unknown as { seq: number; owner: symbol };
       if (internal.owner !== owner) throw new Error('foreign');
+      // Mirror the real EventLog (event-log.ts): a cursor whose seq lies past
+      // the current head is invalid — throw EventLogCursorError so the
+      // collector discriminates the beyond-head fallback.
+      if (internal.seq > seq) throw new EventLogCursorError('Cursor position beyond current EventLog head');
       const newer = events.filter(e => e.seq > internal.seq);
       const last = newer.length ? newer[newer.length - 1]!.seq : internal.seq;
       return { events: newer, cursor: makeCursor(last) };
@@ -30,14 +43,18 @@ function makeEventLog(): { log: EventLog; append: (type: string, payload?: Recor
     deserializeCursor: (s: string) => {
       const p = JSON.parse(s) as { version: number; seq: number };
       if (p.version !== 1) throw new Error('unknown version');
+      // Mirror the real EventLog: a serialized seq beyond the current head is
+      // invalid — throw EventLogCursorError so recovery resets to
+      // beginningCursor() and re-replays.
+      if (p.seq > seq) throw new EventLogCursorError('Serialized cursor position is beyond the current EventLog head');
       return makeCursor(p.seq);
     },
   } as unknown as EventLog;
   return {
     log,
-    append: async (type, payload = {}) => {
+    append: async (type, payload = {}, sessionId = SESSION_ID) => {
       seq++;
-      events.push({ id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(seq * 1000).toISOString(), type, actor: 'system', payload });
+      events.push({ id: `e${seq}`, seq, version: 1, sessionId, timestamp: new Date(seq * 1000).toISOString(), type, actor: 'system', payload });
     },
   };
 }
@@ -58,7 +75,7 @@ describe('RuntimeCollectorImpl incremental', () => {
   it('starts from beginningCursor and consumes incrementally (no readAll in the loop)', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl(log, makeCheckpointStore());
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const snap = await collector.snapshot();
@@ -72,18 +89,18 @@ describe('RuntimeCollectorImpl incremental', () => {
     expect(after?.trace).toHaveLength(1); // updated in place, not duplicated
   });
 
-  // Note: `builder` is `private readonly` (TS private, not #private) so it IS
-  // reachable via the cast at runtime — the spy works. `sample.call(collector)`
+  // Note: `traceBuilder` is `private readonly` (TS private, not #private) so it
+  // IS reachable via the cast at runtime — the spy works. `sample.call(collector)`
   // does NOT throw outward because sample() has its own try/catch; the assertion
   // that afterFail.trace is empty is what proves the first sample didn't populate.
   it('builder failure does NOT advance the checkpoint — next sample re-reads the same events (D3a)', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl(log, makeCheckpointStore());
-    // Force builder.update to throw on the next sample.
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    // Force the trace builder's update to throw on the next sample.
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
-    const orig = collector as unknown as { builder: { update(e: unknown): void } };
-    const failOnce = vi.spyOn(orig.builder, 'update').mockImplementationOnce(() => { throw new Error('boom'); });
+    const orig = collector as unknown as { traceBuilder: { update(e: unknown): void } };
+    const failOnce = vi.spyOn(orig.traceBuilder, 'update').mockImplementationOnce(() => { throw new Error('boom'); });
     await sample.call(collector); // throws internally, caught, cache preserved
     const afterFail = await collector.snapshot();
     expect(afterFail?.trace).toHaveLength(0); // first sample failed before populating
@@ -98,7 +115,7 @@ describe('RuntimeCollectorImpl incremental', () => {
   it('keeps the previous snapshot on a LATER readSince failure', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl(log, makeCheckpointStore());
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const before = await collector.snapshot();
@@ -122,7 +139,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const saved = await log.readSince(log.beginningCursor());
     await store.save({ version: 1, cursor: log.serializeCursor(saved.cursor), committedAt: Date.now() });
 
-    const collector = new RuntimeCollectorImpl(log, store);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
     const snap = await collector.snapshot();
@@ -147,7 +164,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
     const store = makeCheckpointStore();
     await store.save({ version: 1, cursor: 'not-a-real-cursor', committedAt: Date.now() }); // deserialize will throw
-    const collector = new RuntimeCollectorImpl(log, store);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
     const snap = await collector.snapshot();
@@ -164,7 +181,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
       async load() { throw new Error('io'); },                 // fs read rejection
       async save(cp: { cursor: string; committedAt: number }) { this.saved.push(cp); },
     };
-    const collector = new RuntimeCollectorImpl(log, rejecting);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: rejecting, sessionId: SESSION_ID });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await expect(start.call(collector)).resolves.toBeUndefined();  // must NOT reject
     const snap = await collector.snapshot();
@@ -177,7 +194,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
     const store = makeCheckpointStore();
-    const collector = new RuntimeCollectorImpl(log, store);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const before = await collector.snapshot();
@@ -225,7 +242,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     // Persist a checkpoint whose seq (999) is well past the current head (2).
     await store.save({ version: 1, cursor: JSON.stringify({ version: 1, seq: 999 }), committedAt: 1_700_000_000_000 });
 
-    const collector = new RuntimeCollectorImpl(log, store);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
     const snap = await collector.snapshot();
@@ -250,7 +267,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
   it('Operational readSince error (non-EventLogCursorError) preserves the previous cache and checkpoint', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl(log, makeCheckpointStore());
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const before = await collector.snapshot();
@@ -273,11 +290,191 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
   it('persists every successful sample (write cadence = every sample)', async () => {
     const { log, append } = makeEventLog();
     const store = makeCheckpointStore();
-    const collector = new RuntimeCollectorImpl(log, store);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
     await sample.call(collector);
     expect(store.saved.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
+  it('snapshot.timeline contains chat events for this collector session (D1)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
+    await append('agent.message', { text: 'thinking' }, 'agent-1');   // wrong session → filtered out
+    const chat = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+    });
+    await chat.start();
+    const snap = await chat.snapshot();
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
+    expect(snap?.sessionId).toBe('chat-1');
+    chat.stop();
+  });
+
+  // Task 3.5 regression fix: an OUTER-scoped collector (sessionId = the outer
+  // session, not a sub-session) projects the execution trace from outer-session
+  // runtime/tool events. Capability/tool/runtime events are stamped with the
+  // OUTER sessionId, so this is the collector that must feed SnapshotBuilder's
+  // `runtime` arg (snapshot.runtime.trace → the Phase 4 Runtime tab).
+  it('OUTER-scoped collector projects trace from outer-session events and filters sub-session events', async () => {
+    const { log, append } = makeEventLog();
+    // Runtime/tool events carry the OUTER sessionId; chat/agent tab events
+    // carry their sub-session ids (`${outer}-chat` / `${outer}-agent`).
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' }, 'outer');
+    await append('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }, 'outer');
+    await append('chat.message', { text: 'hi' }, 'outer-chat');     // sub-session → filtered out
+    await append('agent.message', { text: 'thinking' }, 'outer-agent'); // sub-session → filtered out
+
+    const outer = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'outer', timelineBuilder: makeTimeline('outer'),
+    });
+    await outer.start();
+    const snap = await outer.snapshot();
+
+    // The trace sees ONLY the outer-session tool lifecycle (reconciled to its
+    // terminal status) — sub-session events never reach the trace.
+    expect(snap?.sessionId).toBe('outer');
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.kind).toBe('tool');
+    expect(snap?.trace[0]!.status).toBe('completed');
+    // Sub-session chat/agent events are NOT projected into the outer timeline.
+    expect(snap?.timeline.map(e => e.kind)).toEqual([]);
+    outer.stop();
+  });
+
+  it('snapshot.timeline + trace coexist (one read, two projections)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
+    await append('tool.completed', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 }, 'chat-1');
+    const c = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+    });
+    await c.start();
+    const snap = await c.snapshot();
+    expect(snap?.timeline).toHaveLength(1);
+    expect(snap?.timeline[0]!.kind).toBe('chat.message');
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.kind).toBe('tool');          // lifecycle kind
+    expect(snap?.trace[0]!.status).toBe('completed');   // terminal status
+    c.stop();
+  });
+
+  // MANDATORY — the highest-risk recovery path. A stale checkpoint must NOT
+  // leave the timeline empty or the trace stale; both builders reset so replay
+  // from `beginningCursor()` reconstructs both projections independently.
+  it('beyond-head fallback resets BOTH builders and rebuilds both projections (D12)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
+    await append('tool.completed', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 }, 'chat-1');
+
+    // Corrupt the checkpoint: persist a cursor at seq=999 (beyond the head).
+    const corruptStore = makeCheckpointStore();
+    await corruptStore.save({
+      version: 1,
+      cursor: log.serializeCursor({ seq: 999, owner: Symbol('x') } as never),   // beyond-head
+      committedAt: Date.now(),
+    });
+
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: corruptStore, sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+    });
+    await collector.start();
+    const snap = await collector.snapshot();
+
+    // The timeline is REBUILT from beginningCursor (chat.message present),
+    // and the trace is REBUILT too (completed tool present) — NOT stale/empty.
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.kind).toBe('tool');          // lifecycle kind
+    expect(snap?.trace[0]!.status).toBe('completed');   // terminal status
+    // Replay must not rebuild ANOTHER session's projection.
+    expect(snap?.sessionId).toBe('chat-1');
+    collector.stop();
+  });
+
+  it('buildTimeline:false skips the timeline projection (trace-only collector)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' });
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' });
+    // The outer (runtime) collector projects the trace only — no view consumes
+    // its timeline, so buildTimeline:false must skip it entirely.
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, buildTimeline: false,
+    });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const snap = await collector.snapshot();
+    expect(snap!.timeline).toEqual([]);   // timeline never built
+    expect(snap!.trace).toHaveLength(1);  // trace still projected
+    collector.stop();
+  });
+
+  it('lastEventAt / totalEventCount are session-scoped, not log-global (D1/D3)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');         // seq 1
+    await append('agent.message', { text: 'thinking' }, 'agent-1'); // seq 2 — unrelated session, later in the log
+    const chat = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+    });
+    const sample = (chat as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(chat);
+    const snap = await chat.snapshot();
+    expect(snap!.sessionId).toBe('chat-1');
+    // "Last activity" reflects THIS session's events only — not the agent
+    // event that shares the log at a later seq.
+    expect(snap!.totalEventCount).toBe(1);
+    expect(snap!.lastEventAt).toBe(Date.parse('1970-01-01T00:00:01.000Z'));
+    expect(snap!.timeline).toHaveLength(1);
+    expect(snap!.timeline[0]!.kind).toBe('chat.message');
+    chat.stop();
+  });
+
+  it('D12 beyond-head recovery mid-lifetime resets the event-count watermark (no stale carryover)', async () => {
+    // Bespoke log that lets the test move the head backwards (truncation).
+    let head = 0;
+    const events: AlixEvent[] = [];
+    const owner = Symbol('t');
+    const makeCursor = (s: number) => ({ seq: s, owner }) as unknown as EventLogCursor;
+    const log = {
+      beginningCursor: () => makeCursor(0),
+      readSince: async (c: EventLogCursor) => {
+        const internal = c as unknown as { seq: number; owner: symbol };
+        if (internal.seq > head) throw new EventLogCursorError('Cursor position beyond current EventLog head');
+        const newer = events.filter((e) => e.seq > internal.seq && e.seq <= head);
+        const last = newer.length ? newer[newer.length - 1]!.seq : internal.seq;
+        return { events: newer, cursor: makeCursor(last) };
+      },
+      serializeCursor: (c: EventLogCursor) => JSON.stringify({ version: 1, seq: (c as unknown as { seq: number }).seq }),
+      deserializeCursor: (s: string) => makeCursor(JSON.parse(s).seq),
+    } as unknown as EventLog;
+    let seq = 0;
+    const evt = (type: string) => { seq++; events.push({ id: `e${seq}`, seq, version: 1, sessionId: SESSION_ID, timestamp: new Date(seq * 1000).toISOString(), type, actor: 'system', payload: {} }); };
+    evt('workflow.created'); evt('tool.started'); evt('tool.completed');
+    head = 3;
+
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    expect((await collector.snapshot())!.totalEventCount).toBe(3); // watermark at 3
+
+    // Truncate the log: the head moves back to 1, so the persisted checkpoint
+    // (seq 3) is now beyond-head. The D12 catch resets builders + accounting;
+    // the cache is preserved for THIS sample.
+    head = 1;
+    await sample.call(collector);  // readSince throws EventLogCursorError → D12 reset
+    expect((await collector.snapshot())!.totalEventCount).toBe(3); // cache preserved
+
+    // Next sample re-reads from beginningCursor — only seq 1 remains. If the
+    // event-count watermark (and workflow window) were NOT reset, the stale
+    // pre-truncation count (3) would leak through.
+    await sample.call(collector);
+    expect((await collector.snapshot())!.totalEventCount).toBe(1);
+    collector.stop();
   });
 });

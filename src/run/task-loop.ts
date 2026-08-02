@@ -66,6 +66,29 @@ async function completeSession(
   return { sessionId, summary, streamed, ...(reason ? { reason: reason as RunResult["reason"] } : {}) };
 }
 
+/**
+ * Emit an agent-conversation event (agent.message / agent.reasoning /
+ * agent.decision). The task-loop runs in the OUTER runtime but emits ON BEHALF
+ * of the agent conversation — its events belong in the `${sessionId}-agent`
+ * projection domain (Phase 6 rule: an event's sessionId identifies its
+ * projection domain, not the runtime that emitted it). The agent tab's
+ * collector projects `${sessionId}-agent`, so this stamp is what routes these
+ * events onto the agent tab. `model.usage` is deliberately NOT routed here — it
+ * is a cost metric read by outer-session consumers, not a timeline event.
+ *
+ * `session` carries ONLY `sessionId`: these events always stamp `actor:
+ * "agent"` (they speak for the agent conversation), so accepting the caller's
+ * actor would be a misleading constraint.
+ */
+export function emitAgent(
+  log: EventLog,
+  session: { sessionId: string },
+  type: string,
+  payload: object,
+) {
+  return log.append({ ...session, sessionId: `${session.sessionId}-agent`, actor: "agent", type, payload });
+}
+
 // Maps keywords that commonly appear in a model's self-reported summary to
 // the tool-name prefix that would have to have been invoked for the claim
 // to be real. This is intentionally conservative (few, high-confidence
@@ -432,7 +455,7 @@ if (config.model.streaming && provider.stream) {
   }
 
 if (text.length > 0) {
-  await log.append({ ...session, actor: "agent", type: "agent.message", payload: { text } });
+  await emitAgent(log, session, "agent.message", { text });
 }
 
 // Emit model call metric for every call regardless of usage data
@@ -447,28 +470,21 @@ if (usage) {
 
 // Emit reasoning trail
 if (text && text.length > 0) {
-  await log.append({
-    ...session,
-    actor: "agent",
-    type: "agent.reasoning",
-    payload: {
-      text: text.slice(0, 500),
-      toolCalls: toolCalls.map(tc => tc.name),
-      iteration: i,
-    },
+  await emitAgent(log, session, "agent.reasoning", {
+    text: text.slice(0, 500),
+    toolCalls: toolCalls.map(tc => tc.name),
+    iteration: i,
   });
 }
 
 // Emit decision for tool selection
 if (toolCalls.length > 0) {
   const firstSummary = toolCalls[0]?.summary;
-  await log.append({
-    ...session, actor: "agent", type: "agent.decision",
-    payload: { kind: "tool_selection", iteration: i,
-      description: `Called ${toolCalls.map(t => t.name).join(", ")}`,
-      summary: firstSummary,
-      outcome: "executed",
-    },
+  await emitAgent(log, session, "agent.decision", {
+    kind: "tool_selection", iteration: i,
+    description: `Called ${toolCalls.map(t => t.name).join(", ")}`,
+    summary: firstSummary,
+    outcome: "executed",
   });
 }
 
@@ -716,12 +732,10 @@ if (toolCalls.length === 0) {
       if (scopeResult.continue === false) {
         if (scopeResult.denied) {
           // Emit decision for scope expansion denial
-          await log.append({
-            ...session, actor: "agent", type: "agent.decision",
-            payload: { kind: "scope_expansion", iteration: i,
-              description: `Scope expansion denied for file changes`,
-              outcome: "rejected",
-            },
+          await emitAgent(log, session, "agent.decision", {
+            kind: "scope_expansion", iteration: i,
+            description: `Scope expansion denied for file changes`,
+            outcome: "rejected",
           });
           const execName = selectedTools.find(t => t.name === toolCall.name)?.execName ?? toolCall.name;
           // Check if we have paths to report denial for
@@ -1007,12 +1021,10 @@ if (toolCalls.length === 0) {
       if (failedChecks.length > 0) {
         repairCount++;
         // Emit decision for repair
-        await log.append({
-          ...session, actor: "agent", type: "agent.decision",
-          payload: { kind: "repair", iteration: i,
-            description: `Entering repair loop (attempt ${repairCount}/${maxRepairs})`,
-            outcome: "executed",
-          },
+        await emitAgent(log, session, "agent.decision", {
+          kind: "repair", iteration: i,
+          description: `Entering repair loop (attempt ${repairCount}/${maxRepairs})`,
+          outcome: "executed",
         });
         stateMachine.recordRepair();
         if (repairCount > maxRepairs) {
@@ -1070,12 +1082,10 @@ if (toolCalls.length === 0) {
   }
 
   // Max iterations reached
-  await log.append({
-...session, actor: "agent", type: "agent.decision",
-payload: { kind: "completion", iteration: maxIterations,
-  description: `Reached maximum iterations (${maxIterations})`,
-  outcome: "accepted",
-},
+  await emitAgent(log, session, "agent.decision", {
+    kind: "completion", iteration: maxIterations,
+    description: `Reached maximum iterations (${maxIterations})`,
+    outcome: "accepted",
   });
   const { skillFactory } = await import("../skills/dispatcher.js");
   void skillFactory.process({

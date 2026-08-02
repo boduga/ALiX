@@ -1,9 +1,25 @@
 import type { TabId } from '../state.js';
 import type { DashboardSnapshot, PerTabState } from '../state.js';
+import type { RuntimeSnapshot } from '../snapshot.js';
 
 export interface TerminalDimensions {
   readonly columns: number;
   readonly rows: number;
+}
+
+/**
+ * Per-tab projected runtime snapshots (Phase 6, D6/D9). Injected by TuiApp from
+ * the two sub-session collectors wired via `TuiAppOptions.runtimeCollectors` —
+ * `chat` projects `${sessionId}-chat`, `agent` projects `${sessionId}-agent`.
+ * Each view reads the snapshot for its own tab and filters `timeline` by kind
+ * (`chat.*` for ChatView, `agent.*` for AgentView). Null when the collector is
+ * not wired (unit tests) or has not sampled yet — views must fall back to an
+ * empty timeline. Distinct from `DashboardSnapshot.runtime` (`snap.runtime`),
+ * which is the OUTER-scoped runtime used by the Runtime tab's execution trace.
+ */
+export interface PerTabRuntime {
+  readonly chat: RuntimeSnapshot | null;
+  readonly agent: RuntimeSnapshot | null;
 }
 
 export interface ViewRenderContext {
@@ -19,6 +35,8 @@ export interface ViewRenderContext {
   readonly canvas?: import('../canvas.js').TerminalCanvas;
   /** Theme name for render pipeline. Defaults to 'dark'. */
   readonly themeName?: string;
+  /** Phase 6 (D6/D9): projected chat/agent sub-session runtime snapshots. */
+  readonly runtime?: PerTabRuntime;
 }
 
 export interface ViewInputContext {

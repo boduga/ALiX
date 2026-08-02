@@ -149,10 +149,6 @@ export interface PerTabState {
    * SOPS & POLICY. Null on every other tab so keys pass through silently.
    */
   panelFocus: PanelFocusId | null;
-  /** Unified operator timeline — user prompts, agent responses, capability
-   *  invocations, ordered by (timestamp, sequence). Single source of truth
-   *  for conversation; the chat/agent/copy views are projections of this. */
-  timelineEvents: TimelineEvent[];
   /** Selected capability in the Capabilities tab (per-tab view state). */
   capabilitiesSelectedId?: string;
   /** Active execution-trace filter on the Runtime tab. Default 'all'. */
@@ -172,6 +168,8 @@ export interface PanelScrollOffsets {
 // continue importing either from state.ts or directly from snapshot.ts.
 import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';
 import type { PlanTask } from '../planning/plan-task.js';
+import type { EventLog } from '../events/event-log.js';
+import { appendLogEntry } from './log-emit.js';
 export type { DashboardSnapshot, SessionMetadata };
 
 export interface TuiAppState {
@@ -194,14 +192,17 @@ export function createInitialPerTabState(): PerTabState {
     inputBuffer: '',
     pendingApprovals: [],
     resolvedApprovals: [],
-    timelineEvents: [],
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
     runtimeTraceFilter: 'all',
   };
 }
 
-/** Writer-facing timeline input: a TimelineEvent minus the stamped base fields. */
+/**
+ * @deprecated Phase-3 writer-facing timeline input. Retained ONLY because the
+ * deprecated `appendTimelineEvent` compatibility wrapper's signature needs it —
+ * the EventLog is now the single source of truth timeline. REMOVED in Phase 7.
+ */
 export type TimelineEventInput =
   | { kind: 'user'; text: string }
   | { kind: 'agent'; text: string }
@@ -211,31 +212,59 @@ let timelineSequence = 0;
 export function nextTimelineSequence(): number { return ++timelineSequence; }
 
 /**
- * The ONLY writer path into the timeline. Stamps id/timestamp/sequence/source,
- * pushes, and returns the actual stored object (never a clone) so the caller
- * can hold it for in-place mutation (the capability presenter does this).
+ * Emit context for the timeline's log emit (D7/D9, Phase 6). When present,
+ * the deprecated `appendTimelineEvent` wrapper (and the TUI's direct emits)
+ * write a typed log entry into the EventLog — the log is the single source of
+ * truth timeline; the old in-memory `timelineEvents[]` cache is gone. `sessionId`
+ * is the stamped origin (D1/D3) — the routing dimension the collector projects on.
  */
-export function appendTimelineEvent(state: Pick<PerTabState, 'timelineEvents'>, event: TimelineEventInput): TimelineEvent {
-  const sequence = nextTimelineSequence();
-  const source: TimelineSource = event.kind === 'user' ? 'operator'
-    : event.kind === 'agent' ? 'agent' : 'capability';
-  const created = {
-    ...event,
-    id: `tl-${sequence}`,
-    timestamp: Date.now(),
-    sequence,
-    source,
-  } as TimelineEvent;
-  state.timelineEvents.push(created);
-  return created;
+export interface TimelineEmitContext {
+  readonly eventLog: EventLog;
+  readonly sessionId: string;
 }
 
-/** Ordered view of the timeline: by timestamp, then sequence (deterministic same-ms). Does not mutate input. */
-export function getOrderedTimeline(events: readonly TimelineEvent[]): TimelineEvent[] {
-  return [...events].sort((a, b) => a.timestamp - b.timestamp || a.sequence - b.sequence);
+/**
+ * @deprecated Phase-3 writer path into the in-memory timeline, kept as a
+ * FUNCTIONAL compatibility wrapper for one phase. The EventLog is now the
+ * single source of truth timeline (D9 cleanup in Phase 6): the per-tab
+ * `timelineEvents[]` cache was removed, so this no longer pushes anywhere —
+ * it only emits a typed log entry via the optional `emit` context (kind
+ * mapping is the Phase-3 vocabulary: `user → chat.message`, `agent →
+ * chat.response`; `capability` is deliberately NOT mapped — at append time
+ * its status is `running` with no display text, and the capability presenter
+ * emits the single authoritative chat-surface entry at settlement). It does
+ * NOT throw, so non-TUI consumers (web UI, CLI, replay tools, automation
+ * workers) can keep compiling against it. Returns nothing — there is no
+ * in-memory timeline anymore, so a fabricated TimelineEvent would be a dead
+ * entry. REMOVED in Phase 7.
+ */
+export function appendTimelineEvent(
+  _state: PerTabState,                              // retained ONLY for the Phase-3 compat signature; unused
+  event: TimelineEventInput,
+  emit?: TimelineEmitContext,                       // optional — preserves Phase 3 callers
+): void {
+  console.warn('appendTimelineEvent is deprecated (Phase 6): use EventLog.append() with a typed entry. Removed in Phase 7.');
+  if (!emit) return;
+  const kindToType: Partial<Record<TimelineEvent['kind'], 'chat.message' | 'chat.response'>> = {
+    user: 'chat.message',
+    agent: 'chat.response',
+  };
+  const type = kindToType[event.kind];
+  if (!type) return; // capability NOT mapped (D7/D9) — the presenter emits the settled entry
+  const text = (event as { text?: string }).text;
+  const detail = (event as { detail?: string }).detail;
+  appendLogEntry(emit.eventLog, {
+    sessionId: emit.sessionId,
+    actor: event.kind === 'user' ? 'user' : 'agent',
+    type,
+    payload: {
+      ...(text !== undefined ? { text } : {}),
+      ...(detail !== undefined ? { detail } : {}),
+    },
+  });
 }
 
-/** Status suffix for a capability event — "core.session.list [completed ✓]". Shared by ChatView + copy. */
+/** Status suffix for a capability event — "core.session.list [completed ✓]". Shared by the presenter's log emit. */
 export function capabilityStatusText(event: Extract<TimelineEvent, { kind: 'capability' }>): string {
   let text = event.capabilityId;
   if (event.status === 'running') text += ' [running]';
@@ -247,15 +276,6 @@ export function capabilityStatusText(event: Extract<TimelineEvent, { kind: 'capa
   } else if (event.status === 'failed') text += ` [failed ✗] ${event.error ?? ''}`;
   else text += ' [cancelled]';
   return text.trim();
-}
-
-/** One-line rendering of a timeline event — shared by copy-scrollback so copy matches the chat view. */
-export function formatTimelineEvent(event: TimelineEvent): string {
-  switch (event.kind) {
-    case 'user': return `→ ${event.text}`;
-    case 'agent': return `← ${event.text}`;
-    case 'capability': return `⚡ ${capabilityStatusText(event)}`;
-  }
 }
 
 export function createInitialTuiAppState(): TuiAppState {

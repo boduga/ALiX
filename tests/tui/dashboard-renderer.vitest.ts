@@ -399,6 +399,7 @@ describe('renderDashboard — RUNTIME panel', () => {
       approvals: null,
       runtime: {
         trace,
+        timeline: [],
         workflow: opts.workflow
           ? {
               name: opts.workflow.name,
@@ -409,6 +410,7 @@ describe('renderDashboard — RUNTIME panel', () => {
           : null,
         totalEventCount: totalEvents,
         lastEventAt: trace[0]?.startedAt ?? null,
+        sessionId: 'chat-1',
       },
       sops: null,
       policy: null,
