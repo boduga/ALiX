@@ -77,7 +77,8 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
  * agent-authored kinds (`agent.message` | `agent.reasoning` | `agent.decision`
  * | `agent.response`) — NOT the legacy `perTab.timelineEvents`. Entries are
  * interleaved exactly as the pre-projection fixture did (prompt_i before
- * summary_i), each rendered with the ← agent marker.
+ * summary_i). Direction comes from the actor: prompts (actor 'user') render
+ * with the → operator marker, summaries (actor 'agent') with the ← marker.
  */
 function seedTurns(user: string[], agent: string[]): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
@@ -86,11 +87,14 @@ function seedTurns(user: string[], agent: string[]): TimelineEntry[] {
   for (let i = 0; i < maxLen; i++) {
     if (i < user.length) {
       seq += 1;
-      entries.push({ id: `tl-${seq}`, kind: 'agent.message', sessionId: 'agent-1', startedAt: seq, text: user[i]!, sourceEvents: { firstSequence: seq } });
+      // Operator's typed prompt → agent.message with actor 'user' (real
+      // emission: app.ts stamps the agent tab's user input this way).
+      entries.push({ id: `tl-${seq}`, kind: 'agent.message', actor: 'user', sessionId: 'agent-1', startedAt: seq, text: user[i]!, sourceEvents: { firstSequence: seq } });
     }
     if (i < agent.length) {
       seq += 1;
-      entries.push({ id: `tl-${seq}`, kind: 'agent.response', sessionId: 'agent-1', startedAt: seq, text: agent[i]!, sourceEvents: { firstSequence: seq } });
+      // Agent's final summary → agent.response with actor 'agent'.
+      entries.push({ id: `tl-${seq}`, kind: 'agent.response', actor: 'agent', sessionId: 'agent-1', startedAt: seq, text: agent[i]!, sourceEvents: { firstSequence: seq } });
     }
   }
   return entries;
@@ -192,15 +196,31 @@ describe('AgentView — empty state', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — agent turns', () => {
-  it('renders a single agent turn with cyan arrow marker', () => {
+  it('renders the operator prompt as a dim gray user marker (→)', () => {
+    // The operator's typed prompt lands agent.message with actor 'user' — it
+    // must render as a USER turn (→), not as agent-authored (←).
     const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['what is the meaning of life?'], [])));
     expect(rowText(c, 6)).toContain('what is the meaning of life?');
+    const marker = cellAt(c, 0, 6);
+    expect(marker.char).toBe('→');
+    expect(marker.style).toContain('90m');
+  });
+
+  it('renders the task-loop agent.message narration (actor agent) as an agent turn (←)', () => {
+    // The task-loop emits its own running narration as agent.message with
+    // actor 'agent' — distinct from the operator's prompt (actor 'user').
+    const narration: TimelineEntry[] = [{
+      id: 'tl-1', kind: 'agent.message', actor: 'agent', sessionId: 'agent-1',
+      startedAt: 1, text: 'working through the steps', sourceEvents: { firstSequence: 1 },
+    }];
+    const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(narration));
+    expect(rowText(c, 6)).toContain('working through the steps');
     const marker = cellAt(c, 0, 6);
     expect(marker.char).toBe('←');
     expect(marker.style).toContain('36m');
   });
 
-  it('wraps long agent turns onto continuation lines', () => {
+  it('wraps long operator prompts onto continuation lines', () => {
     const long = 'word '.repeat(100); // 100 short tokens that WILL wrap
     const c = renderOnCanvas(40, TALL, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns([long], [])));
     const line1 = rowText(c, 6);
@@ -211,7 +231,7 @@ describe('AgentView — agent turns', () => {
     expect(cellAt(c, 0, 7).char).toBe(' '); // indented, no arrow
   });
 
-  it('renders multiple agent turns in order (top to bottom)', () => {
+  it('renders multiple operator prompts in order (top to bottom)', () => {
     const c = renderOnCanvas(W, TALL, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['first prompt', 'second prompt'], [])));
     // Layout: row 6 = first turn, row 7 = blank separator,
     // row 8 = second turn.
@@ -229,9 +249,12 @@ describe('AgentView — agent turns', () => {
     const all = allText(c, 12);
     expect(all).toContain('summarize the run');
     expect(all).toContain('The run completed: 3 steps.');
-    // Both render with the ← agent marker.
-    expect(cellAt(c, 0, 6).char).toBe('←');
-    expect(cellAt(c, 0, 6).style).toContain('36m');
+    // Direction by actor: the prompt (agent.message, actor user) renders as the
+    // operator's turn (→), the summary (agent.response, actor agent) as ←.
+    expect(cellAt(c, 0, 6).char).toBe('→');
+    expect(cellAt(c, 0, 6).style).toContain('90m');
+    expect(cellAt(c, 0, 8).char).toBe('←');
+    expect(cellAt(c, 0, 8).style).toContain('36m');
   });
 });
 
@@ -276,16 +299,16 @@ describe('AgentView — multi-turn scrollback', () => {
     //   row 12 = a2
     const rows = [6, 7, 8, 9, 10, 11, 12].map((y) => rowText(c, y));
     expect(rows[0]).toContain('q1');
-    expect(cellAt(c, 0, 6).char).toBe('←');
+    expect(cellAt(c, 0, 6).char).toBe('→'); // operator prompt
     expect(rows[1]).toBe('');
     expect(rows[2]).toContain('a1');
-    expect(cellAt(c, 0, 8).char).toBe('←');
+    expect(cellAt(c, 0, 8).char).toBe('←'); // agent summary
     expect(rows[3]).toBe('');
     expect(rows[4]).toContain('q2');
-    expect(cellAt(c, 0, 10).char).toBe('←');
+    expect(cellAt(c, 0, 10).char).toBe('→'); // operator prompt
     expect(rows[5]).toBe('');
     expect(rows[6]).toContain('a2');
-    expect(cellAt(c, 0, 12).char).toBe('←');
+    expect(cellAt(c, 0, 12).char).toBe('←'); // agent summary
   });
 
   it('handles unequal numbers of turns', () => {

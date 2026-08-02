@@ -1,4 +1,4 @@
-import type { AlixEvent } from '../../events/types.js';
+import type { AlixEvent, TimelinePayload } from '../../events/types.js';
 import type { ProjectionBuilder } from './projection-builder.js';
 
 export type TimelineKind =
@@ -19,6 +19,7 @@ export const TIMELINE_TYPES = new Set<TimelineKind>([
 export interface TimelineEntry {
   readonly id: string;                  // `tl-${firstSequence}` — runtime-local deterministic
   readonly kind: TimelineKind;
+  readonly actor?: string;              // 'user' = operator input, 'agent' = agent narration (D7); lets the agent view render direction
   readonly sessionId: string;           // stamped origin (D1/D3)
   readonly startedAt: number;
   readonly text?: string;
@@ -29,6 +30,7 @@ export interface TimelineEntry {
 function cloneEntry(e: TimelineEntry): TimelineEntry {
   return {
     id: e.id, kind: e.kind, sessionId: e.sessionId, startedAt: e.startedAt,
+    ...(e.actor !== undefined ? { actor: e.actor } : {}),
     ...(e.text !== undefined ? { text: e.text } : {}),
     ...(e.detail !== undefined ? { detail: e.detail } : {}),
     sourceEvents: {
@@ -86,13 +88,14 @@ export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
     // Guarded upstream by TIMELINE_TYPES; the cast is safe here. Never cast
     // an unverified e.type directly — the whitelist is the vocabulary gate.
     const kind = e.type as TimelineKind;
-    const p = (e.payload ?? {}) as Record<string, unknown>;
+    const p = (e.payload ?? {}) as TimelinePayload;
     const text = typeof p.text === 'string' ? p.text : undefined;
     const detail = typeof p.detail === 'string' ? p.detail : undefined;
     const ts = Date.parse(e.timestamp) || 0;
     return {
       id: `tl-${e.seq ?? 0}`,
       kind, sessionId: e.sessionId, startedAt: ts,
+      ...(e.actor !== undefined ? { actor: e.actor } : {}),
       ...(text !== undefined ? { text } : {}),
       ...(detail !== undefined ? { detail } : {}),
       sourceEvents: { firstSequence: e.seq ?? 0 },

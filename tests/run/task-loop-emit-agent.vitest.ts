@@ -36,7 +36,7 @@ describe('emitAgent', () => {
   it('stamps agent events into the ${sessionId}-agent projection domain with the agent actor', async () => {
     const log = await makeLog();
     const flushed = flushedAfter(log, 1);
-    await emitAgent(log, { sessionId: 'outer-1', actor: 'system' }, 'agent.message', { text: 'hello' });
+    await emitAgent(log, { sessionId: 'outer-1' }, 'agent.message', { text: 'hello' });
     await flushed;
     const events = await log.readAll();
     expect(events).toHaveLength(1);
@@ -48,7 +48,7 @@ describe('emitAgent', () => {
 
   it('preserves the payload for every agent conversation kind', async () => {
     const log = await makeLog();
-    const session = { sessionId: 'outer-2', actor: 'system' as const };
+    const session = { sessionId: 'outer-2' };
     const flushed = flushedAfter(log, 3);
     await emitAgent(log, session, 'agent.reasoning', { text: 'thinking', toolCalls: ['file.read'], iteration: 0 });
     await emitAgent(log, session, 'agent.decision', { kind: 'tool_selection', iteration: 0, description: 'Called file.read', summary: 'read', outcome: 'executed' });
@@ -63,7 +63,7 @@ describe('emitAgent', () => {
   it('projects into the agent sub-session timeline, not the outer one', async () => {
     const log = await makeLog();
     const flushed = flushedAfter(log, 1);
-    await emitAgent(log, { sessionId: 'outer-3', actor: 'system' }, 'agent.message', { text: 'hello' });
+    await emitAgent(log, { sessionId: 'outer-3' }, 'agent.message', { text: 'hello' });
     await flushed;
     const all = await log.readAll();
 

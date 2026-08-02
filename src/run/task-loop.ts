@@ -75,10 +75,14 @@ async function completeSession(
  * collector projects `${sessionId}-agent`, so this stamp is what routes these
  * events onto the agent tab. `model.usage` is deliberately NOT routed here — it
  * is a cost metric read by outer-session consumers, not a timeline event.
+ *
+ * `session` carries ONLY `sessionId`: these events always stamp `actor:
+ * "agent"` (they speak for the agent conversation), so accepting the caller's
+ * actor would be a misleading constraint.
  */
 export function emitAgent(
   log: EventLog,
-  session: { sessionId: string; actor: "system" },
+  session: { sessionId: string },
   type: string,
   payload: object,
 ) {

@@ -23,6 +23,7 @@ import { KeyDispatcher } from './key-dispatcher.js';
 import { PaletteModal } from './capabilities/palette.js';
 import { getCapabilityService } from './capabilities/capability-service.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
+import { appendLogEntry } from './log-emit.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -179,13 +180,11 @@ export class TuiApp {
     const type = agentDomain
       ? (kind === 'user' ? 'agent.message' : 'agent.response')
       : (kind === 'user' ? 'chat.message' : 'chat.response');
-    void this.opts.eventLog.append({
+    appendLogEntry(this.opts.eventLog, {
       sessionId,
       actor: kind === 'user' ? 'user' : 'agent',
       type,
       payload: { text },
-    }).catch((err) => {
-      process.stderr.write(`[alix-tui] timeline log append failed: ${err instanceof Error ? err.message : String(err)}\n`);
     });
   }
 
@@ -1020,6 +1019,9 @@ export class TuiApp {
     const lines: string[] = [];
     for (const e of runtime?.timeline ?? []) {
       if (e.kind === 'chat.message') lines.push(`→ ${e.text ?? ''}`);
+      // Operator's typed prompt on the agent tab lands `agent.message` with
+      // actor 'user' — copy it as the operator's turn (→), mirroring the view.
+      else if (e.kind === 'agent.message' && e.actor === 'user') lines.push(`→ ${e.text ?? ''}`);
       else if (e.kind === 'chat.response' || e.kind.startsWith('agent.')) lines.push(`← ${e.text ?? ''}`);
     }
     return lines.join('\n');

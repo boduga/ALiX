@@ -169,6 +169,7 @@ export interface PanelScrollOffsets {
 import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';
 import type { PlanTask } from '../planning/plan-task.js';
 import type { EventLog } from '../events/event-log.js';
+import { appendLogEntry } from './log-emit.js';
 export type { DashboardSnapshot, SessionMetadata };
 
 export interface TuiAppState {
@@ -233,36 +234,34 @@ export interface TimelineEmitContext {
  * its status is `running` with no display text, and the capability presenter
  * emits the single authoritative chat-surface entry at settlement). It does
  * NOT throw, so non-TUI consumers (web UI, CLI, replay tools, automation
- * workers) can keep compiling against it. Returns a synthetic TimelineEvent
- * for callers that captured the return value. REMOVED in Phase 7.
+ * workers) can keep compiling against it. Returns nothing — there is no
+ * in-memory timeline anymore, so a fabricated TimelineEvent would be a dead
+ * entry. REMOVED in Phase 7.
  */
 export function appendTimelineEvent(
-  state: PerTabState,
+  _state: PerTabState,                              // retained ONLY for the Phase-3 compat signature; unused
   event: TimelineEventInput,
   emit?: TimelineEmitContext,                       // optional — preserves Phase 3 callers
-): TimelineEvent {
+): void {
   console.warn('appendTimelineEvent is deprecated (Phase 6): use EventLog.append() with a typed entry. Removed in Phase 7.');
-  if (emit) {
-    const kindToType: Partial<Record<TimelineEvent['kind'], string>> = {
-      user: 'chat.message',
-      agent: 'chat.response',
-    };
-    const type = kindToType[event.kind];
-    if (type) {
-      // Fire-and-forget; rejection is swallowed so an fs failure (ENOSPC /
-      // EACCES) cannot crash the TUI via an unhandled promise rejection.
-      void emit.eventLog.append({
-        sessionId: emit.sessionId,
-        actor: event.kind === 'user' ? 'user' : 'agent',
-        type,
-        payload: { text: (event as { text?: string }).text, detail: (event as { detail?: string }).detail },
-      }).catch(() => {});
-    }
-  }
-  const sequence = nextTimelineSequence();
-  const source: TimelineSource = event.kind === 'user' ? 'operator'
-    : event.kind === 'agent' ? 'agent' : 'capability';
-  return { ...event, id: `tl-${sequence}`, timestamp: Date.now(), sequence, source } as TimelineEvent;
+  if (!emit) return;
+  const kindToType: Partial<Record<TimelineEvent['kind'], 'chat.message' | 'chat.response'>> = {
+    user: 'chat.message',
+    agent: 'chat.response',
+  };
+  const type = kindToType[event.kind];
+  if (!type) return; // capability NOT mapped (D7/D9) — the presenter emits the settled entry
+  const text = (event as { text?: string }).text;
+  const detail = (event as { detail?: string }).detail;
+  appendLogEntry(emit.eventLog, {
+    sessionId: emit.sessionId,
+    actor: event.kind === 'user' ? 'user' : 'agent',
+    type,
+    payload: {
+      ...(text !== undefined ? { text } : {}),
+      ...(detail !== undefined ? { detail } : {}),
+    },
+  });
 }
 
 /** Status suffix for a capability event — "core.session.list [completed ✓]". Shared by the presenter's log emit. */

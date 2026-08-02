@@ -74,18 +74,25 @@ export class AgentView implements TuiView {
     const FOOTER_H = 3;
     const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
 
-    // Scrollback area — agent-authored turns (←). Same layout as ChatView
-    // but with the status row at row 5 reserved, so the scrollback starts
-    // at row 6. Long messages word-wrap so they don't truncate at the
+    // Scrollback area — conversation turns (operator →, agent ←). Same layout
+    // as ChatView but with the status row at row 5 reserved, so the scrollback
+    // starts at row 6. Long messages word-wrap so they don't truncate at the
     // right border. Conversation turns come from the agent sub-session's
     // log-projected timeline (Phase 6, D6/D9): `ctx.runtime.agent` is the
     // agent collector's RuntimeSnapshot injected by TuiApp, filtered to the
-    // agent-authored kinds. Capability entries never appear here (the agent
+    // agent conversation kinds. Capability entries never appear here (the agent
     // tab is the execution workspace; the chat tab is the operator
     // narrative).
-    const turns: { kind: 'agent'; text: string }[] = (ctx.runtime?.agent?.timeline ?? [])
+    const turns: { kind: 'user' | 'agent'; text: string }[] = (ctx.runtime?.agent?.timeline ?? [])
       .filter((e) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision' || e.kind === 'agent.response')
-      .map((e) => ({ kind: 'agent', text: e.text ?? '' }));
+      .map((e) => {
+        // Direction by actor (D7): `agent.message` carries BOTH the operator's
+        // typed prompt (actor 'user', stamped by app.ts) and the task-loop's
+        // agent narration (actor 'agent'). Render the operator's input as a
+        // user turn (→); everything else is agent-authored (←).
+        const operator = e.kind === 'agent.message' && e.actor === 'user';
+        return { kind: operator ? 'user' : 'agent', text: e.text ?? '' };
+      });
     const scrollbackTop = 6;
     const scrollbackBottom = startY - 1;
     const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);

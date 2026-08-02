@@ -56,6 +56,10 @@ export interface RuntimeCollectorOptions {
   /** Timeline projection builder. Defaults to a fresh TimelineBuilder for the
    *  session; injectable for tests / future customization. */
   timelineBuilder?: TimelineBuilder;
+  /** Skip the timeline projection entirely. The outer (runtime) collector
+   *  projects the execution trace only — no view consumes its timeline — so
+   *  setting this avoids building an unused projection on every sample. */
+  buildTimeline?: boolean;
   /** Trace projection builder. Defaults to a fresh
    *  IncrementalExecutionTraceBuilder; injectable for tests. */
   traceBuilder?: IncrementalExecutionTraceBuilder;
@@ -67,6 +71,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private readonly eventLog: EventLog;
   private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly sessionId: string;
+  private readonly buildTimeline: boolean;
   private readonly timelineBuilder: TimelineBuilder;
   private readonly traceBuilder: IncrementalExecutionTraceBuilder;
   private checkpoint: ProjectionCheckpoint;
@@ -82,6 +87,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
     this.eventLog = opts.eventLog;
     this.checkpointStore = opts.checkpointStore;
     this.sessionId = opts.sessionId;
+    this.buildTimeline = opts.buildTimeline ?? true;
     this.timelineBuilder = opts.timelineBuilder ?? new TimelineBuilder(opts.sessionId);
     this.traceBuilder = opts.traceBuilder ?? new IncrementalExecutionTraceBuilder();
     // Sentinel committedAt=0: nothing has been durably saved yet. The first
@@ -131,26 +137,27 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // cursor's `seq` lies beyond the current head, malformed JSON, unknown
       // version, invalid payload) or an operational deserialize failure (none
       // expected today, kept for future-proofing). Both fall back to a full
-      // replay from beginningCursor. Reset BOTH builders (D12) so the replay
-      // reconstructs independent, in-memory projection state — the persisted
-      // checkpoint file is left untouched; a subsequent successful sample
-      // overwrites it with a valid one.
-      if (err instanceof EventLogCursorError) {
-        this.timelineBuilder.reset();
-        this.traceBuilder.reset();
-        this.resetCheckpoint();
-      } else {
-        this.timelineBuilder.reset();
-        this.traceBuilder.reset();
-        this.resetCheckpoint();
-      }
+      // replay from beginningCursor — the branches are identical, so there is
+      // no need to discriminate the EventLogCursorError here. Reset BOTH
+      // builders (D12) so the replay reconstructs independent, in-memory
+      // projection state — the persisted checkpoint file is left untouched; a
+      // subsequent successful sample overwrites it with a valid one.
+      this.timelineBuilder.reset();
+      this.traceBuilder.reset();
+      this.resetCheckpoint();
     }
   }
 
   /** Reset the in-memory checkpoint to the durable starting position. Used by
-   *  every initializeCheckpoint fallback branch. */
+   *  every initializeCheckpoint fallback branch. A full replay from
+   *  beginningCursor rebuilds the workflow-accounting window from scratch, so
+   *  the recentEvents buffer and event-count watermark are cleared too —
+   *  otherwise a truncated log could carry stale pre-truncation events/counts
+   *  through the rebuild (D12). */
   private resetCheckpoint(): void {
     this.checkpoint = { cursor: this.eventLog.beginningCursor(), committedAt: 0 };
+    this.recentEvents = [];
+    this.totalEventCount = 0;
   }
 
   stop(): void {
@@ -201,7 +208,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // batch (readSince returns all sessions' events; we must not re-read
       // them), while the builders only ever see this session's events.
       const sessionBatch = batch.events.filter((e) => e.sessionId === this.sessionId);
-      this.timelineBuilder.update(sessionBatch);
+      if (this.buildTimeline) this.timelineBuilder.update(sessionBatch);
       this.traceBuilder.update(sessionBatch);
 
       const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
@@ -211,23 +218,26 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // since then).
       const nextRecentEvents = this.trimToActiveWorkflow([...this.recentEvents, ...sessionBatch]);
 
-      const lastEvent = batch.events[batch.events.length - 1];
+      // lastEventAt / totalEventCount are SESSION-SCOPED (D1/D3): a chat
+      // collector's "last activity" must reflect its own session's events, not
+      // an unrelated agent event sharing the same log.
+      const sessionLast = sessionBatch[sessionBatch.length - 1];
       let nextTotalEventCount = this.totalEventCount;
-      if (lastEvent) {
+      if (sessionLast) {
         // NOTE (D7 accounting): totalEventCount = highest seq seen, which
         // equals the event count because EventLog assigns contiguous seq from
         // 1 on append. This assumption holds for Phase 5; a future backend that
         // decouples seq from count must expose getEventCount() instead. Kept
-        // as RAW-LOG accounting (the full batch) — the checkpoint advances over
-        // all sessions' events, so the highest-seq watermark is log-global.
-        nextTotalEventCount = Math.max(nextTotalEventCount, lastEvent.seq ?? 0);
+        // SESSION-scoped: the watermark reflects this projection's events, not
+        // the whole (cross-session) log.
+        nextTotalEventCount = Math.max(nextTotalEventCount, sessionLast.seq ?? 0);
       }
       const nextCache: RuntimeSnapshot = {
         trace: this.traceBuilder.snapshot(),
-        timeline: this.timelineBuilder.snapshot(),
+        timeline: this.buildTimeline ? this.timelineBuilder.snapshot() : [],
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,
-        lastEventAt: lastEvent ? Date.parse(lastEvent.timestamp) || Date.now() : this.cache.lastEventAt,
+        lastEventAt: sessionLast ? Date.parse(sessionLast.timestamp) || Date.now() : this.cache.lastEventAt,
         sessionId: this.sessionId,
       };
 

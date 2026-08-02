@@ -114,11 +114,15 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const runtimeCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'runtime'));
   const chatCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'chat'));
   const agentCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'agent'));
+  // The OUTER (runtime) collector projects the execution TRACE only — the
+  // Runtime tab reads snapshot.runtime.trace (Phase 4). No view consumes its
+  // timeline, so buildTimeline:false skips an unused timeline projection on
+  // every sample.
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore: runtimeCheckpointStore,
     sessionId,
-    timelineBuilder: new TimelineBuilder(sessionId),
+    buildTimeline: false,
   });
   const chatCollector = new RuntimeCollectorImpl({
     eventLog,

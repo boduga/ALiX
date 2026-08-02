@@ -151,7 +151,14 @@ export const AGENT_EVENT_TYPES = {
   MESSAGE: "agent.message",
   REASONING: "agent.reasoning",
   DECISION: "agent.decision",
+  RESPONSE: "agent.response",
 } as const;
+
+/** Timeline projection payload (Phase 6 D7/D8): narrative entries carry
+ *  optional display `text` and a longer `detail`. The typed home for the
+ *  `payload` of the chat.* / agent.* timeline kinds so consumers read a
+ *  named shape instead of an untyped record. */
+export type TimelinePayload = { text?: string; detail?: string };
 
 export const MCP_EVENT_TYPES = {
   TOOL_INVOKED: "mcp.tool_invoked",

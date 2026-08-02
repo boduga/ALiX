@@ -154,15 +154,12 @@ describe('appendTimelineEvent deprecated wrapper (Phase 6, D9)', () => {
     expect(events[0]!.payload).toEqual({ text: 'ok' });
   });
 
-  it('is a functional shim without an emit context: returns a synthetic event and does not throw', () => {
+  it('is a functional shim without an emit context: returns nothing and does not throw', () => {
     const state = createInitialPerTabState();
-    const evt = appendTimelineEvent(state, { kind: 'user', text: 'hi' });
-    // The compatibility wrapper does NOT push into any per-tab state.
+    // The compatibility wrapper does NOT push into any per-tab state, and since
+    // the in-memory timeline cache is gone it returns nothing — a fabricated
+    // TimelineEvent would be a dead entry with no log backing it.
+    expect(() => appendTimelineEvent(state, { kind: 'user', text: 'hi' })).not.toThrow();
     expect(state).not.toHaveProperty('timelineEvents');
-    expect(evt.kind).toBe('user');
-    expect(evt.source).toBe('operator');
-    expect(typeof evt.timestamp).toBe('number');
-    // No log, no emit — nothing observable happened besides the return value.
-    expect(evt.id).toBe(`tl-${evt.sequence}`);
   });
 });

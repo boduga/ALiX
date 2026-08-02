@@ -397,4 +397,84 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     expect(snap?.sessionId).toBe('chat-1');
     collector.stop();
   });
+
+  it('buildTimeline:false skips the timeline projection (trace-only collector)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' });
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' });
+    // The outer (runtime) collector projects the trace only — no view consumes
+    // its timeline, so buildTimeline:false must skip it entirely.
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, buildTimeline: false,
+    });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const snap = await collector.snapshot();
+    expect(snap!.timeline).toEqual([]);   // timeline never built
+    expect(snap!.trace).toHaveLength(1);  // trace still projected
+    collector.stop();
+  });
+
+  it('lastEventAt / totalEventCount are session-scoped, not log-global (D1/D3)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');         // seq 1
+    await append('agent.message', { text: 'thinking' }, 'agent-1'); // seq 2 — unrelated session, later in the log
+    const chat = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+    });
+    const sample = (chat as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(chat);
+    const snap = await chat.snapshot();
+    expect(snap!.sessionId).toBe('chat-1');
+    // "Last activity" reflects THIS session's events only — not the agent
+    // event that shares the log at a later seq.
+    expect(snap!.totalEventCount).toBe(1);
+    expect(snap!.lastEventAt).toBe(Date.parse('1970-01-01T00:00:01.000Z'));
+    expect(snap!.timeline).toHaveLength(1);
+    expect(snap!.timeline[0]!.kind).toBe('chat.message');
+    chat.stop();
+  });
+
+  it('D12 beyond-head recovery mid-lifetime resets the event-count watermark (no stale carryover)', async () => {
+    // Bespoke log that lets the test move the head backwards (truncation).
+    let head = 0;
+    const events: AlixEvent[] = [];
+    const owner = Symbol('t');
+    const makeCursor = (s: number) => ({ seq: s, owner }) as unknown as EventLogCursor;
+    const log = {
+      beginningCursor: () => makeCursor(0),
+      readSince: async (c: EventLogCursor) => {
+        const internal = c as unknown as { seq: number; owner: symbol };
+        if (internal.seq > head) throw new EventLogCursorError('Cursor position beyond current EventLog head');
+        const newer = events.filter((e) => e.seq > internal.seq && e.seq <= head);
+        const last = newer.length ? newer[newer.length - 1]!.seq : internal.seq;
+        return { events: newer, cursor: makeCursor(last) };
+      },
+      serializeCursor: (c: EventLogCursor) => JSON.stringify({ version: 1, seq: (c as unknown as { seq: number }).seq }),
+      deserializeCursor: (s: string) => makeCursor(JSON.parse(s).seq),
+    } as unknown as EventLog;
+    let seq = 0;
+    const evt = (type: string) => { seq++; events.push({ id: `e${seq}`, seq, version: 1, sessionId: SESSION_ID, timestamp: new Date(seq * 1000).toISOString(), type, actor: 'system', payload: {} }); };
+    evt('workflow.created'); evt('tool.started'); evt('tool.completed');
+    head = 3;
+
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    expect((await collector.snapshot())!.totalEventCount).toBe(3); // watermark at 3
+
+    // Truncate the log: the head moves back to 1, so the persisted checkpoint
+    // (seq 3) is now beyond-head. The D12 catch resets builders + accounting;
+    // the cache is preserved for THIS sample.
+    head = 1;
+    await sample.call(collector);  // readSince throws EventLogCursorError → D12 reset
+    expect((await collector.snapshot())!.totalEventCount).toBe(3); // cache preserved
+
+    // Next sample re-reads from beginningCursor — only seq 1 remains. If the
+    // event-count watermark (and workflow window) were NOT reset, the stale
+    // pre-truncation count (3) would leak through.
+    await sample.call(collector);
+    expect((await collector.snapshot())!.totalEventCount).toBe(1);
+    collector.stop();
+  });
 });

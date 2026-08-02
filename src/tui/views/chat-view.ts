@@ -62,9 +62,7 @@ export class ChatView implements TuiView {
     // capability completion (←). User prompts, agent responses, and
     // capability invocations interleave chronologically.
     const events = (ctx.runtime?.chat?.timeline ?? [])
-      .filter((e) => e.kind === 'chat.message' || e.kind === 'chat.response')
-      .slice()
-      .sort((a, b) => a.sourceEvents.firstSequence - b.sourceEvents.firstSequence || a.startedAt - b.startedAt);
+      .filter((e) => e.kind === 'chat.message' || e.kind === 'chat.response');
     // Blank-line separator between turns so each query breathes away from
     // the previous response. A blank precedes a user event (except the very
     // first user turn) AND an agent event when the immediately-preceding
