@@ -90,7 +90,29 @@ interface ProjectionRuntime {
 
 - The collector MUST never call `runtime.get("trace")` / `runtime.get("timeline")` during update/reset/export paths. **The only place projection ids appear is the snapshot-assembler boundary** (building `RuntimeSnapshot`), where the collector reads specific typed fields.
 - **Each registered builder MAY implement `DurableProjectionBuilder<T>`.** If it does, its opaque state participates in export/import (durable). If it does not, it remains **replay-derived only** — `exportState()` omits it and checkpoint persistence never depends on non-durable builders. This keeps the abstraction open for future replay-derived projections (e.g. metrics). Timeline, trace, and approval are all durable; a hypothetical metrics projection might be replay-derived.
-- **Projection batch atomicity (failure isolation):** a projection batch is atomic from the checkpoint perspective. If any projection throws during `updateAll`, the update cycle fails, the checkpoint MUST NOT commit, and partially advanced projection state MUST NOT be persisted. The collector's existing save-after-all-updates ordering provides this (the save runs only after every `update` returns; a throw anywhere preserves the old checkpoint + cache), and builders are idempotent by seq so the next sample re-reads the same events from the old cursor and reconciles. The runtime's `updateAll` MUST propagate a builder throw (never swallow), so the collector's catch is reachable.
+- **Projection batch atomicity (failure isolation + rollback):** `ProjectionRuntime.updateAll()` is **transactional** — the runtime enforces the invariant itself, not just the collector's save ordering:
+
+  ```ts
+  updateAll(events) {
+    const before = this.exportState();
+    try {
+      for (const projection of this.projections.values()) projection.update(events);
+    } catch (err) {
+      this.importState(before);   // rollback: no projection keeps partial mutation
+      throw err;                   // never swallow — the collector's catch is reachable
+    }
+  }
+  ```
+
+  If any projection throws during `updateAll`, the update cycle fails, the checkpoint MUST NOT commit, AND the in-memory projection state is **rolled back** so no builder retains a partially-advanced state (a later successful sample must not commit corrupted state). Builders are idempotent by seq, so a clean re-read from the old cursor reconciles. This makes the runtime the single owner of the atomicity invariant.
+
+## ProjectionRuntime invariants (final)
+
+1. **`updateAll` is transactional** — all-or-nothing across registered projections; a throw rolls back every builder and propagates.
+2. **Builders receive events in EventLog sequence order.** A builder's `update()` is a pure function of its input events; deterministic replay requires deterministic ordering. A builder MAY enforce this defensively (throw if `seq` is non-monotonic) but MUST NOT reorder.
+3. **Builder execution order is not semantic.** Registration order is preserved for iteration but must never affect output (D11).
+4. **A projection cannot depend on another projection's state.** Each builder derives only from the EventLog batch (D11).
+5. **`snapshot<T>(id)` typing is caller-owned.** The runtime is a heterogeneous registry; it cannot verify that `T` matches the registered builder. The caller owns type agreement with the registered id (documented on the method).
 
 ## Frozen projection contract (generalized snapshot shape)
 
@@ -121,6 +143,18 @@ Constraints:
 - `ProjectionState` (`Record<string, unknown>`) in/out — the runtime validates serializability; no builder leaks class instances into checkpoint state.
 - The checkpoint layer MUST never know builder-specific state types (`ApprovalProjectionSnapshot`, `TraceState`, `TimelineState`) — only `Record<string, unknown>` / the opaque envelope.
 - Deterministic replay: a builder's `update()` MUST be a pure function of its input events — `Date.now()`/`Math.random()` in an update path breaks replay (same log must produce same state). Event timestamps are parsed strictly; a malformed timestamp throws rather than falling back to `Date.now()`.
+
+**State types live in their own module** — `src/tui/runtime/projection-state.ts` — to avoid a layering inversion. `ProjectionRuntime` currently imports `ProjectionStateSnapshot` from `projection-checkpoint-store.ts`, which inverts the intended dependency:
+
+```
+bad:                          good:
+ProjectionRuntime              ProjectionCheckpointStore   ProjectionRuntime
+   |                                  \                        /
+   v                                   v----------------------v
+ProjectionCheckpointStore              ProjectionState (projection-state.ts)
+```
+
+Move `ProjectionState` and `ProjectionStateSnapshot` into `src/tui/runtime/projection-state.ts`; both `projection-runtime.ts` and `projection-checkpoint-store.ts` import from it. (Same for the phase-6.5 `ProjectionStateSnapshot` type currently defined in the checkpoint store.)
 
 ## Snapshot contract
 
@@ -232,7 +266,7 @@ Keep the `state` field permanently — a future contributor must not "clean up" 
 
   **Identity & reconciliation rules (deterministic):** an approval's identity is its `approvalId` (generated by `generateApprovalId()`). The projection reconciles with these explicit rules, so `requested(A) → resolved(A) → requested(A)` has a deterministic answer:
   - `approval.requested(id)` — if no **pending** entry exists for `id`, create a pending entry (new lifecycle). If a pending entry already exists (idempotent replay of the same request), leave it unchanged. If a **completed** entry exists with the same `id`, that is a **new lifecycle** — create a fresh pending entry; the older completed entry stays in `completed`.
-  - terminal event for `id` (`resolved`/`expired`/`consumed`/`revoked`) — acts ONLY if a pending entry exists for `id`; marks it with the mapped `status` + `completedAt` and moves it to `completed` (newest→oldest, bounded by `MAX_COMPLETED`). An unknown `id` is ignored (replay of a resolve without its request is a no-op). `approval.resolved` maps its `decision` (`approved`/`denied`/`edited`) to `status`.
+  - terminal event for `id` (`resolved`/`expired`/`consumed`/`revoked`) — acts ONLY if a pending entry exists for `id`; marks it with the mapped `status` + `completedAt` and moves it to `completed` (newest→oldest, bounded by `MAX_COMPLETED`). An unknown `id` is ignored (replay of a resolve without its request is a no-op). `approval.resolved` maps its `decision` (`approved`/`denied`/`edited`) to `status`; an `approval.resolved` with an unrecognized `decision` is a **malformed event** and THROWS (deterministic replay — no `'resolved'` catch-all status; the union has no such state).
   - `resumed` — **Option A (recorded):** a pending entry's `status` is set to `resumed`; it STAYS in `pending` (a resumed approval is still active, not completed). No-op if the id is unknown. `resume.failed` is NOT a terminal event — a failed resume leaves the approval pending (transient), and is ignored by this projection.
   - Non-approval events and events without a string `approvalId` are ignored.
   - **Timestamps are deterministic:** `requestedAt`/`completedAt` come from `Date.parse(e.timestamp)` — the EventLog timestamp, never `Date.now()`. A malformed/absent timestamp THROWS (invalid event), so replay of the same log always yields identical state.
