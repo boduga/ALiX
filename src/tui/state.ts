@@ -135,8 +135,6 @@ export interface PanelScrollOffsets {
 // continue importing either from state.ts or directly from snapshot.ts.
 import type { DashboardSnapshot, SessionMetadata } from './snapshot.js';
 import type { PlanTask } from '../planning/plan-task.js';
-import type { EventLog } from '../events/event-log.js';
-import { appendLogEntry } from './log-emit.js';
 export type { DashboardSnapshot, SessionMetadata };
 
 export interface TuiAppState {
