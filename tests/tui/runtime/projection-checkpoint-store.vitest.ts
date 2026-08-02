@@ -90,3 +90,64 @@ describe('ProjectionCheckpointStore state envelope (Phase 6.5)', () => {
     expect(await store.load()).toBeNull();
   });
 });
+
+describe('ProjectionCheckpointStore dual-shape envelope (Phase 7)', () => {
+  it('loads both the Phase-7 (projections) and Phase-6.5 legacy (state) shapes, version 1', async () => {
+    const { writeFile } = await import('node:fs/promises');
+
+    // (1) Phase 7 shape round-trips save → load.
+    const store7 = await makeStore();
+    await store7.save({
+      version: CHECKPOINT_CONTAINER_VERSION,
+      cursor: '{"version":1,"seq":3}',
+      committedAt: 1,
+      projections: { trace: { seenSequences: [] } },
+    });
+    const loaded7 = await store7.load();
+    expect(loaded7?.projections).toEqual({ trace: { seenSequences: [] } });
+    expect(loaded7?.version).toBe(1);
+
+    // (2) Phase 6.5 legacy shape still loads — `state` preserved, version 1.
+    const legacyDir = mkdtempSync(join(tmpdir(), 'alix-chk-'));
+    await writeFile(
+      join(legacyDir, 'projection-checkpoint.json'),
+      JSON.stringify({ version: 1, cursor: '{"version":1,"seq":2}', committedAt: 2, state: { timeline: { version: 1, entries: [] } } }),
+      'utf-8',
+    );
+    const legacyStore = new FileProjectionCheckpointStore(legacyDir);
+    const loadedLegacy = await legacyStore.load();
+    expect(loadedLegacy?.state).toEqual({ timeline: { version: 1, entries: [] } });
+    expect(loadedLegacy?.version).toBe(1);
+
+    // (3) store NEVER migrates state → projections on save (regression lock):
+    const legacyOnlyStore = await makeStore();
+    await legacyOnlyStore.save({
+      version: CHECKPOINT_CONTAINER_VERSION,
+      cursor: '{"version":1,"seq":5}',
+      committedAt: 5,
+      state: { timeline: { old: true } },
+    });
+    const loadedLegacyOnly = await legacyOnlyStore.load();
+    expect(loadedLegacyOnly?.state).toEqual({ timeline: { old: true } });
+    expect(loadedLegacyOnly?.projections).toBeUndefined();
+
+    // (4) BOTH present → BOTH preserved; the collector prefers projections
+    // (loaded.projections ?? loaded.state). Lock the migration rule.
+    const dualDir = mkdtempSync(join(tmpdir(), 'alix-chk-'));
+    await writeFile(
+      join(dualDir, 'projection-checkpoint.json'),
+      JSON.stringify({
+        version: 1,
+        cursor: '{"version":1,"seq":4}',
+        committedAt: 4,
+        state: { timeline: { old: true } },
+        projections: { timeline: { new: true } },
+      }),
+      'utf-8',
+    );
+    const dualStore = new FileProjectionCheckpointStore(dualDir);
+    const loadedDual = await dualStore.load();
+    expect((loadedDual?.projections?.timeline as { new?: boolean })?.new).toBe(true);
+    expect((loadedDual?.state?.timeline as { old?: boolean })?.old).toBe(true);
+  });
+});

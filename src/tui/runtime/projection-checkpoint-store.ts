@@ -14,14 +14,14 @@ export const CHECKPOINT_CONTAINER_VERSION = 1;
 // PersistedProjectionCheckpoint (defined above) IS the envelope written to
 // disk; CHECKPOINT_CONTAINER_VERSION is its literal version field.
 
-/** The persisted form of a projection checkpoint. `committedAt` is the instant
- *  this projection became durable (D5 — the checkpoint is the durable commit
- *  marker). The cursor string is opaque to the store. `projections` (Phase 7)
- *  is the registry-keyed durable projection state (ProjectionRuntime
- *  exportState), saved in the SAME atomic transaction as the cursor so
- *  save-before-publish holds for state too. `state` (Phase 6.5) remains the
- *  legacy shape — a collector restores `projections ?? state` (dual-shape
- *  load), and the store never migrates state → projections on save. */
+/**
+ * Version 1 contains two historical shapes:
+ *   Phase 6.5: state: { timeline?, trace? }            (read-only legacy)
+ *   Phase 7:   projections: { <id>: ProjectionState }  (always written)
+ * load() accepts BOTH; save() always writes `projections`. The `state` field
+ * is kept permanently — never "clean it up" while any 6.5-era checkpoint file
+ * may still exist.
+ */
 export interface PersistedProjectionCheckpoint {
   readonly version: 1;
   readonly cursor: string;

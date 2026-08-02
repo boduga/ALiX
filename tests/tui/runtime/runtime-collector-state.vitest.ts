@@ -93,6 +93,38 @@ describe('RuntimeCollectorImpl durable projection state (Phase 6.5)', () => {
     second.stop();
   });
 
+  it('restores timeline from a legacy Phase-6.5 `state` envelope (legacy checkpoint honored)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }); // current head seq = 1
+    const store = makeCheckpointStore();
+    // Seed a legacy checkpoint carrying `state` (Phase 6.5 shape), no
+    // `projections` — the collector's `loaded.projections ?? loaded.state`
+    // must fall back to the legacy shape and restore the timeline entry.
+    // Cursor at seq 1 (valid, at head) so the restore path runs; event 1 is
+    // then NOT re-read, proving the timeline comes from persisted state.
+    await store.save({
+      version: CHECKPOINT_CONTAINER_VERSION,
+      cursor: log.serializeCursor({ seq: 1, owner: Symbol('x') } as never),
+      committedAt: 5,
+      state: {
+        timeline: {
+          version: 1,
+          entries: [
+            { id: 'tl-legacy', kind: 'chat.message', sessionId: SESSION_ID, startedAt: 1000, text: 'legacy hi', sourceEvents: { firstSequence: 1 } },
+          ],
+        },
+      },
+    });
+
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', makeTimeline(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
+    await collector.start();
+    const snap = await collector.snapshot();
+    // Legacy state honored: timeline entry restored without replay.
+    expect(snap?.timeline).toHaveLength(1);
+    expect(snap?.timeline[0]!.text).toBe('legacy hi');
+    collector.stop();
+  });
+
   it('falls back to replay-from-cursor when the envelope has no state (legacy checkpoint)', async () => {
     const { log, append } = makeEventLog();
     await append('chat.message', { text: 'hi' });
