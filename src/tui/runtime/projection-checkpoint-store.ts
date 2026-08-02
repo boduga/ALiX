@@ -16,14 +16,18 @@ export const CHECKPOINT_CONTAINER_VERSION = 1;
 
 /** The persisted form of a projection checkpoint. `committedAt` is the instant
  *  this projection became durable (D5 — the checkpoint is the durable commit
- *  marker). The cursor string is opaque to the store. `state` (Phase 6.5) is
- *  the projection's durable in-memory state, saved in the SAME atomic
- *  transaction as the cursor so save-before-publish holds for state too. */
+ *  marker). The cursor string is opaque to the store. `projections` (Phase 7)
+ *  is the registry-keyed durable projection state (ProjectionRuntime
+ *  exportState), saved in the SAME atomic transaction as the cursor so
+ *  save-before-publish holds for state too. `state` (Phase 6.5) remains the
+ *  legacy shape — a collector restores `projections ?? state` (dual-shape
+ *  load), and the store never migrates state → projections on save. */
 export interface PersistedProjectionCheckpoint {
   readonly version: 1;
   readonly cursor: string;
   readonly committedAt: number;
   readonly state?: ProjectionStateSnapshot;
+  readonly projections?: ProjectionStateSnapshot;
 }
 
 /** Persistence boundary for projection checkpoints. Owns atomic disk writes and
@@ -64,11 +68,15 @@ export class FileProjectionCheckpointStore implements ProjectionCheckpointStore 
     if (parsed.state !== undefined) {
       if (typeof parsed.state !== 'object' || parsed.state === null || Array.isArray(parsed.state)) return null;
     }
+    if (parsed.projections !== undefined) {
+      if (typeof parsed.projections !== 'object' || parsed.projections === null || Array.isArray(parsed.projections)) return null;
+    }
     return {
       version: CHECKPOINT_CONTAINER_VERSION,
       cursor: parsed.cursor,
       committedAt: parsed.committedAt,
       ...(parsed.state !== undefined ? { state: parsed.state } : {}),
+      ...(parsed.projections !== undefined ? { projections: parsed.projections } : {}),
     };
   }
 

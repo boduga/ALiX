@@ -10,6 +10,9 @@ import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../t
 import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
 import { FileProjectionCheckpointStore } from "../../tui/runtime/projection-checkpoint-store.js";
 import { TimelineBuilder } from "../../tui/runtime/timeline-builder.js";
+import { IncrementalExecutionTraceBuilder } from "../../tui/runtime/execution-trace-builder.js";
+import { createProjectionRuntime } from "../../tui/runtime/projection-runtime.js";
+import { ProjectionIds } from "../../tui/runtime/projection-ids.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
 import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
@@ -116,25 +119,33 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const agentCheckpointStore = new FileProjectionCheckpointStore(join(sessionDir, 'projections', 'agent'));
   // The OUTER (runtime) collector projects the execution TRACE only — the
   // Runtime tab reads snapshot.runtime.trace (Phase 4). No view consumes its
-  // timeline, so buildTimeline:false skips an unused timeline projection on
-  // every sample.
+  // timeline, so the composition root registers trace only (no timeline
+  // projection) — the collector itself is blind to projection identity.
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore: runtimeCheckpointStore,
     sessionId,
-    buildTimeline: false,
+    projectionRuntime: createProjectionRuntime([
+      [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
+    ]),
   });
   const chatCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore: chatCheckpointStore,
     sessionId: chatSessionId,
-    timelineBuilder: new TimelineBuilder(chatSessionId),
+    projectionRuntime: createProjectionRuntime([
+      [ProjectionIds.timeline, new TimelineBuilder(chatSessionId)],
+      [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
+    ]),
   });
   const agentCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore: agentCheckpointStore,
     sessionId: agentSessionId,
-    timelineBuilder: new TimelineBuilder(agentSessionId),
+    projectionRuntime: createProjectionRuntime([
+      [ProjectionIds.timeline, new TimelineBuilder(agentSessionId)],
+      [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
+    ]),
   });
   const sopCollector = new SopCollectorImpl();
 

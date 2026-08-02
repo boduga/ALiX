@@ -5,6 +5,9 @@ import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js'
 import type { AlixEvent } from '../../../src/events/types.js';
 import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime, ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
+import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
 
 /** Default session stamped by makeEventLog's append when no sessionId is
  *  passed (the pre-Task-2 tests all used this single-session world). */
@@ -75,7 +78,7 @@ describe('RuntimeCollectorImpl incremental', () => {
   it('starts from beginningCursor and consumes incrementally (no readAll in the loop)', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const snap = await collector.snapshot();
@@ -89,18 +92,19 @@ describe('RuntimeCollectorImpl incremental', () => {
     expect(after?.trace).toHaveLength(1); // updated in place, not duplicated
   });
 
-  // Note: `traceBuilder` is `private readonly` (TS private, not #private) so it
-  // IS reachable via the cast at runtime — the spy works. `sample.call(collector)`
-  // does NOT throw outward because sample() has its own try/catch; the assertion
-  // that afterFail.trace is empty is what proves the first sample didn't populate.
+  // `sample.call(collector)` does NOT throw outward because sample() has its own
+  // try/catch; the assertion that afterFail.trace is empty is what proves the
+  // first sample didn't populate. The test holds the trace builder instance (the
+  // collector no longer owns builders — it hosts the ProjectionRuntime) so the
+  // spy can force it to throw.
   it('builder failure does NOT advance the checkpoint — next sample re-reads the same events (D3a)', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const traceBuilder = new IncrementalExecutionTraceBuilder();
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', traceBuilder]]) });
     // Force the trace builder's update to throw on the next sample.
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
-    const orig = collector as unknown as { traceBuilder: { update(e: unknown): void } };
-    const failOnce = vi.spyOn(orig.traceBuilder, 'update').mockImplementationOnce(() => { throw new Error('boom'); });
+    const failOnce = vi.spyOn(traceBuilder, 'update').mockImplementationOnce(() => { throw new Error('boom'); });
     await sample.call(collector); // throws internally, caught, cache preserved
     const afterFail = await collector.snapshot();
     expect(afterFail?.trace).toHaveLength(0); // first sample failed before populating
@@ -115,7 +119,7 @@ describe('RuntimeCollectorImpl incremental', () => {
   it('keeps the previous snapshot on a LATER readSince failure', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const before = await collector.snapshot();
@@ -139,7 +143,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const saved = await log.readSince(log.beginningCursor());
     await store.save({ version: 1, cursor: log.serializeCursor(saved.cursor), committedAt: Date.now() });
 
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
     const snap = await collector.snapshot();
@@ -164,7 +168,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
     const store = makeCheckpointStore();
     await store.save({ version: 1, cursor: 'not-a-real-cursor', committedAt: Date.now() }); // deserialize will throw
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
     const snap = await collector.snapshot();
@@ -181,7 +185,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
       async load() { throw new Error('io'); },                 // fs read rejection
       async save(cp: { cursor: string; committedAt: number }) { this.saved.push(cp); },
     };
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: rejecting, sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: rejecting, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await expect(start.call(collector)).resolves.toBeUndefined();  // must NOT reject
     const snap = await collector.snapshot();
@@ -194,7 +198,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
     const store = makeCheckpointStore();
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const before = await collector.snapshot();
@@ -221,6 +225,23 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     expect(lastSaved.committedAt).toBeGreaterThan(0);
   });
 
+  it('a throwing projection does not commit the checkpoint (batch atomicity)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' });
+    const store = makeCheckpointStore();
+    const throwing: DurableProjectionBuilder<unknown> = {
+      update() { throw new Error('boom'); },
+      snapshot: () => undefined as never, reset() {}, exportState: () => ({}), importState() {},
+    };
+    const runtime = new ProjectionRuntime();
+    runtime.register('bad', throwing);
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: runtime });
+    await collector.start();             // initializeCheckpoint + first sample; the sample's update throws and is swallowed
+    expect(store.saved.length).toBe(0);  // no durable commit
+    expect((collector as unknown as { checkpoint: { committedAt: number } }).checkpoint.committedAt).toBe(0);
+    collector.stop();
+  });
+
   // Whole-branch review fix (Option A): a checkpoint whose `seq` lies past
   // the active EventLog head must NOT silently skip events. The real
   // EventLog.deserializeCursor throws `EventLogCursorError` for that case;
@@ -242,7 +263,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
     // Persist a checkpoint whose seq (999) is well past the current head (2).
     await store.save({ version: 1, cursor: JSON.stringify({ version: 1, seq: 999 }), committedAt: 1_700_000_000_000 });
 
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const start = (collector as unknown as { start(): Promise<void> }).start;
     await start.call(collector);
     const snap = await collector.snapshot();
@@ -267,7 +288,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
   it('Operational readSince error (non-EventLogCursorError) preserves the previous cache and checkpoint', async () => {
     const { log, append } = makeEventLog();
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     const before = await collector.snapshot();
@@ -290,7 +311,7 @@ describe('RuntimeCollectorImpl durable checkpoint', () => {
   it('persists every successful sample (write cadence = every sample)', async () => {
     const { log, append } = makeEventLog();
     const store = makeCheckpointStore();
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
@@ -306,7 +327,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
     await append('agent.message', { text: 'thinking' }, 'agent-1');   // wrong session → filtered out
     const chat = new RuntimeCollectorImpl({
-      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', projectionRuntime: createProjectionRuntime([['timeline', makeTimeline('chat-1')], ['trace', new IncrementalExecutionTraceBuilder()]]),
     });
     await chat.start();
     const snap = await chat.snapshot();
@@ -330,7 +351,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     await append('agent.message', { text: 'thinking' }, 'outer-agent'); // sub-session → filtered out
 
     const outer = new RuntimeCollectorImpl({
-      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'outer', timelineBuilder: makeTimeline('outer'),
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'outer', projectionRuntime: createProjectionRuntime([['timeline', makeTimeline('outer')], ['trace', new IncrementalExecutionTraceBuilder()]]),
     });
     await outer.start();
     const snap = await outer.snapshot();
@@ -352,7 +373,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
     await append('tool.completed', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 }, 'chat-1');
     const c = new RuntimeCollectorImpl({
-      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', projectionRuntime: createProjectionRuntime([['timeline', makeTimeline('chat-1')], ['trace', new IncrementalExecutionTraceBuilder()]]),
     });
     await c.start();
     const snap = await c.snapshot();
@@ -382,7 +403,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     });
 
     const collector = new RuntimeCollectorImpl({
-      eventLog: log, checkpointStore: corruptStore, sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+      eventLog: log, checkpointStore: corruptStore, sessionId: 'chat-1', projectionRuntime: createProjectionRuntime([['timeline', makeTimeline('chat-1')], ['trace', new IncrementalExecutionTraceBuilder()]]),
     });
     await collector.start();
     const snap = await collector.snapshot();
@@ -398,14 +419,15 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     collector.stop();
   });
 
-  it('buildTimeline:false skips the timeline projection (trace-only collector)', async () => {
+  it('trace-only collector (no timeline registered) projects the trace, timeline is []', async () => {
     const { log, append } = makeEventLog();
     await append('chat.message', { text: 'hi' });
     await append('tool.started', { toolCallId: 't1', toolName: 'x' });
     // The outer (runtime) collector projects the trace only — no view consumes
-    // its timeline, so buildTimeline:false must skip it entirely.
+    // its timeline, so the composition root registers trace only (no timeline
+    // projection).
     const collector = new RuntimeCollectorImpl({
-      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, buildTimeline: false,
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['trace', new IncrementalExecutionTraceBuilder()]]),
     });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
@@ -415,12 +437,34 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     collector.stop();
   });
 
+  it('optional projections degrade to [] (not undefined) in both directions (trace-only and timeline-only collectors)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' });
+    // trace-only collector (outer runtime): timeline is [], not undefined
+    const traceOnly = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['trace', new IncrementalExecutionTraceBuilder()]]) });
+    const sampleTrace = (traceOnly as unknown as { sample(): Promise<void> }).sample;
+    await sampleTrace.call(traceOnly);
+    const traceSnap = await traceOnly.snapshot();
+    expect(traceSnap!.timeline).toEqual([]);
+    traceOnly.stop();
+
+    // timeline-only collector: trace is [], not undefined — the platform must
+    // prove BOTH optional projections behave identically (pre-7, a collector
+    // with buildTimeline=true but no traceBuilder tolerated snapshot.trace).
+    const timelineOnly = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)]]) });
+    const sampleTimeline = (timelineOnly as unknown as { sample(): Promise<void> }).sample;
+    await sampleTimeline.call(timelineOnly);
+    const timelineSnap = await timelineOnly.snapshot();
+    expect(timelineSnap!.trace).toEqual([]);
+    timelineOnly.stop();
+  });
+
   it('lastEventAt / totalEventCount are session-scoped, not log-global (D1/D3)', async () => {
     const { log, append } = makeEventLog();
     await append('chat.message', { text: 'hi' }, 'chat-1');         // seq 1
     await append('agent.message', { text: 'thinking' }, 'agent-1'); // seq 2 — unrelated session, later in the log
     const chat = new RuntimeCollectorImpl({
-      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1'),
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'chat-1', projectionRuntime: createProjectionRuntime([['timeline', makeTimeline('chat-1')], ['trace', new IncrementalExecutionTraceBuilder()]]),
     });
     const sample = (chat as unknown as { sample(): Promise<void> }).sample;
     await sample.call(chat);
@@ -458,7 +502,7 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     evt('workflow.created'); evt('tool.started'); evt('tool.completed');
     head = 3;
 
-    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID });
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID, projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(SESSION_ID)], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);
     expect((await collector.snapshot())!.totalEventCount).toBe(3); // watermark at 3

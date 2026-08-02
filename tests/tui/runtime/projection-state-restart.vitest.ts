@@ -6,6 +6,8 @@ import { EventLog } from '../../../src/events/event-log.js';
 import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
 import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
 
 async function makeEnv(sessionId: string) {
   const dir = mkdtempSync(join(tmpdir(), 'alix-restart-'));
@@ -20,7 +22,7 @@ describe('projection state survives a restart (Phase 6.5)', () => {
     const { log, store } = await makeEnv('chat-1');
 
     // "First process": start, append, sample.
-    const first = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: 'chat-1', timelineBuilder: new TimelineBuilder('chat-1') });
+    const first = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: 'chat-1', projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder('chat-1')], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     await first.start();
     await log.append({ sessionId: 'chat-1', actor: 'user', type: 'chat.message', payload: { text: 'hello' } });
     const sample = (first as unknown as { sample(): Promise<void> }).sample;
@@ -28,7 +30,7 @@ describe('projection state survives a restart (Phase 6.5)', () => {
     first.stop();
 
     // "Second process": a fresh collector, same EventLog + store.
-    const second = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: 'chat-1', timelineBuilder: new TimelineBuilder('chat-1') });
+    const second = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: 'chat-1', projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder('chat-1')], ['trace', new IncrementalExecutionTraceBuilder()]]) });
     await second.start();
     const snap = await second.snapshot();
     expect(snap?.timeline.map((e) => e.text)).toEqual(['hello']);
