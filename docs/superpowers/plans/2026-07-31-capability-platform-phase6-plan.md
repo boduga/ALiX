@@ -24,7 +24,6 @@
 ---
 
 ### Task 1: `ProjectionBuilder<T>` contract + `TimelineBuilder` (append-only)
-
 **Files:**
 - Create: `src/tui/runtime/projection-builder.ts`
 - Create: `src/tui/runtime/timeline-builder.ts`
@@ -135,7 +134,8 @@ import type { ProjectionBuilder } from './projection-builder.js';
 
 export type TimelineKind =
   | 'chat.message' | 'chat.response'
-  | 'agent.message' | 'agent.reasoning' | 'agent.decision';
+  | 'agent.message' | 'agent.reasoning' | 'agent.decision'
+  | 'tool.invocation' | 'approval.requested';
 
 /** Timeline projection entry (D8). Mirrors ExecutionTraceEntry's readonly
  *  detached shape. */
@@ -167,16 +167,19 @@ function cloneEntry(e: TimelineEntry): TimelineEntry {
  *  defensively filters here. */
 export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
   private readonly entries = new Map<string, TimelineEntry>(); // by id; append-only
-  private readonly seen = new Set<number>();                    // dedup
+  private readonly seen = new Set<string>();                   // `${sessionId}:${seq}` — compound identity
 
   constructor(private readonly sessionId: string) {}
 
   update(events: readonly AlixEvent[]): void {
     for (const e of events) {
       if (e.sessionId !== this.sessionId) continue;       // (defensive — collector already filters)
-      const seq = e.seq ?? 0;
-      if (this.seen.has(seq)) continue;
-      this.seen.add(seq);
+      // Compound key: seq is only globally unique within one session. Two
+      // sessions may both have seq=1; the key `${sessionId}:${seq}` keeps
+      // them distinct (D1/D3 — sessionId is the routing dimension).
+      const eventKey = `${e.sessionId}:${e.seq ?? 0}`;
+      if (this.seen.has(eventKey)) continue;
+      this.seen.add(eventKey);
       const entry = this.build(e);
       this.entries.set(entry.id, entry);
     }
@@ -215,18 +218,220 @@ export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
 Run: `npx vitest run tests/tui/runtime/timeline-builder.vitest.ts --config vitest.config.mts`
 Expected: PASS.
 
-- [ ] **Step 5: Build + full TUI suite + commit**
+- [ ] **Step 5: Add the projection-independence test (D11 — mandatory)**
+
+Create `tests/tui/runtime/projection-independence.vitest.ts`:
+
+```typescript
+import { describe, it, expect } from 'vitest';
+import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
+import type { AlixEvent } from '../../../src/events/types.js';
+
+function evt(seq: number, type: string, sessionId = 's1', payload: object = {}): AlixEvent {
+  return { id: `e${seq}`, seq, version: 1, sessionId, timestamp: new Date(seq * 1000).toISOString(), type, actor: 'user', payload };
+}
+
+describe('projection independence (D11)', () => {
+  it('the timeline projection is unchanged when the trace builder mutates', () => {
+    const timeline = new TimelineBuilder('s1');
+    timeline.update([evt(1, 'chat.message', 's1', { text: 'hi' })]);
+
+    // The trace builder is a SEPARATE instance — mutating it must not affect
+    // the timeline projection (builders never consume each other's DTOs).
+    const trace = new IncrementalExecutionTraceBuilder();
+    trace.update([evt(1, 'tool.started', 's1', { toolCallId: 't1', toolName: 'x' })]);
+    trace.update([evt(2, 'tool.completed', 's1', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 })]);
+
+    expect(timeline.snapshot()).toHaveLength(1);
+    expect(timeline.snapshot()[0]!.kind).toBe('chat.message');
+  });
+});
+```
+
+- [ ] **Step 6: Build + full TUI suite + commit**
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui --config vitest.config.mts`
 ```bash
-git add src/tui/runtime/projection-builder.ts src/tui/runtime/timeline-builder.ts tests/tui/runtime/timeline-builder.vitest.ts
+git add src/tui/runtime/projection-builder.ts src/tui/runtime/timeline-builder.ts tests/tui/runtime/timeline-builder.vitest.ts tests/tui/runtime/projection-independence.vitest.ts
 git commit -m "feat(capabilities): ProjectionBuilder contract + append-only TimelineBuilder"
 ```
 
 ---
 
-### Task 2: Wire chat/agent appends into the EventLog
+### Task 2: `RuntimeSnapshot` grows + `RuntimeCollector` wires both builders
+**Files:**
+- Modify: `src/tui/snapshot.ts` (add `timeline: readonly TimelineEntry[]` + `sessionId: string`)
+- Modify: `src/tui/runtime-collector.ts` (constructor takes sessionId + timeline builder; sample() filters by sessionId + dispatches to both builders)
+- Modify: `src/tui/runtime-collector.ts` (extend `IncrementalExecutionTraceBuilder` to expose `reset()` per D12)
+- Modify: `src/tui/runtime/runtime-collector.ts` (any other code touching `trace` snapshot field)
+- Modify: `src/cli/commands/tui.ts` (pass sessionId + the constructed TimelineBuilder into the collector)
+- Test: extend `tests/tui/runtime/runtime-collector.vitest.ts`
 
+**Interfaces:**
+- Consumes: `ProjectionBuilder<T>` from Task 1; `TimelineBuilder` from Task 1; the new `RuntimeSnapshot.timeline` and `sessionId` fields.
+- Produces: a collector that produces snapshots with both `trace` and `timeline`, both sessionId-scoped.
+
+- [ ] **Step 1: Write the failing test**
+
+Extend `tests/tui/runtime/runtime-collector.vitest.ts` with:
+
+```typescript
+  it('snapshot.timeline contains chat events for this collector session (D1)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
+    await append('agent.message', { text: 'thinking' }, 'agent-1');     // wrong session → filtered out
+    const chat = new RuntimeCollectorImpl(log, store, 'chat-1', makeTimeline('chat-1'));
+    await (chat as unknown as { start(): Promise<void> }).start.call(chat);
+    const snap = await chat.snapshot();
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
+    expect(snap?.sessionId).toBe('chat-1');
+  });
+
+  it('snapshot.timeline + trace coexist (one read, two projections)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
+    await append('tool.completed', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 }, 'chat-1');
+    const c = new RuntimeCollectorImpl(log, store, 'chat-1', makeTimeline('chat-1'));
+    await c.start();
+    const snap = await c.snapshot();
+    expect(snap?.timeline).toHaveLength(1);
+    expect(snap?.timeline[0]!.kind).toBe('chat.message');
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.kind).toBe('completed');
+  });
+
+  it('beyond-head fallback resets BOTH builders and rebuilds both projections (D12)', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }, 'chat-1');
+    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
+    await append('tool.completed', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 }, 'chat-1');
+
+    // Corrupt the checkpoint: persist a cursor at seq=999 (beyond the head).
+    const corruptStore = makeCheckpointStore();
+    await corruptStore.save({
+      version: 1,
+      cursor: log.serializeCursor({ seq: 999, owner: Symbol('x') } as never),  // beyond-head
+      committedAt: Date.now(),
+    });
+
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: corruptStore, sessionId: 'chat-1', timelineBuilder: makeTimeline('chat-1') });
+    await (collector as unknown as { start(): Promise<void> }).start.call(collector);
+    const snap = await collector.snapshot();
+
+    // The timeline is REBUILT from beginningCursor (chat.message present),
+    // and the trace is REBUILT too (completed tool present) — NOT stale/empty.
+    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.kind).toBe('completed');
+  });
+```
+
+This is MANDATORY — the highest-risk recovery path. A stale checkpoint must NOT leave the timeline empty or the trace stale; both builders reset so replay from `beginningCursor()` reconstructs both projections independently.
+
+- [ ] **Step 2: Run test to verify it fails**
+
+Expected: FAIL — the constructor still has 2 args; the snapshot has no `timeline` field.
+
+- [ ] **Step 3: Update `RuntimeSnapshot` + collector**
+
+```typescript
+// src/tui/snapshot.ts
+import type { TimelineEntry } from './runtime/timeline-builder.js';
+
+export interface RuntimeSnapshot {
+  readonly trace: readonly ExecutionTraceEntry[];
+  readonly timeline: readonly TimelineEntry[];          // NEW (D6)
+  readonly workflow: WorkflowStateSnapshot | null;
+  readonly totalEventCount: number;
+  readonly lastEventAt: number | null;
+  readonly sessionId: string;                          // NEW — projected session
+}
+```
+
+```typescript
+// src/tui/runtime-collector.ts
+// Options-object constructor (avoids a growing positional-arg list as Phase 7
+// adds projections; future projections plug in as optional builder fields).
+export interface RuntimeCollectorOptions {
+  eventLog: EventLog;
+  checkpointStore: ProjectionCheckpointStore;
+  sessionId: string;                                    // the projection's session
+  timelineBuilder?: TimelineBuilder;                    // defaults for tests
+  traceBuilder?: IncrementalExecutionTraceBuilder;
+}
+
+constructor(opts: RuntimeCollectorOptions) {
+  this.eventLog = opts.eventLog;
+  this.checkpointStore = opts.checkpointStore;
+  this.sessionId = opts.sessionId;
+  this.timelineBuilder = opts.timelineBuilder ?? new TimelineBuilder(opts.sessionId);
+  this.traceBuilder = opts.traceBuilder ?? new IncrementalExecutionTraceBuilder();
+  this.checkpoint = { cursor: opts.eventLog.beginningCursor(), committedAt: 0 };
+}
+
+private async sample(): Promise<void> {
+  try {
+    const batch = await this.eventLog.readSince(this.checkpoint.cursor);
+    const sessionBatch = batch.events.filter(e => e.sessionId === this.sessionId);
+    this.timelineBuilder.update(sessionBatch);
+    this.traceBuilder.update(sessionBatch);
+    const nextCache: RuntimeSnapshot = {
+      trace: this.traceBuilder.snapshot(),
+      timeline: this.timelineBuilder.snapshot(),
+      workflow: computeWorkflow(/* workflow batch filtered by sessionId */),
+      totalEventCount: this.totalEventCount,
+      lastEventAt: ...,
+      sessionId: this.sessionId,
+    };
+    // D5/D5a commit — ORDER IS LOAD-BEARING. The checkpoint may only advance
+    // AFTER all projection state required to reconstruct it has been built
+    // into nextCache AND durably persisted (save-before-publish). A crash
+    // between the checkpoint advance and the cache publish would leave the
+    // durable watermark ahead of the published projection — the invariant
+    // "a checkpoint never represents a projection state that has not been
+    // durably published" must hold. Publish the snapshot and advance the
+    // checkpoint TOGETHER (last step, after the save).
+    await this.checkpointStore.save({
+      version: CHECKPOINT_CONTAINER_VERSION,
+      cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
+      committedAt: nextCheckpoint.committedAt,
+    });
+    this.checkpoint = nextCheckpoint;
+    this.cache = nextCache;
+  } catch (err) {
+    if (err instanceof EventLogCursorError) {
+      // D12 — both builders reset so replay from beginningCursor rebuilds
+      // independent, in-memory projection state.
+      this.timelineBuilder.reset();
+      this.traceBuilder.reset();
+      this.resetCheckpoint();
+      return;
+    }
+    // else preserve (operational failure)
+  }
+}
+```
+
+Also ensure `IncrementalExecutionTraceBuilder` has a public `reset(): void` (Task 1's D12 requirement). If it's missing, add it as part of this task.
+
+- [ ] **Step 4: Update `tui.ts`**
+
+In `src/cli/commands/tui.ts`, derive the chat/agent session ids from the outer `sessionId` (e.g. `const chatSessionId = sessionId + '-chat'; const agentSessionId = sessionId + '-agent';`) and pass them to TuiApp construction, then to the RuntimeCollector for each tab (chat gets `chatSessionId`, agent gets `agentSessionId`). The collector wiring stays in `tui.ts` (it's not the TuiApp's concern — the collector lives at the bootstrap).
+
+- [ ] **Step 5: Run tests + commit**
+
+Run: `npx vitest run tests/tui/runtime/runtime-collector.vitest.ts --config vitest.config.mts` and `npx vitest run tests/tui --config vitest.config.mts`
+```bash
+git add src/tui/snapshot.ts src/tui/runtime-collector.ts src/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts
+git commit -m "feat(capabilities): RuntimeCollector wires timeline+trace projections on one checkpoint"
+```
+
+---
+
+### Task 3: Wire chat/agent appends into the EventLog
 **Files:**
 - Modify: `src/tui/state.ts` (`appendTimelineEvent` also emits to the EventLog)
 - Modify: `src/tui/app.ts` (sites that call `appendTimelineEvent` pass the EventLog + sessionId)
@@ -277,13 +482,13 @@ export function appendTimelineEvent(
 ): TimelineEvent {
   const created = /* existing Phase 3 body */;
   if (emit) {
-    // Emit a typed log entry in parallel (D7). Use canonical type names.
+    // Emit a typed log entry in parallel (D7). Use the richer TimelineKind
+    // vocabulary so downstream consumers can distinguish semantic kinds.
+    // NOTE: `TimelineEvent['kind']` is currently `'user' | 'agent' | 'capability'`.
     const kindToType: Partial<Record<TimelineEvent['kind'], string>> = {
       user: 'chat.message',
       agent: 'chat.response',
-      plan: 'chat.response',                          // existing 'plan' kind → log 'chat.response'
-      toolCall: 'chat.message',                       // existing toolCall → chat.message (best-effort)
-      approval: 'chat.message',                       // best-effort
+      capability: 'chat.response',                 // capability completion on the chat tab → a chat-surface entry
     };
     const type = kindToType[event.kind];
     if (type) {
@@ -299,7 +504,7 @@ export function appendTimelineEvent(
 }
 ```
 
-(Adjust the kind→log-type mapping after confirming what `TimelineEvent['kind']` actually contains — it may be `user | agent | plan | approval | toolCall`. Map each to a sensible log type; drop entries that don't map cleanly.)
+(The `kind` union is `user | agent | capability` — verify before editing. The richer `TimelineKind` (`tool.invocation`, `approval.requested`, etc.) is used by `TimelineBuilder` for events that ALREADY carry those log types; `appendTimelineEvent` maps the in-memory Phase-3 kinds onto log types for chat/agent/capability entries only.)
 
 - [ ] **Step 4: Update call sites**
 
@@ -320,149 +525,7 @@ git commit -m "feat(capabilities): emit chat/agent entries to the EventLog with 
 
 ---
 
-### Task 3: `RuntimeSnapshot` grows + `RuntimeCollector` wires both builders
-
-**Files:**
-- Modify: `src/tui/snapshot.ts` (add `timeline: readonly TimelineEntry[]` + `sessionId: string`)
-- Modify: `src/tui/runtime-collector.ts` (constructor takes sessionId + timeline builder; sample() filters by sessionId + dispatches to both builders)
-- Modify: `src/tui/runtime-collector.ts` (extend `IncrementalExecutionTraceBuilder` to expose `reset()` per D12)
-- Modify: `src/tui/runtime/runtime-collector.ts` (any other code touching `trace` snapshot field)
-- Modify: `src/cli/commands/tui.ts` (pass sessionId + the constructed TimelineBuilder into the collector)
-- Test: extend `tests/tui/runtime/runtime-collector.vitest.ts`
-
-**Interfaces:**
-- Consumes: `ProjectionBuilder<T>` from Task 1; `TimelineBuilder` from Task 1; the new `RuntimeSnapshot.timeline` and `sessionId` fields.
-- Produces: a collector that produces snapshots with both `trace` and `timeline`, both sessionId-scoped.
-
-- [ ] **Step 1: Write the failing test**
-
-Extend `tests/tui/runtime/runtime-collector.vitest.ts` with:
-
-```typescript
-  it('snapshot.timeline contains chat events for this collector session (D1)', async () => {
-    const { log, append } = makeEventLog();
-    await append('chat.message', { text: 'hi' }, 'chat-1');
-    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
-    await append('agent.message', { text: 'thinking' }, 'agent-1');     // wrong session → filtered out
-    const chat = new RuntimeCollectorImpl(log, store, 'chat-1', makeTimeline('chat-1'));
-    await (chat as unknown as { start(): Promise<void> }).start.call(chat);
-    const snap = await chat.snapshot();
-    expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
-    expect(snap?.sessionId).toBe('chat-1');
-  });
-
-  it('snapshot.timeline + trace coexist (one read, two projections)', async () => {
-    const { log, append } = makeEventLog();
-    await append('chat.message', { text: 'hi' }, 'chat-1');
-    await append('tool.started', { toolCallId: 't1', toolName: 'x' }, 'chat-1');
-    await append('tool.completed', { toolCallId: 't1', toolName: 'x', status: 'success', durationMs: 5 }, 'chat-1');
-    const c = new RuntimeCollectorImpl(log, store, 'chat-1', makeTimeline('chat-1'));
-    await c.start();
-    const snap = await c.snapshot();
-    expect(snap?.timeline).toHaveLength(1);
-    expect(snap?.timeline[0]!.kind).toBe('chat.message');
-    expect(snap?.trace).toHaveLength(1);
-    expect(snap?.trace[0]!.kind).toBe('completed');
-  });
-
-  it('beyond-head fallback resets BOTH builders (D12)', async () => {
-    const { log, append } = makeEventLog();
-    await append('chat.message', { text: 'hi' }, 'chat-1');
-    const rejecting = { saved: 0, async load() { return { version: 1, cursor: log.serializeCursor(log.getCursor()), committedAt: Date.now() }; } } as never;   // works at head; force beyond-head:
-    // Actually: build a cursor at seq=99 then advance the log to seq 2, then sample. The collector must reset BOTH builders.
-    // (Implementation note for the implementer: use a cursor serialized before the events exist, then read it back — see the existing test pattern.)
-  });
-```
-
-(The implementer should follow the existing test's `makeEventLog` pattern and write the beyond-head case concretely; the key invariants are: (1) snapshot.timeline has the chat event for THIS session only; (2) snapshot.trace has the tool event; (3) on beyond-head from the checkpoint, both builders reset so replay reconstructs.)
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Expected: FAIL — the constructor still has 2 args; the snapshot has no `timeline` field.
-
-- [ ] **Step 3: Update `RuntimeSnapshot` + collector**
-
-```typescript
-// src/tui/snapshot.ts
-import type { TimelineEntry } from './runtime/timeline-builder.js';
-
-export interface RuntimeSnapshot {
-  readonly trace: readonly ExecutionTraceEntry[];
-  readonly timeline: readonly TimelineEntry[];          // NEW (D6)
-  readonly workflow: WorkflowStateSnapshot | null;
-  readonly totalEventCount: number;
-  readonly lastEventAt: number | null;
-  readonly sessionId: string;                          // NEW — projected session
-}
-```
-
-```typescript
-// src/tui/runtime-collector.ts
-constructor(
-  eventLog: EventLog,
-  checkpointStore: ProjectionCheckpointStore,
-  sessionId: string,                                    // NEW — the projection's session
-  timelineBuilder = new TimelineBuilder(sessionId),     // NEW (defaults for tests)
-  traceBuilder: IncrementalExecutionTraceBuilder = new IncrementalExecutionTraceBuilder(),
-) {
-  this.eventLog = eventLog;
-  this.checkpointStore = checkpointStore;
-  this.sessionId = sessionId;
-  this.timelineBuilder = timelineBuilder;
-  this.traceBuilder = traceBuilder;
-  this.checkpoint = { cursor: eventLog.beginningCursor(), committedAt: 0 };
-}
-
-private async sample(): Promise<void> {
-  try {
-    const batch = await this.eventLog.readSince(this.checkpoint.cursor);
-    const sessionBatch = batch.events.filter(e => e.sessionId === this.sessionId);
-    this.timelineBuilder.update(sessionBatch);
-    this.traceBuilder.update(sessionBatch);
-    // ... build nextCache / nextCheckpoint, then commit atomically ...
-    const nextCache: RuntimeSnapshot = {
-      trace: this.traceBuilder.snapshot(),
-      timeline: this.timelineBuilder.snapshot(),
-      workflow: computeWorkflow(/* workflow batch filtered by sessionId */),
-      totalEventCount: this.totalEventCount,
-      lastEventAt: ...,
-      sessionId: this.sessionId,
-    };
-    // D5/D5a commit
-    this.checkpoint = nextCheckpoint;
-    this.cache = nextCache;
-  } catch (err) {
-    if (err instanceof EventLogCursorError) {
-      // D12 — both builders reset so replay from beginningCursor rebuilds
-      // independent, in-memory projection state.
-      this.timelineBuilder.reset();
-      this.traceBuilder.reset();
-      this.resetCheckpoint();
-      return;
-    }
-    // else preserve (operational failure)
-  }
-}
-```
-
-Also ensure `IncrementalExecutionTraceBuilder` has a public `reset(): void` (Task 1's D12 requirement). If it's missing, add it as part of this task.
-
-- [ ] **Step 4: Update `tui.ts`**
-
-In `src/cli/commands/tui.ts`, derive the chat/agent session ids from the outer `sessionId` (e.g. `const chatSessionId = sessionId + '-chat'; const agentSessionId = sessionId + '-agent';`) and pass them to TuiApp construction, then to the RuntimeCollector for each tab (chat gets `chatSessionId`, agent gets `agentSessionId`). The collector wiring stays in `tui.ts` (it's not the TuiApp's concern — the collector lives at the bootstrap).
-
-- [ ] **Step 5: Run tests + commit**
-
-Run: `npx vitest run tests/tui/runtime/runtime-collector.vitest.ts --config vitest.config.mts` and `npx vitest run tests/tui --config vitest.config.mts`
-```bash
-git add src/tui/snapshot.ts src/tui/runtime-collector.ts src/cli/commands/tui.ts tests/tui/runtime/runtime-collector.vitest.ts
-git commit -m "feat(capabilities): RuntimeCollector wires timeline+trace projections on one checkpoint"
-```
-
----
-
 ### Task 4: Views consume `RuntimeSnapshot.timeline`
-
 **Files:**
 - Modify: `src/tui/views/chat-view.ts` (read `r.timeline.filter(e => e.kind.startsWith('chat.'))` instead of `r.timelineEvents`)
 - Modify: `src/tui/views/agent-view.ts` (read `r.timeline.filter(e => e.kind.startsWith('agent.'))` instead of `r.timelineEvents`)
@@ -515,8 +578,7 @@ git commit -m "feat(capabilities): ChatView/AgentView consume RuntimeSnapshot.ti
 
 ---
 
-### Task 5: `tli` cleanup — remove the transitional `timelineEvents[]` cache
-
+### Task 5: Cleanup — remove the transitional `timelineEvents[]` cache
 **Files:**
 - Modify: `src/tui/state.ts` (remove `TimelineEventInput`/`appendTimelineEvent`/the per-tab `timelineEvents: TimelineEvent[]` field)
 - Modify: `src/tui/app.ts` (drop the parallel write)
@@ -532,7 +594,7 @@ git commit -m "feat(capabilities): ChatView/AgentView consume RuntimeSnapshot.ti
 
 Run: `rg "timelineEvents" src/ tests/ --include="*.ts" -l`
 
-- [ ] **Step 2: Delete the field + helper + every parallel write**
+- [ ] **Step 2: Delete the field + every parallel write; KEEP a deprecated `appendTimelineEvent` compatibility wrapper**
 
 ```typescript
 // src/tui/state.ts
@@ -541,12 +603,22 @@ export interface PerTabState {
   // Keep: inputBuffer, cursor, scrollOffset, pinnedBottom, searchQuery, etc.
 }
 
-export function appendTimelineEvent(...) { /* delete — no longer needed */ }
+/**
+ * @deprecated Use EventLog.append() — the EventLog is now the single source
+ * of truth for the timeline. Kept for one phase as a compatibility wrapper
+ * for non-TUI consumers (web UI, CLI, replay tools, automation workers) that
+ * may still compile against it. REMOVED in Phase 7.
+ */
+export function appendTimelineEvent(...) {
+  // Thin wrapper: emits to the EventLog via the caller's emit context, no
+  // longer mutates a timelineEvents[] cache (the field is gone).
+  throw new Error('appendTimelineEvent is deprecated — use EventLog.append()');
+}
 ```
 
 - [ ] **Step 3: Update every consumer**
 
-For each file in the grep output, switch the read from `perTab.timelineEvents` to `runtime.chat.timeline` or `runtime.agent.timeline` as appropriate (matching Task 4's chat/agent split). Delete the parallel writes in app.ts and invocation-presenter.ts (Task 2's dual-emit becomes single-emit — the cache is gone).
+For each file in the grep output, switch the read from `perTab.timelineEvents` to `runtime.timeline.filter(...)` (matching Task 4's chat/agent split). Delete the parallel writes in app.ts and invocation-presenter.ts (Task 2's dual-emit becomes single-emit — the cache is gone; `appendTimelineEvent` remains only as the deprecated wrapper).
 
 - [ ] **Step 4: Run tests + commit**
 
@@ -559,7 +631,6 @@ git commit -m "refactor(capabilities): remove transitional timelineEvents[] cach
 ---
 
 ### Task 6: Documentation + verification
-
 **Files:**
 - Modify: `docs/superpowers/specs/2026-07-31-capability-platform-phase6-design.md` (status → implemented)
 - Create: `docs/capability-platform-phase6.md` (consumer note)
