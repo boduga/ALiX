@@ -26,13 +26,15 @@
 ---
 ---
 
-### Task 1: Generalize the projection contract to arbitrary snapshot shapes
+### Task 1: Generalize the projection contract + extract the state module
 
 **Files:**
+- Create: `src/tui/runtime/projection-state.ts`
 - Modify: `src/tui/runtime/projection-builder.ts` (interface)
-- Modify: `src/tui/runtime/durable-projection-builder.ts` (interface)
-- Modify: `src/tui/runtime/timeline-builder.ts` (implements clause)
-- Modify: `src/tui/runtime/execution-trace-builder.ts` (implements clause)
+- Modify: `src/tui/runtime/durable-projection-builder.ts` (interface; `ProjectionState` import moves to the new module)
+- Modify: `src/tui/runtime/timeline-builder.ts` (implements clause; `ProjectionState` import)
+- Modify: `src/tui/runtime/execution-trace-builder.ts` (implements clause; `ProjectionState` import)
+- Modify: `src/tui/runtime/projection-checkpoint-store.ts` (import `ProjectionState`/`ProjectionStateSnapshot` from the new module; remove local `ProjectionStateSnapshot` def)
 - Modify: `tests/tui/runtime/timeline-builder-state.vitest.ts`, `tests/tui/runtime/execution-trace-builder-state.vitest.ts` (type-only assertions if any reference the old element generic)
 
 **Interfaces:**
@@ -53,6 +55,12 @@
     exportState(): ProjectionState;      // ProjectionState = Record<string, unknown>
     importState(state: ProjectionState): void;
   }
+
+  // src/tui/runtime/projection-state.ts (NEW — state types live in their own
+  // module so ProjectionRuntime and ProjectionCheckpointStore both import it,
+  // avoiding a layering inversion; neither depends on the other's module).
+  export type ProjectionState = Record<string, unknown>;
+  export type ProjectionStateSnapshot = Record<string, ProjectionState>;
   ```
 
 - [ ] **Step 1: Change the two contract interfaces**
@@ -72,9 +80,12 @@ export interface DurableProjectionBuilder<TSnapshot> extends ProjectionBuilder<T
   importState(state: ProjectionState): void;
 }
 ```
-(Keep `ProjectionState = Record<string, unknown>` unchanged — the checkpoint layer only ever sees this.)
 
-- [ ] **Step 2: Update the two existing builders' implements clauses (type-only)**
+- [ ] **Step 2: Create `src/tui/runtime/projection-state.ts`** with the two state types above (with the "projection-state portion only" boundary doc on `ProjectionStateSnapshot`).
+
+- [ ] **Step 3: Rewire state-type imports.** Move `ProjectionState` out of `durable-projection-builder.ts` (keep the `DurableProjectionBuilder` interface there, import the type: `import type { ProjectionState } from './projection-state.js';`). In `projection-checkpoint-store.ts`, delete the local `ProjectionStateSnapshot` definition and import both types: `import type { ProjectionState, ProjectionStateSnapshot } from './projection-state.js';`. Update `timeline-builder.ts` / `execution-trace-builder.ts` to import `ProjectionState` from `./projection-state.js` instead of `durable-projection-builder.js`.
+
+- [ ] **Step 4: Update the two existing builders' implements clauses (type-only)**
 
 In `src/tui/runtime/timeline-builder.ts`, change `class TimelineBuilder implements DurableProjectionBuilder<...>` to:
 ```ts
@@ -88,62 +99,16 @@ export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilde
 ```
 Its `snapshot(): readonly ExecutionTraceEntry[]` is unchanged.
 
-- [ ] **Step 3: Typecheck**
-
-Run: `npx tsc -p tsconfig.json --noEmit`
-Expected: clean. If any test or file referenced the old element generic (`ProjectionBuilder<TimelineEntry>`), update the reference to the snapshot generic — but the two builders above are the only implementers, so nothing else should change.
-
-- [ ] **Step 4: Run the builder suites (byte-for-byte behavior)**
-
-Run: `npx vitest run tests/tui/runtime`
-Expected: ALL pass unchanged — the two builders' behavior is untouched; this was a type-level generalization. Any failure = the generic change altered behavior; fix before committing.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add src/tui/runtime/projection-builder.ts src/tui/runtime/durable-projection-builder.ts src/tui/runtime/timeline-builder.ts src/tui/runtime/execution-trace-builder.ts
-git commit -m "refactor(capabilities): generalize projection contract to arbitrary snapshot shapes (Phase 7)"
-```
-
----
----
-
-### Task 1.5: Extract `ProjectionState`/`ProjectionStateSnapshot` into their own module
-
-**Files:**
-- Create: `src/tui/runtime/projection-state.ts`
-- Modify: `src/tui/runtime/durable-projection-builder.ts` (import `ProjectionState` from the new module)
-- Modify: `src/tui/runtime/projection-checkpoint-store.ts` (import `ProjectionState`/`ProjectionStateSnapshot` from the new module; remove the local `ProjectionStateSnapshot` def)
-- Modify: `src/tui/runtime/timeline-builder.ts`, `src/tui/runtime/execution-trace-builder.ts` (import `ProjectionState` from the new module)
-
-**Interfaces:**
-- Consumes: nothing new.
-- Produces (Task 2+ depend on this):
-  ```ts
-  // src/tui/runtime/projection-state.ts
-  /** JSON-serializable plain object — the opaque durable state of a builder. */
-  export type ProjectionState = Record<string, unknown>;
-  /** The projection-state portion of the checkpoint envelope ONLY. Cursor and
-   *  commit metadata belong to PersistedProjectionCheckpoint — a consumer of
-   *  ProjectionRuntime.exportState() gets projection state, never a full
-   *  checkpoint envelope. */
-  export type ProjectionStateSnapshot = Record<string, ProjectionState>;
-  ```
-
-- [ ] **Step 1: Create `src/tui/runtime/projection-state.ts`** with the two types above.
-
-- [ ] **Step 2: Rewire imports.** Move `ProjectionState` out of `durable-projection-builder.ts` (keep the `DurableProjectionBuilder` interface there, import the type): `import type { ProjectionState } from './projection-state.js';`. In `projection-checkpoint-store.ts`, delete the local `ProjectionStateSnapshot` definition (lines 13-17) and import both types: `import type { ProjectionState, ProjectionStateSnapshot } from './projection-state.js';`. Update `timeline-builder.ts` / `execution-trace-builder.ts` to import `ProjectionState` from `./projection-state.js` instead of `durable-projection-builder.js`.
-
-- [ ] **Step 3: Typecheck + run runtime suite**
+- [ ] **Step 5: Typecheck + run the runtime suite**
 
 Run: `npx tsc -p tsconfig.json --noEmit` and `npx vitest run tests/tui/runtime`
-Expected: clean, ALL pass. No behavior change — pure module relocation.
+Expected: clean, ALL pass unchanged — the two builders' behavior is untouched; this was a type-level generalization + module relocation. Any failure = the change altered behavior; fix before committing.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/runtime/projection-state.ts src/tui/runtime/durable-projection-builder.ts src/tui/runtime/projection-checkpoint-store.ts src/tui/runtime/timeline-builder.ts src/tui/runtime/execution-trace-builder.ts
-git commit -m "refactor(capabilities): extract ProjectionState into own module, fix layering (Phase 7)"
+git add src/tui/runtime/projection-state.ts src/tui/runtime/projection-builder.ts src/tui/runtime/durable-projection-builder.ts src/tui/runtime/timeline-builder.ts src/tui/runtime/execution-trace-builder.ts src/tui/runtime/projection-checkpoint-store.ts
+git commit -m "refactor(capabilities): generalize projection contract to arbitrary snapshot shapes + extract state module (Phase 7)"
 ```
 
 ---
@@ -157,7 +122,7 @@ git commit -m "refactor(capabilities): extract ProjectionState into own module, 
 - (No collector changes.)
 
 **Interfaces:**
-- Consumes: `DurableProjectionBuilder<TSnapshot>` (Task 1), `ProjectionState` / `ProjectionStateSnapshot` (Task 1.5 — see below), `AlixEvent` (`src/events/types.ts`).
+- Consumes: `DurableProjectionBuilder<TSnapshot>` (Task 1), `ProjectionState` / `ProjectionStateSnapshot` (Task 1 — the `projection-state.ts` module), `AlixEvent` (`src/events/types.ts`).
 - Produces (Task 3/4/5 depend on these):
   ```ts
   export class ProjectionRegistrationError extends Error { constructor(id: string); }
@@ -166,7 +131,7 @@ git commit -m "refactor(capabilities): extract ProjectionState into own module, 
     register(id: string, builder: DurableProjectionBuilder<unknown>): void;
     all(): readonly RegisteredProjection[];
     updateAll(events: readonly AlixEvent[]): void;
-    snapshot<TSnapshot>(id: string): TSnapshot | undefined;   // undefined if unregistered
+    snapshotOf<TSnapshot>(id: string): TSnapshot | undefined;   // undefined if unregistered
     exportState(): ProjectionStateSnapshot;                    // keyed by registered id
     importState(state: ProjectionStateSnapshot): void;
     resetAll(): void;
@@ -228,7 +193,7 @@ describe('ProjectionRuntime', () => {
 
   it('snapshot returns undefined for an unregistered id', () => {
     const r = new ProjectionRuntime();
-    expect(r.snapshot<readonly number[]>('nope')).toBeUndefined();
+    expect(r.snapshotOf<readonly number[]>('nope')).toBeUndefined();
   });
 
   it('supports non-array snapshot shapes (object projections)', () => {
@@ -236,7 +201,7 @@ describe('ProjectionRuntime', () => {
     const r = new ProjectionRuntime();
     r.register('obj', obj);
     r.updateAll([evt(1), evt(2)]);
-    expect(r.snapshot<{ count: number }>('obj')).toEqual({ count: 2 });
+    expect(r.snapshotOf<{ count: number }>('obj')).toEqual({ count: 2 });
   });
 
   it('registering a duplicate id throws ProjectionRegistrationError', () => {
@@ -253,16 +218,16 @@ describe('ProjectionRuntime', () => {
     const r2 = new ProjectionRuntime();
     r2.register('b', makeBuilder()); r2.register('a', makeBuilder());
     r2.importState(state);
-    expect(r2.snapshot<readonly number[]>('b')).toEqual([9]);
-    expect(r2.snapshot<readonly number[]>('a')).toEqual([1, 2]);
+    expect(r2.snapshotOf<readonly number[]>('b')).toEqual([9]);
+    expect(r2.snapshotOf<readonly number[]>('a')).toEqual([1, 2]);
   });
 
   it('importState ignores state for ids not registered (rolling-upgrade safety)', () => {
     const r = new ProjectionRuntime();
     r.register('a', makeBuilder());
     r.importState({ a: { entries: [1] }, futureProjection: { whatever: true } } as ProjectionStateSnapshot);
-    expect(r.snapshot<readonly number[]>('a')).toEqual([1]);
-    expect(r.snapshot<readonly unknown[]>('futureProjection')).toBeUndefined();
+    expect(r.snapshotOf<readonly number[]>('a')).toEqual([1]);
+    expect(r.snapshotOf<readonly unknown[]>('futureProjection')).toBeUndefined();
   });
 
   it('updateAll is transactional — a builder throw rolls back every projection and propagates', () => {
@@ -276,6 +241,33 @@ describe('ProjectionRuntime', () => {
     expect(() => r.updateAll([evt(1)])).toThrow('boom');
     // NO partial mutation survives — ok was advanced, then rolled back
     expect(ok.snapshot()).toEqual([]);
+  });
+
+  it('surfaces a rollback failure distinctly (never a silent partial restore)', () => {
+    const unrecoverable: DurableProjectionBuilder<unknown> = {
+      update() { throw new Error('boom'); },
+      snapshot: () => undefined as never, reset() {},
+      exportState: () => ({ bad: true }),
+      importState() { throw new Error('restore failed'); },
+    };
+    const r = new ProjectionRuntime();
+    r.register('u', unrecoverable);
+    expect(() => r.updateAll([evt(1)])).toThrow(/Projection rollback failed after update failure/);
+  });
+
+  it('register rejects empty/whitespace ids (external-string hostility)', () => {
+    const r = new ProjectionRuntime();
+    expect(() => r.register('', makeBuilder())).toThrow(ProjectionRegistrationError);
+    expect(() => r.register('   ', makeBuilder())).toThrow(ProjectionRegistrationError);
+  });
+
+  it('exportState produces a null-prototype object (no prototype pollution via id)', () => {
+    const r = new ProjectionRuntime();
+    r.register('__proto__', makeBuilder([1]));
+    const state = r.exportState();
+    expect(Object.getPrototypeOf(state)).toBeNull();
+    expect(Object.prototype.hasOwnProperty.call(state, '__proto__')).toBe(true);
+    expect((state as Record<string, { entries: number[] }>).__proto__.entries).toEqual([1]);
   });
 
   it('resetAll resets every registered builder', () => {
@@ -340,6 +332,7 @@ export class ProjectionRuntime {
   private readonly projections = new Map<string, DurableProjectionBuilder<unknown>>();
 
   register(id: string, builder: DurableProjectionBuilder<unknown>): void {
+    if (!id.trim()) throw new ProjectionRegistrationError(id);  // empty/whitespace → corruption
     if (this.projections.has(id)) throw new ProjectionRegistrationError(id);
     this.projections.set(id, builder);
   }
@@ -349,23 +342,31 @@ export class ProjectionRuntime {
   }
 
   /** Transactional batch update. A builder throw rolls back every projection
-   *  and propagates — the checkpoint must never commit partial state. */
+   *  and propagates — the checkpoint must never commit partial state. A
+   *  rollback failure is surfaced as a distinct error, never a silent
+   *  partial restore. */
   updateAll(events: readonly AlixEvent[]): void {
     const before = this.exportState();
     try {
       for (const { builder } of this.all()) builder.update(events);
     } catch (err) {
-      this.importState(before);
+      try {
+        this.importState(before);
+      } catch (rollbackErr) {
+        throw new Error(`Projection rollback failed after update failure: ${String(rollbackErr)}`);
+      }
       throw err;
     }
   }
 
-  snapshot<TSnapshot>(id: string): TSnapshot | undefined {
+  snapshotOf<TSnapshot>(id: string): TSnapshot | undefined {
     return this.projections.get(id)?.snapshot() as TSnapshot | undefined;
   }
 
   exportState(): ProjectionStateSnapshot {
-    const out: ProjectionStateSnapshot = {};
+    // Null-prototype: projection ids are caller-supplied external strings; a
+    // hostile id like "__proto__" must not cause prototype pollution.
+    const out: ProjectionStateSnapshot = Object.create(null);
     for (const [id, builder] of this.projections) out[id] = builder.exportState();
     return out;
   }
@@ -466,8 +467,8 @@ The invalid-cursor catch (lines 154-155) becomes:
 
 `sample()` snapshot assembly (lines 245-246) becomes:
 ```ts
-        trace: this.projectionRuntime.snapshot<readonly ExecutionTraceEntry[]>('trace') ?? [],
-        timeline: this.projectionRuntime.snapshot<readonly TimelineEntry[]>('timeline') ?? [],
+        trace: this.projectionRuntime.snapshotOf<readonly ExecutionTraceEntry[]>('trace') ?? [],
+        timeline: this.projectionRuntime.snapshotOf<readonly TimelineEntry[]>('timeline') ?? [],
 ```
 Add explicit type imports to the collector (neither entry type is currently imported directly):
 ```ts
@@ -537,11 +538,16 @@ new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SES
 ```
 Add `import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';` (and the builder value imports if not present) to each file. **Do NOT change any assertion** — behavior must be byte-for-byte equivalent. Use a `buildCollector(...)` helper per file if the same options repeat.
 
-**Add one new assertion for the trace-only case:** in `runtime-collector.vitest.ts`, after the existing trace-only test (where the runtime registers only `trace`), assert the timeline projection is an empty array — NOT `undefined` — so a missing registration can't silently change UI behavior:
+**Add two assertions covering both optional projections** in `runtime-collector.vitest.ts`:
 ```ts
-    expect(snapshot.timeline).toEqual([]);   // unregistered timeline → [], not undefined
+    // trace-only collector (outer runtime): timeline is [], not undefined
+    expect(snapshot.timeline).toEqual([]);
+    // timeline-only collector: trace is [], not undefined — the platform must
+    // prove BOTH optional projections behave identically (pre-7, a collector
+    // with buildTimeline=true but no traceBuilder tolerated snapshot.trace).
+    expect(snapshot.trace).toEqual([]);
 ```
-> (The outer runtime collector registers only `trace`; this pins `?? []` in the snapshot assembly and the pre-7 `buildTimeline:false` behavior.)
+> (The outer runtime collector registers only `trace`; the timeline-only case registers `[['timeline', new TimelineBuilder(SESSION_ID)]]` with no trace. These pin `?? []` in the snapshot assembly and the pre-7 optional-projection behavior in both directions.)
 
 - [ ] **Step 5: Add a batch-atomicity test — a throwing projection must NOT commit the checkpoint**
 
@@ -629,7 +635,7 @@ export interface PersistedProjectionCheckpoint {
   readonly state?: ProjectionStateSnapshot;          // Phase 6.5 legacy
 }
 ```
-Also add the boundary doc to `ProjectionStateSnapshot` (in `src/tui/runtime/projection-state.ts` from Task 1.5):
+Also add the boundary doc to `ProjectionStateSnapshot` (in `src/tui/runtime/projection-state.ts` from Task 1):
 ```ts
 /**
  * The projection-state portion of the checkpoint envelope ONLY. Cursor and
@@ -655,10 +661,16 @@ export type ProjectionStateSnapshot = Record<string, ProjectionState>;
     expect(loadedLegacy?.state).toEqual({ timeline: { version: 1, entries: [] } });
     expect(loadedLegacy?.version).toBe(1);
 
-    // both present → projections wins (save always writes projections)
-    // (covered by a dual-present fixture if the implementer wants; otherwise skip)
+    // both present → BOTH are preserved by the store; the collector prefers
+    // projections (loaded.projections ?? loaded.state). Lock the migration rule:
+    const dual = JSON.stringify({ version: 1, cursor: '{"version":1,"seq":4}', committedAt: 4, state: { timeline: { old: true } }, projections: { timeline: { new: true } } });
+    await dualStore.loadFromRaw(dual);   // or write the file then load
+    const loadedDual = await dualStore.load();
+    expect((loadedDual?.projections?.timeline as { new?: boolean })?.new).toBe(true);
+    expect((loadedDual?.state?.timeline as { old?: boolean })?.old).toBe(true);
   });
 ```
+> Use the file's existing `mkdtemp`-per-store pattern; write the legacy + dual files directly (`writeFile`) and assert they load. The `loadFromRaw` is illustrative — write the JSON string to the store's file then call `load()`. The three assertions that matter: (1) `projections` save→load round-trips; (2) a legacy `state` file loads with `state` preserved + `version === 1`; (3) when BOTH are present, the store preserves both and the collector's `loaded.projections ?? loaded.state` picks `projections`.
 > Use the file's existing `mkdtemp`-per-store pattern; write the legacy file directly (`writeFile`) with a `state` key and assert it loads. This snippet is a shape guide — the real assertions that matter: (1) `projections` save→load round-trips; (2) a legacy `state` file loads with `state` preserved + `version === 1`; (3) a non-object envelope still returns null.
 
 - [ ] **Step 3: Run test to verify it fails**
@@ -821,6 +833,11 @@ describe('ApprovalProjection', () => {
     expect(() => p.update([badResolve])).toThrow(/decision/);
   });
 
+  it('importState rejects an unknown persisted status enum value', () => {
+    const p = new ApprovalProjection();
+    expect(() => p.importState({ pending: [{ approvalId: 'a1', status: 'banana', requestedAt: 1 }], completed: [] } as never)).toThrow(/malformed entry/);
+  });
+
   it('exportState/importState round-trips pending + completed', () => {
     const p = new ApprovalProjection();
     p.update([requested(1, 'a1'), requested(2, 'a2'), resolved(3, 'a1', 'denied')]);
@@ -870,6 +887,14 @@ export interface ApprovalProjectionSnapshot {
 
 /** Deterministic cap on completed history — NOT a time window (clock/replay-safe). */
 export const MAX_COMPLETED = 50;
+
+/** Exact set of valid statuses — used to validate persisted state on import
+ *  (checkpoints live forever; a corrupt/old file must throw, not silently
+ *  accept an unknown status). */
+export const VALID_STATUSES = new Set([
+  'pending', 'approved', 'denied', 'edited',
+  'expired', 'revoked', 'consumed', 'resumed',
+] as const);
 
 /** Events that close a pending approval (move it to completed). */
 const TERMINAL_TYPES = new Set([
@@ -971,14 +996,17 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
 
   importState(state: ProjectionState): void {
     // Validate before mutating (mirrors TimelineBuilder/TraceBuilder). The
-    // object/null check runs BEFORE the cast so a null entry is caught.
+    // object/null check runs BEFORE the cast so a null entry is caught; the
+    // enum check rejects an unknown persisted status.
     const s = state as Partial<ApprovalProjectionSnapshot>;
     if (!Array.isArray(s.pending) || !Array.isArray(s.completed)) throw new Error('approval projection state: malformed pending/completed');
     for (const list of [s.pending, s.completed]) {
       for (const entry of list) {
         if (typeof entry !== 'object' || entry === null) throw new Error('approval projection state: malformed entry');
         const e = entry as Partial<ApprovalProjectionEntry>;
-        if (typeof e.approvalId !== 'string' || typeof e.status !== 'string') throw new Error('approval projection state: malformed entry');
+        if (typeof e.approvalId !== 'string' || typeof e.status !== 'string' || !VALID_STATUSES.has(e.status as ApprovalProjectionEntry['status'])) {
+          throw new Error('approval projection state: malformed entry');
+        }
       }
     }
     this.pending = new Map(s.pending.map((e) => [e.approvalId, e as ApprovalProjectionEntry]));
@@ -986,7 +1014,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
   }
 }
 ```
-> Note: the `'resolved'` fallback for `approval.resolved` with an unrecognized decision is retained defensively (a malformed `decision` still resolves the approval) but is not part of the exported status union — an `approval.resolved` always carries a recognized decision in practice.
+> An `approval.resolved` with an unrecognized decision is a malformed event and THROWS (see `update()` above) — there is no `'resolved'` catch-all in the status union. An `approval.resolved` always carries a recognized decision in practice.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1032,5 +1060,17 @@ git commit -m "feat(capabilities): ApprovalProjection — first registry-native 
 
 1. **Spec coverage** — every Phase-7 spec section has a task: generalized projection contract with arbitrary snapshot shape (T1), `ProjectionState`/`ProjectionStateSnapshot` module extraction + layering fix (T1.5), ProjectionRuntime contract + transactional `updateAll` + tuple factory (T2), collector blind + batch-atomicity + grep-only-owner + `snapshot.timeline === []` (T3), registry-keyed envelope + dual-shape load + version-1 doc (T4), ApprovalProjection {pending, completed} object snapshot + identity/reconciliation + resumed Option A + deterministic timestamps + invalid-decision-throws + importState null-check-order (T5), frozen durable contract (T1), acceptance bar (T3 Step 8, T5 Step 7).
 2. **Placeholder scan** — all steps carry real code; the one "illustrative" note in T4 Step 2 tells the implementer the real fixture shape and the 3 required assertions, not a vague directive.
-3. **Type consistency** — `ProjectionBuilder<TSnapshot>` / `DurableProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` flows through all tasks; `ProjectionRuntime.snapshot<TSnapshot>(id): TSnapshot | undefined` is used identically in T2 tests and T3 assembly (`?? []`); `ProjectionState`/`ProjectionStateSnapshot` flow from `projection-state.ts` (T1.5) through T2→T3→T4; `ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot>` matches T1's contract (assignable to the `unknown` snapshot param). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T3 and T5.
-4. **Reviewer corrections all present** — transactional rollback (T2 impl + test), `'resolved'` removed from status union + invalid-decision-throws (T5), importState null-check before cast (T5), event-ordering invariant documented (T5), `ProjectionState` module layering (T1.5), caller-owned snapshot typing documented (T2), trace-only timeline-empty assertion (T3), commit grouping preserved (6 tasks).
+3. **Type consistency** — `ProjectionBuilder<TSnapshot>` / `DurableProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` flows through all tasks; `ProjectionRuntime.snapshotOf<TSnapshot>(id): TSnapshot | undefined` is used identically in T2 tests and T3 assembly (`?? []`); `ProjectionState`/`ProjectionStateSnapshot` flow from `projection-state.ts` (T1) through T2→T3→T4; `ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot>` matches T1's contract (assignable to the `unknown` snapshot param). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T3 and T5.
+4. **Reviewer corrections all present** — transactional rollback + rollback-failure wrapping (T2 impl + tests), null-prototype exportState + empty-id rejection (T2), `'resolved'` removed from status union + invalid-decision-throws (T5), importState null-check-before-cast + enum validation (T5), event-ordering invariant documented (T5), `ProjectionState` module layering (T1), caller-owned snapshot typing documented (T2), both optional-projection assertions (T3), both-present store test (T4), `snapshotOf` rename (T2), commit grouping preserved (5 tasks).
+5. **Final acceptance gates (run on the finished branch):**
+   ```bash
+   # Projection isolation: the collector knows no concrete projections
+   grep -R "TimelineBuilder\|ExecutionTraceBuilder" src/tui/runtime-collector.ts
+   #   Expected: 0 matches
+   # Registration ownership: only composition roots + runtime tests call register(
+   grep -R "register(" src/tui
+   #   Expected: projection-runtime.ts, cli/commands/tui.ts, tests
+   # Durable boundary: only the envelope layer depends on ProjectionStateSnapshot
+   grep -R "ProjectionStateSnapshot" src/tui
+   #   Expected: projection-state.ts, projection-runtime.ts, projection-checkpoint-store.ts
+   ```

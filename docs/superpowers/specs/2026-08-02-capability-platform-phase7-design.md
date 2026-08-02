@@ -67,7 +67,7 @@ interface ProjectionRuntime {
   updateAll(events: readonly AlixEvent[]): void;
   /** Returns the projection's snapshot (array or object) or `undefined` if the
    *  id is not registered. The generic param is the snapshot shape. */
-  snapshot<TSnapshot>(id: string): TSnapshot | undefined;
+  snapshotOf<TSnapshot>(id: string): TSnapshot | undefined;
   exportState(): ProjectionStateSnapshot;
   importState(state: ProjectionStateSnapshot): void;
   resetAll(): void;
@@ -98,21 +98,28 @@ interface ProjectionRuntime {
     try {
       for (const projection of this.projections.values()) projection.update(events);
     } catch (err) {
-      this.importState(before);   // rollback: no projection keeps partial mutation
-      throw err;                   // never swallow — the collector's catch is reachable
+      try {
+        this.importState(before);   // rollback: no projection keeps partial mutation
+      } catch (rollbackErr) {
+        // A restore failure is a correctness-boundary failure — surface it.
+        throw new Error(`Projection rollback failed after update failure: ${String(rollbackErr)}`);
+      }
+      throw err;                    // never swallow — the collector's catch is reachable
     }
   }
   ```
 
-  If any projection throws during `updateAll`, the update cycle fails, the checkpoint MUST NOT commit, AND the in-memory projection state is **rolled back** so no builder retains a partially-advanced state (a later successful sample must not commit corrupted state). Builders are idempotent by seq, so a clean re-read from the old cursor reconciles. This makes the runtime the single owner of the atomicity invariant.
+  If any projection throws during `updateAll`, the update cycle fails, the checkpoint MUST NOT commit, AND the in-memory projection state is **rolled back** so no builder retains a partially-advanced state (a later successful sample must not commit corrupted state). Builders are idempotent by seq, so a clean re-read from the old cursor reconciles. This makes the runtime the single owner of the atomicity invariant. **A rollback failure itself (importState throwing) is surfaced as a distinct error** — the runtime cannot silently leave corrupted state and claim the batch was rolled back.
 
 ## ProjectionRuntime invariants (final)
 
-1. **`updateAll` is transactional** — all-or-nothing across registered projections; a throw rolls back every builder and propagates.
+1. **`updateAll` is transactional** — all-or-nothing across registered projections; a throw rolls back every builder and propagates. **A rollback failure surfaces as a distinct error** (`Projection rollback failed after update failure: ...`), never a silent partial restore.
 2. **Builders receive events in EventLog sequence order.** A builder's `update()` is a pure function of its input events; deterministic replay requires deterministic ordering. A builder MAY enforce this defensively (throw if `seq` is non-monotonic) but MUST NOT reorder.
 3. **Builder execution order is not semantic.** Registration order is preserved for iteration but must never affect output (D11).
 4. **A projection cannot depend on another projection's state.** Each builder derives only from the EventLog batch (D11).
 5. **`snapshot<T>(id)` typing is caller-owned.** The runtime is a heterogeneous registry; it cannot verify that `T` matches the registered builder. The caller owns type agreement with the registered id (documented on the method).
+6. **Projection ids are caller-supplied external strings — treat as hostile.** `register(id)` rejects empty/whitespace ids (`throw new ProjectionRegistrationError(id)`). `exportState()` and any checkpoint serialization produce **null-prototype objects** (`Object.create(null)`), so a malicious id like `"__proto__"` cannot cause prototype pollution.
+7. **Durable-state shape is validated on import, not trusted.** A builder's `importState` MUST validate the structural AND enum shape of persisted state (checkpoints live forever; an old or corrupt file must throw, not silently accept). ApprovalProjection validates `status` against the exact status union.
 
 ## Frozen projection contract (generalized snapshot shape)
 
