@@ -21,6 +21,8 @@ In scope (landed C-style):
 
 Explicitly out of scope (later phases): capability projection, metrics projection, workflow projection, cross-projection dashboards, replay tooling, web UI, and the `ProjectionDispatcher` / `ProjectionCheckpointManager` / `SnapshotAssembler` decomposition.
 
+**Acceptance invariant (recorded):** a projection may be added, removed, or reordered in the composition root WITHOUT modifying `RuntimeCollectorImpl`. The collector is blind to builder lifecycle. (It is NOT fully blind to snapshot output contracts — `RuntimeSnapshot` exposes `timeline`/`trace` fields the collector assembles via `snapshotOf(id) ?? []`. A future snapshot-assembler layer — `ProjectionRuntime` → `ProjectionSnapshotRegistry` → `RuntimeSnapshot` — would complete the decoupling; deferred as a later-phase concern.)
+
 ## Architecture
 
 ```

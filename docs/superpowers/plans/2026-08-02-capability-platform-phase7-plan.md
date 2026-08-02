@@ -52,6 +52,11 @@
 
   // durable-projection-builder.ts
   export interface DurableProjectionBuilder<TSnapshot> extends ProjectionBuilder<TSnapshot> {
+    /** MUST capture ALL mutable state required to restore the builder to the
+     *  exact state before update() — the runtime's transactional rollback
+     *  depends on exportState/importState round-tripping every internal
+     *  field a builder mutates (not just the durable subset). A builder whose
+     *  exportState omits internal fields breaks the atomicity guarantee. */
     exportState(): ProjectionState;      // ProjectionState = Record<string, unknown>
     importState(state: ProjectionState): void;
   }
@@ -66,8 +71,9 @@
    *  dictionary, not an object with inherited properties. Persisted JSON
    *  (checkpoint files) naturally reconstructs normal-prototype objects;
    *  do NOT "fix" JSON.parse output to a null prototype — the shape is what
-   *  matters, not the prototype. */
-  export type ProjectionStateSnapshot = Record<string, ProjectionState>;
+   *  matters, not the prototype. Readonly: the runtime export advertises no
+   *  mutability; consumers read, never assign. */
+  export type ProjectionStateSnapshot = Readonly<Record<string, ProjectionState>>;
   ```
 
 - [ ] **Step 1: Change the two contract interfaces**
@@ -282,6 +288,13 @@ describe('ProjectionRuntime', () => {
     expect(() => r.register('   ', makeBuilder())).toThrow(/id must not be empty/);
   });
 
+  it('register normalizes whitespace — "trace" and " trace " are the same id', () => {
+    const r = new ProjectionRuntime();
+    r.register('trace', makeBuilder());
+    expect(() => r.register(' trace ', makeBuilder())).toThrow(/duplicate id/);
+    expect(r.all().map((p) => p.id)).toEqual(['trace']);
+  });
+
   it('exportState produces a null-prototype object (no prototype pollution via id)', () => {
     const r = new ProjectionRuntime();
     r.register('__proto__', makeBuilder([1]));
@@ -389,10 +402,13 @@ export class ProjectionRuntime {
   private readonly registrations: RegisteredProjection[] = [];
 
   register(id: string, builder: DurableProjectionBuilder<unknown>): void {
-    if (!id.trim()) throw new ProjectionRegistrationError(id, 'id must not be empty');
-    if (this.byId.has(id)) throw new ProjectionRegistrationError(id, 'duplicate id');
-    this.byId.set(id, builder);
-    this.registrations.push({ id, builder });
+    // Projection ids are canonical: normalize whitespace FIRST so "trace" and
+    // " trace " are the same id (operationally surprising otherwise).
+    const normalized = id.trim();
+    if (!normalized) throw new ProjectionRegistrationError(id, 'id must not be empty');
+    if (this.byId.has(normalized)) throw new ProjectionRegistrationError(normalized, 'duplicate id');
+    this.byId.set(normalized, builder);
+    this.registrations.push({ id: normalized, builder });
   }
 
   all(): readonly RegisteredProjection[] {
@@ -423,8 +439,9 @@ export class ProjectionRuntime {
 
   exportState(): ProjectionStateSnapshot {
     // Null-prototype: projection ids are caller-supplied external strings; a
-    // hostile id like "__proto__" must not cause prototype pollution.
-    const out: ProjectionStateSnapshot = Object.create(null);
+    // hostile id like "__proto__" must not cause prototype pollution. Build
+    // mutable internally, return as Readonly (no advertised mutability).
+    const out: Record<string, ProjectionState> = Object.create(null);
     for (const { id, builder } of this.registrations) out[id] = assertProjectionState(builder.exportState());
     return out;
   }
@@ -473,7 +490,7 @@ function assertProjectionState(value: unknown): ProjectionState {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/projection-runtime.vitest.ts`
-Expected: PASS (15 tests).
+Expected: PASS (16 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -903,6 +920,16 @@ describe('ApprovalProjection', () => {
     const p = new ApprovalProjection();
     const bad = { ...requested(1, 'a1'), timestamp: 'not-a-date' };
     expect(() => p.update([bad])).toThrow(/timestamp/);
+    // An approval-typed event with a malformed timestamp throws EVEN when the
+    // payload has no approvalId (not silently ignored).
+    const noIdBad = { ...evt('approval.requested', {}, 2), payload: {}, timestamp: 'not-a-date' };
+    expect(() => p.update([noIdBad])).toThrow(/timestamp/);
+  });
+
+  it('pending entries preserve first-request sequence order', () => {
+    const p = new ApprovalProjection();
+    p.update([requested(1, 'b2'), requested(3, 'a1'), requested(5, 'c3')]);
+    expect(p.snapshot().pending.map((e) => e.approvalId)).toEqual(['b2', 'a1', 'c3']);
   });
 
   it('throws on an approval.resolved with an unrecognized decision (no resolved catch-all)', () => {
@@ -1034,6 +1061,9 @@ function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolNa
  *   by EventLog sequence (deterministic replay). A non-monotonic seq sequence
  *   would make requested→resolved and resolved→requested indistinguishable;
  *   the collector always passes readSince batches, which are seq-ordered.
+ * - Pending ordering is LOCKED: `pending` preserves first-request sequence
+ *   order (Map insertion order, since requests arrive seq-ordered). A
+ *   snapshot consumer must not assume any other ordering.
  */
 export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot> {
   private pending = new Map<string, ApprovalProjectionEntry>();
@@ -1041,6 +1071,14 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
 
   update(events: readonly AlixEvent[]): void {
     for (const e of events) {
+      // Deterministic replay: parse the timestamp for EVERY approval event
+      // (before the approvalId check) so a malformed timestamp on an
+      // approval-typed event throws instead of being silently ignored.
+      if (e.type !== 'approval.requested' && e.type !== 'approval.resumed'
+          && e.type !== 'approval.resume.failed' && !TERMINAL_TYPES.has(e.type)) {
+        continue;   // not an approval event — ignore
+      }
+      const timestamp = parseTimestamp(e);
       const { approvalId, prompt, toolName } = entryFrom(e);
       if (!approvalId) continue;
       if (e.type === 'approval.requested') {
@@ -1048,7 +1086,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
           this.pending.set(approvalId, {
             approvalId, prompt, toolName,
             status: 'pending',
-            requestedAt: parseTimestamp(e),
+            requestedAt: timestamp,
           });
         }
         // id already pending → idempotent replay of the same request, no-op
@@ -1066,7 +1104,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
           : e.type === 'approval.expired' ? 'expired'
           : e.type === 'approval.consumed' ? 'consumed'
           : 'revoked';
-        const done: ApprovalProjectionEntry = { ...existing, status, completedAt: parseTimestamp(e) };
+        const done: ApprovalProjectionEntry = { ...existing, status, completedAt: timestamp };
         this.pending.delete(approvalId);
         this.completed = [done, ...this.completed].slice(0, MAX_COMPLETED);
       }
@@ -1121,7 +1159,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/approval-projection.vitest.ts`
-Expected: PASS (13 tests).
+Expected: PASS (15 tests).
 
 - [ ] **Step 5: Register approval on the runtime collector in `src/cli/commands/tui.ts`**
 
@@ -1193,15 +1231,16 @@ git commit -m "feat(capabilities): ApprovalProjection — first registry-native 
 1. **Spec coverage** — every Phase-7 spec section has a task: generalized projection contract + `ProjectionState`/`ProjectionStateSnapshot` module extraction + layering fix (T1), ProjectionRuntime contract + transactional `updateAll` + tuple factory (T2), collector blind + batch-atomicity + grep-only-owner + `snapshot.timeline === []` (T3), registry-keyed envelope + dual-shape load + version-1 doc (T4), ApprovalProjection {pending, completed} object snapshot + identity/reconciliation + resumed Option A + deterministic timestamps + invalid-decision-throws + importState null-check-order (T5), frozen durable contract (T1), acceptance bar (T3 Step 8, T5 Step 7).
 2. **Placeholder scan** — all steps carry real code; the one "illustrative" note in T4 Step 2 tells the implementer the real fixture shape and the 3 required assertions, not a vague directive.
 3. **Type consistency** — `ProjectionBuilder<TSnapshot>` / `DurableProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` flows through all tasks; `ProjectionRuntime.snapshotOf<TSnapshot>(id): TSnapshot | undefined` is used identically in T2 tests and T3 assembly (`?? []`); `ProjectionState`/`ProjectionStateSnapshot` flow from `projection-state.ts` (T1) through T2→T3→T4; `ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot>` matches T1's contract (assignable to the `unknown` snapshot param). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T3 and T5.
-4. **Reviewer corrections all present** — `ProjectionRegistrationError` with reason (T2), typed `ProjectionRollbackError` preserving both errors (T2), `registrations` array for stable order + allocation-free `all()` (T2), `restoreState` internal rollback helper + `assertProjectionState` plain-object guard (T2), null-prototype doc + runtime-vs-persisted clarification on `ProjectionStateSnapshot` (T1), ApprovalProjection imports `ProjectionState` from the state module + validates `requestedAt`/`completedAt` on import + duplicate-request idempotency test (T5), non-mutable `VALID_STATUSES` + `isValidStatus` guard (T5), deterministic-order test + empty-runtime test (T2), store never migrates `state`→`projections` + no-auto-migration regression test (T4), approval-rendering-deferred note + "future projection" platform extension test (T5), `.register(` grep refinement + `timelineBuilder` grep gate (checklist), commit grouping preserved (5 tasks).
+4. **Reviewer corrections all present** — `ProjectionRegistrationError` with reason + id normalization (T2), typed `ProjectionRollbackError` preserving both errors (T2), `registrations` array for stable order + allocation-free `all()` (T2), `restoreState` internal rollback helper + `assertProjectionState` plain-object guard (T2), null-prototype + `Readonly<Record>` + runtime-vs-persisted clarification on `ProjectionStateSnapshot` (T1), `exportState` MUST-capture-all-state contract doc (T1), ApprovalProjection imports `ProjectionState` from the state module + validates `requestedAt`/`completedAt` on import + duplicate-request idempotency + pending-order-locked + approval-typed-malformed-timestamp-throws (T5), non-mutable `VALID_STATUSES` + `isValidStatus` guard (T5), deterministic-order test + empty-runtime test (T2), store never migrates `state`→`projections` + no-auto-migration regression test (T4), approval-rendering-deferred note + "future projection" platform extension test (T5), `register(` grep + `timelineBuilder` grep gates (checklist), acceptance invariant (projections add/remove/reorder without touching the collector) + snapshot-assembler future note (spec), commit grouping preserved (5 tasks).
 5. **Final acceptance gates (run on the finished branch):**
    ```bash
    # Projection isolation: the collector knows no concrete projections
    grep -R "TimelineBuilder\|ExecutionTraceBuilder" src/tui/runtime-collector.ts
    #   Expected: 0 matches
-   # Registration ownership: only composition roots + runtime tests call .register(
-   grep -R "\.register(" src/tui
-   #   Expected: projection-runtime.ts, cli/commands/tui.ts, tests
+   # Registration ownership: only composition roots + runtime tests call register(
+   grep -R "register(" src/tui --include="*.ts"
+   #   Expected: projection-runtime.ts, cli/commands/tui.ts, tests — manually
+   #   classify (may also match comments/unregister(); exclude those)
    # Durable boundary: only the envelope layer depends on ProjectionStateSnapshot
    grep -R "ProjectionStateSnapshot" src/tui
    #   Expected: projection-state.ts, projection-runtime.ts, projection-checkpoint-store.ts
