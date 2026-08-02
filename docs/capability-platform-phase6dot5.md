@@ -30,8 +30,10 @@ valid cursor (deserialized cleanly, at or below the log head) restores `state`
 directly. An invalid cursor — malformed JSON, unsupported version, invalid
 payload, or a `seq` beyond the current log head — takes the one and only
 recovery: reset both builders and replay from `beginningCursor()`. In that path
-the persisted `state` is discarded, never imported. Operational save/load
-failures preserve the current checkpoint + cache and retry next sample.
+the persisted `state` is discarded, never imported. An operational *save*
+failure preserves the current checkpoint + cache and retries next sample; a
+*load* failure falls back to a fresh replay (the collector resets the builders
+and rebuilds from `beginningCursor()`).
 
 **The checkpoint and recovery invariants are canonical — recorded in
 [`docs/architecture/eventlog-projection-architecture.md`](architecture/eventlog-projection-architecture.md).**
