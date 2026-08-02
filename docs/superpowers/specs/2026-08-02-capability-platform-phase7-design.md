@@ -62,12 +62,14 @@ One object: **`ProjectionRuntime`**. Do **not** split into `ProjectionRuntime` /
 
 ```ts
 interface ProjectionRuntime {
-  register<T>(id: string, builder: ProjectionBuilder<T>): void;
+  register(id: string, builder: DurableProjectionBuilder<unknown>): void;
   all(): readonly RegisteredProjection[];
   updateAll(events: readonly AlixEvent[]): void;
-  snapshot<T>(id: string): readonly T[];
-  exportState(): ProjectionStateEnvelope;
-  importState(state: ProjectionStateEnvelope): void;
+  /** Returns the projection's snapshot (array or object) or `undefined` if the
+   *  id is not registered. The generic param is the snapshot shape. */
+  snapshot<TSnapshot>(id: string): TSnapshot | undefined;
+  exportState(): ProjectionStateSnapshot;
+  importState(state: ProjectionStateSnapshot): void;
   resetAll(): void;
 }
 ```
@@ -90,21 +92,35 @@ interface ProjectionRuntime {
 - **Each registered builder MAY implement `DurableProjectionBuilder<T>`.** If it does, its opaque state participates in export/import (durable). If it does not, it remains **replay-derived only** — `exportState()` omits it and checkpoint persistence never depends on non-durable builders. This keeps the abstraction open for future replay-derived projections (e.g. metrics). Timeline, trace, and approval are all durable; a hypothetical metrics projection might be replay-derived.
 - **Projection batch atomicity (failure isolation):** a projection batch is atomic from the checkpoint perspective. If any projection throws during `updateAll`, the update cycle fails, the checkpoint MUST NOT commit, and partially advanced projection state MUST NOT be persisted. The collector's existing save-after-all-updates ordering provides this (the save runs only after every `update` returns; a throw anywhere preserves the old checkpoint + cache), and builders are idempotent by seq so the next sample re-reads the same events from the old cursor and reconciles. The runtime's `updateAll` MUST propagate a builder throw (never swallow), so the collector's catch is reachable.
 
-## Frozen `DurableProjectionBuilder` contract
+## Frozen projection contract (generalized snapshot shape)
 
-Before the registry migration, verify the durable contract is frozen:
+Before the registry migration, generalize the projection contract so the snapshot shape is arbitrary — NOT restricted to arrays. The pre-Phase-7 contract (`snapshot(): readonly T[]`) accidentally encoded the first two projections (timeline, trace both return arrays); approval's `{ pending, completed }` snapshot would not fit. This is an additive generalization of the Phase-6 frozen contract: existing array-returning builders are unchanged at the call sites.
 
 ```ts
-interface DurableProjectionBuilder<T>
-  extends ProjectionBuilder<T> {
-  exportState(): unknown;
-  importState(state: unknown): void;
+/** TSnapshot is the projection's snapshot shape — an array (timeline/trace) or
+ *  any object (approval). The contract no longer assumes a list. */
+interface ProjectionBuilder<TSnapshot> {
+  update(events: readonly AlixEvent[]): void;
+  snapshot(): TSnapshot;
+  reset(): void;
+}
+
+interface DurableProjectionBuilder<TSnapshot>
+  extends ProjectionBuilder<TSnapshot> {
+  exportState(): ProjectionState;
+  importState(state: ProjectionState): void;
 }
 ```
 
+Type bindings after generalization:
+- `TimelineBuilder implements DurableProjectionBuilder<readonly TimelineEntry[]>`
+- `IncrementalExecutionTraceBuilder implements DurableProjectionBuilder<readonly ExecutionTraceEntry[]>`
+- `ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot>`
+
 Constraints:
-- `unknown` in/out — the runtime validates serializability; no builder leaks class instances into checkpoint state.
-- The checkpoint layer MUST never know builder-specific state types (`ApprovalState`, `TraceState`, `TimelineState`) — only `Record<string, unknown>` / the opaque envelope.
+- `ProjectionState` (`Record<string, unknown>`) in/out — the runtime validates serializability; no builder leaks class instances into checkpoint state.
+- The checkpoint layer MUST never know builder-specific state types (`ApprovalProjectionSnapshot`, `TraceState`, `TimelineState`) — only `Record<string, unknown>` / the opaque envelope.
+- Deterministic replay: a builder's `update()` MUST be a pure function of its input events — `Date.now()`/`Math.random()` in an update path breaks replay (same log must produce same state). Event timestamps are parsed strictly; a malformed timestamp throws rather than falling back to `Date.now()`.
 
 ## Snapshot contract
 
@@ -162,6 +178,33 @@ EventLog position N
 
 The registry changes *who receives the events*, not *how the event stream advances*. This preserves the Phase 6 recovery guarantee: **a checkpoint represents a coherent published projection state.** One projection = one checkpoint remains enforced (the checkpoint holds each projection's durable state).
 
+**`ProjectionStateSnapshot` boundary (documented on the type):**
+
+```ts
+/**
+ * The projection-state portion of the checkpoint envelope ONLY.
+ * Cursor and commit metadata belong to ProjectionCheckpointStore /
+ * PersistedProjectionCheckpoint. A consumer of
+ * ProjectionRuntime.exportState() gets projection state, never a full
+ * checkpoint envelope.
+ */
+export type ProjectionStateSnapshot = Record<string, ProjectionState>;
+```
+
+This prevents a future contributor from assuming `ProjectionRuntime.exportState()` returns the complete checkpoint envelope.
+
+**Version-1 dual-shape doc (on `PersistedProjectionCheckpoint`):**
+
+```ts
+/**
+ * Version 1 contains two historical shapes:
+ *   Phase 6.5: state: { timeline?, trace? }        (read-only legacy)
+ *   Phase 7:   projections: { <id>: ProjectionState }  (always written)
+ * load() accepts BOTH; save() always writes `projections`.
+ */
+```
+Keep the `state` field permanently — a future contributor must not "clean up" it as dead while any 6.5-era checkpoint file may still exist.
+
 ## ApprovalProjection
 
 - **Host:** the runtime collector (outer sessionId) — approval events are stamped with the outer sessionId (`src/policy/approvals.ts:44`), so it projects alongside the trace. Independent of `buildTimeline`.
@@ -172,8 +215,7 @@ The registry changes *who receives the events*, not *how the event stream advanc
   interface ApprovalProjectionEntry {
     approvalId: string;                              // identity
     status: 'pending' | 'approved' | 'denied' | 'edited'
-          | 'expired' | 'revoked' | 'consumed' | 'resumed'
-          | 'resolved';   // fallback: approval.resolved w/o recognized decision
+          | 'expired' | 'revoked' | 'consumed' | 'resumed';
     prompt?: string;
     toolName?: string;
     requestedAt: number;
@@ -190,9 +232,10 @@ The registry changes *who receives the events*, not *how the event stream advanc
 
   **Identity & reconciliation rules (deterministic):** an approval's identity is its `approvalId` (generated by `generateApprovalId()`). The projection reconciles with these explicit rules, so `requested(A) → resolved(A) → requested(A)` has a deterministic answer:
   - `approval.requested(id)` — if no **pending** entry exists for `id`, create a pending entry (new lifecycle). If a pending entry already exists (idempotent replay of the same request), leave it unchanged. If a **completed** entry exists with the same `id`, that is a **new lifecycle** — create a fresh pending entry; the older completed entry stays in `completed`.
-  - terminal event for `id` (`resolved`/`expired`/`consumed`/`revoked`/`resume.failed`) — acts ONLY if a pending entry exists for `id`; marks it with the mapped `status` + `completedAt` and moves it to `completed` (newest→oldest, bounded by `MAX_COMPLETED`). An unknown `id` is ignored (replay of a resolve without its request is a no-op).
-  - `resumed` — marks a pending entry `resumed` (no-op if unknown id).
+  - terminal event for `id` (`resolved`/`expired`/`consumed`/`revoked`) — acts ONLY if a pending entry exists for `id`; marks it with the mapped `status` + `completedAt` and moves it to `completed` (newest→oldest, bounded by `MAX_COMPLETED`). An unknown `id` is ignored (replay of a resolve without its request is a no-op). `approval.resolved` maps its `decision` (`approved`/`denied`/`edited`) to `status`.
+  - `resumed` — **Option A (recorded):** a pending entry's `status` is set to `resumed`; it STAYS in `pending` (a resumed approval is still active, not completed). No-op if the id is unknown. `resume.failed` is NOT a terminal event — a failed resume leaves the approval pending (transient), and is ignored by this projection.
   - Non-approval events and events without a string `approvalId` are ignored.
+  - **Timestamps are deterministic:** `requestedAt`/`completedAt` come from `Date.parse(e.timestamp)` — the EventLog timestamp, never `Date.now()`. A malformed/absent timestamp THROWS (invalid event), so replay of the same log always yields identical state.
 
   (`requestedBy` / `capability` are deferred — the current `approval.requested` payload carries `approvalId`/`prompt`/`toolCallId`/`patchProposalId`/`choices`, not those fields. Add them when the payloads do.)
 - **Durable:** implements `DurableProjectionBuilder<ApprovalEntry>` — export/import pending + completed state so resume does not replay.
@@ -276,4 +319,4 @@ This keeps version `1` and is backward compatible with existing 6.5 checkpoint f
 
 - **Registry migration regression** (PR 2): mitigated by the untouched test suite + byte-for-byte equivalence acceptance criterion; PR 2 lands as its own reviewable commit.
 - **Envelope schema change** (PR 3): mitigated by dual-shape load + always-write-new; legacy 6.5 checkpoints keep working.
-- **Approval snapshot semantics ambiguity** (PR 4): bounded by the deterministic `MAX_COMPLETED` cap (no time window); the entry shape is defined in the ApprovalProjection task brief (implementation-planning detail).
+- **Approval snapshot semantics ambiguity** (PR 4): bounded by the deterministic `MAX_COMPLETED` cap (no time window); the entry shape and reconciliation rules are defined in this spec's ApprovalProjection section.
