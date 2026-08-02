@@ -1,4 +1,4 @@
-import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TimelineEmitContext, TuiAppState } from './state.js';
+import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
 import { createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot, RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
@@ -23,6 +23,7 @@ import { KeyDispatcher } from './key-dispatcher.js';
 import { PaletteModal } from './capabilities/palette.js';
 import { getCapabilityService } from './capabilities/capability-service.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
+import type { CapabilityEmitContext } from './capabilities/invocation-presenter.js';
 import { appendLogEntry } from './log-emit.js';
 
 export interface TuiAppOptions {
@@ -156,7 +157,7 @@ export class TuiApp {
    * no EventLog is wired (unit tests) or the sessionId is missing — the emit
    * is then a no-op (there is no in-memory timeline anymore).
    */
-  private emitCtx(sessionId?: string): TimelineEmitContext | undefined {
+  private emitCtx(sessionId?: string): CapabilityEmitContext | undefined {
     if (!this.opts.eventLog || !sessionId) return undefined;
     return { eventLog: this.opts.eventLog, sessionId };
   }
