@@ -83,33 +83,33 @@ interface CapabilityStat {
 ```ts
 {
   version: 1,
-  openByKey: Array<{ key: string; lifecycle: InvocationLifecycle }>,  // open invocations (key = invocationId)
-  terminalById: Array<{ id: string; entry: CapabilityInvocationEntry }>, // closed invocations
-  closedFirstSequences: string[],                                     // dedup of closed invocations
-  toolCounts: Record<string, { invocationCount: number; failureCount: number; durationMs: number }>,
-  lastSeq: number,                                                    // monotonic-event guard (deterministic replay)
+  stats: Array<{ id: string; stat: CapabilityStat }>,           // per-capability aggregates (both streams, separate fields)
+  open: Array<{ id: string; lifecycle: InvocationLifecycle }>,  // open invocations (key = invocationId)
+  closedInvocations: string[],                                  // terminalized invocationIds (dedup + late-Started suppression)
+  lastSeq: number,                                              // monotonic-event guard (deterministic replay)
 }
 ```
 
-Mirrors the trace builder's open/close matching, extended with the tool-telemetry counters (a separate complementary stream) and the `lastSeq` monotonic guard (Phase 7 deterministic-replay invariant). No `Date.now()`/`Math.random()` in update paths; timestamps come from event `at`/`timestamp` (strict parse, throw on malformed).
+Mirrors the trace builder's open/close matching, extended with the tool-telemetry counters and the `lastSeq` monotonic guard (Phase 7 deterministic-replay invariant). The tool counters are folded onto each `CapabilityStat` as separate fields (`toolInvocationCount`/`toolFailureCount`/`toolDurationMs`) — the two streams stay non-overlapping counter sets, never merged. `closedInvocations` (the trace builder's `closedFirstSequences` analog, keyed by `invocationId`) keeps a closed invocation closed: a NEW-seq duplicate terminal or a late `Started` can never re-open or re-count it. No `Date.now()`/`Math.random()` in update paths; timestamps come from event `at`/`timestamp` (strict parse, throw on malformed).
 
 ## Duration computation
 
-`durationMs = terminal.at − started.at` for an invocation (the trace builder does the same). A terminal event without its start (unknown `invocationId`) is a no-op — never synthesizes a duration.
+`durationMs = terminal.at − started.at` for an invocation (the trace builder does the same). A terminal event without its start (no recorded open lifecycle) is a stats no-op — never synthesizes a duration — but still terminalizes its invocation, so a late `Started` cannot reconstruct it.
 
 ## Registration + surface
 
 - **Register:** on the outer runtime collector (`src/cli/commands/tui.ts`), `projectionRuntime.register(ProjectionIds.capability, new CapabilityProjection())`. `ProjectionIds.capability = 'capability'`.
 - **RuntimeSnapshot:** gains `readonly capabilities: CapabilityProjectionSnapshot | null` (a typed field, not the generic `projections` map). Assembled in `RuntimeCollectorImpl.sample()` via `snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null`.
 - **Consumer (Option B):** the Capabilities tab's right detail pane gains an **Activity** block for the selected capability — its invocation stats (`invocationCount`, `invocationSucceeded`, `invocationFailed`, `invocationCancelled`, avg duration, last invocation, tool-telemetry counters) alongside the existing metadata. The list/inventory stays on the live registry.
+- **Consumer (tab-level summary):** the tab renders a one-line summary above the inventory — `active invocations: N` from the snapshot's top-level `activeInvocations` — an immediate "what's running now?" count (the Goal's *currently-running* answered at tab level). It is snapshot-driven, like the rest of the projection surface, and never renders per-capability.
 
 ## Key design decisions
 
 1. **Invocation identity:** keyed by `invocationId` (from `InvocationStarted`), closed by a terminal event (`Completed`/`Failed`/`Cancelled`). Open/close matching = the trace builder's pattern.
 2. **Duration:** computed `terminal.at − started.at`, never `Date.now()`. No synthetic durations for unknown-start terminals.
-3. **Strictly single-pass — late Started does NOT retroactively reconstruct:** a terminal event without its `Started` is a no-op, and a `Started` arriving after its terminal does NOT reconstruct the completed invocation. The projection is single-pass over the monotonic event stream; no buffering or reconciliation backfill. This preserves deterministic replay (a replay produces identical state).
+3. **Strictly single-pass — late Started does NOT retroactively reconstruct:** a terminal event without its `Started` is a stats no-op (no synthetic duration, no fabricated `invocationCount`) but still terminalizes its invocation (recorded in `closedInvocations`), and a `Started` arriving after its terminal does NOT reconstruct the completed invocation — the terminalized invocation is never re-opened, so a NEW-seq duplicate terminal can never re-count it either. The projection is single-pass over the monotonic event stream; no buffering or reconciliation backfill. This preserves deterministic replay (a replay produces identical state).
 4. **Unknown capabilities appear in the projection:** a `tool.completed` with `canonicalCapability: "foo.bar"` appears even if the registry no longer contains `foo.bar`. Projections represent historical facts; a capability disappearing from the registry must not erase history.
-5. **Deterministic replay:** no clock in update paths; strict timestamp parse; `lastSeq` monotonic guard in durable state.
+5. **Deterministic replay:** no clock in update paths; strict timestamp parse; `lastSeq` monotonic guard in durable state — an already-applied seq is SKIPPED (idempotent against the collector's at-least-once re-read path: a throw would roll back `updateAll` and stall the checkpoint permanently), never thrown on.
 6. **Inventory vs activity separation:** the live registry stays authoritative for what capabilities exist + availability/health; the projection is authoritative for how they behave. **The projection NEVER queries `CapabilityRegistry`** — the two are independent read models sharing only `capabilityId`.
 7. **`activeInvocations`** derived from `openByKey.size` at snapshot time — immediate "what's running now?" answer.
 
@@ -119,10 +119,10 @@ Mirrors the trace builder's open/close matching, extended with the tool-telemetr
 - ✅ Invocation lifecycle and tool telemetry are two complementary streams feeding separate, non-overlapping counter sets.
 - ✅ **The projection never queries `CapabilityRegistry`** — registry and projection are independent read models sharing only `capabilityId` (the registry stays authoritative for inventory; the projection for activity).
 - ✅ Durable state round-trips through exportState/importState (restart reconstructs directly, no replay).
-- ✅ Deterministic replay: no `Date.now()` in update paths; monotonic `lastSeq` guard; strict timestamp parse; strictly single-pass (a late `Started` after its terminal does NOT retroactively reconstruct).
+- ✅ Deterministic replay: no `Date.now()` in update paths; idempotent `lastSeq` guard (an already-applied seq is skipped, never thrown — safe under the collector's at-least-once re-read path); strict timestamp parse; strictly single-pass (a late `Started` after its terminal does NOT retroactively reconstruct).
 - ✅ Unknown capabilities appear in the projection (historical facts outlive the registry).
 - ✅ `RuntimeSnapshot.capabilities` is a typed field; the Capabilities-tab detail pane shows the selected capability's activity.
-- ✅ Existing `tests/tui/runtime` stay green; new CapabilityProjection tests cover invocation lifecycle reconciliation, duration computation, tool-telemetry counters (no double counting), durable round-trip, deterministic replay, reset.
+- ✅ Existing `tests/tui/runtime` stay green; new CapabilityProjection tests cover invocation lifecycle reconciliation, duration computation, tool-telemetry counters (no double counting), durable round-trip, deterministic replay (idempotent on an at-least-once replay of already-seen seqs), NEW-seq duplicate-terminal dedup (a closed invocation never re-counts), late-`Started`-after-terminal suppression, reset.
 - ✅ The live registry tab's inventory behavior is unchanged (two independent data sources).
 
 ## Global constraints

@@ -104,9 +104,27 @@ describe('CapabilityProjection', () => {
     const p = new CapabilityProjection();
     p.update([evt('capability.InvocationFailed', { invocationId: 'i1', error: 'x' }, 1, 1000)]);
     p.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'repo.read' }, 2, 2000)]);
-    // The late Started creates a NEW open invocation (i1 now open again), not a
-    // reconstruction of the failed one. The failed terminal left no stat.
-    expect(p.snapshot().activeInvocations).toBe(1);   // the late Started is now open
+    // Spec decision #3: a terminal marks its invocation terminalized even when
+    // no Started was seen (a stats no-op), so the late Started is a NO-OP — it
+    // must NOT open a fresh entry (which would leak a phantom active invocation
+    // for a completed lifecycle). The failed terminal left no stat.
+    expect(p.snapshot().activeInvocations).toBe(0);
+    expect(p.snapshot().capabilities).toEqual({});
+  });
+
+  it('a NEW-seq duplicate terminal never double-counts a closed invocation', () => {
+    const p = new CapabilityProjection();
+    p.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'filesystem.read' }, 1, 1000)]);
+    p.update([evt('capability.InvocationCompleted', { invocationId: 'i1' }, 2, 3000)]);
+    // A duplicate terminal with a NEW seq for the same (now closed) invocation is
+    // a no-op — closed invocations are tracked (closedInvocations), so neither a
+    // late Started nor a NEW-seq duplicate terminal can re-open or re-count it.
+    p.update([evt('capability.InvocationCompleted', { invocationId: 'i1' }, 3, 5000)]);
+    const stat = p.snapshot().capabilities['filesystem.read']!;
+    expect(stat.invocationCount).toBe(1);
+    expect(stat.invocationSucceeded).toBe(1);
+    expect(stat.invocationTotalDurationMs).toBe(2000);
+    expect(p.snapshot().activeInvocations).toBe(0);
   });
 
   it('tracks tool telemetry as a separate non-overlapping counter set', () => {
@@ -137,10 +155,22 @@ describe('CapabilityProjection', () => {
     expect(p2.snapshot()).toEqual(p.snapshot());
   });
 
-  it('rejects non-monotonic events (deterministic replay)', () => {
+  it('is idempotent on an at-least-once replay of already-seen seqs', () => {
     const p = new CapabilityProjection();
-    p.update([evt('tool.completed', { toolCallId: 't1', canonicalCapability: 'a.b', durationMs: 1 }, 1, 1000)]);
-    expect(() => p.update([evt('tool.completed', { toolCallId: 't2', canonicalCapability: 'a.b', durationMs: 1 }, 1, 1000)])).toThrow(/non-monotonic/);
+    const batch = [
+      evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'filesystem.read' }, 1, 1000),
+      evt('capability.InvocationCompleted', { invocationId: 'i1' }, 2, 3000),
+      evt('tool.completed', { toolCallId: 't1', canonicalCapability: 'filesystem.read', durationMs: 100 }, 3, 4000),
+    ];
+    p.update(batch);
+    const first = p.snapshot();
+    // The collector's save-failure path re-reads the SAME events on the next
+    // sample ("idempotent builders by seq") — re-feeding them must not throw
+    // nor double-count any counter.
+    p.update(batch);
+    expect(p.snapshot()).toEqual(first);
+    expect(p.snapshot().capabilities['filesystem.read']!.invocationCount).toBe(1);
+    expect(p.snapshot().capabilities['filesystem.read']!.toolInvocationCount).toBe(1);
   });
 
   it('reset clears everything', () => {
@@ -213,27 +243,42 @@ interface InvocationLifecycle {
  * Lifecycle-reconciliation projection over capability invocations (primary)
  * + tool telemetry (complementary, never merged). Two independent streams:
  *   - Invocation lifecycle: capability.InvocationStarted/Completed/Failed/Cancelled.
- *   - Tool telemetry: tool.requested/completed/failed (canonicalCapability).
- * Strictly single-pass: a terminal without its Started is a no-op; a late
- * Started after its terminal does NOT retroactively reconstruct. Unknown
- * capabilities appear (history outlives the registry). Never queries the
- * CapabilityRegistry — independent read model sharing only capabilityId.
- * Deterministic replay: no Date.now(); strict timestamp parse; lastSeq guard.
+ *   - Tool telemetry: tool.completed/failed (canonicalCapability) — a
+ *     tool.requested alone records no usage.
+ * Strictly single-pass: a terminal without its Started is a stats no-op but
+ * still terminalizes its invocation; a Started arriving after its terminal
+ * does NOT retroactively reconstruct (closedInvocations). A NEW-seq duplicate
+ * terminal never re-counts. Unknown capabilities appear (history outlives the
+ * registry). Never queries the CapabilityRegistry — independent read model
+ * sharing only capabilityId.
+ * Deterministic replay: no Date.now(); strict timestamp parse; the lastSeq
+ * guard SKIPS already-applied seqs — idempotent against the collector's
+ * at-least-once re-read path.
  */
 export class CapabilityProjection implements DurableProjectionBuilder<CapabilityProjectionSnapshot> {
   private readonly stats = new Map<string, CapabilityStat>();
   private readonly open = new Map<string, InvocationLifecycle>();   // key: invocationId
+  /** InvocationIds terminalized. Once closed, neither a late Started nor a
+   *  NEW-seq duplicate terminal can re-open or re-count (durable state). */
+  private readonly closedInvocations = new Set<string>();
   private lastSeq = 0;
 
   update(events: readonly AlixEvent[]): void {
     for (const e of events) {
-      if (e.seq < this.lastSeq) throw new Error(`capability projection: non-monotonic event sequence (${e.seq} < ${this.lastSeq})`);
+      // Idempotent against at-least-once replays: on the collector's
+      // save-failure path the next sample re-reads the same events, so an
+      // already-applied seq is SKIPPED, never re-counted and never thrown on
+      // (a throw would roll back updateAll and stall the checkpoint).
+      if (e.seq <= this.lastSeq) continue;
       this.lastSeq = e.seq;
       if (e.type === 'capability.InvocationStarted') {
         const p = (e.payload ?? {}) as Record<string, unknown>;
         const invocationId = typeof p.invocationId === 'string' ? p.invocationId : undefined;
         const capabilityId = typeof p.capabilityId === 'string' ? p.capabilityId : undefined;
         if (!invocationId || !capabilityId) continue;
+        // A Started arriving after its terminal does NOT reconstruct — never
+        // re-open a terminalized invocation (spec key decision #3).
+        if (this.closedInvocations.has(invocationId)) continue;
         this.open.set(invocationId, { invocationId, capabilityId, startedAt: parseAt(e, 'at') });
         continue;
       }
@@ -242,29 +287,36 @@ export class CapabilityProjection implements DurableProjectionBuilder<Capability
         const invocationId = typeof p.invocationId === 'string' ? p.invocationId : undefined;
         if (!invocationId) continue;
         const open = this.open.get(invocationId);
-        if (!open) continue;   // terminal without start → no-op
-        const endedAt = parseAt(e, 'at');
-        const stat = this.touch(open.capabilityId);
-        stat.invocationCount++;
-        if (e.type === 'capability.InvocationCompleted') stat.invocationSucceeded++;
-        else if (e.type === 'capability.InvocationFailed') stat.invocationFailed++;
-        else stat.invocationCancelled++;
-        stat.invocationTotalDurationMs += Math.max(0, endedAt - open.startedAt);
-        stat.lastInvocationAt = Math.max(stat.lastInvocationAt ?? 0, endedAt);
-        this.open.delete(invocationId);
+        if (open) {
+          const endedAt = parseAt(e, 'at');
+          const stat = this.touch(open.capabilityId);
+          stat.invocationCount++;
+          if (e.type === 'capability.InvocationCompleted') stat.invocationSucceeded++;
+          else if (e.type === 'capability.InvocationFailed') stat.invocationFailed++;
+          else stat.invocationCancelled++;
+          stat.invocationTotalDurationMs += Math.max(0, endedAt - open.startedAt);
+          stat.lastInvocationAt = Math.max(stat.lastInvocationAt ?? 0, endedAt);
+          this.open.delete(invocationId);
+        }
+        // Terminalize REGARDLESS of whether a Started was seen — a terminal
+        // marks its invocation closed (spec decision #3), so a late Started or
+        // a NEW-seq duplicate terminal can never re-open or re-count it. When
+        // no open lifecycle existed the terminal is still a stats no-op.
+        this.closedInvocations.add(invocationId);
         continue;
       }
       if (e.type === 'tool.requested' || e.type === 'tool.completed' || e.type === 'tool.failed') {
+        // Only completed/failed represent measured usage — a requested that
+        // never resolves contributes nothing (no phantom zero-stat entry).
+        if (e.type === 'tool.requested') continue;
         const p = (e.payload ?? {}) as Record<string, unknown>;
         const cap = typeof p.canonicalCapability === 'string' ? p.canonicalCapability : undefined;
         if (!cap) continue;
         const stat = this.touch(cap);
-        if (e.type === 'tool.completed' || e.type === 'tool.failed') {
-          stat.toolInvocationCount++;
-          if (e.type === 'tool.failed') stat.toolFailureCount++;
-          const dur = p.durationMs;
-          if (typeof dur === 'number') stat.toolDurationMs += dur;
-        }
+        stat.toolInvocationCount++;
+        if (e.type === 'tool.failed') stat.toolFailureCount++;
+        const dur = p.durationMs;
+        if (typeof dur === 'number') stat.toolDurationMs += dur;
       }
     }
   }
@@ -278,6 +330,7 @@ export class CapabilityProjection implements DurableProjectionBuilder<Capability
   reset(): void {
     this.stats.clear();
     this.open.clear();
+    this.closedInvocations.clear();
     this.lastSeq = 0;
   }
 
@@ -286,29 +339,37 @@ export class CapabilityProjection implements DurableProjectionBuilder<Capability
       version: 1,
       stats: [...this.stats.entries()].map(([id, s]) => ({ id, stat: { ...s } })),
       open: [...this.open.entries()].map(([id, lc]) => ({ id, lifecycle: { ...lc } })),
+      closedInvocations: [...this.closedInvocations],
       lastSeq: this.lastSeq,
     };
   }
 
   importState(state: ProjectionState): void {
-    const s = state as { version?: unknown; stats?: unknown; open?: unknown; lastSeq?: unknown };
-    if (s?.version !== 1 || !Array.isArray(s.stats) || !Array.isArray(s.open) || typeof s.lastSeq !== 'number') {
+    const s = state as { version?: unknown; stats?: unknown; open?: unknown; closedInvocations?: unknown; lastSeq?: unknown };
+    if (s?.version !== 1 || !Array.isArray(s.stats) || !Array.isArray(s.open) || !Array.isArray(s.closedInvocations) || typeof s.lastSeq !== 'number') {
       throw new Error('capability projection state: invalid or unsupported version');
     }
-    // Validate BEFORE mutating.
+    // Validate BEFORE mutating — stat counters AND open-lifecycle startedAt get
+    // the same isFinite rigor (NaN/Infinity rejected), so a corrupt checkpoint
+    // throws cleanly, never silently corrupting runtime counters.
     for (const { id, stat } of s.stats as Array<{ id: unknown; stat: unknown }>) {
       if (typeof id !== 'string' || typeof stat !== 'object' || stat === null) throw new Error('capability projection state: malformed stat');
     }
     for (const { id, lifecycle } of s.open as Array<{ id: unknown; lifecycle: unknown }>) {
       const lc = lifecycle as Partial<InvocationLifecycle>;
-      if (typeof id !== 'string' || typeof lc !== 'object' || lc === null || typeof lc.capabilityId !== 'string' || typeof lc.startedAt !== 'number') {
+      if (typeof id !== 'string' || typeof lc !== 'object' || lc === null || typeof lc.capabilityId !== 'string' || typeof lc.startedAt !== 'number' || !Number.isFinite(lc.startedAt)) {
         throw new Error('capability projection state: malformed open lifecycle');
       }
     }
+    for (const id of s.closedInvocations as unknown[]) {
+      if (typeof id !== 'string') throw new Error('capability projection state: malformed closedInvocations entry');
+    }
     this.stats.clear();
     this.open.clear();
+    this.closedInvocations.clear();
     for (const { id, stat } of s.stats as Array<{ id: string; stat: CapabilityStat }>) this.stats.set(id, { ...stat });
     for (const { id, lifecycle } of s.open as Array<{ id: string; lifecycle: InvocationLifecycle }>) this.open.set(id, { ...lifecycle });
+    for (const id of s.closedInvocations as string[]) this.closedInvocations.add(id);
     this.lastSeq = s.lastSeq;
   }
 

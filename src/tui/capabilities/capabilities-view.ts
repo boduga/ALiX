@@ -89,9 +89,13 @@ export class CapabilitiesView implements TuiView {
     if (detail.dependencies?.length) lines.push(`depends on: ${detail.dependencies.join(', ')}`);
     // Activity block (Increment A): per-capability runtime stats from the
     // outer collector's CapabilityProjection. Only rendered when the selected
-    // capability has a stat — never render zeros for uninvoked capabilities.
-    const stat = snap?.runtime?.capabilities?.capabilities?.[detail.id];
-    if (stat) {
+    // capability has measured activity — never render zeros for uninvoked
+    // capabilities, and never a misleading "activity: 0 invocations" for a
+    // capability whose tool request never resolved (the projection records no
+    // usage for an unresolved request, but the guard is belt-and-suspenders).
+    const projection = snap?.runtime?.capabilities;
+    const stat = projection?.capabilities?.[detail.id];
+    if (stat && (stat.invocationCount > 0 || stat.toolInvocationCount > 0)) {
       lines.push('');
       lines.push(`activity: ${stat.invocationCount} invocations`);
       lines.push(`  succeeded: ${stat.invocationSucceeded}  failed: ${stat.invocationFailed}  cancelled: ${stat.invocationCancelled}`);

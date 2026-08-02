@@ -41,9 +41,27 @@ describe('CapabilityProjection', () => {
     const p = new CapabilityProjection();
     p.update([evt('capability.InvocationFailed', { invocationId: 'i1', error: 'x' }, 1, 1000)]);
     p.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'repo.read' }, 2, 2000)]);
-    // The late Started creates a NEW open invocation (i1 now open again), not a
-    // reconstruction of the failed one. The failed terminal left no stat.
-    expect(p.snapshot().activeInvocations).toBe(1);   // the late Started is now open
+    // Spec key decision #3: the late Started is a NO-OP — the invocation is
+    // already terminalized, so it must not re-open (which would leak a phantom
+    // active invocation for a completed lifecycle). The failed terminal left
+    // no stat; nothing may appear after the late Start either.
+    expect(p.snapshot().activeInvocations).toBe(0);
+    expect(p.snapshot().capabilities).toEqual({});
+  });
+
+  it('a NEW-seq duplicate terminal never double-counts a closed invocation', () => {
+    const p = new CapabilityProjection();
+    p.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'filesystem.read' }, 1, 1000)]);
+    p.update([evt('capability.InvocationCompleted', { invocationId: 'i1' }, 2, 3000)]);
+    // A duplicate terminal with a NEW seq for the same (now closed) invocation
+    // must be a no-op — the closed invocation is tracked so a late/duplicate
+    // terminal cannot re-count invocationCount or invocationTotalDurationMs.
+    p.update([evt('capability.InvocationCompleted', { invocationId: 'i1' }, 3, 5000)]);
+    const stat = p.snapshot().capabilities['filesystem.read']!;
+    expect(stat.invocationCount).toBe(1);
+    expect(stat.invocationSucceeded).toBe(1);
+    expect(stat.invocationTotalDurationMs).toBe(2000);
+    expect(p.snapshot().activeInvocations).toBe(0);
   });
 
   it('tracks tool telemetry as a separate non-overlapping counter set', () => {
@@ -74,10 +92,22 @@ describe('CapabilityProjection', () => {
     expect(p2.snapshot()).toEqual(p.snapshot());
   });
 
-  it('rejects non-monotonic events (deterministic replay)', () => {
+  it('is idempotent on an at-least-once replay of already-seen seqs', () => {
     const p = new CapabilityProjection();
-    p.update([evt('tool.completed', { toolCallId: 't1', canonicalCapability: 'a.b', durationMs: 1 }, 1, 1000)]);
-    expect(() => p.update([evt('tool.completed', { toolCallId: 't2', canonicalCapability: 'a.b', durationMs: 1 }, 1, 1000)])).toThrow(/non-monotonic/);
+    const batch = [
+      evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'filesystem.read' }, 1, 1000),
+      evt('capability.InvocationCompleted', { invocationId: 'i1' }, 2, 3000),
+      evt('tool.completed', { toolCallId: 't1', canonicalCapability: 'filesystem.read', durationMs: 100 }, 3, 4000),
+    ];
+    p.update(batch);
+    const first = p.snapshot();
+    // The collector's save-failure path re-reads the SAME events on the next
+    // sample ("idempotent builders by seq") — re-feeding them must not throw
+    // nor double-count any counter.
+    p.update(batch);
+    expect(p.snapshot()).toEqual(first);
+    expect(p.snapshot().capabilities['filesystem.read']!.invocationCount).toBe(1);
+    expect(p.snapshot().capabilities['filesystem.read']!.toolInvocationCount).toBe(1);
   });
 
   it('throws on a malformed event timestamp (deterministic replay)', () => {
@@ -90,7 +120,32 @@ describe('CapabilityProjection', () => {
 
   it('importState rejects a malformed stat counter field', () => {
     const p = new CapabilityProjection();
-    expect(() => p.importState({ version: 1, stats: [{ id: 'a.b', stat: { invocationCount: 'banana' } }], open: [], lastSeq: 1 } as never)).toThrow(/malformed stat/);
+    expect(() => p.importState({ version: 1, stats: [{ id: 'a.b', stat: { invocationCount: 'banana' } }], open: [], closedInvocations: [], lastSeq: 1 } as never)).toThrow(/malformed stat/);
+  });
+
+  it('importState rejects a malformed open lifecycle timestamp (isFinite rigor)', () => {
+    const p = new CapabilityProjection();
+    // The startedAt field gets the SAME isFinite rigor as the stat counters —
+    // NaN must be rejected, not silently accepted.
+    expect(() => p.importState({ version: 1, stats: [], open: [{ id: 'i1', lifecycle: { invocationId: 'i1', capabilityId: 'a.b', startedAt: NaN } }], closedInvocations: [], lastSeq: 1 } as never)).toThrow(/malformed open lifecycle/);
+  });
+
+  it('importState rejects a malformed closedInvocations entry', () => {
+    const p = new CapabilityProjection();
+    expect(() => p.importState({ version: 1, stats: [], open: [], closedInvocations: [42], lastSeq: 1 } as never)).toThrow(/malformed closedInvocations/);
+  });
+
+  it('exportState/importState round-trips a terminalized invocation as closed', () => {
+    const p = new CapabilityProjection();
+    p.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'a.b' }, 1, 1000)]);
+    p.update([evt('capability.InvocationCompleted', { invocationId: 'i1' }, 2, 2000)]);
+    const p2 = new CapabilityProjection();
+    p2.importState(p.exportState());
+    expect(p2.snapshot()).toEqual(p.snapshot());
+    // After a restart the closed invocation must STILL be terminalized: a late
+    // Started must remain a no-op across the durable round-trip.
+    p2.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'a.b' }, 3, 3000)]);
+    expect(p2.snapshot().activeInvocations).toBe(0);
   });
 
   it('reset clears everything', () => {
