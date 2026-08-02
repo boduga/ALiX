@@ -8,9 +8,10 @@
  *   - snapshot() → returns frozen cache
  *
  * Consumption is INCREMENTAL: each sample reads only events after the last
- * checkpoint cursor via `EventLog.readSince`, reconciles them into the
- * IncrementalExecutionTraceBuilder, and advances the checkpoint only after the
- * next checkpoint has been durably saved (D5 — save-as-commit-marker). The
+ * checkpoint cursor via `EventLog.readSince`, dispatches them to the
+ * registered projections via the ProjectionRuntime, and advances the
+ * checkpoint only after the next checkpoint has been durably saved
+ * (D5 — save-as-commit-marker). The
  * checkpoint store is constructor-injected; `start()` awaits recovery
  * (initializeCheckpoint) BEFORE the first sample so recovery can never race an
  * incomplete restore (which would wrongly start from beginningCursor). No

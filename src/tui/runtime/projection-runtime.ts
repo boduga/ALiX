@@ -47,8 +47,8 @@ export class ProjectionRollbackError extends Error {
  */
 export class ProjectionRuntime {
   // Map for O(1) duplicate + snapshot lookup; the array preserves explicit
-  // registration order and yields stable RegisteredProjection objects (no
-  // allocation per all() call — this runs every sample cycle).
+  // registration order and yields stable RegisteredProjection objects.
+  // all() returns a defensive copy so consumers cannot mutate the live array.
   private readonly byId = new Map<string, DurableProjectionBuilder<unknown>>();
   private readonly registrations: RegisteredProjection[] = [];
 
@@ -63,7 +63,7 @@ export class ProjectionRuntime {
   }
 
   all(): readonly RegisteredProjection[] {
-    return this.registrations;
+    return [...this.registrations];
   }
 
   /** Transactional batch update. A builder throw rolls back every projection
@@ -111,9 +111,10 @@ export class ProjectionRuntime {
    *  order; state for ids not registered is ignored — rolling-upgrade
    *  safety: an older runtime reading a newer checkpoint drops unknown
    *  projections. Validates the envelope is a plain object (a malicious
-   *  checkpoint like `{ "trace": [] }` or `null` is rejected, not trusted). */
+   *  checkpoint like `{ "trace": [] }`, `null`, or a class instance such as
+   *  `new Date()` is rejected, not trusted). */
   private restoreState(state: ProjectionStateSnapshot): void {
-    if (typeof state !== 'object' || state === null || Array.isArray(state)) {
+    if (!isPlainProjectionObject(state)) {
       throw new Error('Projection snapshot must be a plain object');
     }
     for (const { id, builder } of this.registrations) {
@@ -138,11 +139,23 @@ export function createProjectionRuntime(
 }
 
 /** Defensive boundary: a builder's exportState must produce a plain object
- *  (durable state is JSON-serializable only). A builder returning a primitive
- *  or array would corrupt the checkpoint envelope. */
+ *  (durable state is JSON-serializable only). A builder returning a primitive,
+ *  array, or class instance (e.g. `new Map()`, `new Date()`) would corrupt the
+ *  checkpoint envelope — JSON.stringify would silently reduce them to `{}` or
+ *  an ISO string and lose state. */
 function assertProjectionState(value: unknown): ProjectionState {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isPlainProjectionObject(value)) {
     throw new Error('Projection state must be a plain object');
   }
   return value as ProjectionState;
+}
+
+/** Plain-object check for durable projection state. Accepts both the normal
+ *  Object.prototype and null prototypes — exportState builds a null-proto
+ *  envelope, and a builder may likewise produce a null-proto state object.
+ *  Rejects arrays, class instances (Map/Date/Set), and primitives. */
+function isPlainProjectionObject(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  return proto === Object.prototype || proto === null;
 }

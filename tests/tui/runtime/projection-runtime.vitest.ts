@@ -170,6 +170,9 @@ describe('ProjectionRuntime', () => {
     r.register('a', makeBuilder());
     expect(() => r.importState([] as unknown as ProjectionStateSnapshot)).toThrow(/plain object/);
     expect(() => r.importState(null as unknown as ProjectionStateSnapshot)).toThrow(/plain object/);
+    // A class instance would JSON.stringify to an ISO string / {} — reject it too.
+    expect(() => r.importState(new Date() as unknown as ProjectionStateSnapshot)).toThrow(/plain object/);
+    expect(() => r.importState(new Map() as unknown as ProjectionStateSnapshot)).toThrow(/plain object/);
   });
 
   it('supports an empty runtime (no projections) — platform abstraction works empty', () => {
@@ -180,15 +183,20 @@ describe('ProjectionRuntime', () => {
     r.resetAll();
   });
 
-  it('exportState throws when a builder returns non-plain-object state', () => {
-    const bad: DurableProjectionBuilder<unknown> = {
-      update() {}, snapshot: () => undefined as never, reset() {},
-      exportState: () => [1, 2, 3] as unknown as ProjectionState,   // array — not a plain object
-      importState() {},
-    };
-    const r = new ProjectionRuntime();
-    r.register('bad', bad);
-    expect(() => r.exportState()).toThrow(/plain object/);
+  it('exportState throws when a builder returns non-plain-object state (array, Map, Date)', () => {
+    // Each of these would silently serialize to `{}` / ISO at JSON.stringify —
+    // the guard must reject them, not just an array.
+    const badStates: unknown[] = [[1, 2, 3], new Map(), new Date()];
+    for (const state of badStates) {
+      const bad: DurableProjectionBuilder<unknown> = {
+        update() {}, snapshot: () => undefined as never, reset() {},
+        exportState: () => state as unknown as ProjectionState,
+        importState() {},
+      };
+      const r = new ProjectionRuntime();
+      r.register('bad', bad);
+      expect(() => r.exportState()).toThrow(/plain object/);
+    }
   });
 
   it('a future object-shaped projection registers + round-trips with no infrastructure change', () => {
