@@ -249,12 +249,14 @@ export function appendTimelineEvent(
     };
     const type = kindToType[event.kind];
     if (type) {
+      // Fire-and-forget; rejection is swallowed so an fs failure (ENOSPC /
+      // EACCES) cannot crash the TUI via an unhandled promise rejection.
       void emit.eventLog.append({
         sessionId: emit.sessionId,
         actor: event.kind === 'user' ? 'user' : 'agent',
         type,
         payload: { text: (event as { text?: string }).text, detail: (event as { detail?: string }).detail },
-      });
+      }).catch(() => {});
     }
   }
   const sequence = nextTimelineSequence();

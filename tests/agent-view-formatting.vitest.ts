@@ -70,12 +70,14 @@ function makePerTab(overrides?: Partial<PerTabState>): PerTabState {
 }
 
 /**
- * Seed a conversation as agent-sub-session timeline entries (Phase 6, D6/D9).
- * AgentView reads `ctx.runtime.agent.timeline` filtered to agent-authored
- * kinds (`agent.message` | `agent.reasoning` | `agent.decision`) — NOT the
- * legacy `perTab.timelineEvents`. Entries are interleaved exactly as the
- * pre-projection fixture did (task_i before response_i), each rendered with
- * the ← agent marker.
+ * Seed a conversation as agent-sub-session timeline entries (Phase 6, D6/D9),
+ * aligned with the real emission path (Phase 6 final fix): the operator's
+ * typed prompt lands as `agent.message` and the agent's final summary as
+ * `agent.response`. AgentView reads `ctx.runtime.agent.timeline` filtered to
+ * agent-authored kinds (`agent.message` | `agent.reasoning` | `agent.decision`
+ * | `agent.response`) — NOT the legacy `perTab.timelineEvents`. Entries are
+ * interleaved exactly as the pre-projection fixture did (prompt_i before
+ * summary_i), each rendered with the ← agent marker.
  */
 function seedTurns(user: string[], agent: string[]): TimelineEntry[] {
   const entries: TimelineEntry[] = [];
@@ -88,7 +90,7 @@ function seedTurns(user: string[], agent: string[]): TimelineEntry[] {
     }
     if (i < agent.length) {
       seq += 1;
-      entries.push({ id: `tl-${seq}`, kind: 'agent.message', sessionId: 'agent-1', startedAt: seq, text: agent[i]!, sourceEvents: { firstSequence: seq } });
+      entries.push({ id: `tl-${seq}`, kind: 'agent.response', sessionId: 'agent-1', startedAt: seq, text: agent[i]!, sourceEvents: { firstSequence: seq } });
     }
   }
   return entries;
@@ -216,6 +218,20 @@ describe('AgentView — agent turns', () => {
     const all = [6, 7, 8].map((y) => rowText(c, y)).join('\n');
     expect(all).toContain('first prompt');
     expect(all).toContain('second prompt');
+  });
+
+  it('renders BOTH the typed prompt (agent.message) and the final summary (agent.response)', () => {
+    // Phase 6 final-fix regression: the agent tab's own conversation emits
+    // `agent.message` for the prompt and `agent.response` for the summary;
+    // the agent view filter must render both (previously the filter excluded
+    // everything but the task-loop's agent.message/reasoning/decision trace).
+    const c = renderOnCanvas(W, COMPACT, makePerTab(), MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['summarize the run'], ['The run completed: 3 steps.'])));
+    const all = allText(c, 12);
+    expect(all).toContain('summarize the run');
+    expect(all).toContain('The run completed: 3 steps.');
+    // Both render with the ← agent marker.
+    expect(cellAt(c, 0, 6).char).toBe('←');
+    expect(cellAt(c, 0, 6).style).toContain('36m');
   });
 });
 

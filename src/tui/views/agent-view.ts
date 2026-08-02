@@ -84,7 +84,7 @@ export class AgentView implements TuiView {
     // tab is the execution workspace; the chat tab is the operator
     // narrative).
     const turns: { kind: 'agent'; text: string }[] = (ctx.runtime?.agent?.timeline ?? [])
-      .filter((e) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision')
+      .filter((e) => e.kind === 'agent.message' || e.kind === 'agent.reasoning' || e.kind === 'agent.decision' || e.kind === 'agent.response')
       .map((e) => ({ kind: 'agent', text: e.text ?? '' }));
     const scrollbackTop = 6;
     const scrollbackBottom = startY - 1;

@@ -75,7 +75,7 @@ describe('runTui bootstrap (thin)', () => {
   // for the chat/agent timeline projections. The outer collector feeds
   // SnapshotBuilder's `runtime` arg, so snapshot.runtime.trace drives the
   // Phase 4 Runtime tab.
-  it('wires THREE collectors (outer runtime + chat + agent) over one EventLog + shared checkpoint store', { timeout: 15_000 }, async () => {
+  it('wires THREE collectors (outer runtime + chat + agent) over one EventLog, each with its own per-role checkpoint store', { timeout: 15_000 }, async () => {
     const sessionDir = await mkdtemp(join(tmpdir(), 'tui-bootstrap-three-'));
     try {
       const eventLog = new EventLog(sessionDir);

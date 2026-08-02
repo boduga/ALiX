@@ -3,14 +3,14 @@ import type { ProjectionBuilder } from './projection-builder.js';
 
 export type TimelineKind =
   | 'chat.message' | 'chat.response'
-  | 'agent.message' | 'agent.reasoning' | 'agent.decision'
+  | 'agent.message' | 'agent.reasoning' | 'agent.decision' | 'agent.response'
   | 'tool.invocation' | 'approval.requested';
 
 /** The timeline projection's supported vocabulary. A builder must own the
  *  kinds it projects — unrelated event types must not pollute the timeline. */
 export const TIMELINE_TYPES = new Set<TimelineKind>([
   'chat.message', 'chat.response',
-  'agent.message', 'agent.reasoning', 'agent.decision',
+  'agent.message', 'agent.reasoning', 'agent.decision', 'agent.response',
   'tool.invocation', 'approval.requested',
 ]);
 

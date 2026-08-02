@@ -60,7 +60,7 @@ describe('TuiApp -- tab-state preservation', () => {
 describe('TuiApp -- chat-input dispatch', () => {
   /** Project the log's text-bearing events of `type` onto their text — the
    *  single source of truth timeline (the per-tab cache is gone, Phase 6). */
-  async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response'): Promise<string[]> {
+  async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response' | 'agent.message' | 'agent.response'): Promise<string[]> {
     const events = await log.readAll();
     return events.filter((e) => e.type === type).map((e) => (e.payload as { text?: string }).text ?? '');
   }
@@ -235,11 +235,13 @@ describe('TuiApp -- chat-input dispatch', () => {
     await flushed;
     // Agent tab routes chat-first so casual queries don't enter the
     // workflow loop. processTurn stays a fallback when processChat is
-    // unavailable or returns an unhelpful answer.
+    // unavailable or returns an unhelpful answer. The agent tab's own
+    // conversation emits `agent.*` kinds (prompt → agent.message,
+    // summary → agent.response) so the agent view renders it.
     expect(processTurn).toHaveBeenCalledWith('hi');
     expect(processChat).not.toHaveBeenCalled();
-    expect(await timelineTexts(log, 'chat.message')).toEqual(['hi']);
-    expect(await timelineTexts(log, 'chat.response')).toEqual(['[agent] hi']);
+    expect(await timelineTexts(log, 'agent.message')).toEqual(['hi']);
+    expect(await timelineTexts(log, 'agent.response')).toEqual(['[agent] hi']);
   });
 
   it('chat tab Enter calls processChat (not processTurn)', async () => {
@@ -588,7 +590,7 @@ describe('TuiApp — emit into the EventLog (Phase 6)', () => {
     for (const e of events) expect(e.sessionId).toBe('sess-chat');
   });
 
-  it('agent submit emits both entries with the agent sub-session id', async () => {
+  it('agent submit emits agent.message (user) and agent.response (agent) with the agent sub-session id', async () => {
     const { internal, log } = await makeEmitApp();
     (internal.getStateForTest() as { activeTab: string }).activeTab = 'agent';
     const flushed = flushedAfter(log, 2);
@@ -597,7 +599,7 @@ describe('TuiApp — emit into the EventLog (Phase 6)', () => {
     await flushed;
     const events = await log.readAll();
     expect(events).toHaveLength(2);
-    expect(events.map((e) => e.type)).toEqual(['chat.message', 'chat.response']);
+    expect(events.map((e) => e.type)).toEqual(['agent.message', 'agent.response']);
     for (const e of events) expect(e.sessionId).toBe('sess-agent');
   });
 });

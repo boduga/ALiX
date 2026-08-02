@@ -68,12 +68,14 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     // Fire-and-forget; a log-write failure must not fail an already-settled
     // invocation.
     if (this.emitCtx) {
+      // Fire-and-forget; rejection is swallowed so an fs failure (ENOSPC /
+      // EACCES) cannot crash the TUI via an unhandled promise rejection.
       void this.emitCtx.eventLog.append({
         sessionId: this.emitCtx.sessionId,
         actor: 'agent',
         type: 'chat.response',
         payload: { text: capabilityStatusText(event) },
-      });
+      }).catch(() => {});
     }
   }
 

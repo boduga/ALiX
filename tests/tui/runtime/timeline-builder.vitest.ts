@@ -67,4 +67,29 @@ describe('TimelineBuilder', () => {
     const live = b.snapshot().find((e) => e.id === 'tl-1')!;
     expect(live.text).toBe('v1');                            // unchanged
   });
+
+  it('drops events whose type is not in TIMELINE_TYPES (whitelist gate)', () => {
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'workflow.step_started', 's1', { step: 1, totalSteps: 3 }),
+      evt(2, 'tool.started', 's1', { toolCallId: 'tc1', toolName: 'search' }),
+      evt(3, 'runtime.tick', 's1', { tick: 1 }),
+    ]);
+    // None of these unrelated event types belong to the timeline projection —
+    // the whitelist must reject them rather than casting blindly.
+    expect(b.snapshot()).toEqual([]);
+  });
+
+  it('drops foreign-session events AND non-whitelisted events in the same update', () => {
+    const b = new TimelineBuilder('s1');
+    b.update([
+      evt(1, 'chat.message', 's2', { text: 'other session' }),   // wrong sessionId
+      evt(2, 'workflow.completed', 's1', { step: 2 }),            // non-whitelisted type
+      evt(3, 'chat.message', 's1', { text: 'mine' }),             // valid → survives
+    ]);
+    const snap = b.snapshot();
+    expect(snap).toHaveLength(1);
+    expect(snap[0]!.kind).toBe('chat.message');
+    expect(snap[0]!.text).toBe('mine');
+  });
 });

@@ -164,17 +164,28 @@ export class TuiApp {
    * Single-emit a chat-surface entry into the EventLog (Phase 6 D9 cleanup —
    * the EventLog is the single source of truth timeline; the per-tab
    * in-memory cache was removed). Maps the submit kind onto the log
-   * vocabulary: user → chat.message, agent → chat.response. No-op when no
-   * EventLog or sub-session is wired (unit tests). Fire-and-forget append —
-   * a log-write failure must not fail the input path.
+   * vocabulary by DOMAIN (the sessionId is the tab discriminator):
+   *   chat sub-session  → user → chat.message,  agent → chat.response
+   *   agent sub-session → user → agent.message, agent → agent.response
+   * The agent tab's own conversation (typed prompt + final summary) uses the
+   * `agent.*` vocabulary so the agent view's `agent.*` filter renders it.
+   * No-op when no EventLog or sub-session is wired (unit tests). Fire-and-forget
+   * append — a log-write failure must not fail the input path (rejection is
+   * caught; Node ≥15 would otherwise crash the TUI on an unhandled rejection).
    */
   private emitTimelineLog(kind: 'user' | 'agent', text: string, sessionId?: string): void {
     if (!this.opts.eventLog || !sessionId) return;
+    const agentDomain = sessionId === this.opts.agentSessionId;
+    const type = agentDomain
+      ? (kind === 'user' ? 'agent.message' : 'agent.response')
+      : (kind === 'user' ? 'chat.message' : 'chat.response');
     void this.opts.eventLog.append({
       sessionId,
       actor: kind === 'user' ? 'user' : 'agent',
-      type: kind === 'user' ? 'chat.message' : 'chat.response',
+      type,
       payload: { text },
+    }).catch((err) => {
+      process.stderr.write(`[alix-tui] timeline log append failed: ${err instanceof Error ? err.message : String(err)}\n`);
     });
   }
 
