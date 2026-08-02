@@ -190,4 +190,26 @@ describe('ProjectionRuntime', () => {
     r.register('bad', bad);
     expect(() => r.exportState()).toThrow(/plain object/);
   });
+
+  it('a future object-shaped projection registers + round-trips with no infrastructure change', () => {
+    // A hypothetical future projection — proves the platform is genuinely open.
+    class FutureProjection implements DurableProjectionBuilder<{ hello: string }> {
+      private hello = 'world';
+      update() {}                       // no-op for the proof
+      snapshot() { return { hello: this.hello }; }
+      reset() { this.hello = 'world'; }
+      exportState(): ProjectionState { return { hello: this.hello }; }
+      importState(state: ProjectionState) { const s = state as { hello?: unknown }; if (typeof s.hello === 'string') this.hello = s.hello; }
+    }
+    const r = new ProjectionRuntime();
+    r.register('future', new FutureProjection());
+    r.updateAll([]);
+    expect(r.snapshotOf<{ hello: string }>('future')).toEqual({ hello: 'world' });
+    const state = r.exportState();
+    expect(state).toEqual({ future: { hello: 'world' } });
+    const r2 = new ProjectionRuntime();
+    r2.register('future', new FutureProjection());
+    r2.importState(state);
+    expect(r2.snapshotOf<{ hello: string }>('future')).toEqual({ hello: 'world' });
+  });
 });
