@@ -287,6 +287,72 @@ export type ExecutionTraceBuilderState = {
   readonly closedByKey: Array<{ key: string; id: string }>;
 };
 
+/** Structural validation for untrusted persisted state (rides the checkpoint
+ *  envelope). Runs BEFORE importState mutates any Map/Set so a malformed element
+ *  throws cleanly and leaves the builder in its prior (or empty) state — never
+ *  half-imported. Mirrors TimelineBuilder.importState's per-entry validation
+ *  (timeline-builder.ts). Validates the load-bearing fields: what
+ *  update()/materializeTrace() read off the state (kind/title/detailParts/
+ *  startedAt/firstSequence for lifecycles; sourceEvents.firstSequence for
+ *  terminal entries). */
+function assertTraceStateElements(
+  seenSequences: readonly unknown[],
+  openByKey: readonly unknown[],
+  terminalById: readonly unknown[],
+  closedFirstSequences: readonly unknown[],
+  closedByKey: readonly unknown[],
+): void {
+  for (const seq of seenSequences) {
+    if (typeof seq !== 'number') throw new Error('trace projection state: malformed seenSequences entry');
+  }
+  for (const el of openByKey) {
+    if (el == null || typeof el !== 'object') throw new Error('trace projection state: malformed openByKey entry');
+    const { key, lifecycle } = el as { key?: unknown; lifecycle?: unknown };
+    if (typeof key !== 'string') throw new Error('trace projection state: malformed openByKey key');
+    if (lifecycle == null || typeof lifecycle !== 'object') throw new Error('trace projection state: malformed lifecycle');
+    const l = lifecycle as Record<string, unknown>;
+    if (
+      typeof l.kind !== 'string' ||
+      typeof l.title !== 'string' ||
+      !Array.isArray(l.detailParts) ||
+      !l.detailParts.every((p) => typeof p === 'string') ||
+      typeof l.startedAt !== 'number' ||
+      typeof l.firstSequence !== 'number' ||
+      typeof l.lastSequence !== 'number'
+    ) {
+      throw new Error('trace projection state: malformed lifecycle');
+    }
+  }
+  for (const el of terminalById) {
+    if (el == null || typeof el !== 'object') throw new Error('trace projection state: malformed terminalById entry');
+    const { id, entry } = el as { id?: unknown; entry?: unknown };
+    if (typeof id !== 'string') throw new Error('trace projection state: malformed terminalById id');
+    if (entry == null || typeof entry !== 'object') throw new Error('trace projection state: malformed terminal entry');
+    const en = entry as Record<string, unknown>;
+    if (
+      typeof en.id !== 'string' ||
+      typeof en.kind !== 'string' ||
+      typeof en.status !== 'string' ||
+      typeof en.title !== 'string' ||
+      typeof en.startedAt !== 'number' ||
+      en.sourceEvents == null || typeof en.sourceEvents !== 'object' ||
+      typeof (en.sourceEvents as Record<string, unknown>).firstSequence !== 'number'
+    ) {
+      throw new Error('trace projection state: malformed terminal entry');
+    }
+  }
+  for (const id of closedFirstSequences) {
+    if (typeof id !== 'string') throw new Error('trace projection state: malformed closedFirstSequences entry');
+  }
+  for (const el of closedByKey) {
+    if (el == null || typeof el !== 'object') throw new Error('trace projection state: malformed closedByKey entry');
+    const { key, id } = el as { key?: unknown; id?: unknown };
+    if (typeof key !== 'string' || typeof id !== 'string') {
+      throw new Error('trace projection state: malformed closedByKey entry');
+    }
+  }
+}
+
 /** Stateful facade over the shared reconciliation engine. Holds mutable
  *  projection state; publishes fresh immutable snapshots after retention.
  *  Idempotent by event seq — safe against cursor at-least-once replays. */
@@ -343,6 +409,11 @@ export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilde
     ) {
       throw new Error('trace projection state: invalid or unsupported version');
     }
+    // Validate ALL elements BEFORE mutating — a malformed element must throw
+    // cleanly and leave the builder in its prior (or empty) state, never
+    // half-imported (clear() below wipes prior state). State is untrusted
+    // persisted data riding the checkpoint envelope.
+    assertTraceStateElements(s.seenSequences, s.openByKey, s.terminalById, s.closedFirstSequences, s.closedByKey);
     // ExecutionTraceState fields are `readonly` — the field only ever points at
     // the createTraceState() object (reassignment is a design invariant, per the
     // interface docstring). So import rebuilds each Map/Set in place, mirroring
