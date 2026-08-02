@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
 import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
 import { CHECKPOINT_CONTAINER_VERSION } from '../../../src/tui/runtime/projection-checkpoint-store.js';
-import type { EventLog, EventLogCursor } from '../../../src/events/event-log.js';
+import { EventLogCursorError, type EventLog, type EventLogCursor } from '../../../src/events/event-log.js';
 import type { AlixEvent } from '../../../src/events/types.js';
 import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 
@@ -25,7 +25,15 @@ function makeEventLog(): { log: EventLog; append: (type: string, payload?: Recor
       return { events: newer, cursor: makeCursor(last) };
     },
     serializeCursor: (c: EventLogCursor) => JSON.stringify({ version: 1, seq: (c as unknown as { seq: number }).seq }),
-    deserializeCursor: (s: string) => makeCursor(JSON.parse(s).seq),
+    deserializeCursor: (s: string) => {
+      const p = JSON.parse(s) as { version: number; seq: number };
+      if (p.version !== 1) throw new EventLogCursorError('unknown version');
+      // Mirror real EventLog (event-log.ts): a serialized seq beyond the
+      // current head is an invalid cursor — throw so the collector
+      // discriminates the beyond-head recovery path and never trusts state.
+      if (p.seq > seq) throw new EventLogCursorError('Cursor position beyond current EventLog head');
+      return makeCursor(p.seq);
+    },
   } as unknown as EventLog;
   return {
     log,
@@ -108,6 +116,45 @@ describe('RuntimeCollectorImpl durable projection state (Phase 6.5)', () => {
     const lastSave = store.saved[store.saved.length - 1]!;
     expect(lastSave.state!.timeline).toBeUndefined();
     expect(lastSave.state!.trace).toBeDefined();
+    collector.stop();
+  });
+
+  it('invalid (beyond-head) cursor discards persisted state and replays from beginningCursor', async () => {
+    const { log, append } = makeEventLog();
+    await append('chat.message', { text: 'hi' }); // current head seq = 1
+    const store = makeCheckpointStore();
+    // Seed a checkpoint whose cursor (seq 999) lies beyond the current head —
+    // invalid per the EventLog contract — while its `state` block IS present.
+    // The collector must NOT trust that state: it has to reset both builders
+    // and replay from beginningCursor() (D12 / global constraint).
+    await store.save({
+      version: CHECKPOINT_CONTAINER_VERSION,
+      cursor: log.serializeCursor({ seq: 999, owner: Symbol('x') } as never),
+      committedAt: 5,
+      state: {
+        timeline: {
+          version: 1,
+          entries: [
+            // A stale entry that replay could never produce — only visible if
+            // the collector wrongly imported persisted state.
+            { id: 'tl-stale', kind: 'chat.message', sessionId: SESSION_ID, startedAt: 1000, text: 'STALE', sourceEvents: { firstSequence: 1 } },
+          ],
+        },
+      },
+    });
+
+    const collector = new RuntimeCollectorImpl({ eventLog: log, checkpointStore: store, sessionId: SESSION_ID, timelineBuilder: makeTimeline(SESSION_ID) });
+    await collector.start();
+    const snap = await collector.snapshot();
+    // State discarded: the timeline is rebuilt by replaying event 1, not the
+    // seeded stale entry. (If persisted state had been trusted, the cursor
+    // would sit at 999 and event 1 would never be re-read.)
+    expect(snap?.timeline.map((e) => e.text)).toEqual(['hi']);
+    // Recovery re-saved a fresh checkpoint: valid cursor at the replayed head,
+    // stale state gone.
+    const lastSave = store.saved[store.saved.length - 1]!;
+    expect((JSON.parse(lastSave.cursor) as { seq: number }).seq).toBe(1);
+    expect(lastSave.state!.timeline!.entries.map((e) => e.text)).toEqual(['hi']);
     collector.stop();
   });
 });
