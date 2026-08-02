@@ -1,5 +1,5 @@
 import type { PerTabState, TimelineEmitContext } from '../state.js';
-import { appendTimelineEvent } from '../state.js';
+import { appendTimelineEvent, capabilityStatusText } from '../state.js';
 import type { TimelineEvent } from '../state.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 
@@ -27,15 +27,18 @@ export class ChatInvocationPresenter implements InvocationPresenter {
   async present({ invocation, capabilityId }: InvocationInput): Promise<void> {
     const state = this.getChatState();
     // appendTimelineEvent returns the actual stored object (never a clone),
-    // so mutating `event` below updates the entry in the timeline. The emit
-    // context (when wired) also routes the append into the EventLog so the
-    // capability completion lands in the chat session's timeline projection.
+    // so mutating `event` below updates the entry in the timeline. Capability
+    // events deliberately do NOT dual-emit here: a `capability → chat.response`
+    // emit at append time would carry status "running" and NO display text —
+    // an invalid empty-text timeline entry. The single authoritative
+    // chat-surface entry is emitted at settlement below with the final status
+    // text (Phase 6: sessionId = projection domain).
     const event = appendTimelineEvent(state, {
       kind: 'capability',
       invocationId: invocation.id,
       capabilityId,
       status: 'running',
-    }, this.emitCtx) as Extract<TimelineEvent, { kind: 'capability' }>;
+    }) as Extract<TimelineEvent, { kind: 'capability' }>;
 
     // Terminal events update the entry live from the invocation's own
     // event stream. No race with the runtime starting: Invocation.events()
@@ -55,6 +58,22 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     // diverged wait() result cannot clobber event-path terminal state.
     if (event.status === 'completed' && event.output === undefined) event.output = result.output;
     if (event.status === 'failed' && event.error === undefined) event.error = result.error;
+
+    // Emit the capability completion into the chat sub-session's timeline
+    // projection with meaningful display text. `chat.response` entries must
+    // always carry non-empty `text` — the capability status line (e.g.
+    // `core.session.list [completed ✓]`) satisfies that display contract. The
+    // status is terminal here (settled above), so every emit carries text.
+    // Fire-and-forget, matching the appendTimelineEvent dual-emit pattern;
+    // a log-write failure must not fail an already-settled invocation.
+    if (this.emitCtx) {
+      void this.emitCtx.eventLog.append({
+        sessionId: this.emitCtx.sessionId,
+        actor: 'agent',
+        type: 'chat.response',
+        payload: { text: capabilityStatusText(event) },
+      });
+    }
   }
 
   private applyEvent(event: Extract<TimelineEvent, { kind: 'capability' }>, evt: CapabilityEvent): void {

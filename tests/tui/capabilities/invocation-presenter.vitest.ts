@@ -110,7 +110,7 @@ describe('ChatInvocationPresenter', () => {
     expect(evt.output).toEqual({ rows: 1 });
   });
 
-  it('dual-emits a chat.response log entry for the capability completion when wired with an emit context (Phase 6)', async () => {
+  it('emits ONE settled chat.response with non-empty status text when wired with an emit context (Phase 6)', async () => {
     const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-inv-')));
     await log.init();
     const state = createInitialPerTabState();
@@ -128,8 +128,31 @@ describe('ChatInvocationPresenter', () => {
     expect(events[0]!.type).toBe('chat.response');
     expect(events[0]!.sessionId).toBe('sess-chat');
     expect(events[0]!.actor).toBe('agent');
-    // The capability event carries no text/detail — the payload serializes empty.
-    expect(events[0]!.payload).toEqual({});
+    // Display contract: chat.response entries always carry non-empty text.
+    const text = (events[0]!.payload as { text?: string }).text;
+    expect(text).toBeDefined();
+    expect(text!.length).toBeGreaterThan(0);
+    expect(text).toContain('core.session.list [completed ✓]');
+  });
+
+  it('emits a non-empty failed-status chat.response on failure (display contract)', async () => {
+    const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-inv-fail-')));
+    await log.init();
+    const state = createInitialPerTabState();
+    const presenter = new ChatInvocationPresenter(() => state, { eventLog: log, sessionId: 'sess-chat' });
+    const inv = makeInvocation({
+      terminal: { type: 'InvocationFailed', invocationId: 'inv_1', error: 'boom', at: 2 },
+      waitResult: completed('inv_1'),
+    });
+    const flushed = new Promise<void>((resolve) => { log.watch(() => resolve()); });
+    await presenter.present({ invocation: inv, capabilityId: 'core.session.list' });
+    await flushed;
+    const events = await log.readAll();
+    expect(events).toHaveLength(1);
+    const text = (events[0]!.payload as { text?: string }).text;
+    expect(text).toBeDefined();
+    expect(text!.length).toBeGreaterThan(0);
+    expect(text).toContain('core.session.list [failed ✗] boom');
   });
 
   it('keeps in-memory-only behavior when no emit context is wired', async () => {

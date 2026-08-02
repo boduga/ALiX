@@ -230,8 +230,11 @@ export interface TimelineEmitContext {
  *
  * The optional `emit` context routes the same append into the EventLog as a
  * typed log entry. Kind mapping is the Phase-3 in-memory vocabulary only:
- * `user → chat.message`, `agent → chat.response`, `capability → chat.response`
- * (capability completion surfaces on the chat tab). The richer `TimelineKind`
+ * `user → chat.message`, `agent → chat.response`. `capability` is deliberately
+ * NOT mapped: at append time its status is `running` with no display text, so
+ * the mapping would produce an invalid empty-text chat.response — the
+ * capability presenter emits the single authoritative chat-surface entry at
+ * settlement with the final status text instead. The richer `TimelineKind`
  * values (`tool.invocation`, `approval.requested`, ...) are used by
  * `TimelineBuilder` for events that ALREADY carry those log types — this
  * function never maps to them.
@@ -261,7 +264,9 @@ export function appendTimelineEvent(
     const kindToType: Partial<Record<TimelineEvent['kind'], string>> = {
       user: 'chat.message',
       agent: 'chat.response',
-      capability: 'chat.response',                 // capability completion on the chat tab → a chat-surface entry
+      // capability intentionally absent — at append time it is `running` with
+      // no display text; the presenter emits the settled chat-surface entry
+      // (see ChatInvocationPresenter.present).
     };
     const type = kindToType[event.kind];
     if (type) {

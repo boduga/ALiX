@@ -131,21 +131,19 @@ describe('appendTimelineEvent dual-emit (Phase 6, D9)', () => {
     expect(events[0]!.payload).toEqual({ text: 'hi' });
   });
 
-  it('maps agent and capability kinds onto chat.response with the agent actor', async () => {
+  it('maps the agent kind onto chat.response; capability does NOT dual-emit (the presenter owns it)', async () => {
     const log = await makeLog();
     const state = createInitialPerTabState();
-    const flushed = flushedAfter(log, 2);
+    const flushed = flushedAfter(log, 1);
     appendTimelineEvent(state, { kind: 'agent', text: 'ok' }, { eventLog: log, sessionId: 'agent-1' });
     appendTimelineEvent(state, { kind: 'capability', invocationId: 'i1', capabilityId: 'core.x', status: 'running' }, { eventLog: log, sessionId: 'chat-1' });
     await flushed;
     const events = await log.readAll();
-    expect(events).toHaveLength(2);
-    expect(events.map((e) => e.type)).toEqual(['chat.response', 'chat.response']);
+    expect(events).toHaveLength(1);
+    expect(events[0]!.type).toBe('chat.response');
     expect(events[0]!.sessionId).toBe('agent-1');
     expect(events[0]!.actor).toBe('agent');
     expect(events[0]!.payload).toEqual({ text: 'ok' });
-    expect(events[1]!.sessionId).toBe('chat-1');
-    expect(events[1]!.actor).toBe('agent');
   });
 
   it('keeps Phase-3 in-memory semantics when no emit context is given', () => {
