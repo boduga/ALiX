@@ -2,7 +2,8 @@
 
 **Status:** Frozen — reference point for all future work
 **Frozen at:** Phase 6, 2026-08-02
-**Lineage:** Phase 4 (canonical event stream) → Phase 5 (incremental projections) → Phase 5.5 (durable projection checkpoints) → Phase 6 (unified timeline projection)
+**Lineage:** Phase 4 (canonical event stream) → Phase 5 (incremental projections) → Phase 5.5 (durable projection checkpoints) → Phase 6 (unified timeline projection) → Phase 7 (projection platform — registry + arbitrary snapshot shapes)
+**Amended at:** Phase 7, 2026-08-02 — §2 projection contract generalized to arbitrary snapshot shapes (`snapshot(): TSnapshot`); §4 checkpoint wording clarified for the registry-keyed multi-builder envelope (one collector = one checkpoint; per-builder durable state keyed inside it). Invariants unchanged.
 
 This document is the canonical statement of ALiX's event-sourcing architecture. Every subsequent feature — a new projection, a web UI, session replay, a metrics dashboard, a CLI consumer — MUST treat it as the reference. Where this document conflicts with a phase spec, this document wins; if you believe this document is wrong, amend it explicitly (do not silently deviate).
 
@@ -24,15 +25,15 @@ This document is the canonical statement of ALiX's event-sourcing architecture. 
 > **Every projection implements the same lifecycle and derives directly from the EventLog batch.**
 
 ```ts
-interface ProjectionBuilder<T> {
+interface ProjectionBuilder<TSnapshot> {
   update(events: readonly AlixEvent[]): void;   // reconcile; idempotent by event identity, replay-safe
-  snapshot(): readonly T[];                     // fresh immutable DTOs
+  snapshot(): TSnapshot;                        // fresh immutable DTOs — array (timeline/trace) or object (approval)
   reset(): void;                                // wipe in-memory state (recovery / corruption / hot reload)
 }
 ```
 
 - `update` is idempotent by event identity (typically `event.seq`, compounded with the projection's session) — replay-safe under at-least-once cursors.
-- `snapshot` returns **fresh immutable DTOs**, never references into internal state.
+- `snapshot` returns **fresh immutable DTOs**, never references into internal state. The snapshot shape is **arbitrary** (Phase 7 amendment): timeline and trace return arrays (`readonly T[]`); a state-machine projection like `ApprovalProjection` returns an object (`{ pending, completed }`). The contract does not assume a list.
 - `reset` wipes in-memory projection state so a full replay from `beginningCursor()` rebuilds it (see [Checkpoint model](#4-checkpoint-model)).
 - Every builder owns its own reconciliation semantics (append-only, lifecycle matching, terminal-first-wins, …). The contract defines *when* the hooks run, not *how* each projection reconciles.
 
@@ -44,15 +45,16 @@ interface ProjectionBuilder<T> {
 - This is what makes replay deterministic: restoring from `beginningCursor()` rebuilds every projection independently.
 - It is also what makes projections **additive**: adding or removing a projection never requires changing an existing builder.
 
-## 4. Checkpoint model — one projection = one durable checkpoint
+## 4. Checkpoint model — one collector = one durable checkpoint
 
-> **Each projection owns exactly one cursor + one durable checkpoint. Checkpoints advance independently; recovery always rebuilds by replay.**
+> **Each collector owns exactly one cursor + one durable checkpoint. Checkpoints advance independently; recovery always rebuilds by replay.**
 
-- **One projection ↔ one durable checkpoint.** There is no shared cursor or shared checkpoint store across projections — a shared store's log-global watermark starves later-starting collectors (they would recover past events they never consumed).
+- **One collector ↔ one durable checkpoint.** There is no shared cursor or shared checkpoint store across collectors — a shared store's log-global watermark starves later-starting collectors (they would recover past events they never consumed). Within a collector, all its registered builders advance together over the same cursor (the Phase 6 D5 co-advancement invariant); the cursor is a property of the *projection-runtime consumption boundary*, not of individual builders.
+- **Per-builder durable state is keyed inside the envelope** (Phase 7 amendment). One collector's checkpoint envelope carries every registered builder's durable state, keyed by projection id: `{ cursor, committedAt, projections: { [id]: ProjectionState } }`. The pre-Phase-7 `state` field is the Phase 6.5 legacy shape; `load()` accepts both (`projections ?? state`), `save()` always writes `projections`, and the store never migrates. This is *not* per-builder cursor files — that would contradict co-advancement and introduce a second, more complex recovery model.
 - **Independent advancement.** Each collector reads the log on its own schedule and advances its own watermark.
 - **Save-before-publish.** A durable checkpoint advances only *after* the projection state required to reconstruct it has been built AND durably persisted. A published snapshot never represents a checkpoint position that was not durably saved — a crash leaves them aligned.
-- **Recovery = replay.** On a beyond-head cursor, an invalid checkpoint, or corruption, the collector resets the builder (and its accounting) and replays from `beginningCursor()`. Recovery never "patches" state; it rebuilds it. Since Phase 6.5, the projection's durable state (not just the cursor) is persisted alongside the checkpoint in the same save transaction — a valid cursor restores that state directly, while an invalid cursor still rebuilds by replay (persisted state is never trusted on an invalid cursor).
-- The Phase 6 production wiring materializes this as three collectors — runtime (trace-only), chat sub-session, agent sub-session — each with its own store under `projections/<role>/`. Future projections follow the same shape.
+- **Recovery = replay.** On a beyond-head cursor, an invalid checkpoint, or corruption, the collector resets every registered builder (and its accounting) and replays from `beginningCursor()`. Recovery never "patches" state; it rebuilds it. Since Phase 6.5, the projection's durable state (not just the cursor) is persisted alongside the checkpoint in the same save transaction — a valid cursor restores that state directly, while an invalid cursor still rebuilds by replay (persisted state is never trusted on an invalid cursor).
+- The Phase 6 production wiring materializes this as three collectors — runtime (trace-only), chat sub-session, agent sub-session — each with its own store under `projections/<role>/`. Future projections (and the Phase 7 `ProjectionRuntime` registry) follow the same shape: a collector hosts a runtime of registered builders over one checkpoint.
 
 ## 5. Session routing — `sessionId` is the routing key
 
