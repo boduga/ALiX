@@ -1,5 +1,5 @@
 import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TimelineEmitContext, TuiAppState } from './state.js';
-import { appendTimelineEvent, createInitialTuiAppState, formatTimelineEvent, getOrderedTimeline, SessionPhase } from './state.js';
+import { createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot, RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
 import type { RuntimeCollector } from './runtime-collector.js';
@@ -78,7 +78,7 @@ const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'ap
  * timeline and resets plan/scroll fields — it never needs the full
  * PerTabState, so this type keeps the function honest about its surface.
  */
-type TimelineWritableState = Pick<PerTabState, 'timelineEvents' | 'planContent' | 'planTasks' | 'scrollOffset'>;
+type TimelineWritableState = Pick<PerTabState, 'planContent' | 'planTasks' | 'scrollOffset'>;
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -137,37 +137,52 @@ export class TuiApp {
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();
 
-    // Bind the capability service's presenter to this TUI's chat state so
-    // every invocation surfaces in the operator timeline. TuiApp owns the
-    // chat state; the service's module accessor is also set at bootstrap —
-    // the option is redundant but keeps TuiApp usable standalone. The
-    // presenter dual-emits into the chat sub-session (Phase 6).
+    // Bind the capability service's presenter so every invocation emits its
+    // settled chat-surface entry into the chat sub-session's log projection
+    // (Phase 6 — the EventLog is the single source of truth timeline; the
+    // presenter no longer holds any per-tab state). The service's module
+    // accessor is also set at bootstrap — the option is redundant but keeps
+    // TuiApp usable standalone.
     if (this.opts.capabilityService) {
       const svc = this.opts.capabilityService;
-      const presenter = new ChatInvocationPresenter(
-        () => this.state.views.chat,
-        this.emitCtx(this.opts.chatSessionId),
-      );
+      const presenter = new ChatInvocationPresenter(this.emitCtx(this.opts.chatSessionId));
       svc.setPresenter(presenter);
     }
   }
 
   /**
-   * Build the optional dual-emit context for a per-tab sessionId. Returns
-   * undefined when no EventLog is wired (unit tests) or the sessionId is
-   * missing — callers keep their Phase-3 in-memory-only behavior.
+   * Build the emit context for a per-tab sessionId. Returns undefined when
+   * no EventLog is wired (unit tests) or the sessionId is missing — the emit
+   * is then a no-op (there is no in-memory timeline anymore).
    */
   private emitCtx(sessionId?: string): TimelineEmitContext | undefined {
     if (!this.opts.eventLog || !sessionId) return undefined;
     return { eventLog: this.opts.eventLog, sessionId };
   }
 
-  /** Session id stamped for appends landing on `tab`: the chat sub-session on
+  /**
+   * Single-emit a chat-surface entry into the EventLog (Phase 6 D9 cleanup —
+   * the EventLog is the single source of truth timeline; the per-tab
+   * in-memory cache was removed). Maps the submit kind onto the log
+   * vocabulary: user → chat.message, agent → chat.response. No-op when no
+   * EventLog or sub-session is wired (unit tests). Fire-and-forget append —
+   * a log-write failure must not fail the input path.
+   */
+  private emitTimelineLog(kind: 'user' | 'agent', text: string, sessionId?: string): void {
+    if (!this.opts.eventLog || !sessionId) return;
+    void this.opts.eventLog.append({
+      sessionId,
+      actor: kind === 'user' ? 'user' : 'agent',
+      type: kind === 'user' ? 'chat.message' : 'chat.response',
+      payload: { text },
+    });
+  }
+
+  /** Session id stamped for emits landing on `tab`: the chat sub-session on
    *  the chat tab, the agent sub-session on the agent tab, and undefined on any
-   *  other tab (Task 4 attribution reconciliation — the in-memory write and the
-   *  log emit attribute the same event to the same session). Tabs without a
-   *  sub-session (approvals, daemon, runtime, ...) have no collector to project
-   *  their log entries, so their appends stay in-memory only. */
+   *  other tab. Tabs without a sub-session (approvals, daemon, runtime, ...)
+   *  have no collector to project their log entries, so their emits are
+   *  no-ops. */
   private sessionIdForTab(tab: TabId): string | undefined {
     if (tab === 'chat') return this.opts.chatSessionId;
     if (tab === 'agent') return this.opts.agentSessionId;
@@ -393,7 +408,7 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer }, this.emitCtx(this.opts.chatSessionId));
+          this.emitTimelineLog('user', perTab.inputBuffer, this.opts.chatSessionId);
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -434,7 +449,7 @@ export class TuiApp {
       }
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          appendTimelineEvent(perTab, { kind: 'user', text: perTab.inputBuffer }, this.emitCtx(this.opts.agentSessionId));
+          this.emitTimelineLog('user', perTab.inputBuffer, this.opts.agentSessionId);
           void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -607,16 +622,10 @@ export class TuiApp {
         // Try the next candidate rather than giving up.
       }
     }
-    // perTab's narrow type only constrains what dispatchToSession may itself
-    // write; it always includes the timelineEvents write surface that
-    // appendTimelineEvent requires. The dual-emit stamps the sub-session that
-    // matches the submission kind — chat submits route to the chat collector,
-    // agent submits to the agent collector (Phase 6).
-    appendTimelineEvent(
-      perTab,
-      { kind: 'agent', text: summary },
-      this.emitCtx(kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId),
-    );
+    // The single log emit stamps the sub-session that matches the submission
+    // kind — chat submits route to the chat collector, agent submits to the
+    // agent collector (Phase 6). The per-tab in-memory cache is gone.
+    this.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
     perTab.scrollOffset = 0; // auto-scroll to bottom on new response
     this.paintFullFrame();
   }
@@ -907,9 +916,7 @@ export class TuiApp {
     tab: TabId,
     text: string,
   ): void {
-    const state = this.state.views[tab];
-    if (!state) return;
-    appendTimelineEvent(state, { kind: 'agent', text }, this.emitCtx(this.sessionIdForTab(tab)));
+    this.emitTimelineLog('agent', text, this.sessionIdForTab(tab));
   }
 
   /**
@@ -986,17 +993,25 @@ export class TuiApp {
   }
 
   /**
-   * Collect the visible transcript for a tab — the unified operator timeline
-   * (interleaved prompts, responses, and capability invocations) — formatted
+   * Collect the visible transcript for a tab — the log-projected timeline
+   * (interleaved prompts, responses, and capability completions) — formatted
    * for clipboard copy.
    *
-   * Uses the same `getOrderedTimeline`/`formatTimelineEvent` projection as
-   * ChatView and AgentView, so a copied transcript always matches what the
-   * chat tab shows — including capability entries (⚡ …).
+   * Reads the sub-session's `RuntimeSnapshot.timeline` (the EventLog
+   * projection, already session-scoped and ordered by firstSequence) — the
+   * same source ChatView/AgentView render. Chat entries render as `→`/`←`
+   * to match the scrollback; capability completions arrive as `chat.response`
+   * entries carrying their status text. Tabs without a sub-session collector
+   * (dashboard, daemon, ...) have no projection and copy nothing.
    */
   private collectVisibleTranscript(tab: TabId): string {
-    const v = this.state.views[tab];
-    return getOrderedTimeline(v.timelineEvents).map(formatTimelineEvent).join('\n');
+    const runtime = tab === 'chat' ? this.chatRuntime : tab === 'agent' ? this.agentRuntime : null;
+    const lines: string[] = [];
+    for (const e of runtime?.timeline ?? []) {
+      if (e.kind === 'chat.message') lines.push(`→ ${e.text ?? ''}`);
+      else if (e.kind === 'chat.response' || e.kind.startsWith('agent.')) lines.push(`← ${e.text ?? ''}`);
+    }
+    return lines.join('\n');
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */

@@ -4,10 +4,10 @@ import { ChatView } from '../../../src/tui/views/chat-view.js';
 import { TerminalCanvas } from '../../../src/tui/canvas.js';
 
 describe('capability invocation chat entries', () => {
-  it('initializes timelineEvents empty for every tab', () => {
+  it('PerTabState no longer carries the transitional timelineEvents cache (Phase 6 D9 cleanup)', () => {
     const state = createInitialTuiAppState();
     for (const tab of Object.keys(state.views) as TabId[]) {
-      expect(state.views[tab].timelineEvents).toEqual([]);
+      expect(state.views[tab]).not.toHaveProperty('timelineEvents');
     }
   });
 

@@ -20,7 +20,7 @@ function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any; runtime: an
     perTab: overrides.perTab ?? { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: []
+            pendingApprovals: [], resolvedApprovals: []
           },
     canvas: new TerminalCanvas(dims.columns, dims.rows),
     ...(overrides.runtime !== undefined ? { runtime: overrides.runtime } : {}),
@@ -46,7 +46,7 @@ describe('ChatView', () => {
     const perTab = { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: []
+            pendingApprovals: [], resolvedApprovals: []
           };
     const before = JSON.stringify(perTab);
     const c = ctx({ perTab });
@@ -95,7 +95,7 @@ describe('ChatView', () => {
     // user prompt (→), `chat.response` as an agent reply (←).
     const c = ctx({
       perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
-        inputBuffer: '', pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [] },
+        inputBuffer: '', pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [] },
       runtime: {
         chat: {
           trace: [],

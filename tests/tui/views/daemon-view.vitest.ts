@@ -9,7 +9,7 @@ function ctx(snap: any = null): ViewRenderContext {
     perTab: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0,
             inputBuffer: '',
                 pinnedBottom: true,
-            pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
+            pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null
           },
   };
 }

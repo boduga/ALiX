@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SessionPhase, createInitialPerTabState, appendTimelineEvent, type TuiAppState, type PerTabState, type TabId } from '../../src/tui/state.js';
+import { SessionPhase, createInitialPerTabState, createInitialTuiAppState, appendTimelineEvent, type TuiAppState, type PerTabState, type TabId } from '../../src/tui/state.js';
 import { EventLog } from '../../src/events/event-log.js';
 
 describe('SessionPhase enum', () => {
@@ -31,7 +31,7 @@ describe('PerTabState serializability', () => {
       expandedSections: ['a', 'b'],
       lastEventArrivedAt: 1_700_000_000,
       inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
     };
     const rt = JSON.parse(JSON.stringify(original)) as PerTabState;
     expect(rt).toEqual(original);
@@ -45,7 +45,7 @@ describe('PerTabState serializability', () => {
       searchQuery: '',
       expandedSections: [],
     inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
       lastEventArrivedAt: 0,
     };
     expect(() => JSON.stringify(sample)).not.toThrow();
@@ -59,23 +59,23 @@ describe('TuiAppState defaults', () => {
       activeTab: 'chat' as TabId,
       views: {
         dashboard: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         chat: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         agent: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         daemon: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         approvals: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         runtime: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         sops: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         policy: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
         capabilities: { cursor: 0, scrollOffset: 0, searchQuery: '', expandedSections: [], lastEventArrivedAt: 0, inputBuffer: '',
-                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], timelineEvents: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
+                pinnedBottom: true, pendingApprovals: [], resolvedApprovals: [], runtimeTraceFilter: 'all', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null },
       },
       refreshGeneration: 0,
       refreshStatus: 'idle',
@@ -101,7 +101,15 @@ describe('TabId union exhaustiveness', () => {
   });
 });
 
-describe('appendTimelineEvent dual-emit (Phase 6, D9)', () => {
+describe('PerTabState timeline regression (Phase 6 D9 cleanup)', () => {
+  it('no longer carries the transitional timelineEvents[] cache', () => {
+    const state = createInitialPerTabState();
+    expect(state).not.toHaveProperty('timelineEvents');
+    expect(createInitialTuiAppState().views.chat).not.toHaveProperty('timelineEvents');
+  });
+});
+
+describe('appendTimelineEvent deprecated wrapper (Phase 6, D9)', () => {
   /** Deterministic flush of a fire-and-forget EventLog append: the log notifies
    *  watchers AFTER appendFile resolves, so awaiting `count` watch
    *  notifications guarantees the entries are on disk before readAll. */
@@ -146,11 +154,15 @@ describe('appendTimelineEvent dual-emit (Phase 6, D9)', () => {
     expect(events[0]!.payload).toEqual({ text: 'ok' });
   });
 
-  it('keeps Phase-3 in-memory semantics when no emit context is given', () => {
+  it('is a functional shim without an emit context: returns a synthetic event and does not throw', () => {
     const state = createInitialPerTabState();
     const evt = appendTimelineEvent(state, { kind: 'user', text: 'hi' });
-    expect(state.timelineEvents).toHaveLength(1);
+    // The compatibility wrapper does NOT push into any per-tab state.
+    expect(state).not.toHaveProperty('timelineEvents');
     expect(evt.kind).toBe('user');
     expect(evt.source).toBe('operator');
+    expect(typeof evt.timestamp).toBe('number');
+    // No log, no emit — nothing observable happened besides the return value.
+    expect(evt.id).toBe(`tl-${evt.sequence}`);
   });
 });

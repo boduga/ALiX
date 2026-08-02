@@ -51,7 +51,6 @@ test('end-to-end: parse live response, render to canvas', () => {
     pinnedBottom: true, inputBuffer: '', panelScrollOffsets: { approvals: 0, sops: 0 }, panelFocus: null,
     pendingApprovals: [], resolvedApprovals: [],
     runtimeTraceFilter: 'all',
-    timelineEvents: [],
   };
   // AgentView reads the agent sub-session's projected timeline (Phase 6,
   // D6/D9) — NOT the legacy perTab.timelineEvents cache.

@@ -1,5 +1,5 @@
-import type { PerTabState, TimelineEmitContext } from '../state.js';
-import { appendTimelineEvent, capabilityStatusText } from '../state.js';
+import type { TimelineEmitContext } from '../state.js';
+import { capabilityStatusText, nextTimelineSequence } from '../state.js';
 import type { TimelineEvent } from '../state.js';
 import type { Invocation, CapabilityEvent } from '../../capability/types.js';
 
@@ -14,33 +14,34 @@ export interface InvocationPresenter {
 }
 
 /**
- * Routes capability invocations into the chat tab's timeline. The chat
- * tab is the operator's execution history — capabilities are execution
+ * Routes capability invocations into the chat tab's log-projected timeline.
+ * The chat tab is the operator's execution history — capabilities are execution
  * primitives, not a separate surface. Platform-independent.
+ *
+ * Phase 6 (D9): the EventLog is the single source of truth timeline — the
+ * presenter does NOT push into any per-tab state. It tracks the capability
+ * status locally and emits the single authoritative `chat.response` entry at
+ * settlement (with the final status text) via the optional emit context.
  */
 export class ChatInvocationPresenter implements InvocationPresenter {
-  constructor(
-    private readonly getChatState: () => PerTabState,
-    private readonly emitCtx?: TimelineEmitContext,
-  ) {}
+  constructor(private readonly emitCtx?: TimelineEmitContext) {}
 
   async present({ invocation, capabilityId }: InvocationInput): Promise<void> {
-    const state = this.getChatState();
-    // appendTimelineEvent returns the actual stored object (never a clone),
-    // so mutating `event` below updates the entry in the timeline. Capability
-    // events deliberately do NOT dual-emit here: a `capability → chat.response`
-    // emit at append time would carry status "running" and NO display text —
-    // an invalid empty-text timeline entry. The single authoritative
-    // chat-surface entry is emitted at settlement below with the final status
-    // text (Phase 6: sessionId = projection domain).
-    const event = appendTimelineEvent(state, {
+    // Track the capability status locally (never in per-tab state). The
+    // terminal status text is what the log projection displays.
+    const sequence = nextTimelineSequence();
+    const event: Extract<TimelineEvent, { kind: 'capability' }> = {
+      id: `tl-${sequence}`,
+      timestamp: Date.now(),
+      sequence,
+      source: 'capability',
       kind: 'capability',
       invocationId: invocation.id,
       capabilityId,
       status: 'running',
-    }) as Extract<TimelineEvent, { kind: 'capability' }>;
+    };
 
-    // Terminal events update the entry live from the invocation's own
+    // Terminal events update the event from the invocation's own
     // event stream. No race with the runtime starting: Invocation.events()
     // is backed by the AsyncEventQueue, which buffers until consumed.
     for await (const evt of invocation.events()) {
@@ -64,8 +65,8 @@ export class ChatInvocationPresenter implements InvocationPresenter {
     // always carry non-empty `text` — the capability status line (e.g.
     // `core.session.list [completed ✓]`) satisfies that display contract. The
     // status is terminal here (settled above), so every emit carries text.
-    // Fire-and-forget, matching the appendTimelineEvent dual-emit pattern;
-    // a log-write failure must not fail an already-settled invocation.
+    // Fire-and-forget; a log-write failure must not fail an already-settled
+    // invocation.
     if (this.emitCtx) {
       void this.emitCtx.eventLog.append({
         sessionId: this.emitCtx.sessionId,

@@ -27,7 +27,6 @@ function ctx(overrides: Partial<{ snap: any; perTab: any; dims: any }> = {}): Vi
       pinnedBottom: true,
       pendingApprovals: [],
       resolvedApprovals: [],
-      timelineEvents: [],
       panelScrollOffsets: { approvals: 0, sops: 0 },
       panelFocus: null,
     },

@@ -13,7 +13,6 @@ function makePerTab(overrides: Partial<PerTabState> = {}): PerTabState {
     inputBuffer: '',
     pendingApprovals: [],
     resolvedApprovals: [],
-    timelineEvents: [],
     runtimeTraceFilter: 'all',
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
