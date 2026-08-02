@@ -290,6 +290,18 @@ export class IncrementalExecutionTraceBuilder {
   snapshot(): readonly ExecutionTraceEntry[] {
     return this.retention.apply(materializeTrace(this.state));
   }
+
+  /** Wipe the in-memory projection state (D12). Called by the collector on a
+   *  beyond-head / invalid-cursor fallback so a replay from `beginningCursor()`
+   *  reconstructs the projection from scratch — a truncated log can otherwise
+   *  leave stale lifecycles that never get reconciled out. */
+  reset(): void {
+    this.state.seenSequences.clear();
+    this.state.openByKey.clear();
+    this.state.terminalById.clear();
+    this.state.closedFirstSequences.clear();
+    this.state.closedByKey.clear();
+  }
 }
 
 /** Retention policy: running never evicted; terminal sorted oldest→newest by

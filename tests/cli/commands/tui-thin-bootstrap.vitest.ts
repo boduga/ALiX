@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { EventLog } from '../../../src/events/event-log.js';
 import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
+import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
 
 describe('runTui bootstrap (thin)', () => {
   it('exports a runTui function', { timeout: 15_000 }, async () => {
@@ -27,7 +28,15 @@ describe('runTui bootstrap (thin)', () => {
       // sessionDir and INJECTED into the collector (constructor injection —
       // the collector never instantiates the store itself).
       const checkpointStore = new FileProjectionCheckpointStore(sessionDir);
-      const runtimeCollector = new RuntimeCollectorImpl(eventLog, checkpointStore);
+      // Options-object constructor (Task 2): sessionId scopes the projections —
+      // the appended event below carries sessionId 's1', so the collector must
+      // project that session for the trace to populate.
+      const runtimeCollector = new RuntimeCollectorImpl({
+        eventLog,
+        checkpointStore,
+        sessionId: 's1',
+        timelineBuilder: new TimelineBuilder('s1'),
+      });
 
       await eventLog.append({
         type: 'tool.started',

@@ -1,6 +1,7 @@
 import type { SessionPhase } from './state.js';
 import type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
+import type { TimelineEntry } from './runtime/timeline-builder.js';
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
@@ -90,15 +91,22 @@ export interface ApprovalRecordSnapshot {
 
 /**
  * Runtime execution telemetry. `trace` holds the operator-facing lifecycle
- * units (interpretation); `totalEventCount`/`lastEventAt` are raw-log
- * accounting metadata (D7).
+ * units (interpretation); `timeline` holds the append-only chat/agent/tool
+ * narrative for the projected session (D6); `totalEventCount`/`lastEventAt`
+ * are raw-log accounting metadata (D7). `sessionId` names the session this
+ * snapshot projects — every projection (trace, timeline, workflow) is
+ * sessionId-scoped (D1/D3).
  */
 export interface RuntimeSnapshot {
   /** Execution-trace lifecycle units, built from the EventLog. Immutable DTOs. */
   readonly trace: readonly ExecutionTraceEntry[];
+  /** Append-only timeline entries for the projected session, oldest→newest. */
+  readonly timeline: readonly TimelineEntry[];
   readonly workflow: WorkflowStateSnapshot | null;
   readonly totalEventCount: number;
   readonly lastEventAt: number | null;
+  /** The session this snapshot projects. All projections are sessionId-scoped. */
+  readonly sessionId: string;
 }
 
 export interface WorkflowStateSnapshot {

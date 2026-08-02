@@ -9,6 +9,7 @@ import { SnapshotBuilder } from "../../tui/snapshot-builder.js";
 import { DaemonMetricsCollectorImpl, createPlatformMetricsReader } from "../../tui/daemon-metrics-collector.js";
 import { RuntimeCollectorImpl } from "../../tui/runtime-collector.js";
 import { FileProjectionCheckpointStore } from "../../tui/runtime/projection-checkpoint-store.js";
+import { TimelineBuilder } from "../../tui/runtime/timeline-builder.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
 import { PolicyEngine } from "../../policy/policy-engine.js";
 import { SessionPhase } from "../../tui/state.js";
@@ -89,7 +90,17 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   const policy = new PolicyEngine(config as any);
   const daemonMetrics = new DaemonMetricsCollectorImpl(createPlatformMetricsReader());
   const checkpointStore = new FileProjectionCheckpointStore(sessionDir);
-  const runtimeCollector = new RuntimeCollectorImpl(eventLog, checkpointStore);
+  // Task 2: options-object constructor wires BOTH projections on one
+  // checkpoint. The collector is scoped to the outer sessionId — the session
+  // the agent runtime stamps on its events. (Phase 6 Tasks 3-4 derive
+  // chat/agent sub-session ids and hand the collector to each tab; the wiring
+  // stays here at the bootstrap, not in TuiApp.)
+  const runtimeCollector = new RuntimeCollectorImpl({
+    eventLog,
+    checkpointStore,
+    sessionId,
+    timelineBuilder: new TimelineBuilder(sessionId),
+  });
   const sopCollector = new SopCollectorImpl();
 
   // Either the real `createAgentSession` runtime (default) or the

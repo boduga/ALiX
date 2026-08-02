@@ -19,7 +19,7 @@ function render(perTab: PerTabState, trace: ExecutionTraceEntry[]): string {
     session: null,
     daemon: null,
     approvals: null,
-    runtime: { trace, workflow: null, totalEventCount: trace.length, lastEventAt: 3 },
+    runtime: { trace, timeline: [], workflow: null, totalEventCount: trace.length, lastEventAt: 3, sessionId: 'chat-1' },
     sops: null,
     policy: null,
     cwd: '/workspace/test',
@@ -63,9 +63,11 @@ describe('RuntimeView', () => {
       generatedAt: 1, session: null, daemon: null, approvals: null, sops: null, policy: null,
       runtime: {
         trace: [],
+        timeline: [],
         workflow: { name: 'research-and-implement', currentStep: 7, totalSteps: 12, startedAt: 1 },
         totalEventCount: 42,
         lastEventAt: 1,
+        sessionId: 'chat-1',
       },
       cwd: '/workspace/test',
     };
