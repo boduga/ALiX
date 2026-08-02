@@ -315,6 +315,37 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     chat.stop();
   });
 
+  // Task 3.5 regression fix: an OUTER-scoped collector (sessionId = the outer
+  // session, not a sub-session) projects the execution trace from outer-session
+  // runtime/tool events. Capability/tool/runtime events are stamped with the
+  // OUTER sessionId, so this is the collector that must feed SnapshotBuilder's
+  // `runtime` arg (snapshot.runtime.trace → the Phase 4 Runtime tab).
+  it('OUTER-scoped collector projects trace from outer-session events and filters sub-session events', async () => {
+    const { log, append } = makeEventLog();
+    // Runtime/tool events carry the OUTER sessionId; chat/agent tab events
+    // carry their sub-session ids (`${outer}-chat` / `${outer}-agent`).
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' }, 'outer');
+    await append('tool.completed', { toolCallId: 'tc1', toolName: 'search', status: 'success', durationMs: 10 }, 'outer');
+    await append('chat.message', { text: 'hi' }, 'outer-chat');     // sub-session → filtered out
+    await append('agent.message', { text: 'thinking' }, 'outer-agent'); // sub-session → filtered out
+
+    const outer = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: 'outer', timelineBuilder: makeTimeline('outer'),
+    });
+    await outer.start();
+    const snap = await outer.snapshot();
+
+    // The trace sees ONLY the outer-session tool lifecycle (reconciled to its
+    // terminal status) — sub-session events never reach the trace.
+    expect(snap?.sessionId).toBe('outer');
+    expect(snap?.trace).toHaveLength(1);
+    expect(snap?.trace[0]!.kind).toBe('tool');
+    expect(snap?.trace[0]!.status).toBe('completed');
+    // Sub-session chat/agent events are NOT projected into the outer timeline.
+    expect(snap?.timeline.map(e => e.kind)).toEqual([]);
+    outer.stop();
+  });
+
   it('snapshot.timeline + trace coexist (one read, two projections)', async () => {
     const { log, append } = makeEventLog();
     await append('chat.message', { text: 'hi' }, 'chat-1');
