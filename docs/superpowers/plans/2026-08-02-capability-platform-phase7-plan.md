@@ -4,7 +4,7 @@
 
 **Goal:** Turn the projection pattern into a platform — `ProjectionRuntime` owns registration, generic dispatch, durable state, and reset coordination; the collector becomes blind to projection identity; ApprovalProjection proves a third, non-array snapshot shape lands with zero collector/snapshot changes.
 
-**Architecture:** `RuntimeCollectorImpl` keeps temporal orchestration (polling, cursor, session filter, workflow accounting, snapshot publication) but delegates every per-projection operation to a `ProjectionRuntime` it holds. The runtime registers builders by string id, dispatches `updateAll`, extracts `snapshot<T>(id)`, exports/imports a registry-keyed durable envelope, and resets. The projection contract is generalized so the snapshot shape is arbitrary — `ProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` — no longer assuming arrays. Adding a projection = implement `DurableProjectionBuilder`, register it in the composition root (`src/cli/commands/tui.ts`), never touch the collector.
+**Architecture:** `RuntimeCollectorImpl` keeps temporal orchestration (polling, cursor, session filter, workflow accounting, snapshot publication) but delegates every per-projection operation to a `ProjectionRuntime` it holds. The runtime registers builders by string id, dispatches `updateAll`, extracts `snapshotOf<T>(id)`, exports/imports a registry-keyed durable envelope, and resets. The projection contract is generalized so the snapshot shape is arbitrary — `ProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` — no longer assuming arrays. Adding a projection = implement `DurableProjectionBuilder`, register it in the composition root (`src/cli/commands/tui.ts`), never touch the collector.
 
 **Tech Stack:** TypeScript (strict, NodeNext ESM `.js` specifiers), vitest (`tests/**/*.vitest.ts`). Files: `src/tui/runtime/projection-runtime.ts` (new), `src/tui/runtime/approval-projection.ts` (new), `src/tui/runtime/projection-builder.ts`, `src/tui/runtime/durable-projection-builder.ts`, `src/tui/runtime/timeline-builder.ts`, `src/tui/runtime/execution-trace-builder.ts`, `src/tui/runtime/projection-checkpoint-store.ts`, `src/tui/runtime-collector.ts`, `src/cli/commands/tui.ts`.
 
@@ -400,7 +400,7 @@ export function createProjectionRuntime(
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/projection-runtime.vitest.ts`
-Expected: PASS (9 tests).
+Expected: PASS (12 tests).
 
 - [ ] **Step 5: Commit**
 
@@ -671,7 +671,6 @@ export type ProjectionStateSnapshot = Record<string, ProjectionState>;
   });
 ```
 > Use the file's existing `mkdtemp`-per-store pattern; write the legacy + dual files directly (`writeFile`) and assert they load. The `loadFromRaw` is illustrative — write the JSON string to the store's file then call `load()`. The three assertions that matter: (1) `projections` save→load round-trips; (2) a legacy `state` file loads with `state` preserved + `version === 1`; (3) when BOTH are present, the store preserves both and the collector's `loaded.projections ?? loaded.state` picks `projections`.
-> Use the file's existing `mkdtemp`-per-store pattern; write the legacy file directly (`writeFile`) with a `state` key and assert it loads. This snippet is a shape guide — the real assertions that matter: (1) `projections` save→load round-trips; (2) a legacy `state` file loads with `state` preserved + `version === 1`; (3) a non-object envelope still returns null.
 
 - [ ] **Step 3: Run test to verify it fails**
 
@@ -1019,7 +1018,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `npx vitest run tests/tui/runtime/approval-projection.vitest.ts`
-Expected: PASS (8 tests).
+Expected: PASS (10 tests).
 
 - [ ] **Step 5: Register approval on the runtime collector in `src/cli/commands/tui.ts`**
 
@@ -1058,7 +1057,7 @@ git commit -m "feat(capabilities): ApprovalProjection — first registry-native 
 
 ## Self-Review Checklist (controller runs before execution)
 
-1. **Spec coverage** — every Phase-7 spec section has a task: generalized projection contract with arbitrary snapshot shape (T1), `ProjectionState`/`ProjectionStateSnapshot` module extraction + layering fix (T1.5), ProjectionRuntime contract + transactional `updateAll` + tuple factory (T2), collector blind + batch-atomicity + grep-only-owner + `snapshot.timeline === []` (T3), registry-keyed envelope + dual-shape load + version-1 doc (T4), ApprovalProjection {pending, completed} object snapshot + identity/reconciliation + resumed Option A + deterministic timestamps + invalid-decision-throws + importState null-check-order (T5), frozen durable contract (T1), acceptance bar (T3 Step 8, T5 Step 7).
+1. **Spec coverage** — every Phase-7 spec section has a task: generalized projection contract + `ProjectionState`/`ProjectionStateSnapshot` module extraction + layering fix (T1), ProjectionRuntime contract + transactional `updateAll` + tuple factory (T2), collector blind + batch-atomicity + grep-only-owner + `snapshot.timeline === []` (T3), registry-keyed envelope + dual-shape load + version-1 doc (T4), ApprovalProjection {pending, completed} object snapshot + identity/reconciliation + resumed Option A + deterministic timestamps + invalid-decision-throws + importState null-check-order (T5), frozen durable contract (T1), acceptance bar (T3 Step 8, T5 Step 7).
 2. **Placeholder scan** — all steps carry real code; the one "illustrative" note in T4 Step 2 tells the implementer the real fixture shape and the 3 required assertions, not a vague directive.
 3. **Type consistency** — `ProjectionBuilder<TSnapshot>` / `DurableProjectionBuilder<TSnapshot>` with `snapshot(): TSnapshot` flows through all tasks; `ProjectionRuntime.snapshotOf<TSnapshot>(id): TSnapshot | undefined` is used identically in T2 tests and T3 assembly (`?? []`); `ProjectionState`/`ProjectionStateSnapshot` flow from `projection-state.ts` (T1) through T2→T3→T4; `ApprovalProjection implements DurableProjectionBuilder<ApprovalProjectionSnapshot>` matches T1's contract (assignable to the `unknown` snapshot param). `RuntimeCollectorOptions.projectionRuntime` is the single seam between T3 and T5.
 4. **Reviewer corrections all present** — transactional rollback + rollback-failure wrapping (T2 impl + tests), null-prototype exportState + empty-id rejection (T2), `'resolved'` removed from status union + invalid-decision-throws (T5), importState null-check-before-cast + enum validation (T5), event-ordering invariant documented (T5), `ProjectionState` module layering (T1), caller-owned snapshot typing documented (T2), both optional-projection assertions (T3), both-present store test (T4), `snapshotOf` rename (T2), commit grouping preserved (5 tasks).
