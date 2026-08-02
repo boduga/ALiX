@@ -188,6 +188,15 @@ Update: docs/architecture/adrs/README.md (index table)
 - Outcome evaluation triggers automatically but does not block the pipeline
 - Recommendations carry provenance linking back to source trends
 
+### Projection Layer (Phases 4–6; canonical doc: `eventlog-projection-architecture.md`)
+
+- The EventLog is the single source of truth; projections own no canonical state
+- Every projection implements the `update`/`snapshot`/`reset` lifecycle and derives directly from the log
+- Builders never consume another builder's output (always `EventLog → builder`)
+- One projection = one durable checkpoint; recovery rebuilds by replay
+- `sessionId` routes projections; the log is topology-agnostic
+- Collectors orchestrate only — domain logic lives in builders
+
 ---
 
 ## Architecture Docs Reference
@@ -199,6 +208,7 @@ Update: docs/architecture/adrs/README.md (index table)
 | A-series living reference | `docs/architecture/a-series-governed-evolution.md` |
 | Design specifications | `docs/architecture/specs/YYYY-MM-DD-*.md` |
 | Implementation plans | `docs/superpowers/plans/YYYY-MM-DD-*.md` |
+| **EventLog projection architecture (canonical)** | `docs/architecture/eventlog-projection-architecture.md` |
 
 ---
 
