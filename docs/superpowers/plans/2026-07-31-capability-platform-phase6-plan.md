@@ -13,7 +13,7 @@
 - **`sessionId` stamping (D1/D3):** every event already carries `sessionId` (Phase 4); verify the field flows through `append`/`readSince`/`NewEvent`/`AlixEvent` end-to-end. Projections filter `event.sessionId === projection.sessionId`.
 - **`sessionId` is immutable once emitted (D3).** The stamped origin is the routing dimension.
 - **`timeline` (NOT `chat`) field name (D6):** the projection covers `chat.message`/`chat.response`/`agent.message`/`agent.reasoning`/`agent.decision` — broader than "chat."
-- **`ProjectionBuilder<T>` contract (D4/D12):** `update(events)` / `snapshot()` / `reset()`. `ExecutionTraceBuilder` keeps its mature lifecycle semantics UNTOUCHED. `TimelineBuilder` is append-only (narratives don't reconcile).
+- **`ProjectionBuilder<T>` contract (D4/D12):** `update(events)` / `snapshot()` / `reset()`. `ExecutionTraceBuilder` keeps its mature lifecycle semantics UNTOUCHED. `TimelineBuilder` is append-only — timeline entries are immutable once projected and are never reconciled in place.
 - **D11 — Projection independence.** Builders MUST NOT depend on the outputs of other builders. Dependency graph: `EventLog → builder` (never `builder → builder`).
 - **One cursor, one checkpoint, one save-before-publish transaction (D5/D5a)** — extends Phase 5.5's flow. Beyond-head fallback resets BOTH builders (`traceBuilder.reset()` + `timelineBuilder.reset()`) + calls `resetCheckpoint()`.
 - **`timelineEvents[]` is a transitional cache** during Phase 6 migration; the Phase 6 cleanup task removes it.
@@ -137,6 +137,14 @@ export type TimelineKind =
   | 'agent.message' | 'agent.reasoning' | 'agent.decision'
   | 'tool.invocation' | 'approval.requested';
 
+/** The timeline projection's supported vocabulary. A builder must own the
+ *  kinds it projects — unrelated event types must not pollute the timeline. */
+export const TIMELINE_TYPES = new Set<TimelineKind>([
+  'chat.message', 'chat.response',
+  'agent.message', 'agent.reasoning', 'agent.decision',
+  'tool.invocation', 'approval.requested',
+]);
+
 /** Timeline projection entry (D8). Mirrors ExecutionTraceEntry's readonly
  *  detached shape. */
 export interface TimelineEntry {
@@ -174,9 +182,16 @@ export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
   update(events: readonly AlixEvent[]): void {
     for (const e of events) {
       if (e.sessionId !== this.sessionId) continue;       // (defensive — collector already filters)
-      // Compound key: seq is only globally unique within one session. Two
-      // sessions may both have seq=1; the key `${sessionId}:${seq}` keeps
-      // them distinct (D1/D3 — sessionId is the routing dimension).
+      // The builder owns its supported vocabulary — unrelated event types
+      // (workflow.*, memory.*, policy.*, runtime.tick, ...) must not pollute
+      // the timeline projection. Whitelist instead of casting blindly.
+      if (!TIMELINE_TYPES.has(e.type as TimelineKind)) continue;
+      // Compound key `${sessionId}:${seq}` for replay detection. NOTE: NOT
+      // `e.id` — EventLog stamps `id: randomUUID()` at append, so a fresh
+      // collector replaying the same events gets DIFFERENT ids. `seq` is
+      // reconstructed deterministically from the log, so it is the stable
+      // replay identity. The sessionId prefix keeps two sessions that both
+      // have seq=1 distinct (D1/D3 — sessionId is the routing dimension).
       const eventKey = `${e.sessionId}:${e.seq ?? 0}`;
       if (this.seen.has(eventKey)) continue;
       this.seen.add(eventKey);
@@ -186,6 +201,8 @@ export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
   }
 
   snapshot(): readonly TimelineEntry[] {
+    // Deterministic ordering by firstSequence (NOT by timestamp — timestamps
+    // can collide or be adjusted; firstSequence is the stable log position).
     return [...this.entries.values()]
       .sort((a, b) => a.sourceEvents.firstSequence - b.sourceEvents.firstSequence)
       .map(cloneEntry);
@@ -197,6 +214,8 @@ export class TimelineBuilder implements ProjectionBuilder<TimelineEntry> {
   }
 
   private build(e: AlixEvent): TimelineEntry {
+    // Guarded upstream by TIMELINE_TYPES; the cast is safe here. Never cast
+    // an unverified e.type directly — the whitelist is the vocabulary gate.
     const kind = e.type as TimelineKind;
     const p = (e.payload ?? {}) as Record<string, unknown>;
     const text = typeof p.text === 'string' ? p.text : undefined;
@@ -326,6 +345,8 @@ Extend `tests/tui/runtime/runtime-collector.vitest.ts` with:
     expect(snap?.timeline.map(e => e.kind)).toEqual(['chat.message']);
     expect(snap?.trace).toHaveLength(1);
     expect(snap?.trace[0]!.kind).toBe('completed');
+    // Replay must not rebuild ANOTHER session's projection.
+    expect(snap?.sessionId).toBe('chat-1');
   });
 ```
 
@@ -386,14 +407,18 @@ private async sample(): Promise<void> {
       lastEventAt: ...,
       sessionId: this.sessionId,
     };
-    // D5/D5a commit — ORDER IS LOAD-BEARING. The checkpoint may only advance
-    // AFTER all projection state required to reconstruct it has been built
-    // into nextCache AND durably persisted (save-before-publish). A crash
-    // between the checkpoint advance and the cache publish would leave the
-    // durable watermark ahead of the published projection — the invariant
-    // "a checkpoint never represents a projection state that has not been
-    // durably published" must hold. Publish the snapshot and advance the
-    // checkpoint TOGETHER (last step, after the save).
+    // D5/D5a commit — ORDER IS LOAD-BEARING.
+    //   1. Build projections into nextCache
+    //   2. Persist the checkpoint (durable)
+    //   3. Publish the snapshot (advance this.checkpoint + this.cache together)
+    // `cache` is an IN-MEMORY PUBLICATION ARTIFACT, not durable state. The
+    // durable checkpoint may only advance AFTER the projection state required
+    // to reconstruct it has been built AND persisted (save-before-publish).
+    // A crash between the checkpoint advance and the cache publish would
+    // leave the durable watermark ahead of the published projection — the
+    // invariant "a checkpoint never represents a projection state that has
+    // not been durably published" must hold. Publish the snapshot and
+    // advance the checkpoint TOGETHER (last step, after the save).
     await this.checkpointStore.save({
       version: CHECKPOINT_CONTAINER_VERSION,
       cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
@@ -605,14 +630,24 @@ export interface PerTabState {
 
 /**
  * @deprecated Use EventLog.append() — the EventLog is now the single source
- * of truth for the timeline. Kept for one phase as a compatibility wrapper
- * for non-TUI consumers (web UI, CLI, replay tools, automation workers) that
- * may still compile against it. REMOVED in Phase 7.
+ * of truth for the timeline. Kept for one phase as a FUNCTIONAL compatibility
+ * wrapper for non-TUI consumers (web UI, CLI, replay tools, automation
+ * workers) that may still compile against it. REMOVED in Phase 7.
  */
 export function appendTimelineEvent(...) {
-  // Thin wrapper: emits to the EventLog via the caller's emit context, no
-  // longer mutates a timelineEvents[] cache (the field is gone).
-  throw new Error('appendTimelineEvent is deprecated — use EventLog.append()');
+  // Functional shim, NOT a throw — a compatibility wrapper must keep working
+  // for one phase. Emits to the EventLog via the caller's emit context; the
+  // timelineEvents[] cache field is gone, so the in-memory write is a no-op.
+  if (emit) {
+    void emit.eventLog.append({
+      sessionId: emit.sessionId,
+      actor: /* derived from kind */,
+      type: /* mapped from kind */,
+      payload: { /* text, detail */ },
+    });
+  }
+  // eslint-disable-next-line no-console
+  console.warn('appendTimelineEvent() is deprecated — use EventLog.append()');
 }
 ```
 
