@@ -12,6 +12,7 @@ import { FileProjectionCheckpointStore } from "../../tui/runtime/projection-chec
 import { TimelineBuilder } from "../../tui/runtime/timeline-builder.js";
 import { IncrementalExecutionTraceBuilder } from "../../tui/runtime/execution-trace-builder.js";
 import { ApprovalProjection } from "../../tui/runtime/approval-projection.js";
+import { CapabilityProjection } from "../../tui/runtime/capability-projection.js";
 import { createProjectionRuntime } from "../../tui/runtime/projection-runtime.js";
 import { ProjectionIds } from "../../tui/runtime/projection-ids.js";
 import { SopCollectorImpl } from "../../tui/sop-collector.js";
@@ -129,6 +130,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     projectionRuntime: createProjectionRuntime([
       [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
       [ProjectionIds.approval, new ApprovalProjection()],
+      [ProjectionIds.capability, new CapabilityProjection()],
     ]),
   });
   const chatCollector = new RuntimeCollectorImpl({

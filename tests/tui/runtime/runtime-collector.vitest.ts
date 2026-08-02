@@ -6,7 +6,9 @@ import type { AlixEvent } from '../../../src/events/types.js';
 import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
 import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
+import { CapabilityProjection } from '../../../src/tui/runtime/capability-projection.js';
 import { createProjectionRuntime, ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
 import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
 
 /** Default session stamped by makeEventLog's append when no sessionId is
@@ -519,6 +521,40 @@ describe('RuntimeCollectorImpl timeline projection (D1/D6/D12)', () => {
     // pre-truncation count (3) would leak through.
     await sample.call(collector);
     expect((await collector.snapshot())!.totalEventCount).toBe(1);
+    collector.stop();
+  });
+});
+
+describe('RuntimeCollectorImpl capability projection (Increment A)', () => {
+  it('snapshot.capabilities is populated from a registered CapabilityProjection', async () => {
+    const { log, append } = makeEventLog();
+    await append('capability.InvocationStarted', { invocationId: 'inv-1', capabilityId: 'research', at: 1000 });
+    await append('capability.InvocationCompleted', { invocationId: 'inv-1', at: 4000 });
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID,
+      projectionRuntime: createProjectionRuntime([[ProjectionIds.capability, new CapabilityProjection()]]),
+    });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const snap = await collector.snapshot();
+    expect(snap?.capabilities).not.toBeNull();
+    expect(snap!.capabilities!.capabilities['research']!.invocationCount).toBe(1);
+    expect(snap!.capabilities!.capabilities['research']!.invocationSucceeded).toBe(1);
+    expect(snap!.capabilities!.activeInvocations).toBe(0);
+    collector.stop();
+  });
+
+  it('snapshot.capabilities is null when the projection is not registered', async () => {
+    const { log, append } = makeEventLog();
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID,
+      projectionRuntime: createProjectionRuntime([['trace', new IncrementalExecutionTraceBuilder()]]),
+    });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const snap = await collector.snapshot();
+    expect(snap?.capabilities).toBeNull();
     collector.stop();
   });
 });

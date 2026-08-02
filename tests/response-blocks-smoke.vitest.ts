@@ -65,6 +65,7 @@ test('end-to-end: parse live response, render to canvas', () => {
       totalEventCount: 1,
       lastEventAt: 1,
       sessionId: 'agent-1',
+      capabilities: null,
     },
   };
   const W = 80, H = 60;

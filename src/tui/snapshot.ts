@@ -2,6 +2,7 @@ import type { SessionPhase } from './state.js';
 import type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
 import type { TimelineEntry } from './runtime/timeline-builder.js';
+import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
@@ -107,6 +108,11 @@ export interface RuntimeSnapshot {
   readonly lastEventAt: number | null;
   /** The session this snapshot projects. All projections are sessionId-scoped. */
   readonly sessionId: string;
+  /**
+   * Per-capability runtime activity stats (CapabilityProjection). Null when the
+   * projection isn't registered (e.g. older collectors).
+   */
+  readonly capabilities: CapabilityProjectionSnapshot | null;
   /**
    * Experimental extension boundary only.
    * Runtime consumers MUST NOT depend on keys here.
