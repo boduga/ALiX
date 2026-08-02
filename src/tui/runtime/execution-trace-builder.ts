@@ -1,5 +1,6 @@
 import type { AlixEvent } from '../../events/types.js';
 import { TOOL_EVENT_TYPES } from '../../events/types.js';
+import type { DurableProjectionBuilder } from './durable-projection-builder.js';
 import type { ExecutionTraceEntry, ExecutionTraceKind, ExecutionTraceRetention } from './execution-trace.js';
 
 // Trace entry ids are derived from the source event's firstSequence — no hidden
@@ -270,10 +271,26 @@ export function createExecutionTraceBuilder(): ExecutionTraceBuilder {
   return { build: buildExecutionTrace };
 }
 
+/** Phase 6.5 durable state: the raw reconciliation state (pre-retention). Maps
+ *  and Sets are serialized as arrays of key/value pairs; importState rebuilds
+ *  the Maps/Sets exactly. Declared as a type alias (not interface) so
+ *  ExecutionTraceBuilderState is assignable to ProjectionState =
+ *  Record<string, unknown> (interfaces lack an implicit index signature, so
+ *  they fail strict assignability to Record<string, unknown> — same reason
+ *  TimelineBuilderState is a type alias). */
+export type ExecutionTraceBuilderState = {
+  readonly version: 1;
+  readonly seenSequences: number[];
+  readonly openByKey: Array<{ key: string; lifecycle: MutableLifecycle }>;
+  readonly terminalById: Array<{ id: string; entry: ExecutionTraceEntry }>;
+  readonly closedFirstSequences: string[];
+  readonly closedByKey: Array<{ key: string; id: string }>;
+};
+
 /** Stateful facade over the shared reconciliation engine. Holds mutable
  *  projection state; publishes fresh immutable snapshots after retention.
  *  Idempotent by event seq — safe against cursor at-least-once replays. */
-export class IncrementalExecutionTraceBuilder {
+export class IncrementalExecutionTraceBuilder implements DurableProjectionBuilder<ExecutionTraceEntry> {
   private readonly state: ExecutionTraceState = createTraceState();
   private readonly retention: ExecutionTraceRetention;
 
@@ -301,6 +318,48 @@ export class IncrementalExecutionTraceBuilder {
     this.state.terminalById.clear();
     this.state.closedFirstSequences.clear();
     this.state.closedByKey.clear();
+  }
+
+  exportState(): ExecutionTraceBuilderState {
+    return {
+      version: 1,
+      seenSequences: [...this.state.seenSequences],
+      openByKey: [...this.state.openByKey.entries()].map(([key, lifecycle]) => ({ key, lifecycle: { ...lifecycle, detailParts: [...lifecycle.detailParts] } })),
+      terminalById: [...this.state.terminalById.entries()].map(([id, entry]) => ({ id, entry })),
+      closedFirstSequences: [...this.state.closedFirstSequences],
+      closedByKey: [...this.state.closedByKey.entries()].map(([key, id]) => ({ key, id })),
+    };
+  }
+
+  importState(state: Record<string, unknown>): void {
+    const s = state as Partial<ExecutionTraceBuilderState>;
+    if (
+      s?.version !== 1 ||
+      !Array.isArray(s.seenSequences) ||
+      !Array.isArray(s.openByKey) ||
+      !Array.isArray(s.terminalById) ||
+      !Array.isArray(s.closedFirstSequences) ||
+      !Array.isArray(s.closedByKey)
+    ) {
+      throw new Error('trace projection state: invalid or unsupported version');
+    }
+    // ExecutionTraceState fields are `readonly` — the field only ever points at
+    // the createTraceState() object (reassignment is a design invariant, per the
+    // interface docstring). So import rebuilds each Map/Set in place, mirroring
+    // reset()'s mutation pattern. detailParts is deep-copied on the way in so a
+    // later importState can never alias the caller's array.
+    this.state.seenSequences.clear();
+    this.state.openByKey.clear();
+    this.state.terminalById.clear();
+    this.state.closedFirstSequences.clear();
+    this.state.closedByKey.clear();
+    for (const seq of s.seenSequences) this.state.seenSequences.add(seq);
+    for (const { key, lifecycle } of s.openByKey) {
+      this.state.openByKey.set(key, { ...lifecycle, detailParts: [...lifecycle.detailParts] });
+    }
+    for (const { id, entry } of s.terminalById) this.state.terminalById.set(id, entry);
+    for (const id of s.closedFirstSequences) this.state.closedFirstSequences.add(id);
+    for (const { key, id } of s.closedByKey) this.state.closedByKey.set(key, id);
   }
 }
 
