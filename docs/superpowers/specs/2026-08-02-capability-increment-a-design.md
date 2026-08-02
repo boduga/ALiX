@@ -41,14 +41,16 @@ RuntimeSnapshot.capabilities
 Capabilities tab → activity panel (alongside live-registry inventory)
 ```
 
-## Source hierarchy (two independent, non-overlapping tiers)
+## Two complementary telemetry streams (never merged)
 
-| Tier | Events | Semantics | When used |
-|---|---|---|---|
-| **Primary — invocation lifecycle** | `capability.InvocationStarted` / `InvocationCompleted` / `InvocationFailed` / `InvocationCancelled` | Authoritative runtime activity | When `CapabilityService` is wired (TUI) |
-| **Fallback — tool telemetry** | `tool.requested` / `tool.completed` / `tool.failed` (carry `canonicalCapability` + `durationMs`) | Separate telemetry counters | Always available; robust headless |
+The CapabilityProjection consumes **two independent, complementary streams** — NOT a primary/fallback pair. "Fallback" would mean "use A if available, otherwise B," but that is explicitly NOT what happens: **both streams are always collected, both answer different questions, and their counters are never merged.**
 
-**No double-counting rule:** invocation counts and tool-usage counts are **separate counter sets**, never merged. A `tool.*` event contributes to a capability's `toolUsages`/`toolFailures`/`toolTotalDurationMs`; a `capability.Invocation*` lifecycle contributes to `invocations`/`succeeded`/`failed`/`cancelled`/`totalDurationMs`. The two sources answer different questions and are additive, never blended. Invocation lifecycle is authoritative for runtime activity; tool events are a robust telemetry fallback for capability-usage observation.
+| Stream | Events | Answers |
+|---|---|---|
+| **Invocation lifecycle** (authoritative runtime activity) | `capability.InvocationStarted` / `InvocationCompleted` / `InvocationFailed` / `InvocationCancelled` | "What happened during capability execution?" — invocations, success/failure, duration. Present when `CapabilityService` is wired. |
+| **Tool telemetry** (complementary observation) | `tool.requested` / `tool.completed` / `tool.failed` (carry `canonicalCapability` + `durationMs`) | "Which capabilities were associated with tool executions?" — usage counters. Always on the log; robust headless. |
+
+**No double-counting rule:** the two streams contribute to **separate counter sets**, never blended. A `tool.*` event contributes to the capability's `toolInvocationCount`/`toolFailureCount`/`toolDurationMs`; a `capability.Invocation*` lifecycle contributes to `invocationCount`/`invocationSucceeded`/`invocationFailed`/`invocationCancelled`/`invocationTotalDurationMs`. The streams are additive and semantically distinct.
 
 ## Snapshot shape
 
@@ -60,15 +62,17 @@ interface CapabilityProjectionSnapshot {
 
 interface CapabilityStat {
   readonly capabilityId: string;
-  readonly invocations: number;          // from Invocation* lifecycle
-  readonly succeeded: number;
-  readonly failed: number;
-  readonly cancelled: number;
-  readonly totalDurationMs: number;      // sum; avg = totalDurationMs / invocations
+  // Invocation lifecycle stream (authoritative runtime activity).
+  readonly invocationCount: number;
+  readonly invocationSucceeded: number;
+  readonly invocationFailed: number;
+  readonly invocationCancelled: number;
+  readonly invocationTotalDurationMs: number;   // sum; avg = / invocationCount
   readonly lastInvocationAt: number | null;
-  readonly toolUsages: number;           // from tool.* fallback (non-overlapping)
-  readonly toolFailures: number;
-  readonly toolTotalDurationMs: number;
+  // Tool telemetry stream (complementary observation — non-overlapping).
+  readonly toolInvocationCount: number;
+  readonly toolFailureCount: number;
+  readonly toolDurationMs: number;              // sum; avg = / toolInvocationCount
 }
 ```
 
@@ -82,12 +86,12 @@ interface CapabilityStat {
   openByKey: Array<{ key: string; lifecycle: InvocationLifecycle }>,  // open invocations (key = invocationId)
   terminalById: Array<{ id: string; entry: CapabilityInvocationEntry }>, // closed invocations
   closedFirstSequences: string[],                                     // dedup of closed invocations
-  toolCounts: Record<string, { usages: number; failures: number; totalDurationMs: number }>,
+  toolCounts: Record<string, { invocationCount: number; failureCount: number; durationMs: number }>,
   lastSeq: number,                                                    // monotonic-event guard (deterministic replay)
 }
 ```
 
-Mirrors the trace builder's open/close matching, extended with the tool-fallback counters and the `lastSeq` monotonic guard (Phase 7 deterministic-replay invariant). No `Date.now()`/`Math.random()` in update paths; timestamps come from event `at`/`timestamp` (strict parse, throw on malformed).
+Mirrors the trace builder's open/close matching, extended with the tool-telemetry counters (a separate complementary stream) and the `lastSeq` monotonic guard (Phase 7 deterministic-replay invariant). No `Date.now()`/`Math.random()` in update paths; timestamps come from event `at`/`timestamp` (strict parse, throw on malformed).
 
 ## Duration computation
 
@@ -97,25 +101,28 @@ Mirrors the trace builder's open/close matching, extended with the tool-fallback
 
 - **Register:** on the outer runtime collector (`src/cli/commands/tui.ts`), `projectionRuntime.register(ProjectionIds.capability, new CapabilityProjection())`. `ProjectionIds.capability = 'capability'`.
 - **RuntimeSnapshot:** gains `readonly capabilities: CapabilityProjectionSnapshot | null` (a typed field, not the generic `projections` map). Assembled in `RuntimeCollectorImpl.sample()` via `snapshotOf<CapabilityProjectionSnapshot>(ProjectionIds.capability) ?? null`.
-- **Consumer (Option B):** the Capabilities tab's right detail pane gains an **Activity** block for the selected capability — its invocation stats (`invocations`, `succeeded`, `failed`, `cancelled`, avg duration, last invocation, tool fallback counters) alongside the existing metadata. The list/inventory stays on the live registry.
+- **Consumer (Option B):** the Capabilities tab's right detail pane gains an **Activity** block for the selected capability — its invocation stats (`invocationCount`, `invocationSucceeded`, `invocationFailed`, `invocationCancelled`, avg duration, last invocation, tool-telemetry counters) alongside the existing metadata. The list/inventory stays on the live registry.
 
 ## Key design decisions
 
 1. **Invocation identity:** keyed by `invocationId` (from `InvocationStarted`), closed by a terminal event (`Completed`/`Failed`/`Cancelled`). Open/close matching = the trace builder's pattern.
 2. **Duration:** computed `terminal.at − started.at`, never `Date.now()`. No synthetic durations for unknown-start terminals.
-3. **Tool fallback is a SEPARATE counter set** (`toolUsages` etc.), never merged with invocation counts — clean, additive, unambiguous.
-4. **Deterministic replay:** no clock in update paths; strict timestamp parse; `lastSeq` monotonic guard in durable state.
-5. **Inventory vs activity separation:** the live registry stays authoritative for what capabilities exist + availability/health; the projection is authoritative for how they behave. Neither derives from the other.
-6. **`activeInvocations`** derived from `openByKey.size` at snapshot time — immediate "what's running now?" answer.
+3. **Strictly single-pass — late Started does NOT retroactively reconstruct:** a terminal event without its `Started` is a no-op, and a `Started` arriving after its terminal does NOT reconstruct the completed invocation. The projection is single-pass over the monotonic event stream; no buffering or reconciliation backfill. This preserves deterministic replay (a replay produces identical state).
+4. **Unknown capabilities appear in the projection:** a `tool.completed` with `canonicalCapability: "foo.bar"` appears even if the registry no longer contains `foo.bar`. Projections represent historical facts; a capability disappearing from the registry must not erase history.
+5. **Deterministic replay:** no clock in update paths; strict timestamp parse; `lastSeq` monotonic guard in durable state.
+6. **Inventory vs activity separation:** the live registry stays authoritative for what capabilities exist + availability/health; the projection is authoritative for how they behave. **The projection NEVER queries `CapabilityRegistry`** — the two are independent read models sharing only `capabilityId`.
+7. **`activeInvocations`** derived from `openByKey.size` at snapshot time — immediate "what's running now?" answer.
 
 ## Acceptance criteria
 
 - ✅ A new `CapabilityProjection` implements `DurableProjectionBuilder<CapabilityProjectionSnapshot>` and registers on the outer runtime collector via `ProjectionIds.capability` — zero `RuntimeCollectorImpl` orchestration changes (Phase 7 acceptance bar: adding a projection never modifies the collector's dispatch).
-- ✅ Invocation lifecycle is authoritative; tool telemetry is a separate, non-overlapping counter set.
+- ✅ Invocation lifecycle and tool telemetry are two complementary streams feeding separate, non-overlapping counter sets.
+- ✅ **The projection never queries `CapabilityRegistry`** — registry and projection are independent read models sharing only `capabilityId` (the registry stays authoritative for inventory; the projection for activity).
 - ✅ Durable state round-trips through exportState/importState (restart reconstructs directly, no replay).
-- ✅ Deterministic replay: no `Date.now()` in update paths; monotonic `lastSeq` guard; strict timestamp parse.
+- ✅ Deterministic replay: no `Date.now()` in update paths; monotonic `lastSeq` guard; strict timestamp parse; strictly single-pass (a late `Started` after its terminal does NOT retroactively reconstruct).
+- ✅ Unknown capabilities appear in the projection (historical facts outlive the registry).
 - ✅ `RuntimeSnapshot.capabilities` is a typed field; the Capabilities-tab detail pane shows the selected capability's activity.
-- ✅ Existing `tests/tui/runtime` stay green; new CapabilityProjection tests cover invocation lifecycle reconciliation, duration computation, tool-fallback counters (no double counting), durable round-trip, deterministic replay, reset.
+- ✅ Existing `tests/tui/runtime` stay green; new CapabilityProjection tests cover invocation lifecycle reconciliation, duration computation, tool-telemetry counters (no double counting), durable round-trip, deterministic replay, reset.
 - ✅ The live registry tab's inventory behavior is unchanged (two independent data sources).
 
 ## Global constraints
@@ -129,7 +136,7 @@ Mirrors the trace builder's open/close matching, extended with the tool-fallback
 
 ## Risks / mitigations
 
-- **Capability events only when `CapabilityService` wired:** mitigated by the tool-telemetry fallback (always on the log) — the projection still derives capability activity headless.
+- **Capability events only when `CapabilityService` wired:** mitigated by the tool-telemetry stream (always on the log) — the projection still derives capability activity headless.
 - **Double counting (invocation + tool):** mitigated by the hard rule that the two counter sets are never merged.
 - **Duration fidelity:** invocation duration computed from event `at` deltas (not wall-clock), matching the trace builder; no synthetic durations.
 - **Capabilities-tab integration:** the tab's detail pane is extended, not restructured — low churn; the inventory list + selection logic is untouched.
