@@ -22,7 +22,7 @@ import type { AlixEvent } from '../events/types.js';
 import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
 import { TimelineBuilder } from './runtime/timeline-builder.js';
 import { CHECKPOINT_CONTAINER_VERSION } from './runtime/projection-checkpoint-store.js';
-import type { ProjectionCheckpointStore } from './runtime/projection-checkpoint-store.js';
+import type { ProjectionCheckpointStore, ProjectionStateSnapshot } from './runtime/projection-checkpoint-store.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -132,6 +132,15 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         cursor: this.eventLog.deserializeCursor(loaded.cursor),
         committedAt: loaded.committedAt,
       };
+      // Phase 6.5: restore durable projection state when present. A legacy
+      // checkpoint (no state) leaves builders empty and replays forward from
+      // the cursor — identical to pre-6.5 behavior. Import is safe because the
+      // cursor deserialized cleanly above; an invalid cursor takes the catch
+      // below and rebuilds by replay instead.
+      if (loaded.state) {
+        if (this.buildTimeline && loaded.state.timeline) this.timelineBuilder.importState(loaded.state.timeline);
+        if (loaded.state.trace) this.traceBuilder.importState(loaded.state.trace);
+      }
     } catch (err) {
       // Invalid checkpoint (any of the four EventLogCursorError modes — the
       // cursor's `seq` lies beyond the current head, malformed JSON, unknown
@@ -254,10 +263,19 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // invariant "a checkpoint never represents a projection state that has
       // not been durably published" must hold. Publish the snapshot and
       // advance the checkpoint TOGETHER (last step, after the save).
+      // Phase 6.5: persist each durable builder's projection state in the SAME
+      // atomic save transaction as the cursor (save-before-publish applies to
+      // state too — a published snapshot never represents state that was not
+      // durably saved). Only builders actually being updated are persisted.
+      const state: ProjectionStateSnapshot = {
+        ...(this.buildTimeline ? { timeline: this.timelineBuilder.exportState() } : {}),
+        trace: this.traceBuilder.exportState(),
+      };
       await this.checkpointStore.save({
         version: CHECKPOINT_CONTAINER_VERSION,
         cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
         committedAt: nextCheckpoint.committedAt,
+        state,
       });
 
       // ATOMIC commit: checkpoint + cache advance together on the same step

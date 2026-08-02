@@ -51,7 +51,7 @@ interface ProjectionBuilder<T> {
 - **One projection ↔ one durable checkpoint.** There is no shared cursor or shared checkpoint store across projections — a shared store's log-global watermark starves later-starting collectors (they would recover past events they never consumed).
 - **Independent advancement.** Each collector reads the log on its own schedule and advances its own watermark.
 - **Save-before-publish.** A durable checkpoint advances only *after* the projection state required to reconstruct it has been built AND durably persisted. A published snapshot never represents a checkpoint position that was not durably saved — a crash leaves them aligned.
-- **Recovery = replay.** On a beyond-head cursor, an invalid checkpoint, or corruption, the collector resets the builder (and its accounting) and replays from `beginningCursor()`. Recovery never "patches" state; it rebuilds it.
+- **Recovery = replay.** On a beyond-head cursor, an invalid checkpoint, or corruption, the collector resets the builder (and its accounting) and replays from `beginningCursor()`. Recovery never "patches" state; it rebuilds it. Since Phase 6.5, the projection's durable state (not just the cursor) is persisted alongside the checkpoint in the same save transaction — a valid cursor restores that state directly, while an invalid cursor still rebuilds by replay (persisted state is never trusted on an invalid cursor).
 - The Phase 6 production wiring materializes this as three collectors — runtime (trace-only), chat sub-session, agent sub-session — each with its own store under `projections/<role>/`. Future projections follow the same shape.
 
 ## 5. Session routing — `sessionId` is the routing key

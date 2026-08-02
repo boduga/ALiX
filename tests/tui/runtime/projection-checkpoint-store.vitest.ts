@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { mkdtempSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileProjectionCheckpointStore, PersistedProjectionCheckpoint } from '../../../src/tui/runtime/projection-checkpoint-store.js';
+import { FileProjectionCheckpointStore, PersistedProjectionCheckpoint, CHECKPOINT_CONTAINER_VERSION } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { EventLog } from '../../../src/events/event-log.js';
 
 function makeSerialized(log: EventLog, seq = 5): PersistedProjectionCheckpoint {
@@ -53,5 +53,40 @@ describe('FileProjectionCheckpointStore', () => {
     // A stale tmp file must not exist after a successful save.
     expect(existsSync(join(dir, 'projection-checkpoint.json.tmp'))).toBe(false);
     expect(existsSync(join(dir, 'projection-checkpoint.json'))).toBe(true);
+  });
+});
+
+async function makeStore(): Promise<FileProjectionCheckpointStore> {
+  return new FileProjectionCheckpointStore(mkdtempSync(join(tmpdir(), 'alix-cp-')));
+}
+
+describe('ProjectionCheckpointStore state envelope (Phase 6.5)', () => {
+  it('round-trips a checkpoint with projection state', async () => {
+    const store = await makeStore();
+    await store.save({
+      version: CHECKPOINT_CONTAINER_VERSION,
+      cursor: '{"version":1,"seq":5}',
+      committedAt: 123,
+      state: { timeline: { version: 1, entries: [] }, trace: { version: 1, seenSequences: [1, 2] } },
+    });
+    const loaded = await store.load();
+    expect(loaded?.state).toEqual({
+      timeline: { version: 1, entries: [] },
+      trace: { version: 1, seenSequences: [1, 2] },
+    });
+  });
+
+  it('loads a legacy checkpoint with no state as state-undefined (backward compatible)', async () => {
+    const store = await makeStore();
+    await store.save({ version: CHECKPOINT_CONTAINER_VERSION, cursor: '{"version":1,"seq":3}', committedAt: 99 });
+    const loaded = await store.load();
+    expect(loaded?.state).toBeUndefined();
+    expect(loaded?.cursor).toBe('{"version":1,"seq":3}');
+  });
+
+  it('treats a malformed state block as invalid (load returns null)', async () => {
+    const store = await makeStore();
+    await store.save({ version: CHECKPOINT_CONTAINER_VERSION, cursor: 'x', committedAt: 1, state: [1, 2, 3] } as never);
+    expect(await store.load()).toBeNull();
   });
 });

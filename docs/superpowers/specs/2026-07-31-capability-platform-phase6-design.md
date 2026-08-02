@@ -242,7 +242,7 @@ snapshot = { trace: traceBuilder.snapshot(),
 ## Future Direction
 
 - **Projection registry** — a `collector.register(builder)` API so new projections (approval, capability, metrics) plug in without changing the collector. Deferred — current builders are concrete fields on the constructor; a registry becomes worthwhile when the projection count exceeds ~5.
-- **Phase 6.5** — durable projection-state snapshots (timeline + trace + future) alongside the checkpoint cursor.
+- **Phase 6.5** — ✅ done — durable projection-state snapshots (timeline + trace) alongside the checkpoint cursor. Implemented: `DurableProjectionBuilder` contract, builder `exportState`/`importState`, envelope `state` block (additive, version stays 1), collector persists/restores state in the same save transaction as the cursor. Legacy checkpoints (no state) replay from the cursor; invalid cursors still rebuild by replay from `beginningCursor()`.
 - **Phase 7** — additional projections (approval, capability, metrics) + cross-projection views.
 - **Global Timeline projection** — a view that filters across multiple sessionIds (the architecture already supports it: `projection(filter: (sessionId: string) => boolean)`).
 - **Web UI consumer** — the immutable DTOs (`ExecutionTraceEntry`, `TimelineEntry`) are projection-friendly for a future web surface.
