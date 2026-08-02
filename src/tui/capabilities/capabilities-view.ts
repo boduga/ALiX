@@ -75,7 +75,7 @@ export class CapabilitiesView implements TuiView {
     return { rows: [] };
   }
 
-  private renderDetail(c: TerminalCanvas, detail: Capability, x: number, y: number, w: number, h: number, snap: DashboardSnapshot): void {
+  private renderDetail(c: TerminalCanvas, detail: Capability, x: number, y: number, w: number, h: number, snap: DashboardSnapshot | undefined): void {
     c.write(x, y, `\x1b[1m${detail.title}\x1b[0m  \x1b[90m${detail.id} v${detail.version}\x1b[0m`);
     const lines: string[] = [];
     lines.push(detail.description);

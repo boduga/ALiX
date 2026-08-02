@@ -80,6 +80,19 @@ describe('CapabilityProjection', () => {
     expect(() => p.update([evt('tool.completed', { toolCallId: 't2', canonicalCapability: 'a.b', durationMs: 1 }, 1, 1000)])).toThrow(/non-monotonic/);
   });
 
+  it('throws on a malformed event timestamp (deterministic replay)', () => {
+    const p = new CapabilityProjection();
+    // capability.* events carry `at` (ms) in the payload; a non-finite `at` is
+    // a malformed timestamp and must throw, never fall back to Date.now().
+    const bad = { ...evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'a.b' }, 1, 1000), payload: { invocationId: 'i1', capabilityId: 'a.b', at: 'not-a-date' } };
+    expect(() => p.update([bad])).toThrow(/timestamp/);
+  });
+
+  it('importState rejects a malformed stat counter field', () => {
+    const p = new CapabilityProjection();
+    expect(() => p.importState({ version: 1, stats: [{ id: 'a.b', stat: { invocationCount: 'banana' } }], open: [], lastSeq: 1 } as never)).toThrow(/malformed stat/);
+  });
+
   it('reset clears everything', () => {
     const p = new CapabilityProjection();
     p.update([evt('capability.InvocationStarted', { invocationId: 'i1', capabilityId: 'a.b' }, 1, 1000)]);

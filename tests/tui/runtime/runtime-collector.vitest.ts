@@ -8,6 +8,7 @@ import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
 import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
 import { CapabilityProjection } from '../../../src/tui/runtime/capability-projection.js';
 import { createProjectionRuntime, ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
+import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
 import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
 
 /** Default session stamped by makeEventLog's append when no sessionId is
@@ -531,7 +532,7 @@ describe('RuntimeCollectorImpl capability projection (Increment A)', () => {
     await append('capability.InvocationCompleted', { invocationId: 'inv-1', at: 4000 });
     const collector = new RuntimeCollectorImpl({
       eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID,
-      projectionRuntime: createProjectionRuntime([['capability', new CapabilityProjection()]]),
+      projectionRuntime: createProjectionRuntime([[ProjectionIds.capability, new CapabilityProjection()]]),
     });
     const sample = (collector as unknown as { sample(): Promise<void> }).sample;
     await sample.call(collector);

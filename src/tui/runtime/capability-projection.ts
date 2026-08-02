@@ -35,7 +35,6 @@ function parseAt(e: AlixEvent, fallbackField: 'at' | 'timestamp'): number {
 }
 
 const INVOCATION_TERMINAL = new Set(['capability.InvocationCompleted', 'capability.InvocationFailed', 'capability.InvocationCancelled']);
-const TOOL_TERMINAL = new Set(['tool.completed', 'tool.failed']);
 
 function zeroStat(capabilityId: string): MutableStat {
   return {
@@ -138,9 +137,26 @@ export class CapabilityProjection implements DurableProjectionBuilder<Capability
     if (s?.version !== 1 || !Array.isArray(s.stats) || !Array.isArray(s.open) || typeof s.lastSeq !== 'number') {
       throw new Error('capability projection state: invalid or unsupported version');
     }
-    // Validate BEFORE mutating.
+    // Validate BEFORE mutating — a malformed stat (e.g. a counter field that
+    // is not a finite number) must throw cleanly, never silently corrupt the
+    // runtime counters. Checked via isFinite so NaN/Infinity/strings/undefined
+    // are all rejected (checkpoints live forever; a corrupt file is possible).
     for (const { id, stat } of s.stats as Array<{ id: unknown; stat: unknown }>) {
       if (typeof id !== 'string' || typeof stat !== 'object' || stat === null) throw new Error('capability projection state: malformed stat');
+      const st = stat as Partial<CapabilityStat>;
+      if (
+        typeof st.invocationCount !== 'number' || !Number.isFinite(st.invocationCount) ||
+        typeof st.invocationSucceeded !== 'number' || !Number.isFinite(st.invocationSucceeded) ||
+        typeof st.invocationFailed !== 'number' || !Number.isFinite(st.invocationFailed) ||
+        typeof st.invocationCancelled !== 'number' || !Number.isFinite(st.invocationCancelled) ||
+        typeof st.invocationTotalDurationMs !== 'number' || !Number.isFinite(st.invocationTotalDurationMs) ||
+        (st.lastInvocationAt !== null && (typeof st.lastInvocationAt !== 'number' || !Number.isFinite(st.lastInvocationAt))) ||
+        typeof st.toolInvocationCount !== 'number' || !Number.isFinite(st.toolInvocationCount) ||
+        typeof st.toolFailureCount !== 'number' || !Number.isFinite(st.toolFailureCount) ||
+        typeof st.toolDurationMs !== 'number' || !Number.isFinite(st.toolDurationMs)
+      ) {
+        throw new Error('capability projection state: malformed stat');
+      }
     }
     for (const { id, lifecycle } of s.open as Array<{ id: unknown; lifecycle: unknown }>) {
       const lc = lifecycle as Partial<InvocationLifecycle>;

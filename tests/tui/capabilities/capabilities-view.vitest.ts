@@ -93,9 +93,43 @@ describe('CapabilitiesView', () => {
     expect(out).toContain('activity: 3 invocations');
     expect(out).toContain('succeeded: 2  failed: 1  cancelled: 0');
     expect(out).toContain('avg duration: 500ms');
+    expect(out).toContain('last: 2023-11-14T22:13:20.000Z');
     expect(out).toContain('tool telemetry: 5 uses, 1 failures, 900ms');
     // Tab-level activeInvocations is rendered on the snapshot, not per-stat.
     expect(out).toContain('active invocations: 1');
+  });
+
+  it('renders — fallbacks for avg duration and last invocation when absent', () => {
+    setup();
+    const view = new CapabilitiesView();
+    const state = createInitialTuiAppState();
+    const perTab = state.views.capabilities;
+    (perTab as PerTabState).capabilitiesSelectedId = 'tool.file.read';
+    // A stat with zero invocations and no lastInvocationAt → both — fallbacks.
+    // Build a fresh snapshot (stats are readonly — no in-place mutation).
+    const snap = snapshotWithCapabilityStat();
+    const snap2: DashboardSnapshot = {
+      ...snap,
+      runtime: {
+        ...snap.runtime!,
+        capabilities: {
+          activeInvocations: 0,
+          capabilities: {
+            'tool.file.read': {
+              ...snap.runtime!.capabilities!.capabilities['tool.file.read']!,
+              invocationCount: 0,
+              lastInvocationAt: null,
+            },
+          },
+        },
+      },
+    };
+    const canvas = new TerminalCanvas(120, 24);
+    const ctx = { snap: snap2, dimensions: { columns: 120, rows: 24 }, perTab, canvas };
+    view.render(ctx as never);
+    const out = canvas.renderFrame();
+    expect(out).toContain('avg duration: —ms');
+    expect(out).toContain('last: —');
   });
 
   it('shows no activity block for an uninvoked capability (no stat)', () => {
