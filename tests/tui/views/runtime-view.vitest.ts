@@ -19,7 +19,7 @@ function render(perTab: PerTabState, trace: ExecutionTraceEntry[]): string {
     session: null,
     daemon: null,
     approvals: null,
-    runtime: { trace, timeline: [], workflow: null, totalEventCount: trace.length, lastEventAt: 3, sessionId: 'chat-1', capabilities: null },
+    runtime: { trace, timeline: [], workflow: null, totalEventCount: trace.length, lastEventAt: 3, sessionId: 'chat-1', capabilities: null, metrics: null },
     sops: null,
     policy: null,
     cwd: '/workspace/test',
@@ -69,6 +69,7 @@ describe('RuntimeView', () => {
         lastEventAt: 1,
         sessionId: 'chat-1',
         capabilities: null,
+        metrics: null,
       },
       cwd: '/workspace/test',
     };
