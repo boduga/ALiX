@@ -29,20 +29,22 @@ describe('TimelineBuilder', () => {
     expect(b.snapshot()).toHaveLength(1);
   });
 
-  it('is idempotent by (sessionId, seq) — a real replay with FRESH randomUUID ids produces no duplicates', () => {
+  it('is idempotent by (sessionId, seq) — a replay with fresh ids but same seqs must NOT overwrite entries', () => {
     const b = new TimelineBuilder('s1');
-    const original = [evt(1, 'chat.message', 's1', { text: 'hi' }), evt(2, 'chat.response', 's1', { text: 'hello' })];
-    b.update(original);
+    b.update([evt(1, 'chat.message', 's1', { text: 'hi' }), evt(2, 'chat.response', 's1', { text: 'hello' })]);
     const once = b.snapshot();
-    // A real EventLog replay produces DIFFERENT ids (randomUUID) but the same
-    // seqs. Dedup must be on `${sessionId}:${seq}`, NOT on `id`.
-    const replay = [
-      evt(1, 'chat.message', 's1', { text: 'hi' }, 'NEW-ID-1'),
-      evt(2, 'chat.response', 's1', { text: 'hello' }, 'NEW-ID-2'),
-    ];
-    b.update(replay);
-    expect(b.snapshot()).toEqual(once);            // same entries, no duplicates
-    expect(b.snapshot()).toHaveLength(2);           // explicitly not 4
+    // A real replay: fresh randomUUID ids, same seqs, but DIFFERENT payload.
+    // Under the correct ${sessionId}:${seq} dedup the replay is skipped, so the
+    // original text survives. Under e.id dedup the tl-${seq} entries get
+    // OVERWRITTEN with the new text — this assertion then fails.
+    b.update([
+      evt(1, 'chat.message', 's1', { text: 'DIFFERENT-HI' }, 'NEW-ID-1'),
+      evt(2, 'chat.response', 's1', { text: 'DIFFERENT-HELLO' }, 'NEW-ID-2'),
+    ]);
+    const after = b.snapshot();
+    expect(after).toEqual(once);                     // original text preserved — replay skipped
+    expect(after[0]!.text).toBe('hi');               // NOT 'DIFFERENT-HI'
+    expect(after).toHaveLength(2);
   });
 
   it('reset() clears all in-memory projection state', () => {
