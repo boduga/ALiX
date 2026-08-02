@@ -107,6 +107,12 @@ export interface RuntimeSnapshot {
   readonly lastEventAt: number | null;
   /** The session this snapshot projects. All projections are sessionId-scoped. */
   readonly sessionId: string;
+  /**
+   * Experimental extension boundary only.
+   * Runtime consumers MUST NOT depend on keys here.
+   * Typed snapshot fields are the supported API.
+   */
+  readonly projections?: Readonly<Record<string, unknown>>;
 }
 
 export interface WorkflowStateSnapshot {

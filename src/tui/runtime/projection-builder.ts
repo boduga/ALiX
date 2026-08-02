@@ -4,13 +4,15 @@ import type { AlixEvent } from '../../events/types.js';
  *  reconciliation semantics (D4); the contract only defines the lifecycle
  *  hooks the collector orchestrates. Builders MUST NOT depend on the outputs
  *  of other builders (D11) — every projection is derived directly from
- *  the EventLog batch. */
-export interface ProjectionBuilder<T> {
+ *  the EventLog batch. TSnapshot is the projection's snapshot shape — an
+ *  array (timeline/trace) or any object (approval); the contract no longer
+ *  assumes a list. */
+export interface ProjectionBuilder<TSnapshot> {
   /** Reconcile the events into the builder's in-memory projection state.
    *  Idempotent by event identity (typically event.seq) — replay-safe. */
   update(events: readonly AlixEvent[]): void;
-  /** Produce the current snapshot as a fresh immutable list. */
-  snapshot(): readonly T[];
+  /** Produce the current snapshot as a fresh immutable value. */
+  snapshot(): TSnapshot;
   /** Wipe the in-memory projection state. Called by the collector on
    *  beyond-head fallback / corruption recovery / hot reload. */
   reset(): void;

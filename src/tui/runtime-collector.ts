@@ -8,9 +8,10 @@
  *   - snapshot() → returns frozen cache
  *
  * Consumption is INCREMENTAL: each sample reads only events after the last
- * checkpoint cursor via `EventLog.readSince`, reconciles them into the
- * IncrementalExecutionTraceBuilder, and advances the checkpoint only after the
- * next checkpoint has been durably saved (D5 — save-as-commit-marker). The
+ * checkpoint cursor via `EventLog.readSince`, dispatches them to the
+ * registered projections via the ProjectionRuntime, and advances the
+ * checkpoint only after the next checkpoint has been durably saved
+ * (D5 — save-as-commit-marker). The
  * checkpoint store is constructor-injected; `start()` awaits recovery
  * (initializeCheckpoint) BEFORE the first sample so recovery can never race an
  * incomplete restore (which would wrongly start from beginningCursor). No
@@ -19,10 +20,12 @@
 
 import { EventLog, EventLogCursorError, type EventLogCursor } from '../events/event-log.js';
 import type { AlixEvent } from '../events/types.js';
-import { IncrementalExecutionTraceBuilder } from './runtime/execution-trace-builder.js';
-import { TimelineBuilder } from './runtime/timeline-builder.js';
 import { CHECKPOINT_CONTAINER_VERSION } from './runtime/projection-checkpoint-store.js';
-import type { ProjectionCheckpointStore, ProjectionStateSnapshot } from './runtime/projection-checkpoint-store.js';
+import type { ProjectionCheckpointStore } from './runtime/projection-checkpoint-store.js';
+import type { ProjectionRuntime } from './runtime/projection-runtime.js';
+import { ProjectionIds } from './runtime/projection-ids.js';
+import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
+import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type {
   RuntimeSnapshot,
   WorkflowStateSnapshot,
@@ -45,24 +48,20 @@ export interface ProjectionCheckpoint {
 
 /** Options-object constructor (review refinement). Avoids a growing
  *  positional-arg list as future phases add projections — new projections plug
- *  in as optional builder fields. The required `sessionId` is the routing
- *  dimension: every projection (trace, timeline, workflow) is scoped to it. */
+ *  in by registering on the ProjectionRuntime. The required `sessionId` is the
+ *  routing dimension: every projection (trace, timeline, workflow) is scoped
+ *  to it. */
 export interface RuntimeCollectorOptions {
   eventLog: EventLog;
   checkpointStore: ProjectionCheckpointStore;
   /** The session this collector projects. Events from other sessions are
    *  filtered out before any builder sees them (D1/D3). */
   sessionId: string;
-  /** Timeline projection builder. Defaults to a fresh TimelineBuilder for the
-   *  session; injectable for tests / future customization. */
-  timelineBuilder?: TimelineBuilder;
-  /** Skip the timeline projection entirely. The outer (runtime) collector
-   *  projects the execution trace only — no view consumes its timeline — so
-   *  setting this avoids building an unused projection on every sample. */
-  buildTimeline?: boolean;
-  /** Trace projection builder. Defaults to a fresh
-   *  IncrementalExecutionTraceBuilder; injectable for tests. */
-  traceBuilder?: IncrementalExecutionTraceBuilder;
+  /** The projection runtime this collector hosts. Holds every registered
+   *  projection (timeline, trace, ...); the collector is blind to their
+   *  identity — it only dispatches, snapshots, and coordinates durable
+   *  state through this object. */
+  projectionRuntime: ProjectionRuntime;
 }
 
 export class RuntimeCollectorImpl implements RuntimeCollector {
@@ -71,9 +70,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
   private readonly eventLog: EventLog;
   private readonly checkpointStore: ProjectionCheckpointStore;
   private readonly sessionId: string;
-  private readonly buildTimeline: boolean;
-  private readonly timelineBuilder: TimelineBuilder;
-  private readonly traceBuilder: IncrementalExecutionTraceBuilder;
+  private readonly projectionRuntime: ProjectionRuntime;
   private checkpoint: ProjectionCheckpoint;
   /** Workflow-accounting input ONLY (not a second projection). Holds events
    *  since the most recent workflow.created; trimmed when a new workflow
@@ -87,9 +84,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
     this.eventLog = opts.eventLog;
     this.checkpointStore = opts.checkpointStore;
     this.sessionId = opts.sessionId;
-    this.buildTimeline = opts.buildTimeline ?? true;
-    this.timelineBuilder = opts.timelineBuilder ?? new TimelineBuilder(opts.sessionId);
-    this.traceBuilder = opts.traceBuilder ?? new IncrementalExecutionTraceBuilder();
+    this.projectionRuntime = opts.projectionRuntime;
     // Sentinel committedAt=0: nothing has been durably saved yet. The first
     // successful sample() overwrites this with a real timestamp.
     this.checkpoint = { cursor: opts.eventLog.beginningCursor(), committedAt: 0 };
@@ -132,27 +127,27 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         cursor: this.eventLog.deserializeCursor(loaded.cursor),
         committedAt: loaded.committedAt,
       };
-      // Phase 6.5: restore durable projection state when present. A legacy
-      // checkpoint (no state) leaves builders empty and replays forward from
-      // the cursor — identical to pre-6.5 behavior. Import is safe because the
-      // cursor deserialized cleanly above; an invalid cursor takes the catch
-      // below and rebuilds by replay instead.
-      if (loaded.state) {
-        if (this.buildTimeline && loaded.state.timeline) this.timelineBuilder.importState(loaded.state.timeline);
-        if (loaded.state.trace) this.traceBuilder.importState(loaded.state.trace);
-      }
+      // Phase 6.5/7: restore durable projection state when present. Reads the
+      // Phase-7 `projections` shape first, falling back to the legacy Phase-6.5
+      // `state` shape — both are keyed by projection id. A legacy checkpoint
+      // (no state) leaves builders empty and replays forward from the cursor —
+      // identical to pre-6.5 behavior. Import is safe because the cursor
+      // deserialized cleanly above; an invalid cursor takes the catch below
+      // and rebuilds by replay instead.
+      const restored = loaded.projections ?? loaded.state;
+      if (restored) this.projectionRuntime.importState(restored);
     } catch (err) {
       // Invalid checkpoint (any of the four EventLogCursorError modes — the
       // cursor's `seq` lies beyond the current head, malformed JSON, unknown
       // version, invalid payload) or an operational deserialize failure (none
       // expected today, kept for future-proofing). Both fall back to a full
       // replay from beginningCursor — the branches are identical, so there is
-      // no need to discriminate the EventLogCursorError here. Reset BOTH
-      // builders (D12) so the replay reconstructs independent, in-memory
-      // projection state — the persisted checkpoint file is left untouched; a
-      // subsequent successful sample overwrites it with a valid one.
-      this.timelineBuilder.reset();
-      this.traceBuilder.reset();
+      // no need to discriminate the EventLogCursorError here. Reset ALL
+      // projections (D12) so the replay reconstructs independent, in-memory
+      // projection state — persisted state is never trusted on an invalid
+      // cursor. The persisted checkpoint file is left untouched; a subsequent
+      // successful sample overwrites it with a valid one.
+      this.projectionRuntime.resetAll();
       this.resetCheckpoint();
     }
   }
@@ -217,8 +212,7 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // batch (readSince returns all sessions' events; we must not re-read
       // them), while the builders only ever see this session's events.
       const sessionBatch = batch.events.filter((e) => e.sessionId === this.sessionId);
-      if (this.buildTimeline) this.timelineBuilder.update(sessionBatch);
-      this.traceBuilder.update(sessionBatch);
+      this.projectionRuntime.updateAll(sessionBatch);
 
       const nextCheckpoint = { cursor: batch.cursor, committedAt: Date.now() };
 
@@ -242,8 +236,8 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
         nextTotalEventCount = Math.max(nextTotalEventCount, sessionLast.seq ?? 0);
       }
       const nextCache: RuntimeSnapshot = {
-        trace: this.traceBuilder.snapshot(),
-        timeline: this.buildTimeline ? this.timelineBuilder.snapshot() : [],
+        trace: this.projectionRuntime.snapshotOf<readonly ExecutionTraceEntry[]>(ProjectionIds.trace) ?? [],
+        timeline: this.projectionRuntime.snapshotOf<readonly TimelineEntry[]>(ProjectionIds.timeline) ?? [],
         workflow: computeWorkflow(nextRecentEvents),
         totalEventCount: nextTotalEventCount,
         lastEventAt: sessionLast ? Date.parse(sessionLast.timestamp) || Date.now() : this.cache.lastEventAt,
@@ -263,19 +257,15 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       // invariant "a checkpoint never represents a projection state that has
       // not been durably published" must hold. Publish the snapshot and
       // advance the checkpoint TOGETHER (last step, after the save).
-      // Phase 6.5: persist each durable builder's projection state in the SAME
-      // atomic save transaction as the cursor (save-before-publish applies to
-      // state too — a published snapshot never represents state that was not
-      // durably saved). Only builders actually being updated are persisted.
-      const state: ProjectionStateSnapshot = {
-        ...(this.buildTimeline ? { timeline: this.timelineBuilder.exportState() } : {}),
-        trace: this.traceBuilder.exportState(),
-      };
+      // Phase 6.5/7: persist every registered projection's durable state in the
+      // SAME atomic save transaction as the cursor (save-before-publish applies
+      // to state too — a published snapshot never represents state that was not
+      // durably saved). exportState() covers exactly the registered set.
       await this.checkpointStore.save({
         version: CHECKPOINT_CONTAINER_VERSION,
         cursor: this.eventLog.serializeCursor(nextCheckpoint.cursor),
         committedAt: nextCheckpoint.committedAt,
-        state,
+        projections: this.projectionRuntime.exportState(),
       });
 
       // ATOMIC commit: checkpoint + cache advance together on the same step
@@ -289,13 +279,12 @@ export class RuntimeCollectorImpl implements RuntimeCollector {
       this.cache = nextCache;
     } catch (err) {
       if (err instanceof EventLogCursorError) {
-        // D12 — beyond-head / invalid cursor. Reset BOTH builders so the
+        // D12 — beyond-head / invalid cursor. Reset ALL projections so the
         // replay from beginningCursor() reconstructs each projection
         // independently (no stale state carried across the reset). Cache stays
         // as-is for THIS sample; the next sample publishes the rebuilt
         // snapshot.
-        this.timelineBuilder.reset();
-        this.traceBuilder.reset();
+        this.projectionRuntime.resetAll();
         this.resetCheckpoint();
         return;
       }

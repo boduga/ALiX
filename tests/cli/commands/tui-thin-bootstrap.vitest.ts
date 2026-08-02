@@ -6,6 +6,8 @@ import { EventLog } from '../../../src/events/event-log.js';
 import { FileProjectionCheckpointStore } from '../../../src/tui/runtime/projection-checkpoint-store.js';
 import { RuntimeCollectorImpl } from '../../../src/tui/runtime-collector.js';
 import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
+import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
+import { createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
 import { SnapshotBuilder } from '../../../src/tui/snapshot-builder.js';
 
 describe('runTui bootstrap (thin)', () => {
@@ -36,7 +38,7 @@ describe('runTui bootstrap (thin)', () => {
         eventLog,
         checkpointStore,
         sessionId: 's1',
-        timelineBuilder: new TimelineBuilder('s1'),
+        projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder('s1')], ['trace', new IncrementalExecutionTraceBuilder()]]),
       });
 
       await eventLog.append({
@@ -97,19 +99,19 @@ describe('runTui bootstrap (thin)', () => {
         eventLog,
         checkpointStore: runtimeCheckpointStore,
         sessionId: outerSessionId,
-        timelineBuilder: new TimelineBuilder(outerSessionId),
+        projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(outerSessionId)], ['trace', new IncrementalExecutionTraceBuilder()]]),
       });
       const chatCollector = new RuntimeCollectorImpl({
         eventLog,
         checkpointStore: chatCheckpointStore,
         sessionId: chatSessionId,
-        timelineBuilder: new TimelineBuilder(chatSessionId),
+        projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(chatSessionId)], ['trace', new IncrementalExecutionTraceBuilder()]]),
       });
       const agentCollector = new RuntimeCollectorImpl({
         eventLog,
         checkpointStore: agentCheckpointStore,
         sessionId: agentSessionId,
-        timelineBuilder: new TimelineBuilder(agentSessionId),
+        projectionRuntime: createProjectionRuntime([['timeline', new TimelineBuilder(agentSessionId)], ['trace', new IncrementalExecutionTraceBuilder()]]),
       });
 
       // Capability/tool/runtime events carry the OUTER sessionId; chat/agent
