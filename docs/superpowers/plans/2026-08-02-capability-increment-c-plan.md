@@ -152,11 +152,15 @@ Expected: FAIL — expired/revoked/consumed/invalidated/resolveGroup assertions 
 
 In `src/approvals/approval-store.ts`:
 
-> **Append-error convention (repo-wide):** the dominant pattern is `await this.eventLog?.append(...)` (see `src/tools/tool-router.ts`, `src/tools/executor.ts`) — EventLog is governance evidence, and append failures should surface rather than vanish. The store's existing `.catch(() => {})` fire-and-forget is the anomaly. Since the append happens **after** the durable mutation succeeds, awaiting it never risks losing the mutation; a failed append propagates to the store caller. Convert ALL approval-store emissions (the touched `created` ones + all new ones) to `await`. Remove every `.catch(() => {})` from the store's event emissions.
+> **Append-error convention (LOCKED — Option 3):** keep the repository's established fire-and-forget convention for ALL approval-store emissions, existing and new. The EventLog append happens **after** the durable mutation succeeds (persist-before-append), so a failed append never risks losing the mutation; the append is best-effort telemetry of governance state, and a failure must not change the store method's contract. Use `this.eventLog?.append(...).catch(() => {})` for every emission (matching the existing store `created`/`resolve` emissions and `policy-gate.ts`). **Do NOT convert to `await` in this increment.**
+>
+> **Rationale:** the repository treats EventLog appends as non-fatal broadly (`.catch(() => {})` on the hot paths). Making only ApprovalStore's emissions fatal would create an inconsistent API contract within one abstraction (created swallows, expired throws) and would unilaterally redefine a cross-cutting durability policy. A future increment should introduce a repository-wide "durable event append" policy as a dedicated refactor — **design note/TODO, out of scope here**.
+>
+> The persist-before-append invariant is unchanged: the mutation must succeed before the append; a **failed mutation** emits nothing (that's a different guarantee than a failed append).
 
-1. **Enrich the three `created` emitters.** In `requestBound`, `requestFresh`, and `requestOrReusePending`, extend the existing `eventLog?.append({ type: APPROVAL_EVENT_TYPES.CREATED, payload: { ... } })` payload with `reason: record.reason`, `toolId: record.toolId`, `requestId: record.requestId`, `sessionId: record.sessionId` (all `?? undefined`-safe). These are already on the `record`. Convert to `await`:
+1. **Enrich the three `created` emitters.** In `requestBound`, `requestFresh`, and `requestOrReusePending`, extend the existing `eventLog?.append({ type: APPROVAL_EVENT_TYPES.CREATED, payload: { ... } })` payload with `reason: record.reason`, `toolId: record.toolId`, `requestId: record.requestId`, `sessionId: record.sessionId` (all `?? undefined`-safe). These are already on the `record`. Keep fire-and-forget:
 ```ts
-await this.eventLog?.append({
+this.eventLog?.append({
   sessionId: record.sessionId ?? 'unknown',
   actor: 'policy',
   type: APPROVAL_EVENT_TYPES.CREATED,
@@ -174,20 +178,20 @@ await this.eventLog?.append({
     requestId: record.requestId,
     sessionId: record.sessionId,
   },
-});
+}).catch(() => {});
 ```
 
 2. **`expireDue`:** after the `mutate()` resolves and you have the `expired` list, append one `approval.expired` per record:
 ```ts
 for (const r of expired) {
-  await this.eventLog?.append({ sessionId: r.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.EXPIRED, payload: { approvalId: r.id } });
+  this.eventLog?.append({ sessionId: r.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.EXPIRED, payload: { approvalId: r.id } }).catch(() => {});
 }
 ```
 
 3. **`revoke`:** after a successful revoke (the `revoked` variable is non-null), append one `approval.revoked`:
 ```ts
 if (revoked) {
-  await this.eventLog?.append({ sessionId: revoked.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.REVOKED, payload: { approvalId: revoked.id } });
+  this.eventLog?.append({ sessionId: revoked.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.REVOKED, payload: { approvalId: revoked.id } }).catch(() => {});
 }
 ```
 Place it **after** the `mutate()` returns — never before, so a failed mutation emits nothing. (`revoke` currently does `await this.mutate(...)` and assigns `revoked`; append after.)
@@ -195,16 +199,16 @@ Place it **after** the `mutate()` returns — never before, so a failed mutation
 4. **`consumeApproved`:** the `result` object carries `{ consumed, record }`. After the `mutate()` returns, when `result.consumed && result.record`:
 ```ts
 if (result.consumed && result.record) {
-  await this.eventLog?.append({ sessionId: result.record.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.CONSUMED, payload: { approvalId: result.record.id } });
+  this.eventLog?.append({ sessionId: result.record.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.CONSUMED, payload: { approvalId: result.record.id } }).catch(() => {});
 }
 ```
 
-5. **`invalidateByPolicyRevision`:** after `mutate()` returns, loop the `invalidated` list, one `approval.invalidated` each (`await this.eventLog?.append(...)` per record).
+5. **`invalidateByPolicyRevision`:** after `mutate()` returns, loop the `invalidated` list, one `approval.invalidated` each (`this.eventLog?.append(...).catch(() => {})` per record).
 
 6. **`resolveGroup`:** after a successful full-group resolve (`allStillPending` branch, status `'approved'`/`'denied'`), append **per member**:
 ```ts
 for (const m of members) {
-  await this.eventLog?.append({ sessionId: m.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.RESOLVED, payload: { approvalId: m.id, status: status } });
+  this.eventLog?.append({ sessionId: m.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.RESOLVED, payload: { approvalId: m.id, status: status } }).catch(() => {});
 }
 ```
 The existing single `approval.resolved` (with `id`) in the current `resolveGroup` — if present — should be replaced by this per-member loop. For the `partial` branch (some members already resolved), the already-resolved members do not get a new event (they already have one); only members whose status actually changed get events.

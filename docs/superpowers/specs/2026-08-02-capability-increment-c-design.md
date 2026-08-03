@@ -132,6 +132,10 @@ append EventLog event
 ```
 The projection must never observe a lifecycle transition that did not successfully commit. Failed mutations emit no lifecycle event.
 
+**Append-error handling (LOCKED — Option 3):** all approval-store emissions keep the repository's established fire-and-forget convention — `this.eventLog?.append(...).catch(() => {})`. An append failure (after a successful mutation) is non-fatal and must not change the store method's contract; the mutation's durability is independent of the append's. **Rationale:** the repository treats EventLog appends as best-effort broadly (`.catch(() => {})` on hot paths, including `policy-gate.ts` and the store's existing `created`/`resolve` emissions). Making only ApprovalStore's emissions fatal would create an inconsistent API contract within one abstraction and unilaterally redefine a cross-cutting durability policy. A repository-wide "durable event append" policy is a **future increment's dedicated refactor** (design note/TODO) — out of scope here.
+
+> **Note the distinction:** *persist-before-append* (the mutation must succeed before the append) and *fire-and-forget on the append* (a failed append doesn't fail the store method) are two separate guarantees. Both hold.
+
 **`resolveGroup`:** emits **per-member** `approval.resolved`. Projection identity is `approvalId`, not `groupId`; group lifecycle is orchestration, individual approval lifecycle is governance truth. `approval.group.resolved` may remain informational for existing consumers but is not required by the projection.
 
 **Acceptance criterion:**
