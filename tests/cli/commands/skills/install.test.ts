@@ -1,36 +1,12 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { runInstall, resolveInstallOptions } from "../../../../src/cli/commands/skills/install.js";
-import {
-  listMarketplaces,
-  addMarketplace,
-  removeMarketplace,
-  DEFAULT_MARKETPLACES,
-} from "../../../../src/cli/commands/skills/marketplace.js";
 import { join } from "node:path";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { mkdirSync } from "node:fs";
+import { useTestHome, restoreTestHome } from "./test-helpers.js";
 
 const testDir = join(process.cwd(), ".test-alix-skills");
-const originalHome = process.env.HOME;
-
-/** Point HOME at the test dir and ensure ~/.alix/skills exists. */
-function useTestHome(): void {
-  process.env.HOME = testDir;
-  mkdirSync(join(testDir, ".alix", "skills"), { recursive: true });
-}
-
-/** Remove the test dir and restore the original HOME so no state leaks across describes. */
-function restoreTestHome(): void {
-  if (existsSync(testDir)) {
-    rmSync(testDir, { recursive: true, force: true });
-  }
-  if (originalHome === undefined) {
-    delete process.env.HOME;
-  } else {
-    process.env.HOME = originalHome;
-  }
-}
 
 describe("resolveInstallOptions", () => {
   it("resolves bare 'available' subcommand", () => {
@@ -79,12 +55,12 @@ describe("resolveInstallOptions", () => {
 describe("install command", () => {
   beforeEach(() => {
     // Mock HOME to test directory
-    useTestHome();
+    useTestHome(testDir);
   });
 
   afterEach(() => {
     // Clean up test directory and restore the original HOME
-    restoreTestHome();
+    restoreTestHome(testDir);
   });
 
   it("should list installed skills", async () => {
@@ -165,11 +141,11 @@ describe("install --from (non-bundled skills)", () => {
   const origFetch = globalThis.fetch;
 
   beforeEach(() => {
-    useTestHome();
+    useTestHome(testDir);
   });
 
   afterEach(() => {
-    restoreTestHome();
+    restoreTestHome(testDir);
   });
 
   function writeFixture(content: string, fileName = "SKILL.md"): string {
@@ -226,12 +202,12 @@ describe("install --from github URLs", () => {
   const origFetch = globalThis.fetch;
 
   beforeEach(() => {
-    useTestHome();
+    useTestHome(testDir);
   });
 
   afterEach(() => {
     globalThis.fetch = origFetch;
-    restoreTestHome();
+    restoreTestHome(testDir);
   });
 
   /** Stub fetch so only raw.githubusercontent.com paths in `exists` return a skill. */
@@ -275,55 +251,5 @@ describe("install --from github URLs", () => {
       runInstall({ from: "https://github.com/acme/alix-skills", name: "nope" }),
       /Could not find a valid SKILL\.md/,
     );
-  });
-});
-
-describe("marketplace persistence (CLI layer)", () => {
-  beforeEach(() => {
-    useTestHome();
-  });
-
-  afterEach(() => {
-    restoreTestHome();
-  });
-
-  it("seeds default marketplaces on first list", async () => {
-    const mps = await listMarketplaces();
-    assert.deepEqual(mps, [...DEFAULT_MARKETPLACES]);
-    assert.ok(existsSync(join(testDir, ".alix", "marketplaces.json")), "registry file should be persisted");
-  });
-
-  it("adds a marketplace and persists it", async () => {
-    await listMarketplaces(); // seed defaults first
-    const { added, marketplaces } = await addMarketplace("acme", "https://github.com/acme/skills");
-    assert.equal(added, true);
-    assert.ok(marketplaces.some((m) => m.name === "acme"));
-    const reloaded = await listMarketplaces();
-    assert.ok(
-      reloaded.some((m) => m.name === "acme" && m.url === "https://github.com/acme/skills"),
-      "added marketplace should be persisted",
-    );
-  });
-
-  it("rejects http:// marketplace URLs", async () => {
-    await assert.rejects(addMarketplace("acme", "http://github.com/acme/skills"), /https/);
-  });
-
-  it("rejects non-github hosts", async () => {
-    await assert.rejects(addMarketplace("acme", "https://example.com/acme/skills"), /github\.com/);
-  });
-
-  it("removes a marketplace and persists it", async () => {
-    await listMarketplaces(); // seed defaults first
-    await addMarketplace("acme", "https://github.com/acme/skills");
-    const { removed, marketplaces } = await removeMarketplace("acme");
-    assert.equal(removed, true);
-    assert.ok(!marketplaces.some((m) => m.name === "acme"));
-    const reloaded = await listMarketplaces();
-    assert.ok(!reloaded.some((m) => m.name === "acme"), "removed marketplace should be persisted");
-  });
-
-  it("throws when removing an unknown marketplace", async () => {
-    await assert.rejects(removeMarketplace("nope"), /not registered/);
   });
 });

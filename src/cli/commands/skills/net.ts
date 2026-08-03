@@ -1,5 +1,45 @@
 import { parseSkillContent } from "../../../skills/types.js";
 
+export interface ParsedGithubUrl {
+  host: "github.com" | "raw.githubusercontent.com";
+  owner: string;
+  repo: string;
+  /** path segments after {owner}/{repo} */
+  rest: string[];
+}
+
+/**
+ * Parse a github.com or raw.githubusercontent.com URL into its owner, repo, and
+ * remaining path. Returns null when the URL isn't GitHub-shaped. Normalizes a
+ * trailing `.git` and trailing slashes — the one shared URL-transform used by
+ * githubRawCandidates, parseRepoUrl, and normalizeUrl.
+ */
+export function parseGithubUrl(source: string): ParsedGithubUrl | null {
+  let u: URL;
+  try {
+    u = new URL(source);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.toLowerCase();
+  if (host !== "github.com" && host !== "raw.githubusercontent.com") return null;
+  const seg = u.pathname.replace(/\.git$/, "").replace(/\/+$/, "").split("/").filter(Boolean);
+  if (seg.length < 2) return null;
+  const [owner, repo, ...rest] = seg;
+  return { host, owner, repo, rest };
+}
+
+/** Reject anything but https — fetched skill content is trusted and injected into prompts. */
+function assertHttps(url: string): void {
+  let proto: string;
+  try {
+    proto = new URL(url).protocol;
+  } catch {
+    throw new Error(`Not a valid URL: ${url}`);
+  }
+  if (proto !== "https:") throw new Error(`Only https URLs are allowed: ${url}`);
+}
+
 /**
  * Resolve a github.com URL into candidate raw.githubusercontent.com URLs to
  * look for a SKILL.md, or null when the source isn't GitHub-shaped.
@@ -17,19 +57,10 @@ import { parseSkillContent } from "../../../skills/types.js";
  * URL for those.
  */
 export function githubRawCandidates(source: string, name?: string): string[] | null {
-  let u: URL;
-  try {
-    u = new URL(source);
-  } catch {
-    return null;
-  }
-  const host = u.hostname.toLowerCase();
-  if (host === "raw.githubusercontent.com") return [source];
-  if (host !== "github.com") return null;
-
-  const seg = u.pathname.replace(/\.git$/, "").replace(/\/+$/, "").split("/").filter(Boolean);
-  if (seg.length < 2) return null;
-  const [owner, repo, ...rest] = seg;
+  const parsed = parseGithubUrl(source);
+  if (!parsed) return null;
+  if (parsed.host === "raw.githubusercontent.com") return [source];
+  const { owner, repo, rest } = parsed;
   const base = `https://raw.githubusercontent.com/${owner}/${repo}/`;
 
   const candidates: string[] = [];
@@ -89,6 +120,7 @@ export async function fetchSkillFromUrls(urls: string[], sourceLabel: string, na
 
 /** Fetch a remote text payload over https with a 15s timeout and 1MB cap. */
 export async function fetchText(url: string): Promise<{ content: string; isHtml: boolean }> {
+  assertHttps(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
@@ -109,6 +141,7 @@ export async function fetchText(url: string): Promise<{ content: string; isHtml:
 
 /** Fetch a JSON payload over https with a 15s timeout. Always sends a UA (GitHub requires one for api.github.com). */
 export async function fetchJson<T>(url: string, headers?: Record<string, string>): Promise<T> {
+  assertHttps(url);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {

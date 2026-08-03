@@ -1,10 +1,11 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { existsSync, rmSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { useTestHome, restoreTestHome } from "./test-helpers.js";
 import {
   DEFAULT_MARKETPLACES,
-  listMarketplaces,
+  loadMarketplaces,
   addMarketplace,
   removeMarketplace,
   listRepoSkills,
@@ -53,16 +54,15 @@ function treeResponse(entries: { path: string }[]): Response {
 
 describe("marketplace persistence", () => {
   beforeEach(() => {
-    process.env.HOME = testDir;
+    useTestHome(testDir);
   });
 
   afterEach(() => {
-    delete process.env.HOME;
-    if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
+    restoreTestHome(testDir);
   });
 
   it("seeds defaults on first load and writes marketplaces.json", async () => {
-    const mps = await listMarketplaces();
+    const mps = await loadMarketplaces();
     assert.deepEqual(mps, [...DEFAULT_MARKETPLACES]);
     assert.ok(existsSync(marketplacesPath(testDir)), "marketplaces.json should be written");
     const onDisk = JSON.parse(readFileSync(marketplacesPath(testDir), "utf8"));
@@ -73,7 +73,7 @@ describe("marketplace persistence", () => {
     const { added, marketplaces } = await addMarketplace("acme", "https://github.com/acme/skills");
     assert.equal(added, true);
     assert.ok(marketplaces.some((m) => m.name === "acme"));
-    const reloaded = await listMarketplaces();
+    const reloaded = await loadMarketplaces();
     assert.ok(reloaded.some((m) => m.name === "acme" && m.url === "https://github.com/acme/skills"));
   });
 
@@ -82,7 +82,7 @@ describe("marketplace persistence", () => {
     const { removed, marketplaces } = await removeMarketplace("acme");
     assert.equal(removed, true);
     assert.ok(!marketplaces.some((m) => m.name === "acme"));
-    const reloaded = await listMarketplaces();
+    const reloaded = await loadMarketplaces();
     assert.ok(!reloaded.some((m) => m.name === "acme"));
   });
 
@@ -93,19 +93,29 @@ describe("marketplace persistence", () => {
   it("tolerates a corrupted marketplaces file by reseeding defaults", async () => {
     mkdirSync(join(testDir, ".alix"), { recursive: true });
     writeFileSync(marketplacesPath(testDir), "not json {{", "utf8");
-    const mps = await listMarketplaces();
+    const mps = await loadMarketplaces();
+    assert.deepEqual(mps, [...DEFAULT_MARKETPLACES]);
+  });
+
+  it("reseeds defaults when the file has any invalid entry", async () => {
+    mkdirSync(join(testDir, ".alix"), { recursive: true });
+    writeFileSync(
+      marketplacesPath(testDir),
+      JSON.stringify([{ name: "acme", url: "https://github.com/acme/skills" }, { bogus: true }]),
+      "utf8",
+    );
+    const mps = await loadMarketplaces();
     assert.deepEqual(mps, [...DEFAULT_MARKETPLACES]);
   });
 });
 
 describe("addMarketplace validation", () => {
   beforeEach(() => {
-    process.env.HOME = testDir;
+    useTestHome(testDir);
   });
 
   afterEach(() => {
-    delete process.env.HOME;
-    if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
+    restoreTestHome(testDir);
   });
 
   it("rejects plain http URLs", async () => {
@@ -324,12 +334,11 @@ describe("resolveSkillInMarketplaces", () => {
 
 describe("runMarketplaceCommand", () => {
   beforeEach(() => {
-    process.env.HOME = testDir;
+    useTestHome(testDir);
   });
 
   afterEach(() => {
-    delete process.env.HOME;
-    if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
+    restoreTestHome(testDir);
   });
 
   it("lists registered marketplaces as '<name> <url>'", async () => {
@@ -346,7 +355,7 @@ describe("runMarketplaceCommand", () => {
     );
     assert.equal(lines[0], "Added marketplace 'acme' (https://github.com/acme/skills)");
     assert.ok(lines.includes("acme https://github.com/acme/skills"));
-    const reloaded = await listMarketplaces();
+    const reloaded = await loadMarketplaces();
     assert.ok(reloaded.some((m) => m.name === "acme"));
   });
 
@@ -375,7 +384,7 @@ describe("runMarketplaceCommand", () => {
     const { lines } = await captureLog(() => runMarketplaceCommand("remove", "acme"));
     assert.equal(lines[0], "Removed marketplace 'acme'");
     assert.ok(!lines.some((l) => l.startsWith("acme ")));
-    const reloaded = await listMarketplaces();
+    const reloaded = await loadMarketplaces();
     assert.ok(!reloaded.some((m) => m.name === "acme"));
   });
 

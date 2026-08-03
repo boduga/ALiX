@@ -29,7 +29,12 @@ export interface InstallOptions {
  * `alix skills install tdd` tried to install one named "install".)
  * legacy `--available` flag still honored for backward compat.
  */
-export function resolveInstallOptions(args: string[]): InstallOptions {
+/**
+ * Parse the raw `alix skills` arg list once into its flags, positionals, and
+ * the `--from` value. The single parser shared by resolveInstallOptions and
+ * resolveSkillsCommand — no second, independent flag-splitting loop.
+ */
+export function parseSkillsArgs(args: string[]): { flags: Set<string>; positional: string[]; from?: string } {
   const flags = new Set<string>();
   const positional: string[] = [];
   let from: string | undefined;
@@ -44,6 +49,11 @@ export function resolveInstallOptions(args: string[]): InstallOptions {
       positional.push(a);
     }
   }
+  return { flags, positional, from };
+}
+
+export function resolveInstallOptions(args: string[]): InstallOptions {
+  const { flags, positional, from } = parseSkillsArgs(args);
   const sub = positional[0] ?? "";
   return {
     available: sub === "available" || flags.has("--available"),

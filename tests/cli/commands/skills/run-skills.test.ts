@@ -54,6 +54,10 @@ describe("resolveSkillsCommand", () => {
     assert.deepEqual(resolveSkillsCommand(["unknown"]), { type: "help" });
   });
 
+  it('maps an unknown marketplace action to { type: "help" } instead of force-casting', () => {
+    assert.deepEqual(resolveSkillsCommand(["marketplace", "bogus"]), { type: "help" });
+  });
+
   it("maps empty args to { type: 'help' }", () => {
     assert.deepEqual(resolveSkillsCommand([]), { type: "help" });
   });

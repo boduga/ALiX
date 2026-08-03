@@ -1,6 +1,6 @@
 import { join, dirname } from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { githubRawCandidates, fetchSkillFromUrls, fetchText, fetchJson } from "./net.js";
+import { githubRawCandidates, fetchSkillFromUrls, fetchText, fetchJson, parseGithubUrl } from "./net.js";
 import { parseSkillContent } from "../../../skills/types.js";
 
 export interface Marketplace {
@@ -76,7 +76,9 @@ export async function loadMarketplaces(homeDir?: string): Promise<Marketplace[]>
   }
   if (Array.isArray(parsed)) {
     const mps = parsed.filter(isMarketplace);
-    if (mps.length > 0) return mps;
+    // A valid registry is a non-empty array whose every entry is valid; a
+    // partially-invalid or empty array is treated as corrupt and reseeded.
+    if (mps.length === parsed.length && mps.length > 0) return mps;
   }
   return seedDefaults(homeDir);
 }
@@ -87,19 +89,11 @@ async function seedDefaults(homeDir?: string): Promise<Marketplace[]> {
   return seeded;
 }
 
-/** Load only — the currently registered marketplaces. */
-export async function listMarketplaces(homeDir?: string): Promise<Marketplace[]> {
-  return loadMarketplaces(homeDir);
-}
-
-/** Normalize a marketplace URL for duplicate comparison (lowercased host, no trailing slash/.git). */
+/** Normalize a marketplace URL for duplicate comparison (owner/repo, https github.com). */
 function normalizeUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    return `${u.protocol}//${u.hostname.toLowerCase()}${u.pathname.replace(/\.git$/, "").replace(/\/+$/, "")}`;
-  } catch {
-    return url;
-  }
+  const parsed = parseGithubUrl(url);
+  if (!parsed) return url;
+  return `https://github.com/${parsed.owner}/${parsed.repo}`;
 }
 
 /**
@@ -159,20 +153,11 @@ type TreesResponse = { tree: TreeEntry[] };
 
 /** Parse a github.com repo URL into { owner, repo }, throwing otherwise. */
 function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
-  let u: URL;
-  try {
-    u = new URL(repoUrl);
-  } catch {
-    throw new Error(`Not a valid repo URL: ${repoUrl}`);
-  }
-  if (u.hostname.toLowerCase() !== "github.com") {
+  const parsed = parseGithubUrl(repoUrl);
+  if (!parsed || parsed.host !== "github.com") {
     throw new Error(`Not a GitHub repo URL: ${repoUrl}`);
   }
-  const seg = u.pathname.replace(/\.git$/, "").replace(/\/+$/, "").split("/").filter(Boolean);
-  if (seg.length < 2) {
-    throw new Error(`Not a GitHub repo URL: ${repoUrl}`);
-  }
-  return { owner: seg[0], repo: seg[1] };
+  return { owner: parsed.owner, repo: parsed.repo };
 }
 
 /**
@@ -263,7 +248,7 @@ export async function runMarketplaceCommand(
   homeDir?: string,
 ): Promise<void> {
   if (action === "list") {
-    const mps = await listMarketplaces(homeDir);
+    const mps = await loadMarketplaces(homeDir);
     for (const mp of mps) console.log(`${mp.name} ${mp.url}`);
     return;
   }
