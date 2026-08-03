@@ -10,6 +10,7 @@ import {
   listRepoSkills,
   resolveSkillInMarketplaces,
   listAvailableSkills,
+  runMarketplaceCommand,
   marketplacesPath,
 } from "../../../../src/cli/commands/skills/marketplace.js";
 
@@ -17,6 +18,19 @@ const testDir = join(process.cwd(), ".test-alix-marketplace");
 
 function skillBody(name: string): string {
   return `---\nname: ${name}\ndescription: ${name} test skill\n---\nBody.\n`;
+}
+
+/** Run fn while capturing console.log output, then restore. */
+async function captureLog<T>(fn: () => Promise<T>): Promise<{ lines: string[]; result: T }> {
+  const orig = console.log;
+  const lines: string[] = [];
+  console.log = (...args: unknown[]) => lines.push(args.map(String).join(" "));
+  try {
+    const result = await fn();
+    return { lines, result };
+  } finally {
+    console.log = orig;
+  }
 }
 
 function treeResponse(entries: { path: string }[]): Response {
@@ -236,17 +250,39 @@ describe("listAvailableSkills", () => {
     }) as typeof fetch;
 
     const errs: string[] = [];
+    const lines: string[] = [];
     const origErr = console.error;
+    const origLog = console.log;
     console.error = (m: unknown) => {
       errs.push(String(m));
     };
+    console.log = (...args: unknown[]) => lines.push(args.map(String).join(" "));
     try {
       await listAvailableSkills(mps);
     } finally {
       console.error = origErr;
+      console.log = origLog;
     }
     assert.equal(errs.length, 1, "one marketplace failure should be reported");
     assert.match(errs[0], /bad/);
+    assert.ok(
+      lines.some((l) => l === "\ngood (https://github.com/good/skills):"),
+      "the healthy marketplace block should still print",
+    );
+  });
+
+  it("prints the grouped block, padEnd(24) alignment, and footer", async () => {
+    const mps = [{ name: "good", url: "https://github.com/good/skills" }];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("api.github.com")) return treeResponse([{ path: "skills/alpha/SKILL.md" }]);
+      return new Response(skillBody("alpha"), { status: 200, headers: { "content-type": "text/markdown" } });
+    }) as typeof fetch;
+
+    const { lines } = await captureLog(() => listAvailableSkills(mps));
+    assert.equal(lines[0], "\ngood (https://github.com/good/skills):");
+    assert.equal(lines[1], `  ${"alpha".padEnd(24)} alpha test skill`);
+    assert.equal(lines[2], "\nInstall with: alix skills install <skill>");
   });
 });
 
@@ -282,5 +318,71 @@ describe("resolveSkillInMarketplaces", () => {
       resolveSkillInMarketplaces("nope", mps),
       /Could not find skill 'nope' in 2 registered marketplaces/,
     );
+  });
+});
+
+describe("runMarketplaceCommand", () => {
+  beforeEach(() => {
+    process.env.HOME = testDir;
+  });
+
+  afterEach(() => {
+    delete process.env.HOME;
+    if (existsSync(testDir)) rmSync(testDir, { recursive: true, force: true });
+  });
+
+  it("lists registered marketplaces as '<name> <url>'", async () => {
+    const { lines } = await captureLog(() => runMarketplaceCommand("list"));
+    assert.deepEqual(lines, [
+      "anthropics/skills https://github.com/anthropics/skills",
+      "langfuse/skills https://github.com/langfuse/skills",
+    ]);
+  });
+
+  it("adds a marketplace with confirmation and updated list, and persists", async () => {
+    const { lines } = await captureLog(() =>
+      runMarketplaceCommand("add", "acme", "https://github.com/acme/skills"),
+    );
+    assert.equal(lines[0], "Added marketplace 'acme' (https://github.com/acme/skills)");
+    assert.ok(lines.includes("acme https://github.com/acme/skills"));
+    const reloaded = await listMarketplaces();
+    assert.ok(reloaded.some((m) => m.name === "acme"));
+  });
+
+  it("reports a duplicate add without throwing", async () => {
+    const { lines } = await captureLog(() =>
+      runMarketplaceCommand("add", "anthropics/skills", "https://github.com/other/skills"),
+    );
+    assert.equal(lines[0], "Marketplace 'anthropics/skills' is already registered");
+    assert.equal(lines.length, DEFAULT_MARKETPLACES.length + 1, "no new line beyond the message and existing list");
+  });
+
+  it("rejects an http URL through the command layer", async () => {
+    await assert.rejects(runMarketplaceCommand("add", "acme", "http://github.com/acme/skills"), /https/);
+  });
+
+  it("rejects a non-github host through the command layer", async () => {
+    await assert.rejects(runMarketplaceCommand("add", "acme", "https://example.com/acme/skills"), /github\.com/);
+  });
+
+  it("requires both name and url for add", async () => {
+    await assert.rejects(runMarketplaceCommand("add", "acme"), /Usage:/);
+  });
+
+  it("removes a marketplace with confirmation and updated list, and persists", async () => {
+    await captureLog(() => runMarketplaceCommand("add", "acme", "https://github.com/acme/skills"));
+    const { lines } = await captureLog(() => runMarketplaceCommand("remove", "acme"));
+    assert.equal(lines[0], "Removed marketplace 'acme'");
+    assert.ok(!lines.some((l) => l.startsWith("acme ")));
+    const reloaded = await listMarketplaces();
+    assert.ok(!reloaded.some((m) => m.name === "acme"));
+  });
+
+  it("throws when removing an unregistered marketplace", async () => {
+    await assert.rejects(runMarketplaceCommand("remove", "nope"), /not registered/);
+  });
+
+  it("requires a name for remove", async () => {
+    await assert.rejects(runMarketplaceCommand("remove"), /Usage:/);
   });
 });
