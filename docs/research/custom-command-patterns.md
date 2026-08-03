@@ -181,7 +181,7 @@ Verify there are no uncommitted changes. If there are, ask whether to continue o
 
 ## Step 2: Run the test suite
 <execute_command>
-<command>npm run test</command>
+<command>pnpm test</command>
 </execute_command>
 If any tests fail, stop the workflow and report the failures.
 ```
