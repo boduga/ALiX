@@ -170,6 +170,71 @@ Run 'alix skills available' to see skills you can install.
 }
 
 /**
+ * Resolve the skill directory inside a local folder that has no top-level
+ * SKILL.md — a repo-root package layout such as a clone of anthropics/skills,
+ * where skills live at skills/<name>/SKILL.md.
+ *
+ * Order:
+ *   1. `skills/<name>` then `<name>` when a name is given,
+ *   2. a unique nested skill directory when exactly one exists,
+ *   3. a clear error otherwise.
+ */
+async function resolveSkillDir(root: string, name: string | undefined): Promise<string> {
+  if (name) {
+    for (const candidate of [join(root, "skills", name), join(root, name)]) {
+      if (existsSync(join(candidate, "SKILL.md"))) return candidate;
+    }
+  }
+  const nested = await findNestedSkillDirs(root);
+  if (nested.length === 1) return nested[0];
+  if (name) {
+    throw new Error(`no SKILL.md at ${root}; did you mean ${join(root, "skills", name)}?`);
+  }
+  if (nested.length > 1) {
+    throw new Error(
+      `no SKILL.md at ${root}; ${nested.length} nested skills found — pass a name: alix skills install <name> --from <dir>`,
+    );
+  }
+  throw new Error(`no SKILL.md at ${root}; pass a skill name or install from a directory containing SKILL.md`);
+}
+
+/**
+ * Collect directories under `root` (excluding `root` itself) that directly
+ * contain a SKILL.md, skipping EXCLUDED_DIRS. Stops early once more than one is
+ * found, so a large repo with a single skill isn't fully walked.
+ */
+async function findNestedSkillDirs(root: string): Promise<string[]> {
+  const found: string[] = [];
+  async function walk(dir: string): Promise<void> {
+    let entries: string[];
+    try {
+      entries = await readdir(dir);
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (found.length > 1) return;
+      if (EXCLUDED_DIRS.includes(entry)) continue;
+      const full = join(dir, entry);
+      let st;
+      try {
+        st = await stat(full);
+      } catch {
+        continue;
+      }
+      if (!st.isDirectory()) continue;
+      if (existsSync(join(full, "SKILL.md"))) {
+        found.push(full);
+        if (found.length > 1) return;
+      }
+      await walk(full);
+    }
+  }
+  await walk(root);
+  return found;
+}
+
+/**
  * Install a skill from a source outside the registered marketplaces.
  *
  * Source may be:
@@ -189,6 +254,10 @@ async function installFromSource(source: string, name: string | undefined, skill
   let fallbackName: string | undefined;
   let sourceIsDir = false;
   let packageFiles: SkillPackageFile[] | undefined;
+  // Directory to copy when installing a local package: the source folder
+  // itself when it has a top-level SKILL.md, or a nested skill subdir when the
+  // source is a repo root (e.g. skills/<name>/SKILL.md).
+  let sourceDir = source;
 
   if (source.startsWith("http://")) {
     throw new Error("Remote skills must use https:// (plain http is rejected)");
@@ -223,8 +292,11 @@ async function installFromSource(source: string, name: string | undefined, skill
     }
     if (st.isDirectory()) {
       sourceIsDir = true;
-      content = await readFile(join(source, "SKILL.md"), "utf8");
-      fallbackName = basename(source);
+      sourceDir = existsSync(join(source, "SKILL.md"))
+        ? source
+        : await resolveSkillDir(source, name);
+      content = await readFile(join(sourceDir, "SKILL.md"), "utf8");
+      fallbackName = basename(sourceDir);
     } else {
       content = await readFile(source, "utf8");
       fallbackName = basename(source, ".md");
@@ -249,7 +321,7 @@ async function installFromSource(source: string, name: string | undefined, skill
     // `alix skills install foo --from ~/.alix/skills/foo`). Copying a
     // directory onto itself would copyFile(srcPath, srcPath) and truncate
     // every file to 0 bytes — so refuse instead; the skill is already there.
-    const [sourceReal, targetReal] = await Promise.all([realpath(source), realpath(targetDir)]);
+    const [sourceReal, targetReal] = await Promise.all([realpath(sourceDir), realpath(targetDir)]);
     if (sourceReal === targetReal) {
       throw new Error(
         `Source ${source} resolves to the install target ${targetDir}; the skill is already installed.`,
@@ -257,7 +329,7 @@ async function installFromSource(source: string, name: string | undefined, skill
     }
     // Local-directory package source: copy the whole skill folder (SKILL.md,
     // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS.
-    await copyDir(source, targetDir);
+    await copyDir(sourceDir, targetDir);
   } else if (packageFiles) {
     // URL package source: write every fetched file (SKILL.md + scripts/,
     // assets/, LICENSE, ...) under the skill directory.
