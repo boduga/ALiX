@@ -287,6 +287,76 @@ describe("install --from (non-bundled skills)", () => {
   });
 });
 
+describe("install --from local repo-root (nested skills)", () => {
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  /** Write a repo-root fixture with skills/xlsx (SKILL.md + scripts + LICENSE). */
+  function writeRepoRoot(): string {
+    const root = join(testDir, "fixtures", "repo");
+    const skillDir = join(root, "skills", "xlsx");
+    const office = join(skillDir, "scripts", "office");
+    mkdirSync(office, { recursive: true });
+    writeFileSync(
+      join(skillDir, "SKILL.md"),
+      "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+    );
+    writeFileSync(join(skillDir, "scripts", "recalc.py"), "#!/usr/bin/env python3\n# recalc\n");
+    writeFileSync(join(office, "soffice.py"), "#!/usr/bin/env python3\n# soffice\n");
+    writeFileSync(join(skillDir, "LICENSE.txt"), "MIT\n");
+    return root;
+  }
+
+  it("resolves skills/<name>/ from a repo-root and installs the full package", async () => {
+    const root = writeRepoRoot();
+    await runInstall({ from: root, name: "xlsx" });
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
+      assert.ok(existsSync(join(installed, rel)), `expected ${rel} to be installed from the repo-root`);
+    }
+  });
+
+  it("installs a single nested skill under its manifest name when no name is given", async () => {
+    const root = writeRepoRoot();
+    await runInstall({ from: root });
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "nested skill installed under its manifest name");
+    assert.ok(existsSync(join(installed, "scripts", "recalc.py")), "nested skill scripts land too");
+  });
+
+  it("errors on a mismatched name instead of installing the single nested skill under it", async () => {
+    const root = writeRepoRoot();
+    await assert.rejects(runInstall({ from: root, name: "foo" }), /did you mean/);
+    assert.ok(
+      !existsSync(join(testDir, ".alix", "skills", "foo", "SKILL.md")),
+      "must not install the nested skill under the given (misleading) name",
+    );
+  });
+
+  it("errors with a helpful message when the requested name has no match", async () => {
+    const root = join(testDir, "fixtures", "repo-nomatch");
+    const skillDir = join(root, "skills", "alpha");
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: alpha\ndescription: Alpha skill\n---\nBody.\n");
+    await assert.rejects(runInstall({ from: root, name: "missing" }), /did you mean .*skills\/missing/);
+  });
+
+  it("errors when multiple nested skills exist and no name is given", async () => {
+    const root = join(testDir, "fixtures", "repo-multi");
+    for (const skill of ["alpha", "beta"]) {
+      const skillDir = join(root, "skills", skill);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(join(skillDir, "SKILL.md"), `---\nname: ${skill}\ndescription: ${skill} skill\n---\nBody.\n`);
+    }
+    await assert.rejects(runInstall({ from: root }), /pass a name/);
+  });
+});
+
 describe("install --from github URLs", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nBody.\n";
   const origFetch = globalThis.fetch;
@@ -361,6 +431,28 @@ describe("install --from github URLs", () => {
     const installed = join(testDir, ".alix", "skills", "langfuse-agent");
     assert.ok(existsSync(join(installed, "SKILL.md")), "installed from tree URL");
     assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a tree URL");
+  });
+
+  it("installs the full package from a skill-dir URL (SKILL.md + scripts + LICENSE)", async () => {
+    mockPackageFetch(
+      [
+        { path: "skills/xlsx/SKILL.md" },
+        { path: "skills/xlsx/scripts/recalc.py" },
+        { path: "skills/xlsx/scripts/office/soffice.py" },
+        { path: "skills/xlsx/LICENSE.txt" },
+      ],
+      {
+        "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+        "skills/xlsx/scripts/recalc.py": "print('recalc')\n",
+        "skills/xlsx/scripts/office/soffice.py": "print('soffice')\n",
+        "skills/xlsx/LICENSE.txt": "MIT\n",
+      },
+    );
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md" });
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
+      assert.ok(existsSync(join(installed, rel)), `expected ${rel} to land from a GitHub skill-dir URL`);
+    }
   });
 
   it("fetches a raw.githubusercontent.com URL directly", async () => {

@@ -176,7 +176,8 @@ Run 'alix skills available' to see skills you can install.
  *
  * Order:
  *   1. `skills/<name>` then `<name>` when a name is given,
- *   2. a unique nested skill directory when exactly one exists,
+ *   2. a unique nested skill directory when exactly one exists and either no
+ *      name was given or that skill's manifest.name matches the given name,
  *   3. a clear error otherwise.
  */
 async function resolveSkillDir(root: string, name: string | undefined): Promise<string> {
@@ -186,7 +187,16 @@ async function resolveSkillDir(root: string, name: string | undefined): Promise<
     }
   }
   const nested = await findNestedSkillDirs(root);
-  if (nested.length === 1) return nested[0];
+  if (nested.length === 1) {
+    // A name that matched neither skills/<name> nor <name> must NOT silently
+    // install the single nested skill under the given (misleading) name. Fall
+    // through to the unique nested skill only when no name was given, or when
+    // that skill's manifest.name actually matches the requested name.
+    if (!name) return nested[0];
+    const content = await readFile(join(nested[0], "SKILL.md"), "utf8");
+    const { manifest } = parseSkillContent(content);
+    if (manifest && manifest.name === name) return nested[0];
+  }
   if (name) {
     throw new Error(`no SKILL.md at ${root}; did you mean ${join(root, "skills", name)}?`);
   }
