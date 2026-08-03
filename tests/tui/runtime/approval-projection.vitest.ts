@@ -257,4 +257,15 @@ describe('ApprovalProjection', () => {
     p.update([revoked(3, 'a1')]);
     expect(p.snapshot().completed[0]!.status).toBe('revoked');
   });
+
+  it('A14: old-format checkpoint imports into new projection with identical snapshot', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1', { reason: 'r', toolId: 't' }), resolvedStatus(2, 'a1', 'approved')]);
+    const state = p.exportState();
+    // State is the old-format shape (no renames): { pending, completed, lastSeq }
+    const p2 = new ApprovalProjection();
+    p2.importState(state);
+    expect(p2.snapshot()).toEqual(p.snapshot());
+    expect(p2.exportState()).toEqual(state);
+  });
 });
