@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { SnapshotBuilder, type DaemonMetricsCollector } from '../../src/tui/snapshot-builder.js';
-import type { ApprovalManager } from '../../src/tui/approval-manager.js';
+import { SnapshotBuilder, type DaemonMetricsCollector, type ApprovalCollector } from '../../src/tui/snapshot-builder.js';
 import type { AgentSession } from '../../src/agent/session.js';
 import type { PolicyEngine } from '../../src/policy/policy-engine.js';
 import type { EventLog } from '../../src/events/event-log.js';
@@ -30,7 +29,7 @@ function mkFakes() {
       totalPending: 1,
       totalResolved: 0,
     }),
-  } as unknown as ApprovalManager;
+  } as unknown as ApprovalCollector;
 
   const policy = { snapshot: async () => ({ rules: [], violations: [], enforcementMode: 'strict' as const, recentViolationCount: 0 }) } as unknown as PolicyEngine;
   const sops = { snapshot: async () => ({ items: [], totalLoaded: 0 }) } as unknown as { snapshot(): Promise<unknown> };
@@ -109,6 +108,17 @@ describe('SnapshotBuilder.build — failure isolation', () => {
     const brokenAll = (() => { throw new Error('boom'); }) as unknown as DaemonMetricsCollector;
     const b = new SnapshotBuilder(f.session, f.approvals, f.policy, f.sops, f.eventLog, brokenAll);
     await expect(b.build(1)).resolves.toBeDefined();
+  });
+
+  it('A11: a throwing approval collector yields approvals:null (fail-closed containment), not a crash', async () => {
+    const f = mkFakes();
+    const throwingApprovals = {
+      snapshot: async () => { throw new Error('governance violation'); },
+    };
+    const b = new SnapshotBuilder(f.session, throwingApprovals, f.policy, f.sops, f.eventLog, f.daemon);
+    const snap = await b.build(1);
+    expect(snap).not.toBeNull();
+    expect(snap!.approvals).toBeNull();
   });
 });
 
