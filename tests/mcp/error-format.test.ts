@@ -31,6 +31,13 @@ describe("formatMcpError", () => {
     assert.ok(msg.includes("github"));
     assert.ok(msg.includes("JSON parse failed"));
   });
+
+  it("falls back to cause when invalid response has no detail", () => {
+    const e: McpError = { kind: "invalid_response", server: "github", cause: "Unexpected token in JSON" };
+    const msg = formatMcpError(e);
+    assert.ok(msg.includes("Unexpected token in JSON"));
+    assert.ok(!msg.includes("parse error"), "should not show the generic placeholder when a cause exists");
+  });
 });
 
 describe("classifyMcpError", () => {
@@ -50,5 +57,29 @@ describe("classifyMcpError", () => {
     const e = new Error("Some random error");
     const kind = classifyMcpError(e);
     assert.equal(kind, "unknown");
+  });
+
+  it("classifies HTTP 400 with session rejection as permission_denied", () => {
+    const e = new Error('HTTP 400: {"error":"Invalid session"}');
+    const kind = classifyMcpError(e);
+    assert.equal(kind, "permission_denied");
+  });
+
+  it("classifies HTTP 401 as permission_denied", () => {
+    const e = new Error("HTTP 401: Unauthorized");
+    const kind = classifyMcpError(e);
+    assert.equal(kind, "permission_denied");
+  });
+
+  it("classifies other HTTP statuses as connection, not invalid_response", () => {
+    const e = new Error("HTTP 500: Internal Server Error");
+    const kind = classifyMcpError(e);
+    assert.equal(kind, "connection");
+  });
+
+  it("still classifies genuine JSON parse failures as invalid_response", () => {
+    const e = new Error("Unexpected token < in JSON at position 0");
+    const kind = classifyMcpError(e);
+    assert.equal(kind, "invalid_response");
   });
 });
