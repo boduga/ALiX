@@ -75,6 +75,11 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - name: Vitest
+        # Hard cap so a stalled suite fails fast with its output (GitHub captures
+        # the log on timeout) instead of hanging to the 6h job timeout with no
+        # diagnostic. The suite runs serially (fileParallelism:false) and takes
+        # ~3-4 min on CI; 15 min is generous headroom.
+        timeout-minutes: 15
         run: pnpm test:vitest
 
   # ─── Lane 7: Live provider model-list validation ─────────────────────────
