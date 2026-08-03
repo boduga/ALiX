@@ -12,6 +12,25 @@ import { existsSync, rmSync, writeFileSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 
 const testDir = join(process.cwd(), ".test-alix-skills");
+const originalHome = process.env.HOME;
+
+/** Point HOME at the test dir and ensure ~/.alix/skills exists. */
+function useTestHome(): void {
+  process.env.HOME = testDir;
+  mkdirSync(join(testDir, ".alix", "skills"), { recursive: true });
+}
+
+/** Remove the test dir and restore the original HOME so no state leaks across describes. */
+function restoreTestHome(): void {
+  if (existsSync(testDir)) {
+    rmSync(testDir, { recursive: true, force: true });
+  }
+  if (originalHome === undefined) {
+    delete process.env.HOME;
+  } else {
+    process.env.HOME = originalHome;
+  }
+}
 
 describe("resolveInstallOptions", () => {
   it("resolves bare 'available' subcommand", () => {
@@ -60,15 +79,12 @@ describe("resolveInstallOptions", () => {
 describe("install command", () => {
   beforeEach(() => {
     // Mock HOME to test directory
-    process.env.HOME = testDir;
-    mkdirSync(join(testDir, ".alix", "skills"), { recursive: true });
+    useTestHome();
   });
 
   afterEach(() => {
-    // Clean up test directory
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+    // Clean up test directory and restore the original HOME
+    restoreTestHome();
   });
 
   it("should list installed skills", async () => {
@@ -148,6 +164,14 @@ describe("install --from (non-bundled skills)", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nDo the thing.\n";
   const origFetch = globalThis.fetch;
 
+  beforeEach(() => {
+    useTestHome();
+  });
+
+  afterEach(() => {
+    restoreTestHome();
+  });
+
   function writeFixture(content: string, fileName = "SKILL.md"): string {
     const dir = join(testDir, "fixtures");
     mkdirSync(dir, { recursive: true });
@@ -201,8 +225,13 @@ describe("install --from github URLs", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nBody.\n";
   const origFetch = globalThis.fetch;
 
+  beforeEach(() => {
+    useTestHome();
+  });
+
   afterEach(() => {
     globalThis.fetch = origFetch;
+    restoreTestHome();
   });
 
   /** Stub fetch so only raw.githubusercontent.com paths in `exists` return a skill. */
@@ -251,13 +280,11 @@ describe("install --from github URLs", () => {
 
 describe("marketplace persistence (CLI layer)", () => {
   beforeEach(() => {
-    process.env.HOME = testDir;
+    useTestHome();
   });
 
   afterEach(() => {
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+    restoreTestHome();
   });
 
   it("seeds default marketplaces on first list", async () => {

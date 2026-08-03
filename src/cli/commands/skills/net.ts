@@ -91,20 +91,20 @@ export async function fetchSkillFromUrls(urls: string[], sourceLabel: string, na
 export async function fetchText(url: string): Promise<{ content: string; isHtml: boolean }> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
-  let res: Response;
   try {
-    res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, { signal: controller.signal });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const len = res.headers.get("content-length");
+    if (len && Number(len) > 1_000_000) {
+      throw new Error(`response larger than 1MB`);
+    }
+    // Keep the timeout alive through the body read so a mid-body stall aborts too.
+    const content = await res.text();
+    const ctype = res.headers.get("content-type") ?? "";
+    return { content, isHtml: ctype.includes("text/html") };
   } finally {
     clearTimeout(timeout);
   }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const len = res.headers.get("content-length");
-  if (len && Number(len) > 1_000_000) {
-    throw new Error(`response larger than 1MB`);
-  }
-  const content = await res.text();
-  const ctype = res.headers.get("content-type") ?? "";
-  return { content, isHtml: ctype.includes("text/html") };
 }
 
 /** Fetch a JSON payload over https with a 15s timeout. Always sends a UA (GitHub requires one for api.github.com). */
