@@ -1,11 +1,49 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { runInstall } from "../../../../src/cli/commands/skills/install.js";
+import { runInstall, resolveInstallOptions } from "../../../../src/cli/commands/skills/install.js";
 import { join } from "node:path";
 import { existsSync, rmSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 
 const testDir = join(process.cwd(), ".test-alix-skills");
+
+describe("resolveInstallOptions", () => {
+  it("resolves bare 'available' subcommand", () => {
+    assert.deepEqual(resolveInstallOptions(["available"]), {
+      available: true, list: false, all: false, name: undefined,
+    });
+  });
+
+  it("resolves 'install <name>' — name is the second arg, not 'install'", () => {
+    assert.deepEqual(resolveInstallOptions(["install", "tdd"]), {
+      available: false, list: false, all: false, name: "tdd",
+    });
+  });
+
+  it("resolves 'install --all'", () => {
+    assert.deepEqual(resolveInstallOptions(["install", "--all"]), {
+      available: false, list: false, all: true, name: undefined,
+    });
+  });
+
+  it("resolves 'install --list'", () => {
+    assert.deepEqual(resolveInstallOptions(["install", "--list"]), {
+      available: false, list: true, all: false, name: undefined,
+    });
+  });
+
+  it("resolves legacy '--available' flag", () => {
+    assert.deepEqual(resolveInstallOptions(["--available"]), {
+      available: true, list: false, all: false, name: undefined,
+    });
+  });
+
+  it("resolves empty args to a bare call (help path)", () => {
+    assert.deepEqual(resolveInstallOptions([]), {
+      available: false, list: false, all: false, name: undefined,
+    });
+  });
+});
 
 describe("install command", () => {
   beforeEach(() => {

@@ -9,6 +9,35 @@ export interface InstallOptions {
   all?: boolean;
 }
 
+/**
+ * Map CLI args (everything after `alix skills`) to InstallOptions.
+ *
+ * The CLI surface is subcommand-based:
+ *   alix skills available           → { available: true }
+ *   alix skills install             → {} (help)
+ *   alix skills install --all       → { all: true }
+ *   alix skills install <name>      → { name }
+ *   alix skills install --list      → { list: true }
+ *
+ * A bare `available`/`install` subcommand is required — the first non-flag
+ * arg is the subcommand, NOT the skill name. (Previously the first non-flag
+ * arg was unconditionally mapped to `name`, so `alix skills available`
+ * tried to install a skill literally named "available", and
+ * `alix skills install tdd` tried to install one named "install".)
+ * The legacy `--available` flag is still honored for backward compat.
+ */
+export function resolveInstallOptions(args: string[]): InstallOptions {
+  const nonFlag = args.filter(a => !a.startsWith("--"));
+  const flags = new Set(args.filter(a => a.startsWith("--")));
+  const sub = nonFlag[0] ?? "";
+  return {
+    available: sub === "available" || flags.has("--available"),
+    list: flags.has("--list"),
+    all: flags.has("--all"),
+    name: sub === "install" ? nonFlag[1] : undefined,
+  };
+}
+
 const CORE_SKILLS: Record<string, string> = {
   tdd: "Test-driven development with red-green-refactor loop",
   debug: "Systematic debugging with reproduce-minimize-hypothesize-fix loop",

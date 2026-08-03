@@ -1755,13 +1755,8 @@ if (command === "memory") {
 
 // --- alix session --- session management commands ---
 if (command === "skills") {
-	  const { runInstall } = await import("./cli/commands/skills/install.js");
-	  await runInstall({
-	    available: args.includes("--available"),
-	    list: args.includes("--list"),
-	    all: args.includes("--all"),
-	    name: args.find(a => !a.startsWith("--")),
-	  });
+	  const { runInstall, resolveInstallOptions } = await import("./cli/commands/skills/install.js");
+	  await runInstall(resolveInstallOptions(args));
 	  process.exit(0);
 	}
 
