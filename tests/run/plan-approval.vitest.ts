@@ -81,17 +81,27 @@ describe("runApprovalLoop", () => {
 
   it("handles edit when editor returns null (editor not available)", async () => {
     const { io } = mockIO(["edit", "approve"]);
-    // Editor will fail to launch (no $EDITOR set in test) → returns null
-    // → logs error and re-loops → then gets approve
-    const result = await runApprovalLoop(
-      io,
-      "/fake/plan.md",
-      "# Editable plan",
-      "test-session",
-      "/fake/plans",
-      { write: vi.fn(), unlink: vi.fn() },
-    );
-    // After edit → editor fails → re-loop → second round returns approve
-    expect(result.action).toBe("approved");
+    // Point $EDITOR at a non-existent binary so openPlanInEditor fails fast.
+    // IMPORTANT: must NOT leave $EDITOR unset — openPlanInEditor falls back to
+    // spawning real `vim`, which on a non-TTY CI runner hangs forever waiting
+    // for terminal input (an orphan process that keeps the vitest fork worker
+    // alive and blocks pool shutdown — the source of the 6h CI hang).
+    const origEditor = process.env.EDITOR;
+    process.env.EDITOR = "/definitely/not/a/real/editor";
+    try {
+      const result = await runApprovalLoop(
+        io,
+        "/fake/plan.md",
+        "# Editable plan",
+        "test-session",
+        "/fake/plans",
+        { write: vi.fn(), unlink: vi.fn() },
+      );
+      // After edit → editor fails → re-loop → second round returns approve
+      expect(result.action).toBe("approved");
+    } finally {
+      if (origEditor === undefined) delete process.env.EDITOR;
+      else process.env.EDITOR = origEditor;
+    }
   });
 });
