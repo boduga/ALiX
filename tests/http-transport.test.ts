@@ -162,8 +162,28 @@ test("HttpTransport sendNotification replays session id", async () => {
     await transport.send(makeRequest("initialize"));
     seenHeaders.length = 0;
     const notif: JsonRpcNotification = { jsonrpc: "2.0", method: "notifications/initialized", params: {} };
-    transport.sendNotification(notif);
+    await transport.sendNotification(notif);
     assert.equal(seenHeaders[0]?.["Mcp-Session-Id"], "sess-abc");
+  } finally {
+    restoreFetch();
+  }
+});
+
+test("HttpTransport sendNotification captures session id issued on a notification response", async () => {
+  // First request is a notification; the server issues a session id on its
+  // response. The next request must replay it.
+  const seenHeaders: Array<Record<string, string> | undefined> = [];
+  stubFetch((_url, init) => {
+    seenHeaders.push(init?.headers as Record<string, string> | undefined);
+    return jsonResponse({ jsonrpc: "2.0", id: 1, result: {} }, { "mcp-session-id": "sess-notif" });
+  });
+  const transport = new HttpTransport("t", "http://localhost/mcp");
+  try {
+    const notif: JsonRpcNotification = { jsonrpc: "2.0", method: "notifications/initialized", params: {} };
+    await transport.sendNotification(notif);
+    assert.equal(seenHeaders[0]?.["Mcp-Session-Id"], undefined, "first notification carries no session header");
+    await transport.send(makeRequest("tools/list"));
+    assert.equal(seenHeaders[1]?.["Mcp-Session-Id"], "sess-notif", "next request replays session from notification response");
   } finally {
     restoreFetch();
   }

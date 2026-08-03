@@ -1,6 +1,7 @@
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../../mcp/types.js";
 import type { McpTransport } from "../../mcp/transport.js";
 import type { McpTransportType } from "../../config/schema.js";
+import { jsonRpcError } from "../../mcp/error-format.js";
 
 export class HttpTransport implements McpTransport {
   readonly name: string;
@@ -101,8 +102,11 @@ export class HttpTransport implements McpTransport {
               continue;
             }
             this.messageHandler?.(msg);
-            if ("error" in msg && msg.error) {
-              throw new Error(msg.error.message ?? "JSON-RPC error from server");
+            const jsonErr = jsonRpcError(msg);
+            if (jsonErr) {
+              // Don't abandon the reader — cancel it so the stream is released.
+              await reader.cancel();
+              throw jsonErr;
             }
             if ("result" in msg && !result) {
               result = msg as JsonRpcResponse;
@@ -120,11 +124,20 @@ export class HttpTransport implements McpTransport {
   }
 
   async sendNotification(message: JsonRpcNotification): Promise<void> {
-    fetch(`${this.url}`, {
-      method: "POST",
-      headers: this.requestHeaders(),
-      body: JSON.stringify(message)
-    }).catch(() => {}); // best effort
+    try {
+      const response = await fetch(`${this.url}`, {
+        method: "POST",
+        headers: this.requestHeaders(),
+        body: JSON.stringify(message)
+      });
+      // A server may issue a session id on a notification response too (e.g.
+      // the first request is a notification). Capture it so the next request
+      // replays it.
+      const sid = response.headers.get("mcp-session-id");
+      if (sid) this.sessionId = sid;
+    } catch {
+      // best effort — a failed notification must not break the caller
+    }
   }
 
   onMessage(handler: (message: JsonRpcResponse | JsonRpcNotification) => void): void {
