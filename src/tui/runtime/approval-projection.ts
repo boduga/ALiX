@@ -8,7 +8,7 @@ export interface ApprovalProjectionEntry {
   readonly prompt?: string;
   readonly toolName?: string;
   readonly status: 'pending' | 'approved' | 'denied' | 'edited'
-    | 'expired' | 'revoked' | 'consumed' | 'resumed';
+    | 'expired' | 'revoked' | 'consumed' | 'invalidated' | 'resumed';
   readonly requestedAt: number;
   readonly completedAt?: number;
 }
@@ -28,7 +28,7 @@ export const MAX_COMPLETED = 50;
  *  mutate it (VALID_STATUSES.add('banana')). */
 const VALID_STATUSES = new Set([
   'pending', 'approved', 'denied', 'edited',
-  'expired', 'revoked', 'consumed', 'resumed',
+  'expired', 'revoked', 'consumed', 'invalidated', 'resumed',
 ] as const);
 
 /** Type guard over the exact status union. */
@@ -36,24 +36,43 @@ function isValidStatus(value: unknown): value is ApprovalProjectionEntry['status
   return typeof value === 'string' && VALID_STATUSES.has(value as ApprovalProjectionEntry['status']);
 }
 
-/** Events that close a pending approval (move it to completed). */
-const TERMINAL_TYPES = new Set([
-  'approval.resolved', 'approval.expired', 'approval.consumed', 'approval.revoked',
-]);
+/** Status each non-resolved terminal event type resolves to. Single source for
+ *  both the accepted-event set and the status mapping — a new terminal event
+ *  type is added in exactly one place. */
+const TERMINAL_STATUS: Record<string, ApprovalProjectionEntry['status']> = {
+  'approval.expired': 'expired',
+  'approval.revoked': 'revoked',
+  'approval.consumed': 'consumed',
+  'approval.invalidated': 'invalidated',
+};
 
-/** Strict timestamp parse — a malformed event timestamp breaks determinism. */
+/** Events that close a pending approval (move it to completed). approval.resolved
+ *  reads its status from the payload's decision|status, so it's not in the map. */
+const TERMINAL_TYPES = new Set(['approval.resolved', ...Object.keys(TERMINAL_STATUS)]);
+
+/** Strict timestamp parse — a malformed event timestamp breaks determinism.
+ *  Prefers the store's authoritative payload.timestamp (record.createdAt /
+ *  record.decidedAt) over the EventLog append timestamp, which is stamped at
+ *  append time and can differ by microseconds. The CLI vocab
+ *  (approval.requested) carries no payload timestamp → falls back to
+ *  e.timestamp. */
 function parseTimestamp(e: AlixEvent): number {
-  const t = Date.parse(e.timestamp);
+  const payload = (e.payload ?? {}) as Record<string, unknown>;
+  const raw = typeof payload.timestamp === 'string' ? payload.timestamp : e.timestamp;
+  const t = Date.parse(raw);
   if (!Number.isFinite(t)) throw new Error(`approval projection: invalid event timestamp on seq ${e.seq}`);
   return t;
 }
 
 function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolName?: string } {
   const p = (e.payload ?? {}) as Record<string, unknown>;
+  const capabilities = Array.isArray(p.capabilities) ? p.capabilities.filter((c): c is string => typeof c === 'string') : [];
   return {
     approvalId: typeof p.approvalId === 'string' ? p.approvalId : undefined,
-    prompt: typeof p.prompt === 'string' ? p.prompt : undefined,
-    toolName: typeof p.toolName === 'string' ? p.toolName : undefined,
+    prompt: typeof p.prompt === 'string' ? p.prompt : (typeof p.reason === 'string' ? p.reason : undefined),
+    toolName: typeof p.toolName === 'string' ? p.toolName
+      : (capabilities.length > 0 ? capabilities[0]
+      : (typeof p.toolId === 'string' ? p.toolId : undefined)),
   };
 }
 
@@ -64,13 +83,25 @@ function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolNa
  * collector because approval.* events carry the outer sessionId.
  *
  * Identity/reconciliation (deterministic, spec): identity = approvalId.
- * - requested(id): new pending entry unless one is already pending (a
- *   completed entry with the same id does NOT block a new lifecycle).
- * - terminal event (resolved/expired/consumed/revoked): acts ONLY on a pending
- *   entry; marks it + completedAt and moves to completed (newest→oldest,
- *   bounded by MAX_COMPLETED). Unknown id → no-op.
+ * - Union reader over BOTH approval vocabularies: the CLI vocab
+ *   (approval.requested / approval.resolved with `decision`) and the store
+ *   vocab (approval.created / approval.resolved with `status`, plus
+ *   expired/revoked/consumed/invalidated/reused). approval.created and
+ *   approval.requested both create a pending entry unless one is already
+ *   pending (a completed entry with the same id does NOT block a new
+ *   lifecycle); a later create merge-enriches missing prompt/toolName only,
+ *   never overwrites populated fields. approval.reused is a no-op.
+ * - terminal event (resolved/expired/consumed/revoked/invalidated): resolves
+ *   the approvalId in pending first, then completed (the store emits
+ *   post-approval transitions — consumed/expired/revoked/invalidated on an
+ *   approved entry — which target an already-completed entry); marks it +
+ *   completedAt and moves it to completed (newest→oldest, bounded by
+ *   MAX_COMPLETED). Post-approval transitions correct the completed entry in
+ *   place; revoke is permitted from any status. Terminal states are otherwise
+ *   immutable (contradictory transitions throw). Unknown id → no-op.
  * - resumed (Option A): a pending entry's status is set to 'resumed'; it STAYS
- *   pending. resume.failed is NOT terminal (a failed resume is transient).
+ *   pending. resume.failed is NOT terminal (a failed resume is transient). A
+ *   resume targeting a completed entry throws (resurrection guard).
  * - update() is a pure function of its input events, and expects them ordered
  *   by EventLog sequence (deterministic replay). A non-monotonic seq sequence
  *   would make requested→resolved and resolved→requested indistinguishable;
@@ -93,41 +124,89 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
       if (e.seq < this.lastSeq) {
         throw new Error(`approval projection: non-monotonic event sequence (${e.seq} < ${this.lastSeq})`);
       }
-      if (e.type !== 'approval.requested' && e.type !== 'approval.resumed'
-          && e.type !== 'approval.resume.failed' && !TERMINAL_TYPES.has(e.type)) {
+      if (e.type !== 'approval.requested' && e.type !== 'approval.created'
+          && e.type !== 'approval.resumed' && e.type !== 'approval.resume.failed'
+          && e.type !== 'approval.reused' && !TERMINAL_TYPES.has(e.type)) {
         continue;   // not an approval event — ignore (seq already monotonic)
       }
       this.lastSeq = e.seq;
       const timestamp = parseTimestamp(e);
       const { approvalId, prompt, toolName } = entryFrom(e);
       if (!approvalId) continue;
-      if (e.type === 'approval.requested') {
+
+      const isCreate = e.type === 'approval.requested' || e.type === 'approval.created';
+      if (isCreate) {
         if (!this.pending.has(approvalId)) {
-          this.pending.set(approvalId, {
-            approvalId, prompt, toolName,
-            status: 'pending',
-            requestedAt: timestamp,
-          });
+          this.pending.set(approvalId, { approvalId, prompt, toolName, status: 'pending', requestedAt: timestamp });
+        } else {
+          // merge-enrich: fill missing fields ONLY, never overwrite
+          const existing = this.pending.get(approvalId)!;
+          const next = { ...existing };
+          if (next.prompt == null && prompt != null) next.prompt = prompt;
+          if (next.toolName == null && toolName != null) next.toolName = toolName;
+          this.pending.set(approvalId, next);
         }
-        // id already pending → idempotent replay of the same request, no-op
       } else if (e.type === 'approval.resumed') {
         const existing = this.pending.get(approvalId);
-        if (existing) this.pending.set(approvalId, { ...existing, status: 'resumed' });
+        if (existing) {
+          this.pending.set(approvalId, { ...existing, status: 'resumed' });
+        } else if (this.completed.some((c) => c.approvalId === approvalId)) {
+          // resurrection guard: a completed approval cannot be resumed
+          throw new Error(`approval projection: cannot resume completed approval ${approvalId} on seq ${e.seq}`);
+        }
         // resume.failed is ignored — not a terminal event
       } else if (TERMINAL_TYPES.has(e.type)) {
-        const existing = this.pending.get(approvalId);
+        // Look up in pending FIRST, then completed — the store emits post-approval
+        // transitions (consumed/expired/revoked/invalidated) that target an entry
+        // already moved to completed. Missing this → store says consumed, projection
+        // says approved (divergence).
+        let existing = this.pending.get(approvalId);
+        const completedIndex = existing ? -1 : this.completed.findIndex((c) => c.approvalId === approvalId);
+        if (!existing && completedIndex >= 0) existing = this.completed[completedIndex];
         if (!existing) continue;                    // unknown id → no-op
-        const p = (e.payload ?? {}) as Record<string, unknown>;
-        const decision = typeof p.decision === 'string' ? p.decision : '';
-        const status: ApprovalProjectionEntry['status'] = e.type === 'approval.resolved'
-          ? (['approved', 'denied', 'edited'].includes(decision) ? decision as ApprovalProjectionEntry['status'] : (() => { throw new Error(`approval projection: invalid resolution decision on seq ${e.seq}`); })())
-          : e.type === 'approval.expired' ? 'expired'
-          : e.type === 'approval.consumed' ? 'consumed'
-          : 'revoked';
-        const done: ApprovalProjectionEntry = { ...existing, status, completedAt: timestamp };
-        this.pending.delete(approvalId);
-        this.completed = [done, ...this.completed].slice(0, MAX_COMPLETED);
+
+        if (e.type === 'approval.resolved') {
+          const p = (e.payload ?? {}) as Record<string, unknown>;
+          const decision = typeof p.decision === 'string' ? p.decision : '';
+          const statusField = typeof p.status === 'string' ? p.status : '';
+          if (decision && statusField && decision !== statusField) {
+            throw new Error(`approval projection: contradictory resolution (decision=${decision}, status=${statusField}) on seq ${e.seq}`);
+          }
+          const value = decision || statusField;
+          if (!['approved', 'denied', 'edited'].includes(value)) {
+            throw new Error(`approval projection: invalid resolution decision on seq ${e.seq}`);
+          }
+          if (completedIndex < 0) {
+            this.moveToCompleted(existing, value as ApprovalProjectionEntry['status'], timestamp);
+            continue;
+          }
+          // completed entry: idempotent or contradictory
+          if (existing.status === value) continue;  // idempotent (e.g. approved + resolved(approved))
+          throw new Error(`approval projection: terminal ${existing.status} cannot transition to ${value} on seq ${e.seq}`);
+        }
+
+        // terminal types: expired / revoked / consumed / invalidated
+        const terminalStatus = TERMINAL_STATUS[e.type];
+
+        if (completedIndex < 0) {
+          this.moveToCompleted(existing, terminalStatus, timestamp);
+          continue;
+        }
+
+        // completed entry — post-approval transitions are legal; otherwise immutable.
+        if (existing.status === terminalStatus) continue;   // idempotent
+        if (existing.status === 'approved' || terminalStatus === 'revoked') {
+          // Store performs approved → consumed/expired/revoked/invalidated, and its
+          // revoke also permits revoking denied/edited/invalidated. Update in place
+          // (completed keeps newest-first insertion order; status corrected).
+          this.completed = this.completed.map((c) =>
+            c.approvalId === approvalId ? { ...c, status: terminalStatus, completedAt: timestamp } : c,
+          );
+          continue;
+        }
+        throw new Error(`approval projection: terminal ${existing.status} cannot transition to ${terminalStatus} on seq ${e.seq}`);
       }
+      // approval.reused / approval.resume.failed → no-op (fall through)
     }
   }
 
@@ -143,6 +222,13 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
     this.pending.clear();
     this.completed = [];
     this.lastSeq = 0;
+  }
+
+  /** Move a pending entry to completed (newest-first, bounded). Shared by the
+   *  resolved and terminal transition paths. */
+  private moveToCompleted(existing: ApprovalProjectionEntry, status: ApprovalProjectionEntry['status'], completedAt: number): void {
+    this.completed = [{ ...existing, status, completedAt }, ...this.completed].slice(0, MAX_COMPLETED);
+    this.pending.delete(existing.approvalId);
   }
 
   exportState(): ProjectionState {

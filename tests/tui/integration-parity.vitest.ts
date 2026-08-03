@@ -44,6 +44,13 @@ describe('TuiApp — parity with legacy chat input', () => {
       start: vi.fn(),
       stop: vi.fn(async () => {}),
     };
+    // These tests start a REAL TuiApp/TuiRenderer that writes ANSI to
+    // process.stdout and runs a real 1s refresh interval. Mock stdout so no
+    // real terminal escape sequences leak into the runner — on CI's non-TTY
+    // forks-pool worker, that real output keeps the worker alive and the pool
+    // hangs forever (6h CI hang). The tests assert on getStateForTest(), not
+    // stdout, so mocking it changes nothing observable.
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
   afterEach(async () => {

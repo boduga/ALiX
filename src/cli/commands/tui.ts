@@ -12,6 +12,7 @@ import { FileProjectionCheckpointStore } from "../../tui/runtime/projection-chec
 import { TimelineBuilder } from "../../tui/runtime/timeline-builder.js";
 import { IncrementalExecutionTraceBuilder } from "../../tui/runtime/execution-trace-builder.js";
 import { ApprovalProjection } from "../../tui/runtime/approval-projection.js";
+import { ApprovalProjectionCollector } from "../../tui/runtime/approval-projection-collector.js";
 import { CapabilityProjection } from "../../tui/runtime/capability-projection.js";
 import { MetricsProjection } from "../../tui/runtime/metrics-projection.js";
 import { createProjectionRuntime } from "../../tui/runtime/projection-runtime.js";
@@ -124,16 +125,17 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // Runtime tab reads snapshot.runtime.trace (Phase 4). No view consumes its
   // timeline, so the composition root registers trace only (no timeline
   // projection) — the collector itself is blind to projection identity.
+  const runtimeProjectionRuntime = createProjectionRuntime([
+    [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
+    [ProjectionIds.approval, new ApprovalProjection()],
+    [ProjectionIds.capability, new CapabilityProjection()],
+    [ProjectionIds.metrics, new MetricsProjection()],
+  ]);
   const runtimeCollector = new RuntimeCollectorImpl({
     eventLog,
     checkpointStore: runtimeCheckpointStore,
     sessionId,
-    projectionRuntime: createProjectionRuntime([
-      [ProjectionIds.trace, new IncrementalExecutionTraceBuilder()],
-      [ProjectionIds.approval, new ApprovalProjection()],
-      [ProjectionIds.capability, new CapabilityProjection()],
-      [ProjectionIds.metrics, new MetricsProjection()],
-    ]),
+    projectionRuntime: runtimeProjectionRuntime,
   });
   const chatCollector = new RuntimeCollectorImpl({
     eventLog,
@@ -225,7 +227,7 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // it projects capability/tool/runtime events (all stamped with the outer
   // sessionId), so snapshot.runtime.trace drives the Runtime tab (Phase 4).
   const builder = new SnapshotBuilder(
-    agentSession, approvals, policy, sopCollector, runtimeCollector, daemonMetrics,
+    agentSession, new ApprovalProjectionCollector(runtimeProjectionRuntime), policy, sopCollector, runtimeCollector, daemonMetrics,
     cwd,
   );
 

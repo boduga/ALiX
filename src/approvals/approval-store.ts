@@ -47,6 +47,8 @@ export class ApprovalStore {
   private cwd: string;
   private auditStore?: AuditStore;
   private eventLog?: EventLog;
+  /** In-flight fire-and-forget appends, for a deterministic test barrier. */
+  private pendingAppends: Promise<unknown>[] = [];
 
   constructor(cwd: string, opts?: { auditStore?: AuditStore; eventLog?: EventLog }) {
     this.cwd = cwd;
@@ -90,6 +92,29 @@ export class ApprovalStore {
   /** Persist to disk if dirty. */
   async save(): Promise<void> {
     await this.saveAtomic();
+  }
+
+  /**
+   * Emit a lifecycle event to the EventLog — best-effort (Option-3 convention):
+   * the append happens after the durable mutation succeeds, so a failure must
+   * not change the store method's contract. Fire-and-forget, matching the
+   * repo's established `.catch(() => {})` pattern on hot paths.
+   */
+  private emit(type: string, payload: Record<string, unknown>, sessionId?: string): void {
+    const append = this.eventLog?.append({ sessionId: sessionId ?? "unknown", actor: "policy", type, payload });
+    if (append) {
+      append.catch(() => {});  // fire-and-forget (Option-3 convention)
+      this.pendingAppends.push(append);
+    }
+  }
+
+  /** Await all in-flight fire-and-forget appends so a subsequent read is
+   *  deterministic. Production callers never need this (the appends are
+   *  intentionally non-fatal); it exists so tests can assert the emitted
+   *  lifecycle events without racing the async append. */
+  async flushEvents(): Promise<void> {
+    const pending = this.pendingAppends.splice(0);
+    await Promise.all(pending);
   }
 
   /** Write to a temp file, then rename for atomic update. */
@@ -165,21 +190,20 @@ export class ApprovalStore {
       approvals.push(record);
 
       // Emit event after successful mutation
-      this.eventLog?.append({
-        sessionId: record.sessionId ?? "unknown",
-        actor: "policy",
-        type: APPROVAL_EVENT_TYPES.CREATED,
-        payload: {
-          approvalId: record.id,
-          coordinationRunId: record.coordinationRunId,
-          workerId: record.workerId,
-          capabilities: record.capabilities,
-          bindingKey: record.bindingKey,
-          policyRevision: record.policyRevision,
-          status: record.status,
-          timestamp: record.createdAt,
-        },
-      }).catch(() => {});
+      this.emit(APPROVAL_EVENT_TYPES.CREATED, {
+        approvalId: record.id,
+        coordinationRunId: record.coordinationRunId,
+        workerId: record.workerId,
+        capabilities: record.capabilities,
+        bindingKey: record.bindingKey,
+        policyRevision: record.policyRevision,
+        status: record.status,
+        timestamp: record.createdAt,
+        reason: record.reason,
+        toolId: record.toolId,
+        requestId: record.requestId,
+        sessionId: record.sessionId,
+      }, record.sessionId);
 
       return record;
     });
@@ -238,21 +262,20 @@ export class ApprovalStore {
       };
       approvals.push(record);
 
-      this.eventLog?.append({
-        sessionId: record.sessionId ?? "unknown",
-        actor: "policy",
-        type: APPROVAL_EVENT_TYPES.CREATED,
-        payload: {
-          approvalId: record.id,
-          coordinationRunId: record.coordinationRunId,
-          workerId: record.workerId,
-          capabilities: record.capabilities,
-          bindingKey: record.bindingKey,
-          policyRevision: record.policyRevision,
-          status: record.status,
-          timestamp: record.createdAt,
-        },
-      }).catch(() => {});
+      this.emit(APPROVAL_EVENT_TYPES.CREATED, {
+        approvalId: record.id,
+        coordinationRunId: record.coordinationRunId,
+        workerId: record.workerId,
+        capabilities: record.capabilities,
+        bindingKey: record.bindingKey,
+        policyRevision: record.policyRevision,
+        status: record.status,
+        timestamp: record.createdAt,
+        reason: record.reason,
+        toolId: record.toolId,
+        requestId: record.requestId,
+        sessionId: record.sessionId,
+      }, record.sessionId);
 
       return record;
     });
@@ -287,21 +310,20 @@ export class ApprovalStore {
       };
       approvals.push(record);
 
-      this.eventLog?.append({
-        sessionId: record.sessionId ?? "unknown",
-        actor: "policy",
-        type: APPROVAL_EVENT_TYPES.CREATED,
-        payload: {
-          approvalId: record.id,
-          coordinationRunId: record.coordinationRunId,
-          workerId: record.workerId,
-          capabilities: record.capabilities,
-          bindingKey: record.bindingKey,
-          policyRevision: record.policyRevision,
-          status: record.status,
-          timestamp: record.createdAt,
-        },
-      }).catch(() => {});
+      this.emit(APPROVAL_EVENT_TYPES.CREATED, {
+        approvalId: record.id,
+        coordinationRunId: record.coordinationRunId,
+        workerId: record.workerId,
+        capabilities: record.capabilities,
+        bindingKey: record.bindingKey,
+        policyRevision: record.policyRevision,
+        status: record.status,
+        timestamp: record.createdAt,
+        reason: record.reason,
+        toolId: record.toolId,
+        requestId: record.requestId,
+        sessionId: record.sessionId,
+      }, record.sessionId);
 
       return record;
     });
@@ -367,22 +389,17 @@ export class ApprovalStore {
 
     // Emit events after lock is released
     if (resolved && resolved.status === status) {
-      this.eventLog?.append({
-        sessionId: resolved.sessionId ?? "unknown",
-        actor: "policy",
-        type: APPROVAL_EVENT_TYPES.RESOLVED,
-        payload: {
-          approvalId: id,
-          coordinationRunId: resolved.coordinationRunId,
-          workerId: resolved.workerId,
-          capabilities: resolved.capabilities,
-          bindingKey: resolved.bindingKey,
-          policyRevision: resolved.policyRevision,
-          status,
-          reason: decisionReason,
-          timestamp: resolved.decidedAt,
-        },
-      }).catch(() => {});
+      this.emit(APPROVAL_EVENT_TYPES.RESOLVED, {
+        approvalId: id,
+        coordinationRunId: resolved.coordinationRunId,
+        workerId: resolved.workerId,
+        capabilities: resolved.capabilities,
+        bindingKey: resolved.bindingKey,
+        policyRevision: resolved.policyRevision,
+        status,
+        reason: decisionReason,
+        timestamp: resolved.decidedAt,
+      }, resolved.sessionId);
       this.auditStore?.append({
         action: status === "approved" ? "approval.approved" : "approval.denied",
         actor: "user",
@@ -470,6 +487,9 @@ export class ApprovalStore {
         }
       }
     });
+    for (const r of expired) {
+      this.emit(APPROVAL_EVENT_TYPES.EXPIRED, { approvalId: r.id }, r.sessionId);
+    }
     return expired;
   }
 
@@ -487,6 +507,12 @@ export class ApprovalStore {
       r.revocationReason = context.reason;
       revoked = { ...r };
     });
+    // `revoked` is assigned inside the mutate() closure, so TS keeps the initial
+    // `null` narrowing here (closure assignments don't widen outer flow). Re-assert.
+    const revokedRecord = revoked as ApprovalRecord | null;
+    if (revokedRecord) {
+      this.emit(APPROVAL_EVENT_TYPES.REVOKED, { approvalId: revokedRecord.id }, revokedRecord.sessionId);
+    }
     return revoked;
   }
 
@@ -505,6 +531,9 @@ export class ApprovalStore {
         }
       }
     });
+    for (const r of invalidated) {
+      this.emit(APPROVAL_EVENT_TYPES.INVALIDATED, { approvalId: r.id }, r.sessionId);
+    }
     return invalidated;
   }
 
@@ -532,6 +561,12 @@ export class ApprovalStore {
       r.consumedAttempt = consumer.workerAttempt;
       result = { consumed: true, record: { ...r } };
     });
+    // `result` is assigned inside the mutate() closure, so TS narrows it to the
+    // initial `{ consumed: false }` variant here. Re-assert the declared type.
+    const consumeOutcome = result as ConsumeResult;
+    if (consumeOutcome.consumed && consumeOutcome.record) {
+      this.emit(APPROVAL_EVENT_TYPES.CONSUMED, { approvalId: consumeOutcome.record.id }, consumeOutcome.record.sessionId);
+    }
     return result;
   }
 
@@ -622,6 +657,7 @@ export class ApprovalStore {
     context: { actor: string; reason?: string; now?: Date },
   ): Promise<ApprovalGroup | null> {
     let group: ApprovalGroup | null = null;
+    let resolvedMembers: ApprovalRecord[] = [];
     await this.mutate((approvals) => {
       const g = (this.groups ?? []).find(gr => gr.id === groupId);
       if (!g) return;
@@ -639,6 +675,7 @@ export class ApprovalStore {
           a.decidedBy = context.actor;
         }
         g.status = status;
+        resolvedMembers = members.map(m => ({ ...m }));
       } else {
         // Some already resolved — set partial
         g.status = "partial";
@@ -648,6 +685,12 @@ export class ApprovalStore {
       g.decisionReason = context.reason;
       group = { ...g };
     });
+
+    // Emit per-member approval.resolved for members actually resolved by this call.
+    // Partial branch: already-resolved members already have their own event.
+    for (const m of resolvedMembers) {
+      this.emit(APPROVAL_EVENT_TYPES.RESOLVED, { approvalId: m.id, status }, m.sessionId);
+    }
     return group;
   }
 
