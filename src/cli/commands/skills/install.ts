@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile, stat, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
@@ -13,6 +13,46 @@ export interface InstallOptions {
   name?: string;
   /** Install a skill from a local dir/file or https URL. */
   from?: string;
+}
+
+/**
+ * Top-level directory entries that are never copied when installing a skill
+ * from a local directory. Reuses the exclusion concept from marketplace.ts
+ * but scoped to package-install: keep vendored/generated/tooling cruft out of
+ * ~/.alix/skills/<name>.
+ */
+export const EXCLUDED_DIRS: readonly string[] = [
+  ".git",
+  ".github",
+  ".DS_Store",
+  "node_modules",
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".pytest_cache",
+  "dist",
+  "build",
+];
+
+/**
+ * Recursively copy a skill package directory into its install target, skipping
+ * any top-level entry whose basename is in EXCLUDED_DIRS. Directories recurse;
+ * regular files are copied as-is (SKILL.md, scripts/, assets/, LICENSE, ...).
+ */
+async function copyDir(src: string, dest: string): Promise<void> {
+  await mkdir(dest, { recursive: true });
+  const entries = await readdir(src);
+  for (const name of entries) {
+    if (EXCLUDED_DIRS.includes(name)) continue;
+    const srcPath = join(src, name);
+    const destPath = join(dest, name);
+    const st = await stat(srcPath);
+    if (st.isDirectory()) {
+      await copyDir(srcPath, destPath);
+    } else {
+      await copyFile(srcPath, destPath);
+    }
+  }
 }
 
 /**
@@ -159,6 +199,7 @@ Run 'alix skills available' to see skills you can install.
 async function installFromSource(source: string, name: string | undefined, skillsDir: string): Promise<void> {
   let content: string;
   let fallbackName: string | undefined;
+  let sourceIsDir = false;
 
   if (source.startsWith("http://")) {
     throw new Error("Remote skills must use https:// (plain http is rejected)");
@@ -176,6 +217,7 @@ async function installFromSource(source: string, name: string | undefined, skill
       throw new Error(`Source not found: ${source}`);
     }
     if (st.isDirectory()) {
+      sourceIsDir = true;
       content = await readFile(join(source, "SKILL.md"), "utf8");
       fallbackName = basename(source);
     } else {
@@ -196,7 +238,14 @@ async function installFromSource(source: string, name: string | undefined, skill
 
   const targetDir = join(skillsDir, resolvedName);
   await mkdir(targetDir, { recursive: true });
-  await writeFile(join(targetDir, "SKILL.md"), content, "utf8");
+  if (sourceIsDir) {
+    // Local-directory package source: copy the whole skill folder (SKILL.md,
+    // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS.
+    await copyDir(source, targetDir);
+  } else {
+    // Single-file source (local .md or fetched content): write just SKILL.md.
+    await writeFile(join(targetDir, "SKILL.md"), content, "utf8");
+  }
   console.log(`Installed: ${resolvedName} (from ${source})`);
 }
 
