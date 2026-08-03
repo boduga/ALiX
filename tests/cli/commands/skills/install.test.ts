@@ -136,6 +136,32 @@ describe("install command", () => {
   });
 });
 
+describe("skill remove", () => {
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  it("removes an installed skill", async () => {
+    const VALID = "---\nname: brand\ndescription: Brand skill\n---\nBody.\n";
+    mkdirSync(join(testDir, ".alix", "skills", "brand"), { recursive: true });
+    writeFileSync(join(testDir, ".alix", "skills", "brand", "SKILL.md"), VALID, "utf8");
+    await runInstall({ remove: true, name: "brand" });
+    assert.ok(!existsSync(join(testDir, ".alix", "skills", "brand", "SKILL.md")), "skill should be removed");
+  });
+
+  it("throws when removing a non-installed skill", async () => {
+    await assert.rejects(runInstall({ remove: true, name: "nope" }), /not installed/);
+  });
+
+  it("throws when remove is used without a name", async () => {
+    await assert.rejects(runInstall({ remove: true }), /Usage: alix skills remove/);
+  });
+});
+
 describe("install --from (non-bundled skills)", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nDo the thing.\n";
   const origFetch = globalThis.fetch;

@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, stat, rm } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
@@ -8,6 +8,8 @@ import { loadMarketplaces, resolveSkillInMarketplaces, listAvailableSkills } fro
 export interface InstallOptions {
   list?: boolean;
   available?: boolean;
+  /** Remove an installed skill from ~/.alix/skills/<name>. */
+  remove?: boolean;
   name?: string;
   /** Install a skill from a local dir/file or https URL. */
   from?: string;
@@ -88,6 +90,15 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
     return;
   }
 
+  // Remove an installed skill
+  if (opts.remove) {
+    if (!opts.name) {
+      throw new Error("Usage: alix skills remove <name>");
+    }
+    await removeSkill(opts.name, skillsDir);
+    return;
+  }
+
   // Install a skill from a local path or https URL.
   // Checked before opts.name so `install <name> --from <src>` hits this path.
   if (opts.from) {
@@ -122,6 +133,7 @@ Usage:
   alix skills install <name>                         Install a skill from a registered marketplace
   alix skills install <name> --from <path|url>       Install a skill from a local dir/file or https URL
   alix skills install --list                         List installed skills
+  alix skills remove <name>                          Remove an installed skill
   alix skills marketplace list                       List registered marketplaces
   alix skills marketplace add <name> <url>           Register a marketplace (github.com https URL)
   alix skills marketplace remove <name>              Unregister a marketplace
@@ -186,6 +198,16 @@ async function installFromSource(source: string, name: string | undefined, skill
   await mkdir(targetDir, { recursive: true });
   await writeFile(join(targetDir, "SKILL.md"), content, "utf8");
   console.log(`Installed: ${resolvedName} (from ${source})`);
+}
+
+/** Remove an installed skill from ~/.alix/skills/<name>. */
+async function removeSkill(name: string, skillsDir: string): Promise<void> {
+  const target = join(skillsDir, name);
+  if (!existsSync(join(target, "SKILL.md"))) {
+    throw new Error(`Skill '${name}' is not installed.`);
+  }
+  await rm(target, { recursive: true, force: true });
+  console.log(`Removed: ${name}`);
 }
 
 async function listInstalledSkills(dir: string): Promise<void> {

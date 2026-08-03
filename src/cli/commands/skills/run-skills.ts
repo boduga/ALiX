@@ -48,6 +48,12 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
       },
     };
   }
+  if (sub === "remove") {
+    return {
+      type: "install",
+      opts: { remove: true, name: positional[1] },
+    };
+  }
   return { type: "help" };
 }
 
