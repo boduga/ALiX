@@ -10,49 +10,43 @@ const testDir = join(process.cwd(), ".test-alix-skills");
 describe("resolveInstallOptions", () => {
   it("resolves bare 'available' subcommand", () => {
     assert.deepEqual(resolveInstallOptions(["available"]), {
-      available: true, list: false, all: false, name: undefined, from: undefined,
+      available: true, list: false, name: undefined, from: undefined,
     });
   });
 
   it("resolves 'install <name>' — name is the second arg, not 'install'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "tdd"]), {
-      available: false, list: false, all: false, name: "tdd", from: undefined,
-    });
-  });
-
-  it("resolves 'install --all'", () => {
-    assert.deepEqual(resolveInstallOptions(["install", "--all"]), {
-      available: false, list: false, all: true, name: undefined, from: undefined,
+      available: false, list: false, name: "tdd", from: undefined,
     });
   });
 
   it("resolves 'install --list'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--list"]), {
-      available: false, list: true, all: false, name: undefined, from: undefined,
+      available: false, list: true, name: undefined, from: undefined,
     });
   });
 
   it("resolves legacy '--available' flag", () => {
     assert.deepEqual(resolveInstallOptions(["--available"]), {
-      available: true, list: false, all: false, name: undefined, from: undefined,
+      available: true, list: false, name: undefined, from: undefined,
     });
   });
 
   it("resolves empty args to a bare call (help path)", () => {
     assert.deepEqual(resolveInstallOptions([]), {
-      available: false, list: false, all: false, name: undefined, from: undefined,
+      available: false, list: false, name: undefined, from: undefined,
     });
   });
 
   it("resolves 'install --from <path>' with an explicit name", () => {
     assert.deepEqual(resolveInstallOptions(["install", "langfuse", "--from", "./langfuse"]), {
-      available: false, list: false, all: false, name: "langfuse", from: "./langfuse",
+      available: false, list: false, name: "langfuse", from: "./langfuse",
     });
   });
 
   it("resolves 'install --from <url>' without a name (derived from manifest)", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--from", "https://example.com/skill.md"]), {
-      available: false, list: false, all: false, name: undefined, from: "https://example.com/skill.md",
+      available: false, list: false, name: undefined, from: "https://example.com/skill.md",
     });
   });
 });
@@ -76,13 +70,15 @@ describe("install command", () => {
     // Test passes if no error thrown
   });
 
-  it("should install a core skill", async () => {
-    await runInstall({ name: "tdd" });
-    assert.ok(existsSync(join(testDir, ".alix", "skills", "tdd", "SKILL.md")), "tdd skill should be installed");
-  });
-
-  it("should throw for non-existent skill", async () => {
-    await assert.rejects(runInstall({ name: "nonexistent" }), /not found/);
+  it("should throw for a non-existent skill when the marketplace returns 404", async () => {
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } })) as typeof fetch;
+    try {
+      await assert.rejects(runInstall({ name: "nonexistent" }), /Could not find/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 });
 

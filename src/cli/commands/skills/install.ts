@@ -1,34 +1,33 @@
-import { copyFile, mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
 import { githubRawCandidates, fetchSkillFromUrls, fetchText } from "./net.js";
+import { loadMarketplaces, resolveSkillInMarketplaces, listAvailableSkills } from "./marketplace.js";
 
 export interface InstallOptions {
   list?: boolean;
   available?: boolean;
   name?: string;
-  all?: boolean;
-  /** Install a skill not in the bundled set, from a local dir/file or https URL. */
+  /** Install a skill from a local dir/file or https URL. */
   from?: string;
 }
 
 /**
  * Map CLI args (everything after `alix skills`) to InstallOptions.
  *
- * The CLI surface is subcommand-based:
- *   alix skills available           → { available: true }
- *   alix skills install             → {} (help)
- *   alix skills install --all       → { all: true }
- *   alix skills install <name>      → { name }
- *   alix skills install --list      → { list: true }
+ * CLI surface is subcommand-based:
+ * alix skills available → { available: true }
+ * alix skills install → {} (help)
+ * alix skills install <name> → { name }
+ * alix skills install --list → { list: true }
  *
- * A bare `available`/`install` subcommand is required — the first non-flag
- * arg is the subcommand, NOT the skill name. (Previously the first non-flag
- * arg was unconditionally mapped to `name`, so `alix skills available`
+ * bare `available`/`install` subcommand required — first non-flag
+ * arg is the subcommand, NOT a skill name. (Previously the first non-flag
+ * arg unconditionally mapped to `name`, so `alix skills available`
  * tried to install a skill literally named "available", and
  * `alix skills install tdd` tried to install one named "install".)
- * The legacy `--available` flag is still honored for backward compat.
+ * legacy `--available` flag still honored for backward compat.
  */
 export function resolveInstallOptions(args: string[]): InstallOptions {
   const flags = new Set<string>();
@@ -49,31 +48,17 @@ export function resolveInstallOptions(args: string[]): InstallOptions {
   return {
     available: sub === "available" || flags.has("--available"),
     list: flags.has("--list"),
-    all: flags.has("--all"),
     name: sub === "install" ? positional[1] : undefined,
     from,
   };
 }
-
-const CORE_SKILLS: Record<string, string> = {
-  tdd: "Test-driven development with red-green-refactor loop",
-  debug: "Systematic debugging with reproduce-minimize-hypothesize-fix loop",
-  review: "Code review with security, performance, and quality checklist",
-  refactor: "Safe refactoring using GitNexus blast radius analysis",
-  architect: "Architecture reviews and deepening opportunities",
-  simplify: "Code cleanup removing dead code and fixing hacky patterns",
-  document: "Auto-generates docstrings, README, and API docs",
-  migrate: "Safe migrations with expand-contract and dual-write patterns",
-  "test-suite": "Test suite auditing and coverage improvement",
-  optimize: "Performance profiling and caching strategies",
-};
 
 export async function runInstall(opts: InstallOptions): Promise<void> {
   const homeDir = process.env.HOME ?? "";
   const alixDir = join(homeDir, ".alix");
   const skillsDir = join(alixDir, "skills");
 
-  // Show available skills (bundled)
+  // Show available skills across registered marketplaces
   if (opts.available) {
     await listAvailableSkills();
     return;
@@ -93,41 +78,50 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
     return;
   }
 
-  // Install all core skills
-  if (opts.all) {
-    await installAllCoreSkills(skillsDir);
-    return;
-  }
-
-  // Install a non-bundled skill from a local path or https URL.
+  // Install a skill from a local path or https URL.
   // Checked before opts.name so `install <name> --from <src>` hits this path.
   if (opts.from) {
     await installFromSource(opts.from, opts.name, skillsDir);
     return;
   }
 
-  // Install a specific bundled skill
+  // Install a skill by name from the registered marketplaces
   if (opts.name) {
-    await installSkill(opts.name, skillsDir);
+    const destDir = join(skillsDir, opts.name);
+    if (existsSync(join(destDir, "SKILL.md"))) {
+      console.log("already installed");
+      return;
+    }
+    const marketplaces = await loadMarketplaces();
+    const { repoUrl, content } = await resolveSkillInMarketplaces(opts.name, marketplaces);
+    await mkdir(destDir, { recursive: true });
+    await writeFile(join(destDir, "SKILL.md"), content, "utf8");
+    console.log(`Installed: ${opts.name} (from ${repoUrl})`);
     return;
   }
 
   // Default: show help
-  console.log(`ALiX Skills Installer
+  printSkillsHelp();
+}
+
+function printSkillsHelp(): void {
+  console.log(`ALiX Skills
 
 Usage:
-  alix skills available                              List all available skills to install
-  alix skills install --all                          Install all core skills
-  alix skills install <name>                         Install specific bundled skill
+  alix skills available                              List skills available from registered marketplaces
+  alix skills install <name>                         Install a skill from a registered marketplace
   alix skills install <name> --from <path|url>       Install a skill from a local dir/file or https URL
   alix skills install --list                         List installed skills
+  alix skills marketplace list                       List registered marketplaces
+  alix skills marketplace add <name> <url>           Register a marketplace (github.com https URL)
+  alix skills marketplace remove <name>              Unregister a marketplace
 
-Run 'alix skills available' to see all skills you can install.
+Run 'alix skills available' to see skills you can install.
 `);
 }
 
 /**
- * Install a skill that is not part of the bundled set.
+ * Install a skill from a source outside the registered marketplaces.
  *
  * Source may be:
  *   - a local directory containing SKILL.md  → name derived from dir name (or --from filename)
@@ -184,36 +178,6 @@ async function installFromSource(source: string, name: string | undefined, skill
   console.log(`Installed: ${resolvedName} (from ${source})`);
 }
 
-async function installAllCoreSkills(skillsDir: string): Promise<void> {
-  const coreSkills = Object.keys(CORE_SKILLS);
-  console.log("Installing core skills...\n");
-
-  for (const name of coreSkills) {
-    try {
-      await installSkill(name, skillsDir);
-    } catch (err) {
-      console.error(`Failed to install ${name}: ${err}`);
-    }
-  }
-}
-
-async function installSkill(name: string, skillsDir: string): Promise<void> {
-  // Source: bundled in CLI (src/cli/commands/skills/<name>/SKILL.md)
-  const bundledPath = join(process.cwd(), "src", "cli", "commands", "skills", name, "SKILL.md");
-  const destDir = join(skillsDir, name);
-
-  if (!existsSync(bundledPath)) {
-    throw new Error(`Skill '${name}' not found in bundle`);
-  }
-
-  // Create destination directory
-  await mkdir(destDir, { recursive: true });
-
-  // Copy skill file
-  await copyFile(bundledPath, join(destDir, "SKILL.md"));
-  console.log(`Installed: ${name}`);
-}
-
 async function listInstalledSkills(dir: string): Promise<void> {
   if (!existsSync(dir)) {
     console.log("No skills installed.");
@@ -233,12 +197,4 @@ async function listInstalledSkills(dir: string): Promise<void> {
       console.log(`  ${name}`);
     }
   }
-}
-
-async function listAvailableSkills(): Promise<void> {
-  console.log("Available skills to install:\n");
-  for (const [name, description] of Object.entries(CORE_SKILLS)) {
-    console.log(`  ${name.padEnd(12)} ${description}`);
-  }
-  console.log(`\nRun 'alix skills install <name>' to install one, or 'alix skills install --all' for all.`);
 }
