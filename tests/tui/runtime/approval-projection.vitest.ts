@@ -11,6 +11,27 @@ function requested(seq: number, approvalId: string, prompt = 'run?', toolName?: 
 function resolved(seq: number, approvalId: string, decision: 'approved' | 'denied' | 'edited'): AlixEvent {
   return evt('approval.resolved', { approvalId, decision }, seq);
 }
+function created(seq: number, approvalId: string, opts: { toolId?: string; reason?: string; requestId?: string; sessionId?: string } = {}): AlixEvent {
+  return evt('approval.created', { approvalId, ...opts }, seq);
+}
+function resolvedStatus(seq: number, approvalId: string, status: 'approved' | 'denied'): AlixEvent {
+  return evt('approval.resolved', { approvalId, status }, seq);
+}
+function expired(seq: number, approvalId: string): AlixEvent {
+  return evt('approval.expired', { approvalId }, seq);
+}
+function revoked(seq: number, approvalId: string): AlixEvent {
+  return evt('approval.revoked', { approvalId }, seq);
+}
+function consumed(seq: number, approvalId: string): AlixEvent {
+  return evt('approval.consumed', { approvalId }, seq);
+}
+function invalidated(seq: number, approvalId: string): AlixEvent {
+  return evt('approval.invalidated', { approvalId }, seq);
+}
+function reused(seq: number, approvalId: string): AlixEvent {
+  return evt('approval.reused', { approvalId }, seq);
+}
 
 describe('ApprovalProjection', () => {
   it('requested creates a pending entry; resolved moves it to completed', () => {
@@ -129,5 +150,111 @@ describe('ApprovalProjection', () => {
     p.update([requested(1, 'a1'), resolved(2, 'a1', 'approved')]);
     p.reset();
     expect(p.snapshot()).toEqual({ pending: [], completed: [] });
+  });
+
+  it('approval.created creates a pending entry; resolved with status moves it to completed', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]);
+    expect(p.snapshot().pending[0]!.status).toBe('pending');
+    p.update([resolvedStatus(2, 'a1', 'approved')]);
+    expect(p.snapshot().pending).toHaveLength(0);
+    expect(p.snapshot().completed[0]!.status).toBe('approved');
+  });
+
+  it('merge-enrich fills missing fields on a later created; never overwrites populated fields', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]); // sparse
+    p.update([created(2, 'a1', { reason: 'Modify config', toolId: 'fs' })]); // rich
+    const entry = p.snapshot().pending[0]!;
+    expect(entry.prompt).toBe('Modify config');
+    expect(entry.toolName).toBe('fs');
+    // Now a later sparse event must NOT erase
+    p.update([created(3, 'a1')]);
+    expect(p.snapshot().pending[0]!.prompt).toBe('Modify config');
+    expect(p.snapshot().pending[0]!.toolName).toBe('fs');
+  });
+
+  it('approval.reused is a no-op (pending stays pending)', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]);
+    p.update([reused(2, 'a1')]);
+    expect(p.snapshot().pending).toHaveLength(1);
+    expect(p.snapshot().pending[0]!.status).toBe('pending');
+  });
+
+  it('expired / revoked / consumed / invalidated move pending to terminal', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'e1')]);
+    p.update([expired(2, 'e1')]);
+    expect(p.snapshot().completed[0]!.status).toBe('expired');
+    p.update([created(3, 'v1')]);
+    p.update([revoked(4, 'v1')]);
+    expect(p.snapshot().completed[0]!.status).toBe('revoked');
+    p.update([created(5, 'c1')]);
+    p.update([consumed(6, 'c1')]);
+    expect(p.snapshot().completed[0]!.status).toBe('consumed');
+    p.update([created(7, 'i1')]);
+    p.update([invalidated(8, 'i1')]);
+    expect(p.snapshot().completed[0]!.status).toBe('invalidated');
+  });
+
+  it('throws on contradictory decision+status (fail-closed)', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]);
+    expect(() => p.update([evt('approval.resolved', { approvalId: 'a1', decision: 'approved', status: 'denied' }, 2)])).toThrow();
+  });
+
+  it('terminal states are immutable: approved then denied throws; expired then resumed throws; idempotent re-resolve is a no-op', () => {
+    const p = new ApprovalProjection();
+    p.update([requested(1, 'a1', 'run?', 'search')]);
+    p.update([resolved(2, 'a1', 'approved')]);
+    expect(() => p.update([resolved(3, 'a1', 'denied')])).toThrow();
+    p.update([resolved(4, 'a1', 'approved')]); // idempotent no-op
+    expect(p.snapshot().completed[0]!.status).toBe('approved');
+    p.update([created(5, 'e1')]);
+    p.update([expired(6, 'e1')]);
+    expect(() => p.update([evt('approval.resumed', { approvalId: 'e1' }, 7)])).toThrow();
+  });
+
+  it('replay determinism: same fixture replayed twice → identical snapshots', () => {
+    const p1 = new ApprovalProjection();
+    const p2 = new ApprovalProjection();
+    const fixture: AlixEvent[] = [
+      created(1, 'a1', { reason: 'r', toolId: 't' }),
+      reused(2, 'a1'),
+      resolvedStatus(3, 'a1', 'approved'),
+      created(4, 'a2'),
+      expired(5, 'a2'),
+    ];
+    p1.update(fixture);
+    p2.update(fixture);
+    expect(p1.snapshot()).toEqual(p2.snapshot());
+  });
+
+  it('historical sparse events remain readable (no enriched fields)', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]); // no toolId/reason
+    p.update([resolvedStatus(2, 'a1', 'approved')]);
+    expect(p.snapshot().completed[0]!.toolName).toBeUndefined();
+    expect(p.snapshot().completed[0]!.status).toBe('approved');
+  });
+
+  it('POST-APPROVAL: approved entry updates to consumed/expired/revoked/invalidated (store parity)', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]);
+    p.update([resolvedStatus(2, 'a1', 'approved')]);
+    expect(p.snapshot().completed[0]!.status).toBe('approved');
+    // consumed arrives after the entry already left pending (store consumeApproved)
+    p.update([consumed(3, 'a1')]);
+    expect(p.snapshot().completed[0]!.status).toBe('consumed');
+    expect(p.snapshot().completed[0]!.completedAt).toBe(3 * 1000);
+  });
+
+  it('revoke is allowed on a completed non-approved entry (store revoke permits denied/edited/invalidated)', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1')]);
+    p.update([resolvedStatus(2, 'a1', 'denied')]);
+    p.update([revoked(3, 'a1')]);
+    expect(p.snapshot().completed[0]!.status).toBe('revoked');
   });
 });
