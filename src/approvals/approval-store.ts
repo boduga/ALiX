@@ -178,6 +178,10 @@ export class ApprovalStore {
           policyRevision: record.policyRevision,
           status: record.status,
           timestamp: record.createdAt,
+          reason: record.reason,
+          toolId: record.toolId,
+          requestId: record.requestId,
+          sessionId: record.sessionId,
         },
       }).catch(() => {});
 
@@ -251,6 +255,10 @@ export class ApprovalStore {
           policyRevision: record.policyRevision,
           status: record.status,
           timestamp: record.createdAt,
+          reason: record.reason,
+          toolId: record.toolId,
+          requestId: record.requestId,
+          sessionId: record.sessionId,
         },
       }).catch(() => {});
 
@@ -300,6 +308,10 @@ export class ApprovalStore {
           policyRevision: record.policyRevision,
           status: record.status,
           timestamp: record.createdAt,
+          reason: record.reason,
+          toolId: record.toolId,
+          requestId: record.requestId,
+          sessionId: record.sessionId,
         },
       }).catch(() => {});
 
@@ -470,6 +482,9 @@ export class ApprovalStore {
         }
       }
     });
+    for (const r of expired) {
+      this.eventLog?.append({ sessionId: r.sessionId ?? "unknown", actor: "policy", type: APPROVAL_EVENT_TYPES.EXPIRED, payload: { approvalId: r.id } }).catch(() => {});
+    }
     return expired;
   }
 
@@ -487,6 +502,12 @@ export class ApprovalStore {
       r.revocationReason = context.reason;
       revoked = { ...r };
     });
+    // `revoked` is assigned inside the mutate() closure, so TS keeps the initial
+    // `null` narrowing here (closure assignments don't widen outer flow). Re-assert.
+    const revokedRecord = revoked as ApprovalRecord | null;
+    if (revokedRecord) {
+      this.eventLog?.append({ sessionId: revokedRecord.sessionId ?? "unknown", actor: "policy", type: APPROVAL_EVENT_TYPES.REVOKED, payload: { approvalId: revokedRecord.id } }).catch(() => {});
+    }
     return revoked;
   }
 
@@ -505,6 +526,9 @@ export class ApprovalStore {
         }
       }
     });
+    for (const r of invalidated) {
+      this.eventLog?.append({ sessionId: r.sessionId ?? "unknown", actor: "policy", type: APPROVAL_EVENT_TYPES.INVALIDATED, payload: { approvalId: r.id } }).catch(() => {});
+    }
     return invalidated;
   }
 
@@ -532,6 +556,12 @@ export class ApprovalStore {
       r.consumedAttempt = consumer.workerAttempt;
       result = { consumed: true, record: { ...r } };
     });
+    // `result` is assigned inside the mutate() closure, so TS narrows it to the
+    // initial `{ consumed: false }` variant here. Re-assert the declared type.
+    const consumeOutcome = result as ConsumeResult;
+    if (consumeOutcome.consumed && consumeOutcome.record) {
+      this.eventLog?.append({ sessionId: consumeOutcome.record.sessionId ?? "unknown", actor: "policy", type: APPROVAL_EVENT_TYPES.CONSUMED, payload: { approvalId: consumeOutcome.record.id } }).catch(() => {});
+    }
     return result;
   }
 
@@ -622,6 +652,7 @@ export class ApprovalStore {
     context: { actor: string; reason?: string; now?: Date },
   ): Promise<ApprovalGroup | null> {
     let group: ApprovalGroup | null = null;
+    let resolvedMembers: ApprovalRecord[] = [];
     await this.mutate((approvals) => {
       const g = (this.groups ?? []).find(gr => gr.id === groupId);
       if (!g) return;
@@ -639,6 +670,7 @@ export class ApprovalStore {
           a.decidedBy = context.actor;
         }
         g.status = status;
+        resolvedMembers = members.map(m => ({ ...m }));
       } else {
         // Some already resolved — set partial
         g.status = "partial";
@@ -648,6 +680,12 @@ export class ApprovalStore {
       g.decisionReason = context.reason;
       group = { ...g };
     });
+
+    // Emit per-member approval.resolved for members actually resolved by this call.
+    // Partial branch: already-resolved members already have their own event.
+    for (const m of resolvedMembers) {
+      this.eventLog?.append({ sessionId: m.sessionId ?? "unknown", actor: "policy", type: APPROVAL_EVENT_TYPES.RESOLVED, payload: { approvalId: m.id, status } }).catch(() => {});
+    }
     return group;
   }
 
