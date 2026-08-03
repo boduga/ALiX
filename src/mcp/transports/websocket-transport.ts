@@ -1,6 +1,7 @@
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../../mcp/types.js";
 import type { McpTransport } from "../../mcp/transport.js";
 import type { McpTransportType } from "../../config/schema.js";
+import { jsonRpcError } from "../../mcp/error-format.js";
 
 export class WebSocketTransport implements McpTransport {
   readonly name: string;
@@ -44,8 +45,9 @@ export class WebSocketTransport implements McpTransport {
             if (pending) {
               clearTimeout(pending.timeout);
               this.pendingRequests.delete(id);
-              if ("error" in msg && msg.error) {
-                pending.reject(new Error(msg.error.message));
+              const jsonErr = jsonRpcError(msg);
+              if (jsonErr) {
+                pending.reject(jsonErr);
               } else {
                 pending.resolve(msg as JsonRpcResponse);
               }

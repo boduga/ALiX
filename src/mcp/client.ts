@@ -3,6 +3,7 @@ import type { McpTransport } from "./transport.js";
 import { withTimeout, SideEffectTimeoutError } from "../runtime/side-effect-timeout.js";
 import { consoleSink, createMultiplexDiagnosticSink } from "../runtime/runtime-diagnostics.js";
 import { createDiagnosticStoreSink, DiagnosticEventStore } from "../observability/diagnostic-event-store.js";
+import { jsonRpcError } from "./error-format.js";
 
 const diagSink = createMultiplexDiagnosticSink(
   consoleSink,
@@ -110,8 +111,9 @@ export class McpClient {
       const pending = this.pendingRequests.get(String(msg.id));
       if (pending) {
         this.pendingRequests.delete(String(msg.id));
-        if ("error" in msg && msg.error) {
-          pending.reject(new Error(msg.error.message));
+        const jsonErr = jsonRpcError(msg);
+        if (jsonErr) {
+          pending.reject(jsonErr);
         } else {
           pending.resolve(msg as JsonRpcResponse);
         }
