@@ -1,9 +1,15 @@
 import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath } from "node:fs/promises";
-import { join, basename } from "node:path";
+import { join, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
-import { githubRawCandidates, fetchSkillFromUrls } from "./net.js";
-import { loadMarketplaces, resolveSkillInMarketplaces, listAvailableSkills } from "./marketplace.js";
+import { githubRawCandidates, fetchSkillFromUrls, parseGithubUrl, EXCLUDED_DIRS } from "./net.js";
+import {
+  loadMarketplaces,
+  resolveSkillInMarketplaces,
+  listAvailableSkills,
+  fetchSkillPackage,
+  type SkillPackageFile,
+} from "./marketplace.js";
 
 export interface InstallOptions {
   list?: boolean;
@@ -14,25 +20,6 @@ export interface InstallOptions {
   /** Install a skill from a local dir/file or https URL. */
   from?: string;
 }
-
-/**
- * Top-level directory entries that are never copied when installing a skill
- * from a local directory. Reuses the exclusion concept from marketplace.ts
- * but scoped to package-install: keep vendored/generated/tooling cruft out of
- * ~/.alix/skills/<name>.
- */
-export const EXCLUDED_DIRS: readonly string[] = [
-  ".git",
-  ".github",
-  ".DS_Store",
-  "node_modules",
-  "__pycache__",
-  ".venv",
-  "venv",
-  ".pytest_cache",
-  "dist",
-  "build",
-];
 
 /**
  * Recursively copy a skill package directory into its install target, skipping
@@ -189,7 +176,8 @@ Run 'alix skills available' to see skills you can install.
  *   - a local directory containing SKILL.md  → name derived from dir name (or --from filename)
  *   - a local SKILL.md file
  *   - an https:// URL to a SKILL.md file     → name derived from the manifest's `name`
- *   - a github.com repo / blob / tree URL    → SKILL.md resolved automatically
+ *   - a github.com skill-dir/blob/tree URL   → the whole package (SKILL.md + scripts/, assets/, ...) is installed
+ *   - a github.com repo-root URL             → SKILL.md resolved automatically
  *   - a raw.githubusercontent.com file URL   → fetched directly
  *
  * The content must parse as a valid skill manifest (name + description).
@@ -200,14 +188,31 @@ async function installFromSource(source: string, name: string | undefined, skill
   let content: string;
   let fallbackName: string | undefined;
   let sourceIsDir = false;
+  let packageFiles: SkillPackageFile[] | undefined;
 
   if (source.startsWith("http://")) {
     throw new Error("Remote skills must use https:// (plain http is rejected)");
   }
 
   if (source.startsWith("https://")) {
-    const candidates = githubRawCandidates(source, name);
-    content = await fetchSkillFromUrls(candidates ?? [source], source, name);
+    // A github.com skill-dir/blob/tree URL (non-empty path) installs the whole
+    // package: enumerate the skill dir's files and fetch them all. Repo-root
+    // URLs, raw.githubusercontent.com, and non-GitHub https URLs keep the
+    // single-SKILL.md resolution below.
+    const parsedGithub = parseGithubUrl(source);
+    const isGithubDirUrl =
+      parsedGithub !== null && parsedGithub.host === "github.com" && parsedGithub.rest.length > 0;
+    const pkg = isGithubDirUrl ? await fetchSkillPackage(source, { name }) : null;
+    if (pkg) {
+      packageFiles = pkg.files;
+      content = packageFiles.find((f) => f.relPath === "SKILL.md")?.content ?? "";
+      if (!content) {
+        throw new Error(`No SKILL.md found under ${source}`);
+      }
+    } else {
+      const candidates = githubRawCandidates(source, name);
+      content = await fetchSkillFromUrls(candidates ?? [source], source, name);
+    }
   } else {
     // Local path: directory containing SKILL.md, or a SKILL.md file itself
     let st;
@@ -253,6 +258,14 @@ async function installFromSource(source: string, name: string | undefined, skill
     // Local-directory package source: copy the whole skill folder (SKILL.md,
     // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS.
     await copyDir(source, targetDir);
+  } else if (packageFiles) {
+    // URL package source: write every fetched file (SKILL.md + scripts/,
+    // assets/, LICENSE, ...) under the skill directory.
+    for (const file of packageFiles) {
+      const dest = join(targetDir, file.relPath);
+      await mkdir(dirname(dest), { recursive: true });
+      await writeFile(dest, file.content, "utf8");
+    }
   } else {
     // Single-file source (local .md or fetched content): write just SKILL.md.
     await writeFile(join(targetDir, "SKILL.md"), content, "utf8");

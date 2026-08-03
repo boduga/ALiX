@@ -1,5 +1,27 @@
 import { parseSkillContent } from "../../../skills/types.js";
 
+/**
+ * Top-level directory entries that are never copied when installing a skill
+ * package, whether from a local directory (install.ts copyDir) or a GitHub
+ * URL (marketplace.ts fetchSkillPackage). Package-safe: keeps vendored /
+ * generated / tooling cruft out of ~/.alix/skills/<name> while preserving
+ * assets/ and scripts/. Deliberately distinct from marketplace.ts's
+ * EXCLUDED_DIRS, which is the *listing* exclusion (drops assets/template) and
+ * must NOT be used for installing.
+ */
+export const EXCLUDED_DIRS: readonly string[] = [
+  ".git",
+  ".github",
+  ".DS_Store",
+  "node_modules",
+  "__pycache__",
+  ".venv",
+  "venv",
+  ".pytest_cache",
+  "dist",
+  "build",
+];
+
 export interface ParsedGithubUrl {
   host: "github.com" | "raw.githubusercontent.com";
   owner: string;

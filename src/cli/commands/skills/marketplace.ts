@@ -1,6 +1,13 @@
-import { join, dirname } from "node:path";
+import { join, dirname, basename } from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { githubRawCandidates, fetchSkillFromUrls, fetchText, fetchJson, parseGithubUrl } from "./net.js";
+import {
+  githubRawCandidates,
+  fetchSkillFromUrls,
+  fetchText,
+  fetchJson,
+  parseGithubUrl,
+  EXCLUDED_DIRS as PACKAGE_EXCLUDED_DIRS,
+} from "./net.js";
 import { parseSkillContent } from "../../../skills/types.js";
 
 export interface Marketplace {
@@ -189,6 +196,90 @@ export async function listRepoSkills(repoUrl: string, opts?: { limit?: number })
     }
   }
   return results;
+}
+
+export interface SkillPackageFile {
+  /** Path relative to the skill directory (e.g. "scripts/recalc.py"). */
+  relPath: string;
+  content: string;
+}
+
+export interface SkillPackage {
+  /** Derived skill name: opts.name, else the skill directory basename. */
+  name: string;
+  files: SkillPackageFile[];
+}
+
+/** Cap on the total fetched package size to bound memory (20MB). */
+const MAX_PACKAGE_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Resolve the skill directory inside a GitHub repo from a parsed github.com
+ * path, or undefined when the URL doesn't point at a skill directory:
+ *   repo-root (rest empty)          → skills/<name>/ when a name is given
+ *   blob/tree/{ref}/{path...}       → the {path...} (a trailing SKILL.md is dropped)
+ *   any other github.com path       → the path as-is (e.g. skills/xlsx)
+ * undefined results (non-github hosts, raw.githubusercontent, a bare repo root
+ * without a name, a blob/tree URL with no path) let callers fall back to the
+ * single-SKILL.md resolution.
+ */
+function skillDirFromGithubUrl(rest: string[], name?: string): string | undefined {
+  if (rest.length === 0) {
+    return name ? `skills/${name}` : undefined;
+  }
+  if (rest[0] === "blob" || rest[0] === "tree") {
+    const segs = rest.slice(2); // drop blob/tree and the ref
+    if (segs.length === 0) return undefined;
+    if (segs[segs.length - 1] === "SKILL.md") segs.pop(); // blob of SKILL.md → its dir
+    if (segs.length === 0) return undefined;
+    return segs.join("/");
+  }
+  return rest.join("/");
+}
+
+/**
+ * Fetch a whole skill package (SKILL.md + scripts/, assets/, LICENSE, ...) from
+ * a GitHub skill-dir/blob/tree URL by walking the repo's recursive git tree and
+ * fetching every file under the skill directory from raw.githubusercontent.com,
+ * honoring the package-safe EXCLUDED_DIRS. Returns null when the source isn't a
+ * GitHub skill-dir URL (repo root without a name, raw.githubusercontent.com, or
+ * a non-github.com host) so callers can fall back to single-file fetch. Throws
+ * on a failed trees/raw fetch or when the package exceeds opts.maxBytes.
+ */
+export async function fetchSkillPackage(
+  repoUrlOrPath: string,
+  opts?: { name?: string; maxBytes?: number },
+): Promise<SkillPackage | null> {
+  const parsed = parseGithubUrl(repoUrlOrPath);
+  if (!parsed || parsed.host !== "github.com") return null;
+  const skillDir = skillDirFromGithubUrl(parsed.rest, opts?.name);
+  if (skillDir === undefined) return null;
+
+  const treesUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/HEAD?recursive=1`;
+  const { tree } = await fetchJson<TreesResponse>(treesUrl);
+
+  const prefix = `${skillDir}/`;
+  const maxBytes = opts?.maxBytes ?? MAX_PACKAGE_BYTES;
+  const files: SkillPackageFile[] = [];
+  let total = 0;
+  for (const entry of tree ?? []) {
+    if (entry.type !== "blob" || !entry.path.startsWith(prefix)) continue;
+    const relPath = entry.path.slice(prefix.length);
+    if (!relPath || relPath.split("/").some((seg) => PACKAGE_EXCLUDED_DIRS.includes(seg))) continue;
+    const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/HEAD/${entry.path}`;
+    const { content } = await fetchText(rawUrl);
+    total += Buffer.byteLength(content, "utf8");
+    if (total > maxBytes) {
+      throw new Error(`Skill package under ${repoUrlOrPath} exceeds ${maxBytes} bytes`);
+    }
+    files.push({ relPath, content });
+  }
+
+  if (files.length === 0) {
+    throw new Error(`No SKILL.md found under ${repoUrlOrPath}`);
+  }
+  const name = opts?.name ?? basename(skillDir);
+  return { name, files };
 }
 
 /**

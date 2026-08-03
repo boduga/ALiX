@@ -311,22 +311,56 @@ describe("install --from github URLs", () => {
     }) as typeof fetch;
   }
 
+  /** api.github.com trees response for the given blob paths. */
+  function treeResponse(entries: { path: string }[]): Response {
+    return new Response(
+      JSON.stringify({
+        sha: "abc",
+        url: "u",
+        tree: entries.map((e) => ({ path: e.path, mode: "100644", type: "blob", sha: "s", url: "u", size: 1 })),
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }
+
+  /** Stub fetch so api.github.com returns `tree` and raw.githubusercontent.com returns `raw` bodies. */
+  function mockPackageFetch(tree: { path: string }[], raw: Record<string, string>) {
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("api.github.com")) return treeResponse(tree);
+      for (const [key, body] of Object.entries(raw)) {
+        if (url.includes(key)) return new Response(body, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+  }
+
   it("resolves a repo-root URL, finding skills/<name>/SKILL.md", async () => {
     mockRaw(["HEAD/skills/langfuse-agent/SKILL.md"]);
     await runInstall({ from: "https://github.com/acme/alix-skills", name: "langfuse-agent" });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from repo-root URL");
   });
 
-  it("resolves a blob URL to its raw file", async () => {
-    mockRaw(["/main/skills/langfuse-agent/SKILL.md"]);
+  it("resolves a blob URL to the full skill package (SKILL.md + scripts)", async () => {
+    mockPackageFetch(
+      [{ path: "skills/langfuse-agent/SKILL.md" }, { path: "skills/langfuse-agent/scripts/tool.py" }],
+      { "skills/langfuse-agent/SKILL.md": VALID, "skills/langfuse-agent/scripts/tool.py": "print('tool')\n" },
+    );
     await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/langfuse-agent/SKILL.md" });
-    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from blob URL");
+    const installed = join(testDir, ".alix", "skills", "langfuse-agent");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "installed from blob URL");
+    assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a blob URL");
   });
 
-  it("resolves a tree URL to <path>/SKILL.md", async () => {
-    mockRaw(["/main/skills/langfuse-agent/SKILL.md"]);
+  it("resolves a tree URL to the full skill package (SKILL.md + scripts)", async () => {
+    mockPackageFetch(
+      [{ path: "skills/langfuse-agent/SKILL.md" }, { path: "skills/langfuse-agent/scripts/tool.py" }],
+      { "skills/langfuse-agent/SKILL.md": VALID, "skills/langfuse-agent/scripts/tool.py": "print('tool')\n" },
+    );
     await runInstall({ from: "https://github.com/acme/alix-skills/tree/main/skills/langfuse-agent" });
-    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from tree URL");
+    const installed = join(testDir, ".alix", "skills", "langfuse-agent");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "installed from tree URL");
+    assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a tree URL");
   });
 
   it("fetches a raw.githubusercontent.com URL directly", async () => {
