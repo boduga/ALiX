@@ -32,7 +32,7 @@ Two approval vocabularies exist in the EventLog and must both be read:
 //   pending | resumed | approved | denied | edited | expired | revoked | consumed | invalidated
 ```
 
-`prompt` ≡ the user-facing `reason`; `targetPath` is presentation, derived in the adapter (Section 3).
+`prompt` ≡ the user-facing `reason`; `targetPath` is presentation, derived in the adapter (Section 3). For store-vocab events, `toolName` derives from `payload.capabilities[0]` (the OLD store path maps `toolName: r.capabilities?.[0] ?? 'unknown'` — the projection must expose the same value for UI parity), falling back to `payload.toolId`.
 
 ### Event normalization table
 
@@ -69,16 +69,26 @@ Invariant: later events may increase knowledge, never decrease knowledge (append
 
 **2. Conflict handling (fail-closed throw).** When both `decision` and `status` are present and contradictory — e.g. `{decision:"approved", status:"denied"}` — the projection throws during `update()`. This is a governance-invariant violation, consistent with existing strict contracts (malformed timestamp → throw, non-monotonic seq → throw, invalid decision → throw). The projection does not rely on `trySnapshot` for this — it throws during `update()`; the collector boundary (`SnapshotBuilder.trySnapshot`) provides the null-safe containment.
 
-**3. Terminal immutability.** Once an approval reaches a terminal state, later lifecycle events must NOT reopen it. Any terminal transition attempt is either ignored if idempotent or rejected if contradictory:
+**3. Terminal immutability with `approved` as a semi-terminal.** The store (`approval-store.ts`) genuinely performs **post-approval transitions**: `consumeApproved` requires `status === "approved"` → `consumed`; `expireDue` acts on pending OR approved → `expired`; `revoke` allows pending/approved/denied/edited/invalidated → `revoked`; `invalidateByPolicyRevision` requires approved → `invalidated`. So `approved` is NOT fully terminal — the projection must accept further terminal transitions out of it, or it diverges from the store (store says `consumed`, projection says `approved`).
 
-| Existing state | Incoming event | Result |
+Projection transition table (fully mirrors the store's real lifecycle):
+
+| Current state | Incoming event | Result |
 |---|---|---|
-| approved | resolved(approved) | no-op (idempotent) |
-| approved | resolved(denied) | throw (contradictory) |
-| expired | resumed | throw (resurrection) |
-| consumed | resolved | throw (resurrection) |
+| pending / resumed | resolved(approved\|denied\|edited) | move to completed, that status |
+| pending / resumed | expired / revoked / consumed / invalidated | move to completed, that status |
+| approved (completed) | consumed / expired / revoked / invalidated | **allowed** — update completed entry (post-approval) |
+| approved (completed) | resolved(approved) | no-op (idempotent) |
+| approved (completed) | resolved(denied\|edited) | throw (contradictory) |
+| any terminal (completed) | resolved with different status | throw (immutable) |
+| any terminal (completed) | `revoked` (target) | **allowed** — store's `revoke` permits revoking approved/denied/edited/invalidated |
+| any terminal (completed) | same-status terminal | no-op (idempotent) |
+| any terminal (completed) | resumed / created / requested | throw (resurrection) |
+| unknown id | any | no-op |
 
-This prevents a replay anomaly where a corrupted or duplicated event stream resurrects governance decisions.
+`approval.resumed`: a pending entry is marked `resumed` and **stays pending** (a failed resume is transient); a resumed event on a completed entry throws (resurrection).
+
+This prevents a replay anomaly where a corrupted or duplicated event stream resurrects governance decisions, while faithfully reflecting the store's real lifecycle. Idempotent repeats (e.g. `approved` + `resolved(approved)`) are no-ops.
 
 **Projection purity.** The projection never fabricates display values: `toolName` remains `toolName?: string` in `ApprovalProjectionEntry`. The `?? "unknown"` fallback lives only in the adapter (Section 3), keeping the projection a faithful read model.
 
@@ -166,7 +176,7 @@ After:   EventLog → ApprovalProjection → ApprovalProjectionCollector → Sna
 | `.toolName` | `entry.toolName ?? 'unknown'` |
 | `.targetPath` | derived from `entry.prompt` via shared `extractTarget()` |
 | `.args` | `{}` |
-| `.requestedAt` | `entry.requestedAt` (EventLog timestamp is the lifecycle authority; NO store fallback) |
+| `.requestedAt` | `entry.requestedAt` — the projection prefers the event's `payload.timestamp` (= store `record.createdAt`) for store-vocab creation events, else the EventLog append `timestamp`; NO store-record fallback in the adapter |
 | `.requestedBy` | `'system'` |
 | `recentlyResolved` | `proj.completed` mapped to `ApprovalRecordSnapshot`, newest-first (becomes real, not `[]`) |
 | `totalPending` | `proj.pending.length` |
@@ -244,8 +254,8 @@ The migration's risk is proving behavioral equivalence between the old store sna
 - **Historical sparse events readable** (A12): replay fixture without enriched payload fields.
 
 ### Suite 3 — Adapter parity (`tests/tui/runtime/approval-projection-collector.vitest.ts`, new; commit 3)
-- **Parity oracle (the core equivalence proof):** build `ApprovalSnapshot` from the same fixture both ways — existing store/`ApprovalManager` path and new projection→adapter path — deep-equal. Compare normalized only where the adapter intentionally changes representation (e.g. projection `expired` → UI `denied`). NOT allowed to differ: ids, pending ordering, timestamps, missing resolved entries.
-- **Full-lifecycle fixture (A13):** `created → resumed → resolved(approved) → attempted revoke → attempted consume`. Terminal state stays approved; no illegal mutation leaks into projection; adapter output matches store snapshot.
+- **Parity oracle (the core equivalence proof):** build `ApprovalSnapshot` from the same fixture both ways — existing store/`ApprovalManager` path and new projection→adapter path — and apply **normalized deep equality**. Comparison is normalized only where the adapter intentionally changes representation (its `recentlyResolved`/`totalResolved` are real projection history rather than the old hardcoded `[]`/`0`). NOT allowed to differ: ids, pending ordering, timestamps, missing resolved entries.
+- **Full-lifecycle fixture (A13):** `request → resolved(approved) → consume → attempted revoke`. Per the store, `consumeApproved` requires `approved` → succeeds (→ `consumed`); the subsequent `revoke` is refused (consumed is a dead-end). Asserts the projection ends `consumed` (matching the store), the failed revoke emits no event (so the projection is untouched), and adapter output matches store snapshot.
 - Pending ordering stable; status mapping per Section 3 table; `recentlyResolved` real; `requestedAt` from `entry.requestedAt` only.
 - **Swap guard:** assert `SnapshotBuilder`'s `approvals` is an `ApprovalProjectionCollector` (not `ApprovalManager`).
 - **Checkpoint backward compat (A14):** build projection state via the old `ApprovalProjection` format, export the checkpoint, import with the new implementation, verify snapshot equivalence — protects the "no field rename" guarantee.

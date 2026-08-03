@@ -152,19 +152,42 @@ Expected: FAIL — expired/revoked/consumed/invalidated/resolveGroup assertions 
 
 In `src/approvals/approval-store.ts`:
 
-1. **Enrich the three `created` emitters.** In `requestBound`, `requestFresh`, and `requestOrReusePending`, extend the existing `eventLog?.append({ type: APPROVAL_EVENT_TYPES.CREATED, payload: { ... } })` payload with `reason: record.reason`, `toolId: record.toolId`, `requestId: record.requestId`, `sessionId: record.sessionId` (all `?? undefined`-safe). These are already on the `record`.
+> **Append-error convention (repo-wide):** the dominant pattern is `await this.eventLog?.append(...)` (see `src/tools/tool-router.ts`, `src/tools/executor.ts`) — EventLog is governance evidence, and append failures should surface rather than vanish. The store's existing `.catch(() => {})` fire-and-forget is the anomaly. Since the append happens **after** the durable mutation succeeds, awaiting it never risks losing the mutation; a failed append propagates to the store caller. Convert ALL approval-store emissions (the touched `created` ones + all new ones) to `await`. Remove every `.catch(() => {})` from the store's event emissions.
+
+1. **Enrich the three `created` emitters.** In `requestBound`, `requestFresh`, and `requestOrReusePending`, extend the existing `eventLog?.append({ type: APPROVAL_EVENT_TYPES.CREATED, payload: { ... } })` payload with `reason: record.reason`, `toolId: record.toolId`, `requestId: record.requestId`, `sessionId: record.sessionId` (all `?? undefined`-safe). These are already on the `record`. Convert to `await`:
+```ts
+await this.eventLog?.append({
+  sessionId: record.sessionId ?? 'unknown',
+  actor: 'policy',
+  type: APPROVAL_EVENT_TYPES.CREATED,
+  payload: {
+    approvalId: record.id,
+    coordinationRunId: record.coordinationRunId,
+    workerId: record.workerId,
+    capabilities: record.capabilities,
+    bindingKey: record.bindingKey,
+    policyRevision: record.policyRevision,
+    status: record.status,
+    timestamp: record.createdAt,
+    reason: record.reason,
+    toolId: record.toolId,
+    requestId: record.requestId,
+    sessionId: record.sessionId,
+  },
+});
+```
 
 2. **`expireDue`:** after the `mutate()` resolves and you have the `expired` list, append one `approval.expired` per record:
 ```ts
 for (const r of expired) {
-  this.eventLog?.append({ sessionId: r.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.EXPIRED, payload: { approvalId: r.id } }).catch(() => {});
+  await this.eventLog?.append({ sessionId: r.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.EXPIRED, payload: { approvalId: r.id } });
 }
 ```
 
 3. **`revoke`:** after a successful revoke (the `revoked` variable is non-null), append one `approval.revoked`:
 ```ts
 if (revoked) {
-  this.eventLog?.append({ sessionId: revoked.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.REVOKED, payload: { approvalId: revoked.id } }).catch(() => {});
+  await this.eventLog?.append({ sessionId: revoked.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.REVOKED, payload: { approvalId: revoked.id } });
 }
 ```
 Place it **after** the `mutate()` returns — never before, so a failed mutation emits nothing. (`revoke` currently does `await this.mutate(...)` and assigns `revoked`; append after.)
@@ -172,16 +195,16 @@ Place it **after** the `mutate()` returns — never before, so a failed mutation
 4. **`consumeApproved`:** the `result` object carries `{ consumed, record }`. After the `mutate()` returns, when `result.consumed && result.record`:
 ```ts
 if (result.consumed && result.record) {
-  this.eventLog?.append({ sessionId: result.record.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.CONSUMED, payload: { approvalId: result.record.id } }).catch(() => {});
+  await this.eventLog?.append({ sessionId: result.record.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.CONSUMED, payload: { approvalId: result.record.id } });
 }
 ```
 
-5. **`invalidateByPolicyRevision`:** after `mutate()` returns, loop the `invalidated` list, one `approval.invalidated` each.
+5. **`invalidateByPolicyRevision`:** after `mutate()` returns, loop the `invalidated` list, one `approval.invalidated` each (`await this.eventLog?.append(...)` per record).
 
 6. **`resolveGroup`:** after a successful full-group resolve (`allStillPending` branch, status `'approved'`/`'denied'`), append **per member**:
 ```ts
 for (const m of members) {
-  this.eventLog?.append({ sessionId: m.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.RESOLVED, payload: { approvalId: m.id, status: status } }).catch(() => {});
+  await this.eventLog?.append({ sessionId: m.sessionId ?? 'unknown', actor: 'policy', type: APPROVAL_EVENT_TYPES.RESOLVED, payload: { approvalId: m.id, status: status } });
 }
 ```
 The existing single `approval.resolved` (with `id`) in the current `resolveGroup` — if present — should be replaced by this per-member loop. For the `partial` branch (some members already resolved), the already-resolved members do not get a new event (they already have one); only members whose status actually changed get events.
@@ -341,6 +364,25 @@ it('historical sparse events remain readable (no enriched fields)', () => {
   expect(p.snapshot().completed[0]!.toolName).toBeUndefined();
   expect(p.snapshot().completed[0]!.status).toBe('approved');
 });
+
+it('POST-APPROVAL: approved entry updates to consumed/expired/revoked/invalidated (store parity)', () => {
+  const p = new ApprovalProjection();
+  p.update([created(1, 'a1')]);
+  p.update([resolvedStatus(2, 'a1', 'approved')]);
+  expect(p.snapshot().completed[0]!.status).toBe('approved');
+  // consumed arrives after the entry already left pending (store consumeApproved)
+  p.update([consumed(3, 'a1')]);
+  expect(p.snapshot().completed[0]!.status).toBe('consumed');
+  expect(p.snapshot().completed[0]!.completedAt).toBe(3 * 1000);
+});
+
+it('revoke is allowed on a completed non-approved entry (store revoke permits denied/edited/invalidated)', () => {
+  const p = new ApprovalProjection();
+  p.update([created(1, 'a1')]);
+  p.update([resolvedStatus(2, 'a1', 'denied')]);
+  p.update([revoked(3, 'a1')]);
+  expect(p.snapshot().completed[0]!.status).toBe('revoked');
+});
 ```
 
 - [ ] **Step 2: Run tests, verify they fail**
@@ -363,19 +405,33 @@ const TERMINAL_TYPES = new Set([
 
 3. **Broaden the event filter** (line 96-98) so store-vocab events are not skipped. Accept: `approval.requested`, `approval.created`, `approval.resumed`, `approval.resume.failed`, `approval.reused`, `approval.expired`, `approval.revoked`, `approval.consumed`, `approval.invalidated`, and `approval.resolved`.
 
-4. **Add `approval.created` as a creation event.** In `entryFrom`, read both `approvalId` and the enriched fields: `prompt` from `payload.reason` OR `payload.prompt`; `toolName` from `payload.toolId` OR `payload.toolName`. Both vocabularies:
+4. **Timestamp authority — `parseTimestamp` prefers `payload.timestamp`.** `EventLog.append` auto-stamps the event's top-level `timestamp` at append time (`event-log.ts:190`), which differs (microseconds) from the store's `record.createdAt`. But the store's `approval.created` payload already carries `timestamp: record.createdAt` (the authoritative lifecycle creation time). To keep the parity oracle's `requestedAt` equal between store path (`Date.parse(record.createdAt)`) and projection path, `parseTimestamp` must prefer the payload timestamp when present, falling back to the EventLog append timestamp (the CLI vocab `approval.requested` has no payload timestamp):
+```ts
+function parseTimestamp(e: AlixEvent): number {
+  const payload = (e.payload ?? {}) as Record<string, unknown>;
+  const raw = typeof payload.timestamp === 'string' ? payload.timestamp : e.timestamp;
+  const t = Date.parse(raw);
+  if (!Number.isFinite(t)) throw new Error(`approval projection: invalid event timestamp on seq ${e.seq}`);
+  return t;
+}
+```
+
+5. **Add `approval.created` as a creation event.** In `entryFrom`, read both `approvalId` and the enriched fields: `prompt` from `payload.reason` OR `payload.prompt`; `toolName` priority is `payload.toolName` → **`payload.capabilities[0]`** → `payload.toolId`. The `capabilities[0]` source is load-bearing for parity: the OLD store path maps `toolName: r.capabilities?.[0] ?? 'unknown'` (`approval-manager.ts:102`), so the projection must expose the same value or the parity oracle's `pending` comparison fails (store says `'filesystem.write'`, projection would say `'fs'` if it only read `toolId`).
 ```ts
 function entryFrom(e: AlixEvent): { approvalId?: string; prompt?: string; toolName?: string } {
   const p = (e.payload ?? {}) as Record<string, unknown>;
+  const capabilities = Array.isArray(p.capabilities) ? p.capabilities.filter((c): c is string => typeof c === 'string') : [];
   return {
     approvalId: typeof p.approvalId === 'string' ? p.approvalId : undefined,
     prompt: typeof p.prompt === 'string' ? p.prompt : (typeof p.reason === 'string' ? p.reason : undefined),
-    toolName: typeof p.toolName === 'string' ? p.toolName : (typeof p.toolId === 'string' ? p.toolId : undefined),
+    toolName: typeof p.toolName === 'string' ? p.toolName
+      : (capabilities.length > 0 ? capabilities[0]
+      : (typeof p.toolId === 'string' ? p.toolId : undefined)),
   };
 }
 ```
 
-5. **Rewrite the pending-creation logic for merge-enrich.** Treat `approval.requested` and `approval.created` identically as creation events:
+6. **Rewrite the pending-creation logic for merge-enrich.** Treat `approval.requested` and `approval.created` identically as creation events:
 ```ts
 const isCreate = e.type === 'approval.requested' || e.type === 'approval.created';
 if (isCreate) {
@@ -392,15 +448,20 @@ if (isCreate) {
 }
 ```
 
-6. **Handle `approval.reused` as a no-op** (skip — it does not change lifecycle).
+7. **Handle `approval.reused` as a no-op** (skip — it does not change lifecycle).
 
-7. **Rewrite the terminal handler** to accept both `decision` and `status`, fail-closed on contradiction, and enforce terminal immutability. Replace the existing `if (TERMINAL_TYPES.has(e.type))` block:
+8. **Rewrite the terminal handler** to accept both `decision` and `status`, fail-closed on contradiction, and enforce terminal immutability. Replace the existing `if (TERMINAL_TYPES.has(e.type))` block:
 ```ts
 if (TERMINAL_TYPES.has(e.type)) {
-  const existing = this.pending.get(approvalId);
+  // Look up in pending FIRST, then completed — the store emits post-approval
+  // transitions (consumed/expired/revoked/invalidated) that target an entry
+  // already moved to completed. Missing this → store says consumed, projection
+  // says approved (divergence).
+  let existing = this.pending.get(approvalId);
+  const completedIndex = existing ? -1 : this.completed.findIndex((c) => c.approvalId === approvalId);
+  if (!existing && completedIndex >= 0) existing = this.completed[completedIndex];
   if (!existing) continue; // unknown id → no-op
-  // terminal immutability: a completed entry cannot be reopened
-  const alreadyTerminal = existing.status !== 'pending' && existing.status !== 'resumed';
+
   if (e.type === 'approval.resolved') {
     const p = (e.payload ?? {}) as Record<string, unknown>;
     const decision = typeof p.decision === 'string' ? p.decision : '';
@@ -412,15 +473,18 @@ if (TERMINAL_TYPES.has(e.type)) {
     if (!['approved', 'denied', 'edited'].includes(value)) {
       throw new Error(`approval projection: invalid resolution on seq ${e.seq}`);
     }
-    if (alreadyTerminal) {
-      if (existing.status === value) continue; // idempotent
-      throw new Error(`approval projection: terminal ${existing.status} cannot transition to ${value} on seq ${e.seq}`);
+    if (completedIndex < 0) {
+      // pending / resumed → move to completed
+      this.pending.set(approvalId, { ...existing, status: value as ApprovalProjectionEntry['status'], completedAt: timestamp });
+      this.completed = [{ ...this.pending.get(approvalId)! }, ...this.completed].slice(0, MAX_COMPLETED);
+      this.pending.delete(approvalId);
+      continue;
     }
-    this.pending.set(approvalId, { ...existing, status: value as ApprovalProjectionEntry['status'], completedAt: timestamp });
-    this.completed = [{ ...this.pending.get(approvalId)! }, ...this.completed].slice(0, MAX_COMPLETED);
-    this.pending.delete(approvalId);
-    continue;
+    // completed entry: idempotent or contradictory
+    if (existing.status === value) continue; // idempotent (e.g. approved + resolved(approved))
+    throw new Error(`approval projection: terminal ${existing.status} cannot transition to ${value} on seq ${e.seq}`);
   }
+
   // terminal types: expired / revoked / consumed / invalidated
   const statusMap: Record<string, ApprovalProjectionEntry['status']> = {
     'approval.expired': 'expired',
@@ -429,19 +493,44 @@ if (TERMINAL_TYPES.has(e.type)) {
     'approval.invalidated': 'invalidated',
   };
   const terminalStatus = statusMap[e.type];
-  if (alreadyTerminal) {
-    if (existing.status === terminalStatus) continue; // idempotent
-    throw new Error(`approval projection: terminal ${existing.status} cannot transition to ${terminalStatus} on seq ${e.seq}`);
+
+  if (completedIndex < 0) {
+    // pending / resumed → move to completed
+    this.pending.set(approvalId, { ...existing, status: terminalStatus, completedAt: timestamp });
+    this.completed = [{ ...this.pending.get(approvalId)! }, ...this.completed].slice(0, MAX_COMPLETED);
+    this.pending.delete(approvalId);
+    continue;
   }
-  this.pending.set(approvalId, { ...existing, status: terminalStatus, completedAt: timestamp });
-  this.completed = [{ ...this.pending.get(approvalId)! }, ...this.completed].slice(0, MAX_COMPLETED);
-  this.pending.delete(approvalId);
-  continue;
+
+  // completed entry — post-approval transitions are legal; otherwise immutable.
+  if (existing.status === terminalStatus) continue; // idempotent
+  if (existing.status === 'approved' || terminalStatus === 'revoked') {
+    // Store performs approved → consumed/expired/revoked/invalidated, and its
+    // revoke also permits revoking denied/edited/invalidated. Update in place
+    // (completed keeps newest-first insertion order; status corrected).
+    this.completed = this.completed.map((c) =>
+      c.approvalId === approvalId ? { ...c, status: terminalStatus, completedAt: timestamp } : c,
+    );
+    continue;
+  }
+  throw new Error(`approval projection: terminal ${existing.status} cannot transition to ${terminalStatus} on seq ${e.seq}`);
 }
 ```
-> Note: the original `completed` push order is newest→oldest (the docstring and `snapshot()` say so). Preserve it exactly. The existing terminal block already does this — keep the same mechanics, just replace the status derivation.
+> Note: the original `completed` push order is newest→oldest (the docstring and `snapshot()` say so). Preserve it for new moves. Post-approval updates correct the status **in place** (no re-sort) — deterministic given a fixed event stream.
 
-8. **`importState` / `VALID_STATUSES`:** `'invalidated'` is now valid, so old checkpoints lacking it still import fine (they just never contain it). No field renames. Ensure `reset()` is unchanged.
+9. **`approval.resumed` handling (explicit):** the existing branch marks a pending entry `resumed` and leaves it pending (`resume.failed` is transient, ignored). Add the resurrection guard: if `approval.resumed` targets an entry in `completed`, throw:
+```ts
+} else if (e.type === 'approval.resumed') {
+  const existing = this.pending.get(approvalId);
+  if (existing) {
+    this.pending.set(approvalId, { ...existing, status: 'resumed' });
+  } else if (this.completed.some((c) => c.approvalId === approvalId)) {
+    throw new Error(`approval projection: cannot resume completed approval ${approvalId} on seq ${e.seq}`);
+  }
+}
+```
+
+10. **`importState` / `VALID_STATUSES`:** `'invalidated'` is now valid, so old checkpoints lacking it still import fine (they just never contain it). No field renames. Ensure `reset()` is unchanged.
 
 - [ ] **Step 4: Run tests, verify pass**
 
@@ -583,6 +672,21 @@ describe('ApprovalProjectionCollector', () => {
 });
 ```
 
+**A11 — SnapshotBuilder containment regression (extend `tests/tui/snapshot-builder.vitest.ts`):** add a test to the existing file (it has the `mkFakes()` helper). Locks the fail-closed boundary: a throwing approval collector yields `approvals: null` (never crashes the UI snapshot). The `ApprovalManager` import in that file may become a type-only `ApprovalCollector` import after its `snapshot()` is removed — adjust as needed.
+
+```ts
+it('A11: a throwing approval collector yields approvals:null (fail-closed containment), not a crash', async () => {
+  const f = mkFakes();
+  const throwingApprovals = {
+    snapshot: async () => { throw new Error('governance violation'); },
+  };
+  const b = new SnapshotBuilder(f.session, throwingApprovals, f.policy, f.sops, f.eventLog, f.daemon);
+  const snap = await b.build(1);
+  expect(snap).not.toBeNull();
+  expect(snap!.approvals).toBeNull();
+});
+```
+
 - [ ] **Step 3: Run tests, verify they fail**
 
 Run: `pnpm vitest run tests/tui/runtime/approval-projection-collector.vitest.ts --config vitest.config.mts`
@@ -706,7 +810,7 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 **Interfaces:**
 - Consumes: everything from Tasks 1–3.
 
-**Context:** This is the migration's proof. The parity oracle builds `ApprovalSnapshot` from the same fixture both ways — the old store/`ApprovalManager` path and the new projection→adapter path — and deep-equals. Comparison is normalized only where the adapter intentionally changes representation (lifecycle terminal → UI `denied`). Not allowed to differ: ids, pending ordering, timestamps, missing resolved entries.
+**Context:** This is the migration's proof. The parity oracle builds `ApprovalSnapshot` from the same fixture both ways — the old store/`ApprovalManager` path and the new projection→adapter path — and applies **normalized deep equality**. The comparison is normalized only where the adapter intentionally changes representation (its `recentlyResolved`/`totalResolved` are real projection history rather than the old hardcoded `[]`/`0`). NOT allowed to differ: ids, pending ordering, timestamps, missing resolved entries. `requestedAt` equivalence holds because the projection reads `payload.timestamp` (= `record.createdAt`) for store-vocab creation events (Task 2, step 4).
 
 - [ ] **Step 1: Write the parity-oracle tests**
 
@@ -759,23 +863,34 @@ it('PARITY ORACLE: same store fixture → identical ApprovalSnapshot via store p
     totalResolved: 0,
   };
 
-  expect(projSnap!.pending.map(p => p.id).sort()).toEqual(storeSnap.pending.map(p => (p as any).id).sort());
-  expect(projSnap!.pending).toEqual(storeSnap.pending);
-  // store path had recentlyResolved=[]; projection path now supplies real history.
-  // totalResolved differs by design (0 → real count). The parity invariant is:
-  // ids, pending ordering, timestamps, targetPath, toolName all match.
+  // NORMALIZED deep equality — not whole-object `toEqual`, because the adapter
+  // intentionally diverges on `recentlyResolved`/`totalResolved` (old path:
+  // always `[]`/0; new path: real projection history). Normalize the comparison:
+  // assert the fields that must match (ids, pending ordering, timestamps,
+  // targetPath, toolName) with per-field equality, and assert the intentional
+  // divergence explicitly.
+  expect(projSnap!.pending).toEqual(storeSnap.pending); // ids, ordering, timestamps, targetPath, toolName
+  // intentional divergence (adapter now supplies real resolved history):
+  expect(projSnap!.recentlyResolved.length).toBeGreaterThan(0);
+  expect(storeSnap.recentlyResolved).toEqual([]);
+  expect(projSnap!.totalPending).toBe(storeSnap.totalPending);
 });
 
-it('FULL LIFECYCLE: created → resumed → resolved(approved) → attempted revoke/consume stays approved; adapter matches store', async () => {
+it('FULL LIFECYCLE: request → resolve(approved) → consume → attempted revoke (dead-end); projection ends consumed, matching store', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'lifecycle-'));
   const eventLog = new EventLog(dir);
   await eventLog.init();
   const store = new ApprovalStore(dir, { eventLog });
   await store.load();
   const rec = await store.request({ reason: 'r', capability: 'x' });
-  await store.resolve(rec.id, 'approved');
-  await store.revoke(rec.id, { actor: 'user', reason: 'no' }); // no-op: already approved
-  await store.consumeApproved(rec.id, rec.bindingKey, {}); // consumes (approved)
+  await store.resolve(rec.id, 'approved'); // approved
+  // post-approval transition: consumeApproved requires approved → succeeds
+  const consumed = await store.consumeApproved(rec.id, rec.bindingKey, {});
+  expect(consumed.consumed).toBe(true);
+  // dead-end: revoke refuses consumed
+  await store.revoke(rec.id, { actor: 'user', reason: 'no' });
+  const storeRecord = store.get(rec.id);
+  expect(storeRecord!.status).toBe('consumed'); // NOT reopened by the failed revoke
   const runtime = createProjectionRuntime([[ProjectionIds.approval, new ApprovalProjection()]]);
   runtime.updateAll(await eventLog.readAll());
   const projSnap = await new ApprovalProjectionCollector(runtime).snapshot();
