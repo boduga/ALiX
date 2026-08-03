@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
@@ -239,6 +239,17 @@ async function installFromSource(source: string, name: string | undefined, skill
   const targetDir = join(skillsDir, resolvedName);
   await mkdir(targetDir, { recursive: true });
   if (sourceIsDir) {
+    // Guard against self-copy: `--from <install target>` where the source
+    // resolves to the same directory as the target (e.g.
+    // `alix skills install foo --from ~/.alix/skills/foo`). Copying a
+    // directory onto itself would copyFile(srcPath, srcPath) and truncate
+    // every file to 0 bytes — so refuse instead; the skill is already there.
+    const [sourceReal, targetReal] = await Promise.all([realpath(source), realpath(targetDir)]);
+    if (sourceReal === targetReal) {
+      throw new Error(
+        `Source ${source} resolves to the install target ${targetDir}; the skill is already installed.`,
+      );
+    }
     // Local-directory package source: copy the whole skill folder (SKILL.md,
     // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS.
     await copyDir(source, targetDir);

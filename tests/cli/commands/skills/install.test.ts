@@ -2,7 +2,7 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { runInstall, resolveInstallOptions } from "../../../../src/cli/commands/skills/install.js";
 import { join } from "node:path";
-import { existsSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync, readFileSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { useTestHome, restoreTestHome } from "./test-helpers.js";
 
@@ -220,6 +220,70 @@ describe("install --from (non-bundled skills)", () => {
   it("throws when the source lacks valid frontmatter", async () => {
     const file = writeFixture("just some text, no manifest", "bad.md");
     await assert.rejects(runInstall({ from: file, name: "bad" }), /valid skill manifest/);
+  });
+
+  it("installs a full package directory (SKILL.md + scripts + LICENSE)", async () => {
+    const pkg = join(testDir, "fixtures", "xlsx");
+    const scripts = join(pkg, "scripts");
+    const office = join(scripts, "office");
+    mkdirSync(office, { recursive: true });
+    writeFileSync(
+      join(pkg, "SKILL.md"),
+      "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+    );
+    writeFileSync(join(scripts, "recalc.py"), "#!/usr/bin/env python3\n# recalc\n");
+    writeFileSync(join(office, "soffice.py"), "#!/usr/bin/env python3\n# soffice\n");
+    writeFileSync(join(pkg, "LICENSE.txt"), "MIT\n");
+
+    await runInstall({ from: pkg });
+
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
+      assert.ok(existsSync(join(installed, rel)), `expected ${rel} to be installed`);
+    }
+  });
+
+  it("excludes node_modules and .DS_Store when copying a package", async () => {
+    const pkg = join(testDir, "fixtures", "excluded");
+    mkdirSync(join(pkg, "node_modules", "x"), { recursive: true });
+    writeFileSync(join(pkg, "node_modules", "x", "index.js"), "console.log(1)\n");
+    writeFileSync(join(pkg, ".DS_Store"), "binary garbage");
+    writeFileSync(
+      join(pkg, "SKILL.md"),
+      "---\nname: excluded\ndescription: Exclusion skill\n---\nBody.\n",
+    );
+
+    await runInstall({ from: pkg });
+
+    const installed = join(testDir, ".alix", "skills", "excluded");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "SKILL.md should be installed");
+    assert.ok(!existsSync(join(installed, "node_modules")), "node_modules should be excluded");
+    assert.ok(!existsSync(join(installed, ".DS_Store")), ".DS_Store should be excluded");
+  });
+
+  it("refuses a self-copy (source === install target) without truncating SKILL.md", async () => {
+    // Pre-install a package the same way a normal install would.
+    const pkg = join(testDir, "fixtures", "selfcopy");
+    mkdirSync(join(pkg, "scripts"), { recursive: true });
+    writeFileSync(
+      join(pkg, "SKILL.md"),
+      "---\nname: selfcopy\ndescription: Self-copy skill\n---\nBody.\n",
+    );
+    writeFileSync(join(pkg, "scripts", "tool.py"), "print('tool')\n");
+    await runInstall({ from: pkg });
+
+    const installed = join(testDir, ".alix", "skills", "selfcopy");
+    const before = readFileSync(join(installed, "SKILL.md"), "utf8");
+
+    // Re-install pointing --from at the install target itself — must refuse
+    // WITHOUT truncating the already-installed SKILL.md to 0 bytes.
+    await assert.rejects(runInstall({ from: installed }), /already installed/);
+    assert.equal(
+      readFileSync(join(installed, "SKILL.md"), "utf8"),
+      before,
+      "SKILL.md must not be truncated by a self-copy",
+    );
+    assert.ok(existsSync(join(installed, "scripts", "tool.py")), "existing package files must remain");
   });
 });
 
