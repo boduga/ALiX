@@ -138,3 +138,55 @@ describe("install --from (non-bundled skills)", () => {
     await assert.rejects(runInstall({ from: file, name: "bad" }), /valid skill manifest/);
   });
 });
+
+describe("install --from github URLs", () => {
+  const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nBody.\n";
+  const origFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
+
+  /** Stub fetch so only raw.githubusercontent.com paths in `exists` return a skill. */
+  function mockRaw(exists: string[]) {
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (exists.some((key) => url.includes(key))) {
+        return new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+  }
+
+  it("resolves a repo-root URL, finding skills/<name>/SKILL.md", async () => {
+    mockRaw(["HEAD/skills/langfuse-agent/SKILL.md"]);
+    await runInstall({ from: "https://github.com/acme/alix-skills", name: "langfuse-agent" });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from repo-root URL");
+  });
+
+  it("resolves a blob URL to its raw file", async () => {
+    mockRaw(["/main/skills/langfuse-agent/SKILL.md"]);
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/langfuse-agent/SKILL.md" });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from blob URL");
+  });
+
+  it("resolves a tree URL to <path>/SKILL.md", async () => {
+    mockRaw(["/main/skills/langfuse-agent/SKILL.md"]);
+    await runInstall({ from: "https://github.com/acme/alix-skills/tree/main/skills/langfuse-agent" });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from tree URL");
+  });
+
+  it("fetches a raw.githubusercontent.com URL directly", async () => {
+    mockRaw(["/alix-skills/main/skills/langfuse-agent/SKILL.md"]);
+    await runInstall({ from: "https://raw.githubusercontent.com/acme/alix-skills/main/skills/langfuse-agent/SKILL.md" });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from raw URL");
+  });
+
+  it("throws a helpful error when no candidate location has a SKILL.md", async () => {
+    mockRaw([]);
+    await assert.rejects(
+      runInstall({ from: "https://github.com/acme/alix-skills", name: "nope" }),
+      /Could not find a valid SKILL\.md/,
+    );
+  });
+});
