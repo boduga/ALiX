@@ -1755,10 +1755,10 @@ if (command === "memory") {
 
 // --- alix session --- session management commands ---
 if (command === "skills") {
-	  const { runInstall, resolveInstallOptions } = await import("./cli/commands/skills/install.js");
-	  await runInstall(resolveInstallOptions(args));
-	  process.exit(0);
-	}
+  const { runSkillsCommand } = await import("./cli/commands/skills/run-skills.js");
+  await runSkillsCommand(args);
+  process.exit(0);
+}
 
 if (command === "policy") {
   const { loadRuleEvaluator } = await import("./policy/policy-loader.js");

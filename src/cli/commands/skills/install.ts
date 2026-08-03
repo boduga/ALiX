@@ -104,7 +104,7 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
   printSkillsHelp();
 }
 
-function printSkillsHelp(): void {
+export function printSkillsHelp(): void {
   console.log(`ALiX Skills
 
 Usage:
