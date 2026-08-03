@@ -3,6 +3,7 @@ import type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-col
 import type { ExecutionTraceEntry } from './runtime/execution-trace.js';
 import type { TimelineEntry } from './runtime/timeline-builder.js';
 import type { CapabilityProjectionSnapshot } from './runtime/capability-projection.js';
+import type { MetricsProjectionSnapshot } from './runtime/metrics-projection.js';
 export type { DaemonMetricsSnapshot, ClientSnapshot } from './daemon-metrics-collector.js';
 
 /**
@@ -113,6 +114,12 @@ export interface RuntimeSnapshot {
    * projection isn't registered (e.g. older collectors).
    */
   readonly capabilities: CapabilityProjectionSnapshot | null;
+  /**
+   * Session-level metrics aggregate (MetricsProjection). Null when the
+   * projection isn't registered (e.g. chat/agent collectors — they see no
+   * tool/capability events).
+   */
+  readonly metrics: MetricsProjectionSnapshot | null;
   /**
    * Experimental extension boundary only.
    * Runtime consumers MUST NOT depend on keys here.

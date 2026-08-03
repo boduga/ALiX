@@ -112,6 +112,7 @@ function agentRuntime(entries: TimelineEntry[]): ViewRenderContext['runtime'] {
       lastEventAt: null,
       sessionId: 'agent-1',
       capabilities: null,
+      metrics: null,
     },
   };
 }
@@ -360,6 +361,7 @@ describe('AgentView — runtime status line', () => {
         workflow: { name: 'run', currentStep: 3, totalSteps: 7, startedAt: 1_000_000 },
         sessionId: 'chat-1',
         capabilities: null,
+        metrics: null,
       },
     };
     const c = renderOnCanvas(W, COMPACT, makePerTab(), snap);
@@ -371,7 +373,7 @@ describe('AgentView — runtime status line', () => {
   it('renders runtime status without workflow step when no workflow', () => {
     const snap: DashboardSnapshot = {
       ...MINIMAL_SNAPSHOT,
-      runtime: { trace: [], timeline: [], totalEventCount: 5, lastEventAt: 1_000_000, workflow: null, sessionId: 'chat-1', capabilities: null },
+      runtime: { trace: [], timeline: [], totalEventCount: 5, lastEventAt: 1_000_000, workflow: null, sessionId: 'chat-1', capabilities: null, metrics: null },
     };
     const c = renderOnCanvas(W, COMPACT, makePerTab(), snap);
     expect(rowText(c, 5)).toContain('events: 5');
@@ -381,7 +383,7 @@ describe('AgentView — runtime status line', () => {
   it('shows empty row 5 when runtime has zero events', () => {
     const snap: DashboardSnapshot = {
       ...MINIMAL_SNAPSHOT,
-      runtime: { trace: [], timeline: [], totalEventCount: 0, lastEventAt: null, workflow: null, sessionId: 'chat-1', capabilities: null },
+      runtime: { trace: [], timeline: [], totalEventCount: 0, lastEventAt: null, workflow: null, sessionId: 'chat-1', capabilities: null, metrics: null },
     };
     const c = renderOnCanvas(W, COMPACT, makePerTab(), snap);
     expect(rowText(c, 5)).toBe('');

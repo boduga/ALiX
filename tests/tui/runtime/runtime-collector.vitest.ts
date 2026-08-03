@@ -7,6 +7,7 @@ import type { PersistedProjectionCheckpoint, ProjectionCheckpointStore } from '.
 import { TimelineBuilder } from '../../../src/tui/runtime/timeline-builder.js';
 import { IncrementalExecutionTraceBuilder } from '../../../src/tui/runtime/execution-trace-builder.js';
 import { CapabilityProjection } from '../../../src/tui/runtime/capability-projection.js';
+import { MetricsProjection } from '../../../src/tui/runtime/metrics-projection.js';
 import { createProjectionRuntime, ProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
 import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
 import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
@@ -555,6 +556,47 @@ describe('RuntimeCollectorImpl capability projection (Increment A)', () => {
     await sample.call(collector);
     const snap = await collector.snapshot();
     expect(snap?.capabilities).toBeNull();
+    collector.stop();
+  });
+});
+
+describe('RuntimeCollectorImpl metrics projection (Increment B)', () => {
+  it('snapshot.metrics is populated from a registered MetricsProjection', async () => {
+    const { log, append } = makeEventLog();
+    // Tool events carry their timestamp at the event level; capability events
+    // carry `at` (ms) in the payload — mirrors the projection test helper.
+    await append('tool.requested', { toolCallId: 't1', toolName: 'read' });
+    await append('tool.completed', { toolCallId: 't1', toolName: 'read', status: 'success', durationMs: 500 });
+    await append('capability.InvocationStarted', { invocationId: 'inv-1', capabilityId: 'research', at: 3000 });
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID,
+      projectionRuntime: createProjectionRuntime([[ProjectionIds.metrics, new MetricsProjection()]]),
+    });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const snap = await collector.snapshot();
+    expect(snap?.metrics).not.toBeNull();
+    expect(snap!.metrics!.toolCalls).toBe(1);
+    expect(snap!.metrics!.toolFailures).toBe(0);
+    expect(snap!.metrics!.toolDuration).toEqual({ count: 1, totalMs: 500, minMs: 500, maxMs: 500, averageMs: 500 });
+    expect(snap!.metrics!.capabilityInvocations).toBe(1);
+    expect(snap!.metrics!.eventsProcessed).toBe(3);
+    expect(snap!.metrics!.startedAt).toBe(1000);
+    expect(snap!.metrics!.lastEventAt).toBe(3000);
+    collector.stop();
+  });
+
+  it('snapshot.metrics is null when the projection is not registered', async () => {
+    const { log, append } = makeEventLog();
+    await append('tool.started', { toolCallId: 'tc1', toolName: 'search' });
+    const collector = new RuntimeCollectorImpl({
+      eventLog: log, checkpointStore: makeCheckpointStore(), sessionId: SESSION_ID,
+      projectionRuntime: createProjectionRuntime([['trace', new IncrementalExecutionTraceBuilder()]]),
+    });
+    const sample = (collector as unknown as { sample(): Promise<void> }).sample;
+    await sample.call(collector);
+    const snap = await collector.snapshot();
+    expect(snap?.metrics).toBeNull();
     collector.stop();
   });
 });

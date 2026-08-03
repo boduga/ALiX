@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ProjectionRuntime, ProjectionRegistrationError, ProjectionRollbackError, createProjectionRuntime } from '../../../src/tui/runtime/projection-runtime.js';
 import type { DurableProjectionBuilder } from '../../../src/tui/runtime/durable-projection-builder.js';
+import type { ProjectionBuilder } from '../../../src/tui/runtime/projection-builder.js';
 import type { ProjectionState } from '../../../src/tui/runtime/projection-state.js';
 import type { ProjectionStateSnapshot } from '../../../src/tui/runtime/projection-state.js';
 import type { AlixEvent } from '../../../src/events/types.js';
@@ -26,6 +27,24 @@ function makeObjectBuilder(initial = 0): DurableProjectionBuilder<{ count: numbe
     reset() { count = 0; },
     exportState(): ProjectionState { return { count }; },
     importState(state) { const s = state as { count?: unknown }; if (typeof s.count === 'number') count = s.count; },
+  };
+}
+
+/** Minimal NON-durable builder (Phase 7 :94): idempotent-by-seq, no
+ *  exportState/importState — omitted from the durable envelope. */
+function makeNonDurableBuilder(): ProjectionBuilder<readonly number[]> {
+  const entries: number[] = [];
+  let lastSeq = 0;
+  return {
+    update(events) {
+      for (const e of events) {
+        if (e.seq <= lastSeq) continue; // D5: skip already-applied, never throw
+        lastSeq = e.seq;
+        entries.push(e.seq);
+      }
+    },
+    snapshot() { return [...entries]; },
+    reset() { entries.length = 0; lastSeq = 0; },
   };
 }
 
@@ -219,5 +238,128 @@ describe('ProjectionRuntime', () => {
     r2.register('future', new FutureProjection());
     r2.importState(state);
     expect(r2.snapshotOf<{ hello: string }>('future')).toEqual({ hello: 'world' });
+  });
+
+  // ---- Phase 7 :94 — non-durable builders ----
+
+  it('registers a non-durable builder alongside durable ones; exportState omits it', () => {
+    const durable = makeBuilder();
+    const nonDurable = makeNonDurableBuilder();
+    const r = new ProjectionRuntime();
+    r.register('durable', durable);
+    r.register('nonDurable', nonDurable);
+    r.updateAll([evt(1), evt(2)]);
+    // updateAll delivers to BOTH durable and non-durable builders.
+    expect(durable.snapshot()).toEqual([1, 2]);
+    expect(nonDurable.snapshot()).toEqual([1, 2]);
+    // exportState omits the non-durable id entirely.
+    const state = r.exportState();
+    expect(Object.prototype.hasOwnProperty.call(state, 'durable')).toBe(true);
+    expect(Object.prototype.hasOwnProperty.call(state, 'nonDurable')).toBe(false);
+    expect(state).toEqual({ durable: { entries: [1, 2] } });
+  });
+
+  it('importState(exportState()) round-trips durable ids, never importState-s a non-durable builder', () => {
+    const durable = makeBuilder([1, 2]);
+    let nonDurableImportCalls = 0;
+    // Structurally non-durable (NO exportState) but exposes importState so the
+    // test can OBSERVE that the runtime must not call it.
+    const nonDurable = {
+      update() {},
+      snapshot: () => [] as readonly number[],
+      reset() {},
+      importState() { nonDurableImportCalls++; },
+    } as unknown as ProjectionBuilder<readonly number[]>;
+    const r = new ProjectionRuntime();
+    r.register('durable', durable);
+    r.register('nonDurable', nonDurable);
+    const state = r.exportState();
+    // Inject a nonDurable entry — even with state present, the runtime must
+    // skip the non-durable builder (the isDurable guard, not just a missing id).
+    const stateWithNonDurable = { ...state, nonDurable: { entries: [9] } } as ProjectionStateSnapshot;
+    const r2 = new ProjectionRuntime();
+    r2.register('durable', makeBuilder());
+    r2.register('nonDurable', nonDurable);
+    r2.importState(stateWithNonDurable);
+    expect(r2.snapshotOf<readonly number[]>('durable')).toEqual([1, 2]);
+    expect(nonDurableImportCalls).toBe(0);
+  });
+
+  it('rollback on a throwing durable builder restores durable builders, skips the non-durable one, and self-heals on re-feed', () => {
+    const durable = makeBuilder();
+    const nonDurable = makeNonDurableBuilder();
+    let nonDurableImportCalls = 0;
+    // Wrap to observe importState on a structurally non-durable builder.
+    const observableNonDurable = {
+      update: (events: readonly AlixEvent[]) => nonDurable.update(events),
+      snapshot: () => nonDurable.snapshot(),
+      reset: () => nonDurable.reset(),
+      importState() { nonDurableImportCalls++; },
+    } as unknown as ProjectionBuilder<readonly number[]>;
+    const bad: DurableProjectionBuilder<unknown> = {
+      update() { throw new Error('boom'); },
+      snapshot: () => undefined as never,
+      reset() {},
+      exportState: () => ({}),
+      importState() {},
+    };
+    const r = new ProjectionRuntime();
+    r.register('durable', durable);
+    r.register('nonDurable', observableNonDurable);
+    r.register('bad', bad);
+    const batch = [evt(1), evt(2)];
+    expect(() => r.updateAll(batch)).toThrow('boom');
+    // Durable builders restored to pre-batch state.
+    expect(durable.snapshot()).toEqual([]);
+    // Non-durable builder was NOT importState'd (no crash) and its partial
+    // mutation survives the rollback.
+    expect(nonDurableImportCalls).toBe(0);
+    expect(observableNonDurable.snapshot()).toEqual([1, 2]);
+    // Self-heals on re-feed: re-feeding the same batch (the checkpoint did not
+    // advance, so the next sample re-reads the old cursor) does not double-count.
+    const r2 = new ProjectionRuntime();
+    r2.register('nonDurable', observableNonDurable);
+    r2.updateAll(batch);
+    expect(observableNonDurable.snapshot()).toEqual([1, 2]);
+  });
+
+  it('rollback when the non-durable builder throws — durable rolled back, non-durable not double-counted on re-feed', () => {
+    const durable = makeBuilder();
+    const inner = makeNonDurableBuilder();
+    let shouldThrow = true;
+    const flakyNonDurable: ProjectionBuilder<readonly number[]> = {
+      update(events) {
+        if (shouldThrow) { shouldThrow = false; throw new Error('non-durable boom'); }
+        inner.update(events);
+      },
+      snapshot: () => inner.snapshot(),
+      reset: () => inner.reset(),
+    };
+    const r = new ProjectionRuntime();
+    r.register('durable', durable);
+    r.register('nonDurable', flakyNonDurable);
+    const batch = [evt(1), evt(2)];
+    expect(() => r.updateAll(batch)).toThrow('non-durable boom');
+    // Durable builders rolled back (no [1, 2] survives).
+    expect(durable.snapshot()).toEqual([]);
+    // Re-feeding the same batch applies it exactly once to the non-durable
+    // builder — it is NOT double-counted ([1, 2] not [1, 2, 1, 2]).
+    r.updateAll(batch);
+    expect(flakyNonDurable.snapshot()).toEqual([1, 2]);
+    expect(durable.snapshot()).toEqual([1, 2]);
+  });
+
+  it('resetAll resets both durable and non-durable builders', () => {
+    const durable = makeBuilder();
+    const nonDurable = makeNonDurableBuilder();
+    const r = new ProjectionRuntime();
+    r.register('durable', durable);
+    r.register('nonDurable', nonDurable);
+    r.updateAll([evt(1)]);
+    expect(durable.snapshot()).toEqual([1]);
+    expect(nonDurable.snapshot()).toEqual([1]);
+    r.resetAll();
+    expect(durable.snapshot()).toEqual([]);
+    expect(nonDurable.snapshot()).toEqual([]);
   });
 });
