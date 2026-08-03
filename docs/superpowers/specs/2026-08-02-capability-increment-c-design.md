@@ -172,21 +172,14 @@ After:   EventLog → ApprovalProjection → ApprovalProjectionCollector → Sna
 | `totalPending` | `proj.pending.length` |
 | `totalResolved` | `proj.completed.length` |
 
-**Status mapping** (lifecycle → UI status; the adapter intentionally collapses):
+**Status distinction** (lives in the projection, enforced by list membership): `ApprovalRecordSnapshot` (the adapter's output type, `snapshot.ts:85`) carries **no `status` field** — the UI contract has none, and no consumer reads one. The live/terminal distinction the projection maintains is expressed through *which list* an entry appears in:
 
-| Projection lifecycle | UI snapshot status |
+| Projection lifecycle | Adapter output |
 |---|---|
-| `pending` | `pending` |
-| `resumed` | `pending` |
-| `approved` | `approved` |
-| `denied` | `denied` |
-| `edited` | `denied` |
-| `expired` | `denied` |
-| `revoked` | `denied` |
-| `consumed` | `denied` |
-| `invalidated` | `denied` |
+| `pending` / `resumed` | appears in `pending` |
+| `approved` / `denied` / `edited` / `expired` / `revoked` / `consumed` / `invalidated` | appears in `recentlyResolved` |
 
-`pending` includes only live states (`pending`, `resumed`); terminal states are not exposed through `pending`.
+`pending` includes only live states (`pending`, `resumed`) — the projection moves terminal entries to `completed`, so the adapter's `pending` can never contain a terminal state. The terminal-collapse mapping (`edited`/`expired`/`revoked`/`consumed`/`invalidated` → `denied`) is the projection's internal lifecycle model (`ApprovalProjectionEntry.status`), **not** a field the adapter emits. The adapter maps `ApprovalProjectionEntry` → `ApprovalRecordSnapshot` fields only (`id`, `toolName`, `targetPath`, `args`, `requestedAt`, `requestedBy`); no `status` field is produced.
 
 **`extractTarget` sharing:** move `extractTarget(reason)` from `src/tui/approval-manager.ts` to `src/approvals/extract-target.ts`, consumed by both `ApprovalProjectionCollector` and `ApprovalManager`.
 
