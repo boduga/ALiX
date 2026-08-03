@@ -2,57 +2,52 @@ import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { runInstall, resolveInstallOptions } from "../../../../src/cli/commands/skills/install.js";
 import { join } from "node:path";
-import { existsSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
 import { mkdirSync } from "node:fs";
+import { useTestHome, restoreTestHome } from "./test-helpers.js";
 
 const testDir = join(process.cwd(), ".test-alix-skills");
 
 describe("resolveInstallOptions", () => {
   it("resolves bare 'available' subcommand", () => {
     assert.deepEqual(resolveInstallOptions(["available"]), {
-      available: true, list: false, all: false, name: undefined, from: undefined,
+      available: true, list: false, name: undefined, from: undefined,
     });
   });
 
   it("resolves 'install <name>' — name is the second arg, not 'install'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "tdd"]), {
-      available: false, list: false, all: false, name: "tdd", from: undefined,
-    });
-  });
-
-  it("resolves 'install --all'", () => {
-    assert.deepEqual(resolveInstallOptions(["install", "--all"]), {
-      available: false, list: false, all: true, name: undefined, from: undefined,
+      available: false, list: false, name: "tdd", from: undefined,
     });
   });
 
   it("resolves 'install --list'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--list"]), {
-      available: false, list: true, all: false, name: undefined, from: undefined,
+      available: false, list: true, name: undefined, from: undefined,
     });
   });
 
   it("resolves legacy '--available' flag", () => {
     assert.deepEqual(resolveInstallOptions(["--available"]), {
-      available: true, list: false, all: false, name: undefined, from: undefined,
+      available: true, list: false, name: undefined, from: undefined,
     });
   });
 
   it("resolves empty args to a bare call (help path)", () => {
     assert.deepEqual(resolveInstallOptions([]), {
-      available: false, list: false, all: false, name: undefined, from: undefined,
+      available: false, list: false, name: undefined, from: undefined,
     });
   });
 
   it("resolves 'install --from <path>' with an explicit name", () => {
     assert.deepEqual(resolveInstallOptions(["install", "langfuse", "--from", "./langfuse"]), {
-      available: false, list: false, all: false, name: "langfuse", from: "./langfuse",
+      available: false, list: false, name: "langfuse", from: "./langfuse",
     });
   });
 
   it("resolves 'install --from <url>' without a name (derived from manifest)", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--from", "https://example.com/skill.md"]), {
-      available: false, list: false, all: false, name: undefined, from: "https://example.com/skill.md",
+      available: false, list: false, name: undefined, from: "https://example.com/skill.md",
     });
   });
 });
@@ -60,15 +55,12 @@ describe("resolveInstallOptions", () => {
 describe("install command", () => {
   beforeEach(() => {
     // Mock HOME to test directory
-    process.env.HOME = testDir;
-    mkdirSync(join(testDir, ".alix", "skills"), { recursive: true });
+    useTestHome(testDir);
   });
 
   afterEach(() => {
-    // Clean up test directory
-    if (existsSync(testDir)) {
-      rmSync(testDir, { recursive: true, force: true });
-    }
+    // Clean up test directory and restore the original HOME
+    restoreTestHome(testDir);
   });
 
   it("should list installed skills", async () => {
@@ -76,19 +68,111 @@ describe("install command", () => {
     // Test passes if no error thrown
   });
 
-  it("should install a core skill", async () => {
-    await runInstall({ name: "tdd" });
-    assert.ok(existsSync(join(testDir, ".alix", "skills", "tdd", "SKILL.md")), "tdd skill should be installed");
+  it("should throw for a non-existent skill when the marketplace returns 404", async () => {
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } })) as typeof fetch;
+    try {
+      await assert.rejects(runInstall({ name: "nonexistent" }), /Could not find/);
+    } finally {
+      globalThis.fetch = origFetch;
+    }
   });
 
-  it("should throw for non-existent skill", async () => {
-    await assert.rejects(runInstall({ name: "nonexistent" }), /not found/);
+  it("auto-resolves and installs a skill from a registered marketplace", async () => {
+    const VALID = "---\nname: brand\ndescription: Brand guidelines skill\n---\nFollow the brand.\n";
+    // Seed a marketplace registry in the temp HOME so runInstall resolves against it.
+    mkdirSync(join(testDir, ".alix"), { recursive: true });
+    writeFileSync(
+      join(testDir, ".alix", "marketplaces.json"),
+      JSON.stringify([{ name: "acme", url: "https://github.com/acme/skills" }], null, 2),
+      "utf8",
+    );
+    const origFetch = globalThis.fetch;
+    // resolveSkillInMarketplaces probes HEAD/SKILL.md, HEAD/brand/SKILL.md,
+    // then HEAD/skills/brand/SKILL.md — only the last exists here.
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("HEAD/skills/brand/SKILL.md")) {
+        return new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    try {
+      await runInstall({ name: "brand" });
+      assert.ok(
+        existsSync(join(testDir, ".alix", "skills", "brand", "SKILL.md")),
+        "skill should be installed from a registered marketplace",
+      );
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("does not reinstall an already-installed skill", async () => {
+    const VALID = "---\nname: brand\ndescription: Brand guidelines skill\n---\nFollow the brand.\n";
+    // Pre-install the skill so runInstall hits the already-installed early return.
+    mkdirSync(join(testDir, ".alix", "skills", "brand"), { recursive: true });
+    writeFileSync(join(testDir, ".alix", "skills", "brand", "SKILL.md"), VALID, "utf8");
+    const origFetch = globalThis.fetch;
+    const origLog = console.log;
+    const lines: string[] = [];
+    console.log = (...args: unknown[]) => lines.push(args.map(String).join(" "));
+    // Any network call here is a bug — the already-installed guard must short-circuit.
+    globalThis.fetch = (async () => {
+      throw new Error("fetch should not be called when the skill is already installed");
+    }) as typeof fetch;
+    try {
+      await runInstall({ name: "brand" });
+      assert.equal(lines[0], "already installed");
+      assert.ok(
+        existsSync(join(testDir, ".alix", "skills", "brand", "SKILL.md")),
+        "existing skill should be left in place",
+      );
+    } finally {
+      console.log = origLog;
+      globalThis.fetch = origFetch;
+    }
+  });
+});
+
+describe("skill remove", () => {
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  it("removes an installed skill", async () => {
+    const VALID = "---\nname: brand\ndescription: Brand skill\n---\nBody.\n";
+    mkdirSync(join(testDir, ".alix", "skills", "brand"), { recursive: true });
+    writeFileSync(join(testDir, ".alix", "skills", "brand", "SKILL.md"), VALID, "utf8");
+    await runInstall({ remove: true, name: "brand" });
+    assert.ok(!existsSync(join(testDir, ".alix", "skills", "brand", "SKILL.md")), "skill should be removed");
+  });
+
+  it("throws when removing a non-installed skill", async () => {
+    await assert.rejects(runInstall({ remove: true, name: "nope" }), /not installed/);
+  });
+
+  it("throws when remove is used without a name", async () => {
+    await assert.rejects(runInstall({ remove: true }), /Usage: alix skills remove/);
   });
 });
 
 describe("install --from (non-bundled skills)", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nDo the thing.\n";
   const origFetch = globalThis.fetch;
+
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
 
   function writeFixture(content: string, fileName = "SKILL.md"): string {
     const dir = join(testDir, "fixtures");
@@ -143,8 +227,13 @@ describe("install --from github URLs", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nBody.\n";
   const origFetch = globalThis.fetch;
 
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
   afterEach(() => {
     globalThis.fetch = origFetch;
+    restoreTestHome(testDir);
   });
 
   /** Stub fetch so only raw.githubusercontent.com paths in `exists` return a skill. */

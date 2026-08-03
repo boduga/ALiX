@@ -213,7 +213,7 @@ ALiX already has a Hermes-format skills subsystem that is a subset of the conver
 
 - `src/skills/types.ts` — `SkillManifest` (name, description, trigger, pattern, version, is_core, tags) + `parseFrontMatter` / `parseSkillContent` (supports `---` delimited YAML).
 - `src/skills/loader.ts` — `loadSkills` / `loadSkillManifests` read `<root>/<name>/SKILL.md`.
-- CLI: `alix skills` subcommands already exist (`src/cli/commands/skills/`).
+- CLI: `alix skills` subcommands already exist (`src/cli/commands/skills/`) and now act as a marketplace installer — `skills available` / `install <name> [--from <path|url>]` / `install --list` resolve skill content from registered marketplaces (`src/cli/commands/skills/marketplace.ts`; defaults `anthropics/skills`, `langfuse/skills`) instead of shipping bundled `SKILL.md` files. The runtime `alix skill` (singular) extension-based loader (`src/skills/`) is untouched.
 
 Lowest-friction path (extend, don't invent):
 
