@@ -84,8 +84,15 @@ function makeRecommendation(
 function stripNonDeterministic(
   decision: Record<string, unknown>,
 ): Record<string, unknown> {
-  const { decidedAt: _ts, ...rest } = decision;
+  // decidedAt is generated at call time (not input-derived), and integrityHash
+  // is a content hash that covers decidedAt — so both legitimately differ
+  // between two generateDecision() calls with identical inputs. The
+  // determinism contract under test is: every input-derived field is
+  // identical. (integrityHash was added after this test; the strip list was
+  // never updated.)
+  const { decidedAt: _ts, integrityHash: _hash, ...rest } = decision;
   void _ts;
+  void _hash;
   return rest;
 }
 

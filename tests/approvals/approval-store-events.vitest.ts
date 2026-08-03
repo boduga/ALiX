@@ -133,10 +133,12 @@ describe('ApprovalStore event completeness', () => {
     const { eventLog, store } = await fresh();
     const rec = await store.request({ reason: 'r', capability: 'x' });
     await store.resolve(rec.id, 'approved');
+    await store.flushEvents();
     const before = (await eventLog.readAll()).length;
     // revoke a non-existent record → no-op (revoked is null), no event
     const revoked = await store.revoke('does-not-exist', { actor: 'user', reason: 'x' });
     expect(revoked).toBeNull();
+    await store.flushEvents();
     const after = (await eventLog.readAll()).length;
     expect(after).toBe(before);
   });
@@ -145,9 +147,11 @@ describe('ApprovalStore event completeness', () => {
     const { eventLog, store } = await fresh();
     const rec = await store.request({ reason: 'r', capability: 'x' });
     await store.resolve(rec.id, 'approved');
+    await store.flushEvents();
     const before = (await eventLog.readAll()).length;
     const result = await store.consumeApproved(rec.id, 'wrong-binding-key', {});
     expect(result.consumed).toBe(false);
+    await store.flushEvents();
     const after = (await eventLog.readAll()).length;
     expect(after).toBe(before);
   });
@@ -157,9 +161,11 @@ describe('ApprovalStore event completeness', () => {
     const rec = await store.request({ reason: 'r', capability: 'x' });
     await store.resolve(rec.id, 'approved');
     await store.consumeApproved(rec.id, rec.bindingKey, {});
+    await store.flushEvents();
     const before = (await eventLog.readAll()).length;
     const revoked = await store.revoke(rec.id, { actor: 'user', reason: 'no' });
     expect(revoked).toBeNull();  // consumed is a dead-end; revoke refuses
+    await store.flushEvents();
     const after = (await eventLog.readAll()).length;
     expect(after).toBe(before);
   });

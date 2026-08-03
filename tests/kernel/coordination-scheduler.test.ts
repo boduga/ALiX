@@ -93,6 +93,15 @@ function createDeferredExecutor(): { executor: any; pending: Map<string, Pending
   const executor = {
     execute: async (worker: any, _context: any, signal: AbortSignal) => {
       return new Promise<{ outcome: "success" | "failure"; failureKind?: string; error?: string }>((resolve, reject) => {
+        // An abort that fires before addEventListener is PERMANENTLY missed —
+        // check signal.aborted synchronously so a shutdown() racing a slow
+        // store.load() (tick() starts executeWorker without awaiting it) can
+        // never leave this promise unsettled. Without this the test hangs at
+        // the 30s timeout under full-suite load (passes in isolation).
+        if (signal.aborted) {
+          reject(new Error("execution aborted"));
+          return;
+        }
         pending.set(worker.id, { resolve, reject });
         signal.addEventListener("abort", () => {
           reject(new Error("execution aborted"));

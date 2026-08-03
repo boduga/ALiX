@@ -193,3 +193,33 @@ jobs:
       - name: TypeScript typecheck
         shell: bash
         run: pnpm typecheck
+
+  # ─── Lane 8: node:test suite (unit-level, non-vitest) ────────────────
+  # Covers the ~6500 node:test tests the vitest unit lane never runs
+  # (566 files under dist/tests, excluding integration/soak/pty/manual/
+  # skills/slow-repomap — those have their own lanes).
+  #
+  # Requires `pnpm build` (tsc + copy-build-artifacts): a tsc-only rebuild
+  # misses non-TS artifacts (config profiles, UI assets, SQL migrations)
+  # that several suites need, causing spurious ENOENT failures.
+  #
+  # Non-blocking rollout: continue-on-error reports failures without gating
+  # merges until the suite proves stable across several runs. Once stable,
+  # drop this flag and add "node-tests" to the required status checks.
+  node-tests:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: pnpm/action-setup@v6
+        with:
+          version: latest
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: "24"
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: node:test suite
+        run: pnpm test:node:ci
