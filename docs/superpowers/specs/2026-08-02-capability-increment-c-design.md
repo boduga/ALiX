@@ -56,15 +56,31 @@ Two approval vocabularies exist in the EventLog and must both be read:
 
 **1. Merge-enrich (fill-missing-only, never overwrite).** policy-gate emits a *sparse* `approval.created` (via `store.request`) *then* a *rich* one, in seq order. On a `created`/`requested` for an already-pending id, enrich any fields the entry lacks (`toolName`, `prompt`). Enrichment may only fill missing fields; it must never overwrite an existing non-null field with a later sparse value. Preserves append-only semantics and is robust to duplicate/partial emissions from every `approval.created` emitter — the store path (`approval-store`, `policy-gate`) in-scope here, plus the CLI/executor path (`replay-executor`, `rollback-executor`, `runtime-index`) which is outside the TUI-approved migration scope but must not break the projection.
 
+**Implementation shape — guard each field, never spread-merge:**
+```ts
+// CORRECT — fill-missing-only:
+if (entry.prompt == null && incoming.prompt != null) entry.prompt = incoming.prompt;
+if (entry.toolName == null && incoming.toolName != null) entry.toolName = incoming.toolName;
+
+// WRONG — would let a sparse event erase richer state:
+// entry = { ...entry, ...incomingPayload };
+```
+Invariant: later events may increase knowledge, never decrease knowledge (append-only evidence semantics).
+
 **2. Conflict handling (fail-closed throw).** When both `decision` and `status` are present and contradictory — e.g. `{decision:"approved", status:"denied"}` — the projection throws during `update()`. This is a governance-invariant violation, consistent with existing strict contracts (malformed timestamp → throw, non-monotonic seq → throw, invalid decision → throw). The projection does not rely on `trySnapshot` for this — it throws during `update()`; the collector boundary (`SnapshotBuilder.trySnapshot`) provides the null-safe containment.
 
 **3. Terminal immutability.** Once an approval reaches a terminal state, later lifecycle events must NOT reopen it. Any terminal transition attempt is either ignored if idempotent or rejected if contradictory:
 
-```
-approved  + resolved(approved)  → no-op (idempotent)
-approved  + resolved(denied)    → throw (contradictory)
-expired   + resumed             → throw (resurrection)
-```
+| Existing state | Incoming event | Result |
+|---|---|---|
+| approved | resolved(approved) | no-op (idempotent) |
+| approved | resolved(denied) | throw (contradictory) |
+| expired | resumed | throw (resurrection) |
+| consumed | resolved | throw (resurrection) |
+
+This prevents a replay anomaly where a corrupted or duplicated event stream resurrects governance decisions.
+
+**Projection purity.** The projection never fabricates display values: `toolName` remains `toolName?: string` in `ApprovalProjectionEntry`. The `?? "unknown"` fallback lives only in the adapter (Section 3), keeping the projection a faithful read model.
 
 **Recorded decision:**
 ```text
@@ -239,6 +255,7 @@ The migration's risk is proving behavioral equivalence between the old store sna
 - **Full-lifecycle fixture (A13):** `created → resumed → resolved(approved) → attempted revoke → attempted consume`. Terminal state stays approved; no illegal mutation leaks into projection; adapter output matches store snapshot.
 - Pending ordering stable; status mapping per Section 3 table; `recentlyResolved` real; `requestedAt` from `entry.requestedAt` only.
 - **Swap guard:** assert `SnapshotBuilder`'s `approvals` is an `ApprovalProjectionCollector` (not `ApprovalManager`).
+- **Checkpoint backward compat (A14):** build projection state via the old `ApprovalProjection` format, export the checkpoint, import with the new implementation, verify snapshot equivalence — protects the "no field rename" guarantee.
 
 ### Acceptance matrix
 
@@ -257,6 +274,7 @@ The migration's risk is proving behavioral equivalence between the old store sna
 | A11 | Projection failure does not crash UI snapshot | SnapshotBuilder trySnapshot regression |
 | A12 | Historical sparse events remain readable | Projection suite, replay without enriched fields |
 | A13 | Full-lifecycle fixture: terminal stays terminal under attempted reopen | Adapter suite, full-lifecycle |
+| A14 | **Durable checkpoint backward compatibility:** old-format checkpoint → new projection → same snapshot | Adapter/projection suite, checkpoint round-trip |
 
 ### Regression net
 Run the full TUI vitest suite (`pnpm vitest run tests/tui`) — the swap touches the composition root.
