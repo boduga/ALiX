@@ -218,6 +218,12 @@ export async function resolveSkillInMarketplaces(
   );
 }
 
+/** Truncate a skill description to a scannable one-liner for listings. */
+function truncate(text: string, max: number): string {
+  if (text.length <= max) return text;
+  return `${text.slice(0, max - 1)}…`;
+}
+
 /** Print skills across marketplaces, grouped, tolerating per-marketplace failures. */
 export async function listAvailableSkills(
   marketplaces?: Marketplace[],
@@ -229,7 +235,7 @@ export async function listAvailableSkills(
       const skills = await listRepoSkills(mp.url, { limit: opts?.limit });
       console.log(`\n${mp.name} (${mp.url}):`);
       for (const skill of skills) {
-        console.log(`  ${skill.name.padEnd(24)} ${skill.description}`);
+        console.log(`  ${skill.name.padEnd(24)} ${truncate(skill.description, 120)}`);
       }
     } catch (e) {
       console.error(

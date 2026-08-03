@@ -295,6 +295,22 @@ describe("listAvailableSkills", () => {
     assert.equal(lines[1], `  ${"alpha".padEnd(24)} alpha test skill`);
     assert.equal(lines[2], "\nInstall with: alix skills install <skill>");
   });
+
+  it("truncates long descriptions to a scannable one-liner", async () => {
+    const mps = [{ name: "good", url: "https://github.com/good/skills" }];
+    const LONG = "---\nname: verbose\ndescription: " + "very long description ".repeat(20) + "\n---\nBody.\n";
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("api.github.com")) return treeResponse([{ path: "skills/verbose/SKILL.md" }]);
+      return new Response(LONG, { status: 200, headers: { "content-type": "text/markdown" } });
+    }) as typeof fetch;
+
+    const { lines } = await captureLog(() => listAvailableSkills(mps));
+    const row = lines.find((l) => l.startsWith("  verbose")) ?? "";
+    // Row = 2-space indent + 24-char name column + 1 space + truncated description (≤120 incl. ellipsis).
+    assert.ok(row.length <= 2 + 24 + 1 + 120, "description should be truncated to ~120 chars");
+    assert.ok(row.endsWith("…"), "truncated description should end with an ellipsis");
+  });
 });
 
 describe("resolveSkillInMarketplaces", () => {
