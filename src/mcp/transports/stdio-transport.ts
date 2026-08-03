@@ -2,6 +2,7 @@ import type { ChildProcess } from "node:child_process";
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../../mcp/types.js";
 import type { McpTransport } from "../../mcp/transport.js";
 import type { McpTransportType } from "../../config/schema.js";
+import { jsonRpcError } from "../../mcp/error-format.js";
 
 export class StdioTransport implements McpTransport {
   readonly name: string;
@@ -75,8 +76,9 @@ export class StdioTransport implements McpTransport {
         resolve: (msg: JsonRpcResponse) => {
           clearTimeout(timeout);
           this.pendingCallbacks.delete(id);
-          if ("error" in msg && msg.error) {
-            reject(new Error(msg.error.message));
+          const jsonErr = jsonRpcError(msg);
+          if (jsonErr) {
+            reject(jsonErr);
           } else {
             resolve(msg);
           }

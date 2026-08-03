@@ -1,6 +1,7 @@
 import type { JsonRpcRequest, JsonRpcResponse, JsonRpcNotification } from "../../mcp/types.js";
 import type { McpTransport } from "../../mcp/transport.js";
 import type { McpTransportType } from "../../config/schema.js";
+import { jsonRpcError } from "../../mcp/error-format.js";
 
 export class HttpTransport implements McpTransport {
   readonly name: string;
@@ -9,6 +10,9 @@ export class HttpTransport implements McpTransport {
   private url: string;
   private headers: Record<string, string>;
   private messageHandler: ((msg: JsonRpcResponse | JsonRpcNotification) => void) | null = null;
+  // Streamable HTTP servers issue a session id on `initialize` that must be
+  // replayed as a header on every subsequent request.
+  private sessionId: string | null = null;
 
   constructor(name: string, url: string, headers: Record<string, string> = {}) {
     this.name = name;
@@ -27,10 +31,7 @@ export class HttpTransport implements McpTransport {
     try {
       const response = await fetch(`${this.url}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...this.headers
-        },
+        headers: this.requestHeaders(),
         body: JSON.stringify(message),
         signal: controller.signal
       });
@@ -41,6 +42,10 @@ export class HttpTransport implements McpTransport {
         const errorText = await response.text();
         throw new Error(`HTTP ${response.status}: ${errorText}`);
       }
+
+      // Capture the session id the server issued for this connection.
+      const sid = response.headers.get("mcp-session-id");
+      if (sid) this.sessionId = sid;
 
       const contentType = response.headers.get("content-type") ?? "";
 
@@ -57,6 +62,16 @@ export class HttpTransport implements McpTransport {
       }
       throw err;
     }
+  }
+
+  private requestHeaders(): Record<string, string> {
+    return {
+      "Content-Type": "application/json",
+      // Streamable HTTP servers may answer either way per-request; advertise both.
+      Accept: "application/json, text/event-stream",
+      ...(this.sessionId ? { "Mcp-Session-Id": this.sessionId } : {}),
+      ...this.headers
+    };
   }
 
   private async handleSSEStream(response: Response): Promise<JsonRpcResponse> {
@@ -79,27 +94,50 @@ export class HttpTransport implements McpTransport {
         if (line.startsWith("data: ")) {
           const data = line.slice(6).trim();
           if (data && data !== "[DONE]") {
+            let msg: JsonRpcResponse | JsonRpcNotification | null = null;
             try {
-              const msg = JSON.parse(data) as JsonRpcResponse | JsonRpcNotification;
-              this.messageHandler?.(msg);
-              if ("result" in msg && !("error" in msg) && !result) {
-                result = msg as JsonRpcResponse;
-              }
-            } catch {}
+              msg = JSON.parse(data) as JsonRpcResponse | JsonRpcNotification;
+            } catch {
+              // Malformed data frame — skip; a missing result is reported below.
+              continue;
+            }
+            this.messageHandler?.(msg);
+            const jsonErr = jsonRpcError(msg);
+            if (jsonErr) {
+              // Don't abandon the reader — cancel it so the stream is released.
+              await reader.cancel();
+              throw jsonErr;
+            }
+            if ("result" in msg && !result) {
+              result = msg as JsonRpcResponse;
+            }
           }
         }
       }
     }
 
-    return result ?? { jsonrpc: "2.0", id: "", result: {} };
+    if (!result) {
+      throw new Error("Server returned no response for the JSON-RPC request");
+    }
+
+    return result;
   }
 
   async sendNotification(message: JsonRpcNotification): Promise<void> {
-    fetch(`${this.url}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...this.headers },
-      body: JSON.stringify(message)
-    }).catch(() => {}); // best effort
+    try {
+      const response = await fetch(`${this.url}`, {
+        method: "POST",
+        headers: this.requestHeaders(),
+        body: JSON.stringify(message)
+      });
+      // A server may issue a session id on a notification response too (e.g.
+      // the first request is a notification). Capture it so the next request
+      // replays it.
+      const sid = response.headers.get("mcp-session-id");
+      if (sid) this.sessionId = sid;
+    } catch {
+      // best effort — a failed notification must not break the caller
+    }
   }
 
   onMessage(handler: (message: JsonRpcResponse | JsonRpcNotification) => void): void {
@@ -107,6 +145,8 @@ export class HttpTransport implements McpTransport {
   }
 
   async close(): Promise<void> {
-    // HTTP is stateless — nothing to close
+    // HTTP transport is stateless client-side — nothing to close. The server
+    // session is dead once the connection ends, so drop it for reuse safety.
+    this.sessionId = null;
   }
 }
