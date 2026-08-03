@@ -9,19 +9,23 @@ export default defineConfig({
       provider: 'v8',
       enabled: false,
     },
-    // CI hang fix: the vitest run was silently hanging 6h on the GitHub
-    // ubuntu runner with no output. Root-caused via a cancelled run's log:
-    // vitest progressed serially to tests/cli/reflection.vitest.ts then
-    // stalled (0 further output). The file passes locally in 200ms — the hang
-    // is CI-environment-specific (native better-sqlite3 fork under a
-    // constrained runner). Defense in depth:
-    // - fileParallelism:false — only one fork worker alive (vitest#8968/#8861
-    //   Node-24 stabilization); serial run is ~70s locally vs ~11s parallel.
-    //   Do NOT switch to `threads`: 9 files are fork-isolation-dependent.
-    // - testTimeout:10000 — a stalling test now FAILS after 10s with its name
-    //   in the output instead of silently blocking the pool forever. This turns
-    //   the 6h silent hang into a fast, named failure we can act on.
-    fileParallelism: false,
+    // CI hang mitigation: the linux `unit` job's vitest run was silently
+    // hanging 6h on GitHub's ubuntu runner with no output. Root-caused via a
+    // cancelled run's log: vitest progressed through test files then stalled
+    // at a worker-load boundary (last logged: init-live.vitest.ts, next file
+    // reflection.vitest.ts never starts; testTimeout does NOT fire, so it's a
+    // fork worker-load deadlock, not a test body). The suite REQUIRES the
+    // `forks` pool — threads/vmThreads break 9 fork-isolation-dependent files.
+    //
+    // Defense in depth:
+    // - maxWorkers:2 — caps concurrent fork workers, the vitest-4 Node-24
+    //   stabilization (vitest#8968/#8861) without the fileParallelism:false
+    //   serial churn that maximized worker spawns.
+    // - testTimeout:10000 — a genuinely stalling test now FAILS after 10s with
+    //   its name instead of blocking the pool forever.
+    // The CI workflow also caps the Vitest step at timeout-minutes:15, so any
+    // residual stall fails fast with captured output instead of the 6h silence.
+    maxWorkers: 2,
     testTimeout: 10000,
   },
   onConsoleLog: () => {},
