@@ -43,6 +43,13 @@ describe("resolveSkillsCommand", () => {
     });
   });
 
+  it('maps ["install", "list"] (bare subcommand) to install with list: true, not a skill named "list"', () => {
+    assert.deepEqual(resolveSkillsCommand(["install", "list"]), {
+      type: "install",
+      opts: { available: false, list: true, name: undefined, from: undefined },
+    });
+  });
+
   it('maps ["install", "--list"] to install with list: true', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "--list"]), {
       type: "install",

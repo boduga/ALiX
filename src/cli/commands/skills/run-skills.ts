@@ -40,8 +40,10 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
       type: "install",
       opts: {
         available: flags.has("--available"),
-        list: flags.has("--list"),
-        name: positional[1],
+        // Both `install --list` and the bare `install list` list installed
+        // skills. `list` is a subcommand keyword here, not a skill name.
+        list: flags.has("--list") || positional[1] === "list",
+        name: positional[1] !== "list" ? positional[1] : undefined,
         from,
       },
     };
