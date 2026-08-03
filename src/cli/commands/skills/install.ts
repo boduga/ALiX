@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile, writeFile, stat } from "node:fs/promises";
 import { join, basename } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
-import { githubRawCandidates, fetchSkillFromUrls, fetchText } from "./net.js";
+import { githubRawCandidates, fetchSkillFromUrls } from "./net.js";
 import { loadMarketplaces, resolveSkillInMarketplaces, listAvailableSkills } from "./marketplace.js";
 
 export interface InstallOptions {

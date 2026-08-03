@@ -167,6 +167,7 @@ describe("listRepoSkills", () => {
       [
         { path: "skills/alpha/SKILL.md" },
         { path: ".github/SKILL.md" },
+        { path: ".git/skills/SKILL.md" },
         { path: ".cursor/skills/SKILL.md" },
         { path: ".codex-plugin/SKILL.md" },
         { path: ".claude-plugin/SKILL.md" },

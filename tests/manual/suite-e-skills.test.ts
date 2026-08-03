@@ -8,11 +8,11 @@
  *   - tree URL                  → <path>/SKILL.md
  *   - raw.githubusercontent.com → fetched directly
  *   - repo-root URL + name      → HEAD/skills/<name>/SKILL.md (multi-skill repo)
+ *   - marketplace auto-resolve  → HEAD/skills/<name>/SKILL.md via default registry
  *
- * Uses this repo's own `tdd` skill (boduga/ALiX) as a stable, langfuse-
- * independent fixture, plus the langfuse/skills repo for a real-world
- * multi-skill layout. HOME is isolated to a temp dir so the real ~/.alix is
- * never touched.
+ * Uses anthropics/skills (brand-guidelines) as a stable, langfuse-independent
+ * fixture, plus the langfuse/skills repo for a real-world multi-skill layout.
+ * HOME is isolated to a temp dir so the real ~/.alix is never touched.
  */
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
@@ -37,24 +37,24 @@ function assertInstalled(dir: string, name: string, sourceLabel: string): void {
 
 describe("Suite E: Skills installer — GitHub URL sources", () => {
   // ── E.1: tree URL ─────────────────────────────────────────────
-  it("E.1: installs tdd from a tree URL (this repo)", () => {
+  it("E.1: installs brand-guidelines from a tree URL (anthropics/skills)", () => {
     const d = tempDir();
     try {
-      const r = installSkill(d.path, ["--from", "https://github.com/boduga/ALiX/tree/main/src/cli/commands/skills/tdd"]);
+      const r = installSkill(d.path, ["--from", "https://github.com/anthropics/skills/tree/main/skills/brand-guidelines"]);
       assert.equal(r.exitCode, 0, r.stderr || r.stdout);
-      assert.match(r.stdout, /Installed: tdd/);
-      assertInstalled(d.path, "tdd", "tree URL");
+      assert.match(r.stdout, /Installed: brand-guidelines/);
+      assertInstalled(d.path, "brand-guidelines", "tree URL");
     } finally { d.cleanup(); }
   });
 
   // ── E.2: raw.githubusercontent.com URL ─────────────────────────
-  it("E.2: installs tdd from a raw.githubusercontent.com URL", () => {
+  it("E.2: installs brand-guidelines from a raw.githubusercontent.com URL", () => {
     const d = tempDir();
     try {
-      const r = installSkill(d.path, ["--from", "https://raw.githubusercontent.com/boduga/ALiX/main/src/cli/commands/skills/tdd/SKILL.md"]);
+      const r = installSkill(d.path, ["--from", "https://raw.githubusercontent.com/anthropics/skills/main/skills/brand-guidelines/SKILL.md"]);
       assert.equal(r.exitCode, 0, r.stderr || r.stdout);
-      assert.match(r.stdout, /Installed: tdd/);
-      assertInstalled(d.path, "tdd", "raw URL");
+      assert.match(r.stdout, /Installed: brand-guidelines/);
+      assertInstalled(d.path, "brand-guidelines", "raw URL");
     } finally { d.cleanup(); }
   });
 
@@ -79,6 +79,19 @@ describe("Suite E: Skills installer — GitHub URL sources", () => {
       assert.notEqual(r.exitCode, 0);
       assert.match(r.stderr, /Could not find a valid SKILL\.md/);
       assert.match(r.stderr, /raw\.githubusercontent\.com/);
+    } finally { d.cleanup(); }
+  });
+
+  // ── E.5: marketplace auto-resolve (live) ───────────────────────
+  it("E.5: auto-resolves brand-guidelines from a registered marketplace", () => {
+    const d = tempDir();
+    try {
+      // No --from: resolves against the default marketplaces (anthropics/skills)
+      // via HEAD/skills/brand-guidelines/SKILL.md.
+      const r = installSkill(d.path, ["brand-guidelines"]);
+      assert.equal(r.exitCode, 0, r.stderr || r.stdout);
+      assert.match(r.stdout, /Installed: brand-guidelines/);
+      assertInstalled(d.path, "brand-guidelines", "marketplace auto-resolve");
     } finally { d.cleanup(); }
   });
 });
