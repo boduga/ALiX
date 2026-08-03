@@ -1,0 +1,287 @@
+import { join, dirname } from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { githubRawCandidates, fetchSkillFromUrls, fetchText, fetchJson } from "./net.js";
+import { parseSkillContent } from "../../../skills/types.js";
+
+export interface Marketplace {
+  name: string;
+  url: string;
+}
+
+export interface RepoSkill {
+  name: string;
+  description: string;
+  path: string;
+  repoUrl: string;
+}
+
+export const DEFAULT_MARKETPLACES: readonly Marketplace[] = [
+  { name: "anthropics/skills", url: "https://github.com/anthropics/skills" },
+  { name: "langfuse/skills", url: "https://github.com/langfuse/skills" },
+];
+
+/** Path segments that never count as a repo's skills, even if they contain a SKILL.md. */
+export const EXCLUDED_DIRS: readonly string[] = [
+  ".git",
+  ".github",
+  ".cursor",
+  ".codex-plugin",
+  ".claude-plugin",
+  "node_modules",
+  "vendor",
+  "dist",
+  "assets",
+  "plugins",
+  "template",
+];
+
+/** Absolute path to the marketplace registry file for a given home dir. */
+export function marketplacesPath(homeDir?: string): string {
+  return join(homeDir ?? process.env.HOME ?? "", ".alix", "marketplaces.json");
+}
+
+function isMarketplace(m: unknown): m is Marketplace {
+  return (
+    typeof m === "object" &&
+    m !== null &&
+    typeof (m as Marketplace).name === "string" &&
+    typeof (m as Marketplace).url === "string"
+  );
+}
+
+/** Persist the given marketplaces to disk, creating ~/.alix as needed. */
+export async function saveMarketplaces(mps: Marketplace[], homeDir?: string): Promise<void> {
+  const p = marketplacesPath(homeDir);
+  await mkdir(dirname(p), { recursive: true });
+  await writeFile(p, JSON.stringify(mps, null, 2) + "\n", "utf8");
+}
+
+/**
+ * Load the registered marketplaces. Seeds DEFAULT_MARKETPLACES on first use
+ * and tolerates a missing/corrupt/empty file — never crashes.
+ */
+export async function loadMarketplaces(homeDir?: string): Promise<Marketplace[]> {
+  const p = marketplacesPath(homeDir);
+  let raw: string;
+  try {
+    raw = await readFile(p, "utf8");
+  } catch {
+    return seedDefaults(homeDir);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return seedDefaults(homeDir);
+  }
+  if (Array.isArray(parsed)) {
+    const mps = parsed.filter(isMarketplace);
+    if (mps.length > 0) return mps;
+  }
+  return seedDefaults(homeDir);
+}
+
+async function seedDefaults(homeDir?: string): Promise<Marketplace[]> {
+  const seeded = [...DEFAULT_MARKETPLACES];
+  await saveMarketplaces(seeded, homeDir);
+  return seeded;
+}
+
+/** Load only — the currently registered marketplaces. */
+export async function listMarketplaces(homeDir?: string): Promise<Marketplace[]> {
+  return loadMarketplaces(homeDir);
+}
+
+/** Normalize a marketplace URL for duplicate comparison (lowercased host, no trailing slash/.git). */
+function normalizeUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    return `${u.protocol}//${u.hostname.toLowerCase()}${u.pathname.replace(/\.git$/, "").replace(/\/+$/, "")}`;
+  } catch {
+    return url;
+  }
+}
+
+/**
+ * Register a new marketplace. Throws on invalid input (empty name, non-https,
+ * non-github.com host). Duplicates (by name or normalized URL) return
+ * { added: false } without persisting.
+ */
+export async function addMarketplace(
+  name: string,
+  url: string,
+  homeDir?: string,
+): Promise<{ added: boolean; marketplaces: Marketplace[] }> {
+  if (!name || name.trim().length === 0) {
+    throw new Error("Marketplace name is required");
+  }
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    throw new Error(`Not a valid URL: ${url}`);
+  }
+  if (u.protocol !== "https:") {
+    throw new Error("Marketplace URL must use https:// (plain http is rejected)");
+  }
+  if (u.hostname.toLowerCase() !== "github.com") {
+    throw new Error(`Marketplace URL must be a github.com repository (got ${u.hostname})`);
+  }
+  const current = await loadMarketplaces(homeDir);
+  if (current.some((m) => m.name === name)) {
+    return { added: false, marketplaces: current };
+  }
+  const normalized = normalizeUrl(url);
+  if (current.some((m) => normalizeUrl(m.url) === normalized)) {
+    return { added: false, marketplaces: current };
+  }
+  const marketplaces = [...current, { name, url }];
+  await saveMarketplaces(marketplaces, homeDir);
+  return { added: true, marketplaces };
+}
+
+/** Unregister a marketplace. Throws when the name is not registered. */
+export async function removeMarketplace(
+  name: string,
+  homeDir?: string,
+): Promise<{ removed: boolean; marketplaces: Marketplace[] }> {
+  const current = await loadMarketplaces(homeDir);
+  if (!current.some((m) => m.name === name)) {
+    throw new Error(`Marketplace '${name}' is not registered`);
+  }
+  const marketplaces = current.filter((m) => m.name !== name);
+  await saveMarketplaces(marketplaces, homeDir);
+  return { removed: true, marketplaces };
+}
+
+type TreeEntry = { path: string; type: string };
+type TreesResponse = { tree: TreeEntry[] };
+
+/** Parse a github.com repo URL into { owner, repo }, throwing otherwise. */
+function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
+  let u: URL;
+  try {
+    u = new URL(repoUrl);
+  } catch {
+    throw new Error(`Not a valid repo URL: ${repoUrl}`);
+  }
+  if (u.hostname.toLowerCase() !== "github.com") {
+    throw new Error(`Not a GitHub repo URL: ${repoUrl}`);
+  }
+  const seg = u.pathname.replace(/\.git$/, "").replace(/\/+$/, "").split("/").filter(Boolean);
+  if (seg.length < 2) {
+    throw new Error(`Not a GitHub repo URL: ${repoUrl}`);
+  }
+  return { owner: seg[0], repo: seg[1] };
+}
+
+/**
+ * List skills in a GitHub repo by walking its recursive git tree. A skill is a
+ * SKILL.md blob whose path has no excluded segment. Candidates are fetched
+ * sequentially (capped at opts.limit ?? 50 successfully parsed) and validated
+ * as a skill manifest. Throws when the trees API call fails; raw-fetch or
+ * parse failures for individual skills are skipped.
+ */
+export async function listRepoSkills(repoUrl: string, opts?: { limit?: number }): Promise<RepoSkill[]> {
+  const { owner, repo } = parseRepoUrl(repoUrl);
+  const treesUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+  const res = await fetchJson<TreesResponse>(treesUrl);
+  const limit = opts?.limit ?? 50;
+  const results: RepoSkill[] = [];
+  for (const entry of res.tree ?? []) {
+    if (entry.type !== "blob" || !entry.path.endsWith("/SKILL.md")) continue;
+    if (entry.path.split("/").some((seg) => EXCLUDED_DIRS.includes(seg))) continue;
+    if (results.length >= limit) break;
+    try {
+      const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/HEAD/${entry.path}`;
+      const { content } = await fetchText(rawUrl);
+      const { manifest } = parseSkillContent(content);
+      if (manifest) {
+        results.push({ name: manifest.name, description: manifest.description, path: entry.path, repoUrl });
+      }
+    } catch {
+      // Skip a skill whose raw fetch or manifest parse failed.
+    }
+  }
+  return results;
+}
+
+/**
+ * Resolve a skill name against registered marketplaces, returning the first
+ * repo that yields a valid SKILL.md. Aggregated error when none do.
+ */
+export async function resolveSkillInMarketplaces(
+  name: string,
+  marketplaces: Marketplace[],
+): Promise<{ repoUrl: string; content: string }> {
+  const failures: string[] = [];
+  for (const mp of marketplaces) {
+    const candidates = githubRawCandidates(mp.url, name);
+    if (candidates) {
+      try {
+        const content = await fetchSkillFromUrls(candidates, mp.url, name);
+        return { repoUrl: mp.url, content };
+      } catch (e) {
+        failures.push(`  ${mp.name} (${mp.url}): ${e instanceof Error ? e.message : String(e)}`);
+      }
+    } else {
+      failures.push(`  ${mp.name} (${mp.url}): not a GitHub repo URL`);
+    }
+  }
+  throw new Error(
+    `Could not find skill '${name}' in ${marketplaces.length} registered marketplaces.\n${failures.join("\n")}`,
+  );
+}
+
+/** Print skills across marketplaces, grouped, tolerating per-marketplace failures. */
+export async function listAvailableSkills(
+  marketplaces?: Marketplace[],
+  opts?: { limit?: number },
+): Promise<void> {
+  const mps = marketplaces ?? (await loadMarketplaces());
+  for (const mp of mps) {
+    try {
+      const skills = await listRepoSkills(mp.url, { limit: opts?.limit });
+      console.log(`\n${mp.name} (${mp.url}):`);
+      for (const skill of skills) {
+        console.log(`  ${skill.name.padEnd(24)} ${skill.description}`);
+      }
+    } catch (e) {
+      console.error(
+        `Failed to list skills for ${mp.name} (${mp.url}): ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+  console.log("\nInstall with: alix skills install <skill>");
+}
+
+/** Dispatch a marketplace subcommand (list/add/remove) with console output. */
+export async function runMarketplaceCommand(
+  action: "list" | "add" | "remove",
+  name?: string,
+  url?: string,
+  homeDir?: string,
+): Promise<void> {
+  if (action === "list") {
+    const mps = await listMarketplaces(homeDir);
+    for (const mp of mps) console.log(`${mp.name} ${mp.url}`);
+    return;
+  }
+  if (action === "add") {
+    if (!name || !url) throw new Error("Usage: alix skills marketplace add <name> <url>");
+    const { added, marketplaces } = await addMarketplace(name, url, homeDir);
+    console.log(
+      added ? `Added marketplace '${name}' (${url})` : `Marketplace '${name}' is already registered`,
+    );
+    for (const mp of marketplaces) console.log(`${mp.name} ${mp.url}`);
+    return;
+  }
+  if (action === "remove") {
+    if (!name) throw new Error("Usage: alix skills marketplace remove <name>");
+    const { marketplaces } = await removeMarketplace(name, homeDir);
+    console.log(`Removed marketplace '${name}'`);
+    for (const mp of marketplaces) console.log(`${mp.name} ${mp.url}`);
+    return;
+  }
+  throw new Error(`Unknown marketplace action: ${action}`);
+}

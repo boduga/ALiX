@@ -111,12 +111,12 @@ export async function fetchText(url: string): Promise<{ content: string; isHtml:
 export async function fetchJson<T>(url: string, headers?: Record<string, string>): Promise<T> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
-  let res: Response;
   try {
-    res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "alix", ...headers } });
+    const res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": "alix", ...headers } });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    // Keep the timeout alive through the body read so a mid-body stall aborts too.
+    return (await res.json()) as T;
   } finally {
     clearTimeout(timeout);
   }
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return (await res.json()) as T;
 }
