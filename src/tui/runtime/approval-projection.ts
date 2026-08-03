@@ -36,10 +36,19 @@ function isValidStatus(value: unknown): value is ApprovalProjectionEntry['status
   return typeof value === 'string' && VALID_STATUSES.has(value as ApprovalProjectionEntry['status']);
 }
 
-/** Events that close a pending approval (move it to completed). */
-const TERMINAL_TYPES = new Set([
-  'approval.resolved', 'approval.expired', 'approval.consumed', 'approval.revoked', 'approval.invalidated',
-]);
+/** Status each non-resolved terminal event type resolves to. Single source for
+ *  both the accepted-event set and the status mapping — a new terminal event
+ *  type is added in exactly one place. */
+const TERMINAL_STATUS: Record<string, ApprovalProjectionEntry['status']> = {
+  'approval.expired': 'expired',
+  'approval.revoked': 'revoked',
+  'approval.consumed': 'consumed',
+  'approval.invalidated': 'invalidated',
+};
+
+/** Events that close a pending approval (move it to completed). approval.resolved
+ *  reads its status from the payload's decision|status, so it's not in the map. */
+const TERMINAL_TYPES = new Set(['approval.resolved', ...Object.keys(TERMINAL_STATUS)]);
 
 /** Strict timestamp parse — a malformed event timestamp breaks determinism.
  *  Prefers the store's authoritative payload.timestamp (record.createdAt /
@@ -168,10 +177,7 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
             throw new Error(`approval projection: invalid resolution decision on seq ${e.seq}`);
           }
           if (completedIndex < 0) {
-            // pending / resumed → move to completed
-            this.pending.set(approvalId, { ...existing, status: value as ApprovalProjectionEntry['status'], completedAt: timestamp });
-            this.completed = [{ ...this.pending.get(approvalId)! }, ...this.completed].slice(0, MAX_COMPLETED);
-            this.pending.delete(approvalId);
+            this.moveToCompleted(existing, value as ApprovalProjectionEntry['status'], timestamp);
             continue;
           }
           // completed entry: idempotent or contradictory
@@ -180,19 +186,10 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
         }
 
         // terminal types: expired / revoked / consumed / invalidated
-        const statusMap: Record<string, ApprovalProjectionEntry['status']> = {
-          'approval.expired': 'expired',
-          'approval.revoked': 'revoked',
-          'approval.consumed': 'consumed',
-          'approval.invalidated': 'invalidated',
-        };
-        const terminalStatus = statusMap[e.type];
+        const terminalStatus = TERMINAL_STATUS[e.type];
 
         if (completedIndex < 0) {
-          // pending / resumed → move to completed
-          this.pending.set(approvalId, { ...existing, status: terminalStatus, completedAt: timestamp });
-          this.completed = [{ ...this.pending.get(approvalId)! }, ...this.completed].slice(0, MAX_COMPLETED);
-          this.pending.delete(approvalId);
+          this.moveToCompleted(existing, terminalStatus, timestamp);
           continue;
         }
 
@@ -225,6 +222,13 @@ export class ApprovalProjection implements DurableProjectionBuilder<ApprovalProj
     this.pending.clear();
     this.completed = [];
     this.lastSeq = 0;
+  }
+
+  /** Move a pending entry to completed (newest-first, bounded). Shared by the
+   *  resolved and terminal transition paths. */
+  private moveToCompleted(existing: ApprovalProjectionEntry, status: ApprovalProjectionEntry['status'], completedAt: number): void {
+    this.completed = [{ ...existing, status, completedAt }, ...this.completed].slice(0, MAX_COMPLETED);
+    this.pending.delete(existing.approvalId);
   }
 
   exportState(): ProjectionState {

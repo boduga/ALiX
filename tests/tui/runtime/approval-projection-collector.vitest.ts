@@ -10,6 +10,8 @@ import { createProjectionRuntime } from '../../../src/tui/runtime/projection-run
 import { ProjectionIds } from '../../../src/tui/runtime/projection-ids.js';
 import { extractTarget } from '../../../src/approvals/extract-target.js';
 import type { AlixEvent } from '../../../src/events/types.js';
+import type { ApprovalCollector } from '../../../src/tui/snapshot-builder.js';
+import type { ApprovalManager } from '../../../src/tui/approval-manager.js';
 
 function evt(type: string, payload: Record<string, unknown>, seq: number, ts = seq * 1000): AlixEvent {
   return { id: `e${seq}`, seq, version: 1, sessionId: 's', timestamp: new Date(ts).toISOString(), type, actor: 'system', payload };
@@ -77,12 +79,14 @@ describe('ApprovalProjectionCollector', () => {
     expect(snap!.pending[0]!.requestedAt).toBe(1700000000000);
   });
 
-  it('SnapshotBuilder approvals dependency is an ApprovalProjectionCollector, not ApprovalManager (single source)', async () => {
-    // composition-root assertion is hard to unit-test in isolation; instead assert
-    // the adapter is the only ApprovalCollector implementation wired via the interface.
-    const runtime = createProjectionRuntime([[ProjectionIds.approval, new ApprovalProjection()]]);
-    const collector = new ApprovalProjectionCollector(runtime);
-    expect(collector).toSatisfy((c) => c.snapshot !== undefined);
+  it('A10 (type-level): ApprovalManager is NOT assignable to ApprovalCollector — the type system enforces a single collector source', () => {
+    // The migration removed ApprovalManager.snapshot(); it therefore no longer
+    // satisfies ApprovalCollector. If someone re-adds snapshot() or passes
+    // ApprovalManager as the collector, this @ts-expect-error stops compiling —
+    // the single-source invariant is enforced structurally, not by a weak runtime
+    // assertion.
+    // @ts-expect-error — ApprovalManager has no snapshot(); only the adapter satisfies ApprovalCollector
+    const _c: ApprovalCollector = {} as unknown as ApprovalManager;
   });
 
   it('PARITY ORACLE: same store fixture → identical ApprovalSnapshot via store path and projection path', async () => {
@@ -98,6 +102,7 @@ describe('ApprovalProjectionCollector', () => {
 
     // --- projection path ---
     const runtime = createProjectionRuntime([[ProjectionIds.approval, new ApprovalProjection()]]);
+    await store.flushEvents();  // await the fire-and-forget appends before reading
     runtime.updateAll(await eventLog.readAll());
     const projSnap = await new ApprovalProjectionCollector(runtime).snapshot();
 
@@ -125,9 +130,20 @@ describe('ApprovalProjectionCollector', () => {
     // targetPath, toolName) with per-field equality, and assert the intentional
     // divergence explicitly.
     expect(projSnap!.pending).toEqual(storeSnap.pending); // ids, ordering, timestamps, targetPath, toolName
+    // RESOLVED side — assert the completed entry's mapped fields (not just
+    // length), so the adapter's completed→recentlyResolved mapping is genuinely
+    // proven and the oracle can't pass with a wrong completed-entry mapping.
+    expect(projSnap!.recentlyResolved).toHaveLength(1);
+    const resolved = projSnap!.recentlyResolved[0]!;
+    expect(resolved.id).toBe(a1.id);
+    expect(resolved.toolName).toBe('filesystem.write'); // capabilities[0]
+    expect(resolved.targetPath).toBe('/tmp/foo');        // extractTarget(reason)
+    expect(resolved.requestedAt).toBe(Date.parse(a1.createdAt)); // payload.timestamp = record.createdAt
+    expect(resolved.args).toEqual({});
+    expect(resolved.requestedBy).toBe('system');
     // intentional divergence (adapter now supplies real resolved history):
-    expect(projSnap!.recentlyResolved.length).toBeGreaterThan(0);
     expect(storeSnap.recentlyResolved).toEqual([]);
+    expect(projSnap!.totalResolved).toBe(1);
     expect(projSnap!.totalPending).toBe(storeSnap.totalPending);
   });
 
@@ -147,6 +163,7 @@ describe('ApprovalProjectionCollector', () => {
     const storeRecord = store.get(rec.id);
     expect(storeRecord!.status).toBe('consumed'); // NOT reopened by the failed revoke
     const runtime = createProjectionRuntime([[ProjectionIds.approval, new ApprovalProjection()]]);
+    await store.flushEvents();  // await the fire-and-forget appends before reading
     runtime.updateAll(await eventLog.readAll());
     const projSnap = await new ApprovalProjectionCollector(runtime).snapshot();
     // consumed is the final terminal state — the entry left pending entirely

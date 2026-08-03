@@ -83,12 +83,13 @@ Projection transition table (fully mirrors the store's real lifecycle):
 | any terminal (completed) | resolved with different status | throw (immutable) |
 | any terminal (completed) | `revoked` (target) | **allowed** — store's `revoke` permits revoking approved/denied/edited/invalidated |
 | any terminal (completed) | same-status terminal | no-op (idempotent) |
-| any terminal (completed) | resumed / created / requested | throw (resurrection) |
+| any terminal (completed) | `resumed` | throw (resurrection — cannot reopen a completed approval) |
+| any terminal (completed) | `created` / `requested` (same id) | **allowed** — starts a NEW lifecycle (a completed id does not block a new request) |
 | unknown id | any | no-op |
 
 `approval.resumed`: a pending entry is marked `resumed` and **stays pending** (a failed resume is transient); a resumed event on a completed entry throws (resurrection).
 
-This prevents a replay anomaly where a corrupted or duplicated event stream resurrects governance decisions, while faithfully reflecting the store's real lifecycle. Idempotent repeats (e.g. `approved` + `resolved(approved)`) are no-ops.
+**Resurrection is `resumed` on a completed entry only.** A later `approval.created`/`approval.requested` carrying the same id is a genuinely new request, not the old lifecycle reopening — the projection starts a fresh pending entry, and the completed history keeps the prior lifecycle. This prevents a replay anomaly where a corrupted or duplicated event stream reopens a governance decision, while faithfully reflecting the store's real lifecycle (a new `request` after completion is legitimate). Idempotent repeats (e.g. `approved` + `resolved(approved)`) are no-ops.
 
 **Projection purity.** The projection never fabricates display values: `toolName` remains `toolName?: string` in `ApprovalProjectionEntry`. The `?? "unknown"` fallback lives only in the adapter (Section 3), keeping the projection a faithful read model.
 

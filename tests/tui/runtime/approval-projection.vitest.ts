@@ -258,6 +258,38 @@ describe('ApprovalProjection', () => {
     expect(p.snapshot().completed[0]!.status).toBe('revoked');
   });
 
+  it('created after a completed lifecycle with the same id starts a NEW lifecycle (not resurrection)', () => {
+    const p = new ApprovalProjection();
+    p.update([created(1, 'a1'), resolvedStatus(2, 'a1', 'approved')]);
+    // A later created/requested with the same id is a genuinely new request —
+    // resurrection is `resumed` on a completed entry ONLY.
+    expect(() => p.update([created(3, 'a1')])).not.toThrow();
+    expect(p.snapshot().pending).toHaveLength(1);
+    expect(p.snapshot().pending[0]!.requestedAt).toBe(3 * 1000);  // NEW lifecycle
+    expect(p.snapshot().completed).toHaveLength(1);               // old completed retained
+  });
+
+  it('MIXED LOG: CLI + store vocab + all terminal types normalize to one lifecycle model', () => {
+    const p = new ApprovalProjection();
+    p.update([
+      requested(1, 'cli-1', 'run?', 'search'),
+      created(2, 'st-1'),
+      reused(3, 'st-1'),
+      resolved(4, 'cli-1', 'denied'),
+      resolvedStatus(5, 'st-1', 'approved'),
+      created(6, 'exp-1'),
+      expired(7, 'exp-1'),
+      created(8, 'cons-1'),
+      consumed(9, 'cons-1'),
+      created(10, 'res-1'),
+      evt('approval.resume.failed', { approvalId: 'res-1' }, 11),  // transient, ignored
+    ]);
+    const snap = p.snapshot();
+    expect(snap.pending.map(e => e.approvalId)).toEqual(['res-1']);  // resume.failed left it pending
+    expect(snap.pending[0]!.status).toBe('pending');
+    expect(snap.completed.map(c => c.status).sort()).toEqual(['approved', 'consumed', 'denied', 'expired']);
+  });
+
   it('A14: old-format checkpoint imports into new projection with identical snapshot', () => {
     const p = new ApprovalProjection();
     p.update([created(1, 'a1', { reason: 'r', toolId: 't' }), resolvedStatus(2, 'a1', 'approved')]);
@@ -267,5 +299,21 @@ describe('ApprovalProjection', () => {
     p2.importState(state);
     expect(p2.snapshot()).toEqual(p.snapshot());
     expect(p2.exportState()).toEqual(state);
+  });
+
+  it('A14: a literal pre-invalidated checkpoint (old format) imports and produces the same snapshot', () => {
+    // An old-format checkpoint from before 'invalidated' existed — same shape
+    // { pending, completed, lastSeq }, no invalidated entries. Must import
+    // cleanly (additive-only status union).
+    const oldState = {
+      pending: [{ approvalId: 'a1', status: 'pending', requestedAt: 1000 }],
+      completed: [{ approvalId: 'a2', status: 'approved', requestedAt: 2000, completedAt: 3000 }],
+      lastSeq: 5,
+    };
+    const p = new ApprovalProjection();
+    p.importState(oldState as never);
+    expect(p.snapshot().pending[0]!.approvalId).toBe('a1');
+    expect(p.snapshot().completed[0]!.status).toBe('approved');
+    expect((p.exportState() as { lastSeq: number }).lastSeq).toBe(5);
   });
 });
