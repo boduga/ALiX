@@ -68,7 +68,8 @@ Existing system-prompt section; agent acts on the skill
 - `resolveSkillName(command: string, skills: SkillManifest[]): string | null`
   - Strip `/`, match by trigger first, then by name. Returns the canonical skill `name` (the catalog's key).
 - `canonicalSkillId(manifest: SkillManifest): string`
-  - Returns the catalog's canonical identifier for dedup. **This is `manifest.name` for now** (it is the key used by `SkillCatalog.getAll()`/`get()` and the on-disk directory name `<root>/<name>/`), but it is isolated behind this function so that if two skills ever share a display name and the catalog gains a different canonical id (e.g. a path or slug), dedup updates in one place.
+  - Returns the catalog's canonical identifier for dedup. **`canonicalSkillId()` is the SOLE dedup authority.** No other field (display name, trigger, path) is ever used to decide whether two skills are the same in the union/dedupe/inject path. This is `manifest.name` for now (the key used by `SkillCatalog.getAll()`/`get()` and the on-disk directory name `<root>/<name>/`), but it is isolated behind this function so that if two skills ever share a display name and the catalog gains a different canonical id (e.g. a path or slug), dedup updates in one place.
+  - Contract: the union/dedupe/inject path MUST call `canonicalSkillId()` and nothing else to identify a skill. Documented here and asserted in the alias-collision regression test (see Testing).
 
 ### 2. `src/skills/catalog.ts` — add `getByTriggerOrName(ref)`
 
@@ -94,20 +95,24 @@ Existing system-prompt section; agent acts on the skill
 
   - Multiple explicit skills (`explicitSkills: ["tdd", "typescript"]`) are all loaded and injected.
   - Explicit + auto duplicate → exactly one copy injected (regression-tested).
+  - **Explicit loading is transactional.** The explicit set is resolved and loaded as one atomic unit:
+    - *Resolution* (name → skill) is per-name and non-fatal: a name that resolves to no installed skill is skipped with a warning (`Skill "tdd" isn't installed. Continuing without it.`).
+    - *Loading* is atomic: all resolved explicit bodies are loaded together (`Promise.all`). If any body load throws, the **entire explicit set is dropped wholesale** and the turn continues with auto-match only — never a half-injected explicit subset. This keeps the injected state consistent: either the full explicit set is present, or none of it is.
 - `processTurn(message, options?: { skills?: string[] })`
 - `processChat(message, options?: { skills?: string[] })`
   - Both pass `options.skills` through to `setupSkills`. Existing callers (run.ts, repl.ts, daemon-client, tui app) pass no second arg → unchanged behavior.
 
-### 4. Cached catalog (startup + install/remove invalidation)
+### 4. Generation-based catalog cache (startup + install/remove invalidation)
 
-- New `src/skills/slash-catalog.ts` — a small async cache:
-  - `getSlashCatalog(): Promise<SkillManifest[]>` — builds once on first access via `loadSkillManifests(skillsHome)`.
-  - `invalidateSlashCatalog()` — clears the cache.
+- New `src/skills/slash-catalog.ts` — a small async, **generation-based** cache:
+  - `getSlashCatalog(): Promise<SkillManifest[]>` — returns the cached list, building once on first access via `loadSkillManifests(skillsHome)`.
+  - `invalidateSlashCatalog()` — bumps the generation counter; the next `getSlashCatalog()` rebuilds.
+  - **Generation model:** the cache holds `{ generation: number; manifests: SkillManifest[] }`. Every build captures the generation it was built at; `getSlashCatalog()` compares the current generation against the cached build's generation and rebuilds on mismatch. This is race-safe: a build that started before an invalidation, and finishes after it, is detected as stale (its captured generation ≠ current) and discarded — the caller rebuilds. Consumers never read a half-stale list and never block on filesystem during typing (steady-state reads are a pure in-memory return).
   - **Documented lifecycle:**
 
     ```
-    startup            → load catalog
-    skill install/remove → invalidate cache
+    startup            → load catalog (gen N)
+    skill install/remove → invalidateSlashCatalog() (gen N+1)
     completion/enter   → read cached catalog (no filesystem work during typing)
     ```
 
@@ -116,13 +121,17 @@ Existing system-prompt section; agent acts on the skill
 
 ### 5. `src/tui/app.ts` — input layer
 
-- **Slash-completion strip** below the chat/agent prompt when the buffer starts with `/`: renders `rankSkillMatches` results (top N), first match highlighted.
+- **Slash-completion strip** below the chat/agent prompt when the buffer starts with `/`: renders `rankSkillMatches` results (top N) in ranked order; the **highlighted candidate** is the strip's selection.
+- **Tab behavior — cycle the strip selection:**
+  - Buffer starts with `/` → **Tab moves the strip highlight to the next candidate** (wraps around; stays on the first when there's a single candidate). Tab does **not** modify the buffer text — it only changes which candidate is selected. The strip always shows which candidate is highlighted (e.g. `>` marker).
+  - When the buffer is not a slash command, Tab falls through to the existing keybinding (today's behavior).
 - **Enter behavior — decision is at Enter, not at typing:**
   - Buffer is exactly `/` → open the palette (today's behavior preserved).
-  - Buffer starts with `/` and the command resolves to a skill → strip the trigger, submit `rest` (or the skill name when `rest` is empty) via `dispatchToSession(..., { skills: [name] })`.
+  - Buffer starts with `/` and resolves to a skill → strip the trigger, submit `rest` (or the skill name when `rest` is empty) via `dispatchToSession(..., { skills: [name] })`.
+    - **Resolution precedence:** the strip's **highlighted candidate** wins when the user Tab-cycled to it; otherwise the buffer token is resolved by `rankSkillMatches` top match (so `/tdd` works with no Tab at all).
   - Buffer starts with `/` and the command does **not** resolve → **non-fatal, keep the text in the buffer**, show an inline hint "Unknown skill \"/foobar\" — press Tab for completions." Do **not** submit to the agent (prevents accidental LLM calls from a typo).
   - Anything else → today's path.
-  - **This creates a consistent rule:** the slash char's meaning is resolved at Enter — `/` alone = palette, `/anything` = slash command. Typing `/` naturally enters slash mode; the old palette shortcut still works if the user presses Enter immediately on `/`.
+  - **This creates a consistent rule:** the slash char's meaning is resolved at Enter — `/` alone = palette, `/anything` = slash command. Typing `/` naturally enters slash mode; the old palette shortcut still works if the user presses Enter immediately on `/`. Tab and Enter compose: **Tab to select, Enter to activate**.
 - `dispatchToSession` threads an optional `skills` field through to `processChat`/`processTurn`.
 
 ### 6. `src/tui/views/chat-view.ts` + `agent-view.ts` — render the completion strip
@@ -149,10 +158,11 @@ inject into "## Available Skills" system-prompt section
 |---|---|
 | Buffer is exactly `/` | Open palette (unchanged). |
 | `/unknown rest` | Non-fatal: keep text in buffer, show "Unknown skill \"/unknown\" — press Tab for completions." No agent call. |
-| Explicit skill listed but not installed | Non-fatal warning line in scrollback: `Skill "tdd" isn't installed. Continuing without it.` Auto-match continues. |
-| `loadSkillContent` fails for an explicit skill | Skipped from injection (existing loader behavior). |
+| Explicit name resolves to no installed skill | Non-fatal per-name: warning line in scrollback `Skill "tdd" isn't installed. Continuing without it.`; the name is excluded from the explicit batch. Auto-match continues. |
+| A resolved explicit skill's body fails to load | **Transactional:** the entire explicit set is dropped (never a half-injected subset) and the turn continues with auto-match only. |
 | Empty `rest` for a valid skill | Submit the skill's name as the task. |
-| Cache miss / catalog build failure | Fall back to a fresh load; treat as empty list on unrecoverable error. |
+| Cache miss / catalog build failure | Rebuild on generation mismatch; fall back to a fresh load on build error; treat as empty list on unrecoverable error. |
+| Alias collision (skill A's name == skill B's trigger) | `canonicalSkillId()` remains the sole dedup authority. **Resolution** precedence: trigger-match wins over name-match (documented; pinned by the alias-collision regression test). |
 
 ## Testing
 
@@ -162,6 +172,7 @@ inject into "## Available Skills" system-prompt section
 - `rankSkillMatches`: **ordering contract asserted** — exact trigger > exact name > prefix trigger > prefix name > fuzzy, each category's order stable. Regression guard on the ranking (so a future fuzzy upgrade can't reorder).
 - `resolveSkillName`: by trigger, by name, unknown → null.
 - `canonicalSkillId`: returns name; documented as the dedup key.
+- **Alias-collision resolution precedence:** skill A has `name: "ts"`, skill B has `trigger: "/ts"` and `name: "b"`. `resolveSkillName("/ts")` resolves to B (trigger wins). Dedup still keys on `canonicalSkillId` — A (`ts`) and B (`b`) are distinct entries.
 
 ### Unit — `tests/skills/catalog.test.ts`
 - `getByTriggerOrName`: by trigger, by name, by `/trigger`, unknown → undefined.
@@ -170,11 +181,14 @@ inject into "## Available Skills" system-prompt section
 - Builds once on first access (catalog cached).
 - `invalidateSlashCatalog()` causes next read to reload.
 - Reading the cached catalog does not re-read the filesystem.
+- **Generation race:** a build that started before `invalidateSlashCatalog()` and resolves after it is detected stale (captured generation ≠ current) and discarded — the next read rebuilds. (Simulated by controlling build timing / injected manifest loader.)
 
 ### Session — `tests/agent/session-skills.test.ts`
 - **Alias precedence:** a skill reachable by both `trigger` and `name` resolves to the same skill (single injection).
+- **Alias-collision regression:** skill A (`name: "ts"`) and skill B (`name: "b"`, `trigger: "/ts"`) — dedup keys on `canonicalSkillId`, so `{ts, b}` stay two entries even though `"/ts"` resolves to B. Verifies the sole-dedup-authority contract.
 - **Multiple explicit skills:** `skills: ["tdd", "typescript"]` injects both.
 - **Explicit + automatic duplicate:** explicit skill that also auto-matches → exactly one copy in the injected prompt.
+- **Transactional load:** when a resolved explicit skill's body fails to load, the entire explicit set is dropped (auto-match only) — no partial injection.
 - Union still runs auto-match when explicit skills are present.
 
 ### TUI — `tests/tui/app.test.ts`
@@ -182,6 +196,8 @@ inject into "## Available Skills" system-prompt section
 - Enter on a valid skill strips trigger, submits `rest` with `skills` set.
 - Enter on exactly `/` opens the palette.
 - Enter on `/unknown` keeps text in buffer, does NOT submit to the agent, shows the hint.
+- **Tab cycles the strip selection** (wraps; single candidate stays); Tab with a non-slash buffer falls through to the existing binding.
+- **Tab-then-Enter composes:** Tab to a candidate, then Enter activates that skill.
 - `dispatchToSession` threads `skills` through.
 
 ## Verification
