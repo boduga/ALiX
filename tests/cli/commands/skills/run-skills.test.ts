@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { resolveSkillsCommand } from "../../../../src/cli/commands/skills/run-skills.js";
+import { resolveSkillScriptPath } from "../../../../src/cli/commands/skills/run-skill.js";
 
 describe("resolveSkillsCommand", () => {
   it('maps ["available"] to { type: "available" }', () => {
@@ -84,5 +86,24 @@ describe("resolveSkillsCommand", () => {
   it("parses 'install --force'", () => {
     const cmd = resolveSkillsCommand(["install", "x", "--from", "/tmp/x", "--force"]);
     assert.ok(cmd.type === "install" && cmd.opts.force === true);
+  });
+});
+
+describe("resolveSkillScriptPath", () => {
+  const skillDir = join("/home", "u", ".alix", "skills", "demo");
+
+  it("resolves a bare script name inside scripts/", () => {
+    assert.equal(resolveSkillScriptPath(skillDir, "build.sh"), join(skillDir, "scripts", "build.sh"));
+  });
+
+  it("rejects path traversal", () => {
+    assert.throws(() => resolveSkillScriptPath(skillDir, "../evil.sh"), /Invalid script name/);
+    assert.throws(() => resolveSkillScriptPath(skillDir, "../../etc/passwd"), /Invalid script name/);
+  });
+
+  it("rejects absolute and empty names", () => {
+    assert.throws(() => resolveSkillScriptPath(skillDir, "/etc/passwd"), /Invalid script name/);
+    assert.throws(() => resolveSkillScriptPath(skillDir, ""), /Invalid script name/);
+    assert.throws(() => resolveSkillScriptPath(skillDir, ".."), /Invalid script name/);
   });
 });

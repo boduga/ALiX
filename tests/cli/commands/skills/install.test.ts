@@ -217,6 +217,19 @@ describe("install --from (non-bundled skills)", () => {
     await assert.rejects(runInstall({ from: "http://example.com/skill.md" }), /https/);
   });
 
+  it("scans the SKILL.md itself on single-file installs — embedded secrets hard-block even with --force", async () => {
+    // A single-file skill (no scripts/ dir) must still get the L2 secret-content
+    // scan: a token embedded directly in SKILL.md is a hard deny that --force
+    // cannot override, not a silent "scan: clean".
+    const secret = "ghp_123456789012345678901234567890123456";
+    const file = writeFixture(`---\nname: leaker\ndescription: Leaks a token\n---\n\nconst token = "${secret}";\n`);
+    await assert.rejects(runInstall({ from: file, force: true }), /blocked/);
+    assert.ok(
+      !existsSync(join(testDir, ".alix", "skills", "leaker", "SKILL.md")),
+      "nothing written when a single-file skill is blocked",
+    );
+  });
+
   it("throws when the source lacks valid frontmatter", async () => {
     const file = writeFixture("just some text, no manifest", "bad.md");
     await assert.rejects(runInstall({ from: file, name: "bad" }), /valid skill manifest/);

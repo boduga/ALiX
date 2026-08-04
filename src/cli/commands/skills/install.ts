@@ -6,7 +6,7 @@ import { parseSkillContent, type SkillManifest } from "../../../skills/types.js"
 import { loadSafetyConfig } from "../../../skills/safety-config.js";
 import { githubRawCandidates, fetchSkillFromUrls, parseGithubUrl, EXCLUDED_DIRS } from "./net.js";
 import { checkManifest, scanSkillFiles, scanSkillDirectory, type SkillScanResult } from "../../../skills/security.js";
-import { assessTrust, createInstallGate, type TrustLevel } from "../../../skills/trust.js";
+import { assessTrust, createInstallGate, type GateResult, type TrustLevel } from "../../../skills/trust.js";
 import { SkillInstallHistory, type SkillInstallRecord } from "../../../security/evidence/skill-install-history.js";
 import {
   loadMarketplaces,
@@ -152,11 +152,13 @@ async function gateAndRecordInstall(params: {
   manifest: SkillManifest | null;
   packageFiles?: SkillPackageFile[];
   sourceDir?: string;
+  /** Raw SKILL.md content — scanned directly when neither packageFiles nor sourceDir exist. */
+  skillContent?: string;
   skillsDir: string;
   force: boolean;
   trustLevel: TrustLevel;
   sourceLabel: string;
-}): Promise<"approve" | "deny"> {
+}): Promise<GateResult> {
   const safety = await loadSafetyConfig();
   const manifest = params.manifest;
   if (!manifest) throw new Error("Source does not contain a valid skill manifest");
@@ -165,14 +167,25 @@ async function gateAndRecordInstall(params: {
   let scan: SkillScanResult | null = null;
   if (safety.scanScripts) {
     if (params.packageFiles && params.packageFiles.length > 0) {
-      scan = scanSkillFiles(params.packageFiles);
+      scan = scanSkillFiles(params.packageFiles, { ignorePatternCodes: safety.ignoreWarningPatterns });
     } else if (params.sourceDir) {
-      scan = await scanSkillDirectory(params.sourceDir, { excluded: EXCLUDED_DIRS });
+      scan = await scanSkillDirectory(params.sourceDir, {
+        excluded: EXCLUDED_DIRS,
+        ignorePatternCodes: safety.ignoreWarningPatterns,
+      });
+    } else if (params.skillContent) {
+      // Single-file installs (marketplace single-file fallback, --from URL/.md)
+      // still get the full L2 scan on the SKILL.md itself — the verifier's
+      // secret-content deny patterns run here, so a single-file skill embedding
+      // a token is caught instead of silently reporting "scan: clean".
+      scan = scanSkillFiles([{ relPath: "SKILL.md", content: params.skillContent }], {
+        ignorePatternCodes: safety.ignoreWarningPatterns,
+      });
     }
   }
 
   const gate = createInstallGate();
-  const outcome = await gate({
+  const result = await gate({
     name: params.name,
     source: params.source,
     trust: { level: params.trustLevel, sourceLabel: params.sourceLabel, reason: "" },
@@ -198,16 +211,16 @@ async function gateAndRecordInstall(params: {
     scanErrorCount: scan ? scan.errorCount : 0,
     scanWarningCount: scan ? scan.warningCount : 0,
     filesScanned: scan?.filesScanned ?? 0,
-    approved: outcome === "approve",
+    approved: result.outcome === "approve",
     force: params.force,
-    reason: outcome === "approve" ? "approved" : "blocked",
+    reason: result.reason,
   };
   if (manifestReport.license !== undefined) {
     record.license = manifestReport.license;
   }
   await new SkillInstallHistory(evidenceDir).recordInstall(record);
 
-  return outcome;
+  return result;
 }
 
 export async function runInstall(opts: InstallOptions): Promise<void> {
@@ -281,20 +294,19 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
       marketplaces,
       verifiedUrls: DEFAULT_MARKETPLACES.map((m) => m.url),
     });
-    const outcome = await gateAndRecordInstall({
+    const result = await gateAndRecordInstall({
       name: opts.name,
       source: repoUrl,
       manifest,
       packageFiles,
+      skillContent: content,
       skillsDir,
       force: opts.force ?? false,
       trustLevel: trust.level,
       sourceLabel: trust.sourceLabel,
     });
-    if (outcome === "deny") {
-      throw new Error(
-        `Skill install blocked: ${opts.name} from ${repoUrl}. Re-run with --force to override the trust confirmation.`,
-      );
+    if (result.outcome === "deny") {
+      throw new Error(`Skill install blocked: ${opts.name} from ${repoUrl}. ${result.reason}`);
     }
     await atomicInstallSkill(destDir, async (tmpDir) => {
       if (packageFiles) {
@@ -513,27 +525,26 @@ async function installFromSource(source: string, name: string | undefined, skill
     marketplaces,
     verifiedUrls: DEFAULT_MARKETPLACES.map((m) => m.url),
   });
-  const outcome = await gateAndRecordInstall({
+  const result = await gateAndRecordInstall({
     name: resolvedName,
     source,
     manifest,
     packageFiles,
     sourceDir: sourceIsDir ? sourceDir : undefined,
+    skillContent: content,
     skillsDir,
     force,
     trustLevel: trust.level,
     sourceLabel: trust.sourceLabel,
   });
-  if (outcome === "deny") {
+  if (result.outcome === "deny") {
     if (!targetExisted) {
       // The mkdir above exists for the self-copy realpath guard; on a denied
       // install it leaves an empty dir behind. Remove it so a blocked install
       // leaves no trace. Safe: it is empty or freshly created.
       await rm(targetDir, { recursive: true, force: true }).catch(() => {});
     }
-    throw new Error(
-      `Skill install blocked: ${resolvedName} from ${source}. Re-run with --force to override the trust confirmation (hard scan denials cannot be overridden).`,
-    );
+    throw new Error(`Skill install blocked: ${resolvedName} from ${source}. ${result.reason}`);
   }
 
   if (sourceIsDir) {

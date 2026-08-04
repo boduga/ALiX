@@ -72,6 +72,8 @@ export const DEFAULT_CONFIG: AlixConfig = {
       scanScripts: true,
       denyNetwork: true,
       sandboxTimeoutMs: 30_000,
+      ignoreWarningPatterns: [],
+      requireNetworkIsolation: false,
     },
   },
   extensions: {

@@ -41,6 +41,13 @@ export interface SandboxRunOptions {
   timeoutMs?: number;
   /** Attempt network isolation (default true). */
   noNetwork?: boolean;
+  /**
+   * When noNetwork is true but isolation cannot be established (unshare missing
+   * or the unshare() syscall is blocked), do NOT fall back to the plain spawn:
+   * return a start-failure result instead. Default false keeps the env-only
+   * fallback, which is a defense-in-depth boundary, not a jail.
+   */
+  failClosedOnNetworkFailure?: boolean;
   /** Extra environment variables layered over the filtered base. */
   env?: Record<string, string>;
   /** stdout/stderr capture cap in bytes (default 1MB). */
@@ -55,6 +62,14 @@ export interface SandboxRunResult {
   timedOut: boolean;
   /** true when a network namespace was successfully created. */
   networkIsolated: boolean;
+  /**
+   * true when the caller requested network isolation (noNetwork) but it could
+   * NOT be established — unshare missing, user namespaces disabled/seccomp, or
+   * a non-Linux platform. Distinct from `networkIsolated: false`, which is also
+   * set when isolation was never requested. Check this flag (or use
+   * failClosedOnNetworkFailure) rather than inferring from networkIsolated.
+   */
+  networkIsolationFailed: boolean;
   usedCwd: string;
 }
 
@@ -128,6 +143,7 @@ export async function runSandboxed(command: string, opts: SandboxRunOptions = {}
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const maxBuffer = opts.maxBuffer ?? MAX_BUFFER_BYTES;
   const noNetwork = opts.noNetwork ?? true;
+  const failClosed = opts.failClosedOnNetworkFailure ?? false;
   const args = opts.args ?? [];
 
   const sandboxHome = await mkdtemp(join(tmpdir(), "alix-sandbox-"));
@@ -136,44 +152,91 @@ export async function runSandboxed(command: string, opts: SandboxRunOptions = {}
 
   try {
     const unsharePath = process.env[UNSHARE_ENV] ?? UNSHARE;
-    const candidates: { argv: string[]; networkIsolated: boolean }[] = [];
-    if (noNetwork && process.platform === "linux" && existsSync(unsharePath)) {
-      candidates.push({
-        argv: [unsharePath, "-Un", "--", command, ...args],
-        networkIsolated: true,
-      });
-    }
-    candidates.push({ argv: [command, ...args], networkIsolated: false });
+    const unshareEligible = process.platform === "linux" && existsSync(unsharePath);
+    // Set when isolation was requested (noNetwork) but could not be delivered.
+    let isolationFailed = false;
 
-    for (const cand of candidates) {
-      const out = await spawnOnce(cand.argv, usedCwd, env, timeoutMs, maxBuffer);
+    if (noNetwork && unshareEligible) {
+      const out = await spawnOnce([unsharePath, "-Un", "--", command, ...args], usedCwd, env, timeoutMs, maxBuffer);
       if (out.started) {
         // The unshare process spawned but the unshare() syscall itself failed
         // (EPERM — user namespaces disabled/seccomp): the command never ran.
-        // Treat as a start failure and fall through to the plain spawn. A
-        // `unshare: failed to execute ...` (exit 127, command not found AFTER
-        // namespace creation) is a REAL result and does not fall back.
-        if (
-          cand.networkIsolated &&
-          out.exitCode !== 0 &&
-          UNSHARE_SYSCALL_FAILURE.test(out.stderr)
-        ) {
-          continue;
+        // A `unshare: failed to execute ...` (exit 127, command not found AFTER
+        // namespace creation) is a REAL result and must not fall back.
+        const syscallFailed = out.exitCode !== 0 && UNSHARE_SYSCALL_FAILURE.test(out.stderr);
+        if (!syscallFailed) {
+          return {
+            ok: out.ok,
+            stdout: out.stdout,
+            stderr: out.stderr,
+            exitCode: out.exitCode,
+            timedOut: out.timedOut,
+            networkIsolated: true,
+            networkIsolationFailed: false,
+            usedCwd,
+          };
         }
-        return {
-          ok: out.ok,
-          stdout: out.stdout,
-          stderr: out.stderr,
-          exitCode: out.exitCode,
-          timedOut: out.timedOut,
-          networkIsolated: cand.networkIsolated,
-          usedCwd,
-        };
+        // unshare() syscall failed — the requested boundary was not delivered.
+        isolationFailed = true;
+        if (failClosed) {
+          return {
+            ok: false,
+            stdout: "",
+            stderr:
+              `network isolation unavailable (unshare failed): ${out.stderr.trim()}. ` +
+              `failClosedOnNetworkFailure is set — refusing to run ${command} without the network boundary.`,
+            exitCode: null,
+            timedOut: false,
+            networkIsolated: false,
+            networkIsolationFailed: true,
+            usedCwd,
+          };
+        }
+      } else {
+        // unshare failed to start (ENOENT/EPERM) — requested boundary not delivered.
+        isolationFailed = true;
+        if (failClosed) {
+          return {
+            ok: false,
+            stdout: "",
+            stderr: `network isolation unavailable (unshare failed to start) — refusing to run ${command} without the network boundary.`,
+            exitCode: null,
+            timedOut: false,
+            networkIsolated: false,
+            networkIsolationFailed: true,
+            usedCwd,
+          };
+        }
       }
-      // unshare failed to start (ENOENT/EPERM) — fall through to plain spawn.
+    } else {
+      // Isolation not requested, or not available on this platform/binary.
+      isolationFailed = noNetwork;
     }
-    // Plain spawn failed to start — surface as a non-zero result.
-    return { ok: false, stdout: "", stderr: `failed to start: ${command}`, exitCode: null, timedOut: false, networkIsolated: false, usedCwd };
+
+    // Fallback (or direct) plain spawn with env-only proxy blocking.
+    const plain = await spawnOnce([command, ...args], usedCwd, env, timeoutMs, maxBuffer);
+    if (!plain.started) {
+      return {
+        ok: false,
+        stdout: "",
+        stderr: `failed to start: ${command}`,
+        exitCode: null,
+        timedOut: false,
+        networkIsolated: false,
+        networkIsolationFailed: isolationFailed,
+        usedCwd,
+      };
+    }
+    return {
+      ok: plain.ok,
+      stdout: plain.stdout,
+      stderr: plain.stderr,
+      exitCode: plain.exitCode,
+      timedOut: plain.timedOut,
+      networkIsolated: false,
+      networkIsolationFailed: isolationFailed,
+      usedCwd,
+    };
   } finally {
     // The temp sandbox home is never the caller's cwd, so a single unconditional
     // cleanup suffices (the brief's redundant-looking branches simplify to this).

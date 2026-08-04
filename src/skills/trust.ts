@@ -144,14 +144,22 @@ async function defaultPrompt(report: string): Promise<boolean> {
   }
 }
 
+export interface GateResult {
+  outcome: "approve" | "deny";
+  /** The decision reason — recorded verbatim to the evidence store. */
+  reason: string;
+}
+
 /** Gate runner with injectable prompt (tests stub the prompt; CLI uses stdin). */
-export function createInstallGate(promptFn?: PromptFn): (input: InstallGateInput) => Promise<"approve" | "deny"> {
+export function createInstallGate(promptFn?: PromptFn): (input: InstallGateInput) => Promise<GateResult> {
   return async (input) => {
     const decision = decideInstall(input);
-    if (decision.outcome === "approve") return "approve";
-    if (decision.outcome === "deny") return "deny";
+    if (decision.outcome === "approve") return { outcome: "approve", reason: decision.reason };
+    if (decision.outcome === "deny") return { outcome: "deny", reason: decision.reason };
     const ask = promptFn ?? defaultPrompt;
     const ok = await ask(renderInstallReport(input));
-    return ok ? "approve" : "deny";
+    return ok
+      ? { outcome: "approve", reason: "user confirmed interactive prompt" }
+      : { outcome: "deny", reason: "user declined interactive prompt" };
   };
 }

@@ -56,6 +56,45 @@ describe("runSandboxed", () => {
     const r = await runSandboxed("true", { noNetwork: false });
     assert.equal(r.ok, true);
     assert.equal(r.networkIsolated, false);
+    // Isolation was never requested, so it did not "fail".
+    assert.equal(r.networkIsolationFailed, false);
+  });
+
+  it("flags networkIsolationFailed exactly when isolation was requested but not delivered", async () => {
+    const r = await runSandboxed("true", { noNetwork: true, failClosedOnNetworkFailure: false });
+    // On this host unshare may or may not exist; if it exists and succeeds the
+    // boundary is delivered (networkIsolationFailed=false). Either way the
+    // invariant holds: requested-but-undelivered is the only failure state.
+    assert.equal(r.networkIsolationFailed, !r.networkIsolated);
+  });
+
+  it("fails closed when network isolation is required but unshare fails at the syscall level", async () => {
+    await withFakeUnshare(
+      "#!/bin/sh\necho 'unshare: unshare failed: Operation not permitted' >&2\nexit 1\n",
+      async () => {
+        const r = await runSandboxed("printf", { args: ["should-not-run"], failClosedOnNetworkFailure: true });
+        assert.equal(r.ok, false);
+        assert.equal(r.networkIsolated, false);
+        assert.equal(r.networkIsolationFailed, true);
+        assert.equal(r.stdout, "", "command must not run without the network boundary");
+        assert.match(r.stderr, /network isolation unavailable/);
+      },
+    );
+  });
+
+  it("failClosedOnNetworkFailure is a no-op when unshare succeeds", async () => {
+    // A faithful util-linux unshare: drop -Un/-- then exec the command. When the
+    // namespace is created the boundary is delivered, so fail-closed is inert.
+    await withFakeUnshare(
+      "#!/bin/sh\nwhile [ \"$1\" = \"-Un\" ]; do shift; done\n[ \"$1\" = \"--\" ] && shift\nexec \"$@\"\n",
+      async () => {
+        const r = await runSandboxed("printf", { args: ["isolated-ok"], failClosedOnNetworkFailure: true });
+        assert.equal(r.ok, true);
+        assert.equal(r.stdout, "isolated-ok");
+        assert.equal(r.networkIsolated, true);
+        assert.equal(r.networkIsolationFailed, false);
+      },
+    );
   });
 
   it("falls back to plain spawn when unshare fails at the syscall level (EPERM)", async () => {

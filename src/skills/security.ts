@@ -95,31 +95,54 @@ export interface SkillScanResult {
 /** Upper bound on a single scanned file's bytes (avoid reading giant blobs). */
 const MAX_SCAN_BYTES = 1024 * 1024;
 
+export interface DangerousShellPattern {
+  /** Stable identifier used as the finding code and for `skills.safety.ignoreWarningPatterns`. */
+  code: string;
+  pattern: RegExp;
+  message: string;
+}
+
 /**
  * Conservative shell-pattern heuristics. These WARN (false-positive risk) and
  * never hard-block — hard denials come from package-verifier.ts's deny logic.
+ *
+ * Each pattern carries a stable `code`. Warnings for a specific code can be
+ * acknowledged/suppressed by an operator who has reviewed the skill via
+ * `skills.safety.ignoreWarningPatterns: ["<code>", ...]` — the default is
+ * empty, so every pattern warns until explicitly acknowledged.
  */
-export const DANGEROUS_SHELL_PATTERNS: { pattern: RegExp; message: string }[] = [
-  { pattern: /rm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\s+(\/\/?|\/|\*)\s*(\s|;|$)/, message: "recursive force delete of filesystem root" },
-  { pattern: /\b(?:curl|wget)\b[^\n;|]*\|\s*(?:bash|zsh|dash|sh)\b/i, message: "pipe-to-shell pattern (curl | sh)" },
-  { pattern: /(?:base64\s+-[dD]|from\s+base64\s+import\b)/i, message: "base64 payload decoding" },
-  { pattern: /\b(?:ncat|nc)\b\s+-[a-zA-Z]*[el][a-zA-Z]*/, message: "netcat listener (possible reverse shell)" },
-  { pattern: /\beval\s*\(/, message: "eval() execution" },
-  { pattern: /\bexec\s*\(/, message: "exec() execution" },
-  { pattern: /(?:https?|ftp):\/\/[^\s"']*\s+(?:-o|-O|>)\s*/, message: "remote download written to a local file" },
-  { pattern: /(?:~\/)?\.ssh\//, message: "references SSH keys" },
-  { pattern: /\/etc\/(?:passwd|shadow)\b/, message: "references system credential files" },
+export const DANGEROUS_SHELL_PATTERNS: DangerousShellPattern[] = [
+  { code: "rm-root", pattern: /rm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\s+(\/\/?|\/|\*)\s*(\s|;|$)/, message: "recursive force delete of filesystem root" },
+  { code: "pipe-to-shell", pattern: /\b(?:curl|wget)\b[^\n;|]*\|\s*(?:bash|zsh|dash|sh)\b/i, message: "pipe-to-shell pattern (curl | sh)" },
+  { code: "base64-decode", pattern: /(?:base64\s+-[dD]|from\s+base64\s+import\b)/i, message: "base64 payload decoding" },
+  { code: "netcat-listener", pattern: /\b(?:ncat|nc)\b\s+-[a-zA-Z]*[el][a-zA-Z]*/, message: "netcat listener (possible reverse shell)" },
+  // `eval` is a legitimate built-in in JS/Python, so a bare `eval(` is NOT a
+  // warning. Only flag the genuinely dangerous forms: eval of a variable (which
+  // may hold external input) and eval/Function() fed decoded data — the classic
+  // obfuscation shape (`eval(atob("..."))`). Literal `eval("1+1")` stays quiet.
+  { code: "eval-variable", pattern: /\beval\s*\(\s*[a-zA-Z_$][\w$.:]*\s*\)/i, message: "eval() of a variable (possibly external input)" },
+  { code: "eval-decoded", pattern: /\beval\s*\(\s*(?:atob|Buffer\.from|fromCharCode|unescape|hex2bin)\s*\(/i, message: "eval() of decoded/obfuscated data" },
+  { code: "dynamic-exec", pattern: /\bnew\s+Function\s*\(\s*(?:atob|Buffer\.from|fromCharCode|unescape)\s*\(/i, message: "Function() constructor from decoded/obfuscated data" },
+  { code: "exec-exec", pattern: /\bexec\s*\(/, message: "exec() execution" },
+  { code: "download-to-file", pattern: /(?:https?|ftp):\/\/[^\s"']*\s+(?:-o|-O|>)\s*/, message: "remote download written to a local file" },
+  { code: "ssh-key-ref", pattern: /(?:~\/)?\.ssh\//, message: "references SSH keys" },
+  { code: "etc-creds-ref", pattern: /\/etc\/(?:passwd|shadow)\b/, message: "references system credential files" },
 ];
 
-function checkDangerousScript(content: string, filePath: string): SkillScanFinding[] {
+function checkDangerousScript(
+  content: string,
+  filePath: string,
+  ignorePatternCodes?: ReadonlySet<string>,
+): SkillScanFinding[] {
   const isScript = filePath.split("/").includes("scripts") || /\.(sh|bash|py|js|rb|pl)$/i.test(filePath);
   if (!isScript) return [];
   const findings: SkillScanFinding[] = [];
-  for (const { pattern, message } of DANGEROUS_SHELL_PATTERNS) {
+  for (const { code, pattern, message } of DANGEROUS_SHELL_PATTERNS) {
+    if (ignorePatternCodes?.has(code)) continue;
     pattern.lastIndex = 0;
     if (pattern.test(content)) {
       findings.push({
-        code: "SC_SKILL_DANGEROUS_SCRIPT",
+        code,
         severity: "warning",
         message: `possible dangerous pattern in ${filePath}: ${message}`,
         filePath,
@@ -130,13 +153,26 @@ function checkDangerousScript(content: string, filePath: string): SkillScanFindi
   return findings;
 }
 
+export interface SkillScanOptions {
+  /**
+   * DANGEROUS_SHELL_PATTERNS codes to skip (operator-acknowledged as reviewed).
+   * Only affects shell-heuristic warnings — package-verifier deny errors and the
+   * suppression list can never silence them.
+   */
+  ignorePatternCodes?: readonly string[];
+}
+
 /**
  * Scan an in-memory set of package files (from a GitHub URL package). Reuses
  * the supply-chain verifier's deny patterns so skills are held to the same bar
  * as npm tarballs. Structural type `{ relPath, content }` matches
  * `SkillPackageFile` without importing from the CLI layer.
  */
-export function scanSkillFiles(files: { relPath: string; content: string }[]): SkillScanResult {
+export function scanSkillFiles(
+  files: { relPath: string; content: string }[],
+  opts?: SkillScanOptions,
+): SkillScanResult {
+  const ignore = opts?.ignorePatternCodes ? new Set(opts.ignorePatternCodes) : undefined;
   const findings: SkillScanFinding[] = [];
   let filesScanned = 0;
   for (const file of files) {
@@ -155,7 +191,7 @@ export function scanSkillFiles(files: { relPath: string; content: string }[]): S
     for (const f of checkSecretContent(file.content, file.relPath)) {
       findings.push({ code: f.code, severity: f.severity, message: f.message, filePath: f.filePath ?? file.relPath, details: f.details });
     }
-    findings.push(...checkDangerousScript(file.content, file.relPath));
+    findings.push(...checkDangerousScript(file.content, file.relPath, ignore));
   }
   const errorCount = findings.filter((f) => f.severity === "error").length;
   const warningCount = findings.length - errorCount;
@@ -168,7 +204,7 @@ export function scanSkillFiles(files: { relPath: string; content: string }[]): S
  */
 export async function scanSkillDirectory(
   dir: string,
-  opts?: { excluded?: readonly string[] },
+  opts?: { excluded?: readonly string[] } & SkillScanOptions,
 ): Promise<SkillScanResult> {
   const excluded = opts?.excluded ?? [];
   const files: { relPath: string; content: string }[] = [];
@@ -188,5 +224,5 @@ export async function scanSkillDirectory(
     }
   }
   await walk(dir, "");
-  return scanSkillFiles(files);
+  return scanSkillFiles(files, opts?.ignorePatternCodes ? { ignorePatternCodes: opts.ignorePatternCodes } : undefined);
 }

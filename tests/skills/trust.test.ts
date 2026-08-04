@@ -105,12 +105,20 @@ describe("createInstallGate", () => {
   it("runs the injected prompt and returns the decision", async () => {
     const gate = createInstallGate(async () => true);
     const ok = await gate(baseInput({ interactive: true }));
-    assert.equal(ok, "approve");
+    assert.equal(ok.outcome, "approve");
+    assert.equal(ok.reason, "user confirmed interactive prompt");
   });
   it("denies when the prompt answers no", async () => {
     const gate = createInstallGate(async () => false);
     const ok = await gate(baseInput({ interactive: true }));
-    assert.equal(ok, "deny");
+    assert.equal(ok.outcome, "deny");
+    assert.equal(ok.reason, "user declined interactive prompt");
+  });
+  it("surfaces the real decision reason for auto-denies", async () => {
+    const gate = createInstallGate(async () => true);
+    const blocked = await gate(baseInput({ interactive: false, force: false }));
+    assert.equal(blocked.outcome, "deny");
+    assert.match(blocked.reason, /requires --force/);
   });
 });
 

@@ -5,6 +5,10 @@ export interface LoadedSkillSafetyConfig {
   scanScripts: boolean;
   denyNetwork: boolean;
   sandboxTimeoutMs: number;
+  /** DANGEROUS_SHELL_PATTERNS codes the operator has acknowledged (skip warning). */
+  ignoreWarningPatterns: string[];
+  /** Fail `alix skills run` when network isolation is requested but unavailable. */
+  requireNetworkIsolation: boolean;
 }
 
 /**
@@ -22,8 +26,17 @@ export async function loadSafetyConfig(): Promise<LoadedSkillSafetyConfig> {
       scanScripts: safety?.scanScripts ?? true,
       denyNetwork: safety?.denyNetwork ?? true,
       sandboxTimeoutMs: safety?.sandboxTimeoutMs ?? 30_000,
+      ignoreWarningPatterns: safety?.ignoreWarningPatterns ?? [],
+      requireNetworkIsolation: safety?.requireNetworkIsolation ?? false,
     };
   } catch {
-    return { requireConfirmation: true, scanScripts: true, denyNetwork: true, sandboxTimeoutMs: 30_000 };
+    return {
+      requireConfirmation: true,
+      scanScripts: true,
+      denyNetwork: true,
+      sandboxTimeoutMs: 30_000,
+      ignoreWarningPatterns: [],
+      requireNetworkIsolation: false,
+    };
   }
 }
