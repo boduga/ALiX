@@ -637,6 +637,33 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
     internal.handleRaw(Buffer.from('\r'));
     expect(internal.recorded).toBe('/tdd fix parser'); // plain text, no skill
   });
+
+  it('clears a stale unknown-command hint when the buffer now matches', async () => {
+    // Regression: a sticky slashHint hid the candidate strip until submit/restart.
+    // Repro: type `/nope`, Enter (hint shows), then backspace to `/` and type a
+    // valid skill — the candidate strip must reappear.
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async () => ({ summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' }),
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    // First: unknown command → hint set.
+    for (const ch of '/nope') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.slashHintForTest).toBeTruthy();
+    // Backspace the full command to `/`, then type `/tdd`.
+    // "/nope" is 5 chars; backspace 4 times removes "nope" leaving "/".
+    for (let i = 0; i < 4; i++) internal.handleRaw(Buffer.from([0x7f]));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/');
+    for (const ch of 'tdd') internal.handleRaw(Buffer.from(ch));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/tdd');
+    // The fix: candidate strip must reappear, hint must clear.
+    expect(internal.slashHintForTest).toBeNull();
+    const s = (internal as any).computeSlashStrip();
+    expect(s.hint).toBeNull();
+    expect(s.entries.length).toBeGreaterThan(0);
+  });
 });
 
 describe('TuiApp — emit into the EventLog (Phase 6)', () => {

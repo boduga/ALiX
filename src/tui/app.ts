@@ -402,11 +402,15 @@ export class TuiApp {
   /** Build the strip passed to views; also refreshes slashSelection bounds. */
   private computeSlashStrip(): SlashStrip | null {
     const buf = this.slashBuffer();
-    if (!buf) { this.slashSelection = 0; return null; }
+    if (!buf) { this.slashSelection = 0; this.slashHint = null; return null; }
     const parsed = parseSlashInput(buf);
-    if (!parsed) return null;
+    if (!parsed) { this.slashHint = null; return null; }
     const matches = rankSkillMatches(this.slashManifests, parsed.command);
     this.slashSelection = Math.min(this.slashSelection, Math.max(0, matches.length - 1));
+    // Clear a stale hint whenever the buffer now matches a known skill — the
+    // render branch is `if (hint) else if (entries)` so a stale hint would
+    // hide the recovering candidate strip until submit/restart.
+    if (matches.length > 0) this.slashHint = null;
     return {
       entries: matches.slice(0, 8).map((m): SlashStripEntry => ({
         name: m.name,
