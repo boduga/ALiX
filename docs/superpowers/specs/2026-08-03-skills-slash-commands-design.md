@@ -8,13 +8,13 @@
 
 ALiX has a full skills subsystem (`src/skills/`): skills live in `~/.alix/skills/<name>/SKILL.md` with a `SkillManifest` carrying `name`, `description`, `trigger` (a slash command like `/tdd`), `pattern`, and optional `scripts/`. The agent session already loads *auto-matched* skills into its system prompt via `setupSkills()`/`SkillCatalog.match()`, and the CLI has `alix skills run` to execute a skill's script in the Layer-4 sandbox.
 
-But the **TUI** has no way to invoke a skill by slash command. Typing `/tdd` into the chat input today either opens the command palette (`/` on empty chat) or sends the literal text to the agent. This feature gives the TUI a first-class **skill slash-command surface**: typing `/tdd` resolves the skill, loads it explicitly into the agent session, and submits the rest of the line as the task — while preserving today's auto-matching behavior.
+But the **TUI** has no way to invoke a skill by slash command. Typing `/tdd` into the TUI input today either opens the command palette (`/` on empty chat) or sends the literal text to the agent. This feature gives the TUI a first-class **skill slash-command surface on the agent tab**: typing `/tdd` there resolves the skill, loads it explicitly into the agent session, and submits the rest of the line as the task — while preserving today's auto-matching behavior. The chat tab keeps today's behavior unchanged (`/` opens the palette on empty chat input, otherwise plain text).
 
 ## Goals
 
-- Users can invoke any installed skill by its `trigger` (or `/name`) from the TUI chat/agent input, with in-input completion.
+- Users can invoke any installed skill by its `trigger` (or `/name`) from the TUI **agent-tab** input, with in-input completion. Slash commands are **agent-tab only**.
 - Explicit skill activation **adds** to, never replaces, automatic pattern/trigger matching (union → dedupe → inject).
-- No regression to the existing command palette (`/` on empty chat, `Ctrl+P`).
+- No regression to the existing command palette (`/` on empty chat, `Ctrl+P`). The chat tab's `/` behavior is untouched.
 - No breakage to existing `processTurn`/`processChat` callers.
 
 ## Non-goals
@@ -99,8 +99,8 @@ Existing system-prompt section; agent acts on the skill
     - *Resolution* (name → skill) is per-name and non-fatal: a name that resolves to no installed skill is skipped with a warning (`Skill "tdd" isn't installed. Continuing without it.`).
     - *Loading* is atomic: all resolved explicit bodies are loaded together (`Promise.all`). If any body load throws, the **entire explicit set is dropped wholesale** and the turn continues with auto-match only — never a half-injected explicit subset. This keeps the injected state consistent: either the full explicit set is present, or none of it is.
 - `processTurn(message, options?: { skills?: string[] })`
-- `processChat(message, options?: { skills?: string[] })`
-  - Both pass `options.skills` through to `setupSkills`. Existing callers (run.ts, repl.ts, daemon-client, tui app) pass no second arg → unchanged behavior.
+  - Passes `options.skills` through to `setupSkills`. Existing callers (run.ts, repl.ts, daemon-client, tui app) pass no second arg → unchanged behavior.
+- `processChat` is **unchanged**. Slash commands are agent-tab only, so the chat path never receives an explicit skill list and keeps its current constant-`chatSystemPrompt` behavior.
 
 ### 4. Generation-based catalog cache (startup + install/remove invalidation)
 
@@ -121,22 +121,24 @@ Existing system-prompt section; agent acts on the skill
 
 ### 5. `src/tui/app.ts` — input layer
 
-- **Slash-completion strip** below the chat/agent prompt when the buffer starts with `/`: renders `rankSkillMatches` results (top N) in ranked order; the **highlighted candidate** is the strip's selection.
+**Slash commands are agent-tab only.** The chat tab keeps today's behavior (`/` opens the palette on empty chat input, otherwise plain text). All slash handling below applies to the agent-tab input.
+
+- **Slash-completion strip** below the agent-tab prompt when the buffer starts with `/`: renders `rankSkillMatches` results (top N) in ranked order; the **highlighted candidate** is the strip's selection.
 - **Tab behavior — cycle the strip selection:**
   - Buffer starts with `/` → **Tab moves the strip highlight to the next candidate** (wraps around; stays on the first when there's a single candidate). Tab does **not** modify the buffer text — it only changes which candidate is selected. The strip always shows which candidate is highlighted (e.g. `>` marker).
   - When the buffer is not a slash command, Tab falls through to the existing keybinding (today's behavior).
-- **Enter behavior — decision is at Enter, not at typing:**
-  - Buffer is exactly `/` → open the palette (today's behavior preserved).
+- **Enter behavior — decision is at Enter, not at typing (agent tab):**
+  - Buffer is exactly `/` → **not** slash mode (length-1) — falls through to today's path (submitted as text). The palette `/` shortcut remains a chat-tab / Ctrl+P behavior.
   - Buffer starts with `/` and resolves to a skill → strip the trigger, submit `rest` (or the skill name when `rest` is empty) via `dispatchToSession(..., { skills: [name] })`.
     - **Resolution precedence:** the strip's **highlighted candidate** wins when the user Tab-cycled to it; otherwise the buffer token is resolved by `rankSkillMatches` top match (so `/tdd` works with no Tab at all).
   - Buffer starts with `/` and the command does **not** resolve → **non-fatal, keep the text in the buffer**, show an inline hint "Unknown skill \"/foobar\" — press Tab for completions." Do **not** submit to the agent (prevents accidental LLM calls from a typo).
   - Anything else → today's path.
-  - **This creates a consistent rule:** the slash char's meaning is resolved at Enter — `/` alone = palette, `/anything` = slash command. Typing `/` naturally enters slash mode; the old palette shortcut still works if the user presses Enter immediately on `/`. Tab and Enter compose: **Tab to select, Enter to activate**.
-- `dispatchToSession` threads an optional `skills` field through to `processChat`/`processTurn`.
+  - **This creates a consistent rule:** on the agent tab, `/anything` is a slash command; typing `/` naturally enters slash mode. Tab and Enter compose: **Tab to select, Enter to activate**.
+- `dispatchToSession` threads an optional `skills` field through to `processTurn` (agent path). Chat never passes skills.
 
-### 6. `src/tui/views/chat-view.ts` + `agent-view.ts` — render the completion strip
+### 6. `src/tui/views/agent-view.ts` — render the completion strip
 
-- A couple of canvas rows under the prompt line showing matching skill triggers/names; highlighted first match. Discoverability only.
+- A couple of canvas rows under the agent-tab prompt line showing matching skill triggers/names; highlighted first match. Discoverability only. (ChatView never receives `ctx.slash`.)
 
 ## Data flow (union/dedupe/inject)
 
@@ -156,8 +158,10 @@ inject into "## Available Skills" system-prompt section
 
 | Situation | Behavior |
 |---|---|
-| Buffer is exactly `/` | Open palette (unchanged). |
-| `/unknown rest` | Non-fatal: keep text in buffer, show "Unknown skill \"/unknown\" — press Tab for completions." No agent call. |
+| Buffer is exactly `/` (chat tab) | Open palette (unchanged). |
+| Buffer is exactly `/` (agent tab) | Not slash mode (length-1); submitted as text. |
+| `/unknown rest` (agent tab) | Non-fatal: keep text in buffer, show "Unknown skill \"/unknown\" — press Tab for completions." No agent call. |
+| Slash input on the chat tab | No slash handling — submitted as plain text (today's behavior). |
 | Explicit name resolves to no installed skill | Non-fatal per-name: warning line in scrollback `Skill "tdd" isn't installed. Continuing without it.`; the name is excluded from the explicit batch. Auto-match continues. |
 | A resolved explicit skill's body fails to load | **Transactional:** the entire explicit set is dropped (never a half-injected subset) and the turn continues with auto-match only. |
 | Empty `rest` for a valid skill | Submit the skill's name as the task. |
@@ -192,13 +196,14 @@ inject into "## Available Skills" system-prompt section
 - Union still runs auto-match when explicit skills are present.
 
 ### TUI — `tests/tui/app.test.ts`
-- Buffer `/ty` renders a completion strip.
-- Enter on a valid skill strips trigger, submits `rest` with `skills` set.
-- Enter on exactly `/` opens the palette.
-- Enter on `/unknown` keeps text in buffer, does NOT submit to the agent, shows the hint.
+- Buffer `/ty` renders a completion strip (agent tab).
+- Enter on a valid skill strips trigger, submits `rest` with `skills` set (agent tab).
+- Enter on exactly `/` (agent tab) is NOT slash mode — submitted as text; the palette `/` shortcut remains a chat-tab behavior.
+- Enter on `/unknown` keeps text in buffer, does NOT submit to the agent, shows the hint (agent tab).
 - **Tab cycles the strip selection** (wraps; single candidate stays); Tab with a non-slash buffer falls through to the existing binding.
 - **Tab-then-Enter composes:** Tab to a candidate, then Enter activates that skill.
-- `dispatchToSession` threads `skills` through.
+- **Chat-tab guard:** slash input on the chat tab is submitted as plain text with no skill resolution (pins the agent-tab-only scoping).
+- `dispatchToSession` threads `skills` through the agent path.
 
 ## Verification
 
@@ -206,4 +211,4 @@ inject into "## Available Skills" system-prompt section
 2. `pnpm test:node` — full node:test suite (skills + supply-chain + session + TUI), 0 fail.
 3. `pnpm test:vitest` — evidence suite, 0 fail.
 4. `gitnexus detect_changes` — confirm only expected symbols/processes affected (per project CLAUDE.md).
-5. Manual TUI smoke: `alix tui` — type `/ty` (see completion strip), Enter `/tdd ...` (agent session gets skill injected), Enter `/` (palette opens), Enter `/nope` (hint, text preserved).
+5. Manual TUI smoke: `alix tui` — switch to the agent tab, type `/ty` (see completion strip), Tab cycles, Enter `/tdd ...` (agent session gets skill injected), Enter `/nope` (hint, text preserved). On the chat tab, `/` still opens the palette and `/nope` is sent as plain text.

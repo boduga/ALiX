@@ -4,7 +4,7 @@
 
 **Goal:** Give the ALiX TUI a first-class skill slash-command surface — typing `/tdd` resolves the installed skill, injects it explicitly into the agent session, and submits the rest of the line as the task, with in-input completion.
 
-**Architecture:** A pure parsing/completion layer (`src/skills/slash.ts`) sits between the TUI input and the agent session. It parses `/trigger rest`, resolves the skill, and hands the session an explicit skill list. The session merges explicit + auto-matched skills (union → dedupe by canonical id → inject into the "Available Skills" system-prompt section). A generation-based catalog cache (`src/skills/slash-catalog.ts`) keeps typing free of filesystem work. TUI input mode is resolved at Enter: `/` alone opens the palette, `/anything` is a slash command.
+**Architecture:** A pure parsing/completion layer (`src/skills/slash.ts`) sits between the TUI input and the agent session. It parses `/trigger rest`, resolves the skill, and hands the session an explicit skill list. The session merges explicit + auto-matched skills (union → dedupe by canonical id → inject into the "Available Skills" system-prompt section). A generation-based catalog cache (`src/skills/slash-catalog.ts`) keeps typing free of filesystem work. Slash-command mode is **AGENT-TAB ONLY**: on the agent tab, Enter resolves `/anything` as a slash command; the chat tab keeps today's behavior (`/` opens the palette on empty chat input, otherwise plain text).
 
 **Tech Stack:** TypeScript, node:test + vitest, existing `src/skills/{types,loader,catalog}.ts`, existing TUI raw-terminal input layer (`src/tui/app.ts`).
 
@@ -14,7 +14,7 @@
 - **`canonicalSkillId()` is the SOLE dedup authority.** No other field (display name, trigger, path) decides whether two skills are the same in the union/dedupe path.
 - **Explicit loading is transactional:** per-name resolution is non-fatal (missing skill → warn + skip), but body loading is atomic (`Promise.all`) — any load failure drops the ENTIRE explicit set, never a half-injected subset.
 - **Catalog is generation-based and cached.** Steady-state completion reads are pure in-memory; `invalidateSlashCatalog()` bumps the generation, install/remove call it.
-- **Enter resolves the slash char:** buffer exactly `/` → palette; buffer `/anything` → slash command. Tab cycles the completion-strip selection (does not modify the buffer); Enter activates the highlighted candidate, else the top `rankSkillMatches` match.
+- **Slash commands are AGENT-TAB only.** On the agent tab, Enter resolves the slash char: `/anything` → slash command. On the chat tab, `/` keeps today's behavior (palette opener on empty chat input; otherwise plain text — no slash handling). Tab cycles the completion-strip selection (does not modify the buffer); Enter activates the highlighted candidate, else the top `rankSkillMatches` match.
 - **Unknown `/command` is non-fatal:** text stays in the buffer, an inline hint shows "press Tab for completions", NO agent call is made.
 - **Existing `processTurn`/`processChat` callers must not break** — the `options` param is optional. `daemon-client.ts` and `src/cli/commands/tui.ts` stubs need NO change (implementations with fewer params are assignable).
 - `canonicalSkillId` returns `manifest.name` for now (the catalog's key and on-disk dir name). Isolated behind the function so a future canonical-id change updates one place.
@@ -34,9 +34,9 @@
 | `src/cli/commands/skills/install.ts` (modify) | Invalidate cache after install/remove |
 | `src/tui/views/types.ts` (modify) | `SlashStrip`/`SlashStripEntry` + `ViewRenderContext.slash` |
 | `src/tui/app.ts` (modify) | Slash-mode input layer, Tab/Enter routing, `dispatchToSession` skills threading |
-| `src/tui/views/chat-view.ts`, `agent-view.ts` (modify) | Render the completion strip + hint |
+| `src/tui/views/agent-view.ts` (modify) | Render the completion strip + hint (agent tab only) |
 
-Tests: `tests/skills/slash.test.ts` (new), `tests/skills/slash-catalog.test.ts` (new), `tests/skills/catalog.test.ts` (modify), `tests/agent/session-skills.test.ts` (new), `tests/cli/commands/skills/install.test.ts` (modify), `tests/tui/app.vitest.ts` (modify), `tests/tui/views/chat-view.test.ts` (new).
+Tests: `tests/skills/slash.test.ts` (new), `tests/skills/slash-catalog.test.ts` (new), `tests/skills/catalog.test.ts` (modify), `tests/agent/session-skills.test.ts` (new), `tests/cli/commands/skills/install.test.ts` (modify), `tests/tui/app.vitest.ts` (modify), `tests/tui/views/agent-view.test.ts` (new).
 
 ---
 
@@ -523,8 +523,7 @@ git commit -m "feat(skills): generation-based slash catalog cache with race-safe
   - `export function buildSkillsSection(skills: LoadedSkill[]): string`
   - `async function setupSkills(task, factoryConfig?, explicitSkills?, opts?: { autoMatch?: boolean }): Promise<LoadedSkill[]>` (merged union)
   - `processTurn(message, options?: { skills?: string[] })`
-  - `processChat(message, options?: { skills?: string[] })`
-  - `AgentSession.processTurn` / `processChat` gain optional `options` in the interface (line ~390/404).
+  - `AgentSession.processTurn` gains optional `options` in the interface (line ~390). `processChat` is UNCHANGED — slash commands are agent-tab only, so chat never passes skills.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -742,40 +741,12 @@ In `composeSystemPrompt`:
       ...
 ```
 
-**(f)** Update `processChat` (line 1565) to accept `options` and inject explicit skills into its system prompt (chat does NOT auto-match — preserves current behavior):
+**(f)** `processChat` (line 1565) is UNCHANGED. Slash commands are agent-tab only, so the chat path never receives an explicit skill list and keeps its current behavior (constant `chatSystemPrompt`, no skill injection). This is intentional — the chat tab stays lightweight.
 
-```ts
-    async function processChat(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult> {
-      const sessionId = session?.sessionId ?? "chat";
-      const provider = await ensureChatProvider();
-      if (!provider) {
-        return { summary: `[chat:no-provider] ${message}`, sessionId, toolCalls: [], reason: "chat" };
-      }
-      const chatSystemPrompt =
-        config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
-      let effectiveSystemPrompt = chatSystemPrompt;
-      if (options?.skills && options.skills.length > 0) {
-        const explicit = await setupSkills(message, config.skills?.factory, options.skills, { autoMatch: false });
-        const section = buildSkillsSection(explicit);
-        if (section) effectiveSystemPrompt = `${chatSystemPrompt}\n\n${section}`;
-      }
-      chatMessages.push({ role: "user", content: message });
-      try {
-        // ... existing search block unchanged ...
-        const response = await provider.complete({
-          systemPrompt: effectiveSystemPrompt,
-          messages: chatMessages.slice(),
-          maxOutputTokens: CHAT_MAX_OUTPUT_TOKENS,
-        });
-        // ... rest unchanged ...
-```
-
-**(g)** Update the `AgentSession` interface (lines 390, 404) to the optional-options form:
+**(g)** Update the `AgentSession` interface (line 390) to the optional-options form — `processChat` (line 404) stays as-is:
 
 ```ts
   processTurn(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult>;
-  ...
-  processChat(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult>;
 ```
 
 > No change needed in `daemon-client.ts` or `src/cli/commands/tui.ts` — their implementations take only `(text: string)`, which is assignable to the widened signature. Documented limitation: the daemon transport does not forward `options.skills` (out of scope; the local `AgentSession` path is the target).
@@ -789,7 +760,7 @@ Expected: PASS (all cases). Also run `pnpm build` — the interface + call-site 
 
 ```bash
 git add src/agent/session.ts tests/agent/session-skills.test.ts
-git commit -m "feat(skills): union explicit+auto skill injection in session; transactional explicit load; chat injection"
+git commit -m "feat(skills): union explicit+auto skill injection in session; transactional explicit load"
 ```
 
 ---
@@ -886,30 +857,35 @@ git commit -m "feat(skills): invalidate slash catalog on skill install and remov
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `tests/tui/app.vitest.ts` (reuse the existing `handleRaw`-driving harness — seed `lastSnapshot`, set `app.slashManifestsForTest` where noted):
+Add to `tests/tui/app.vitest.ts`. The existing `makeApp` harness (in the chat-input describe) is used as the base — **hoist it to module scope** so both describes share it, then the slash describe builds an agent-tab variant. Slash commands are agent-tab only, so every slash test runs with `activeTab = 'agent'` and drives `views.agent.inputBuffer`; a final chat-tab test pins that slash mode does NOT activate there.
 
 ```ts
-describe('TuiApp -- slash commands', () => {
-  let internal: any;
-  // (reuse the same setup as the existing chat-input dispatch describe)
+describe('TuiApp -- slash commands (agent tab only)', () => {
+  async function makeAgentApp(opts: Partial<{ agentSession: unknown }> = {}) {
+    const { internal } = await makeApp(opts);
+    internal.getStateForTest().activeTab = 'agent';
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    return { internal };
+  }
 
-  it('treats Enter on "/" as the palette (slash mode off)', async () => {
+  it('does not enter slash mode for a bare "/" on the agent tab', async () => {
+    const { internal } = await makeAgentApp();
     internal.handleRaw(Buffer.from('/'));
     internal.handleRaw(Buffer.from('\r'));
-    // existing palette behavior — no skill submission
-    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('');
+    // length-1 buffer is not slash mode → normal submit path, no skill
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('');
   });
 
   it('submits the rest of a slash command with the skill name', async () => {
-    // Seed the manifest cache the TUI reads.
-    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
-    // Provide a fake agentSession that records the submitted text + skills.
-    internal.opts.agentSession = {
-      processChat: async (text: string, options?: { skills?: string[] }) => {
-        internal.recorded = { text, skills: options?.skills };
-        return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'chat' };
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async (text: string, options?: { skills?: string[] }) => {
+          internal.recorded = { text, skills: options?.skills };
+          return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' };
+        },
       },
-    };
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
     for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
     internal.handleRaw(Buffer.from('\r'));
     expect(internal.recorded.text).toBe('fix parser');
@@ -917,19 +893,21 @@ describe('TuiApp -- slash commands', () => {
   });
 
   it('keeps the buffer and shows a hint for an unknown command', async () => {
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async () => { internal.recorded = true; return { summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' }; },
+      },
+    });
     internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
-    let called = false;
-    internal.opts.agentSession = {
-      processChat: async () => { called = true; return { summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'chat' }; },
-    };
     for (const ch of '/nope hi') internal.handleRaw(Buffer.from(ch));
     internal.handleRaw(Buffer.from('\r'));
-    expect(called).toBe(false);
-    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('/nope hi');
+    expect(internal.recorded).toBeUndefined();
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/nope hi');
     expect(internal.slashHintForTest).toBeTruthy();
   });
 
   it('Tab cycles the strip selection without modifying the buffer', async () => {
+    const { internal } = await makeAgentApp();
     internal.slashManifestsForTest = [
       { name: 'a', description: 'A', trigger: '/ty', version: '1.0.0', is_core: false },
       { name: 'b', description: 'B', trigger: '/typing', version: '1.0.0', is_core: false },
@@ -939,7 +917,23 @@ describe('TuiApp -- slash commands', () => {
     expect(internal.slashSelectionForTest).toBe(1);
     internal.handleRaw(Buffer.from('\t'));
     expect(internal.slashSelectionForTest).toBe(0);
-    expect(internal.getStateForTest().views.chat.inputBuffer).toBe('/ty');
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/ty');
+  });
+
+  it('does NOT activate slash commands on the chat tab', async () => {
+    // Chat tab: '/tdd fix parser' submits as plain text — no skill resolution.
+    const { internal } = await makeApp({
+      agentSession: {
+        processChat: async (text: string) => {
+          internal.recorded = text;
+          return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'chat' };
+        },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded).toBe('/tdd fix parser'); // plain text, no skill
   });
 });
 ```
@@ -1021,19 +1015,17 @@ import type { SlashStrip, SlashStripEntry } from './views/types.js';
 **(d)** Add slash-mode helpers:
 
 ```ts
-  /** True when the active chat/agent input is a slash command in progress. */
+  /** True when the AGENT-tab input is a slash command in progress (agent only). */
   private slashActive(): boolean {
-    const tab = this.state.activeTab;
-    if (tab !== 'chat' && tab !== 'agent') return false;
-    const buf = this.state.views[tab].inputBuffer;
+    if (this.state.activeTab !== 'agent') return false;
+    const buf = this.state.views.agent.inputBuffer;
     return buf.startsWith('/') && buf.length > 1;
   }
 
-  /** The current slash-command buffer, or null when not in slash mode. */
+  /** The current slash-command buffer, or null when not in slash mode (agent only). */
   private slashBuffer(): string | null {
-    const tab = this.state.activeTab;
-    if (tab !== 'chat' && tab !== 'agent') return null;
-    const buf = this.state.views[tab].inputBuffer;
+    if (this.state.activeTab !== 'agent') return null;
+    const buf = this.state.views.agent.inputBuffer;
     return buf.startsWith('/') && buf.length > 1 ? buf : null;
   }
 
@@ -1079,7 +1071,7 @@ import type { SlashStrip, SlashStripEntry } from './views/types.js';
     if (this.tryHandleGlobal(key)) return;
 ```
 
-**(f)** Route Enter through the slash path in both chat and agent input capture. In the chat block (line 420) and agent block (line 461), change the Enter branch:
+**(f)** Route Enter through the slash path in the **agent** input capture only. In the agent block (line 461), change the Enter branch (the chat block at line 420 stays unchanged):
 
 ```ts
       if (key === 'Enter') {
@@ -1092,18 +1084,18 @@ import type { SlashStrip, SlashStripEntry } from './views/types.js';
         ...
 ```
 
-**(g)** Add `submitSlashCommand`:
+**(g)** Add `submitSlashCommand` (agent-tab only):
 
 ```ts
   /**
-   * Submit a slash command: strip the trigger, resolve the skill, and dispatch
-   * the rest as the task with the skill explicitly injected. Unknown commands
-   * keep the buffer and set a hint — never an accidental agent call.
+   * Submit a slash command (agent tab only): strip the trigger, resolve the
+   * skill, and dispatch the rest as the task with the skill explicitly
+   * injected. Unknown commands keep the buffer and set a hint — never an
+   * accidental agent call.
    */
   private async submitSlashCommand(): Promise<void> {
-    const tab = this.state.activeTab;
-    if (tab !== 'chat' && tab !== 'agent') return;
-    const perTab = this.state.views[tab];
+    if (this.state.activeTab !== 'agent') return;
+    const perTab = this.state.views.agent;
     const buf = perTab.inputBuffer;
     const parsed = parseSlashInput(buf);
     if (!parsed) return;
@@ -1117,24 +1109,13 @@ import type { SlashStrip, SlashStripEntry } from './views/types.js';
     this.slashHint = null;
     perTab.inputBuffer = '';
     this.slashSelection = 0;
-    this.emitTimelineLog('user', text, tab === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
+    this.emitTimelineLog('user', text, this.opts.agentSessionId);
     const skills = [canonicalSkillId(selected)];
-    if (tab === 'chat') {
-      await this.dispatchToSession(
-        text, 'chat', perTab,
-        [
-          this.opts.agentSession?.processChat?.bind(this.opts.agentSession),
-          this.opts.agentSession?.processTurn?.bind(this.opts.agentSession),
-        ],
-        '[chat]', 15_000, skills,
-      );
-    } else {
-      await this.dispatchToSession(
-        text, 'agent', perTab,
-        [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
-        '[agent]', 120_000, skills,
-      );
-    }
+    await this.dispatchToSession(
+      text, 'agent', perTab,
+      [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
+      '[agent]', 120_000, skills,
+    );
   }
 ```
 
@@ -1202,25 +1183,24 @@ git commit -m "feat(tui): slash-command input layer — Tab cycle, Enter routing
 
 ---
 
-### Task 7: Render the completion strip in chat/agent views
+### Task 7: Render the completion strip in the agent view
 
 **Files:**
-- Modify: `src/tui/views/chat-view.ts`
 - Modify: `src/tui/views/agent-view.ts`
-- Test: `tests/tui/views/chat-view.test.ts` (new)
+- Test: `tests/tui/views/agent-view.test.ts` (new)
 
 **Interfaces:**
 - Consumes: `ViewRenderContext.slash` (Task 6), `SlashStrip`/`SlashStripEntry` types.
 
 - [ ] **Step 1: Write the failing test**
 
-Create `tests/tui/views/chat-view.test.ts`:
+Create `tests/tui/views/agent-view.test.ts`:
 
 ```ts
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { TerminalCanvas } from "../../../src/tui/canvas.js";
-import { ChatView } from "../../../src/tui/views/chat-view.js";
+import { AgentView } from "../../../src/tui/views/agent-view.js";
 import type { ViewRenderContext } from "../../../src/tui/views/types.js";
 
 function stripCtx(slash: any): ViewRenderContext {
@@ -1235,7 +1215,7 @@ function stripCtx(slash: any): ViewRenderContext {
   } as ViewRenderContext;
 }
 
-describe("ChatView slash strip", () => {
+describe("AgentView slash strip", () => {
   it("renders ranked candidates with the selected marker", () => {
     const ctx = stripCtx({
       entries: [
@@ -1245,7 +1225,7 @@ describe("ChatView slash strip", () => {
       selected: 0,
       hint: null,
     });
-    new ChatView().render(ctx);
+    new AgentView().render(ctx);
     const frame = ctx.canvas!.renderFrame();
     assert.match(frame, /\/tdd/);
     assert.match(frame, /TDD/);
@@ -1253,7 +1233,7 @@ describe("ChatView slash strip", () => {
 
   it("renders the unknown-command hint", () => {
     const ctx = stripCtx({ entries: [], selected: 0, hint: 'Unknown skill "/nope"' });
-    new ChatView().render(ctx);
+    new AgentView().render(ctx);
     const frame = ctx.canvas!.renderFrame();
     assert.match(frame, /Unknown skill/);
   });
@@ -1262,16 +1242,17 @@ describe("ChatView slash strip", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm build && node --test dist/tests/tui/views/chat-view.test.js`
+Run: `pnpm build && node --test dist/tests/tui/views/agent-view.test.js`
 Expected: FAIL — strip not rendered
 
 - [ ] **Step 3: Write the minimal implementation**
 
-In `src/tui/views/chat-view.ts`, after the prompt line is drawn (after line 28), render the strip as an overlay:
+In `src/tui/views/agent-view.ts`, after the prompt line is drawn, render the strip as an overlay. The strip only exists on the agent tab (Task 6 computes `ctx.slash` only there):
 
 ```ts
-    // Slash-command completion strip — drawn last so it overlays scrollback
-    // while slash mode is active (transient, like the palette).
+    // Slash-command completion strip (agent tab only) — drawn last so it
+    // overlays scrollback while slash mode is active (transient, like the
+    // palette). ChatView never receives ctx.slash.
     if (ctx.slash) {
       if (ctx.slash.hint) {
         c.write(0, 6, `\x1b[33m ${ctx.slash.hint}\x1b[0m`);
@@ -1284,18 +1265,16 @@ In `src/tui/views/chat-view.ts`, after the prompt line is drawn (after line 28),
     }
 ```
 
-In `src/tui/views/agent-view.ts`, apply the identical block after its prompt line.
-
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm build && node --test dist/tests/tui/views/chat-view.test.js`
+Run: `pnpm build && node --test dist/tests/tui/views/agent-view.test.js`
 Expected: PASS
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/tui/views/chat-view.ts src/tui/views/agent-view.ts tests/tui/views/chat-view.test.ts
-git commit -m "feat(tui): render slash-command completion strip in chat/agent views"
+git add src/tui/views/agent-view.ts tests/tui/views/agent-view.test.ts
+git commit -m "feat(tui): render slash-command completion strip in the agent view"
 ```
 
 ---
@@ -1303,7 +1282,7 @@ git commit -m "feat(tui): render slash-command completion strip in chat/agent vi
 ## Self-Review (completed)
 
 **Spec coverage:**
-- Parse/rank/resolve/canonicalId → Task 1. `getByTriggerOrName` → Task 2. Generation cache + invalidation lifecycle → Task 3 (module) + Task 5 (install/remove hooks). Union/dedupe/inject precedence → Task 4. Chat-tab injection (chatSystemPrompt gap) → Task 4(f). Enter-based `/` disambiguation, Tab-cycle, unknown-command hint → Task 6. Strip rendering → Task 7. Alias-collision test → Task 1 + Task 4. Transactional load → Task 4. Canonical-id sole authority → Task 1 + Task 4 union.
+- Parse/rank/resolve/canonicalId → Task 1. `getByTriggerOrName` → Task 2. Generation cache + invalidation lifecycle → Task 3 (module) + Task 5 (install/remove hooks). Union/dedupe/inject precedence → Task 4. Slash commands agent-tab only (chat tab unchanged) → Tasks 4(f)/4(g), 6, 7. Enter resolves the slash char, Tab-cycle, unknown-command hint → Task 6. Strip rendering → Task 7. Alias-collision test → Task 1 + Task 4. Transactional load → Task 4. Canonical-id sole authority → Task 1 + Task 4 union.
 
 **Placeholder scan:** All steps carry concrete code; no TBD/TODO. The one test-note in Task 4 documents the resolution-vs-load distinction the implementation must honor.
 
@@ -1315,4 +1294,4 @@ git commit -m "feat(tui): render slash-command completion strip in chat/agent vi
 2. `pnpm test:node` — full node:test suite, 0 fail.
 3. `pnpm test:vitest` — evidence + TUI suites, 0 fail.
 4. `gitnexus detect_changes` — confirm only expected symbols/processes affected (per project CLAUDE.md).
-5. Manual TUI smoke: `alix tui` — type `/ty` (see completion strip), Tab cycles, Enter `/tdd ...` (agent session gets skill injected), Enter `/` (palette opens), Enter `/nope` (hint, text preserved).
+5. Manual TUI smoke: `alix tui` — switch to the agent tab, type `/ty` (see the completion strip), Tab cycles, Enter `/tdd ...` (agent session gets the skill injected), Enter `/nope` (hint, text preserved). On the chat tab, `/` still opens the palette and `/nope` is sent as plain text (no slash handling).
