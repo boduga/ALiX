@@ -1,6 +1,8 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { join } from "node:path";
 import { resolveSkillsCommand } from "../../../../src/cli/commands/skills/run-skills.js";
+import { resolveSkillScriptPath } from "../../../../src/cli/commands/skills/run-skill.js";
 
 describe("resolveSkillsCommand", () => {
   it('maps ["available"] to { type: "available" }', () => {
@@ -32,28 +34,28 @@ describe("resolveSkillsCommand", () => {
   it('maps ["install", "brand"] to install with name "brand"', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "brand"]), {
       type: "install",
-      opts: { available: false, list: false, name: "brand", from: undefined },
+      opts: { available: false, list: false, name: "brand", from: undefined, force: false },
     });
   });
 
   it('maps ["install", "brand", "--from", "./x"] to install with from "./x"', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "brand", "--from", "./x"]), {
       type: "install",
-      opts: { available: false, list: false, name: "brand", from: "./x" },
+      opts: { available: false, list: false, name: "brand", from: "./x", force: false },
     });
   });
 
   it('maps ["install", "list"] (bare subcommand) to install with list: true, not a skill named "list"', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "list"]), {
       type: "install",
-      opts: { available: false, list: true, name: undefined, from: undefined },
+      opts: { available: false, list: true, name: undefined, from: undefined, force: false },
     });
   });
 
   it('maps ["install", "--list"] to install with list: true', () => {
     assert.deepEqual(resolveSkillsCommand(["install", "--list"]), {
       type: "install",
-      opts: { available: false, list: true, name: undefined, from: undefined },
+      opts: { available: false, list: true, name: undefined, from: undefined, force: false },
     });
   });
 
@@ -74,5 +76,34 @@ describe("resolveSkillsCommand", () => {
 
   it("maps empty args to { type: 'help' }", () => {
     assert.deepEqual(resolveSkillsCommand([]), { type: "help" });
+  });
+
+  it("parses 'skills run <skill> <script> [args]'", () => {
+    const cmd = resolveSkillsCommand(["run", "xlsx", "recalc.py", "--file", "a.xlsx"]);
+    assert.deepEqual(cmd, { type: "run", name: "xlsx", script: "recalc.py", args: ["--file", "a.xlsx"] });
+  });
+
+  it("parses 'install --force'", () => {
+    const cmd = resolveSkillsCommand(["install", "x", "--from", "/tmp/x", "--force"]);
+    assert.ok(cmd.type === "install" && cmd.opts.force === true);
+  });
+});
+
+describe("resolveSkillScriptPath", () => {
+  const skillDir = join("/home", "u", ".alix", "skills", "demo");
+
+  it("resolves a bare script name inside scripts/", () => {
+    assert.equal(resolveSkillScriptPath(skillDir, "build.sh"), join(skillDir, "scripts", "build.sh"));
+  });
+
+  it("rejects path traversal", () => {
+    assert.throws(() => resolveSkillScriptPath(skillDir, "../evil.sh"), /Invalid script name/);
+    assert.throws(() => resolveSkillScriptPath(skillDir, "../../etc/passwd"), /Invalid script name/);
+  });
+
+  it("rejects absolute and empty names", () => {
+    assert.throws(() => resolveSkillScriptPath(skillDir, "/etc/passwd"), /Invalid script name/);
+    assert.throws(() => resolveSkillScriptPath(skillDir, ""), /Invalid script name/);
+    assert.throws(() => resolveSkillScriptPath(skillDir, ".."), /Invalid script name/);
   });
 });

@@ -80,6 +80,30 @@ export type SkillStoreConfig = {
   path: string;
 };
 
+export type SkillSafetyConfig = {
+  /** Require explicit confirmation for non-core skill installs (default true). */
+  requireConfirmation?: boolean;
+  /** Scan package scripts for denied files/secrets before install (default true). */
+  scanScripts?: boolean;
+  /** `alix skills run` blocks network access (best-effort; default true). */
+  denyNetwork?: boolean;
+  /** Timeout in ms for `alix skills run` (default 30000). */
+  sandboxTimeoutMs?: number;
+  /**
+   * DANGEROUS_SHELL_PATTERNS codes to skip during the pre-install script scan
+   * (operator-acknowledged as reviewed). Default [] — every warning fires until
+   * explicitly acknowledged. Never suppresses deny-level verifier findings.
+   */
+  ignoreWarningPatterns?: string[];
+  /**
+   * When true, `alix skills run` refuses to execute if network isolation was
+   * requested (`denyNetwork`) but could not be established (unshare missing /
+   * user namespaces blocked). Default false — falls back to env-only isolation
+   * with a prominent warning.
+   */
+  requireNetworkIsolation?: boolean;
+};
+
 export type ExtensionStoreConfig = {
   enabled: boolean;
   path: string;
@@ -184,6 +208,7 @@ export type AlixConfig = {
   skills?: {
     factory?: SkillFactoryConfig;
     store?: SkillStoreConfig;
+    safety?: SkillSafetyConfig;
   };
   extensions?: {
     store?: ExtensionStoreConfig;

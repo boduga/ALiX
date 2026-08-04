@@ -89,7 +89,9 @@ export type EvidenceType =
   // P10.4c executive apply reconciler event
   | "executive_step_applied_remediation"
   // P10.9.2c lifecycle automation
-  | "executive_step_orchestrated";
+  | "executive_step_orchestrated"
+  // P-safety: skill install decisions
+  | "skill_installed";
 
 /** All valid evidence type strings. */
 export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
@@ -154,6 +156,7 @@ export const EVIDENCE_TYPES: ReadonlySet<string> = new Set<EvidenceType>([
   "executive_step_applied_remediation",
   // P10.9.2c lifecycle automation
   "executive_step_orchestrated",
+  "skill_installed",
 ]);
 
 // ---------------------------------------------------------------------------

@@ -1,10 +1,12 @@
 import { runInstall, parseSkillsArgs, printSkillsHelp, type InstallOptions } from "./install.js";
 import { listAvailableSkills, runMarketplaceCommand } from "./marketplace.js";
+import { runSkillCommand } from "./run-skill.js";
 
 export type SkillsCommand =
   | { type: "help" }
   | { type: "available" }
   | { type: "install"; opts: InstallOptions }
+  | { type: "run"; name: string; script: string; args: string[] }
   | { type: "marketplace"; action: "list" | "add" | "remove"; name?: string; url?: string };
 
 /**
@@ -45,7 +47,18 @@ export function resolveSkillsCommand(args: string[]): SkillsCommand {
         list: flags.has("--list") || positional[1] === "list",
         name: positional[1] !== "list" ? positional[1] : undefined,
         from,
+        force: flags.has("--force"),
       },
+    };
+  }
+  if (sub === "run") {
+    return {
+      type: "run",
+      name: positional[1] ?? "",
+      script: positional[2] ?? "",
+      // Flags after the script name belong to the script, not the CLI — use the
+      // raw arg list (parseSkillsArgs strips `--flag`s into the flags set).
+      args: args.slice(3),
     };
   }
   if (sub === "remove") {
@@ -66,6 +79,9 @@ export async function runSkillsCommand(args: string[]): Promise<void> {
       return;
     case "install":
       await runInstall(cmd.opts);
+      return;
+    case "run":
+      await runSkillCommand(cmd.name, cmd.script, cmd.args);
       return;
     case "marketplace":
       await runMarketplaceCommand(cmd.action, cmd.name, cmd.url);

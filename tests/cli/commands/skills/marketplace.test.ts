@@ -15,6 +15,10 @@ import {
   marketplacesPath,
   fetchSkillPackage,
 } from "../../../../src/cli/commands/skills/marketplace.js";
+import {
+  resolveSkillPackageInMarketplaces,
+  type Marketplace,
+} from "../../../../src/cli/commands/skills/marketplace.js";
 
 const testDir = join(process.cwd(), ".test-alix-marketplace");
 
@@ -51,6 +55,18 @@ function treeResponse(entries: { path: string }[]): Response {
     }),
     { status: 200, headers: { "content-type": "application/json" } },
   );
+}
+
+/** Mock fetch so api.github.com returns `tree`, raw.githubusercontent.com returns `raw` bodies. */
+function mockPackageFetch(tree: { path: string }[], raw: Record<string, string>) {
+  globalThis.fetch = (async (input: unknown) => {
+    const url = String(input);
+    if (url.includes("api.github.com")) return treeResponse(tree);
+    for (const [key, body] of Object.entries(raw)) {
+      if (url.includes(key)) return new Response(body, { status: 200, headers: { "content-type": "text/markdown" } });
+    }
+    return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+  }) as typeof fetch;
 }
 
 describe("marketplace persistence", () => {
@@ -493,5 +509,53 @@ describe("runMarketplaceCommand", () => {
 
   it("requires a name for remove", async () => {
     await assert.rejects(runMarketplaceCommand("remove"), /Usage:/);
+  });
+});
+
+describe("resolveSkillPackageInMarketplaces", () => {
+  const mps: Marketplace[] = [{ name: "acme", url: "https://github.com/acme/skills" }];
+  const origFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
+
+  it("returns the full package from a marketplace that has skills/<name>/", async () => {
+    mockPackageFetch(
+      [{ path: "skills/xlsx/SKILL.md" }, { path: "skills/xlsx/scripts/recalc.py" }],
+      {
+        "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: X\n---\nBody.\n",
+        "skills/xlsx/scripts/recalc.py": "print('recalc')\n",
+      },
+    );
+    const hit = await resolveSkillPackageInMarketplaces("xlsx", mps);
+    assert.ok(hit);
+    assert.equal(hit.repoUrl, "https://github.com/acme/skills");
+    assert.equal(hit.pkg.name, "xlsx");
+    assert.deepEqual(hit.pkg.files.map((f) => f.relPath).sort(), ["SKILL.md", "scripts/recalc.py"]);
+  });
+
+  it("returns null when no marketplace has the skill as a package (single-file fallback)", async () => {
+    mockPackageFetch([{ path: "README.md" }], {});
+    const hit = await resolveSkillPackageInMarketplaces("nope", mps);
+    assert.equal(hit, null);
+  });
+
+  it("skips a marketplace whose package fetch fails and tries the next", async () => {
+    const mps2: Marketplace[] = [
+      { name: "bad", url: "https://github.com/bad/skills" },
+      { name: "good", url: "https://github.com/good/skills" },
+    ];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("bad")) return new Response("boom", { status: 500, headers: { "content-type": "text/plain" } });
+      if (url.includes("api.github.com")) return treeResponse([{ path: "skills/xlsx/SKILL.md" }, { path: "skills/xlsx/scripts/recalc.py" }]);
+      if (url.includes("skills/xlsx/SKILL.md")) return new Response("---\nname: xlsx\ndescription: X\n---\nBody.\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      if (url.includes("skills/xlsx/scripts/recalc.py")) return new Response("print('recalc')\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    const hit = await resolveSkillPackageInMarketplaces("xlsx", mps2);
+    assert.ok(hit);
+    assert.equal(hit.repoUrl, "https://github.com/good/skills");
   });
 });

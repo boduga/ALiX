@@ -66,7 +66,15 @@ export const DEFAULT_CONFIG: AlixConfig = {
     store: {
       enabled: true,
       path: `${homedir()}/.alix/skills`
-    }
+    },
+    safety: {
+      requireConfirmation: true,
+      scanScripts: true,
+      denyNetwork: true,
+      sandboxTimeoutMs: 30_000,
+      ignoreWarningPatterns: [],
+      requireNetworkIsolation: false,
+    },
   },
   extensions: {
     store: {

@@ -1,13 +1,20 @@
-import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath, rename } from "node:fs/promises";
 import { join, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
-import { parseSkillContent } from "../../../skills/types.js";
+import { parseSkillContent, type SkillManifest } from "../../../skills/types.js";
+import { loadSafetyConfig } from "../../../skills/safety-config.js";
 import { githubRawCandidates, fetchSkillFromUrls, parseGithubUrl, EXCLUDED_DIRS } from "./net.js";
+import { checkManifest, scanSkillFiles, scanSkillDirectory, type SkillScanResult } from "../../../skills/security.js";
+import { assessTrust, createInstallGate, type GateResult, type TrustLevel } from "../../../skills/trust.js";
+import { SkillInstallHistory, type SkillInstallRecord } from "../../../security/evidence/skill-install-history.js";
 import {
   loadMarketplaces,
   resolveSkillInMarketplaces,
   listAvailableSkills,
   fetchSkillPackage,
+  DEFAULT_MARKETPLACES,
+  resolveSkillPackageInMarketplaces,
   type SkillPackageFile,
 } from "./marketplace.js";
 
@@ -19,6 +26,8 @@ export interface InstallOptions {
   name?: string;
   /** Install a skill from a local dir/file or https URL. */
   from?: string;
+  /** Bypass the trust confirmation (never bypasses hard scan denials). */
+  force?: boolean;
 }
 
 /**
@@ -39,6 +48,46 @@ async function copyDir(src: string, dest: string): Promise<void> {
     } else {
       await copyFile(srcPath, destPath);
     }
+  }
+}
+
+/**
+ * Atomically install a skill: run `build` into a fresh temp sibling dir,
+ * verify SKILL.md exists, then swap-rename into place. An existing target is
+ * backed up first and removed only after the new copy succeeds, so a failed
+ * or interrupted install never leaves a partially-written skill.
+ */
+export async function atomicInstallSkill(
+  targetDir: string,
+  build: (tmpDir: string) => Promise<void>,
+): Promise<void> {
+  const tmpDir = `${targetDir}.tmp-${randomUUID()}`;
+  const backup = `${targetDir}.old-${randomUUID()}`;
+  await mkdir(tmpDir, { recursive: true });
+  try {
+    await build(tmpDir);
+    if (!existsSync(join(tmpDir, "SKILL.md"))) {
+      throw new Error(`Install did not produce SKILL.md under ${tmpDir}`);
+    }
+    if (existsSync(targetDir)) await rename(targetDir, backup);
+    try {
+      await rename(tmpDir, targetDir);
+    } catch (err) {
+      if (existsSync(backup)) await rename(backup, targetDir);
+      throw err;
+    }
+    if (existsSync(backup)) await rm(backup, { recursive: true, force: true });
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
+  }
+}
+
+/** Write every file of an in-memory skill package into a target directory, creating parent dirs. */
+async function writePackageFiles(tmpDir: string, files: SkillPackageFile[]): Promise<void> {
+  for (const file of files) {
+    const dest = join(tmpDir, file.relPath);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, file.content, "utf8");
   }
 }
 
@@ -89,7 +138,89 @@ export function resolveInstallOptions(args: string[]): InstallOptions {
     list: flags.has("--list"),
     name: sub === "install" ? positional[1] : undefined,
     from,
+    force: flags.has("--force"),
   };
+}
+
+/**
+ * Run the safety gate for a resolved skill, record the decision to evidence,
+ * and return the outcome. The caller writes files only on "approve".
+ */
+async function gateAndRecordInstall(params: {
+  name: string;
+  source: string;
+  manifest: SkillManifest | null;
+  packageFiles?: SkillPackageFile[];
+  sourceDir?: string;
+  /** Raw SKILL.md content — scanned directly when neither packageFiles nor sourceDir exist. */
+  skillContent?: string;
+  skillsDir: string;
+  force: boolean;
+  trustLevel: TrustLevel;
+  sourceLabel: string;
+}): Promise<GateResult> {
+  const safety = await loadSafetyConfig();
+  const manifest = params.manifest;
+  if (!manifest) throw new Error("Source does not contain a valid skill manifest");
+
+  const manifestReport = checkManifest(manifest, { core: params.trustLevel === "core" });
+  let scan: SkillScanResult | null = null;
+  if (safety.scanScripts) {
+    if (params.packageFiles && params.packageFiles.length > 0) {
+      scan = scanSkillFiles(params.packageFiles, { ignorePatternCodes: safety.ignoreWarningPatterns });
+    } else if (params.sourceDir) {
+      scan = await scanSkillDirectory(params.sourceDir, {
+        excluded: EXCLUDED_DIRS,
+        ignorePatternCodes: safety.ignoreWarningPatterns,
+      });
+    } else if (params.skillContent) {
+      // Single-file installs (marketplace single-file fallback, --from URL/.md)
+      // still get the full L2 scan on the SKILL.md itself — the verifier's
+      // secret-content deny patterns run here, so a single-file skill embedding
+      // a token is caught instead of silently reporting "scan: clean".
+      scan = scanSkillFiles([{ relPath: "SKILL.md", content: params.skillContent }], {
+        ignorePatternCodes: safety.ignoreWarningPatterns,
+      });
+    }
+  }
+
+  const gate = createInstallGate();
+  const result = await gate({
+    name: params.name,
+    source: params.source,
+    trust: { level: params.trustLevel, sourceLabel: params.sourceLabel, reason: "" },
+    manifest: manifestReport,
+    scan,
+    force: params.force,
+    interactive: Boolean(process.stdin.isTTY),
+    requireConfirmation: safety.requireConfirmation,
+  });
+
+  const evidenceDir = join(params.skillsDir, "..", "security");
+  // Build the record without any `undefined` values — the evidence store's
+  // canonical JSON serializer rejects undefined, so omit the optional license
+  // key entirely when the manifest declares none.
+  const record: SkillInstallRecord = {
+    skillName: params.name,
+    source: params.source,
+    trustLevel: params.trustLevel,
+    manifestName: manifest.name,
+    manifestVersion: manifest.version,
+    requestedTools: manifestReport.requestedTools,
+    scanOk: scan ? scan.ok : true,
+    scanErrorCount: scan ? scan.errorCount : 0,
+    scanWarningCount: scan ? scan.warningCount : 0,
+    filesScanned: scan?.filesScanned ?? 0,
+    approved: result.outcome === "approve",
+    force: params.force,
+    reason: result.reason,
+  };
+  if (manifestReport.license !== undefined) {
+    record.license = manifestReport.license;
+  }
+  await new SkillInstallHistory(evidenceDir).recordInstall(record);
+
+  return result;
 }
 
 export async function runInstall(opts: InstallOptions): Promise<void> {
@@ -129,7 +260,7 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
   // Install a skill from a local path or https URL.
   // Checked before opts.name so `install <name> --from <src>` hits this path.
   if (opts.from) {
-    await installFromSource(opts.from, opts.name, skillsDir);
+    await installFromSource(opts.from, opts.name, skillsDir, opts.force ?? false);
     return;
   }
 
@@ -141,9 +272,49 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
       return;
     }
     const marketplaces = await loadMarketplaces();
-    const { repoUrl, content } = await resolveSkillInMarketplaces(opts.name, marketplaces);
-    await mkdir(destDir, { recursive: true });
-    await writeFile(join(destDir, "SKILL.md"), content, "utf8");
+    // Package-first (Task 4): prefer the full package (SKILL.md + scripts/ +
+    // assets/ + LICENSE) when the marketplace repo has skills/<name>/; fall
+    // back to the single-file fetch for genuinely single-file skills.
+    const pkgHit = await resolveSkillPackageInMarketplaces(opts.name, marketplaces);
+    let content: string;
+    let repoUrl: string;
+    let packageFiles: SkillPackageFile[] | undefined;
+    if (pkgHit) {
+      repoUrl = pkgHit.repoUrl;
+      packageFiles = pkgHit.pkg.files;
+      content = packageFiles.find((f) => f.relPath === "SKILL.md")?.content ?? "";
+    } else {
+      ({ repoUrl, content } = await resolveSkillInMarketplaces(opts.name, marketplaces));
+    }
+    const { manifest } = parseSkillContent(content);
+    if (!manifest) {
+      throw new Error(`Marketplace skill '${opts.name}' has no valid manifest`);
+    }
+    const trust = assessTrust(repoUrl, {
+      marketplaces,
+      verifiedUrls: DEFAULT_MARKETPLACES.map((m) => m.url),
+    });
+    const result = await gateAndRecordInstall({
+      name: opts.name,
+      source: repoUrl,
+      manifest,
+      packageFiles,
+      skillContent: content,
+      skillsDir,
+      force: opts.force ?? false,
+      trustLevel: trust.level,
+      sourceLabel: trust.sourceLabel,
+    });
+    if (result.outcome === "deny") {
+      throw new Error(`Skill install blocked: ${opts.name} from ${repoUrl}. ${result.reason}`);
+    }
+    await atomicInstallSkill(destDir, async (tmpDir) => {
+      if (packageFiles) {
+        await writePackageFiles(tmpDir, packageFiles);
+      } else {
+        await writeFile(join(tmpDir, "SKILL.md"), content, "utf8");
+      }
+    });
     console.log(`Installed: ${opts.name} (from ${repoUrl})`);
     return;
   }
@@ -160,6 +331,7 @@ Usage:
   alix skills install <name>                         Install a skill from a registered marketplace
   alix skills install <name> --from <path|url>       Install a skill from a local dir/file or https URL
   alix skills install --list                         List installed skills
+  alix skills run <name> <script> [args...]          Run a skill script sandboxed (no network, temp HOME, timeout)
   alix skills remove <name>                          Remove an installed skill
   alix skills marketplace list                       List registered marketplaces
   alix skills marketplace add <name> <url>           Register a marketplace (github.com https URL)
@@ -259,7 +431,7 @@ async function findNestedSkillDirs(root: string): Promise<string[]> {
  * Remote sources are restricted to https — a fetched skill's instructions are
  * trusted and injected into agent prompts, so plain http is rejected.
  */
-async function installFromSource(source: string, name: string | undefined, skillsDir: string): Promise<void> {
+async function installFromSource(source: string, name: string | undefined, skillsDir: string, force: boolean): Promise<void> {
   let content: string;
   let fallbackName: string | undefined;
   let sourceIsDir = false;
@@ -337,33 +509,60 @@ async function installFromSource(source: string, name: string | undefined, skill
   }
 
   const targetDir = join(skillsDir, resolvedName);
+  const targetExisted = existsSync(targetDir);
   await mkdir(targetDir, { recursive: true });
   if (sourceIsDir) {
-    // Guard against self-copy: `--from <install target>` where the source
-    // resolves to the same directory as the target (e.g.
-    // `alix skills install foo --from ~/.alix/skills/foo`). Copying a
-    // directory onto itself would copyFile(srcPath, srcPath) and truncate
-    // every file to 0 bytes — so refuse instead; the skill is already there.
     const [sourceReal, targetReal] = await Promise.all([realpath(sourceDir), realpath(targetDir)]);
     if (sourceReal === targetReal) {
       throw new Error(
-        `Source ${source} resolves to the install target ${targetDir}; the skill is already installed.`,
+        `Source ${source} resolves install target ${targetDir}; skill already installed.`,
       );
     }
-    // Local-directory package source: copy the whole skill folder (SKILL.md,
-    // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS.
-    await copyDir(sourceDir, targetDir);
-  } else if (packageFiles) {
-    // URL package source: write every fetched file (SKILL.md + scripts/,
-    // assets/, LICENSE, ...) under the skill directory.
-    for (const file of packageFiles) {
-      const dest = join(targetDir, file.relPath);
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, file.content, "utf8");
+  }
+  // Layer 3 safety gate: scan + trust + confirmation before anything is written.
+  const marketplaces = await loadMarketplaces();
+  const trust = assessTrust(source, {
+    marketplaces,
+    verifiedUrls: DEFAULT_MARKETPLACES.map((m) => m.url),
+  });
+  const result = await gateAndRecordInstall({
+    name: resolvedName,
+    source,
+    manifest,
+    packageFiles,
+    sourceDir: sourceIsDir ? sourceDir : undefined,
+    skillContent: content,
+    skillsDir,
+    force,
+    trustLevel: trust.level,
+    sourceLabel: trust.sourceLabel,
+  });
+  if (result.outcome === "deny") {
+    if (!targetExisted) {
+      // The mkdir above exists for the self-copy realpath guard; on a denied
+      // install it leaves an empty dir behind. Remove it so a blocked install
+      // leaves no trace. Safe: it is empty or freshly created.
+      await rm(targetDir, { recursive: true, force: true }).catch(() => {});
     }
+    throw new Error(`Skill install blocked: ${resolvedName} from ${source}. ${result.reason}`);
+  }
+
+  if (sourceIsDir) {
+    // Local-directory package source: copy whole skill folder (SKILL.md,
+    // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS, atomically.
+    await atomicInstallSkill(targetDir, async (tmpDir) => {
+      await copyDir(sourceDir, tmpDir);
+    });
+  } else if (packageFiles) {
+    // URL package source: write every fetched file, atomically.
+    await atomicInstallSkill(targetDir, async (tmpDir) => {
+      await writePackageFiles(tmpDir, packageFiles);
+    });
   } else {
     // Single-file source (local .md or fetched content): write just SKILL.md.
-    await writeFile(join(targetDir, "SKILL.md"), content, "utf8");
+    await atomicInstallSkill(targetDir, async (tmpDir) => {
+      await writeFile(join(tmpDir, "SKILL.md"), content, "utf8");
+    });
   }
   console.log(`Installed: ${resolvedName} (from ${source})`);
 }
