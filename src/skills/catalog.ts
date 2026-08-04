@@ -12,9 +12,11 @@ export interface SkillEntry {
 export class SkillCatalog {
   private byTrigger: Map<string, SkillEntry> = new Map();
   private byPattern: Array<{ pattern: RegExp; entry: SkillEntry }> = [];
+  private byName: Map<string, SkillEntry> = new Map();
 
   constructor(skills: SkillEntry[]) {
     for (const skill of skills) {
+      this.byName.set(skill.manifest.name, skill);
       if (skill.manifest.trigger) {
         this.byTrigger.set(skill.manifest.trigger, skill);
       }
@@ -101,6 +103,18 @@ export class SkillCatalog {
       ?? this.byPattern.find(p => p.entry.manifest.name === name)?.entry;
     if (!entry) return undefined;
     return { manifest: entry.manifest, body: entry.body ?? "", path: entry.path };
+  }
+
+  /**
+   * Resolve a skill by trigger or name (slash optional). Used by the slash
+   * layer to turn `/tdd` or `tdd` into the underlying SkillEntry.
+   */
+  getByTriggerOrName(ref: string): SkillEntry | undefined {
+    const key = ref.startsWith("/") ? ref : `/${ref}`;
+    return this.byTrigger.get(key)
+      ?? this.byTrigger.get(ref)
+      ?? this.byPattern.find((p) => p.entry.manifest.name === ref)?.entry
+      ?? this.byName.get(ref);
   }
 }
 

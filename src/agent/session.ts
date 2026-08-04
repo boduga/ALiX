@@ -124,6 +124,7 @@ import {
 import { getEncoding } from "../config/context-limits.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
+import type { SkillEntry } from "../skills/catalog.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
@@ -387,7 +388,7 @@ export interface ToolConfig {
 
 export interface AgentSession {
   /** Process one user message through the agent loop. */
-  processTurn(message: string): Promise<AgentTurnResult>;
+  processTurn(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult>;
   /**
    * Process one user message through the lightweight chat path.
    *
@@ -586,6 +587,9 @@ export class AgentSessionBuilder {
 
     // Resolved runtime values (computed during init)
     let currentTask = config.task;
+    // Explicit skills injected by the caller for this turn (slash commands).
+    // Agent-tab only — the chat path (processChat) never sets this.
+    let explicitSkills: string[] | undefined;
     let MAX_CONTEXT_TOKENS = 0;
     let encoding: "cl100k_base" | "o200k_base" | "char4" = "cl100k_base";
     let taskType: TaskType = "unknown";
@@ -601,6 +605,20 @@ export class AgentSessionBuilder {
     let approvedPlanTasks: readonly PlanTask[] | undefined;
     let memoryContext: string | undefined;
     let memoryStats: string | undefined;
+    /**
+     * First-turn matched skills (explicit + auto union). Preserved across
+     * subsequent turns so the per-turn splice in `processTurn` can re-inject
+     * current-turn explicit skills without losing first-turn auto-matched ones.
+     * Populated in `initialize()` after the first `setupSkills` call.
+     */
+    let firstTurnMatchedSkills: any[] = [];
+    /**
+     * First-turn explicit skill matches only (no auto). Needed by the
+     * subsequent-turn splice to REPLACE first-turn explicit with current-turn
+     * explicit without affecting first-turn auto-matched skills.
+     * Populated in `initialize()` alongside `firstTurnMatchedSkills`.
+     */
+    let firstTurnExplicitSkills: any[] = [];
 
     // Tools
     let providerTools: ToolDef[] = [];
@@ -705,7 +723,11 @@ export class AgentSessionBuilder {
       const matchedSkills = await setupSkills(
         currentTask,
         ctx.config.skills?.factory,
+        explicitSkills,
       );
+      // Persist for per-turn splicing in processTurn (subsequent-turn path).
+      firstTurnMatchedSkills = matchedSkills;
+      firstTurnExplicitSkills = await resolveExplicitSkills(explicitSkills);
 
       // P5: Context limits + task classification
       const p5 = await setupContextLimits(
@@ -868,7 +890,19 @@ export class AgentSessionBuilder {
 
     // ---- Exported interface methods ----
 
-    async function processTurn(message: string): Promise<AgentTurnResult> {
+    async function processTurn(
+      message: string,
+      options?: { skills?: string[] },
+    ): Promise<AgentTurnResult> {
+      // Thread the explicit skill list (slash commands) into the next
+      // initialize() pass. Undefined on the chat path — never touched there.
+      explicitSkills = options?.skills;
+      // Resolve explicit skill matches ONCE per turn. Used by direct routes
+      // (to build the augmented "Answer concisely." prompt) and by the
+      // subsequent-turn splice (to inject slash skills into the existing
+      // system prompt). Recomputed every turn so a persistent session's
+      // subsequent turns don't silently drop the selected skill (Tab 4 fix).
+      const currentTurnExplicit = await resolveExplicitSkills(explicitSkills);
       // ── Preflight classification ─────────────────────────────────────────
       // Classify the message BEFORE any initialization. Direct routes bypass
       // the full agent lifecycle entirely. Grounded_chat routes are handled
@@ -932,10 +966,18 @@ export class AgentSessionBuilder {
           };
         }
         let _providerError: string | undefined;
+        // Direct routes bypass `initialize()` so `setupSkills` never runs for
+        // them. Splice the current-turn explicit skills into the hardcoded
+        // prompt so slash-command injection works on the direct path too.
+        const directBasePrompt =
+          "You are ALiX, a helpful AI assistant. Answer concisely.";
+        const directSystemPrompt =
+          currentTurnExplicit.length > 0
+            ? `${directBasePrompt}\n\n${buildSkillsSection(currentTurnExplicit)}`
+            : directBasePrompt;
         const genResponse = await genProvider
           .complete({
-            systemPrompt:
-              "You are ALiX, a helpful AI assistant. Answer concisely.",
+            systemPrompt: directSystemPrompt,
             messages: [{ role: "user", content: route.prompt }],
             maxOutputTokens: 512,
           })
@@ -973,6 +1015,20 @@ export class AgentSessionBuilder {
           await initialize();
         } else {
           advancePhase(SessionPhase.Understanding);
+          // Subsequent-turn splice: re-inject current-turn explicit skills
+          // into the system prompt (preserves first-turn auto-match via
+          // `firstTurnMatchedSkills`). Without this, slash skills are
+          // silently dropped after the first turn on a persistent session.
+          if (currentTurnExplicit.length > 0) {
+            systemPrompt = spliceSkillsSection(
+              systemPrompt,
+              await spliceExplicitIntoFirstTurn(
+                firstTurnMatchedSkills,
+                firstTurnExplicitSkills,
+                currentTurnExplicit,
+              ),
+            );
+          }
         }
         if (_sessionCompleted) {
           return {
@@ -1013,6 +1069,20 @@ export class AgentSessionBuilder {
         // Lifecycle phase: subsequent turn started → Understanding. First-turn
         // initialization performs the same transition once ctx.log is available.
         advancePhase(SessionPhase.Understanding);
+        // Subsequent-turn splice: re-inject current-turn explicit skills
+        // into the system prompt (preserves first-turn auto-match via
+        // `firstTurnMatchedSkills`). Without this, slash skills are
+        // silently dropped after the first turn on a persistent session.
+        if (currentTurnExplicit.length > 0) {
+          systemPrompt = spliceSkillsSection(
+            systemPrompt,
+            await spliceExplicitIntoFirstTurn(
+              firstTurnMatchedSkills,
+              firstTurnExplicitSkills,
+              currentTurnExplicit,
+            ),
+          );
+        }
       }
 
       // If the session was already completed (resumed completed session), return early
@@ -1770,16 +1840,81 @@ async function setupMemory(
 }
 
 /**
- * P4: Skills catalog (best-effort; failures are non-fatal).
+ * Resolve explicit skill names (slash-command injection) to body-loaded
+ * `LoadedSkill[]`. Per-name resolution is NON-FATAL (missing → warn + skip),
+ * but body loading is TRANSACTIONAL: any rejection from `Promise.all`
+ * drops the WHOLE explicit set — never a half-injected subset.
+ *
+ * Pure helper — does no auto-matching (that's `setupSkills`' job). Re-used
+ * by the per-turn path in `processTurn` so direct routes and subsequent
+ * turns of an initialized session can splice explicit skills into their
+ * own system prompts without re-running the full initialize() pipeline.
  */
-async function setupSkills(
+export async function resolveExplicitSkills(
+  explicitSkills?: string[],
+): Promise<any[]> {
+  if (!explicitSkills || explicitSkills.length === 0) return [];
+  try {
+    const skillsHome = join(homedir(), ".alix", "skills");
+    const { loadSkillManifests, loadSkillContent } = await import("../skills/loader.js");
+    const { buildSkillCatalog } = await import("../skills/catalog.js");
+    const skillManifests = await loadSkillManifests(skillsHome);
+    const skillCatalog = buildSkillCatalog(skillManifests);
+    const entries: SkillEntry[] = [];
+    for (const ref of explicitSkills) {
+      const entry = skillCatalog.getByTriggerOrName(ref);
+      if (!entry) {
+        console.warn(`Skill "${ref}" isn't installed. Continuing without it.`);
+        continue;
+      }
+      entries.push(entry);
+    }
+    try {
+      const loaded = await Promise.all(
+        entries.map(async (e) => {
+          const content = await loadSkillContent(e.path);
+          return content ? { manifest: content.manifest, body: content.body, path: e.path } : null;
+        }),
+      );
+      const out: any[] = [];
+      for (const s of loaded) if (s) out.push(s);
+      return out;
+    } catch {
+      // Transactional: any body-load failure drops the WHOLE explicit set —
+      // never a half-injected subset.
+      return [];
+    }
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * P4: Skills catalog (best-effort; failures are non-fatal).
+ *
+ * Merged union: explicit skill names (slash-command injection) ADD to,
+ * never replace, automatic matching. Union → dedupe by `canonicalSkillId`
+ * (the SOLE dedup authority) → inject. Explicit body loading is
+ * transactional: per-name resolution is non-fatal (missing → warn + skip),
+ * but any body-load failure drops the ENTIRE explicit set (never a
+ * half-injected subset). The explicit-resolution step is delegated to
+ * `resolveExplicitSkills` so per-turn paths can reuse it without going
+ * through this union helper.
+ *
+ * `opts.autoMatch === false` skips automatic matching (used by callers that
+ * want purely explicit injection; the chat path never passes skills at all).
+ */
+export async function setupSkills(
   task: string,
   factoryConfig?: { maxStore: number; maxCandidates: number },
+  explicitSkills?: string[],
+  opts?: { autoMatch?: boolean },
 ): Promise<any[]> {
   try {
     const skillsHome = join(homedir(), ".alix", "skills");
     const { loadSkillManifests } = await import("../skills/loader.js");
     const { buildSkillCatalog } = await import("../skills/catalog.js");
+    const { canonicalSkillId } = await import("../skills/slash.js");
     const skillManifests = await loadSkillManifests(skillsHome);
     const skillCatalog = buildSkillCatalog(skillManifests);
     const { maxStore, maxCandidates } = factoryConfig ?? DEFAULT_FACTORY_CONFIG;
@@ -1787,7 +1922,19 @@ async function setupSkills(
       maxStore,
       maxCandidates: maxCandidates ?? 200,
     });
-    return await skillCatalog.getMatchedContent(task);
+
+    // Explicit: resolve per-name (non-fatal), load transactionally (all-or-nothing).
+    const explicit = await resolveExplicitSkills(explicitSkills);
+
+    // Auto-match (preserved; skipped when the caller opts out, e.g. chat path).
+    const autoMatched = opts?.autoMatch === false ? [] : await skillCatalog.getMatchedContent(task);
+
+    // Union → dedupe by canonicalSkillId (explicit body wins on duplicate).
+    const byId = new Map<string, any>();
+    for (const s of [...explicit, ...autoMatched]) {
+      byId.set(canonicalSkillId(s.manifest), s);
+    }
+    return [...byId.values()];
   } catch {
     return [];
   }
@@ -1963,6 +2110,114 @@ async function setupTools(
   return { providerTools, mcpToolIndex, selectedTools, mcpDiscovery };
 }
 
+/** Render the "Available Skills" system-prompt section, or "" for none. */
+export function buildSkillsSection(skills: any[]): string {
+  if (skills.length === 0) return "";
+  const skillSection = skills
+    .map((s: any) => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
+    .join("\n\n");
+  return `## Available Skills\n${skillSection}`;
+}
+
+/**
+ * Replace (or strip) the "## Available Skills" section in `systemPrompt` with
+ * a fresh section built from `skills`. If no skills section exists and
+ * `skills` is non-empty, the new section is appended.
+ *
+ * Used by the per-turn paths in `processTurn`:
+ *   - Direct routes: the hardcoded "Answer concisely." prompt has no skills
+ *     section; the splice APPENDS one when explicit skills are present.
+ *   - Subsequent turns on an initialized session: the system prompt was
+ *     built in `initialize()` with the first turn's skills section; the
+ *     splice REPLACES it with `firstTurnMatchedSkills + currentTurnExplicit`
+ *     (deduped upstream) so first-turn auto-matched skills are preserved
+ *     and current-turn explicit skills are injected.
+ *
+ * Section boundaries are detected via the `## Available Skills` start marker
+ * and the next top-level `## ` section header (markdown level-2 headings).
+ * Sub-headers inside the skills section (`## Skill: /name`) are NOT treated
+ * as section boundaries.
+ */
+export function spliceSkillsSection(systemPrompt: string, skills: any[]): string {
+  const newSection = buildSkillsSection(skills);
+  if (skills.length === 0) {
+    // Strip any existing skills section.
+    return stripSkillsSection(systemPrompt);
+  }
+  // If no existing section, append.
+  const startIdx = systemPrompt.indexOf("## Available Skills");
+  if (startIdx === -1) {
+    return systemPrompt.replace(/\s+$/, "") + "\n\n" + newSection;
+  }
+  // Find the end of the skills section: the next top-level `## ` header at
+  // line start, or end-of-string. `## Skill: ` (skill sub-headers inside the
+  // section) and `## Available Skills` (the start marker) are NOT section
+  // boundaries.
+  let endIdx = systemPrompt.length;
+  const tail = systemPrompt.slice(startIdx);
+  const nextSection = tail.match(/\n## (?!Available Skills\b|Skill: )/);
+  if (nextSection && nextSection.index !== undefined) {
+    endIdx = startIdx + nextSection.index;
+  }
+  const before = systemPrompt.slice(0, startIdx).replace(/\n+$/, "");
+  const after = systemPrompt.slice(endIdx);
+  // Rejoin: before + newSection + (after, if any).
+  if (after.length === 0) {
+    return before + "\n\n" + newSection;
+  }
+  return before + "\n\n" + newSection + "\n\n" + after.replace(/^\n+/, "");
+}
+
+/** Internal helper: strip the "## Available Skills" section if present. */
+function stripSkillsSection(systemPrompt: string): string {
+  const startIdx = systemPrompt.indexOf("## Available Skills");
+  if (startIdx === -1) return systemPrompt;
+  let endIdx = systemPrompt.length;
+  const tail = systemPrompt.slice(startIdx);
+  const nextSection = tail.match(/\n## (?!Available Skills\b|Skill: )/);
+  if (nextSection && nextSection.index !== undefined) {
+    endIdx = startIdx + nextSection.index;
+  }
+  const before = systemPrompt.slice(0, startIdx).replace(/\n+$/, "");
+  const after = systemPrompt.slice(endIdx).replace(/^\n+/, "");
+  if (after.length === 0) return before + "\n";
+  return before + "\n\n" + after;
+}
+
+/**
+ * Merge `currentTurnExplicit` with `firstTurnMatchedSkills` for the
+ * subsequent-turn splice in `processTurn`:
+ *   - First-turn AUTO-matched skills are preserved.
+ *   - First-turn EXPLICIT skills are replaced by `currentTurnExplicit`
+ *     (subtract by canonical-id, then add current-turn).
+ *   - If a current-turn explicit skill has the same canonical id as a
+ *     first-turn explicit, it wins (it's the current value).
+ *   - Dedupe is by `canonicalSkillId` (the SOLE dedup authority).
+ *
+ * Exported for direct testing of the dedupe logic.
+ */
+export async function spliceExplicitIntoFirstTurn(
+  firstTurnMatchedSkills: any[],
+  firstTurnExplicitSkills: any[],
+  currentTurnExplicit: any[],
+): Promise<any[]> {
+  const { canonicalSkillId } = await import("../skills/slash.js");
+  const explicitIds = new Set(
+    firstTurnExplicitSkills.map((s) => canonicalSkillId(s.manifest)),
+  );
+  // Keep only first-turn skills that are NOT first-turn explicit (i.e., the
+  // auto-matched subset of firstTurnMatchedSkills).
+  const autoOnlyFromFirstTurn = firstTurnMatchedSkills.filter(
+    (s) => !explicitIds.has(canonicalSkillId(s.manifest)),
+  );
+  // Union: autoOnlyFromFirstTurn + currentTurnExplicit, deduped by canonical id.
+  const byId = new Map<string, any>();
+  for (const s of [...autoOnlyFromFirstTurn, ...currentTurnExplicit]) {
+    byId.set(canonicalSkillId(s.manifest), s);
+  }
+  return [...byId.values()];
+}
+
 /**
  * P8: System prompt assembly.
  */
@@ -1992,13 +2247,7 @@ async function setupSystemPrompt(
   }
 
   if (opts.matchedSkills.length > 0) {
-    const skillSection = opts.matchedSkills
-      .map(
-        (s: any) =>
-          `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`,
-      )
-      .join("\n\n");
-    lines.push(`## Available Skills\n${skillSection}`);
+    lines.push(buildSkillsSection(opts.matchedSkills));
   }
 
   if (

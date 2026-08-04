@@ -4,6 +4,7 @@ import { join, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent, type SkillManifest } from "../../../skills/types.js";
 import { loadSafetyConfig } from "../../../skills/safety-config.js";
+import { invalidateSlashCatalog } from "../../../skills/slash-catalog.js";
 import { githubRawCandidates, fetchSkillFromUrls, parseGithubUrl, EXCLUDED_DIRS } from "./net.js";
 import { checkManifest, scanSkillFiles, scanSkillDirectory, type SkillScanResult } from "../../../skills/security.js";
 import { assessTrust, createInstallGate, type GateResult, type TrustLevel } from "../../../skills/trust.js";
@@ -315,6 +316,7 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
         await writeFile(join(tmpDir, "SKILL.md"), content, "utf8");
       }
     });
+    invalidateSlashCatalog();
     console.log(`Installed: ${opts.name} (from ${repoUrl})`);
     return;
   }
@@ -564,6 +566,7 @@ async function installFromSource(source: string, name: string | undefined, skill
       await writeFile(join(tmpDir, "SKILL.md"), content, "utf8");
     });
   }
+  invalidateSlashCatalog();
   console.log(`Installed: ${resolvedName} (from ${source})`);
 }
 
@@ -574,6 +577,7 @@ async function removeSkill(name: string, skillsDir: string): Promise<void> {
     throw new Error(`Skill '${name}' is not installed.`);
   }
   await rm(target, { recursive: true, force: true });
+  invalidateSlashCatalog();
   console.log(`Removed: ${name}`);
 }
 

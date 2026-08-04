@@ -19,6 +19,52 @@ async function flushedAfter(log: EventLog, count: number): Promise<void> {
   });
 }
 
+/** Project the log's text-bearing events of `type` onto their text — the
+ *  single source of truth timeline (the per-tab cache is gone, Phase 6). */
+async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response' | 'agent.message' | 'agent.response'): Promise<string[]> {
+  const events = await log.readAll();
+  return events.filter((e) => e.type === type).map((e) => (e.payload as { text?: string }).text ?? '');
+}
+
+// Build a tui app wired to a real EventLog + sub-session ids, so the
+// submitted prompt/response land in the log — the timeline's single source
+// of truth. We never paint in these tests — we drive handleRaw and inspect
+// the emitted log entries.
+async function makeApp(opts: Partial<{ agentSession: unknown }> = {}) {
+  const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-app-input-')));
+  await log.init();
+  const snap = {
+    generatedAt: 1,
+    session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+    daemon: null, approvals: null, runtime: null, sops: null, policy: null,
+  };
+  const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+  const metrics = { start: () => {}, stop: async () => {} };
+  const app = new TuiApp({
+    builder, daemonMetrics: metrics, agentSession: opts.agentSession,
+    eventLog: log, chatSessionId: 'sess-chat', agentSessionId: 'sess-agent',
+  } as unknown as TuiAppOptions);
+  const internal = app as unknown as {
+    handleRaw(buf: Buffer): void;
+    getStateForTest(): {
+      lastSnapshot: unknown;
+      activeTab?: string;
+      views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+    };
+    recorded?: any;
+    slashManifestsForTest?: unknown[];
+    slashHintForTest?: string | null;
+    slashSelectionForTest?: number;
+  };
+  // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
+  internal.getStateForTest().lastSnapshot = snap;
+  // Switch to chat tab — the default is now 'dashboard', but these
+  // tests specifically exercise the chat input path.
+  internal.getStateForTest().activeTab = 'chat';
+  internal.getStateForTest().views.chat.inputBuffer = '';
+  return { app, internal, log };
+}
+
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
   let metrics: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
@@ -38,11 +84,85 @@ describe('TuiApp -- lifecycle', () => {
     await app.stop();
   });
 
+  it('refresh() re-reads the slash manifest catalog (CLI-side invalidation visibility)', async () => {
+    // Regression: a TUI running while the operator installs a skill in a
+    // separate process must pick up the new skill within ~1s. The wired
+    // call is `refreshSlashCatalog()`, which is a Promise wrapper over
+    // `getSlashCatalog()` (generation-based cache). Steal the getter from
+    // the TuiApp instance, call it directly, and assert the in-memory
+    // mirror updates.
+    const { setSlashCatalogLoaderForTest } = await import('../../src/skills/slash-catalog.js');
+    let installed: any[] = [];
+    setSlashCatalogLoaderForTest(async () => installed);
+    try {
+      app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+      await app.start();
+      // Initial catalog read returns the empty install list.
+      const internal = app as unknown as { slashManifests: any[]; refreshSlashCatalog(): Promise<void> };
+      await internal.refreshSlashCatalog();
+      expect(internal.slashManifests).toEqual([]);
+
+      // CLI-side install: invalidate the cache and bump the loader.
+      installed = [{ name: 'newskill', description: 'NEW', trigger: '/newskill', version: '1.0.0', is_core: false }];
+      const { invalidateSlashCatalog } = await import('../../src/skills/slash-catalog.js');
+      invalidateSlashCatalog();
+
+      // The fix: refresh() (the snapshot tick) calls refreshSlashCatalog,
+      // so a subsequent tick picks up the new catalog without restart.
+      await internal.refreshSlashCatalog();
+      expect(internal.slashManifests.length).toBe(1);
+      expect(internal.slashManifests[0].name).toBe('newskill');
+    } finally {
+      setSlashCatalogLoaderForTest(null);
+      if (app) await app.stop().catch(() => {});
+    }
+  });
+
   it('stop() invokes metrics.stop', async () => {
     app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
     await app.start();
     await app.stop();
     expect(metrics.stop).toHaveBeenCalled();
+  });
+
+  it('stop() unsubscribes the resize listener (no leak across start/stop cycles)', async () => {
+    // Regression: terminal.onResize returns an unsubscribe function that
+    // was discarded, accumulating listeners across start/stop cycles.
+    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    await app.start();
+    const internal = app as unknown as { resizeCleanup?: () => void };
+    expect(internal.resizeCleanup).toBeInstanceOf(Function);
+    const unsub = internal.resizeCleanup!;
+    await app.stop();
+    // After stop, the captured unsubscribe function should be the same
+    // one that was registered at start (and cleanupSync called it).
+    expect(internal.resizeCleanup).toBe(unsub);
+    // Repeated start/stop cycles must not throw — the second start
+    // re-registers a fresh listener and the next stop cleans it up.
+    await app.start();
+    await app.stop();
+  });
+
+  it('refreshSlashCatalog no-ops after stop() (no torn-down instance mutation)', async () => {
+    // Regression: a snapshot-tick refreshSlashCatalog() in flight when
+    // stop() runs must not reassign state on a detached instance.
+    //
+    // Tested via the `detached` test seam instead of the loader-stub
+    // (the stub is module-scoped and races with parallel test workers).
+    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    await app.start();
+    const internal = app as unknown as {
+      slashManifests: any[];
+      detached: boolean;
+      refreshSlashCatalog(): Promise<void>;
+    };
+    internal.slashManifests = [{ name: 'before', description: 'B', version: '1.0.0', is_core: false }];
+    // Simulate the torn-down state directly: stop() sets `detached = true`.
+    internal.detached = true;
+    await internal.refreshSlashCatalog();
+    // The detached guard must have bailed — the mirror must not be flushed.
+    expect(internal.slashManifests.map((m: any) => m.name)).toEqual(['before']);
+    await app.stop();
   });
 });
 
@@ -58,47 +178,6 @@ describe('TuiApp -- tab-state preservation', () => {
 });
 
 describe('TuiApp -- chat-input dispatch', () => {
-  /** Project the log's text-bearing events of `type` onto their text — the
-   *  single source of truth timeline (the per-tab cache is gone, Phase 6). */
-  async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response' | 'agent.message' | 'agent.response'): Promise<string[]> {
-    const events = await log.readAll();
-    return events.filter((e) => e.type === type).map((e) => (e.payload as { text?: string }).text ?? '');
-  }
-
-  // Build a tui app wired to a real EventLog + sub-session ids, so the
-  // submitted prompt/response land in the log — the timeline's single source
-  // of truth. We never paint in these tests — we drive handleRaw and inspect
-  // the emitted log entries.
-  async function makeApp(opts: Partial<{ agentSession: unknown }> = {}) {
-    const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-app-input-')));
-    await log.init();
-    const snap = {
-      generatedAt: 1,
-      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
-      daemon: null, approvals: null, runtime: null, sops: null, policy: null,
-    };
-    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
-    const metrics = { start: () => {}, stop: async () => {} };
-    const app = new TuiApp({
-      builder, daemonMetrics: metrics, agentSession: opts.agentSession,
-      eventLog: log, chatSessionId: 'sess-chat', agentSessionId: 'sess-agent',
-    } as unknown as TuiAppOptions);
-    const internal = app as unknown as {
-      handleRaw(buf: Buffer): void;
-      getStateForTest(): {
-        lastSnapshot: unknown;
-        activeTab?: string;
-        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
-      };
-    };
-    // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
-    internal.getStateForTest().lastSnapshot = snap;
-    // Switch to chat tab — the default is now 'dashboard', but these
-    // tests specifically exercise the chat input path.
-    internal.getStateForTest().activeTab = 'chat';
-    internal.getStateForTest().views.chat.inputBuffer = '';
-    return { app, internal, log };
-  }
 
   it('appends printable characters to the chat buffer', async () => {
     const { internal } = await makeApp();
@@ -547,6 +626,117 @@ describe('TuiApp — palette-open Ctrl+C quit', () => {
     } finally {
       clearCapabilityService();
     }
+  });
+});
+
+describe('TuiApp -- slash commands (agent tab only)', () => {
+  async function makeAgentApp(opts: Partial<{ agentSession: unknown }> = {}) {
+    const { internal } = await makeApp(opts);
+    internal.getStateForTest().activeTab = 'agent';
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    return { internal };
+  }
+
+  it('does not enter slash mode for a bare "/" on the agent tab', async () => {
+    const { internal } = await makeAgentApp();
+    internal.handleRaw(Buffer.from('/'));
+    internal.handleRaw(Buffer.from('\r'));
+    // length-1 buffer is not slash mode → normal submit path, no skill
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('');
+  });
+
+  it('submits the rest of a slash command with the skill name', async () => {
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async (text: string, options?: { skills?: string[] }) => {
+          internal.recorded = { text, skills: options?.skills };
+          return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' };
+        },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded.text).toBe('fix parser');
+    expect(internal.recorded.skills).toEqual(['tdd']);
+  });
+
+  it('keeps the buffer and shows a hint for an unknown command', async () => {
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async () => { internal.recorded = true; return { summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' }; },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/nope hi') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded).toBeUndefined();
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/nope hi');
+    expect(internal.slashHintForTest).toBeTruthy();
+  });
+
+  it('Tab cycles the strip selection without modifying the buffer', async () => {
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'a', description: 'A', trigger: '/ty', version: '1.0.0', is_core: false },
+      { name: 'b', description: 'B', trigger: '/typing', version: '1.0.0', is_core: false },
+    ];
+    // Plan amendment (2026-08-04, applies Task-4 ruling): handleRaw calls
+    // parseKey(buf) once per buffer, and parseKey returns null for any
+    // multi-char string (only single bytes + control sequences are keys).
+    // Buffer.from('/ty') is a 3-byte buffer → parseKey returns null →
+    // handleRaw bails before slash mode runs. The brief's literal test
+    // could never reach the Tab assertions. Feed each char separately,
+    // matching the other tests' pattern.
+    for (const ch of '/ty') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.slashSelectionForTest).toBe(1);
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.slashSelectionForTest).toBe(0);
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/ty');
+  });
+
+  it('does NOT activate slash commands on the chat tab', async () => {
+    // Chat tab: '/tdd fix parser' submits as plain text — no skill resolution.
+    const { internal } = await makeApp({
+      agentSession: {
+        processChat: async (text: string) => {
+          internal.recorded = text;
+          return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'chat' };
+        },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded).toBe('/tdd fix parser'); // plain text, no skill
+  });
+
+  it('clears a stale unknown-command hint when the buffer now matches', async () => {
+    // Regression: a sticky slashHint hid the candidate strip until submit/restart.
+    // Repro: type `/nope`, Enter (hint shows), then backspace to `/` and type a
+    // valid skill — the candidate strip must reappear.
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async () => ({ summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' }),
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    // First: unknown command → hint set.
+    for (const ch of '/nope') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.slashHintForTest).toBeTruthy();
+    // Backspace the full command to `/`, then type `/tdd`.
+    // "/nope" is 5 chars; backspace 4 times removes "nope" leaving "/".
+    for (let i = 0; i < 4; i++) internal.handleRaw(Buffer.from([0x7f]));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/');
+    for (const ch of 'tdd') internal.handleRaw(Buffer.from(ch));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/tdd');
+    // The fix: candidate strip must reappear, hint must clear.
+    expect(internal.slashHintForTest).toBeNull();
+    const s = (internal as any).computeSlashStrip();
+    expect(s.hint).toBeNull();
+    expect(s.entries.length).toBeGreaterThan(0);
   });
 });
 
