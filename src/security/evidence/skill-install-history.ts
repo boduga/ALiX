@@ -25,6 +25,7 @@ export interface SkillInstallRecord {
   scanOk: boolean;
   scanErrorCount: number;
   scanWarningCount: number;
+  filesScanned: number;
   approved: boolean;
   force: boolean;
   reason: string;

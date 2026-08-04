@@ -85,7 +85,7 @@ export function parseFrontMatter(content: string): SkillManifest | null {
       pattern: raw.pattern != null ? String(raw.pattern) : undefined,
       version: String(raw.version ?? "1.0.0"),
       is_core: raw.is_core === true,
-      tags: raw.tags != null ? (Array.isArray(raw.tags) ? raw.tags as string[] : String(raw.tags).split(",").map((t) => t.trim())) : undefined,
+      tags: toStringArray(raw.tags),
       created_at: raw.created_at != null ? String(raw.created_at) : undefined,
       allowed_tools: toStringArray(raw.allowed_tools ?? raw["allowed-tools"]),
       requires: toStringArray(raw.requires),

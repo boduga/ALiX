@@ -56,7 +56,7 @@ describe("assessTrust", () => {
 describe("decideInstall", () => {
   it("hard-denies on scan errors regardless of force", () => {
     const scan: SkillScanResult = {
-      ok: false, filesScanned: 1,
+      ok: false, filesScanned: 1, errorCount: 1, warningCount: 0,
       findings: [{ code: "SC_TARBALL_DENIED_FILE", severity: "error", message: "denied", filePath: ".env" }],
     };
     const d = decideInstall(baseInput({ scan, force: true }));
@@ -119,7 +119,7 @@ describe("renderInstallReport", () => {
     const input = baseInput({
       interactive: true,
       manifest: { requestedTools: ["bash"], requires: [], license: "MIT", warnings: [], deny: false } as ManifestReport,
-      scan: { ok: true, filesScanned: 2, findings: [{ code: "SC_SKILL_DANGEROUS_SCRIPT", severity: "warning", message: "possible dangerous pattern in scripts/nuke.sh: recursive force delete", filePath: "scripts/nuke.sh" }] },
+      scan: { ok: true, filesScanned: 2, errorCount: 0, warningCount: 1, findings: [{ code: "SC_SKILL_DANGEROUS_SCRIPT", severity: "warning", message: "possible dangerous pattern in scripts/nuke.sh: recursive force delete", filePath: "scripts/nuke.sh" }] },
     });
     const report = renderInstallReport(input);
     assert.match(report, /Trust: user-registered/);

@@ -81,6 +81,15 @@ export async function atomicInstallSkill(
   }
 }
 
+/** Write every file of an in-memory skill package into a target directory, creating parent dirs. */
+async function writePackageFiles(tmpDir: string, files: SkillPackageFile[]): Promise<void> {
+  for (const file of files) {
+    const dest = join(tmpDir, file.relPath);
+    await mkdir(dirname(dest), { recursive: true });
+    await writeFile(dest, file.content, "utf8");
+  }
+}
+
 /**
  * Map CLI args (everything after `alix skills`) to InstallOptions.
  *
@@ -133,7 +142,12 @@ export function resolveInstallOptions(args: string[]): InstallOptions {
 }
 
 /** Best-effort read of skills.safety config; defaults on failure. */
-async function loadSafetyConfig(): Promise<{ requireConfirmation: boolean; scanScripts: boolean }> {
+export async function loadSafetyConfig(): Promise<{
+  requireConfirmation: boolean;
+  scanScripts: boolean;
+  denyNetwork: boolean;
+  sandboxTimeoutMs: number;
+}> {
   try {
     const { loadConfig } = await import("../../../config/loader.js");
     const config = await loadConfig(process.cwd());
@@ -141,17 +155,19 @@ async function loadSafetyConfig(): Promise<{ requireConfirmation: boolean; scanS
     return {
       requireConfirmation: safety?.requireConfirmation ?? true,
       scanScripts: safety?.scanScripts ?? true,
+      denyNetwork: safety?.denyNetwork ?? true,
+      sandboxTimeoutMs: safety?.sandboxTimeoutMs ?? 30_000,
     };
   } catch {
-    return { requireConfirmation: true, scanScripts: true };
+    return { requireConfirmation: true, scanScripts: true, denyNetwork: true, sandboxTimeoutMs: 30_000 };
   }
 }
 
 /**
- * Run the safety gate for a resolved skill and record the decision to evidence.
- * Returns the gate outcome; the caller writes files only on "approve".
+ * Run the safety gate for a resolved skill, record the decision to evidence,
+ * and return the outcome. The caller writes files only on "approve".
  */
-async function gateInstall(params: {
+async function gateAndRecordInstall(params: {
   name: string;
   source: string;
   manifest: SkillManifest | null;
@@ -200,8 +216,9 @@ async function gateInstall(params: {
     manifestVersion: manifest.version,
     requestedTools: manifestReport.requestedTools,
     scanOk: scan ? scan.ok : true,
-    scanErrorCount: scan ? scan.findings.filter((f) => f.severity === "error").length : 0,
-    scanWarningCount: scan ? scan.findings.filter((f) => f.severity === "warning").length : 0,
+    scanErrorCount: scan ? scan.errorCount : 0,
+    scanWarningCount: scan ? scan.warningCount : 0,
+    filesScanned: scan?.filesScanned ?? 0,
     approved: outcome === "approve",
     force: params.force,
     reason: outcome === "approve" ? "approved" : "blocked",
@@ -285,7 +302,7 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
       marketplaces,
       verifiedUrls: DEFAULT_MARKETPLACES.map((m) => m.url),
     });
-    const outcome = await gateInstall({
+    const outcome = await gateAndRecordInstall({
       name: opts.name,
       source: repoUrl,
       manifest,
@@ -302,11 +319,7 @@ export async function runInstall(opts: InstallOptions): Promise<void> {
     }
     await atomicInstallSkill(destDir, async (tmpDir) => {
       if (packageFiles) {
-        for (const f of packageFiles) {
-          const dest = join(tmpDir, f.relPath);
-          await mkdir(dirname(dest), { recursive: true });
-          await writeFile(dest, f.content, "utf8");
-        }
+        await writePackageFiles(tmpDir, packageFiles);
       } else {
         await writeFile(join(tmpDir, "SKILL.md"), content, "utf8");
       }
@@ -505,6 +518,7 @@ async function installFromSource(source: string, name: string | undefined, skill
   }
 
   const targetDir = join(skillsDir, resolvedName);
+  const targetExisted = existsSync(targetDir);
   await mkdir(targetDir, { recursive: true });
   if (sourceIsDir) {
     const [sourceReal, targetReal] = await Promise.all([realpath(sourceDir), realpath(targetDir)]);
@@ -520,7 +534,7 @@ async function installFromSource(source: string, name: string | undefined, skill
     marketplaces,
     verifiedUrls: DEFAULT_MARKETPLACES.map((m) => m.url),
   });
-  const outcome = await gateInstall({
+  const outcome = await gateAndRecordInstall({
     name: resolvedName,
     source,
     manifest,
@@ -532,6 +546,12 @@ async function installFromSource(source: string, name: string | undefined, skill
     sourceLabel: trust.sourceLabel,
   });
   if (outcome === "deny") {
+    if (!targetExisted) {
+      // The mkdir above exists for the self-copy realpath guard; on a denied
+      // install it leaves an empty dir behind. Remove it so a blocked install
+      // leaves no trace. Safe: it is empty or freshly created.
+      await rm(targetDir, { recursive: true, force: true }).catch(() => {});
+    }
     throw new Error(
       `Skill install blocked: ${resolvedName} from ${source}. Re-run with --force to override the trust confirmation (hard scan denials cannot be overridden).`,
     );
@@ -546,11 +566,7 @@ async function installFromSource(source: string, name: string | undefined, skill
   } else if (packageFiles) {
     // URL package source: write every fetched file, atomically.
     await atomicInstallSkill(targetDir, async (tmpDir) => {
-      for (const file of packageFiles) {
-        const dest = join(tmpDir, file.relPath);
-        await mkdir(dirname(dest), { recursive: true });
-        await writeFile(dest, file.content, "utf8");
-      }
+      await writePackageFiles(tmpDir, packageFiles);
     });
   } else {
     // Single-file source (local .md or fetched content): write just SKILL.md.

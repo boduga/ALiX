@@ -81,10 +81,9 @@ export interface InstallGateInput {
  */
 export function decideInstall(input: InstallGateInput): InstallGateDecision {
   if (input.scan && !input.scan.ok) {
-    const errors = input.scan.findings.filter((f) => f.severity === "error");
     return {
       outcome: "deny",
-      reason: `script scan found ${errors.length} denied file(s) — refusing to install '${input.name}'`,
+      reason: `script scan found ${input.scan.errorCount} denied file(s) — refusing to install '${input.name}'`,
     };
   }
   if (input.manifest.deny) {

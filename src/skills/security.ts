@@ -87,6 +87,8 @@ export interface SkillScanFinding {
 export interface SkillScanResult {
   ok: boolean;
   filesScanned: number;
+  errorCount: number;
+  warningCount: number;
   findings: SkillScanFinding[];
 }
 
@@ -109,22 +111,23 @@ export const DANGEROUS_SHELL_PATTERNS: { pattern: RegExp; message: string }[] = 
   { pattern: /\/etc\/(?:passwd|shadow)\b/, message: "references system credential files" },
 ];
 
-function checkDangerousScript(content: string, filePath: string): SkillScanFinding | null {
+function checkDangerousScript(content: string, filePath: string): SkillScanFinding[] {
   const isScript = filePath.split("/").includes("scripts") || /\.(sh|bash|py|js|rb|pl)$/i.test(filePath);
-  if (!isScript) return null;
+  if (!isScript) return [];
+  const findings: SkillScanFinding[] = [];
   for (const { pattern, message } of DANGEROUS_SHELL_PATTERNS) {
     pattern.lastIndex = 0;
     if (pattern.test(content)) {
-      return {
+      findings.push({
         code: "SC_SKILL_DANGEROUS_SCRIPT",
         severity: "warning",
         message: `possible dangerous pattern in ${filePath}: ${message}`,
         filePath,
         details: pattern.source,
-      };
+      });
     }
   }
-  return null;
+  return findings;
 }
 
 /**
@@ -152,11 +155,11 @@ export function scanSkillFiles(files: { relPath: string; content: string }[]): S
     for (const f of checkSecretContent(file.content, file.relPath)) {
       findings.push({ code: f.code, severity: f.severity, message: f.message, filePath: f.filePath ?? file.relPath, details: f.details });
     }
-    const dangerous = checkDangerousScript(file.content, file.relPath);
-    if (dangerous) findings.push(dangerous);
+    findings.push(...checkDangerousScript(file.content, file.relPath));
   }
-  const errors = findings.filter((f) => f.severity === "error");
-  return { ok: errors.length === 0, filesScanned, findings };
+  const errorCount = findings.filter((f) => f.severity === "error").length;
+  const warningCount = findings.length - errorCount;
+  return { ok: errorCount === 0, filesScanned, errorCount, warningCount, findings };
 }
 
 /**

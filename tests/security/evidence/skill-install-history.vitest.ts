@@ -21,7 +21,7 @@ describe("SkillInstallHistory", () => {
     const rec = await history.recordInstall({
       skillName: "xlsx", source: "https://github.com/acme/skills", trustLevel: "user-registered",
       manifestName: "xlsx", manifestVersion: "1.0.0", requestedTools: ["bash"], license: "MIT",
-      scanOk: true, scanErrorCount: 0, scanWarningCount: 1, approved: true, force: false,
+      scanOk: true, scanErrorCount: 0, scanWarningCount: 1, filesScanned: 1, approved: true, force: false,
       reason: "clean scan",
     });
     expect(rec).not.toBeNull();
@@ -35,7 +35,7 @@ describe("SkillInstallHistory", () => {
     await history.recordInstall({
       skillName: "evil", source: "https://example.com/evil.md", trustLevel: "unsigned",
       manifestName: "evil", manifestVersion: "1.0.0", requestedTools: [], scanOk: false,
-      scanErrorCount: 1, scanWarningCount: 0, approved: false, force: false,
+      scanErrorCount: 1, scanWarningCount: 0, filesScanned: 1, approved: false, force: false,
       reason: "denied file",
     });
     const store = new EvidenceStore({ storeDir: dir });
@@ -49,7 +49,7 @@ describe("SkillInstallHistory", () => {
     await history.recordInstall({
       skillName: "a", source: "https://github.com/anthropics/skills", trustLevel: "verified-marketplace",
       manifestName: "a", manifestVersion: "1.0.0", requestedTools: [], scanOk: true,
-      scanErrorCount: 0, scanWarningCount: 0, approved: true, force: false, reason: "verified",
+      scanErrorCount: 0, scanWarningCount: 0, filesScanned: 0, approved: true, force: false, reason: "verified",
     });
     const store = new EvidenceStore({ storeDir: dir });
     expect((await store.verify()).ok).toBe(true);
@@ -61,7 +61,7 @@ describe("SkillInstallHistory", () => {
     // env-dependent; instead assert the method returns null on an invalid type only via catch:
     const rec = await history.recordInstall({
       skillName: "x", source: "s", trustLevel: "unsigned", manifestName: "x", manifestVersion: "1",
-      requestedTools: [], scanOk: true, scanErrorCount: 0, scanWarningCount: 0,
+      requestedTools: [], scanOk: true, scanErrorCount: 0, scanWarningCount: 0, filesScanned: 0,
       approved: true, force: false, reason: "r",
     });
     expect(rec).not.toBeNull();
