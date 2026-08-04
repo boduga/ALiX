@@ -1,4 +1,5 @@
-import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath, rename } from "node:fs/promises";
 import { join, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent } from "../../../skills/types.js";
@@ -39,6 +40,37 @@ async function copyDir(src: string, dest: string): Promise<void> {
     } else {
       await copyFile(srcPath, destPath);
     }
+  }
+}
+
+/**
+ * Atomically install a skill: run `build` into a fresh temp sibling dir,
+ * verify SKILL.md exists, then swap-rename into place. An existing target is
+ * backed up first and removed only after the new copy succeeds, so a failed
+ * or interrupted install never leaves a partially-written skill.
+ */
+export async function atomicInstallSkill(
+  targetDir: string,
+  build: (tmpDir: string) => Promise<void>,
+): Promise<void> {
+  const tmpDir = `${targetDir}.tmp-${randomUUID()}`;
+  const backup = `${targetDir}.old-${randomUUID()}`;
+  await mkdir(tmpDir, { recursive: true });
+  try {
+    await build(tmpDir);
+    if (!existsSync(join(tmpDir, "SKILL.md"))) {
+      throw new Error(`Install did not produce SKILL.md under ${tmpDir}`);
+    }
+    if (existsSync(targetDir)) await rename(targetDir, backup);
+    try {
+      await rename(tmpDir, targetDir);
+    } catch (err) {
+      if (existsSync(backup)) await rename(backup, targetDir);
+      throw err;
+    }
+    if (existsSync(backup)) await rm(backup, { recursive: true, force: true });
+  } finally {
+    await rm(tmpDir, { recursive: true, force: true });
   }
 }
 
@@ -339,31 +371,31 @@ async function installFromSource(source: string, name: string | undefined, skill
   const targetDir = join(skillsDir, resolvedName);
   await mkdir(targetDir, { recursive: true });
   if (sourceIsDir) {
-    // Guard against self-copy: `--from <install target>` where the source
-    // resolves to the same directory as the target (e.g.
-    // `alix skills install foo --from ~/.alix/skills/foo`). Copying a
-    // directory onto itself would copyFile(srcPath, srcPath) and truncate
-    // every file to 0 bytes — so refuse instead; the skill is already there.
     const [sourceReal, targetReal] = await Promise.all([realpath(sourceDir), realpath(targetDir)]);
     if (sourceReal === targetReal) {
       throw new Error(
-        `Source ${source} resolves to the install target ${targetDir}; the skill is already installed.`,
+        `Source ${source} resolves install target ${targetDir}; skill already installed.`,
       );
     }
-    // Local-directory package source: copy the whole skill folder (SKILL.md,
-    // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS.
-    await copyDir(sourceDir, targetDir);
+    // Local-directory package source: copy whole skill folder (SKILL.md,
+    // scripts/, assets/, LICENSE, ...) minus EXCLUDED_DIRS, atomically.
+    await atomicInstallSkill(targetDir, async (tmpDir) => {
+      await copyDir(sourceDir, tmpDir);
+    });
   } else if (packageFiles) {
-    // URL package source: write every fetched file (SKILL.md + scripts/,
-    // assets/, LICENSE, ...) under the skill directory.
-    for (const file of packageFiles) {
-      const dest = join(targetDir, file.relPath);
-      await mkdir(dirname(dest), { recursive: true });
-      await writeFile(dest, file.content, "utf8");
-    }
+    // URL package source: write every fetched file, atomically.
+    await atomicInstallSkill(targetDir, async (tmpDir) => {
+      for (const file of packageFiles) {
+        const dest = join(tmpDir, file.relPath);
+        await mkdir(dirname(dest), { recursive: true });
+        await writeFile(dest, file.content, "utf8");
+      }
+    });
   } else {
     // Single-file source (local .md or fetched content): write just SKILL.md.
-    await writeFile(join(targetDir, "SKILL.md"), content, "utf8");
+    await atomicInstallSkill(targetDir, async (tmpDir) => {
+      await writeFile(join(tmpDir, "SKILL.md"), content, "utf8");
+    });
   }
   console.log(`Installed: ${resolvedName} (from ${source})`);
 }

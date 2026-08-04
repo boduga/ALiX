@@ -1,8 +1,8 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { runInstall, resolveInstallOptions } from "../../../../src/cli/commands/skills/install.js";
+import { runInstall, resolveInstallOptions, atomicInstallSkill } from "../../../../src/cli/commands/skills/install.js";
 import { join } from "node:path";
-import { existsSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { useTestHome, restoreTestHome } from "./test-helpers.js";
 
@@ -592,5 +592,54 @@ describe("install --from github URLs", () => {
       runInstall({ from: "https://github.com/acme/alix-skills/issues/123" }),
       /returned an HTML page, not a skill/,
     );
+  });
+});
+
+describe("atomicInstallSkill", () => {
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  it("replaces a previously installed package, removing stale files, with no leftovers", async () => {
+    const target = join(testDir, ".alix", "skills", "xlsx");
+    await atomicInstallSkill(target, async (tmp) => {
+      mkdirSync(join(tmp, "scripts"), { recursive: true });
+      writeFileSync(join(tmp, "SKILL.md"), "---\nname: xlsx\ndescription: X\n---\nV1.\n");
+      writeFileSync(join(tmp, "scripts", "old.py"), "print('old')\n");
+    });
+    await atomicInstallSkill(target, async (tmp) => {
+      mkdirSync(join(tmp, "scripts"), { recursive: true });
+      writeFileSync(join(tmp, "SKILL.md"), "---\nname: xlsx\ndescription: X\n---\nV2.\n");
+      writeFileSync(join(tmp, "scripts", "new.py"), "print('new')\n");
+    });
+    assert.equal(readFileSync(join(target, "SKILL.md"), "utf8").includes("V2"), true);
+    assert.ok(!existsSync(join(target, "scripts", "old.py")), "stale file removed on reinstall");
+    assert.ok(existsSync(join(target, "scripts", "new.py")));
+    const leftovers = readdirSync(join(testDir, ".alix", "skills")).filter(
+      (n) => n.includes(".tmp-") || n.includes(".old-"),
+    );
+    assert.deepEqual(leftovers, [], "no temp/backup leftovers");
+  });
+
+  it("leaves an existing install untouched when the build fails", async () => {
+    const target = join(testDir, ".alix", "skills", "keep");
+    await atomicInstallSkill(target, async (tmp) => {
+      writeFileSync(join(tmp, "SKILL.md"), "---\nname: keep\ndescription: K\n---\nOK.\n");
+    });
+    const before = readFileSync(join(target, "SKILL.md"), "utf8");
+    await assert.rejects(
+      atomicInstallSkill(target, async () => {
+        throw new Error("build failed");
+      }),
+      /build failed/,
+    );
+    assert.equal(readFileSync(join(target, "SKILL.md"), "utf8"), before, "target untouched on failed build");
+    const leftovers = readdirSync(join(testDir, ".alix", "skills")).filter(
+      (n) => n.includes(".tmp-") || n.includes(".old-"),
+    );
+    assert.deepEqual(leftovers, [], "no temp/backup leftovers after failure");
   });
 });

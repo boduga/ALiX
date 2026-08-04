@@ -386,3 +386,26 @@ export async function runMarketplaceCommand(
   }
   throw new Error(`Unknown marketplace action: ${action}`);
 }
+
+/**
+ * Resolve a skill as a full package across registered marketplaces, returning
+ * the first marketplace whose repo has the skill under `skills/<name>/`
+ * (via fetchSkillPackage's GitHub tree walk). Returns null when no marketplace
+ * yields a package — the caller falls back to the single-file resolution
+ * (resolveSkillInMarketplaces) for genuinely single-file skills. Per-marketplace
+ * fetch failures are swallowed; the next marketplace is tried.
+ */
+export async function resolveSkillPackageInMarketplaces(
+  name: string,
+  marketplaces: Marketplace[],
+): Promise<{ repoUrl: string; pkg: SkillPackage } | null> {
+  for (const mp of marketplaces) {
+    try {
+      const pkg = await fetchSkillPackage(mp.url, { name });
+      if (pkg) return { repoUrl: mp.url, pkg };
+    } catch {
+      // trees/raw failure for this marketplace — try the next.
+    }
+  }
+  return null;
+}
