@@ -124,6 +124,56 @@ describe('TuiApp -- lifecycle', () => {
     await app.stop();
     expect(metrics.stop).toHaveBeenCalled();
   });
+
+  it('stop() unsubscribes the resize listener (no leak across start/stop cycles)', async () => {
+    // Regression: terminal.onResize returns an unsubscribe function that
+    // was discarded, accumulating listeners across start/stop cycles.
+    app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+    await app.start();
+    const internal = app as unknown as { resizeCleanup?: () => void };
+    expect(internal.resizeCleanup).toBeInstanceOf(Function);
+    const unsub = internal.resizeCleanup!;
+    await app.stop();
+    // After stop, the captured unsubscribe function should be the same
+    // one that was registered at start (and cleanupSync called it).
+    expect(internal.resizeCleanup).toBe(unsub);
+    // Repeated start/stop cycles must not throw — the second start
+    // re-registers a fresh listener and the next stop cleans it up.
+    await app.start();
+    await app.stop();
+  });
+
+  it('refreshSlashCatalog no-ops after stop() (no torn-down instance mutation)', async () => {
+    // Regression: a snapshot-tick refreshSlashCatalog() in flight when
+    // stop() runs must not reassign state on a detached instance.
+    const { setSlashCatalogLoaderForTest } = await import('../../src/skills/slash-catalog.js');
+    let installed: any[] = [{ name: 'pre', description: 'PRE', version: '1.0.0', is_core: false }];
+    setSlashCatalogLoaderForTest(async () => installed);
+    try {
+      app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+      await app.start();
+      const internal = app as unknown as { slashManifests: any[]; refreshSlashCatalog(): Promise<void> };
+      expect(internal.slashManifests.map((m: any) => m.name)).toEqual(['pre']);
+
+      // Mutate the loader + invalidate; the in-flight read will resolve
+      // AFTER stop() runs.
+      installed = [{ name: 'post', description: 'POST', version: '1.0.0', is_core: false }];
+      const { invalidateSlashCatalog } = await import('../../src/skills/slash-catalog.js');
+      invalidateSlashCatalog();
+
+      // Construct the promise, then immediately stop.
+      const inflight = internal.refreshSlashCatalog();
+      await app.stop();
+      await inflight;
+
+      // The detached guard must have bailed — the slashManifests mirror
+      // must not have been overwritten with the post-stop snapshot.
+      expect(internal.slashManifests.map((m: any) => m.name)).toEqual(['pre']);
+    } finally {
+      setSlashCatalogLoaderForTest(null);
+      if (app && !app['detached']) await app.stop().catch(() => {});
+    }
+  });
 });
 
 describe('TuiApp -- tab-state preservation', () => {

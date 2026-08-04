@@ -119,6 +119,7 @@ export class TuiApp {
   private readonly output: IOutput;
   private readonly keyDispatcher: import('./key-dispatcher.js').KeyDispatcher;
   private inputCleanup?: () => void;
+  private resizeCleanup?: () => void;
   private readonly palette = new PaletteModal();
   private paletteOpen = false;
   private paletteQuery = '';
@@ -219,7 +220,7 @@ export class TuiApp {
 
   async start(): Promise<void> {
     this.terminal.enableTerminalModes();
-    this.terminal.onResize(() => this.paintFullFrame());
+    this.resizeCleanup = this.terminal.onResize(() => this.paintFullFrame());
 
     this.opts.daemonMetrics.start();
 
@@ -295,6 +296,10 @@ export class TuiApp {
    */
   private refreshSlashCatalog(): Promise<void> {
     return getSlashCatalog().then((manifests) => {
+      // Bail if the TUI was torn down between the catalog read and the
+      // resolution — reassigning state on a detached instance is harmless
+      // but pollutes the heap and races with stop()/cleanupSync().
+      if (this.detached) return;
       this.slashManifests = manifests;
       if (this.state.activeTab === 'agent') this.paintFullFrame();
     });
@@ -1422,6 +1427,7 @@ export class TuiApp {
   private async cleanupSync(): Promise<void> {
     this.terminal.disableTerminalModes();
     this.inputCleanup?.();
+    this.resizeCleanup?.();
   }
 }
 
