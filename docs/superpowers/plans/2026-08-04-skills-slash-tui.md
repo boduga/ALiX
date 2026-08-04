@@ -925,7 +925,14 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
       { name: 'a', description: 'A', trigger: '/ty', version: '1.0.0', is_core: false },
       { name: 'b', description: 'B', trigger: '/typing', version: '1.0.0', is_core: false },
     ];
-    internal.handleRaw(Buffer.from('/ty'));
+    // Plan amendment (2026-08-04, applies Task-4 ruling): handleRaw calls
+    // parseKey(buf) once per buffer, and parseKey returns null for any
+    // multi-char string (only single bytes + control sequences are keys).
+    // Buffer.from('/ty') is a 3-byte buffer → parseKey returns null →
+    // handleRaw bails before slash mode runs. The brief's literal test
+    // could never reach the Tab assertions. Feed each char separately,
+    // matching the other tests' pattern.
+    for (const ch of '/ty') internal.handleRaw(Buffer.from(ch));
     internal.handleRaw(Buffer.from('\t'));
     expect(internal.slashSelectionForTest).toBe(1);
     internal.handleRaw(Buffer.from('\t'));
@@ -952,6 +959,8 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
 ```
 
 > The test references internal seams (`slashManifestsForTest`, `slashHintForTest`, `slashSelectionForTest`) — add them as public-only-for-test accessors in the same style the file's existing `getStateForTest()` uses.
+
+> **Plan amendment (2026-08-04, applies the Task-4 ruling "fix the test fixture, make the plan amendment explicit" — same self-defeating-test class):** the `'Tab cycles the strip selection'` test fed `Buffer.from('/ty')` as a single 3-byte buffer. `handleRaw` calls `parseKey(buf)` once per buffer, and `parseKey` returns `null` for any multi-char string (only single bytes and escape sequences are keys — app.ts:1452). So the test could never reach the Tab assertions. Fix: feed each char separately, matching the other tests' `for (const ch of '...')` pattern. No `src` change; the test becomes a real test.
 
 - [ ] **Step 2: Run the test to verify it fails**
 

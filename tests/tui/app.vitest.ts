@@ -19,6 +19,52 @@ async function flushedAfter(log: EventLog, count: number): Promise<void> {
   });
 }
 
+/** Project the log's text-bearing events of `type` onto their text — the
+ *  single source of truth timeline (the per-tab cache is gone, Phase 6). */
+async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response' | 'agent.message' | 'agent.response'): Promise<string[]> {
+  const events = await log.readAll();
+  return events.filter((e) => e.type === type).map((e) => (e.payload as { text?: string }).text ?? '');
+}
+
+// Build a tui app wired to a real EventLog + sub-session ids, so the
+// submitted prompt/response land in the log — the timeline's single source
+// of truth. We never paint in these tests — we drive handleRaw and inspect
+// the emitted log entries.
+async function makeApp(opts: Partial<{ agentSession: unknown }> = {}) {
+  const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-app-input-')));
+  await log.init();
+  const snap = {
+    generatedAt: 1,
+    session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
+    daemon: null, approvals: null, runtime: null, sops: null, policy: null,
+  };
+  const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
+  const metrics = { start: () => {}, stop: async () => {} };
+  const app = new TuiApp({
+    builder, daemonMetrics: metrics, agentSession: opts.agentSession,
+    eventLog: log, chatSessionId: 'sess-chat', agentSessionId: 'sess-agent',
+  } as unknown as TuiAppOptions);
+  const internal = app as unknown as {
+    handleRaw(buf: Buffer): void;
+    getStateForTest(): {
+      lastSnapshot: unknown;
+      activeTab?: string;
+      views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+    };
+    recorded?: any;
+    slashManifestsForTest?: unknown[];
+    slashHintForTest?: string | null;
+    slashSelectionForTest?: number;
+  };
+  // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
+  internal.getStateForTest().lastSnapshot = snap;
+  // Switch to chat tab — the default is now 'dashboard', but these
+  // tests specifically exercise the chat input path.
+  internal.getStateForTest().activeTab = 'chat';
+  internal.getStateForTest().views.chat.inputBuffer = '';
+  return { app, internal, log };
+}
+
 describe('TuiApp -- lifecycle', () => {
   let builder: { build: ReturnType<typeof vi.fn>; buildSync: ReturnType<typeof vi.fn> };
   let metrics: { start: ReturnType<typeof vi.fn>; stop: ReturnType<typeof vi.fn> };
@@ -58,47 +104,6 @@ describe('TuiApp -- tab-state preservation', () => {
 });
 
 describe('TuiApp -- chat-input dispatch', () => {
-  /** Project the log's text-bearing events of `type` onto their text — the
-   *  single source of truth timeline (the per-tab cache is gone, Phase 6). */
-  async function timelineTexts(log: EventLog, type: 'chat.message' | 'chat.response' | 'agent.message' | 'agent.response'): Promise<string[]> {
-    const events = await log.readAll();
-    return events.filter((e) => e.type === type).map((e) => (e.payload as { text?: string }).text ?? '');
-  }
-
-  // Build a tui app wired to a real EventLog + sub-session ids, so the
-  // submitted prompt/response land in the log — the timeline's single source
-  // of truth. We never paint in these tests — we drive handleRaw and inspect
-  // the emitted log entries.
-  async function makeApp(opts: Partial<{ agentSession: unknown }> = {}) {
-    const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-app-input-')));
-    await log.init();
-    const snap = {
-      generatedAt: 1,
-      session: { mode: 'auto' as const, phase: 'Idle', version: '0.3.1', startedAt: 0, turns: 0 },
-      daemon: null, approvals: null, runtime: null, sops: null, policy: null,
-    };
-    const builder = { build: vi.fn(async () => snap), buildSync: vi.fn(() => snap) };
-    const metrics = { start: () => {}, stop: async () => {} };
-    const app = new TuiApp({
-      builder, daemonMetrics: metrics, agentSession: opts.agentSession,
-      eventLog: log, chatSessionId: 'sess-chat', agentSessionId: 'sess-agent',
-    } as unknown as TuiAppOptions);
-    const internal = app as unknown as {
-      handleRaw(buf: Buffer): void;
-      getStateForTest(): {
-        lastSnapshot: unknown;
-        activeTab?: string;
-        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
-      };
-    };
-    // Seed lastSnapshot so handleRaw doesn't bail at its `if (!lastSnapshot) return;` guard.
-    internal.getStateForTest().lastSnapshot = snap;
-    // Switch to chat tab — the default is now 'dashboard', but these
-    // tests specifically exercise the chat input path.
-    internal.getStateForTest().activeTab = 'chat';
-    internal.getStateForTest().views.chat.inputBuffer = '';
-    return { app, internal, log };
-  }
 
   it('appends printable characters to the chat buffer', async () => {
     const { internal } = await makeApp();
@@ -547,6 +552,90 @@ describe('TuiApp — palette-open Ctrl+C quit', () => {
     } finally {
       clearCapabilityService();
     }
+  });
+});
+
+describe('TuiApp -- slash commands (agent tab only)', () => {
+  async function makeAgentApp(opts: Partial<{ agentSession: unknown }> = {}) {
+    const { internal } = await makeApp(opts);
+    internal.getStateForTest().activeTab = 'agent';
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    return { internal };
+  }
+
+  it('does not enter slash mode for a bare "/" on the agent tab', async () => {
+    const { internal } = await makeAgentApp();
+    internal.handleRaw(Buffer.from('/'));
+    internal.handleRaw(Buffer.from('\r'));
+    // length-1 buffer is not slash mode → normal submit path, no skill
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('');
+  });
+
+  it('submits the rest of a slash command with the skill name', async () => {
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async (text: string, options?: { skills?: string[] }) => {
+          internal.recorded = { text, skills: options?.skills };
+          return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' };
+        },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded.text).toBe('fix parser');
+    expect(internal.recorded.skills).toEqual(['tdd']);
+  });
+
+  it('keeps the buffer and shows a hint for an unknown command', async () => {
+    const { internal } = await makeAgentApp({
+      agentSession: {
+        processTurn: async () => { internal.recorded = true; return { summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' }; },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/nope hi') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded).toBeUndefined();
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/nope hi');
+    expect(internal.slashHintForTest).toBeTruthy();
+  });
+
+  it('Tab cycles the strip selection without modifying the buffer', async () => {
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'a', description: 'A', trigger: '/ty', version: '1.0.0', is_core: false },
+      { name: 'b', description: 'B', trigger: '/typing', version: '1.0.0', is_core: false },
+    ];
+    // Plan amendment (2026-08-04, applies Task-4 ruling): handleRaw calls
+    // parseKey(buf) once per buffer, and parseKey returns null for any
+    // multi-char string (only single bytes + control sequences are keys).
+    // Buffer.from('/ty') is a 3-byte buffer → parseKey returns null →
+    // handleRaw bails before slash mode runs. The brief's literal test
+    // could never reach the Tab assertions. Feed each char separately,
+    // matching the other tests' pattern.
+    for (const ch of '/ty') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.slashSelectionForTest).toBe(1);
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.slashSelectionForTest).toBe(0);
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/ty');
+  });
+
+  it('does NOT activate slash commands on the chat tab', async () => {
+    // Chat tab: '/tdd fix parser' submits as plain text — no skill resolution.
+    const { internal } = await makeApp({
+      agentSession: {
+        processChat: async (text: string) => {
+          internal.recorded = text;
+          return { summary: `did ${text}`, sessionId: 's', toolCalls: [], streamed: false, reason: 'chat' };
+        },
+      },
+    });
+    internal.slashManifestsForTest = [{ name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false }];
+    for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\r'));
+    expect(internal.recorded).toBe('/tdd fix parser'); // plain text, no skill
   });
 });
 

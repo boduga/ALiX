@@ -22,6 +22,24 @@ export interface PerTabRuntime {
   readonly agent: RuntimeSnapshot | null;
 }
 
+/** One candidate row in the slash-completion strip. */
+export interface SlashStripEntry {
+  /** Canonical skill name. */
+  name: string;
+  /** Primary slash label, e.g. "/tdd". */
+  label: string;
+  description: string;
+}
+
+/** Completion strip state passed to chat/agent views while slash mode is active. */
+export interface SlashStrip {
+  entries: SlashStripEntry[];
+  /** Index of the highlighted candidate (Tab-cycled). */
+  selected: number;
+  /** Inline hint (e.g. "Unknown skill ..."), or null. */
+  hint: string | null;
+}
+
 export interface ViewRenderContext {
   readonly snap: DashboardSnapshot;
   readonly dimensions: TerminalDimensions;
@@ -37,6 +55,8 @@ export interface ViewRenderContext {
   readonly themeName?: string;
   /** Phase 6 (D6/D9): projected chat/agent sub-session runtime snapshots. */
   readonly runtime?: PerTabRuntime;
+  /** Slash-command completion strip, present only while slash mode is active. */
+  readonly slash?: SlashStrip;
 }
 
 export interface ViewInputContext {

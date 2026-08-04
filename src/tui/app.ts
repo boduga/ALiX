@@ -3,7 +3,9 @@ import { createInitialTuiAppState, SessionPhase } from './state.js';
 import type { DashboardSnapshot, RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
 import type { RuntimeCollector } from './runtime-collector.js';
-import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
+import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions, SlashStrip, SlashStripEntry } from './views/types.js';
+import { parseSlashInput, rankSkillMatches, canonicalSkillId, skillSlashNames } from '../skills/slash.js';
+import { getSlashCatalog } from '../skills/slash-catalog.js';
 import { getTheme } from './blocks/theme.js';
 import { getView } from './views/index.js';
 import { TuiRenderer } from './render.js';
@@ -120,6 +122,12 @@ export class TuiApp {
   private readonly palette = new PaletteModal();
   private paletteOpen = false;
   private paletteQuery = '';
+  /** Resolved installed-skill manifests for slash completion (cached). */
+  private slashManifests: any[] = [];
+  /** Index of the highlighted strip candidate (Tab-cycled). */
+  private slashSelection = 0;
+  /** Inline hint for unknown commands. */
+  private slashHint: string | null = null;
 
   constructor(private readonly opts: TuiAppOptions) {
     this.input = opts.input ?? new StdioInput(process.stdin);
@@ -228,6 +236,10 @@ export class TuiApp {
     }
     await this.sampleRuntimeCollectors();
     this.paintFullFrame();
+    void getSlashCatalog().then((manifests) => {
+      this.slashManifests = manifests;
+      this.paintFullFrame();
+    });
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
     this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
@@ -254,6 +266,12 @@ export class TuiApp {
 
   /** Test seam: expose internal state for assertions. */
   getStateForTest(): TuiAppState { return this.state; }
+
+  // Test seams (mirroring getStateForTest)
+  get slashManifestsForTest(): any[] { return this.slashManifests; }
+  set slashManifestsForTest(v: any[]) { this.slashManifests = v; }
+  get slashHintForTest(): string | null { return this.slashHint; }
+  get slashSelectionForTest(): number { return this.slashSelection; }
 
   private async refresh(): Promise<void> {
     const generation = ++this.state.refreshGeneration;
@@ -360,6 +378,46 @@ export class TuiApp {
     }
   }
 
+  /** True when the AGENT-tab input is a slash command in progress (agent only). */
+  private slashActive(): boolean {
+    if (this.state.activeTab !== 'agent') return false;
+    const buf = this.state.views.agent.inputBuffer;
+    return buf.startsWith('/') && buf.length > 1;
+  }
+
+  /** The current slash-command buffer, or null when not in slash mode (agent only). */
+  private slashBuffer(): string | null {
+    if (this.state.activeTab !== 'agent') return null;
+    const buf = this.state.views.agent.inputBuffer;
+    return buf.startsWith('/') && buf.length > 1 ? buf : null;
+  }
+
+  private cycleSlashSelection(delta: number): void {
+    const strip = this.computeSlashStrip();
+    if (!strip || strip.entries.length === 0) return;
+    const n = strip.entries.length;
+    this.slashSelection = (this.slashSelection + delta + n) % n;
+  }
+
+  /** Build the strip passed to views; also refreshes slashSelection bounds. */
+  private computeSlashStrip(): SlashStrip | null {
+    const buf = this.slashBuffer();
+    if (!buf) { this.slashSelection = 0; return null; }
+    const parsed = parseSlashInput(buf);
+    if (!parsed) return null;
+    const matches = rankSkillMatches(this.slashManifests, parsed.command);
+    this.slashSelection = Math.min(this.slashSelection, Math.max(0, matches.length - 1));
+    return {
+      entries: matches.slice(0, 8).map((m): SlashStripEntry => ({
+        name: m.name,
+        label: skillSlashNames(m)[0] ?? `/${m.name}`,
+        description: m.description,
+      })),
+      selected: this.slashSelection,
+      hint: this.slashHint,
+    };
+  }
+
   private handleRaw(buf: Buffer): void {
     // 1. Bracketed paste detector — runs on raw bytes, before key parsing.
     if (this.handlePaste(buf)) return;
@@ -375,6 +433,11 @@ export class TuiApp {
     if (this.paletteOpen) {
       this.handlePaletteKey(key);
       return;
+    }
+    // Slash-command completion mode: Tab/Shift+Tab cycle strip selection.
+    if (this.slashActive()) {
+      if (key === 'Tab') { this.cycleSlashSelection(1); this.paintFullFrame(); return; }
+      if (key === 'Shift+Tab') { this.cycleSlashSelection(-1); this.paintFullFrame(); return; }
     }
     if (this.tryHandleGlobal(key)) return;
     // 2b. Pluggable key dispatcher — registered keybindings get first
@@ -459,6 +522,11 @@ export class TuiApp {
         return;
       }
       if (key === 'Enter') {
+        if (this.slashActive()) {
+          void this.submitSlashCommand();
+          this.paintFullFrame();
+          return;
+        }
         if (perTab.inputBuffer.trim().length > 0) {
           this.emitTimelineLog('user', perTab.inputBuffer, this.opts.agentSessionId);
           void this.submitAgentInput(perTab.inputBuffer);
@@ -549,6 +617,37 @@ export class TuiApp {
   }
 
   /**
+   * Submit a slash command (agent tab only): strip the trigger, resolve the
+   * skill, and dispatch the rest as the task with the skill explicitly
+   * injected. Unknown commands keep the buffer and set a hint — never an
+   * accidental agent call.
+   */
+  private async submitSlashCommand(): Promise<void> {
+    if (this.state.activeTab !== 'agent') return;
+    const perTab = this.state.views.agent;
+    const buf = perTab.inputBuffer;
+    const parsed = parseSlashInput(buf);
+    if (!parsed) return;
+    const matches = rankSkillMatches(this.slashManifests, parsed.command);
+    if (matches.length === 0) {
+      this.slashHint = `Unknown skill "${parsed.command}" — press Tab for completions.`;
+      return; // keep the text in the buffer; no agent call
+    }
+    const selected = matches[Math.min(this.slashSelection, matches.length - 1)]!;
+    const text = parsed.rest.trim() || selected.name;
+    this.slashHint = null;
+    perTab.inputBuffer = '';
+    this.slashSelection = 0;
+    this.emitTimelineLog('user', text, this.opts.agentSessionId);
+    const skills = [canonicalSkillId(selected)];
+    await this.dispatchToSession(
+      text, 'agent', perTab,
+      [this.opts.agentSession?.processTurn?.bind(this.opts.agentSession)],
+      '[agent]', 120_000, skills,
+    );
+  }
+
+  /**
    * Submit the typed task on the agent tab through the full
    * `processTurn` path (workflow loop, tool-call capable). Falls back
    * to a placeholder when no AgentSession is configured.
@@ -581,9 +680,10 @@ export class TuiApp {
     text: string,
     kind: 'chat' | 'agent',
     perTab: TimelineWritableState,
-    candidates: Array<((text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
+    candidates: Array<((text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>) | undefined>,
     fallbackPrefix: string,
     timeoutMs = 5_000,
+    skills?: string[],
   ): Promise<void> {
     if (!this.state.lastSnapshot) return;
     let summary: string = `${fallbackPrefix} ${text}`;
@@ -593,7 +693,7 @@ export class TuiApp {
     for (const fn of candidates) {
       if (!fn) continue;
       try {
-        const result = await this.raceAgentCall(text, fn, timeoutMs);
+        const result = await this.raceAgentCall(text, fn, timeoutMs, skills);
         // Detect the chat path's "no provider configured" placeholder and
         // continue to the next candidate so the agent tab falls through
         // to its workflow path. Other sentinel responses (empty
@@ -647,13 +747,14 @@ export class TuiApp {
    */
   private raceAgentCall(
     text: string,
-    fn: (text: string) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>,
+    fn: (text: string, options?: { skills?: string[] }) => Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }>,
     timeoutMs: number,
+    skills?: string[],
   ): Promise<{ summary: string; reason?: string; planContent?: string; planTasks?: readonly PlanTask[] }> {
     const timeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error(`agent call timed out after ${timeoutMs}ms`)), timeoutMs),
     );
-    return Promise.race([fn(text), timeout]);
+    return Promise.race([skills ? fn(text, { skills }) : fn(text), timeout]);
   }
 
   private tryHandleGlobal(key: string): boolean {
@@ -1171,6 +1272,7 @@ export class TuiApp {
       // from the runtime collectors. ChatView/AgentView read their own tab's
       // `runtime.<tab>.timeline` projection.
       runtime: { chat: this.chatRuntime, agent: this.agentRuntime },
+      slash: this.computeSlashStrip() ?? undefined,
     };
     this.views[this.state.activeTab]!.render(viewCtx);
 
