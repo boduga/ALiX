@@ -99,7 +99,7 @@ const MAX_SCAN_BYTES = 1024 * 1024;
  */
 export const DANGEROUS_SHELL_PATTERNS: { pattern: RegExp; message: string }[] = [
   { pattern: /rm\s+-(?:[a-z]*r[a-z]*f|[a-z]*f[a-z]*r)\s+(\/\/?|\/|\*)\s*(\s|;|$)/, message: "recursive force delete of filesystem root" },
-  { pattern: /\b(?:curl|wget)\b[^\n;|]*\|\s*(?:ba|z|da|sh)\b/i, message: "pipe-to-shell pattern (curl | sh)" },
+  { pattern: /\b(?:curl|wget)\b[^\n;|]*\|\s*(?:bash|zsh|dash|sh)\b/i, message: "pipe-to-shell pattern (curl | sh)" },
   { pattern: /(?:base64\s+-[dD]|from\s+base64\s+import\b)/i, message: "base64 payload decoding" },
   { pattern: /\b(?:ncat|nc)\b\s+-[a-zA-Z]*[el][a-zA-Z]*/, message: "netcat listener (possible reverse shell)" },
   { pattern: /\beval\s*\(/, message: "eval() execution" },
