@@ -68,6 +68,20 @@ export class AgentView implements TuiView {
       c.write(2, 5, `${color}[${label}]${RESET}`);
     }
 
+    // Slash-command completion strip (agent tab only) — drawn last so it
+    // overlays scrollback while slash mode is active (transient, like the
+    // palette). ChatView never receives ctx.slash.
+    if (ctx.slash) {
+      if (ctx.slash.hint) {
+        c.write(0, 6, `\x1b[33m ${ctx.slash.hint}\x1b[0m`);
+      } else if (ctx.slash.entries.length > 0) {
+        ctx.slash.entries.slice(0, 6).forEach((entry, i) => {
+          const marker = i === ctx.slash!.selected ? '>' : ' ';
+          c.write(0, 6 + i, ` ${marker} \x1b[36m${entry.label}\x1b[0m ${entry.description}`);
+        });
+      }
+    }
+
     // The 14-row dashboard reservation is gone (panels now live in
     // the dashboard tab). Scrollback uses the full vertical space.
     const PANEL_H = 0;
@@ -156,7 +170,7 @@ export class AgentView implements TuiView {
     // resolve them with `a` / `d` without leaving the agent tab. The
     // first line is a header showing how many are pending; each entry
     // shows tool + target with a hint to press `a` or `d`.
-    if (ctx.perTab.pendingApprovals.length > 0) {
+    if ((ctx.perTab.pendingApprovals?.length ?? 0) > 0) {
       const aps = ctx.perTab.pendingApprovals;
       const body = `${aps.length} approval request${aps.length === 1 ? '' : 's'} pending — press 'a' to approve, 'd' to deny`;
       const calloutRows = callout('WARNING', body, textWidth);
