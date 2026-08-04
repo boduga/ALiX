@@ -48,6 +48,13 @@ describe("parseSkillContent manifest extensions", () => {
     assert.equal(manifest, null);
   });
 
+  it("rejects a C1 CSI escape (\\x9b) in the description", () => {
+    // UTF-8 terminals interpret U+009B as CSI, so "\x9B[2J" is a clear-screen
+    // sequence equivalent to the C0 "\x1b[2J" case.
+    const { manifest } = parseSkillContent('---\nname: x\ndescription: "x\\x9b[2J"\n---\nBody.\n');
+    assert.equal(manifest, null);
+  });
+
   it("rejects a control char in a list field (allowed-tools)", () => {
     const { manifest } = parseSkillContent('---\nname: x\ndescription: X\nallowed-tools: ["bash\\x1b"]\n---\nBody.\n');
     assert.equal(manifest, null);

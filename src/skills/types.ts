@@ -43,15 +43,16 @@ function toStringArray(value: unknown): string[] | undefined {
 }
 
 /**
- * C0 control characters that can inject terminal control sequences or break
- * parsing invariants. Tab (0x09), LF (0x0A) and CR (0x0D) are excluded: they
- * are legitimate whitespace that may legitimately appear inside string fields.
- * Everything else in the C0 range (NUL, ESC \x1b, ...) plus DEL (0x7F) is
- * rejected. The `yaml` parser decodes `\x1b` etc. in double-quoted strings to
- * literal bytes, which is how ANSI injection could otherwise reach the trust
- * prompt.
+ * C0 and C1 control characters that can inject terminal control sequences or
+ * break parsing invariants. Tab (0x09), LF (0x0A) and CR (0x0D) are excluded:
+ * they are legitimate whitespace that may legitimately appear inside string
+ * fields. Everything else in the C0 range (NUL, ESC \x1b, ...) plus DEL (0x7F)
+ * and the C1 range (0x80-0x9F, including CSI U+009B and OSC U+009D) is
+ * rejected. The `yaml` parser decodes `\x1b`, `\x9b`, etc. in double-quoted
+ * strings to literal bytes, which is how ANSI/CSI/OSC injection could
+ * otherwise reach the trust prompt.
  */
-const CONTROL_CHAR_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+const CONTROL_CHAR_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/;
 
 /** True if any string field (or list entry) of the manifest carries a disallowed control character. */
 function containsControlChars(m: SkillManifest): boolean {
@@ -91,11 +92,11 @@ export function parseFrontMatter(content: string): SkillManifest | null {
       license: raw.license != null ? String(raw.license) : undefined,
     };
     // Defense-in-depth at parse time: the yaml parser decodes escape sequences
-    // in double-quoted strings (\x1b etc.) to literal control bytes. Reject any
-    // manifest whose string fields carry C0 control characters (other than
-    // tab/LF/CR) so ANSI terminal control sequences can never reach the trust
-    // prompt via console.log. A manifest: null here is handled cleanly by every
-    // install/load path.
+    // in double-quoted strings (\x1b, \x9b, etc.) to literal control bytes.
+    // Reject any manifest whose string fields carry C0/C1 control characters
+    // (other than tab/LF/CR) so ANSI/CSI/OSC terminal control sequences can
+    // never reach the trust prompt via console.log. A manifest: null here is
+    // handled cleanly by every install/load path.
     if (containsControlChars(manifest)) return null;
     return manifest;
   } catch {
