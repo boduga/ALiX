@@ -11,43 +11,43 @@ const testDir = join(process.cwd(), ".test-alix-skills");
 describe("resolveInstallOptions", () => {
   it("resolves bare 'available' subcommand", () => {
     assert.deepEqual(resolveInstallOptions(["available"]), {
-      available: true, list: false, name: undefined, from: undefined,
+      available: true, list: false, name: undefined, from: undefined, force: false,
     });
   });
 
   it("resolves 'install <name>' — name is the second arg, not 'install'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "tdd"]), {
-      available: false, list: false, name: "tdd", from: undefined,
+      available: false, list: false, name: "tdd", from: undefined, force: false,
     });
   });
 
   it("resolves 'install --list'", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--list"]), {
-      available: false, list: true, name: undefined, from: undefined,
+      available: false, list: true, name: undefined, from: undefined, force: false,
     });
   });
 
   it("resolves legacy '--available' flag", () => {
     assert.deepEqual(resolveInstallOptions(["--available"]), {
-      available: true, list: false, name: undefined, from: undefined,
+      available: true, list: false, name: undefined, from: undefined, force: false,
     });
   });
 
   it("resolves empty args to a bare call (help path)", () => {
     assert.deepEqual(resolveInstallOptions([]), {
-      available: false, list: false, name: undefined, from: undefined,
+      available: false, list: false, name: undefined, from: undefined, force: false,
     });
   });
 
   it("resolves 'install --from <path>' with an explicit name", () => {
     assert.deepEqual(resolveInstallOptions(["install", "langfuse", "--from", "./langfuse"]), {
-      available: false, list: false, name: "langfuse", from: "./langfuse",
+      available: false, list: false, name: "langfuse", from: "./langfuse", force: false,
     });
   });
 
   it("resolves 'install --from <url>' without a name (derived from manifest)", () => {
     assert.deepEqual(resolveInstallOptions(["install", "--from", "https://example.com/skill.md"]), {
-      available: false, list: false, name: undefined, from: "https://example.com/skill.md",
+      available: false, list: false, name: undefined, from: "https://example.com/skill.md", force: false,
     });
   });
 });
@@ -99,7 +99,7 @@ describe("install command", () => {
       return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
     }) as typeof fetch;
     try {
-      await runInstall({ name: "brand" });
+      await runInstall({ name: "brand", force: true });
       assert.ok(
         existsSync(join(testDir, ".alix", "skills", "brand", "SKILL.md")),
         "skill should be installed from a registered marketplace",
@@ -186,19 +186,19 @@ describe("install --from (non-bundled skills)", () => {
     const dir = join(testDir, "fixtures", "langfuse-agent");
     mkdirSync(dir, { recursive: true });
     writeFileSync(join(dir, "SKILL.md"), VALID);
-    await runInstall({ from: dir });
+    await runInstall({ from: dir, force: true });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "skill should be installed from dir");
   });
 
   it("installs from a local SKILL.md file (explicit name wins)", async () => {
     const file = writeFixture(VALID);
-    await runInstall({ from: file, name: "my-langfuse" });
+    await runInstall({ from: file, name: "my-langfuse", force: true });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "my-langfuse", "SKILL.md")), "explicit name should win");
   });
 
   it("derives name from manifest when not provided", async () => {
     const file = writeFixture(VALID, "whatever.md");
-    await runInstall({ from: file });
+    await runInstall({ from: file, force: true });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "manifest name should be used");
   });
 
@@ -206,7 +206,7 @@ describe("install --from (non-bundled skills)", () => {
     globalThis.fetch = (async () =>
       new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } })) as typeof fetch;
     try {
-      await runInstall({ from: "https://example.com/langfuse-agent.md" });
+      await runInstall({ from: "https://example.com/langfuse-agent.md", force: true });
       assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "should install from URL");
     } finally {
       globalThis.fetch = origFetch;
@@ -235,7 +235,7 @@ describe("install --from (non-bundled skills)", () => {
     writeFileSync(join(office, "soffice.py"), "#!/usr/bin/env python3\n# soffice\n");
     writeFileSync(join(pkg, "LICENSE.txt"), "MIT\n");
 
-    await runInstall({ from: pkg });
+    await runInstall({ from: pkg, force: true });
 
     const installed = join(testDir, ".alix", "skills", "xlsx");
     for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
@@ -253,7 +253,7 @@ describe("install --from (non-bundled skills)", () => {
       "---\nname: excluded\ndescription: Exclusion skill\n---\nBody.\n",
     );
 
-    await runInstall({ from: pkg });
+    await runInstall({ from: pkg, force: true });
 
     const installed = join(testDir, ".alix", "skills", "excluded");
     assert.ok(existsSync(join(installed, "SKILL.md")), "SKILL.md should be installed");
@@ -270,14 +270,15 @@ describe("install --from (non-bundled skills)", () => {
       "---\nname: selfcopy\ndescription: Self-copy skill\n---\nBody.\n",
     );
     writeFileSync(join(pkg, "scripts", "tool.py"), "print('tool')\n");
-    await runInstall({ from: pkg });
+    await runInstall({ from: pkg, force: true });
 
     const installed = join(testDir, ".alix", "skills", "selfcopy");
     const before = readFileSync(join(installed, "SKILL.md"), "utf8");
 
     // Re-install pointing --from at the install target itself — must refuse
-    // WITHOUT truncating the already-installed SKILL.md to 0 bytes.
-    await assert.rejects(runInstall({ from: installed }), /already installed/);
+    // WITHOUT truncating the already-installed SKILL.md to 0 bytes. The self-copy
+    // guard runs before the safety gate, so /already installed/ is thrown first.
+    await assert.rejects(runInstall({ from: installed, force: true }), /already installed/);
     assert.equal(
       readFileSync(join(installed, "SKILL.md"), "utf8"),
       before,
@@ -314,7 +315,7 @@ describe("install --from local repo-root (nested skills)", () => {
 
   it("resolves skills/<name>/ from a repo-root and installs the full package", async () => {
     const root = writeRepoRoot();
-    await runInstall({ from: root, name: "xlsx" });
+    await runInstall({ from: root, name: "xlsx", force: true });
     const installed = join(testDir, ".alix", "skills", "xlsx");
     for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
       assert.ok(existsSync(join(installed, rel)), `expected ${rel} to be installed from the repo-root`);
@@ -323,7 +324,7 @@ describe("install --from local repo-root (nested skills)", () => {
 
   it("installs a single nested skill under its manifest name when no name is given", async () => {
     const root = writeRepoRoot();
-    await runInstall({ from: root });
+    await runInstall({ from: root, force: true });
     const installed = join(testDir, ".alix", "skills", "xlsx");
     assert.ok(existsSync(join(installed, "SKILL.md")), "nested skill installed under its manifest name");
     assert.ok(existsSync(join(installed, "scripts", "recalc.py")), "nested skill scripts land too");
@@ -407,7 +408,7 @@ describe("install --from github URLs", () => {
 
   it("resolves a repo-root URL, finding skills/<name>/SKILL.md", async () => {
     mockRaw(["HEAD/skills/langfuse-agent/SKILL.md"]);
-    await runInstall({ from: "https://github.com/acme/alix-skills", name: "langfuse-agent" });
+    await runInstall({ from: "https://github.com/acme/alix-skills", name: "langfuse-agent", force: true });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from repo-root URL");
   });
 
@@ -416,7 +417,7 @@ describe("install --from github URLs", () => {
       [{ path: "skills/langfuse-agent/SKILL.md" }, { path: "skills/langfuse-agent/scripts/tool.py" }],
       { "skills/langfuse-agent/SKILL.md": VALID, "skills/langfuse-agent/scripts/tool.py": "print('tool')\n" },
     );
-    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/langfuse-agent/SKILL.md" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/langfuse-agent/SKILL.md", force: true });
     const installed = join(testDir, ".alix", "skills", "langfuse-agent");
     assert.ok(existsSync(join(installed, "SKILL.md")), "installed from blob URL");
     assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a blob URL");
@@ -427,7 +428,7 @@ describe("install --from github URLs", () => {
       [{ path: "skills/langfuse-agent/SKILL.md" }, { path: "skills/langfuse-agent/scripts/tool.py" }],
       { "skills/langfuse-agent/SKILL.md": VALID, "skills/langfuse-agent/scripts/tool.py": "print('tool')\n" },
     );
-    await runInstall({ from: "https://github.com/acme/alix-skills/tree/main/skills/langfuse-agent" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/tree/main/skills/langfuse-agent", force: true });
     const installed = join(testDir, ".alix", "skills", "langfuse-agent");
     assert.ok(existsSync(join(installed, "SKILL.md")), "installed from tree URL");
     assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a tree URL");
@@ -448,7 +449,7 @@ describe("install --from github URLs", () => {
         "skills/xlsx/LICENSE.txt": "MIT\n",
       },
     );
-    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md", force: true });
     const installed = join(testDir, ".alix", "skills", "xlsx");
     for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
       assert.ok(existsSync(join(installed, rel)), `expected ${rel} to land from a GitHub skill-dir URL`);
@@ -457,7 +458,7 @@ describe("install --from github URLs", () => {
 
   it("fetches a raw.githubusercontent.com URL directly", async () => {
     mockRaw(["/alix-skills/main/skills/langfuse-agent/SKILL.md"]);
-    await runInstall({ from: "https://raw.githubusercontent.com/acme/alix-skills/main/skills/langfuse-agent/SKILL.md" });
+    await runInstall({ from: "https://raw.githubusercontent.com/acme/alix-skills/main/skills/langfuse-agent/SKILL.md", force: true });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from raw URL");
   });
 
@@ -480,7 +481,7 @@ describe("install --from github URLs", () => {
       [{ path: "my-skill.md" }, { path: "my-skill.md/scripts/tool.py" }, { path: "README.md" }],
       { "main/my-skill.md": VALID },
     );
-    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/my-skill.md" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/my-skill.md", force: true });
     const installed = join(testDir, ".alix", "skills", "langfuse-agent");
     assert.ok(existsSync(join(installed, "SKILL.md")), "standalone .md blob installs as a single file");
   });
@@ -507,7 +508,7 @@ describe("install --from github URLs", () => {
       }
       return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
     }) as typeof fetch;
-    await runInstall({ from: "https://github.com/acme/alix-skills/blob/dev/skills/xlsx/SKILL.md" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/dev/skills/xlsx/SKILL.md", force: true });
     assert.ok(
       urls.some((u) => u.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")),
       "trees fetch must use the dev ref",
@@ -538,7 +539,7 @@ describe("install --from github URLs", () => {
       }
       return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
     }) as typeof fetch;
-    await runInstall({ from: "https://github.com/acme/alix-skills/tree/dev/skills/xlsx" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/tree/dev/skills/xlsx", force: true });
     assert.ok(
       urls.some((u) => u.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")),
       "trees fetch must use the dev ref",
@@ -573,7 +574,7 @@ describe("install --from github URLs", () => {
         "skills/xlsx/scripts/recalc.py": "print('recalc')\n",
       },
     );
-    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md", name: "xlsx" });
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md", name: "xlsx", force: true });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "xlsx", "SKILL.md")), "package installed under matching name");
   });
 
@@ -641,5 +642,57 @@ describe("atomicInstallSkill", () => {
       (n) => n.includes(".tmp-") || n.includes(".old-"),
     );
     assert.deepEqual(leftovers, [], "no temp/backup leftovers after failure");
+  });
+});
+
+describe("skill install safety gate", () => {
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  it("blocks a package containing a denied file, even with --force", async () => {
+    const pkg = join(testDir, "fixtures", "badpkg");
+    mkdirSync(join(pkg, "scripts"), { recursive: true });
+    writeFileSync(join(pkg, "SKILL.md"), "---\nname: badpkg\ndescription: Bad package\n---\nBody.\n");
+    writeFileSync(join(pkg, "scripts", ".env"), "TOKEN=abc\n");
+    await assert.rejects(runInstall({ from: pkg, force: true }), /blocked|refusing/);
+    assert.ok(!existsSync(join(testDir, ".alix", "skills", "badpkg", "SKILL.md")), "nothing written on hard deny");
+  });
+
+  it("fails closed for unsigned non-interactive installs without --force", async () => {
+    const pkg = join(testDir, "fixtures", "cleanpkg");
+    mkdirSync(join(pkg, "scripts"), { recursive: true });
+    writeFileSync(join(pkg, "SKILL.md"), "---\nname: cleanpkg\ndescription: Clean package\n---\nBody.\n");
+    writeFileSync(join(pkg, "scripts", "tool.sh"), "echo hi\n");
+    await assert.rejects(runInstall({ from: pkg }), /--force/);
+    assert.ok(!existsSync(join(testDir, ".alix", "skills", "cleanpkg", "SKILL.md")), "nothing written when blocked");
+  });
+
+  it("installs an unsigned package with --force and records evidence", async () => {
+    const pkg = join(testDir, "fixtures", "okpkg");
+    mkdirSync(join(pkg, "scripts"), { recursive: true });
+    writeFileSync(join(pkg, "SKILL.md"), "---\nname: okpkg\ndescription: OK package\n---\nBody.\n");
+    writeFileSync(join(pkg, "scripts", "tool.sh"), "echo hi\n");
+    await runInstall({ from: pkg, force: true });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "okpkg", "SKILL.md")), "installed under --force");
+    const evidenceFile = join(testDir, ".alix", "security", "evidence.jsonl");
+    assert.ok(existsSync(evidenceFile), "evidence file written");
+    const raw = readFileSync(evidenceFile, "utf8");
+    assert.match(raw, /skill_installed/);
+    assert.match(raw, /"approved":true/);
+  });
+
+  it("records blocked attempts as evidence too", async () => {
+    const pkg = join(testDir, "fixtures", "badpkg2");
+    mkdirSync(pkg, { recursive: true });
+    writeFileSync(join(pkg, "SKILL.md"), "---\nname: badpkg2\ndescription: Bad\n---\nBody.\n");
+    writeFileSync(join(pkg, ".env"), "TOKEN=abc\n");
+    await assert.rejects(runInstall({ from: pkg, force: true }), /blocked|refusing/);
+    const evidenceFile = join(testDir, ".alix", "security", "evidence.jsonl");
+    assert.ok(existsSync(evidenceFile));
+    assert.match(readFileSync(evidenceFile, "utf8"), /"approved":false/);
   });
 });
