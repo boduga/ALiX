@@ -124,6 +124,7 @@ import {
 import { getEncoding } from "../config/context-limits.js";
 import { DEFAULT_FACTORY_CONFIG } from "../skills/dispatcher.js";
 import { evictIfNeeded } from "../skills/lifecycle.js";
+import type { SkillEntry } from "../skills/catalog.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
@@ -387,7 +388,7 @@ export interface ToolConfig {
 
 export interface AgentSession {
   /** Process one user message through the agent loop. */
-  processTurn(message: string): Promise<AgentTurnResult>;
+  processTurn(message: string, options?: { skills?: string[] }): Promise<AgentTurnResult>;
   /**
    * Process one user message through the lightweight chat path.
    *
@@ -586,6 +587,9 @@ export class AgentSessionBuilder {
 
     // Resolved runtime values (computed during init)
     let currentTask = config.task;
+    // Explicit skills injected by the caller for this turn (slash commands).
+    // Agent-tab only — the chat path (processChat) never sets this.
+    let explicitSkills: string[] | undefined;
     let MAX_CONTEXT_TOKENS = 0;
     let encoding: "cl100k_base" | "o200k_base" | "char4" = "cl100k_base";
     let taskType: TaskType = "unknown";
@@ -705,6 +709,7 @@ export class AgentSessionBuilder {
       const matchedSkills = await setupSkills(
         currentTask,
         ctx.config.skills?.factory,
+        explicitSkills,
       );
 
       // P5: Context limits + task classification
@@ -868,7 +873,13 @@ export class AgentSessionBuilder {
 
     // ---- Exported interface methods ----
 
-    async function processTurn(message: string): Promise<AgentTurnResult> {
+    async function processTurn(
+      message: string,
+      options?: { skills?: string[] },
+    ): Promise<AgentTurnResult> {
+      // Thread the explicit skill list (slash commands) into the next
+      // initialize() pass. Undefined on the chat path — never touched there.
+      explicitSkills = options?.skills;
       // ── Preflight classification ─────────────────────────────────────────
       // Classify the message BEFORE any initialization. Direct routes bypass
       // the full agent lifecycle entirely. Grounded_chat routes are handled
@@ -1771,15 +1782,28 @@ async function setupMemory(
 
 /**
  * P4: Skills catalog (best-effort; failures are non-fatal).
+ *
+ * Merged union: explicit skill names (slash-command injection) ADD to,
+ * never replace, automatic matching. Union → dedupe by `canonicalSkillId`
+ * (the SOLE dedup authority) → inject. Explicit body loading is
+ * transactional: per-name resolution is non-fatal (missing → warn + skip),
+ * but any body-load failure drops the ENTIRE explicit set (never a
+ * half-injected subset).
+ *
+ * `opts.autoMatch === false` skips automatic matching (used by callers that
+ * want purely explicit injection; the chat path never passes skills at all).
  */
-async function setupSkills(
+export async function setupSkills(
   task: string,
   factoryConfig?: { maxStore: number; maxCandidates: number },
+  explicitSkills?: string[],
+  opts?: { autoMatch?: boolean },
 ): Promise<any[]> {
   try {
     const skillsHome = join(homedir(), ".alix", "skills");
-    const { loadSkillManifests } = await import("../skills/loader.js");
+    const { loadSkillManifests, loadSkillContent } = await import("../skills/loader.js");
     const { buildSkillCatalog } = await import("../skills/catalog.js");
+    const { canonicalSkillId } = await import("../skills/slash.js");
     const skillManifests = await loadSkillManifests(skillsHome);
     const skillCatalog = buildSkillCatalog(skillManifests);
     const { maxStore, maxCandidates } = factoryConfig ?? DEFAULT_FACTORY_CONFIG;
@@ -1787,7 +1811,43 @@ async function setupSkills(
       maxStore,
       maxCandidates: maxCandidates ?? 200,
     });
-    return await skillCatalog.getMatchedContent(task);
+
+    // Explicit: resolve per-name (non-fatal), load transactionally (all-or-nothing).
+    const explicit: any[] = [];
+    if (explicitSkills && explicitSkills.length > 0) {
+      const entries: SkillEntry[] = [];
+      for (const ref of explicitSkills) {
+        const entry = skillCatalog.getByTriggerOrName(ref);
+        if (!entry) {
+          console.warn(`Skill "${ref}" isn't installed. Continuing without it.`);
+          continue;
+        }
+        entries.push(entry);
+      }
+      try {
+        const loaded = await Promise.all(
+          entries.map(async (e) => {
+            const content = await loadSkillContent(e.path);
+            return content ? { manifest: content.manifest, body: content.body, path: e.path } : null;
+          }),
+        );
+        for (const s of loaded) if (s) explicit.push(s);
+      } catch {
+        // Transactional: any body-load failure drops the WHOLE explicit set —
+        // never a half-injected subset.
+        explicit.length = 0;
+      }
+    }
+
+    // Auto-match (preserved; skipped when the caller opts out, e.g. chat path).
+    const autoMatched = opts?.autoMatch === false ? [] : await skillCatalog.getMatchedContent(task);
+
+    // Union → dedupe by canonicalSkillId (explicit body wins on duplicate).
+    const byId = new Map<string, any>();
+    for (const s of [...explicit, ...autoMatched]) {
+      byId.set(canonicalSkillId(s.manifest), s);
+    }
+    return [...byId.values()];
   } catch {
     return [];
   }
@@ -1963,6 +2023,15 @@ async function setupTools(
   return { providerTools, mcpToolIndex, selectedTools, mcpDiscovery };
 }
 
+/** Render the "Available Skills" system-prompt section, or "" for none. */
+export function buildSkillsSection(skills: any[]): string {
+  if (skills.length === 0) return "";
+  const skillSection = skills
+    .map((s: any) => `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`)
+    .join("\n\n");
+  return `## Available Skills\n${skillSection}`;
+}
+
 /**
  * P8: System prompt assembly.
  */
@@ -1992,13 +2061,7 @@ async function setupSystemPrompt(
   }
 
   if (opts.matchedSkills.length > 0) {
-    const skillSection = opts.matchedSkills
-      .map(
-        (s: any) =>
-          `## Skill: ${s.manifest.trigger ?? s.manifest.name}\n${s.body}`,
-      )
-      .join("\n\n");
-    lines.push(`## Available Skills\n${skillSection}`);
+    lines.push(buildSkillsSection(opts.matchedSkills));
   }
 
   if (

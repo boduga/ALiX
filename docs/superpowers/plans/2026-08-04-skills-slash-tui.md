@@ -556,6 +556,7 @@ function installSkill(name: string, body: string, trigger?: string): void {
   const fm = [
     "---", `name: ${name}`, `description: ${name}`,
     ...(trigger ? [`trigger: ${trigger}`] : []),
+    `pattern: ${name}`,
     "version: 1.0.0", "is_core: false", "---", "",
   ].join("\n");
   writeFileSync(join(dir, "SKILL.md"), `${fm}\n${body}\n`);
@@ -624,6 +625,8 @@ describe("buildSkillsSection", () => {
 ```
 
 > **Note on the transactional case:** a `loadSkillContent` miss (null) is a *resolution* outcome, not a load *failure* — the transactional drop covers the case where `Promise.all` **rejects**. The test pins the resolution behavior (per-name non-fatal). The implementation below must still drop the whole explicit set if `Promise.all` rejects (guarded by try/catch around the load).
+
+> **Plan amendment (2026-08-04, approved by human):** the `installSkill` test helper originally wrote frontmatter with only `name`/`description`/`trigger` — **no `pattern:`**. But `SkillCatalog.match()` auto-matches only via a leading `/trigger` in the prompt or a regex `pattern`; a prompt like `"fix the typescript build"` matches a pattern-less skill via neither, so the original tests "injects explicit skills and still auto-matches" and "keeps auto-match-only behavior" could not pass against the existing (and intentionally preserved) `match()` semantics. Per SDD review, the fixture was unrealistic — real installed skills carry `pattern:` fields. **Amendment:** the helper now always writes `pattern: ${name}`, so `/name/i` matches a prompt containing the skill name — the auto-match assertions exercise real `match()` behavior. `catalog.ts` stays UNCHANGED; the implementation stays confined to `src/agent/session.ts`, exactly as designed.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
