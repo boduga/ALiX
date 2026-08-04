@@ -84,6 +84,40 @@ describe('TuiApp -- lifecycle', () => {
     await app.stop();
   });
 
+  it('refresh() re-reads the slash manifest catalog (CLI-side invalidation visibility)', async () => {
+    // Regression: a TUI running while the operator installs a skill in a
+    // separate process must pick up the new skill within ~1s. The wired
+    // call is `refreshSlashCatalog()`, which is a Promise wrapper over
+    // `getSlashCatalog()` (generation-based cache). Steal the getter from
+    // the TuiApp instance, call it directly, and assert the in-memory
+    // mirror updates.
+    const { setSlashCatalogLoaderForTest } = await import('../../src/skills/slash-catalog.js');
+    let installed: any[] = [];
+    setSlashCatalogLoaderForTest(async () => installed);
+    try {
+      app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
+      await app.start();
+      // Initial catalog read returns the empty install list.
+      const internal = app as unknown as { slashManifests: any[]; refreshSlashCatalog(): Promise<void> };
+      await internal.refreshSlashCatalog();
+      expect(internal.slashManifests).toEqual([]);
+
+      // CLI-side install: invalidate the cache and bump the loader.
+      installed = [{ name: 'newskill', description: 'NEW', trigger: '/newskill', version: '1.0.0', is_core: false }];
+      const { invalidateSlashCatalog } = await import('../../src/skills/slash-catalog.js');
+      invalidateSlashCatalog();
+
+      // The fix: refresh() (the snapshot tick) calls refreshSlashCatalog,
+      // so a subsequent tick picks up the new catalog without restart.
+      await internal.refreshSlashCatalog();
+      expect(internal.slashManifests.length).toBe(1);
+      expect(internal.slashManifests[0].name).toBe('newskill');
+    } finally {
+      setSlashCatalogLoaderForTest(null);
+      if (app) await app.stop().catch(() => {});
+    }
+  });
+
   it('stop() invokes metrics.stop', async () => {
     app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
     await app.start();

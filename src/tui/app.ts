@@ -236,10 +236,7 @@ export class TuiApp {
     }
     await this.sampleRuntimeCollectors();
     this.paintFullFrame();
-    void getSlashCatalog().then((manifests) => {
-      this.slashManifests = manifests;
-      this.paintFullFrame();
-    });
+    void this.refreshSlashCatalog();
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
     this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
@@ -282,6 +279,25 @@ export class TuiApp {
     this.syncCurrentIntent();
     await this.sampleRuntimeCollectors();
     this.paintFullFrame();
+    // Re-read the slash manifest catalog so a CLI-side install/remove
+    // (invalidateSlashCatalog) becomes visible in the TUI's completion
+    // strip within ~1s. The cache is generation-based — steady-state
+    // reads are pure in-memory until the generation is bumped.
+    void this.refreshSlashCatalog();
+  }
+
+  /**
+   * Re-read the slash manifest catalog. The catalog is a generation-based
+   * cache: `invalidateSlashCatalog()` (called by `alix skills install/remove`)
+   * bumps the generation, so the next read here rebuilds after a CLI-side
+   * mutation. Steady-state reads are pure in-memory (no IO when the
+   * generation hasn't moved).
+   */
+  private refreshSlashCatalog(): Promise<void> {
+    return getSlashCatalog().then((manifests) => {
+      this.slashManifests = manifests;
+      if (this.state.activeTab === 'agent') this.paintFullFrame();
+    });
   }
 
   /**
