@@ -35,9 +35,17 @@ import yaml from "yaml";
 
 /** Parse a YAML list-or-comma-string field into a string array. */
 function toStringArray(value: unknown): string[] | undefined {
-  if (Array.isArray(value)) return value.map((v) => String(v)).filter((s) => s.length > 0);
-  if (typeof value === "string" && value.trim()) {
-    return value.split(",").map((v) => v.trim()).filter(Boolean);
+  if (Array.isArray(value)) {
+    return value.map((v) => String(v)).map((s) => s.trim()).filter(Boolean);
+  }
+  if (typeof value === "string") {
+    const parts = value.split(",").map((v) => v.trim()).filter(Boolean);
+    return parts.length > 0 ? parts : undefined;
+  }
+  if (value != null) {
+    // Bare scalar (e.g. `tags: 5`) — coerce to a single-element list, matching
+    // the historical behavior of String(raw.tags).split(",").
+    return [String(value).trim()];
   }
   return undefined;
 }

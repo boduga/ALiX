@@ -3,6 +3,7 @@ import { mkdir, readdir, readFile, writeFile, stat, rm, copyFile, realpath, rena
 import { join, basename, dirname } from "node:path";
 import { existsSync } from "node:fs";
 import { parseSkillContent, type SkillManifest } from "../../../skills/types.js";
+import { loadSafetyConfig } from "../../../skills/safety-config.js";
 import { githubRawCandidates, fetchSkillFromUrls, parseGithubUrl, EXCLUDED_DIRS } from "./net.js";
 import { checkManifest, scanSkillFiles, scanSkillDirectory, type SkillScanResult } from "../../../skills/security.js";
 import { assessTrust, createInstallGate, type TrustLevel } from "../../../skills/trust.js";
@@ -139,28 +140,6 @@ export function resolveInstallOptions(args: string[]): InstallOptions {
     from,
     force: flags.has("--force"),
   };
-}
-
-/** Best-effort read of skills.safety config; defaults on failure. */
-export async function loadSafetyConfig(): Promise<{
-  requireConfirmation: boolean;
-  scanScripts: boolean;
-  denyNetwork: boolean;
-  sandboxTimeoutMs: number;
-}> {
-  try {
-    const { loadConfig } = await import("../../../config/loader.js");
-    const config = await loadConfig(process.cwd());
-    const safety = config.skills?.safety;
-    return {
-      requireConfirmation: safety?.requireConfirmation ?? true,
-      scanScripts: safety?.scanScripts ?? true,
-      denyNetwork: safety?.denyNetwork ?? true,
-      sandboxTimeoutMs: safety?.sandboxTimeoutMs ?? 30_000,
-    };
-  } catch {
-    return { requireConfirmation: true, scanScripts: true, denyNetwork: true, sandboxTimeoutMs: 30_000 };
-  }
 }
 
 /**

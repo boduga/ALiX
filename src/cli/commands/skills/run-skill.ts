@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { existsSync } from "node:fs";
 import { runSandboxed } from "../../../skills/sandbox.js";
-import { loadSafetyConfig } from "./install.js";
+import { loadSafetyConfig } from "../../../skills/safety-config.js";
 
 /**
  * `alix skills run <name> <script> [args...]` — run one of a skill's scripts
@@ -10,12 +10,12 @@ import { loadSafetyConfig } from "./install.js";
  * with the user's full environment; this is the sanctioned isolated runner.
  */
 export async function runSkillCommand(name: string, script: string, args: string[]): Promise<void> {
-  const safety = await loadSafetyConfig();
   if (!name || !script) {
     console.error("Usage: alix skills run <skill> <script> [args...]");
     process.exitCode = 1;
     return;
   }
+  const safety = await loadSafetyConfig();
   const homeDir = process.env.HOME ?? "";
   const skillDir = join(homeDir, ".alix", "skills", name);
   if (!existsSync(join(skillDir, "SKILL.md"))) {

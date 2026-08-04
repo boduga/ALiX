@@ -65,6 +65,24 @@ describe("parseSkillContent manifest extensions", () => {
     assert.ok(manifest);
     assert.equal(manifest.description, "line1\nline2");
   });
+
+  it("coerces a bare scalar tags value to a single-element list", () => {
+    const { manifest } = parseSkillContent("---\nname: x\ndescription: X\ntags: 5\n---\nBody.\n");
+    assert.ok(manifest);
+    assert.deepEqual(manifest.tags, ["5"]);
+  });
+
+  it("returns undefined for an empty tags string", () => {
+    const { manifest } = parseSkillContent("---\nname: x\ndescription: X\ntags: ''\n---\nBody.\n");
+    assert.ok(manifest);
+    assert.equal(manifest.tags, undefined);
+  });
+
+  it("trims whitespace from array-form list entries", () => {
+    const { manifest } = parseSkillContent("---\nname: x\ndescription: X\ntags:\n  - ' a '\n  - b\n---\nBody.\n");
+    assert.ok(manifest);
+    assert.deepEqual(manifest.tags, ["a", "b"]);
+  });
 });
 
 describe("checkManifest", () => {
