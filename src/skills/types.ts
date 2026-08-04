@@ -42,6 +42,34 @@ function toStringArray(value: unknown): string[] | undefined {
   return undefined;
 }
 
+/**
+ * C0 control characters that can inject terminal control sequences or break
+ * parsing invariants. Tab (0x09), LF (0x0A) and CR (0x0D) are excluded: they
+ * are legitimate whitespace that may legitimately appear inside string fields.
+ * Everything else in the C0 range (NUL, ESC \x1b, ...) plus DEL (0x7F) is
+ * rejected. The `yaml` parser decodes `\x1b` etc. in double-quoted strings to
+ * literal bytes, which is how ANSI injection could otherwise reach the trust
+ * prompt.
+ */
+const CONTROL_CHAR_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+
+/** True if any string field (or list entry) of the manifest carries a disallowed control character. */
+function containsControlChars(m: SkillManifest): boolean {
+  const strings = [
+    m.name,
+    m.description,
+    m.trigger,
+    m.pattern,
+    m.version,
+    m.created_at,
+    m.license,
+    ...(m.tags ?? []),
+    ...(m.allowed_tools ?? []),
+    ...(m.requires ?? []),
+  ];
+  return strings.some((s) => typeof s === "string" && CONTROL_CHAR_RE.test(s));
+}
+
 export function parseFrontMatter(content: string): SkillManifest | null {
   // Support both full content with --- delimiters and raw YAML (no ---)
   const fullMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -49,7 +77,7 @@ export function parseFrontMatter(content: string): SkillManifest | null {
   try {
     const raw = yaml.parse(yamlStr) as Record<string, unknown>;
     if (!raw || !raw.name || !raw.description) return null;
-    return {
+    const manifest: SkillManifest = {
       name: String(raw.name ?? ""),
       description: String(raw.description ?? ""),
       trigger: raw.trigger != null ? String(raw.trigger) : undefined,
@@ -62,6 +90,14 @@ export function parseFrontMatter(content: string): SkillManifest | null {
       requires: toStringArray(raw.requires),
       license: raw.license != null ? String(raw.license) : undefined,
     };
+    // Defense-in-depth at parse time: the yaml parser decodes escape sequences
+    // in double-quoted strings (\x1b etc.) to literal control bytes. Reject any
+    // manifest whose string fields carry C0 control characters (other than
+    // tab/LF/CR) so ANSI terminal control sequences can never reach the trust
+    // prompt via console.log. A manifest: null here is handled cleanly by every
+    // install/load path.
+    if (containsControlChars(manifest)) return null;
+    return manifest;
   } catch {
     // Returning null is intentional: missing front matter and parse errors are both silent failures.
     return null;

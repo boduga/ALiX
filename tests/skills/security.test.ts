@@ -34,6 +34,30 @@ describe("parseSkillContent manifest extensions", () => {
     assert.equal(manifest.requires, undefined);
     assert.equal(manifest.license, undefined);
   });
+
+  it("rejects a manifest whose description carries an ANSI ESC (\\x1b) control sequence", () => {
+    // YAML double-quoted strings decode \\x1b to a literal ESC byte, which could
+    // otherwise inject terminal control codes (e.g. [2J clear-screen) into the
+    // trust prompt. Parse-time rejection must drop the whole manifest.
+    const { manifest } = parseSkillContent('---\nname: x\ndescription: "x\\x1b[2J"\n---\nBody.\n');
+    assert.equal(manifest, null);
+  });
+
+  it("rejects a manifest whose description carries a NUL byte", () => {
+    const { manifest } = parseSkillContent('---\nname: x\ndescription: "x\\x00"\n---\nBody.\n');
+    assert.equal(manifest, null);
+  });
+
+  it("rejects a control char in a list field (allowed-tools)", () => {
+    const { manifest } = parseSkillContent('---\nname: x\ndescription: X\nallowed-tools: ["bash\\x1b"]\n---\nBody.\n');
+    assert.equal(manifest, null);
+  });
+
+  it("allows benign whitespace (\\n) inside string fields", () => {
+    const { manifest } = parseSkillContent('---\nname: x\ndescription: "line1\\nline2"\n---\nBody.\n');
+    assert.ok(manifest);
+    assert.equal(manifest.description, "line1\nline2");
+  });
 });
 
 describe("checkManifest", () => {
