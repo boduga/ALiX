@@ -24,6 +24,13 @@ import { existsSync } from "node:fs";
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BUFFER_BYTES = 1_000_000;
 const UNSHARE = "/usr/bin/unshare";
+// Overridable for tests: point at a fake `unshare` to simulate syscall-level
+// failure. Read lazily so tests can set it after importing the module.
+const UNSHARE_ENV = "ALIX_UNSHARE";
+// util-linux prints this to stderr and exits non-zero WITHOUT executing the
+// command when the unshare() syscall fails (EPERM, user namespaces disabled /
+// seccomp). Treat it as a start failure so we fall back to the plain spawn.
+const UNSHARE_SYSCALL_FAILURE = /^unshare: unshare failed/;
 
 export interface SandboxRunOptions {
   /** Extra args appended to the command. */
@@ -128,10 +135,11 @@ export async function runSandboxed(command: string, opts: SandboxRunOptions = {}
   const env = { ...baseEnv(sandboxHome), ...opts.env };
 
   try {
+    const unsharePath = process.env[UNSHARE_ENV] ?? UNSHARE;
     const candidates: { argv: string[]; networkIsolated: boolean }[] = [];
-    if (noNetwork && process.platform === "linux" && existsSync(UNSHARE)) {
+    if (noNetwork && process.platform === "linux" && existsSync(unsharePath)) {
       candidates.push({
-        argv: [UNSHARE, "-Un", "--", command, ...args],
+        argv: [unsharePath, "-Un", "--", command, ...args],
         networkIsolated: true,
       });
     }
@@ -140,6 +148,18 @@ export async function runSandboxed(command: string, opts: SandboxRunOptions = {}
     for (const cand of candidates) {
       const out = await spawnOnce(cand.argv, usedCwd, env, timeoutMs, maxBuffer);
       if (out.started) {
+        // The unshare process spawned but the unshare() syscall itself failed
+        // (EPERM — user namespaces disabled/seccomp): the command never ran.
+        // Treat as a start failure and fall through to the plain spawn. A
+        // `unshare: failed to execute ...` (exit 127, command not found AFTER
+        // namespace creation) is a REAL result and does not fall back.
+        if (
+          cand.networkIsolated &&
+          out.exitCode !== 0 &&
+          UNSHARE_SYSCALL_FAILURE.test(out.stderr)
+        ) {
+          continue;
+        }
         return {
           ok: out.ok,
           stdout: out.stdout,
