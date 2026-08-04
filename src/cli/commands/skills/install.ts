@@ -274,13 +274,19 @@ async function installFromSource(source: string, name: string | undefined, skill
   }
 
   if (source.startsWith("https://")) {
-    // A github.com skill-dir/blob/tree URL (non-empty path) installs the whole
-    // package: enumerate the skill dir's files and fetch them all. Repo-root
-    // URLs, raw.githubusercontent.com, and non-GitHub https URLs keep the
-    // single-SKILL.md resolution below.
+    // A github.com blob/tree URL installs the whole package: enumerate the
+    // skill dir's files and fetch them all (fetchSkillPackage returns null for
+    // a standalone .md blob, an empty dir, or a garbage page, so the
+    // single-SKILL.md resolution below still runs). Repo-root URLs,
+    // raw.githubusercontent.com, non-GitHub https URLs, and other github.com
+    // pages (issues, releases, ...) keep the single-SKILL.md resolution — a
+    // garbage page falls through to the HTML-page error, not the package
+    // fetch.
     const parsedGithub = parseGithubUrl(source);
     const isGithubDirUrl =
-      parsedGithub !== null && parsedGithub.host === "github.com" && parsedGithub.rest.length > 0;
+      parsedGithub !== null &&
+      parsedGithub.host === "github.com" &&
+      (parsedGithub.rest[0] === "blob" || parsedGithub.rest[0] === "tree");
     const pkg = isGithubDirUrl ? await fetchSkillPackage(source, { name }) : null;
     if (pkg) {
       packageFiles = pkg.files;
@@ -317,6 +323,13 @@ async function installFromSource(source: string, name: string | undefined, skill
   if (!manifest) {
     // Unreachable for the URL path (already validated); covers local files.
     throw new Error(`Source does not contain a valid skill manifest (needs 'name' and 'description' frontmatter): ${source}`);
+  }
+  if (packageFiles && name && manifest.name !== name) {
+    // Mirror the local misleading-name guard (resolveSkillDir): never install
+    // a URL package under a given name that doesn't match its manifest name.
+    throw new Error(
+      `Skill '${name}' not found at ${source}; the package's manifest name is '${manifest.name}'. Omit --name to install under the manifest name.`,
+    );
   }
   const resolvedName = name ?? manifest.name ?? fallbackName;
   if (!resolvedName) {

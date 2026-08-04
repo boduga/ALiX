@@ -214,37 +214,46 @@ export interface SkillPackage {
 const MAX_PACKAGE_BYTES = 20 * 1024 * 1024;
 
 /**
- * Resolve the skill directory inside a GitHub repo from a parsed github.com
- * path, or undefined when the URL doesn't point at a skill directory:
+ * Resolve the skill directory and ref inside a GitHub repo from a parsed
+ * github.com path, or undefined when the URL doesn't point at a skill
+ * directory:
  *   repo-root (rest empty)          → skills/<name>/ when a name is given
- *   blob/tree/{ref}/{path...}       → the {path...} (a trailing SKILL.md is dropped)
- *   any other github.com path       → the path as-is (e.g. skills/xlsx)
+ *   blob/tree/{ref}/{path...}       → the {path...} (a trailing SKILL.md is
+ *                                    dropped), ref = {ref} or HEAD when absent
+ *   any other github.com path       → undefined (issues/releases/actions pages)
  * undefined results (non-github hosts, raw.githubusercontent, a bare repo root
- * without a name, a blob/tree URL with no path) let callers fall back to the
- * single-SKILL.md resolution.
+ * without a name, a blob/tree URL with no path, or a non blob/tree page) let
+ * callers fall back to the single-SKILL.md resolution.
  */
-function skillDirFromGithubUrl(rest: string[], name?: string): string | undefined {
+function skillDirFromGithubUrl(
+  rest: string[],
+  name?: string,
+): { skillDir: string; ref: string } | undefined {
   if (rest.length === 0) {
-    return name ? `skills/${name}` : undefined;
+    return name ? { skillDir: `skills/${name}`, ref: "HEAD" } : undefined;
   }
   if (rest[0] === "blob" || rest[0] === "tree") {
+    const ref = rest[1] ?? "HEAD";
     const segs = rest.slice(2); // drop blob/tree and the ref
     if (segs.length === 0) return undefined;
     if (segs[segs.length - 1] === "SKILL.md") segs.pop(); // blob of SKILL.md → its dir
     if (segs.length === 0) return undefined;
-    return segs.join("/");
+    return { skillDir: segs.join("/"), ref };
   }
-  return rest.join("/");
+  return undefined; // some other github.com page (issues, releases, actions, …)
 }
 
 /**
  * Fetch a whole skill package (SKILL.md + scripts/, assets/, LICENSE, ...) from
- * a GitHub skill-dir/blob/tree URL by walking the repo's recursive git tree and
- * fetching every file under the skill directory from raw.githubusercontent.com,
- * honoring the package-safe EXCLUDED_DIRS. Returns null when the source isn't a
- * GitHub skill-dir URL (repo root without a name, raw.githubusercontent.com, or
- * a non-github.com host) so callers can fall back to single-file fetch. Throws
- * on a failed trees/raw fetch or when the package exceeds opts.maxBytes.
+ * a GitHub blob/tree URL by walking the repo's recursive git tree at the URL's
+ * ref (HEAD when none is given) and fetching every file under the skill
+ * directory from raw.githubusercontent.com, honoring the package-safe
+ * EXCLUDED_DIRS. Returns null when the source isn't a GitHub skill-dir URL
+ * (repo root without a name, a non blob/tree page such as issues, a
+ * raw.githubusercontent.com URL, or a non-github.com host) or when the derived
+ * skill dir has no SKILL.md blob in the tree (a standalone .md file, an empty
+ * dir, ...) so callers can fall back to single-file fetch. Throws on a failed
+ * trees/raw fetch or when the package exceeds opts.maxBytes.
  */
 export async function fetchSkillPackage(
   repoUrlOrPath: string,
@@ -252,21 +261,30 @@ export async function fetchSkillPackage(
 ): Promise<SkillPackage | null> {
   const parsed = parseGithubUrl(repoUrlOrPath);
   if (!parsed || parsed.host !== "github.com") return null;
-  const skillDir = skillDirFromGithubUrl(parsed.rest, opts?.name);
-  if (skillDir === undefined) return null;
+  const resolved = skillDirFromGithubUrl(parsed.rest, opts?.name);
+  if (resolved === undefined) return null;
+  const { skillDir, ref } = resolved;
 
-  const treesUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/HEAD?recursive=1`;
+  const treesUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/${ref}?recursive=1`;
   const { tree } = await fetchJson<TreesResponse>(treesUrl);
+  const entries = tree ?? [];
+
+  // Fail fast: the skill dir must contain a SKILL.md blob, else this isn't a
+  // package (a standalone .md file, an empty dir, a garbage page, ...). Return
+  // null BEFORE fetching any blobs so callers fall back to single-file fetch.
+  if (!entries.some((e) => e.type === "blob" && e.path === `${skillDir}/SKILL.md`)) {
+    return null;
+  }
 
   const prefix = `${skillDir}/`;
   const maxBytes = opts?.maxBytes ?? MAX_PACKAGE_BYTES;
   const files: SkillPackageFile[] = [];
   let total = 0;
-  for (const entry of tree ?? []) {
+  for (const entry of entries) {
     if (entry.type !== "blob" || !entry.path.startsWith(prefix)) continue;
     const relPath = entry.path.slice(prefix.length);
     if (!relPath || relPath.split("/").some((seg) => PACKAGE_EXCLUDED_DIRS.includes(seg))) continue;
-    const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/HEAD/${entry.path}`;
+    const rawUrl = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${ref}/${entry.path}`;
     const { content } = await fetchText(rawUrl);
     total += Buffer.byteLength(content, "utf8");
     if (total > maxBytes) {
@@ -275,6 +293,7 @@ export async function fetchSkillPackage(
     files.push({ relPath, content });
   }
 
+  // Defensive: the SKILL.md prescan above guarantees at least one file.
   if (files.length === 0) {
     throw new Error(`No SKILL.md found under ${repoUrlOrPath}`);
   }
