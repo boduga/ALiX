@@ -792,12 +792,20 @@ Add a test verifying the cache is invalidated after a successful install:
     let loads = 0;
     setSlashCatalogLoaderForTest(async () => { loads++; return []; });
     try {
+      // Pre-warm the cache BEFORE install so the post-install read must rebuild
+      // to detect the invalidation (plan amendment — the brief's original
+      // asserted `loads === before + 1` with `before` captured post-install, but
+      // install.ts never reads the catalog, so `loads` stayed 0 through install
+      // and the assertion passed spuriously — the test could not fail at Step 2).
+      await import("../../../../src/skills/slash-catalog.js").then((m) => m.getSlashCatalog());
       await runInstall({ from: writeFixture("---\nname: brand\ndescription: B\n---\nBody"), force: true });
       // A subsequent read must rebuild (loader called again) because install
       // invalidated the generation.
       await import("../../../../src/skills/slash-catalog.js").then(async (m) => {
-        const before = loads;
+        const before = loads; // === 1 after pre-warm
         await m.getSlashCatalog();
+        // Without invalidation the pre-warmed cache is hit and loads stays at
+        // `before`; with invalidation the generation bumps and the read rebuilds.
         assert.equal(loads, before + 1, "catalog rebuilt after install");
       });
     } finally {
@@ -807,6 +815,8 @@ Add a test verifying the cache is invalidated after a successful install:
 ```
 
 > Note: `runInstall` for a single-file fixture installs by name derived from the manifest. Use the existing `writeFixture` helper already present in the test file. The loader test-seam makes the assertion deterministic without touching the real filesystem path.
+
+> **Plan amendment (2026-08-04, same ruling as Task 4 — human approved the class "fix the test fixture, make the plan amendment explicit"):** the brief's original test could not fail at Step 2. `install.ts` never reads the slash catalog, so `loads` stayed 0 through install; the post-install `getSlashCatalog()` bumped it to 1, and `assert.equal(loads, before + 1)` (before=0) passed spuriously — the "FAIL — loads unchanged" expectation was unreachable. **Amendment:** the test now pre-warms the cache (`await m.getSlashCatalog()` BEFORE `runInstall`), so `before === 1` and the post-install read must rebuild to reach `loads === 2`. Without invalidation, the pre-warmed cache is hit and `loads` stays 1 → assertion fails (proper red); with invalidation, the generation bumps and the read rebuilds → passes (proper green). This preserves the test's intent (verify install invalidates the catalog) without changing `src` behavior.
 
 - [ ] **Step 2: Run the test to verify it fails**
 
