@@ -287,6 +287,76 @@ describe("install --from (non-bundled skills)", () => {
   });
 });
 
+describe("install --from local repo-root (nested skills)", () => {
+  beforeEach(() => {
+    useTestHome(testDir);
+  });
+
+  afterEach(() => {
+    restoreTestHome(testDir);
+  });
+
+  /** Write a repo-root fixture with skills/xlsx (SKILL.md + scripts + LICENSE). */
+  function writeRepoRoot(): string {
+    const root = join(testDir, "fixtures", "repo");
+    const skillDir = join(root, "skills", "xlsx");
+    const office = join(skillDir, "scripts", "office");
+    mkdirSync(office, { recursive: true });
+    writeFileSync(
+      join(skillDir, "SKILL.md"),
+      "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+    );
+    writeFileSync(join(skillDir, "scripts", "recalc.py"), "#!/usr/bin/env python3\n# recalc\n");
+    writeFileSync(join(office, "soffice.py"), "#!/usr/bin/env python3\n# soffice\n");
+    writeFileSync(join(skillDir, "LICENSE.txt"), "MIT\n");
+    return root;
+  }
+
+  it("resolves skills/<name>/ from a repo-root and installs the full package", async () => {
+    const root = writeRepoRoot();
+    await runInstall({ from: root, name: "xlsx" });
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
+      assert.ok(existsSync(join(installed, rel)), `expected ${rel} to be installed from the repo-root`);
+    }
+  });
+
+  it("installs a single nested skill under its manifest name when no name is given", async () => {
+    const root = writeRepoRoot();
+    await runInstall({ from: root });
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "nested skill installed under its manifest name");
+    assert.ok(existsSync(join(installed, "scripts", "recalc.py")), "nested skill scripts land too");
+  });
+
+  it("errors on a mismatched name instead of installing the single nested skill under it", async () => {
+    const root = writeRepoRoot();
+    await assert.rejects(runInstall({ from: root, name: "foo" }), /did you mean/);
+    assert.ok(
+      !existsSync(join(testDir, ".alix", "skills", "foo", "SKILL.md")),
+      "must not install the nested skill under the given (misleading) name",
+    );
+  });
+
+  it("errors with a helpful message when the requested name has no match", async () => {
+    const root = join(testDir, "fixtures", "repo-nomatch");
+    const skillDir = join(root, "skills", "alpha");
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(join(skillDir, "SKILL.md"), "---\nname: alpha\ndescription: Alpha skill\n---\nBody.\n");
+    await assert.rejects(runInstall({ from: root, name: "missing" }), /did you mean .*skills\/missing/);
+  });
+
+  it("errors when multiple nested skills exist and no name is given", async () => {
+    const root = join(testDir, "fixtures", "repo-multi");
+    for (const skill of ["alpha", "beta"]) {
+      const skillDir = join(root, "skills", skill);
+      mkdirSync(skillDir, { recursive: true });
+      writeFileSync(join(skillDir, "SKILL.md"), `---\nname: ${skill}\ndescription: ${skill} skill\n---\nBody.\n`);
+    }
+    await assert.rejects(runInstall({ from: root }), /pass a name/);
+  });
+});
+
 describe("install --from github URLs", () => {
   const VALID = "---\nname: langfuse-agent\ndescription: Langfuse agent skill\n---\nBody.\n";
   const origFetch = globalThis.fetch;
@@ -311,22 +381,78 @@ describe("install --from github URLs", () => {
     }) as typeof fetch;
   }
 
+  /** api.github.com trees response for the given blob paths. */
+  function treeResponse(entries: { path: string }[]): Response {
+    return new Response(
+      JSON.stringify({
+        sha: "abc",
+        url: "u",
+        tree: entries.map((e) => ({ path: e.path, mode: "100644", type: "blob", sha: "s", url: "u", size: 1 })),
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  }
+
+  /** Stub fetch so api.github.com returns `tree` and raw.githubusercontent.com returns `raw` bodies. */
+  function mockPackageFetch(tree: { path: string }[], raw: Record<string, string>) {
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("api.github.com")) return treeResponse(tree);
+      for (const [key, body] of Object.entries(raw)) {
+        if (url.includes(key)) return new Response(body, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+  }
+
   it("resolves a repo-root URL, finding skills/<name>/SKILL.md", async () => {
     mockRaw(["HEAD/skills/langfuse-agent/SKILL.md"]);
     await runInstall({ from: "https://github.com/acme/alix-skills", name: "langfuse-agent" });
     assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from repo-root URL");
   });
 
-  it("resolves a blob URL to its raw file", async () => {
-    mockRaw(["/main/skills/langfuse-agent/SKILL.md"]);
+  it("resolves a blob URL to the full skill package (SKILL.md + scripts)", async () => {
+    mockPackageFetch(
+      [{ path: "skills/langfuse-agent/SKILL.md" }, { path: "skills/langfuse-agent/scripts/tool.py" }],
+      { "skills/langfuse-agent/SKILL.md": VALID, "skills/langfuse-agent/scripts/tool.py": "print('tool')\n" },
+    );
     await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/langfuse-agent/SKILL.md" });
-    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from blob URL");
+    const installed = join(testDir, ".alix", "skills", "langfuse-agent");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "installed from blob URL");
+    assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a blob URL");
   });
 
-  it("resolves a tree URL to <path>/SKILL.md", async () => {
-    mockRaw(["/main/skills/langfuse-agent/SKILL.md"]);
+  it("resolves a tree URL to the full skill package (SKILL.md + scripts)", async () => {
+    mockPackageFetch(
+      [{ path: "skills/langfuse-agent/SKILL.md" }, { path: "skills/langfuse-agent/scripts/tool.py" }],
+      { "skills/langfuse-agent/SKILL.md": VALID, "skills/langfuse-agent/scripts/tool.py": "print('tool')\n" },
+    );
     await runInstall({ from: "https://github.com/acme/alix-skills/tree/main/skills/langfuse-agent" });
-    assert.ok(existsSync(join(testDir, ".alix", "skills", "langfuse-agent", "SKILL.md")), "installed from tree URL");
+    const installed = join(testDir, ".alix", "skills", "langfuse-agent");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "installed from tree URL");
+    assert.ok(existsSync(join(installed, "scripts", "tool.py")), "scripts land too from a tree URL");
+  });
+
+  it("installs the full package from a skill-dir URL (SKILL.md + scripts + LICENSE)", async () => {
+    mockPackageFetch(
+      [
+        { path: "skills/xlsx/SKILL.md" },
+        { path: "skills/xlsx/scripts/recalc.py" },
+        { path: "skills/xlsx/scripts/office/soffice.py" },
+        { path: "skills/xlsx/LICENSE.txt" },
+      ],
+      {
+        "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+        "skills/xlsx/scripts/recalc.py": "print('recalc')\n",
+        "skills/xlsx/scripts/office/soffice.py": "print('soffice')\n",
+        "skills/xlsx/LICENSE.txt": "MIT\n",
+      },
+    );
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md" });
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    for (const rel of ["SKILL.md", "scripts/recalc.py", "scripts/office/soffice.py", "LICENSE.txt"]) {
+      assert.ok(existsSync(join(installed, rel)), `expected ${rel} to land from a GitHub skill-dir URL`);
+    }
   });
 
   it("fetches a raw.githubusercontent.com URL directly", async () => {
@@ -340,6 +466,131 @@ describe("install --from github URLs", () => {
     await assert.rejects(
       runInstall({ from: "https://github.com/acme/alix-skills", name: "nope" }),
       /Could not find a valid SKILL\.md/,
+    );
+  });
+
+  it("restores single-file install for a blob URL pointing at a standalone .md (I-1)", async () => {
+    // my-skill.md is a standalone file at the repo root, not a directory: the
+    // derived package dir (my-skill.md/) has no SKILL.md blob, so the package
+    // fetch must return null and the single-file raw fetch must install it. The
+    // tree also lists my-skill.md/scripts/tool.py WITHOUT a raw body — if the
+    // package fetch didn't fail fast it would fetch that and hit the 404 mock,
+    // so a passing install proves no such fetch happened.
+    mockPackageFetch(
+      [{ path: "my-skill.md" }, { path: "my-skill.md/scripts/tool.py" }, { path: "README.md" }],
+      { "main/my-skill.md": VALID },
+    );
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/my-skill.md" });
+    const installed = join(testDir, ".alix", "skills", "langfuse-agent");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "standalone .md blob installs as a single file");
+  });
+
+  it("honors the branch ref in a blob URL for both trees and raw fetches (I-2)", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")) {
+        return treeResponse([
+          { path: "skills/xlsx/SKILL.md" },
+          { path: "skills/xlsx/scripts/recalc.py" },
+        ]);
+      }
+      if (url.includes("raw.githubusercontent.com/acme/alix-skills/dev/skills/xlsx/SKILL.md")) {
+        return new Response(
+          "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+          { status: 200, headers: { "content-type": "text/markdown" } },
+        );
+      }
+      if (url.includes("raw.githubusercontent.com/acme/alix-skills/dev/skills/xlsx/scripts/recalc.py")) {
+        return new Response("print('recalc')\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/dev/skills/xlsx/SKILL.md" });
+    assert.ok(
+      urls.some((u) => u.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")),
+      "trees fetch must use the dev ref",
+    );
+    assert.ok(
+      urls.some((u) => u.includes("raw.githubusercontent.com/acme/alix-skills/dev/skills/xlsx/")),
+      "raw fetches must use the dev ref",
+    );
+    assert.ok(!urls.some((u) => u.includes("/HEAD/")), "no HEAD ref may be used");
+    const installed = join(testDir, ".alix", "skills", "xlsx");
+    assert.ok(existsSync(join(installed, "SKILL.md")), "installed from a dev-ref blob URL");
+    assert.ok(existsSync(join(installed, "scripts", "recalc.py")), "scripts land from a dev-ref blob URL");
+  });
+
+  it("honors the branch ref in a tree URL (I-2)", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")) {
+        return treeResponse([{ path: "skills/xlsx/SKILL.md" }]);
+      }
+      if (url.includes("raw.githubusercontent.com/acme/alix-skills/dev/skills/xlsx/SKILL.md")) {
+        return new Response(
+          "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+          { status: 200, headers: { "content-type": "text/markdown" } },
+        );
+      }
+      return new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    await runInstall({ from: "https://github.com/acme/alix-skills/tree/dev/skills/xlsx" });
+    assert.ok(
+      urls.some((u) => u.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")),
+      "trees fetch must use the dev ref",
+    );
+    assert.ok(!urls.some((u) => u.includes("/HEAD/")), "no HEAD ref may be used");
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "xlsx", "SKILL.md")), "installed from a dev-ref tree URL");
+  });
+
+  it("errors on a given name that does not match the package's manifest name (M-2)", async () => {
+    mockPackageFetch(
+      [{ path: "skills/xlsx/SKILL.md" }, { path: "skills/xlsx/scripts/recalc.py" }],
+      {
+        "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+        "skills/xlsx/scripts/recalc.py": "print('recalc')\n",
+      },
+    );
+    await assert.rejects(
+      runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md", name: "foo" }),
+      /manifest name is 'xlsx'/,
+    );
+    assert.ok(
+      !existsSync(join(testDir, ".alix", "skills", "foo", "SKILL.md")),
+      "must not install a URL package under a misleading name",
+    );
+  });
+
+  it("installs a URL package under an explicit name that matches the manifest (M-2)", async () => {
+    mockPackageFetch(
+      [{ path: "skills/xlsx/SKILL.md" }, { path: "skills/xlsx/scripts/recalc.py" }],
+      {
+        "skills/xlsx/SKILL.md": "---\nname: xlsx\ndescription: XLSX recalculation skill\n---\nRecalc the workbook.\n",
+        "skills/xlsx/scripts/recalc.py": "print('recalc')\n",
+      },
+    );
+    await runInstall({ from: "https://github.com/acme/alix-skills/blob/main/skills/xlsx/SKILL.md", name: "xlsx" });
+    assert.ok(existsSync(join(testDir, ".alix", "skills", "xlsx", "SKILL.md")), "package installed under matching name");
+  });
+
+  it("falls back to the HTML-page error for garbage github.com pages like issues (M-4)", async () => {
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("api.github.com")) {
+        throw new Error("trees API must not be called for a non-blob/tree URL");
+      }
+      return new Response("<html><body>an issue page</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    }) as typeof fetch;
+    await assert.rejects(
+      runInstall({ from: "https://github.com/acme/alix-skills/issues/123" }),
+      /returned an HTML page, not a skill/,
     );
   });
 });

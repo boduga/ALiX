@@ -13,6 +13,7 @@ import {
   listAvailableSkills,
   runMarketplaceCommand,
   marketplacesPath,
+  fetchSkillPackage,
 } from "../../../../src/cli/commands/skills/marketplace.js";
 
 const testDir = join(process.cwd(), ".test-alix-marketplace");
@@ -238,6 +239,88 @@ describe("listRepoSkills", () => {
     mockFetch(entries, raw);
     const skills = await listRepoSkills(REPO);
     assert.equal(skills.length, 50);
+  });
+});
+
+describe("fetchSkillPackage", () => {
+  const origFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = origFetch;
+  });
+
+  it("returns null when the derived skill dir has no SKILL.md blob, fetching no blobs (I-1)", async () => {
+    let rawCalls = 0;
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("api.github.com")) {
+        return treeResponse([{ path: "my-skill.md" }, { path: "my-skill.md/scripts/tool.py" }, { path: "README.md" }]);
+      }
+      rawCalls++;
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/acme/alix-skills/blob/main/my-skill.md");
+    assert.equal(pkg, null);
+    assert.equal(rawCalls, 0, "no blobs may be fetched when the dir has no SKILL.md");
+  });
+
+  it("returns null for non blob/tree github.com paths like issues (M-4)", async () => {
+    const pkg = await fetchSkillPackage("https://github.com/acme/alix-skills/issues/123");
+    assert.equal(pkg, null);
+  });
+
+  it("uses the URL ref for both the trees and raw fetches (I-2)", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com")) {
+        return treeResponse([
+          { path: "skills/xlsx/SKILL.md" },
+          { path: "skills/xlsx/scripts/recalc.py" },
+        ]);
+      }
+      if (url.includes("dev/skills/xlsx/SKILL.md")) {
+        return new Response(skillBody("xlsx"), { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      if (url.includes("dev/skills/xlsx/scripts/recalc.py")) {
+        return new Response("print('recalc')\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/acme/alix-skills/blob/dev/skills/xlsx/SKILL.md");
+    assert.ok(pkg, "package fetched");
+    assert.ok(
+      urls.some((u) => u.includes("api.github.com/repos/acme/alix-skills/git/trees/dev")),
+      "trees fetch must use the dev ref",
+    );
+    assert.ok(
+      urls.some((u) => u.includes("raw.githubusercontent.com/acme/alix-skills/dev/")),
+      "raw fetches must use the dev ref",
+    );
+    assert.ok(!urls.some((u) => u.includes("/HEAD/")), "no HEAD ref may be used");
+    assert.deepEqual(pkg.files.map((f) => f.relPath).sort(), ["SKILL.md", "scripts/recalc.py"]);
+  });
+
+  it("defaults to the HEAD ref for a repo-root URL with a name", async () => {
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com")) {
+        return treeResponse([{ path: "skills/xlsx/SKILL.md" }]);
+      }
+      if (url.includes("HEAD/skills/xlsx/SKILL.md")) {
+        return new Response(skillBody("xlsx"), { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/acme/alix-skills", { name: "xlsx" });
+    assert.ok(pkg, "package fetched");
+    assert.ok(
+      urls.some((u) => u.includes("api.github.com/repos/acme/alix-skills/git/trees/HEAD")),
+      "repo-root + name defaults to HEAD",
+    );
   });
 });
 
