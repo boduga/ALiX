@@ -7,6 +7,12 @@ export type SkillManifest = {
   is_core: boolean;
   tags?: string[];
   created_at?: string;
+  /** Declared tools the skill intends to use (informative for trust review). */
+  allowed_tools?: string[];
+  /** Declared runtime requirements (e.g. system packages). */
+  requires?: string[];
+  /** SPDX license identifier, when declared. */
+  license?: string;
 };
 
 export type LoadedSkill = {
@@ -27,6 +33,15 @@ export type SkillCandidate = {
 
 import yaml from "yaml";
 
+/** Parse a YAML list-or-comma-string field into a string array. */
+function toStringArray(value: unknown): string[] | undefined {
+  if (Array.isArray(value)) return value.map((v) => String(v)).filter((s) => s.length > 0);
+  if (typeof value === "string" && value.trim()) {
+    return value.split(",").map((v) => v.trim()).filter(Boolean);
+  }
+  return undefined;
+}
+
 export function parseFrontMatter(content: string): SkillManifest | null {
   // Support both full content with --- delimiters and raw YAML (no ---)
   const fullMatch = content.match(/^---\n([\s\S]*?)\n---/);
@@ -43,6 +58,9 @@ export function parseFrontMatter(content: string): SkillManifest | null {
       is_core: raw.is_core === true,
       tags: raw.tags != null ? (Array.isArray(raw.tags) ? raw.tags as string[] : String(raw.tags).split(",").map((t) => t.trim())) : undefined,
       created_at: raw.created_at != null ? String(raw.created_at) : undefined,
+      allowed_tools: toStringArray(raw.allowed_tools ?? raw["allowed-tools"]),
+      requires: toStringArray(raw.requires),
+      license: raw.license != null ? String(raw.license) : undefined,
     };
   } catch {
     // Returning null is intentional: missing front matter and parse errors are both silent failures.
