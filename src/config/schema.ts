@@ -80,6 +80,17 @@ export type SkillStoreConfig = {
   path: string;
 };
 
+export type SkillSafetyConfig = {
+  /** Require explicit confirmation for non-core skill installs (default true). */
+  requireConfirmation?: boolean;
+  /** Scan package scripts for denied files/secrets before install (default true). */
+  scanScripts?: boolean;
+  /** `alix skills run` blocks network access (best-effort; default true). */
+  denyNetwork?: boolean;
+  /** Timeout in ms for `alix skills run` (default 30000). */
+  sandboxTimeoutMs?: number;
+};
+
 export type ExtensionStoreConfig = {
   enabled: boolean;
   path: string;
@@ -184,6 +195,7 @@ export type AlixConfig = {
   skills?: {
     factory?: SkillFactoryConfig;
     store?: SkillStoreConfig;
+    safety?: SkillSafetyConfig;
   };
   extensions?: {
     store?: ExtensionStoreConfig;
