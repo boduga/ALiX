@@ -35,8 +35,44 @@ import {
   probeKeychainWith,
   type KeychainEntryLike,
 } from "./keychain-provider.js";
+import { EncryptedFileProvider } from "./encrypted-file-provider.js";
 
-export type CredentialBackend = "keychain" | "plain-file";
+export type CredentialBackend = "keychain" | "plain-file" | "encrypted-file";
+
+/**
+ * The env var supplying the encrypted-file backend's passphrase (headless /
+ * CI / daemon use). Interactive sessions can prompt via the CLI instead.
+ */
+export const CREDENTIAL_PASSPHRASE_ENV = "ALIX_CREDENTIAL_PASSPHRASE";
+
+/**
+ * Resolve the encrypted-file passphrase. Policy: explicit → env → optional
+ * interactive prompt → error. The single passphrase resolver — the migrate
+ * command and the session path both route through here, so the fallback
+ * chain (and the security of where a passphrase may come from) lives in one
+ * place.
+ *
+ * `promptFn` is optional: when supplied AND stdin is a TTY, the operator is
+ * prompted once (hidden) if no explicit/env passphrase is available. This
+ * is what enables the spec's "type once per session" flow. When omitted
+ * (or non-TTY), the function throws with a clear headless hint.
+ */
+export async function resolveCredentialPassphrase(
+  explicit?: string,
+  promptFn?: (question: string) => Promise<string>,
+): Promise<string> {
+  if (explicit && explicit.length > 0) return explicit;
+  const fromEnv = process.env[CREDENTIAL_PASSPHRASE_ENV];
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  if (promptFn && process.stdin.isTTY) {
+    const value = await promptFn("Encrypted store passphrase: ");
+    if (value && value.length > 0) return value;
+  }
+  throw new Error(
+    `Encrypted credential store needs a passphrase. Set ${CREDENTIAL_PASSPHRASE_ENV} ` +
+      "(headless) or run interactively from a TTY.",
+  );
+}
 
 /** Sentinel for "no selector file written yet". */
 type StoredBackend = CredentialBackend | "auto";
@@ -83,7 +119,7 @@ export async function readStoredBackend(): Promise<StoredBackend> {
   try {
     const raw = await readFile(selectorPath(), "utf-8");
     const trimmed = raw.trim();
-    if (trimmed === "keychain" || trimmed === "plain-file") return trimmed;
+    if (trimmed === "keychain" || trimmed === "plain-file" || trimmed === "encrypted-file") return trimmed;
     return "auto";
   } catch {
     return "auto";
@@ -142,11 +178,22 @@ export async function probeKeychain(): Promise<void> {
  */
 export async function createCredentialStoreForBackend(
   backend: CredentialBackend,
+  passphrase?: string,
+  promptFn?: (question: string) => Promise<string>,
 ): Promise<CredentialStore> {
-  if (backend === "keychain") {
-    return new CredentialStore({ provider: new KeychainProvider() });
+  switch (backend) {
+    case "keychain":
+      return new CredentialStore({ provider: new KeychainProvider() });
+    case "encrypted-file":
+      return new CredentialStore({
+        provider: new EncryptedFileProvider({
+          passphrase: passphrase ?? (await resolveCredentialPassphrase(undefined, promptFn)),
+        }),
+      });
+    case "plain-file":
+    default:
+      return new CredentialStore();
   }
-  return new CredentialStore();
 }
 
 /**
@@ -157,13 +204,26 @@ export async function createCredentialStoreForBackend(
  * back policy, so the try-keychain-catch-warn-fallback shape is NOT copy-
  * pasted in the CLI factory and config loader.
  *
- * The caller owns the failure path when `backend === "plain-file"` itself
- * fails — that is a genuinely broken store, not a keychain absence.
+ * An `encrypted-file` backend does NOT fall back on failure — a wrong
+ * passphrase or missing passphrase source must surface loudly, never
+ * silently downgrade to plaintext storage.
+ *
+ * `promptFn` enables the interactive session flow: when the encrypted-file
+ * store has no env passphrase and stdin is a TTY, the operator is prompted
+ * once. The loader (config load) deliberately passes NO promptFn — config
+ * load must never block on interactive input; it throws and the caller
+ * decides.
  */
 export async function loadCredentialStoreWithKeychainFallback(
   backend: CredentialBackend,
   warn: (msg: string) => void = (msg) => console.warn(msg),
+  promptFn?: (question: string) => Promise<string>,
 ): Promise<CredentialStore> {
+  if (backend === "encrypted-file") {
+    const store = await createCredentialStoreForBackend("encrypted-file", undefined, promptFn);
+    await store.load();
+    return store;
+  }
   if (backend !== "keychain") {
     const store = await createCredentialStoreForBackend("plain-file");
     await store.load();

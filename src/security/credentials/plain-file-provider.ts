@@ -34,14 +34,9 @@ import {
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
-import {
-  MAX_CREDENTIAL_ENTRIES,
-  lookupKey,
-  type CredentialEntry,
-  type StoreSchema,
-} from "./credential-store.js";
+import { type CredentialEntry, type StoreSchema } from "./credential-store.js";
 import type { CredentialProvider } from "./credential-provider.js";
-import type { CredentialBackend } from "./backend-selection.js";
+import { MemoryCredentialProvider } from "./memory-credential-provider.js";
 
 /** Default store file name within the credentials directory. */
 export const STORE_FILENAME = "credential-store.json";
@@ -86,16 +81,14 @@ function resolveStorePath(override?: string): string {
  * credential-store.ts:55). Do NOT reach for this provider when a keychain
  * is available; use it as the legacy/fallback backend (issue #350).
  */
-export class PlainFileProvider implements CredentialProvider {
+export class PlainFileProvider extends MemoryCredentialProvider {
   readonly backend = "plain-file";
 
   private readonly filePath: string;
-  private store: StoreSchema;
-  private loaded = false;
 
   constructor(options: PlainFileProviderOptions = {}) {
+    super();
     this.filePath = resolveStorePath(options.filePath);
-    this.store = emptyStore();
   }
 
   // -----------------------------------------------------------------------
@@ -138,101 +131,13 @@ export class PlainFileProvider implements CredentialProvider {
     this.loaded = true;
   }
 
-  get(provider: string, keyLabel: string): string | null {
-    const key = lookupKey(provider, keyLabel);
-    const found = this.store.credentials.find(
-      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
-    );
-    return found ? found.value : null;
-  }
-
-  async set(
-    provider: string,
-    keyLabel: string,
-    value: string,
-    metadata?: Record<string, string>,
-    migratedFrom?: CredentialBackend
-  ): Promise<CredentialEntry> {
-    if (!this.loaded) {
-      throw new Error(
-        "CredentialStore not loaded. Call load() before setting credentials."
-      );
-    }
-
-    const key = lookupKey(provider, keyLabel);
-    const existing = this.store.credentials.find(
-      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
-    );
-
-    if (existing) {
-      existing.value = value;
-      existing.entry.updatedAt = now();
-      if (metadata !== undefined) {
-        existing.entry.metadata = metadata;
-      }
-      if (migratedFrom !== undefined) {
-        existing.entry.migratedFrom = migratedFrom;
-      }
-      await this.persist();
-      return { ...existing.entry };
-    }
-
-    if (this.store.credentials.length >= MAX_CREDENTIAL_ENTRIES) {
-      throw new Error(
-        `Credential store is full: ${MAX_CREDENTIAL_ENTRIES} entries maximum. ` +
-          "Delete unused credentials before adding new ones."
-      );
-    }
-
-    const entry: CredentialEntry = {
-      id: randomUUID(),
-      provider,
-      keyLabel,
-      encrypted: false,
-      createdAt: now(),
-      updatedAt: now(),
-      backend: "plain-file",
-      migratedFrom,
-      metadata,
-    };
-
-    this.store.credentials.push({ entry, value });
-    await this.persist();
-    return { ...entry };
-  }
-
-  async delete(provider: string, keyLabel: string): Promise<boolean> {
-    if (!this.loaded) {
-      throw new Error(
-        "CredentialStore not loaded. Call load() before deleting credentials."
-      );
-    }
-
-    const key = lookupKey(provider, keyLabel);
-    const idx = this.store.credentials.findIndex(
-      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
-    );
-
-    if (idx === -1) return false;
-
-    this.store.credentials.splice(idx, 1);
-    await this.persist();
-    return true;
-  }
-
-  list(): CredentialEntry[] {
-    return this.store.credentials.map((c) => ({ ...c.entry }));
-  }
-
-  serialize(): StoreSchema {
-    return this.store;
-  }
+  // get/set/delete/list/serialize are inherited from MemoryCredentialProvider.
 
   // -----------------------------------------------------------------------
-  // Persistence
+  // Persistence (CRUD delegates here via the base class)
   // -----------------------------------------------------------------------
 
-  private async persist(): Promise<void> {
+  protected async persist(): Promise<void> {
     const storeDir = join(this.filePath, "..");
     await mkdir(storeDir, { recursive: true, mode: 0o700 });
 

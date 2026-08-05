@@ -26,6 +26,8 @@ import {
   readStoredBackend,
   plainStorePath,
   createCredentialStoreForBackend,
+  resolveCredentialPassphrase,
+  CREDENTIAL_PASSPHRASE_ENV,
 } from "../../../src/security/credentials/backend-selection.js";
 import {
   setStateDirOverride,
@@ -104,8 +106,9 @@ test("backend-selection: fresh install with working keychain → keychain", asyn
 
 test("backend-selection: createCredentialStoreForBackend builds the right store type", async () => {
   // The single construction factory: plain-file → plain-file backend,
-  // keychain → keychain backend. loadConfig, createCredentialStore, and
-  // migrateBetweenBackends all route through here.
+  // keychain → keychain backend, encrypted-file → encrypted-file backend.
+  // loadConfig, createCredentialStore, and migrateBetweenBackends all
+  // route through here.
   const { dir } = await isolateStateDir();
   try {
     const plain = await createCredentialStoreForBackend("plain-file");
@@ -113,8 +116,47 @@ test("backend-selection: createCredentialStoreForBackend builds the right store 
 
     const keychain = await createCredentialStoreForBackend("keychain");
     assert.equal(keychain.backend, "keychain");
+
+    const encrypted = await createCredentialStoreForBackend("encrypted-file", "test-pass");
+    assert.equal(encrypted.backend, "encrypted-file");
   } finally {
     await cleanup(dir);
+  }
+});
+
+test("backend-selection: readStoredBackend accepts encrypted-file", async () => {
+  const { dir } = await isolateStateDir();
+  try {
+    await writeStoredBackend("encrypted-file");
+    assert.equal(await readStoredBackend(), "encrypted-file");
+    assert.equal(await chooseBackend(), "encrypted-file");
+  } finally {
+    await cleanup(dir);
+  }
+});
+
+test("backend-selection: resolveCredentialPassphrase reads the env var", async () => {
+  const prev = process.env[CREDENTIAL_PASSPHRASE_ENV];
+  try {
+    process.env[CREDENTIAL_PASSPHRASE_ENV] = "env-pass";
+    assert.equal(await resolveCredentialPassphrase(), "env-pass");
+  } finally {
+    if (prev === undefined) delete process.env[CREDENTIAL_PASSPHRASE_ENV];
+    else process.env[CREDENTIAL_PASSPHRASE_ENV] = prev;
+  }
+});
+
+test("backend-selection: resolveCredentialPassphrase throws when unset (non-TTY)", async () => {
+  const prev = process.env[CREDENTIAL_PASSPHRASE_ENV];
+  const prevTty = process.stdin.isTTY;
+  try {
+    delete process.env[CREDENTIAL_PASSPHRASE_ENV];
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    await assert.rejects(resolveCredentialPassphrase(), /ALIX_CREDENTIAL_PASSPHRASE/);
+  } finally {
+    if (prev === undefined) delete process.env[CREDENTIAL_PASSPHRASE_ENV];
+    else process.env[CREDENTIAL_PASSPHRASE_ENV] = prev;
+    Object.defineProperty(process.stdin, "isTTY", { value: prevTty, configurable: true });
   }
 });
 

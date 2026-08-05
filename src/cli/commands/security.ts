@@ -37,6 +37,8 @@ import {
   scrubPlainFileStore,
   createCredentialStoreForBackend,
   loadCredentialStoreWithKeychainFallback,
+  resolveCredentialPassphrase,
+  type CredentialBackend,
 } from "../../security/credentials/backend-selection.js";
 import { homedir } from "node:os";
 
@@ -676,7 +678,11 @@ export async function handleAuditCheckpointVerify(args: string[]): Promise<void>
 }
 async function createCredentialStore(): Promise<CredentialStore> {
   const backend = await chooseBackend();
-  return loadCredentialStoreWithKeychainFallback(backend);
+  // Pass the hidden prompt so an encrypted-file store can be unlocked by
+  // typing the passphrase once per session (spec Phase 3). The loader does
+  // NOT pass a prompt — config load must never block on interactive input.
+  const { promptHidden } = await import("./prompt.js");
+  return loadCredentialStoreWithKeychainFallback(backend, undefined, promptHidden);
 }
 
 // ---------------------------------------------------------------------------
@@ -840,15 +846,19 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
   const dryRun = args.includes("--dry-run");
 
   // `--to <backend>` migrates BETWEEN credential backends (plain-file ⇄
-  // keychain). Without it, the existing config→store migration runs.
+  // keychain ⇄ encrypted-file). Without it, the existing config→store
+  // migration runs.
   const toIdx = args.indexOf("--to");
   if (toIdx >= 0) {
     const to = args[toIdx + 1];
-    if (to !== "keychain" && to !== "plain-file") {
-      console.error("Usage: alix credential migrate --to <keychain|plain-file>");
+    if (to !== "keychain" && to !== "plain-file" && to !== "encrypted-file") {
+      console.error("Usage: alix credential migrate --to <keychain|plain-file|encrypted-file>");
       process.exit(1);
     }
-    await migrateBetweenBackends(to, { dryRun });
+    // No --passphrase flag: a CLI-arg passphrase would land in shell history
+    // and the process list. Passphrases come from ALIX_CREDENTIAL_PASSPHRASE
+    // (headless) or an interactive hidden prompt (TTY).
+    await migrateBetweenBackends(to as CredentialBackend, { dryRun });
     return;
   }
 
@@ -919,7 +929,7 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
  * selector, so a partial run rolls back cleanly to the source backend.
  */
 async function migrateBetweenBackends(
-  to: "keychain" | "plain-file",
+  to: CredentialBackend,
   opts: { dryRun?: boolean },
 ): Promise<void> {
   const dryRun = opts.dryRun ?? false;
@@ -930,6 +940,15 @@ async function migrateBetweenBackends(
     return;
   }
 
+  // Resolve the passphrase only when an encrypted-file backend is involved
+  // (source OR target). Wrong/missing passphrase must surface loudly.
+  // Env var (headless) → interactive hidden prompt (TTY) → error.
+  let passphrase: string | undefined;
+  if (current === "encrypted-file" || to === "encrypted-file") {
+    const { promptHidden } = await import("./prompt.js");
+    passphrase = await resolveCredentialPassphrase(undefined, promptHidden);
+  }
+
   if (!jsonMode) {
     console.log(
       dryRun
@@ -938,8 +957,11 @@ async function migrateBetweenBackends(
     );
   }
 
-  // Source = current active backend.
-  const sourceStore = await createCredentialStore();
+  // Source = current active backend, constructed exactly (no keychain
+  // fallback — migrate reads what is selected, and a down keychain is a
+  // hard error here, not a silent downgrade).
+  const sourceStore = await createCredentialStoreForBackend(current, passphrase);
+  await sourceStore.load();
 
   // Target = the other backend, via the single construction factory. In
   // dry-run mode the target does NOT need to exist — this is a preview.
@@ -949,7 +971,7 @@ async function migrateBetweenBackends(
   let targetStore: CredentialStore | undefined;
   if (!dryRun) {
     try {
-      targetStore = await createCredentialStoreForBackend(to);
+      targetStore = await createCredentialStoreForBackend(to, passphrase);
       await targetStore.load();
     } catch (err) {
       console.error(
@@ -1002,6 +1024,8 @@ async function migrateBetweenBackends(
     console.log(`Active backend set to: ${to}`);
     if (current === "plain-file") {
       console.log("Source plain-file store scrubbed of plain-text values (empty tomb left in place).");
+    } else if (current === "encrypted-file") {
+      console.log("Source encrypted-file retained (it is encrypted at rest; delete it to remove).");
     } else {
       console.log(`Source ${current} metadata retained (keychain metadata holds no values).`);
     }
