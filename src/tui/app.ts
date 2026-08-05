@@ -969,8 +969,8 @@ export class TuiApp {
     // the scroll-up capture formula in `dispatch`'s `scroll` case. Spec
     // invariant: `scrollOffset` must equal `bottomAnchor` (not literal 0) so
     // the capture formula's `max(0, bottomAnchor - step)` has a consistent
-    // baseline when `pinnedBottom` flips to false. Mirrors the test seam in
-    // `getStateForTest`.
+    // baseline when `pinnedBottom` flips to false. This is the production
+    // path that the `setActiveTabForTest` seam delegates to.
     if (next === 'agent' || next === 'chat') {
       const nextPer = this.state.views[next];
       nextPer.pinnedBottom = true;
