@@ -1591,8 +1591,11 @@ export class TuiApp {
       const bufLen = this.state.views.chat.inputBuffer.length;
       this.output.write(`\x1b[5;${7 + bufLen + 1}H`);
     } else if (this.state.activeTab === 'agent') {
+      // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
+      // ANSI cursor addresses are 1-based, so panelRow+1.
       const bufLen = this.state.views.agent.inputBuffer.length;
-      this.output.write(`\x1b[5;${13 + bufLen + 1}H`);
+      const panelRow = Math.max(0, dims.rows - 3 - 1);
+      this.output.write(`\x1b[${panelRow + 1};${13 + bufLen + 1}H`);
     } else {
       // Non-input tabs (dashboard, daemon, approvals, runtime, sops,
       // policy): move cursor to a safe column (row 4, col 1) so it

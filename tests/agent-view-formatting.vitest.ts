@@ -36,6 +36,16 @@ const DEEP = 100;
 /** Default canvas width. */
 const W = 80;
 
+/**
+ * Bottom-anchored prompt row: one above the 3-row footer.
+ * Mirrors the formula in `AgentView.render` so the formatting
+ * tests can assert the prompt's absolute position regardless
+ * of canvas height.
+ */
+function panelRow(height: number): number {
+  return Math.max(0, height - 3 - 0 - 1);
+}
+
 /* ─── Helpers ───────────────────────────────────────────────── */
 
 const MINIMAL_SNAPSHOT: DashboardSnapshot = {
@@ -176,20 +186,23 @@ interface CanvasCell {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — empty state', () => {
-  it('renders prompt on row 4 and nothing in scrollback', () => {
+  it('renders prompt on the panel row and nothing in scrollback', () => {
     const c = renderOnCanvas(W, COMPACT, makePerTab());
-    expect(rowText(c, 4)).toContain('alix-agent>');
-    expect(rowHasStyle(c, 4, '33m')).toBe(true);
-    // Row 5: no runtime → empty
+    // Prompt sits at panelRow (one above the 3-row footer).
+    expect(rowText(c, panelRow(COMPACT))).toContain('alix-agent>');
+    expect(rowHasStyle(c, panelRow(COMPACT), '33m')).toBe(true);
+    // Status row 4 stays empty when no runtime snapshot is wired.
+    expect(rowText(c, 4)).toBe('');
+    // Row 5 is the blank gap between status and scrollback.
     expect(rowText(c, 5)).toBe('');
-    // Row 6: no scrollback content
+    // First scrollback row (6) is blank because the timeline is empty.
     expect(rowText(c, 6)).toBe('');
   });
 
   it('renders prompt with typed input buffer', () => {
     const c = renderOnCanvas(W, COMPACT, makePerTab({ inputBuffer: 'hello' }));
-    expect(rowText(c, 4)).toContain('hello');
-    expect(rowText(c, 4)).toContain('alix-agent>');
+    expect(rowText(c, panelRow(COMPACT))).toContain('hello');
+    expect(rowText(c, panelRow(COMPACT))).toContain('alix-agent>');
   });
 });
 
@@ -350,7 +363,7 @@ describe('AgentView — capability events', () => {
 /* ─────────────────────────────────────────────────────────────── */
 
 describe('AgentView — runtime status line', () => {
-  it('renders runtime status on row 5 when runtime has events', () => {
+  it('renders runtime status on row 4 when runtime has events', () => {
     const snap: DashboardSnapshot = {
       ...MINIMAL_SNAPSHOT,
       runtime: {
@@ -365,9 +378,9 @@ describe('AgentView — runtime status line', () => {
       },
     };
     const c = renderOnCanvas(W, COMPACT, makePerTab(), snap);
-    expect(rowText(c, 5)).toContain('events: 42');
-    expect(rowText(c, 5)).toContain('step 3/7');
-    expect(rowHasStyle(c, 5, '90m')).toBe(true);
+    expect(rowText(c, 4)).toContain('events: 42');
+    expect(rowText(c, 4)).toContain('step 3/7');
+    expect(rowHasStyle(c, 4, '90m')).toBe(true);
   });
 
   it('renders runtime status without workflow step when no workflow', () => {
@@ -376,22 +389,22 @@ describe('AgentView — runtime status line', () => {
       runtime: { trace: [], timeline: [], totalEventCount: 5, lastEventAt: 1_000_000, workflow: null, sessionId: 'chat-1', capabilities: null, metrics: null },
     };
     const c = renderOnCanvas(W, COMPACT, makePerTab(), snap);
-    expect(rowText(c, 5)).toContain('events: 5');
-    expect(rowText(c, 5)).not.toContain('step');
+    expect(rowText(c, 4)).toContain('events: 5');
+    expect(rowText(c, 4)).not.toContain('step');
   });
 
-  it('shows empty row 5 when runtime has zero events', () => {
+  it('shows empty row 4 when runtime has zero events', () => {
     const snap: DashboardSnapshot = {
       ...MINIMAL_SNAPSHOT,
       runtime: { trace: [], timeline: [], totalEventCount: 0, lastEventAt: null, workflow: null, sessionId: 'chat-1', capabilities: null, metrics: null },
     };
     const c = renderOnCanvas(W, COMPACT, makePerTab(), snap);
-    expect(rowText(c, 5)).toBe('');
+    expect(rowText(c, 4)).toBe('');
   });
 
-  it('shows empty row 5 when runtime is null', () => {
+  it('shows empty row 4 when runtime is null', () => {
     const c = renderOnCanvas(W, COMPACT, makePerTab());
-    expect(rowText(c, 5)).toBe('');
+    expect(rowText(c, 4)).toBe('');
   });
 });
 
