@@ -156,7 +156,35 @@ export async function removeMarketplace(
 }
 
 type TreeEntry = { path: string; type: string };
-type TreesResponse = { tree: TreeEntry[] };
+type TreesResponse = { tree: TreeEntry[]; truncated?: boolean };
+
+/**
+ * Discover the top-level `skills/<category>/` directories in a marketplace
+ * repo by walking its recursive git tree. Empty array when the repo has
+ * no `skills/` root, when the tree is truncated (defensive: any `<category>/`
+ * we miss is a skill that won't be findable by name), or when the fetch
+ * fails. Used by `resolveSkillInMarketplaces` to extend the install probe
+ * to 2-deep layouts like `skills/engineering/<name>/SKILL.md` (mattpocock),
+ * which the static `<repo>/<name>/SKILL.md` and `<repo>/skills/<name>/SKILL.md`
+ * paths miss.
+ */
+export async function listMarketplaceCategories(repoUrl: string): Promise<string[]> {
+  try {
+    const { owner, repo } = parseRepoUrl(repoUrl);
+    const treesUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+    const res = await fetchJson<TreesResponse>(treesUrl);
+    const tree = res.tree ?? [];
+    const seen = new Set<string>();
+    for (const entry of tree) {
+      if (entry.type !== "tree") continue;
+      const m = entry.path.match(/^skills\/([^/]+)$/);
+      if (m) seen.add(m[1]);
+    }
+    return [...seen];
+  } catch {
+    return [];
+  }
+}
 
 /** Parse a github.com repo URL into { owner, repo }, throwing otherwise. */
 function parseRepoUrl(repoUrl: string): { owner: string; repo: string } {
@@ -317,6 +345,29 @@ export async function resolveSkillInMarketplaces(
         const content = await fetchSkillFromUrls(candidates, mp.url, name);
         return { repoUrl: mp.url, content };
       } catch (e) {
+        // Static 3-path probe failed. Some marketplaces (mattpocock) layer
+        // skills under `skills/<category>/<name>/SKILL.md` — neither the
+        // root path, root `<name>/`, nor `skills/<name>/` probe can reach
+        // them. Discover categories from the marketplace's recursive tree
+        // and try `skills/<category>/<name>/SKILL.md` per category before
+        // recording the marketplace as failed. The tree fetch only happens
+        // when the static paths fail (one extra HTTP round-trip on the
+        // uncommon path), keeping the common path zero-overhead.
+        const categories = await listMarketplaceCategories(mp.url);
+        if (categories.length > 0) {
+          const parsed = parseGithubUrl(mp.url);
+          if (parsed) {
+            const base = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/HEAD/skills/`;
+            const deepCandidates = categories.map((c) => `${base}${c}/${name}/SKILL.md`);
+            try {
+              const content = await fetchSkillFromUrls(deepCandidates, mp.url, name);
+              return { repoUrl: mp.url, content };
+            } catch (e2) {
+              failures.push(`  ${mp.name} (${mp.url}): ${e instanceof Error ? e.message : String(e)}`);
+              continue;
+            }
+          }
+        }
         failures.push(`  ${mp.name} (${mp.url}): ${e instanceof Error ? e.message : String(e)}`);
       }
     } else {
