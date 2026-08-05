@@ -42,7 +42,7 @@ describe('TuiApp pinnedBottom transitions', () => {
     const m = await makeApp();
     app = m.app;
     internal = m.internal;
-    internal.getStateForTest().activeTab = 'agent';
+    internal.setActiveTabForTest('agent');
   });
   afterEach(async () => { await app.stop().catch(() => {}); });
 
@@ -100,7 +100,7 @@ describe('TuiApp pinnedBottom transitions', () => {
       trace: [], timeline: seeded, workflow: null,
       totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-chat',
     };
-    internal.getStateForTest().activeTab = 'chat';
+    internal.setActiveTabForTest('chat');
 
     internal.handleRaw(ARROW_UP);
     const per = internal.getStateForTest().views.chat;
@@ -139,8 +139,8 @@ describe('TuiApp pinnedBottom transitions', () => {
       totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
     };
     (internal as unknown as { agentRuntime: typeof runtime }).agentRuntime = runtime;
-    internal.getStateForTest().activeTab = 'dashboard';
-    internal.getStateForTest().activeTab = 'agent';
+    internal.setActiveTabForTest('dashboard');
+    internal.setActiveTabForTest('agent');
 
     internal.handleRaw(ARROW_UP);
     const per = internal.getStateForTest().views.agent;
@@ -165,8 +165,8 @@ describe('TuiApp pinnedBottom transitions', () => {
 
   it('onActivate resets pinnedBottom=true', () => {
     internal.handleRaw(ARROW_UP);
-    internal.getStateForTest().activeTab = 'dashboard';
-    internal.getStateForTest().activeTab = 'agent';
+    internal.setActiveTabForTest('dashboard');
+    internal.setActiveTabForTest('agent');
     const per = internal.getStateForTest().views.agent;
     expect(per.pinnedBottom).toBe(true);
   });
@@ -196,8 +196,8 @@ describe('TuiApp pinnedBottom transitions', () => {
       totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
     };
     // Switch away and back so the onActivate path runs.
-    internal.getStateForTest().activeTab = 'dashboard';
-    internal.getStateForTest().activeTab = 'agent';
+    internal.setActiveTabForTest('dashboard');
+    internal.setActiveTabForTest('agent');
 
     const per = internal.getStateForTest().views.agent;
     expect(per.pinnedBottom).toBe(true);
@@ -214,7 +214,7 @@ describe('TuiApp pinnedBottom transitions', () => {
   });
 
   it('chat tab has the same transitions as agent tab', () => {
-    internal.getStateForTest().activeTab = 'chat';
+    internal.setActiveTabForTest('chat');
     const per = internal.getStateForTest().views.chat;
     expect(per.pinnedBottom).toBe(true);
     expect(per.scrollOffset).toBe(0);
@@ -246,8 +246,8 @@ describe('TuiApp pinnedBottom transitions', () => {
       totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
     };
     // Switch away and back so onActivate resets scrollOffset to bottomAnchor.
-    internal.getStateForTest().activeTab = 'dashboard';
-    internal.getStateForTest().activeTab = 'agent';
+    internal.setActiveTabForTest('dashboard');
+    internal.setActiveTabForTest('agent');
 
     const per = internal.getStateForTest().views.agent;
     const offset0 = per.scrollOffset;
