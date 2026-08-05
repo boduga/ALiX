@@ -37,6 +37,8 @@ import {
   scrubPlainFileStore,
   createCredentialStoreForBackend,
   loadCredentialStoreWithKeychainFallback,
+  CREDENTIAL_PASSPHRASE_ENV,
+  type CredentialBackend,
 } from "../../security/credentials/backend-selection.js";
 import { homedir } from "node:os";
 
@@ -840,15 +842,18 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
   const dryRun = args.includes("--dry-run");
 
   // `--to <backend>` migrates BETWEEN credential backends (plain-file ⇄
-  // keychain). Without it, the existing config→store migration runs.
+  // keychain ⇄ encrypted-file). Without it, the existing config→store
+  // migration runs.
   const toIdx = args.indexOf("--to");
   if (toIdx >= 0) {
     const to = args[toIdx + 1];
-    if (to !== "keychain" && to !== "plain-file") {
-      console.error("Usage: alix credential migrate --to <keychain|plain-file>");
+    if (to !== "keychain" && to !== "plain-file" && to !== "encrypted-file") {
+      console.error("Usage: alix credential migrate --to <keychain|plain-file|encrypted-file>");
       process.exit(1);
     }
-    await migrateBetweenBackends(to, { dryRun });
+    const passphraseIdx = args.indexOf("--passphrase");
+    const explicitPassphrase = passphraseIdx >= 0 ? args[passphraseIdx + 1] : undefined;
+    await migrateBetweenBackends(to as CredentialBackend, { dryRun, explicitPassphrase });
     return;
   }
 
@@ -919,8 +924,8 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
  * selector, so a partial run rolls back cleanly to the source backend.
  */
 async function migrateBetweenBackends(
-  to: "keychain" | "plain-file",
-  opts: { dryRun?: boolean },
+  to: CredentialBackend,
+  opts: { dryRun?: boolean; explicitPassphrase?: string },
 ): Promise<void> {
   const dryRun = opts.dryRun ?? false;
   const current = await chooseBackend();
@@ -928,6 +933,13 @@ async function migrateBetweenBackends(
   if (current === to) {
     console.log(`Credential store is already using the ${to} backend. No migration needed.`);
     return;
+  }
+
+  // Resolve the passphrase only when an encrypted-file backend is involved
+  // (source OR target). Wrong/missing passphrase must surface loudly.
+  let passphrase: string | undefined;
+  if (current === "encrypted-file" || to === "encrypted-file") {
+    passphrase = await resolveMigratePassphrase(opts.explicitPassphrase);
   }
 
   if (!jsonMode) {
@@ -938,8 +950,11 @@ async function migrateBetweenBackends(
     );
   }
 
-  // Source = current active backend.
-  const sourceStore = await createCredentialStore();
+  // Source = current active backend, constructed exactly (no keychain
+  // fallback — migrate reads what is selected, and a down keychain is a
+  // hard error here, not a silent downgrade).
+  const sourceStore = await createCredentialStoreForBackend(current, passphrase);
+  await sourceStore.load();
 
   // Target = the other backend, via the single construction factory. In
   // dry-run mode the target does NOT need to exist — this is a preview.
@@ -949,7 +964,7 @@ async function migrateBetweenBackends(
   let targetStore: CredentialStore | undefined;
   if (!dryRun) {
     try {
-      targetStore = await createCredentialStoreForBackend(to);
+      targetStore = await createCredentialStoreForBackend(to, passphrase);
       await targetStore.load();
     } catch (err) {
       console.error(
@@ -1002,11 +1017,33 @@ async function migrateBetweenBackends(
     console.log(`Active backend set to: ${to}`);
     if (current === "plain-file") {
       console.log("Source plain-file store scrubbed of plain-text values (empty tomb left in place).");
+    } else if (current === "encrypted-file") {
+      console.log("Source encrypted-file retained (it is encrypted at rest; delete it to remove).");
     } else {
       console.log(`Source ${current} metadata retained (keychain metadata holds no values).`);
     }
     console.log(`Roll back with: alix credential migrate --to ${current}`);
   }
+}
+
+/**
+ * Resolve the encrypted-file passphrase for a migration: explicit
+ * `--passphrase` flag → env var → interactive hidden prompt → error.
+ * The interactive prompt keeps the passphrase out of shell history.
+ */
+async function resolveMigratePassphrase(explicit?: string): Promise<string> {
+  if (explicit) return explicit;
+  const fromEnv = process.env[CREDENTIAL_PASSPHRASE_ENV];
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  if (process.stdin.isTTY) {
+    const { promptHidden } = await import("./prompt.js");
+    const value = await promptHidden("Encrypted store passphrase: ");
+    if (value && value.length > 0) return value;
+  }
+  console.error(
+    `Encrypted credential store needs a passphrase. Use --passphrase <value> or set ${CREDENTIAL_PASSPHRASE_ENV}.`,
+  );
+  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------

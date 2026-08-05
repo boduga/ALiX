@@ -35,8 +35,25 @@ import {
   probeKeychainWith,
   type KeychainEntryLike,
 } from "./keychain-provider.js";
+import { EncryptedFileProvider } from "./encrypted-file-provider.js";
 
-export type CredentialBackend = "keychain" | "plain-file";
+export type CredentialBackend = "keychain" | "plain-file" | "encrypted-file";
+
+/**
+ * The env var supplying the encrypted-file backend's passphrase (headless /
+ * CI / daemon use). Interactive sessions can prompt via the CLI instead.
+ */
+export const CREDENTIAL_PASSPHRASE_ENV = "ALIX_CREDENTIAL_PASSPHRASE";
+
+/** Resolve the encrypted-file passphrase from the env var. Throws when unset. */
+export function resolveCredentialPassphrase(): string {
+  const fromEnv = process.env[CREDENTIAL_PASSPHRASE_ENV];
+  if (fromEnv && fromEnv.length > 0) return fromEnv;
+  throw new Error(
+    `Encrypted credential store needs a passphrase. Set ${CREDENTIAL_PASSPHRASE_ENV} ` +
+      "(headless) or run `alix credential migrate --to encrypted-file` interactively.",
+  );
+}
 
 /** Sentinel for "no selector file written yet". */
 type StoredBackend = CredentialBackend | "auto";
@@ -83,7 +100,7 @@ export async function readStoredBackend(): Promise<StoredBackend> {
   try {
     const raw = await readFile(selectorPath(), "utf-8");
     const trimmed = raw.trim();
-    if (trimmed === "keychain" || trimmed === "plain-file") return trimmed;
+    if (trimmed === "keychain" || trimmed === "plain-file" || trimmed === "encrypted-file") return trimmed;
     return "auto";
   } catch {
     return "auto";
@@ -142,11 +159,19 @@ export async function probeKeychain(): Promise<void> {
  */
 export async function createCredentialStoreForBackend(
   backend: CredentialBackend,
+  passphrase?: string,
 ): Promise<CredentialStore> {
-  if (backend === "keychain") {
-    return new CredentialStore({ provider: new KeychainProvider() });
+  switch (backend) {
+    case "keychain":
+      return new CredentialStore({ provider: new KeychainProvider() });
+    case "encrypted-file":
+      return new CredentialStore({
+        provider: new EncryptedFileProvider({ passphrase: passphrase ?? resolveCredentialPassphrase() }),
+      });
+    case "plain-file":
+    default:
+      return new CredentialStore();
   }
-  return new CredentialStore();
 }
 
 /**
@@ -157,13 +182,19 @@ export async function createCredentialStoreForBackend(
  * back policy, so the try-keychain-catch-warn-fallback shape is NOT copy-
  * pasted in the CLI factory and config loader.
  *
- * The caller owns the failure path when `backend === "plain-file"` itself
- * fails — that is a genuinely broken store, not a keychain absence.
+ * An `encrypted-file` backend does NOT fall back on failure — a wrong
+ * passphrase or missing passphrase source must surface loudly, never
+ * silently downgrade to plaintext storage.
  */
 export async function loadCredentialStoreWithKeychainFallback(
   backend: CredentialBackend,
   warn: (msg: string) => void = (msg) => console.warn(msg),
 ): Promise<CredentialStore> {
+  if (backend === "encrypted-file") {
+    const store = await createCredentialStoreForBackend("encrypted-file");
+    await store.load();
+    return store;
+  }
   if (backend !== "keychain") {
     const store = await createCredentialStoreForBackend("plain-file");
     await store.load();
