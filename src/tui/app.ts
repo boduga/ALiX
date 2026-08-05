@@ -265,49 +265,19 @@ export class TuiApp {
 
   /** Test seam: expose internal state for assertions. */
   getStateForTest(): TuiAppState {
-    // Proxy wraps the live state so test-side mutations of `activeTab` go
-    // through the same transition path as a real user-driven switchTab call.
-    // Otherwise direct `state.activeTab = 'agent'` would skip the chat/agent
-    // pinnedBottom/scrollOffset reset and tests would diverge from production.
-    const self = this;
-    return new Proxy(this.state, {
-      set: (target, prop, value): boolean => {
-        if (prop === 'activeTab' && typeof value === 'string' && value !== target.activeTab) {
-          // Capture the OLD tab before the assignment so switchTab's
-          // `next === activeTab` guard doesn't early-return (it would,
-          // because we're about to write the same `value` it sees).
-          const prev = target.activeTab;
-          // Mirror `switchTab` exactly: history.push before the activeTab
-          // write (so `navigateBack()` has a target) and the per-tab
-          // panelFocus binding after (so `scrollFocusedPanel` routes
-          // `j`/`k` to the right panel on approvals/sops).
-          self.state.history.push(prev);
-          (target as unknown as Record<PropertyKey, unknown>)[prop] = value;
-          self.state.views[value as TabId].panelFocus =
-            value === 'approvals' || value === 'sops' ? value : null;
-          // Reset pinned state on chat/agent activation; for non-agent/chat
-          // tabs just paint so the new tab is visible. Spec invariant:
-          // `scrollOffset` must equal `bottomAnchor` so the scroll-up capture
-          // formula in `dispatch`'s `scroll` case has a consistent baseline
-          // when the user scrolls up and `pinnedBottom` flips to false.
-          if (value === 'agent' || value === 'chat') {
-            const tab = value as 'agent' | 'chat';
-            self.state.views[tab].pinnedBottom = true;
-            self.resetScrollOffsetToBottom(tab);
-          }
-          // Fire the view-level onActivate/onDeactivate hooks (paintFullFrame
-          // is invoked inside paintFullFrame after we set up). The state
-          // transition itself is now done above; this mirrors what switchTab
-          // would have done if it didn't early-return on a same-tab write.
-          self.views[prev]?.onDeactivate?.(self.state.views[prev as TabId]);
-          self.views[value as TabId]?.onActivate?.(self.state.views[value as TabId]);
-          self.paintFullFrame();
-          return true;
-        }
-        (target as unknown as Record<PropertyKey, unknown>)[prop] = value;
-        return true;
-      },
-    }) as TuiAppState;
+    return this.state;
+  }
+
+  /**
+   * Test seam: simulate a user-driven tab switch by calling the production
+   * `switchTab`. Use this instead of mutating `getStateForTest().activeTab`
+   * directly when the test needs the full transition path (history.push,
+   * panelFocus binding, hook ordering, scrollOffset reset, paint). For
+   * initial-state seeding that does not need the transition path, mutate
+   * `getStateForTest().activeTab` directly.
+   */
+  setActiveTabForTest(tab: TabId): void {
+    this.switchTab(tab);
   }
 
   // Test seams (mirroring getStateForTest)
