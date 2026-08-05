@@ -1,7 +1,7 @@
 import { PaletteModal } from './capabilities/palette.js';
 import { getCapabilityService } from './capabilities/capability-service.js';
 import type { CapabilityService } from './capabilities/capability-service.js';
-import type { TerminalCanvas } from './canvas.js';
+import type { CanvasRect } from './canvas.js';
 
 export interface PaletteControllerOpts {
   capabilityService?: CapabilityService;
@@ -40,8 +40,9 @@ export class PaletteController {
   }
 
   /** Render the palette as an overlay in the active view's canvas. No-op when closed. */
-  paint(canvas: TerminalCanvas, width: number, height: number, headerH: number, footerH: number): void {
+  paint(rect: CanvasRect): void {
     if (!this.open) return;
+    const { canvas, width, height, headerH } = rect;
     const PALETTE_H = 12;
     const y = Math.max(headerH + 1, Math.floor(height / 2) - Math.floor(PALETTE_H / 2));
     const innerW = Math.max(0, width - 4);

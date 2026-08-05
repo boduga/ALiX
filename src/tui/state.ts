@@ -12,6 +12,11 @@ export type TabId =
   | 'dashboard' | 'chat' | 'agent' | 'daemon' | 'approvals'
   | 'runtime' | 'sops' | 'policy' | 'capabilities';
 
+/** Tab order for the tab row and Ctrl+digit cycling. Single shared copy —
+ *  previously forked between app.ts (navigation) and frame-painter.ts (tab
+ *  row), so adding a tab forced two edits. */
+export const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
+
 /**
  * Approval request surfaced inline in the agent scrollback. Synced from
  * the dashboard snapshot on each refresh; resolved entries are pushed into

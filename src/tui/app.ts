@@ -1,9 +1,9 @@
 import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
-import { createInitialTuiAppState } from './state.js';
+import { createInitialTuiAppState, TAB_ORDER } from './state.js';
 import type { RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
 import type { RuntimeCollector } from './runtime-collector.js';
-import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
+import type { ViewAction, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
 import { parseSlashInput, rankSkillMatches, canonicalSkillId } from '../skills/slash.js';
 import { getView } from './views/index.js';
 import { TuiRenderer } from './render.js';
@@ -20,11 +20,11 @@ import type { IInput, IOutput } from './io.js';
 import { StdioInput, StdioOutput } from './io.js';
 import { KeyDispatcher } from './key-dispatcher.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
-import { computeBottomAnchor } from './views/scroll-math.js';
-import { TimelineEmitter } from './timeline-emitter.js';
+import { computeBottomAnchor, HEADER_H, FOOTER_H } from './views/scroll-math.js';
+import { createTimelineEmitter, type TimelineEmitter } from './timeline-emitter.js';
 import { SlashController } from './slash-controller.js';
 import { PaletteController } from './palette-controller.js';
-import { ApprovalResolver } from './approval-resolver.js';
+import { createApprovalResolver, type ApprovalResolver } from './approval-resolver.js';
 import { FramePainter } from './frame-painter.js';
 
 export interface TuiAppOptions {
@@ -72,8 +72,6 @@ export interface TuiAppOptions {
     agent: RuntimeCollector;
   };
 }
-
-const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
 
 /**
  * Narrow writable view of a tab's per-tab state that the shared submit path
@@ -158,13 +156,13 @@ export class TuiApp {
     // Build the extracted controllers. These read `this.opts` and `this.output`,
     // which are only assigned in the constructor body — so they are initialized
     // here rather than as field initializers.
-    this.timelineEmitter = new TimelineEmitter({
+    this.timelineEmitter = createTimelineEmitter({
       eventLog: this.opts.eventLog,
       chatSessionId: this.opts.chatSessionId,
       agentSessionId: this.opts.agentSessionId,
     });
     this.paletteController = new PaletteController({ capabilityService: this.opts.capabilityService });
-    this.approvalResolver = new ApprovalResolver({
+    this.approvalResolver = createApprovalResolver({
       views: () => this.state.views,
       activeTab: () => this.state.activeTab,
       syncTabs: this.SYNC_TABS,
@@ -229,7 +227,9 @@ export class TuiApp {
     // (invalidateSlashCatalog) refreshes the completion strip immediately
     // rather than waiting for the next snapshot tick.
     void this.slash.refreshCatalog().then(() => {
-      if (this.state.activeTab === 'agent') this.paintFullFrame();
+      // Detached guard: the catalog read may resolve after stop() — never
+      // repaint (terminal writes) a torn-down instance.
+      if (!this.detached && this.state.activeTab === 'agent') this.paintFullFrame();
     });
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
@@ -298,7 +298,9 @@ export class TuiApp {
     // (invalidateSlashCatalog) refreshes the completion strip immediately
     // rather than waiting for the next snapshot tick.
     void this.slash.refreshCatalog().then(() => {
-      if (this.state.activeTab === 'agent') this.paintFullFrame();
+      // Detached guard: the catalog read may resolve after stop() — never
+      // repaint (terminal writes) a torn-down instance.
+      if (!this.detached && this.state.activeTab === 'agent') this.paintFullFrame();
     });
   }
 
@@ -898,8 +900,6 @@ export class TuiApp {
       columns: process.stdout.columns ?? 80,
       rows: process.stdout.rows ?? 24,
     };
-    const HEADER_H = 3;
-    const FOOTER_H = 3;
     const available = Math.max(1, dims.rows - HEADER_H - FOOTER_H);
     const target = DEFAULT_PANEL_H * 4;
     const perPanelH = target <= available
@@ -938,24 +938,16 @@ export class TuiApp {
   }
 
   /**
-   * Build a `ViewRenderContext` for the given tab — delegates to the
-   * frame painter so the scroll-math path shares the painter's geometry.
-   */
-  private buildViewRenderContext(tab: TabId): ViewRenderContext {
-    return this.framePainter.buildViewRenderContext(tab);
-  }
-
-  /**
    * Compute and store the bottom anchor for the given tab's `scrollOffset`.
    * Mirrors what `switchTab` and the Proxy reset path both need: set
    * `scrollOffset` to `max(0, allLines.length - scrollbackRows)` so the
    * baseline is correct when the user first scrolls up.
    *
    * Pure-ish: writes only to `this.state.views[tab].scrollOffset`.
-   * Reads the live `ViewRenderContext` via `this.buildViewRenderContext(tab)`.
+   * Reads the live `ViewRenderContext` via the frame painter.
    */
   private resetScrollOffsetToBottom(tab: 'agent' | 'chat'): void {
-    const ctx = this.buildViewRenderContext(tab);
+    const ctx = this.framePainter.buildViewRenderContext(tab);
     this.state.views[tab].scrollOffset = computeBottomAnchor(ctx, tab);
   }
 
@@ -974,7 +966,7 @@ export class TuiApp {
         const per = this.state.views[tab];
         const isAgentOrChat = tab === 'agent' || tab === 'chat';
         if (isAgentOrChat) {
-          const ctx = this.buildViewRenderContext(tab);
+          const ctx = this.framePainter.buildViewRenderContext(tab);
           const bottomAnchor = computeBottomAnchor(ctx, tab);
           const step = action.offset - per.scrollOffset;
 

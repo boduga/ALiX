@@ -163,7 +163,7 @@ describe('TuiApp pinnedBottom transitions', () => {
 
     internal.handleRaw(END);
     const expected = computeBottomAnchor(
-      (app as unknown as { buildViewRenderContext(tab: string): ViewRenderContext }).buildViewRenderContext('chat'),
+      (app as unknown as { framePainter: { buildViewRenderContext(tab: string): ViewRenderContext } }).framePainter.buildViewRenderContext('chat'),
       'chat',
     );
     expect(per.pinnedBottom).toBe(true);
@@ -230,8 +230,10 @@ describe('TuiApp pinnedBottom transitions', () => {
     let spy: ReturnType<typeof vi.spyOn> | undefined;
     try {
       // Seed the agent timeline through the real log → collector projection.
+      // Operator entries (user/agent.message) match the plan's seed; the
+      // collector projects them the same as any agent.* line.
       for (let i = 0; i < 60; i++) {
-        await log.append({ sessionId: 'sess-agent', actor: 'agent', type: 'agent.response', payload: { text: `line ${i}` } });
+        await log.append({ sessionId: 'sess-agent', actor: 'user', type: 'agent.message', payload: { text: `line ${i}` } });
       }
       const sample = (agentCollector as unknown as { sample(): Promise<void> }).sample;
       await sample.call(agentCollector);
@@ -272,8 +274,8 @@ describe('TuiApp pinnedBottom transitions', () => {
       }
     } finally {
       spy?.mockRestore();
-      agentCollector.stop();
-      m.chatCollector.stop();
+      await agentCollector.stop();
+      await m.chatCollector.stop();
       await m.app.stop().catch(() => {});
     }
   });
@@ -318,7 +320,7 @@ describe('TuiApp pinnedBottom transitions', () => {
     expect(per.pinnedBottom).toBe(true);
     // Compute the expected baseline the same way `switchTab`/`onActivate` does.
     const expected = computeBottomAnchor(
-      (app as unknown as { buildViewRenderContext(tab: string): ViewRenderContext }).buildViewRenderContext('agent'),
+      (app as unknown as { framePainter: { buildViewRenderContext(tab: string): ViewRenderContext } }).framePainter.buildViewRenderContext('agent'),
       'agent',
     );
     expect(expected).toBeGreaterThan(0);

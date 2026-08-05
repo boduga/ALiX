@@ -13,6 +13,53 @@ export interface SlashTabAccess {
   isDetached(): boolean;
 }
 
+/** Result of the pure strip computation — the strip plus the controller
+ *  state it implies (clamped selection + hint), so the caller can apply
+ *  them explicitly instead of a method that mutates while computing. */
+export interface SlashStripState {
+  strip: SlashStrip | null;
+  selection: number;
+  hint: string | null;
+}
+
+/** Pure computation of the completion strip and the selection/hint state it
+ *  implies. `buffer` is the already-validated agent input, or null when the
+ *  slash completion isn't active (see SlashController.buffer()). Exported so
+ *  the strip math is testable without a controller. */
+export function computeSlashStripState(
+  manifests: any[],
+  buffer: string | null,
+  selection: number,
+  hint: string | null,
+): SlashStripState {
+  if (!buffer) return { strip: null, selection: 0, hint: null };
+  const parsed = parseSlashInput(buffer);
+  if (!parsed) return { strip: null, selection, hint: null };
+  const matches = rankSkillMatches(manifests, parsed.command);
+  const clamped = Math.min(selection, Math.max(0, matches.length - 1));
+  let nextHint = hint;
+  if (matches.length > 0) {
+    if (parsed.command !== '/') nextHint = null;
+  } else if (manifests.length === 0) {
+    nextHint = 'no skills installed';
+  } else {
+    nextHint = `no skill matches ${parsed.command}`;
+  }
+  return {
+    strip: {
+      entries: matches.slice(0, 8).map((m): SlashStripEntry => ({
+        name: m.name,
+        label: skillSlashNames(m)[0] ?? `/${m.name}`,
+        description: m.description,
+      })),
+      selected: clamped,
+      hint: nextHint,
+    },
+    selection: clamped,
+    hint: nextHint,
+  };
+}
+
 /** Slash-command completion strip state + logic (agent tab only). */
 export class SlashController {
   manifests: any[] = [];
@@ -56,29 +103,14 @@ export class SlashController {
     return true;
   }
 
+  /** Compute the strip and apply the selection/hint state it implies.
+   *  The pure math lives in computeSlashStripState (exported for tests);
+   *  this method applies the derived state to the controller. */
   computeStrip(): SlashStrip | null {
-    const buf = this.buffer();
-    if (!buf) { this.selection = 0; this.hint = null; return null; }
-    const parsed = parseSlashInput(buf);
-    if (!parsed) { this.hint = null; return null; }
-    const matches = rankSkillMatches(this.manifests, parsed.command);
-    this.selection = Math.min(this.selection, Math.max(0, matches.length - 1));
-    if (matches.length > 0) {
-      if (parsed.command !== '/') this.hint = null;
-    } else if (this.manifests.length === 0) {
-      this.hint = 'no skills installed';
-    } else {
-      this.hint = `no skill matches ${parsed.command}`;
-    }
-    return {
-      entries: matches.slice(0, 8).map((m): SlashStripEntry => ({
-        name: m.name,
-        label: skillSlashNames(m)[0] ?? `/${m.name}`,
-        description: m.description,
-      })),
-      selected: this.selection,
-      hint: this.hint,
-    };
+    const { strip, selection, hint } = computeSlashStripState(this.manifests, this.buffer(), this.selection, this.hint);
+    this.selection = selection;
+    this.hint = hint;
+    return strip;
   }
 
   async refreshCatalog(): Promise<void> {

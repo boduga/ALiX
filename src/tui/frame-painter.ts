@@ -1,18 +1,12 @@
-import { TerminalCanvas } from './canvas.js';
-import { computeViewport } from './views/scroll-math.js';
-import type { TabId, TuiAppState } from './state.js';
-import type { ViewRenderContext, SlashStrip } from './views/types.js';
-import type { RuntimeSnapshot } from './snapshot.js';
+import { TerminalCanvas, type CanvasRect } from './canvas.js';
+import { computeViewport, HEADER_H, FOOTER_H } from './views/scroll-math.js';
+import { SessionPhase, TAB_ORDER, type TabId, type TuiAppState } from './state.js';
+import type { ViewRenderContext, SlashStrip, TerminalDimensions, TuiView } from './views/types.js';
+import type { RuntimeSnapshot, DashboardSnapshot } from './snapshot.js';
 import type { IOutput } from './io.js';
 import type { AgentSession } from '../agent/session.js';
-import type { DashboardSnapshot } from './snapshot.js';
-import type { TerminalDimensions } from './views/types.js';
-import { SessionPhase } from './state.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
-import type { TuiView } from './views/types.js';
 import type { PaletteController } from './palette-controller.js';
-
-const TAB_ORDER: readonly TabId[] = ['dashboard', 'chat', 'agent', 'daemon', 'approvals', 'runtime', 'sops', 'policy', 'capabilities'];
 
 /** Everything FramePainter reads from TuiApp — a narrow seam so it never
  *  reaches into the god class. */
@@ -66,13 +60,8 @@ export class FramePainter {
    * agent view's scrollback ends at rows-18, well above the card's
    * rows-7..rows-4 range, so there's no overlap.
    */
-  paintPlanApprovalCard(
-    canvas: TerminalCanvas,
-    width: number,
-    height: number,
-    headerH: number,
-    footerH: number,
-  ): void {
+  paintPlanApprovalCard(rect: CanvasRect): void {
+    const { canvas, width, height, headerH, footerH } = rect;
     const pending = this.deps.planApprovalGate.getPending();
     if (!pending) return;
 
@@ -115,8 +104,6 @@ export class FramePainter {
     const s = this.deps.state();
     if (!s.lastSnapshot) return;
     const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
-    const FOOTER_H = 3;
-    const HEADER_H = 3;
 
     // Render the active view into a canvas sized to the full terminal.
     // The dashboard tab consumes the entire body region (rows 3..rows-4)
@@ -143,8 +130,9 @@ export class FramePainter {
     // available globally. Renders last so it overlays the view's
     // scrollback area (sits at rows-7..rows-4, which is inside the
     // expanded scrollback now — the card wins because it paints last).
-    this.paintPlanApprovalCard(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
-    this.deps.palette.paint(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
+    const rect: CanvasRect = { canvas: viewCanvas, width: dims.columns, height: dims.rows, headerH: HEADER_H, footerH: FOOTER_H };
+    this.paintPlanApprovalCard(rect);
+    this.deps.palette.paint(rect);
 
     const c = new TerminalCanvas(dims.columns, dims.rows);
     const snap = s.lastSnapshot;
@@ -194,8 +182,8 @@ export class FramePainter {
     const tabText = tabLine.length <= tabRowBudget
       ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
       : tabLine.slice(0, tabRowBudget);
-    c.write(0, dims.rows - 3, tabText);
-    c.write(dims.columns - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
+    c.write(0, dims.rows - FOOTER_H, tabText);
+    c.write(dims.columns - hintsLen, dims.rows - FOOTER_H, `\x1b[90m${tabHintsVisible}\x1b[0m`);
 
     // Status row — phase radios (left) | pipeline fields (right).
     // Phase radios are workflow-lifecycle signals — they only make sense
@@ -249,19 +237,20 @@ export class FramePainter {
     // cursor area.
     if (s.activeTab === 'chat') {
       // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
-      // ANSI cursor addresses are 1-based, so panelRow+1. Column 7 is
+      // ANSI cursor addresses are 1-based, so panelRow+1. promptCol (7) is
       // the post-`alix>` cursor position (mirrors `PROMPT_COL=7` in
       // ChatView.render); the `+bufLen+1` term tracks the typed buffer
       // length so the cursor rides at the end of any typed text.
       const bufLen = s.views.chat.inputBuffer.length;
-      const panelRow = computeViewport(dims, 'chat').panelRow;
-      this.deps.output.write(`\x1b[${panelRow + 1};${7 + bufLen + 1}H`);
+      const vp = computeViewport(dims, 'chat');
+      this.deps.output.write(`\x1b[${vp.panelRow + 1};${vp.promptCol + bufLen + 1}H`);
     } else if (s.activeTab === 'agent') {
       // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
-      // ANSI cursor addresses are 1-based, so panelRow+1.
+      // ANSI cursor addresses are 1-based, so panelRow+1. promptCol (13)
+      // mirrors `PROMPT_COL` in AgentView.render.
       const bufLen = s.views.agent.inputBuffer.length;
-      const panelRow = computeViewport(dims, 'agent').panelRow;
-      this.deps.output.write(`\x1b[${panelRow + 1};${13 + bufLen + 1}H`);
+      const vp = computeViewport(dims, 'agent');
+      this.deps.output.write(`\x1b[${vp.panelRow + 1};${vp.promptCol + bufLen + 1}H`);
     } else {
       // Non-input tabs (dashboard, daemon, approvals, runtime, sops,
       // policy): move cursor to a safe column (row 4, col 1) so it
