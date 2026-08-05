@@ -28,6 +28,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import { CredentialStore } from "./credential-store.js";
+import { emptyStore } from "./plain-file-provider.js";
 import {
   KeychainProvider,
   resolveKeychainEntryFactory,
@@ -71,7 +72,8 @@ export function plainStorePath(): string {
 export async function scrubPlainFileStore(): Promise<void> {
   const path = plainStorePath();
   if (!existsSync(path)) return;
-  await writeFile(path, JSON.stringify({ version: 1, credentials: [] }, null, 2) + "\n", {
+  // The tomb shape is owned by the plain-file provider (its schema).
+  await writeFile(path, JSON.stringify(emptyStore(), null, 2) + "\n", {
     mode: 0o600,
   });
 }
@@ -145,6 +147,41 @@ export async function createCredentialStoreForBackend(
     return new CredentialStore({ provider: new KeychainProvider() });
   }
   return new CredentialStore();
+}
+
+/**
+ * Load the store for `backend`, falling back to plain-file when the keychain
+ * is unavailable at load time (constraint #3: a missing keychain must never
+ * block config load or credential operations). Wraps
+ * `createCredentialStoreForBackend` + `load()` with the single warn-and-fall-
+ * back policy, so the try-keychain-catch-warn-fallback shape is NOT copy-
+ * pasted in the CLI factory and config loader.
+ *
+ * The caller owns the failure path when `backend === "plain-file"` itself
+ * fails — that is a genuinely broken store, not a keychain absence.
+ */
+export async function loadCredentialStoreWithKeychainFallback(
+  backend: CredentialBackend,
+  warn: (msg: string) => void = (msg) => console.warn(msg),
+): Promise<CredentialStore> {
+  if (backend !== "keychain") {
+    const store = await createCredentialStoreForBackend("plain-file");
+    await store.load();
+    return store;
+  }
+  try {
+    const store = await createCredentialStoreForBackend("keychain");
+    await store.load();
+    return store;
+  } catch (err) {
+    warn(
+      `Keychain backend unavailable (${err instanceof Error ? err.message : String(err)}); ` +
+        "falling back to the plain-file credential store.",
+    );
+    const store = await createCredentialStoreForBackend("plain-file");
+    await store.load();
+    return store;
+  }
 }
 
 /** Probe type re-exported for callers that need the entry shape. */

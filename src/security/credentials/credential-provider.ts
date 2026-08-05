@@ -26,6 +26,7 @@
  */
 
 import type { CredentialEntry, StoreSchema } from "./credential-store.js";
+import type { CredentialBackend } from "./backend-selection.js";
 
 /**
  * Persistence backend for the credential store.
@@ -50,7 +51,7 @@ export interface CredentialProvider {
     keyLabel: string,
     value: string,
     metadata?: Record<string, string>,
-    migratedFrom?: string,
+    migratedFrom?: CredentialBackend,
   ): Promise<CredentialEntry>;
 
   /** Delete a credential. Returns `true` when found and removed, `false` otherwise. */

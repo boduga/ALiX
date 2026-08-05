@@ -6,7 +6,7 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
-import { chooseBackend, createCredentialStoreForBackend } from "../security/credentials/backend-selection.js";
+import { chooseBackend, loadCredentialStoreWithKeychainFallback } from "../security/credentials/backend-selection.js";
 import { isCredentialReference, resolveCredential } from "../security/credentials/credential-reference.js";
 import { ConfigSigner, type TrustReport } from "./signing.js";
 import { ConfigMutationService } from "./mutation.js";
@@ -118,27 +118,13 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
         // store, loadConfig MUST read the keychain backend or the cred://
         // references resolve to nothing. Still lazy — the keychain binding
         // resolves inside the provider's load(), never at module import.
+        // A missing keychain daemon falls back to plain-file (constraint
+        // #3) via the shared helper.
         const backend = await chooseBackend();
-        try {
-          credentialStore = await createCredentialStoreForBackend(backend);
-          await credentialStore.load();
-        } catch (keychainErr) {
-          // The selector says keychain but the daemon is gone (e.g. the
-          // Secret Service stopped after a migrate). Constraint #3: a
-          // missing keychain must NEVER block config load. Fall back to
-          // plain-file and warn. If that also fails, the store is truly
-          // broken and we surface the original error.
-          if (backend === "keychain") {
-            console.warn(
-              `Keychain backend unavailable during config load (${keychainErr instanceof Error ? keychainErr.message : String(keychainErr)}); ` +
-                "falling back to the plain-file credential store.",
-            );
-            credentialStore = await createCredentialStoreForBackend("plain-file");
-            await credentialStore.load();
-          } else {
-            throw keychainErr;
-          }
-        }
+        credentialStore = await loadCredentialStoreWithKeychainFallback(
+          backend,
+          (msg) => console.warn(`During config load: ${msg}`),
+        );
       } catch (err) {
         throw new Error(
           "Credential store is unavailable. Config references 'cred://' but the credential " +

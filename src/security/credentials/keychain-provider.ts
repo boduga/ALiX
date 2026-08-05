@@ -33,6 +33,7 @@ import type { Entry } from "@napi-rs/keyring";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import { lookupKey, type CredentialEntry, type StoreSchema } from "./credential-store.js";
 import type { CredentialProvider } from "./credential-provider.js";
+import type { CredentialBackend } from "./backend-selection.js";
 
 /** The service identifier used for every keychain entry. */
 export const KEYCHAIN_SERVICE = "alix";
@@ -162,7 +163,7 @@ export class KeychainProvider implements CredentialProvider {
     keyLabel: string,
     value: string,
     metadata?: Record<string, string>,
-    migratedFrom?: string,
+    migratedFrom?: CredentialBackend,
   ): Promise<CredentialEntry> {
     const name = lookupKey(provider, keyLabel);
     const existing = this.findEntry(provider, keyLabel);
@@ -252,14 +253,21 @@ export class KeychainProvider implements CredentialProvider {
 
 async function readMetadata(path: string): Promise<StoreSchema> {
   if (!existsSync(path)) return { version: 1, credentials: [] };
+  const raw = await readFile(path, "utf-8");
+  let parsed: unknown;
   try {
-    const raw = await readFile(path, "utf-8");
-    const parsed = JSON.parse(raw);
-    if (parsed && parsed.version === 1 && Array.isArray(parsed.credentials)) {
-      return parsed as StoreSchema;
-    }
-    return { version: 1, credentials: [] };
+    parsed = JSON.parse(raw);
   } catch {
-    return { version: 1, credentials: [] };
+    throw new Error(
+      `Keychain metadata at ${path} is corrupt (invalid JSON). ` +
+        "Remove the file to reset (the keychain itself still holds the values), or restore from backup.",
+    );
   }
+  if (!parsed || (parsed as StoreSchema).version !== 1 || !Array.isArray((parsed as StoreSchema).credentials)) {
+    throw new Error(
+      `Keychain metadata at ${path} has an unsupported schema. ` +
+        "Remove the file to reset (the keychain itself still holds the values), or restore from backup.",
+    );
+  }
+  return parsed as StoreSchema;
 }

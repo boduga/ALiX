@@ -9,8 +9,10 @@
  * persistence logic lives behind a `CredentialProvider` interface
  * (`credential-provider.ts`); this class delegates to an injected provider
  * and exposes the same surface it always has. A future `KeychainProvider`
- * or `EncryptedFileProvider` implements the same interface, and selection
- * happens in one factory (`createCredentialStore` in cli/commands/security.ts).
+ * or `EncryptedFileProvider` implements the same interface, and backend
+ * selection + construction happens in one factory
+ * (`createCredentialStoreForBackend` in backend-selection.ts), used by the
+ * CLI factory and config load.
  *
  * Properties (preserved from the original file-backed implementation):
  * - Atomic writes (temp file + rename)
@@ -25,6 +27,7 @@
 
 import { PlainFileProvider } from "./plain-file-provider.js";
 import type { CredentialProvider } from "./credential-provider.js";
+import type { CredentialBackend } from "./backend-selection.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -163,7 +166,7 @@ export class CredentialStore {
     keyLabel: string,
     value: string,
     metadata?: Record<string, string>,
-    migratedFrom?: string
+    migratedFrom?: CredentialBackend
   ): Promise<CredentialEntry> {
     return this.provider.set(provider, keyLabel, value, metadata, migratedFrom);
   }

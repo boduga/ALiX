@@ -36,6 +36,7 @@ import {
   writeStoredBackend,
   scrubPlainFileStore,
   createCredentialStoreForBackend,
+  loadCredentialStoreWithKeychainFallback,
 } from "../../security/credentials/backend-selection.js";
 import { homedir } from "node:os";
 
@@ -675,23 +676,7 @@ export async function handleAuditCheckpointVerify(args: string[]): Promise<void>
 }
 async function createCredentialStore(): Promise<CredentialStore> {
   const backend = await chooseBackend();
-  if (backend === "keychain") {
-    try {
-      const store = await createCredentialStoreForBackend("keychain");
-      await store.load();
-      return store;
-    } catch (err) {
-      // Keychain unavailable at runtime → fall back to plain-file. Never
-      // let a broken keychain break credential operations.
-      console.warn(
-        `Keychain backend unavailable (${err instanceof Error ? err.message : String(err)}); ` +
-          "falling back to the plain-file credential store.",
-      );
-    }
-  }
-  const store = await createCredentialStoreForBackend("plain-file");
-  await store.load();
-  return store;
+  return loadCredentialStoreWithKeychainFallback(backend);
 }
 
 // ---------------------------------------------------------------------------
@@ -956,16 +941,22 @@ async function migrateBetweenBackends(
   // Source = current active backend.
   const sourceStore = await createCredentialStore();
 
-  // Target = the other backend, via the single construction factory.
-  let targetStore: CredentialStore;
-  try {
-    targetStore = await createCredentialStoreForBackend(to);
-    await targetStore.load();
-  } catch (err) {
-    console.error(
-      `Cannot migrate to ${to}: backend unavailable (${err instanceof Error ? err.message : String(err)}).`,
-    );
-    process.exit(1);
+  // Target = the other backend, via the single construction factory. In
+  // dry-run mode the target does NOT need to exist — this is a preview.
+  // Constructing + probing it (especially the keychain) would make
+  // `--dry-run --to keychain` fail when the keychain is down, which is
+  // the exact opposite of a dry run's purpose.
+  let targetStore: CredentialStore | undefined;
+  if (!dryRun) {
+    try {
+      targetStore = await createCredentialStoreForBackend(to);
+      await targetStore.load();
+    } catch (err) {
+      console.error(
+        `Cannot migrate to ${to}: backend unavailable (${err instanceof Error ? err.message : String(err)}).`,
+      );
+      process.exit(1);
+    }
   }
 
   const entries = sourceStore.list();
@@ -981,7 +972,7 @@ async function migrateBetweenBackends(
     // Record `migratedFrom` on the entry (issue #350 metadata field): the
     // source backend is what the entry came from. `backend` is set by the
     // target provider itself. Existing metadata is carried over verbatim.
-    await targetStore.set(entry.provider, entry.keyLabel, value, entry.metadata, current);
+    await targetStore!.set(entry.provider, entry.keyLabel, value, entry.metadata, current);
     migrated++;
   }
 
