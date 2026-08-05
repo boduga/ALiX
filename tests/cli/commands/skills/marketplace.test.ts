@@ -19,7 +19,6 @@ import {
   resolveSkillPackageInMarketplaces,
   type Marketplace,
 } from "../../../../src/cli/commands/skills/marketplace.js";
-import { githubRawCandidates } from "../../../../src/cli/commands/skills/net.js";
 
 const testDir = join(process.cwd(), ".test-alix-marketplace");
 
@@ -438,44 +437,14 @@ describe("resolveSkillInMarketplaces", () => {
     assert.equal(res.content, VALID);
   });
 
-describe("githubRawCandidates", () => {
-  // Pure function — no fetch stubbing needed. The contract for tree URLs
-  // is the load-bearing fix for the superpowers layout (skills/<name>/
-  // SKILL.md under a tree URL pointing at the skills subdir). The repo-
-  // root contract was already exercised indirectly through
-  // resolveSkillInMarketplaces tests.
-  it("generates <subdir>/<name>/SKILL.md and <subdir>/skills/<name>/SKILL.md for tree URLs", () => {
-    const candidates = githubRawCandidates(
-      "https://github.com/obra/superpowers/tree/main/skills",
-      "brainstorming",
+  it("aggregates failures when no marketplace has the skill", async () => {
+    globalThis.fetch = (async () =>
+      new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } })) as typeof fetch;
+    await assert.rejects(
+      resolveSkillInMarketplaces("nope", mps),
+      /Could not find skill 'nope' in 2 registered marketplaces/,
     );
-    assert.deepEqual(candidates, [
-      "https://raw.githubusercontent.com/obra/superpowers/main/skills/SKILL.md",
-      "https://raw.githubusercontent.com/obra/superpowers/main/skills/brainstorming/SKILL.md",
-      "https://raw.githubusercontent.com/obra/superpowers/main/skills/skills/brainstorming/SKILL.md",
-    ]);
   });
-
-  it("generates only the subdir probe for tree URLs when no name is given", () => {
-    // Without a name, only the subdir-root probe is generated — there's
-    // no per-name path to compute. This is the "browse the marketplace
-    // root" code path.
-    const candidates = githubRawCandidates("https://github.com/obra/superpowers/tree/main/skills");
-    assert.deepEqual(candidates, [
-      "https://raw.githubusercontent.com/obra/superpowers/main/skills/SKILL.md",
-    ]);
-  });
-
-  it("generates the 3 repo-root paths for non-tree GitHub URLs", () => {
-    // Sanity check that the fix didn't regress the standard layout.
-    const candidates = githubRawCandidates("https://github.com/mattpocock/skills", "wayfinder");
-    assert.deepEqual(candidates, [
-      "https://raw.githubusercontent.com/mattpocock/skills/HEAD/SKILL.md",
-      "https://raw.githubusercontent.com/mattpocock/skills/HEAD/wayfinder/SKILL.md",
-      "https://raw.githubusercontent.com/mattpocock/skills/HEAD/skills/wayfinder/SKILL.md",
-    ]);
-  });
-});
 
   it("falls back to 2-deep skills/<category>/<name>/SKILL.md probe (mattpocock layout)", async () => {
     // Regression for the resolver-depth gap: mattpocock/skills uses

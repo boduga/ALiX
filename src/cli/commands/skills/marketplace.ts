@@ -159,14 +159,23 @@ type TreeEntry = { path: string; type: string };
 type TreesResponse = { tree: TreeEntry[]; truncated?: boolean };
 
 /**
- * Discover the top-level `skills/<category>/` directories in a marketplace
- * repo by walking its recursive git tree. Empty array when the repo has
- * no `skills/` root, when the tree is truncated (defensive: any `<category>/`
- * we miss is a skill that won't be findable by name), or when the fetch
- * fails. Used by `resolveSkillInMarketplaces` to extend the install probe
- * to 2-deep layouts like `skills/engineering/<name>/SKILL.md` (mattpocock),
- * which the static `<repo>/<name>/SKILL.md` and `<repo>/skills/<name>/SKILL.md`
- * paths miss.
+ * Discover categories in a marketplace repo by walking its recursive git
+ * tree. A `category` is a top-level `skills/<X>/` directory that has a
+ * SKILL.md two levels deep under it — i.e. some `skills/<X>/<Y>/SKILL.md`
+ * path exists. This means `<X>` is a category (e.g. mattpocock's
+ * `engineering`) and `<Y>` is a skill within it (e.g. `wayfinder`).
+ *
+ * Marketplaces whose skills live directly at `skills/<name>/SKILL.md`
+ * (superpowers/obra-style flat layout) return an empty array — their
+ * top-level `skills/<X>/` directories are skills themselves, not
+ * categories, and probing `skills/<X>/<name>/SKILL.md` against them
+ * would always 404. (The static per-name probe in `githubRawCandidates`
+ * already reaches them.)
+ *
+ * Returns an empty array when the repo has no `skills/` root, when the
+ * tree fetch fails, or when no categories exist. Used by
+ * `resolveSkillInMarketplaces` to extend the install probe to 2-deep
+ * layouts like `skills/engineering/<name>/SKILL.md` (mattpocock).
  */
 export async function listMarketplaceCategories(repoUrl: string): Promise<string[]> {
   try {
@@ -366,18 +375,21 @@ export async function resolveSkillInMarketplaces(
         // marketplace entries land under a `skills/` namespace.
         const parsed = parseGithubUrl(mp.url);
         if (parsed) {
-          // For tree URLs (e.g. `tree/main/skills`), use the subdir as
-          // the 2-deep base. For repo-root URLs, default to `skills` to
-          // match the convention that listed marketplace entries land
-          // under a `skills/` namespace.
+          // For tree URLs (e.g. `tree/main/skills`), use the URL's ref
+          // (defaulting to `HEAD`) and the subdir path components as the
+          // 2-deep base. For repo-root URLs, default ref=`HEAD` and
+          // subdir=`skills` to match the convention that listed
+          // marketplace entries land under a `skills/` namespace.
+          let ref = "HEAD";
           let subdir = "skills";
           if (parsed.rest[0] === "tree" || parsed.rest[0] === "blob") {
+            ref = parsed.rest[1] ?? "HEAD";
             const pathSegments = parsed.rest.slice(2);
             if (pathSegments.length > 0) subdir = pathSegments.join("/");
           }
           const categories = await listMarketplaceCategories(mp.url);
           if (categories.length > 0) {
-            const base = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/HEAD/${subdir}/`;
+            const base = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${ref}/${subdir}/`;
             const deepCandidates = categories.map((c) => `${base}${c}/${name}/SKILL.md`);
             try {
               const content = await fetchSkillFromUrls(deepCandidates, mp.url, name);
