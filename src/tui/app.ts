@@ -286,11 +286,20 @@ export class TuiApp {
           self.state.views[value as TabId].panelFocus =
             value === 'approvals' || value === 'sops' ? value : null;
           // Reset pinned state on chat/agent activation; for non-agent/chat
-          // tabs just paint so the new tab is visible.
+          // tabs just paint so the new tab is visible. Spec invariant:
+          // `scrollOffset` must equal `bottomAnchor` so the scroll-up capture
+          // formula in `dispatch`'s `scroll` case has a consistent baseline
+          // when the user scrolls up and `pinnedBottom` flips to false.
           if (value === 'agent' || value === 'chat') {
-            const nextPer = self.state.views[value as TabId];
+            const tab = value as 'agent' | 'chat';
+            const nextPer = self.state.views[tab];
             nextPer.pinnedBottom = true;
-            nextPer.scrollOffset = 0;
+            const ctx = self.buildViewRenderContext(tab);
+            const FOOTER_H = 3;
+            const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
+            nextPer.scrollOffset = computeBottomAnchor(
+              ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow,
+            );
           }
           // Fire the view-level onActivate/onDeactivate hooks (paintFullFrame
           // is invoked inside paintFullFrame after we set up). The state
@@ -777,13 +786,21 @@ export class TuiApp {
     const text = parsed.rest.trim() || selected.name;
     this.slashHint = null;
     perTab.inputBuffer = '';
-    // `/clear` resets the scrollback — re-pin to bottom (empty timeline →
-    // bottomAnchor=0) and zero the offset. The actual clear of the runtime
-    // timeline is the responsibility of the agent session itself; here we
-    // only normalize the view state.
+    // `/clear` resets the scrollback — re-pin to bottom. Spec invariant:
+    // `scrollOffset` must equal `bottomAnchor` (not literal 0). With the
+    // timeline cleared by the same handler, `allLines.length === 0`, so
+    // `computeBottomAnchor` returns 0 — behavior is unchanged. The
+    // important property is that the scroll-up capture formula in
+    // `dispatch`'s `scroll` case has a consistent baseline.
     if (selected.name === 'clear' || selected.trigger === '/clear') {
       perTab.pinnedBottom = true;
-      perTab.scrollOffset = 0;
+      const tab = this.state.activeTab;
+      const ctx = this.buildViewRenderContext(tab);
+      const FOOTER_H = 3;
+      const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
+      perTab.scrollOffset = computeBottomAnchor(
+        ctx, tab as 'agent' | 'chat', Math.max(0, ctx.dimensions.columns - 4), panelRow,
+      );
     }
     this.slashSelection = 0;
     this.emitTimelineLog('user', text, this.opts.agentSessionId);
@@ -994,11 +1011,20 @@ export class TuiApp {
     this.state.views[next].panelFocus =
       next === 'approvals' || next === 'sops' ? next : null;
     // Re-pin scrollback to bottom on chat/agent activation — baseline for
-    // the scroll-up capture formula in `dispatch`'s `scroll` case.
+    // the scroll-up capture formula in `dispatch`'s `scroll` case. Spec
+    // invariant: `scrollOffset` must equal `bottomAnchor` (not literal 0) so
+    // the capture formula's `max(0, bottomAnchor - step)` has a consistent
+    // baseline when `pinnedBottom` flips to false. Mirrors the test seam in
+    // `getStateForTest`.
     if (next === 'agent' || next === 'chat') {
       const nextPer = this.state.views[next];
       nextPer.pinnedBottom = true;
-      nextPer.scrollOffset = 0;
+      const ctx = this.buildViewRenderContext(next);
+      const FOOTER_H = 3;
+      const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
+      nextPer.scrollOffset = computeBottomAnchor(
+        ctx, next, Math.max(0, ctx.dimensions.columns - 4), panelRow,
+      );
     }
     this.views[next]?.onActivate?.(this.state.views[next]);
     this.paintFullFrame();

@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { TuiApp, type TuiAppOptions } from '../../src/tui/app.js';
 import { EventLog } from '../../src/events/event-log.js';
+import { computeBottomAnchor } from '../../src/tui/views/scroll-math.js';
 
 async function makeApp() {
   const log = new EventLog(mkdtempSync(join(tmpdir(), 'alix-pinned-')));
@@ -99,6 +100,48 @@ describe('TuiApp pinnedBottom transitions', () => {
     internal.getStateForTest().activeTab = 'agent';
     const per = internal.getStateForTest().views.agent;
     expect(per.pinnedBottom).toBe(true);
+  });
+
+  it('onActivate sets scrollOffset to bottomAnchor (spec invariant), not literal 0', () => {
+    // Spec invariant (docs/superpowers/specs/2026-08-05-tui-bottom-anchored-panel-design.md,
+    // "Documented tradeoffs" #1): `scrollOffset` must equal `bottomAnchor` so
+    // the scroll-up capture formula in `dispatch`'s `scroll` case has a
+    // consistent baseline when `pinnedBottom` flips to false. Regression
+    // guard: prior hardcoded `scrollOffset = 0` happened to render correctly
+    // because the pinned render branch ignored `scrollOffset`, but the
+    // invariant was broken.
+    // Seed agent timeline with N > scrollbackRows events so bottomAnchor > 0.
+    const seeded: Array<{ id: string; kind: 'agent.response'; sessionId: string; startedAt: number; text: string; sourceEvents: { firstSequence: number } }> = [];
+    for (let i = 0; i < 60; i++) {
+      seeded.push({
+        id: `tl-${i}`,
+        kind: 'agent.response',
+        sessionId: 'sess-agent',
+        startedAt: i,
+        text: `seeded line ${i}`,
+        sourceEvents: { firstSequence: i },
+      });
+    }
+    (internal as unknown as { agentRuntime: unknown }).agentRuntime = {
+      trace: [], timeline: seeded, workflow: null,
+      totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
+    };
+    // Switch away and back so the onActivate path runs.
+    internal.getStateForTest().activeTab = 'dashboard';
+    internal.getStateForTest().activeTab = 'agent';
+
+    const per = internal.getStateForTest().views.agent;
+    expect(per.pinnedBottom).toBe(true);
+    // Compute the expected baseline the same way `switchTab`/`onActivate` does.
+    const expected = computeBottomAnchor(
+      (app as unknown as { buildViewRenderContext(tab: string): unknown }).buildViewRenderContext('agent'),
+      'agent',
+      Math.max(0, (process.stdout.columns ?? 80) - 4),
+      Math.max(0, (process.stdout.rows ?? 24) - 3 - 1),
+    );
+    expect(expected).toBeGreaterThan(0);
+    expect(per.scrollOffset).toBe(expected);
+    expect(per.scrollOffset).not.toBe(0);
   });
 
   it('chat tab has the same transitions as agent tab', () => {
