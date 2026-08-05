@@ -383,6 +383,46 @@ describe("fetchSkillPackage", () => {
       "prescan must not probe the parent dir's SKILL.md",
     );
   });
+
+  it("uses the URL as-is for a direct one-segment skill URL", async () => {
+    // Regression for the parent-dir-detection over-broadening: a tree URL
+    // whose single path segment IS the skill name (e.g. `tree/main/foo`
+    // for a skill called `foo`) must resolve to the skill dir `<foo>`,
+    // NOT `<foo>/<foo>`. The parent-dir heuristic should only kick in
+    // when the path segment differs from the skill name.
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com")) {
+        return treeResponse([
+          { path: "foo/SKILL.md" },
+          { path: "foo/scripts/dialogue.md" },
+        ]);
+      }
+      if (url.endsWith("/main/foo/SKILL.md")) {
+        return new Response(skillBody("foo"), { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      if (url.endsWith("/main/foo/scripts/dialogue.md")) {
+        return new Response("# d\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/example/repo/tree/main/foo", {
+      name: "foo",
+    });
+    assert.ok(pkg, "package fetched (not null)");
+    assert.deepEqual(
+      pkg.files.map((f) => f.relPath).sort(),
+      ["SKILL.md", "scripts/dialogue.md"],
+      "package should contain the direct-skill dir's files, not double-name them",
+    );
+    // Prescan must NOT have probed foo/foo/SKILL.md (the doubled path).
+    assert.ok(
+      !urls.some((u) => u.includes("/main/foo/foo/")),
+      "prescan must not double-append the name for a direct skill URL",
+    );
+  });
 });
 
 describe("listAvailableSkills", () => {
