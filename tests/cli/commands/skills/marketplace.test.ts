@@ -338,6 +338,91 @@ describe("fetchSkillPackage", () => {
       "repo-root + name defaults to HEAD",
     );
   });
+
+  it("appends the name to a parent-dir tree URL (superpowers layout)", async () => {
+    // Regression for the brainstorming partial-install: the marketplace
+    // is configured as `tree/main/skills` (a tree URL pointing at the
+    // skills parent dir), and a specific skill like `brainstorming`
+    // lives at `skills/brainstorming/`. The skillDir derivation must
+    // append the name to the parent dir, otherwise the prescan looks
+    // for `skills/SKILL.md` (which doesn't exist) and fetchSkillPackage
+    // returns null — the install then falls back to single-file fetch
+    // and the operator gets SKILL.md with no scripts/assets.
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com/repos/obra/superpowers/git/trees/main")) {
+        return treeResponse([
+          { path: "skills/brainstorming/SKILL.md" },
+          { path: "skills/brainstorming/scripts/dialogue.md" },
+        ]);
+      }
+      if (url.includes("raw.githubusercontent.com/obra/superpowers/main/skills/brainstorming/SKILL.md")) {
+        return new Response(skillBody("brainstorming"), { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      if (url.includes("raw.githubusercontent.com/obra/superpowers/main/skills/brainstorming/scripts/dialogue.md")) {
+        return new Response("# dialogue\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/obra/superpowers/tree/main/skills", {
+      name: "brainstorming",
+    });
+    assert.ok(pkg, "package fetched (not null)");
+    assert.deepEqual(
+      pkg.files.map((f) => f.relPath).sort(),
+      ["SKILL.md", "scripts/dialogue.md"],
+      "scripts/ should be present in the package",
+    );
+    // Prescan must NOT have probed skills/SKILL.md (the parent dir), only
+    // skills/brainstorming/SKILL.md. The latter is fetched; the former
+    // would 404.
+    assert.ok(
+      !urls.some((u) => u.includes("raw.githubusercontent.com/obra/superpowers/main/skills/SKILL.md")),
+      "prescan must not probe the parent dir's SKILL.md",
+    );
+  });
+
+  it("uses the URL as-is for a direct one-segment skill URL", async () => {
+    // Regression for the parent-dir-detection over-broadening: a tree URL
+    // whose single path segment IS the skill name (e.g. `tree/main/foo`
+    // for a skill called `foo`) must resolve to the skill dir `<foo>`,
+    // NOT `<foo>/<foo>`. The parent-dir heuristic should only kick in
+    // when the path segment differs from the skill name.
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com")) {
+        return treeResponse([
+          { path: "foo/SKILL.md" },
+          { path: "foo/scripts/dialogue.md" },
+        ]);
+      }
+      if (url.endsWith("/main/foo/SKILL.md")) {
+        return new Response(skillBody("foo"), { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      if (url.endsWith("/main/foo/scripts/dialogue.md")) {
+        return new Response("# d\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/example/repo/tree/main/foo", {
+      name: "foo",
+    });
+    assert.ok(pkg, "package fetched (not null)");
+    assert.deepEqual(
+      pkg.files.map((f) => f.relPath).sort(),
+      ["SKILL.md", "scripts/dialogue.md"],
+      "package should contain the direct-skill dir's files, not double-name them",
+    );
+    // Prescan must NOT have probed foo/foo/SKILL.md (the doubled path).
+    assert.ok(
+      !urls.some((u) => u.includes("/main/foo/foo/")),
+      "prescan must not double-append the name for a direct skill URL",
+    );
+  });
 });
 
 describe("listAvailableSkills", () => {
@@ -522,6 +607,31 @@ describe("resolveSkillInMarketplaces", () => {
       resolveSkillInMarketplaces("nope", mps),
       /Could not find skill 'nope' in 1 registered marketplaces/,
     );
+  });
+
+  it("resolves tree-URL marketplaces (superpowers) via the static probe", async () => {
+    // Regression for the second marketplace-resolver gap: superpowers is
+    // configured as `tree/main/skills` (the URL is already pointed at the
+    // skills subdirectory). The static probe used to generate ONE path —
+    // `<subdir>/SKILL.md` — and never `<subdir>/<name>/SKILL.md`. The fix
+    // adds the per-name and per-skills-name probes so a flat
+    // `skills/<name>/SKILL.md` layout under a tree URL is reachable.
+    const superpowers = {
+      name: "superpowers",
+      url: "https://github.com/obra/superpowers/tree/main/skills",
+    };
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      // The static probe hits on the per-name path.
+      if (url.endsWith("/main/skills/brainstorming/SKILL.md")) {
+        return new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      // No tree fetch should happen because the static probe succeeded.
+      return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    const res = await resolveSkillInMarketplaces("brainstorming", [superpowers]);
+    assert.equal(res.repoUrl, "https://github.com/obra/superpowers/tree/main/skills");
+    assert.equal(res.content, VALID);
   });
 });
 

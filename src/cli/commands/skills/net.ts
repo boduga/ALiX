@@ -106,7 +106,18 @@ export function githubRawCandidates(source: string, name?: string): string[] | n
         candidates.push(r + [...p, "SKILL.md"].join("/"));
       }
     } else {
+      // Tree URL: probe the subdir itself, plus `<subdir>/<name>/SKILL.md`
+      // when a name is given. The single-path probe was the bug behind
+      // superpowers/obra — the marketplace is configured as
+      // `tree/main/skills` and skills live at `skills/<name>/SKILL.md`,
+      // which `<subdir>/SKILL.md` could never reach. We do NOT also
+      // probe `<subdir>/skills/<name>/SKILL.md` because when `subdir`
+      // is already `skills` (the only layout we have evidence for), that
+      // path is a guaranteed 404 leaking into the failure list.
       candidates.push(r + [...p, "SKILL.md"].join("/"));
+      if (name) {
+        candidates.push(r + [...p, name, "SKILL.md"].join("/"));
+      }
     }
   } else {
     return null; // some other github.com page (actions, releases, issues, …)

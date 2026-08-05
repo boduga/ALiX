@@ -159,28 +159,44 @@ type TreeEntry = { path: string; type: string };
 type TreesResponse = { tree: TreeEntry[]; truncated?: boolean };
 
 /**
- * Discover the top-level `skills/<category>/` directories in a marketplace
- * repo by walking its recursive git tree. Empty array when the repo has
- * no `skills/` root, when the tree is truncated (defensive: any `<category>/`
- * we miss is a skill that won't be findable by name), or when the fetch
- * fails. Used by `resolveSkillInMarketplaces` to extend the install probe
- * to 2-deep layouts like `skills/engineering/<name>/SKILL.md` (mattpocock),
- * which the static `<repo>/<name>/SKILL.md` and `<repo>/skills/<name>/SKILL.md`
- * paths miss.
+ * Discover categories in a marketplace repo by walking its recursive git
+ * tree. A `category` is a top-level `skills/<X>/` directory that has a
+ * SKILL.md two levels deep under it — i.e. some `skills/<X>/<Y>/SKILL.md`
+ * path exists. This means `<X>` is a category (e.g. mattpocock's
+ * `engineering`) and `<Y>` is a skill within it (e.g. `wayfinder`).
+ *
+ * Marketplaces whose skills live directly at `skills/<name>/SKILL.md`
+ * (superpowers/obra-style flat layout) return an empty array — their
+ * top-level `skills/<X>/` directories are skills themselves, not
+ * categories, and probing `skills/<X>/<name>/SKILL.md` against them
+ * would always 404. (The static per-name probe in `githubRawCandidates`
+ * already reaches them.)
+ *
+ * Returns an empty array when the repo has no `skills/` root, when the
+ * tree fetch fails, or when no categories exist. Used by
+ * `resolveSkillInMarketplaces` to extend the install probe to 2-deep
+ * layouts like `skills/engineering/<name>/SKILL.md` (mattpocock).
  */
 export async function listMarketplaceCategories(repoUrl: string): Promise<string[]> {
   try {
-    const { owner, repo } = parseRepoUrl(repoUrl);
-    const treesUrl = `https://api.github.com/repos/${owner}/${repo}/git/trees/HEAD?recursive=1`;
+    const parsed = parseRepoUrl(repoUrl);
+    const treesUrl = `https://api.github.com/repos/${parsed.owner}/${parsed.repo}/git/trees/HEAD?recursive=1`;
     const res = await fetchJson<TreesResponse>(treesUrl);
     const tree = res.tree ?? [];
-    const seen = new Set<string>();
+    // A directory at `skills/<X>/` is a category only when there's a
+    // SKILL.md two levels deep: `skills/<X>/<Y>/SKILL.md`. This excludes
+    // marketplaces whose skills live directly at `skills/<name>/SKILL.md`
+    // (superpowers/obra-style flat layout) — those are skills themselves,
+    // not categories. Probing `skills/<X>/<name>/SKILL.md` against them
+    // would always 404 because the layout is `skills/<name>/`, not
+    // `skills/<X>/<name>/`.
+    const categories = new Set<string>();
     for (const entry of tree) {
-      if (entry.type !== "tree") continue;
-      const m = entry.path.match(/^skills\/([^/]+)$/);
-      if (m) seen.add(m[1]);
+      if (entry.type !== "blob") continue;
+      const m = entry.path.match(/^skills\/([^/]+)\/[^/]+\/SKILL\.md$/);
+      if (m) categories.add(m[1]);
     }
-    return [...seen];
+    return [...categories];
   } catch {
     return [];
   }
@@ -253,6 +269,32 @@ const MAX_PACKAGE_BYTES = 20 * 1024 * 1024;
  * without a name, a blob/tree URL with no path, or a non blob/tree page) let
  * callers fall back to the single-SKILL.md resolution.
  */
+/**
+ * Parse the trailing `rest` of a github.com URL (the part after the owner/repo)
+ * into a tree-reference shape: the ref segment and the path segments under
+ * it. Returns undefined when `rest` doesn't look like a tree/blob URL —
+ * e.g. it's a repo-root URL (empty `rest`) or some other github.com page
+ * (issues, releases, actions). Used by both `skillDirFromGithubUrl` and the
+ * 2-deep fallback in `resolveSkillInMarketplaces` so the URL-shape
+ * classification lives in one place.
+ */
+function parseTreeRef(
+  rest: string[],
+): { ref: string; segments: string[] } | undefined {
+  if (rest[0] !== "blob" && rest[0] !== "tree") return undefined;
+  return { ref: rest[1] ?? "HEAD", segments: rest.slice(2) };
+}
+
+/**
+ * Resolve a github.com URL to the skill directory the marketplace convention
+ * expects. Supports three marketplace shapes:
+ *   - repo-root URL (`https://github.com/owner/repo`) + name → `skills/<name>`
+ *   - parent-dir tree URL (`tree/main/skills`) + name → `skills/<name>`
+ *   - direct skill URL (`tree/main/<name>` or `tree/main/skills/<name>`) → use as-is
+ * Returns undefined for unparseable URLs (issues, releases, blob of SKILL.md
+ * at a non-skill path, etc.) so callers fall back to the single-SKILL.md
+ * resolution.
+ */
 function skillDirFromGithubUrl(
   rest: string[],
   name?: string,
@@ -260,15 +302,24 @@ function skillDirFromGithubUrl(
   if (rest.length === 0) {
     return name ? { skillDir: `skills/${name}`, ref: "HEAD" } : undefined;
   }
-  if (rest[0] === "blob" || rest[0] === "tree") {
-    const ref = rest[1] ?? "HEAD";
-    const segs = rest.slice(2); // drop blob/tree and the ref
-    if (segs.length === 0) return undefined;
-    if (segs[segs.length - 1] === "SKILL.md") segs.pop(); // blob of SKILL.md → its dir
-    if (segs.length === 0) return undefined;
-    return { skillDir: segs.join("/"), ref };
+  const tree = parseTreeRef(rest);
+  if (!tree) return undefined;
+  const { ref, segments } = tree;
+  // Drop a trailing SKILL.md segment for `blob/.../SKILL.md` URLs —
+  // the skill dir is the parent.
+  if (segments[segments.length - 1] === "SKILL.md") segments.pop();
+  if (segments.length === 0) return undefined;
+  // Three shapes resolve to the skill dir:
+  //   - one segment, last != name → parent dir, append name
+  //     (e.g. `tree/main/skills` + name="brainstorming" → "skills/brainstorming")
+  //   - one segment, last == name → direct skill URL, use as-is
+  //     (e.g. `tree/main/brainstorming` + name="brainstorming" → "brainstorming")
+  //   - many segments → deeper URL already at the skill dir, use as-is
+  //     (e.g. `tree/main/skills/brainstorming` → "skills/brainstorming")
+  if (name && segments.length === 1 && segments[0] !== name) {
+    return { skillDir: `${segments[0]}/${name}`, ref };
   }
-  return undefined; // some other github.com page (issues, releases, actions, …)
+  return { skillDir: segments.join("/"), ref };
 }
 
 /**
@@ -349,15 +400,31 @@ export async function resolveSkillInMarketplaces(
         // skills under `skills/<category>/<name>/SKILL.md` — neither the
         // root path, root `<name>/`, nor `skills/<name>/` probe can reach
         // them. Discover categories from the marketplace's recursive tree
-        // and try `skills/<category>/<name>/SKILL.md` per category before
+        // and try `<subdir>/<category>/<name>/SKILL.md` per category before
         // recording the marketplace as failed. The tree fetch only happens
         // when the static paths fail (one extra HTTP round-trip on the
-        // uncommon path), keeping the common path zero-overhead.
-        const categories = await listMarketplaceCategories(mp.url);
-        if (categories.length > 0) {
-          const parsed = parseGithubUrl(mp.url);
-          if (parsed) {
-            const base = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/HEAD/skills/`;
+        // uncommon path), keeping the common path zero-overhead. The subdir
+        // is the path components of the tree URL (e.g. `skills` for a
+        // marketplace URL `tree/main/skills`), or `skills` for a repo-root
+        // marketplace URL — matching the convention that the listed
+        // marketplace entries land under a `skills/` namespace.
+        const parsed = parseGithubUrl(mp.url);
+        if (parsed) {
+          // For tree URLs (e.g. `tree/main/skills`), use the URL's ref
+          // (defaulting to `HEAD`) and the subdir path components as the
+          // 2-deep base. For repo-root URLs, default ref=`HEAD` and
+          // subdir=`skills` to match the convention that listed
+          // marketplace entries land under a `skills/` namespace.
+          let ref = "HEAD";
+          let subdir = "skills";
+          const tree = parseTreeRef(parsed.rest);
+          if (tree && tree.segments.length > 0) {
+            ref = tree.ref;
+            subdir = tree.segments.join("/");
+          }
+          const categories = await listMarketplaceCategories(mp.url);
+          if (categories.length > 0) {
+            const base = `https://raw.githubusercontent.com/${parsed.owner}/${parsed.repo}/${ref}/${subdir}/`;
             const deepCandidates = categories.map((c) => `${base}${c}/${name}/SKILL.md`);
             try {
               const content = await fetchSkillFromUrls(deepCandidates, mp.url, name);
