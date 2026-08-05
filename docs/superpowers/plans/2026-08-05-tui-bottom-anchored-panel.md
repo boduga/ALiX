@@ -34,13 +34,16 @@ Create:
 src/tui/views/bottom-anchored-viewport.ts
 src/tui/views/slash-overlay.ts
 src/tui/views/scroll-math.ts
-src/tui/views/__tests__/bottom-anchored-viewport.test.ts
-src/tui/views/__tests__/slash-overlay.test.ts
-src/tui/views/__tests__/scroll-math.test.ts
-src/tui/__tests__/agent-view-bottom-anchored.test.ts
-src/tui/__tests__/chat-view-bottom-anchored.test.ts
-src/tui/__tests__/app-pinned-bottom.test.ts
+tests/tui/views/helpers/mock-canvas.ts
+tests/tui/views/bottom-anchored-viewport.vitest.ts
+tests/tui/views/slash-overlay.vitest.ts
+tests/tui/views/scroll-math.vitest.ts
+tests/tui/views/agent-view-bottom-anchored.vitest.ts
+tests/tui/views/chat-view-bottom-anchored.vitest.ts
+tests/tui/app-pinned-bottom.vitest.ts
 ```
+
+> Test convention (corrected during pre-flight): vitest only, files end with `.vitest.ts`, live under `tests/tui/views/` (matching existing `tests/tui/views/agent-view.test.ts`, `tests/tui/views/chat-view.vitest.ts`). A shared `MockCanvas` test utility lives at `tests/tui/views/helpers/mock-canvas.ts`. See Task 1 step 1 for the MockCanvas shape; subsequent tasks import from `./helpers/mock-canvas.js`.
 
 Modify:
 
@@ -115,22 +118,67 @@ export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'cha
 
 # Task 1: Helper `renderBottomAnchoredSlice` + tests
 
+> **Note on test convention (corrected during pre-flight):** The plan originally specified `src/tui/views/__tests__/*.test.ts` with `node:test`. The project's TUI tests live under `tests/tui/views/*.vitest.ts` and use `vitest`. Follow the project convention. A shared `MockCanvas` test utility is created as a separate file under `tests/tui/views/helpers/`.
+
 **Files:**
-- Create: `src/tui/views/bottom-anchored-viewport.ts`
-- Create: `src/tui/views/__tests__/bottom-anchored-viewport.test.ts`
+- Create: `src/tui/views/bottom-anchored-viewport.ts` (production helper)
+- Create: `tests/tui/views/helpers/mock-canvas.ts` (test utility)
+- Create: `tests/tui/views/bottom-anchored-viewport.vitest.ts` (vitest)
 
 **Interfaces:**
 - Produces: `renderBottomAnchoredSlice(opts)` (the helper consumed by Tasks 4 and 5).
 
-- [ ] **Step 1: Write the failing test file**
+- [ ] **Step 1: Create the `MockCanvas` test utility**
 
-Create `src/tui/views/__tests__/bottom-anchored-viewport.test.ts`:
+Create `tests/tui/views/helpers/mock-canvas.ts`:
 
 ```ts
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { MockCanvas } from '../../canvas.js';
-import { renderBottomAnchoredSlice, type ScrollbackLine } from '../bottom-anchored-viewport.js';
+/**
+ * MockCanvas — testing primitive for view-layer helpers that operate on a
+ * TerminalCanvas-like surface. Captures all `write()` calls so tests can
+ * assert on the rendered cells without depending on TerminalCanvas's internal
+ * cell grid. Intentionally minimal — only the surface used by the new
+ * helpers (renderBottomAnchoredSlice, renderSlashOverlay, view renderers).
+ */
+
+export interface MockCanvasWrite {
+  x: number;
+  y: number;
+  text: string;
+}
+
+export class MockCanvas {
+  readonly rows: number;
+  readonly columns: number;
+  readonly writes: MockCanvasWrite[] = [];
+
+  constructor(columns: number, rows: number) {
+    this.columns = columns;
+    this.rows = rows;
+  }
+
+  write(x: number, y: number, text: string): void {
+    this.writes.push({ x, y, text });
+  }
+
+  fill(_x: number, _y: number, _w: number, _h: number, _ch: string): void {
+    // No-op for now — views don't call fill() in the helpers covered by this plan.
+  }
+
+  clear(): void {
+    this.writes.length = 0;
+  }
+}
+```
+
+- [ ] **Step 2: Write the failing test file**
+
+Create `tests/tui/views/bottom-anchored-viewport.vitest.ts`:
+
+```ts
+import { describe, it, expect } from 'vitest';
+import { MockCanvas } from './helpers/mock-canvas.js';
+import { renderBottomAnchoredSlice, type ScrollbackLine } from '../../src/tui/views/bottom-anchored-viewport.js';
 
 const line = (text: string, isFirst = false): ScrollbackLine => ({ kind: 'plain', text, isFirst });
 
@@ -138,15 +186,15 @@ describe('renderBottomAnchoredSlice', () => {
   it('returns empty bounds when allLines is empty', () => {
     const c = new MockCanvas(80, 24);
     const result = renderBottomAnchoredSlice({ canvas: c, allLines: [], top: 5, bottomRow: 20, offset: 0, columns: 80, kindStyles: { plain: () => {} } });
-    assert.equal(result.firstRow, 0);
-    assert.equal(result.lastRow, -1);
+    expect(result.firstRow).toBe(0);
+    expect(result.lastRow).toBe(-1);
   });
 
   it('returns empty bounds when scrollbackRows <= 0', () => {
     const c = new MockCanvas(80, 24);
     const result = renderBottomAnchoredSlice({ canvas: c, allLines: [line('a')], top: 20, bottomRow: 19, offset: 0, columns: 80, kindStyles: { plain: () => {} } });
-    assert.equal(result.firstRow, 0);
-    assert.equal(result.lastRow, -1);
+    expect(result.firstRow).toBe(0);
+    expect(result.lastRow).toBe(-1);
   });
 
   it('renders lines at top..top+visibleCount-1 with offset=0 when content fits', () => {
@@ -157,9 +205,9 @@ describe('renderBottomAnchoredSlice', () => {
       canvas: c, allLines: lines, top: 5, bottomRow: 20, offset: 0, columns: 80,
       kindStyles: { plain: (_l, rowY) => rows.push(rowY) },
     });
-    assert.deepEqual(rows, [5, 6, 7]);
-    assert.equal(result.firstRow, 5);
-    assert.equal(result.lastRow, 7);
+    expect(rows).toEqual([5, 6, 7]);
+    expect(result.firstRow).toBe(5);
+    expect(result.lastRow).toBe(7);
   });
 
   it('clamps windowEnd to allLines.length when offset+scrollbackRows overflows', () => {
@@ -171,9 +219,9 @@ describe('renderBottomAnchoredSlice', () => {
       canvas: c, allLines: lines, top: 5, bottomRow: 20, offset: 10, columns: 80,
       kindStyles: { plain: (_l, rowY) => rows.push(rowY) },
     });
-    assert.deepEqual(rows, []);
-    assert.equal(result.firstRow, 5);
-    assert.equal(result.lastRow, 4);
+    expect(rows).toEqual([]);
+    expect(result.firstRow).toBe(5);
+    expect(result.lastRow).toBe(4);
   });
 
   it('renders window [offset, offset+scrollbackRows] clamped when offset is mid-scrollback', () => {
@@ -185,11 +233,11 @@ describe('renderBottomAnchoredSlice', () => {
       canvas: c, allLines: lines, top: 5, bottomRow: 20, offset: 50, columns: 80,
       kindStyles: { plain: (_l, rowY) => rows.push(rowY) },
     });
-    assert.equal(rows.length, 16);
-    assert.equal(rows[0], 5);
-    assert.equal(rows[15], 20);
-    assert.equal(result.firstRow, 5);
-    assert.equal(result.lastRow, 20);
+    expect(rows.length).toBe(16);
+    expect(rows[0]).toBe(5);
+    expect(rows[15]).toBe(20);
+    expect(result.firstRow).toBe(5);
+    expect(result.lastRow).toBe(20);
   });
 
   it('fills full scrollback area when content is longer than scrollbackRows with offset=0', () => {
@@ -200,9 +248,9 @@ describe('renderBottomAnchoredSlice', () => {
       canvas: c, allLines: lines, top: 5, bottomRow: 20, offset: 0, columns: 80,
       kindStyles: { plain: (_l, rowY) => rows.push(rowY) },
     });
-    assert.equal(rows.length, 16);
-    assert.equal(result.firstRow, 5);
-    assert.equal(result.lastRow, 20);
+    expect(rows.length).toBe(16);
+    expect(result.firstRow).toBe(5);
+    expect(result.lastRow).toBe(20);
   });
 
   it('invokes kindStyles[line.kind] exactly once per visible line', () => {
@@ -213,17 +261,17 @@ describe('renderBottomAnchoredSlice', () => {
       canvas: c, allLines: lines, top: 5, bottomRow: 20, offset: 0, columns: 80,
       kindStyles: { plain: () => count++ },
     });
-    assert.equal(count, 5);
+    expect(count).toBe(5);
   });
 });
 ```
 
-- [ ] **Step 2: Run the test to verify it fails**
+- [ ] **Step 3: Run the test to verify it fails**
 
-Run: `pnpm test:node -- --test src/tui/views/__tests__/bottom-anchored-viewport.test.ts`
-Expected: FAIL with "Cannot find module '../bottom-anchored-viewport.js'" or equivalent module-not-found error.
+Run: `pnpm test:vitest -- tests/tui/views/bottom-anchored-viewport.vitest.ts`
+Expected: FAIL with "Cannot find module '../../src/tui/views/bottom-anchored-viewport.js'" or equivalent.
 
-- [ ] **Step 3: Implement the helper**
+- [ ] **Step 4: Implement the helper**
 
 Create `src/tui/views/bottom-anchored-viewport.ts`:
 
@@ -281,15 +329,15 @@ export function renderBottomAnchoredSlice(opts: RenderBottomAnchoredSliceOpts): 
 }
 ```
 
-- [ ] **Step 4: Run the test to verify it passes**
+- [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm test:node -- --test src/tui/views/__tests__/bottom-anchored-viewport.test.ts`
+Run: `pnpm test:vitest -- tests/tui/views/bottom-anchored-viewport.vitest.ts`
 Expected: PASS (7 cases).
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
-git add src/tui/views/bottom-anchored-viewport.ts src/tui/views/__tests__/bottom-anchored-viewport.test.ts
+git add src/tui/views/bottom-anchored-viewport.ts tests/tui/views/helpers/mock-canvas.ts tests/tui/views/bottom-anchored-viewport.vitest.ts
 git commit -m "feat(tui): extract renderBottomAnchoredSlice helper" --no-verify
 ```
 
@@ -299,22 +347,23 @@ git commit -m "feat(tui): extract renderBottomAnchoredSlice helper" --no-verify
 
 **Files:**
 - Create: `src/tui/views/slash-overlay.ts`
-- Create: `src/tui/views/__tests__/slash-overlay.test.ts`
+- Create: `tests/tui/views/slash-overlay.vitest.ts` (vitest; uses `./helpers/mock-canvas.js`)
 
 **Interfaces:**
 - Consumes: `SlashStrip` from `src/tui/views/types.ts`.
 - Produces: `renderSlashOverlay(opts)` (the helper consumed by Task 4).
 
+> MockCanvas lives in `tests/tui/views/helpers/mock-canvas.ts` (created in Task 1).
+
 - [ ] **Step 1: Write the failing test file**
 
-Create `src/tui/views/__tests__/slash-overlay.test.ts`:
+Create `tests/tui/views/slash-overlay.vitest.ts`:
 
 ```ts
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { MockCanvas } from '../../canvas.js';
-import { renderSlashOverlay } from '../slash-overlay.js';
-import type { SlashStrip } from '../types.js';
+import { describe, it, expect } from 'vitest';
+import { MockCanvas } from './helpers/mock-canvas.js';
+import { renderSlashOverlay } from '../../src/tui/views/slash-overlay.js';
+import type { SlashStrip } from '../../src/tui/views/types.js';
 
 const strip = (entries: Array<{ label: string; description: string }>, selected = 0, hint: string | null = null): SlashStrip => ({
   entries: entries.map((e) => ({ name: e.label, label: e.label, description: e.description })),
@@ -326,51 +375,48 @@ describe('renderSlashOverlay', () => {
   it('returns rowsRendered=0 when slash is undefined (no-op)', () => {
     const c = new MockCanvas(80, 24);
     const result = renderSlashOverlay({ canvas: c, slash: undefined as unknown as SlashStrip, panelRow: 19, columns: 80 });
-    assert.equal(result.rowsRendered, 0);
-    assert.equal(result.lastRow, 19);
-    assert.equal(result.selectionVisible, true);
+    expect(result.rowsRendered).toBe(0);
+    expect(result.lastRow).toBe(19);
+    expect(result.selectionVisible).toBe(true);
   });
 
   it('renders a single hint row when hint is set and entries are empty', () => {
     const c = new MockCanvas(80, 24);
     const result = renderSlashOverlay({ canvas: c, slash: strip([], 0, 'Unknown skill "/x"'), panelRow: 19, columns: 80 });
-    assert.equal(result.rowsRendered, 1);
-    assert.equal(result.lastRow, 20);
-    assert.equal(result.selectionVisible, false);
+    expect(result.rowsRendered).toBe(1);
+    expect(result.lastRow).toBe(20);
+    expect(result.selectionVisible).toBe(false);
   });
 
   it('renders all entries when count <= maxRows and marks the selected one', () => {
     const c = new MockCanvas(80, 24);
-    const written: Array<{ row: number; text: string }> = [];
-    const realWrite = c.write.bind(c);
-    c.write = (x: number, y: number, text: string) => { written.push({ row: y, text }); realWrite(x, y, text); };
     const s = strip(
       [{ label: '/foo', description: 'foo skill' }, { label: '/bar', description: 'bar skill' }],
       1,
     );
     const result = renderSlashOverlay({ canvas: c, slash: s, panelRow: 19, columns: 80 });
-    assert.equal(result.rowsRendered, 2);
-    assert.equal(result.lastRow, 21);
-    assert.equal(result.selectionVisible, true);
-    assert.match(written[1]!.text, /^ > /);  // row 20 is selected (index 1) — gets '>' marker
-    assert.match(written[0]!.text, /^   /);  // row 19 is unselected — gets ' ' marker
+    expect(result.rowsRendered).toBe(2);
+    expect(result.lastRow).toBe(21);
+    expect(result.selectionVisible).toBe(true);
+    // Row 20 is selected (index 1) — gets '>' marker; row 19 is unselected.
+    const row19 = c.writes.find((w) => w.y === 19);
+    const row20 = c.writes.find((w) => w.y === 20);
+    expect(row19?.text.startsWith('   ')).toBe(true);
+    expect(row20?.text.startsWith(' > ')).toBe(true);
   });
 
   it('windows entries around the selected index when count > maxRows', () => {
     const c = new MockCanvas(80, 24);
-    const written: Array<{ row: number; text: string }> = [];
-    const realWrite = c.write.bind(c);
-    c.write = (x: number, y: number, text: string) => { written.push({ row: y, text }); realWrite(x, y, text); };
     const s = strip(
       Array.from({ length: 12 }, (_, i) => ({ label: `/skill${i}`, description: `d${i}` })),
       8,    // selected=8 of 12, maxRows=6
     );
     const result = renderSlashOverlay({ canvas: c, slash: s, panelRow: 19, columns: 80, maxRows: 6 });
-    assert.equal(result.rowsRendered, 6);
-    assert.equal(result.selectionVisible, true);
+    expect(result.rowsRendered).toBe(6);
+    expect(result.selectionVisible).toBe(true);
     // The selected marker (>) must appear in exactly one of the rendered rows.
-    const selectedRows = written.filter((w) => w.text.includes('>') && !w.text.includes('>>'));
-    assert.equal(selectedRows.length, 1);
+    const rowsWithSelected = c.writes.filter((w) => w.text.includes(' > '));
+    expect(rowsWithSelected.length).toBe(1);
   });
 
   it('clamps rows when panelRow + 1 + maxRows would exceed canvas.rows', () => {
@@ -381,16 +427,16 @@ describe('renderSlashOverlay', () => {
     );
     // panelRow=22 means rows 23..28 would be needed; canvas.rows=24 → only 1 row fits.
     const result = renderSlashOverlay({ canvas: c, slash: s, panelRow: 22, columns: 80, maxRows: 6 });
-    assert.equal(result.rowsRendered, 1);
-    assert.equal(result.selectionVisible, true);
+    expect(result.rowsRendered).toBe(1);
+    expect(result.selectionVisible).toBe(true);
   });
 
   it('returns rowsRendered=0 when no rows can fit', () => {
     const c = new MockCanvas(80, 24);
     const s = strip([{ label: '/foo', description: 'foo' }], 0);
     const result = renderSlashOverlay({ canvas: c, slash: s, panelRow: 23, columns: 80, maxRows: 6 });
-    assert.equal(result.rowsRendered, 0);
-    assert.equal(result.selectionVisible, false);
+    expect(result.rowsRendered).toBe(0);
+    expect(result.selectionVisible).toBe(false);
   });
 });
 ```
@@ -489,9 +535,9 @@ git commit -m "feat(tui): extract renderSlashOverlay helper" --no-verify
 
 **Files:**
 - Create: `src/tui/views/scroll-math.ts`
-- Create: `src/tui/views/__tests__/scroll-math.test.ts`
+- Create: `tests/tui/views/scroll-math.vitest.ts`
 - Modify: `src/tui/app.ts` (key handling + transitions; no rendering changes)
-- Create: `src/tui/__tests__/app-pinned-bottom.test.ts`
+- Create: `tests/tui/app-pinned-bottom.vitest.ts`
 
 **Interfaces:**
 - Produces: `buildAgentScrollbackLines`, `buildChatScrollbackLines`, `computeScrollbackRows`, `computeBottomAnchor` (consumed by Tasks 4, 5).
@@ -966,31 +1012,41 @@ git commit -m "feat(tui): scroll-math builders + pinnedBottom transitions (auto-
 
 **Files:**
 - Modify: `src/tui/views/agent-view.ts` (the line-builder code that already lives here is moved verbatim into `scroll-math.ts` by Task 3; this task removes it from this file)
-- Create: `src/tui/__tests__/agent-view-bottom-anchored.test.ts`
+- Create: `tests/tui/views/agent-view-bottom-anchored.vitest.ts`
 
 **Interfaces:**
 - Consumes: `renderBottomAnchoredSlice` (Task 1), `renderSlashOverlay` (Task 2), `buildAgentScrollbackLines` (Task 3).
 - Produces: the new `render(ctx)` body that pins the panel at the bottom and the slash strip directly below.
 
+> **Test convention (matches Tasks 1 and 2):** vitest, `.vitest.ts` files, `tests/tui/views/` path. Use `MockCanvas` from `./helpers/mock-canvas.js` (created in Task 1) with the same `canvas(columns, rows)` cast factory for the `TerminalCanvas` typing.
+
 - [ ] **Step 1: Write the failing test**
 
-Create `src/tui/__tests__/agent-view-bottom-anchored.test.ts`:
+Create `tests/tui/views/agent-view-bottom-anchored.vitest.ts`:
 
 ```ts
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { AgentView } from '../../views/agent-view.js';
-import { MockCanvas } from '../../canvas.js';
-import type { ViewRenderContext } from '../../views/types.js';
-import { createInitialPerTabState } from '../../state.js';
+import { describe, it, expect } from 'vitest';
+import { AgentView } from '../../../src/tui/views/agent-view.js';
+import { MockCanvas } from './helpers/mock-canvas.js';
+import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { createInitialPerTabState } from '../../../src/tui/state.js';
+import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+
+// Cast factory: MockCanvas is intentionally minimal (only captures write()).
+// renderBottomAnchoredSlice only invokes write() via the kindStyles callbacks
+// the view provides, so the structural mismatch with TerminalCanvas is benign
+// for this test surface.
+function canvas(columns: number, rows: number): TerminalCanvas {
+  return new MockCanvas(columns, rows) as unknown as TerminalCanvas;
+}
 
 function ctx(opts: Partial<ViewRenderContext> & { rows?: number; pinnedBottom?: boolean; inputBuffer?: string; slashEntries?: Array<{ name: string; label: string; description: string }>; timeline?: any[] }): ViewRenderContext {
-  const c = new MockCanvas(80, opts.rows ?? 30);
+  const rows = opts.rows ?? 30;
   return {
     snap: {} as never,
-    dimensions: { columns: 80, rows: opts.rows ?? 30 },
+    dimensions: { columns: 80, rows },
     perTab: { ...createInitialPerTabState(), pinnedBottom: opts.pinnedBottom ?? true, inputBuffer: opts.inputBuffer ?? '' },
-    canvas: c,
+    canvas: canvas(80, rows),
     runtime: opts.timeline
       ? { chat: null, agent: { timeline: opts.timeline, totalEventCount: opts.timeline.length, workflow: undefined, session: {} as never } as never }
       : undefined,
@@ -1007,31 +1063,32 @@ describe('AgentView bottom-anchored render', () => {
   it('renders input panel at panelRow (one above the footer)', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
-    const writesAt26 = c.writes.filter((w: any) => w.y === 26);
-    assert.ok(writesAt26.some((w: any) => w.text.includes('alix-agent>')), 'expected prompt label at row 26');
+    const writesAt26 = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 26);
+    expect(writesAt26.some((w) => w.text.includes('alix-agent>'))).toBe(true);
   });
 
   it('renders the slash strip directly below the panel when slash mode is active', () => {
     const c = ctx({ rows: 30, slashEntries: [{ name: 'foo', label: '/foo', description: 'foo skill' }, { name: 'bar', label: '/bar', description: 'bar skill' }] });
     view.render(c);
-    const writesAt27 = c.writes.filter((w: any) => w.y === 27);
-    assert.ok(writesAt27.some((w: any) => w.text.includes('/foo')), 'expected /foo entry at row 27');
+    const writesAt27 = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 27);
+    expect(writesAt27.some((w) => w.text.includes('/foo'))).toBe(true);
   });
 
   it('does NOT render the slash strip when slash mode is inactive', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
-    const writesAt27 = c.writes.filter((w: any) => w.y === 27);
-    assert.equal(writesAt27.length, 0, 'no rows should be written below the panel when slash is inactive');
+    const writesAt27 = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 27);
+    expect(writesAt27.length).toBe(0);
   });
 
   it('renders the most recent lines when pinnedBottom=true (default)', () => {
     const timeline = Array.from({ length: 50 }, (_, i) => ({ kind: 'agent.message' as const, text: `line ${i}`, actor: 'user' as const }));
     const c = ctx({ rows: 30, timeline });
     view.render(c);
-    const scrollbackWrites = c.writes.filter((w: any) => w.y >= 6 && w.y <= 25);
+    const writes = (c.canvas as unknown as MockCanvas).writes;
+    const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25);
     const lastScrollbackWrite = scrollbackWrites[scrollbackWrites.length - 1];
-    assert.match(lastScrollbackWrite.text, /line 49/);
+    expect(lastScrollbackWrite.text).toMatch(/line 49/);
   });
 
   it('renders the older lines mid-viewport when pinnedBottom=false (parked scroll)', () => {
@@ -1043,14 +1100,15 @@ describe('AgentView bottom-anchored render', () => {
       snap: {} as never,
       dimensions: { columns: 80, rows: 30 },
       perTab,
-      canvas: new MockCanvas(80, 30),
+      canvas: canvas(80, 30),
       runtime: { chat: null, agent: { timeline, totalEventCount: timeline.length, workflow: undefined, session: {} as never } as never },
       themeName: 'dark',
     };
     view.render(c);
-    const scrollbackWrites = c.canvas!.writes.filter((w: any) => w.y >= 6 && w.y <= 25);
-    const firstScrollbackWrite = scrollbackWrites.find((w: any) => w.text.length > 0);
-    assert.match(firstScrollbackWrite.text, /line 10/);
+    const writes = (c.canvas as unknown as MockCanvas).writes;
+    const scrollbackWrites = writes.filter((w) => w.y >= 6 && w.y <= 25);
+    const firstScrollbackWrite = scrollbackWrites.find((w) => w.text.length > 0);
+    expect(firstScrollbackWrite!.text).toMatch(/line 10/);
   });
 
   it('does not move the visible window when new content arrives while unpinned (no drift)', () => {
@@ -1062,28 +1120,28 @@ describe('AgentView bottom-anchored render', () => {
       snap: {} as never,
       dimensions: { columns: 80, rows: 30 },
       perTab,
-      canvas: new MockCanvas(80, 30),
+      canvas: canvas(80, 30),
       runtime: { chat: null, agent: { timeline: initialTimeline, totalEventCount: initialTimeline.length, workflow: undefined, session: {} as never } as never },
       themeName: 'dark',
     };
     view.render(c);
-    const firstBefore = c.canvas!.writes.find((w: any) => w.y >= 6 && w.text.length > 0);
+    const writesBefore = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 6 && w.text.length > 0);
+    const firstBefore = writesBefore[0]!;
 
     const grownTimeline = [...initialTimeline, ...Array.from({ length: 5 }, (_, i) => ({ kind: 'agent.message' as const, text: `appended ${i}`, actor: 'user' as const }))];
     const c2: ViewRenderContext = { ...c, runtime: { chat: null, agent: { timeline: grownTimeline, totalEventCount: grownTimeline.length, workflow: undefined, session: {} as never } as never } };
     view.render(c2);
-    const firstAfter = c2.canvas!.writes.find((w: any) => w.y >= 6 && w.text.length > 0);
+    const writesAfter = (c2.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 6 && w.text.length > 0);
+    const firstAfter = writesAfter[0]!;
 
-    assert.equal(firstBefore.text, firstAfter.text);
+    expect(firstAfter.text).toBe(firstBefore.text);
   });
 });
 ```
 
-> Note: the test assumes `MockCanvas` records `writes` as an array. Verify the actual MockCanvas API in `src/tui/canvas.ts` and adjust the test if needed (the real `write` may not capture args this way — use whatever capture mechanism exists; if none, extend MockCanvas to expose `writes: Array<{x,y,text}>`).
-
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test:node -- --test src/tui/__tests__/agent-view-bottom-anchored.test.ts`
+Run: `pnpm test:vitest -- tests/tui/views/agent-view-bottom-anchored.vitest.ts`
 Expected: FAIL (the existing render writes the panel at row 4, not row 26).
 
 - [ ] **Step 3: Rewrite `agent-view.ts`'s `render(ctx)`**
@@ -1242,12 +1300,12 @@ Expected: PASS (6 cases).
 
 - [ ] **Step 6: Run the full TUI test suite and update snapshots**
 
-Run: `pnpm test:node`
-Expected: existing snapshot tests in `src/tui/__tests__/` fail (panel relocated, status line moved, slash strip repositioned). Update them:
+Run: `pnpm test:vitest`
+Expected: existing snapshot tests in `tests/tui/views/` fail (panel relocated, status line moved, slash strip repositioned). Update them:
 
 ```bash
-pnpm test:node -- --test-update-snapshots   # or whatever the project's snapshot-update flag is
-git diff src/tui/__tests__/   # audit the diff manually
+pnpm test:vitest -- -u   # vitest's snapshot-update flag
+git diff tests/tui/views/   # audit the diff manually
 ```
 
 Only commit the snapshot updates after the implementer AND reviewer have audited the diff.
@@ -1265,30 +1323,37 @@ git commit -m "feat(tui): relocate agent-tab input panel + slash strip to bottom
 
 **Files:**
 - Modify: `src/tui/views/chat-view.ts` (the line-builder code that already lives here was moved verbatim into `scroll-math.ts` by Task 3; this task removes it from this file and imports it instead)
-- Create: `src/tui/__tests__/chat-view-bottom-anchored.test.ts`
+- Create: `tests/tui/views/chat-view-bottom-anchored.vitest.ts`
 
 **Interfaces:**
 - Consumes: `renderBottomAnchoredSlice` (Task 1), `buildChatScrollbackLines` (Task 3).
 - Produces: the new `render(ctx)` body (no slash overlay).
 
+> **Test convention (matches Tasks 1-4):** vitest, `.vitest.ts` files, `tests/tui/views/` path. Use `MockCanvas` from `./helpers/mock-canvas.js` with the same `canvas(columns, rows)` cast factory.
+
 - [ ] **Step 1: Write the failing test**
 
-Create `src/tui/__tests__/chat-view-bottom-anchored.test.ts`:
+Create `tests/tui/views/chat-view-bottom-anchored.vitest.ts`:
 
 ```ts
-import { describe, it } from 'node:test';
-import assert from 'node:assert/strict';
-import { ChatView } from '../../views/chat-view.js';
-import { MockCanvas } from '../../canvas.js';
-import type { ViewRenderContext } from '../../views/types.js';
-import { createInitialPerTabState } from '../../state.js';
+import { describe, it, expect } from 'vitest';
+import { ChatView } from '../../../src/tui/views/chat-view.js';
+import { MockCanvas } from './helpers/mock-canvas.js';
+import type { ViewRenderContext } from '../../../src/tui/views/types.js';
+import { createInitialPerTabState } from '../../../src/tui/state.js';
+import type { TerminalCanvas } from '../../../src/tui/canvas.js';
+
+function canvas(columns: number, rows: number): TerminalCanvas {
+  return new MockCanvas(columns, rows) as unknown as TerminalCanvas;
+}
 
 function ctx(opts: { rows?: number; pinnedBottom?: boolean; inputBuffer?: string; timeline?: any[] }): ViewRenderContext {
+  const rows = opts.rows ?? 30;
   return {
     snap: {} as never,
-    dimensions: { columns: 80, rows: opts.rows ?? 30 },
+    dimensions: { columns: 80, rows },
     perTab: { ...createInitialPerTabState(), pinnedBottom: opts.pinnedBottom ?? true, inputBuffer: opts.inputBuffer ?? '' },
-    canvas: new MockCanvas(80, opts.rows ?? 30),
+    canvas: canvas(80, rows),
     runtime: opts.timeline
       ? { chat: { timeline: opts.timeline, totalEventCount: opts.timeline.length, workflow: undefined, session: {} as never } as never, agent: null }
       : undefined,
@@ -1302,24 +1367,25 @@ describe('ChatView bottom-anchored render', () => {
   it('renders input panel at panelRow (one above the footer)', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
-    const writesAt26 = c.canvas!.writes.filter((w: any) => w.y === 26);
-    assert.ok(writesAt26.some((w: any) => w.text.includes('alix>')), 'expected prompt label at row 26');
+    const writesAt26 = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y === 26);
+    expect(writesAt26.some((w) => w.text.includes('alix>'))).toBe(true);
   });
 
   it('does not render a slash strip (chat never receives ctx.slash)', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
-    const writesBelow = c.canvas!.writes.filter((w: any) => w.y >= 27);
-    assert.equal(writesBelow.length, 0);
+    const writesBelow = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= 27);
+    expect(writesBelow.length).toBe(0);
   });
 
   it('renders the most recent lines when pinnedBottom=true (default)', () => {
     const timeline = Array.from({ length: 50 }, (_, i) => ({ kind: 'chat.message' as const, text: `msg ${i}` }));
     const c = ctx({ rows: 30, timeline });
     view.render(c);
-    const scrollbackWrites = c.canvas!.writes.filter((w: any) => w.y >= 5 && w.y <= 25);
+    const writes = (c.canvas as unknown as MockCanvas).writes;
+    const scrollbackWrites = writes.filter((w) => w.y >= 5 && w.y <= 25);
     const lastScrollbackWrite = scrollbackWrites[scrollbackWrites.length - 1];
-    assert.match(lastScrollbackWrite.text, /msg 49/);
+    expect(lastScrollbackWrite.text).toMatch(/msg 49/);
   });
 
   it('renders the older lines mid-viewport when pinnedBottom=false', () => {
@@ -1329,21 +1395,22 @@ describe('ChatView bottom-anchored render', () => {
       snap: {} as never,
       dimensions: { columns: 80, rows: 30 },
       perTab,
-      canvas: new MockCanvas(80, 30),
+      canvas: canvas(80, 30),
       runtime: { chat: { timeline, totalEventCount: timeline.length, workflow: undefined, session: {} as never } as never, agent: null },
       themeName: 'dark',
     };
     view.render(c);
-    const scrollbackWrites = c.canvas!.writes.filter((w: any) => w.y >= 5 && w.y <= 25);
-    const firstScrollbackWrite = scrollbackWrites.find((w: any) => w.text.length > 0);
-    assert.match(firstScrollbackWrite.text, /msg 10/);
+    const writes = (c.canvas as unknown as MockCanvas).writes;
+    const scrollbackWrites = writes.filter((w) => w.y >= 5 && w.y <= 25);
+    const firstScrollbackWrite = scrollbackWrites.find((w) => w.text.length > 0);
+    expect(firstScrollbackWrite!.text).toMatch(/msg 10/);
   });
 });
 ```
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm test:node -- --test src/tui/__tests__/chat-view-bottom-anchored.test.ts`
+Run: `pnpm test:vitest -- tests/tui/views/chat-view-bottom-anchored.vitest.ts`
 Expected: FAIL (panel currently at row 4).
 
 - [ ] **Step 3: Rewrite `chat-view.ts`'s `render(ctx)`**
@@ -1446,7 +1513,7 @@ Expected: PASS (4 cases).
 
 - [ ] **Step 6: Run the full test suite and update snapshots**
 
-Same as Task 4 step 6 — run `pnpm test:node`, audit snapshot diff, update intentionally.
+Same as Task 4 step 6 — run `pnpm test:vitest`, audit snapshot diff, update intentionally.
 
 - [ ] **Step 7: Commit**
 
