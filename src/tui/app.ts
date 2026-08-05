@@ -292,14 +292,8 @@ export class TuiApp {
           // when the user scrolls up and `pinnedBottom` flips to false.
           if (value === 'agent' || value === 'chat') {
             const tab = value as 'agent' | 'chat';
-            const nextPer = self.state.views[tab];
-            nextPer.pinnedBottom = true;
-            const ctx = self.buildViewRenderContext(tab);
-            const FOOTER_H = 3;
-            const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
-            nextPer.scrollOffset = computeBottomAnchor(
-              ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow,
-            );
+            self.state.views[tab].pinnedBottom = true;
+            self.resetScrollOffsetToBottom(tab);
           }
           // Fire the view-level onActivate/onDeactivate hooks (paintFullFrame
           // is invoked inside paintFullFrame after we set up). The state
@@ -719,10 +713,7 @@ export class TuiApp {
     if ((tab === 'agent' || tab === 'chat') && (key === 'End' || key === 'G' || key === 'g')) {
       const per = this.state.views[tab]!;
       per.pinnedBottom = true;
-      const ctx = this.buildViewRenderContext(tab);
-      const FOOTER_H = 3;
-      const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
-      per.scrollOffset = computeBottomAnchor(ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow);
+      this.resetScrollOffsetToBottom(tab);
       this.paintFullFrame();
       return;
     }
@@ -794,13 +785,7 @@ export class TuiApp {
     // `dispatch`'s `scroll` case has a consistent baseline.
     if (selected.name === 'clear' || selected.trigger === '/clear') {
       perTab.pinnedBottom = true;
-      const tab = this.state.activeTab;
-      const ctx = this.buildViewRenderContext(tab);
-      const FOOTER_H = 3;
-      const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
-      perTab.scrollOffset = computeBottomAnchor(
-        ctx, tab as 'agent' | 'chat', Math.max(0, ctx.dimensions.columns - 4), panelRow,
-      );
+      this.resetScrollOffsetToBottom(this.state.activeTab as 'agent' | 'chat');
     }
     this.slashSelection = 0;
     this.emitTimelineLog('user', text, this.opts.agentSessionId);
@@ -1019,12 +1004,7 @@ export class TuiApp {
     if (next === 'agent' || next === 'chat') {
       const nextPer = this.state.views[next];
       nextPer.pinnedBottom = true;
-      const ctx = this.buildViewRenderContext(next);
-      const FOOTER_H = 3;
-      const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
-      nextPer.scrollOffset = computeBottomAnchor(
-        ctx, next, Math.max(0, ctx.dimensions.columns - 4), panelRow,
-      );
+      this.resetScrollOffsetToBottom(next);
     }
     this.views[next]?.onActivate?.(this.state.views[next]);
     this.paintFullFrame();
@@ -1109,6 +1089,24 @@ export class TuiApp {
     };
   }
 
+  /**
+   * Compute and store the bottom anchor for the given tab's `scrollOffset`.
+   * Mirrors what `switchTab` and the Proxy reset path both need: set
+   * `scrollOffset` to `max(0, allLines.length - scrollbackRows)` so the
+   * baseline is correct when the user first scrolls up.
+   *
+   * Pure-ish: writes only to `this.state.views[tab].scrollOffset`.
+   * Reads the live `ViewRenderContext` via `this.buildViewRenderContext(tab)`.
+   */
+  private resetScrollOffsetToBottom(tab: 'agent' | 'chat'): void {
+    const ctx = this.buildViewRenderContext(tab);
+    const FOOTER_H = 3;
+    const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
+    this.state.views[tab].scrollOffset = computeBottomAnchor(
+      ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow,
+    );
+  }
+
   private dispatch(action: ViewAction): void {
     switch (action.type) {
       case 'handled': break;
@@ -1126,7 +1124,6 @@ export class TuiApp {
         if (isAgentOrChat) {
           const ctx = this.buildViewRenderContext(tab);
           const FOOTER_H = 3;
-          const SCROLLBACK_TOP = tab === 'agent' ? 6 : 5;
           const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
           const bottomAnchor = computeBottomAnchor(ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow);
           const step = action.offset - per.scrollOffset;
@@ -1139,8 +1136,14 @@ export class TuiApp {
             per.scrollOffset = Math.max(0, bottomAnchor - step);
             per.pinnedBottom = false;
           } else if (!per.pinnedBottom) {
-            // Scroll-up or scroll-down while unpinned: clamp, possibly re-engage.
-            const next = Math.max(0, Math.min(action.offset, bottomAnchor));
+            // Scroll-up or scroll-down while unpinned: apply step (per spec §State
+            // transitions — `scroll-up (unpinned) -= step`, `scroll-down (unpinned)
+            // += step`). step is positive for ArrowUp (view returns scrollOffset+3)
+            // and negative for ArrowDown (view returns scrollOffset-3); subtracting
+            // it unifies both directions: ArrowUp shrinks offset (older content),
+            // ArrowDown grows it (newer content). Clamp at bottomAnchor re-engages
+            // pinnedBottom.
+            const next = Math.max(0, Math.min(per.scrollOffset - step, bottomAnchor));
             per.scrollOffset = next;
             per.pinnedBottom = next === bottomAnchor;
           }
