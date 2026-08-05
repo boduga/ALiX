@@ -9,9 +9,9 @@
  * without touching `CredentialStore` or its 47 downstream callers.
  *
  * Selection: today this is the default provider constructed inside
- * `CredentialStore` when no provider is injected. In Phase 2, selection
- * moves to the `createCredentialStore` factory (keychain → encrypted →
- * this plain-file fallback).
+ * `CredentialStore` when no provider is injected. In Phase 2, backend
+ * selection + construction moved to `createCredentialStoreForBackend` in
+ * backend-selection.ts (keychain → encrypted → this plain-file fallback).
  *
  * Security properties preserved from the original implementation:
  * - Atomic writes (temp file + rename)
@@ -36,16 +36,27 @@ import { randomUUID } from "node:crypto";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import {
   MAX_CREDENTIAL_ENTRIES,
+  lookupKey,
   type CredentialEntry,
   type StoreSchema,
 } from "./credential-store.js";
 import type { CredentialProvider } from "./credential-provider.js";
+import type { CredentialBackend } from "./backend-selection.js";
 
 /** Default store file name within the credentials directory. */
-const STORE_FILENAME = "credential-store.json";
+export const STORE_FILENAME = "credential-store.json";
 
 /** Schema version for forward compatibility. */
-const STORE_VERSION = 1;
+export const STORE_VERSION = 1;
+
+/**
+ * A fresh empty store — the tomb shape written when a migration scrubs the
+ * source. A FUNCTION (not a const): the `credentials` array must be unique
+ * per store, or one store's writes leak into another (shared-reference bug).
+ */
+export function emptyStore(): StoreSchema {
+  return { version: STORE_VERSION, credentials: [] };
+}
 
 export interface PlainFileProviderOptions {
   /** Override the store file path (for testing). Defaults to the platform state dir. */
@@ -84,7 +95,7 @@ export class PlainFileProvider implements CredentialProvider {
 
   constructor(options: PlainFileProviderOptions = {}) {
     this.filePath = resolveStorePath(options.filePath);
-    this.store = { version: STORE_VERSION, credentials: [] };
+    this.store = emptyStore();
   }
 
   // -----------------------------------------------------------------------
@@ -98,7 +109,7 @@ export class PlainFileProvider implements CredentialProvider {
     await mkdir(storeDir, { recursive: true, mode: 0o700 });
 
     if (!existsSync(this.filePath)) {
-      this.store = { version: STORE_VERSION, credentials: [] };
+      this.store = emptyStore();
       this.loaded = true;
       return;
     }
@@ -128,9 +139,9 @@ export class PlainFileProvider implements CredentialProvider {
   }
 
   get(provider: string, keyLabel: string): string | null {
-    const key = this.lookupKey(provider, keyLabel);
+    const key = lookupKey(provider, keyLabel);
     const found = this.store.credentials.find(
-      (c) => this.lookupKey(c.entry.provider, c.entry.keyLabel) === key
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
     );
     return found ? found.value : null;
   }
@@ -139,7 +150,8 @@ export class PlainFileProvider implements CredentialProvider {
     provider: string,
     keyLabel: string,
     value: string,
-    metadata?: Record<string, string>
+    metadata?: Record<string, string>,
+    migratedFrom?: CredentialBackend
   ): Promise<CredentialEntry> {
     if (!this.loaded) {
       throw new Error(
@@ -147,9 +159,9 @@ export class PlainFileProvider implements CredentialProvider {
       );
     }
 
-    const key = this.lookupKey(provider, keyLabel);
+    const key = lookupKey(provider, keyLabel);
     const existing = this.store.credentials.find(
-      (c) => this.lookupKey(c.entry.provider, c.entry.keyLabel) === key
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
     );
 
     if (existing) {
@@ -157,6 +169,9 @@ export class PlainFileProvider implements CredentialProvider {
       existing.entry.updatedAt = now();
       if (metadata !== undefined) {
         existing.entry.metadata = metadata;
+      }
+      if (migratedFrom !== undefined) {
+        existing.entry.migratedFrom = migratedFrom;
       }
       await this.persist();
       return { ...existing.entry };
@@ -176,6 +191,8 @@ export class PlainFileProvider implements CredentialProvider {
       encrypted: false,
       createdAt: now(),
       updatedAt: now(),
+      backend: "plain-file",
+      migratedFrom,
       metadata,
     };
 
@@ -191,9 +208,9 @@ export class PlainFileProvider implements CredentialProvider {
       );
     }
 
-    const key = this.lookupKey(provider, keyLabel);
+    const key = lookupKey(provider, keyLabel);
     const idx = this.store.credentials.findIndex(
-      (c) => this.lookupKey(c.entry.provider, c.entry.keyLabel) === key
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
     );
 
     if (idx === -1) return false;
@@ -282,11 +299,5 @@ export class PlainFileProvider implements CredentialProvider {
     return true;
   }
 
-  // -----------------------------------------------------------------------
-  // Lookup key
-  // -----------------------------------------------------------------------
-
-  private lookupKey(provider: string, keyLabel: string): string {
-    return `${provider.toLowerCase()}:${keyLabel.toLowerCase()}`;
-  }
 }
+

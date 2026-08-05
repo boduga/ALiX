@@ -9,8 +9,10 @@
  * persistence logic lives behind a `CredentialProvider` interface
  * (`credential-provider.ts`); this class delegates to an injected provider
  * and exposes the same surface it always has. A future `KeychainProvider`
- * or `EncryptedFileProvider` implements the same interface, and selection
- * happens in one factory (`createCredentialStore` in cli/commands/security.ts).
+ * or `EncryptedFileProvider` implements the same interface, and backend
+ * selection + construction happens in one factory
+ * (`createCredentialStoreForBackend` in backend-selection.ts), used by the
+ * CLI factory and config load.
  *
  * Properties (preserved from the original file-backed implementation):
  * - Atomic writes (temp file + rename)
@@ -25,6 +27,7 @@
 
 import { PlainFileProvider } from "./plain-file-provider.js";
 import type { CredentialProvider } from "./credential-provider.js";
+import type { CredentialBackend } from "./backend-selection.js";
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -32,6 +35,15 @@ import type { CredentialProvider } from "./credential-provider.js";
 
 /** Maximum number of credential entries in the store. */
 export const MAX_CREDENTIAL_ENTRIES = 256;
+
+/**
+ * The canonical case-insensitive lookup key for a provider + keyLabel pair.
+ * Shared by every provider backend so identity semantics match everywhere
+ * (keychain Entry names, plain-file key matching, keychain metadata).
+ */
+export function lookupKey(provider: string, keyLabel: string): string {
+  return `${provider.toLowerCase()}:${keyLabel.toLowerCase()}`;
+}
 
 // NOTE: STORE_VERSION and STORE_FILENAME are owned by the providers (see
 // plain-file-provider.ts). The facade must not redefine them — that was a
@@ -143,15 +155,20 @@ export class CredentialStore {
    * Store or update a credential. The provider + keyLabel pair is unique.
    * If one already exists, its value is updated.
    *
+   * `migratedFrom` records the previous backend when this entry was moved
+   * by `alix credential migrate --to` (issue #350 metadata field). Optional;
+   * absent on freshly-written entries.
+   *
    * Throws if the store is at capacity (see {@link MAX_CREDENTIAL_ENTRIES}).
    */
   async set(
     provider: string,
     keyLabel: string,
     value: string,
-    metadata?: Record<string, string>
+    metadata?: Record<string, string>,
+    migratedFrom?: CredentialBackend
   ): Promise<CredentialEntry> {
-    return this.provider.set(provider, keyLabel, value, metadata);
+    return this.provider.set(provider, keyLabel, value, metadata, migratedFrom);
   }
 
   /**
