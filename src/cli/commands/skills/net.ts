@@ -97,6 +97,7 @@ export function githubRawCandidates(source: string, name?: string): string[] | n
     const ref = rest[1] ?? "HEAD";
     const p = rest.slice(2);
     const r = base + ref + "/";
+    const subdir = p.join("/");
     if (kind === "blob") {
       const last = p[p.length - 1] ?? "";
       if (last === "SKILL.md" || last.endsWith(".md")) {
@@ -106,7 +107,17 @@ export function githubRawCandidates(source: string, name?: string): string[] | n
         candidates.push(r + [...p, "SKILL.md"].join("/"));
       }
     } else {
+      // Tree URL: probe the subdir itself, plus `<subdir>/<name>/SKILL.md`
+      // and `<subdir>/skills/<name>/SKILL.md` when a name is given. The
+      // single-path probe was the bug behind superpowers/obra — the
+      // marketplace is configured as `tree/main/skills` and skills live
+      // at `skills/<name>/SKILL.md`, which `<subdir>/SKILL.md` could
+      // never reach.
       candidates.push(r + [...p, "SKILL.md"].join("/"));
+      if (name && subdir) {
+        candidates.push(r + [...p, name, "SKILL.md"].join("/"));
+        candidates.push(r + [...p, "skills", name, "SKILL.md"].join("/"));
+      }
     }
   } else {
     return null; // some other github.com page (actions, releases, issues, …)

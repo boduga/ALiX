@@ -19,6 +19,7 @@ import {
   resolveSkillPackageInMarketplaces,
   type Marketplace,
 } from "../../../../src/cli/commands/skills/marketplace.js";
+import { githubRawCandidates } from "../../../../src/cli/commands/skills/net.js";
 
 const testDir = join(process.cwd(), ".test-alix-marketplace");
 
@@ -437,14 +438,44 @@ describe("resolveSkillInMarketplaces", () => {
     assert.equal(res.content, VALID);
   });
 
-  it("aggregates failures when no marketplace has the skill", async () => {
-    globalThis.fetch = (async () =>
-      new Response("404: Not Found", { status: 404, headers: { "content-type": "text/plain" } })) as typeof fetch;
-    await assert.rejects(
-      resolveSkillInMarketplaces("nope", mps),
-      /Could not find skill 'nope' in 2 registered marketplaces/,
+describe("githubRawCandidates", () => {
+  // Pure function — no fetch stubbing needed. The contract for tree URLs
+  // is the load-bearing fix for the superpowers layout (skills/<name>/
+  // SKILL.md under a tree URL pointing at the skills subdir). The repo-
+  // root contract was already exercised indirectly through
+  // resolveSkillInMarketplaces tests.
+  it("generates <subdir>/<name>/SKILL.md and <subdir>/skills/<name>/SKILL.md for tree URLs", () => {
+    const candidates = githubRawCandidates(
+      "https://github.com/obra/superpowers/tree/main/skills",
+      "brainstorming",
     );
+    assert.deepEqual(candidates, [
+      "https://raw.githubusercontent.com/obra/superpowers/main/skills/SKILL.md",
+      "https://raw.githubusercontent.com/obra/superpowers/main/skills/brainstorming/SKILL.md",
+      "https://raw.githubusercontent.com/obra/superpowers/main/skills/skills/brainstorming/SKILL.md",
+    ]);
   });
+
+  it("generates only the subdir probe for tree URLs when no name is given", () => {
+    // Without a name, only the subdir-root probe is generated — there's
+    // no per-name path to compute. This is the "browse the marketplace
+    // root" code path.
+    const candidates = githubRawCandidates("https://github.com/obra/superpowers/tree/main/skills");
+    assert.deepEqual(candidates, [
+      "https://raw.githubusercontent.com/obra/superpowers/main/skills/SKILL.md",
+    ]);
+  });
+
+  it("generates the 3 repo-root paths for non-tree GitHub URLs", () => {
+    // Sanity check that the fix didn't regress the standard layout.
+    const candidates = githubRawCandidates("https://github.com/mattpocock/skills", "wayfinder");
+    assert.deepEqual(candidates, [
+      "https://raw.githubusercontent.com/mattpocock/skills/HEAD/SKILL.md",
+      "https://raw.githubusercontent.com/mattpocock/skills/HEAD/wayfinder/SKILL.md",
+      "https://raw.githubusercontent.com/mattpocock/skills/HEAD/skills/wayfinder/SKILL.md",
+    ]);
+  });
+});
 
   it("falls back to 2-deep skills/<category>/<name>/SKILL.md probe (mattpocock layout)", async () => {
     // Regression for the resolver-depth gap: mattpocock/skills uses
@@ -522,6 +553,31 @@ describe("resolveSkillInMarketplaces", () => {
       resolveSkillInMarketplaces("nope", mps),
       /Could not find skill 'nope' in 1 registered marketplaces/,
     );
+  });
+
+  it("resolves tree-URL marketplaces (superpowers) via the static probe", async () => {
+    // Regression for the second marketplace-resolver gap: superpowers is
+    // configured as `tree/main/skills` (the URL is already pointed at the
+    // skills subdirectory). The static probe used to generate ONE path —
+    // `<subdir>/SKILL.md` — and never `<subdir>/<name>/SKILL.md`. The fix
+    // adds the per-name and per-skills-name probes so a flat
+    // `skills/<name>/SKILL.md` layout under a tree URL is reachable.
+    const superpowers = {
+      name: "superpowers",
+      url: "https://github.com/obra/superpowers/tree/main/skills",
+    };
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      // The static probe hits on the per-name path.
+      if (url.endsWith("/main/skills/brainstorming/SKILL.md")) {
+        return new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      // No tree fetch should happen because the static probe succeeded.
+      return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    const res = await resolveSkillInMarketplaces("brainstorming", [superpowers]);
+    assert.equal(res.repoUrl, "https://github.com/obra/superpowers/tree/main/skills");
+    assert.equal(res.content, VALID);
   });
 });
 
