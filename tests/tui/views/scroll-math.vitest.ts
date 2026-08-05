@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAgentScrollbackLines, buildChatScrollbackLines, computeScrollbackRows, computeBottomAnchor } from '../../../src/tui/views/scroll-math.js';
+import { buildAgentScrollbackLines, buildChatScrollbackLines, computeBottomAnchor } from '../../../src/tui/views/scroll-math.js';
 import { createInitialPerTabState } from '../../../src/tui/state.js';
 import type { ViewRenderContext } from '../../../src/tui/views/types.js';
 
@@ -50,16 +50,6 @@ describe('buildChatScrollbackLines', () => {
     // Expect: 'one' line, blank separator, 'two' line.
     expect(lines.length).toBe(3);
     expect(lines[1]!.text).toBe('');
-  });
-});
-
-describe('computeScrollbackRows', () => {
-  it('returns panelRow - scrollbackTop when positive', () => {
-    expect(computeScrollbackRows(30, 6, 26)).toBe(20);
-  });
-
-  it('clamps to 0 when panelRow <= scrollbackTop', () => {
-    expect(computeScrollbackRows(30, 25, 24)).toBe(0);
   });
 });
 

@@ -166,12 +166,6 @@ export function buildChatScrollbackLines(ctx: ViewRenderContext, textWidth: numb
   return out;
 }
 
-/** Compute the number of scrollback rows available between `scrollbackTop`
- *  and the row immediately above `panelRow`. Always >= 0. */
-export function computeScrollbackRows(rows: number, scrollbackTop: number, panelRow: number): number {
-  return Math.max(0, panelRow - scrollbackTop);
-}
-
 /** Compute the bottom-anchor offset: the index into the scrollback line array
  *  at which the visible window starts when `pinnedBottom === true`.
  *  Convenience wrapper used by the views' render branch and by app.ts on

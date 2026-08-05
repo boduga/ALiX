@@ -225,7 +225,12 @@ export class TuiApp {
     }
     await this.sampleRuntimeCollectors();
     this.paintFullFrame();
-    void this.slash.refreshCatalog();
+    // Repaint after the catalog read resolves so a CLI-side install/remove
+    // (invalidateSlashCatalog) refreshes the completion strip immediately
+    // rather than waiting for the next snapshot tick.
+    void this.slash.refreshCatalog().then(() => {
+      if (this.state.activeTab === 'agent') this.paintFullFrame();
+    });
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
     this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
@@ -289,7 +294,12 @@ export class TuiApp {
     // (invalidateSlashCatalog) becomes visible in the TUI's completion
     // strip within ~1s. The cache is generation-based — steady-state
     // reads are pure in-memory until the generation is bumped.
-    void this.slash.refreshCatalog();
+    // Repaint after the catalog read resolves so a CLI-side install/remove
+    // (invalidateSlashCatalog) refreshes the completion strip immediately
+    // rather than waiting for the next snapshot tick.
+    void this.slash.refreshCatalog().then(() => {
+      if (this.state.activeTab === 'agent') this.paintFullFrame();
+    });
   }
 
   /**
