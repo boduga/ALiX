@@ -22,7 +22,7 @@ describe('renderBottomAnchoredSlice', () => {
     expect(result.lastRow).toBe(-1);
   });
 
-  it('returns empty bounds scrollbackRows <= 0', () => {
+  it('returns empty bounds when scrollbackRows <= 0', () => {
     const c = canvas(80, 24);
     const result = renderBottomAnchoredSlice({ canvas: c, allLines: [line('a')], top: 20, bottomRow: 19, offset: 0, columns: 80, kindStyles: { plain: () => {} } });
     expect(result.firstRow).toBe(0);

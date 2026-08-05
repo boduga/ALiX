@@ -87,12 +87,80 @@ describe('TuiApp pinnedBottom transitions', () => {
     expect(per.pinnedBottom).toBe(true);
   });
 
+  it('chat End key: pinnedBottom=true and scrollOffset equals bottom anchor', () => {
+    const seeded = Array.from({ length: 60 }, (_, i) => ({
+      id: `chat-tl-${i}`,
+      kind: 'chat.response' as const,
+      sessionId: 'sess-chat',
+      startedAt: i,
+      text: `seeded chat line ${i}`,
+      sourceEvents: { firstSequence: i },
+    }));
+    (internal as unknown as { chatRuntime: unknown }).chatRuntime = {
+      trace: [], timeline: seeded, workflow: null,
+      totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-chat',
+    };
+    internal.getStateForTest().activeTab = 'chat';
+
+    internal.handleRaw(ARROW_UP);
+    const per = internal.getStateForTest().views.chat;
+    expect(per.pinnedBottom).toBe(false);
+
+    internal.handleRaw(END);
+    const expected = computeBottomAnchor(
+      (app as unknown as { buildViewRenderContext(tab: string): ViewRenderContext }).buildViewRenderContext('chat'),
+      'chat',
+      Math.max(0, (process.stdout.columns ?? 80) - 4),
+      Math.max(0, (process.stdout.rows ?? 24) - 3 - 1),
+    );
+    expect(per.pinnedBottom).toBe(true);
+    expect(per.scrollOffset).toBe(expected);
+  });
+
   it('new content while pinned: pinnedBottom stays true', () => {
     // The view's render reads snapshot.lastSnapshot fresh each frame when
     // pinned, so even without an actual event arrival, the flag should
     // not flip on its own.
     const per = internal.getStateForTest().views.agent;
     expect(per.pinnedBottom).toBe(true);
+  });
+
+  it('new content while unpinned does not drift the scroll offset', () => {
+    const seeded = Array.from({ length: 60 }, (_, i) => ({
+      id: `tl-${i}`,
+      kind: 'agent.response' as const,
+      sessionId: 'sess-agent',
+      startedAt: i,
+      text: `seeded line ${i}`,
+      sourceEvents: { firstSequence: i },
+    }));
+    const runtime = {
+      trace: [], timeline: seeded, workflow: null,
+      totalEventCount: seeded.length, lastEventAt: seeded.length, sessionId: 'sess-agent',
+    };
+    (internal as unknown as { agentRuntime: typeof runtime }).agentRuntime = runtime;
+    internal.getStateForTest().activeTab = 'dashboard';
+    internal.getStateForTest().activeTab = 'agent';
+
+    internal.handleRaw(ARROW_UP);
+    const per = internal.getStateForTest().views.agent;
+    const offsetBefore = per.scrollOffset;
+    expect(per.pinnedBottom).toBe(false);
+
+    for (let i = 60; i < 65; i++) {
+      runtime.timeline.push({
+        id: `tl-${i}`,
+        kind: 'agent.response',
+        sessionId: 'sess-agent',
+        startedAt: i,
+        text: `new line ${i}`,
+        sourceEvents: { firstSequence: i },
+      });
+    }
+    runtime.totalEventCount = runtime.timeline.length;
+
+    expect(per.scrollOffset).toBe(offsetBefore);
+    expect(per.pinnedBottom).toBe(false);
   });
 
   it('onActivate resets pinnedBottom=true', () => {
