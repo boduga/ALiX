@@ -1,12 +1,10 @@
 import type { PanelFocusId, PanelScrollOffsets, PerTabState, TabId, TuiAppState } from './state.js';
-import { createInitialTuiAppState, SessionPhase } from './state.js';
-import type { DashboardSnapshot, RuntimeSnapshot } from './snapshot.js';
+import { createInitialTuiAppState } from './state.js';
+import type { RuntimeSnapshot } from './snapshot.js';
 import type { EventLog } from '../events/event-log.js';
 import type { RuntimeCollector } from './runtime-collector.js';
-import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions, SlashStrip, SlashStripEntry } from './views/types.js';
-import { parseSlashInput, rankSkillMatches, canonicalSkillId, skillSlashNames } from '../skills/slash.js';
-import { getSlashCatalog } from '../skills/slash-catalog.js';
-import { getTheme } from './blocks/theme.js';
+import type { ViewAction, ViewRenderContext, ViewInputContext, TuiView, TerminalDimensions } from './views/types.js';
+import { parseSlashInput, rankSkillMatches, canonicalSkillId } from '../skills/slash.js';
 import { getView } from './views/index.js';
 import { TuiRenderer } from './render.js';
 import type { SnapshotBuilder } from './snapshot-builder.js';
@@ -14,7 +12,6 @@ import type { DaemonMetricsCollector } from './daemon-metrics-collector.js';
 import type { AgentSession } from '../agent/session.js';
 import { Navigation } from './navigation.js';
 import { createTerminalControl, type TerminalControl } from './terminal-control.js';
-import { TerminalCanvas } from './canvas.js';
 import { DEFAULT_PANEL_H } from './dashboard-renderer.js';
 import { TuiPlanApprovalGate } from './plan-approval-gate.js';
 import type { PlanDecision } from '../run/plan-approval-gate.js';
@@ -22,12 +19,13 @@ import type { PlanTask } from '../planning/plan-task.js';
 import type { IInput, IOutput } from './io.js';
 import { StdioInput, StdioOutput } from './io.js';
 import { KeyDispatcher } from './key-dispatcher.js';
-import { PaletteModal } from './capabilities/palette.js';
-import { getCapabilityService } from './capabilities/capability-service.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
-import type { CapabilityEmitContext } from './capabilities/invocation-presenter.js';
-import { appendLogEntry } from './log-emit.js';
-import { computeBottomAnchor, computeViewport } from './views/scroll-math.js';
+import { computeBottomAnchor } from './views/scroll-math.js';
+import { TimelineEmitter } from './timeline-emitter.js';
+import { SlashController } from './slash-controller.js';
+import { PaletteController } from './palette-controller.js';
+import { ApprovalResolver } from './approval-resolver.js';
+import { FramePainter } from './frame-painter.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -121,15 +119,23 @@ export class TuiApp {
   private readonly keyDispatcher: import('./key-dispatcher.js').KeyDispatcher;
   private inputCleanup?: () => void;
   private resizeCleanup?: () => void;
-  private readonly palette = new PaletteModal();
-  private paletteOpen = false;
-  private paletteQuery = '';
-  /** Resolved installed-skill manifests for slash completion (cached). */
-  private slashManifests: any[] = [];
-  /** Index of the highlighted strip candidate (Tab-cycled). */
-  private slashSelection = 0;
-  /** Inline hint for unknown commands. */
-  private slashHint: string | null = null;
+  /** Slash-command completion strip state + logic (agent tab only). */
+  private readonly slash = new SlashController({
+    activeTab: () => this.state.activeTab,
+    getAgentBuffer: () => this.state.views.agent.inputBuffer,
+    setAgentBuffer: (s: string) => { this.state.views.agent.inputBuffer = s; },
+    // The controller guards its own catalog refresh against a torn-down
+    // instance (stop()/cleanupSync) — see SlashController.refreshCatalog().
+    isDetached: () => this.detached,
+  });
+  /** Single-emit timeline writes into the EventLog (Phase 6 D9). */
+  private readonly timelineEmitter: TimelineEmitter;
+  /** Command-palette modal — key routing while open + overlay paint. */
+  private readonly paletteController: PaletteController;
+  /** Resolve an approval (approve/deny) via the wired ApprovalManager. */
+  private readonly approvalResolver: ApprovalResolver;
+  /** Owns the full-frame render — view, card, palette, header, tabs, status, cursor. */
+  private readonly framePainter: FramePainter;
 
   constructor(private readonly opts: TuiAppOptions) {
     this.input = opts.input ?? new StdioInput(process.stdin);
@@ -149,6 +155,35 @@ export class TuiApp {
     this.terminal = createTerminalControl();
     this.renderer = new TuiRenderer();
 
+    // Build the extracted controllers. These read `this.opts` and `this.output`,
+    // which are only assigned in the constructor body — so they are initialized
+    // here rather than as field initializers.
+    this.timelineEmitter = new TimelineEmitter({
+      eventLog: this.opts.eventLog,
+      chatSessionId: this.opts.chatSessionId,
+      agentSessionId: this.opts.agentSessionId,
+    });
+    this.paletteController = new PaletteController({ capabilityService: this.opts.capabilityService });
+    this.approvalResolver = new ApprovalResolver({
+      views: () => this.state.views,
+      activeTab: () => this.state.activeTab,
+      syncTabs: this.SYNC_TABS,
+      approvalManager: this.opts.approvalManager,
+      emit: (tab, text) => this.timelineEmitter.appendAgentMessage(tab, text),
+      refresh: () => this.refresh(),
+    });
+    this.framePainter = new FramePainter({
+      state: () => this.state,
+      views: () => this.views,
+      opts: { themeName: this.opts.themeName, agentSession: this.opts.agentSession },
+      chatRuntime: () => this.chatRuntime,
+      agentRuntime: () => this.agentRuntime,
+      computeSlashStrip: () => this.slash.computeStrip(),
+      planApprovalGate: this.planApprovalGate,
+      output: this.output,
+      palette: this.paletteController,
+    });
+
     // Bind the capability service's presenter so every invocation emits its
     // settled chat-surface entry into the chat sub-session's log projection
     // (Phase 6 — the EventLog is the single source of truth timeline; the
@@ -157,57 +192,9 @@ export class TuiApp {
     // TuiApp usable standalone.
     if (this.opts.capabilityService) {
       const svc = this.opts.capabilityService;
-      const presenter = new ChatInvocationPresenter(this.emitCtx(this.opts.chatSessionId));
+      const presenter = new ChatInvocationPresenter(this.timelineEmitter.emitCtx(this.opts.chatSessionId));
       svc.setPresenter(presenter);
     }
-  }
-
-  /**
-   * Build the emit context for a per-tab sessionId. Returns undefined when
-   * no EventLog is wired (unit tests) or the sessionId is missing — the emit
-   * is then a no-op (there is no in-memory timeline anymore).
-   */
-  private emitCtx(sessionId?: string): CapabilityEmitContext | undefined {
-    if (!this.opts.eventLog || !sessionId) return undefined;
-    return { eventLog: this.opts.eventLog, sessionId };
-  }
-
-  /**
-   * Single-emit a chat-surface entry into the EventLog (Phase 6 D9 cleanup —
-   * the EventLog is the single source of truth timeline; the per-tab
-   * in-memory cache was removed). Maps the submit kind onto the log
-   * vocabulary by DOMAIN (the sessionId is the tab discriminator):
-   *   chat sub-session  → user → chat.message,  agent → chat.response
-   *   agent sub-session → user → agent.message, agent → agent.response
-   * The agent tab's own conversation (typed prompt + final summary) uses the
-   * `agent.*` vocabulary so the agent view's `agent.*` filter renders it.
-   * No-op when no EventLog or sub-session is wired (unit tests). Fire-and-forget
-   * append — a log-write failure must not fail the input path (rejection is
-   * caught; Node ≥15 would otherwise crash the TUI on an unhandled rejection).
-   */
-  private emitTimelineLog(kind: 'user' | 'agent', text: string, sessionId?: string): void {
-    if (!this.opts.eventLog || !sessionId) return;
-    const agentDomain = sessionId === this.opts.agentSessionId;
-    const type = agentDomain
-      ? (kind === 'user' ? 'agent.message' : 'agent.response')
-      : (kind === 'user' ? 'chat.message' : 'chat.response');
-    appendLogEntry(this.opts.eventLog, {
-      sessionId,
-      actor: kind === 'user' ? 'user' : 'agent',
-      type,
-      payload: { text },
-    });
-  }
-
-  /** Session id stamped for emits landing on `tab`: the chat sub-session on
-   *  the chat tab, the agent sub-session on the agent tab, and undefined on any
-   *  other tab. Tabs without a sub-session (approvals, daemon, runtime, ...)
-   *  have no collector to project their log entries, so their emits are
-   *  no-ops. */
-  private sessionIdForTab(tab: TabId): string | undefined {
-    if (tab === 'chat') return this.opts.chatSessionId;
-    if (tab === 'agent') return this.opts.agentSessionId;
-    return undefined;
   }
 
   /** Test seam: expose the gate for direct assertions in unit tests. */
@@ -238,7 +225,7 @@ export class TuiApp {
     }
     await this.sampleRuntimeCollectors();
     this.paintFullFrame();
-    void this.refreshSlashCatalog();
+    void this.slash.refreshCatalog();
 
     this.terminal.installEmergencyCleanup(() => this.cleanupSync());
     this.inputCleanup = this.input.onData((buf) => { if (Buffer.isBuffer(buf)) this.handleRaw(buf); });
@@ -280,11 +267,14 @@ export class TuiApp {
     this.switchTab(tab);
   }
 
-  // Test seams (mirroring getStateForTest)
-  get slashManifestsForTest(): any[] { return this.slashManifests; }
-  set slashManifestsForTest(v: any[]) { this.slashManifests = v; }
-  get slashHintForTest(): string | null { return this.slashHint; }
-  get slashSelectionForTest(): number { return this.slashSelection; }
+  // Test seams (mirroring getStateForTest) — delegate to the slash controller.
+  get slashManifestsForTest(): any[] { return this.slash.manifests; }
+  set slashManifestsForTest(v: any[]) { this.slash.manifests = v; }
+  get slashHintForTest(): string | null { return this.slash.hint; }
+  get slashSelectionForTest(): number { return this.slash.selection; }
+  /** Raw manifests accessor — test seam for `internal.slashManifests` casts. */
+  private get slashManifests(): any[] { return this.slash.manifests; }
+  private set slashManifests(v: any[]) { this.slash.manifests = v; }
 
   private async refresh(): Promise<void> {
     const generation = ++this.state.refreshGeneration;
@@ -299,25 +289,7 @@ export class TuiApp {
     // (invalidateSlashCatalog) becomes visible in the TUI's completion
     // strip within ~1s. The cache is generation-based — steady-state
     // reads are pure in-memory until the generation is bumped.
-    void this.refreshSlashCatalog();
-  }
-
-  /**
-   * Re-read the slash manifest catalog. The catalog is a generation-based
-   * cache: `invalidateSlashCatalog()` (called by `alix skills install/remove`)
-   * bumps the generation, so the next read here rebuilds after a CLI-side
-   * mutation. Steady-state reads are pure in-memory (no IO when the
-   * generation hasn't moved).
-   */
-  private refreshSlashCatalog(): Promise<void> {
-    return getSlashCatalog().then((manifests) => {
-      // Bail if the TUI was torn down between the catalog read and the
-      // resolution — reassigning state on a detached instance is harmless
-      // but pollutes the heap and races with stop()/cleanupSync().
-      if (this.detached) return;
-      this.slashManifests = manifests;
-      if (this.state.activeTab === 'agent') this.paintFullFrame();
-    });
+    void this.slash.refreshCatalog();
   }
 
   /**
@@ -414,95 +386,6 @@ export class TuiApp {
     }
   }
 
-  /** True when the AGENT-tab input is a slash command in progress (agent only).
-   *  Activates on the leading `/` itself so the strip surfaces immediately —
-   *  typing `/` shows every installed skill, additional letters filter. */
-  private slashActive(): boolean {
-    if (this.state.activeTab !== 'agent') return false;
-    const buf = this.state.views.agent.inputBuffer;
-    return buf.startsWith('/') && buf.length >= 1;
-  }
-
-  /** The current slash-command buffer, or null when not in slash mode (agent only). */
-  private slashBuffer(): string | null {
-    if (this.state.activeTab !== 'agent') return null;
-    const buf = this.state.views.agent.inputBuffer;
-    return buf.startsWith('/') && buf.length >= 1 ? buf : null;
-  }
-
-  private cycleSlashSelection(delta: number): void {
-    const strip = this.computeSlashStrip();
-    if (!strip || strip.entries.length === 0) return;
-    const n = strip.entries.length;
-    this.slashSelection = (this.slashSelection + delta + n) % n;
-  }
-
-  /**
-   * Replace the agent-tab input buffer's slash token with the selected
-   * skill's primary slash name (trigger if present, else `/name`),
-   * preserving any rest. Used by Tab in slash mode. No-op when the
-   * strip is empty (no installed skills or zero matches).
-   *
-   * After completion the buffer is a fully-formed slash command — the
-   * operator can keep typing to refine the rest, press Enter to submit,
-   * or press Tab again to cycle. Selection resets to 0 so the next
-   * refine-typed letter starts from the top of the rankings.
-   */
-  private completeSlash(): boolean {
-    const buf = this.slashBuffer();
-    if (!buf) return false;
-    const parsed = parseSlashInput(buf);
-    if (!parsed) return false;
-    const matches = rankSkillMatches(this.slashManifests, parsed.command);
-    if (matches.length === 0) return false;
-    const idx = Math.min(this.slashSelection, matches.length - 1);
-    const selected = matches[idx];
-    const primary = skillSlashNames(selected)[0] ?? `/${selected.name}`;
-    // Use a trailing space when there's no rest so the operator can
-    // immediately start typing the rest of the prompt. When rest is
-    // already present, splice it back verbatim after the primary.
-    const rest = parsed.rest ? ` ${parsed.rest}` : ' ';
-    this.state.views.agent.inputBuffer = `${primary}${rest}`;
-    this.slashSelection = 0;
-    return true;
-  }
-
-  /** Build the strip passed to views; also refreshes slashSelection bounds. */
-  private computeSlashStrip(): SlashStrip | null {
-    const buf = this.slashBuffer();
-    if (!buf) { this.slashSelection = 0; this.slashHint = null; return null; }
-    const parsed = parseSlashInput(buf);
-    if (!parsed) { this.slashHint = null; return null; }
-    const matches = rankSkillMatches(this.slashManifests, parsed.command);
-    this.slashSelection = Math.min(this.slashSelection, Math.max(0, matches.length - 1));
-    // Clear a stale hint whenever the buffer now matches a known skill — the
-    // render branch is `if (hint) else if (entries)` so a stale hint would
-    // hide the recovering candidate strip until submit/restart. Otherwise
-    // surface a "no matches" hint so the operator gets feedback when typing
-    // a token that resolves to zero candidates (instead of a silent strip).
-    if (matches.length > 0) {
-      // Clear a stale "no match" hint once the buffer resolves to a known
-      // skill — but only when the operator has typed enough to disambiguate.
-      // A bare '/' buffer (parsed.command === '/') keeps whatever hint the
-      // submit-bail path set, so the operator sees persistent feedback for
-      // ambiguous Enter attempts.
-      if (parsed.command !== '/') this.slashHint = null;
-    } else if (this.slashManifests.length === 0) {
-      this.slashHint = 'no skills installed';
-    } else {
-      this.slashHint = `no skill matches ${parsed.command}`;
-    }
-    return {
-      entries: matches.slice(0, 8).map((m): SlashStripEntry => ({
-        name: m.name,
-        label: skillSlashNames(m)[0] ?? `/${m.name}`,
-        description: m.description,
-      })),
-      selected: this.slashSelection,
-      hint: this.slashHint,
-    };
-  }
-
   private handleRaw(buf: Buffer): void {
     // 1. Bracketed paste detector — runs on raw bytes, before key parsing.
     if (this.handlePaste(buf)) return;
@@ -515,8 +398,8 @@ export class TuiApp {
     // palette (navigation.interpret('Escape') → home → tryHandleGlobal
     // switches to chat and returns true) and 'q' on a non-input tab would
     // hit the global quit path and terminate the process mid-search.
-    if (this.paletteOpen) {
-      this.handlePaletteKey(key);
+    if (this.paletteController.open) {
+      this.paletteController.handleKey(key);
       return;
     }
     // Slash-command completion mode: Tab completes the buffer to the
@@ -525,12 +408,12 @@ export class TuiApp {
     // non-cycling here — completion is the more useful primary action.
     // The operator can refine the buffer with more letters and press Tab
     // again to re-complete against the new ranking.
-    if (this.slashActive()) {
+    if (this.slash.active()) {
       if (key === 'Tab') {
-        if (this.completeSlash()) this.paintFullFrame();
+        if (this.slash.complete()) this.paintFullFrame();
         return;
       }
-      if (key === 'Shift+Tab') { this.cycleSlashSelection(-1); this.paintFullFrame(); return; }
+      if (key === 'Shift+Tab') { this.slash.cycleSelection(-1); this.paintFullFrame(); return; }
     }
     if (this.tryHandleGlobal(key)) return;
     // 2b. Pluggable key dispatcher — registered keybindings get first
@@ -575,7 +458,7 @@ export class TuiApp {
       const perTab = this.state.views.chat;
       if (key === 'Enter') {
         if (perTab.inputBuffer.trim().length > 0) {
-          this.emitTimelineLog('user', perTab.inputBuffer, this.opts.chatSessionId);
+          this.timelineEmitter.emitTimelineLog('user', perTab.inputBuffer, this.opts.chatSessionId);
           void this.submitChatInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -615,13 +498,13 @@ export class TuiApp {
         return;
       }
       if (key === 'Enter') {
-        if (this.slashActive()) {
+        if (this.slash.active()) {
           void this.submitSlashCommand();
           this.paintFullFrame();
           return;
         }
         if (perTab.inputBuffer.trim().length > 0) {
-          this.emitTimelineLog('user', perTab.inputBuffer, this.opts.agentSessionId);
+          this.timelineEmitter.emitTimelineLog('user', perTab.inputBuffer, this.opts.agentSessionId);
           void this.submitAgentInput(perTab.inputBuffer);
           perTab.inputBuffer = '';
         }
@@ -659,7 +542,7 @@ export class TuiApp {
           resolvedAt: Date.now(),
         });
         if (perTab.resolvedApprovals.length > 200) perTab.resolvedApprovals.length = 200;
-        void this.resolveApprovalFromView(target.id, status);
+        void this.approvalResolver.resolve(target.id, status);
         this.paintFullFrame();
         return;
       }
@@ -735,17 +618,17 @@ export class TuiApp {
     // operator wants. Bail with a hint and preserve the buffer so the
     // operator can type or Tab/arrow to pick.
     if (parsed.command === '/') {
-      this.slashHint = 'type a skill name, or Tab to cycle';
+      this.slash.hint = 'type a skill name, or Tab to cycle';
       return;
     }
-    const matches = rankSkillMatches(this.slashManifests, parsed.command);
+    const matches = rankSkillMatches(this.slash.manifests, parsed.command);
     if (matches.length === 0) {
-      this.slashHint = `Unknown skill "${parsed.command}" — press Tab for completions.`;
+      this.slash.hint = `Unknown skill "${parsed.command}" — press Tab for completions.`;
       return; // keep the text in the buffer; no agent call
     }
-    const selected = matches[Math.min(this.slashSelection, matches.length - 1)]!;
+    const selected = matches[Math.min(this.slash.selection, matches.length - 1)]!;
     const text = parsed.rest.trim() || selected.name;
-    this.slashHint = null;
+    this.slash.hint = null;
     perTab.inputBuffer = '';
     // `/clear` resets the scrollback — re-pin to bottom. Spec invariant:
     // `scrollOffset` must equal `bottomAnchor` (not literal 0). With the
@@ -757,8 +640,8 @@ export class TuiApp {
       perTab.pinnedBottom = true;
       this.resetScrollOffsetToBottom(this.state.activeTab as 'agent' | 'chat');
     }
-    this.slashSelection = 0;
-    this.emitTimelineLog('user', text, this.opts.agentSessionId);
+    this.slash.selection = 0;
+    this.timelineEmitter.emitTimelineLog('user', text, this.opts.agentSessionId);
     const skills = [canonicalSkillId(selected)];
     await this.dispatchToSession(
       text, 'agent', perTab,
@@ -856,7 +739,7 @@ export class TuiApp {
     // The single log emit stamps the sub-session that matches the submission
     // kind — chat submits route to the chat collector, agent submits to the
     // agent collector (Phase 6). The per-tab in-memory cache is gone.
-    this.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
+    this.timelineEmitter.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
     // Auto-follow is now handled by the per-tab `pinnedBottom` flag plus the
     // view's branched render logic; the app layer no longer clamps the offset.
     this.paintFullFrame();
@@ -901,10 +784,10 @@ export class TuiApp {
     }
     // Command palette (Ctrl+P, or '/' on an empty chat input).
     if (key === 'Ctrl+p' || (key === '/' && this.state.activeTab === 'chat' && this.state.views.chat.inputBuffer.length === 0)) {
-      if (this.opts.capabilityService || this.hasCapabilityService()) {
-        this.paletteOpen = true;
-        this.paletteQuery = '';
-        this.palette.refresh('');
+      if (this.opts.capabilityService || this.paletteController.hasCapabilityService()) {
+        this.paletteController.open = true;
+        this.paletteController.query = '';
+        this.paletteController.modal.refresh('');
         return true;
       }
       return false;
@@ -1045,18 +928,11 @@ export class TuiApp {
   }
 
   /**
-   * Build a `ViewRenderContext` for the given tab with the same dimensions
-   * and runtime the renderer would consume. Used by the scroll-math path to
-   * compute `bottomAnchor` at key-press time without invoking a render.
+   * Build a `ViewRenderContext` for the given tab — delegates to the
+   * frame painter so the scroll-math path shares the painter's geometry.
    */
   private buildViewRenderContext(tab: TabId): ViewRenderContext {
-    return {
-      snap: this.state.lastSnapshot as DashboardSnapshot,
-      dimensions: { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
-      perTab: this.state.views[tab]!,
-      themeName: this.opts.themeName,
-      runtime: { chat: this.chatRuntime, agent: this.agentRuntime },
-    };
+    return this.framePainter.buildViewRenderContext(tab);
   }
 
   /**
@@ -1128,7 +1004,7 @@ export class TuiApp {
         void this.refresh();
         break;
       case 'resolveApproval':
-        void this.resolveApprovalFromView(action.approvalId, action.status);
+        void this.approvalResolver.resolve(action.approvalId, action.status);
         break;
       case 'copyScrollback': {
         const text = this.collectVisibleTranscript(this.state.activeTab);
@@ -1145,86 +1021,6 @@ export class TuiApp {
     }
   }
 
-  /**
-   * Resolve an approval (approve or deny) by delegating to the wired
-   * ApprovalManager — which routes through ApprovalStore + EventLog. The
-   * resulting message is appended to the current view's agent
-   * responses and the snapshot is refreshed so the panel count updates.
-   */
-  private async resolveApprovalFromView(
-    approvalId: string,
-    status: 'approved' | 'denied',
-  ): Promise<void> {
-    if (!approvalId) return;
-    // Look up the pending approval across all tabs so we can capture the
-    // original toolName/target for the historical log entry.
-    let originalTool = 'unknown';
-    let originalTarget = '';
-    let requestedAt = Date.now();
-    for (const t of this.SYNC_TABS) {
-      const found = this.state.views[t]?.pendingApprovals?.find((a) => a.id === approvalId);
-      if (found) {
-        originalTool = found.toolName;
-        originalTarget = found.target;
-        requestedAt = found.requestedAt;
-        break;
-      }
-    }
-    const mgr = this.opts.approvalManager;
-    if (!mgr) {
-      // No manager wired — surface a friendly message and refresh.
-      this.appendAgentMessage(
-        this.state.activeTab,
-        `[approval] no ApprovalManager wired for ${status} ${approvalId}`,
-      );
-      await this.refresh();
-      return;
-    }
-    try {
-      const result = await mgr.tryHandleCommand(
-        status === 'approved' ? `/approve ${approvalId}` : `/deny ${approvalId}`,
-      );
-      const summary = result.handled ? result.message : `${status} ${approvalId} (no handler)`;
-      this.appendAgentMessage(
-        this.state.activeTab,
-        `[approval:${status}] ${summary}`,
-      );
-      // Push a resolved entry into every tab's resolvedApprovals log so the
-      // operator can see what they did — even if the agent loop is currently
-      // paused waiting on this resolution.
-      for (const t of this.SYNC_TABS) {
-        const tab = this.state.views[t];
-        if (!tab) continue;
-        tab.resolvedApprovals.unshift({
-          id: approvalId,
-          toolName: originalTool,
-          target: originalTarget,
-          status,
-          requestedAt,
-          resolvedAt: Date.now(),
-        });
-        if (tab.resolvedApprovals.length > 200) tab.resolvedApprovals.length = 200;
-      }
-    } catch (err) {
-      this.appendAgentMessage(
-        this.state.activeTab,
-        `[approval:${status}] error: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    } finally {
-      await this.refresh();
-    }
-  }
-
-  /**
-   * Append a one-liner to the active view's operator timeline so the
-   * resolution message shows in the scrollback.
-   */
-  private appendAgentMessage(
-    tab: TabId,
-    text: string,
-  ): void {
-    this.emitTimelineLog('agent', text, this.sessionIdForTab(tab));
-  }
 
   /**
    * Handle a chunk of bracketed paste data. Returns true if the chunk was
@@ -1325,282 +1121,8 @@ export class TuiApp {
   }
 
   /** Build a complete frame containing all regions and write it to stdout. */
-  /**
-   * Render the in-TUI plan approval card. No-op when no plan is pending.
-   *
-   * Layout (above the footer, inside the left canvas):
-   *
-   *   ╭─ PLAN APPROVAL REQUIRED ──────────────╮
-   *   │ <plan summary, truncated to width-2>  │
-   *   │ Y approve · n reject · e edit · d …  │
-   *   ╰───────────────────────────────────────╯
-   *
-   * Four rows tall. The card overlays the active view's scrollback — the
-   * agent view's scrollback ends at rows-18, well above the card's
-   * rows-7..rows-4 range, so there's no overlap.
-   */
-  private paintPlanApprovalCard(
-    canvas: TerminalCanvas,
-    width: number,
-    height: number,
-    headerH: number,
-    footerH: number,
-  ): void {
-    const pending = this.planApprovalGate.getPending();
-    if (!pending) return;
-
-    const CARD_H = 4;
-    const cardY = height - footerH - CARD_H;
-    // Leave one row of breathing room below the header band.
-    if (cardY <= headerH + 1) return;
-
-    const innerW = Math.max(0, width - 2);
-    const summary = pending.planSummary.length > innerW - 2
-      ? pending.planSummary.slice(0, innerW - 5) + '…'
-      : pending.planSummary;
-    const hint = 'Y approve · n reject · e edit · d detail';
-
-    // Border + title row.
-    const title = ' PLAN APPROVAL REQUIRED ';
-    const titlePad = Math.max(0, innerW - title.length);
-    const titleRow = '╭' + title + '─'.repeat(titlePad) + '╮';
-    canvas.write(0, cardY, `\x1b[33m${titleRow}\x1b[0m`);
-
-    // Summary row.
-    canvas.write(0, cardY + 1, '\x1b[33m│\x1b[0m');
-    canvas.write(1, cardY + 1, summary);
-    canvas.write(1 + summary.length, cardY + 1, ' '.repeat(Math.max(0, innerW - 1 - summary.length)));
-    canvas.write(width - 1, cardY + 1, '\x1b[33m│\x1b[0m');
-
-    // Hint row.
-    const hintRow = hint.length > innerW ? hint.slice(0, innerW) : hint;
-    canvas.write(0, cardY + 2, '\x1b[33m│\x1b[0m');
-    canvas.write(1, cardY + 2, hintRow);
-    canvas.write(1 + hintRow.length, cardY + 2, ' '.repeat(Math.max(0, innerW - 1 - hintRow.length)));
-    canvas.write(width - 1, cardY + 2, '\x1b[33m│\x1b[0m');
-
-    // Bottom border.
-    canvas.write(0, cardY + 3, '\x1b[33m' + '╰' + '─'.repeat(innerW) + '╯' + '\x1b[0m');
-  }
-
-  /** True when a CapabilityService is available via the module accessor. */
-  private hasCapabilityService(): boolean {
-    try { getCapabilityService(); return true; } catch { return false; }
-  }
-
-  /**
-   * Route a key while the command palette is open. Escape closes; Enter
-   * invokes the selected entry; arrows move the cursor; backspace and
-   * printable characters edit the query. Every mutation refreshes the
-   * entry list against the current query.
-   */
-  private handlePaletteKey(key: string): void {
-    if (key === 'Escape') { this.paletteOpen = false; return; }
-    // Ctrl+P toggles the palette closed while it is open — the modal owns
-    // every key, so the global open-trigger never runs again until the
-    // palette is dismissed.
-    if (key === 'Ctrl+p') { this.paletteOpen = false; return; }
-    // Ctrl+C always quits — same mechanism as tryHandleGlobal's ETX case.
-    // The palette owns every key while open, so without this the raw ETX
-    // byte would fall through to the text-append branch and silently pollute
-    // the search query instead of terminating the TUI.
-    if (key === '\x03') { process.exit(0); return; }
-    if (key === 'Enter') {
-      if (!this.palette.empty) {
-        const entry = this.palette.selected();
-        this.paletteOpen = false;
-        entry.invoke();
-      }
-      return;
-    }
-    if (key === 'ArrowUp') { this.palette.move(-1); return; }
-    if (key === 'ArrowDown') { this.palette.move(1); return; }
-    if (key === 'Backspace') { this.paletteQuery = this.paletteQuery.slice(0, -1); }
-    else if (key && key.length === 1) { this.paletteQuery += key; }
-    this.palette.refresh(this.paletteQuery);
-  }
-
-  /**
-   * Render the command palette as an overlay in the active view's canvas.
-   * No-op when the palette is closed. Centered vertically, 12 rows tall,
-   * with a query input line, the filtered entry list (windowed to fit),
-   * and a highlight on the selected entry.
-   */
-  private paintPalette(canvas: TerminalCanvas, width: number, height: number, headerH: number, footerH: number): void {
-    if (!this.paletteOpen) return;
-    const PALETTE_H = 12;
-    const y = Math.max(headerH + 1, Math.floor(height / 2) - Math.floor(PALETTE_H / 2));
-    const innerW = Math.max(0, width - 4);
-    canvas.drawBox(1, y, innerW, PALETTE_H, ' Command Palette (Ctrl+P) ', '\x1b[90m');
-    canvas.write(3, y + 1, `\x1b[7m ${this.paletteQuery} \x1b[0m`);
-    const list = this.palette.list;
-    const rows = Math.max(0, PALETTE_H - 3);
-    const start = Math.max(0, Math.min(this.palette.selectedIndex(), list.length - rows));
-    for (let i = 0; i < Math.min(list.length, rows); i++) {
-      const entry = list[start + i]!;
-      const sel = start + i === this.palette.selectedIndex();
-      const line = `${sel ? '› ' : '  '}${entry.title}${entry.subtitle ? `  \x1b[90m${entry.subtitle}\x1b[0m` : ''}`;
-      canvas.write(3, y + 2 + i, (sel ? '\x1b[36m' : '') + line.slice(0, innerW - 4) + (sel ? '\x1b[0m' : ''));
-    }
-    if (list.length === 0) canvas.write(3, y + 2, '\x1b[90mNo capabilities found\x1b[0m');
-  }
-
   private paintFullFrame(): void {
-    if (!this.state.lastSnapshot) return;
-    const dims: TerminalDimensions = { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 };
-    const FOOTER_H = 3;
-    const HEADER_H = 3;
-
-    // Render the active view into a canvas sized to the full terminal.
-    // The dashboard tab consumes the entire body region (rows 3..rows-4)
-    // with its 2x2 or stacked panel layout. Chat and agent get the full
-    // width/height for their scrollback — the previous 75/25 split and
-    // vertical divider are gone.
-    const viewCanvas = new TerminalCanvas(dims.columns, dims.rows);
-    const viewCtx: ViewRenderContext = {
-      snap: this.state.lastSnapshot,
-      dimensions: { columns: dims.columns, rows: dims.rows },
-      perTab: this.state.views[this.state.activeTab],
-      canvas: viewCanvas,
-      themeName: this.opts.themeName,
-      // Phase 6 (D6/D9): the chat/agent sub-session runtime snapshots, sampled
-      // from the runtime collectors. ChatView/AgentView read their own tab's
-      // `runtime.<tab>.timeline` projection.
-      runtime: { chat: this.chatRuntime, agent: this.agentRuntime },
-      slash: this.computeSlashStrip() ?? undefined,
-    };
-    this.views[this.state.activeTab]!.render(viewCtx);
-
-    // Plan approval card — drawn into the same canvas as the active view.
-    // Visible from any tab; the gate's keyboard handler makes the keys
-    // available globally. Renders last so it overlays the view's
-    // scrollback area (sits at rows-7..rows-4, which is inside the
-    // expanded scrollback now — the card wins because it paints last).
-    this.paintPlanApprovalCard(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
-    this.paintPalette(viewCanvas, dims.columns, dims.rows, HEADER_H, FOOTER_H);
-
-    const c = new TerminalCanvas(dims.columns, dims.rows);
-    const snap = this.state.lastSnapshot;
-    const session = snap.session;
-
-    // Header — top divider, content row, bottom divider (full width).
-    // Row 0: top rule
-    for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
-    // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
-    c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
-    const liveVersion: string | undefined =
-      this.opts.agentSession?.getVersion?.();
-    const version = liveVersion || session?.version || 'unknown';
-    const liveSessionId: string | undefined =
-      this.opts.agentSession?.getSessionId?.();
-    const sessionDisplay = liveSessionId || '(no session)';
-    const liveMode: 'auto' | 'ask' | 'bypass' | undefined =
-      this.opts.agentSession?.getMode?.();
-    const sessionMode = liveMode ?? session?.mode ?? 'auto';
-    // Mode color: bypass = red (no safety), ask = green (cautious),
-    // auto = orange (Claude-side heuristics). The colors signal the
-    // operator's risk posture at a glance — bypass means "trust me",
-    // ask means "stop and ask", auto means "let the model decide".
-    const modeColor =
-      sessionMode === 'bypass' ? '\x1b[31m' :
-      sessionMode === 'ask' ? '\x1b[32m' :
-      '\x1b[33m';
-    const rightText = `\x1b[90mALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${modeColor}${sessionMode}\x1b[0m`;
-    const rightLen = `ALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${sessionMode}`.length;
-    c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
-    // Row 2: bottom rule
-    for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
-
-    // Blit the view canvas into the main canvas at offset (0, 0).
-    c.blit(viewCanvas, 0, 0);
-
-    // Tabs row (with key-hint suffix, right-aligned). Now uses the
-    // full width — no sidebar column to clip against.
-    let tabLine = '';
-    for (const id of TAB_ORDER) {
-      const active = id === this.state.activeTab;
-      tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
-    }
-    const tabHintsVisible = '↑/↓ navigate   |   tab next   |   ? help   |   q quit';
-    const hintsLen = tabHintsVisible.length;
-    const tabRowBudget = Math.max(0, dims.columns - hintsLen - 1);
-    const tabText = tabLine.length <= tabRowBudget
-      ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
-      : tabLine.slice(0, tabRowBudget);
-    c.write(0, dims.rows - 3, tabText);
-    c.write(dims.columns - hintsLen, dims.rows - 3, `\x1b[90m${tabHintsVisible}\x1b[0m`);
-
-    // Status row — phase radios (left) | pipeline fields (right).
-    // Phase radios are workflow-lifecycle signals — they only make sense
-    // on the agent tab. On chat and dashboard, skip the phase segment
-    // so the operator doesn't see stale workflow phase from a previous
-    // processTurn run.
-    const phaseDefs: ReadonlyArray<{ readonly phase: SessionPhase; readonly label: string }> = [
-      { phase: SessionPhase.Understanding, label: 'UNDERSTANDING' },
-      { phase: SessionPhase.Planning, label: 'PLANNING' },
-      { phase: SessionPhase.Executing, label: 'EXECUTING' },
-      { phase: SessionPhase.Verifying, label: 'VERIFYING' },
-      { phase: SessionPhase.Summarizing, label: 'SUMMARIZING' },
-    ];
-    const activePhase = session?.phase ?? SessionPhase.Idle;
-    let phaseLine = '';
-    for (const p of phaseDefs) {
-      const active = activePhase === p.phase;
-      if (active) phaseLine += `\x1b[32m● ${p.label}\x1b[0m   `;
-      else phaseLine += `\x1b[90m○ ${p.label}\x1b[0m   `;
-    }
-    const sep = `\x1b[90m|\x1b[0m`;
-    const daemonLabel = snap.daemon === null
-      ? `\x1b[90m○ stopped\x1b[0m`
-      : snap.daemon.source === "daemon"
-        ? `\x1b[32m● running\x1b[0m`
-        : `\x1b[33m● this process\x1b[0m`;
-    const sopCount = snap.sops?.totalLoaded ?? 0;
-    const ruleCount = snap.policy?.rules.length ?? 0;
-    const eventsCount = (snap.runtime?.totalEventCount ?? 0).toLocaleString('en-US');
-    const fields = [
-      'TOKENS: —',   // schema gap: DashboardSnapshot has no tokens field yet
-      `FILES: ${snap.session?.filesTouched ?? 0}`,
-      `DAEMON: ${daemonLabel}`,
-      `SOPS: ${sopCount}`,
-      `RULES: ${ruleCount}`,
-      `EVENTS: ${eventsCount}`,
-    ];
-    const statusLine = this.state.activeTab === 'agent'
-      ? `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`
-      : `${sep} ${fields.join(` ${sep} `)}`;
-    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
-
-    // Write the complete frame — cursor home + canvas render.
-    this.output.write('\x1b[H' + c.renderFrame());
-
-    // Place the terminal cursor at the active tab's input prompt position.
-    // Without this the cursor sits at the bottom of the screen (blinking
-    // on top of the status line) while typed text accumulates in the
-    // buffer, creating both an invisible-typing experience and a visual
-    // "flash" on every keypress as the full frame redraw overwrites the
-    // cursor area.
-    if (this.state.activeTab === 'chat') {
-      // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
-      // ANSI cursor addresses are 1-based, so panelRow+1. Column 7 is
-      // the post-`alix>` cursor position (mirrors `PROMPT_COL=7` in
-      // ChatView.render); the `+bufLen+1` term tracks the typed buffer
-      // length so the cursor rides at the end of any typed text.
-      const bufLen = this.state.views.chat.inputBuffer.length;
-      const panelRow = computeViewport(dims, 'chat').panelRow;
-      this.output.write(`\x1b[${panelRow + 1};${7 + bufLen + 1}H`);
-    } else if (this.state.activeTab === 'agent') {
-      // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
-      // ANSI cursor addresses are 1-based, so panelRow+1.
-      const bufLen = this.state.views.agent.inputBuffer.length;
-      const panelRow = computeViewport(dims, 'agent').panelRow;
-      this.output.write(`\x1b[${panelRow + 1};${13 + bufLen + 1}H`);
-    } else {
-      // Non-input tabs (dashboard, daemon, approvals, runtime, sops,
-      // policy): move cursor to a safe column (row 4, col 1) so it
-      // doesn't blink on top of the status line.
-      this.output.write(`\x1b[5;1H`);
-    }
+    this.framePainter.paintFullFrame();
   }
 
   private async cleanupSync(): Promise<void> {
