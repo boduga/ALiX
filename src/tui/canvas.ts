@@ -25,6 +25,18 @@ export function writeRowsToCanvas(
   }
 }
 
+/** A terminal region an overlay painter renders into, with the frame chrome
+ *  gutters it needs to position itself. Passed as one object instead of a
+ *  `(canvas, width, height, headerH, footerH)` tuple so overlay painters
+ *  (palette, plan-approval card) share a single shape. */
+export interface CanvasRect {
+  canvas: TerminalCanvas;
+  width: number;
+  height: number;
+  headerH: number;
+  footerH: number;
+}
+
 export class TerminalCanvas {
   readonly width: number;
   readonly height: number;

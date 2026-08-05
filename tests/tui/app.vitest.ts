@@ -87,10 +87,9 @@ describe('TuiApp -- lifecycle', () => {
   it('refresh() re-reads the slash manifest catalog (CLI-side invalidation visibility)', async () => {
     // Regression: a TUI running while the operator installs a skill in a
     // separate process must pick up the new skill within ~1s. The wired
-    // call is `refreshSlashCatalog()`, which is a Promise wrapper over
-    // `getSlashCatalog()` (generation-based cache). Steal the getter from
-    // the TuiApp instance, call it directly, and assert the in-memory
-    // mirror updates.
+    // call is `SlashController.refreshCatalog()`, which wraps
+    // `getSlashCatalog()` (generation-based cache). Call it on the TuiApp's
+    // slash controller and assert the in-memory mirror updates.
     const { setSlashCatalogLoaderForTest } = await import('../../src/skills/slash-catalog.js');
     let installed: any[] = [];
     setSlashCatalogLoaderForTest(async () => installed);
@@ -98,8 +97,11 @@ describe('TuiApp -- lifecycle', () => {
       app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
       await app.start();
       // Initial catalog read returns the empty install list.
-      const internal = app as unknown as { slashManifests: any[]; refreshSlashCatalog(): Promise<void> };
-      await internal.refreshSlashCatalog();
+      const internal = app as unknown as {
+        slashManifests: any[];
+        slash: { refreshCatalog(): Promise<void> };
+      };
+      await internal.slash.refreshCatalog();
       expect(internal.slashManifests).toEqual([]);
 
       // CLI-side install: invalidate the cache and bump the loader.
@@ -107,9 +109,10 @@ describe('TuiApp -- lifecycle', () => {
       const { invalidateSlashCatalog } = await import('../../src/skills/slash-catalog.js');
       invalidateSlashCatalog();
 
-      // The fix: refresh() (the snapshot tick) calls refreshSlashCatalog,
-      // so a subsequent tick picks up the new catalog without restart.
-      await internal.refreshSlashCatalog();
+      // The fix: refresh() (the snapshot tick) routes through the slash
+      // controller's refreshCatalog(), so a subsequent tick picks up the
+      // new catalog without restart.
+      await internal.slash.refreshCatalog();
       expect(internal.slashManifests.length).toBe(1);
       expect(internal.slashManifests[0].name).toBe('newskill');
     } finally {
@@ -143,9 +146,12 @@ describe('TuiApp -- lifecycle', () => {
     await app.stop();
   });
 
-  it('refreshSlashCatalog no-ops after stop() (no torn-down instance mutation)', async () => {
-    // Regression: a snapshot-tick refreshSlashCatalog() in flight when
-    // stop() runs must not reassign state on a detached instance.
+  it('catalog refresh no-ops after stop() (no torn-down instance mutation)', async () => {
+    // Regression: a snapshot-tick catalog refresh in flight when stop()
+    // runs must not reassign state on a detached instance. The detached
+    // guard lives inside SlashController.refreshCatalog() (behind the
+    // `isDetached` accessor) — not in the app — so a future cleanup cannot
+    // "simplify" it away.
     //
     // Tested via the `detached` test seam instead of the loader-stub
     // (the stub is module-scoped and races with parallel test workers).
@@ -154,12 +160,12 @@ describe('TuiApp -- lifecycle', () => {
     const internal = app as unknown as {
       slashManifests: any[];
       detached: boolean;
-      refreshSlashCatalog(): Promise<void>;
+      slash: { refreshCatalog(): Promise<void> };
     };
     internal.slashManifests = [{ name: 'before', description: 'B', version: '1.0.0', is_core: false }];
     // Simulate the torn-down state directly: stop() sets `detached = true`.
     internal.detached = true;
-    await internal.refreshSlashCatalog();
+    await internal.slash.refreshCatalog();
     // The detached guard must have bailed — the mirror must not be flushed.
     expect(internal.slashManifests.map((m: any) => m.name)).toEqual(['before']);
     await app.stop();
@@ -589,7 +595,7 @@ describe('TuiApp -- pluggable key dispatcher', () => {
 });
 
 describe('TuiApp — palette-open Ctrl+C quit', () => {
-  it("Ctrl+C ('\\x03') while the palette is open reaches handlePaletteKey and calls the quit path", () => {
+  it("Ctrl+C ('\\x03') while the palette is open reaches the palette controller and calls the quit path", () => {
     // Opening the palette (Ctrl+P) calls PaletteModal.refresh →
     // CapabilityProvider.search → getCapabilityService(), which throws when
     // the module accessor is unset. A real service must be registered
@@ -605,12 +611,14 @@ describe('TuiApp — palette-open Ctrl+C quit', () => {
       const app = new TuiApp({ builder, daemonMetrics: metrics } as unknown as TuiAppOptions);
       const internal = app as unknown as {
         handleRaw(buf: Buffer): void;
-        handlePaletteKey(key: string): void;
+        paletteController: { handleKey(key: string): void };
         getStateForTest(): { lastSnapshot: unknown };
       };
       internal.getStateForTest().lastSnapshot = snap;
       const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => {}) as (code?: string | number | null) => never);
-      const paletteSpy = vi.spyOn(internal, 'handlePaletteKey');
+      // Key routing while the palette is open lives on the palette controller,
+      // so the spy targets it (handleRaw → paletteController.handleKey).
+      const paletteSpy = vi.spyOn(internal.paletteController, 'handleKey');
       try {
         // Open the palette (Ctrl+P = 0x10) — the modal then owns every key.
         internal.handleRaw(Buffer.from([0x10]));
@@ -653,7 +661,7 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
     for (const ch of '/') internal.handleRaw(Buffer.from(ch));
     expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/');
     expect(internal.slashHintForTest).toBeNull();
-    const s = (internal as any).computeSlashStrip();
+    const s = (internal as any).slash.computeStrip();
     expect(s).not.toBeNull();
     expect(s.entries.length).toBe(2);
     expect(s.entries.map((e: any) => e.name).sort()).toEqual(['review', 'tdd']);
@@ -879,7 +887,7 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
     expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/tdd');
     // The fix: candidate strip must reappear, hint must clear.
     expect(internal.slashHintForTest).toBeNull();
-    const s = (internal as any).computeSlashStrip();
+    const s = (internal as any).slash.computeStrip();
     expect(s.hint).toBeNull();
     expect(s.entries.length).toBeGreaterThan(0);
   });

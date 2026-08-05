@@ -1,7 +1,7 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
-import { buildChatScrollbackLines } from './scroll-math.js';
+import { buildChatScrollbackLines, computeViewport } from './scroll-math.js';
 import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
 
@@ -24,21 +24,13 @@ export class ChatView implements TuiView {
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-    const FOOTER_H = 3;
-    const PANEL_H = 0;
-    const PROMPT_COL = 7;
-    const SCROLLBACK_TOP = 5;
-
-    const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - PANEL_H - 1);
-    const scrollbackBottom = panelRow - 1;
-    const scrollbackRows = Math.max(0, scrollbackBottom - SCROLLBACK_TOP + 1);
-    const textWidth = Math.max(0, ctx.dimensions.columns - 4);
+    const vp = computeViewport(ctx.dimensions, 'chat');
 
     // Line-builder lives in scroll-math.ts (single source truth).
-    const allLines: ScrollbackLine[] = buildChatScrollbackLines(ctx, textWidth);
+    const allLines: ScrollbackLine[] = buildChatScrollbackLines(ctx, vp.textWidth);
 
     const effectiveOffset = ctx.perTab.pinnedBottom
-      ? Math.max(0, allLines.length - scrollbackRows)
+      ? Math.max(0, allLines.length - vp.scrollbackRows)
       : ctx.perTab.scrollOffset;
 
     const kindStyles: KindStyleMap = {
@@ -49,17 +41,17 @@ export class ChatView implements TuiView {
     renderBottomAnchoredSlice({
       canvas: c,
       allLines,
-      top: SCROLLBACK_TOP,
-      bottomRow: scrollbackBottom,
+      top: vp.scrollbackTop,
+      bottomRow: vp.scrollbackBottom,
       offset: effectiveOffset,
       columns: ctx.dimensions.columns,
       kindStyles,
     });
 
     const buf = ctx.perTab.inputBuffer;
-    c.write(0, panelRow, `\x1b[33m alix>${RESET} `);
-    c.write(PROMPT_COL, panelRow, buf);
-    c.write(PROMPT_COL + buf.length, panelRow, `\x1b[7m ${RESET}`);
+    c.write(0, vp.panelRow, `\x1b[33m alix>${RESET} `);
+    c.write(vp.promptCol, vp.panelRow, buf);
+    c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
 
     return { rows: [] };
   }

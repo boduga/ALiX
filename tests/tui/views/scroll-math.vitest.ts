@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildAgentScrollbackLines, buildChatScrollbackLines, computeScrollbackRows, computeBottomAnchor } from '../../../src/tui/views/scroll-math.js';
+import { buildAgentScrollbackLines, buildChatScrollbackLines, computeBottomAnchor } from '../../../src/tui/views/scroll-math.js';
 import { createInitialPerTabState } from '../../../src/tui/state.js';
 import type { ViewRenderContext } from '../../../src/tui/views/types.js';
 
@@ -53,16 +53,6 @@ describe('buildChatScrollbackLines', () => {
   });
 });
 
-describe('computeScrollbackRows', () => {
-  it('returns panelRow - scrollbackTop when positive', () => {
-    expect(computeScrollbackRows(30, 6, 26)).toBe(20);
-  });
-
-  it('clamps to 0 when panelRow <= scrollbackTop', () => {
-    expect(computeScrollbackRows(30, 25, 24)).toBe(0);
-  });
-});
-
 describe('computeBottomAnchor', () => {
   it('returns max(0, allLines.length - scrollbackRows)', () => {
     const ctx30 = ctx(Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const })));
@@ -70,11 +60,11 @@ describe('computeBottomAnchor', () => {
     // separator before every turn after the first) = 199 allLines. With rows=30,
     // scrollbackTop=6, panelRow=26 → scrollbackRows=20 → bottomAnchor=199-20=179.
     // (Brief expected 80, but that ignored the blank-line separator rule.)
-    expect(computeBottomAnchor(ctx30, 'agent', 76, 26)).toBe(179);
+    expect(computeBottomAnchor(ctx30, 'agent')).toBe(179);
   });
 
   it('returns 0 when content fits in scrollbackRows', () => {
     const ctx3 = ctx(Array.from({ length: 3 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const })));
-    expect(computeBottomAnchor(ctx3, 'agent', 76, 26)).toBe(0);
+    expect(computeBottomAnchor(ctx3, 'agent')).toBe(0);
   });
 });

@@ -5,6 +5,52 @@ import { getTheme } from '../blocks/theme.js';
 import type { ScrollbackLine } from './bottom-anchored-viewport.js';
 import type { ViewRenderContext } from './types.js';
 
+/** Shared TUI layout geometry. Single source of truth — the views, app.ts,
+ *  and scroll-math all compute panelRow/scrollbackTop/textWidth from these.
+ *  FOOTER_H = 3 (tabs row + status row + padding). PANEL_H is the future
+ *  multi-line input-panel knob (0 today — single-line prompt). */
+export const HEADER_H = 3;
+export const FOOTER_H = 3;
+export const PANEL_H = 0;
+/** Scrollback starts below the agent tab's status row (agent=6: header rows
+ *  0-2, blank 3, status 4, blank 5). Chat has no status row, so 5. */
+export const SCROLLBACK_TOP_AGENT = 6;
+export const SCROLLBACK_TOP_CHAT = 5;
+
+export interface Viewport {
+  headerRows: number;
+  footerRows: number;
+  panelRows: number;
+  panelRow: number;
+  scrollbackTop: number;
+  scrollbackBottom: number;
+  scrollbackRows: number;
+  textWidth: number;
+  promptCol: number;
+}
+
+/** Compute all bottom-anchored layout geometry for a tab. Pure over dims. */
+export function computeViewport(
+  dims: { columns: number; rows: number },
+  kind: 'agent' | 'chat',
+): Viewport {
+  const footerRows = FOOTER_H;
+  const panelRow = Math.max(0, dims.rows - FOOTER_H - PANEL_H - 1);
+  const scrollbackTop = kind === 'agent' ? SCROLLBACK_TOP_AGENT : SCROLLBACK_TOP_CHAT;
+  const scrollbackBottom = panelRow - 1;
+  return {
+    headerRows: HEADER_H,
+    footerRows,
+    panelRows: PANEL_H,
+    panelRow,
+    scrollbackTop,
+    scrollbackBottom,
+    scrollbackRows: Math.max(0, scrollbackBottom - scrollbackTop + 1),
+    textWidth: Math.max(0, dims.columns - 4),
+    promptCol: kind === 'agent' ? 13 : 7,
+  };
+}
+
 /**
  * Build the scrollback line array for the agent view. Pure function over
  * `ctx.runtime.agent` + `ctx.perTab` (planTasks, planContent, pendingApprovals,
@@ -120,19 +166,12 @@ export function buildChatScrollbackLines(ctx: ViewRenderContext, textWidth: numb
   return out;
 }
 
-/** Compute the number of scrollback rows available between `scrollbackTop`
- *  and the row immediately above `panelRow`. Always >= 0. */
-export function computeScrollbackRows(rows: number, scrollbackTop: number, panelRow: number): number {
-  return Math.max(0, panelRow - scrollbackTop);
-}
-
 /** Compute the bottom-anchor offset: the index into the scrollback line array
  *  at which the visible window starts when `pinnedBottom === true`.
  *  Convenience wrapper used by the views' render branch and by app.ts on
  *  End/clear/tab-switch. */
-export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat', textWidth: number, panelRow: number): number {
-  const allLines = kind === 'agent' ? buildAgentScrollbackLines(ctx, textWidth) : buildChatScrollbackLines(ctx, textWidth);
-  const scrollbackTop = kind === 'agent' ? 6 : 5;
-  const scrollbackRows = computeScrollbackRows(ctx.dimensions.rows, scrollbackTop, panelRow);
-  return Math.max(0, allLines.length - scrollbackRows);
+export function computeBottomAnchor(ctx: ViewRenderContext, kind: 'agent' | 'chat'): number {
+  const vp = computeViewport(ctx.dimensions, kind);
+  const allLines = kind === 'agent' ? buildAgentScrollbackLines(ctx, vp.textWidth) : buildChatScrollbackLines(ctx, vp.textWidth);
+  return Math.max(0, allLines.length - vp.scrollbackRows);
 }
