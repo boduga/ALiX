@@ -637,12 +637,153 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
     return { internal };
   }
 
-  it('does not enter slash mode for a bare "/" on the agent tab', async () => {
+  it('activates slash mode on bare "/" — strip populates with every installed skill', async () => {
+    // Regression: previously the agent tab's slashActive/slashBuffer gates
+    // required `length > 1`, so typing `/` alone did nothing visible —
+    // compared to Claude Code's slash menu UX, this was a clear gap. The
+    // fix makes the agent-tab strip activate on the leading slash itself;
+    // rankSkillMatches(manifests, '/') matches every installed skill via
+    // bucket 3 (trigger prefix) / bucket 4 (name prefix), so the strip
+    // surfaces them all and additional letters filter.
     const { internal } = await makeAgentApp();
-    internal.handleRaw(Buffer.from('/'));
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD workflow', trigger: '/tdd', version: '1.0.0', is_core: false },
+      { name: 'review', description: 'Review diff', trigger: '/review', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/') internal.handleRaw(Buffer.from(ch));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/');
+    expect(internal.slashHintForTest).toBeNull();
+    const s = (internal as any).computeSlashStrip();
+    expect(s).not.toBeNull();
+    expect(s.entries.length).toBe(2);
+    expect(s.entries.map((e: any) => e.name).sort()).toEqual(['review', 'tdd']);
+  });
+
+  it('Enter on bare "/" does NOT submit — preserves the buffer with a hint', async () => {
+    // Guard: a naive fix would let Enter on `/` auto-invoke the
+    // first-ranked skill as a free-text query. The operator either wants
+    // to keep typing (no submit) or pick via Tab/arrows. Submitting
+    // blindly is never the right call on a bare slash.
+    const processTurn = vi.fn(async () => ({ summary: 'x', sessionId: 's', toolCalls: [], streamed: false, reason: 'agent' }));
+    const { internal } = await makeAgentApp({ agentSession: { processTurn } });
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/') internal.handleRaw(Buffer.from(ch));
     internal.handleRaw(Buffer.from('\r'));
-    // length-1 buffer is not slash mode → normal submit path, no skill
-    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('');
+    expect(processTurn).not.toHaveBeenCalled();
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/');
+    expect(internal.slashHintForTest).toBeTruthy();
+  });
+
+  it('hints "no skills installed" when bare "/" with empty manifest catalog', async () => {
+    // A bare `/` with zero installed skills must not show "no skill matches /"
+    // (awkward wording) — show "no skills installed" instead so the
+    // operator understands they need to install one first.
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [];
+    for (const ch of '/') internal.handleRaw(Buffer.from(ch));
+    expect(internal.slashHintForTest).toBe('no skills installed');
+  });
+
+  it('hints "no skill matches /xyz" when no skill resolves the typed token', async () => {
+    // Previously `/nope` would show the agent-side submitSlashCommand
+    // hint on Enter; the strip itself was silent. Now the strip surfaces
+    // "no skill matches /xyz" inline so the operator sees feedback while
+    // typing, not only after Enter.
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/xyz') internal.handleRaw(Buffer.from(ch));
+    expect(internal.slashHintForTest).toBe('no skill matches /xyz');
+  });
+
+  it('Tab completes the buffer to the selected skill\'s primary slash name', async () => {
+    // On a bare `/` with skills installed, Tab replaces the buffer with
+    // the highlighted entry's primary slash name (trigger if present,
+    // else `/name`). The buffer must end with a trailing space so the
+    // operator can immediately type the rest of the prompt.
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD workflow', trigger: '/tdd', version: '1.0.0', is_core: false },
+      { name: 'review', description: 'Review diff', trigger: '/review', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/') internal.handleRaw(Buffer.from(ch));
+    // First match (bucket 3 trigger-prefix order is catalog order):
+    // `tdd` and `review` both match bucket 3; original order is preserved.
+    internal.handleRaw(Buffer.from('\t'));
+    const buf = internal.getStateForTest().views.agent.inputBuffer;
+    expect(buf === '/tdd ' || buf === '/review ').toBe(true);
+  });
+
+  it('Tab completes when the buffer has a partial token (`/tdd` → `/tdd `)', async () => {
+    // Typing `/tdd` filters to the tdd skill (bucket 1 exact trigger);
+    // Tab completes the buffer to the skill's full slash name with a
+    // trailing space.
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/tdd') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/tdd ');
+  });
+
+  it('Tab preserves the rest when completing a token with suffix text', async () => {
+    // `/tdd fix parser` → Enter submits with tdd routed in. Tab on the
+    // same buffer replaces the leading `/tdd` token with the selected
+    // skill's primary slash name and keeps the rest verbatim. Net: buffer
+    // becomes `/tdd fix parser` (idempotent completion for an already-
+    // completed token).
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/tdd fix parser') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/tdd fix parser');
+  });
+
+  it('Tab is a no-op when no candidates match (no installed skills)', async () => {
+    // On bare `/` with zero installed skills, the strip is empty and Tab
+    // must not modify the buffer (no completion possible).
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [];
+    for (const ch of '/') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/');
+  });
+
+  it('Tab is a no-op when the typed token resolves to zero matches', async () => {
+    // `/xyz` with only `/tdd` installed → strip is empty (no match).
+    // Tab must not invent a completion out of thin air.
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/xyz') internal.handleRaw(Buffer.from(ch));
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/xyz');
+  });
+
+  it('Shift+Tab cycles the selection backward; Tab still completes after cycling', async () => {
+    // `completeSlash` reads the latest `slashSelection`, so the operator
+    // can Shift+Tab to back-cycle, then Tab to complete the highlighted
+    // entry. This is the cycle-then-complete path.
+    const { internal } = await makeAgentApp();
+    internal.slashManifestsForTest = [
+      { name: 'review', description: 'Review', trigger: '/review', version: '1.0.0', is_core: false },
+      { name: 'tdd', description: 'TDD', trigger: '/tdd', version: '1.0.0', is_core: false },
+    ];
+    for (const ch of '/') internal.handleRaw(Buffer.from(ch));
+    // Shift+Tab once → selection wraps to last entry.
+    internal.handleRaw(Buffer.from('\x1b[Z'));
+    // Now Tab → should complete with the last entry (whatever the wrap
+    // produced). The buffer must end with one of the two candidates.
+    internal.handleRaw(Buffer.from('\t'));
+    const buf = internal.getStateForTest().views.agent.inputBuffer;
+    expect(buf === '/tdd ' || buf === '/review ').toBe(true);
   });
 
   it('submits the rest of a slash command with the skill name', async () => {
@@ -675,25 +816,29 @@ describe('TuiApp -- slash commands (agent tab only)', () => {
     expect(internal.slashHintForTest).toBeTruthy();
   });
 
-  it('Tab cycles the strip selection without modifying the buffer', async () => {
+  it('Tab completes the buffer to the selected skill; Shift+Tab cycles without modifying the buffer', async () => {
+    // Tab now completes the buffer to the selected skill's primary slash
+    // name with a trailing space (the more useful primary action).
+    // Shift+Tab remains a pure selector cycle — the operator can pre-view
+    // an alternative without committing to a completion. Buffer is left
+    // untouched by Shift+Tab so the operator can Shift+Tab to inspect
+    // and then Tab to commit the choice.
     const { internal } = await makeAgentApp();
     internal.slashManifestsForTest = [
       { name: 'a', description: 'A', trigger: '/ty', version: '1.0.0', is_core: false },
       { name: 'b', description: 'B', trigger: '/typing', version: '1.0.0', is_core: false },
     ];
-    // Plan amendment (2026-08-04, applies Task-4 ruling): handleRaw calls
-    // parseKey(buf) once per buffer, and parseKey returns null for any
-    // multi-char string (only single bytes + control sequences are keys).
-    // Buffer.from('/ty') is a 3-byte buffer → parseKey returns null →
-    // handleRaw bails before slash mode runs. The brief's literal test
-    // could never reach the Tab assertions. Feed each char separately,
-    // matching the other tests' pattern.
     for (const ch of '/ty') internal.handleRaw(Buffer.from(ch));
-    internal.handleRaw(Buffer.from('\t'));
+    // Shift+Tab wraps to the last entry (selection = 1) without
+    // modifying the buffer.
+    internal.handleRaw(Buffer.from('\x1b[Z'));
     expect(internal.slashSelectionForTest).toBe(1);
-    internal.handleRaw(Buffer.from('\t'));
-    expect(internal.slashSelectionForTest).toBe(0);
     expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/ty');
+    // Now Tab completes the buffer with the highlighted entry. The
+    // first match (bucket 1, exact trigger) is `/ty`; after cycling we
+    // have `/typing` selected, so completion lands on `/typing `.
+    internal.handleRaw(Buffer.from('\t'));
+    expect(internal.getStateForTest().views.agent.inputBuffer).toBe('/typing ');
   });
 
   it('does NOT activate slash commands on the chat tab', async () => {

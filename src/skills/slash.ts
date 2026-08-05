@@ -9,11 +9,15 @@ export interface SlashInput {
 
 /**
  * Parse a TUI input buffer into a slash command + rest. Returns null when the
- * buffer is not a slash command (doesn't start with "/") or is exactly "/"
- * (which the TUI treats as the palette-opener, not a command).
+ * buffer does not start with "/". A bare "/" is a valid slash input — it
+ * represents "no token yet, list everything" (the agent-tab slash strip
+ * activates as soon as the leading slash lands; the chat tab keeps its
+ * palette-on-empty-input behavior via the caller, which gates on
+ * `slashActive`/`slashBuffer`).
  */
 export function parseSlashInput(buffer: string): SlashInput | null {
-  if (!buffer.startsWith("/") || buffer === "/") return null;
+  if (!buffer.startsWith("/")) return null;
+  if (buffer === "/") return { command: "/", rest: "" };
   const match = buffer.match(/^\/(\S+)\s*(.*)$/s);
   if (!match) return null;
   return { command: `/${match[1]}`, rest: match[2] ?? "" };
