@@ -822,7 +822,7 @@ if (command === "config" && args[0] === "get") {
   }
   const config = await loadConfig(process.cwd());
   const { ConfigMutationService } = await import("./config/mutation.js");
-  const service = new ConfigMutationService(join(process.cwd(), ".alix", "config"));
+  const service = new ConfigMutationService(join(process.cwd(), ".alix"));
   const value = service.getValue(config, path);
   if (value === undefined) {
     console.log(`(not set)`);
@@ -847,7 +847,7 @@ if (command === "config" && args[0] === "set") {
   let value: unknown = valueStr;
   try { value = JSON.parse(valueStr); } catch { /* keep as string */ }
 
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigMutationService } = await import("./config/mutation.js");
   const service = new ConfigMutationService(configDir);
   try {
@@ -869,7 +869,7 @@ if (command === "config" && args[0] === "delete") {
     console.error("Example: alix config delete model.temperature");
     process.exit(1);
   }
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigMutationService } = await import("./config/mutation.js");
   const service = new ConfigMutationService(configDir);
   try {
@@ -885,7 +885,7 @@ if (command === "config" && args[0] === "delete") {
 
 // --- alix config history ---
 if (command === "config" && args[0] === "history") {
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigMutationService } = await import("./config/mutation.js");
   const service = new ConfigMutationService(configDir);
   const json = args.includes("--json");
@@ -918,7 +918,7 @@ if (command === "config" && args[0] === "history") {
 
 // --- alix config provenance [--json] [<path>] ---
 if (command === "config" && args[0] === "provenance") {
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigMutationService } = await import("./config/mutation.js");
   const service = new ConfigMutationService(configDir);
   const json = args.includes("--json");
@@ -2540,7 +2540,7 @@ if (command === "security" && args[0] === "config" && args[1] === "keygen") {
 
 // --- alix security config sign --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "sign") {
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigSigner } = await import("./config/signing.js");
   const { ConfigMutationService } = await import("./config/mutation.js");
   try {
@@ -2577,7 +2577,7 @@ if (command === "security" && args[0] === "config" && args[1] === "sign") {
 
 // --- alix security config verify --- P4.3-Se3 ---
 if (command === "security" && args[0] === "config" && args[1] === "verify") {
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigSigner } = await import("./config/signing.js");
   const { ConfigMutationService } = await import("./config/mutation.js");
   try {
@@ -2664,7 +2664,7 @@ if (command === "security" && args[0] === "config" && args[1] === "allow-rollbac
     console.error('Usage: alix security config allow-rollback --reason "<reason>"');
     process.exit(1);
   }
-  const configDir = join(process.cwd(), ".alix", "config");
+  const configDir = join(process.cwd(), ".alix");
   const { ConfigMutationService } = await import("./config/mutation.js");
   const { ConfigSigner } = await import("./config/signing.js");
   try {

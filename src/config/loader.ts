@@ -205,7 +205,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     const publicKeyPem = typeof trustOpts === "object" ? (trustOpts.publicKeyPem ?? null) : null;
     const stampPath = typeof trustOpts === "object" ? (trustOpts.stampPath ?? undefined) : undefined;
 
-    const projectConfigDir = join(cwd, ".alix", "config");
+    const projectConfigDir = join(cwd, ".alix");
     let configVersion = 0;
     try {
       if (existsSync(projectConfigDir)) {
