@@ -27,7 +27,7 @@ import { getCapabilityService } from './capabilities/capability-service.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
 import type { CapabilityEmitContext } from './capabilities/invocation-presenter.js';
 import { appendLogEntry } from './log-emit.js';
-import { computeBottomAnchor } from './views/scroll-math.js';
+import { computeBottomAnchor, computeViewport } from './views/scroll-math.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -1070,11 +1070,7 @@ export class TuiApp {
    */
   private resetScrollOffsetToBottom(tab: 'agent' | 'chat'): void {
     const ctx = this.buildViewRenderContext(tab);
-    const FOOTER_H = 3;
-    const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
-    this.state.views[tab].scrollOffset = computeBottomAnchor(
-      ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow,
-    );
+    this.state.views[tab].scrollOffset = computeBottomAnchor(ctx, tab);
   }
 
   private dispatch(action: ViewAction): void {
@@ -1093,9 +1089,7 @@ export class TuiApp {
         const isAgentOrChat = tab === 'agent' || tab === 'chat';
         if (isAgentOrChat) {
           const ctx = this.buildViewRenderContext(tab);
-          const FOOTER_H = 3;
-          const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
-          const bottomAnchor = computeBottomAnchor(ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow);
+          const bottomAnchor = computeBottomAnchor(ctx, tab);
           const step = action.offset - per.scrollOffset;
 
           if (per.pinnedBottom && action.offset > 0) {
@@ -1593,13 +1587,13 @@ export class TuiApp {
       // ChatView.render); the `+bufLen+1` term tracks the typed buffer
       // length so the cursor rides at the end of any typed text.
       const bufLen = this.state.views.chat.inputBuffer.length;
-      const panelRow = Math.max(0, dims.rows - 3 - 1);
+      const panelRow = computeViewport(dims, 'chat').panelRow;
       this.output.write(`\x1b[${panelRow + 1};${7 + bufLen + 1}H`);
     } else if (this.state.activeTab === 'agent') {
       // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
       // ANSI cursor addresses are 1-based, so panelRow+1.
       const bufLen = this.state.views.agent.inputBuffer.length;
-      const panelRow = Math.max(0, dims.rows - 3 - 1);
+      const panelRow = computeViewport(dims, 'agent').panelRow;
       this.output.write(`\x1b[${panelRow + 1};${13 + bufLen + 1}H`);
     } else {
       // Non-input tabs (dashboard, daemon, approvals, runtime, sops,

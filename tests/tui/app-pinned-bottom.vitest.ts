@@ -110,8 +110,6 @@ describe('TuiApp pinnedBottom transitions', () => {
     const expected = computeBottomAnchor(
       (app as unknown as { buildViewRenderContext(tab: string): ViewRenderContext }).buildViewRenderContext('chat'),
       'chat',
-      Math.max(0, (process.stdout.columns ?? 80) - 4),
-      Math.max(0, (process.stdout.rows ?? 24) - 3 - 1),
     );
     expect(per.pinnedBottom).toBe(true);
     expect(per.scrollOffset).toBe(expected);
@@ -205,8 +203,6 @@ describe('TuiApp pinnedBottom transitions', () => {
     const expected = computeBottomAnchor(
       (app as unknown as { buildViewRenderContext(tab: string): ViewRenderContext }).buildViewRenderContext('agent'),
       'agent',
-      Math.max(0, (process.stdout.columns ?? 80) - 4),
-      Math.max(0, (process.stdout.rows ?? 24) - 3 - 1),
     );
     expect(expected).toBeGreaterThan(0);
     expect(per.scrollOffset).toBe(expected);

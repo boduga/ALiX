@@ -14,6 +14,7 @@ import {
   paintRuntimePanel,
   paintSopsAndPolicyPanel,
 } from '../dashboard-renderer.js';
+import { HEADER_H, FOOTER_H } from './scroll-math.js';
 
 /**
  * DashboardView — the default landing tab. Renders the same 4 panels
@@ -39,8 +40,6 @@ export class DashboardView implements TuiView {
     const cols = ctx.dimensions.columns;
     const rows = ctx.dimensions.rows;
 
-    const HEADER_H = 3;
-    const FOOTER_H = 3;
     const top = HEADER_H;
     const bottom = Math.max(top, rows - FOOTER_H - 1);
     const bodyH = Math.max(1, bottom - top + 1);

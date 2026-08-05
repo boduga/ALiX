@@ -2,7 +2,7 @@ import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
 import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
 import { renderSlashOverlay } from './slash-overlay.js';
-import { buildAgentScrollbackLines } from './scroll-math.js';
+import { buildAgentScrollbackLines, computeViewport } from './scroll-math.js';
 import { RESET } from '../ansi-constants.js';
 import type { TerminalCanvas } from '../canvas.js';
 
@@ -33,16 +33,8 @@ export class AgentView implements TuiView {
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-    const FOOTER_H = 3;
-    const PANEL_H = 0;
-    const PROMPT_COL = 13;
-    const SCROLLBACK_TOP = 6;          // rows 0-2 header, 3 blank, 4 status, 5 blank
+    const vp = computeViewport(ctx.dimensions, 'agent');
     const STATUS_ROW = 4;              // status line + intent badge row
-
-    const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - PANEL_H - 1);
-    const scrollbackBottom = panelRow - 1;
-    const scrollbackRows = Math.max(0, scrollbackBottom - SCROLLBACK_TOP + 1);
-    const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
     // Status line + intent badge — pinned at row 4, always visible.
     const r = ctx.snap.runtime;
@@ -59,12 +51,12 @@ export class AgentView implements TuiView {
     }
 
     // Line-builder lives in scroll-math.ts (single source of truth).
-    const allLines: ScrollbackLine[] = buildAgentScrollbackLines(ctx, textWidth);
+    const allLines: ScrollbackLine[] = buildAgentScrollbackLines(ctx, vp.textWidth);
 
     // Branch on pinnedBottom: pinned recomputes bottomAnchor fresh,
     // unpinned uses captured scrollOffset (absolute window-start index).
     const effectiveOffset = ctx.perTab.pinnedBottom
-      ? Math.max(0, allLines.length - scrollbackRows)
+      ? Math.max(0, allLines.length - vp.scrollbackRows)
       : ctx.perTab.scrollOffset;
 
     const kindStyles: KindStyleMap = {
@@ -78,8 +70,8 @@ export class AgentView implements TuiView {
     renderBottomAnchoredSlice({
       canvas: c,
       allLines,
-      top: SCROLLBACK_TOP,
-      bottomRow: scrollbackBottom,
+      top: vp.scrollbackTop,
+      bottomRow: vp.scrollbackBottom,
       offset: effectiveOffset,
       columns: ctx.dimensions.columns,
       kindStyles,
@@ -87,13 +79,13 @@ export class AgentView implements TuiView {
 
     // Input panel at panelRow.
     const buf = ctx.perTab.inputBuffer;
-    c.write(0, panelRow, `\x1b[33m alix-agent>${RESET} `);
-    c.write(PROMPT_COL, panelRow, buf);
-    c.write(PROMPT_COL + buf.length, panelRow, `\x1b[7m ${RESET}`);
+    c.write(0, vp.panelRow, `\x1b[33m alix-agent>${RESET} `);
+    c.write(vp.promptCol, vp.panelRow, buf);
+    c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
 
     // Slash strip directly BELOW the panel.
     if (ctx.slash) {
-      renderSlashOverlay({ canvas: c, slash: ctx.slash, panelRow, columns: ctx.dimensions.columns });
+      renderSlashOverlay({ canvas: c, slash: ctx.slash, panelRow: vp.panelRow, columns: ctx.dimensions.columns });
     }
 
     return { rows: [] };

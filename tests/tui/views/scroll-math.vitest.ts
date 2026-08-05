@@ -70,11 +70,11 @@ describe('computeBottomAnchor', () => {
     // separator before every turn after the first) = 199 allLines. With rows=30,
     // scrollbackTop=6, panelRow=26 → scrollbackRows=20 → bottomAnchor=199-20=179.
     // (Brief expected 80, but that ignored the blank-line separator rule.)
-    expect(computeBottomAnchor(ctx30, 'agent', 76, 26)).toBe(179);
+    expect(computeBottomAnchor(ctx30, 'agent')).toBe(179);
   });
 
   it('returns 0 when content fits in scrollbackRows', () => {
     const ctx3 = ctx(Array.from({ length: 3 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const })));
-    expect(computeBottomAnchor(ctx3, 'agent', 76, 26)).toBe(0);
+    expect(computeBottomAnchor(ctx3, 'agent')).toBe(0);
   });
 });
