@@ -1588,8 +1588,14 @@ export class TuiApp {
     // "flash" on every keypress as the full frame redraw overwrites the
     // cursor area.
     if (this.state.activeTab === 'chat') {
+      // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
+      // ANSI cursor addresses are 1-based, so panelRow+1. Column 7 is
+      // the post-`alix>` cursor position (mirrors `PROMPT_COL=7` in
+      // ChatView.render); the `+bufLen+1` term tracks the typed buffer
+      // length so the cursor rides at the end of any typed text.
       const bufLen = this.state.views.chat.inputBuffer.length;
-      this.output.write(`\x1b[5;${7 + bufLen + 1}H`);
+      const panelRow = Math.max(0, dims.rows - 3 - 1);
+      this.output.write(`\x1b[${panelRow + 1};${7 + bufLen + 1}H`);
     } else if (this.state.activeTab === 'agent') {
       // Bottom-anchored panel: prompt row = dims.rows - FOOTER_H(3) - 1.
       // ANSI cursor addresses are 1-based, so panelRow+1.

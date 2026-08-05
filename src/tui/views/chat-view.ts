@@ -1,120 +1,81 @@
 import type { PerTabState, TabId } from '../state.js';
 import type { ViewAction, ViewInputContext, ViewRenderContext, ViewRenderResult, TuiView } from './types.js';
-import { wrapText } from './wrap-text.js';
-import { renderResponse } from '../blocks/render.js';
-import { getTheme } from '../blocks/theme.js';
+import { renderBottomAnchoredSlice, type KindStyleMap, type ScrollbackLine } from './bottom-anchored-viewport.js';
+import { buildChatScrollbackLines } from './scroll-math.js';
+import { RESET } from '../ansi-constants.js';
+import type { TerminalCanvas } from '../canvas.js';
 
 /**
- * ChatView — default landing tab. Renders the input prompt placeholder
- * followed by a compact 4-panel coordinate-based dashboard (DAEMON,
- * APPROVALS, RUNTIME, SOPS & POLICY) when a canvas is provided via
- * `ctx.canvas`.  Falls back to the legacy string[] render path when
- * no canvas is available.
+ * ChatView — default landing tab. Lightweight conversation surface
+ * (no tool-loop, no slash commands). Renders the operator timeline
+ * as user prompts (→) interleaved with agent replies (←) and
+ * a bottom-anchored input panel.
+ *
+ * Layout mirrors AgentView (sans status row, slash strip, plan/approval
+ * rendering): header (rows 0-2), blank (3), scrollback (4..panelRow-1),
+ * panel (panelRow). pinnedBottom=true recomputes the bottom anchor on
+ * each paint; pinnedBottom=false uses the absolute window-start index
+ * captured by app.ts on scroll-up.
  *
  * Pure: render(ctx) never mutates ctx; same input → same output.
- * Passive: only reads from ctx.snap — does not import any subsystem.
  */
 export class ChatView implements TuiView {
   readonly id: TabId = 'chat';
 
   render(ctx: ViewRenderContext): ViewRenderResult {
     const c = ctx.canvas!;
-
-    // Prompt line with the current input buffer (placed below the 3-row header).
-    const buf = ctx.perTab.inputBuffer;
-    c.write(0, 4, '\x1b[33m alix>\x1b[0m ');
-    c.write(7, 4, buf);
-    // Draw the cursor at the end of the typed text.
-    c.write(7 + buf.length, 4, '\x1b[7m \x1b[0m');
-
-    // The 4-panel dashboard strip at the bottom of the chat tab is gone;
-    // the panels now live in the new `dashboard` tab. Scrollback uses
-    // the full vertical viewport (down to the tab bar at N-3). Floor
-    // at 0 so very small canvases still render a meaningful frame.
-    const PANEL_H = 0;
     const FOOTER_H = 3;
-    const startY = Math.max(0, ctx.dimensions.rows - PANEL_H - FOOTER_H);
+    const PANEL_H = 0;
+    const PROMPT_COL = 7;
+    const SCROLLBACK_TOP = 5;
 
-    // Scrollback area — alternate between user prompts (→) and
-    // agent responses (←). Long messages word-wrap into multiple rows so
-    // they don't truncate at the panel border; the marker only appears
-    // on the first line of each turn and continuation lines indent to
-    // align under the text.
-    const scrollbackTop = 5;
-    const scrollbackBottom = startY - 1;
-    const scrollbackRows = Math.max(0, scrollbackBottom - scrollbackTop + 1);
+    const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - PANEL_H - 1);
+    const scrollbackBottom = panelRow - 1;
+    const scrollbackRows = Math.max(0, scrollbackBottom - SCROLLBACK_TOP + 1);
     const textWidth = Math.max(0, ctx.dimensions.columns - 4);
 
-    // Flatten timeline → wrapped lines so very long messages occupy multiple
-    // rows instead of truncating at the right border. User prompts stay
-    // plain; agent responses go through the rich renderer so fenced
-    // code, lists, bold/italic, headings, and quotes get their own
-    // visual treatment.
-    interface ScrollbackLine { kind: 'user' | 'agent'; text: string; isFirst: boolean }
-    const allLines: ScrollbackLine[] = [];
+    // Line-builder lives in scroll-math.ts (single source truth).
+    const allLines: ScrollbackLine[] = buildChatScrollbackLines(ctx, textWidth);
 
-    // Unified operator timeline — the chat tab's log-projected timeline
-    // (Phase 6, D6/D9). `ctx.runtime.chat` is the chat sub-session's
-    // RuntimeSnapshot injected by TuiApp from the chat collector; the
-    // projection is already session-scoped and ordered by firstSequence
-    // (TimelineBuilder.snapshot), so this view only filters by kind.
-    // `chat.message` = user prompt (→), `chat.response` = agent reply /
-    // capability completion (←). User prompts, agent responses, and
-    // capability invocations interleave chronologically.
-    const events = (ctx.runtime?.chat?.timeline ?? [])
-      .filter((e) => e.kind === 'chat.message' || e.kind === 'chat.response');
-    // Blank-line separator between turns so each query breathes away from
-    // the previous response. A blank precedes a user event (except the very
-    // first user turn) AND an agent event when the immediately-preceding
-    // event was also an agent event (e.g. a resolution one-liner after a
-    // full response).
-    let prevKind: 'user' | 'agent' | undefined;
-    for (const event of events) {
-      const kind: 'user' | 'agent' = event.kind === 'chat.message' ? 'user' : 'agent';
-      const needsSeparator = prevKind !== undefined && (
-        kind === 'user' || (kind === 'agent' && prevKind === 'agent')
-      );
-      if (needsSeparator) allLines.push({ kind: 'user', text: '', isFirst: false });
-      prevKind = kind;
-      if (kind === 'user') {
-        const wrapped = wrapText(event.text ?? '', textWidth);
-        wrapped.forEach((line, j) => {
-          allLines.push({ kind: 'user', text: line, isFirst: j === 0 });
-        });
-      } else {
-        renderResponse(event.text ?? '', textWidth, ctx.themeName ? getTheme(ctx.themeName) : undefined).forEach((row, j) => {
-          allLines.push({ kind: 'agent', text: row.text, isFirst: j === 0 });
-        });
-      }
-    }
+    const effectiveOffset = ctx.perTab.pinnedBottom
+      ? Math.max(0, allLines.length - scrollbackRows)
+      : ctx.perTab.scrollOffset;
 
-    // Use scrollOffset so the user can scroll back through past responses
-    // with arrow keys. offset=0 shows the most recent lines (bottom).
-    const offset = ctx.perTab.scrollOffset;
-    const endIndex = Math.max(0, allLines.length - offset);
-    const startIndex = Math.max(0, endIndex - scrollbackRows);
-    const visible = allLines.slice(startIndex, endIndex);
-    for (let i = 0; i < visible.length; i++) {
-      const rowY = scrollbackTop + i;
-      const l = visible[i]!;
-      if (l.isFirst) {
-        const marker = l.kind === 'user' ? '\x1b[90m→ \x1b[0m'
-          : l.kind === 'agent' ? '\x1b[36m← \x1b[0m'
-          : '\x1b[35m⚡ \x1b[0m';
-        c.write(0, rowY, marker);
-        c.write(2, rowY, l.text);
-      } else {
-        // Continuation — indent under the text column (no marker).
-        c.write(2, rowY, l.text);
-      }
-    }
+    const kindStyles: KindStyleMap = {
+      user: (l, rowY) => this.renderChatLine('user', l, rowY, c),
+      agent: (l, rowY) => this.renderChatLine('agent', l, rowY, c),
+    };
 
-    // The 4 dashboard panels (DAEMON/APPROVALS/RUNTIME/SOPs) used to
-    // render here at the bottom of the chat tab. They now live in the
-    // new `dashboard` tab as the default landing surface.
+    renderBottomAnchoredSlice({
+      canvas: c,
+      allLines,
+      top: SCROLLBACK_TOP,
+      bottomRow: scrollbackBottom,
+      offset: effectiveOffset,
+      columns: ctx.dimensions.columns,
+      kindStyles,
+    });
 
-    // Return empty rows — the caller writes the full frame from the canvas.
+    const buf = ctx.perTab.inputBuffer;
+    c.write(0, panelRow, `\x1b[33m alix>${RESET} `);
+    c.write(PROMPT_COL, panelRow, buf);
+    c.write(PROMPT_COL + buf.length, panelRow, `\x1b[7m ${RESET}`);
+
     return { rows: [] };
+  }
+
+  private renderChatLine(kind: 'user' | 'agent', l: ScrollbackLine, rowY: number, c: TerminalCanvas): void {
+    // Verbatim chat-view.ts:100-109.
+    if (l.isFirst) {
+      const marker = kind === 'user' ? `\x1b[90m→ ${RESET}`
+        : kind === 'agent' ? `\x1b[36m← ${RESET}`
+        : `\x1b[35m⚡ ${RESET}`;
+      c.write(0, rowY, marker);
+      c.write(2, rowY, l.text);
+    } else {
+      // Continuation — indent under the text column (no marker).
+      c.write(2, rowY, l.text);
+    }
   }
 
   handleKey(key: string, ctx: ViewInputContext): ViewAction {
