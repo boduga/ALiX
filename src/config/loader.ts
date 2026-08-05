@@ -6,6 +6,8 @@ import { DEFAULT_CONFIG } from "./defaults.js";
 import type { AlixConfig, McpServerConfig, ModelTierConfig, SubagentConfig } from "./schema.js";
 import { validateConfig } from "./validator.js";
 import { CredentialStore } from "../security/credentials/credential-store.js";
+import { chooseBackend } from "../security/credentials/backend-selection.js";
+import { KeychainProvider } from "../security/credentials/keychain-provider.js";
 import { isCredentialReference, resolveCredential } from "../security/credentials/credential-reference.js";
 import { ConfigSigner, type TrustReport } from "./signing.js";
 import { ConfigMutationService } from "./mutation.js";
@@ -112,7 +114,16 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
       credentialStore = options.credentialStore;
     } else {
       try {
-        credentialStore = new CredentialStore();
+        // Honor the active backend selector (issue #350, Phase 2): after
+        // `alix credential migrate --to keychain` scrubs the plain-file
+        // store, loadConfig MUST read the keychain backend or the cred://
+        // references resolve to nothing. Still lazy — the keychain binding
+        // resolves inside the provider's load(), never at module import.
+        const backend = await chooseBackend();
+        credentialStore =
+          backend === "keychain"
+            ? new CredentialStore({ provider: new KeychainProvider() })
+            : new CredentialStore();
         await credentialStore.load();
       } catch (err) {
         throw new Error(

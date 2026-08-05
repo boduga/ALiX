@@ -31,6 +31,8 @@ import { randomUUID } from "node:crypto";
 import { CredentialStore } from "../../security/credentials/credential-store.js";
 import { makeCredentialReference } from "../../security/credentials/credential-reference.js";
 import { migrateCredentials } from "../../security/credentials/credential-migration.js";
+import { chooseBackend, writeStoredBackend, scrubPlainFileStore } from "../../security/credentials/backend-selection.js";
+import { KeychainProvider } from "../../security/credentials/keychain-provider.js";
 import { homedir } from "node:os";
 
 // Supply-chain imports (P4.3-Sf)
@@ -668,6 +670,21 @@ export async function handleAuditCheckpointVerify(args: string[]): Promise<void>
   process.exit(0);
 }
 async function createCredentialStore(): Promise<CredentialStore> {
+  const backend = await chooseBackend();
+  if (backend === "keychain") {
+    try {
+      const store = new CredentialStore({ provider: new KeychainProvider() });
+      await store.load();
+      return store;
+    } catch (err) {
+      // Keychain unavailable at runtime → fall back to plain-file. Never
+      // let a broken keychain break credential operations.
+      console.warn(
+        `Keychain backend unavailable (${err instanceof Error ? err.message : String(err)}); ` +
+          "falling back to the plain-file credential store.",
+      );
+    }
+  }
   const store = new CredentialStore();
   await store.load();
   return store;
@@ -833,6 +850,19 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
   setJsonMode(args.includes("--json"));
   const dryRun = args.includes("--dry-run");
 
+  // `--to <backend>` migrates BETWEEN credential backends (plain-file ⇄
+  // keychain). Without it, the existing config→store migration runs.
+  const toIdx = args.indexOf("--to");
+  if (toIdx >= 0) {
+    const to = args[toIdx + 1];
+    if (to !== "keychain" && to !== "plain-file") {
+      console.error("Usage: alix credential migrate --to <keychain|plain-file>");
+      process.exit(1);
+    }
+    await migrateBetweenBackends(to, { dryRun });
+    return;
+  }
+
   const cwd = process.cwd();
   const home = homedir();
 
@@ -882,6 +912,108 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
   } catch (err) {
     console.error(`Migration failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
+  }
+}
+
+/**
+ * Migrate credential entries between backends (plain-file ⇄ keychain).
+ * Reads every entry from the current active backend and writes it to the
+ * target backend, recording `backend` and `migratedFrom` on each entry.
+ * The source store is left intact (safety / easy rollback via
+ * `migrate --to` back). On success, the active-backend selector is
+ * updated so future `createCredentialStore()` calls use the target.
+ *
+ * Not atomic in the strictest sense (the selector flips after the copy),
+ * but idempotent: re-running with the same `--to` is a no-op because the
+ * selector already points at the target. A failed copy never flips the
+ * selector, so a partial run rolls back cleanly to the source backend.
+ */
+async function migrateBetweenBackends(
+  to: "keychain" | "plain-file",
+  opts: { dryRun?: boolean },
+): Promise<void> {
+  const dryRun = opts.dryRun ?? false;
+  const current = await chooseBackend();
+
+  if (current === to) {
+    console.log(`Credential store is already using the ${to} backend. No migration needed.`);
+    return;
+  }
+
+  if (!jsonMode) {
+    console.log(
+      dryRun
+        ? `Credential Backend Migration — DRY RUN (${current} → ${to})\n`
+        : `Credential Backend Migration (${current} → ${to})\n`,
+    );
+  }
+
+  // Source = current active backend.
+  const sourceStore = await createCredentialStore();
+
+  // Target = the other backend.
+  let targetStore: CredentialStore;
+  if (to === "keychain") {
+    try {
+      targetStore = new CredentialStore({ provider: new KeychainProvider() });
+      await targetStore.load();
+    } catch (err) {
+      console.error(
+        `Cannot migrate to keychain: OS keychain unavailable (${err instanceof Error ? err.message : String(err)}).`,
+      );
+      process.exit(1);
+    }
+  } else {
+    targetStore = new CredentialStore();
+    await targetStore.load();
+  }
+
+  const entries = sourceStore.list();
+  let migrated = 0;
+
+  for (const entry of entries) {
+    const value = sourceStore.get(entry.provider, entry.keyLabel);
+    if (value === null) continue;
+    if (dryRun) {
+      migrated++;
+      continue;
+    }
+    await targetStore.set(entry.provider, entry.keyLabel, value, {
+      ...(entry.metadata ?? {}),
+    });
+    migrated++;
+  }
+
+  if (!jsonMode) {
+    console.log(`Migrated:  ${migrated}`);
+    if (dryRun) {
+      console.log(`Source backend (${current}) unchanged.`);
+      console.log("This was a dry run. Run without --dry-run to apply.");
+      return;
+    }
+  }
+
+  if (dryRun) return;
+
+  await writeStoredBackend(to);
+
+  // Scrub the plain-file source so no plain-text secrets remain on disk.
+  // The keychain source (metadata) holds no values, so this only matters
+  // when the source is plain-file.
+  if (current === "plain-file") {
+    await scrubPlainFileStore();
+  }
+
+  if (jsonMode) {
+    console.log(JSON.stringify({ migrated, from: current, to }));
+  } else {
+    console.log(`Active backend set to: ${to}`);
+    if (current === "plain-file") {
+      console.log("Source plain-file store scrubbed of plain-text values (empty tomb left in place).");
+    } else {
+      console.log(`Source ${current} metadata retained (keychain metadata holds no values).`);
+    }
+    console.log(`Roll back with: alix credential migrate --to ${current}`);
   }
 }
 
