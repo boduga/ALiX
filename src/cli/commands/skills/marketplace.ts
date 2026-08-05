@@ -279,9 +279,23 @@ function skillDirFromGithubUrl(
   if (rest[0] === "blob" || rest[0] === "tree") {
     const ref = rest[1] ?? "HEAD";
     const segs = rest.slice(2); // drop blob/tree and the ref
-    if (segs.length === 0) return undefined;
+    if (segs.length === 0) {
+      // tree URL with no path (e.g. `tree/main`) — point at the repo root.
+      // Apply the same `skills/<name>` convention as the bare repo root.
+      return name ? { skillDir: `skills/${name}`, ref } : undefined;
+    }
     if (segs[segs.length - 1] === "SKILL.md") segs.pop(); // blob of SKILL.md → its dir
     if (segs.length === 0) return undefined;
+    // When a name is provided and the URL points at a parent dir (one
+    // path segment, e.g. `tree/main/skills`), append the name to form the
+    // skill dir. This matches the case where a marketplace is configured
+    // as `tree/main/skills` and a specific skill like `brainstorming`
+    // lives at `skills/brainstorming/`. For deeper URLs
+    // (e.g. `tree/main/skills/brainstorming`), the URL is already at the
+    // skill dir — use it as-is rather than doubling the name.
+    if (name && segs.length === 1) {
+      return { skillDir: `${segs[0]}/${name}`, ref };
+    }
     return { skillDir: segs.join("/"), ref };
   }
   return undefined; // some other github.com page (issues, releases, actions, …)

@@ -338,6 +338,51 @@ describe("fetchSkillPackage", () => {
       "repo-root + name defaults to HEAD",
     );
   });
+
+  it("appends the name to a parent-dir tree URL (superpowers layout)", async () => {
+    // Regression for the brainstorming partial-install: the marketplace
+    // is configured as `tree/main/skills` (a tree URL pointing at the
+    // skills parent dir), and a specific skill like `brainstorming`
+    // lives at `skills/brainstorming/`. The skillDir derivation must
+    // append the name to the parent dir, otherwise the prescan looks
+    // for `skills/SKILL.md` (which doesn't exist) and fetchSkillPackage
+    // returns null — the install then falls back to single-file fetch
+    // and the operator gets SKILL.md with no scripts/assets.
+    const urls: string[] = [];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      urls.push(url);
+      if (url.includes("api.github.com/repos/obra/superpowers/git/trees/main")) {
+        return treeResponse([
+          { path: "skills/brainstorming/SKILL.md" },
+          { path: "skills/brainstorming/scripts/dialogue.md" },
+        ]);
+      }
+      if (url.includes("raw.githubusercontent.com/obra/superpowers/main/skills/brainstorming/SKILL.md")) {
+        return new Response(skillBody("brainstorming"), { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      if (url.includes("raw.githubusercontent.com/obra/superpowers/main/skills/brainstorming/scripts/dialogue.md")) {
+        return new Response("# dialogue\n", { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("404", { status: 404 });
+    }) as typeof fetch;
+    const pkg = await fetchSkillPackage("https://github.com/obra/superpowers/tree/main/skills", {
+      name: "brainstorming",
+    });
+    assert.ok(pkg, "package fetched (not null)");
+    assert.deepEqual(
+      pkg.files.map((f) => f.relPath).sort(),
+      ["SKILL.md", "scripts/dialogue.md"],
+      "scripts/ should be present in the package",
+    );
+    // Prescan must NOT have probed skills/SKILL.md (the parent dir), only
+    // skills/brainstorming/SKILL.md. The latter is fetched; the former
+    // would 404.
+    assert.ok(
+      !urls.some((u) => u.includes("raw.githubusercontent.com/obra/superpowers/main/skills/SKILL.md")),
+      "prescan must not probe the parent dir's SKILL.md",
+    );
+  });
 });
 
 describe("listAvailableSkills", () => {
