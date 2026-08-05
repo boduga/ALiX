@@ -445,6 +445,84 @@ describe("resolveSkillInMarketplaces", () => {
       /Could not find skill 'nope' in 2 registered marketplaces/,
     );
   });
+
+  it("falls back to 2-deep skills/<category>/<name>/SKILL.md probe (mattpocock layout)", async () => {
+    // Regression for the resolver-depth gap: mattpocock/skills uses
+    // skills/engineering/<name>/SKILL.md which neither the root nor the
+    // skills/<name>/ probe can reach. The fix unwinds the static-path
+    // failure per marketplace, fetches the recursive tree to discover the
+    // categories, and tries `skills/<category>/<name>/SKILL.md` for each.
+    const mattpocock = { name: "mattpocock", url: "https://github.com/mattpocock/skills" };
+    const tree = {
+      tree: [
+        { path: "skills/engineering", type: "tree" },
+        { path: "skills/deprecated", type: "tree" },
+        { path: "skills/engineering/wayfinder/SKILL.md", type: "blob" },
+        { path: "skills/engineering/wayfinder/assets/diagram.md", type: "blob" },
+        { path: "README.md", type: "blob" },
+      ],
+    };
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      // Tree discovery.
+      if (url.includes("/git/trees/HEAD")) {
+        return new Response(JSON.stringify(tree), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      // 2-deep hit for the engineering probe.
+      if (url.endsWith("/skills/engineering/wayfinder/SKILL.md")) {
+        return new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      // All other static probes 404.
+      return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    const res = await resolveSkillInMarketplaces("wayfinder", [mattpocock]);
+    assert.equal(res.repoUrl, "https://github.com/mattpocock/skills");
+    assert.equal(res.content, VALID);
+  });
+
+  it("does not perform the tree fetch when the static 3-path probe succeeds", async () => {
+    // The category-discovery optimization only kicks in on the failure
+    // path. If the static probe hits, no tree fetch is issued — a
+    // regression that re-introduces an unconditional tree fetch would
+    // spam the GitHub API on every install.
+    let treeFetched = false;
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/git/trees/HEAD")) {
+        treeFetched = true;
+        return new Response(JSON.stringify({ tree: [] }), { status: 200, headers: { "content-type": "application/json" } });
+      }
+      if (url.endsWith("/skills/foo/SKILL.md")) {
+        return new Response(VALID, { status: 200, headers: { "content-type": "text/markdown" } });
+      }
+      return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    const mps = [{ name: "acme", url: "https://github.com/acme/skills" }];
+    const res = await resolveSkillInMarketplaces("foo", mps);
+    assert.equal(res.repoUrl, "https://github.com/acme/skills");
+    assert.equal(res.content, VALID);
+    assert.equal(treeFetched, false);
+  });
+
+  it("surfaces a clean failure when the tree fetch fails AND static paths fail", async () => {
+    // Defensive: if the tree fetch fails (network, rate limit), the
+    // resolver must record the marketplace failure using the original
+    // static-path error — not the transient tree error. The operator
+    // should see the canonical "Could not find skill 'x' in N
+    // marketplaces" message with the per-marketplace HTTP 404 detail.
+    const mps = [{ name: "broken", url: "https://github.com/broken/skills" }];
+    globalThis.fetch = (async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/git/trees/HEAD")) {
+        return new Response("rate limited", { status: 403, headers: { "content-type": "text/plain" } });
+      }
+      return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+    }) as typeof fetch;
+    await assert.rejects(
+      resolveSkillInMarketplaces("nope", mps),
+      /Could not find skill 'nope' in 1 registered marketplaces/,
+    );
+  });
 });
 
 describe("runMarketplaceCommand", () => {
