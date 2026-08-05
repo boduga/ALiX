@@ -25,6 +25,7 @@ import {
   writeStoredBackend,
   readStoredBackend,
   plainStorePath,
+  createCredentialStoreForBackend,
 } from "../../../src/security/credentials/backend-selection.js";
 import {
   setStateDirOverride,
@@ -96,6 +97,22 @@ test("backend-selection: fresh install with working keychain → keychain", asyn
     // binding is unavailable in CI, the test still accepts plain-file.
     const result = await chooseBackend();
     assert.ok(result === "keychain" || result === "plain-file", `got ${result}`);
+  } finally {
+    await cleanup(dir);
+  }
+});
+
+test("backend-selection: createCredentialStoreForBackend builds the right store type", async () => {
+  // The single construction factory: plain-file → plain-file backend,
+  // keychain → keychain backend. loadConfig, createCredentialStore, and
+  // migrateBetweenBackends all route through here.
+  const { dir } = await isolateStateDir();
+  try {
+    const plain = await createCredentialStoreForBackend("plain-file");
+    assert.equal(plain.backend, "plain-file");
+
+    const keychain = await createCredentialStoreForBackend("keychain");
+    assert.equal(keychain.backend, "keychain");
   } finally {
     await cleanup(dir);
   }

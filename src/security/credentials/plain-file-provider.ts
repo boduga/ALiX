@@ -36,6 +36,7 @@ import { randomUUID } from "node:crypto";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
 import {
   MAX_CREDENTIAL_ENTRIES,
+  lookupKey,
   type CredentialEntry,
   type StoreSchema,
 } from "./credential-store.js";
@@ -128,9 +129,9 @@ export class PlainFileProvider implements CredentialProvider {
   }
 
   get(provider: string, keyLabel: string): string | null {
-    const key = this.lookupKey(provider, keyLabel);
+    const key = lookupKey(provider, keyLabel);
     const found = this.store.credentials.find(
-      (c) => this.lookupKey(c.entry.provider, c.entry.keyLabel) === key
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
     );
     return found ? found.value : null;
   }
@@ -139,7 +140,8 @@ export class PlainFileProvider implements CredentialProvider {
     provider: string,
     keyLabel: string,
     value: string,
-    metadata?: Record<string, string>
+    metadata?: Record<string, string>,
+    migratedFrom?: string
   ): Promise<CredentialEntry> {
     if (!this.loaded) {
       throw new Error(
@@ -147,9 +149,9 @@ export class PlainFileProvider implements CredentialProvider {
       );
     }
 
-    const key = this.lookupKey(provider, keyLabel);
+    const key = lookupKey(provider, keyLabel);
     const existing = this.store.credentials.find(
-      (c) => this.lookupKey(c.entry.provider, c.entry.keyLabel) === key
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
     );
 
     if (existing) {
@@ -157,6 +159,9 @@ export class PlainFileProvider implements CredentialProvider {
       existing.entry.updatedAt = now();
       if (metadata !== undefined) {
         existing.entry.metadata = metadata;
+      }
+      if (migratedFrom !== undefined) {
+        existing.entry.migratedFrom = migratedFrom;
       }
       await this.persist();
       return { ...existing.entry };
@@ -176,6 +181,8 @@ export class PlainFileProvider implements CredentialProvider {
       encrypted: false,
       createdAt: now(),
       updatedAt: now(),
+      backend: "plain-file",
+      migratedFrom,
       metadata,
     };
 
@@ -191,9 +198,9 @@ export class PlainFileProvider implements CredentialProvider {
       );
     }
 
-    const key = this.lookupKey(provider, keyLabel);
+    const key = lookupKey(provider, keyLabel);
     const idx = this.store.credentials.findIndex(
-      (c) => this.lookupKey(c.entry.provider, c.entry.keyLabel) === key
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key
     );
 
     if (idx === -1) return false;
@@ -282,11 +289,5 @@ export class PlainFileProvider implements CredentialProvider {
     return true;
   }
 
-  // -----------------------------------------------------------------------
-  // Lookup key
-  // -----------------------------------------------------------------------
-
-  private lookupKey(provider: string, keyLabel: string): string {
-    return `${provider.toLowerCase()}:${keyLabel.toLowerCase()}`;
-  }
 }
+

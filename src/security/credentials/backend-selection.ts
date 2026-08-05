@@ -2,8 +2,9 @@
  * backend-selection.ts — the single decision point for which credential
  * backend is active (issue #350, Phase 2).
  *
- * `createCredentialStore` (in cli/commands/security.ts) is the ONLY caller
- * of `chooseBackend`. The selection rules satisfy both the impact-analysis
+ * `chooseBackend` is called from `createCredentialStore` (cli/commands/
+ * security.ts) and `loadConfig` (config/loader.ts) — both route through the
+ * same rules. The selection rules satisfy both the impact-analysis
  * constraint (no silent-on-load migration) and the Phase-2 goal (prefer
  * keychain when available):
  *
@@ -26,7 +27,13 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
-import { createKeychainEntryFactory } from "./keychain-provider.js";
+import { CredentialStore } from "./credential-store.js";
+import {
+  KeychainProvider,
+  resolveKeychainEntryFactory,
+  probeKeychainWith,
+  type KeychainEntryLike,
+} from "./keychain-provider.js";
 
 export type CredentialBackend = "keychain" | "plain-file";
 
@@ -101,12 +108,44 @@ export async function chooseBackend(): Promise<CredentialBackend> {
 
   // Fresh install → try keychain (empty source, zero migration risk).
   try {
-    const factory = await createKeychainEntryFactory();
-    const probe = factory("__alix_probe__");
-    probe.setPassword("__alix_probe__");
-    probe.deletePassword();
+    await probeKeychain();
     return "keychain";
   } catch {
     return "plain-file";
   }
 }
+
+/**
+ * Probe whether the OS keychain is usable, using a throwaway entry. The
+ * probe is the laziness boundary: a missing/broken binding or a missing
+ * Secret Service daemon throws, and callers fall back to plain-file. This
+ * is the ONLY place the keychain probe lives — backend selection and the
+ * keychain provider's load() both route through here.
+ */
+export async function probeKeychain(): Promise<void> {
+  const factory = await resolveKeychainEntryFactory();
+  probeKeychainWith(factory);
+}
+
+/**
+ * Build a CredentialStore for the given backend. The SINGLE construction
+ * site — `createCredentialStore` (cli), `migrateBetweenBackends` (cli),
+ * and `loadConfig` (loader) all route through here, so a future
+ * EncryptedFileProvider (Phase 3) is a one-line addition, not a three-way
+ * edit.
+ *
+ * The caller owns the fallback policy: this function throws if the chosen
+ * backend can't be constructed/loaded (e.g. the keychain daemon is gone).
+ * Each caller decides whether to try a weaker backend or fail.
+ */
+export async function createCredentialStoreForBackend(
+  backend: CredentialBackend,
+): Promise<CredentialStore> {
+  if (backend === "keychain") {
+    return new CredentialStore({ provider: new KeychainProvider() });
+  }
+  return new CredentialStore();
+}
+
+/** Probe type re-exported for callers that need the entry shape. */
+export type { KeychainEntryLike };

@@ -50,6 +50,7 @@ export interface CredentialProvider {
     keyLabel: string,
     value: string,
     metadata?: Record<string, string>,
+    migratedFrom?: string,
   ): Promise<CredentialEntry>;
 
   /** Delete a credential. Returns `true` when found and removed, `false` otherwise. */

@@ -31,7 +31,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import type { Entry } from "@napi-rs/keyring";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
-import type { CredentialEntry, StoreSchema } from "./credential-store.js";
+import { lookupKey, type CredentialEntry, type StoreSchema } from "./credential-store.js";
 import type { CredentialProvider } from "./credential-provider.js";
 
 /** The service identifier used for every keychain entry. */
@@ -56,7 +56,7 @@ export interface KeychainEntryLike {
  * command. This resolves the binding on first use and throws a descriptive
  * error the caller can catch (→ fall back to plain-file).
  */
-export async function createKeychainEntryFactory(): Promise<
+export async function resolveKeychainEntryFactory(): Promise<
   (name: string) => KeychainEntryLike
 > {
   let mod: typeof import("@napi-rs/keyring");
@@ -69,6 +69,24 @@ export async function createKeychainEntryFactory(): Promise<
     );
   }
   return (name: string) => new mod.Entry(KEYCHAIN_SERVICE, name);
+}
+
+/**
+ * The magic entry name used for the availability probe.
+ * @internal
+ */
+export const KEYCHAIN_PROBE_ENTRY = "__alix_probe__";
+
+/**
+ * Probe whether the keychain is usable through the given factory, using a
+ * throwaway entry. The single place the SET+DELETE round-trip lives; both
+ * `KeychainProvider.load()` and `backend-selection.probeKeychain()` route
+ * through here.
+ */
+export function probeKeychainWith(factory: (name: string) => KeychainEntryLike): void {
+  const probe = factory(KEYCHAIN_PROBE_ENTRY);
+  probe.setPassword(KEYCHAIN_PROBE_ENTRY);
+  probe.deletePassword();
 }
 
 export interface KeychainProviderOptions {
@@ -118,22 +136,20 @@ export class KeychainProvider implements CredentialProvider {
     // This is the laziness boundary: a missing/broken native module is
     // caught here (async), never at module import time.
     if (!this.injectedFactory && !this.resolvedFactory) {
-      this.resolvedFactory = await createKeychainEntryFactory();
+      this.resolvedFactory = await resolveKeychainEntryFactory();
     }
 
     // Confirm the keychain is usable before adopting this backend. Uses a
     // throwaway entry so a missing Secret Service / keychain daemon is
     // caught here, not on the first real credential.
-    const probe = this.entry("__alix_probe__");
-    probe.setPassword("__alix_probe__");
-    probe.deletePassword();
+    probeKeychainWith((name) => this.entry(name));
 
     this.metadata = await readMetadata(this.metadataPath);
     this.loaded = true;
   }
 
   get(provider: string, keyLabel: string): string | null {
-    const entry = this.entry(nameOf(provider, keyLabel));
+    const entry = this.entry(lookupKey(provider, keyLabel));
     try {
       return entry.getPassword();
     } catch {
@@ -146,8 +162,9 @@ export class KeychainProvider implements CredentialProvider {
     keyLabel: string,
     value: string,
     metadata?: Record<string, string>,
+    migratedFrom?: string,
   ): Promise<CredentialEntry> {
-    const name = nameOf(provider, keyLabel);
+    const name = lookupKey(provider, keyLabel);
     const existing = this.findEntry(provider, keyLabel);
 
     this.entry(name).setPassword(value);
@@ -155,6 +172,7 @@ export class KeychainProvider implements CredentialProvider {
     if (existing) {
       existing.entry.updatedAt = new Date().toISOString();
       if (metadata !== undefined) existing.entry.metadata = metadata;
+      if (migratedFrom !== undefined) existing.entry.migratedFrom = migratedFrom;
       await this.persistMetadata();
       return { ...existing.entry };
     }
@@ -165,6 +183,7 @@ export class KeychainProvider implements CredentialProvider {
       keyLabel,
       encrypted: true, // OS keychain encrypts at rest
       backend: "keychain",
+      migratedFrom,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       metadata,
@@ -175,16 +194,15 @@ export class KeychainProvider implements CredentialProvider {
   }
 
   async delete(provider: string, keyLabel: string): Promise<boolean> {
-    const entry = this.entry(nameOf(provider, keyLabel));
+    const entry = this.entry(lookupKey(provider, keyLabel));
     try {
       entry.deletePassword();
     } catch {
       return false; // not present in keychain
     }
+    const key = lookupKey(provider, keyLabel);
     const idx = this.metadata.credentials.findIndex(
-      (c) =>
-        c.entry.provider.toLowerCase() === provider.toLowerCase() &&
-        c.entry.keyLabel.toLowerCase() === keyLabel.toLowerCase(),
+      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key,
     );
     if (idx >= 0) this.metadata.credentials.splice(idx, 1);
     await this.persistMetadata();
@@ -218,11 +236,8 @@ export class KeychainProvider implements CredentialProvider {
   }
 
   private findEntry(provider: string, keyLabel: string) {
-    return this.metadata.credentials.find(
-      (c) =>
-        c.entry.provider.toLowerCase() === provider.toLowerCase() &&
-        c.entry.keyLabel.toLowerCase() === keyLabel.toLowerCase(),
-    );
+    const key = lookupKey(provider, keyLabel);
+    return this.metadata.credentials.find((c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key);
   }
 
   private async persistMetadata(): Promise<void> {
@@ -234,10 +249,6 @@ export class KeychainProvider implements CredentialProvider {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function nameOf(provider: string, keyLabel: string): string {
-  return `${provider.toLowerCase()}:${keyLabel.toLowerCase()}`;
-}
 
 async function readMetadata(path: string): Promise<StoreSchema> {
   if (!existsSync(path)) return { version: 1, credentials: [] };

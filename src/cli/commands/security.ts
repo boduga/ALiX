@@ -31,8 +31,12 @@ import { randomUUID } from "node:crypto";
 import { CredentialStore } from "../../security/credentials/credential-store.js";
 import { makeCredentialReference } from "../../security/credentials/credential-reference.js";
 import { migrateCredentials } from "../../security/credentials/credential-migration.js";
-import { chooseBackend, writeStoredBackend, scrubPlainFileStore } from "../../security/credentials/backend-selection.js";
-import { KeychainProvider } from "../../security/credentials/keychain-provider.js";
+import {
+  chooseBackend,
+  writeStoredBackend,
+  scrubPlainFileStore,
+  createCredentialStoreForBackend,
+} from "../../security/credentials/backend-selection.js";
 import { homedir } from "node:os";
 
 // Supply-chain imports (P4.3-Sf)
@@ -673,7 +677,7 @@ async function createCredentialStore(): Promise<CredentialStore> {
   const backend = await chooseBackend();
   if (backend === "keychain") {
     try {
-      const store = new CredentialStore({ provider: new KeychainProvider() });
+      const store = await createCredentialStoreForBackend("keychain");
       await store.load();
       return store;
     } catch (err) {
@@ -685,7 +689,7 @@ async function createCredentialStore(): Promise<CredentialStore> {
       );
     }
   }
-  const store = new CredentialStore();
+  const store = await createCredentialStoreForBackend("plain-file");
   await store.load();
   return store;
 }
@@ -918,10 +922,11 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
 /**
  * Migrate credential entries between backends (plain-file ⇄ keychain).
  * Reads every entry from the current active backend and writes it to the
- * target backend, recording `backend` and `migratedFrom` on each entry.
- * The source store is left intact (safety / easy rollback via
- * `migrate --to` back). On success, the active-backend selector is
- * updated so future `createCredentialStore()` calls use the target.
+ * target backend. `migratedFrom` is recorded on each target entry (the
+ * source backend); `backend` is set by the target provider. The source
+ * store is left intact (safety / easy rollback via `migrate --to` back).
+ * On success, the active-backend selector is updated so future
+ * `createCredentialStore()` calls use the target.
  *
  * Not atomic in the strictest sense (the selector flips after the copy),
  * but idempotent: re-running with the same `--to` is a no-op because the
@@ -951,21 +956,16 @@ async function migrateBetweenBackends(
   // Source = current active backend.
   const sourceStore = await createCredentialStore();
 
-  // Target = the other backend.
+  // Target = the other backend, via the single construction factory.
   let targetStore: CredentialStore;
-  if (to === "keychain") {
-    try {
-      targetStore = new CredentialStore({ provider: new KeychainProvider() });
-      await targetStore.load();
-    } catch (err) {
-      console.error(
-        `Cannot migrate to keychain: OS keychain unavailable (${err instanceof Error ? err.message : String(err)}).`,
-      );
-      process.exit(1);
-    }
-  } else {
-    targetStore = new CredentialStore();
+  try {
+    targetStore = await createCredentialStoreForBackend(to);
     await targetStore.load();
+  } catch (err) {
+    console.error(
+      `Cannot migrate to ${to}: backend unavailable (${err instanceof Error ? err.message : String(err)}).`,
+    );
+    process.exit(1);
   }
 
   const entries = sourceStore.list();
@@ -978,9 +978,10 @@ async function migrateBetweenBackends(
       migrated++;
       continue;
     }
-    await targetStore.set(entry.provider, entry.keyLabel, value, {
-      ...(entry.metadata ?? {}),
-    });
+    // Record `migratedFrom` on the entry (issue #350 metadata field): the
+    // source backend is what the entry came from. `backend` is set by the
+    // target provider itself. Existing metadata is carried over verbatim.
+    await targetStore.set(entry.provider, entry.keyLabel, value, entry.metadata, current);
     migrated++;
   }
 

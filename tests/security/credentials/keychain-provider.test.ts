@@ -103,6 +103,25 @@ test("KeychainProvider: metadata store never contains the value; entries flagged
   await rm(dir, { recursive: true, force: true });
 });
 
+test("KeychainProvider: set records migratedFrom as a top-level entry field", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-kc-mig-"));
+  const registry = new Map<string, FakeEntry>();
+  const provider = makeProvider({ metadataPath: join(dir, "metadata.json"), registry });
+
+  await provider.load();
+  const entry = await provider.set("openai", "apiKey", "sk-test", { source: "manual" }, "plain-file");
+
+  // migratedFrom is lifted to the top-level CredentialEntry field (issue
+  // #350 metadata spec), NOT buried in metadata.
+  assert.equal(entry.migratedFrom, "plain-file");
+  assert.equal(entry.backend, "keychain");
+  assert.equal(entry.metadata?.source, "manual");
+  const listed = provider.list()[0];
+  assert.equal(listed.migratedFrom, "plain-file");
+
+  await rm(dir, { recursive: true, force: true });
+});
+
 test("KeychainProvider: get returns null when the keychain entry is absent", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-kc-null-"));
   const registry = new Map<string, FakeEntry>();
