@@ -26,6 +26,71 @@ async function setupStore(): Promise<{ store: CredentialStore; dir: string; file
 }
 
 // ---------------------------------------------------------------------------
+// Provider abstraction (issue #350, Phase 1)
+// ---------------------------------------------------------------------------
+
+test("CredentialStore: delegates to an injected provider without breaking the public API", async () => {
+  // The facade must (a) accept a custom provider and (b) expose the same
+  // surface it always has, so the 47 downstream callers (config load, CLI
+  // credential commands) are untouched when a keychain/encrypted-file
+  // backend ships.
+  const calls: string[] = [];
+  const mockProvider = {
+    backend: "mock-backend",
+    load: async () => { calls.push("load"); },
+    get: (p: string, l: string) => { calls.push(`get:${p}:${l}`); return "mock-value"; },
+    set: async (p: string, l: string, v: string, m?: Record<string, string>) => {
+      calls.push(`set:${p}:${l}`);
+      return {
+        id: "mock-id",
+        provider: p,
+        keyLabel: l,
+        encrypted: false,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        metadata: m,
+      };
+    },
+    delete: async (p: string, l: string) => { calls.push(`delete:${p}:${l}`); return true; },
+    list: () => { calls.push("list"); return []; },
+    serialize: () => ({ version: 1, credentials: [] }),
+  };
+
+  const store = new CredentialStore({ provider: mockProvider as never });
+  await store.load();
+  const entry = await store.set("openai", "apiKey", "sk-test");
+  assert.equal(store.get("openai", "apiKey"), "mock-value");
+  assert.equal(store.has("openai", "apiKey"), true);
+  assert.equal(store.count, 0); // mock list returns []
+  assert.equal(store.maxEntries, MAX_CREDENTIAL_ENTRIES);
+  assert.equal(store.backend, "mock-backend");
+  assert.equal(entry.provider, "openai");
+  assert.ok(
+    calls.includes("load") && calls.includes("set:openai:apiKey") && calls.includes("get:openai:apiKey"),
+    `expected delegation calls; got ${calls.join(", ")}`,
+  );
+});
+
+test("CredentialStore: defaults to the plain-file provider with no options", async () => {
+  // The zero-arg constructor must still work and produce the file-backed
+  // provider — this is what loadConfig and the CLI factory rely on.
+  const store = new CredentialStore();
+  assert.equal(store.backend, "plain-file");
+  await store.load();
+});
+
+test("CredentialStore: accepts a filePath and still uses the plain-file provider", async () => {
+  // The pre-Phase-1 constructor shape (`{ filePath }`) must keep working —
+  // the existing credential-store tests rely on it.
+  const dir = await mkdtemp(join(tmpdir(), "alix-cred-path-"));
+  const filePath = join(dir, "credential-store.json");
+  const store = new CredentialStore({ filePath });
+  assert.equal(store.backend, "plain-file");
+  await store.load();
+  await rm(dir, { recursive: true, force: true });
+});
+
+// ---------------------------------------------------------------------------
 // CRUD operations
 // ---------------------------------------------------------------------------
 
