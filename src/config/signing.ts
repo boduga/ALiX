@@ -7,8 +7,10 @@
  *
  * Properties:
  * - Ed25519 key generation and PEM storage
- * - Canonical config hash covering all files in .alix/config/
- * - Signature stored as JSON in .alix/config/config.sig
+ * - Canonical config hash covering all files under .alix/ (config.json,
+ *   config.sig, provenance.jsonl — flat layout, not the legacy nested
+ *   `.alix/config/` dir)
+ * - Signature stored as JSON in .alix/config.sig
  * - Anti-rollback version stamp in user state directory
  * - Fail-closed: verification failure prevents load in production
  * - Key rotation support without silent trust of unknown keys

@@ -74,9 +74,23 @@ export type TrustedAlixConfig = AlixConfig & {
   _trustReport?: TrustReport;
 };
 
+/**
+ * The project-local ALiX directory (`<cwd>/.alix/`). This is the canonical
+ * single source of truth for the project-scoped ALiX state — config.json,
+ * config.sig, provenance.jsonl, and any future per-project files all live
+ * here. Use this helper instead of inlining `join(cwd, ".alix")` so the
+ * path convention lives in one place; a future change to nested-vs-flat
+ * layout (e.g. a per-machine subdir) is a one-line edit instead of a
+ * Shotgun-Surgery search-and-replace.
+ */
+export function projectConfigDir(cwd: string): string {
+  return join(cwd, ".alix");
+}
+
 export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): Promise<AlixConfig> {
   const userConfigPath = join(homedir(), ".config", "alix", "config.json");
-  const projectConfigPath = join(cwd, ".alix", "config.json");
+  const projectConfigDirResolved = projectConfigDir(cwd);
+  const projectConfigPath = join(projectConfigDirResolved, "config.json");
 
   const userConfig = existsSync(userConfigPath) ? await readJson(userConfigPath) : {};
   const projectConfig = existsSync(projectConfigPath) ? await readJson(projectConfigPath) : {};
@@ -205,11 +219,11 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     const publicKeyPem = typeof trustOpts === "object" ? (trustOpts.publicKeyPem ?? null) : null;
     const stampPath = typeof trustOpts === "object" ? (trustOpts.stampPath ?? undefined) : undefined;
 
-    const projectConfigDir = join(cwd, ".alix", "config");
+    const projectConfigDirResolved = projectConfigDir(cwd);
     let configVersion = 0;
     try {
-      if (existsSync(projectConfigDir)) {
-        const mutationService = new ConfigMutationService(projectConfigDir);
+      if (existsSync(projectConfigDirResolved)) {
+        const mutationService = new ConfigMutationService(projectConfigDirResolved);
         configVersion = await mutationService.getVersion();
       }
     } catch {
@@ -217,7 +231,7 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
     }
 
     const trustReport = await ConfigSigner.evaluateTrust(
-      projectConfigDir,
+      projectConfigDirResolved,
       publicKeyPem,
       configVersion,
       productionMode,

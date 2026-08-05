@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig, _setHomedirOverride, mergeConfig } from "../src/config/loader.js";
@@ -26,6 +27,57 @@ test("loadConfig throws when no config files exist (model is required)", async (
     );
   } finally {
     _setHomedirOverride(undefined);
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("ConfigMutationService writes to the flat .alix/config.json (path reconciliation)", async () => {
+  // Regression for the path-mismatch bug: ConfigMutationService used to
+  // expect a *nested* dir (`<cwd>/.alix/config/`) while loadConfig read
+  // the flat `<cwd>/.alix/config.json`. Sets wrote to the nested
+  // (non-existent) path; reads came from the flat file — operators saw
+  // the set "succeed" but the value never persisted. The fix is to pass
+  // the flat dir (`.alix`) to the mutation service; this test pins
+  // that mutation writes to the same file loadConfig reads.
+  const { ConfigMutationService } = await import("../src/config/mutation.js");
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-roundtrip-"));
+  try {
+    // Seed a config that passes validateConfig. The validator is strict
+    // about a handful of required fields; this is the minimal shape.
+    const validConfig = {
+      model: { provider: "deepseek", name: "deepseek-v4-flash" },
+      ui: { port: 3000, host: "127.0.0.1" },
+      context: { maxRepoMapTokens: 4000, repoMapMode: "lite" },
+      runtime: { provider: "process", commandTimeoutMs: 120000 },
+      permissions: {
+        default: "ask",
+        protectedPaths: [],
+        denyCommands: [],
+      },
+    };
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(join(dir, ".alix", "config.json"), JSON.stringify(validConfig));
+
+    // Construct the mutation service with the FLAT dir. Before the fix
+    // this was `<cwd>/.alix/config` (nested), and the write landed at
+    // a non-existent path. With the fix, the write lands at the flat
+    // config.json — the same file loadConfig reads.
+    const service = new ConfigMutationService(join(dir, ".alix"));
+    await service.read();
+    await service.set("model.provider", "openrouter");
+
+    // The flat config.json must now contain the new value on disk.
+    const onDisk = JSON.parse(
+      await readFile(join(dir, ".alix", "config.json"), "utf-8"),
+    );
+    assert.equal(onDisk.model.provider, "openrouter");
+
+    // The nested `config/config.json` (the pre-fix write target) must
+    // NOT exist — it's a phantom path, and writes to it would silently
+    // disappear because nothing reads from there.
+    const nestedExists = existsSync(join(dir, ".alix", "config", "config.json"));
+    assert.equal(nestedExists, false, "the nested config/config.json must not be created");
+  } finally {
     await rm(dir, { recursive: true, force: true });
   }
 });
