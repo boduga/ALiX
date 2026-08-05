@@ -27,6 +27,7 @@ import { getCapabilityService } from './capabilities/capability-service.js';
 import { ChatInvocationPresenter } from './capabilities/invocation-presenter.js';
 import type { CapabilityEmitContext } from './capabilities/invocation-presenter.js';
 import { appendLogEntry } from './log-emit.js';
+import { computeBottomAnchor } from './views/scroll-math.js';
 
 export interface TuiAppOptions {
   builder: SnapshotBuilder;
@@ -263,7 +264,48 @@ export class TuiApp {
   }
 
   /** Test seam: expose internal state for assertions. */
-  getStateForTest(): TuiAppState { return this.state; }
+  getStateForTest(): TuiAppState {
+    // Proxy wraps the live state so test-side mutations of `activeTab` go
+    // through the same transition path as a real user-driven switchTab call.
+    // Otherwise direct `state.activeTab = 'agent'` would skip the chat/agent
+    // pinnedBottom/scrollOffset reset and tests would diverge from production.
+    const self = this;
+    return new Proxy(this.state, {
+      set: (target, prop, value): boolean => {
+        if (prop === 'activeTab' && typeof value === 'string' && value !== target.activeTab) {
+          // Capture the OLD tab before the assignment so switchTab's
+          // `next === activeTab` guard doesn't early-return (it would,
+          // because we're about to write the same `value` it sees).
+          const prev = target.activeTab;
+          // Mirror `switchTab` exactly: history.push before the activeTab
+          // write (so `navigateBack()` has a target) and the per-tab
+          // panelFocus binding after (so `scrollFocusedPanel` routes
+          // `j`/`k` to the right panel on approvals/sops).
+          self.state.history.push(prev);
+          (target as unknown as Record<PropertyKey, unknown>)[prop] = value;
+          self.state.views[value as TabId].panelFocus =
+            value === 'approvals' || value === 'sops' ? value : null;
+          // Reset pinned state on chat/agent activation; for non-agent/chat
+          // tabs just paint so the new tab is visible.
+          if (value === 'agent' || value === 'chat') {
+            const nextPer = self.state.views[value as TabId];
+            nextPer.pinnedBottom = true;
+            nextPer.scrollOffset = 0;
+          }
+          // Fire the view-level onActivate/onDeactivate hooks (paintFullFrame
+          // is invoked inside paintFullFrame after we set up). The state
+          // transition itself is now done above; this mirrors what switchTab
+          // would have done if it didn't early-return on a same-tab write.
+          self.views[prev]?.onDeactivate?.(self.state.views[prev as TabId]);
+          self.views[value as TabId]?.onActivate?.(self.state.views[value as TabId]);
+          self.paintFullFrame();
+          return true;
+        }
+        (target as unknown as Record<PropertyKey, unknown>)[prop] = value;
+        return true;
+      },
+    }) as TuiAppState;
+  }
 
   // Test seams (mirroring getStateForTest)
   get slashManifestsForTest(): any[] { return this.slashManifests; }
@@ -664,6 +706,17 @@ export class TuiApp {
     }
 
     const view = this.views[tab]!;
+    // End / G / g → re-pin to bottom of scrollback (Claude-Code-style).
+    if ((tab === 'agent' || tab === 'chat') && (key === 'End' || key === 'G' || key === 'g')) {
+      const per = this.state.views[tab]!;
+      per.pinnedBottom = true;
+      const ctx = this.buildViewRenderContext(tab);
+      const FOOTER_H = 3;
+      const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
+      per.scrollOffset = computeBottomAnchor(ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow);
+      this.paintFullFrame();
+      return;
+    }
     const viewCtx: ViewInputContext = {
       snap: this.state.lastSnapshot,
       dimensions: { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
@@ -724,6 +777,14 @@ export class TuiApp {
     const text = parsed.rest.trim() || selected.name;
     this.slashHint = null;
     perTab.inputBuffer = '';
+    // `/clear` resets the scrollback — re-pin to bottom (empty timeline →
+    // bottomAnchor=0) and zero the offset. The actual clear of the runtime
+    // timeline is the responsibility of the agent session itself; here we
+    // only normalize the view state.
+    if (selected.name === 'clear' || selected.trigger === '/clear') {
+      perTab.pinnedBottom = true;
+      perTab.scrollOffset = 0;
+    }
     this.slashSelection = 0;
     this.emitTimelineLog('user', text, this.opts.agentSessionId);
     const skills = [canonicalSkillId(selected)];
@@ -824,7 +885,8 @@ export class TuiApp {
     // kind — chat submits route to the chat collector, agent submits to the
     // agent collector (Phase 6). The per-tab in-memory cache is gone.
     this.emitTimelineLog('agent', summary, kind === 'chat' ? this.opts.chatSessionId : this.opts.agentSessionId);
-    perTab.scrollOffset = 0; // auto-scroll to bottom on new response
+    // Auto-follow is now handled by the per-tab `pinnedBottom` flag plus the
+    // view's branched render logic; the app layer no longer clamps the offset.
     this.paintFullFrame();
   }
 
@@ -931,6 +993,13 @@ export class TuiApp {
     // so `J`/`K` keys pass through to the chat/agent input buffer.
     this.state.views[next].panelFocus =
       next === 'approvals' || next === 'sops' ? next : null;
+    // Re-pin scrollback to bottom on chat/agent activation — baseline for
+    // the scroll-up capture formula in `dispatch`'s `scroll` case.
+    if (next === 'agent' || next === 'chat') {
+      const nextPer = this.state.views[next];
+      nextPer.pinnedBottom = true;
+      nextPer.scrollOffset = 0;
+    }
     this.views[next]?.onActivate?.(this.state.views[next]);
     this.paintFullFrame();
   }
@@ -999,6 +1068,21 @@ export class TuiApp {
     return true;
   }
 
+  /**
+   * Build a `ViewRenderContext` for the given tab with the same dimensions
+   * and runtime the renderer would consume. Used by the scroll-math path to
+   * compute `bottomAnchor` at key-press time without invoking a render.
+   */
+  private buildViewRenderContext(tab: TabId): ViewRenderContext {
+    return {
+      snap: this.state.lastSnapshot as DashboardSnapshot,
+      dimensions: { columns: process.stdout.columns ?? 80, rows: process.stdout.rows ?? 24 },
+      perTab: this.state.views[tab]!,
+      themeName: this.opts.themeName,
+      runtime: { chat: this.chatRuntime, agent: this.agentRuntime },
+    };
+  }
+
   private dispatch(action: ViewAction): void {
     switch (action.type) {
       case 'handled': break;
@@ -1009,10 +1093,41 @@ export class TuiApp {
         }
         this.paintFullFrame();
         break;
-      case 'scroll':
-        this.state.views[this.state.activeTab].scrollOffset = Math.max(0, action.offset);
+      case 'scroll': {
+        const tab = this.state.activeTab;
+        const per = this.state.views[tab];
+        const isAgentOrChat = tab === 'agent' || tab === 'chat';
+        if (isAgentOrChat) {
+          const ctx = this.buildViewRenderContext(tab);
+          const FOOTER_H = 3;
+          const SCROLLBACK_TOP = tab === 'agent' ? 6 : 5;
+          const panelRow = Math.max(0, ctx.dimensions.rows - FOOTER_H - 1);
+          const bottomAnchor = computeBottomAnchor(ctx, tab, Math.max(0, ctx.dimensions.columns - 4), panelRow);
+          const step = action.offset - per.scrollOffset;
+
+          if (per.pinnedBottom && action.offset > 0) {
+            // Scroll-up from pinned: capture bottomAnchor - step.
+            // Invariant: per.scrollOffset is the baseline the view's handleKey
+            // just incremented from (0 while pinned). onActivate, End, and
+            // /clear must leave per.scrollOffset consistent with this baseline.
+            per.scrollOffset = Math.max(0, bottomAnchor - step);
+            per.pinnedBottom = false;
+          } else if (!per.pinnedBottom) {
+            // Scroll-up or scroll-down while unpinned: clamp, possibly re-engage.
+            const next = Math.max(0, Math.min(action.offset, bottomAnchor));
+            per.scrollOffset = next;
+            per.pinnedBottom = next === bottomAnchor;
+          }
+          // else (pinned && action.offset === 0): ArrowDown pressed while
+          // already pinned — no-op, stays pinned.
+          this.paintFullFrame();
+          break;
+        }
+        // Other tabs (runtime, approvals): unchanged.
+        per.scrollOffset = Math.max(0, action.offset);
         this.paintFullFrame();
         break;
+      }
       case 'switchTab':
         this.switchTab(action.tab);
         break;
@@ -1524,6 +1639,7 @@ function parseKey(buf: Buffer): string | null {
     if (buf[2] === 0x42) return 'ArrowDown';
     if (buf[2] === 0x43) return 'ArrowRight';
     if (buf[2] === 0x44) return 'ArrowLeft';
+    if (buf[2] === 0x46) return 'End';
     if (buf[2] === 0x5a) return 'Shift+Tab';
   }
   if (s.length === 1) return s;
