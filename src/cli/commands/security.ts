@@ -730,7 +730,53 @@ export async function handleCredentialGet(args: string[]): Promise<void> {
 // alix credential set
 // ---------------------------------------------------------------------------
 
+/**
+ * The literal keyword that triggers the interactive provider picker.
+ * When the first positional arg of `alix credential set` is this value
+ * (case-insensitive), the user is shown a numbered list of available
+ * providers instead of being expected to type one. Remaining args
+ * (`keyLabel`, `value`) are still honored if provided, so the picker
+ * can be combined with shell completion for the rest of the fields.
+ */
+const PROVIDER_PICKER_KEYWORD = "provider";
+
 export async function handleCredentialSet(args: string[]): Promise<void> {
+  // Branch: `alix credential set provider [keyLabel] [value]` — interactive
+  // provider picker. The `keyLabel` and `value` slots are optional; if
+  // missing, the user is prompted (keyLabel plain, value hidden).
+  if (args[0]?.toLowerCase() === PROVIDER_PICKER_KEYWORD) {
+    if (!process.stdin.isTTY) {
+      console.error(
+        "Usage: alix credential set <provider> <keyLabel> <value>\n" +
+          "(interactive `provider` keyword requires a TTY; supply the values as positional args in non-TTY contexts)",
+      );
+      process.exit(1);
+    }
+    const { resolveProviders, selectFromList } = await import("../helpers/provider-selection.js");
+    const { prompt, promptHidden } = await import("./prompt.js");
+    const providers = await resolveProviders();
+    if (providers.length === 0) {
+      console.error("No providers available to pick from.");
+      process.exit(1);
+    }
+    const picked = await selectFromList(
+      providers,
+      (p) => `${p.name} — ${p.apiKeySource}${p.reason ? ` (${p.reason})` : ""}`,
+      { header: "Select a provider:" },
+    );
+    if (!picked) {
+      console.error("No provider selected.");
+      process.exit(1);
+    }
+    const keyLabel = args[1] ?? (await prompt("Key label [apiKey]: ")) ?? "apiKey";
+    const value = args[2] ?? (await promptHidden("Value: "));
+    if (!value) {
+      console.error("Refusing to store an empty credential value.");
+      process.exit(1);
+    }
+    args = [picked.id, keyLabel, value];
+  }
+
   const provider = args[0];
   const keyLabel = args[1];
   const value = args[2];
