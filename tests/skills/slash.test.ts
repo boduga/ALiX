@@ -14,8 +14,12 @@ describe("parseSlashInput", () => {
   it("returns null for a non-slash buffer", () => {
     assert.equal(parseSlashInput("plain text"), null);
   });
-  it("returns null for exactly '/'", () => {
-    assert.equal(parseSlashInput("/"), null);
+  it("returns { command: '/', rest: '' } for exactly '/'", () => {
+    // Bare "/" is a valid slash input — represents "no token yet, list
+    // everything". The agent-tab strip activates on the leading slash so
+    // typing `/` immediately surfaces installed skills. The chat-tab
+    // palette-on-empty-input behavior is gated by the caller, not here.
+    assert.deepEqual(parseSlashInput("/"), { command: "/", rest: "" });
   });
   it("parses /name", () => {
     assert.deepEqual(parseSlashInput("/tdd"), { command: "/tdd", rest: "" });
@@ -58,6 +62,17 @@ describe("rankSkillMatches — ordering is a CONTRACT", () => {
   it("orders exact trigger > exact name > prefix trigger > prefix name > fuzzy", () => {
     const ranked = rankSkillMatches(all, "/tdd").map((s) => s.name);
     assert.deepEqual(ranked, ["a", "tdd", "b", "tddx", "t_d_d_extra"]);
+  });
+
+  it("returns every installed skill for bare '/' (no token yet, list everything)", () => {
+    // The agent-tab strip activates on the leading slash so `/` alone
+    // must surface every installed skill. rankSkillMatches returns all
+    // manifests that match a bucket — for `'/'`, bucket 3 (trigger prefix)
+    // hits every skill whose trigger starts with `/`, and bucket 4 (name
+    // prefix) hits every skill whose `/name` starts with `/`. Together
+    // every skill with either a trigger or a name surfaces.
+    const ranked = rankSkillMatches(all, "/").map((s) => s.name);
+    assert.deepEqual(ranked.sort(), [...all].map((s) => s.name).sort());
   });
 });
 

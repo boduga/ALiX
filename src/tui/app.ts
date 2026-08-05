@@ -399,18 +399,20 @@ export class TuiApp {
     }
   }
 
-  /** True when the AGENT-tab input is a slash command in progress (agent only). */
+  /** True when the AGENT-tab input is a slash command in progress (agent only).
+   *  Activates on the leading `/` itself so the strip surfaces immediately —
+   *  typing `/` shows every installed skill, additional letters filter. */
   private slashActive(): boolean {
     if (this.state.activeTab !== 'agent') return false;
     const buf = this.state.views.agent.inputBuffer;
-    return buf.startsWith('/') && buf.length > 1;
+    return buf.startsWith('/') && buf.length >= 1;
   }
 
   /** The current slash-command buffer, or null when not in slash mode (agent only). */
   private slashBuffer(): string | null {
     if (this.state.activeTab !== 'agent') return null;
     const buf = this.state.views.agent.inputBuffer;
-    return buf.startsWith('/') && buf.length > 1 ? buf : null;
+    return buf.startsWith('/') && buf.length >= 1 ? buf : null;
   }
 
   private cycleSlashSelection(delta: number): void {
@@ -418,6 +420,36 @@ export class TuiApp {
     if (!strip || strip.entries.length === 0) return;
     const n = strip.entries.length;
     this.slashSelection = (this.slashSelection + delta + n) % n;
+  }
+
+  /**
+   * Replace the agent-tab input buffer's slash token with the selected
+   * skill's primary slash name (trigger if present, else `/name`),
+   * preserving any rest. Used by Tab in slash mode. No-op when the
+   * strip is empty (no installed skills or zero matches).
+   *
+   * After completion the buffer is a fully-formed slash command — the
+   * operator can keep typing to refine the rest, press Enter to submit,
+   * or press Tab again to cycle. Selection resets to 0 so the next
+   * refine-typed letter starts from the top of the rankings.
+   */
+  private completeSlash(): boolean {
+    const buf = this.slashBuffer();
+    if (!buf) return false;
+    const parsed = parseSlashInput(buf);
+    if (!parsed) return false;
+    const matches = rankSkillMatches(this.slashManifests, parsed.command);
+    if (matches.length === 0) return false;
+    const idx = Math.min(this.slashSelection, matches.length - 1);
+    const selected = matches[idx];
+    const primary = skillSlashNames(selected)[0] ?? `/${selected.name}`;
+    // Use a trailing space when there's no rest so the operator can
+    // immediately start typing the rest of the prompt. When rest is
+    // already present, splice it back verbatim after the primary.
+    const rest = parsed.rest ? ` ${parsed.rest}` : ' ';
+    this.state.views.agent.inputBuffer = `${primary}${rest}`;
+    this.slashSelection = 0;
+    return true;
   }
 
   /** Build the strip passed to views; also refreshes slashSelection bounds. */
@@ -430,8 +462,21 @@ export class TuiApp {
     this.slashSelection = Math.min(this.slashSelection, Math.max(0, matches.length - 1));
     // Clear a stale hint whenever the buffer now matches a known skill — the
     // render branch is `if (hint) else if (entries)` so a stale hint would
-    // hide the recovering candidate strip until submit/restart.
-    if (matches.length > 0) this.slashHint = null;
+    // hide the recovering candidate strip until submit/restart. Otherwise
+    // surface a "no matches" hint so the operator gets feedback when typing
+    // a token that resolves to zero candidates (instead of a silent strip).
+    if (matches.length > 0) {
+      // Clear a stale "no match" hint once the buffer resolves to a known
+      // skill — but only when the operator has typed enough to disambiguate.
+      // A bare '/' buffer (parsed.command === '/') keeps whatever hint the
+      // submit-bail path set, so the operator sees persistent feedback for
+      // ambiguous Enter attempts.
+      if (parsed.command !== '/') this.slashHint = null;
+    } else if (this.slashManifests.length === 0) {
+      this.slashHint = 'no skills installed';
+    } else {
+      this.slashHint = `no skill matches ${parsed.command}`;
+    }
     return {
       entries: matches.slice(0, 8).map((m): SlashStripEntry => ({
         name: m.name,
@@ -459,9 +504,17 @@ export class TuiApp {
       this.handlePaletteKey(key);
       return;
     }
-    // Slash-command completion mode: Tab/Shift+Tab cycle strip selection.
+    // Slash-command completion mode: Tab completes the buffer to the
+    // selected skill's primary slash name (preserving any rest);
+    // Shift+Tab cycles the selection backward. Tab is intentionally
+    // non-cycling here — completion is the more useful primary action.
+    // The operator can refine the buffer with more letters and press Tab
+    // again to re-complete against the new ranking.
     if (this.slashActive()) {
-      if (key === 'Tab') { this.cycleSlashSelection(1); this.paintFullFrame(); return; }
+      if (key === 'Tab') {
+        if (this.completeSlash()) this.paintFullFrame();
+        return;
+      }
       if (key === 'Shift+Tab') { this.cycleSlashSelection(-1); this.paintFullFrame(); return; }
     }
     if (this.tryHandleGlobal(key)) return;
@@ -653,6 +706,15 @@ export class TuiApp {
     const buf = perTab.inputBuffer;
     const parsed = parseSlashInput(buf);
     if (!parsed) return;
+    // Bare `/` is "no token yet" — activating slash mode surfaces every
+    // installed skill, but Enter on bare `/` would auto-invoke the
+    // first-ranked skill as a free-text query, which is never what the
+    // operator wants. Bail with a hint and preserve the buffer so the
+    // operator can type or Tab/arrow to pick.
+    if (parsed.command === '/') {
+      this.slashHint = 'type a skill name, or Tab to cycle';
+      return;
+    }
     const matches = rankSkillMatches(this.slashManifests, parsed.command);
     if (matches.length === 0) {
       this.slashHint = `Unknown skill "${parsed.command}" — press Tab for completions.`;
