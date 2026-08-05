@@ -8,6 +8,11 @@
  * `KeychainProvider` / `EncryptedFileProvider` implement the same surface
  * without touching `CredentialStore` or its 47 downstream callers.
  *
+ * Selection: today this is the default provider constructed inside
+ * `CredentialStore` when no provider is injected. In Phase 2, selection
+ * moves to the `createCredentialStore` factory (keychain → encrypted →
+ * this plain-file fallback).
+ *
  * Security properties preserved from the original implementation:
  * - Atomic writes (temp file + rename)
  * - Restrictive permissions (0o600 file, 0o700 dir)

@@ -17,21 +17,25 @@
  * upstream, CRITICAL risk, 47 symbols):
  * 1. This interface must NOT leak to callers — `CredentialStore` stays the
  *    only public entry point.
- * 2. Provider selection happens in one factory (`createCredentialStore`),
- *    never inline at call sites.
+ * 2. Provider selection moves to one factory (`createCredentialStore`) in
+ *    Phase 2. TODAY the selection is inline in the `CredentialStore`
+ *    constructor (`options.provider ?? new PlainFileProvider(...)`) — the
+ *    phase boundary is deliberate, so Phase 1 changes nothing behaviorally.
  * 3. Providers must be lazy — a slow keychain probe or missing keychain
  *    daemon must never block `loadConfig`, which every CLI command reaches.
  */
 
-import type { CredentialEntry, StoredCredential, StoreSchema } from "./credential-store.js";
+import type { CredentialEntry, StoreSchema } from "./credential-store.js";
 
 /**
  * Persistence backend for the credential store.
  *
- * All methods are async (providers may need to reach an external service —
- * keychain daemon, network, etc.). Callers must await `load()` before any
- * read/write operation; behavior before `load()` is provider-specific but
- * SHOULD throw a descriptive error (the store's contract today).
+ * Async/sync split: `load`, `set`, `delete` are async (they may reach an
+ * external service — keychain daemon, network, disk). `get`, `list`,
+ * `serialize` are synchronous reads over the in-memory store and MUST NOT
+ * perform IO. Callers must await `load()` before any read/write operation;
+ * behavior before `load()` is provider-specific but SHOULD throw a
+ * descriptive error (the store's contract today).
  */
 export interface CredentialProvider {
   /** Load the store from backing storage. Idempotent; must precede get/set/delete. */

@@ -23,7 +23,6 @@
  * @module
  */
 
-import { getUserStatePaths } from "../platform/user-state-paths.js";
 import { PlainFileProvider } from "./plain-file-provider.js";
 import type { CredentialProvider } from "./credential-provider.js";
 
@@ -34,11 +33,10 @@ import type { CredentialProvider } from "./credential-provider.js";
 /** Maximum number of credential entries in the store. */
 export const MAX_CREDENTIAL_ENTRIES = 256;
 
-/** Schema version for forward compatibility. */
-const STORE_VERSION = 1;
-
-/** Default store file name within the credentials directory. */
-const STORE_FILENAME = "credential-store.json";
+// NOTE: STORE_VERSION and STORE_FILENAME are owned by the providers (see
+// plain-file-provider.ts). The facade must not redefine them — that was a
+// Phase-1 duplication the review flagged; the values live beside the
+// provider that persists them.
 
 // ---------------------------------------------------------------------------
 // Types
@@ -54,6 +52,17 @@ export interface CredentialEntry {
   encrypted: boolean;
   createdAt: string;
   updatedAt: string;
+  /**
+   * Which storage backend holds this entry: "plain-file" | "keychain" |
+   * "encrypted-file". Absent (undefined) on entries written before Phase 2
+   * records it. Surfaced for diagnostics and migration tooling.
+   */
+  backend?: string;
+  /**
+   * The backend this entry was migrated from, when it was moved to the
+   * current backend. Absent on freshly-written entries. Never the secret.
+   */
+  migratedFrom?: string;
   /** Optional arbitrary metadata attached to this credential. */
   metadata?: Record<string, string>;
 }
@@ -190,7 +199,3 @@ export class CredentialStore {
     return this.provider.backend;
   }
 }
-
-// Keep the module-level path helper available for any consumer that imports
-// it transitively via this module's types (no public export change).
-export { getUserStatePaths, STORE_VERSION, STORE_FILENAME };
