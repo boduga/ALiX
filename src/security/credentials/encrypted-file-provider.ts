@@ -14,41 +14,41 @@
  *
  * Security posture:
  * - Values never appear in plaintext on disk (the file is the ciphertext).
- * - Wrong passphrase → `argon2.verify` fails AND the GCM auth tag fails;
+ * - Wrong passphrase → the derived key is wrong → the GCM auth tag fails;
  *   the provider throws. There is deliberately NO fallback to plain-file
  *   on a wrong passphrase — silently downgrading would defeat the point.
+ * - The key is derived from passphrase + a random salt stored in the file.
+ *   The salt is key-DERIVING material but useless without the passphrase:
+ *   an attacker with file-read access cannot decrypt (the salt alone
+ *   yields no key). This is the critical property — the key must NOT be
+ *   derivable from anything stored alongside the ciphertext.
  * - Fail closed on corrupt/unsupported files (like PlainFileProvider).
  *
  * File format (on disk):
  *   {
  *     "version": 1,
  *     "kdf": "argon2id",
- *     "phc": "$argon2id$...",        // embeds salt + params
- *     "nonce": "<base64>",           // AES-GCM nonce
+ *     "salt": "<base64>",            // random per-file salt (key-deriving)
+ *     "nonce": "<base64>",           // AES-GCM nonce + auth tag
  *     "ciphertext": "<base64>"       // AES-256-GCM(JSON store)
  *   }
  *
- * Key derivation: `key = sha256(phc)`. The PHC string is deterministic for
- * (passphrase, salt, params), so re-deriving on unlock yields the same key;
- * sha256 just normalizes the PHC string to the 32 bytes AES needs.
+ * Key derivation: `key = argon2id(passphrase, salt, outputLen=32)`. The
+ * salt is random and stored alongside the ciphertext; the passphrase is
+ * NEVER stored. An attacker with the file alone cannot derive the key.
+ * Wrong passphrase → wrong key → GCM auth-tag failure → throw.
  */
 
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { randomUUID } from "node:crypto";
-import { hash as argon2Hash, verify as argon2Verify } from "@node-rs/argon2";
+import { hashRaw as argon2HashRaw } from "@node-rs/argon2";
 import { getUserStatePaths } from "../platform/user-state-paths.js";
-import {
-  MAX_CREDENTIAL_ENTRIES,
-  lookupKey,
-  type CredentialEntry,
-  type StoreSchema,
-} from "./credential-store.js";
+import { type StoreSchema } from "./credential-store.js";
 import { emptyStore } from "./plain-file-provider.js";
-import type { CredentialProvider } from "./credential-provider.js";
-import type { CredentialBackend } from "./backend-selection.js";
+import { MemoryCredentialProvider } from "./memory-credential-provider.js";
 
 /** Default store file name within the credentials directory. */
 const STORE_FILENAME = "encrypted-store.json";
@@ -73,7 +73,10 @@ export interface EncryptedFileProviderOptions {
 interface EncryptedEnvelope {
   version: number;
   kdf: "argon2id";
-  phc: string;
+  /** Base64 salt fed to argon2id. THE ONLY key-determining material stored. */
+  salt: string;
+  /** Argon2id parameters (raw string, informational; never used as a key). */
+  params?: string;
   nonce: string; // base64
   ciphertext: string; // base64
 }
@@ -84,29 +87,39 @@ function resolveStorePath(override?: string): string {
   return join(paths.dataDir, "credentials", STORE_FILENAME);
 }
 
-/** Derive the 32-byte AES key from the passphrase (via Argon2id PHC). */
-async function deriveKey(passphrase: string): Promise<{ key: Buffer; phc: string }> {
-  // A fresh salt per file; argon2 embeds it in the PHC string.
-  const salt = randomBytes(16);
-  const phc = await argon2Hash(passphrase, { salt });
-  const key = createHash("sha256").update(phc, "utf8").digest();
-  return { key, phc };
+/**
+ * Derive the 32-byte AES key from the passphrase + a random salt via
+ * Argon2id's RAW output (hashRaw → 32 bytes). The salt is the ONLY
+ * key-determining material stored in the file. The passphrase is NOT
+ * stored anywhere — an attacker with file-read access cannot derive the
+ * key without the passphrase, which is the entire point of Phase 3.
+ */
+async function deriveKey(
+  passphrase: string,
+  salt: Buffer,
+): Promise<Buffer> {
+  // hashRaw returns the raw 32-byte derived key (no PHC string involved —
+  // the PHC-string-as-key shortcut was the Phase-3 security flaw).
+  const raw = await argon2HashRaw(passphrase, { salt, outputLen: KEY_BYTES });
+  return Buffer.isBuffer(raw) ? raw : Buffer.from(raw);
 }
 
-/** Derive the key from a stored PHC (salt embedded). Verifies the passphrase. */
-async function unlockKey(passphrase: string, phc: string): Promise<Buffer> {
-  const ok = await argon2Verify(phc, passphrase);
-  if (!ok) {
-    throw new Error(
-      "Incorrect passphrase for the encrypted credential store. " +
-        "Set ALIX_CREDENTIAL_PASSPHRASE to the correct value.",
-    );
+/**
+ * Decrypt with a passphrase: re-derive the key from passphrase + stored
+ * salt, then let the GCM auth tag reject a wrong passphrase. The auth tag
+ * failure IS the "incorrect passphrase" signal — no separate argon2.verify
+ * needed (and none is done, since the raw salt can't be verified without
+ * the passphrase anyway).
+ */
+async function unlockKey(passphrase: string, env: EncryptedEnvelope): Promise<Buffer> {
+  const salt = Buffer.from(env.salt, "base64");
+  if (salt.length === 0) {
+    throw new Error("Encrypted credential store has no salt — unsupported or corrupt format.");
   }
-  // Deterministic given the stored PHC (which embeds salt + params).
-  return createHash("sha256").update(phc, "utf8").digest();
+  return deriveKey(passphrase, salt);
 }
 
-function encrypt(key: Buffer, store: StoreSchema): EncryptedEnvelope {
+function encrypt(key: Buffer, store: StoreSchema, salt: Buffer): EncryptedEnvelope {
   const nonce = randomBytes(NONCE_BYTES);
   const cipher = createCipheriv("aes-256-gcm", key, nonce);
   const plaintext = Buffer.from(JSON.stringify(store), "utf8");
@@ -115,7 +128,7 @@ function encrypt(key: Buffer, store: StoreSchema): EncryptedEnvelope {
   return {
     version: ENVELOPE_VERSION,
     kdf: "argon2id",
-    phc: "",
+    salt: salt.toString("base64"),
     nonce: Buffer.concat([nonce, tag]).toString("base64"), // nonce + GCM tag
     ciphertext: ciphertext.toString("base64"),
   };
@@ -144,17 +157,19 @@ function decrypt(key: Buffer, env: EncryptedEnvelope): StoreSchema {
 
 /**
  * Passphrase-encrypted file backend. Whole-store AES-256-GCM at rest.
+ * CRUD is inherited from MemoryCredentialProvider; this class only differs
+ * in how it persists the store (encrypt → write) and loads it (read →
+ * decrypt).
  */
-export class EncryptedFileProvider implements CredentialProvider {
+export class EncryptedFileProvider extends MemoryCredentialProvider {
   readonly backend = "encrypted-file";
 
   private readonly filePath: string;
   private readonly passphrase: string;
-  private store: StoreSchema;
-  private loaded = false;
-  private phc: string | undefined;
+  private salt: Buffer | undefined;
 
   constructor(options: EncryptedFileProviderOptions) {
+    super();
     if (!options.passphrase) {
       throw new Error(
         "EncryptedFileProvider requires a passphrase. Set ALIX_CREDENTIAL_PASSPHRASE or pass it explicitly.",
@@ -162,11 +177,10 @@ export class EncryptedFileProvider implements CredentialProvider {
     }
     this.filePath = options.filePath ?? resolveStorePath();
     this.passphrase = options.passphrase;
-    this.store = emptyStore();
   }
 
   // -----------------------------------------------------------------------
-  // CredentialProvider
+  // CredentialProvider (load only — CRUD inherited from the base)
   // -----------------------------------------------------------------------
 
   async load(): Promise<void> {
@@ -175,10 +189,9 @@ export class EncryptedFileProvider implements CredentialProvider {
     await mkdir(dirname(this.filePath), { recursive: true, mode: 0o700 });
 
     if (!existsSync(this.filePath)) {
-      // First run: derive a fresh key (generates a new salt) so a later
-      // persist has a key ready. The store stays empty.
-      const { key, phc } = await deriveKey(this.passphrase);
-      this.phc = phc;
+      // First run: generate a fresh salt (deferred — no key derivation
+      // needed until the first persist actually writes the file).
+      this.salt = randomBytes(16);
       this.store = emptyStore();
       this.loaded = true;
       return;
@@ -194,107 +207,30 @@ export class EncryptedFileProvider implements CredentialProvider {
           "Remove the file to reset, or restore from backup.",
       );
     }
-    if (!env || env.version !== ENVELOPE_VERSION || env.kdf !== "argon2id" || !env.phc || !env.nonce || !env.ciphertext) {
+    if (!env || env.version !== ENVELOPE_VERSION || env.kdf !== "argon2id" || !env.salt || !env.nonce || !env.ciphertext) {
       throw new Error(`Encrypted credential store at ${this.filePath} has an unsupported format.`);
     }
 
-    const key = await unlockKey(this.passphrase, env.phc);
-    this.phc = env.phc;
+    // Re-derive the key from passphrase + stored salt. A wrong passphrase
+    // yields a wrong key, and the GCM auth tag (checked inside decrypt)
+    // rejects it. The salt is key-deriving material but useless without
+    // the passphrase — an attacker with the file cannot decrypt.
+    const key = await unlockKey(this.passphrase, env);
+    this.salt = Buffer.from(env.salt, "base64");
     this.store = decrypt(key, env);
     this.loaded = true;
-  }
-
-  get(provider: string, keyLabel: string): string | null {
-    const key = lookupKey(provider, keyLabel);
-    const found = this.store.credentials.find(
-      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key,
-    );
-    return found ? found.value : null;
-  }
-
-  async set(
-    provider: string,
-    keyLabel: string,
-    value: string,
-    metadata?: Record<string, string>,
-    migratedFrom?: CredentialBackend,
-  ): Promise<CredentialEntry> {
-    if (!this.loaded) {
-      throw new Error("Encrypted credential store not loaded. Call load() before setting credentials.");
-    }
-
-    const key = lookupKey(provider, keyLabel);
-    const existing = this.store.credentials.find(
-      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key,
-    );
-
-    if (existing) {
-      existing.value = value;
-      existing.entry.updatedAt = new Date().toISOString();
-      if (metadata !== undefined) existing.entry.metadata = metadata;
-      if (migratedFrom !== undefined) existing.entry.migratedFrom = migratedFrom;
-      await this.persist();
-      return { ...existing.entry };
-    }
-
-    if (this.store.credentials.length >= MAX_CREDENTIAL_ENTRIES) {
-      throw new Error(
-        `Credential store is full: ${MAX_CREDENTIAL_ENTRIES} entries maximum. ` +
-          "Delete unused credentials before adding new ones.",
-      );
-    }
-
-    const entry: CredentialEntry = {
-      id: randomUUID(),
-      provider,
-      keyLabel,
-      encrypted: true,
-      backend: "encrypted-file",
-      migratedFrom,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      metadata,
-    };
-    this.store.credentials.push({ entry, value });
-    await this.persist();
-    return { ...entry };
-  }
-
-  async delete(provider: string, keyLabel: string): Promise<boolean> {
-    if (!this.loaded) {
-      throw new Error("Encrypted credential store not loaded. Call load() before deleting credentials.");
-    }
-    const key = lookupKey(provider, keyLabel);
-    const idx = this.store.credentials.findIndex(
-      (c) => lookupKey(c.entry.provider, c.entry.keyLabel) === key,
-    );
-    if (idx === -1) return false;
-    this.store.credentials.splice(idx, 1);
-    await this.persist();
-    return true;
-  }
-
-  list(): CredentialEntry[] {
-    return this.store.credentials.map((c) => ({ ...c.entry }));
-  }
-
-  serialize(): StoreSchema {
-    return this.store;
   }
 
   // -----------------------------------------------------------------------
   // Persistence (re-encrypt the whole store)
   // -----------------------------------------------------------------------
 
-  private async persist(): Promise<void> {
-    if (!this.phc) {
-      // No key yet (store created but never persisted). Derive one.
-      const { key, phc } = await deriveKey(this.passphrase);
-      this.phc = phc;
+  protected async persist(): Promise<void> {
+    if (!this.salt) {
+      this.salt = randomBytes(16);
     }
-    const key = createHash("sha256").update(this.phc, "utf8").digest();
-    const env = encrypt(key, this.store);
-    env.phc = this.phc;
+    const key = await deriveKey(this.passphrase, this.salt);
+    const env = encrypt(key, this.store, this.salt);
     await mkdir(dirname(this.filePath), { recursive: true, mode: 0o700 });
     await writeFile(this.filePath, JSON.stringify(env, null, 2) + "\n", { mode: 0o600 });
   }

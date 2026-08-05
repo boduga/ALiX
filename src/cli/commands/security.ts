@@ -37,7 +37,7 @@ import {
   scrubPlainFileStore,
   createCredentialStoreForBackend,
   loadCredentialStoreWithKeychainFallback,
-  CREDENTIAL_PASSPHRASE_ENV,
+  resolveCredentialPassphrase,
   type CredentialBackend,
 } from "../../security/credentials/backend-selection.js";
 import { homedir } from "node:os";
@@ -678,7 +678,11 @@ export async function handleAuditCheckpointVerify(args: string[]): Promise<void>
 }
 async function createCredentialStore(): Promise<CredentialStore> {
   const backend = await chooseBackend();
-  return loadCredentialStoreWithKeychainFallback(backend);
+  // Pass the hidden prompt so an encrypted-file store can be unlocked by
+  // typing the passphrase once per session (spec Phase 3). The loader does
+  // NOT pass a prompt — config load must never block on interactive input.
+  const { promptHidden } = await import("./prompt.js");
+  return loadCredentialStoreWithKeychainFallback(backend, undefined, promptHidden);
 }
 
 // ---------------------------------------------------------------------------
@@ -851,9 +855,10 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
       console.error("Usage: alix credential migrate --to <keychain|plain-file|encrypted-file>");
       process.exit(1);
     }
-    const passphraseIdx = args.indexOf("--passphrase");
-    const explicitPassphrase = passphraseIdx >= 0 ? args[passphraseIdx + 1] : undefined;
-    await migrateBetweenBackends(to as CredentialBackend, { dryRun, explicitPassphrase });
+    // No --passphrase flag: a CLI-arg passphrase would land in shell history
+    // and the process list. Passphrases come from ALIX_CREDENTIAL_PASSPHRASE
+    // (headless) or an interactive hidden prompt (TTY).
+    await migrateBetweenBackends(to as CredentialBackend, { dryRun });
     return;
   }
 
@@ -925,7 +930,7 @@ export async function handleCredentialMigrate(args: string[]): Promise<void> {
  */
 async function migrateBetweenBackends(
   to: CredentialBackend,
-  opts: { dryRun?: boolean; explicitPassphrase?: string },
+  opts: { dryRun?: boolean },
 ): Promise<void> {
   const dryRun = opts.dryRun ?? false;
   const current = await chooseBackend();
@@ -937,9 +942,11 @@ async function migrateBetweenBackends(
 
   // Resolve the passphrase only when an encrypted-file backend is involved
   // (source OR target). Wrong/missing passphrase must surface loudly.
+  // Env var (headless) → interactive hidden prompt (TTY) → error.
   let passphrase: string | undefined;
   if (current === "encrypted-file" || to === "encrypted-file") {
-    passphrase = await resolveMigratePassphrase(opts.explicitPassphrase);
+    const { promptHidden } = await import("./prompt.js");
+    passphrase = await resolveCredentialPassphrase(undefined, promptHidden);
   }
 
   if (!jsonMode) {
@@ -1024,26 +1031,6 @@ async function migrateBetweenBackends(
     }
     console.log(`Roll back with: alix credential migrate --to ${current}`);
   }
-}
-
-/**
- * Resolve the encrypted-file passphrase for a migration: explicit
- * `--passphrase` flag → env var → interactive hidden prompt → error.
- * The interactive prompt keeps the passphrase out of shell history.
- */
-async function resolveMigratePassphrase(explicit?: string): Promise<string> {
-  if (explicit) return explicit;
-  const fromEnv = process.env[CREDENTIAL_PASSPHRASE_ENV];
-  if (fromEnv && fromEnv.length > 0) return fromEnv;
-  if (process.stdin.isTTY) {
-    const { promptHidden } = await import("./prompt.js");
-    const value = await promptHidden("Encrypted store passphrase: ");
-    if (value && value.length > 0) return value;
-  }
-  console.error(
-    `Encrypted credential store needs a passphrase. Use --passphrase <value> or set ${CREDENTIAL_PASSPHRASE_ENV}.`,
-  );
-  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------

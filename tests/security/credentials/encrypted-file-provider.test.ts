@@ -61,6 +61,41 @@ test("EncryptedFileProvider: the on-disk file contains no plaintext values", asy
   }
 });
 
+test("EncryptedFileProvider: the salt alone does NOT reveal the key (passphrase required)", async () => {
+  // Regression for the Phase-3 security flaw: the key was previously
+  // `sha256(phc)` where `phc` (an argon2 output) was stored IN the file.
+  // An attacker with file-read access could read `phc` and compute the
+  // key with NO passphrase — at-rest encryption was a no-op. Now the key
+  // is `argon2id(passphrase, salt)`: the stored salt is key-DERIVING
+  // material, but without the passphrase it yields nothing. This test
+  // proves the file's salt+ciphertext cannot be decrypted by a party
+  // without the passphrase (the GCM auth tag rejects any wrong key).
+  const dir = await mkdtemp(join(tmpdir(), "alix-enc-"));
+  const provider = makeProvider(dir, PASSPHRASE);
+  const filePath = join(dir, "encrypted-store.json");
+  try {
+    await provider.load();
+    await provider.set("openrouter", "apiKey", "sk-super-secret");
+
+    // The on-disk envelope contains a salt and ciphertext but NEVER the
+    // passphrase, and the key is not derivable from anything in it.
+    const raw = await readFile(filePath, "utf-8");
+    assert.ok(!raw.includes(PASSPHRASE), "passphrase must never appear in the file");
+    assert.ok(!raw.includes("sha256"), "no sha256-of-derived-material shortcut");
+    const env = JSON.parse(raw);
+    assert.ok(env.salt, "envelope stores the salt");
+    assert.ok(!env.phc, "no PHC string (the old key-revealing shortcut)");
+    assert.ok(!raw.includes("sk-super-secret"), "no plaintext value");
+
+    // A fresh provider with the WRONG passphrase cannot decrypt even though
+    // it reads the exact same salt + ciphertext.
+    const attacker = makeProvider(dir, "attacker-guesses-passphrase");
+    await assert.rejects(attacker.load(), /Failed to decrypt|Incorrect/);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("EncryptedFileProvider: wrong passphrase fails to unlock", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-enc-"));
   const provider = makeProvider(dir, PASSPHRASE);

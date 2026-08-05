@@ -135,25 +135,28 @@ test("backend-selection: readStoredBackend accepts encrypted-file", async () => 
   }
 });
 
-test("backend-selection: resolveCredentialPassphrase reads the env var", () => {
+test("backend-selection: resolveCredentialPassphrase reads the env var", async () => {
   const prev = process.env[CREDENTIAL_PASSPHRASE_ENV];
   try {
     process.env[CREDENTIAL_PASSPHRASE_ENV] = "env-pass";
-    assert.equal(resolveCredentialPassphrase(), "env-pass");
+    assert.equal(await resolveCredentialPassphrase(), "env-pass");
   } finally {
     if (prev === undefined) delete process.env[CREDENTIAL_PASSPHRASE_ENV];
     else process.env[CREDENTIAL_PASSPHRASE_ENV] = prev;
   }
 });
 
-test("backend-selection: resolveCredentialPassphrase throws when unset", () => {
+test("backend-selection: resolveCredentialPassphrase throws when unset (non-TTY)", async () => {
   const prev = process.env[CREDENTIAL_PASSPHRASE_ENV];
+  const prevTty = process.stdin.isTTY;
   try {
     delete process.env[CREDENTIAL_PASSPHRASE_ENV];
-    assert.throws(() => resolveCredentialPassphrase(), /ALIX_CREDENTIAL_PASSPHRASE/);
+    Object.defineProperty(process.stdin, "isTTY", { value: false, configurable: true });
+    await assert.rejects(resolveCredentialPassphrase(), /ALIX_CREDENTIAL_PASSPHRASE/);
   } finally {
     if (prev === undefined) delete process.env[CREDENTIAL_PASSPHRASE_ENV];
     else process.env[CREDENTIAL_PASSPHRASE_ENV] = prev;
+    Object.defineProperty(process.stdin, "isTTY", { value: prevTty, configurable: true });
   }
 });
 
