@@ -69,3 +69,17 @@ Currently cached (all at `.opensrc/repos/` → `~/.opensrc/repos/`):
 - `pewdiepie-archdaemon/odysseus` — `.opensrc/repos/github.com/pewdiepie-archdaemon/odysseus/dev/`
 
 Add more with: `npx opensrc fetch <org/repo>`
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues (repo `boduga/ALiX`); use the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Five canonical triage roles map to `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: read `CONTEXT.md` at the repo root and `docs/adr/` when they exist; proceed silently if absent. See `docs/agents/domain.md`.
