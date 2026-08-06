@@ -21,7 +21,8 @@ import {
   buildChatPrompt,
   buildExternalRetrievalPrompt,
   buildIntentMetadataBlock,
-} from "../../src/agent/route-prompts.js";
+  threadCanonicalIntent,
+} from "../../src/runtime/route-prompts.js";
 
 describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
   describe("deterministic per canonical intent", () => {
@@ -477,5 +478,31 @@ describe("buildIntentMetadataBlock — Layer 3 SYSTEM_PROMPT intent threading (T
         expect(buildChatPrompt(intent).systemPrompt).toMatch(/ALiX/);
       }
     });
+  });
+});
+
+describe("threadCanonicalIntent — shared module public API (T20 #397)", () => {
+  it("prepends the intent metadata block to a base prompt", () => {
+    const base = "You are ALiX in a custom session.";
+    const composed = threadCanonicalIntent(base, "generation");
+    expect(composed.startsWith(buildIntentMetadataBlock("generation"))).toBe(true);
+    expect(composed.endsWith(base)).toBe(true);
+  });
+
+  it("is deterministic — same base + intent → identical output", () => {
+    const base = "Custom base prompt";
+    expect(threadCanonicalIntent(base, "planning")).toBe(
+      threadCanonicalIntent(base, "planning"),
+    );
+  });
+
+  it("accepts exactly two arguments (base + intent, no raw text re-derivation)", () => {
+    expect(threadCanonicalIntent.length).toBe(2);
+  });
+
+  it("does not mutate the base prompt argument", () => {
+    const base = "Custom base prompt";
+    threadCanonicalIntent(base, "arithmetic");
+    expect(base).toBe("Custom base prompt");
   });
 });

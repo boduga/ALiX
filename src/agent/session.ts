@@ -96,8 +96,7 @@ import {
   type RuntimeContext,
 } from "../runtime/route-executor.js";
 import type { TaskRoute } from "../runtime/task-router.js";
-import { buildDirectPrompt } from "./route-prompts.js";
-import { buildChatPrompt } from "./route-prompts.js";
+import { buildDirectPrompt, buildChatPrompt } from "../runtime/route-prompts.js";
 import {
   createWorkflowRun,
   transitionWorkflowStatus,

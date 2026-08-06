@@ -7,7 +7,7 @@
  */
 
 import type { TaskRoute, RouteDiagnostic } from "./task-router.js";
-import { buildExternalRetrievalPrompt } from "../agent/route-prompts.js";
+import { buildExternalRetrievalPrompt } from "./route-prompts.js";
 
 /** Re-export RouteDiagnostic so callers can import it from one place. */
 export type { RouteDiagnostic } from "./task-router.js";

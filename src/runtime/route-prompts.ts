@@ -1,5 +1,5 @@
-// src/agent/route-prompts.ts
-// Layer 3 prompt construction (T16 #393 + T17 #394, wayfinder map #392).
+// src/runtime/route-prompts.ts
+// Layer 3 prompt construction (T16 #393 + T17 #394 + T20 #397, wayfinder map #392).
 //
 // Consumes canonical-intent labels emitted by Layer 1 (src/runtime/action-classifier.ts).
 // Does NOT re-classify raw prompt text — the function signature carries no raw
@@ -91,6 +91,23 @@ export function buildIntentMetadataBlock(intent: ActionIntent): string {
  */
 function withIntentMetadata(intent: ActionIntent, body: string): string {
   return `${buildIntentMetadataBlock(intent)}${body}`;
+}
+
+/**
+ * Thread a canonical-intent label into an arbitrary base prompt.
+ *
+ * Public API for callers who compose their own system prompts (e.g., the
+ * agent-loop, future T19-style threading at session start). Prepends the
+ * structured `[Canonical intent: <intent>]` metadata block to the base.
+ *
+ * Layer 3 invariant: takes the label and the base, returns the composed
+ * prompt. No raw prompt text is accepted.
+ */
+export function threadCanonicalIntent(
+  basePrompt: string,
+  intent: ActionIntent,
+): string {
+  return `${buildIntentMetadataBlock(intent)}${basePrompt}`;
 }
 
 const RETRIEVAL_TOOLS: PromptToolDef[] = [

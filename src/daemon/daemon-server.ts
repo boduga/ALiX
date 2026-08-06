@@ -26,7 +26,7 @@ import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
-import { buildExternalRetrievalPrompt } from "../agent/route-prompts.js";
+import { buildExternalRetrievalPrompt } from "../runtime/route-prompts.js";
 import { recordWorkspaceActivity } from "./workspace-registry.js";
 
 const args = process.argv.slice(2);
