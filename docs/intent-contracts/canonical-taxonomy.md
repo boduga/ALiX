@@ -83,8 +83,8 @@ shapes the label's surface.**
 
 | Canonical intent | Layer-1 owner | Layer-3 consumer | Layer-4 consumer | Status |
 |---|---|---|---|---|
-| `arithmetic` | `classifyAction` (`action-classifier.ts:385`) | `taskRouter` (`task-router.ts:363`) | `session.ts:973` (hardcoded) | Active |
-| `generation` | `classifyAction` (`action-classifier.ts:422`, `GENERATION_SIGNALS`) | `taskRouter` (`task-router.ts:454` for model fallback, line 412 for deterministic) | `session.ts:973` (hardcoded) | Active |
+| `arithmetic` | `classifyAction` (`action-classifier.ts:385`) | `taskRouter` (`task-router.ts:363`) | `route-prompts.ts` `buildDirectPrompt` (T16 #393) | Active |
+| `generation` | `classifyAction` (`action-classifier.ts:422`, `GENERATION_SIGNALS`) | `taskRouter` (`task-router.ts:454` for model fallback, line 412 for deterministic) | `route-prompts.ts` `buildDirectPrompt` (T16 #393) | Active |
 | `external_retrieval` | `classifyAction` (`action-classifier.ts:414`, `RETRIEVAL_SIGNALS`) | `taskRouter` (`task-router.ts:413`) | grounded_chat executor | Active |
 | `workspace_state` | `classifyAction` + `WORKSPACE_ANCHORS` (workspace-state subset) | `taskRouter` (`task-router.ts:439`) | agent loop → `isReadOnlyTask` carve-out | **Recognition contract pending T7** |
 | `workspace_mutation` | `classifyAction` + new recognizer | `taskRouter` (legacy fallback `hasWorkspaceWriteIntent` at line 475) | agent loop | **Recognition contract pending T8** |
@@ -117,7 +117,7 @@ consuming a previously-computed canonical-intent label from the chain. Each
 finding names the file, the line, the kind of violation, and the proposed
 follow-on.
 
-### Finding 1 — `src/agent/session.ts:973` (Layer 4 prompt gap)
+### Finding 1 — `src/agent/session.ts:973` (Layer 4 prompt gap — RESOLVED by T16 #393)
 
 ```ts
 const directBasePrompt =
@@ -129,11 +129,16 @@ canonical intent** — every prompt routed to `kind: "direct"` gets the same
 one-liner, regardless of whether the canonical intent was `arithmetic`,
 `generation`, or fallback.
 
-This is the documented **Layer 3 gap** on the wayfinder map. It is **out of
-scope** for this map (Layer 3 belongs to a future map). It is recorded here so
-that the closed-world test can pin *only* the deterministic chain up to and
-including Layer 3, and so that the future Layer 3 map inherits a known
-inventory of re-classification sites.
+**Status: RESOLVED by T16 (#393).** `session.ts:973` now calls
+`buildDirectPrompt(route.diagnostic.classification)`, and prompt construction
+lives in `src/runtime/route-prompts.ts` (the Layer 4 Prompt module).
+
+Per the note on layer numbering in `layer-3-prompt-audit.md`, the chain
+definition below is authoritative: prompt construction is **Layer 4** — it
+consumes the canonical-intent label propagated forward by the Layer 3
+`ExecutionRoute` dispatch. (The wayfinder map and the T15 audit title call
+this a "Layer 3 gap"; that name audits Layer 3's obligation to propagate the
+label forward, not the layer the artifact lives in.)
 
 ### Finding 2 — `src/runtime/task-router.ts:475-477` (Layer 3 carve-out)
 
@@ -186,8 +191,10 @@ closed-world invariant")`. The test asserts:
   routes; the routes are determined by the canonical-intent label, not by a
   re-derivation from prompt text.
 
-The test pins Layer 1 → Layer 3 only. Layer 4 prompt construction is **not**
-covered (Layer 3 future map).
+The test pins Layer 1 → Layer 3 only. Layer 4 prompt construction is covered
+separately by `tests/runtime/route-prompts.vitest.ts` (T16–T20 #393–#397):
+every Layer 4 builder consumes the canonical-intent label and never accepts
+raw prompt text.
 
 ## Done checklist
 
