@@ -96,8 +96,12 @@ describe('ChatView bottom-anchored render', () => {
 
       // pinnedBottom=true → bottom anchor = max(0, allLines.length - scrollbackRows).
       // scrollbackRows = scrollbackBottom - scrollbackTop + 1
-      //                = (topBorderRow - 1) - SCROLLBACK_TOP_CHAT + 1
-      //                = (30 - 5) - 5 = 20 - 5 = 15 + 1 = 21 for rows=30.
+      // scrollbackBottom = topBorderRow - 1
+      //                  = (rows - FOOTER_H + 1) - 1
+      //                  = rows - FOOTER_H   (FOOTER_H = 5)
+      // scrollbackTop   = SCROLLBACK_TOP_CHAT = 5
+      // For rows=30:    scrollbackRows = (30 - 5) - 5 + 1 = 21
+      // (Equivalently:  rows - FOOTER_H - SCROLLBACK_TOP_CHAT + 1 = 30 - 5 - 5 + 1 = 21)
       expect(offset).toBe(Math.max(0, allLines.length - SCROLLBACK_ROWS));
 
       // Selected slice spans [offset, offset+SCROLLBACK_ROWS). The last visible
