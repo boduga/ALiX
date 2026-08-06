@@ -96,6 +96,7 @@ import {
   type RuntimeContext,
 } from "../runtime/route-executor.js";
 import type { TaskRoute } from "../runtime/task-router.js";
+import { buildDirectPrompt } from "./route-prompts.js";
 import {
   createWorkflowRun,
   transitionWorkflowStatus,
@@ -969,8 +970,11 @@ export class AgentSessionBuilder {
         // Direct routes bypass `initialize()` so `setupSkills` never runs for
         // them. Splice the current-turn explicit skills into the hardcoded
         // prompt so slash-command injection works on the direct path too.
-        const directBasePrompt =
-          "You are ALiX, a helpful AI assistant. Answer concisely.";
+        // Layer 3 prompt construction (T16 #393): consume the canonical-intent
+        // label from the route diagnostic — do NOT re-classify raw prompt text.
+        const directBasePrompt = buildDirectPrompt(
+          route.diagnostic.classification,
+        ).systemPrompt;
         const directSystemPrompt =
           currentTurnExplicit.length > 0
             ? `${directBasePrompt}\n\n${buildSkillsSection(currentTurnExplicit)}`
