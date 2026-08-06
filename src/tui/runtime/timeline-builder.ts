@@ -57,7 +57,7 @@ export type TimelineBuilderState = {
  *  defensively filters here. */
 export class TimelineBuilder implements DurableProjectionBuilder<readonly TimelineEntry[]> {
   private readonly entries = new Map<string, TimelineEntry>(); // by id; append-only
-  private readonly seen = new Set<string>();                   // `${sessionId}:${seq}` — compound identity
+  private readonly seen = new Set<string>();                   // `${sessionId}:${seq}:${type}` — compound identity
 
   constructor(private readonly sessionId: string) {}
 
@@ -92,7 +92,7 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
       // Defensive: only this session's entries (mirrors update()'s filter).
       if (e.sessionId !== this.sessionId) continue;
       this.entries.set(e.id, e);
-      this.seen.add(`${e.sessionId}:${e.sourceEvents.firstSequence}`);
+      this.seen.add(`${e.sessionId}:${e.sourceEvents.firstSequence}:${e.kind}`);
     }
   }
 
@@ -109,7 +109,7 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
       // reconstructed deterministically from the log, so it is the stable
       // replay identity. The sessionId prefix keeps two sessions that both
       // have seq=1 distinct (D1/D3 — sessionId is the routing dimension).
-      const eventKey = `${e.sessionId}:${e.seq ?? 0}`;
+      const eventKey = `${e.sessionId}:${e.seq ?? 0}:${e.type}`;
       if (this.seen.has(eventKey)) continue;
       this.seen.add(eventKey);
       const entry = this.build(e);
@@ -120,8 +120,15 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
   snapshot(): readonly TimelineEntry[] {
     // Deterministic ordering by firstSequence (NOT by timestamp — timestamps
     // can collide or be adjusted; firstSequence is the stable log position).
+    // Tiebreaker on `id` (also a stable, content-independent string) so two
+    // events that share a firstSequence — e.g. an agent-session and a parent
+    // session log both allocating seq=1 — render in a stable order instead of
+    // jumping between renders. Without the tiebreaker, JS sort is stable on
+    // insertion order, which is itself arbitrary across collectors.
     return [...this.entries.values()]
-      .sort((a, b) => a.sourceEvents.firstSequence - b.sourceEvents.firstSequence)
+      .sort((a, b) =>
+        a.sourceEvents.firstSequence - b.sourceEvents.firstSequence ||
+        a.id.localeCompare(b.id))
       .map(cloneEntry);
   }
 
@@ -139,7 +146,7 @@ export class TimelineBuilder implements DurableProjectionBuilder<readonly Timeli
     const detail = typeof p.detail === 'string' ? p.detail : undefined;
     const ts = Date.parse(e.timestamp) || 0;
     return {
-      id: `tl-${e.seq ?? 0}`,
+      id: `tl-${e.seq ?? 0}-${kind}`,
       kind, sessionId: e.sessionId, startedAt: ts,
       ...(e.actor !== undefined ? { actor: e.actor } : {}),
       ...(text !== undefined ? { text } : {}),
