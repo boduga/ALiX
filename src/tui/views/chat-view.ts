@@ -53,6 +53,13 @@ export class ChatView implements TuiView {
     c.write(vp.promptCol, vp.panelRow, buf);
     c.write(vp.promptCol + buf.length, vp.panelRow, `\x1b[7m ${RESET}`);
 
+    // Frame the input panel: full-width dim-grey horizontal rules above
+    // and below the prompt (Claude-Code style chrome). Reuses the same
+    // \x1b[90m/\x1b[0m styling as the agent view's status text.
+    const border = `\x1b[90m${'─'.repeat(ctx.dimensions.columns)}\x1b[0m`;
+    c.write(0, vp.topBorderRow, border);
+    c.write(0, vp.bottomBorderRow, border);
+
     return { rows: [] };
   }
 
