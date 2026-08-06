@@ -311,19 +311,27 @@ export async function streamToResponse(
   let text = "";
   let toolCalls: ToolCall[] = [];
   let usage: TokenUsage | undefined;
-  for await (const chunk of provider.stream(request)) {
-    if (chunk.type === "text_delta") {
-      text += chunk.text;
-      if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
-        await new Promise(resolve => process.stdout.once("drain", resolve));
+  try {
+    for await (const chunk of provider.stream(request)) {
+      if (chunk.type === "text_delta") {
+        text += chunk.text;
+        if (!process.stdout.write(chunk.text) && process.stdout.writableNeedDrain) {
+          await new Promise(resolve => process.stdout.once("drain", resolve));
+        }
+        options?.onStream?.({ type: "text", text: chunk.text });
       }
-      options?.onStream?.({ type: "text", text: chunk.text });
+      if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
+      if (chunk.type === "usage") usage = chunk.usage;
+      if (chunk.type === "error") throw new Error(chunk.error);
     }
-    if (chunk.type === "tool_call") toolCalls.push(chunk.toolCall);
-    if (chunk.type === "usage") usage = chunk.usage;
-    if (chunk.type === "error") throw new Error(chunk.error);
+    return { text, toolCalls, usage };
+  } catch (err) {
+    // Fail-soft: a mid-stream error (network hiccup, dropped chunk, malformed
+    // SSE) must not abort the task run. Fall back to a blocking complete();
+    // the tokens streamed so far remain, the rest arrives as one block.
+    const resp = await provider.complete(request);
+    return { text: text + (resp.text ?? ""), toolCalls, usage: usage ?? resp.usage };
   }
-  return { text, toolCalls, usage };
 }
 
 /**

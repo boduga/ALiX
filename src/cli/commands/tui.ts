@@ -164,6 +164,10 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
   // model, chatModel stays undefined and processChat falls back to a
   // clear `[chat:no-provider]` placeholder.
   let agentSession: any;
+  // Live-streaming bridge: the session (constructed below, before the
+  // TuiApp) fires events.onToken per streamed token; the sink forwards them
+  // to the app once it exists. Wired at the bottom of this function.
+  let onAgentToken: ((token: string) => void) | undefined;
   if (shouldUseStubAgent()) {
     agentSession = {
       getMode: () => opts.sessionMode ?? config.permissions?.sessionMode ?? 'auto',
@@ -219,6 +223,15 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
           ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
           : {}),
         chatSearchTool,
+        // Stream tokens live into the in-process TUI agent view (the daemon
+        // path already streams via its own socket protocol). onToolCall /
+        // onToolResult stay no-ops — the TUI consumes those via the EventLog
+        // timeline, not these callbacks.
+        events: {
+          onToken: (token: string) => { onAgentToken?.(token); },
+          onToolCall: () => {},
+          onToolResult: () => {},
+        },
       });
     }
   }
@@ -262,6 +275,10 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
     agentSessionId,
     runtimeCollectors: { chat: chatCollector, agent: agentCollector },
   });
+
+  // Point the streaming bridge at the now-constructed app: every streamed
+  // token the session emits lands in the agent tab's growing pending line.
+  onAgentToken = (token: string) => { app.appendAgentStreamToken(token); };
 
   await runtimeCollector.start();
   await chatCollector.start();

@@ -49,7 +49,7 @@ async function makeApp(opts: Partial<{ agentSession: unknown }> = {}) {
     getStateForTest(): {
       lastSnapshot: unknown;
       activeTab?: string;
-      views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+      views: { chat: { inputBuffer: string }; agent: { inputBuffer: string; streamingText?: string; streamingActive: boolean } };
     };
     recorded?: any;
     slashManifestsForTest?: unknown[];
@@ -329,6 +329,69 @@ describe('TuiApp -- chat-input dispatch', () => {
     expect(await timelineTexts(log, 'agent.response')).toEqual(['[agent] hi']);
   });
 
+  it('appendAgentStreamToken appends to the pending line only while a turn is streaming', async () => {
+    const { app, internal } = await makeApp();
+    // Gate off (no in-flight turn) → token dropped.
+    app.appendAgentStreamToken('orphan');
+    expect(internal.getStateForTest().views.agent.streamingText).toBeUndefined();
+    // Gate on → tokens accumulate in the growing line.
+    internal.getStateForTest().views.agent.streamingActive = true;
+    app.appendAgentStreamToken('tok');
+    app.appendAgentStreamToken('en');
+    expect(internal.getStateForTest().views.agent.streamingText).toBe('token');
+    // Gate off again → late straggler dropped (post-fold, no resurrect).
+    internal.getStateForTest().views.agent.streamingActive = false;
+    app.appendAgentStreamToken('late');
+    expect(internal.getStateForTest().views.agent.streamingText).toBe('token');
+  });
+
+  it('streams tokens into the pending line mid-turn then folds it on completion', async () => {
+    let resolveTurn!: (v: unknown) => void;
+    const processTurn = vi.fn(() => new Promise((res) => { resolveTurn = res; }));
+    const { app, internal, log } = await makeApp({ agentSession: { processTurn } });
+    internal.getStateForTest().activeTab = 'agent';
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    for (const c of 'go') internal.handleRaw(Buffer.from(c));
+    const flushed = flushedAfter(log, 2);
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await new Promise((r) => setTimeout(r, 0)); // let dispatchToSession arm the gate
+    expect(internal.getStateForTest().views.agent.streamingActive).toBe(true);
+    // Tokens arrive while the turn is in flight → grow the pending line.
+    app.appendAgentStreamToken('Hel');
+    app.appendAgentStreamToken('lo');
+    expect(internal.getStateForTest().views.agent.streamingText).toBe('Hello');
+    // Complete the turn → fold: gate disarmed, pending line cleared.
+    resolveTurn({ summary: 'Hello world', sessionId: 's', toolCalls: [], reason: 'agent' });
+    await flushed;
+    const st = internal.getStateForTest().views.agent;
+    expect(st.streamingActive).toBe(false);
+    expect(st.streamingText).toBeUndefined();
+    expect(await timelineTexts(log, 'agent.response')).toEqual(['Hello world']);
+  });
+
+  it('keeps partial streamed text when the agent call errors (fail-soft, no orphan line)', async () => {
+    let rejectTurn!: (e: Error) => void;
+    const processTurn = vi.fn(() => new Promise((_, rej) => { rejectTurn = rej; }));
+    const { app, internal, log } = await makeApp({ agentSession: { processTurn } });
+    internal.getStateForTest().activeTab = 'agent';
+    internal.getStateForTest().views.agent.inputBuffer = '';
+    for (const c of 'go') internal.handleRaw(Buffer.from(c));
+    const flushed = flushedAfter(log, 2);
+    internal.handleRaw(Buffer.from([0x0d])); // Enter
+    await new Promise((r) => setTimeout(r, 0)); // let dispatchToSession arm the gate
+    // Stream a couple of tokens, then the turn rejects (network hiccup / timeout).
+    app.appendAgentStreamToken('partial ');
+    app.appendAgentStreamToken('text');
+    rejectTurn(new Error('boom'));
+    await flushed;
+    const texts = await timelineTexts(log, 'agent.response');
+    expect(texts[0]).toContain('partial text');
+    expect(texts[0]).toContain('agent error');
+    const st = internal.getStateForTest().views.agent;
+    expect(st.streamingActive).toBe(false);
+    expect(st.streamingText).toBeUndefined();
+  });
+
   it('chat tab Enter calls processChat (not processTurn)', async () => {
     const processChat = vi.fn(async (text: string) => ({
       summary: `[chat] ${text}`,
@@ -429,7 +492,7 @@ describe('TuiApp — bracketed paste', () => {
       handleRaw(buf: Buffer): void;
       getStateForTest(): {
         lastSnapshot: unknown;
-        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string; streamingText?: string; streamingActive: boolean } };
       };
     };
     internal.getStateForTest().lastSnapshot = snap;
@@ -913,7 +976,7 @@ describe('TuiApp — emit into the EventLog (Phase 6)', () => {
       getStateForTest(): {
         lastSnapshot: unknown;
         activeTab: string;
-        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string } };
+        views: { chat: { inputBuffer: string }; agent: { inputBuffer: string; streamingText?: string; streamingActive: boolean } };
       };
     };
     internal.getStateForTest().lastSnapshot = snap;

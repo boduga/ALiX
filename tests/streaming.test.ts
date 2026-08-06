@@ -1,26 +1,24 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-test("shouldAutoDisableStreaming returns true when stdout is not a TTY", async () => {
+test("shouldAutoDisableStreaming returns a boolean (local context)", async () => {
   const { shouldAutoDisableStreaming } = await import("../src/run.js");
-  // In this environment, process.stdout.isTTY may be null or undefined
-  // The function should return true if isTTY is falsy (null/undefined/false)
-  const result = shouldAutoDisableStreaming();
-  // Just verify the function runs without error and returns a boolean
+  const result = shouldAutoDisableStreaming({});
   assert.strictEqual(typeof result, "boolean");
 });
 
-test("shouldAutoDisableStreaming returns true in CI environment", async () => {
+test("shouldAutoDisableStreaming returns true in a CI environment", async () => {
   const { shouldAutoDisableStreaming } = await import("../src/run.js");
-  const origCI = process.env.CI;
-  try {
-    process.env.CI = "true";
-    const result = shouldAutoDisableStreaming();
-    assert.strictEqual(result, true);
-  } finally {
-    if (origCI === undefined) delete process.env.CI;
-    else process.env.CI = origCI;
-  }
+  // Streaming auto-disables only in CI, keeping CI logs deterministic.
+  // Local non-TTY (piped/redirected) contexts still stream.
+  const result = shouldAutoDisableStreaming({ GITHUB_ACTIONS: "true" });
+  assert.strictEqual(result, true);
+});
+
+test("shouldAutoDisableStreaming returns false in a local non-TTY context", async () => {
+  const { shouldAutoDisableStreaming } = await import("../src/run.js");
+  const result = shouldAutoDisableStreaming({});
+  assert.strictEqual(result, false);
 });
 
 test("noStream flag is stripped from task string in run command", async () => {

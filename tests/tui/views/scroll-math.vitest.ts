@@ -35,6 +35,54 @@ describe('buildAgentScrollbackLines', () => {
   });
 });
 
+describe('buildAgentScrollbackLines — live streaming line', () => {
+  function streamCtx(streamingText?: string): ViewRenderContext {
+    return {
+      ...ctx([]),
+      perTab: { ...createInitialPerTabState(), streamingText },
+    };
+  }
+
+  it('appends nothing when streamingText is unset', () => {
+    expect(buildAgentScrollbackLines(streamCtx(undefined), 76)).toEqual([]);
+    expect(buildAgentScrollbackLines(streamCtx(''), 76)).toEqual([]);
+  });
+
+  it('appends the streamed text as a single streaming line at the bottom', () => {
+    const lines = buildAgentScrollbackLines(streamCtx('Hel'), 76);
+    expect(lines.length).toBe(1);
+    expect(lines[0]!.kind).toBe('streaming');
+    expect(lines[0]!.text).toBe('Hel');
+    expect(lines[0]!.isFirst).toBe(true);
+    expect(lines[0]!.isLast).toBe(true);
+  });
+
+  it('wraps a long streamed response, marking first and last rows', () => {
+    const long = 'word '.repeat(40).trim();
+    const lines = buildAgentScrollbackLines(streamCtx(long), 20);
+    expect(lines.length).toBeGreaterThan(1);
+    expect(lines.filter((l) => l.kind === 'streaming').length).toBe(lines.length);
+    expect(lines[0]!.isFirst).toBe(true);
+    expect(lines[lines.length - 1]!.isLast).toBe(true);
+    expect(lines.slice(1).every((l) => l.isFirst === false)).toBe(true);
+  });
+
+  it('renders the streaming line after completed turns (bottom, most recent)', () => {
+    const timeline = [{ kind: 'agent.message' as const, text: 'done turn', actor: 'agent' as const }];
+    const lines = buildAgentScrollbackLines({ ...ctx(timeline), perTab: { ...createInitialPerTabState(), streamingText: 'growing' } }, 76);
+    expect(lines[lines.length - 1]!.kind).toBe('streaming');
+    expect(lines[lines.length - 1]!.text).toBe('growing');
+    expect(lines.some((l) => l.kind === 'agent')).toBe(true);
+  });
+
+  it('includes the streaming line in computeBottomAnchor when content overflows', () => {
+    // 100 turns × 1 line + 99 separators = 199; streaming adds 1 more = 200.
+    const timeline = Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const }));
+    const withStream = { ...ctx(timeline), perTab: { ...createInitialPerTabState(), streamingText: 'x' } };
+    expect(computeBottomAnchor(withStream, 'agent')).toBe(180);
+  });
+});
+
 describe('buildChatScrollbackLines', () => {
   it('returns an empty array for an empty timeline', () => {
     const emptyCtx = { ...ctx([]), runtime: { chat: { timeline: [], totalEventCount: 0, workflow: undefined, session: {} as never } as never, agent: null } } as unknown as ViewRenderContext;

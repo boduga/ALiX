@@ -90,64 +90,6 @@ export abstract class BaseProvider implements ModelAdapter {
     return toolCalls;
   }
 
-  protected async *streamSSE(res: Response): AsyncGenerator<StreamChunk> {
-    if (!res.ok) { yield { type: "error", error: `API error ${res.status}` }; return; }
-    if (!res.body) { yield { type: "error", error: "No response body" }; return; }
-
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    // Accumulate tool calls across deltas by index
-    const partialTools: Record<number, { id: string; name: string; args: string }> = {};
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) { yield { type: "done" }; return; }
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split("\n");
-      buffer = lines.pop() ?? "";
-      for (const line of lines) {
-        if (!line.startsWith("data: ")) continue;
-        const data = line.slice(6);
-        if (data === "[DONE]") { yield { type: "done" }; return; }
-        try {
-          const event = JSON.parse(data);
-          if (event.choices?.[0]?.delta?.content) yield { type: "text_delta", text: event.choices[0].delta.content };
-
-          if (event.choices?.[0]?.delta?.tool_calls) {
-            for (const tc of event.choices[0].delta.tool_calls) {
-              const idx = tc.index ?? 0;
-              if (tc.id && !partialTools[idx]) partialTools[idx] = { id: tc.id, name: "", args: "" };
-              if (tc.function?.name) partialTools[idx].name = tc.function.name;
-              // arguments can be a string (raw JSON) or already-parsed object
-              const rawArgs = tc.function?.arguments;
-              if (rawArgs !== undefined) {
-                const argsStr = typeof rawArgs === "string" ? rawArgs : JSON.stringify(rawArgs);
-                partialTools[idx].args += argsStr;
-              }
-              // Yield when arguments JSON is complete (ends with })
-              const current = partialTools[idx].args.trim();
-              if (current.endsWith("}")) {
-                const t = partialTools[idx];
-                if (t.name) {
-                  try {
-                    const parsedArgs = JSON.parse(t.args) as Record<string, unknown>;
-                    const summary = extractSummary(parsedArgs);
-                    yield { type: "tool_call" as const, toolCall: { id: t.id, name: t.name, args: parsedArgs, summary } };
-                  } catch { /* incomplete JSON, keep accumulating */ }
-                }
-                delete partialTools[idx];
-              }
-            }
-          }
-
-          if (event.usage) yield { type: "usage", usage: { inputTokens: event.usage.prompt_tokens, outputTokens: event.usage.completion_tokens } };
-        } catch { /* skip */ }
-      }
-    }
-  }
-
   abstract get capabilities(): ModelCapabilities;
   abstract id: string;
   abstract editFormatPreference: EditFormat;

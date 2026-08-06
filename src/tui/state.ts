@@ -125,6 +125,22 @@ export interface PerTabState {
   capabilitiesSelectedId?: string;
   /** Active execution-trace filter on the Runtime tab. Default 'all'. */
   runtimeTraceFilter: RuntimeTraceFilter;
+  /**
+   * Live-streamed assistant text for the in-flight agent turn, appended
+   * token-by-token via `TuiApp.appendAgentStreamToken`. Rendered as a single
+   * growing line pinned at the bottom of the agent scrollback; folded into a
+   * normal scrollback entry when the turn completes. Cleared on fold so it
+   * never renders twice. Undefined when no agent turn is streaming.
+   */
+  streamingText?: string;
+  /**
+   * True while an agent turn is in flight. Gates `appendAgentStreamToken`
+   * so post-completion/timeout stragglers can't resurrect the growing line
+   * after it has been folded into the scrollback. Absent/false both mean
+   * "not streaming" (matches the optional-field style of the other
+   * transient PerTabState fields); `createInitialPerTabState` seeds false.
+   */
+  streamingActive?: boolean;
 }
 
 /** Panels that accept `J`/`K` scroll keys. Other panels (DAEMON, RUNTIME) have fixed content and can't overflow. */
@@ -165,6 +181,7 @@ export function createInitialPerTabState(): PerTabState {
     panelScrollOffsets: { approvals: 0, sops: 0 },
     panelFocus: null,
     runtimeTraceFilter: 'all',
+    streamingActive: false,
   };
 }
 
