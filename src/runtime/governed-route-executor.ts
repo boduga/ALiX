@@ -32,7 +32,12 @@ import type {
   ExecutionIntentEvent,
 } from "./contracts/execution-intent-contract.js";
 import { createExecutionIntent } from "./execution-intent-factory.js";
-import { executeRoute, type RuntimeContext, type RuntimeExecutor } from "./route-executor.js";
+import {
+  executeRoute,
+  LocalRuntimeExecutor,
+  type RuntimeContext,
+  type RuntimeExecutor,
+} from "./route-executor.js";
 import type { TaskRoute } from "./task-router.js";
 
 // ---------------------------------------------------------------------------
@@ -63,6 +68,9 @@ export class ExecutionNotApprovedError extends Error {
  * downstream emitter (e.g. X3b persistence). The collector lets the
  * wrapper report the full evidence trail; the forward target makes the
  * same trail durable.
+ *
+ * A downstream emitter failure is swallowed: evidence persistence must
+ * never stall the execution path (spec #404, ticket #409).
  */
 export class CollectingEvidenceEmitter implements ExecutionEvidenceEmitter {
   readonly emitted: ExecutionEvidence[] = [];
@@ -71,7 +79,13 @@ export class CollectingEvidenceEmitter implements ExecutionEvidenceEmitter {
 
   emit(eventType: ExecutionEventType, evidence: ExecutionEvidence): void {
     this.emitted.push(evidence);
-    this.next?.emit(eventType, evidence);
+    if (this.next) {
+      try {
+        this.next.emit(eventType, evidence);
+      } catch {
+        // Persistence must never stall the execution path.
+      }
+    }
   }
 }
 
@@ -191,4 +205,54 @@ export async function executeRouteGoverned(
     await governor.fail(intent.intentId, reason);
     throw err;
   }
+}
+
+// ---------------------------------------------------------------------------
+// Governed direct path (ticket #410)
+// ---------------------------------------------------------------------------
+
+export interface GovernedDirectOptions {
+  /** Actor authoring the intent. Defaults to "system". */
+  actor?: string;
+  /** Downstream evidence emitter (e.g. PersistenceEvidenceEmitter). */
+  emitter?: ExecutionEvidenceEmitter;
+}
+
+/**
+ * Execute a `direct` route under the governed lifecycle.
+ *
+ * Daemon/CLI-facing helper for the direct fast path: produces the canonical
+ * ExecutionIntent + CREATED/APPROVED lifecycle evidence, then runs the
+ * direct execution (arithmetic answer or a single provider call) and emits
+ * the terminal evidence.
+ *
+ * Session-domain separation (ticket #410): this writes ONLY lifecycle
+ * evidence — it never creates an agent session, a TaskRegistry entry, or a
+ * `.alix/sessions` / `.alix/plans` record. The lifecycle evidence store and
+ * the session domain are distinct stores.
+ *
+ * @param route - A direct route (arithmetic or generation).
+ * @param cwd - Working directory whose config the direct executor loads.
+ * @param opts - Optional emitter / actor overrides.
+ */
+export async function governDirectRoute(
+  route: TaskRoute & { kind: "direct" },
+  cwd: string,
+  opts: GovernedDirectOptions = {},
+): Promise<GovernedRouteResult> {
+  const { loadConfig } = await import("../config/loader.js");
+  const config = await loadConfig(cwd);
+
+  const ctx: RuntimeContext = {
+    cwd,
+    sessionId: "direct",
+    sessionDir: "",
+    eventLog: {} as never,
+    config,
+  };
+
+  return executeRouteGoverned(route, ctx, new LocalRuntimeExecutor(), {
+    actor: opts.actor,
+    emitter: opts.emitter,
+  });
 }
