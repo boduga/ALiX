@@ -86,6 +86,7 @@ export type ExecutionSession = Readonly<{
  */
 export type ExecutionGovernor = {
   validate(intent: ExecutionIntent): Promise<ValidationResult>;
+  approve(intentId: string, opts?: { actor?: string; reason?: string }): Promise<void>;
   authorize(intentId: string): Promise<AuthorizationResult>;
   start(intentId: string): Promise<ExecutionSession>;
   heartbeat(intentId: string, sessionId: string): Promise<void>;
@@ -174,6 +175,49 @@ export class ExecutionGovernorImpl implements ExecutionGovernor {
     }
 
     return { valid: true };
+  }
+
+  // ─── approve ────────────────────────────────────────────────────────
+
+  /**
+   * Author the APPROVED event for an intent (governor-owned approval).
+   *
+   * Appends an APPROVED event to the intent's stream. D3 ownership: the
+   * governor, not the caller, authors this transition. Requires the
+   * intent to have a CREATED event (not already APPROVED / terminal).
+   *
+   * @param intentId - The ID of the intent to approve.
+   * @param opts - Optional actor (default "governor") and reason.
+   * @throws {Error} if no events exist, or the intent is already APPROVED
+   *   or in a terminal status.
+   */
+  async approve(
+    intentId: string,
+    opts: { actor?: string; reason?: string } = {},
+  ): Promise<void> {
+    const intentEvents = this.events.get(intentId);
+
+    if (!intentEvents || intentEvents.length === 0) {
+      throw new Error(`No events found for intent ${intentId}`);
+    }
+
+    const status = deriveIntentStatus(intentEvents);
+    if (status === "APPROVED") {
+      throw new Error(`Intent ${intentId} is already approved`);
+    }
+    if (status === "COMPLETED" || status === "FAILED" || status === "REVOKED") {
+      throw new Error(`Cannot approve intent with terminal status ${status}`);
+    }
+
+    const timestamp = new Date().toISOString();
+    const event: ExecutionIntentEvent = {
+      intentId,
+      type: "APPROVED",
+      timestamp,
+      actor: opts.actor ?? "governor",
+      reason: opts.reason,
+    };
+    intentEvents.push(event);
   }
 
   // ─── authorize ───────────────────────────────────────────────────────

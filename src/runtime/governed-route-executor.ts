@@ -149,23 +149,21 @@ export async function executeRouteGoverned(
   const now = deps.now ?? new Date().toISOString();
   const intent = createExecutionIntent(route, { actor: deps.actor, now });
 
-  // Seed the X1 lifecycle: CREATED (intent creator) + APPROVED (governor,
-  // synthetic auto-approval for non-proposal routes).
+  // Seed the X1 lifecycle with ONLY the CREATED event (intent creator).
+  // APPROVED is authored by the governor below (D3 ownership).
   const events: ExecutionIntentEvent[] = [
     { intentId: intent.intentId, type: "CREATED", timestamp: now, actor: intent.actor },
-    {
-      intentId: intent.intentId,
-      type: "APPROVED",
-      timestamp: now,
-      actor: "governor",
-      reason: intent.approvalReference,
-    },
   ];
   const governor = deps.governorFactory
     ? deps.governorFactory(new Map([[intent.intentId, events]]))
     : new ExecutionGovernorImpl(new Map([[intent.intentId, events]]));
 
-  // Invariant 2: no execution before APPROVED.
+  // Invariant 2: no execution before APPROVED. The governor authors the
+  // APPROVED event (reason matches Alignment A); validate() then passes.
+  await governor.approve(intent.intentId, {
+    actor: "governor",
+    reason: "auto-approved: low-risk route kind",
+  });
   const validation = await governor.validate(intent);
   if (!validation.valid) {
     throw new ExecutionNotApprovedError(
@@ -178,11 +176,9 @@ export async function executeRouteGoverned(
   const collector = new CollectingEvidenceEmitter(deps.emitter);
   const machine = new ExecutionStateMachine(collector);
 
-  // Drive the machine: CREATED → VALIDATING → READY → RUNNING.
+  // Drive the machine to RUNNING via the shared prefix.
   const executionId = machine.createExecution(intent);
-  machine.transitionTo(executionId, ExecutionState.VALIDATING);
-  machine.transitionTo(executionId, ExecutionState.READY);
-  machine.transitionTo(executionId, ExecutionState.RUNNING);
+  machine.advanceToRunning(executionId);
 
   // X1 event stream: RUNNING (owner = executor via the governed wrapper).
   await governor.start(intent.intentId);
@@ -190,7 +186,15 @@ export async function executeRouteGoverned(
   try {
     const result = await executeRoute(route, ctx, executor);
     machine.transitionTo(executionId, ExecutionState.SUCCEEDED);
-    await governor.complete(intent.intentId, "SUCCESS", result.slice(0, 200));
+    // The governor's COMPLETED evidence carries a proper evidenceHash —
+    // emit it (in addition to the machine's evidence) so the durable trail
+    // is tamper-evident (spec c3).
+    const terminalEvidence = await governor.complete(
+      intent.intentId,
+      "SUCCESS",
+      result.slice(0, 200),
+    );
+    collector.emit("ExecutionCompleted", terminalEvidence);
     return {
       result,
       intentId: intent.intentId,
@@ -202,7 +206,9 @@ export async function executeRouteGoverned(
   } catch (err) {
     machine.transitionTo(executionId, ExecutionState.FAILED);
     const reason = err instanceof Error ? err.message : String(err);
-    await governor.fail(intent.intentId, reason);
+    // Same tamper-evident terminal evidence on the failure path.
+    const terminalEvidence = await governor.fail(intent.intentId, reason);
+    collector.emit("ExecutionFailed", terminalEvidence);
     throw err;
   }
 }

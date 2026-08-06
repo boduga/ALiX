@@ -154,19 +154,31 @@ export class ExecutionStateMachine implements ExecutionRuntime {
     return executionId;
   }
 
-  // -----------------------------------------------------------------------
-  // ExecutionRuntime — execute
-  // -----------------------------------------------------------------------
-
-  async execute(intent: ExecutionIntent): Promise<ExecutionResult> {
-    const executionId = this.createExecution(intent);
-
+  /**
+   * Advance a fresh execution through the common CREATED → VALIDATING →
+   * READY → RUNNING prefix.
+   *
+   * Shared by `execute()` (which then auto-completes) and external
+   * orchestrators that drive the lifecycle in stages around a real executor
+   * (governed-route-executor). Owning the prefix once prevents the same
+   * transition sequence from drifting across call sites.
+   */
+  advanceToRunning(executionId: string): void {
     // CREATED → VALIDATING
     this.transitionTo(executionId, ExecutionState.VALIDATING);
     // VALIDATING → READY
     this.transitionTo(executionId, ExecutionState.READY);
     // READY → RUNNING (transitionTo auto-sets startedAt)
     this.transitionTo(executionId, ExecutionState.RUNNING);
+  }
+
+  // -----------------------------------------------------------------------
+  // ExecutionRuntime — execute
+  // -----------------------------------------------------------------------
+
+  async execute(intent: ExecutionIntent): Promise<ExecutionResult> {
+    const executionId = this.createExecution(intent);
+    this.advanceToRunning(executionId);
     // RUNNING → SUCCEEDED (transitionTo auto-sets completedAt)
     this.transitionTo(executionId, ExecutionState.SUCCEEDED);
 

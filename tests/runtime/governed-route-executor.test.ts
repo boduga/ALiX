@@ -93,10 +93,17 @@ describe("executeRouteGoverned — lifecycle sequence + evidence per transition"
       assert.ok(out.intentId.length >= 8);
       assert.ok(out.executionId.startsWith("exec-"));
 
-      // Lifecycle evidence: CREATED, VALIDATING, READY, RUNNING, SUCCEEDED.
-      assert.equal(out.evidence.length, 5, `expected 5 evidence records, got ${out.evidence.length}`);
-      const types = out.evidence.map((e) => e.outcome);
-      assert.deepEqual(types, ["PARTIAL", "PARTIAL", "PARTIAL", "PARTIAL", "SUCCESS"]);
+      // Lifecycle evidence: 5 machine transitions (CREATED, VALIDATING,
+      // READY, RUNNING, SUCCEEDED) + the governor's hashed COMPLETED
+      // terminal evidence = 6 records.
+      assert.equal(out.evidence.length, 6, `expected 6 evidence records, got ${out.evidence.length}`);
+      const outcomes = out.evidence.map((e) => e.outcome);
+      assert.deepEqual(outcomes, ["PARTIAL", "PARTIAL", "PARTIAL", "PARTIAL", "SUCCESS", "SUCCESS"]);
+
+      // The final (governor-authored COMPLETED) record carries a proper
+      // evidenceHash — tamper-evident terminal evidence (spec c3).
+      const terminal = out.evidence[out.evidence.length - 1];
+      assert.match(terminal.evidenceHash, /^[0-9a-f]{64}$/, "governor COMPLETED evidence must be hashed");
 
       // Every evidence record references exactly one intentId (invariant 7).
       for (const e of out.evidence) {
@@ -125,14 +132,20 @@ describe("executeRouteGoverned — no execution before approval", () => {
       executeAgent: async () => { executorCalled++; return "executed"; },
     };
 
-    // Governor seeded with only a CREATED event (no APPROVED) → validate fails.
+    // Governor that refuses approval: approve() succeeds but validate()
+    // rejects (simulate a policy denial) — the gate must deny execution.
     const governorFactory = (events: Map<string, ExecutionIntentEvent[]>): ExecutionGovernor => {
-      // Rebuild with CREATED-only stream regardless of what the wrapper seeded.
-      const stripped = new Map<string, ExecutionIntentEvent[]>();
-      for (const [id, stream] of events) {
-        stripped.set(id, [stream[0]]); // keep only the CREATED event
-      }
-      return new ExecutionGovernorImpl(stripped);
+      const base = new ExecutionGovernorImpl(events);
+      return {
+        approve: async () => Promise.resolve(),
+        authorize: (id) => base.authorize(id),
+        start: (id) => base.start(id),
+        heartbeat: (id, s) => base.heartbeat(id, s),
+        complete: (id, o, s) => base.complete(id, o, s),
+        fail: (id, r) => base.fail(id, r),
+        revoke: (id, r) => base.revoke(id, r),
+        validate: async () => ({ valid: false, reason: "policy denied approval" }),
+      } as ExecutionGovernor;
     };
 
     await assert.rejects(
@@ -212,7 +225,9 @@ describe("executeRouteGoverned — executor failure produces FAILED lifecycle", 
     );
     const last = collector.emitted[collector.emitted.length - 1];
     assert.equal(last.outcome, "FAILED");
-    assert.equal(collector.emitted.length, 5);
+    // 5 machine transitions + the governor's hashed FAILED terminal evidence.
+    assert.equal(collector.emitted.length, 6);
+    assert.match(last.evidenceHash, /^[0-9a-f]{64}$/, "governor FAILED evidence must be hashed");
   });
 });
 

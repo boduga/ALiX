@@ -66,12 +66,16 @@ describe("governed execution — durable evidence persistence (X3b)", () => {
       await flush();
 
       const all = await store.list();
-      assert.equal(all.length, 5, `expected 5 evidence records, got ${all.length}`);
+      // 5 machine transitions + the governor's hashed COMPLETED terminal = 6.
+      assert.equal(all.length, 6, `expected 6 evidence records, got ${all.length}`);
       for (const r of all) {
         assert.equal(r.intentId, out.intentId, "every record references exactly one intentId");
       }
-      // Append order preserved: terminal SUCCESS is the last record.
-      assert.equal(all[all.length - 1].outcome, "SUCCESS");
+      // Append order preserved: the governor's terminal SUCCESS evidence is
+      // the last record and carries a proper evidenceHash.
+      const terminal = all[all.length - 1];
+      assert.equal(terminal.outcome, "SUCCESS");
+      assert.match(terminal.evidenceHash, /^[0-9a-f]{64}$/);
     });
   });
 
@@ -84,7 +88,7 @@ describe("governed execution — durable evidence persistence (X3b)", () => {
       await flush();
 
       const result = await recoverExecutionState(store);
-      assert.equal(result.totalEvidence, 5);
+      assert.equal(result.totalEvidence, 6);
       assert.deepEqual(result.intents, [out.intentId]);
       assert.equal(result.inFlight.length, 0);
       assert.equal(result.completed.length, 1);

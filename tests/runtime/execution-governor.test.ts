@@ -104,12 +104,49 @@ describe("X2 — Execution Governor", () => {
     const governor: ExecutionGovernor = gov;
 
     assert.equal(typeof governor.validate, "function");
+    assert.equal(typeof governor.approve, "function");
     assert.equal(typeof governor.authorize, "function");
     assert.equal(typeof governor.start, "function");
     assert.equal(typeof governor.heartbeat, "function");
     assert.equal(typeof governor.complete, "function");
     assert.equal(typeof governor.fail, "function");
     assert.equal(typeof governor.revoke, "function");
+  });
+
+  // ── 2a: approve — governor-owned APPROVED ──────────────────────────
+
+  it("approve() authors the APPROVED event; validate() then passes", async () => {
+    const events: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+    ];
+    const gov = governorWithEvents("intent-001", events);
+    const intent = sampleIntent();
+
+    // Not yet APPROVED → validate rejects.
+    let result: ValidationResult = await gov.validate(intent);
+    assert.equal(result.valid, false);
+
+    // Governor authors the APPROVED transition (D3 ownership).
+    await gov.approve("intent-001", { actor: "bob", reason: "auto-approved: low-risk route kind" });
+
+    result = await gov.validate(intent);
+    assert.equal(result.valid, true);
+  });
+
+  it("approve() rejects when already APPROVED or terminal", async () => {
+    const approved: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({ type: "APPROVED", timestamp: "2026-07-10T10:30:00.000Z", actor: "bob" }),
+    ];
+    const govApproved = governorWithEvents("intent-001", approved);
+    await assert.rejects(govApproved.approve("intent-001"), /already approved/);
+
+    const completed: ExecutionIntentEvent[] = [
+      event({ type: "CREATED", timestamp: "2026-07-10T10:00:00.000Z" }),
+      event({ type: "COMPLETED", timestamp: "2026-07-10T10:30:00.000Z", actor: "bob" }),
+    ];
+    const govCompleted = governorWithEvents("intent-001", completed);
+    await assert.rejects(govCompleted.approve("intent-001"), /terminal status/);
   });
 
   // ── 2: validate — APPROVED intent ──────────────────────────────────

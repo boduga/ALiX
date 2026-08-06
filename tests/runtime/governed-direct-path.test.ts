@@ -67,7 +67,7 @@ describe("governed direct path — session-domain separation", () => {
       assert.equal(out.intent.action, "arithmetic");
       assert.equal(out.finalState, ExecutionState.SUCCEEDED);
       const persisted = await store.list();
-      assert.equal(persisted.length, 5, "full lifecycle evidence persisted");
+      assert.equal(persisted.length, 6, "full lifecycle evidence persisted (5 machine + 1 hashed governor terminal)");
       assert.ok(persisted.some((e) => e.outcome === "SUCCESS"));
 
       // 2. No session-domain artifacts were created in the cwd.
@@ -98,7 +98,7 @@ describe("governed direct path — session-domain separation", () => {
 
       assert.equal(out.result, "4");
       assert.equal(out.intent.action, "arithmetic");
-      assert.ok(out.evidence.length >= 5);
+      assert.ok(out.evidence.length >= 6, "evidence includes machine + hashed governor terminal");
     } finally {
       rmSync(tmp, { recursive: true, force: true });
     }
