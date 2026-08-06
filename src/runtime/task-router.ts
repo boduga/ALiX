@@ -349,11 +349,11 @@ export async function taskRouter(
   // 1. Deterministic classification with confidence score.
   const classification = classifyActionWithConfidence(task);
 
-  if (classification.intent === "workspace_action") {
+  if (classification.intent === "workspace_action" || classification.intent === "workspace_mutation") {
     return {
       kind: "agent",
       task,
-      diagnostic: toDiagnostic({ ...classification, intent: "workspace_action" }, "agent"),
+      diagnostic: toDiagnostic({ ...classification, intent: classification.intent }, "agent"),
     };
   }
 
@@ -436,7 +436,7 @@ export async function taskRouter(
     // Use the model's classification instead of the deterministic result.
     if (modelResult.intent !== "ambiguous") {
       // Route based on the model's classification.
-      if (modelResult.intent === "workspace_action") {
+      if (modelResult.intent === "workspace_action" || modelResult.intent === "workspace_mutation") {
         return {
           kind: "agent",
           task,
@@ -470,18 +470,15 @@ export async function taskRouter(
     }
   }
 
-  // 8. ambiguous — legacy fallback with workspace-write carve-out.
-  const trimmedTask = task.trim();
-  const hasWorkspaceWriteIntent =
-    /^(?:write|put|save|create|make|append|delete|remove|rm)\b[^.\n]*\b(?:to|into|in|as|from|on)\b/i.test(trimmedTask);
-  if (hasWorkspaceWriteIntent) {
-    return {
-      kind: "agent",
-      task,
-      diagnostic: toDiagnostic(classification, "agent"),
-    };
-  }
-
+  // 8. ambiguous — legacy fallback.
+  //   The previous `hasWorkspaceWriteIntent` carve-out (lines 475-477
+  //   pre-T8) was a regex re-derivation of intent from raw prompt text
+  //   that bypassed Layer 1's `classifyAction`. As of T8, the
+  //   `MUTATION_ANCHORS` family in `src/runtime/action-classifier.ts`
+  //   surfaces `workspace_mutation` at Layer 1, so the carve-out is a
+  //   no-op and is deleted. The `classifyTask` Layer-2 planning-lens
+  //   call below remains orthogonal (TaskType is not part of the
+  //   routing chain).
   const taskType = classifyTask(task);
   if (taskType === "research" || taskType === "docs") {
     return {
