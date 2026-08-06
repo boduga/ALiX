@@ -16,7 +16,7 @@ import { buildErrorMessage } from "../run.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { ToolExecutor } from "../tools/executor.js";
 import { McpManager } from "../mcp/manager.js";
-import { promptUser } from "./helpers.js";
+import { promptUser, BASE_TOOLS } from "./helpers.js";
 import type { EventLog } from "../events/event-log.js";
 import type { VerificationCheck, VerificationResult } from "../verifier/verifier.js";
 import { buildRiskReport } from "../verifier/index.js";
@@ -218,6 +218,26 @@ export function buildScopeRejectionSummary(expansionPaths: string[]): string {
 /**
  * Handle a single tool call execution and return result
  */
+/**
+ * Whether a tool name is one ALiX can actually run.
+ *
+ * Conservative superset: provider-facing names (alix_*), executor names
+ * (TOOL_NAME_MAP values), MCP names, and selected/deferred tools. Any name
+ * outside this set was invented by the model (e.g. exec_command) and cannot
+ * be executed — returning a corrective <tool_result> beats a terse
+ * "no router found" that invites endless retries of the same name.
+ */
+function isKnownToolName(name: string, execName: string, deps: EventHandlerDeps): boolean {
+  if (execName !== name) return true; // TOOL_NAME_MAP resolved an alias
+  if (name.startsWith("mcp.") || name === "alix_mcp_search_tools") return true;
+  if (Object.keys(TOOL_NAME_MAP).includes(name)) return true;
+  if (Object.values(TOOL_NAME_MAP).includes(name)) return true;
+  if (BASE_TOOLS.some((t) => t.name === name)) return true;
+  if (deps.selectedTools.some((s) => s.name === name || s.execName === name)) return true;
+  if (deps.mcpToolIndex.some((t) => t.name === name || t.execName === name)) return true;
+  return false;
+}
+
 export async function handleToolCall(
   toolCall: ToolCall,
   deps: EventHandlerDeps,
@@ -231,6 +251,26 @@ export async function handleToolCall(
   error?: { message: string; retryable?: boolean };
 }> {
   const execName = TOOL_NAME_MAP[toolCall.name] ?? toolCall.name;
+
+  // Unknown-tool guard: a model that drifted into a foreign convention (e.g.
+  // exec_command) will otherwise hit the executor's terse "no router found"
+  // error and can retry the same name forever. Surface the real tool list in
+  // one corrective turn instead.
+  if (!isKnownToolName(toolCall.name, execName, deps)) {
+    const valid = [
+      ...Object.keys(TOOL_NAME_MAP),
+      ...Object.values(TOOL_NAME_MAP),
+      ...deps.selectedTools.flatMap((s) => [s.name, s.execName]),
+      ...deps.mcpToolIndex.map((t) => t.name),
+    ];
+    return {
+      continue: true,
+      message: {
+        role: "user",
+        content: `<tool_result id="${toolCall.id}">\nError: Unknown tool "${toolCall.name}". Available tools: ${[...new Set(valid)].join(", ")}. Invoke exactly one of these by name and wait for the result.\n</tool_result>`,
+      },
+    };
+  }
 
   // First attempt
   let execResult = await deps.executor.execute({ toolCallId: toolCall.id, name: execName, args: toolCall.args, summary: toolCall.summary });
