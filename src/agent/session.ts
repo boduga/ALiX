@@ -97,6 +97,7 @@ import {
 } from "../runtime/route-executor.js";
 import type { TaskRoute } from "../runtime/task-router.js";
 import { buildDirectPrompt } from "./route-prompts.js";
+import { buildChatPrompt } from "./route-prompts.js";
 import {
   createWorkflowRun,
   transitionWorkflowStatus,
@@ -1606,10 +1607,13 @@ export class AgentSessionBuilder {
     let chatReady = false;
     let chatProviderInstance: ModelAdapter | null = null;
     let chatMessages: { role: "user" | "assistant"; content: string }[] = [];
-    const CHAT_DEFAULT_SYSTEM_PROMPT =
-      "You are ALiX in a lightweight chat session. Be brief, direct, and conversational. " +
-      "Do not invoke tools, do not run commands, do not edit files. Respond as if you were " +
-      "talking to the operator — short sentences, no markdown headings.";
+    // T17 (#394): chat prompt construction now derives from `buildChatPrompt`
+    // — the Layer 3 builder keyed on canonical-intent labels. `processChat`
+    // does not yet track per-turn intent, so we use `"ambiguous"` as the
+    // default. The string is textually identical to the previous inline
+    // default, so behavior is unchanged. Future tickets (T19) thread real
+    // intent into the chat path.
+    const CHAT_DEFAULT_SYSTEM_PROMPT = buildChatPrompt("ambiguous").systemPrompt;
     const chatSystemPrompt =
       config.chatSystemPrompt ?? CHAT_DEFAULT_SYSTEM_PROMPT;
     const CHAT_MAX_OUTPUT_TOKENS = 512;

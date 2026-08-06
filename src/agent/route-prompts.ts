@@ -1,5 +1,5 @@
 // src/agent/route-prompts.ts
-// Layer 3 prompt construction (T16 #393, wayfinder map #392).
+// Layer 3 prompt construction (T16 #393 + T17 #394, wayfinder map #392).
 //
 // Consumes canonical-intent labels emitted by Layer 1 (src/runtime/action-classifier.ts).
 // Does NOT re-classify raw prompt text — the function signature carries no raw
@@ -7,6 +7,11 @@
 //
 // Each canonical intent has a deterministic prompt construction:
 // exact text + tool manifest + permission scope.
+//
+// - `buildDirectPrompt(intent)` — T16 — used by the `direct` execution route.
+// - `buildChatPrompt(intent, threadIntents?)` — T17 — used by the `chat` route
+//   (`session.ts:processChat`). Thread metadata tracks prior-turn intents so the
+//   model can see what the conversation has been about.
 
 import type { ActionIntent } from "../runtime/action-classifier.js";
 
@@ -34,6 +39,11 @@ export interface DirectPrompt {
 }
 
 const IDENTITY = "You are ALiX, an AI assistant.";
+
+const IDENTITY_CHAT =
+  "You are ALiX in a lightweight chat session. Be brief, direct, and conversational. " +
+  "Do not invoke tools, do not run commands, do not edit files. " +
+  "Respond as if you were talking to the operator — short sentences, no markdown headings.";
 
 const READ_ONLY_SCOPE: PermissionScope = {
   workspaceWrite: false,
@@ -131,6 +141,92 @@ export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
     default:
       return {
         systemPrompt: `${IDENTITY} Answer concisely.`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+  }
+}
+
+/**
+ * Build the chat-route prompt for a given canonical-intent label.
+ *
+ * Layer 3 invariant: takes the label(s), returns the prompt. No raw prompt
+ * text is accepted — re-classification is forbidden per T15 audit.
+ *
+ * `threadIntents` (optional) lists the canonical intents of prior turns in
+ * this chat thread. When non-empty, a one-line metadata block is appended so
+ * the model can see what the conversation has been about without inspecting
+ * raw turn text.
+ *
+ * The chat path is conversational and lightweight — no tools, no shell, no
+ * file edits across every intent. This is a Layer-3 invariant of the chat
+ * route itself, not a per-intent decision.
+ */
+export function buildChatPrompt(
+  intent: ActionIntent,
+  threadIntents?: readonly ActionIntent[],
+): DirectPrompt {
+  const threadMetadata =
+    threadIntents && threadIntents.length > 0
+      ? `\n\n[Thread intents so far: ${threadIntents.join(", ")}]`
+      : "";
+
+  switch (intent) {
+    case "arithmetic":
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nIf the user asks an arithmetic question, answer it directly with just the number.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+
+    case "generation":
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nThe user wants text generated. Produce it conversationally.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+
+    case "read_only_analysis":
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nThe user is asking you to analyze or summarize. Read the conversation context and respond.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+
+    case "planning":
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nThe user is asking for a plan or design. Discuss, compare options, recommend — do not take any side effects.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+
+    case "shell_execution":
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nThe user gave a direct shell command. Note its intent briefly — do not execute it.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+
+    case "external_retrieval":
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nThe user needs current/external information. Acknowledge briefly and explain that the agent path is required for retrieval.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: READ_ONLY_SCOPE,
+      };
+
+    case "workspace_action":
+    case "workspace_mutation":
+      // Defensive — these route to kind: "agent" not "chat".
+      return {
+        systemPrompt: `${IDENTITY_CHAT}\n\nThe user wants workspace changes. Briefly note this requires the agent path.${threadMetadata}`,
+        toolManifest: NO_TOOLS,
+        permissions: MUTATION_SCOPE,
+      };
+
+    case "ambiguous":
+    default:
+      return {
+        systemPrompt: threadMetadata ? `${IDENTITY_CHAT}${threadMetadata}` : IDENTITY_CHAT,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };

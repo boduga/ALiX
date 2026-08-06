@@ -1,20 +1,22 @@
 /**
- * route-prompts.vitest.ts — T16 #393
+ * route-prompts.vitest.ts — T16 #393 + T17 #394
  *
- * Tests Layer 3 prompt construction. buildDirectPrompt consumes canonical-
- * intent labels (ActionIntent) emitted by Layer 1 and returns deterministic
- * prompt + tool manifest + permission scope. The function signature carries
- * NO raw prompt text — re-classification is forbidden per T15 audit (#390).
+ * Tests Layer 3 prompt construction. Both buildDirectPrompt and
+ * buildChatPrompt consume canonical-intent labels (ActionIntent) emitted by
+ * Layer 1 and return deterministic prompt + tool manifest + permission scope.
+ * Function signatures carry NO raw prompt text — re-classification is
+ * forbidden per T15 audit (#390).
  *
  * Verifies:
- *   - Each canonical intent produces a deterministic prompt
+ *   - Each canonical intent produces a deterministic prompt (both routes)
  *   - Permission scope respects the read-only / mutation boundary
  *   - System prompt always identifies as ALiX (existing test contract)
  *   - No-reclassification closed-world: same intent → identical output
+ *   - buildChatPrompt threads prior-turn intent metadata when provided
  */
 
 import { describe, it, expect } from "vitest";
-import { buildDirectPrompt } from "../../src/agent/route-prompts.js";
+import { buildDirectPrompt, buildChatPrompt } from "../../src/agent/route-prompts.js";
 
 describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
   describe("deterministic per canonical intent", () => {
@@ -130,6 +132,148 @@ describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
     for (const intent of intents) {
       it(`${intent} system prompt contains ALiX`, () => {
         expect(buildDirectPrompt(intent).systemPrompt).toMatch(/ALiX/);
+      });
+    }
+  });
+});
+
+describe("buildChatPrompt — Layer 3 chat prompt construction (T17 #394)", () => {
+  describe("chat-specific per canonical intent", () => {
+    it("arithmetic — direct numeric answer", () => {
+      const p = buildChatPrompt("arithmetic");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt).toContain("arithmetic");
+      expect(p.toolManifest).toEqual([]);
+      expect(p.permissions.workspaceWrite).toBe(false);
+    });
+
+    it("generation — conversational generation prompt", () => {
+      const p = buildChatPrompt("generation");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt).toContain("generated");
+      expect(p.toolManifest).toEqual([]);
+    });
+
+    it("read_only_analysis — analysis-friendly chat prompt", () => {
+      const p = buildChatPrompt("read_only_analysis");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt.toLowerCase()).toMatch(/analyz|summari/);
+      expect(p.toolManifest).toEqual([]);
+    });
+
+    it("planning — design/discussion chat prompt", () => {
+      const p = buildChatPrompt("planning");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt.toLowerCase()).toMatch(/plan|design|recommend/);
+      expect(p.toolManifest).toEqual([]);
+    });
+
+    it("shell_execution — defensive, no execution", () => {
+      const p = buildChatPrompt("shell_execution");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt.toLowerCase()).toMatch(/do not/);
+      expect(p.toolManifest).toEqual([]);
+    });
+
+    it("external_retrieval — defensive, points to agent path", () => {
+      const p = buildChatPrompt("external_retrieval");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.toolManifest).toEqual([]);
+    });
+
+    it("workspace_action — defensive, mutation scope", () => {
+      const p = buildChatPrompt("workspace_action");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.permissions.workspaceWrite).toBe(true);
+    });
+
+    it("workspace_mutation — defensive, mutation scope", () => {
+      const p = buildChatPrompt("workspace_mutation");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.permissions.workspaceWrite).toBe(true);
+    });
+
+    it("ambiguous — neutral fallback, no tools, read-only", () => {
+      const p = buildChatPrompt("ambiguous");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.toolManifest).toEqual([]);
+      expect(p.permissions.workspaceWrite).toBe(false);
+    });
+  });
+
+  describe("thread metadata", () => {
+    it("no threadIntents argument — no metadata block", () => {
+      const p = buildChatPrompt("ambiguous");
+      expect(p.systemPrompt).not.toContain("[Thread intents");
+    });
+
+    it("empty threadIntents array — no metadata block", () => {
+      const p = buildChatPrompt("ambiguous", []);
+      expect(p.systemPrompt).not.toContain("[Thread intents");
+    });
+
+    it("non-empty threadIntents — metadata block appended", () => {
+      const p = buildChatPrompt("planning", ["read_only_analysis", "planning"]);
+      expect(p.systemPrompt).toContain(
+        "[Thread intents so far: read_only_analysis, planning]",
+      );
+    });
+
+    it("thread metadata appends to every intent", () => {
+      const intents = [
+        "arithmetic",
+        "generation",
+        "read_only_analysis",
+        "planning",
+        "shell_execution",
+        "external_retrieval",
+        "workspace_action",
+        "workspace_mutation",
+        "ambiguous",
+      ] as const;
+      for (const intent of intents) {
+        const p = buildChatPrompt(intent, ["planning"]);
+        expect(p.systemPrompt).toContain("[Thread intents so far: planning]");
+      }
+    });
+  });
+
+  describe("no-reclassification invariant (chat path closed-world)", () => {
+    it("two calls with same intent + same thread produce identical prompts", () => {
+      const thread = ["read_only_analysis", "planning"] as const;
+      const p1 = buildChatPrompt("planning", thread);
+      const p2 = buildChatPrompt("planning", thread);
+      expect(p1).toEqual(p2);
+    });
+
+    it("two different intents produce structurally different prompts", () => {
+      const arithmetic = buildChatPrompt("arithmetic");
+      const generation = buildChatPrompt("generation");
+      expect(arithmetic.systemPrompt).not.toBe(generation.systemPrompt);
+    });
+
+    it("function accepts at most 2 arguments (raw text never accepted)", () => {
+      // Pin the arity — raw prompt text is forbidden.
+      expect(buildChatPrompt.length).toBeLessThanOrEqual(2);
+    });
+  });
+
+  describe("chat route contract — never expose tools across any intent", () => {
+    const intents = [
+      "arithmetic",
+      "generation",
+      "read_only_analysis",
+      "planning",
+      "shell_execution",
+      "external_retrieval",
+      "workspace_action",
+      "workspace_mutation",
+      "ambiguous",
+    ] as const;
+
+    for (const intent of intents) {
+      it(`${intent} chat prompt has empty tool manifest`, () => {
+        expect(buildChatPrompt(intent).toolManifest).toEqual([]);
       });
     }
   });
