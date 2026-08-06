@@ -219,6 +219,11 @@ export async function runTui(opts: TuiOptions = {}): Promise<void> {
         verbose: false,                            // suppress tool stdout from agent loop
         approvalStore,
         planApprovalMode: "deferred",              // TUI handles plan display/approval
+        // Forward the resolved streaming flag so the chat/direct route can
+        // stream tokens live (processTurn's direct-route branch runs BEFORE
+        // initialize() builds ctx.config.model, so it can't read model.streaming
+        // there; we resolve it here from the loaded config and pass it through).
+        streaming: config.model?.streaming !== false,
         ...(configuredModel?.provider
           ? { chatModel: { provider: configuredModel.provider, model: configuredModel.name } }
           : {}),

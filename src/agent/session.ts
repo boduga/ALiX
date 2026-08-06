@@ -128,7 +128,7 @@ import type { SkillEntry } from "../skills/catalog.js";
 import { ToolSelector } from "../mcp/tool-selector.js";
 import { ToolDiscovery } from "../mcp/tool-discovery.js";
 import { TOOL_NAME_MAP } from "../agents/tool-name-map.js";
-import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory } from "../run/helpers.js";
+import { READ_ONLY_TOOL_NAMES, saveDecisionsToMemory, streamToResponse } from "../run/helpers.js";
 import { MinimalMetrics } from "../kernel/minimal-metrics.js";
 import { TaskStateMachine, RunLimiter } from "../autonomy/state-machine.js";
 import type { PlanTask } from "../planning/plan-task.js";
@@ -975,16 +975,33 @@ export class AgentSessionBuilder {
           currentTurnExplicit.length > 0
             ? `${directBasePrompt}\n\n${buildSkillsSection(currentTurnExplicit)}`
             : directBasePrompt;
-        const genResponse = await genProvider
-          .complete({
-            systemPrompt: directSystemPrompt,
-            messages: [{ role: "user", content: route.prompt }],
-            maxOutputTokens: 512,
-          })
-          .catch((err: unknown) => {
-            _providerError = err instanceof Error ? err.message : String(err);
-            return null;
-          });
+        // Stream live when enabled (matches the loader default and the
+        // runTaskLoop path) so the in-process TUI shows tokens as they
+        // arrive. The direct route runs before initialize() so
+        // ctx.config.model.streaming isn't available yet — the closure-
+        // captured top-level `config.streaming` is the resolved source.
+        // `streamToResponse` fail-softs to a blocking complete() on
+        // mid-stream error, matching runTaskLoop's behavior.
+        const useStream = config.streaming !== false;
+        const genResponse = await (useStream && genProvider.stream
+          ? streamToResponse(genProvider, {
+              systemPrompt: directSystemPrompt,
+              messages: [{ role: "user", content: route.prompt }],
+              maxOutputTokens: 512,
+            }, {
+              onStream: (chunk) => {
+                if (chunk.type === "text") config.events?.onToken?.(chunk.text);
+              },
+            })
+          : genProvider.complete({
+              systemPrompt: directSystemPrompt,
+              messages: [{ role: "user", content: route.prompt }],
+              maxOutputTokens: 512,
+            })
+        ).catch((err: unknown) => {
+          _providerError = err instanceof Error ? err.message : String(err);
+          return null;
+        });
         if (!genResponse) {
           return {
             summary: `[chat:provider-error] ${_providerError ?? message}`,
@@ -998,7 +1015,10 @@ export class AgentSessionBuilder {
           summary: genResponse.text || "(no response)",
           sessionId: config.sessionId ?? "",
           toolCalls: [],
-          streamed: false,
+          // The chat/direct route calls streamToResponse when streaming is on,
+          // so the result reflects the actual path used. runTaskLoop and the
+          // agent loop set this the same way (config.model.streaming).
+          streamed: useStream && Boolean(genProvider.stream),
           reason: "direct",
         };
       }
