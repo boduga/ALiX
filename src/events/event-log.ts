@@ -182,6 +182,19 @@ export class EventLog {
   async append<TType extends string, TPayload>(
     event: NewEvent<TType, TPayload>
   ): Promise<AlixEvent<TType, TPayload>> {
+    // Self-correcting seq allocation: re-sync nextSeq from disk before every
+    // append. This prevents collisions when more than one EventLog instance
+    // points at the same sessionDir (e.g. the TUI's timelineEmitter and the
+    // agent's runTaskLoop both creating new EventLog instances). The cost is
+    // one readFileSync per append; sub-millisecond for typical sessions
+    // (hundreds of events) and strictly correct across any number of writers.
+    //
+    // Without this, init()'s reduce-based nextSeq computation runs once per
+    // instance. Two instances can both compute the same nextSeq, append
+    // simultaneously, and produce duplicate seqs in the same file —
+    // observed in alix-init-test session 1786002949079 where session.started
+    // and agent.response shared seq=6 across two EventLog writers.
+    await this.resyncFromDisk();
     const fullEvent: AlixEvent<TType, TPayload> = {
       ...event,
       id: randomUUID(),
@@ -195,6 +208,26 @@ export class EventLog {
       try { listener(fullEvent); } catch { /* ignore listener errors */ }
     }
     return fullEvent;
+  }
+
+  /** Re-sync nextSeq from the durable file. Called by append() before every
+   *  write to defend against multi-instance writers. No-op if the in-memory
+   *  counter is already at-or-ahead of the file's max seq (the common case
+   *  for the only-writer scenario, where this is just a 1-line file read). */
+  private async resyncFromDisk(): Promise<void> {
+    if (!existsSync(this.path)) return;
+    const text = await readFile(this.path, "utf8");
+    let maxSeq = 0;
+    for (const line of text.split("\n")) {
+      if (!line) continue;
+      try {
+        const e = JSON.parse(line) as { seq?: number };
+        if (typeof e.seq === 'number' && e.seq > maxSeq) maxSeq = e.seq;
+      } catch {
+        // Skip malformed lines (e.g. partial write from a crashed prior process).
+      }
+    }
+    if (maxSeq + 1 > this.nextSeq) this.nextSeq = maxSeq + 1;
   }
 
   async readAll(): Promise<AlixEvent[]> {
