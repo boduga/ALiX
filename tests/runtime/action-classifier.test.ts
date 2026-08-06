@@ -20,6 +20,7 @@ import assert from "node:assert/strict";
 import {
   classifyAction,
   classifyActionWithConfidence,
+  CONFIDENCE_THRESHOLD,
   evaluateArithmetic,
   type ActionClassification,
 } from "../../src/runtime/action-classifier.js";
@@ -284,6 +285,174 @@ describe("classifyAction — workspace-state recognition contract", () => {
   });
 });
 
+// ── Classification: shell-execution (T9 #385) ────────────────────────
+//
+// T9 graduates shell_execution to Layer 1 (src/runtime/action-classifier.ts)
+// via a SHELL_EXECUTION_ANCHORS regex family. The recognizer surfaces the
+// intent deterministically so the closed-world invariant test can pin the
+// (shell_execution, tool) chain at Layer 1 → Layer 3 without relying on
+// isShellTask at task-classifier.ts:142.
+//
+// Layer 2 isShellTask stays alive as the agent loop's planning lens — it
+// includes mutation commands (rm, mv, cp) that the canonical taxonomy maps
+// to workspace_mutation, not shell_execution. T9 is intentionally narrower:
+// read/observe shell commands where the command itself is the request.
+
+describe("classifyAction — shell-execution recognition contract (T9 #385)", () => {
+  // ── Positive corpus: must classify shell_execution ──────────────────
+
+  const POSITIVE_CORPUS: ReadonlyArray<{ prompt: string; note: string }> = [
+    // Bare commands (read/observe).
+    { prompt: "ls", note: "bare ls (no args)" },
+    { prompt: "pwd", note: "bare pwd" },
+    { prompt: "cat package.json", note: "bare cat with arg" },
+    { prompt: "cat README.md", note: "bare cat file path" },
+    { prompt: "head -n 5 README.md", note: "bare head with flag arg" },
+    { prompt: "tail -f logs/server.log", note: "bare tail with flag arg" },
+    { prompt: "grep foo src/", note: "bare grep with arg" },
+    { prompt: "find . -name '*.ts'", note: "bare find with paths/predicates" },
+    { prompt: "wc -l src/foo.ts", note: "bare wc with flag arg" },
+    { prompt: "sort -u file.txt", note: "bare sort with flag arg" },
+    { prompt: "du -sh .", note: "bare du with flag arg" },
+    { prompt: "df -h", note: "bare df with flag arg" },
+    { prompt: "whoami", note: "bare whoami" },
+    { prompt: "env", note: "bare env" },
+    { prompt: "echo hello", note: "bare echo with arg" },
+    { prompt: "curl https://example.com/api", note: "bare curl with url arg" },
+    { prompt: "ping -c 1 localhost", note: "bare ping with flag arg" },
+    // Dev tool subcommands that observe/check.
+    { prompt: "npm test", note: "npm test" },
+    { prompt: "npm run build", note: "npm run-script" },
+    { prompt: "npm ls", note: "npm list subcommand" },
+    { prompt: "git status", note: "git status" },
+    { prompt: "git log", note: "git log" },
+    { prompt: "git diff", note: "git diff" },
+    { prompt: "git branch", note: "git branch" },
+    // Prefixed-command forms — natural-language wrappers around a command.
+    { prompt: "run npm test", note: "run + command" },
+    { prompt: "execute the build", note: "execute + noun-phrase" },
+    { prompt: "exec ls -la", note: "exec + command" },
+    { prompt: "use bash to check disk space", note: "use bash to + verb" },
+  ];
+
+  for (const { prompt, note } of POSITIVE_CORPUS) {
+    it(`classifies shell_execution: ${note} (${JSON.stringify(prompt)})`, () => {
+      const result = classifyActionWithConfidence(prompt);
+      assert.equal(result.intent, "shell_execution");
+      assert.ok(
+        result.confidence >= CONFIDENCE_THRESHOLD,
+        `confidence ${result.confidence} below Layer-1 floor ${CONFIDENCE_THRESHOLD}`,
+      );
+    });
+  }
+
+  // ── Negative corpus: must NOT classify shell_execution ──────────────
+
+  describe("negative corpus", () => {
+    const NEGATIVE_CASES: ReadonlyArray<{ prompt: string; because: string }> = [
+      { prompt: "is curl installed", because: "workspace_state probe (shell-state)" },
+      { prompt: "what's running on port 3000", because: "workspace_state probe (T7)" },
+      { prompt: "create foo.ts", because: "workspace_mutation (T8)" },
+      { prompt: "remove cache npm", because: "workspace_mutation legacy carve-out" },
+      { prompt: "rename foo.ts to bar.ts", because: "workspace_mutation file target" },
+      { prompt: "install curl", because: "workspace_mutation (download/extract, not shell)" },
+      { prompt: "compare installers", because: "read_only_analysis (T10)" },
+      { prompt: "explain install process", because: "read_only_analysis (T10)" },
+      { prompt: "should I install curl", because: "planning decision question (T11)" },
+      { prompt: "write installation instructions", because: "generation (T12)" },
+      { prompt: "2 + 2", because: "pure arithmetic dominates" },
+      { prompt: "what's in package.json", because: "natural-language state, not bare command" },
+      { prompt: "list of bugs in the repo", because: "natural-language phrasing, not a shell command" },
+    ];
+
+    for (const { prompt, because } of NEGATIVE_CASES) {
+      it(`does not classify shell_execution: ${JSON.stringify(prompt)} (${because})`, () => {
+        const result = classifyAction(prompt);
+        assert.notEqual(
+          result.intent,
+          "shell_execution",
+          `prompt should not be shell_execution because: ${because}`,
+        );
+      });
+    }
+  });
+
+  // ── Trigger precedence: shell_execution sits between workspace and retrieval ──
+
+  describe("trigger precedence", () => {
+    it("workspace anchors win over shell command form ('run ls on my repo')", () => {
+      // Even though 'ls' is in the prompt, 'my repo' anchors it to a
+      // workspace action. workspace_action dominates shell_execution:
+      // the routing is the agent loop, which then dispatches shells
+      // internally; surfacing shell_execution would lose the workspace
+      // anchor.
+      const result = classifyAction("run ls on my repo");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("arithmetic dominates shell_execution for numeric expressions ('2 + 2')", () => {
+      const result = classifyAction("2 + 2");
+      assert.equal(result.intent, "arithmetic");
+    });
+  });
+
+  // ── No-overlap verification with adjacent intent families ───────────
+
+  describe("no-overlap with adjacent intent families", () => {
+    it("does not steal workspace_state ('is X installed', 'what's running')", () => {
+      assert.notEqual(classifyAction("is curl installed").intent, "shell_execution");
+      assert.notEqual(classifyAction("what's running on port 3000").intent, "shell_execution");
+    });
+
+    it("does not steal workspace_mutation ('create foo.ts', 'install curl')", () => {
+      assert.notEqual(classifyAction("create foo.ts").intent, "shell_execution");
+      assert.notEqual(classifyAction("install curl").intent, "shell_execution");
+      assert.notEqual(classifyAction("rm foo.txt").intent, "shell_execution");
+    });
+
+    it("does not steal read_only_analysis ('compare installers', 'explain X')", () => {
+      assert.notEqual(classifyAction("compare installers").intent, "shell_execution");
+      assert.notEqual(classifyAction("explain install process").intent, "shell_execution");
+    });
+
+    it("does not steal planning ('should I install curl')", () => {
+      assert.notEqual(classifyAction("should I install curl").intent, "shell_execution");
+    });
+
+    it("does not steal generation ('write installation instructions')", () => {
+      assert.notEqual(
+        classifyAction("write installation instructions").intent,
+        "shell_execution",
+      );
+    });
+
+    it("does not steal arithmetic ('2 + 2')", () => {
+      assert.notEqual(classifyAction("2 + 2").intent, "shell_execution");
+    });
+  });
+
+  // ── Closed-world: shell_execution routes to tool.shell.run via taskRouter ──
+
+  describe("routing — shell_execution resolves to kind:'tool' at taskRouter", () => {
+    const ROUTING_CASES: ReadonlyArray<{ prompt: string }> = [
+      { prompt: "ls" },
+      { prompt: "cat package.json" },
+      { prompt: "npm test" },
+      { prompt: "git status" },
+    ];
+
+    for (const { prompt } of ROUTING_CASES) {
+      it(`taskRouter(${JSON.stringify(prompt)}) resolves to kind:'tool' (Layer-3 isShellTask carve-out)`, async () => {
+        const route = await taskRouter(prompt);
+        assert.equal(route.kind, "tool");
+        if (route.kind === "tool") {
+          assert.equal(route.tool, "shell.run");
+        }
+      });
+    }
+  });
+});
+
 // ── Classification: ambiguous ────────────────────────────────────────
 
 describe("classifyAction — ambiguous / defaults", () => {
@@ -318,7 +487,7 @@ describe("classifyAction — ambiguous / defaults", () => {
 
 const CANONICAL_CASES: ReadonlyArray<{
   intent: "arithmetic" | "standalone_generation" | "workspace_action" |
-          "external_retrieval" | "ambiguous";
+          "external_retrieval" | "shell_execution" | "ambiguous";
   kind: "direct" | "tool" | "chat" | "grounded_chat" | "agent";
   prompt: string;
   note: string;
