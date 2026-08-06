@@ -95,6 +95,27 @@ describe('buildAgentScrollbackLines — live streaming line', () => {
     expect(lines.some((l) => l.kind === 'agent')).toBe(true);
   });
 
+  // Regression: streaming tokens were previously pinned at the absolute bottom
+  // of the scrollback, separate from the turn they belong to. The fix pins the
+  // streaming line inline at the bottom of the LAST turn's agent response
+  // section, so streamed tokens render where the user prompt + plan + agent
+  // response of the same turn live.
+  it('renders streaming inline within the last turn (not at absolute bottom)', () => {
+    const c = ctx([
+      { kind: 'agent.message' as const, text: 'go', actor: 'user' as const },
+      { kind: 'agent.message' as const, text: 'ok', actor: 'agent' as const },
+      { kind: 'agent.message' as const, text: 'next', actor: 'user' as const },
+    ]) as any;
+    c.perTab.streamingText = 'still streaming';
+    const lines = buildAgentScrollbackLines(c, 200);
+    const userIdx = lines.findIndex((l: any) => l.text === 'next');
+    const streamIdx = lines.findIndex((l: any) => l.kind === 'streaming');
+    // streaming must come after the LAST user prompt (inline within that turn)
+    expect(streamIdx).toBeGreaterThan(userIdx);
+    // and must be at the very end of the scrollback (no ledger slot below it)
+    expect(streamIdx).toBe(lines.length - 1);
+  });
+
   it('includes the streaming line in computeBottomAnchor when content overflows', () => {
     // 100 turns × 1 line + 99 separators = 199; streaming adds 1 more = 200.
     const timeline = Array.from({ length: 100 }, (_, i) => ({ kind: 'agent.message' as const, text: `L${i}`, actor: 'user' as const }));

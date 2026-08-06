@@ -141,6 +141,7 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
   // (matches the old behavior where every timeline entry was rendered with
   // its own separator).
   const theme = ctx.themeName ? getTheme(ctx.themeName) : undefined;
+  const streaming = ctx.perTab.streamingText;
   for (let ti = 0; ti < turns.length; ti++) {
     const t = turns[ti]!;
     if (ti > 0) out.push({ kind: 'user', text: '', isFirst: false });
@@ -160,11 +161,37 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
       // Separator between consecutive agent responses within the same turn.
       if (ai < t.agentTexts.length - 1) out.push({ kind: 'user', text: '', isFirst: false });
     }
+    // Live-streaming line: pinned inline at the bottom of the CURRENT turn's
+    // agent response section, NOT at the absolute bottom of the scrollback.
+    // The previous behavior rendered it as a separate slot after all turns +
+    // ledger, which made streamed tokens appear visually disconnected from the
+    // turn they belong to (especially when intermediate agent.message /
+    // agent.decision events arrive in the timeline mid-stream).
+    if (ti === turns.length - 1 && streaming && streaming.length > 0) {
+      // Only add a separator when an agent response exists above to separate
+      // from. A turn whose only content is the user prompt is the streaming
+      // line's own row — no separator needed.
+      if (t.agentTexts.length > 0) {
+        out.push({ kind: 'user', text: '', isFirst: false });
+      }
+      const wrapped = wrapText(streaming, textWidth);
+      for (let i = 0; i < wrapped.length; i++) {
+        out.push({ kind: 'streaming', text: wrapped[i]!, isFirst: i === 0, isLast: i === wrapped.length - 1 });
+      }
+    }
   }
   // No turns at all but a plan exists (plan-review-only state): render plan
   // at the top so the operator can review it.
   if (turns.length === 0 && (planContent || (planTasks && planTasks.length > 0))) {
     renderPlanLines();
+  }
+  // No turns yet but streaming is active (mid-turn, before the first agent
+  // event arrives): render the streaming line at the top.
+  if (turns.length === 0 && streaming && streaming.length > 0) {
+    const wrapped = wrapText(streaming, textWidth);
+    for (let i = 0; i < wrapped.length; i++) {
+      out.push({ kind: 'streaming', text: wrapped[i]!, isFirst: i === 0, isLast: i === wrapped.length - 1 });
+    }
   }
 
   // Pending approvals (verbatim from agent-view.ts:159-173).
@@ -196,19 +223,6 @@ export function buildAgentScrollbackLines(ctx: ViewRenderContext, textWidth: num
     const cap = ledgerExpanded ? ledgerLines.length : Math.min(3, ledgerLines.length);
     const sliced = ledgerLines.slice(-cap);
     for (const line of sliced) out.push({ kind: 'plan', text: line, isFirst: false });
-  }
-
-  // Live-streaming assistant response for the in-flight agent turn. One
-  // growing line pinned at the bottom, plain-wrapped (NOT block-rendered —
-  // growth must stay smooth as tokens arrive); the last row carries a
-  // liveness cursor. Folds into a normal scrollback entry on completion,
-  // when `streamingText` is cleared and the completed turn renders above.
-  const streaming = ctx.perTab.streamingText;
-  if (streaming && streaming.length > 0) {
-    const wrapped = wrapText(streaming, textWidth);
-    for (let i = 0; i < wrapped.length; i++) {
-      out.push({ kind: 'streaming', text: wrapped[i]!, isFirst: i === 0, isLast: i === wrapped.length - 1 });
-    }
   }
 
   return out;
