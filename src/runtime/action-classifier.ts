@@ -49,6 +49,7 @@ export type ActionIntent =
   | "workspace_action"
   | "workspace_mutation"
   | "external_retrieval"
+  | "shell_execution"
   | "ambiguous";
 
 /**
@@ -412,6 +413,48 @@ const RETRIEVAL_SIGNALS: readonly RegExp[] = [
 ];
 
 /**
+ * Patterns that anchor a prompt as a **shell-execution** request —
+ * "run this command, show me the output". Side-effect-agnostic: the
+ * command itself is the request (read/observe, or dev-tool subcommands).
+ *
+ * T9 (#385) graduates this family from `isShellTask` at
+ * `src/task-classifier.ts:142` (a Layer-2 planning lens used inside
+ * the agent loop) up to Layer 1 — `classifyAction`. Layer 2 stays
+ * alive as the agent loop's planning lens; Layer 1 surfaces the
+ * intent deterministically so the closed-world invariant test pins
+ * the (shell_execution, tool) chain at Layer 1 → Layer 3.
+ *
+ * Anchored to start of prompt so natural-language phrasings
+ * ("list of bugs", "what's in package.json") do not match.
+ * workspace_action dominates this family — "run ls on my repo" still
+ * classifies as workspace_action (see trigger-precedence test).
+ */
+const SHELL_EXECUTION_ANCHORS: readonly RegExp[] = [
+  // Bare shell commands (read/observe). Anchored with `^` so "list of
+  // bugs in the repo" does not match (it would only match if we
+  // accepted "list" as an alias for ls, which we don't). Negative
+  // lookahead rejects prompts with a natural-language tail like "run
+  // tests and fix failures" (multi-action task, must stay on agent).
+  /^\s*(?:ls|pwd|cat|head|tail|grep|find|wc|sort|uniq|stat|du|df|whoami|env|echo|printf|type|curl|ping|tr|awk|sed|tee|basename|dirname|file|less|more|md5sum|sha256sum|date|uptime|hostname|uname|id|groups|which|whereis|man|history|jobs|ps|top|netstat|ss|lsof|ifconfig|ip|traceroute|nslookup|dig|host|wget|tar|zip|unzip|gzip|gunzip|cd|mkdir|touch|rmdir)\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
+  // Dev-tool subcommands (read/observe only). Mutating subcommands
+  // (install, add, remove, rm, create) are intentionally excluded —
+  // T9 is narrower than `isShellTask` and `npm install curl` belongs
+  // to workspace_mutation per the canonical taxonomy.
+  /^\s*(?:npm|pnpm|yarn|bun)\s+(?:test|run|ls|list|view|info|search|docs|outdated|audit|version|v|init|config|help|h|scripts?|publish|ci|why|funding|login|logout|whoami|prune|dedupe|rebuild|pack|exec|start|stop|restart)\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
+  // Common dev-tool prefixes with a subcommand. Includes git, docker,
+  // kubectl, helm, terraform, ssh, scp, rsync, brew, apt, systemctl,
+  // service, crontab. Word boundary `\b` after the subcommand token
+  // prevents `\S+` from backtracking through English-connective tails.
+  /^\s*(?:git|docker|kubectl|helm|terraform|aws|gcloud|az|ssh|scp|rsync|brew|apt|apt-get|yum|dnf|pacman|snap|systemctl|service|crontab)\s+\S+\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
+  // Prefixed-command forms — natural-language wrappers around a command.
+  // "run npm test", "execute the build", "exec ls -la", "use bash to …".
+  // Word boundary `\b` after the command token prevents `\S+` from
+  // backtracking through English-connective tails like "and fix failures".
+  /^\s*(?:run|execute|exec|invoke|fire|trigger|spawn)\s+(?:a|an|the|my|some)?\s*\S+\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
+  /^\s*(?:use|run|execute|exec)\s+(?:bash|shell|sh|zsh)\s+to\b(?!\s+(?:and|or|then|but|fix|failures?|errors?|so)\s+\S+)/i,
+];
+
+/**
  * Tokens / patterns that imply a direct, model-generated answer.
  * Evaluated only when neither arithmetic nor workspace nor retrieval
  * signals are present.
@@ -498,6 +541,18 @@ export function classifyAction(input: string): ActionClassification {
     };
   }
 
+  // 5. Shell execution — run a command, observe its output. Anchored
+  //    regex family (SHELL_EXECUTION_ANCHORS). Surfaces the intent
+  //    deterministically so the closed-world invariant test can pin
+  //    the (shell_execution, tool) chain at Layer 1 → Layer 3 without
+  //    relying on the Layer-2 isShellTask lens inside the agent loop.
+  if (hasAny(trimmed, SHELL_EXECUTION_ANCHORS)) {
+    return {
+      intent: "shell_execution",
+      reason: "prompt is a shell command or dev-tool subcommand request",
+    };
+  }
+
   // 6. Fall back to ambiguous — caller decides the default route.
   return {
     intent: "ambiguous",
@@ -535,6 +590,7 @@ function confidenceForIntent(intent: ActionIntent): number {
     case "arithmetic": return 1.0;
     case "workspace_action": return 0.95;
     case "workspace_mutation": return 0.95;
+    case "shell_execution": return 0.9;
     case "standalone_generation": return 0.85;
     case "external_retrieval": return 0.75;
     case "ambiguous": return 0.5;
@@ -575,7 +631,7 @@ export async function modelClassifyAction(
       systemPrompt:
         "You are a prompt router. Given a user request, classify it as exactly " +
         "one of these labels:\n\n" +
-        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nambiguous\n\n" +
+        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nshell_execution\nambiguous\n\n" +
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
@@ -583,7 +639,8 @@ export async function modelClassifyAction(
     const label = (response.text ?? "").trim().toLowerCase();
     const VALID: ActionIntent[] = [
       "arithmetic", "workspace_action", "workspace_mutation",
-      "standalone_generation", "external_retrieval", "ambiguous",
+      "standalone_generation", "external_retrieval", "shell_execution",
+      "ambiguous",
     ];
     const intent = VALID.find((v) => label === v);
     if (intent) {
