@@ -8,14 +8,15 @@ import * as viewportModule from '../../../src/tui/views/bottom-anchored-viewport
 import type { ScrollbackLine } from '../../../src/tui/views/bottom-anchored-viewport.js';
 
 /**
- * Bottom-anchored prompt row: one above the 3-row footer.
- * Mirrors the formula in `ChatView.render` so the tests can
- * assert the prompt's absolute position regardless of canvas height.
+ * Bottom-anchored prompt row: one above the 5-row footer.
+ * Mirrors the formula in `ChatView.render` (via `computeViewport`)
+ * so the tests can assert the prompt's absolute position
+ * regardless of canvas height.
  *
- * `panelRow = rows - FOOTER_H(3) - PANEL_H(0) - 1`
+ * `panelRow = rows - BELOW_PROMPT_ROWS(2)` (see src/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
-  return Math.max(0, height - 3 - 0 - 1);
+  return Math.max(0, height - 2);
 }
 
 // Cast factory: MockCanvas is intentionally minimal (only captures write()).
@@ -52,8 +53,9 @@ function ctx(opts: {
   };
 }
 
-// scrollbackRows for a 30-row canvas: panelRow = 30 - 3 - 0 - 1 = 26, so
-// scrollbackRows = panelRow - 5 = 21. Tests assert against this constant.
+// scrollbackRows for a 30-row canvas: topBorderRow = 30 - 5 + 1 = 26, so
+// scrollbackBottom = topBorderRow - 1 = 25, scrollbackRows = 25 - 5 + 1 = 21.
+// Tests assert against this constant.
 const SCROLLBACK_ROWS = 21;
 
 describe('ChatView bottom-anchored render', () => {
@@ -69,9 +71,12 @@ describe('ChatView bottom-anchored render', () => {
   it('does NOT render a slash strip at panelRow+1 (chat tab has no slash strip)', () => {
     const c = ctx({ rows: 30 });
     view.render(c);
+    // The bottom border now sits at panelRow+1 (= bottomBorderRow); only writes
+    // containing slash-strip content (cyan \x1b[36m markers) would indicate a
+    // slash strip leaking into chat. Anything else (e.g. the bottom border) is fine.
     const writesBelow = (c.canvas as unknown as MockCanvas).writes.filter((w) => w.y >= panelRow(30) + 1);
-    // Nothing should be drawn beneath the prompt line on the chat tab.
-    expect(writesBelow.length).toBe(0);
+    const slashLikeWrites = writesBelow.filter((w) => /\x1b\[36m/.test(w.text));
+    expect(slashLikeWrites.length).toBe(0);
   });
 
   it('passes the bottom-anchored window (most-recent lines) to renderBottomAnchoredSlice when pinnedBottom=true', () => {
@@ -90,7 +95,9 @@ describe('ChatView bottom-anchored render', () => {
       const offset = opts.offset as number;
 
       // pinnedBottom=true → bottom anchor = max(0, allLines.length - scrollbackRows).
-      // scrollbackRows = panelRow - 5 = (rows - 4) - 5 = 21 for rows=30.
+      // scrollbackRows = scrollbackBottom - scrollbackTop + 1
+      //                = (topBorderRow - 1) - SCROLLBACK_TOP_CHAT + 1
+      //                = (30 - 5) - 5 = 20 - 5 = 15 + 1 = 21 for rows=30.
       expect(offset).toBe(Math.max(0, allLines.length - SCROLLBACK_ROWS));
 
       // Selected slice spans [offset, offset+SCROLLBACK_ROWS). The last visible

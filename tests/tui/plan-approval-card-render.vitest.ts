@@ -14,7 +14,7 @@ import { TuiPlanApprovalGate } from "../../src/tui/plan-approval-gate.js";
 import { TerminalCanvas } from "../../src/tui/canvas.js";
 
 const HEADER_H = 3;
-const FOOTER_H = 3;
+const FOOTER_H = 5;
 const CARD_H = 4;
 
 /**
@@ -126,10 +126,10 @@ describe("plan approval card render", () => {
     const canvas = new TerminalCanvas(60, 24);
     paintCard(canvas, 60, 24, gate.getPending());
     const rows = canvas.renderFrame().split("\n");
-    // CARD_H=4, FOOTER_H=3, so the card occupies rows 24-3-4=17 to 20.
-    // The footer occupies rows 21-23 (the last 3 rows).
-    // The card's bottom border should be at row 20, not in the footer.
-    const bottomBorderRow = rows[20] ?? "";
+    // CARD_H=4, FOOTER_H=5, so the card occupies rows 24-5-4=15 to 18.
+    // The footer occupies rows 19-23 (the last 5 rows).
+    // The card's bottom border should be at row 18, not in the footer.
+    const bottomBorderRow = rows[18] ?? "";
     expect(bottomBorderRow).toContain("╰");
     gate.resolve("smoke-geom", "approve");
     await pending;

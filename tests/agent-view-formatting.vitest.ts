@@ -37,13 +37,15 @@ const DEEP = 100;
 const W = 80;
 
 /**
- * Bottom-anchored prompt row: one above the 3-row footer.
- * Mirrors the formula in `AgentView.render` so the formatting
- * tests can assert the prompt's absolute position regardless
- * of canvas height.
+ * Bottom-anchored prompt row: one above the 5-row footer.
+ * Mirrors the formula in `AgentView.render` (via `computeViewport`)
+ * so the formatting tests can assert the prompt's absolute
+ * position regardless of canvas height.
+ *
+ * `panelRow = rows - BELOW_PROMPT_ROWS(2)` (see src/tui/views/scroll-math.ts)
  */
 function panelRow(height: number): number {
-  return Math.max(0, height - 3 - 0 - 1);
+  return Math.max(0, height - 2);
 }
 
 /* ─── Helpers ───────────────────────────────────────────────── */
