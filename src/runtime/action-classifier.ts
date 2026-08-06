@@ -33,10 +33,13 @@
  */
 
 /**
- * The five mutually-exclusive intents this classifier can return.
+ * The six mutually-exclusive intents this classifier can return.
  *
  * `arithmetic` and `standalone_generation` route to direct answers;
- * `workspace_action` routes to a workspace-capable agent;
+ * `workspace_action` (state) and `workspace_mutation` (mutation) both
+ *   route to a workspace-capable agent — the split is surfaced at
+ *   Layer 1 for auditability per `docs/intent-contracts/canonical-taxonomy.md`
+ *   (T8 on wayfinder map #376);
  * `external_retrieval` routes to a grounded chat;
  * `ambiguous` is the safe fallback when no signal dominates.
  */
@@ -44,6 +47,7 @@ export type ActionIntent =
   | "arithmetic"
   | "standalone_generation"
   | "workspace_action"
+  | "workspace_mutation"
   | "external_retrieval"
   | "ambiguous";
 
@@ -328,6 +332,62 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
 ];
 
 /**
+ * Workspace-mutation recognizers (T8 on wayfinder map #376).
+ * A prompt matches `workspace_mutation` when it asks the runtime to
+ * change the local filesystem — create, edit, delete, rename, install,
+ * etc. — distinct from `workspace_action` (state, read-only) and
+ * `shell_execution` (run a command, observe output).
+ *
+ * Trigger precedence: `workspace_action` (state) fires BEFORE
+ * `workspace_mutation` so that probes with conditional mutation
+ * ("is curl installed or do I need to install it") classify as
+ * state — preserves T1's documented ambiguous-corpus policy.
+ *
+ * Superset of the legacy `hasWorkspaceWriteIntent` carve-out at
+ * `task-router.ts:475-477` (now deleted as a no-op). The carve-out
+ * required a preposition after the verb; the MUTATION_ANCHORS family
+ * accepts several shapes:
+ *
+ *   - imperative verb + object: "create a file", "install curl", "delete foo.txt"
+ *   - verb + object + preposition: "write X to Y", "save X to Y"
+ *   - rename/move: "rename X to Y", "move X to Y"
+ *   - file-system verbs: "mkdir foo", "touch foo"
+ *
+ * Per `docs/intent-contracts/workspace-mutation.md`:
+ *   - Positive corpus: "create foo.ts", "rename X to Y", "delete Y",
+ *     "write file", "edit Z", "save changes", "install curl", "remove the cache from npm"
+ *   - Negative corpus: workspace-state probes, generation, planning,
+ *     read-only-analysis, shell-execution (no shell prompts)
+ *   - Trigger precedence: state first, mutation second
+ *   - Confidence: 0.95 for direct matches
+ *   - Test corpus: `tests/runtime/action-classifier.test.ts →
+ *     describe("workspace-mutation recognition contract")`
+ */
+const MUTATION_ANCHORS: readonly RegExp[] = [
+  // Superset of hasWorkspaceWriteIntent (task-router.ts:475-477).
+  // The legacy carve-out required a preposition after the verb; this
+  // pattern captures the same shape but is now a Layer-1 recognizer.
+  /\b(?:write|put|save|create|make|append|delete|remove|rm)\s+\S+\s+(?:to|into|in|as|from|on)\b/i,
+  // Imperative mutation verbs at the START of the prompt.
+  // Required to be at the start so that "explain the install process"
+  // does NOT match (the noun "install" is part of an explanation, not
+  // an imperative). Captures "install curl", "create foo.ts",
+  // "delete foo.txt", "remove the cache from npm", "edit config.ts",
+  // "update README.md", "rename foo.ts", "touch bar", "mkdir foo".
+  /^(?:install|uninstall|create|delete|remove|rm|rename|edit|update|touch|mkdir|chmod|chown)\s+\S+/i,
+  // Create-new mutation object forms (noun after the verb).
+  /\bcreate\s+(?:a\s+|an\s+|the\s+)?(?:file|directory|folder|script|module|component|class|function|endpoint|note|document|test|spec|backup)\b/i,
+  // Rename / move forms.
+  /\b(?:rename|move|mv)\s+\S+\s+(?:to|into)\b/i,
+  // "make a X" creation.
+  /\bmake\s+(?:a\s+|an\s+|the\s+)?(?:file|directory|note|script|module|change|list|plan|copy|backup)\b/i,
+  // "save changes" / "save X" — explicit save verb.
+  /\bsave\s+(?:changes|the\s+\S+|\S+\s+to)\b/i,
+  // "save changes" / "save the file" forms.
+  /\b(?:write|save)\s+(?:a\s+|an\s+|the\s+)?(?:file|changes|notes|document|backup)\b/i,
+];
+
+/**
  * Tokens / patterns that imply current external information. Evaluated
  * only when no workspace anchor is present.
  */
@@ -410,7 +470,19 @@ export function classifyAction(input: string): ActionClassification {
     };
   }
 
-  // 3. External retrieval — current information from outside the repo.
+  // 3. Workspace mutation — file change / install / delete / rename.
+  //    Fires AFTER state (step 2) so probes with conditional mutation
+  //    ("is curl installed or do I need to install it") classify as
+  //    state — preserves T1's documented ambiguous-corpus policy.
+  //    See `docs/intent-contracts/workspace-mutation.md` (T8).
+  if (hasAny(trimmed, MUTATION_ANCHORS)) {
+    return {
+      intent: "workspace_mutation",
+      reason: "prompt asks to change the local workspace",
+    };
+  }
+
+  // 4. External retrieval — current information from outside the repo.
   if (hasAny(trimmed, RETRIEVAL_SIGNALS)) {
     return {
       intent: "external_retrieval",
@@ -418,7 +490,7 @@ export function classifyAction(input: string): ActionClassification {
     };
   }
 
-  // 4. Standalone generation — answer directly via the model.
+  // 5. Standalone generation — answer directly via the model.
   if (hasAny(trimmed, GENERATION_SIGNALS)) {
     return {
       intent: "standalone_generation",
@@ -426,7 +498,7 @@ export function classifyAction(input: string): ActionClassification {
     };
   }
 
-  // 5. Fall back to ambiguous — caller decides the default route.
+  // 6. Fall back to ambiguous — caller decides the default route.
   return {
     intent: "ambiguous",
     reason: "no decisive signal; default route applies",
@@ -462,6 +534,7 @@ function confidenceForIntent(intent: ActionIntent): number {
   switch (intent) {
     case "arithmetic": return 1.0;
     case "workspace_action": return 0.95;
+    case "workspace_mutation": return 0.95;
     case "standalone_generation": return 0.85;
     case "external_retrieval": return 0.75;
     case "ambiguous": return 0.5;
@@ -502,15 +575,15 @@ export async function modelClassifyAction(
       systemPrompt:
         "You are a prompt router. Given a user request, classify it as exactly " +
         "one of these labels:\n\n" +
-        "arithmetic\nworkspace_action\nstandalone_generation\nexternal_retrieval\nambiguous\n\n" +
+        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nambiguous\n\n" +
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
     });
     const label = (response.text ?? "").trim().toLowerCase();
     const VALID: ActionIntent[] = [
-      "arithmetic", "workspace_action", "standalone_generation",
-      "external_retrieval", "ambiguous",
+      "arithmetic", "workspace_action", "workspace_mutation",
+      "standalone_generation", "external_retrieval", "ambiguous",
     ];
     const intent = VALID.find((v) => label === v);
     if (intent) {

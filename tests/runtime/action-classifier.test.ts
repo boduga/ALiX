@@ -284,6 +284,137 @@ describe("classifyAction — workspace-state recognition contract", () => {
   });
 });
 
+// ── Classification: workspace-mutation recognition contract (T8 #388) ─────────
+//
+// T8 — workspace_mutation recognition contract.
+// A user prompt belongs to the `workspace_mutation` family when it asks the
+// runtime to change the local filesystem (create, edit, delete, rename,
+// install, etc.) — distinct from `workspace_action` (state, read-only probes)
+// and `shell_execution` (run a command, observe output).
+//
+// Trigger precedence: `workspace_action` fires BEFORE `workspace_mutation`
+// so that probes with conditional mutation ("is curl installed or do I need
+// to install it") classify as state — preserves T1's documented
+// ambiguous-corpus policy.
+//
+// Reconcile: the legacy `hasWorkspaceWriteIntent` carve-out at
+// task-router.ts:475-477 is now deleted. MUTATION_ANCHORS in
+// src/runtime/action-classifier.ts is a strict superset of that carve-out
+// and surfaces the intent at Layer 1.
+//
+// The full contract lives at docs/intent-contracts/workspace-mutation.md.
+
+describe("classifyAction — workspace-mutation recognition contract", () => {
+  describe("positive corpus (must classify workspace_mutation)", () => {
+    it("routes 'create foo.ts' to workspace_mutation", () => {
+      const result = classifyAction("create foo.ts");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'create a file called notes.md' to workspace_mutation", () => {
+      const result = classifyAction("create a file called notes.md");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'rename foo.ts to bar.ts' to workspace_mutation", () => {
+      const result = classifyAction("rename foo.ts to bar.ts");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'delete foo.txt' to workspace_mutation", () => {
+      const result = classifyAction("delete foo.txt");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'remove the cache from npm' to workspace_mutation", () => {
+      const result = classifyAction("remove the cache from npm");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'install curl' to workspace_mutation", () => {
+      const result = classifyAction("install curl");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'edit config.ts' to workspace_mutation", () => {
+      const result = classifyAction("edit config.ts");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'update README.md' to workspace_mutation", () => {
+      const result = classifyAction("update README.md");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'save changes' to workspace_mutation", () => {
+      const result = classifyAction("save changes");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+    it("routes 'mkdir foo' to workspace_mutation", () => {
+      const result = classifyAction("mkdir foo");
+      assert.equal(result.intent, "workspace_mutation");
+    });
+  });
+
+  describe("negative corpus (must NOT classify workspace_mutation)", () => {
+    it("rejects 'is curl installed' (workspace-state)", () => {
+      const result = classifyAction("is curl installed");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("rejects 'do I have docker' (workspace-state)", () => {
+      const result = classifyAction("do I have docker");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("rejects 'what is running on port 3000' (workspace-state)", () => {
+      const result = classifyAction("what is running on port 3000");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("rejects 'write a poem about X' (generation)", () => {
+      const result = classifyAction("write a poem about X");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("rejects 'should I use X or Y' (planning)", () => {
+      const result = classifyAction("should I use X or Y");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("rejects 'explain the install process' (read-only-analysis)", () => {
+      const result = classifyAction("explain the install process");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("rejects 'ls' (shell-execution)", () => {
+      const result = classifyAction("ls");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+  });
+
+  describe("ambiguous corpus (mixed-intent routing policy)", () => {
+    it("routes 'is curl installed or do I need to install it' to workspace_action (state wins)", () => {
+      // T1 contract: state wins when both state and mutation patterns
+      // match. The state probe is the primary action; the mutation
+      // clause is conditional. Mutation does NOT override.
+      const result = classifyAction("is curl installed or do I need to install it");
+      assert.equal(result.intent, "workspace_action");
+    });
+    it("routes 'if curl isn't installed, install it' to ambiguous (mixed state+mutation)", () => {
+      // The state pattern requires "is X installed" exact form;
+      // "isn't installed" doesn't match. MUTATION_ANCHORS requires
+      // the verb at the START of the prompt; mid-prompt "install it"
+      // does not match. Result: ambiguous (Layer 2 fallback).
+      // Per T1's documented policy, mixed prompts defer to Layer 2
+      // so the chain can see both halves.
+      const result = classifyAction("if curl isn't installed, install it");
+      assert.equal(result.intent, "ambiguous");
+    });
+  });
+
+  describe("no-overlap with adjacent intent families", () => {
+    it("workspace-state: 'is curl installed' classifies as workspace_action, not workspace_mutation", () => {
+      const result = classifyAction("is curl installed");
+      assert.equal(result.intent, "workspace_action");
+    });
+    it("shell-execution: 'ls' classifies as ambiguous, not workspace_mutation", () => {
+      const result = classifyAction("ls");
+      assert.notEqual(result.intent, "workspace_mutation");
+    });
+    it("generation: 'write a poem' classifies as standalone_generation, not workspace_mutation", () => {
+      const result = classifyAction("write a poem about X");
+      assert.equal(result.intent, "standalone_generation");
+    });
+  });
+});
+
 // ── Classification: ambiguous ────────────────────────────────────────
 
 describe("classifyAction — ambiguous / defaults", () => {
@@ -318,7 +449,7 @@ describe("classifyAction — ambiguous / defaults", () => {
 
 const CANONICAL_CASES: ReadonlyArray<{
   intent: "arithmetic" | "standalone_generation" | "workspace_action" |
-          "external_retrieval" | "ambiguous";
+          "workspace_mutation" | "external_retrieval" | "ambiguous";
   kind: "direct" | "tool" | "chat" | "grounded_chat" | "agent";
   prompt: string;
   note: string;
@@ -344,23 +475,22 @@ const CANONICAL_CASES: ReadonlyArray<{
     prompt: "latest Kubernetes release version",
     note: "canonical: external_retrieval (latest keyword)",
   },
-  // workspace_state (workspace_action subset) → agent
+  // workspace_state (workspace_action) → agent
   {
     intent: "workspace_action",
     kind: "agent",
     prompt: "is curl installed on this machine",
     note: "canonical: workspace_state (WORKSPACE_ANCHORS hit)",
   },
-  // workspace_mutation (workspace_action subset; currently ambiguous →
-  // legacy workspace-write carve-out → agent). Any prompt with a
-  // path-shaped target is captured by FILE_WRITE/DELETE patterns first
-  // and routes to tool/shell.run, so use a prompt with no file-shaped
-  // target that still matches hasWorkspaceWriteIntent.
+  // workspace_mutation → agent (T8 graduated from ambiguous via the
+  // legacy hasWorkspaceWriteIntent carve-out; the carve-out is now
+  // deleted and MUTATION_ANCHORS in action-classifier.ts surfaces
+  // this at Layer 1).
   {
-    intent: "ambiguous",
+    intent: "workspace_mutation",
     kind: "agent",
     prompt: "remove the cache from npm",
-    note: "canonical: workspace_mutation (hasWorkspaceWriteIntent carve-out at task-router.ts:475)",
+    note: "canonical: workspace_mutation (MUTATION_ANCHORS hit — T8)",
   },
   // shell_execution → tool via isShellTask (line 377)
   {
