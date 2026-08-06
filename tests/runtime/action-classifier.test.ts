@@ -19,6 +19,7 @@ import assert from "node:assert/strict";
 
 import {
   classifyAction,
+  classifyActionWithConfidence,
   evaluateArithmetic,
   type ActionClassification,
 } from "../../src/runtime/action-classifier.js";
@@ -142,6 +143,143 @@ describe("classifyAction — standalone generation", () => {
   it("does NOT route 'Add ... to my repo' to standalone_generation", () => {
     const result = classifyAction("Add Fibonacci implementation to my repo");
     assert.notEqual(result.intent, "standalone_generation");
+  });
+});
+
+// ── Classification: shell-state probes (bug-fix regression + contract) ──
+//
+// Bug history: "is llama.cpp installed" was returning `ambiguous` so the
+// model fallback could label it `standalone_generation`, routing the prompt
+// through the `direct` executor — a one-line system prompt with no tool
+// manifest. The model then answered "I don't have direct access to your
+// system" instead of running `alix_shell_run`. Shell-state probes must
+// always classify as `workspace_action` so the route always reaches the
+// full agent loop with tool access.
+//
+// This block is also the **workspace-state recognition contract** for
+// the runtime/action-classifier (positive + negative + ambiguous + no-overlap
+// corpora). The full contract lives at docs/intent-contracts/workspace-state.md.
+
+describe("classifyAction — workspace-state recognition contract", () => {
+  describe("positive corpus (must classify workspace_action)", () => {
+    it("routes 'is X installed' to workspace_action (not ambiguous)", () => {
+      const result = classifyAction("is llama.cpp installed");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'is curl installed' to workspace_action", () => {
+      const result = classifyAction("is curl installed");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'is git installed on this machine' to workspace_action", () => {
+      const result = classifyAction("is git installed on this machine");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'do I have docker' to workspace_action", () => {
+      const result = classifyAction("do I have docker");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'what is running on port 3000' to workspace_action", () => {
+      const result = classifyAction("what is running on port 3000");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("routes 'check if postgres is running' to workspace_action", () => {
+      const result = classifyAction("check if postgres is running");
+      assert.equal(result.intent, "workspace_action");
+    });
+
+    it("confidence ≥ 0.7 (gates the model fallback from being called)", () => {
+      const result = classifyActionWithConfidence("is curl installed");
+      assert.ok(
+        (result.confidence ?? 0) >= 0.7,
+        `confidence ${result.confidence} below Layer-1 floor`,
+      );
+    });
+  });
+
+  describe("negative corpus (must NOT classify workspace_action)", () => {
+    it("rejects 'write installation instructions' (generation)", () => {
+      const result = classifyAction("write installation instructions");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+
+    it("rejects 'document how to install curl' (generation/docs)", () => {
+      const result = classifyAction("document how to install curl");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+
+    it("rejects 'compare installers' (read-only comparison)", () => {
+      const result = classifyAction("compare installers");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+
+    it("rejects 'explain the install process' (read-only-analysis)", () => {
+      const result = classifyAction("explain the install process");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+
+    it("rejects 'should I install curl' (planning/decision)", () => {
+      const result = classifyAction("should I install curl");
+      assert.notEqual(result.intent, "workspace_action");
+    });
+  });
+
+  describe("ambiguous corpus (mixed intent; documented policy)", () => {
+    it(
+      "compound 'if curl isn't installed, install it' falls to ambiguous " +
+      "rather than workspace_state — the mutation half stays for layered dispatch",
+      () => {
+        const result = classifyAction("if curl isn't installed, install it");
+        // Policy: when state AND mutation appear together, defer to Layer 2
+        // (model fallback) so the chain CanonicalIntent → ExecutionRoute can
+        // see both halves. workspace_state alone would lose the mutation.
+        assert.notEqual(result.intent, "workspace_action");
+      },
+    );
+
+    it(
+      "probe-with-decision 'is curl installed or do I need to install it' " +
+      "classifies workspace_action (primary signal is the probe; the decision " +
+      "half is conditional and does not override)",
+      () => {
+        const result = classifyAction(
+          "is curl installed or do I need to install it",
+        );
+        assert.equal(result.intent, "workspace_action");
+      },
+    );
+  });
+
+  describe("no-overlap with adjacent intent families", () => {
+    it("does not steal shell-execution ('ls', 'cat package.json', 'npm test')", () => {
+      assert.notEqual(classifyAction("ls").intent, "workspace_action");
+      assert.notEqual(classifyAction("cat package.json").intent, "workspace_action");
+      assert.notEqual(classifyAction("npm test").intent, "workspace_action");
+    });
+
+    it("does not steal workspace-mutation ('install curl', 'create a file')", () => {
+      assert.notEqual(classifyAction("install curl").intent, "workspace_action");
+      assert.notEqual(
+        classifyAction("create a file called notes.md").intent,
+        "workspace_action",
+      );
+      assert.notEqual(
+        classifyAction("rename foo.ts to bar.ts").intent,
+        "workspace_action",
+      );
+    });
+
+    it("does not steal generation ('write a script that checks if curl is installed')", () => {
+      assert.notEqual(
+        classifyAction("write a script that checks if curl is installed")
+          .intent,
+        "workspace_action",
+      );
+    });
   });
 });
 
