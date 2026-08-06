@@ -299,7 +299,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
       task: "",
       sessionId: "direct-test-session",
       chatProvider: makeMockProvider(complete, stream),
-      events: { onToken: (t) => tokens.push(t) },
+      events: { onToken: (t) => tokens.push(t), onToolCall: () => {}, onToolResult: () => {} },
     });
     // streaming defaults to true; not passing it explicitly.
     const result = await session.processTurn("Write a poem about the sea");
@@ -322,7 +322,7 @@ describe("AgentSession preflight direct-path (Task 4)", () => {
       task: "",
       sessionId: "direct-test-session",
       chatProvider: makeMockProvider(complete, stream),
-      events: { onToken: (t) => tokens.push(t) },
+      events: { onToken: (t) => tokens.push(t), onToolCall: () => {}, onToolResult: () => {} },
       streaming: false,
     });
     const result = await session.processTurn("Write a joke about cats");
