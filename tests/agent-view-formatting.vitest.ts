@@ -650,7 +650,7 @@ describe('AgentView — combined rendering order', () => {
     expect(approvalIdx).toBeGreaterThan(doneIdx);
   });
 
-  it('renders tasks → content → agent turns → approvals in order', () => {
+  it('renders user → tasks → content → agent response → approvals in order', () => {
     const tasks: readonly PlanTask[] = [
       { id: 't:1', index: 1, title: 'Setup', status: 'completed' },
     ];
@@ -663,14 +663,16 @@ describe('AgentView — combined rendering order', () => {
     });
     const c = renderOnCanvas(W, TALL, perTab, MINIMAL_SNAPSHOT, agentRuntime(seedTurns(['go'], ['ok'])));
     const all = allText(c, 20);
+    const userIdx = all.indexOf('go');
     const taskIdx = all.indexOf('PLAN TASKS');
     const planIdx = all.indexOf('## Plan');
-    const userIdx = all.indexOf('go');
+    const responseIdx = all.indexOf('ok');
     const approvalIdx = all.indexOf('approval');
-    expect(taskIdx).toBeGreaterThanOrEqual(0);
+    expect(userIdx).toBeGreaterThanOrEqual(0);
+    expect(taskIdx).toBeGreaterThan(userIdx);
     expect(planIdx).toBeGreaterThan(taskIdx);
-    expect(userIdx).toBeGreaterThan(planIdx);
-    expect(approvalIdx).toBeGreaterThan(userIdx);
+    expect(responseIdx).toBeGreaterThan(planIdx);
+    expect(approvalIdx).toBeGreaterThan(responseIdx);
   });
 });
 

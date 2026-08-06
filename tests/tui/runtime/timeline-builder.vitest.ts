@@ -64,7 +64,7 @@ describe('TimelineBuilder', () => {
     // — so a later update cannot mutate the published entry. (Verify via a
     // second snapshot — the live entry is unchanged.)
     b.update([evt(2, 'chat.response', 's1', { text: 'v2' })]);
-    const live = b.snapshot().find((e) => e.id === 'tl-1')!;
+    const live = b.snapshot().find((e) => e.id === 'tl-1-chat.message')!;
     expect(live.text).toBe('v1');                            // unchanged
   });
 
@@ -91,5 +91,24 @@ describe('TimelineBuilder', () => {
     expect(snap).toHaveLength(1);
     expect(snap[0]!.kind).toBe('chat.message');
     expect(snap[0]!.text).toBe('mine');
+  });
+
+  it('orders entries sharing firstSequence deterministically by id (tiebreaker)', () => {
+    // Reproduces the bug observed in alix-init-test session 1785998769198:
+    // session.started (parent log seq=6) and agent.response (agent log seq=6)
+    // shared firstSequence; without a tiebreaker JS Array.sort resolves the
+    // tie by insertion order — which is arbitrary across collectors and
+    // produces different renderings between rebuilds.
+    const b = new TimelineBuilder('s1');
+    // Two distinct events at the same seq. They must:
+    //   (a) survive dedup (different types, different identities)
+    //   (b) render in id order regardless of insertion order
+    b.update([
+      evt(6, 'chat.response', 's1', { text: 'B' }, 'tl-6-chat.response'),
+      evt(6, 'chat.message', 's1', { text: 'A' }, 'tl-6-chat.message'),
+    ]);
+    const snap = b.snapshot();
+    expect(snap.map((e) => e.text)).toEqual(['A', 'B']);
+    expect(snap.map((e) => e.kind)).toEqual(['chat.message', 'chat.response']);
   });
 });
