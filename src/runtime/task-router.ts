@@ -373,7 +373,20 @@ export async function taskRouter(
     };
   }
 
-  // 3. Shell tasks — route to shell.run tool
+  // 3. Shell execution — Layer 1 intent (T9 #385) routes to shell.run
+  //    tool for any prompt the deterministic classifier labelled
+  //    `shell_execution`. Layer 2 `isShellTask` (step 4) remains for
+  //    prompts the Layer-1 recognizer missed but `isShellTask` still
+  //    matches.
+  if (classification.intent === "shell_execution") {
+    return {
+      kind: "tool",
+      tool: "shell.run",
+      args: { command: task },
+    };
+  }
+
+  // 4. Layer-2 isShellTask carve-out — route to shell.run tool
   if (isShellTask(task)) {
     return {
       kind: "tool",
@@ -382,7 +395,7 @@ export async function taskRouter(
     };
   }
 
-  // 4. Natural-language shell phrases
+  // 5. Natural-language shell phrases
   const naturalShellCommand = matchNaturalShellPhrase(task);
   if (naturalShellCommand) {
     return {
@@ -392,7 +405,7 @@ export async function taskRouter(
     };
   }
 
-  // 5. Natural-language file operations — route to tool unconditionally
+  // 6. Natural-language file operations — route to tool unconditionally
   //    when the pattern matches. The regex patterns (write X to Y, show Y,
   //    delete Y, etc.) are precise enough that false positives are rare, and
   //    the `isConceptualFileQuestion` / `looksLikeFileTarget` guards reject
@@ -408,7 +421,7 @@ export async function taskRouter(
     };
   }
 
-  // 6. High-confidence deterministic results — no model call needed.
+  // 7. High-confidence deterministic results — no model call needed.
   if (classification.confidence >= CONFIDENCE_THRESHOLD) {
     if (classification.intent === "external_retrieval") {
       return {
@@ -427,7 +440,7 @@ export async function taskRouter(
     }
   }
 
-  // 7. Low-confidence / ambiguous — try model-based fallback when configured.
+  // 8. Low-confidence / ambiguous — try model-based fallback when configured.
   if (
     opts?.classifierProvider &&
     (classification.intent === "ambiguous" || classification.confidence < CONFIDENCE_THRESHOLD)
@@ -470,7 +483,7 @@ export async function taskRouter(
     }
   }
 
-  // 8. ambiguous — legacy fallback with workspace-write carve-out.
+  // 9. ambiguous — legacy fallback with workspace-write carve-out.
   const trimmedTask = task.trim();
   const hasWorkspaceWriteIntent =
     /^(?:write|put|save|create|make|append|delete|remove|rm)\b[^.\n]*\b(?:to|into|in|as|from|on)\b/i.test(trimmedTask);
