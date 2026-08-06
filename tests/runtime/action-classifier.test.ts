@@ -508,6 +508,99 @@ describe("classifyAction — shell-execution recognition contract (T9 #385)", ()
     }
   });
 
+// ── Classification: read-only-analysis recognition contract (T10 #387) ─────────
+//
+// T10 — read_only_analysis recognition contract.
+// A user prompt belongs to the `read_only_analysis` family when it asks the
+// runtime to explain, summarize, describe, review, analyze, or compare
+// existing content — distinct from `workspace_state` (inspect local repo),
+// `generation` (produce new text), and `planning` (decide/propose).
+//
+// Trigger precedence: read_only_analysis fires AFTER workspace (state and
+// mutation win) and BEFORE generation/external_retrieval.
+//
+// Reconcile: the legacy `classifyTask → "research"` fallback at
+// task-router.ts:485 is an orthogonal Layer-2 call (canonical-taxonomy
+// Finding 3). It is NOT deleted by T10. T10 surfaces read_only_analysis
+// at Layer 1; the Layer-2 call remains as the planning lens.
+//
+// The full contract lives at docs/intent-contracts/read-only-analysis.md.
+
+describe("classifyAction — read-only-analysis recognition contract", () => {
+  describe("positive corpus (must classify read_only_analysis)", () => {
+    it("routes 'explain the install process' to read_only_analysis", () => {
+      const result = classifyAction("explain the install process");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'summarize README.md' to read_only_analysis", () => {
+      const result = classifyAction("summarize README.md");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'describe how X works' to read_only_analysis", () => {
+      const result = classifyAction("describe how X works");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'review this PR' to read_only_analysis", () => {
+      const result = classifyAction("review this PR");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'compare X to Y' to read_only_analysis", () => {
+      const result = classifyAction("compare X to Y");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'walk me through the auth flow' to read_only_analysis", () => {
+      const result = classifyAction("walk me through the auth flow");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'analyze the auth flow' to read_only_analysis", () => {
+      const result = classifyAction("analyze the auth flow");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+    it("routes 'what is dependency injection' to read_only_analysis", () => {
+      const result = classifyAction("what is dependency injection");
+      assert.equal(result.intent, "read_only_analysis");
+    });
+  });
+
+  describe("negative corpus (must NOT classify read_only_analysis)", () => {
+    it("rejects 'is curl installed' (workspace-state)", () => {
+      const result = classifyAction("is curl installed");
+      assert.notEqual(result.intent, "read_only_analysis");
+    });
+    it("rejects 'do I have docker' (workspace-state)", () => {
+      const result = classifyAction("do I have docker");
+      assert.notEqual(result.intent, "read_only_analysis");
+    });
+    it("rejects 'create foo.ts' (workspace-mutation)", () => {
+      const result = classifyAction("create foo.ts");
+      assert.notEqual(result.intent, "read_only_analysis");
+    });
+    it("rejects 'write a poem about X' (generation)", () => {
+      const result = classifyAction("write a poem about X");
+      assert.notEqual(result.intent, "read_only_analysis");
+    });
+    it("rejects 'should I use X or Y' (planning)", () => {
+      const result = classifyAction("should I use X or Y");
+      assert.notEqual(result.intent, "read_only_analysis");
+    });
+    it("rejects 'ls' (shell-execution)", () => {
+      const result = classifyAction("ls");
+      assert.notEqual(result.intent, "read_only_analysis");
+    });
+  });
+
+  describe("no-overlap with adjacent intent families", () => {
+    it("workspace-state: 'is curl installed' classifies as workspace_action", () => {
+      const result = classifyAction("is curl installed");
+      assert.equal(result.intent, "workspace_action");
+    });
+    it("generation: 'write a poem about X' classifies as standalone_generation", () => {
+      const result = classifyAction("write a poem about X");
+      assert.equal(result.intent, "standalone_generation");
+    });
+  });
+});
+
   // ── Trigger precedence: shell_execution sits between workspace and retrieval ──
 
   describe("trigger precedence", () => {
@@ -619,7 +712,7 @@ describe("classifyAction — ambiguous / defaults", () => {
 const CANONICAL_CASES: ReadonlyArray<{
   intent: "arithmetic" | "standalone_generation" | "workspace_action" |
           "workspace_mutation" | "external_retrieval" | "shell_execution" |
-          "ambiguous";
+          "read_only_analysis" | "ambiguous";
   kind: "direct" | "tool" | "chat" | "grounded_chat" | "agent";
   prompt: string;
   note: string;
@@ -684,14 +777,15 @@ const CANONICAL_CASES: ReadonlyArray<{
     prompt: "list files",
     note: "canonical: shell_execution (NATURAL_SHELL_MAP at Layer 3 — T9)",
   },
-  // read_only_analysis → chat via legacy fallback classifyTask research
-  // (line 485 — Layer 2 read in routing fallback; documented in
-  // canonical-taxonomy.md Finding 3)
+  // read_only_analysis → chat (T10 graduated from ambiguous via the
+  // legacy classifyTask research fallback at task-router.ts:485;
+  // READ_ONLY_ANALYSIS_ANCHORS in action-classifier.ts surfaces
+  // this at Layer 1).
   {
-    intent: "ambiguous",
+    intent: "read_only_analysis",
     kind: "chat",
     prompt: "what is dependency injection",
-    note: "canonical: read_only_analysis (legacy fallback → chat)",
+    note: "canonical: read_only_analysis (READ_ONLY_ANALYSIS_ANCHORS hit — T10)",
   },
 ];
 

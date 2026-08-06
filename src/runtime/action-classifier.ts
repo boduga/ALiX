@@ -50,6 +50,7 @@ export type ActionIntent =
   | "workspace_mutation"
   | "external_retrieval"
   | "shell_execution"
+  | "read_only_analysis"
   | "ambiguous";
 
 /**
@@ -389,6 +390,47 @@ const MUTATION_ANCHORS: readonly RegExp[] = [
 ];
 
 /**
+ * Read-only-analysis recognizers (T10 on wayfinder map #376).
+ * A prompt matches `read_only_analysis` when it asks the runtime to
+ * explain, summarize, describe, review, analyze, or compare existing
+ * content without executing anything — distinct from `workspace_state`
+ * (inspect local repo), `generation` (produce new text), and `planning`
+ * (decide/propose).
+ *
+ * Per `docs/intent-contracts/read-only-analysis.md`:
+ *   - Positive corpus: `explain the install process`, `summarize README.md`,
+ *     `describe how X works`, `review this PR`, `compare X to Y`,
+ *     `walk me through the auth flow`, `analyze the codebase`
+ *   - Negative corpus: workspace-state probes, generation, planning,
+ *     workspace-mutation, shell-execution
+ *   - Trigger precedence: read_only_analysis fires AFTER workspace
+ *     (state and mutation win) and BEFORE generation/external_retrieval
+ *   - Confidence: 0.85 for direct verb matches, 0.75 for question forms
+ *   - Test corpus: `tests/runtime/action-classifier.test.ts →
+ *     describe("read-only-analysis recognition contract")`
+ */
+const READ_ONLY_ANALYSIS_ANCHORS: readonly RegExp[] = [
+  // Direct verb forms
+  /\b(?:explain|summarize|describe|review|analyze|examine|inspect)\s+(?:the\s+|a\s+|an\s+|my\s+|our\s+)?\S+/i,
+  // "compare X to/with/against Y"
+  /\bcompare\s+\S+\s+(?:to|with|against)\s+\S+/i,
+  // "what does X do" / "what is X"
+  /\bwhat\s+(?:does|is|are)\s+\S+/i,
+  // "how does X work"
+  /\bhow\s+(?:does|do|is|are)\s+\S+/i,
+  // "walk me through"
+  /\bwalk\s+(?:me\s+)?through\b/i,
+  // "tell me about X"
+  /\btell\s+me\s+about\b/i,
+  // "give me an overview of X"
+  /\b(?:give\s+me\s+(?:an?\s+)?)?overview\s+of\b/i,
+  // "what's the difference between X and Y"
+  /\b(?:what(?:'s|\s+is)\s+)?(?:the\s+)?difference\s+between\b/i,
+  // "pros and cons"
+  /\bpros\s+(?:and|&)\s+cons\b/i,
+];
+
+/**
  * Tokens / patterns that imply current external information. Evaluated
  * only when no workspace anchor is present.
  */
@@ -553,7 +595,18 @@ export function classifyAction(input: string): ActionClassification {
     };
   }
 
-  // 6. Fall back to ambiguous — caller decides the default route.
+  // 6. Read-only analysis — explain / summarize / describe / review.
+  //    (T10 on wayfinder map #376). Distinct from generation
+  //    ("write a tutorial") and planning ("should I use X").
+  //    See `docs/intent-contracts/read-only-analysis.md`.
+  if (hasAny(trimmed, READ_ONLY_ANALYSIS_ANCHORS)) {
+    return {
+      intent: "read_only_analysis",
+      reason: "prompt asks for analysis of existing content",
+    };
+  }
+
+  // 7. Fall back to ambiguous — caller decides the default route.
   return {
     intent: "ambiguous",
     reason: "no decisive signal; default route applies",
@@ -592,6 +645,7 @@ function confidenceForIntent(intent: ActionIntent): number {
     case "workspace_mutation": return 0.95;
     case "shell_execution": return 0.9;
     case "standalone_generation": return 0.85;
+    case "read_only_analysis": return 0.85;
     case "external_retrieval": return 0.75;
     case "ambiguous": return 0.5;
   }
@@ -631,7 +685,7 @@ export async function modelClassifyAction(
       systemPrompt:
         "You are a prompt router. Given a user request, classify it as exactly " +
         "one of these labels:\n\n" +
-        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nshell_execution\nambiguous\n\n" +
+        "arithmetic\nworkspace_action\nworkspace_mutation\nstandalone_generation\nexternal_retrieval\nshell_execution\nread_only_analysis\nambiguous\n\n" +
         "Reply with ONLY the label. No explanation. No punctuation.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
@@ -640,7 +694,7 @@ export async function modelClassifyAction(
     const VALID: ActionIntent[] = [
       "arithmetic", "workspace_action", "workspace_mutation",
       "standalone_generation", "external_retrieval", "shell_execution",
-      "ambiguous",
+      "read_only_analysis", "ambiguous",
     ];
     const intent = VALID.find((v) => label === v);
     if (intent) {
