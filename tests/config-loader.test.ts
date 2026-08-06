@@ -101,6 +101,69 @@ test("loadConfig merges global user config on top of defaults", async () => {
   }
 });
 
+test("loadConfig defaults model.streaming to true when unset (streaming default ON)", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  const prev = process.env.ALIX_STREAMING;
+  delete process.env.ALIX_STREAMING;
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-custom" } })
+    );
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, true);
+  } finally {
+    if (prev === undefined) delete process.env.ALIX_STREAMING;
+    else process.env.ALIX_STREAMING = prev;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig honors explicit model.streaming:false opt-out", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  const prev = process.env.ALIX_STREAMING;
+  delete process.env.ALIX_STREAMING;
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-custom", streaming: false } })
+    );
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, false);
+  } finally {
+    if (prev === undefined) delete process.env.ALIX_STREAMING;
+    else process.env.ALIX_STREAMING = prev;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("loadConfig honors ALIX_STREAMING=false over the default", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
+  const restore = withMockedHomedir(dir);
+  const prev = process.env.ALIX_STREAMING;
+  process.env.ALIX_STREAMING = "false";
+  try {
+    await mkdir(join(dir, ".alix"), { recursive: true });
+    await writeFile(
+      join(dir, ".alix", "config.json"),
+      JSON.stringify({ model: { provider: "anthropic", name: "claude-custom" } })
+    );
+    const config = await loadConfig(dir);
+    assert.equal(config.model.streaming, false);
+  } finally {
+    if (prev === undefined) delete process.env.ALIX_STREAMING;
+    else process.env.ALIX_STREAMING = prev;
+    restore();
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
 test("loadConfig applies user config overrides on top of defaults", async () => {
   const dir = await mkdtemp(join(tmpdir(), "alix-config-"));
   const restore = withMockedHomedir(dir);

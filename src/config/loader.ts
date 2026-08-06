@@ -192,6 +192,13 @@ export async function loadConfig(cwd: string, options: LoadConfigOptions = {}): 
 
   if (process.env.ALIX_STREAMING !== undefined) {
     result.model.streaming = process.env.ALIX_STREAMING !== "false" && process.env.ALIX_STREAMING !== "0";
+  } else if (result.model && result.model.streaming === undefined) {
+    // Streaming is the default in any local context (TTY or piped); an
+    // explicit config `model.streaming: false` remains the opt-out, and
+    // initAgent's shouldAutoDisableStreaming() (= isCI) turns it off in CI
+    // so CI logs stay deterministic. Without this default, `runTaskLoop`
+    // treats undefined as `?? false` and nothing ever streams.
+    result.model.streaming = true;
   }
 
   // Validate that a model is configured — no hardcoded defaults
