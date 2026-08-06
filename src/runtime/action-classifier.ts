@@ -727,6 +727,139 @@ export function classifyActionWithConfidence(
  * terse system prompt. On provider error (timeout, connection refused)
  * returns `ambiguous` — the model call must never block routing.
  */
+/**
+ * The 9 labels `modelClassifyAction` accepts. Shared between the system
+ * prompt and the parse — single source of truth.
+ */
+const MODEL_VALID_INTENTS: ActionIntent[] = [
+  "arithmetic", "workspace_action", "workspace_mutation",
+  "generation", "external_retrieval", "shell_execution",
+  "read_only_analysis", "planning", "ambiguous",
+];
+
+/**
+ * Conservative confidence assigned when the model omits or mangles the
+ * confidence field (T23 #401). Below the Layer-2 floor (0.7, T24 #402) so a
+ * missing confidence signal fails toward safety: the label is never trusted
+ * for high-risk routing.
+ */
+const MODEL_CONFIDENCE_DEFAULT = 0;
+
+/**
+ * Extract the first balanced JSON object `{...}` from arbitrary text.
+ *
+ * T23 #401: models may wrap output in code fences (```json ... ```) or add
+ * surrounding prose. This scans for the first `{` and matches braces until the
+ * object closes, ignoring braces inside string literals. Returns null when no
+ * JSON object is recoverable.
+ */
+function extractFirstJsonObject(text: string): string | null {
+  const start = text.indexOf("{");
+  if (start === -1) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const ch = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+        continue;
+      }
+      if (ch === "\\") {
+        escaped = true;
+        continue;
+      }
+      if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') {
+      inString = true;
+      continue;
+    }
+    if (ch === "{") {
+      depth++;
+      continue;
+    }
+    if (ch === "}") {
+      depth--;
+      if (depth === 0) return text.slice(start, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * Parse the model's classification output into a canonical-intent + confidence
+ * pair (T23 #401).
+ *
+ * JSON-first: expects `{"intent": "<label>", "confidence": <0-1>}`, robust
+ * against code fences, surrounding prose, and malformed JSON. Falls back to
+ * the legacy plain-label reply when no JSON object is recoverable (models that
+ * ignore the JSON instruction).
+ *
+ * Returns `confidence` always — a validated number in [0,1], or
+ * `MODEL_CONFIDENCE_DEFAULT` when absent/invalid.
+ */
+function parseModelClassification(
+  raw: string,
+): { intent: ActionIntent; reason: string; confidence: number } {
+  const trimmed = (raw ?? "").trim();
+
+  // 1. Recover the first balanced JSON object, if any.
+  const jsonText = extractFirstJsonObject(trimmed);
+  if (jsonText !== null) {
+    try {
+      const parsed = JSON.parse(jsonText) as {
+        intent?: unknown;
+        confidence?: unknown;
+      };
+      const intent = MODEL_VALID_INTENTS.find((v) => v === parsed.intent);
+      if (intent) {
+        const confidence =
+          typeof parsed.confidence === "number" &&
+          Number.isFinite(parsed.confidence) &&
+          parsed.confidence >= 0 &&
+          parsed.confidence <= 1
+            ? parsed.confidence
+            : MODEL_CONFIDENCE_DEFAULT;
+        return {
+          intent,
+          reason: `model classified: ${intent} (confidence ${confidence})`,
+          confidence,
+        };
+      }
+      const rawIntent =
+        typeof parsed.intent === "string"
+          ? parsed.intent
+          : String(parsed.intent ?? "?");
+      return {
+        intent: "ambiguous",
+        reason: `model returned unrecognized intent: ${rawIntent}`,
+        confidence: MODEL_CONFIDENCE_DEFAULT,
+      };
+    } catch {
+      // Malformed JSON — fall through to the legacy plain-label path.
+    }
+  }
+
+  // 2. Legacy fallback — plain-label reply (models that ignore the JSON prompt).
+  const label = trimmed.toLowerCase();
+  const intent = MODEL_VALID_INTENTS.find((v) => label === v);
+  if (intent) {
+    return {
+      intent,
+      reason: `model classified: ${label}`,
+      confidence: MODEL_CONFIDENCE_DEFAULT,
+    };
+  }
+  return {
+    intent: "ambiguous",
+    reason: `model returned unrecognized label: ${label}`,
+    confidence: MODEL_CONFIDENCE_DEFAULT,
+  };
+}
+
 export async function modelClassifyAction(
   input: string,
   provider: ModelAdapter,
@@ -736,8 +869,10 @@ export async function modelClassifyAction(
       systemPrompt:
         "You are a prompt router. Given a user request, classify it as exactly " +
         "one of these labels:\n\n" +
-        "arithmetic\nworkspace_action\nworkspace_mutation\ngeneration\nexternal_retrieval\nshell_execution\nread_only_analysis\nplanning\nambiguous\n\n" +
-        "Reply with ONLY the label. No explanation. No punctuation.",
+        MODEL_VALID_INTENTS.join("\n") +
+        "\n\n" +
+        'Reply with ONLY a JSON object: {"intent": "<label>", "confidence": <0-1>}. ' +
+        "No explanation. No markdown. No prose.",
       messages: [{ role: "user", content: input }],
       maxOutputTokens: 128,
       // T22 (#400): deterministic classification — the same prompt must
@@ -747,17 +882,12 @@ export async function modelClassifyAction(
       // model fallback vary run-to-run.
       temperature: 0,
     });
-    const label = (response.text ?? "").trim().toLowerCase();
-    const VALID: ActionIntent[] = [
-      "arithmetic", "workspace_action", "workspace_mutation",
-      "generation", "external_retrieval", "shell_execution",
-      "read_only_analysis", "planning", "ambiguous",
-    ];
-    const intent = VALID.find((v) => label === v);
-    if (intent) {
-      return { intent, reason: `model classified: ${label}` };
-    }
-    return { intent: "ambiguous", reason: `model returned unrecognized label: ${label}` };
+    const parsed = parseModelClassification(response.text ?? "");
+    return {
+      intent: parsed.intent,
+      reason: parsed.reason,
+      confidence: parsed.confidence,
+    };
   } catch {
     return { intent: "ambiguous", reason: "model classifier unavailable" };
   }

@@ -60,6 +60,28 @@ function recordingProvider(
   return { adapter, requests };
 }
 
+/** Mock provider that returns a fixed raw text (not wrapped). */
+function rawTextProvider(
+  text: string,
+): ModelAdapter {
+  return {
+    id: "mock-raw",
+    capabilities: {
+      provider: "mock",
+      model: "mock-model",
+      inputTokenLimit: 1000,
+      outputTokenLimit: 1000,
+      supportsTools: false,
+      supportsStreaming: false,
+      supportsStructuredOutput: false,
+      supportsVision: false,
+    },
+    editFormatPreference: "structured_patch",
+    longContextStrategy: "trimmed_context",
+    complete: async () => ({ text, toolCalls: [] }),
+  };
+}
+
 // ── Pure arithmetic parsing ─────────────────────────────────────────
 
 describe("evaluateArithmetic", () => {
@@ -1042,5 +1064,123 @@ describe("modelClassifyAction — Layer 2 temperature determinism (T22 #400)", (
       const result = await modelClassifyAction("some prompt", adapter);
       assert.equal(result.intent, label, `expected intent for label ${label}`);
     }
+  });
+});
+
+describe("modelClassifyAction — JSON contract + robust parse (T23 #401)", () => {
+  it("parses a plain JSON object", async () => {
+    const result = await modelClassifyAction(
+      "write a poem",
+      rawTextProvider('{"intent": "generation", "confidence": 0.9}'),
+    );
+    assert.equal(result.intent, "generation");
+    assert.equal(result.confidence, 0.9);
+  });
+
+  it("parses code-fenced JSON (```json ... ```)", async () => {
+    const result = await modelClassifyAction(
+      "how should I approach this?",
+      rawTextProvider('```json\n{"intent": "planning", "confidence": 0.8}\n```'),
+    );
+    assert.equal(result.intent, "planning");
+    assert.equal(result.confidence, 0.8);
+  });
+
+  it("parses JSON wrapped in surrounding prose", async () => {
+    const result = await modelClassifyAction(
+      "what's the difference between A and B?",
+      rawTextProvider('The answer is {"intent": "read_only_analysis", "confidence": 0.75}.'),
+    );
+    assert.equal(result.intent, "read_only_analysis");
+    assert.equal(result.confidence, 0.75);
+  });
+
+  it("returns ambiguous for garbage / malformed JSON", async () => {
+    const result = await modelClassifyAction(
+      "run npm test",
+      rawTextProvider("this is not JSON at all"),
+    );
+    assert.equal(result.intent, "ambiguous");
+    // Conservative confidence — below the T24 floor.
+    assert.equal(result.confidence, 0);
+  });
+
+  it("returns ambiguous for malformed but brace-containing text", async () => {
+    const result = await modelClassifyAction(
+      "install curl",
+      rawTextProvider('{"intent": "workspace_mutation"'),
+    );
+    assert.equal(result.intent, "ambiguous");
+    assert.equal(result.confidence, 0);
+  });
+
+  it("missing confidence field → conservative default (0), no crash", async () => {
+    const result = await modelClassifyAction(
+      "write a test",
+      rawTextProvider('{"intent": "generation"}'),
+    );
+    assert.equal(result.intent, "generation");
+    assert.equal(result.confidence, 0);
+  });
+
+  it("out-of-range confidence → conservative default (0)", async () => {
+    const result = await modelClassifyAction(
+      "write a test",
+      rawTextProvider('{"intent": "generation", "confidence": 1.7}'),
+    );
+    assert.equal(result.intent, "generation");
+    assert.equal(result.confidence, 0);
+  });
+
+  it("unrecognized intent in JSON → ambiguous", async () => {
+    const result = await modelClassifyAction(
+      "do the thing",
+      rawTextProvider('{"intent": "not_a_real_label", "confidence": 0.9}'),
+    );
+    assert.equal(result.intent, "ambiguous");
+  });
+
+  it("legacy plain-label reply still parses (model ignores JSON instruction)", async () => {
+    const { adapter } = recordingProvider("generation");
+    const result = await modelClassifyAction("write a poem", adapter);
+    assert.equal(result.intent, "generation");
+    assert.equal(result.confidence, 0);
+  });
+
+  it("confidence always present on the returned classification", async () => {
+    const { adapter } = recordingProvider("planning");
+    const result = await modelClassifyAction("plan the migration", adapter);
+    assert.equal(typeof result.confidence, "number");
+  });
+
+  it("system prompt requests a JSON object", async () => {
+    const { adapter, requests } = recordingProvider("ambiguous");
+    await modelClassifyAction("write a test", adapter);
+    assert.match(requests[0]!.systemPrompt, /JSON object/);
+    assert.match(requests[0]!.systemPrompt, /"intent"/);
+  });
+
+  it("still returns ambiguous on provider error (must never block routing)", async () => {
+    const adapter: ModelAdapter = {
+      id: "mock-error",
+      capabilities: {
+        provider: "mock",
+        model: "mock-model",
+        inputTokenLimit: 1000,
+        outputTokenLimit: 1000,
+        supportsTools: false,
+        supportsStreaming: false,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+      },
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      complete: async () => {
+        throw new Error("timeout");
+      },
+    };
+    const result = await modelClassifyAction("write a test", adapter);
+    assert.equal(result.intent, "ambiguous");
+    assert.equal(result.reason, "model classifier unavailable");
   });
 });

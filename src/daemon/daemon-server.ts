@@ -392,7 +392,11 @@ async function executeGroundedChatRoute(
   const executor = new ToolExecutor(config, eventLog, cwd);
 
   // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
-  const retrievalPrompt = buildExternalRetrievalPrompt(route.diagnostic.classification);
+  // Defensive: external daemon clients may submit a grounded_chat route
+  // without a `diagnostic` (the daemon test does). The executor's purpose is
+  // external retrieval, so default to that intent rather than throwing.
+  const intent = route.diagnostic?.classification ?? "external_retrieval";
+  const retrievalPrompt = buildExternalRetrievalPrompt(intent);
 
   // First call: model may issue a tool call for fresh information
   const response = await provider.complete({

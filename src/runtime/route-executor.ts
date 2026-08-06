@@ -171,8 +171,10 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
 
     // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
     // The executor consumes the intent from route.diagnostic.classification
-    // — no re-classification of raw prompt text.
-    const retrievalPrompt = buildExternalRetrievalPrompt(route.diagnostic.classification);
+    // — no re-classification of raw prompt text. Defensive default: a route
+    // without a diagnostic still executes as external retrieval.
+    const intent = route.diagnostic?.classification ?? "external_retrieval";
+    const retrievalPrompt = buildExternalRetrievalPrompt(intent);
 
     // First call: model may issue a tool call for fresh information
     const response = await provider.complete({
