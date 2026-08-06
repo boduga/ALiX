@@ -3,6 +3,32 @@
 // Both agent-loop.ts and session.ts import from here instead of
 // defining their own copies.
 
+import type { ToolDef } from "../providers/types.js";
+
+/**
+ * Render the available-tool manifest into the system prompt.
+ *
+ * The base prompt tells the model it "has access to tools" but never names
+ * them. Models trained on other agent transcripts (Claude Code, Codex) drift
+ * into their own conventions — e.g. `exec_command` / `<<DSML>>` — when the
+ * exact tool names and invocation format are absent. Listing the names and a
+ * concrete `<alix_*>` example anchors the model to ALiX's registry, which the
+ * text-fallback parser (`<alix_tool_name><param>value</param></alix_tool_name>`)
+ * and the structured `tool_calls` path both rely on.
+ */
+export function renderToolManifest(tools: ToolDef[]): string {
+  const lines = [
+    "## Available Tools",
+    "Call tools using the structured tool_calls field when the provider supports it. " +
+      "If emitting a tool call as text, use this EXACT XML format:",
+    "<alix_shell_run><command>ls -la</command></alix_shell_run>",
+    "",
+    "Tools you may call — use these EXACT names, never invent tool names:",
+    ...tools.map((t) => `- ${t.name}: ${t.description.split("\n")[0]}`),
+  ];
+  return lines.join("\n");
+}
+
 export const SYSTEM_PROMPT_BASE =
   "You are ALiX, an AI coding agent. You have access to tools.\n\n" +
 

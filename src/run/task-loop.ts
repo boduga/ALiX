@@ -27,6 +27,7 @@ import { shouldRunVerification, discoverVerification, runVerification, type Veri
 import { EnhancedVerifier } from "../verifier/enhanced-verifier.js";
 import { streamToResponse } from "./helpers.js";
 import { saveDecisionsToMemory } from "./helpers.js";
+import { renderToolManifest } from "../agent/system-prompt.js";
 import { saveSessionState } from "../session/index.js";
 import { buildRefinePrompt, selectStrategy } from "../orchestrator/refine-strategies.js";
 import {
@@ -398,7 +399,11 @@ if (deps.onLedgerUpdate && ledgerText) deps.onLedgerUpdate(ledgerText);
 const supplement = currentIntent === "research" ? RESEARCH_SUPPLEMENT
   : currentIntent === "mutation" ? MUTATION_SUPPLEMENT
   : VALIDATION_SUPPLEMENT;
-const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}`;
+// Anchor the model to the exact tool names + text-fallback format. Without
+// this, models drift into foreign conventions (exec_command, <<DSML>>) and
+// their calls never parse, stalling the turn.
+const toolManifest = providerTools.length > 0 ? `\n\n${renderToolManifest(providerTools)}` : "";
+const effectiveSystemPrompt = `${systemPrompt}\n\n${supplement}${toolManifest}`;
 
 if (config.model.streaming && provider.stream) {
   const result = await streamToResponse(provider, {
@@ -498,12 +503,20 @@ if (toolCalls.length === 0) {
   // turn instead of immediately invoking tools, or where the tool call
   // JSON was truncated/invalid.
   if (!modelSaysDone && i < maxIterations - 1 && text.length > NO_TOOL_MIN_TEXT) {
+    // If the text looks like a tool-call attempt but nothing parsed, the model
+    // likely invented a foreign tool name (e.g. exec_command). List the real
+    // names + format so it self-corrects instead of silently dropping the call.
+    const sawToolMarkers = /<\s*(tool_calls?|invoke|function_calls)\b|<\s*invoke\s+name=/i.test(text);
+    const validNames = providerTools.map((t) => t.name).join(", ");
     messages.push({
       role: "user",
-      content:
-        "No tool calls were detected in your last response. To proceed, you must invoke a tool using the proper tool-use format. " +
-        "For multi-step tasks, invoke ONE tool at a time and wait for the result before continuing. " +
-        "Use the `done` tool when the task is complete.",
+      content: sawToolMarkers
+        ? `No valid tool call was parsed from your last response. The only tools available are: ${validNames}. ` +
+          `Invoke exactly one by name — e.g. <alix_shell_run><command>ls -la</command></alix_shell_run> — ` +
+          `and wait for the result before continuing. Do not invent tool names.`
+        : "No tool calls were detected in your last response. To proceed, you must invoke a tool using the proper tool-use format. " +
+          "For multi-step tasks, invoke ONE tool at a time and wait for the result before continuing. " +
+          "Use the `done` tool when the task is complete.",
     });
     continue;
   }
