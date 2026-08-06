@@ -95,6 +95,7 @@ import {
   executeRoute,
   type RuntimeContext,
 } from "../runtime/route-executor.js";
+import { executeRouteGoverned } from "../runtime/governed-route-executor.js";
 import type { TaskRoute } from "../runtime/task-router.js";
 import { buildDirectPrompt, buildChatPrompt } from "../runtime/route-prompts.js";
 import {
@@ -1074,7 +1075,12 @@ export class AgentSessionBuilder {
           config: ctx.config,
           onRouteDiagnostic: config.onRouteDiagnostic,
         };
-        const summary = await executeRoute(route, runtimeCtx, executor);
+        // Governed execution (#404): every routed task flows through the
+        // ExecutionIntent lifecycle (created→approved→running→terminal) via
+        // executeRouteGoverned, which composes the unchanged executeRoute
+        // dispatcher. The route result is returned as before.
+        const governed = await executeRouteGoverned(route, runtimeCtx, executor);
+        const summary = governed.result;
         return {
           summary,
           sessionId: ctx.sessionId,
