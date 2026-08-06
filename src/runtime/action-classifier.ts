@@ -314,6 +314,17 @@ const WORKSPACE_ANCHORS: readonly RegExp[] = [
   // Moved here from RETRIEVAL_SIGNALS so these route to workspace_action
   // (agent / codebase search) instead of external_retrieval (web search).
   /\bfind\s+(?:all\s+)?(?:usages?|references?|occurrences?)\b/i,
+  // Shell-state probes — these prompts semantically require local shell
+  // tool access (`which X`, `pgrep X`, `lsof -i :PORT`). Left as ambiguous,
+  // the model fallback could label them `standalone_generation`, sending
+  // them through the `direct` executor — a one-line system prompt with no
+  // tool manifest — and the model answered "I don't have direct access to
+  // your system" instead of calling `alix_shell_run`. Anchoring them here
+  // guarantees the agent loop (full prompt + tool access) handles them.
+  /\b(?:is|are)\s+\S+(?:\s+\S+){0,4}?\s+(?:installed|available|running)\b/i,
+  /\bdo\s+i\s+have\s+\w[\w.-]*/i,
+  /\bcheck\s+(?:if|whether)\b/i,
+  /\bwhat(?:'s|\s+is)\s+running\b/i,
 ];
 
 /**
