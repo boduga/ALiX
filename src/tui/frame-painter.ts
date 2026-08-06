@@ -248,10 +248,15 @@ export class FramePainter {
       `RULES: ${ruleCount}`,
       `EVENTS: ${eventsCount}`,
     ];
-    const statusLine = s.activeTab === 'agent'
-      ? `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`
-      : `${sep} ${fields.join(` ${sep} `)}`;
-    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
+    // Right-align the pipeline fields at the right edge of the status row.
+    // Phase radios (agent tab only) keep the left side; if they don't fit
+    // alongside the fields, drop the radios so the fields can fill the row.
+    const fieldsText = fields.join(` ${sep} `);
+    const fieldsLen = visibleLen(fieldsText);
+    c.write(Math.max(2, dims.columns - fieldsLen), dims.rows - 1, fieldsText);
+    if (s.activeTab === 'agent' && visibleLen(phaseLine) + 1 + fieldsLen <= dims.columns) {
+      c.write(0, dims.rows - 1, phaseLine);
+    }
 
     // Write the complete frame — cursor home + canvas render.
     this.deps.output.write('\x1b[H' + c.renderFrame());
