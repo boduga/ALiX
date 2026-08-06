@@ -15,6 +15,8 @@ Measure whether operator decisions tend to produce stable, useful governance out
 
 For each operator decision recorded via P14.3 (`action_allowed`, `action_denied`, `action_escalated`, `override_applied`), determine whether it was later contradicted or remained stable.
 
+`override_applied` is reported under the "overridden" decision bucket in summaries; the report label is presentation-only and does not introduce a separate event type.
+
 | Signal | Definition | Source |
 |--------|------------|--------|
 | Reversal rate | % of decisions where a later event on the same `traceId`+`subjectId` contradicts the original decision | Audit trail: `action_allowed` contradicted by later `action_denied` or `override_applied`; `action_denied` contradicted by later `action_allowed` or `override_applied` |
