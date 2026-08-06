@@ -82,21 +82,27 @@ const CANONICAL_ACTIONS = new Set([
   "planning",
 ]);
 
-/** Canonical label for a route kind that carries no usable diagnostic. */
-function kindAction(route: TaskRoute): string {
-  switch (route.kind) {
-    case "tool":
-      return "shell_execution";
-    case "chat":
-      return "read_only_analysis";
-    case "direct":
-      return "generation";
-    case "grounded_chat":
-      return "external_retrieval";
-    case "agent":
-      return "workspace_action";
+/**
+ * Per-route-kind metadata: canonical label, risk class, and constraint
+ * defaults. One table owns every kind-derived decision so the factory has a
+ * single source of truth instead of parallel `switch (route.kind)` cascades.
+ */
+const ROUTE_KIND_META: Record<
+  TaskRoute["kind"],
+  {
+    /** Canonical label for a route kind that carries no usable diagnostic. */
+    action: string;
+    riskClass: ExecutionIntent["riskClass"];
+    maxFilesChanged: number;
+    verificationRequired: boolean;
   }
-}
+> = {
+  direct: { action: "generation", riskClass: "low", maxFilesChanged: 1, verificationRequired: false },
+  tool: { action: "shell_execution", riskClass: "medium", maxFilesChanged: 1, verificationRequired: false },
+  chat: { action: "read_only_analysis", riskClass: "low", maxFilesChanged: 1, verificationRequired: false },
+  grounded_chat: { action: "external_retrieval", riskClass: "medium", maxFilesChanged: 1, verificationRequired: false },
+  agent: { action: "workspace_action", riskClass: "high", maxFilesChanged: 10, verificationRequired: true },
+};
 
 function actionForRoute(route: TaskRoute): string {
   const diagnostic: RouteDiagnostic | undefined =
@@ -108,24 +114,10 @@ function actionForRoute(route: TaskRoute): string {
   if (diagnostic?.classification && CANONICAL_ACTIONS.has(diagnostic.classification)) {
     return diagnostic.classification;
   }
-  return kindAction(route);
+  return ROUTE_KIND_META[route.kind].action;
 }
 
-/** Risk class derived from the route kind. */
-function riskForRoute(route: TaskRoute): ExecutionIntent["riskClass"] {
-  switch (route.kind) {
-    case "direct":
-    case "chat":
-      return "low";
-    case "tool":
-    case "grounded_chat":
-      return "medium";
-    case "agent":
-      return "high";
-  }
-}
-
-/** Execution constraints derived from the route. */
+/** Execution constraints derived from the route kind + route payload. */
 function constraintsForRoute(route: TaskRoute): ExecutionConstraints {
   const allowedTools =
     route.kind === "grounded_chat"
@@ -134,10 +126,10 @@ function constraintsForRoute(route: TaskRoute): ExecutionConstraints {
         ? [route.tool]
         : [];
   return {
-    maxFilesChanged: route.kind === "agent" ? 10 : 1,
+    maxFilesChanged: ROUTE_KIND_META[route.kind].maxFilesChanged,
     allowedPaths: [],
     blockedPaths: [],
-    verificationRequired: riskForRoute(route) === "high",
+    verificationRequired: ROUTE_KIND_META[route.kind].verificationRequired,
     allowedTools,
   };
 }
@@ -167,7 +159,7 @@ export function createExecutionIntent(
   const expirationMs = opts.expirationMs ?? DEFAULT_EXPIRATION_MS;
 
   const action = actionForRoute(route);
-  const riskClass = riskForRoute(route);
+  const riskClass = ROUTE_KIND_META[route.kind].riskClass;
   const constraints = constraintsForRoute(route);
   const proposalId = opts.proposalId ?? `route:${route.kind}`;
   const intentId = createIntentId(proposalId, actor, now);
