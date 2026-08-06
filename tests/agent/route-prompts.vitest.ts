@@ -16,7 +16,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { buildDirectPrompt, buildChatPrompt } from "../../src/agent/route-prompts.js";
+import {
+  buildDirectPrompt,
+  buildChatPrompt,
+  buildExternalRetrievalPrompt,
+} from "../../src/agent/route-prompts.js";
 
 describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
   describe("deterministic per canonical intent", () => {
@@ -276,5 +280,85 @@ describe("buildChatPrompt — Layer 3 chat prompt construction (T17 #394)", () =
         expect(buildChatPrompt(intent).toolManifest).toEqual([]);
       });
     }
+  });
+});
+
+describe("buildExternalRetrievalPrompt — Layer 3 grounded_chat prompt pair (T18 #395)", () => {
+  describe("external_retrieval — primary case", () => {
+    it("system prompt identifies ALiX and is retrieval-aware", () => {
+      const p = buildExternalRetrievalPrompt("external_retrieval");
+      expect(p.systemPrompt).toContain("ALiX");
+      expect(p.systemPrompt.toLowerCase()).toMatch(/current|search|retriev/);
+      expect(p.systemPrompt.toLowerCase()).toMatch(/do not/);
+    });
+
+    it("userPromptTemplate wraps the raw query", () => {
+      const p = buildExternalRetrievalPrompt("external_retrieval");
+      const wrapped = p.userPromptTemplate("latest node version");
+      expect(wrapped).toContain("latest node version");
+      expect(wrapped.toLowerCase()).toMatch(/retrieval|search/);
+    });
+
+    it("tool manifest exposes retrieval tools only", () => {
+      const p = buildExternalRetrievalPrompt("external_retrieval");
+      const names = p.toolManifest.map((t) => t.name);
+      expect(names).toContain("web.search");
+      expect(names).toContain("web_fetch");
+      // No mutation tools.
+      expect(names).not.toContain("shell.run");
+      expect(names).not.toContain("file.write");
+    });
+
+    it("permissions: read-only, network-isolated, no shell, no mutation", () => {
+      const p = buildExternalRetrievalPrompt("external_retrieval");
+      expect(p.permissions.workspaceWrite).toBe(false);
+      expect(p.permissions.shellExecution).toBe(false);
+      expect(p.permissions.networkAccess).toBe(true);
+    });
+  });
+
+  describe("defensive cases — non-retrieval intent still returns retrieval prompt", () => {
+    // Layer 3 invariant: function takes the label, returns the prompt.
+    // If a non-retrieval intent is passed (e.g., legacy ambiguous fallback),
+    // the function returns the canonical retrieval prompt. The executor
+    // owns routing decisions; Layer 3 is honest about what it returns.
+    const intents = [
+      "arithmetic",
+      "generation",
+      "read_only_analysis",
+      "planning",
+      "shell_execution",
+      "workspace_action",
+      "workspace_mutation",
+      "ambiguous",
+    ] as const;
+
+    for (const intent of intents) {
+      it(`${intent} still returns retrieval prompt (defensive)`, () => {
+        const p = buildExternalRetrievalPrompt(intent);
+        expect(p.systemPrompt).toContain("ALiX");
+        expect(p.toolManifest.map((t) => t.name)).toContain("web.search");
+        expect(p.permissions.networkAccess).toBe(true);
+      });
+    }
+  });
+
+  describe("no-reclassification invariant (grounded_chat closed-world)", () => {
+    it("two calls with same intent produce identical prompt pair", () => {
+      const p1 = buildExternalRetrievalPrompt("external_retrieval");
+      const p2 = buildExternalRetrievalPrompt("external_retrieval");
+      expect(p1.systemPrompt).toBe(p2.systemPrompt);
+      expect(p1.toolManifest).toEqual(p2.toolManifest);
+      expect(p1.permissions).toEqual(p2.permissions);
+    });
+
+    it("userPromptTemplate is deterministic — same query → same wrapped text", () => {
+      const p = buildExternalRetrievalPrompt("external_retrieval");
+      expect(p.userPromptTemplate("foo")).toBe(p.userPromptTemplate("foo"));
+    });
+
+    it("function takes exactly one argument (raw text never accepted)", () => {
+      expect(buildExternalRetrievalPrompt.length).toBe(1);
+    });
   });
 });

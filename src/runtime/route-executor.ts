@@ -7,6 +7,7 @@
  */
 
 import type { TaskRoute, RouteDiagnostic } from "./task-router.js";
+import { buildExternalRetrievalPrompt } from "../agent/route-prompts.js";
 
 /** Re-export RouteDiagnostic so callers can import it from one place. */
 export type { RouteDiagnostic } from "./task-router.js";
@@ -168,10 +169,15 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
     const provider = await createProvider({ provider: ctx.config.model.provider, model: ctx.config.model.name });
     const executor = new ToolExecutor(ctx.config, ctx.eventLog, ctx.cwd, undefined, undefined, undefined, undefined, ctx.approvalStore);
 
+    // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
+    // The executor consumes the intent from route.diagnostic.classification
+    // — no re-classification of raw prompt text.
+    const retrievalPrompt = buildExternalRetrievalPrompt(route.diagnostic.classification);
+
     // First call: model may issue a tool call for fresh information
     const response = await provider.complete({
-      systemPrompt: "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. Answer concisely.",
-      messages: [{ role: "user", content: route.prompt }],
+      systemPrompt: retrievalPrompt.systemPrompt,
+      messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
       maxOutputTokens: 512,
     });
 
@@ -203,7 +209,7 @@ export class LocalRuntimeExecutor implements RuntimeExecutor {
       const finalResponse = await provider.complete({
         systemPrompt: "Answer the user's question based on the tool result.",
         messages: [
-          { role: "user", content: route.prompt },
+          { role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) },
           { role: "assistant", content: response.text || "" },
           { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
         ],

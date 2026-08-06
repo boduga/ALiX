@@ -26,6 +26,7 @@ import type { DaemonResponse } from "./daemon-types.js";
 import { EventLog } from "../events/event-log.js";
 import { TaskRegistry, type DaemonTaskRecord } from "./task-registry.js";
 import type { TaskRoute } from "../runtime/task-router.js";
+import { buildExternalRetrievalPrompt } from "../agent/route-prompts.js";
 import { recordWorkspaceActivity } from "./workspace-registry.js";
 
 const args = process.argv.slice(2);
@@ -390,10 +391,13 @@ async function executeGroundedChatRoute(
   const provider = await createProvider({ provider: config.model.provider, model: config.model.name });
   const executor = new ToolExecutor(config, eventLog, cwd);
 
+  // T18 (#395): Layer 3 prompt construction keyed on canonical-intent label.
+  const retrievalPrompt = buildExternalRetrievalPrompt(route.diagnostic.classification);
+
   // First call: model may issue a tool call for fresh information
   const response = await provider.complete({
-    systemPrompt: "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. Answer concisely.",
-    messages: [{ role: "user", content: route.prompt }],
+    systemPrompt: retrievalPrompt.systemPrompt,
+    messages: [{ role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) }],
   });
 
   if (response.toolCalls.length > 0) {
@@ -423,7 +427,7 @@ async function executeGroundedChatRoute(
     const finalResponse = await provider.complete({
       systemPrompt: "Answer the user's question based on the tool result.",
       messages: [
-        { role: "user", content: route.prompt },
+        { role: "user", content: retrievalPrompt.userPromptTemplate(route.prompt) },
         { role: "assistant", content: response.text || "" },
         { role: "user", content: `[Tool result from ${tc.name}]\n${toolContent}` },
       ],

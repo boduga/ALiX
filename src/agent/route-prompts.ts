@@ -12,6 +12,9 @@
 // - `buildChatPrompt(intent, threadIntents?)` — T17 — used by the `chat` route
 //   (`session.ts:processChat`). Thread metadata tracks prior-turn intents so the
 //   model can see what the conversation has been about.
+// - `buildExternalRetrievalPrompt(intent)` — T18 — used by the `grounded_chat`
+//   route (route-executor.ts + daemon-server.ts). Returns a system prompt,
+//   user-prompt template, retrieval-only tool manifest, and read-only scope.
 
 import type { ActionIntent } from "../runtime/action-classifier.js";
 
@@ -57,7 +60,24 @@ const MUTATION_SCOPE: PermissionScope = {
   networkAccess: false,
 };
 
+const NETWORK_SCOPE: PermissionScope = {
+  workspaceWrite: false,
+  shellExecution: false,
+  networkAccess: true,
+};
+
 const NO_TOOLS: PromptToolDef[] = [];
+
+const RETRIEVAL_TOOLS: PromptToolDef[] = [
+  {
+    name: "web.search",
+    description: "Search the web for current information.",
+  },
+  {
+    name: "web_fetch",
+    description: "Fetch a specific URL and return its content.",
+  },
+];
 
 /**
  * Build the direct-route prompt for a given canonical-intent label.
@@ -231,4 +251,53 @@ export function buildChatPrompt(
         permissions: READ_ONLY_SCOPE,
       };
   }
+}
+
+/** External-retrieval prompt pair shape — system + user template + tools. */
+export interface RetrievalPrompt {
+  systemPrompt: string;
+  /** Wraps the raw user query into a retrieval-aware user message. */
+  userPromptTemplate: (rawQuery: string) => string;
+  toolManifest: PromptToolDef[];
+  permissions: PermissionScope;
+}
+
+/** Default system prompt for grounded_chat route, keyed to external_retrieval. */
+const RETRIEVAL_SYSTEM_PROMPT =
+  "You are ALiX, a helpful AI assistant. If you need current information, use the available tools to search. " +
+  "Answer concisely. Do NOT modify files, run commands, or take any other side effects — retrieval is read-only.";
+
+/**
+ * Build the grounded_chat (external-retrieval) prompt pair.
+ *
+ * Layer 3 invariant: takes the canonical-intent label, returns the prompt.
+ * The `userPromptTemplate` accepts the raw user query at the call site (the
+ * executor owns the raw text — Layer 3 itself never inspects it).
+ *
+ * Per the canonical taxonomy, the `external_retrieval` intent routes to the
+ * `grounded_chat` executor (`src/runtime/route-executor.ts:executeGroundedChat`
+ * and `src/daemon/daemon-server.ts:executeGroundedChatRoute`). This function
+ * returns the deterministic prompt for that route.
+ *
+ * Defensive: if a non-retrieval intent is passed (e.g., `ambiguous` from the
+ * legacy fallback), the function still returns a sensible retrieval prompt —
+ * the executor can choose to fall through to a different route, or use the
+ * retrieval prompt as a neutral default.
+ */
+export function buildExternalRetrievalPrompt(
+  intent: ActionIntent,
+): RetrievalPrompt {
+  // Defensive: warn if the intent is not the canonical external_retrieval.
+  // This is a Layer-3 invariant — Layer 3 doesn't re-classify, but it can
+  // note when the caller passed something other than what the routing chain
+  // should have computed. For now: silent — the executor owns routing.
+  void intent;
+
+  return {
+    systemPrompt: RETRIEVAL_SYSTEM_PROMPT,
+    userPromptTemplate: (rawQuery: string) =>
+      `[External retrieval request]\n\n${rawQuery}`,
+    toolManifest: RETRIEVAL_TOOLS,
+    permissions: NETWORK_SCOPE,
+  };
 }
