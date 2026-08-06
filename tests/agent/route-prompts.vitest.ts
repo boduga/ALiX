@@ -20,6 +20,7 @@ import {
   buildDirectPrompt,
   buildChatPrompt,
   buildExternalRetrievalPrompt,
+  buildIntentMetadataBlock,
 } from "../../src/agent/route-prompts.js";
 
 describe("buildDirectPrompt — Layer 3 prompt construction (T16 #393)", () => {
@@ -359,6 +360,122 @@ describe("buildExternalRetrievalPrompt — Layer 3 grounded_chat prompt pair (T1
 
     it("function takes exactly one argument (raw text never accepted)", () => {
       expect(buildExternalRetrievalPrompt.length).toBe(1);
+    });
+  });
+});
+
+describe("buildIntentMetadataBlock — Layer 3 SYSTEM_PROMPT intent threading (T19 #396)", () => {
+  describe("metadata block format", () => {
+    it("returns a markdown section header with the intent label", () => {
+      expect(buildIntentMetadataBlock("generation")).toBe(
+        "## Canonical intent: generation\n\n",
+      );
+    });
+
+    it("one metadata block per intent — distinct strings", () => {
+      const a = buildIntentMetadataBlock("planning");
+      const b = buildIntentMetadataBlock("read_only_analysis");
+      expect(a).not.toBe(b);
+      expect(a).toContain("planning");
+      expect(b).toContain("read_only_analysis");
+    });
+
+    it("every ActionIntent produces a well-formed metadata block", () => {
+      const intents = [
+        "arithmetic",
+        "generation",
+        "workspace_action",
+        "workspace_mutation",
+        "external_retrieval",
+        "shell_execution",
+        "read_only_analysis",
+        "planning",
+        "ambiguous",
+      ] as const;
+      for (const intent of intents) {
+        const block = buildIntentMetadataBlock(intent);
+        expect(block).toMatch(/^## Canonical intent: /);
+        expect(block.endsWith("\n\n")).toBe(true);
+        expect(block).toContain(intent);
+      }
+    });
+  });
+
+  describe("metadata block prepended to every Layer 3 builder", () => {
+    const intents = [
+      "arithmetic",
+      "generation",
+      "read_only_analysis",
+      "planning",
+      "shell_execution",
+      "external_retrieval",
+      "workspace_action",
+      "workspace_mutation",
+      "ambiguous",
+    ] as const;
+
+    for (const intent of intents) {
+      describe(`${intent}`, () => {
+        it("buildDirectPrompt system prompt begins with metadata block", () => {
+          const p = buildDirectPrompt(intent);
+          expect(p.systemPrompt.startsWith(buildIntentMetadataBlock(intent))).toBe(true);
+        });
+
+        it("buildChatPrompt system prompt begins with metadata block", () => {
+          const p = buildChatPrompt(intent);
+          expect(p.systemPrompt.startsWith(buildIntentMetadataBlock(intent))).toBe(true);
+        });
+
+        it("buildExternalRetrievalPrompt system prompt begins with metadata block", () => {
+          const p = buildExternalRetrievalPrompt(intent);
+          expect(p.systemPrompt.startsWith(buildIntentMetadataBlock(intent))).toBe(true);
+        });
+      });
+    }
+
+    it("buildChatPrompt with threadIntents still prepends metadata block first", () => {
+      // Order invariant: intent metadata is the first thing, thread metadata
+      // is appended to the body.
+      const p = buildChatPrompt("planning", ["read_only_analysis"]);
+      const meta = buildIntentMetadataBlock("planning");
+      expect(p.systemPrompt.startsWith(meta)).toBe(true);
+      expect(p.systemPrompt).toContain("[Thread intents so far: read_only_analysis]");
+    });
+  });
+
+  describe("existing test contracts preserved", () => {
+    it("every intent's direct prompt still contains ALiX (after metadata prefix)", () => {
+      const intents = [
+        "arithmetic",
+        "generation",
+        "read_only_analysis",
+        "planning",
+        "shell_execution",
+        "external_retrieval",
+        "workspace_action",
+        "workspace_mutation",
+        "ambiguous",
+      ] as const;
+      for (const intent of intents) {
+        expect(buildDirectPrompt(intent).systemPrompt).toMatch(/ALiX/);
+      }
+    });
+
+    it("every intent's chat prompt still contains ALiX (after metadata prefix)", () => {
+      const intents = [
+        "arithmetic",
+        "generation",
+        "read_only_analysis",
+        "planning",
+        "shell_execution",
+        "external_retrieval",
+        "workspace_action",
+        "workspace_mutation",
+        "ambiguous",
+      ] as const;
+      for (const intent of intents) {
+        expect(buildChatPrompt(intent).systemPrompt).toMatch(/ALiX/);
+      }
     });
   });
 });

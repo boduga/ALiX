@@ -15,6 +15,9 @@
 // - `buildExternalRetrievalPrompt(intent)` — T18 — used by the `grounded_chat`
 //   route (route-executor.ts + daemon-server.ts). Returns a system prompt,
 //   user-prompt template, retrieval-only tool manifest, and read-only scope.
+// - `buildIntentMetadataBlock(intent)` — T19 — prepends a structured
+//   `[Canonical intent: <intent>]` block to every Layer 3 system prompt so
+//   the model can reference the canonical intent at any point in the prompt.
 
 import type { ActionIntent } from "../runtime/action-classifier.js";
 
@@ -68,6 +71,28 @@ const NETWORK_SCOPE: PermissionScope = {
 
 const NO_TOOLS: PromptToolDef[] = [];
 
+/**
+ * Build the canonical-intent metadata block prepended to every Layer 3
+ * system prompt (T19 #396). Format: `## Canonical intent: <intent>` followed
+ * by a blank line — a markdown section header the model can reference.
+ *
+ * The block makes the canonical-intent label visible to the model at any
+ * point in the prompt, not just in the body prose. It is structured metadata,
+ * not narrative — the model knows this is a routing-tag, not instruction.
+ */
+export function buildIntentMetadataBlock(intent: ActionIntent): string {
+  return `## Canonical intent: ${intent}\n\n`;
+}
+
+/**
+ * Compose a system prompt body with the intent metadata block prepended.
+ * Internal helper — every Layer 3 builder uses this so the metadata format
+ * stays consistent across the routing chain.
+ */
+function withIntentMetadata(intent: ActionIntent, body: string): string {
+  return `${buildIntentMetadataBlock(intent)}${body}`;
+}
+
 const RETRIEVAL_TOOLS: PromptToolDef[] = [
   {
     name: "web.search",
@@ -94,33 +119,36 @@ const RETRIEVAL_TOOLS: PromptToolDef[] = [
  * direct-route provider-call path exercises in practice.
  */
 export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
+  // T19 (#396): prepend canonical-intent metadata block to every system prompt
+  // so the model can reference the intent label at any point in the prompt.
+  const meta = buildIntentMetadataBlock(intent);
   switch (intent) {
     case "arithmetic":
       // Defensive — arithmetic with precomputed answer bypasses the provider
       // entirely (session.ts:938). Included for completeness.
       return {
-        systemPrompt: `${IDENTITY} Answer concisely.`,
+        systemPrompt: `${meta}${IDENTITY} Answer concisely.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "generation":
       return {
-        systemPrompt: `${IDENTITY} Produce the requested text.`,
+        systemPrompt: `${meta}${IDENTITY} Produce the requested text.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "read_only_analysis":
       return {
-        systemPrompt: `${IDENTITY} Read the relevant context, then summarize and answer concisely. Do not modify files or run commands.`,
+        systemPrompt: `${meta}${IDENTITY} Read the relevant context, then summarize and answer concisely. Do not modify files or run commands.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "planning":
       return {
-        systemPrompt: `${IDENTITY} Design or recommend a course of action. Do not modify files, run commands, or take any side effects.`,
+        systemPrompt: `${meta}${IDENTITY} Design or recommend a course of action. Do not modify files, run commands, or take any side effects.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
@@ -128,7 +156,7 @@ export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
     case "shell_execution":
       // Defensive — shell_execution routes to kind: "tool" (shell.run).
       return {
-        systemPrompt: `${IDENTITY} The user gave a direct shell command. Briefly describe the intent of the command.`,
+        systemPrompt: `${meta}${IDENTITY} The user gave a direct shell command. Briefly describe the intent of the command.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
@@ -136,7 +164,7 @@ export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
     case "external_retrieval":
       // Defensive — external_retrieval routes to kind: "grounded_chat".
       return {
-        systemPrompt: `${IDENTITY} The user needs information that may require external retrieval. Briefly describe what to look up.`,
+        systemPrompt: `${meta}${IDENTITY} The user needs information that may require external retrieval. Briefly describe what to look up.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
@@ -144,7 +172,7 @@ export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
     case "workspace_action":
       // Legacy conflated intent — routes to kind: "agent". Defensive only.
       return {
-        systemPrompt: `${IDENTITY} The user wants to inspect or modify the workspace.`,
+        systemPrompt: `${meta}${IDENTITY} The user wants to inspect or modify the workspace.`,
         toolManifest: NO_TOOLS,
         permissions: MUTATION_SCOPE,
       };
@@ -152,7 +180,7 @@ export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
     case "workspace_mutation":
       // workspace_mutation routes to kind: "agent". Defensive only.
       return {
-        systemPrompt: `${IDENTITY} The user wants to modify the workspace.`,
+        systemPrompt: `${meta}${IDENTITY} The user wants to modify the workspace.`,
         toolManifest: NO_TOOLS,
         permissions: MUTATION_SCOPE,
       };
@@ -160,7 +188,7 @@ export function buildDirectPrompt(intent: ActionIntent): DirectPrompt {
     case "ambiguous":
     default:
       return {
-        systemPrompt: `${IDENTITY} Answer concisely.`,
+        systemPrompt: `${meta}${IDENTITY} Answer concisely.`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
@@ -186,6 +214,8 @@ export function buildChatPrompt(
   intent: ActionIntent,
   threadIntents?: readonly ActionIntent[],
 ): DirectPrompt {
+  // T19 (#396): prepend canonical-intent metadata block to every chat prompt.
+  const meta = buildIntentMetadataBlock(intent);
   const threadMetadata =
     threadIntents && threadIntents.length > 0
       ? `\n\n[Thread intents so far: ${threadIntents.join(", ")}]`
@@ -194,42 +224,42 @@ export function buildChatPrompt(
   switch (intent) {
     case "arithmetic":
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nIf the user asks an arithmetic question, answer it directly with just the number.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nIf the user asks an arithmetic question, answer it directly with just the number.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "generation":
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nThe user wants text generated. Produce it conversationally.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nThe user wants text generated. Produce it conversationally.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "read_only_analysis":
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nThe user is asking you to analyze or summarize. Read the conversation context and respond.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nThe user is asking you to analyze or summarize. Read the conversation context and respond.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "planning":
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nThe user is asking for a plan or design. Discuss, compare options, recommend — do not take any side effects.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nThe user is asking for a plan or design. Discuss, compare options, recommend — do not take any side effects.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "shell_execution":
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nThe user gave a direct shell command. Note its intent briefly — do not execute it.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nThe user gave a direct shell command. Note its intent briefly — do not execute it.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
 
     case "external_retrieval":
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nThe user needs current/external information. Acknowledge briefly and explain that the agent path is required for retrieval.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nThe user needs current/external information. Acknowledge briefly and explain that the agent path is required for retrieval.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
@@ -238,7 +268,7 @@ export function buildChatPrompt(
     case "workspace_mutation":
       // Defensive — these route to kind: "agent" not "chat".
       return {
-        systemPrompt: `${IDENTITY_CHAT}\n\nThe user wants workspace changes. Briefly note this requires the agent path.${threadMetadata}`,
+        systemPrompt: `${meta}${IDENTITY_CHAT}\n\nThe user wants workspace changes. Briefly note this requires the agent path.${threadMetadata}`,
         toolManifest: NO_TOOLS,
         permissions: MUTATION_SCOPE,
       };
@@ -246,7 +276,9 @@ export function buildChatPrompt(
     case "ambiguous":
     default:
       return {
-        systemPrompt: threadMetadata ? `${IDENTITY_CHAT}${threadMetadata}` : IDENTITY_CHAT,
+        systemPrompt: threadMetadata
+          ? `${meta}${IDENTITY_CHAT}${threadMetadata}`
+          : `${meta}${IDENTITY_CHAT}`,
         toolManifest: NO_TOOLS,
         permissions: READ_ONLY_SCOPE,
       };
@@ -292,9 +324,10 @@ export function buildExternalRetrievalPrompt(
   // note when the caller passed something other than what the routing chain
   // should have computed. For now: silent — the executor owns routing.
   void intent;
+  const meta = buildIntentMetadataBlock(intent);
 
   return {
-    systemPrompt: RETRIEVAL_SYSTEM_PROMPT,
+    systemPrompt: `${meta}${RETRIEVAL_SYSTEM_PROMPT}`,
     userPromptTemplate: (rawQuery: string) =>
       `[External retrieval request]\n\n${rawQuery}`,
     toolManifest: RETRIEVAL_TOOLS,
