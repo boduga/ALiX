@@ -1,4 +1,5 @@
 import { TerminalCanvas, type CanvasRect } from './canvas.js';
+import { visibleLen } from './box.js';
 import { computeViewport, HEADER_H, FOOTER_H } from './views/scroll-math.js';
 import { SessionPhase, TAB_ORDER, type TabId, type TuiAppState } from './state.js';
 import type { ViewRenderContext, SlashStrip, TerminalDimensions, TuiView } from './views/types.js';
@@ -141,7 +142,7 @@ export class FramePainter {
     // Header — top divider, content row, bottom divider (full width).
     // Row 0: top rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 0, `\x1b[90m─\x1b[0m`);
-    // Row 1: left "ALiX TUI - Interactive Session" + right-aligned meta
+    // Row 1: left "ALiX TUI - Interactive Session" + centered tabs + right-aligned meta
     c.write(2, 1, `\x1b[32mALiX TUI\x1b[0m\x1b[1m - Interactive Session\x1b[0m`);
     const liveVersion: string | undefined =
       this.deps.opts.agentSession?.getVersion?.();
@@ -162,6 +163,41 @@ export class FramePainter {
       '\x1b[33m';
     const rightText = `\x1b[90mALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${modeColor}${sessionMode}\x1b[0m`;
     const rightLen = `ALiX v${version}  │  Session: ${sessionDisplay}  │  Mode: ${sessionMode}`.length;
+
+    // Centered tab row (rendered onto row 1, between left and right metadata).
+    // Visible width excludes ANSI escape sequences.
+    let tabText = '';
+    for (const id of TAB_ORDER) {
+      const active = id === s.activeTab;
+      tabText += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
+    }
+    const tabWidth = visibleLen(tabText);
+    // Reserve a 1-col gap before right metadata to avoid visual collision.
+    const rightEdgeLimit = dims.columns - rightLen - 1;
+    let tabCol: number;
+    if (2 + tabWidth <= rightEdgeLimit) {
+      tabCol = Math.max(2, Math.floor((dims.columns - tabWidth) / 2));
+    } else {
+      // Collision: truncate tabs with … to keep right metadata intact.
+      // Rebuild from TAB_ORDER tracking visible width, stop before budget.
+      // -1 reserves the trailing ellipsis char.
+      const allowedWidth = Math.max(0, rightEdgeLimit - 2 - 1);
+      let truncated = '';
+      let acc = 0;
+      for (const id of TAB_ORDER) {
+        const active = id === s.activeTab;
+        // Inactive `  ${id}  ` = id.length + 4 visible chars.
+        // Active ` \x1b[7m ${id} \x1b[0m` = id.length + 3 visible chars.
+        const segWidth = id.length + (active ? 3 : 4);
+        if (acc + segWidth > allowedWidth) break;
+        truncated += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
+        acc += segWidth;
+      }
+      tabText = acc > 0 ? `${truncated}…` : '';
+      tabCol = 2;
+    }
+    c.write(tabCol, 1, tabText);
+
     c.write(Math.max(2, dims.columns - rightLen), 1, rightText);
     // Row 2: bottom rule
     for (let i = 0; i < dims.columns; i++) c.write(i, 2, `\x1b[90m─\x1b[0m`);
@@ -169,21 +205,12 @@ export class FramePainter {
     // Blit the view canvas into the main canvas at offset (0, 0).
     c.blit(viewCanvas, 0, 0);
 
-    // Tabs row (with key-hint suffix, right-aligned). Now uses the
-    // full width — no sidebar column to clip against.
-    let tabLine = '';
-    for (const id of TAB_ORDER) {
-      const active = id === s.activeTab;
-      tabLine += active ? ` \x1b[7m ${id} \x1b[0m` : `  ${id}  `;
-    }
+    // Tabs row + key-hint suffix. Tabs moved to header (row 1, centered);
+    // hints overlay the top border (row 0), right-aligned, in dim grey
+    // over the existing ─ rule.
     const tabHintsVisible = '↑/↓ navigate   |   tab next   |   ? help   |   q quit';
     const hintsLen = tabHintsVisible.length;
-    const tabRowBudget = Math.max(0, dims.columns - hintsLen - 1);
-    const tabText = tabLine.length <= tabRowBudget
-      ? tabLine + ' '.repeat(tabRowBudget - tabLine.length)
-      : tabLine.slice(0, tabRowBudget);
-    c.write(0, dims.rows - FOOTER_H, tabText);
-    c.write(dims.columns - hintsLen, dims.rows - FOOTER_H, `\x1b[90m${tabHintsVisible}\x1b[0m`);
+    c.write(Math.max(0, dims.columns - hintsLen), 0, `\x1b[90m${tabHintsVisible}\x1b[0m`);
 
     // Status row — phase radios (left) | pipeline fields (right).
     // Phase radios are workflow-lifecycle signals — they only make sense
@@ -221,10 +248,15 @@ export class FramePainter {
       `RULES: ${ruleCount}`,
       `EVENTS: ${eventsCount}`,
     ];
-    const statusLine = s.activeTab === 'agent'
-      ? `${phaseLine} ${sep} ${fields.join(` ${sep} `)}`
-      : `${sep} ${fields.join(` ${sep} `)}`;
-    c.write(0, dims.rows - 1, statusLine.slice(0, Math.max(0, dims.columns - 2)));
+    // Right-align the pipeline fields at the right edge of the status row.
+    // Phase radios (agent tab only) keep the left side; if they don't fit
+    // alongside the fields, drop the radios so the fields can fill the row.
+    const fieldsText = fields.join(` ${sep} `);
+    const fieldsLen = visibleLen(fieldsText);
+    c.write(Math.max(2, dims.columns - fieldsLen), dims.rows - 1, fieldsText);
+    if (s.activeTab === 'agent' && visibleLen(phaseLine) + 1 + fieldsLen <= dims.columns) {
+      c.write(0, dims.rows - 1, phaseLine);
+    }
 
     // Write the complete frame — cursor home + canvas render.
     this.deps.output.write('\x1b[H' + c.renderFrame());
