@@ -79,7 +79,7 @@ export interface TuiAppOptions {
  * timeline and resets plan/scroll fields — it never needs the full
  * PerTabState, so this type keeps the function honest about its surface.
  */
-type TimelineWritableState = Pick<PerTabState, 'planContent' | 'planTasks' | 'scrollOffset'>;
+type TimelineWritableState = Pick<PerTabState, 'planContent' | 'planTasks' | 'scrollOffset' | 'streamingText' | 'streamingActive'>;
 
 export class TuiApp {
   private state: TuiAppState = createInitialTuiAppState();
@@ -270,6 +270,25 @@ export class TuiApp {
    */
   setActiveTabForTest(tab: TabId): void {
     this.switchTab(tab);
+  }
+
+  /**
+   * Appends one streamed text token to the agent tab's growing pending line
+   * and repaints. Called by the session's `events.onToken` (wired in
+   * `src/cli/commands/tui.ts`) for every token the model streams.
+   *
+   * Gated on `streamingActive` — armed by `dispatchToSession` for the
+   * in-flight agent turn — so tokens arriving after the turn folded (a
+   * timed-out turn still running in the background) cannot resurrect the
+   * line. Also gated on `detached` so a torn-down terminal is never painted.
+   */
+  appendAgentStreamToken(token: string): void {
+    if (this.detached || !this.state.views.agent.streamingActive) return;
+    const per = this.state.views.agent;
+    per.streamingText = (per.streamingText ?? '') + token;
+    // Repaint only when the agent tab is visible — the growing line lives on
+    // the agent tab, so tokens must not repaint an unrelated view every token.
+    if (this.state.activeTab === 'agent') this.paintFullFrame();
   }
 
   // Test seams (mirroring getStateForTest) — delegate to the slash controller.
@@ -705,48 +724,81 @@ export class TuiApp {
     // Clear stale plan content and plan tasks before starting a new turn
     perTab.planContent = undefined;
     perTab.planTasks = undefined;
-    for (const fn of candidates) {
-      if (!fn) continue;
-      try {
-        const result = await this.raceAgentCall(text, fn, timeoutMs, skills);
-        // Detect the chat path's "no provider configured" placeholder and
-        // continue to the next candidate so the agent tab falls through
-        // to its workflow path. Other sentinel responses (empty
-        // strings, "[chat error] ...") similarly indicate the chat path
-        // couldn't help, so the workflow gets a chance.
-        const noHelp = (s: string): boolean => {
-          const t = s.trim();
-          if (!t) return true;
-          if (t.startsWith('[chat:no-provider]')) return true;
-          if (t.startsWith('[chat error]')) return true;
-          if (t.startsWith('[chat] ')) return false; // real echo
-          return false;
-        };
-        if (noHelp(result.summary)) continue;
-        summary = result.summary;
-        // Capture plan content and structured tasks from the session turn result
-        if (result.planContent) {
-          perTab.planContent = result.planContent;
+    // Arm the live-streaming gate for the agent tab: clear any pending line
+    // left by a prior turn, then let onToken appends reach the growing line.
+    // The finally below disarms it (folds) whether the turn succeeds or
+    // errors — a post-timeout straggler token can't resurrect the line.
+    const isAgent = kind === 'agent';
+    if (isAgent) {
+      perTab.streamingActive = true;
+      perTab.streamingText = undefined;
+    }
+    let partialStreamed: string | undefined;
+    try {
+      for (const fn of candidates) {
+        if (!fn) continue;
+        try {
+          const result = await this.raceAgentCall(text, fn, timeoutMs, skills);
+          // Detect the chat path's "no provider configured" placeholder and
+          // continue to the next candidate so the agent tab falls through
+          // to its workflow path. Other sentinel responses (empty
+          // strings, "[chat error] ...") similarly indicate the chat path
+          // couldn't help, so the workflow gets a chance.
+          const noHelp = (s: string): boolean => {
+            const t = s.trim();
+            if (!t) return true;
+            if (t.startsWith('[chat:no-provider]')) return true;
+            if (t.startsWith('[chat error]')) return true;
+            if (t.startsWith('[chat] ')) return false; // real echo
+            return false;
+          };
+          if (noHelp(result.summary)) continue;
+          summary = result.summary;
+          // Capture plan content and structured tasks from the session turn result
+          if (result.planContent) {
+            perTab.planContent = result.planContent;
+          }
+          if (result.planTasks && result.planTasks.length > 0) {
+            perTab.planTasks = result.planTasks;
+          }
+          // Friendly rewrites for known runtime termination reasons so the
+          // operator doesn't see the raw internal "Agent reached maximum
+          // iteration" string or similar.
+          if (result.reason === 'max_iterations') {
+            summary = `(${kind} hit the runtime iteration cap. Try a more specific task, or switch to the chat tab for casual queries.)`;
+          } else if (result.reason === 'rate-limit' || result.reason === 'rate_limit') {
+            summary = `(${kind} was rate-limited by the provider. Wait a moment and retry.)`;
+          }
+          // A successful turn supersedes any partial text captured from an
+          // earlier failed candidate — don't pollute the good summary.
+          partialStreamed = undefined;
+          break;
+        } catch (err) {
+          // Preserve whatever was already streamed so a timeout/error on a
+          // hung turn doesn't silently discard the partial text (fail-soft).
+          // Only the agent tab streams (`streamingText` is never set on chat),
+          // so a plain read is equivalent to a kind guard.
+          partialStreamed = perTab.streamingText;
+          // Stderr is independent of the TUI render — even if paintFullFrame
+          // fails for some reason, the operator sees the failure here.
+          process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
+          summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
+          // Try the next candidate rather than giving up.
         }
-        if (result.planTasks && result.planTasks.length > 0) {
-          perTab.planTasks = result.planTasks;
-        }
-        // Friendly rewrites for known runtime termination reasons so the
-        // operator doesn't see the raw internal "Agent reached maximum
-        // iteration" string or similar.
-        if (result.reason === 'max_iterations') {
-          summary = `(${kind} hit the runtime iteration cap. Try a more specific task, or switch to the chat tab for casual queries.)`;
-        } else if (result.reason === 'rate-limit' || result.reason === 'rate_limit') {
-          summary = `(${kind} was rate-limited by the provider. Wait a moment and retry.)`;
-        }
-        break;
-      } catch (err) {
-        // Stderr is independent of the TUI render — even if paintFullFrame
-        // fails for some reason, the operator sees the failure here.
-        process.stderr.write(`[alix-tui] ${kind} submit error: ${err instanceof Error ? err.message : String(err)}\n`);
-        summary = `(agent error: ${err instanceof Error ? err.message : String(err)})`;
-        // Try the next candidate rather than giving up.
       }
+    } finally {
+      // Fold: drop the pending line — the completed entry (summary, or the
+      // partial text + summary on error) renders in its place, so the history
+      // reads the same whether or not streaming was on.
+      if (isAgent) {
+        perTab.streamingActive = false;
+        perTab.streamingText = undefined;
+      }
+    }
+    // Fail-soft: keep the tokens already streamed visible when the turn
+    // errored/timed out, prefixed to the stamped entry (no orphan line).
+    if (partialStreamed && partialStreamed.length > 0) {
+      summary = `${partialStreamed}\n\n${summary}`;
     }
     // The single log emit stamps the sub-session that matches the submission
     // kind — chat submits route to the chat collector, agent submits to the
