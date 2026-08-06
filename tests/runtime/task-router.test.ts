@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { taskRouter, isGroundedChatTask } from "../../src/runtime/task-router.js";
+import type { ModelAdapter } from "../../src/providers/types.js";
 
 describe("taskRouter", async () => {
   // ── Tool routes (shell commands) ──
@@ -348,5 +349,92 @@ describe("isGroundedChatTask", async () => {
 
   it("rejects empty string", async () => {
     assert.ok(!isGroundedChatTask(""));
+  });
+});
+
+describe("taskRouter — Layer 2 confidence floor (T24 #402)", () => {
+  // Layer 1 returns ambiguous / 0.5 for this prompt, so the model fallback
+  // gate (intent === "ambiguous" || confidence < 0.7) is exercised.
+  const AMBIGUOUS_PROMPT = "please handle this task";
+
+  /** Mock classifier provider returning a fixed raw classification text. */
+  function classifierProviderReturning(text: string): ModelAdapter {
+    return {
+      id: "mock-classifier",
+      capabilities: {
+        provider: "mock",
+        model: "mock-model",
+        inputTokenLimit: 1000,
+        outputTokenLimit: 1000,
+        supportsTools: false,
+        supportsStreaming: false,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+      },
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      complete: async () => ({ text, toolCalls: [] }),
+    };
+  }
+
+  it("trusted model classification (confidence ≥ floor) routes as the model intent", async () => {
+    const provider = classifierProviderReturning(
+      '{"intent":"workspace_mutation","confidence":0.9}',
+    );
+    const r = await taskRouter(AMBIGUOUS_PROMPT, { classifierProvider: provider });
+    assert.equal(r.kind, "agent");
+    assert.equal(
+      r.kind === "agent" ? r.diagnostic.classification : undefined,
+      "workspace_mutation",
+    );
+  });
+
+  it("below-floor model classification never routes as the model intent", async () => {
+    const provider = classifierProviderReturning(
+      '{"intent":"workspace_mutation","confidence":0.4}',
+    );
+    const r = await taskRouter(AMBIGUOUS_PROMPT, { classifierProvider: provider });
+    // Falls through to the safe default — the Layer-1 ambiguous label wins.
+    assert.equal(r.kind, "agent");
+    assert.equal(
+      r.kind === "agent" ? r.diagnostic.classification : undefined,
+      "ambiguous",
+    );
+  });
+
+  it("missing confidence → default 0 → below floor → ambiguous", async () => {
+    const provider = classifierProviderReturning('{"intent":"workspace_mutation"}');
+    const r = await taskRouter(AMBIGUOUS_PROMPT, { classifierProvider: provider });
+    assert.notEqual(
+      r.kind === "agent" ? r.diagnostic.classification : undefined,
+      "workspace_mutation",
+    );
+  });
+
+  it("model classifier unavailable → ambiguous → safe default route", async () => {
+    const provider: ModelAdapter = {
+      id: "mock-classifier-error",
+      capabilities: {
+        provider: "mock",
+        model: "mock-model",
+        inputTokenLimit: 1000,
+        outputTokenLimit: 1000,
+        supportsTools: false,
+        supportsStreaming: false,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+      },
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      complete: async () => {
+        throw new Error("timeout");
+      },
+    };
+    const r = await taskRouter(AMBIGUOUS_PROMPT, { classifierProvider: provider });
+    assert.equal(r.kind, "agent");
+    assert.equal(
+      r.kind === "agent" ? r.diagnostic.classification : undefined,
+      "ambiguous",
+    );
   });
 });

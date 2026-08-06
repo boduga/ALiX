@@ -12,6 +12,7 @@ import {
   classifyActionWithConfidence,
   modelClassifyAction,
   CONFIDENCE_THRESHOLD,
+  MODEL_CONFIDENCE_THRESHOLD,
   type ActionIntent,
   type ActionClassification,
 } from "./action-classifier.js";
@@ -446,8 +447,17 @@ export async function taskRouter(
     (classification.intent === "ambiguous" || classification.confidence < CONFIDENCE_THRESHOLD)
   ) {
     const modelResult = await modelClassifyAction(task, opts.classifierProvider);
-    // Use the model's classification instead of the deterministic result.
-    if (modelResult.intent !== "ambiguous") {
+    // T24 (#402): enforce the Layer-2 confidence floor. A model label is
+    // trusted only when it is a valid non-ambiguous intent AND carries
+    // confidence at or above MODEL_CONFIDENCE_THRESHOLD. Below the floor (or
+    // with a missing/zeroed confidence, which T23 defaults to 0) the label is
+    // treated as ambiguous and falls through to the safe default route — a
+    // low-confidence model misclassification can never route a read-only
+    // prompt into the mutation path.
+    const modelConfidence = modelResult.confidence ?? 0;
+    const modelTrusted =
+      modelResult.intent !== "ambiguous" && modelConfidence >= MODEL_CONFIDENCE_THRESHOLD;
+    if (modelTrusted) {
       // Route based on the model's classification.
       if (modelResult.intent === "workspace_action" || modelResult.intent === "workspace_mutation") {
         return {

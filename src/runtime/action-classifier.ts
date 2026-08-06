@@ -746,6 +746,18 @@ const MODEL_VALID_INTENTS: ActionIntent[] = [
 const MODEL_CONFIDENCE_DEFAULT = 0;
 
 /**
+ * T24 (#402): minimum confidence a model classification must carry to be
+ * trusted for routing. Below this floor (or with a missing/zeroed confidence,
+ * which defaults to `MODEL_CONFIDENCE_DEFAULT`), the model label is treated
+ * as `ambiguous` and falls through to the safe default route — never a
+ * high-risk path (e.g. a read-only prompt mislabeled as workspace_mutation).
+ *
+ * Mirrors the Layer-1 `CONFIDENCE_THRESHOLD` (0.7) but is a distinct constant
+ * so the two floors can be tuned independently.
+ */
+export const MODEL_CONFIDENCE_THRESHOLD = 0.7;
+
+/**
  * Extract the first balanced JSON object `{...}` from arbitrary text.
  *
  * T23 #401: models may wrap output in code fences (```json ... ```) or add
