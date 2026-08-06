@@ -438,3 +438,100 @@ describe("taskRouter — Layer 2 confidence floor (T24 #402)", () => {
     );
   });
 });
+
+describe("taskRouter — Layer-1→Layer-2 gate closed-world (T25 #403)", () => {
+  const AMBIGUOUS_PROMPT = "please handle this task";
+
+  /** Classifier provider mock that records whether complete() was invoked. */
+  function countingClassifierProvider(
+    text: string,
+  ): { provider: ModelAdapter; getCalls: () => number } {
+    let calls = 0;
+    const provider: ModelAdapter = {
+      id: "mock-classifier",
+      capabilities: {
+        provider: "mock",
+        model: "mock-model",
+        inputTokenLimit: 1000,
+        outputTokenLimit: 1000,
+        supportsTools: false,
+        supportsStreaming: false,
+        supportsStructuredOutput: false,
+        supportsVision: false,
+      },
+      editFormatPreference: "structured_patch",
+      longContextStrategy: "trimmed_context",
+      complete: async () => {
+        calls++;
+        return { text, toolCalls: [] };
+      },
+    };
+    return { provider, getCalls: () => calls };
+  }
+
+  it("high-confidence Layer-1 result never calls the model", async () => {
+    // "run npm test" → shell_execution, confidence 0.9 (≥ 0.7). Routes via
+    // the deterministic tool path. Even with a provider configured, the gate
+    // must not invoke the model.
+    const { provider, getCalls } = countingClassifierProvider(
+      '{"intent":"generation","confidence":0.9}',
+    );
+    const r = await taskRouter("run npm test", { classifierProvider: provider });
+    assert.equal(r.kind, "tool");
+    assert.equal(getCalls(), 0);
+  });
+
+  it("ambiguous Layer-1 result + provider configured → model called", async () => {
+    const { provider, getCalls } = countingClassifierProvider(
+      '{"intent":"generation","confidence":0.9}',
+    );
+    const r = await taskRouter(AMBIGUOUS_PROMPT, { classifierProvider: provider });
+    assert.equal(getCalls(), 1);
+    assert.equal(r.kind, "direct");
+    assert.equal(
+      r.kind === "direct" ? r.diagnostic.classification : undefined,
+      "generation",
+    );
+  });
+
+  it("no provider configured → model never called, legacy fallback used", async () => {
+    // No classifierProvider → gate short-circuits on opts?.classifierProvider.
+    // Falls through to the legacy classifyTask path (returns agent + ambiguous
+    // diagnostic for this prompt).
+    const r = await taskRouter(AMBIGUOUS_PROMPT);
+    assert.equal(r.kind, "agent");
+    assert.equal(
+      r.kind === "agent" ? r.diagnostic.classification : undefined,
+      "ambiguous",
+    );
+  });
+
+  it("audit: every non-ambiguous intent classifies at confidence ≥ threshold", async () => {
+    // Audit finding (T25 #403): confidenceForIntent assigns every non-ambiguous
+    // intent a fixed confidence ≥ 0.75, above CONFIDENCE_THRESHOLD (0.7). The
+    // gate's second arm (`confidence < CONFIDENCE_THRESHOLD`) is therefore
+    // unreachable today — the effective gate is `intent === "ambiguous"`. This
+    // test pins the property so a future confidence change that drops an
+    // intent below 0.7 (making the second arm live again) is caught.
+    const { classifyActionWithConfidence, CONFIDENCE_THRESHOLD } = await import(
+      "../../src/runtime/action-classifier.js"
+    );
+    const prompts = [
+      "write a poem", // generation
+      "what's the difference between A and B", // read_only_analysis
+      "how should I approach this", // planning
+      "install curl", // workspace_mutation
+      "run npm test", // shell_execution
+      "2+2", // arithmetic
+      "latest Node.js version", // external_retrieval
+    ];
+    for (const prompt of prompts) {
+      const { intent, confidence } = classifyActionWithConfidence(prompt);
+      assert.notEqual(intent, "ambiguous");
+      assert.ok(
+        confidence >= CONFIDENCE_THRESHOLD,
+        `${prompt} → ${intent} @ ${confidence} should be ≥ ${CONFIDENCE_THRESHOLD}`,
+      );
+    }
+  });
+});
