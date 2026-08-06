@@ -23,6 +23,7 @@ import {
   evaluateArithmetic,
   type ActionClassification,
 } from "../../src/runtime/action-classifier.js";
+import { taskRouter } from "../../src/runtime/task-router.js";
 
 // ── Pure arithmetic parsing ─────────────────────────────────────────
 
@@ -299,6 +300,137 @@ describe("classifyAction — ambiguous / defaults", () => {
   it("returns ambiguous for plain prose with no signals", () => {
     const result = classifyAction("tell me something nice");
     assert.equal(result.intent, "ambiguous");
+  });
+});
+
+// ── Canonical-intent chain — closed-world invariant ──────────────────
+
+// These tests pin the canonical-intent chain invariant documented in
+// docs/intent-contracts/canonical-taxonomy.md. Each test asserts:
+//   - Layer 1 emits the expected ActionIntent (no model fallback)
+//   - Layer 3 taskRouter returns the expected TaskRoute.kind
+//   - The (intent, kind) pair matches the ownership matrix in that doc
+//
+// No model provider is supplied to taskRouter, so the chain stays
+// deterministic. This is the mechanical pin for the no-reclassification
+// rule: any site that re-derives intent from raw prompt text would break
+// one of these tests if the route diverged from the canonical intent.
+
+const CANONICAL_CASES: ReadonlyArray<{
+  intent: "arithmetic" | "standalone_generation" | "workspace_action" |
+          "external_retrieval" | "ambiguous";
+  kind: "direct" | "tool" | "chat" | "grounded_chat" | "agent";
+  prompt: string;
+  note: string;
+}> = [
+  // arithmetic → direct with numeric answer
+  {
+    intent: "arithmetic",
+    kind: "direct",
+    prompt: "2 + 2",
+    note: "canonical: arithmetic",
+  },
+  // generation → direct (single model call)
+  {
+    intent: "standalone_generation",
+    kind: "direct",
+    prompt: "Write a Fibonacci function in Python that returns the sequence",
+    note: "canonical: generation (GENERATION_SIGNALS 'in Python' hit)",
+  },
+  // external_retrieval → grounded_chat
+  {
+    intent: "external_retrieval",
+    kind: "grounded_chat",
+    prompt: "latest Kubernetes release version",
+    note: "canonical: external_retrieval (latest keyword)",
+  },
+  // workspace_state (workspace_action subset) → agent
+  {
+    intent: "workspace_action",
+    kind: "agent",
+    prompt: "is curl installed on this machine",
+    note: "canonical: workspace_state (WORKSPACE_ANCHORS hit)",
+  },
+  // workspace_mutation (workspace_action subset; currently ambiguous →
+  // legacy workspace-write carve-out → agent). Any prompt with a
+  // path-shaped target is captured by FILE_WRITE/DELETE patterns first
+  // and routes to tool/shell.run, so use a prompt with no file-shaped
+  // target that still matches hasWorkspaceWriteIntent.
+  {
+    intent: "ambiguous",
+    kind: "agent",
+    prompt: "remove the cache from npm",
+    note: "canonical: workspace_mutation (hasWorkspaceWriteIntent carve-out at task-router.ts:475)",
+  },
+  // shell_execution → tool via isShellTask (line 377)
+  {
+    intent: "ambiguous",
+    kind: "tool",
+    prompt: "ls",
+    note: "canonical: shell_execution (isShellTask exact match)",
+  },
+  // shell_execution via natural-language phrase (line 386)
+  {
+    intent: "ambiguous",
+    kind: "tool",
+    prompt: "list files",
+    note: "canonical: shell_execution (NATURAL_SHELL_MAP phrase)",
+  },
+  // read_only_analysis → chat via legacy fallback classifyTask research
+  // (line 485 — Layer 2 read in routing fallback; documented in
+  // canonical-taxonomy.md Finding 3)
+  {
+    intent: "ambiguous",
+    kind: "chat",
+    prompt: "what is dependency injection",
+    note: "canonical: read_only_analysis (legacy fallback → chat)",
+  },
+];
+
+describe("canonical-intent chain — closed-world invariant", () => {
+  for (const c of CANONICAL_CASES) {
+    it(`${c.note}: classifyAction(${JSON.stringify(c.prompt)}) → ${c.intent}`, () => {
+      const result = classifyActionWithConfidence(c.prompt);
+      assert.equal(result.intent, c.intent);
+    });
+
+    it(`${c.note}: taskRouter(${JSON.stringify(c.prompt)}) → kind:"${c.kind}"`, async () => {
+      const route = await taskRouter(c.prompt);
+      assert.equal(route.kind, c.kind);
+    });
+  }
+
+  // No-reclassification invariant: two prompts with different
+  // canonical intents produce structurally different routes. This is
+  // the mechanical pin for the chain — any site that re-derives
+  // intent from raw prompt text would break this.
+  it("two prompts with different canonical intents route differently", async () => {
+    const arithmeticRoute = await taskRouter("2 + 2");
+    const retrievalRoute = await taskRouter("latest Kubernetes release version");
+    assert.equal(arithmeticRoute.kind, "direct");
+    assert.equal(retrievalRoute.kind, "grounded_chat");
+    assert.notEqual(arithmeticRoute.kind, retrievalRoute.kind);
+  });
+
+  // Determinism invariant: taskRouter is deterministic when no provider
+  // is supplied. Same input → same route, repeatedly.
+  it("taskRouter is deterministic without a classifierProvider", async () => {
+    const a = await taskRouter("is curl installed on this machine");
+    const b = await taskRouter("is curl installed on this machine");
+    assert.deepEqual(a, b);
+  });
+
+  // Chain integrity: workspace_state positive corpus routes to agent,
+  // not to direct (the bug pattern from T1 — direct + one-line prompt
+  // caused the "I don't have direct access to your system" refusal).
+  it("workspace_state probe routes to agent, not direct", async () => {
+    const route = await taskRouter("is curl installed");
+    assert.equal(route.kind, "agent");
+    if (route.kind === "agent") {
+      // The agent route carries the prompt; direct would carry a
+      // hardcoded "Answer concisely." prompt at session.ts:973.
+      assert.ok("task" in route, "agent route must carry the raw task");
+    }
   });
 });
 
